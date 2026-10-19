@@ -144,7 +144,8 @@ public final class CypherTiming {
         int chars = SQL.stream().mapToInt(String::length).sum();
         ROWS.add(String.join("\t", "CASE", graph, key, status, ms(wall), ms(PHASES[0]), ms(PHASES[1]),
                 ms(PHASES[2]), ms(threadCpu), ms(processCpu), String.valueOf(SQL.size()), String.valueOf(chars)));
-        if (wall > 1_000_000_000L && LANE[1] != null && SLOW[0] < 40) {
+        String dump = System.getProperty("cypher.timing.sql");
+        if ((wall > 1_000_000_000L || dump != null && key.startsWith(dump)) && LANE[1] != null && SLOW[0] < 40) {
             SLOW[0] += 1;
             try {
                 Files.writeString(Path.of(LANE[1]).resolve(String.format(Locale.ROOT, "slow-%s-%02d.sql", LANE[0],

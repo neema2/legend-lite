@@ -790,7 +790,7 @@ public final class CypherToPure {
     public static ValueSpecification translate(CypherAst.Statement statement, Model model) {
         CypherToPure t = new CypherToPure(model);
         t.leading = leadingUse(statement);
-        return t.statement(statement);
+        return Shares.bind(t.statement(statement));
     }
 
     /** The refusal of a {@code USE} naming no DataSpace of the model (the seam's, at the clause's place). */
@@ -13563,16 +13563,36 @@ public final class CypherToPure {
     }
 
     /** A local time of nanosecond precision from its nanoseconds since midnight. */
-    private static Tx splitTime(Tx ofDay) {
+    private static Tx splitTime(Tx parts) {
+        Tx ofDay = shared(parts);
         return new Tx(ofDay.vs(), Kind.TIME, ofDay.nullable(), null, new Carried(null, true, null, new Parts(null)),
                 ofDay.guard(), ofDay.body());
     }
 
     /** A local date-time of nanosecond precision from its date and its nanoseconds since midnight (each present
      *  exactly when the other is). */
-    private static Tx splitDateTime(Tx date, Tx ofDay) {
+    private static Tx splitDateTime(Tx datePart, Tx nanos) {
+        Tx date = shared(datePart);
+        Tx ofDay = shared(nanos);
         return new Tx(ofDay.vs(), Kind.DATETIME, ofDay.nullable() || date.nullable(), null, new Carried(null, true,
                 null, new Parts(date)), ofDay.guard(), ofDay.body());
+    }
+
+    /** A split value's part as a value its readers share ({@link Shares#share}): every operation over the value reads
+     *  each part more than once (its NULL guard and its value, a date and a clock both from the same total), so a
+     *  chain of them written out repeats each part at each step (lite/temporal/nanos_arithmetic was 33.7 MB of SQL).
+     *  A part is NULL-safe: NULL on NULL inputs, its own guard's. A strict part's body is marked too, what an
+     *  operation merging the part's guard into its own reads ({@link SqlToPure#strict}). */
+    private static Tx shared(Tx part) {
+        ValueSpecification guard = part.guard();
+        ValueSpecification body = part.body();
+        if (guard == null || body == null) {
+            return new Tx(Shares.share(part.vs()), part.kind(), part.nullable(), part.whenFalse(), part.detail(),
+                    guard, body);
+        }
+        ValueSpecification marked = Shares.share(body);
+        return new Tx(Shares.share(call("if", guard, thunk(SqlToPure.empty()), thunk(marked))),
+                part.kind(), part.nullable(), part.whenFalse(), part.detail(), guard, marked);
     }
 
     /** A time of day's or a date-time's nanoseconds since midnight, an Integer: a split value's own; a microsecond
@@ -13630,7 +13650,8 @@ public final class CypherToPure {
     /** A zoned time of day of nanosecond precision from its UTC nanoseconds since the epoch day's midnight (below 0,
      *  or past a day, where the offset carries the wall time across midnight: so two order as their instants, as
      *  §12.11's instants on the epoch day do), the offset beside. */
-    private static Tx splitZonedTime(Tx utcNanos, @com.legend.base.Nullable Zone z) {
+    private static Tx splitZonedTime(Tx nanos, @com.legend.base.Nullable Zone z) {
+        Tx utcNanos = shared(nanos);
         return new Tx(utcNanos.vs(), Kind.ZONED_TIME, utcNanos.nullable(), null, new Carried(z, true, null,
                 new Parts(null)), utcNanos.guard(), utcNanos.body());
     }
@@ -13684,7 +13705,7 @@ public final class CypherToPure {
     /** The microsecond instant (Pure's DateTime) at a split date-time's parts, the digits past the microsecond
      *  dropped: what a region's rules read (an offset changes on a whole second). */
     private static ValueSpecification micros(ValueSpecification date, ValueSpecification ofDay) {
-        return call("adjust", call(AT_TIME, date, MIDNIGHT), integer(quotient(ofDay, 1000L)), unit("MICROSECONDS"));
+        return Shares.share(call("adjust", call(AT_TIME, date, MIDNIGHT), integer(quotient(ofDay, 1000L)), unit("MICROSECONDS")));
     }
 
     /** A zoned date-time's instant in microseconds (a strict body's reading, {@code toOne} where it may be absent):
@@ -13758,9 +13779,10 @@ public final class CypherToPure {
     private static Tx shiftedParts(Tx t, java.util.function.BinaryOperator<ValueSpecification> offset,
             int direction) {
         List<Tx> parts = List.of(datePartOf(t), ofDay(t));
+        // (the total both the clock and the date read, one value: Shares)
         java.util.function.Function<List<ValueSpecification>, ValueSpecification> total = v -> {
             ValueSpecification by = secondsAsNanos(offset.apply(v.get(0), v.get(1)));
-            return integer(direction > 0 ? plus(v.get(1), by) : minus(v.get(1), by));
+            return Shares.share(integer(direction > 0 ? plus(v.get(1), by) : minus(v.get(1), by)));
         };
         Tx clock = SqlToPure.strict(Kind.INTEGER, parts, v -> integer(call("mod", total.apply(v), lit(DAY_NANOS))));
         Tx date = SqlToPure.strict(Kind.DATE, parts, v -> day(call("adjust", v.get(0), integer(quotient(
@@ -14135,7 +14157,7 @@ public final class CypherToPure {
 
     /** A date as ISO text, {@code yyyy-MM-dd}, every field the database's ({@link #yearText}'s year). */
     private static ValueSpecification dateText(ValueSpecification date, boolean expanded) {
-        return plus(yearText(call("year", date), expanded), new CString("-"), two(call("monthNumber", date)),
+        return plus(yearText(Shares.share(call("year", date)), expanded), new CString("-"), two(call("monthNumber", date)),
                 new CString("-"), two(call("dayOfMonth", date)));
     }
 
@@ -14274,11 +14296,13 @@ public final class CypherToPure {
      *  instant is read, and the instant it names kept where it is earlier and names the same wall time; a gap's
      *  reading is the database's, as java.time's. */
     private static ValueSpecification regionInstant(ValueSpecification wall, ValueSpecification zoneName) {
-        ValueSpecification later = call(INSTANT_IN, wall, zoneName);
-        ValueSpecification dayBefore = call("adjust", later, lit(-1), days());
+        // (each value read more than once one value: Shares)
+        ValueSpecification later = Shares.share(call(INSTANT_IN, wall, zoneName));
+        ValueSpecification dayBefore = Shares.share(call("adjust", later, lit(-1), days()));
         ValueSpecification offsetBefore = call("dateDiff", dayBefore, call(LOCAL_IN, dayBefore, zoneName),
                 unit("SECONDS"));
-        ValueSpecification earlier = call("adjust", wall, integer(minus(lit(0), offsetBefore)), unit("SECONDS"));
+        ValueSpecification earlier = Shares.share(call("adjust", wall, integer(minus(lit(0), offsetBefore)),
+                unit("SECONDS")));
         return call("if", call("and", call("lessThan", earlier, later), call("equal", call(LOCAL_IN, earlier,
                 zoneName), wall)), thunk(earlier), thunk(later));
     }
