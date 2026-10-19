@@ -11368,9 +11368,17 @@ landed.
    260 documents) and `validity/validity.jsonl` with lite's half of the differential.
 2. **Judges.** `GraphqlMcpTest` 5, `GqlEvaluationTest` 3, `GqlValidityTest` 2, `GraphqlApiTest` +1: 87
    GraphQL tests. Green on this tree after its last change: the server, root, compiler, protocol and normalizer
-   packages; `//core:guardrails`, `//core:census`, `//tools/deps:core_layering_test`. The full local gate:
-   GATE6_PLACEHOLDER
-3. **What the gates taught.** GATE6_LESSON
+   packages; `//core:guardrails`, `//core:census`, `//tools/deps:core_layering_test`; `//spec:corpus_duckdb`;
+   `//core:cypher_parity_test` and `//core:cypher_parity_postgres_test` (the fifth landing's regression, fixed
+   here); the parser, resolver, lowering, integration, architecture, ide and lineage packages; the two regenerated
+   ledgers' tests. The full local gate runs on this landing's commit, frozen, and the entry is amended with its
+   count.
+3. **What the gates taught.** The graphql-js differential paid for itself on its first run: lite's validator let
+   `__schema { queryTypes { name } }` through (the answerer refused it later, at the endpoint), which graphql-js
+   refuses; G1's subset rule is now checked on 260 documents, and the validator runs the answerer over the
+   introspection roots. The guards named every new surface for its register (the server's funnel register, the
+   broad-catch and catch-returns-value pins): the MCP transport's parse error is its one designed sentinel, and a
+   tool's refusal is the route's answer, not a catch.
 4. **Next.** The agent run of the forty tasks when a model is at hand; nested groups; the Prisma oracle.
 
 ## 2026-10-19 — GraphQL: the fifth landing — groups (the twelfth line)
