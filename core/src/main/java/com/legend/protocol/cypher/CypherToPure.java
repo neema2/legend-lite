@@ -790,7 +790,7 @@ public final class CypherToPure {
     public static ValueSpecification translate(CypherAst.Statement statement, Model model) {
         CypherToPure t = new CypherToPure(model);
         t.leading = leadingUse(statement);
-        return t.statement(statement);
+        return SharedValues.hoist(t.statement(statement));
     }
 
     /** The refusal of a {@code USE} naming no DataSpace of the model (the seam's, at the clause's place). */
