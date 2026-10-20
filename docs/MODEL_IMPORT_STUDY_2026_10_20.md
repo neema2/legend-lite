@@ -442,7 +442,13 @@ All three are `POST /api/lite/v1/model/...` routes beside `createClass`, answere
 
 On 2026-10-20, under Bazel, in a cloud session set up by docs/CLOUD_SESSIONS.md: `//json:tests`,
 `//core:core_tests_protocol`, `//core:core_tests_server`, `//core:core_tests_architecture`, `//core:guardrails` and
-`//tools/deps:core_layering_test` passed, with NullAway and Error Prone; `//wasm:planner` built. The guardrails found
+`//tools/deps:core_layering_test` passed, with NullAway and Error Prone; `//wasm:planner` built. Then the local gate's
+`checks` and `core` lanes (`//gates:checks //gates:core`, 188 tests): 187 passed, the seven Postgres tests run as an
+unprivileged user as `tools/postgres/as_unprivileged.sh` says (the container runs as root, which `initdb` refuses),
+and `//tools/guards:classpath_test` is incompatible with this platform. Its one finding, parser-equivalence's
+`own_corpus.matched` (2882 to 2892: `ModelImportTest`'s models matching the reference parser), is regenerated. The
+gate's other lanes (`warehouse_jvm`, `datacube`, `ui`, `sdlc`) did not fit the session's disk; this line changes none
+of their code. The guardrails found
 what the earlier, outside-Bazel runs had not: the drop-in surface's text rule (`DropInSurfaceTextRuleTest`, no regex
 in `protocol`: the reader's nine regex calls, four of them from the first build, are now character tests) and
 TeaVM's `isBlank`.
