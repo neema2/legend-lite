@@ -27,6 +27,8 @@ class FuzzProbeTest {
         long seed = 0;
         Map<String, Integer> clusters = new LinkedHashMap<>();
         Map<String, String> examples = new LinkedHashMap<>();
+        Map<String, Integer> kinds = new java.util.TreeMap<>();
+        Map<String, java.util.List<String>> originals = new LinkedHashMap<>();
         int agree = 0;
         long t0 = System.nanoTime();
         try (Connection c = TestBackends.platform().open()) {
@@ -40,6 +42,22 @@ class FuzzProbeTest {
                     "Product.category", List.of("BOOKS", "TOYS", "GARDEN")));
             for (int i = 0; i < n; i++) {
                 Fuzz.GDoc d = f.document();
+                try {
+                    Reference.answer(ShopReference.MODEL, d.render(), null, null);
+                    kinds.merge("answered", 1, Integer::sum);
+                } catch (Reference.Refused rf) {
+                    kinds.merge("refused: " + rf.getMessage().replaceAll("[0-9]+", "N").replaceAll("\\[.*", ""), 1,
+                            Integer::sum);
+                } catch (Reference.Undetermined ud) {
+                    kinds.merge("undetermined", 1, Integer::sum);
+                } catch (RuntimeException re) {
+                    kinds.merge("reference threw: " + re, 1, Integer::sum);
+                }
+                for (String root : List.of("Aggregate", "Groups", "... on", "...F", "@include", "@skip", ": ")) {
+                    if (d.render().contains(root)) {
+                        kinds.merge("feature " + root, 1, Integer::sum);
+                    }
+                }
                 String v = Fuzz.verdict(h, ShopReference.MODEL, d.render());
                 if (v == null) {
                     agree++;
@@ -47,6 +65,7 @@ class FuzzProbeTest {
                 }
                 String sig = Fuzz.signature(v);
                 clusters.merge(sig, 1, Integer::sum);
+                originals.computeIfAbsent(sig, k -> new java.util.ArrayList<>()).add(d.render() + "\n       " + v);
                 if (!examples.containsKey(sig)) {
                     Fuzz.GDoc small = Fuzz.shrink(h, ShopReference.MODEL, d, 150);
                     examples.put(sig, small.render() + "\n     " + Fuzz.verdict(h, ShopReference.MODEL, small.render()));
@@ -56,10 +75,18 @@ class FuzzProbeTest {
         }
         StringBuilder out = new StringBuilder();
         out.append(n).append(" documents, seed ").append(seed).append(": ").append(agree).append(" agree, ")
-                .append(String.format(java.util.Locale.ROOT, "%.1f s", (System.nanoTime() - t0) / 1e9)).append("\n\n");
+                .append(String.format(java.util.Locale.ROOT, "%.1f s", (System.nanoTime() - t0) / 1e9)).append("\n");
+        for (Map.Entry<String, Integer> k : kinds.entrySet()) {
+            out.append("  ").append(k.getValue()).append("  ").append(k.getKey()).append("\n");
+        }
+        out.append("\n");
         for (Map.Entry<String, Integer> e : clusters.entrySet()) {
             out.append(e.getValue()).append("x  ").append(e.getKey()).append("\n     ")
-                    .append(examples.get(e.getKey())).append("\n\n");
+                    .append(examples.get(e.getKey())).append("\n");
+            for (String o : originals.get(e.getKey()).subList(0, Math.min(3, originals.get(e.getKey()).size()))) {
+                out.append("   original: ").append(o).append("\n");
+            }
+            out.append("\n");
         }
         Files.writeString(Path.of("/tmp/fuzz-report.md"), out.toString());
     }

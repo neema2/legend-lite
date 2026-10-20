@@ -67,13 +67,20 @@ public final class Fuzz {
         }
     }
 
-    record GSel(String name, GObj args, List<GSel> sub) {
+    /** A selection: {@code name} may carry an alias ({@code "a1: name"}) or be a fragment spread or an inline
+     *  fragment ({@code "...F1"}, {@code "... on Customer"}); {@code suffix} is a directive ({@code @include(...)}). */
+    record GSel(String name, GObj args, List<GSel> sub, String suffix) {
+        GSel(String name, GObj args, List<GSel> sub) {
+            this(name, args, sub, "");
+        }
+
         String render() {
             StringBuilder b = new StringBuilder(name);
             if (args != null && !args.fields().isEmpty()) {
                 String a = args.render();
                 b.append('(').append(a, 2, a.length() - 2).append(')');
             }
+            b.append(suffix);
             if (!sub.isEmpty()) {
                 b.append(" {");
                 for (GSel s : sub) {
@@ -85,9 +92,22 @@ public final class Fuzz {
         }
     }
 
-    record GDoc(GSel root) {
+    /** A document: its root fields, and the named fragments they spread (each rendered whole). */
+    record GDoc(List<GSel> roots, List<String> fragments) {
+        GDoc(GSel root) {
+            this(List.of(root), List.of());
+        }
+
         String render() {
-            return "{ " + root.render() + " }";
+            StringBuilder b = new StringBuilder();
+            for (String f : fragments) {
+                b.append(f).append(' ');
+            }
+            b.append("{");
+            for (GSel r : roots) {
+                b.append(' ').append(r.render());
+            }
+            return b.append(" }").toString();
         }
     }
 
@@ -168,9 +188,111 @@ public final class Fuzz {
         });
     }
 
+    /** Named fragments the document being generated defines. */
+    private final List<String> fragments = new ArrayList<>();
+    private int aliasCount;
+
     GDoc document() {
-        String cls = pick(new ArrayList<>(model.classes.keySet()));
-        return new GDoc(listField(cls, cls, 0));
+        fragments.clear();
+        aliasCount = 0;
+        List<GSel> roots = new ArrayList<>();
+        int n = chance(0.15) ? 2 : 1;
+        for (int i = 0; i < n; i++) {
+            String cls = pick(new ArrayList<>(model.classes.keySet()));
+            double x = r.nextDouble();
+            GSel root = x < 0.12 ? rootAggregate(cls) : x < 0.24 ? groupsField(cls) : listField(cls, cls, 0);
+            // a second root field is aliased: two roots of one name would merge or conflict
+            roots.add(i == 0 ? root : renamed(root, "r" + i + ": " + root.name()));
+        }
+        return new GDoc(roots, List.copyOf(fragments));
+    }
+
+    static GSel renamed(GSel s, String name) {
+        return new GSel(name, s.args(), s.sub(), s.suffix());
+    }
+
+    /** {@code CustomerAggregate(where: W) { count sum { ... } ... }}. */
+    GSel rootAggregate(String cls) {
+        GSel nested = aggregateField(cls, cls);
+        return new GSel(cls + "Aggregate", nested.args(), nested.sub());
+    }
+
+    /** {@code CustomerGroups(where, having, orderBy, limit, offset) { key { ... } count sum { ... } }}: keys over
+     *  the class's scalars and one to-one hop, a date key truncated now and then. */
+    GSel groupsField(String cls) {
+        List<GSel> keys = new ArrayList<>();
+        List<List<String>> keyPaths = new ArrayList<>();
+        List<String> scalars = new ArrayList<>();
+        for (String f : filterable(cls)) {
+            Kind k = ((Scalar) model.get(cls).fields.get(f)).kind();
+            if (k != Kind.FLOAT && k != Kind.DECIMAL) {
+                scalars.add(f);
+            }
+        }
+        if (scalars.isEmpty()) {
+            scalars.addAll(filterable(cls));
+        }
+        int nk = 1 + r.nextInt(2);
+        Set<String> used = new LinkedHashSet<>();
+        for (int i = 0; i < nk; i++) {
+            List<String> ones = toOnes(cls);
+            if (!ones.isEmpty() && chance(0.3)) {
+                String f = pick(ones);
+                String target = ((ToOne) model.get(cls).fields.get(f)).target();
+                List<String> ts = new ArrayList<>();
+                for (String g : filterable(target)) {
+                    Kind k = ((Scalar) model.get(target).fields.get(g)).kind();
+                    if (k == Kind.ENUM || k == Kind.STRING || k == Kind.BOOLEAN) {
+                        ts.add(g);
+                    }
+                }
+                if (!ts.isEmpty() && used.add(f)) {
+                    String g = pick(ts);
+                    keys.add(new GSel(f, null, List.of(new GSel(g, null, List.of()))));
+                    keyPaths.add(List.of(f, g));
+                }
+                continue;
+            }
+            String f = pick(scalars);
+            if (!used.add(f)) {
+                continue;
+            }
+            Kind k = ((Scalar) model.get(cls).fields.get(f)).kind();
+            GObj args = (k == Kind.DATE || k == Kind.DATETIME) && chance(0.5)
+                    ? obj(List.of(e("truncate", new GLit(pick(List.of("YEAR", "QUARTER", "MONTH", "DAY"))))))
+                    : null;
+            keys.add(new GSel(f, args, List.of()));
+            keyPaths.add(List.of(f));
+        }
+        List<GSel> sel = new ArrayList<>();
+        sel.add(new GSel("key", null, keys));
+        GSel agg = aggregateField(cls, cls);
+        sel.addAll(agg.sub());
+        List<Map.Entry<String, GV>> args = new ArrayList<>();
+        if (chance(0.5)) {
+            args.add(e("where", where(cls, 2)));
+        }
+        if (chance(0.3)) {
+            GObj bound = obj(List.of(e(pick(List.of("gte", "lt", "equals")), new GLit(Integer.toString(r.nextInt(4))))));
+            args.add(e("having", obj(List.of(e("count", bound)))));
+        }
+        // a total order over the groups: every selected key, the count first now and then
+        List<GV> order = new ArrayList<>();
+        if (chance(0.3)) {
+            order.add(obj(List.of(e("count", new GLit(chance(0.5) ? "ASC" : "DESC")))));
+        }
+        for (List<String> kp : keyPaths) {
+            GV dir = new GLit(chance(0.5) ? "ASC" : "DESC");
+            for (int i = kp.size() - 1; i >= 0; i--) {
+                dir = obj(List.of(e(kp.get(i), dir)));
+            }
+            order.add(obj(List.of(e("key", dir))));
+        }
+        args.add(e("orderBy", new GList(order)));
+        if (chance(0.25)) {
+            args.add(e("limit", new GLit(Integer.toString(r.nextInt(4)))));
+        }
+        return new GSel(cls + "Groups", obj(args), sel);
     }
 
     /** A list field ({@code Customer(...)} at the root, {@code orders(...)} below) with clauses and a selection. */
@@ -247,6 +369,41 @@ public final class Fuzz {
         }
         if (chance(0.1)) {
             out.add(new GSel("__typename", null, List.of()));
+        }
+        // ALIASES: a scalar under another key, and a to-many list twice under two keys with its own clauses
+        if (chance(0.15)) {
+            List<String> fs = filterable(cls);
+            out.add(new GSel("a" + aliasCount++ + ": " + pick(fs), null, List.of()));
+        }
+        if (depth < 2 && chance(0.1) && !toManys(cls).isEmpty()) {
+            String f = pick(toManys(cls));
+            GSel twin = listField(f, ((ToMany) c.fields.get(f)).target(), depth + 1);
+            out.add(renamed(twin, "b" + aliasCount++ + ": " + f));
+        }
+        // DIRECTIVES: a field kept or dropped by @include/@skip
+        if (chance(0.1)) {
+            boolean v = chance(0.5);
+            String d = chance(0.5) ? " @include(if: " + v + ")" : " @skip(if: " + v + ")";
+            out.add(new GSel("d" + aliasCount++ + ": " + pick(filterable(cls)), null, List.of(), d));
+        }
+        // FRAGMENTS: part of the selection moved into an inline fragment or a named one (same type)
+        if (out.size() > 2 && chance(0.15)) {
+            int cut = 1 + r.nextInt(out.size() - 1);
+            List<GSel> moved = new ArrayList<>(out.subList(cut, out.size()));
+            List<GSel> kept = new ArrayList<>(out.subList(0, cut));
+            String type = model.get(cls).name();
+            if (chance(0.5)) {
+                kept.add(new GSel("... on " + type, null, moved));
+            } else {
+                String name = "F" + aliasCount++;
+                StringBuilder f = new StringBuilder("fragment ").append(name).append(" on ").append(type).append(" {");
+                for (GSel m : moved) {
+                    f.append(' ').append(m.render());
+                }
+                fragments.add(f.append(" }").toString());
+                kept.add(new GSel("..." + name, null, List.of()));
+            }
+            return kept;
         }
         return out;
     }
@@ -478,29 +635,71 @@ public final class Fuzz {
     /** Every document one structural step smaller than {@code d}. */
     static List<GDoc> smaller(GDoc d) {
         List<GDoc> out = new ArrayList<>();
-        for (GSel s : smaller(d.root(), true)) {
-            out.add(new GDoc(s));
+        for (int i = 0; i < d.roots().size(); i++) {
+            if (d.roots().size() > 1) {
+                List<GSel> rs = new ArrayList<>(d.roots());
+                rs.remove(i);
+                out.add(new GDoc(rs, used(rs, d.fragments())));
+            }
+            for (GSel s : smaller(d.roots().get(i), true)) {
+                List<GSel> rs = new ArrayList<>(d.roots());
+                rs.set(i, s);
+                out.add(new GDoc(rs, used(rs, d.fragments())));
+            }
         }
         return out;
     }
 
+    /** The fragments the roots still spread, directly or through another kept fragment (an unused fragment is
+     *  a validation error, which would make a shrunk document disagree for the wrong reason). */
+    static List<String> used(List<GSel> roots, List<String> fragments) {
+        StringBuilder text = new StringBuilder();
+        for (GSel r : roots) {
+            text.append(r.render()).append(' ');
+        }
+        List<String> kept = new ArrayList<>();
+        boolean grew = true;
+        while (grew) {
+            grew = false;
+            for (String f : fragments) {
+                String name = f.substring("fragment ".length(), f.indexOf(" on "));
+                if (!kept.contains(f)
+                        && java.util.regex.Pattern.compile("\\.\\.\\." + name + "\\b").matcher(text).find()) {
+                    kept.add(f);
+                    text.append(f).append(' ');
+                    grew = true;
+                }
+            }
+        }
+        List<String> ordered = new ArrayList<>();
+        for (String f : fragments) {
+            if (kept.contains(f)) {
+                ordered.add(f);
+            }
+        }
+        return ordered;
+    }
+
     static List<GSel> smaller(GSel s, boolean root) {
         List<GSel> out = new ArrayList<>();
+        if (!s.suffix().isEmpty()) {
+            out.add(new GSel(s.name(), s.args(), s.sub()));
+        }
         if (s.args() != null) {
             for (GV a : smallerV(s.args())) {
-                out.add(new GSel(s.name(), (GObj) a, s.sub()));
+                out.add(new GSel(s.name(), (GObj) a, s.sub(), s.suffix()));
             }
         }
         for (int i = 0; i < s.sub().size(); i++) {
             if (s.sub().size() > 1) {
                 List<GSel> sub = new ArrayList<>(s.sub());
                 sub.remove(i);
-                out.add(new GSel(s.name(), s.args(), sub));
+                out.add(new GSel(s.name(), s.args(), sub, s.suffix()));
             }
             for (GSel c : smaller(s.sub().get(i), false)) {
                 List<GSel> sub = new ArrayList<>(s.sub());
                 sub.set(i, c);
-                out.add(new GSel(s.name(), s.args(), sub));
+                out.add(new GSel(s.name(), s.args(), sub, s.suffix()));
             }
         }
         return out;

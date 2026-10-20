@@ -779,6 +779,12 @@ public final class GqlToPure {
             default -> throw GqlTranslationException.invalid(at + "(truncate)", "not a DateUnit: " + unit);
         };
         FieldDef own = objectTypeOf(gk.classFqn(), at).field(gk.property());
+        if (own != null && GqlSchema.baseName(own.type()).equals("Date")
+                && (unit.equals("DAY") || unit.equals("HOUR"))) {
+            // a DATE is its own day: `firstHourOfDay` would answer a date-time where the key's type is Date (the
+            // GraphQL hardening fuzzer, 2026-10-20: `joined(truncate: DAY)` answered "2020-01-15T00:00:00")
+            return read;
+        }
         ValueSpecification one = own != null && own.type().nullable() ? call("toOne", read) : read;
         return call(head, one);
     }
@@ -1333,7 +1339,9 @@ public final class GqlToPure {
             if (eq == null) {
                 throw new IllegalStateException("filter " + in.name() + " without equals");
             }
-            return scalarFilter(o, in, read, GqlSchema.baseName(eq.type()), path);
+            // a NON-NULL property's comparisons need no presence guard (S99 holds by the type): the guard's
+            // emptiness test over a derived count was one more subquery per row
+            return scalarFilter(o, in, read, GqlSchema.baseName(eq.type()), path, false, !prop.type().nullable());
         }
         if (p.toMany()) {
             return listFilter(o, in, read, target, path);
@@ -1389,13 +1397,13 @@ public final class GqlToPure {
 
     private ValueSpecification scalarFilter(Gql.ObjectValue ops, InputObjectType in, ValueSpecification read,
             String scalar, String path) {
-        return scalarFilter(ops, in, read, scalar, path, false);
+        return scalarFilter(ops, in, read, scalar, path, false, false);
     }
 
     /** {@code mode: insensitive} lower-cases both sides of every string comparison of its object, a nested
      *  {@code not} object included unless it names its own mode (§13.7). */
     private ValueSpecification scalarFilter(Gql.ObjectValue ops, InputObjectType in, ValueSpecification read,
-            String scalar, String path, boolean inheritedInsensitive) {
+            String scalar, String path, boolean inheritedInsensitive, boolean required) {
         boolean insensitive = inheritedInsensitive;
         for (Argument a : ops.fields()) {
             if (a.name().equals("mode")) {
@@ -1419,15 +1427,15 @@ public final class GqlToPure {
             switch (a.name()) {
                 case "mode" -> { }
                 case "equals" -> conds.add(v instanceof Gql.NullValue ? call("isEmpty", read)
-                        : present(read, call("equal", side(one(read, insensitive), insensitive),
+                        : present(required, read, call("equal", side(one(read, insensitive), insensitive),
                                 side(literal(v, scalar, at), insensitive))));
                 case "not" -> {
                     if (v instanceof Gql.NullValue) {
                         conds.add(call("isNotEmpty", read));
                     } else if (v instanceof Gql.ObjectValue nested) {
-                        conds.add(call("not", scalarFilter(nested, in, read, scalar, at, insensitive)));
+                        conds.add(call("not", scalarFilter(nested, in, read, scalar, at, insensitive, required)));
                     } else {
-                        conds.add(call("not", present(read, call("equal", side(one(read, insensitive), insensitive),
+                        conds.add(call("not", present(required, read, call("equal", side(one(read, insensitive), insensitive),
                                 side(literal(v, scalar, at), insensitive)))));
                     }
                 }
@@ -1444,7 +1452,7 @@ public final class GqlToPure {
                         }
                         set = new PureCollection(lowered);
                     }
-                    ValueSpecification isIn = present(read, call("in", side(one(read, insensitive), insensitive),
+                    ValueSpecification isIn = present(required, read, call("in", side(one(read, insensitive), insensitive),
                             set));
                     conds.add(a.name().equals("in") ? isIn : call("not", isIn));
                 }
@@ -1458,14 +1466,14 @@ public final class GqlToPure {
                         case "gt" -> "greaterThan";
                         default -> "greaterThanEqual";
                     };
-                    conds.add(present(read, call(fn, side(call("toOne", read), insensitive),
+                    conds.add(present(required, read, call(fn, side(call("toOne", read), insensitive),
                             side(literal(v, scalar, at), insensitive))));
                 }
                 case "contains", "startsWith", "endsWith" -> {
                     if (v instanceof Gql.NullValue) {
                         continue;
                     }
-                    conds.add(present(read, call(a.name(), side(call("toOne", read), insensitive),
+                    conds.add(present(required, read, call(a.name(), side(call("toOne", read), insensitive),
                             side(literal(v, scalar, at), insensitive))));
                 }
                 default -> throw GqlTranslationException.invalid(at, "no such filter operation: " + a.name());
@@ -1496,6 +1504,12 @@ public final class GqlToPure {
 
     private static ValueSpecification present(ValueSpecification read, ValueSpecification comparison) {
         return call("and", call("isNotEmpty", read), comparison);
+    }
+
+    /** {@link #present}, or the comparison alone when the read is never absent. */
+    private static ValueSpecification present(boolean required, ValueSpecification read,
+            ValueSpecification comparison) {
+        return required ? comparison : present(read, comparison);
     }
 
     private static ValueSpecification side(ValueSpecification v, boolean insensitive) {

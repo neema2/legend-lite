@@ -411,6 +411,43 @@ query Q($s: String) { Order(where: { note: { equals: $s } }) { id note } }
 # groups: limited
 { CustomerGroups(orderBy: [{ count: DESC }, { key: { tier: ASC } }], limit: 2) { key { tier } count } }
 
+# regressions: a nested list filtered by a non-null derived count, zero included
+{ Customer(orderBy: [{ id: ASC }]) { id referred(where: { orderCount: { lte: 0 } }) { id tier } } }
+
+# regressions: a root filter by a derived count, zero included
+{ Customer(where: { orderCount: { lte: 0 } }, orderBy: [{ id: ASC }]) { id } }
+
+# regressions: a root sort through a to-one hop into a many-to-many count
+{ Line(orderBy: [{ product: { tagCount: DESC } }, { id: ASC }]) { id product { sku tagCount } } }
+
+# regressions: a root sort through two to-one hops into a count
+{ Line(orderBy: [{ order: { customer: { orderCount: ASC } } }, { id: ASC }]) { id } }
+
+# regressions: a root sort through the self-reference into a count
+{ Order(orderBy: [{ customer: { referrer: { orderCount: DESC } } }, { id: ASC }]) { id } }
+
+# regressions: a date key truncated to the day stays a date
+{ CustomerGroups(orderBy: [{ key: { joined: ASC } }]) { key { joined(truncate: DAY) } count } }
+
+# regressions: a date-time key truncated to the day
+{ CustomerGroups(orderBy: [{ key: { lastSeen: ASC } }]) { key { lastSeen(truncate: DAY) } count } }
+
+# regressions: a count inside a nested quantifier
+{ Customer(where: { liveOrders: { some: { lineCount: { gte: 2 } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# regressions: a many-to-many count inside a many-to-many quantifier
+{ Tag(where: { products: { every: { tagCount: { lte: 1 } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# regressions: a many-to-many under a many-to-many quantifier, three deep
+{ Tag(where: { products: { some: { tags: { some: { products: { none: { price: { lte: 1.0 } } } } } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# features together: fragments, aliases and directives in one document
+fragment Who on Customer { key: id who: handle }
+{ vip: Customer(where: { vip: { equals: true } }, orderBy: [{ id: ASC }]) { ...Who tier @skip(if: true) ... on Customer { n: orderCount } } rest: Customer(where: { vip: { equals: false } }, orderBy: [{ id: DESC }]) { ...Who } }
+
+# features together: a root aggregate and groups in one document
+{ CustomerAggregate(where: { tier: { not: { equals: null } } }) { count min { joined } } CustomerGroups(orderBy: [{ key: { vip: DESC } }]) { key { vip } count avg { score } } }
+
 # errors: an unknown field
 # error: has no field
 { Customer { id nope } }

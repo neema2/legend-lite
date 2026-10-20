@@ -111,15 +111,78 @@ final class CorrelatedSubselects {
             // and the FINAL head's aggregation material anchors at the mid
             // hop's target class (its parked filter applies there exactly
             // like the depth-1 route).
-            String mid = key.substring(0, dot);
-            String fin = key.substring(dot + 1);
+            // SEVERAL to-one mids (`customer.referrer.orders`, the GraphQL hardening fuzzer's
+            // `Line(orderBy: order.customer.orderCount)`, 2026-10-20): the mids after the first compose INTO the
+            // mid relation -- each LEFT-joined under its own prefix, its condition re-pointed onto the previous
+            // mid's columns -- so the fold below joins one mid relation, as for one hop, and the final condition
+            // reads the LAST mid's columns under their prefix
+            String[] mids = key.substring(0, key.lastIndexOf('.')).split("\\.");
+            String fin = key.substring(key.lastIndexOf('.') + 1);
             AssociationJoins.AssocJoin midAj = assocMaterial.aggJoinMaterial(
-                    temporal, cs, mid, context, java.util.Set.of(),
+                    temporal, cs, mids[0], context, java.util.Set.of(),
                     java.util.Set.of());
+            ClassSource last = midAj.target();
+            TypedSpec midRel = midAj.targetPipeline();
+            String lastPrefix = "";
+            for (int mi = 1; mi < mids.length; mi++) {
+                AssociationJoins.AssocJoin next = assocMaterial.aggJoinMaterial(temporal, last, mids[mi], context,
+                        java.util.Set.of(), java.util.Set.of());
+                TypedLambda nc = java.util.Objects.requireNonNull(next.condition(), "mid-hop condition");
+                Type.RelationType relRow = Type.requireRelationSchema(midRel.info().type());
+                String lp = nc.parameters().get(0);
+                final String pfx = lastPrefix;
+                TypedSpec body = Pipelines.prefixColumns(nc.body().get(nc.body().size() - 1), lp, pfx,
+                        v -> new TypedVariable(lp, new ExprType(relRow,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+                String hopPrefix = "_m" + mi + "_";
+                List<Type.Column> cols = new ArrayList<>(relRow.columns());
+                for (Type.Column c : next.targetRow().columns()) {
+                    cols.add(new Type.Column(hopPrefix + c.name(), c.type(), c.multiplicity()));
+                }
+                var condFn = new Type.FunctionType(List.of(
+                        new Type.Param(relRow, com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
+                        new Type.Param(next.targetRow(), com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                        new Type.Param(Type.Primitive.BOOLEAN,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+                midRel = new TypedJoin(midRel, next.targetPipeline(), AssociationJoins.leftKind(),
+                        new TypedLambda(nc.parameters(), List.of(body),
+                                new ExprType(condFn, com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                        Optional.of(hopPrefix), null,
+                        new ExprType(Type.relation(new Type.RelationType(cols)),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
+                        false /* resolver-synth */);
+                last = next.target();
+                lastPrefix = hopPrefix;
+            }
+            if (mids.length > 1) {
+                midAj = midAj.withTargetPipeline(midRel);
+            }
             chainMidsOut.put(key, midAj);
-            aggMaterials.put(key,
-                    assocMaterial.aggJoinMaterial(temporal, midAj.target(),
-                            fin, context, leaves, mapperPaths));
+            AssociationJoins.AssocJoin finAj = assocMaterial.aggJoinMaterial(temporal, last,
+                    fin, context, leaves, mapperPaths);
+            // a BRIDGE-TABLE final hop (`product.tags->count()`): its condition reads the mid target's joinslot,
+            // which the mid hop's join does not carry -- the bridge joins into the final target, correlated by
+            // the mid row's own columns (the GraphQL hardening fuzzer's `Line(orderBy: product.tagCount)`,
+            // 2026-10-20: the ON read an alias of another scope)
+            if (finAj.condition() != null && finAj.condition().parameters().size() == 2) {
+                CompositeChain cc = compositeChainTarget(last, finAj.condition(),
+                        finAj.targetPipeline());
+                if (cc != null) {
+                    finAj = finAj.withTargetPipeline(cc.pipeline()).withCondition(cc.orientedCond());
+                }
+            }
+            if (!lastPrefix.isEmpty()) {
+                // the final condition's PARENT reads are the last mid's columns, prefixed inside the mid relation
+                TypedLambda fc = java.util.Objects.requireNonNull(finAj.condition(), "chain-final condition");
+                String lp = fc.parameters().get(0);
+                Type.RelationType relRow = Type.requireRelationSchema(midRel.info().type());
+                final String pfx = lastPrefix;
+                TypedSpec body = Pipelines.prefixColumns(fc.body().get(fc.body().size() - 1), lp, pfx,
+                        v -> new TypedVariable(lp, new ExprType(relRow,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+                finAj = finAj.withCondition(new TypedLambda(fc.parameters(), List.of(body), fc.info()));
+            }
+            aggMaterials.put(key, finAj);
         }
         return aggMaterials;
     }
@@ -140,7 +203,7 @@ final class CorrelatedSubselects {
             AssociationJoins.AssocJoin aj, AssociationJoins.AssocJoin midAj,
             boolean filterPos, SyntheticHeads synthetics, TypedSpec withJoins,
             Set<String> usedChainPrefixes, @com.legend.base.Nullable String frameName) {
-        String chainFinal = head.substring(head.indexOf('.') + 1);
+        String chainFinal = head.substring(head.lastIndexOf('.') + 1);
         if (filterPos) {
             throw new NotImplementedException("aggregate over the chained"
                     + " navigation '" + SyntheticHeads.realHead(chainFinal)
@@ -172,7 +235,7 @@ final class CorrelatedSubselects {
             midJoinedRow = leftRowM;
             widened = withJoins;
         } else {
-            String midBase = head.substring(0, head.indexOf('.')) + "_"
+            String midBase = head.substring(0, head.lastIndexOf('.')).replace('.', '_') + "_"
                     + SyntheticHeads.realHead(chainFinal) + "_mid";
             midPrefix = AssociationJoins.prefixFor(midBase, cs);
             int mOrd = 2;
@@ -2522,9 +2585,10 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             // buildAggMaterials anchors the material at the mid hop's
             // target class and the fold emits the mid LEFT join + the
             // prefix-re-pointed join-back condition.
-            if (path != null && path.size() == 2 && isCountFamily(nc)
+            if (path != null && path.size() >= 2 && isCountFamily(nc)
                     && !toManyHead.test(cs, path.get(0))
                     && bareHead.test(cs, path.get(0))
+                    && (path.size() == 2 || toOneMids(nc.args().get(0), path.size()))
                     && !(nc.args().get(0).info().multiplicity()
                             instanceof com.legend.compiler.element.type
                                     .Multiplicity.Bounded bm
@@ -2539,7 +2603,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                                         nc.args().get(0).info().type(), one1)),
                                 new Type.Param(Type.Primitive.INTEGER, one1)),
                                 one1));
-                aggOut.computeIfAbsent(path.get(0) + "." + path.get(1),
+                aggOut.computeIfAbsent(String.join(".", path),
                                 k -> new ArrayList<>())
                         .add(new StoreResolver.AggDemand(nc, null,
                                 constMapper));
@@ -2637,6 +2701,25 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         }
     }
 
+
+    /** Whether every hop of the navigation {@code arg} ({@code $x.h0.h1...h(n-1)}) but the last is a to-one,
+     *  class-typed read: the chain-aggregate key's mids (several since 2026-10-20). */
+    private static boolean toOneMids(TypedSpec arg, int n) {
+        TypedSpec cur = arg;
+        for (int i = n - 1; i >= 0; i--) {
+            cur = Pipelines.unwrapToOne(cur);
+            if (!(cur instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa)) {
+                return false;
+            }
+            if (i < n - 1 && !(Type.asClassType(pa.info().type()) instanceof Type.ClassType
+                    && pa.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                    && b.upper() != null && b.upper() <= 1)) {
+                return false;
+            }
+            cur = pa.source();
+        }
+        return true;
+    }
 
     /** STUDY #12's class, the chain-demand registration: an IDENTITY-
      * ELIDING reducer (sum/average/mean) over a navigation whose to-many

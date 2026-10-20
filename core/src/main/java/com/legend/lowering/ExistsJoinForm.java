@@ -255,9 +255,13 @@ final class ExistsJoinForm {
     }
 
     private static boolean plainShape(SqlSelect s) {
+        // a KEYLESS AGGREGATE (SELECT COUNT(1) ... WHERE corr) is one row whatever its source holds: its EXISTS
+        // is true, never "a source row exists" (the GraphQL hardening fuzzer, 2026-10-20: `orderCount <= 0` under
+        // its presence guard dropped every customer without orders)
         return !s.distinct() && s.groupBy().isEmpty() && s.having() == null
                 && s.qualify() == null && s.orderBy().isEmpty()
-                && s.limit() == null && s.offset() == null;
+                && s.limit() == null && s.offset() == null
+                && s.projections().stream().noneMatch(p -> com.legend.sql.SqlAgg.aggregatesSelect(p.expr()));
     }
 
     private static SqlExpr ungroup(SqlExpr e) {
