@@ -962,9 +962,12 @@ public final class Fuzz {
         return OVal.diff(expected, data, "data");
     }
 
-    /** {@code d} shrunk while it still disagrees; at most {@code budget} runs. */
+    /** {@code d} shrunk while it still disagrees the same way (its failure's signature: a step that turns one bug
+     *  into another, a validation error say, is not taken); at most {@code budget} runs. */
     static GDoc shrink(Harness h, ReferenceModel model, GDoc d, int budget) {
         GDoc best = d;
+        String first = verdict(h, model, d);
+        String sig = first == null ? null : signature(first);
         boolean progress = true;
         while (progress && budget > 0) {
             progress = false;
@@ -972,7 +975,8 @@ public final class Fuzz {
                 if (--budget <= 0) {
                     break;
                 }
-                if (verdict(h, model, c) != null) {
+                String v = verdict(h, model, c);
+                if (v != null && (sig == null || sig.equals(signature(v)))) {
                     best = c;
                     progress = true;
                     break;

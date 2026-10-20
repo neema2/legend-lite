@@ -141,6 +141,9 @@ query Q($n: Int = 3) { Customer(orderBy: [{ id: ASC }], limit: $n) { id } }
 # variables: {"s": "don't"}
 query Q($s: String) { Order(where: { note: { equals: $s } }) { id note } }
 
+# filters: a condition three to-one hops deep
+{ Customer(where: { referrer: { referrer: { referrer: { handle: { equals: "zed_" } } } } }, orderBy: [{ id: ASC }]) { id } }
+
 # filters: equals on a string with a quote
 { Customer(where: { name: { equals: "Carol O'Neil" } }) { id } }
 
@@ -338,6 +341,15 @@ query Q($s: String) { Order(where: { note: { equals: $s } }) { id note } }
 
 # order: by a derived leaf through a to-one
 { Order(orderBy: [{ customer: { orderCount: ASC } }, { id: ASC }]) { id } }
+
+# order: by a derived leaf three to-one hops deep
+{ Customer(orderBy: [{ referrer: { referrer: { referrer: { handle: DESC } } } }, { id: ASC }]) { id } }
+
+# order: by a derived count three to-one hops deep, the path selected too
+{ Customer(orderBy: [{ referrer: { referrer: { referrer: { orderCount: DESC } } } }, { id: ASC }]) { id referrer { referrer { referrer { id orderCount } } } } }
+
+# order: by an aggregate three to-one hops deep
+{ Line(orderBy: [{ order: { customer: { referrer: { ordersAggregate: { count: DESC } } } } }, { id: ASC }]) { id } }
 
 # order: by a many-to-many count
 { Product(orderBy: [{ tagCount: DESC }, { sku: ASC }]) { sku tagCount } }

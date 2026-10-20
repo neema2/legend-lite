@@ -21,8 +21,8 @@ import java.util.List;
  * and for the reference that judges them. Each row is built to break something: nulls in every nullable column, empty
  * lists (customers 6-8 have no orders, order 7 no lines, product XX-9 no lines and no tags, tag 4 no product), ties on
  * every sortable column, an apostrophe, `%` and `_` in names and notes, an empty string, unicode, case variants
- * ("Alice", "ALICE", "bob"), zero and negative numbers, a 64-bit integer past 2^53, a leap day, an orphan order with no
- * customer, a line with no product.
+ * ("Alice", "ALICE", "bob"), referral chains three deep (4, 3, 1, 7 and 8, 2, 1, 7), zero and negative numbers, a
+ * 64-bit integer past 2^53, a leap day, an orphan order with no customer, a line with no product.
  */
 public final class ShopFixture {
 
@@ -76,7 +76,7 @@ public final class ShopFixture {
 
     public static final List<Customer> CUSTOMERS = List.of(
             new Customer(1, "Alice", "alice@example.com", "GOLD", true, d("2020-01-15"), t("2024-06-01T10:00:00"),
-                    m("1500.50"), 100L, null),
+                    m("1500.50"), 100L, 7),
             new Customer(2, "bob", null, "SILVER", false, d("2021-03-01"), null, m("0.00"), 0L, 1),
             new Customer(3, "Carol O'Neil", "carol@example.com", null, true, d("2021-03-01"),
                     t("2024-05-31T23:59:59"), null, -5L, 1),

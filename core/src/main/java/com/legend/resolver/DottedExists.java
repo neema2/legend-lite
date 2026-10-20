@@ -76,6 +76,21 @@ final class DottedExists {
         }
     }
 
+    /** The class a to-one hop chain reaches from {@code cls} ({@code referrer.referrer} from Customer: Customer),
+     *  null when a hop is not a class-typed property. */
+    private @com.legend.base.Nullable String classAlong(String cls, List<String> hops) {
+        String cur = cls;
+        for (String h : hops) {
+            var p = ctx.findProperty(cur, SyntheticHeads.realHead(h));
+            if (p.isEmpty() || !(com.legend.compiler.element.type.Type.asClassType(p.get().type())
+                    instanceof com.legend.compiler.element.type.Type.ClassType ct)) {
+                return null;
+            }
+            cur = ct.fqn();
+        }
+        return cur;
+    }
+
     void register(TemporalFrame temporal, ClassSource cs,
             List<TypedSpec> ops, EmptinessPaths paths,
             StoreResolver.Context context,
@@ -108,6 +123,25 @@ final class DottedExists {
             if (existsSubs.containsKey(dotted)) {
                 continue;
             }
+            // the chain's last hop as the joined row carries it: a dotted association chain's own material, or --
+            // past the first hop -- the head association's SUB-NAVIGATION (`$x.referrer.referrer.referrer->isEmpty()`,
+            // the GraphQL guard of a derived leaf three to-one hops deep, the hardening fuzzer, 2026-10-20: the second
+            // hop rides the head's sub-navigation, so no chain material carried it and the emptiness went unregistered)
+            String chainPrefix = chain == null ? null : chain.prefix();
+            String chainClass = chain == null ? null : chain.targetClassFqn();
+            boolean chainReadVar = chain != null && chain.readVar() != null;
+            if (chain == null && path.size() >= 3 && assocs.get(path.get(0)) instanceof Substitution.AssocSub head
+                    && head.readVar() == null) {
+                Substitution.SubNav sub = head.subNavs().get(path.get(1));
+                for (int i = 2; sub != null && i < path.size() - 1; i++) {
+                    sub = sub.children().get(path.get(i));
+                }
+                String along = classAlong(head.targetClassFqn(), path.subList(1, path.size() - 1));
+                if (sub != null && along != null) {
+                    chainPrefix = head.prefix() + sub.prefix();
+                    chainClass = along;
+                }
+            }
             // NESTED-EXISTS rung: an emptiness consumed INSIDE another
             // exists' predicate lives in the enclosing SUBSELECT's scope —
             // a to-many mid hop there must NOT correlate through the flat
@@ -138,12 +172,12 @@ final class DottedExists {
                     continue;
                 }
             }
-            if (chain == null) {
+            if (chainPrefix == null || chainClass == null) {
                 continue;
             }
             String leafName = path.get(path.size() - 1);
             String leaf = SyntheticHeads.realHead(leafName);
-            ClassSource parent = sources.get(cs.mappingFqn(), chain.targetClassFqn(), cs.scope());
+            ClassSource parent = sources.get(cs.mappingFqn(), chainClass, cs.scope());
             TypedLambda cond;
             TypedSpec tPipe;
             ClassSource t;
@@ -221,7 +255,7 @@ final class DottedExists {
                             .Multiplicity.Bounded bb
                             && Integer.valueOf(1).equals(bb.upper()))
                     .isPresent());
-            if (chain.readVar() != null) {
+            if (chainReadVar) {
                 throw new IllegalStateException("resolver bug: dotted-path"
                         + " EXISTS registration over a read-var AssocSub —"
                         + " the chain prefix pre-prefixing assumes joined-row"
@@ -230,7 +264,7 @@ final class DottedExists {
             String pv = java.util.Objects.requireNonNull(cond, "cond").parameters().get(0);
             TypedSpec cbody = Pipelines.prefixColumns(
                     cond.body().get(cond.body().size() - 1), pv,
-                    chain.prefix(), v -> v);
+                    chainPrefix, v -> v);
             TypedLambda chainedCond = new TypedLambda(cond.parameters(),
                     List.of(cbody), cond.info());
             StoreResolver.NestedScope dns = nestedScope.scope(t, ops, path, context, tPipe);
