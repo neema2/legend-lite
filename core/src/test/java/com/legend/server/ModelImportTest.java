@@ -169,8 +169,18 @@ class ModelImportTest {
                   trades: trades::domain::Trade[*];
                 }
                 """, file(a, "trades::domain::Trade_Customer"), "the reference one end, the way back the other");
-        assertEquals(List.of("#/components/schemas/Customer/properties/name: maxLength is not carried (a validation, "
-                + "not a shape)"), a.get("notes"));
+        assertEquals("""
+                Class trades::domain::Customer
+                [
+                  nameMaxLength: $this.name->length() <= 100
+                ]
+                {
+                  id: Integer[1];
+                  name: String[1];
+                  since: StrictDate[0..1];
+                }
+                """, file(a, "trades::domain::Customer"), "a validation a constraint");
+        assertEquals(List.of(), a.get("notes"));
 
         // imported again, over what it wrote: nothing changes
         Map<String, String> files = start();
@@ -246,6 +256,126 @@ class ModelImportTest {
             assertEquals(List.of("ACME", "GLOBEX"), rows(qs.execute(model, "trades::domain::Customer.all()"
                     + "->filter(c|$c.trades->exists(t|$t.side == trades::domain::Side.SELL))"
                     + "->project(~[name: x|$x.name])->sort(~name->ascending())", "store::RT", conn)));
+        }
+    }
+
+    /** A schema whose validations and logic leave each row of {@link #PAYMENTS} but three: each made a constraint. */
+    private static final String PAYMENT = """
+            {"title": "Payment", "type": "object", "required": ["id", "method"],
+             "properties": {
+               "id": {"type": "integer"},
+               "method": {"enum": ["card", "bank", "cash"]},
+               "card": {"type": "string", "pattern": "^[0-9]{4}$"},
+               "iban": {"type": "string", "minLength": 4},
+               "cvv": {"type": "string"}, "email": {"type": "string"}, "phone": {"type": "string"},
+               "amount": {"type": "integer", "minimum": 1, "maximum": 1000, "multipleOf": 5, "not": {"const": 500}},
+               "currency": {"type": "string", "not": {"enum": ["XXX", "XTS"]}}},
+             "if": {"properties": {"method": {"const": "card"}}},
+             "then": {"required": ["card"]},
+             "else": {"not": {"required": ["card"]}},
+             "not": {"required": ["card", "iban"]},
+             "oneOf": [{"required": ["email"]}, {"required": ["phone"]}],
+             "dependentRequired": {"card": ["cvv"]},
+             "dependentSchemas": {"iban": {"properties": {"currency": {"const": "EUR"}}, "required": ["currency"]}}}
+            """;
+
+    /** The rows, each the JSON value a NULL leaves out of: each but 1, 3 and 14 breaks one rule of {@link #PAYMENT}
+     *  (python-jsonschema 4.26.0, Draft 2020-12, accepts exactly 1, 3 and 14: checked 2026-10-20). */
+    private static final String PAYMENTS = """
+            (1, 'card', '1234', NULL, '999', 'a@x', NULL, 10, 'USD'), \
+            (2, 'card', NULL, NULL, '999', 'a@x', NULL, NULL, NULL), \
+            (3, 'bank', NULL, 'DE00', NULL, NULL, '1', NULL, 'EUR'), \
+            (4, 'bank', NULL, 'DE00', NULL, NULL, '1', NULL, 'USD'), \
+            (5, 'bank', NULL, 'DE00', NULL, NULL, '1', NULL, NULL), \
+            (6, 'cash', '1234', NULL, '1', 'a@x', NULL, NULL, NULL), \
+            (7, 'card', '12345', NULL, '1', 'a@x', NULL, NULL, NULL), \
+            (8, 'card', '1234', NULL, NULL, 'a@x', NULL, NULL, NULL), \
+            (9, 'cash', NULL, NULL, NULL, 'a@x', '1', NULL, NULL), \
+            (10, 'cash', NULL, NULL, NULL, NULL, NULL, NULL, NULL), \
+            (11, 'cash', NULL, NULL, NULL, 'a@x', NULL, 500, NULL), \
+            (12, 'cash', NULL, NULL, NULL, 'a@x', NULL, 7, NULL), \
+            (13, 'cash', NULL, NULL, NULL, 'a@x', NULL, 1005, NULL), \
+            (14, 'cash', NULL, NULL, NULL, 'a@x', NULL, 995, NULL), \
+            (15, 'cash', NULL, NULL, NULL, 'a@x', NULL, NULL, 'XTS'), \
+            (16, 'bank', NULL, 'DE1', NULL, NULL, '1', NULL, 'EUR'), \
+            (17, 'card', '1234', 'DE00', '1', 'a@x', NULL, NULL, 'EUR'), \
+            (18, 'cash', NULL, NULL, NULL, NULL, '2', 0, NULL)""";
+
+    @Test
+    @DisplayName("a schema's validations and logic as constraints, each run on DuckDB as a filter: the rows they keep "
+            + "are the rows JSON Schema keeps")
+    void constraintsKeepWhatTheSchemaKeeps() throws Exception {
+        Map<String, String> files = new LinkedHashMap<>();
+        files.put("store::DB", """
+                ###Relational
+                Database store::DB
+                (
+                  Table PAYMENTS (id INTEGER NOT NULL, method VARCHAR(10), card VARCHAR(20), iban VARCHAR(40), \
+                cvv VARCHAR(5), email VARCHAR(40), phone VARCHAR(20), amount INTEGER, currency VARCHAR(3))
+                )
+                """);
+        files.put("store::Conn", start().get("store::Conn"));
+        files.put("store::RT", start().get("store::RT"));
+        Map<String, Object> imported = wrote(files, ModelChanges.importSchema(Json.parseObject(request(files,
+                "\"schema\": {\"format\": \"jsonSchema\", \"content\": " + Json.toCompact(PAYMENT) + "}"))));
+        assertEquals(List.of(), imported.get("notes"), "every validation and every condition carried");
+        wrote(files, mapClass(files, """
+                "class": "trades::domain::Payment", "runtime": "store::RT",
+                "sql": "SELECT * FROM tb('store::DB.PAYMENTS')\""""));
+
+        // each constraint, as written
+        Map<String, String> constraints = new LinkedHashMap<>();
+        String payment = files.get("trades::domain::Payment");
+        for (String line : payment.substring(payment.indexOf("[\n") + 2, payment.indexOf("\n]")).split("\n")) {
+            String c = line.strip();
+            c = c.endsWith(",") ? c.substring(0, c.length() - 1) : c;
+            constraints.put(c.substring(0, c.indexOf(": ")), c.substring(c.indexOf(": ") + 2));
+        }
+        assertEquals("(!$this.method->toOne()->in([trades::domain::PaymentMethod.card]) || $this.card->isNotEmpty()) "
+                + "&& ($this.card->isEmpty() || $this.method->toOne()->in([trades::domain::PaymentMethod.card]))",
+                constraints.get("condition"), "if/then/else, the method required: of it, its value alone");
+
+        String model = text(files);
+        QueryService qs = new QueryService();
+        try (Connection conn = TestBackends.platform().open(); Statement s = conn.createStatement()) {
+            s.execute("CREATE TABLE PAYMENTS (id INTEGER NOT NULL, method VARCHAR, card VARCHAR, iban VARCHAR, "
+                    + "cvv VARCHAR, email VARCHAR, phone VARCHAR, amount INTEGER, currency VARCHAR)");
+            s.execute("INSERT INTO PAYMENTS VALUES " + PAYMENTS);
+            Map<String, List<String>> broken = new LinkedHashMap<>();
+            for (Map.Entry<String, String> c : constraints.entrySet()) {
+                // the rows the constraint keeps, each the class's value as $this
+                List<String> kept = rows(qs.execute(model, "trades::domain::Payment.all()->filter(this|" + c.getValue()
+                        + ")->project(~[id: x|$x.id])", "store::RT", conn));
+                List<String> out = new ArrayList<>();
+                for (int id = 1; id <= 18; id++) {
+                    if (!kept.contains(Integer.toString(id))) {
+                        out.add(Integer.toString(id));
+                    }
+                }
+                broken.put(c.getKey(), out);
+            }
+            Map<String, List<String>> expected = new LinkedHashMap<>();
+            expected.put("cardPattern", List.of("7"));
+            expected.put("ibanMinLength", List.of("16"));
+            expected.put("amountMinimum", List.of("18"));
+            expected.put("amountMaximum", List.of("13"));
+            expected.put("amountMultipleOf", List.of("12"));
+            expected.put("cardRequires", List.of("8"));
+            expected.put("condition", List.of("2", "6"));
+            expected.put("exclusion", List.of("17"));
+            expected.put("oneOf", List.of("9", "10"));
+            expected.put("ibanDependency", List.of("4", "5"));
+            expected.put("amountNot", List.of("11"));
+            expected.put("currencyNot", List.of("15"));
+            assertEquals(expected, broken, "each constraint, the rows it rejects");
+            List<String> valid = new ArrayList<>();
+            for (int id = 1; id <= 18; id++) {
+                String row = Integer.toString(id);
+                if (broken.values().stream().noneMatch(b -> b.contains(row))) {
+                    valid.add(row);
+                }
+            }
+            assertEquals(List.of("1", "3", "14"), valid, "the rows JSON Schema keeps");
         }
     }
 

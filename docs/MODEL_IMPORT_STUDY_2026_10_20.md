@@ -1,8 +1,10 @@
 # A model from a standard schema, mapped with SQL: import, map, join (2026-10-20)
 
 **Status: steps 1 and 2 built on the branch `claude/model-import-sql-mapping` (2026-10-20), with the end-to-end test
-green; then, the same day, YAML (§4.1), unions read as inheritance (§4.2) and lists as Variants (§4.3). Nothing else is
-scheduled.** It answers the user's question of 2026-10-20: import a data model from a standard
+green; then, the same day, YAML (§4.1), unions read as inheritance (§4.2) and lists as Variants (§4.3); then the reader
+made whole against the real world (§4.4-§4.6): every JSON Schema keyword read, carried or noted, validations and logic
+as constraints, and two corpora measured (973 of SchemaStore's 1,001 schemas, 614 of 701 OpenAPI documents). Nothing
+else is scheduled.** It answers the user's question of 2026-10-20: import a data model from a standard
 schema language (JSON Schema, OpenAPI, protobuf, GraphQL SDL, ...) and map it with SQL, "instead of having to learn
 Pure". §0 is the answer; §1-§2 the brief and the spike; §3-§6 the design as built; §7 what proves it; §8 the open
 decisions; §9 the roadmap.
@@ -26,10 +28,12 @@ decisions; §9 the roadmap.
    `Relation { ~func ... }`, in Create a Class's layout. An association is joined by a ModelJoin, as Create an
    Association joins one. The spike (§2) found the compiler already plans all of this. The new code is the readers
    and the writer's checks.
-3. **Refused, never dropped.** A schema construct with no Pure form, or a SELECT that does not fit its class, is
-   refused by name: every reason at once, and nothing written. Validation keywords and renames are said in the
-   answer's notes. A JSON value of no one Pure type (a union not of objects, several types, a tuple) is a `Variant`,
-   the type Pure holds JSON in, and noted.
+3. **Carried, or said; never dropped.** Every keyword of a schema is read: carried as Pure says it, or as near as
+   Pure can and noted. A validation is a constraint, and so is the schema's logic (`if`/`then`/`else`, `not`, ...): run
+   on DuckDB, the constraints keep exactly the rows a JSON Schema validator keeps (§4.4). A JSON value of no one Pure
+   type (a union not of objects, several types, a tuple) is a `Variant`, the type Pure holds JSON in, and noted. A
+   schema is refused only when nothing in it can be imported, and a SELECT that does not fit its class is refused by
+   name: every reason at once, and nothing written.
 4. **One model, many schema languages.** A schema reader produces an `ImportedModel` (§3), and one writer turns it
    into Pure. GraphQL SDL, OData CSDL, Prisma, dbt semantic models and FINOS CDM are each one more reader (§9).
 
@@ -104,56 +108,96 @@ Register row S89.
 ## 4. JSON Schema and OpenAPI (`JsonSchemaReader`)
 
 **Documents**, each written in JSON or YAML (§4.1). The reader takes three kinds of document:
-- **OpenAPI 3.x**: its `components.schemas`;
-- **Swagger 2**: its `definitions`;
-- **JSON Schema**: its root object (named by its `title`, or the request's `name`), `$defs` and `definitions`.
+- **OpenAPI 3.x**: its `components.schemas`; with none, or asked (`"operations": true`), each operation's request
+  and response bodies too, as classes named after the operation (`CreatePetRequest`, `CreatePetResponseItem`);
+- **Swagger 2**: its `definitions`, and its operations' body parameters and responses the same way;
+- **JSON Schema**, drafts 4 to 2020-12: its root object (named by its `title`, or the request's `name`), `$defs` and
+  `definitions`.
 
-Only references within the document are read. A request may name the schemas to import (`schemas`), and each brings
-the schemas it reaches.
+**References** reach any place in a document: a JSON pointer (`#/definitions/A/properties/b`, percent-encoded, `~0`
+and `~1` escaped), an `$anchor` (`#name`), an `$id` (draft 4's `id`, and its `#name` plain fragments),
+`$dynamicRef` and `$recursiveRef` (read as references), and another document. The other documents a reference names
+are given in the request (`"documents": {"common.yaml": "..."}`), by the name a reference spells them (`./common.yaml`
+and `common.yaml` are one; an `$id` names one too). A place reached twice is one class. A request may name the schemas
+to import (`schemas`), and each brings the schemas it reaches.
 
 **A named schema is made:**
 
 | Schema | Pure |
 |---|---|
-| has `properties`, or an `allOf` naming an object schema | a class; each `allOf` reference to an object schema a superclass, each inline part's properties its own |
+| has `properties` (its own, or in a condition), or an `allOf` naming an object schema | a class; each `allOf` reference to an object schema a superclass, each inline part's properties its own |
 | a union of objects (`oneOf` / `anyOf`) | a class, the superclass of its alternatives (§4.2) |
-| has `enum` of text | an enumeration; a value Pure cannot hold renamed (`buy-side` is `buy_side`, noted) |
+| `enum` of text, or a union of `const` texts | an enumeration (an inline `enum` of one text is a constant, a rule); each value documented by its `const`'s description, or `x-enum-descriptions`; named by `x-enum-varnames` (or jsonschema2pojo's `javaEnumNames`) when given; a value Pure cannot hold renamed (`buy-side` is `buy_side`, noted) |
 | anything else (a number, a list, a free-form object) | no element; a reference to it reads as what it is |
+
+**The root of a JSON Schema document** is a class when it is an object. When it is not:
+- a list of objects: its item is the class (`RowsItem`);
+- a map (`additionalProperties`, `patternProperties`): a class of its entries, `<Root>Entry {key: String[1]; value}`,
+  the key's pattern (a lone `patternProperties`, `propertyNames`) its rules, an object value a class of its own
+  (`<Root>Value`). A map below the root is a `Variant`, the JSON object it is (register S94);
+- a reference alone: what it names (another document's root, given in `documents`). One naming a document not given
+  is refused, naming the reference, when nothing else in the document can be imported.
 
 **A property is:**
 
 | Schema | Pure type |
 |---|---|
-| `string` (`format: date`, `date-time`) | `String` (`StrictDate`, `DateTime`) |
-| `integer` | `Integer` |
-| `number` (`format: decimal`) | `Float` (`Decimal`) |
+| `string` (`format: date`, `date-time`, `time`; any other format is an annotation) | `String` (`StrictDate`, `DateTime`, `StrictTime`) |
+| `integer`; `number` (`format: decimal`; `int32`, `int64`); both | `Integer`; `Float` (`Decimal`; `Integer`); `Number` |
 | `boolean` | `Boolean` |
+| `const`, or an `enum` not an enumeration (of numbers, of booleans, of one text) | its values' type, the values a rule; values of several types a `Variant` |
 | `$ref` to a class / an enumeration | an association end / the enumeration |
 | an inline object, an inline `enum` | a class / enumeration of its own, named after its owner and the property (`OrderShipping`, `OrderStatus`); a list's item in the singular (`OrderLine`) |
 | a union of objects | a superclass of its own, named after the owner and the property (§4.2) |
-| a free-form `object`, a map (`additionalProperties` alone), `{}`; a union not of objects, several types, a tuple, a list of lists | `meta::pure::metamodel::variant::Variant`, as Pure holds JSON (the last four noted) |
+| an `allOf` of no object | the one part that says a shape, or the shape its parts share |
+| `true`, `{}`, a free-form `object`, a map; a union not of objects, several types, a tuple (`prefixItems`), a list of lists | `meta::pure::metamodel::variant::Variant`, as Pure holds JSON (the last four noted) |
+| `false`, `{type: null}` | no property: it can hold no value (noted) |
 | `array` | the item's type, many; or, asked (`"lists": "variant"`), one `Variant` (§4.3) |
 
 **Multiplicity:**
-- `[1]` when the property is `required` and not nullable; else `[0..1]`.
+- `[1]` when the property is `required` (draft 3's `required: true` too) and not nullable; else `[0..1]`.
 - A list is `[*]`, bounded by `minItems` (when required) and `maxItems`.
-- Nullable is spelled four ways, and all are read: `type: [..., "null"]`, `nullable: true` (OpenAPI 3.0), `anyOf` of
-  a schema and `{type: null}`, and an enum holding `null`.
+- Nullable is spelled five ways, and all are read: `type: [..., "null"]`, `nullable: true` (OpenAPI 3.0),
+  `x-nullable` (Swagger 2), `anyOf` of a schema and `{type: null}`, and an enum holding `null`.
+- A property a condition declares (`then`, `else`, `dependentSchemas`; a reference or a union inside one) is optional,
+  noted: a value has it only when the condition holds. One branch forbidding a property does not hide another's
+  declaring it.
 
-**Refused, every one at once, each with the JSON pointer where the schema has it:**
-- a reference outside the document, or to no schema of it;
-- an enumeration of values that are not text;
-- a keyword the reader does not know (`not`, `if`, `patternProperties`, ...);
-- a class that would be its own superclass (a union and an `allOf` naming each other);
-- a document that is neither JSON nor YAML, with the YAML reader's line and column.
+**Rules**, each a class constraint named after its property (`tradeIdMinimum`), an optional property's guarded
+(`$this.x->isEmpty() || ...`), a list's each value's (`->forAll(v|...)`):
 
-**Noted, not carried:**
-- a validation keyword (`minimum`, `maxLength`, `pattern`, ...): §8, D6;
-- an object's schema-valued `additionalProperties` beside its properties;
-- a rename. Names are kept when Pure can hold them; else upstream's camel case, and a type's first letter
-  upper-cased.
+| Keyword | Constraint |
+|---|---|
+| `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` (draft 4's booleans too) | `>=`, `<=`, `>`, `<`; a number past a 64-bit integer spelled as a float |
+| `minLength`, `maxLength` | `->length() >= n`, `<= n` |
+| `pattern` (a JSON Schema pattern matches anywhere) | `->matches('(?s).*(?:<pattern>).*')`; a pattern Java cannot read is noted |
+| `multipleOf` of an integer | `rem(x, n) == 0`; of a fraction, noted |
+| `const`; an `enum` not an enumeration | `->in([...])` |
+| `uniqueItems` of primitives or enumeration values | `->removeDuplicates()->size() == ->size()`; of objects, noted (Pure tells objects apart by identity) |
+| `dependentRequired`; draft 7's `dependencies` naming properties | `$this.a->isEmpty() \|\| ($this.b->isNotEmpty() && ...)` |
 
-**Ignored:** annotations (`description` is read as the element's `doc.doc`), and `x-` extensions.
+A schema's logic over a whole value is a constraint too (§4.4). A default (`default`) and `deprecated` are carried:
+`= 3`, `= pkg::Mode.slow`, `<<doc.deprecated>>`. The documentation is the `description`, else the `title`.
+
+**Noted, not carried:** a validation Pure states no constraint for here (`minProperties`, `maxProperties`,
+`contains`, `minContains`, `maxContains`, `propertyNames` below the root); logic that says what a constraint cannot
+(§4.4); a map's values beside an object's properties; a default that is not one value of its property; a reference to
+nothing, or to a document not given (a `Variant`); a class that would be its own superclass (the superclass closing
+the circle dropped; an `allOf` naming its own schema skipped); a rename. Names are kept when Pure can hold them; else
+upstream's camel case, and a type's first letter upper-cased. A note is said once, with the first place it was met
+and how many times.
+
+**Read as annotations, not noted:** JSON Schema's own (`examples`, `readOnly`, `$comment`, `contentMediaType`, ...),
+OpenAPI's (`discriminator`, `xml`, `externalDocs`), `x-` extensions, and the keywords of the vocabularies schemas are
+written with: VS Code's JSON service (`markdownDescription` read as the description, `deprecationMessage` as
+deprecated, `markdownEnumDescriptions` as the values' documentation, `defaultSnippets`, `errorMessage`, ...),
+jsonschema2pojo's (`javaType`, `javaEnumNames` read as the values' names, ...), json-schema-to-typescript's, and
+Hyper-Schema's. **Any other keyword** is noted and not read: JSON Schema's own rule for a keyword a reader does not
+know.
+
+**Refused** (every reason at once): a document that is not JSON or YAML (with the YAML reader's line and column), one
+whose root is not a mapping, one that defines no object (a root that is a reference to a document not given says
+which), and a schema asked for (`schemas`) that the document does not have.
 
 ### 4.1 YAML (`com.legend.json.Yaml`)
 
@@ -185,7 +229,14 @@ dbt line's project files too. It has no dependency, and it is compiled to WebAss
     workflows' `on:` key (PyYAML is YAML 1.1, and reads `on` as `true`);
   - 34 snippets of the hard cases read the same, but three where YAML 1.1 and 1.2 differ (`1e3`, `1.5e3`, a
     timestamp);
+  - the 701 YAML documents of APIs-guru's OpenAPI directory (§4.5): every one reads, and the same as PyYAML's but
+    where YAML 1.1 types a plain scalar (a timestamp, `yes`, `on`, a sexagesimal `23:59`, `2016_01_28`); PyYAML
+    refuses 14 that are good YAML 1.2 (a timestamp out of range, a tab);
   - the Petstore document's YAML and JSON spellings import as the same model.
+- **Three faults the directory found, fixed with a test each (`YamlTest`):** a plain scalar's further lines may
+  start with an indicator (`` ` ``, `[`, `"`, `- `), only its first may not; an escaped space (`\ `) before a line
+  break is the scalar's, not trailing space to trim; a literal block's line of more spaces than its indentation is
+  text, not an empty line.
 
 Register row S92 records that upstream's YAML readers are YAML 1.1.
 
@@ -208,7 +259,9 @@ Three things are lost, and the register's S91 records them:
 - **The `discriminator`.** It is read as an annotation. Telling the subclasses' rows apart is the mapping's job (each
   subclass's own SELECT, `... WHERE pet_type = 'cat'`).
 
-A union, or a union beside an `allOf`, that would make a class its own superclass is refused by name.
+A union, or a union beside an `allOf`, that would make a class its own superclass loses the superclass closing the
+circle, noted (`A: a class that would be its own superclass (A extends B extends A) does not extend B`). An `allOf`
+naming its own schema names no superclass, and is skipped, noted.
 
 **Not built: mapping a union's superclass, and querying through it polymorphically** (§8, D8). Each subclass maps and
 queries as any class does, its inherited properties included (`ModelImportTest.unionsImportAsInheritance`).
@@ -236,6 +289,83 @@ Two ways, and both are in reach:
 **Found on the way, for the compiler's owners:** a `Variant[*]` property mapped to one JSON column compiles. Each
 instance then has one value, the whole list, where `[*]` promises its elements. `mapClass` refuses a many-valued
 property, so its own mappings never write this.
+
+### 4.4 Logic as constraints
+
+A schema says more than shapes: `if`/`then`/`else`, `not`, a `oneOf` of requirements, `dependentSchemas`. Each is a
+condition on a whole value, and the reader writes it as a constraint on the class's properties
+(`ImportedModel.Condition`: a property present, a property's value keeping a rule, and `not`, `all`, `any` of them):
+
+| Logic | Constraint |
+|---|---|
+| `if: A, then: B, else: C` | `(!A \|\| B) && (A \|\| C)`, named `condition` |
+| `not: A` | `!A`, named `exclusion` |
+| `oneOf: [A, B]`, of requirements (not a union of objects, §4.2) | exactly one: `(A && !B) \|\| (B && !A)`, up to six alternatives; `anyOf`, any |
+| `dependentSchemas: {a: A}`; draft 7's `dependencies` with a schema | `!a? \|\| A`, named `aDependency` |
+| a property's own `not`, `if` | `aNot`, `aCondition` |
+
+Each condition is read as JSON Schema means it:
+- **`required: [a]`** is `$this.a->isNotEmpty()`, always true of a `[1]` property;
+- **`properties: {a: S}`** holds of a value without `a` (JSON Schema's `properties` says nothing of a property
+  absent): `$this.a->isEmpty() || <S of $this.a>`. So `if: {properties: {kind: {const: "a"}}}` holds when `kind` is
+  absent, as JSON Schema says;
+- **into an object-typed property**, by its path: `$this.config.mode->toOne()->in([...])`;
+- **references** are followed, a reference to itself not;
+- a type the property's type always has is true; one it never has, false; one it may have (an integer of a `Float`)
+  cannot be said.
+
+The condition is simplified (`a && (!a || b)` is `a && b`), and a value is read (`toOne`) only after its presence is
+tested, so the `||` and `&&` before it decide. A condition that holds of every value is no constraint; one of no
+value is noted, not written.
+
+**What a constraint cannot say is noted, and the condition not carried**, with why: a Variant's type or value, the
+properties of each object of a list, a property the class does not have (a `then` re-typing a generic property
+through a reference, the commonest), `minItems` or `contains` inside a condition, `additionalProperties: false`.
+
+**Proven on DuckDB (`ModelImportTest.constraintsKeepWhatTheSchemaKeeps`).** A schema of every kind of rule and logic
+is imported, mapped by `SELECT * FROM tb('store::DB.PAYMENTS')`, and each of its twelve constraints run as a query's
+`filter(this|<constraint>)` over 18 rows, each row breaking one rule. Each constraint rejects exactly the rows it
+should, and together they keep rows 1, 3 and 14: the rows python-jsonschema 4.26.0 (Draft 2020-12) accepts. Register
+row S93.
+
+### 4.5 Two corpora (2026-10-20)
+
+Each document imported whole through the route's code (`ModelChanges.importSchema`: the reader, the writer, the
+whole model compiled), one at a time with a minute each, by a scratch harness (not committed: the corpora are third
+parties'):
+- **SchemaStore.org's catalogue** (`src/schemas/json`, the first 1,001 by name), each with the sibling documents its
+  references name;
+- **APIs-guru's OpenAPI directory**, 701 documents (OpenAPI 3 and Swagger 2, mostly YAML).
+
+| | SchemaStore | OpenAPI directory |
+|---|---|---|
+| imported | **973** of 1,001 | **614** of 701 |
+| refused | 20 roots that are a reference to a document not given (each named); 8 that define no object (a root `anyOf` of texts, ...) | 87 that name no schema and whose bodies are free-form objects or examples only |
+| the writer's defect (the model did not compile) | 0 | 0 |
+| crashed, or over a minute | 0 | 0 |
+| written | 102,581 classes, 11,042 enumerations, 37,404 associations; 23,363 rules and 377 conditions as constraints | 58,465 classes, 12,382 enumerations, 51,748 associations; 36,438 rules and 7 conditions as constraints |
+| time, a document | median 12 ms, the 99th percentile 368 ms, the largest 5 s | median 15 ms, the 99th percentile 1.1 s, the largest 5 s |
+
+At the start of the day the same SchemaStore run imported 511. The 736 conditions noted as not carried are §4.4's:
+generic properties re-typed per branch, Variants, lists of objects.
+
+### 4.6 What the corpora taught
+
+Each of these was found by the corpora and is built, with a test (`JsonSchemaReaderTest`, `YamlTest`):
+- references by JSON pointer anywhere, anchors, `$id`s, draft 4's `id`, other documents (`documents`);
+- boolean schemas; `const`, and `enum`s of numbers, as rules; a union of `const`s an enumeration;
+- an OpenAPI document of no component schema read through its operations' bodies;
+- roots that are lists, maps or a reference alone;
+- conditions' properties, through references and unions, after the class's own; a branch forbidding a property not
+  hiding another's;
+- a class that would be its own superclass: the circle broken, noted, where it had refused the whole document;
+- a whole number past a 64-bit integer (`maximum: 18446744073709551615`) spelled as a float, where it had failed to
+  compile;
+- an association's name numbered when another element has it, its way back numbered per class;
+- the keywords of VS Code's, jsonschema2pojo's and json-schema-to-typescript's vocabularies read, not noted;
+- `ModelChanges.put`, which checked each new element against every other (quadratic: 26 s for the largest document),
+  answering from an index of packages and keeping each printed file (that document now under 5 s);
+- YAML's three faults (§4.1).
 
 ## 5. Mapping with SQL (`MapClass`, `JoinAssociation`)
 
@@ -275,23 +405,28 @@ All three are `POST /api/lite/v1/model/...` routes beside `createClass`, answere
 
 | Route | Request |
 |---|---|
-| `importSchema` | `{"project", "package", "schema": {"format": "openApi"\|"jsonSchema", "content", "name"?, "schemas"?}}` |
+| `importSchema` | `{"project", "package", "schema": {"format": "openApi"\|"jsonSchema", "content", "name"?, "schemas"?, "lists"?: "many"\|"variant", "operations"?, "documents"?: {name: content}}}` |
 | `mapClass` | `{"project", "package", "class", "sql", "runtime"?, "unmapped"?, "enumerations"?}` |
 | `joinAssociation` | `{"project", "package", "association", "ends": [{"class"?, "end"?, "on"}, {...}]}` |
 
 ## 7. Proven
 
-- **`json/.../YamlTest`**: each YAML construct read as the JSON it is, the core schema, and each refusal with its line
-  and column. The differential runs against PyYAML are in §4.1.
-- **`core/.../protocol/schema/JsonSchemaReaderTest`**: each schema's shape, the types and multiplicities,
-  inheritance, the four spellings of emptiness, inline classes and enumerations, Variant (and the values of no one
-  type), unions as inheritance and a cycle refused, lists as Variants, every refusal at once, validations and renames
-  noted, chosen schemas and what they reach, and a YAML document reading as its JSON does.
-- **`core/.../server/ModelImportTest`**:
-  - an OpenAPI document imported as Pure, and imported again with no change;
+- **`json/.../YamlTest`**: each YAML construct read as the JSON it is, the core schema, each refusal with its line
+  and column, and the three faults the OpenAPI directory found. The differential runs against PyYAML are in §4.1.
+- **`core/.../protocol/schema/JsonSchemaReaderTest`** (24 tests): each schema's shape, the types and multiplicities,
+  inheritance, the spellings of emptiness, inline classes and enumerations, Variant (and the values of no one type),
+  unions as inheritance, a cycle broken, lists as Variants, what has no class of its own (a Variant or a rule, noted),
+  validations as rules and renames noted, `const`s and `enum`s, every kind of reference, boolean schemas, roots that
+  are lists, maps or references, operations' bodies, defaults and deprecation, other vocabularies' keywords,
+  conditions' properties, logic as conditions (through paths, and what cannot be said, noted), chosen schemas and what
+  they reach, and a YAML document reading as its JSON does.
+- **`core/.../server/ModelImportTest`** (10 tests):
+  - an OpenAPI document imported as Pure (a validation a constraint), and imported again with no change;
   - **end to end**: imported, two classes mapped with SQL (one through an enumeration's codes, a column read by camel
     case, a key kept), the association joined, then two queries run on DuckDB through the association both ways, rows
     checked;
+  - **constraints keep what the schema keeps** (§4.4): every rule and every kind of logic, run on DuckDB as filters,
+    against python-jsonschema's verdict;
   - a SELECT that does not fit, refused with every misfit;
   - SQL that does not compile;
   - ways back named apart;
@@ -303,16 +438,14 @@ All three are `POST /api/lite/v1/model/...` routes beside `createClass`, answere
   - both routes.
 - **The real Petstore** (`petstore3.swagger.io`, OpenAPI 3.0.4, JSON and YAML) imports whole with no refusal and no
   note, maps with SQL, joins and queries on DuckDB (a scratch driver, not committed: the document is a third party's).
+- **The two corpora** (§4.5).
 
-On 2026-10-20 they ran outside Bazel (javac and the JUnit console, against the pinned DuckDB and JUnit jars), together
-with:
-- `CreateClassTest`, `ModelChangesTest` and `PureV1ApiTest`;
-- `ArchitectureTest`'s rules;
-- the source-scanning guards (`JavaEvalLedgerTest`'s funnel register gained the three new server classes, with a
-  dated reason);
-- NullAway and Error Prone, with the repository's flags, over the `json`, `protocol` and `pure_v1` sources.
-
-The Bazel gate (`//gates:local`) is CI's to run on the branch.
+On 2026-10-20, under Bazel, in a cloud session set up by docs/CLOUD_SESSIONS.md: `//json:tests`,
+`//core:core_tests_protocol`, `//core:core_tests_server`, `//core:core_tests_architecture`, `//core:guardrails` and
+`//tools/deps:core_layering_test` passed, with NullAway and Error Prone; `//wasm:planner` built. The guardrails found
+what the earlier, outside-Bazel runs had not: the drop-in surface's text rule (`DropInSurfaceTextRuleTest`, no regex
+in `protocol`: the reader's nine regex calls, four of them from the first build, are now character tests) and
+TeaVM's `isBlank`.
 
 ## 8. Decisions
 
@@ -334,8 +467,9 @@ The Bazel gate (`//gates:local`) is CI's to run on the branch.
   `NOT NULL`), or check at run time.
 - **D4. Measures.** Where a semantic layer's measures live (qualified properties, or DataCube's measures). This blocks
   the semantic-layer importers (§9) only.
-- **D6. Validations as constraints.** `minimum`, `maxLength`, `pattern` and the like could become class constraints
-  (`$this.quantity >= 0`). Built: noted, not carried.
+- **D6. Validations as constraints.** Built (2026-10-20, the user's "super bulletproof with all the features"):
+  every validation Pure states is a constraint, and so is the schema's logic (§4.4). Open: whether `mapClass` should
+  check a mapping's rows against them (today they are the model's, for whatever validates instances).
 - **D7. A list from a JSON column, typed.** The compiler change of §4.3, for the compiler's owners. Until it lands, a
   list is `[*]` and left unmapped, or imported as a `Variant`.
 - **D8. Mapping a union's superclass.** Each subclass maps with its own SELECT. The superclass itself, and a query
@@ -344,6 +478,8 @@ The Bazel gate (`//gates:local`) is CI's to run on the branch.
   (docs/FULL_RESIDUE_CENSUS_2026_08_30.md).
 - **D9. The store.** The Database, its connection and runtime are still written as Pure, or made by DataCube's
   Create a Class from a source. A SQL DDL reader (the SQL study's phase 4) or a database's catalog would make them.
+- **D10. A Variant in a condition.** A condition naming a `Variant` property's type or value (about two in five of those
+  not carried) needs a type test on a Variant the compiler does not have yet. For the compiler's owners.
 
 ## 9. The roadmap
 
@@ -351,6 +487,7 @@ The Bazel gate (`//gates:local`) is CI's to run on the branch.
 |---|---|---|
 | 1-2. **Built** | SQL mapping (§5); JSON Schema and OpenAPI (§4) | §7 |
 | 2b. **Built** | YAML (§4.1); unions as inheritance (§4.2); lists as Variants (§4.3) | §7 |
+| 2c. **Built** | every keyword read; validations and logic as constraints (§4.4); two corpora (§4.5) | §7 |
 | 3. Use it | Python (`legend_lite`: `import_schema`, `map_class`, `join`), DataCube's "Map with SQL" and "Import a model", Studio; the store from DDL or a catalog (D9) | the page's tests |
 | 4. Semantic layer | dbt semantic models (MetricFlow YAML), then Open Semantic Interchange, as classes, SQL mappings and ModelJoins, plus measures (D4) | `jaffle_shop`-class projects run end to end |
 | 5. App developers | Prisma (its own small grammar); Pydantic, SQLAlchemy and Django by reflection in Python | real schemas |
@@ -361,6 +498,7 @@ The Bazel gate (`//gates:local`) is CI's to run on the branch.
 **Every reader:**
 - produces an `ImportedModel`, or refuses by name;
 - gets a register row for each direction upstream does not have;
-- gets a corpus with a pass-rate ratchet (for JSON Schema, SchemaStore.org's catalogue);
+- gets a corpus run (for JSON Schema, SchemaStore.org's catalogue and APIs-guru's directory, §4.5); a committed
+  ratchet over it waits on vendoring a sample (the corpora are third parties');
 - gets the round trip where upstream generates the format from a model: the model imported from what upstream
   generates is the model.

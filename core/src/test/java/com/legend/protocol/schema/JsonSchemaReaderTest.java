@@ -7,13 +7,30 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.legend.json.Json;
+import com.legend.protocol.schema.ImportedModel.All;
+import com.legend.protocol.schema.ImportedModel.Any;
+import com.legend.protocol.schema.ImportedModel.Bound;
+import com.legend.protocol.schema.ImportedModel.Condition;
+import com.legend.protocol.schema.ImportedModel.Has;
+import com.legend.protocol.schema.ImportedModel.Holds;
 import com.legend.protocol.schema.ImportedModel.ImportedClass;
 import com.legend.protocol.schema.ImportedModel.ImportedProperty;
+import com.legend.protocol.schema.ImportedModel.Length;
+import com.legend.protocol.schema.ImportedModel.Logic;
+import com.legend.protocol.schema.ImportedModel.MultipleOf;
+import com.legend.protocol.schema.ImportedModel.Not;
+import com.legend.protocol.schema.ImportedModel.OneOf;
+import com.legend.protocol.schema.ImportedModel.Pattern;
+import com.legend.protocol.schema.ImportedModel.Requires;
+import com.legend.protocol.schema.ImportedModel.Rule;
+import com.legend.protocol.schema.ImportedModel.Unique;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * JSON Schema and OpenAPI read as a model (docs/MODEL_IMPORT_STUDY_2026_10_20.md §4): what each schema is made, each
@@ -52,6 +69,60 @@ class JsonSchemaReaderTest {
 
     private static List<String> refusals(String json) {
         return assertThrows(SchemaImportException.class, () -> read(json)).reasons();
+    }
+
+    /** A document read with the options given; {@code documents} in JSON written with backquotes too. */
+    private static ImportedModel read(String json, JsonSchemaReader.Options options) {
+        return JsonSchemaReader.read(json.replace('`', '"'), options);
+    }
+
+    private static JsonSchemaReader.Options named(String rootName) {
+        return JsonSchemaReader.Options.of(rootName, List.of(), false, null, Map.of());
+    }
+
+    /** Each class's rules and logic, {@code Class: rule; rule}, compactly: {@code p>=1}, {@code len(p)<=3},
+     *  {@code p~/re/}, {@code p%5}, {@code p in [..]}, {@code unique(p)}, {@code p=>[q]}; a condition with {@code p?}
+     *  for a property present, {@code !}, {@code &}, {@code |}. */
+    private static List<String> rules(ImportedModel model) {
+        List<String> out = new ArrayList<>();
+        for (ImportedClass c : model.classes()) {
+            List<String> all = new ArrayList<>();
+            for (Rule r : c.rules()) {
+                all.add(rule(r));
+            }
+            for (Logic l : c.logic()) {
+                all.add(l.name() + "{" + condition(l.condition()) + "}");
+            }
+            if (!all.isEmpty()) {
+                out.add(c.name() + ": " + String.join("; ", all));
+            }
+        }
+        return out;
+    }
+
+    private static String rule(Rule r) {
+        String p = (r.each() ? "each " : "") + r.property();
+        return switch (r) {
+            case Bound b -> p + (b.lower() ? ">" : "<") + (b.exclusive() ? "" : "=") + b.value().toPlainString();
+            case Length l -> "len(" + p + ")" + (l.lower() ? ">=" : "<=") + l.value();
+            case Pattern x -> p + "~/" + x.regex() + "/";
+            case MultipleOf m -> p + "%" + m.value().toPlainString();
+            case OneOf o -> p + " in " + o.values().stream().map(Json::toCompact).toList();
+            case Unique u -> "unique(" + p + ")";
+            case Requires q -> p + "=>" + q.others();
+        };
+    }
+
+    private static String condition(Condition c) {
+        return switch (c) {
+            case Has h -> h.property() + "?";
+            case Not n -> "!" + condition(n.condition());
+            case Holds h -> rule(h.rule());
+            case All a -> "(" + String.join(" & ", a.conditions().stream().map(JsonSchemaReaderTest::condition)
+                    .toList()) + ")";
+            case Any a -> "(" + String.join(" | ", a.conditions().stream().map(JsonSchemaReaderTest::condition)
+                    .toList()) + ")";
+        };
     }
 
     @Test
@@ -177,7 +248,7 @@ class JsonSchemaReaderTest {
                         + "no union type)",
                 "#/$defs/T/properties/mixed: a value of several types (string, integer) is a Variant (Pure has no union "
                         + "type)",
-                "#/$defs/T/properties/pair: a tuple (items as a list) is a Variant, the JSON list it is",
+                "#/$defs/T/properties/pair: a tuple (prefixItems, items as a list) is a Variant, the JSON list it is",
                 "#/$defs/T/properties/grid: a list of lists is one Variant, the JSON list it is",
                 "#/$defs/T/properties/maybe: a union (anyOf) of values that are not all objects is a Variant (Pure has "
                         + "no union type)"), m.notes());
@@ -209,20 +280,26 @@ class JsonSchemaReaderTest {
                 "owned PaymentMethodCard[PaymentMethod]{last4: P String[0..1]}",
                 "owned PaymentMethodOption2[PaymentMethod]{iban: P String[0..1]}",
                 "PaymentPayee{}"), classes(m), "Dog's allOf and the union name Pet once; Cat gains it from the union");
-        assertEquals(List.of("#/components/schemas/Payment/properties/method/oneOf/0: 'card' is named Card",
+        assertEquals(List.of("#/components/schemas/Payment/properties/method/oneOf/0: a name Pure cannot hold as it is "
+                + "is camel-cased ('card' is Card)",
                 "#/components/schemas/Payment/properties/payee: anyOf is read as oneOf (an instance is one of its "
                         + "alternatives)"), m.notes());
     }
 
     @Test
-    @DisplayName("a union and an allOf that name each other would make a class its own superclass: refused by name")
-    void aCycleOfInheritanceIsRefused() {
-        assertEquals(List.of("the class A would be its own superclass (A extends B extends A): a union and an allOf name "
-                + "each other"), refusals("""
-                        {`$defs`: {
-                          `A`: {`allOf`: [{`$ref`: `#/$defs/B`}], `oneOf`: [{`$ref`: `#/$defs/B`}, {`$ref`: `#/$defs/C`}]},
-                          `B`: {`type`: `object`, `properties`: {`b`: {`type`: `string`}}},
-                          `C`: {`type`: `object`, `properties`: {`c`: {`type`: `string`}}}}}"""));
+    @DisplayName("a union and an allOf that name each other: the superclass closing the circle dropped, noted")
+    void aCycleOfInheritanceIsBroken() {
+        ImportedModel m = read("""
+                {`$defs`: {
+                  `A`: {`allOf`: [{`$ref`: `#/$defs/B`}], `oneOf`: [{`$ref`: `#/$defs/B`}, {`$ref`: `#/$defs/C`}]},
+                  `B`: {`type`: `object`, `properties`: {`b`: {`type`: `string`}}},
+                  `C`: {`type`: `object`, `properties`: {`c`: {`type`: `string`}}},
+                  `D`: {`allOf`: [{`$ref`: `#/$defs/D`}, {`properties`: {`d`: {`type`: `string`}}}]}}}""");
+        assertEquals(List.of("A{}", "B[A]{b: P String[0..1]}", "C[A]{c: P String[0..1]}", "D{d: P String[0..1]}"),
+                classes(m));
+        assertEquals(List.of("#/$defs/D/allOf/0: an allOf naming its own schema names no superclass, and is skipped",
+                "A: a class that would be its own superclass (A extends B extends A) does not extend B"),
+                m.notes().stream().sorted().toList());
     }
 
     @Test
@@ -246,43 +323,267 @@ class JsonSchemaReaderTest {
     }
 
     @Test
-    @DisplayName("what has no Pure form is refused, every one at once, where the schema has it")
-    void everythingWithoutAPureFormIsRefusedAtOnce() {
+    @DisplayName("what has no class of its own is a Variant or a rule, noted: a reference outside, a not, a number enum")
+    void whatHasNoClassIsAVariantOrARule() {
+        ImportedModel m = read("""
+                {`$defs`: {`T`: {`type`: `object`, `properties`: {
+                  `elsewhere`: {`$ref`: `other.json#/Thing`},
+                  `never`: {`not`: {`type`: `string`}},
+                  `missing`: {`$ref`: `#/$defs/Nope`},
+                  `level`: {`$ref`: `#/$defs/Level`}}},
+                 `Level`: {`type`: `integer`, `enum`: [1, 2]}}}""");
+        String variant = "meta::pure::metamodel::variant::Variant";
+        assertEquals(List.of("T{elsewhere: P " + variant + "[0..1], never: P " + variant + "[0..1], missing: P " + variant
+                + "[0..1], level: P Integer[0..1]}"), classes(m));
+        assertEquals(List.of("T: level in [1, 2]"), rules(m), "an enumeration of numbers: the numbers a rule keeps");
         assertEquals(List.of(
-                "#/$defs/T/properties/elsewhere: the reference 'other.json#/Thing' is outside the document; only the "
-                        + "document's own schemas are read",
-                "#/$defs/T/properties/never: the keyword 'not' has no Pure form yet",
-                "#/$defs/T/properties/missing: the reference '#/$defs/Nope' names no schema of the document's (a "
-                        + "schema of components.schemas, $defs or definitions)",
-                "#/$defs/Level: an enumeration of values that are not text (1) has no Pure form yet",
-                "#/$defs/Level: an enumeration of values that are not text (2) has no Pure form yet",
-                "#/$defs/Level: an enumeration with no value"),
-                refusals("""
-                        {`$defs`: {`T`: {`type`: `object`, `properties`: {
-                          `elsewhere`: {`$ref`: `other.json#/Thing`},
-                          `never`: {`not`: {`type`: `string`}},
-                          `missing`: {`$ref`: `#/$defs/Nope`},
-                          `level`: {`$ref`: `#/$defs/Level`}}},
-                         `Level`: {`type`: `integer`, `enum`: [1, 2]}}}"""));
+                "#/$defs/T/properties/elsewhere: the reference 'other.json#/Thing' names nothing in the documents "
+                        + "given: a Variant (give the document it names in 'documents')",
+                "#/$defs/T/properties/missing: the reference '#/$defs/Nope' names nothing in the documents given: a "
+                        + "Variant (give the document it names in 'documents')",
+                "#/$defs/T/properties/never/not: a not is not carried: Pure's constraint cannot say the type of a "
+                        + "Variant"), m.notes().stream().sorted().toList());
     }
 
     @Test
-    @DisplayName("a validation is noted, not carried; a name Pure cannot hold is made one, and noted")
-    void validationsAndRenamesAreNoted() {
+    @DisplayName("a validation is a rule; a name Pure cannot hold is made one, and noted")
+    void validationsAreRulesAndRenamesAreNoted() {
         ImportedModel m = read("""
                 {`$defs`: {`trade_event`: {`type`: `object`, `properties`: {
-                  `trade-id`: {`type`: `integer`, `minimum`: 0},
-                  `code`: {`type`: `string`, `pattern`: `^[A-Z]+$`, `x-internal`: true},
+                  `trade-id`: {`type`: `integer`, `minimum`: 0, `exclusiveMaximum`: 1000, `multipleOf`: 5},
+                  `code`: {`type`: `string`, `pattern`: `^[A-Z]+$`, `minLength`: 2, `maxLength`: 8, `x-internal`: true},
+                  `price`: {`type`: `number`, `minimum`: 0, `exclusiveMinimum`: true, `multipleOf`: 0.01},
+                  `tags`: {`type`: `array`, `items`: {`type`: `string`, `minLength`: 1}, `uniqueItems`: true},
                   `side`: {`enum`: [`buy-side`, `sell`]}}}}}""");
-        assertEquals(List.of("TradeEvent{tradeId: P Integer[0..1], code: P String[0..1], side: E TradeEventSide[0..1]}"),
-                classes(m));
+        assertEquals(List.of("TradeEvent{tradeId: P Integer[0..1], code: P String[0..1], price: P Float[0..1], "
+                + "tags: P String[*], side: E TradeEventSide[0..1]}"), classes(m));
+        assertEquals(List.of("TradeEvent: tradeId>=0; tradeId<1000; tradeId%5; len(code)>=2; len(code)<=8; "
+                + "code~/^[A-Z]+$/; price>0; len(each tags)>=1; unique(tags)"), rules(m),
+                "draft 4's boolean exclusiveMinimum; a step that is not whole not carried");
         assertEquals(List.of("TradeEventSide[buy_side, sell]"), enumerations(m));
         assertEquals(List.of(
-                "#/$defs/trade_event: 'trade_event' is named TradeEvent",
-                "#/$defs/trade_event/properties/trade-id: 'trade-id' is named tradeId",
-                "#/$defs/trade_event/properties/trade-id: minimum is not carried (a validation, not a shape)",
-                "#/$defs/trade_event/properties/code: pattern is not carried (a validation, not a shape)",
-                "#/$defs/trade_event/properties/side: the value 'buy-side' is named buy_side"), m.notes());
+                "#/$defs/trade_event: a name Pure cannot hold as it is is camel-cased ('trade_event' is TradeEvent)",
+                "#/$defs/trade_event/properties/trade-id: a name Pure cannot hold as it is is camel-cased ('trade-id' "
+                        + "is tradeId)",
+                "#/$defs/trade_event/properties/price: multipleOf of a number that is not a whole number is not carried",
+                "#/$defs/trade_event/properties/side: a value whose text Pure cannot hold as a name is renamed "
+                        + "('buy-side' is buy_side)"), m.notes());
+    }
+
+    @Test
+    @DisplayName("a const, an enum of numbers or of mixed values: their type, the values a rule; a union of consts an "
+            + "enumeration, each value documented, each named as x-enum-varnames says")
+    void constsAndEnums() {
+        ImportedModel m = read("""
+                {`$defs`: {
+                  `Kind`: {`oneOf`: [{`const`: `a`, `description`: `the first`}, {`const`: `b`, `title`: `the second`}]},
+                  `Code`: {`type`: `integer`, `enum`: [200, 404], `x-enum-varnames`: [`Ok`, `NotFound`]},
+                  `Status`: {`type`: `string`, `enum`: [`on hold`, `done`], `x-enum-varnames`: [`OnHold`, `Done`],
+                    `markdownEnumDescriptions`: [`*waiting*`, ``]},
+                  `T`: {`type`: `object`, `properties`: {
+                    `version`: {`const`: 2},
+                    `flag`: {`const`: true},
+                    `mixed`: {`enum`: [`x`, 1]},
+                    `type`: {`enum`: [`Feature`]},
+                    `kind`: {`$ref`: `#/$defs/Kind`},
+                    `status`: {`$ref`: `#/$defs/Status`},
+                    `code`: {`$ref`: `#/$defs/Code`}}}}}""");
+        assertEquals(List.of("T{version: P Integer[0..1], flag: P Boolean[0..1], mixed: P "
+                + "meta::pure::metamodel::variant::Variant[0..1], type: P String[0..1], kind: E Kind[0..1], "
+                + "status: E Status[0..1], code: P Integer[0..1]}"), classes(m));
+        assertEquals(List.of("T: version in [2]; flag in [true]; type in [\"Feature\"]; code in [200, 404]"), rules(m),
+                "an inline enum of one text a constant, not an enumeration");
+        assertEquals(List.of("Kind[a, b]", "Status[OnHold, Done]"), enumerations(m));
+        assertEquals(java.util.Arrays.asList("the first", "the second"), m.enumerations().get(0).valueDocs());
+        assertEquals(List.of("on hold", "done"), m.enumerations().get(1).texts(), "a value spelled as the schema does");
+        assertEquals(java.util.Arrays.asList("*waiting*", null), m.enumerations().get(1).valueDocs());
+    }
+
+    @Test
+    @DisplayName("references: a JSON pointer anywhere, percent-encoded; an $anchor; an $id; draft 4's id; a document "
+            + "given, by the name a reference spells")
+    void referencesOfEveryKind() {
+        ImportedModel m = read("""
+                {`$id`: `https://example.com/root.json`, `$defs`: {
+                  `T`: {`type`: `object`, `properties`: {
+                    `byPointer`: {`$ref`: `#/$defs/Holder/properties/inner`},
+                    `byEncoded`: {`$ref`: `#/$defs/a%20b~1c`},
+                    `byAnchor`: {`$ref`: `#money`},
+                    `byId`: {`$ref`: `https://example.com/address.json`},
+                    `byDocument`: {`$ref`: `./common.json#/definitions/Tag`}}},
+                  `Holder`: {`type`: `object`, `properties`: {`inner`: {`type`: `object`, `properties`: {
+                    `x`: {`type`: `integer`}}}}},
+                  `a b/c`: {`type`: `string`, `format`: `date`},
+                  `Money`: {`$anchor`: `money`, `type`: `number`, `format`: `decimal`},
+                  `Address`: {`$id`: `https://example.com/address.json`, `type`: `object`, `properties`: {
+                    `city`: {`type`: `string`}}}}}""", JsonSchemaReader.Options.of(null, List.of(), false, null,
+                Map.of("common.json", "{\"definitions\": {\"Tag\": {\"type\": \"object\", \"properties\": "
+                        + "{\"name\": {\"type\": \"string\"}}}}}")));
+        assertEquals(List.of("T{byPointer: C HolderInner[0..1], byEncoded: P StrictDate[0..1], byAnchor: P Decimal[0..1], "
+                + "byId: C Address[0..1], byDocument: C Tag[0..1]}", "HolderInner{x: P Integer[0..1]}",
+                "Address{city: P String[0..1]}", "Tag{name: P String[0..1]}", "Holder{inner: C HolderInner[0..1]}"),
+                classes(m), "a place reached twice is one class, made where it is first reached");
+        ImportedModel draft4 = read("""
+                {`$schema`: `http://json-schema.org/draft-04/schema#`, `definitions`: {
+                  `T`: {`type`: `object`, `properties`: {`a`: {`$ref`: `#addr`}, `b`: {`$ref`: `item.json`}}},
+                  `A`: {`id`: `#addr`, `type`: `object`, `properties`: {`city`: {`type`: `string`}}},
+                  `I`: {`id`: `item.json`, `type`: `object`, `properties`: {`n`: {`type`: `integer`}}}}}""",
+                named(null));
+        assertEquals(List.of("T{a: C A[0..1], b: C I[0..1]}", "A{city: P String[0..1]}", "I{n: P Integer[0..1]}"),
+                classes(draft4));
+    }
+
+    @Test
+    @DisplayName("boolean schemas: true any value, a Variant; false no value, no property; a required property is [1]")
+    void booleanSchemas() {
+        ImportedModel m = read("""
+                {`$defs`: {`T`: {`type`: `object`, `required`: [`any`], `properties`: {
+                  `any`: true, `none`: false, `list`: {`type`: `array`, `items`: true}}}}}""");
+        String variant = "meta::pure::metamodel::variant::Variant";
+        assertEquals(List.of("T{any: P " + variant + "[1], list: P " + variant + "[0..1]}"), classes(m));
+        assertEquals(List.of("#/$defs/T/properties/none: a property that can hold no value is not a property",
+                "#/$defs/T/properties/list: a list of any values is one Variant, the JSON list it is"), m.notes());
+    }
+
+    @Test
+    @DisplayName("a root that is a list or a map: its item a class, its entries a class of key and value; a root that is "
+            + "a reference alone, what it names")
+    void rootsThatAreCollectionsOrReferences() {
+        assertEquals(List.of("RowsItem{id: P Integer[1]}"), classes(read("""
+                {`type`: `array`, `items`: {`type`: `object`, `required`: [`id`], `properties`: {
+                  `id`: {`type`: `integer`}}}}""", named("rows"))));
+        ImportedModel map = read("""
+                {`title`: `Mime types`, `type`: `object`, `additionalProperties`: false,
+                 `patternProperties`: {`^\\\\.[a-z]+$`: {`type`: `string`, `pattern`: `^[a-z]+/[a-z]+$`}}}""",
+                named(null));
+        assertEquals(List.of("MimeTypesEntry{key: P String[1], value: P String[1]}"), classes(map));
+        assertEquals(List.of("MimeTypesEntry: key~/^\\.[a-z]+$/; value~/^[a-z]+/[a-z]+$/"), rules(map));
+        ImportedModel values = read("""
+                {`type`: `object`, `propertyNames`: {`maxLength`: 3},
+                 `additionalProperties`: {`type`: `object`, `properties`: {`n`: {`type`: `integer`}}}}""",
+                named("Counts"));
+        assertEquals(List.of("CountsEntry{key: P String[1], value: C CountsValue[1]}", "owned CountsValue{n: P "
+                + "Integer[0..1]}"), classes(values));
+        assertEquals(List.of("CountsEntry: len(key)<=3"), rules(values));
+        assertEquals(List.of("Tag{name: P String[0..1]}"), classes(read("""
+                {`$ref`: `tag.json`}""", JsonSchemaReader.Options.of(null, List.of(), false, null, Map.of("tag.json",
+                "{\"title\": \"Tag\", \"type\": \"object\", \"properties\": {\"name\": {\"type\": \"string\"}}}")))));
+        assertEquals(List.of("#: the schema is the reference 'https://example.com/s.json' alone, to a document not given: "
+                + "give that document in 'documents'"), refusals("{`$ref`: `https://example.com/s.json`}"));
+    }
+
+    @Test
+    @DisplayName("an OpenAPI document of no component schema: each operation's request and response bodies a class")
+    void operationsBodies() {
+        ImportedModel m = read("""
+                {`openapi`: `3.0.0`, `paths`: {`/pets`: {
+                  `post`: {`operationId`: `createPet`, `requestBody`: {`content`: {`application/json`: {`schema`: {
+                    `type`: `object`, `properties`: {`name`: {`type`: `string`}}}}}},
+                    `responses`: {`201`: {`content`: {`application/json`: {`schema`: {`type`: `array`, `items`: {
+                      `type`: `object`, `properties`: {`id`: {`type`: `integer`}}}}}}}}},
+                  `get`: {`responses`: {`200`: {`description`: `no body`}}}}}}""");
+        assertEquals(List.of("CreatePetRequest{name: P String[0..1]}", "CreatePetResponseItem{id: P Integer[0..1]}"),
+                classes(m));
+    }
+
+    @Test
+    @DisplayName("defaults, deprecation and documentation: carried as the schema says them, VS Code's spellings too")
+    void defaultsDeprecationAndDocs() {
+        ImportedModel m = read("""
+                {`$defs`: {`Mode`: {`enum`: [`fast`, `slow mode`]},
+                  `T`: {`type`: `object`, `deprecated`: true, `markdownDescription`: `**the** T`, `properties`: {
+                    `retries`: {`type`: `integer`, `default`: 3},
+                    `ratio`: {`type`: `number`, `default`: 1},
+                    `mode`: {`$ref`: `#/$defs/Mode`, `default`: `slow mode`},
+                    `on`: {`type`: `boolean`, `default`: `yes`},
+                    `old`: {`type`: `string`, `deprecationMessage`: `use mode`}}}}}""");
+        ImportedClass t = m.classes().get(0);
+        assertTrue(t.deprecated());
+        assertEquals("**the** T", t.doc());
+        List<String> props = new ArrayList<>();
+        for (ImportedProperty p : t.properties()) {
+            props.add(p.name() + (p.deprecated() ? " deprecated" : "") + (p.defaultValue() == null ? ""
+                    : " = " + Json.toCompact(p.defaultValue())));
+        }
+        assertEquals(List.of("retries = 3", "ratio = 1", "mode = \"slow_mode\"", "on", "old deprecated"), props,
+                "an enumeration's default by its value's Pure name");
+        assertEquals(List.of("#/$defs/Mode: a value whose text Pure cannot hold as a name is renamed ('slow mode' is "
+                + "slow_mode)", "#/$defs/T/properties/on: a default that is not one value of its property's type is not "
+                + "carried"), m.notes());
+    }
+
+    @Test
+    @DisplayName("keywords: another vocabulary's says nothing; a validation not carried is noted; an unknown one noted")
+    void keywordsOfOtherVocabularies() {
+        ImportedModel m = read("""
+                {`$defs`: {`T`: {`type`: `object`, `minProperties`: 1, `abcIsValid`: true,
+                  `defaultSnippets`: [], `javaType`: `x.T`, `properties`: {
+                    `a`: {`type`: `string`, `errorMessage`: `bad`, `tsType`: `string`}}}}}""");
+        assertEquals(List.of("#/$defs/T: minProperties is not carried (a validation Pure states no constraint for here)",
+                "#/$defs/T: the keyword 'abcIsValid' is not JSON Schema's, and is not read"), m.notes());
+    }
+
+    @Test
+    @DisplayName("conditions: their properties optional; a branch that forbids a property does not hide another's")
+    void conditionsGatherOptionalProperties() {
+        ImportedModel m = read("""
+                {`$defs`: {`Base`: {`type`: `object`, `properties`: {`extra`: {`type`: `integer`}}},
+                  `T`: {`type`: `object`, `required`: [`kind`], `properties`: {`kind`: {`enum`: [`a`, `b`]}},
+                  `allOf`: [
+                    {`if`: {`properties`: {`kind`: {`const`: `a`}}}, `then`: {`properties`: {`size`: {`type`: `null`}}},
+                     `else`: {`properties`: {`size`: {`type`: `integer`}}, `required`: [`size`]}},
+                    {`if`: {`properties`: {`kind`: {`const`: `b`}}}, `then`: {`$ref`: `#/$defs/Base`}}]}}}""");
+        assertEquals(List.of("Base{extra: P Integer[0..1]}", "T{kind: E TKind[1], size: P Integer[0..1], extra: P "
+                + "Integer[0..1]}"), classes(m), "a reference inside a condition no superclass: its properties optional");
+        assertEquals(List.of("T: condition{((!size? | !kind in [\"a\"]) & (kind in [\"a\"] | size?))}"), rules(m),
+                "kind is required: of it, its value alone; a presence test before the rest");
+    }
+
+    @Test
+    @DisplayName("logic over a whole value: if/then/else, not, a union of requirements, dependencies -- each a condition")
+    void logicIsConditions() {
+        ImportedModel m = read("""
+                {`$defs`: {`Payment`: {`type`: `object`, `required`: [`method`],
+                  `properties`: {
+                    `method`: {`enum`: [`card`, `bank`]},
+                    `card`: {`type`: `string`}, `iban`: {`type`: `string`}, `cvv`: {`type`: `string`},
+                    `email`: {`type`: `string`}, `phone`: {`type`: `string`},
+                    `amount`: {`type`: `number`, `not`: {`const`: 0}},
+                    `kind`: {`type`: `integer`}},
+                  `if`: {`properties`: {`method`: {`const`: `card`}}}, `then`: {`required`: [`card`]},
+                  `not`: {`required`: [`card`, `iban`]},
+                  `oneOf`: [{`required`: [`email`]}, {`required`: [`phone`]}],
+                  `dependentRequired`: {`card`: [`cvv`]},
+                  `dependentSchemas`: {`iban`: {`properties`: {`kind`: {`minimum`: 1}}}}}}}""");
+        assertEquals(List.of("Payment: card=>[cvv]; "
+                + "condition{(!method in [\"card\"] | card?)}; "
+                + "exclusion{!(card? & iban?)}; "
+                + "oneOf{((email? & !phone?) | (phone? & !email?))}; "
+                + "ibanDependency{(!iban? | !kind? | kind>=1)}; "
+                + "amountNot{(!amount? | !amount in [0])}"), rules(m), "a required property's presence is always");
+        assertEquals(List.of(), m.notes());
+    }
+
+    @Test
+    @DisplayName("logic into an object-typed property, by its path; logic Pure's constraint cannot say is noted, not "
+            + "carried")
+    void logicThroughPathsAndWhatCannotBeSaid() {
+        ImportedModel m = read("""
+                {`$defs`: {`Job`: {`type`: `object`, `properties`: {
+                  `config`: {`type`: `object`, `properties`: {`mode`: {`enum`: [`batch`, `stream`]}}},
+                  `schedule`: {`type`: `string`}, `any`: {}},
+                  `allOf`: [
+                    {`if`: {`properties`: {`config`: {`properties`: {`mode`: {`const`: `batch`}},
+                      `required`: [`mode`]}}, `required`: [`config`]}, `then`: {`required`: [`schedule`]}},
+                    {`if`: {`properties`: {`any`: {`const`: 1}}}, `then`: {`required`: [`schedule`]}},
+                    {`if`: {`required`: [`nope`]}, `then`: {`required`: [`schedule`]}}]}}}""");
+        assertEquals(List.of("Job: condition{(!(config.mode? & config? & config.mode in [\"batch\"]) | schedule?)}"),
+                rules(m));
+        assertEquals(List.of(
+                "#/$defs/Job/allOf/1: a condition (if/then/else) is not carried: Pure's constraint cannot say a const "
+                        + "or enum of a Variant",
+                "#/$defs/Job/allOf/2: a condition (if/then/else) is not carried: Pure's constraint cannot say 'nope', "
+                        + "not a property of the class"), m.notes());
     }
 
     @Test
@@ -292,15 +593,14 @@ class JsonSchemaReaderTest {
                 {`openapi`: `3.1.0`, `components`: {`schemas`: {
                   `Trade`: {`type`: `object`, `properties`: {`customer`: {`$ref`: `#/components/schemas/Customer`}}},
                   `Customer`: {`type`: `object`, `properties`: {`id`: {`type`: `integer`}}},
-                  `Unrelated`: {`type`: `object`, `properties`: {`x`: {`not`: {`type`: `string`}}}}}}}"""
+                  `Unrelated`: {`type`: `object`, `properties`: {`x`: {`type`: `string`}}}}}}"""
                 .replace('`', '"');
         assertEquals(List.of("Trade{customer: C Customer[0..1]}", "Customer{id: P Integer[0..1]}"),
                 classes(JsonSchemaReader.read(json, null, List.of("Trade"), false)));
         SchemaImportException e = assertThrows(SchemaImportException.class,
                 () -> JsonSchemaReader.read(json, null, List.of("Nope"), false));
         assertEquals(List.of("the schema has no 'Nope' to import"), e.reasons());
-        assertTrue(assertThrows(SchemaImportException.class, () -> JsonSchemaReader.read(json, null, List.of(), false))
-                .reasons().get(0).contains("the keyword 'not'"), "all of it, read, refuses the keyword");
+        assertEquals(3, JsonSchemaReader.read(json, null, List.of(), false).classes().size(), "all of it, read");
     }
 
     @Test
@@ -343,8 +643,7 @@ class JsonSchemaReaderTest {
         assertEquals(read(json), fromYaml);
         assertEquals(List.of("Order{id: P Integer[1], status: E OrderStatus[0..1], lines: C Line[*]}",
                 "Line{sku: P String[0..1]}"), classes(fromYaml));
-        assertEquals(List.of("the schema is not YAML: YAML line 2, column 3: bad indentation: a sequence entry more "
-                + "indented than its mapping, under a scalar value"),
-                refusals("openapi: 3.0.0\n  - x\n"));
+        assertEquals(List.of("the schema is not YAML: YAML line 2, column 1: ',' or ']' in a flow sequence"),
+                refusals("openapi: [3.0.0\n"));
     }
 }

@@ -42,7 +42,7 @@ public final class Yaml {
      */
     public static Json.Node parse(String text) {
         String src = text.replace("\r\n", "\n").replace('\r', '\n');
-        if (src.startsWith("﻿")) {
+        if (src.startsWith("\uFEFF")) {
             src = src.substring(1);
         }
         return new Reader(src).document();
@@ -227,7 +227,7 @@ public final class Yaml {
                 }
                 return new Json.Str(text);
             }
-            String plain = plainLine(false);
+            String plain = plainLine(false, false);
             if (peek() == ':' && spaceOrEnd(pos + 1)) {
                 return mapping(indent, plain);
             }
@@ -285,7 +285,7 @@ public final class Yaml {
                 } else if (c == '[' || c == '{' || c == '&' || c == '!' || c == '*' || c == '|' || c == '>') {
                     throw error("a key is a scalar on one line");
                 } else {
-                    key = plainLine(false);
+                    key = plainLine(false, false);
                     mergeKey = "<<".equals(key);
                 }
                 skipSpaces();
@@ -339,12 +339,12 @@ public final class Yaml {
         // ---------------------------------------------------------------
 
         /** A plain scalar's text on this line: up to a comment, a {@code ": "} or the line's end (in a flow, a flow
-         *  indicator too). */
-        private String plainLine(boolean flow) {
+         *  indicator too). Only its first line cannot start with an indicator; a further line can. */
+        private String plainLine(boolean flow, boolean further) {
             int start = pos;
             char first = peek();
-            if ("#,[]{}&*!|>'\"%@`".indexOf(first) >= 0
-                    || ((first == '-' || first == '?' || first == ':') && spaceOrEnd(pos + 1))) {
+            if (!further && ("#,[]{}&*!|>'\"%@`".indexOf(first) >= 0
+                    || ((first == '-' || first == '?' || first == ':') && spaceOrEnd(pos + 1)))) {
                 throw error("a plain scalar cannot start with '" + first + "'");
             }
             while (pos < src.length()) {
@@ -407,10 +407,7 @@ public final class Yaml {
                     return out.toString();
                 }
                 pos = content;
-                if (atSequenceEntry()) {
-                    throw error("bad indentation: a sequence entry more indented than its mapping, under a scalar value");
-                }
-                String more = plainLine(false);
+                String more = plainLine(false, true);
                 if (peek() == ':' && spaceOrEnd(pos + 1)) {
                     throw error("bad indentation: a key more indented than its mapping, under a scalar value");
                 }
@@ -445,7 +442,7 @@ public final class Yaml {
                     return out.toString();
                 }
                 if (c == '\n') {
-                    fold(out);
+                    fold(out, 0);
                     continue;
                 }
                 out.append(c);
@@ -457,6 +454,8 @@ public final class Yaml {
             int open = pos;
             pos++;
             StringBuilder out = new StringBuilder();
+            // the text an escape wrote ends here: a line break trims the spaces after it, never it
+            int escaped = 0;
             while (true) {
                 if (pos >= src.length()) {
                     pos = open;
@@ -468,7 +467,7 @@ public final class Yaml {
                     return out.toString();
                 }
                 if (c == '\n') {
-                    fold(out);
+                    fold(out, escaped);
                     continue;
                 }
                 if (c != '\\') {
@@ -496,9 +495,9 @@ public final class Yaml {
                     case '/' -> out.append('/');
                     case '\\' -> out.append('\\');
                     case 'N' -> out.append('\u0085');
-                    case '_' -> out.append(' ');
-                    case 'L' -> out.append(' ');
-                    case 'P' -> out.append(' ');
+                    case '_' -> out.append('\u00A0');
+                    case 'L' -> out.append('\u2028');
+                    case 'P' -> out.append('\u2029');
                     case 'x' -> codePoint(out, hex(2));
                     case 'u' -> codePoint(out, hex(4));
                     case 'U' -> codePoint(out, hex(8));
@@ -513,14 +512,16 @@ public final class Yaml {
                         throw error("the escape '\\" + e + "' is not YAML's");
                     }
                 }
+                escaped = out.length();
             }
         }
 
-        /** A line break inside a quoted scalar: the trailing spaces before it dropped, the next line's leading ones
-         *  too; one space for it, a line break for each empty line after it. */
-        private void fold(StringBuilder out) {
+        /** A line break inside a quoted scalar: the trailing spaces before it dropped (back to {@code floor}, where an
+         *  escape's text ends), the next line's leading ones too; one space for it, a line break for each empty line
+         *  after it. */
+        private void fold(StringBuilder out, int floor) {
             int end = out.length();
-            while (end > 0 && (out.charAt(end - 1) == ' ' || out.charAt(end - 1) == '\t')) {
+            while (end > floor && (out.charAt(end - 1) == ' ' || out.charAt(end - 1) == '\t')) {
                 end--;
             }
             out.setLength(end);
@@ -596,7 +597,9 @@ public final class Yaml {
                     spaces++;
                 }
                 int content = lineStart + spaces;
-                boolean empty = content >= src.length() || src.charAt(content) == '\n';
+                // a line of spaces alone is empty; of more than the indentation, its text the spaces beyond it
+                boolean empty = (content >= src.length() || src.charAt(content) == '\n')
+                        && (indent < 0 || spaces <= indent);
                 if (empty) {
                     if (lineStart >= src.length()) {
                         pos = src.length();
@@ -827,7 +830,7 @@ public final class Yaml {
         private String flowPlain() {
             StringBuilder out = new StringBuilder();
             while (true) {
-                String part = plainLine(true);
+                String part = plainLine(true, out.length() > 0);
                 if (out.length() > 0 && !part.isEmpty()) {
                     out.append(' ');
                 }

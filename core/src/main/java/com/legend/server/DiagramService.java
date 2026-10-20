@@ -229,8 +229,7 @@ public final class DiagramService {
     }
 
     private static String packageOf(String fqn) {
-        int cut = fqn.lastIndexOf("::");
-        return cut < 0 ? "" : fqn.substring(0, cut);
+        return ModelChanges.packageOf(fqn);
     }
 
     /** A type reference as written → the FQN of a class in this model, so

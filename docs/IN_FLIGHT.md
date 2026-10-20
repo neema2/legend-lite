@@ -2419,3 +2419,18 @@ study's §4.1-§4.3).
   mapping read from one JSON column compiles, and each instance's one value is the whole list where `[*]` promises its
   elements. And a proposal, the study's D7: a `[*]` property read from a JSON-list column as `->toMany(@T)` in
   `normalizer/MappingNormalizer`, the database unnesting it.
+
+**Announced 2026-10-20, before landing, on the same branch: the reader made whole** (the user: "keep going with
+making json schema super bulletproof with all the features"; the study's §4, §4.4-§4.6).
+- **This line's own files:** `ImportedModel` (rules: `Unique`, `Requires`; a class's `logic`, its `Condition`s),
+  `JsonSchemaReader` (references of every kind and other documents, roots that are lists, maps or references,
+  operations' bodies, logic as conditions, the vocabularies' keywords; no regex, per `DropInSurfaceTextRuleTest`),
+  `ImportSchema` (the conditions written as constraints), `Yaml` (three faults APIs-guru's directory found), their
+  tests.
+- **Edits in the DataCube line's files:** `server/ModelChanges.java`: `put` answers from an index of packages and keeps
+  each printed file (it was quadratic in the elements: 26 s for the largest corpus document), and `packageOf` (a path's
+  package) is its, moved from `server/DiagramService.java`, whose `packageOf` now calls it (no new name cut:
+  `IdentityGuardrailTest`'s pins are unchanged).
+- **No guard moves.** The two guard-flagged shapes the work met were changed instead: a mutable field made an explicit
+  argument (`CodeShapeGuardrailTest`), two `default -> "literal"` arms a table and a throw (`ErrorShapeGuardrailTest`).
+- **Register rows** S93 (validations and logic as constraints), S94 (a root list or map).

@@ -11,6 +11,7 @@ import com.legend.parser.PmcdParser;
 import com.legend.protocol.ModelComposer;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,11 +41,32 @@ public final class ModelChanges {
     private final Map<String, Json.Obj> elements;
     /** What the actions say beside their files (a sample's rows left out). */
     final List<String> notes = new ArrayList<>();
+    /** Every package an element is in, each prefix of each path ({@code a}, {@code a::b} of {@code a::b::C}): what
+     *  {@link #put} asks of a path, at once, however many elements there are (an import writes thousands). */
+    private final Set<String> packages = new HashSet<>();
+    /** Each element put, as its file holds it: printed and read back once, in {@link #put}, not again for the
+     *  answer. */
+    private final Map<String, String> files = new HashMap<>();
 
     private ModelChanges(String project) {
         this.project = project;
         this.original = elementsOf(project);
         this.elements = new LinkedHashMap<>(original);
+        for (String path : elements.keySet()) {
+            addPackages(path);
+        }
+    }
+
+    private void addPackages(String path) {
+        for (String p = packageOf(path); !p.isEmpty(); p = packageOf(p)) {
+            packages.add(p);
+        }
+    }
+
+    /** The package a path is in: {@code a::b} of {@code a::b::C}; empty, of a path at the root. */
+    static String packageOf(String path) {
+        int cut = path.lastIndexOf("::");
+        return cut < 0 ? "" : path.substring(0, cut);
     }
 
     // ---------------------------------------------------------------------
@@ -202,22 +224,28 @@ public final class ModelChanges {
      * already exists in the package 'trades'").
      */
     void put(Json.Obj element) {
-        file(element);
+        String printed = file(element);
         String path = pathOf(element);
         Json.Obj was = elements.get(path);
         if (was != null && !textOf(was, "_type").equals(textOf(element, "_type"))) {
             throw refused("'" + path + "' is already the project's " + kind(was) + ": name it otherwise");
         }
-        for (String other : elements.keySet()) {
-            if (other.startsWith(path + "::")) {
-                throw refused("'" + path + "' is a package of the project (" + other + "): name it otherwise");
+        if (packages.contains(path)) {
+            for (String other : elements.keySet()) {
+                if (other.startsWith(path + "::")) {
+                    throw refused("'" + path + "' is a package of the project (" + other + "): name it otherwise");
+                }
             }
-            if (path.startsWith(other + "::")) {
+        }
+        for (String other = packageOf(path); !other.isEmpty(); other = packageOf(other)) {
+            if (elements.containsKey(other)) {
                 throw refused("'" + other + "' is the project's " + kind(elements.get(other)) + ", and so cannot be the "
                         + "package of " + path + ": name it otherwise");
             }
         }
         elements.put(path, element);
+        files.put(path, printed);
+        addPackages(path);
     }
 
     /** What kind of element {@code e} is, as a person names it. */
@@ -242,7 +270,8 @@ public final class ModelChanges {
             Map<String, Object> change = new LinkedHashMap<>();
             change.put("type", was == null ? "CREATE" : "MODIFY");
             change.put("path", e.getKey());
-            change.put("pureCode", file(e.getValue()));
+            String printed = files.get(e.getKey());
+            change.put("pureCode", printed != null ? printed : file(e.getValue()));
             out.add(change);
         }
         return out;

@@ -50,6 +50,11 @@ class YamlTest {
                 "{`url`: `https://example.com/a#frag`, `colon`: `a:b`, `hash`: `a#b`, `dash`: `-x`, `q`: `what?`, "
                         + "`c`: `a`}");
         reads("name: R\u00e9sum\u00e9\nemoji: \"\\U0001F600\"\n", "{`name`: `R\u00e9sum\u00e9`, `emoji`: `\uD83D\uDE00`}");
+        // only a plain scalar's first line cannot start with an indicator (OpenAPI descriptions, 2026-10-20)
+        reads("a: one\n  `owner` role\n  [RFC](x) and\n  \"quoted\" - and @, %, !, ? and\n  - a dash\nb: 1\n",
+                "{`a`: `one \\u0060owner\\u0060 role [RFC](x) and \\`quoted\\` - and @, %, !, ? and - a dash`, `b`: 1}");
+        // an escaped space before a line break is the scalar's; the spaces written before the break are not
+        reads("a: \"x:\\ \n\n  - y\\t  \n  z\"\n", "{`a`: `x: \\n- y\\t z`}");
     }
 
     @Test
@@ -63,6 +68,8 @@ class YamlTest {
         reads("d: >-\n  The pet's\n  status.\n", "{`d`: `The pet's status.`}");
         reads("a: |2\n    two extra\n  base\n", "{`a`: `  two extra\\nbase\\n`}");
         reads("--- |\n  text\n", "`text\\n`");
+        // a line of more spaces than the indentation is text: the spaces beyond it
+        reads("a: |-\n  one\n   \n  two\nb: 1\n", "{`a`: `one\\n \\ntwo`, `b`: 1}");
     }
 
     @Test
