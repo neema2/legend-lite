@@ -1140,8 +1140,8 @@ Branch `claude/graphql-study-2026-10-18`; the GATES entry "GraphQL: the fourth l
   built; the database computes each leaf. C6.2 holds: the emitter rearranges shapes and compares nothing.
 - **The aggregate root, a relation (§6.1).** `PersonAggregate(where: W) { count sum { salary } }` is the Relation
   API: `Person.all()->filter(W)->project(~[__one: x|1, salary: x|$x.salary])->aggregate(~[count: x|$x.__one :
-  y|$y->count(), sum__salary: x|$x.salary : y|$y->sum()])`, one row whose columns are the response's paths joined by
-  `__`. The island's value is that relation (`Root.relation`), typed `Relation<(count: Integer[1], ...)>`; a Pure
+  y|$y->count(), 'sum.salary': x|$x.salary : y|$y->sum()])`, one row whose columns are the response's paths joined by
+  `.` (`__` until 2026-10-20: an alias may contain `__`, a dot no GraphQL name contains). The island's value is that relation (`Root.relation`), typed `Relation<(count: Integer[1], ...)>`; a Pure
   caller reads the row; the endpoint arranges the one row into the response object by the paths (`arranged`).
 - **The schema.** `min`/`max` over numbers and dates only (`comparableProps`): a string's min has no Pure
   spelling in the catalog (the not-done list). The golden `demo.graphql` regenerated: `AddressMin`/`AddressMax`
@@ -1173,8 +1173,8 @@ groups (below).
 
 - **The groups root, a relation (G7, §6.1).** `PersonGroups(where: W, having: H, orderBy: [...], limit: n, offset:
   m) { key { firm { legalName } born(truncate: YEAR) } count avg { age } }` is `Person.all()->filter(W)->project(~[
-  key__firm__legalName: x|$x.firm.legalName, key__born: x|$x.born->firstDayOfYear(), __one: x|1, age: x|$x.age])
-  ->groupBy(~[key__firm__legalName, key__born], ~[count: x|$x.__one : y|$y->count(), avg__age: x|$x.age :
+  'key.firm.legalName': x|$x.firm.legalName, 'key.born': x|$x.born->firstDayOfYear(), __one: x|1, age: x|$x.age])
+  ->groupBy(~['key.firm.legalName', 'key.born'], ~[count: x|$x.__one : y|$y->count(), 'avg.age': x|$x.age :
   y|$y->average()])->filter(g|H)->sort([...])->drop(m)->limit(n)`: one row per group whose columns are the
   response's paths joined by `__`, the response keys spelling them (an aliased `k: key { ... }` is `k__...`). The
   island's value is that relation (`Root.Shape.ROWS`); a Pure caller reads the rows; the endpoint arranges each
@@ -1187,10 +1187,10 @@ groups (below).
   `HOUR`), each the lowering's `DATE_TRUNC`; the read made one where the property is optional (the heads take
   `Date[1]`; an empty read is the null the database groups).
 - **`having` and `orderBy` over the grouped row.** `having` is the group row's filter: `count` and each fold's
-  properties through the scalar filters of G5 (`sum: { salary: { gt: 200000 } }` is `$g.sum__salary > 200000`),
+  properties through the scalar filters of G5 (`sum: { salary: { gt: 200000 } }` is `$g.'sum.salary' > 200000`),
   with `AND`/`OR`/`NOT`. `orderBy` is the relation's `sort([~c->descending(), ...])`, the list's first key
   primary: `count`, a key's path (selected under `key`, else refused by name), or a fold's property. A column
-  `having` or `orderBy` asks that the selection does not carry is aggregated under a hidden name (`_sum__salary`)
+  `having` or `orderBy` asks that the selection does not carry is aggregated under a hidden name (`_sum.salary`)
   and dropped by a trailing `select` of the selected columns, so the row is the selection's.
 - **The endpoint.** A root's value has a `Shape`: a graph root's serialized TREE, an aggregate root's one ROW, a
   groups root's ROWS; the endpoint arranges the latter two by the columns' paths. Nothing else of the envelope

@@ -220,7 +220,7 @@ public final class GraphqlApi {
 
     /**
      * A relation root's answer (an aggregate: one row) arranged into the response object by the columns' paths
-     * ({@code sum__salary} is {@code sum.salary}): the database computed every value; this places each under its
+     * ({@code sum.salary} is the path sum, salary): the database computed every value; this places each under its
      * key, as the TDS writer places rows under {@code values}.
      */
     private static Json.Node arrangedRow(Json.Node rows, String key) {
@@ -251,7 +251,7 @@ public final class GraphqlApi {
     private static Json.Obj arranged(Json.Obj row) {
         Json.Obj out = Json.obj();
         for (Map.Entry<String, Json.Node> e : row.fields().entrySet()) {
-            String[] path = e.getKey().split(GqlToPure.PATH_SEPARATOR);
+            String[] path = e.getKey().split(java.util.regex.Pattern.quote(GqlToPure.PATH_SEPARATOR));
             Json.Obj at = out;
             for (int i = 0; i < path.length - 1; i++) {
                 Json.Node next = at.fields().get(path[i]);

@@ -1,0 +1,199 @@
+// The GraphQL hardening fixture (docs/GRAPHQL_STUDY_2026_10_18.md §13.7): a shop built to break things.
+// Every scalar kind, nulls in every nullable column, empty lists, sort ties, quotes, `%` and `_` in strings, unicode,
+// case variants, a 64-bit integer past 2^53, a self-reference, a many-to-many through a join table, derived
+// properties of each kind. The rows are ShopFixture's (one source for the database and the reference evaluator).
+
+###Pure
+Enum shop::Tier { GOLD, SILVER, BRONZE }
+Enum shop::Status { OPEN, SHIPPED, CANCELLED }
+Enum shop::Category { BOOKS, TOYS, GARDEN }
+
+Class {meta::pure::profiles::doc.doc = 'A customer of the shop.'} shop::Customer
+{
+  id: Integer[1];
+  name: String[1];
+  email: String[0..1];
+  tier: shop::Tier[0..1];
+  vip: Boolean[1];
+  joined: StrictDate[1];
+  lastSeen: DateTime[0..1];
+  credit: Decimal[0..1];
+  score: Integer[0..1];
+  {meta::pure::profiles::doc.doc = 'The name, lower-cased.'} handle() { $this.name->toLower() }: String[1];
+  label() { if($this.email->isEmpty(), |$this.name, |$this.name + ' <' + $this.email->toOne() + '>') }: String[1];
+  loud() { $this.handle()->toUpper() }: String[1];
+  idTimes(k: Integer[1]) { $this.id * $k }: Integer[1];
+  liveOrders() { $this.orders->filter(o|$o.status != shop::Status.CANCELLED) }: shop::Order[*];
+  orderCount() { $this.orders->count() }: Integer[1];
+}
+
+Class shop::Order
+{
+  id: Integer[1];
+  placed: StrictDate[1];
+  status: shop::Status[1];
+  note: String[0..1];
+  discount: Float[0..1];
+  lineCount() { $this.lines->count() }: Integer[1];
+}
+
+Class shop::Line
+{
+  id: Integer[1];
+  qty: Integer[1];
+  unitPrice: Float[1];
+  amount() { $this.qty->toFloat() * $this.unitPrice }: Float[1];
+}
+
+Class shop::Product
+{
+  sku: String[1];
+  title: String[1];
+  category: shop::Category[0..1];
+  price: Float[1];
+  weight: Float[0..1];
+  tagCount() { $this.tags->count() }: Integer[1];
+}
+
+Class shop::Tag
+{
+  id: Integer[1];
+  label: String[1];
+}
+
+Association shop::Referral { referrer: shop::Customer[0..1]; referred: shop::Customer[*]; }
+Association shop::Purchase { customer: shop::Customer[0..1]; orders: shop::Order[*]; }
+Association shop::OrderLines { order: shop::Order[0..1]; lines: shop::Line[*]; }
+Association shop::LineProduct { product: shop::Product[0..1]; productLines: shop::Line[*]; }
+Association shop::Tagging { products: shop::Product[*]; tags: shop::Tag[*]; }
+
+###Relational
+Database shop::Db
+(
+  Table CUSTOMER (ID INTEGER PRIMARY KEY, NAME VARCHAR(200), EMAIL VARCHAR(200), TIER VARCHAR(10), VIP BIT,
+                  JOINED DATE, LAST_SEEN TIMESTAMP, CREDIT DECIMAL(12, 2), SCORE BIGINT, REFERRER_ID INTEGER)
+  Table ORDERS (ID INTEGER PRIMARY KEY, CUSTOMER_ID INTEGER, PLACED DATE, STATUS VARCHAR(10), NOTE VARCHAR(200),
+                DISCOUNT DOUBLE)
+  Table LINE (ID INTEGER PRIMARY KEY, ORDER_ID INTEGER, SKU VARCHAR(10), QTY INTEGER, UNIT_PRICE DOUBLE)
+  Table PRODUCT (SKU VARCHAR(10) PRIMARY KEY, TITLE VARCHAR(200), CATEGORY VARCHAR(10), PRICE DOUBLE, WEIGHT DOUBLE)
+  Table TAG (ID INTEGER PRIMARY KEY, LABEL VARCHAR(50))
+  Table PRODUCT_TAG (SKU VARCHAR(10), TAG_ID INTEGER)
+  Join Referral (CUSTOMER.REFERRER_ID = {target}.ID)
+  Join CustomerOrders (CUSTOMER.ID = ORDERS.CUSTOMER_ID)
+  Join OrderLines (ORDERS.ID = LINE.ORDER_ID)
+  Join LineProduct (LINE.SKU = PRODUCT.SKU)
+  Join ProductTagProduct (PRODUCT_TAG.SKU = PRODUCT.SKU)
+  Join ProductTagTag (PRODUCT_TAG.TAG_ID = TAG.ID)
+)
+
+###Mapping
+Mapping shop::Map
+(
+  shop::Customer: Relational
+  {
+    ~primaryKey ([shop::Db] CUSTOMER.ID)
+    ~mainTable [shop::Db] CUSTOMER
+    id: [shop::Db] CUSTOMER.ID,
+    name: [shop::Db] CUSTOMER.NAME,
+    email: [shop::Db] CUSTOMER.EMAIL,
+    tier: EnumerationMapping TierMap: [shop::Db] CUSTOMER.TIER,
+    vip: [shop::Db] CUSTOMER.VIP,
+    joined: [shop::Db] CUSTOMER.JOINED,
+    lastSeen: [shop::Db] CUSTOMER.LAST_SEEN,
+    credit: [shop::Db] CUSTOMER.CREDIT,
+    score: [shop::Db] CUSTOMER.SCORE
+  }
+  shop::Order: Relational
+  {
+    ~primaryKey ([shop::Db] ORDERS.ID)
+    ~mainTable [shop::Db] ORDERS
+    id: [shop::Db] ORDERS.ID,
+    placed: [shop::Db] ORDERS.PLACED,
+    status: EnumerationMapping StatusMap: [shop::Db] ORDERS.STATUS,
+    note: [shop::Db] ORDERS.NOTE,
+    discount: [shop::Db] ORDERS.DISCOUNT
+  }
+  shop::Line: Relational
+  {
+    ~primaryKey ([shop::Db] LINE.ID)
+    ~mainTable [shop::Db] LINE
+    id: [shop::Db] LINE.ID,
+    qty: [shop::Db] LINE.QTY,
+    unitPrice: [shop::Db] LINE.UNIT_PRICE
+  }
+  shop::Product: Relational
+  {
+    ~primaryKey ([shop::Db] PRODUCT.SKU)
+    ~mainTable [shop::Db] PRODUCT
+    sku: [shop::Db] PRODUCT.SKU,
+    title: [shop::Db] PRODUCT.TITLE,
+    category: EnumerationMapping CategoryMap: [shop::Db] PRODUCT.CATEGORY,
+    price: [shop::Db] PRODUCT.PRICE,
+    weight: [shop::Db] PRODUCT.WEIGHT
+  }
+  shop::Tag: Relational
+  {
+    ~primaryKey ([shop::Db] TAG.ID)
+    ~mainTable [shop::Db] TAG
+    id: [shop::Db] TAG.ID,
+    label: [shop::Db] TAG.LABEL
+  }
+  shop::Referral: Relational
+  {
+    AssociationMapping
+    (
+      referrer: [shop::Db] @Referral,
+      referred: [shop::Db] @Referral
+    )
+  }
+  shop::Purchase: Relational
+  {
+    AssociationMapping
+    (
+      customer: [shop::Db] @CustomerOrders,
+      orders: [shop::Db] @CustomerOrders
+    )
+  }
+  shop::OrderLines: Relational
+  {
+    AssociationMapping
+    (
+      order: [shop::Db] @OrderLines,
+      lines: [shop::Db] @OrderLines
+    )
+  }
+  shop::LineProduct: Relational
+  {
+    AssociationMapping
+    (
+      product: [shop::Db] @LineProduct,
+      productLines: [shop::Db] @LineProduct
+    )
+  }
+  shop::Tagging: Relational
+  {
+    AssociationMapping
+    (
+      products: [shop::Db] @ProductTagTag > @ProductTagProduct,
+      tags: [shop::Db] @ProductTagProduct > @ProductTagTag
+    )
+  }
+  shop::Tier: EnumerationMapping TierMap { GOLD: 'GOLD', SILVER: 'SILVER', BRONZE: 'BRONZE' }
+  shop::Status: EnumerationMapping StatusMap { OPEN: 'OPEN', SHIPPED: 'SHIPPED', CANCELLED: 'CANCELLED' }
+  shop::Category: EnumerationMapping CategoryMap { BOOKS: 'BOOKS', TOYS: 'TOYS', GARDEN: 'GARDEN' }
+)
+
+###Connection
+RelationalDatabaseConnection shop::Conn
+{
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
+}
+
+###Runtime
+Runtime shop::Runtime
+{
+  mappings: [ shop::Map ];
+  connections: [ shop::Db: [ environment: shop::Conn ] ];
+}

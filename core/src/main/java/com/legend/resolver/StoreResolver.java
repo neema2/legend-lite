@@ -3381,7 +3381,24 @@ public final class StoreResolver {
                 DottedExists.EmptinessPaths.of(innerOps, List.of()), context,
                 nestedAssocs, dotted, this::nestedScope);
         nested = dotted;
-        if (nested.isEmpty() && nestedAssocs.isEmpty()) {
+        // nested AGGREGATES ($e.lines->count() inside the predicate: the GraphQL hardening fuzzer's
+        // `liveOrders: { some: { lineCount: ... } }`, 2026-10-20): the root's own route over the nested target --
+        // the filter-position aggregate scan, the grouped materials, the fold onto the widened pipe -- and the
+        // reads register as the root's do
+        Map<String, List<AggDemand>> innerAggDemands = new LinkedHashMap<>();
+        CorrelatedSubselects.aggScanFilters(innerOps, t, innerAggDemands, this::isToManyAssocHead,
+                this::isAssocOrNavHead);
+        Map<TypedSpec, Substitution.AggRead> innerAggReads = Map.of();
+        if (!innerAggDemands.isEmpty()) {
+            Map<String, AssociationJoins.AssocJoin> chainMids = new LinkedHashMap<>();
+            Map<String, AssociationJoins.AssocJoin> aggMaterials = corrSubs.buildAggMaterials(temporal, t,
+                    context, innerAggDemands, chainMids);
+            JoinedPipe joined = foldAssociationJoins(t, new Pipelines.Materialized(pipe, Map.of(), Set.of()), pipe,
+                    List.of(), aggMaterials, innerAggDemands, chainMids);
+            pipe = joined.m().pipeline();
+            innerAggReads = joined.aggReads();
+        }
+        if (nested.isEmpty() && nestedAssocs.isEmpty() && innerAggReads.isEmpty()) {
             // callees still ride (objectReferenceIn in a nested predicate)
             return new NestedScope(new Substitution.Registries(Map.of(),
                     Set.of(), Map.of(), Map.of(), Map.of(), callees.isNotEmpty(),
@@ -3390,7 +3407,7 @@ public final class StoreResolver {
         }
         return new NestedScope(
                 new Substitution.Registries(nestedAssocs, Set.of(), nested,
-                        Map.of(), Map.of(), callees.isNotEmpty(), callees.equal(),
+                        innerAggReads, Map.of(), callees.isNotEmpty(), callees.equal(),
                         List.of(), callees.in()),
                 pipe, Type.requireRelationSchema(pipe.info().type()));
         } finally {

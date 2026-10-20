@@ -54,12 +54,12 @@ class GqlGroupsTest {
         ExecutionResult r = rows("{ PersonGroups(orderBy: [{ count: DESC }, { key: { firm: { legalName: ASC } } }])"
                 + " { key { firm { legalName } } count avg { age } } }");
         assertEquals(3, r.rowCount(), r.toString());
-        assertEquals("Acme", cell(r, 0, "key__firm__legalName"), r.toString());
+        assertEquals("Acme", cell(r, 0, "key.firm.legalName"), r.toString());
         assertEquals("4", cell(r, 0, "count"), r.toString());
-        assertEquals("39", cell(r, 0, "avg__age"), r.toString());
-        assertEquals("Globex", cell(r, 1, "key__firm__legalName"), r.toString());
+        assertEquals("39", cell(r, 0, "avg.age"), r.toString());
+        assertEquals("Globex", cell(r, 1, "key.firm.legalName"), r.toString());
         assertEquals("2", cell(r, 1, "count"), r.toString());
-        assertEquals("null", cell(r, 2, "key__firm__legalName"), "Grace's group, no firm: " + r);
+        assertEquals("null", cell(r, 2, "key.firm.legalName"), "Grace's group, no firm: " + r);
         assertEquals("1", cell(r, 2, "count"), r.toString());
     }
 
@@ -68,10 +68,10 @@ class GqlGroupsTest {
         ExecutionResult r = rows("{ PersonGroups(where: { age: { gt: 25 } }, having: { count: { gte: 2 } },"
                 + " orderBy: [{ key: { firm: { legalName: ASC } } }]) { key { firm { legalName } } count sum { salary } } }");
         assertEquals(2, r.rowCount(), "Grace (24) is filtered before the grouping; her firmless group is empty: " + r);
-        assertEquals("Acme", cell(r, 0, "key__firm__legalName"), r.toString());
-        assertEquals("420000", cell(r, 0, "sum__salary"), r.toString());
-        assertEquals("Globex", cell(r, 1, "key__firm__legalName"), r.toString());
-        assertEquals("110000", cell(r, 1, "sum__salary"), r.toString());
+        assertEquals("Acme", cell(r, 0, "key.firm.legalName"), r.toString());
+        assertEquals("420000", cell(r, 0, "sum.salary"), r.toString());
+        assertEquals("Globex", cell(r, 1, "key.firm.legalName"), r.toString());
+        assertEquals("110000", cell(r, 1, "sum.salary"), r.toString());
     }
 
     @Test
@@ -79,7 +79,7 @@ class GqlGroupsTest {
         ExecutionResult r = rows("{ PersonGroups(having: { sum: { salary: { gt: 200000 } } },"
                 + " orderBy: [{ count: DESC }]) { key { firm { legalName } } count } }");
         assertEquals(1, r.rowCount(), "Acme alone sums over 200k: " + r);
-        assertEquals("Acme", cell(r, 0, "key__firm__legalName"), r.toString());
+        assertEquals("Acme", cell(r, 0, "key.firm.legalName"), r.toString());
         assertEquals(2, r.columns().size(), "the hidden sum is dropped: " + r.columns());
     }
 
@@ -94,7 +94,7 @@ class GqlGroupsTest {
         int uk = -1;
         int us = -1;
         for (int i = 0; i < r.rowCount(); i++) {
-            String c = cell(r, i, "key__address__country");
+            String c = cell(r, i, "key.address.country");
             if (c.equals("JP")) {
                 jp = i;
                 assertEquals("2", cell(r, i, "count"));
@@ -116,8 +116,8 @@ class GqlGroupsTest {
         ExecutionResult r = rows("{ FirmGroups(orderBy: [{ key: { founded: DESC } }], limit: 2, offset: 1)"
                 + " { key { founded(truncate: YEAR) } count } }");
         assertEquals(2, r.rowCount(), r.toString());
-        assertTrue(cell(r, 0, "key__founded").startsWith("2005-01-01"), "Globex's year: " + r);
-        assertTrue(cell(r, 1, "key__founded").startsWith("1990-01-01"), "Acme's year: " + r);
+        assertTrue(cell(r, 0, "key.founded").startsWith("2005-01-01"), "Globex's year: " + r);
+        assertTrue(cell(r, 1, "key.founded").startsWith("1990-01-01"), "Acme's year: " + r);
     }
 
     @Test
@@ -125,9 +125,9 @@ class GqlGroupsTest {
         ExecutionResult r = rows("{ PersonGroups(orderBy: [{ max: { salary: DESC } }])"
                 + " { k: key { firm { legalName } } count top: max { salary } } }");
         assertEquals(3, r.rowCount(), r.toString());
-        assertEquals("Acme", cell(r, 0, "k__firm__legalName"), r.toString());
-        assertEquals("150000", cell(r, 0, "top__salary"), r.toString());
-        assertEquals("Globex", cell(r, 1, "k__firm__legalName"), r.toString());
+        assertEquals("Acme", cell(r, 0, "k.firm.legalName"), r.toString());
+        assertEquals("150000", cell(r, 0, "top.salary"), r.toString());
+        assertEquals("Globex", cell(r, 1, "k.firm.legalName"), r.toString());
     }
 
     @Test

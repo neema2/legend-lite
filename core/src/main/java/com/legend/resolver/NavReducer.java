@@ -67,6 +67,16 @@ final class NavReducer {
                             Multiplicity.Bounded.ONE)),
                     pa.property(), pa.info()));
         }
+        if (arg instanceof TypedPropertyAccess bare && navigationOffThis(bare, thisVar)
+                && Type.asClassType(bare.info().type()) instanceof Type.ClassType
+                && CorrelatedSubselects.isCountFamily(rc)) {
+            // a COUNTED bare head ($this.orders->count(), the GraphQL hardening fuzzer's commonest refusal,
+            // 2026-10-20): one row per related element, projected as the literal 1 -- the count family only,
+            // where the element's identity is all the reducer reads
+            String var = "_e" + System.identityHashCode(bare);
+            return new Shape(bare, var, new com.legend.compiler.spec.typed.TypedCInteger(1L,
+                    ExprType.one(Type.Primitive.INTEGER)));
+        }
         if (arg instanceof com.legend.compiler.spec.typed.TypedFilter f
                 && navigationOffThis(f, thisVar)) {
             // a COUNTED filtered head ($this.employees->filter(…)->count()):
@@ -83,8 +93,8 @@ final class NavReducer {
      * access on the variable, possibly beneath a filter. */
     private static boolean navigationOffThis(TypedSpec n, String thisVar) {
         TypedSpec cur = n;
-        if (cur instanceof com.legend.compiler.spec.typed.TypedFilter f) {
-            cur = f.source();
+        while (cur instanceof com.legend.compiler.spec.typed.TypedFilter f) {
+            cur = f.source();   // filters stack (a derived body's own under the caller's)
         }
         return cur instanceof TypedPropertyAccess head
                 && head.source() instanceof TypedVariable v && v.name().equals(thisVar);
@@ -97,6 +107,12 @@ final class NavReducer {
             Type.RelationType targetRow, TypedSpec value) {
         Type valueType = value.info().type();
         Multiplicity valueMult = value.info().multiplicity();
+        if (Type.relationSchema(valueType) instanceof Type.RelationType inner && inner.columns().size() == 1) {
+            // a ONE-COLUMN RELATION as the element's value (a correlated reducer nested in the mapper: the fold of
+            // `tagCount()` over products, 2026-10-20): its column, in scalar position
+            valueType = inner.columns().get(0).type();
+            valueMult = Multiplicity.Bounded.ZERO_ONE;
+        }
         Type.RelationType oneCol = new Type.RelationType(List.of(
                 new Type.Column("v", valueType, valueMult)));
         var projFn = new Type.FunctionType(

@@ -461,9 +461,26 @@ final class Substitution {
     }
 
     private final Target target;
+    /** The row binders of every ENCLOSING scope: a nested scope's fresh binder avoids them too, or a third-level
+     *  scope could bind the name the outer correlation pass rewrites its reads to (the GraphQL hardening fuzzer's
+     *  three-deep `products/tags/products`, 2026-10-20). */
+    private final Set<String> enclosingBinders;
 
     Substitution(Target target) {
+        this(target, Set.of());
+    }
+
+    private Substitution(Target target, Set<String> enclosingBinders) {
         this.target = Objects.requireNonNull(target, "target");
+        this.enclosingBinders = enclosingBinders;
+    }
+
+    /** A scope nested in this one: it knows this scope's binders and every enclosing one's. */
+    private Substitution nested(Target inner) {
+        Set<String> e = new LinkedHashSet<>(enclosingBinders);
+        e.add(target.freshRowVar());
+        e.add(target.userVar());
+        return new Substitution(inner, java.util.Collections.unmodifiableSet(e));
     }
 
     /**
@@ -2064,12 +2081,26 @@ final class Substitution {
                     // rebind it to THIS scope's row var, orphaning reads)
                     f.rebuilt(rewrite(f.source()),
                             rewriteLambdaBodyOnly(f.predicate()), f.info());
+            // ...and a CONSTRUCTED JOIN (a bridge-table hop's target: the many-to-many under a nested quantifier,
+            // the GraphQL hardening fuzzer's `tags: { every: { products: ... } }`, 2026-10-20): both sides pass
+            // through the re-pass, the condition body-only (its parameters bind the two sides' rows)
+            // A join whose inner material binds THIS scope's row-var name (an inner scope chose its binder blind to
+            // ours) passes as built: rewriting inside could capture, and an outer read left there stays loud at the
+            // lowering
+            case com.legend.compiler.spec.typed.TypedJoin j when Type.isRelation(j.info().type()) ->
+                    bindsVariable(j, target.freshRowVar()) ? j
+                            : new com.legend.compiler.spec.typed.TypedJoin(rewrite(j.left()), rewrite(j.right()),
+                                    j.kind(), rewriteLambdaBodyOnly(j.condition()), j.prefix(), j.frameName(),
+                                    j.info(), j.userCondition());
             // RESOLVED RELATION MATERIAL in value position (the SubQueryLift
             // scalar subquery: an uncorrelated [0..1] single-column project
             // over resolved sources) — same pass-through family as the R2
             // constructed material above; the lift's uncorrelated guard
             // means nothing inside reads this scope's vars
             case TypedProject rp when Type.isRelation(rp.info().type()) -> n;
+            // ...and a nested scope's GROUPED aggregate material (its keyed subselect, joined beside the target
+            // row: the aggregate inside a nested quantifier, 2026-10-20): resolved, passed through as built
+            case com.legend.compiler.spec.typed.TypedGroupBy rg when Type.isRelation(rg.info().type()) -> n;
             // ...and the [0..1] LIMIT-1 tail of a correlated scalar
             // subquery (parentNavCondReads / navLeafSubquery emissions):
             // its correlation binds a FRESH row var, never this scope's
@@ -2633,7 +2664,7 @@ final class Substitution {
      * exists, a user var literally named t_n; audit 23 #75). */
     private String freshTargetBinder(String tVar, TypedLambda cond,
             @com.legend.base.Nullable TypedSpec extra) {
-        java.util.Set<String> taken = new java.util.LinkedHashSet<>();
+        java.util.Set<String> taken = new java.util.LinkedHashSet<>(enclosingBinders);
         taken.add(target.freshRowVar());
         taken.add(target.userVar());
         for (TypedSpec b : cond.body()) {
@@ -2750,6 +2781,19 @@ final class Substitution {
                     "auto-map mapper body node " + n.getClass().getSimpleName()
                             + " is not inlinable yet");
         };
+    }
+
+    /** Whether a lambda in the subtree binds {@code var}. */
+    private static boolean bindsVariable(TypedSpec n, String var) {
+        if (n instanceof TypedLambda l && l.parameters().contains(var)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (bindsVariable(c, var)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Whether any {@code $var} read occurs in the subtree. */
@@ -3294,7 +3338,7 @@ final class Substitution {
         // predicate, then wraps rel (outer reads re-correlate via the
         // second pass below at the CALL level; chain preds get theirs here)
         for (TypedLambda cf : chainPreds) {
-            Substitution cfSub = new Substitution(new Target(
+            Substitution cfSub = nested(new Target(
                     new RowScope(cf.parameters().get(0), tRenamed,
                             ex.targetClassFqn(), target.mappingFqn(),
                             ex.targetRowVar(), ex.targetBindings(),
@@ -3323,7 +3367,7 @@ final class Substitution {
             Set<String> unconvertedSlots =
                     new LinkedHashSet<>(ex.targetSlotAliases());
             unconvertedSlots.removeAll(ex.targetSlotPrefixes().keySet());
-            Substitution predSub = new Substitution(new Target(
+            Substitution predSub = nested(new Target(
                     new RowScope(predLam.parameters().get(0), tRenamed,
                             ex.targetClassFqn(), target.mappingFqn(),
                             ex.targetRowVar(), ex.targetBindings(),
@@ -3356,7 +3400,7 @@ final class Substitution {
         unconvertedSlots.removeAll(ex.targetSlotPrefixes().keySet());
         List<TypedFuncCol> cols = new ArrayList<>();
         for (TypedFuncCol c : tp.columns()) {
-            Substitution colSub = new Substitution(new Target(
+            Substitution colSub = nested(new Target(
                     new RowScope(c.fn().parameters().get(0), ct.binder(),
                             ex.targetClassFqn(), target.mappingFqn(),
                             ex.targetRowVar(), ex.targetBindings(),

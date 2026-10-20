@@ -294,11 +294,15 @@ public final class CompanionSynthesis {
                 bindings.add(new NewInstance.KeyBinding(sc.name(),
                         new KeyExpression(Calls.exact(foldFunction(fold, sc), List.of(values)), false, false)));
             }
-            out.add(new ClassDefinition(foldFqn, List.of(), List.of(), List.of(), fields, List.of(), List.of(),
+            // every GraphQL object type answers __typename (the spec's meta-field): a generated type names itself
+            // (the GraphQL hardening corpus, 2026-10-20: `ordersAggregate { __typename }` was refused)
+            out.add(new ClassDefinition(foldFqn, List.of(), List.of(), List.of(), fields,
+                    List.of(selfName(foldFqn)), List.of(),
                     List.of(new StereotypeApplication(PROFILE, COMPANION)), List.of(), false));
             members.add(member(fold.field, new NewInstance(foldFqn, List.of(), bindings),
                     new TypeExpression.NameRef(foldFqn), Multiplicity.Concrete.PURE_ONE));
         }
+        members.add(selfName(Companion.aggregateClass(c)));
         out.add(new ClassDefinition(Companion.aggregateClass(c), List.of(), List.of(), List.of(),
                 List.of(new ClassDefinition.PropertyDefinition(Companion.ITEMS, new TypeExpression.NameRef(c),
                         Multiplicity.Concrete.ZERO_MANY, List.of(), List.of())),
@@ -393,6 +397,12 @@ public final class CompanionSynthesis {
         }
         into.computeIfAbsent(owner.name(), k -> new ArrayList<>())
                 .add(aggregateMember(injected.propertyName(), target.name()));
+    }
+
+    /** {@code __typename() { 'OrderAggregate' }: String[1]}: a generated class's name, its GraphQL type's. */
+    private static DerivedPropertyDefinition selfName(String generatedFqn) {
+        return member(TYPENAME, new CString(simple(generatedFqn)),
+                new TypeExpression.NameRef("meta::pure::metamodel::type::String"), Multiplicity.Concrete.PURE_ONE);
     }
 
     /** {@code __typename() { if($this->instanceOf(S1), |'S1', |if(..., |'C')) }: String[1]}. */

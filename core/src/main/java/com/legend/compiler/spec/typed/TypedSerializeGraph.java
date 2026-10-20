@@ -54,8 +54,36 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   @com.legend.base.Nullable List<CheckedConstraint> checkedConstraints,
                                   boolean removeNullKeys,
                                   boolean removeEmptySets,
-                                  @com.legend.base.Nullable String objectRefPrefix)
+                                  @com.legend.base.Nullable String objectRefPrefix,
+                                  List<String> keyOrder)
         implements TypedSpec {
+
+    /** Key-order-free compat: an object's keys are its leaves, then its children (the engine's fetch trees list
+     *  them so). {@code keyOrder}, when given, is the selection's own order of the keys (GraphQL's response
+     *  order, docs/GRAPHQL_STUDY_2026_10_18.md §8.2), which the lowering writes the object in. */
+    public TypedSerializeGraph(TypedSpec source, String rowVar,
+            List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
+            boolean bareValue, @com.legend.base.Nullable String classFqn, ExprType info,
+            boolean inlineChild, List<SubTypePatch> subTypePatches,
+            List<TypedFuncCol> orderKeys,
+            @com.legend.base.Nullable String typeKeyName,
+            boolean fqTypePath,
+            @com.legend.base.Nullable List<CheckedConstraint> checkedConstraints,
+            boolean removeNullKeys, boolean removeEmptySets,
+            @com.legend.base.Nullable String objectRefPrefix) {
+        this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
+                info, inlineChild, subTypePatches, orderKeys, typeKeyName,
+                fqTypePath, checkedConstraints, removeNullKeys,
+                removeEmptySets, objectRefPrefix, List.of());
+    }
+
+    /** This graph with the keys written in {@code order} (the selection's). */
+    public TypedSerializeGraph withKeyOrder(List<String> order) {
+        return new TypedSerializeGraph(source, rowVar, leaves, nested, arrayWrap,
+                bareValue, classFqn, info, inlineChild, subTypePatches, orderKeys,
+                typeKeyName, fqTypePath, checkedConstraints, removeNullKeys,
+                removeEmptySets, objectRefPrefix, order);
+    }
 
     /** The same graph over another row source (a resolver fusing two
      * terminals of one layout over the union of their sources). */
@@ -63,7 +91,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         return new TypedSerializeGraph(newSource, rowVar, leaves, nested, arrayWrap,
                 bareValue, classFqn, info, inlineChild, subTypePatches, orderKeys,
                 typeKeyName, fqTypePath, checkedConstraints, removeNullKeys,
-                removeEmptySets, objectRefPrefix);
+                removeEmptySets, objectRefPrefix, keyOrder);
     }
 
     /** Config compat (no objectReference channel). */
@@ -104,7 +132,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                 leaves, nested, true, bareValue, classFqn, info,
                 inlineChild, subTypePatches, orderKeys, typeKeyName,
                 fqTypePath, checkedConstraints, removeNullKeys,
-                removeEmptySets, objectRefPrefix);
+                removeEmptySets, objectRefPrefix, keyOrder);
     }
 
     /** Name prefix marking a PK DETERMINISM order key (ASC, best-effort at
@@ -139,6 +167,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         subTypePatches = subTypePatches == null ? List.of()
                 : List.copyOf(subTypePatches);
         orderKeys = orderKeys == null ? List.of() : List.copyOf(orderKeys);
+        keyOrder = keyOrder == null ? List.of() : List.copyOf(keyOrder);
     }
 
     /** Type-key-free compat (includeType off — the common shape). */
@@ -273,10 +302,10 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         return new TypedSerializeGraph(kids.get(0), rowVar, ls, ns, arrayWrap,
                 bareValue, classFqn, info, inlineChild, sps, oks, typeKeyName,
                 fqTypePath, ccs, removeNullKeys, removeEmptySets,
-                objectRefPrefix);
+                objectRefPrefix, keyOrder);
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedSerializeGraph(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn, info, inlineChild, subTypePatches, orderKeys, typeKeyName, fqTypePath, checkedConstraints, removeNullKeys, removeEmptySets, objectRefPrefix);
+        return new TypedSerializeGraph(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn, info, inlineChild, subTypePatches, orderKeys, typeKeyName, fqTypePath, checkedConstraints, removeNullKeys, removeEmptySets, objectRefPrefix, keyOrder);
     }
 }

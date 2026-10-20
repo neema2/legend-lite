@@ -498,9 +498,22 @@ final class GraphEmission {
         }
         TypedSerializeGraph node = new TypedSerializeGraph(pipeline, rowVar,
                 leaves, children, arrayWrap, false, cs.classFqn(), info,
-                false, subTypePatches, orderKeys);
+                false, subTypePatches, orderKeys).withKeyOrder(keyOrder(tree));
         return checked ? withChecked(node, cs, slotPrefixes, stripped,
                 rowVar, rowType, context, toRow) : node;
+    }
+
+    /** The response keys of a tree level, in the tree's order: an object's keys are written so (GraphQL's
+     *  response order, docs/GRAPHQL_STUDY_2026_10_18.md §8.2; the hardening fuzzer found leaves written before
+     *  children, 2026-10-20). A subtype view's own keys follow the base ones. */
+    static List<String> keyOrder(List<TypedGraphTree> tree) {
+        List<String> out = new ArrayList<>();
+        for (TypedGraphTree n : tree) {
+            if (n.subTypeFqn() == null) {
+                out.add(keyOf(n));
+            }
+        }
+        return out;
     }
 
     /** An explicit {@code sortBy} anywhere in the pipeline (the user's
@@ -571,7 +584,7 @@ final class GraphEmission {
                 node.inlineChild(), node.subTypePatches(), node.orderKeys(),
                 node.typeKeyName(), node.fqTypePath(),
                 checkedConstraints(cs, slotPrefixes, stripped, rowVar,
-                        rowType, context, toRow));
+                        rowType, context, toRow)).withKeyOrder(node.keyOrder());
     }
 
     /** The CHECKED envelope's constraint set — the class hierarchy's
@@ -1581,8 +1594,10 @@ final class GraphEmission {
                 nested.add(companionChild(cs, c, sub, thisVar, context, rowVar, rowType, parentPipeline));
                 continue;
             }
-            TypedSpec dv = inlineThis(member, thisVar, Map.of(), cs.bindings(), cs.classFqn(), c.property(),
-                    new SubqueryEnv(cs, context, rowVar, rowType));
+            // the member's derived calls β-inline first (`liveOrders()`, `tagCount()` folded): the inline route
+            // reads stored properties and navigations, never a call (the GraphQL hardening fuzzer, 2026-10-20)
+            TypedSpec dv = inlineThis(inlineDerivedCalls(member, 0), thisVar, Map.of(), cs.bindings(), cs.classFqn(),
+                    c.property(), new SubqueryEnv(cs, context, rowVar, rowType));
             var fn = new Type.FunctionType(
                     List.of(new Type.Param(rowType, com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
                     new Type.Param(dv.info().type(), dv.info().multiplicity()));
@@ -1591,7 +1606,7 @@ final class GraphEmission {
         }
         ExprType rowInfo = new ExprType(rowType, com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         TypedSerializeGraph g = new TypedSerializeGraph(parentPipeline, rowVar, leaves, nested, false, false,
-                ctor.classFqn(), rowInfo, true);
+                ctor.classFqn(), rowInfo, true).withKeyOrder(keyOrder(node.children()));
         return new TypedSerializeGraph.Child(keyOf(node), g);
     }
 
@@ -1714,10 +1729,14 @@ final class GraphEmission {
         TypedSpec childRel = hr.rel();
         Set<String> extraParams = new LinkedHashSet<>();
         extraParams.add(target.rowVar());
+        // the child's own frame: a navigation read inside the predicate or a sort key ($x.referrer.vip,
+        // $x.product.tagCount()) is a correlated scalar subquery off the TARGET row, as navHeadRelation's
+        // head filter reads (the GraphQL hardening fuzzer, 2026-10-20: every such key was refused)
+        SubqueryEnv childEnv = new SubqueryEnv(target, context, target.rowVar(), hr.targetRow());
         if (extraPred != null) {
             TypedSpec pb = inlineThis(extraPred.body().get(0),
                     extraPred.parameters().get(0), Map.of(),
-                    target.bindings(), target.classFqn(), node.property());
+                    target.bindings(), target.classFqn(), node.property(), childEnv);
             var predFn = new Type.FunctionType(
                     List.of(new Type.Param(hr.targetRow(),
                             com.legend.compiler.element.type
@@ -1741,7 +1760,7 @@ final class GraphEmission {
                 case TypedSortBy sb -> {
                     String kp = sb.key().parameters().get(0);
                     TypedSpec kb = inlineThis(sb.key().body().get(0), kp, Map.of(),
-                            target.bindings(), target.classFqn(), node.property());
+                            target.bindings(), target.classFqn(), node.property(), childEnv);
                     extraParams.add(kp);
                     var keyFn = new Type.FunctionType(
                             List.of(new Type.Param(hr.targetRow(),
@@ -2261,7 +2280,7 @@ final class GraphEmission {
                 && Integer.valueOf(1).equals(pb.upper()));
         TypedSerializeGraph nodeG = new TypedSerializeGraph(parentPipeline,
                 cs.rowVar(), leaves, nested, many, false, childClass,
-                rowInfo, true);
+                rowInfo, true).withKeyOrder(keyOrder(node.children()));
         return new TypedSerializeGraph.Child(
                 childKey(node, childClass), nodeG);
     }
@@ -2475,11 +2494,13 @@ final class GraphEmission {
         // ->count()): the filter's predicate rides the correlated relation,
         // inlined through the target's bindings (the shape the scalar-leaf
         // path already serves); the head beneath it is the navigation
-        TypedLambda headFilter = null;
-        if (hop instanceof TypedFilter hf
+        // filters STACK ($this.liveOrders()->filter(…) inlined: the derived body's own filter under the
+        // caller's): each predicate rides the relation, innermost first
+        List<TypedLambda> headFilters = new ArrayList<>();
+        while (hop instanceof TypedFilter hf
                 && hf.predicate().parameters().size() == 1
                 && hf.predicate().body().size() == 1) {
-            headFilter = hf.predicate();
+            headFilters.add(0, hf.predicate());
             hop = hf.source();
             while (hop instanceof TypedNativeCall w && w.args().size() == 1
                     && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
@@ -2580,6 +2601,18 @@ final class GraphEmission {
                     target.pipeline(), Set.of(), rawTarget);
             cond = nav.pairedPredicate().orElse(nav.predicate());
             targetPipeline = StackBuilder.demandForCondition(tf.temporalTargetPipe(cs, target, headProp, cMat.pipeline()), cond, 1);
+            // COMPOSITE chain (a bridge-table hop, tags: @ProductTagProduct > @ProductTagTag): the condition reads
+            // the parent's bridge slot -- the bridge joins INTO the target relation, correlated outward by the
+            // first hop, as navSlotChild serves the same hop (the GraphQL hardening fuzzer's `tagCount()`,
+            // 2026-10-20: the envelope had no bridge column to read)
+            if (cond.parameters().size() == 2) {
+                CorrelatedSubselects.CompositeChain chain = new CorrelatedSubselects(sources, assocMaterial)
+                        .compositeChainTarget(cs, cond, targetPipeline);
+                if (chain != null) {
+                    targetPipeline = chain.pipeline();
+                    cond = chain.orientedCond();
+                }
+            }
             targetRow = Type.requireRelationSchema(targetPipeline.info().type());
         }
         String pVar = java.util.Objects.requireNonNull(cond, "cond").parameters().get(0);
@@ -2605,7 +2638,7 @@ final class GraphEmission {
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         TypedSpec rel = new TypedFilter(targetPipeline, corr, targetPipeline.info(),
                 TypedFilter.Stamp.CORRELATION);
-        if (headFilter != null) {
+        for (TypedLambda headFilter : headFilters) {
             // the user's own predicate over the element, inlined through the
             // target's bindings — an ordinary filter (null-safe `==` and
             // all), never the correlation stamp
@@ -2827,14 +2860,20 @@ final class GraphEmission {
      * engine treats as fatal AND suppressed that free backend check. */
     static TypedSpec scalarLeafSubquery(TypedSpec rel, String rowVar,
             Type.RelationType targetRow, String leafName, TypedSpec leafBind) {
+        Type vType = leafBind.info().type();
+        com.legend.compiler.element.type.Multiplicity vMult = leafBind.info().multiplicity();
+        if (Type.relationSchema(vType) instanceof Type.RelationType inner && inner.columns().size() == 1) {
+            // a ONE-COLUMN RELATION read as a value (a correlated reducer nested inside: the to-one push-down's
+            // `product.tagCount()`): its column is the value, in scalar position
+            vType = inner.columns().get(0).type();
+            vMult = com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE;
+        }
         var leafFn = new Type.FunctionType(
                 List.of(new Type.Param(targetRow,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
-                new Type.Param(leafBind.info().type(),
-                        leafBind.info().multiplicity()));
+                new Type.Param(vType, vMult));
         Type.RelationType oneCol = new Type.RelationType(List.of(
-                new Type.Column(leafName, leafBind.info().type(),
-                        leafBind.info().multiplicity())));
+                new Type.Column(leafName, vType, vMult)));
         TypedSpec proj = new com.legend.compiler.spec.typed.TypedProject(rel,
                 List.of(new TypedFuncCol(leafName,
                         new TypedLambda(List.of(rowVar),
@@ -2930,6 +2969,87 @@ final class GraphEmission {
      * lowering, far from its cause). */
     /** toOne/first wrappers drop for SHAPE matching (the value they wrap
      * is the read). */
+    /** The one TO-ONE class-typed head ({@code $this.h}) every {@code $thisVar} read of {@code n} goes through, each
+     *  read the source of a further property read; null when a read is bare, direct, to-many, or through another
+     *  head. */
+    private static @com.legend.base.Nullable TypedPropertyAccess toOneHead(TypedSpec n, String thisVar) {
+        TypedPropertyAccess[] head = {null};
+        boolean[] bad = {false};
+        toOneHeadWalk(n, thisVar, head, bad);
+        return bad[0] ? null : head[0];
+    }
+
+    private static void toOneHeadWalk(TypedSpec m, String thisVar, TypedPropertyAccess[] head, boolean[] bad) {
+        if (bad[0]) {
+            return;
+        }
+        if (m instanceof TypedPropertyAccess pa && unwrapToOneFirst(pa.source()) instanceof TypedPropertyAccess h
+                && h.source() instanceof TypedVariable v && v.name().equals(thisVar)) {
+            boolean toOne = Type.asClassType(h.info().type()) instanceof Type.ClassType
+                    && h.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                    && b.upper() != null && b.upper() <= 1;
+            if (!toOne || (head[0] != null && !head[0].property().equals(h.property()))) {
+                bad[0] = true;
+                return;
+            }
+            head[0] = h;
+            return;
+        }
+        if (m instanceof TypedVariable v && v.name().equals(thisVar)) {
+            bad[0] = true;
+            return;
+        }
+        if (m instanceof TypedLambda l && l.parameters().contains(thisVar)) {
+            return;
+        }
+        for (TypedSpec c : m.children()) {
+            toOneHeadWalk(c, thisVar, head, bad);
+        }
+    }
+
+    /** {@code n} with each {@code $thisVar.head} read (toOne/first wrappers included) replaced by {@code with}. */
+    private static TypedSpec replaceHead(TypedSpec m, String thisVar, String head, TypedVariable with) {
+        if (unwrapToOneFirst(m) instanceof TypedPropertyAccess h && h.property().equals(head)
+                && h.source() instanceof TypedVariable v && v.name().equals(thisVar)) {
+            return with;
+        }
+        if (m instanceof TypedLambda l && l.parameters().contains(thisVar)) {
+            return m;
+        }
+        return m.mapChildren(c -> replaceHead(c, thisVar, head, with));
+    }
+
+    /** A collection function's value over NO elements, where the database's own answer over an absent head
+     *  (NULL) is not it: the count family's 0, isEmpty's true, isNotEmpty's false; null otherwise (NULL is the
+     *  answer: a fold over nothing). */
+    private static @com.legend.base.Nullable TypedSpec absentHeadValue(TypedNativeCall pc) {
+        if (com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY.contains(pc.callee().id())) {
+            return new com.legend.compiler.spec.typed.TypedCBoolean(true, ExprType.one(Type.Primitive.BOOLEAN));
+        }
+        if (com.legend.builtin.Pure.AT_COLLECTION_IS_NOT_EMPTY.contains(pc.callee().id())
+                || com.legend.builtin.Pure.AT_COLLECTION_EXISTS.contains(pc.callee().id())) {
+            return new com.legend.compiler.spec.typed.TypedCBoolean(false, ExprType.one(Type.Primitive.BOOLEAN));
+        }
+        return CorrelatedSubselects.isCountFamily(pc) ? CorrelatedSubselects.emptyGroupValue(pc) : null;
+    }
+
+    /** {@code exists}, {@code isEmpty}, {@code isNotEmpty}: a collection test that takes a to-one argument too. */
+    private static boolean isExistence(TypedNativeCall pc) {
+        return com.legend.builtin.Pure.AT_COLLECTION_EXISTS.contains(pc.callee().id())
+                || com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY.contains(pc.callee().id())
+                || com.legend.builtin.Pure.AT_COLLECTION_IS_NOT_EMPTY.contains(pc.callee().id());
+    }
+
+    /** The registered {@code isNotEmpty(Any[*])}. */
+    private TypedFunction isNotEmptyFn() {
+        for (TypedFunction f : ctx.findFunction(com.legend.builtin.Pure.IS_NOT_EMPTY__ANY_MANY.qualifiedName())) {
+            if (f.parameters().size() == 1 && f.parameters().get(0).multiplicity().isMany()) {
+                return f;
+            }
+        }
+        throw new IllegalStateException("resolver bug: no isNotEmpty(Any[*]) registration");
+    }
+
     private static TypedSpec unwrapToOneFirst(TypedSpec v) {
         while (v instanceof TypedNativeCall w && w.args().size() == 1
                 && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
@@ -3027,6 +3147,45 @@ final class GraphEmission {
             throw new NotImplementedException("derived graph leaf '" + prop
                     + "' uses $" + thisVar + " as a whole value —"
                     + " not supported yet");
+        }
+        // TO-ONE HOP PUSH-DOWN: a collection function over a chain through a TO-ONE head ($x.product.tags->count(),
+        // the inlined `product.tagCount()` a GraphQL sort key reads) is the same function evaluated in the head's
+        // own frame -- a correlated scalar subquery over the head relation, the function inlined against the
+        // head's bindings (its own navigations nest as they would at depth one). An absent head is the function
+        // over no elements: the count family's 0, emptiness's verdict (the GraphQL hardening fuzzer, 2026-10-20).
+        if (env != null && n instanceof TypedNativeCall pc && !pc.args().isEmpty()
+                && (pc.args().get(0).info().multiplicity().isMany() || isExistence(pc))
+                && toOneHead(n, thisVar) instanceof TypedPropertyAccess head
+                && Type.asClassType(head.info().type()) instanceof Type.ClassType headType) {
+            HeadRel hr = navHeadRelation(env, head, thisVar);
+            if (hr != null) {
+                String hv = "_h" + System.identityHashCode(n);
+                TypedSpec inner = replaceHead(n, thisVar, head.property(), new TypedVariable(hv,
+                        new ExprType(headType, com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+                TypedSpec value = inlineThis(inner, hv, binds, hr.target().bindings(), hr.target().classFqn(), prop,
+                        new SubqueryEnv(hr.target(), env.context(), hr.target().rowVar(), hr.targetRow()));
+                TypedSpec sub = scalarLeafSubquery(hr.rel(), hr.target().rowVar(), hr.targetRow(), "v", value);
+                TypedSpec absent = absentHeadValue(pc);
+                if (absent == null) {
+                    return sub;
+                }
+                return new com.legend.compiler.spec.typed.TypedIf(
+                        new TypedNativeCall(isNotEmptyFn(), List.of(hr.rel()),
+                                ExprType.one(Type.Primitive.BOOLEAN)),
+                        sub, java.util.Optional.of(absent), n.info());
+            }
+        }
+        // EXISTS over a navigation head ($x.orders->exists(o | …), the GraphQL `some`/`every`/`none` and a to-one
+        // `is`): the head filtered by the predicate, tested for a row -- the predicate inlined in the target's frame
+        if (env != null && n instanceof TypedNativeCall xc && xc.args().size() == 2
+                && com.legend.builtin.Pure.AT_COLLECTION_EXISTS.contains(xc.callee().id())
+                && xc.args().get(1) instanceof TypedLambda xp && xp.parameters().size() == 1
+                && xp.body().size() == 1 && containsVar(xc.args().get(0), thisVar)) {
+            TypedSpec src = xc.args().get(0);
+            HeadRel hr = navHeadRelation(env, new TypedFilter(src, xp, src.info(), TypedFilter.Stamp.NONE), thisVar);
+            if (hr != null) {
+                return new TypedNativeCall(isNotEmptyFn(), List.of(hr.rel()), n.info());
+            }
         }
         // EMPTINESS over a navigation head ($this.assoc->isEmpty()): the
         // corr-filtered target relation feeds the emptiness native — the
@@ -3440,7 +3599,7 @@ final class GraphEmission {
                         .toList(),
                 g.orderKeys(), c.typeKey(), c.fq(),
                 g.checkedConstraints(), c.removeNull(), c.removeEmpty(),
-                objectRefPrefix);
+                objectRefPrefix, g.keyOrder());
     }
 
     /** The ASOR objectReference STATIC prefix (engine store-object-
@@ -3578,7 +3737,10 @@ final class GraphEmission {
                             tc.elements().stream()
                                     .map(e -> substVars(e, sub)).toList(),
                             tc.info());
-            default -> n;
+            // every other node substitutes through its children (lambdas scope above): a user call left whole kept
+            // its argument's $this -- `loud()` calling `handle()` read the OUTER $this.name (the GraphQL hardening
+            // fuzzer, 2026-10-20)
+            default -> n.mapChildren(c -> substVars(c, sub));
         };
     }
 

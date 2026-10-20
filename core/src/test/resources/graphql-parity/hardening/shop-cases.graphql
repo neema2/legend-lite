@@ -1,0 +1,432 @@
+# The GraphQL hardening corpus (docs/GRAPHQL_STUDY_2026_10_18.md §13.7): every case is answered by the product path
+# (POST /api/lite/v1/graphql/query on the shop fixture) and by the reference evaluator, and the two must agree.
+# A case is a block: `# name` first, then optional `# variables: {json}`, `# operation: Name`, `# error: text`
+# (the case must be refused with an error containing the text; the reference is not consulted), then the document.
+# Blocks are separated by a blank line.
+
+# scalars: every kind, nulls in every nullable column
+{ Customer(orderBy: [{ id: ASC }]) { id name email tier vip joined lastSeen credit score } }
+
+# scalars: a 64-bit integer past 2^53 survives
+{ Customer(where: { id: { equals: 4 } }) { id score } }
+
+# scalars: the order rows, enums and nullable floats
+{ Order(orderBy: [{ id: ASC }]) { id placed status note discount } }
+
+# scalars: products, a null category and a null weight
+{ Product(orderBy: [{ sku: ASC }]) { sku title category price weight } }
+
+# derived: parameterless leaves
+{ Customer(orderBy: [{ id: ASC }]) { id handle label loud } }
+
+# derived: a parameterized leaf, a literal argument
+{ Customer(orderBy: [{ id: ASC }]) { id idTimes(k: 3) } }
+
+# derived: a parameterized leaf from a variable
+# variables: {"k": 7}
+query Q($k: BigInt!) { Customer(orderBy: [{ id: ASC }]) { id idTimes(k: $k) } }
+
+# derived: counts over a navigation
+{ Customer(orderBy: [{ id: ASC }]) { id orderCount } }
+
+# derived: counts over a navigation, the order's lines
+{ Order(orderBy: [{ id: ASC }]) { id lineCount } }
+
+# derived: counts over a many-to-many
+{ Product(orderBy: [{ sku: ASC }]) { sku tagCount } }
+
+# derived: arithmetic over the row
+{ Line(orderBy: [{ id: ASC }]) { id qty unitPrice amount } }
+
+# derived: a filtered derived collection
+{ Customer(orderBy: [{ id: ASC }]) { id liveOrders { id status } } }
+
+# nesting: to-one, absent to-one
+{ Order(orderBy: [{ id: ASC }]) { id customer { id name } } }
+
+# nesting: to-many, empty lists
+{ Customer(orderBy: [{ id: ASC }]) { id orders { id } } }
+
+# nesting: the self-reference both ways
+{ Customer(orderBy: [{ id: ASC }]) { id referrer { id name } referred { id } } }
+
+# nesting: three levels down
+{ Customer(orderBy: [{ id: ASC }]) { id orders { id lines { id product { sku title } } } } }
+
+# nesting: four levels, up and down
+{ Line(orderBy: [{ id: ASC }]) { id order { id customer { name referrer { name } } } } }
+
+# nesting: a many-to-many each way
+{ Product(orderBy: [{ sku: ASC }]) { sku tags { label } } }
+
+# nesting: the other end of the many-to-many
+{ Tag(orderBy: [{ id: ASC }]) { id label products { sku } } }
+
+# nesting: derived leaves at depth
+{ Line(orderBy: [{ id: ASC }]) { id amount order { lineCount customer { handle orderCount } } product { tagCount } } }
+
+# nesting: a derived count through the many-to-many at depth
+{ Tag(orderBy: [{ id: ASC }]) { id products { sku tagCount } } }
+
+# aliases: two views of one field
+{ Customer(orderBy: [{ id: ASC }]) { key: id who: name loud: handle shout: loud } }
+
+# aliases: two root fields, filtered differently
+{ gold: Customer(where: { tier: { equals: GOLD } }, orderBy: [{ id: ASC }]) { id } silver: Customer(where: { tier: { equals: SILVER } }, orderBy: [{ id: ASC }]) { id } }
+
+# aliases: the same nested field twice with different arguments
+{ Customer(orderBy: [{ id: ASC }]) { id open: orders(where: { status: { equals: OPEN } }) { id } shipped: orders(where: { status: { equals: SHIPPED } }) { id } } }
+
+# fragments: a named fragment
+fragment C on Customer { id name tier }
+{ Customer(orderBy: [{ id: ASC }]) { ...C } }
+
+# fragments: nested fragments and an inline fragment
+fragment L on Line { id qty product { ...P } }
+fragment P on Product { sku ... on Product { title } }
+{ Order(orderBy: [{ id: ASC }]) { id lines { ...L } } }
+
+# directives: include and skip
+{ Customer(orderBy: [{ id: ASC }]) { id name @include(if: false) email @skip(if: false) tier @skip(if: true) } }
+
+# directives: include from a variable
+# variables: {"withName": true}
+query Q($withName: Boolean!) { Customer(orderBy: [{ id: ASC }]) { id name @include(if: $withName) } }
+
+# typename: at the root, nested and on a nested aggregate
+{ Customer(orderBy: [{ id: ASC }], limit: 2) { __typename id orders { __typename id } ordersAggregate { __typename count } } }
+
+# typename: inside a nested aggregate's folds
+{ Order(orderBy: [{ id: ASC }]) { id linesAggregate { __typename sum { __typename qty } } } }
+
+# aliases: a double underscore inside an alias at the root aggregate
+{ CustomerAggregate { all__rows: count sum { s__score: score } } }
+
+# aliases: a double underscore inside a group's alias
+{ CustomerGroups(orderBy: [{ key: { tier: ASC } }]) { k__ey: key { t__ier: tier } n__: count } }
+
+# operations: the named operation chosen
+# operation: Second
+query First { Customer(orderBy: [{ id: ASC }]) { id } }
+query Second { Order(orderBy: [{ id: ASC }]) { id } }
+
+# variables: a where object from a variable
+# variables: {"w": {"tier": {"equals": "GOLD"}}}
+query Q($w: CustomerWhere) { Customer(where: $w, orderBy: [{ id: ASC }]) { id tier } }
+
+# variables: a list of enum values
+# variables: {"ts": ["GOLD", "BRONZE"]}
+query Q($ts: [Tier!]) { Customer(where: { tier: { in: $ts } }, orderBy: [{ id: ASC }]) { id tier } }
+
+# variables: limit and offset
+# variables: {"n": 2, "m": 1}
+query Q($n: Int, $m: Int) { Customer(orderBy: [{ id: ASC }], limit: $n, offset: $m) { id } }
+
+# variables: a default value
+query Q($n: Int = 3) { Customer(orderBy: [{ id: ASC }], limit: $n) { id } }
+
+# variables: a string with quotes and a percent
+# variables: {"s": "don't"}
+query Q($s: String) { Order(where: { note: { equals: $s } }) { id note } }
+
+# filters: equals on a string with a quote
+{ Customer(where: { name: { equals: "Carol O'Neil" } }) { id } }
+
+# filters: contains a literal percent
+{ Customer(where: { name: { contains: "%" } }, orderBy: [{ id: ASC }]) { id name } }
+
+# filters: contains a literal underscore
+{ Customer(where: { name: { contains: "_" } }, orderBy: [{ id: ASC }]) { id name } }
+
+# filters: startsWith and endsWith
+{ Customer(where: { email: { startsWith: "a", endsWith: ".com" } }, orderBy: [{ id: ASC }]) { id email } }
+
+# filters: unicode, case-sensitive
+{ Customer(where: { name: { startsWith: "É" } }) { id name } }
+
+# filters: case-insensitive equals
+{ Customer(where: { name: { equals: "alice", mode: insensitive } }, orderBy: [{ id: ASC }]) { id name } }
+
+# filters: case-insensitive contains
+{ Customer(where: { email: { contains: "EXAMPLE", mode: insensitive } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: case-insensitive not contains, nulls included
+{ Customer(where: { email: { not: { contains: "EXAMPLE" }, mode: insensitive } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: case-insensitive range
+{ Customer(where: { name: { gt: "alice", mode: insensitive } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: not equals includes the nulls
+{ Customer(where: { tier: { not: { equals: GOLD } } }, orderBy: [{ id: ASC }]) { id tier } }
+
+# filters: in and notIn
+{ Customer(where: { tier: { in: [GOLD, SILVER] } }, orderBy: [{ id: ASC }]) { id tier } }
+
+# filters: notIn includes the nulls
+{ Customer(where: { tier: { notIn: [GOLD] } }, orderBy: [{ id: ASC }]) { id tier } }
+
+# filters: an empty in list
+{ Customer(where: { tier: { in: [] } }) { id } }
+
+# filters: an empty notIn list
+{ Customer(where: { tier: { notIn: [] } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: equals null
+{ Customer(where: { tier: { equals: null } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: not equals null
+{ Customer(where: { tier: { not: { equals: null } } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: integer ranges
+{ Customer(where: { score: { gte: 0, lt: 100 } }, orderBy: [{ id: ASC }]) { id score } }
+
+# filters: a 64-bit literal
+{ Customer(where: { score: { gt: 9007199254740992 } }) { id score } }
+
+# filters: decimals
+{ Customer(where: { credit: { gt: 100.0 } }, orderBy: [{ id: ASC }]) { id credit } }
+
+# filters: floats with nulls
+{ Order(where: { discount: { lt: 0.2 } }, orderBy: [{ id: ASC }]) { id discount } }
+
+# filters: booleans
+{ Customer(where: { vip: { equals: true } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: dates, a leap day
+{ Order(where: { placed: { equals: "2024-02-29" } }) { id placed } }
+
+# filters: date ranges
+{ Order(where: { placed: { gte: "2024-02-01", lt: "2024-04-01" } }, orderBy: [{ id: ASC }]) { id placed } }
+
+# filters: date-times
+{ Customer(where: { lastSeen: { gte: "2024-06-01T00:00:00" } }, orderBy: [{ id: ASC }]) { id lastSeen } }
+
+# filters: AND of two leaves
+{ Customer(where: { AND: [{ vip: { equals: true } }, { tier: { equals: BRONZE } }] }) { id } }
+
+# filters: OR of two leaves
+{ Customer(where: { OR: [{ tier: { equals: GOLD } }, { score: { lt: 1 } }] }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: NOT of a comparison holds of the nulls
+{ Customer(where: { NOT: { score: { gt: 5 } } }, orderBy: [{ id: ASC }]) { id score } }
+
+# filters: nested AND, OR and NOT
+{ Customer(where: { OR: [{ AND: [{ vip: { equals: true } }, { NOT: { tier: { equals: GOLD } } }] }, { email: { equals: null } }] }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: an empty OR matches nothing
+{ Customer(where: { OR: [] }) { id } }
+
+# filters: an empty AND matches everything
+{ Customer(where: { AND: [] }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: an empty where
+{ Customer(where: {}, orderBy: [{ id: ASC }]) { id } }
+
+# filters: a derived leaf
+{ Customer(where: { handle: { startsWith: "a" } }, orderBy: [{ id: ASC }]) { id handle } }
+
+# filters: a derived count
+{ Customer(where: { orderCount: { gte: 1 } }, orderBy: [{ id: ASC }]) { id orderCount } }
+
+# filters: to-one condition
+{ Order(where: { customer: { tier: { equals: GOLD } } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: to-one is null
+{ Order(where: { customer: { is: null } }) { id } }
+
+# filters: to-one isNot null
+{ Line(where: { product: { isNot: null } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: to-one is a condition
+{ Customer(where: { referrer: { is: { name: { equals: "Alice" } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: to-one isNot a condition includes the absent
+{ Customer(where: { referrer: { isNot: { name: { equals: "Alice" } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: NOT over a to-one condition
+{ Customer(where: { referrer: { NOT: { name: { equals: "Alice" } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: a two-hop to-one path
+{ Line(where: { order: { customer: { vip: { equals: true } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: some
+{ Customer(where: { orders: { some: { status: { equals: OPEN } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: every is true of no orders
+{ Customer(where: { orders: { every: { status: { equals: SHIPPED } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: none
+{ Customer(where: { orders: { none: { status: { equals: CANCELLED } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: some with an empty condition
+{ Customer(where: { orders: { some: {} } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: some across the many-to-many
+{ Product(where: { tags: { some: { label: { equals: "sale" } } } }, orderBy: [{ sku: ASC }]) { sku } }
+
+# filters: none across the many-to-many
+{ Tag(where: { products: { none: {} } }) { id label } }
+
+# filters: some over a filtered derived collection
+{ Customer(where: { liveOrders: { some: { status: { equals: OPEN } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: some, then a to-one
+{ Customer(where: { orders: { some: { lines: { some: { product: { category: { equals: TOYS } } } } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# filters: nested lists
+{ Customer(orderBy: [{ id: ASC }]) { id orders(where: { status: { not: { equals: CANCELLED } } }) { id status } } }
+
+# filters: a nested list by a to-one path
+{ Customer(orderBy: [{ id: ASC }]) { id referred(where: { referrer: { is: { vip: { equals: true } } } }) { id } } }
+
+# filters: a nested list by a derived leaf that calls another
+{ Customer(orderBy: [{ id: ASC }]) { id referred(where: { loud: { equals: "ALICE" } }) { id } } }
+
+# filters: a nested many-to-many list
+{ Product(orderBy: [{ sku: ASC }]) { sku tags(where: { label: { in: ["eco", "new"] } }) { label } } }
+
+# filters: a nested list by a quantifier
+{ Tag(orderBy: [{ id: ASC }]) { id products(where: { productLines: { some: { qty: { gte: 2 } } } }) { sku } } }
+
+# filters: a nested list by a to-one existence
+{ Customer(orderBy: [{ id: ASC }]) { id orders(where: { customer: { is: {} } }) { id } } }
+
+# order: nulls sort largest, ascending
+{ Customer(orderBy: [{ score: ASC }, { id: ASC }]) { id score } }
+
+# order: nulls sort largest, descending
+{ Customer(orderBy: [{ score: DESC }, { id: ASC }]) { id score } }
+
+# order: strings by code point
+{ Customer(orderBy: [{ name: ASC }]) { name } }
+
+# order: enums by name
+{ Customer(orderBy: [{ tier: ASC }, { id: ASC }]) { id tier } }
+
+# order: booleans, false first
+{ Customer(orderBy: [{ vip: ASC }, { id: DESC }]) { id vip } }
+
+# order: dates and date-times
+{ Customer(orderBy: [{ joined: DESC }, { lastSeen: ASC }, { id: ASC }]) { id joined lastSeen } }
+
+# order: decimals
+{ Customer(orderBy: [{ credit: DESC }, { id: ASC }]) { id credit } }
+
+# order: by a to-one path
+{ Customer(orderBy: [{ referrer: { name: ASC } }, { id: ASC }]) { id } }
+
+# order: by a two-hop path
+{ Line(orderBy: [{ order: { customer: { name: DESC } } }, { id: ASC }]) { id } }
+
+# order: by a derived leaf
+{ Customer(orderBy: [{ loud: DESC }, { id: ASC }]) { id loud } }
+
+# order: by a derived count
+{ Customer(orderBy: [{ orderCount: DESC }, { id: ASC }]) { id orderCount } }
+
+# order: by a derived leaf through a to-one
+{ Order(orderBy: [{ customer: { orderCount: ASC } }, { id: ASC }]) { id } }
+
+# order: by a many-to-many count
+{ Product(orderBy: [{ tagCount: DESC }, { sku: ASC }]) { sku tagCount } }
+
+# order: limit and offset
+{ Customer(orderBy: [{ id: ASC }], limit: 3, offset: 2) { id } }
+
+# order: offset past the end
+{ Customer(orderBy: [{ id: ASC }], offset: 100) { id } }
+
+# order: limit zero
+{ Customer(orderBy: [{ id: ASC }], limit: 0) { id } }
+
+# order: a nested list ordered and limited
+{ Customer(orderBy: [{ id: ASC }]) { id orders(orderBy: [{ placed: DESC }, { id: ASC }], limit: 1) { id placed } } }
+
+# order: a nested list offset
+{ Product(orderBy: [{ sku: ASC }]) { sku tags(orderBy: [{ label: ASC }], offset: 1) { label } } }
+
+# order: a nested list by a to-one path through the self-reference
+{ Customer(orderBy: [{ id: ASC }]) { id referred(orderBy: [{ referrer: { referrer: { vip: DESC } } }, { id: ASC }]) { id } } }
+
+# order: a nested list by a derived leaf that calls another
+{ Customer(orderBy: [{ id: ASC }]) { id referred(orderBy: [{ loud: DESC }, { id: ASC }]) { id } } }
+
+# order: a nested list by a derived count through a to-one
+{ Tag(orderBy: [{ id: ASC }]) { id products(orderBy: [{ sku: ASC }]) { sku productLines(orderBy: [{ product: { tagCount: DESC } }, { id: ASC }]) { id } } } }
+
+# aggregates: the root aggregate
+{ CustomerAggregate { count sum { score credit } avg { score credit } min { joined lastSeen score } max { joined lastSeen credit } } }
+
+# aggregates: a filtered root aggregate
+{ CustomerAggregate(where: { vip: { equals: true } }) { count sum { score } } }
+
+# aggregates: over no rows
+{ CustomerAggregate(where: { id: { equals: -1 } }) { count sum { score } avg { score } min { joined } } }
+
+# aggregates: floats and nulls
+{ ProductAggregate { count sum { price weight } avg { price } min { price weight } max { weight } } }
+
+# aggregates: nested per object
+{ Customer(orderBy: [{ id: ASC }]) { id ordersAggregate { count } } }
+
+# aggregates: nested with a where
+{ Customer(orderBy: [{ id: ASC }]) { id ordersAggregate(where: { status: { equals: SHIPPED } }) { count min { placed } } } }
+
+# aggregates: nested over a derived collection
+{ Customer(orderBy: [{ id: ASC }]) { id liveOrdersAggregate { count max { placed } } } }
+
+# aggregates: nested over the self-reference
+{ Customer(orderBy: [{ id: ASC }]) { id referredAggregate { count min { score } } } }
+
+# aggregates: nested over the many-to-many
+{ Product(orderBy: [{ sku: ASC }]) { sku tagsAggregate { count } } }
+
+# aggregates: a fold of a derived count
+{ Product(orderBy: [{ sku: ASC }]) { sku tags { productsAggregate { min { tagCount } } } } }
+
+# aggregates: a fold of a derived arithmetic leaf
+{ Order(orderBy: [{ id: ASC }]) { id linesAggregate { sum { amount qty } avg { amount } } } }
+
+# groups: by an enum
+{ CustomerGroups(orderBy: [{ key: { tier: ASC } }]) { key { tier } count avg { score } } }
+
+# groups: by a boolean, with having
+{ CustomerGroups(having: { count: { gte: 2 } }, orderBy: [{ count: DESC }, { key: { vip: ASC } }]) { key { vip } count } }
+
+# groups: by a month
+{ OrderGroups(orderBy: [{ key: { placed: ASC } }]) { key { placed(truncate: MONTH) } count } }
+
+# groups: by a to-one path
+{ LineGroups(orderBy: [{ key: { product: { category: ASC } } }]) { key { product { category } } count sum { qty } } }
+
+# groups: by two keys
+{ OrderGroups(orderBy: [{ key: { status: ASC } }, { key: { customer: { tier: ASC } } }]) { key { status customer { tier } } count } }
+
+# groups: filtered before grouping
+{ CustomerGroups(where: { score: { gte: 0 } }, orderBy: [{ key: { tier: ASC } }]) { key { tier } count sum { score } } }
+
+# groups: having on a fold
+{ OrderGroups(having: { sum: { discount: { gt: 0.2 } } }, orderBy: [{ key: { status: ASC } }]) { key { status } sum { discount } } }
+
+# groups: limited
+{ CustomerGroups(orderBy: [{ count: DESC }, { key: { tier: ASC } }], limit: 2) { key { tier } count } }
+
+# errors: an unknown field
+# error: has no field
+{ Customer { id nope } }
+
+# errors: an unknown root
+# error: Query
+{ Nope { id } }
+
+# errors: an enum value the type does not have
+# error: PLATINUM
+{ Customer(where: { tier: { equals: PLATINUM } }) { id } }
+
+# errors: a negative limit
+# error: limit
+{ Customer(limit: -1) { id } }
+
+# errors: a missing non-null variable
+# error: k
+query Q($k: Int!) { Customer { idTimes(k: $k) } }

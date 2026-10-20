@@ -928,6 +928,7 @@ public final class Lowerer {
                 enclosing.pop();
             }
         }
+        kv = inKeyOrder(kv, g.keyOrder());
         // includeType: (typeKey, concrete-type) leads each object
         List<SqlExpr> baseKv = kv;
         if (g.typeKeyName() != null && g.classFqn() != null && !g.bareValue()) {
@@ -1040,8 +1041,16 @@ public final class Lowerer {
             // ordinal projection, NEGATED because the ordered-agg renders
             // DESC (the witness TRUE-first contract). SQL-level only —
             // the typed schema never sees the column.
-            SqlSelect withOrd = UnionSerialOrder.inject(fr[0]);
-            if (withOrd != null) {
+            // an EXPLICIT order (an ordered subselect under the envelope) governs, carried into the aggregate as a
+            // row number: SQL keeps no subquery's order through json_group_array (GraphSortOrdinal)
+            SqlSelect numbered = GraphSortOrdinal.inject(fr[0]);
+            SqlSelect withOrd = numbered != null ? null : UnionSerialOrder.inject(fr[0]);
+            if (numbered != null) {
+                envelope = numbered;
+                okeys.clear();
+                okeys.add(new SqlExpr.JsonArrayAgg.Key(
+                        resolveOrThrow(envelope, GraphSortOrdinal.COLUMN), false));
+            } else if (withOrd != null) {
                 envelope = withOrd;
                 okeys.add(0, new SqlExpr.JsonArrayAgg.Key(
                         resolveOrThrow(envelope, UnionSerialOrder.COLUMN), true));
@@ -1106,7 +1115,30 @@ public final class Lowerer {
                 }
             }
         }
-        return new SqlExpr.JsonObject(kv);
+        return new SqlExpr.JsonObject(inKeyOrder(kv, g.keyOrder()));
+    }
+
+    /** An object's (key, value) pairs in the graph's key order -- the selection's (GraphQL's response order); a key
+     *  the order does not name keeps its place after those it does. Structural: the pairs move, none is built. */
+    static List<SqlExpr> inKeyOrder(List<SqlExpr> kv, List<String> order) {
+        if (order.isEmpty()) {
+            return kv;
+        }
+        List<Integer> pairs = new ArrayList<>();
+        for (int i = 0; i + 1 < kv.size(); i += 2) {
+            pairs.add(i);
+        }
+        java.util.function.ToIntFunction<Integer> rank = i -> {
+            int r = kv.get(i) instanceof SqlExpr.StringLit k ? order.indexOf(k.value()) : -1;
+            return r < 0 ? Integer.MAX_VALUE : r;
+        };
+        pairs.sort(java.util.Comparator.comparingInt(rank));
+        List<SqlExpr> out = new ArrayList<>(kv.size());
+        for (int i : pairs) {
+            out.add(kv.get(i));
+            out.add(kv.get(i + 1));
+        }
+        return out;
     }
 
     /** aggregate: whole-relation reduction — aggregates only, no GROUP BY clause. */

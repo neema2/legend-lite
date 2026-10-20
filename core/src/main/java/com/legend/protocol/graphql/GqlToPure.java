@@ -71,7 +71,7 @@ public final class GqlToPure {
 
     /** The shape of a root's value: a graph root's is the serialized TREE; an aggregate root's is a relation of
      *  one ROW, and a groups root's a relation of ROWS, which the endpoint arranges into the response's objects by
-     *  the columns' paths ({@code sum__salary} is {@code sum.salary}; {@code key__firm__legalName} is
+     *  the columns' paths ({@code sum.salary} is the path sum, salary; {@code key.firm.legalName} is
      *  {@code key.firm.legalName}). */
     public enum Shape { TREE, ROW, ROWS }
 
@@ -89,8 +89,10 @@ public final class GqlToPure {
         }
     }
 
-    /** The separator of a relation column's path ({@code sum__salary}). */
-    public static final String PATH_SEPARATOR = "__";
+    /** The separator of a relation column's path ({@code sum.salary}): a dot, which no GraphQL name contains, so a
+     *  column splits back into its response path whatever the aliases spell ({@code __} did not: an alias
+     *  {@code all__rows} nested as {@code all { rows }}, the GraphQL hardening corpus, 2026-10-20). */
+    public static final String PATH_SEPARATOR = ".";
 
     /** The operation translated: its roots in document order. */
     public record Translation(List<Root> roots, Gql.Operation operation) {
@@ -143,6 +145,8 @@ public final class GqlToPure {
     private static final String WHERE = "where";
     private static final String ORDER_BY = "orderBy";
     private static final String LIMIT = "limit";
+    /** GraphQL's meta-field: every object type answers it. */
+    private static final String TYPENAME = "__typename";
     private static final String OFFSET = "offset";
     private static final java.util.Set<String> CLAUSES = java.util.Set.of(WHERE, ORDER_BY, LIMIT, OFFSET);
 
@@ -531,14 +535,14 @@ public final class GqlToPure {
             case Gql.StringValue s -> switch (typeName) {
                 case "Date", "DateTime" -> {
                     try {
-                        yield new CDate(PureDateLiteral.parse(s.value()));
+                        yield new CDate(PureDateLiteral.parse(s.value()), s.value(), null);
                     } catch (IllegalArgumentException e) {
                         throw GqlTranslationException.invalid(path, "not a " + typeName + ": " + s.value());
                     }
                 }
                 case "Time" -> {
                     try {
-                        yield new CTime(PureTimeLiteral.parse(s.value()));
+                        yield new CTime(PureTimeLiteral.parse(s.value()), s.value(), null);
                     } catch (IllegalArgumentException e) {
                         throw GqlTranslationException.invalid(path, "not a Time: " + s.value());
                     }
@@ -611,8 +615,8 @@ public final class GqlToPure {
     /** The columns of a groups query: the keys (the selection under {@code key}), the projected reads they and the
      *  folds need, the aggregates; each by its NAME PATH ({@code key.firm.legalName}, {@code sum.salary},
      *  {@code count}) for {@code having} and {@code orderBy}, and by the COLUMN its response key spells
-     *  ({@code key__firm__legalName}); a column {@code having} or {@code orderBy} asks that the selection does
-     *  not is hidden ({@code _sum__salary}) and dropped at the end. */
+     *  ({@code key.firm.legalName}); a column {@code having} or {@code orderBy} asks that the selection does
+     *  not is hidden ({@code _sum.salary}) and dropped at the end. */
     private static final class Groups {
         final Map<String, ColSpec> projected = new LinkedHashMap<>();
         final Map<String, ColSpec> keys = new LinkedHashMap<>();
@@ -625,8 +629,8 @@ public final class GqlToPure {
     /**
      * {@code PersonGroups(where: W, having: H, orderBy: [...], limit: n, offset: m) { key { firm { legalName }
      * born(truncate: YEAR) } count avg { age } }}: the Relation API (§6.1) -- {@code Person.all()->filter(W)
-     * ->project(~[key__firm__legalName: x|$x.firm.legalName, key__born: x|$x.born->firstDayOfYear(), __one: x|1,
-     * age: x|$x.age])->groupBy(~[key__firm__legalName, key__born], ~[count: x|$x.__one : y|$y->count(), avg__age:
+     * ->project(~[key.firm.legalName: x|$x.firm.legalName, key.born: x|$x.born->firstDayOfYear(), __one: x|1,
+     * age: x|$x.age])->groupBy(~[key.firm.legalName, key.born], ~[count: x|$x.__one : y|$y->count(), avg.age:
      * x|$x.age : y|$y->average()])->filter(g|H)->sort([...])->drop(m)->limit(n)}, one row per group whose columns
      * are the response's paths. The island's value is that relation; the endpoint arranges the rows.
      */
@@ -738,7 +742,9 @@ public final class GqlToPure {
                 groupKeys(k.selectionSet(), composite(kd), chain, col, x, g, at);
                 continue;
             }
-            ValueSpecification read = navigate(new Variable(x), chain);
+            FieldDef own = objectTypeOf(gk.classFqn(), at).field(gk.property());
+            boolean derived = own != null && own.meaning() instanceof Meaning.Property op && op.derived();
+            ValueSpecification read = guardedRead(new Variable(x), chain, derived);
             Value truncate = argument(k.arguments(), "truncate");
             if (truncate != null && !(peek(truncate, at) instanceof Gql.NullValue)) {
                 read = truncated(read, truncate, keyType, gk, at);
@@ -975,7 +981,9 @@ public final class GqlToPure {
         String targetFqn = classFqnOf(target, path);
         List<Node> children = aggregateChildren(f.selectionSet(), composite(fd), path);
         Value where = argument(f.arguments(), WHERE);
-        if (where != null && object(where, path + "(where)") != null) {
+        // a DERIVED to-many (liveOrders) has no companion member: its aggregate is always the composed body
+        boolean derived = propField.meaning() instanceof Meaning.Property dp && dp.derived();
+        if (derived || (where != null && object(where, path + "(where)") != null)) {
             ValueSpecification items = clauses(new AppliedProperty(new Variable("this"), a.property()),
                     f.arguments(), target, path);
             ValueSpecification body = new NewInstance(Companion.aggregateClass(targetFqn), List.of(),
@@ -992,6 +1000,11 @@ public final class GqlToPure {
         for (Field f : flatten(selections, aggType, path)) {
             String key = key(f);
             String at = path + "." + key;
+            if (f.name().equals(TYPENAME)) {
+                // the meta-field every object type answers: the generated class's constant member names its type
+                out.add(new Node(TYPENAME, null, List.of(), key, null, List.of()));
+                continue;
+            }
             FieldDef fd = aggType.field(f.name());
             if (fd == null) {
                 throw GqlTranslationException.invalid(at, aggType.name() + " has no field " + f.name());
@@ -1002,6 +1015,10 @@ public final class GqlToPure {
                     Composite foldType = composite(fd);
                     List<Node> leaves = new ArrayList<>();
                     for (Field g : flatten(f.selectionSet(), foldType, at)) {
+                        if (g.name().equals(TYPENAME)) {
+                            leaves.add(new Node(TYPENAME, null, List.of(), key(g), null, List.of()));
+                            continue;
+                        }
                         FieldDef gd = foldType.field(g.name());
                         if (gd == null || !(gd.meaning() instanceof Meaning.FoldOf fo)) {
                             throw GqlTranslationException.invalid(at + "." + key(g), foldType.name()
@@ -1025,7 +1042,7 @@ public final class GqlToPure {
 
     /**
      * {@code PersonAggregate(where: W) { count sum { salary } }}: the Relation API (§6.1) --
-     * {@code Person.all()->filter(W)->project(~[...])->aggregate(~[count: x|$x.__one : y|$y->count(), sum__salary:
+     * {@code Person.all()->filter(W)->project(~[...])->aggregate(~[count: x|$x.__one : y|$y->count(), sum.salary:
      * x|$x.salary : y|$y->sum(), ...])}, one row whose columns are the response's paths. The island's value is that
      * relation; the endpoint arranges the row.
      */
@@ -1321,12 +1338,65 @@ public final class GqlToPure {
         if (p.toMany()) {
             return listFilter(o, in, read, target, path);
         }
-        return where(o, in, read, target, path);
+        return related(o, in, read, target, path);
+    }
+
+    /**
+     * A condition on a to-one object (docs/GRAPHQL_STUDY_2026_10_18.md §13.7, Prisma's reading): {@code is: null} and
+     * {@code isNot: null} test its absence and presence; any other condition holds of an object that EXISTS and meets
+     * it ({@code firm: W} is {@code firm: { is: W }}), so {@code firm: { NOT: W }} is "a firm, not W" and
+     * {@code NOT: { firm: W }} is "no firm that is W"; {@code isNot: W} is the complement of {@code is: W}. Spelled
+     * {@code ->exists(v|W)} over the hop, which the resolver lowers as it lowers {@code some}.
+     */
+    private ValueSpecification related(Gql.ObjectValue o, InputObjectType in, ValueSpecification read,
+            Composite target, String path) {
+        List<ValueSpecification> conds = new ArrayList<>();
+        List<Argument> rest = new ArrayList<>();
+        for (Argument a : o.fields()) {
+            String at = path + "." + a.name();
+            Value v = resolve(a.value(), at);
+            switch (a.name()) {
+                case "is", "isNot" -> {
+                    boolean is = a.name().equals("is");
+                    if (v instanceof Gql.NullValue) {
+                        conds.add(call(is ? "isEmpty" : "isNotEmpty", read));
+                    } else {
+                        ValueSpecification some = exists(read, Objects.requireNonNull(object(v, at)), in, target, at);
+                        conds.add(is ? some : call("not", some));
+                    }
+                }
+                default -> rest.add(a);
+            }
+        }
+        if (!rest.isEmpty()) {
+            conds.add(exists(read, new Gql.ObjectValue(rest), in, target, path));
+        }
+        if (conds.isEmpty()) {
+            return new CBoolean(true, null);
+        }
+        ValueSpecification all = conds.get(0);
+        for (int i = 1; i < conds.size(); i++) {
+            all = call("and", all, conds.get(i));
+        }
+        return all;
+    }
+
+    private ValueSpecification exists(ValueSpecification read, Gql.ObjectValue w, InputObjectType in,
+            Composite target, String path) {
+        String v = fresh("e");
+        return call("exists", read, lambda(v, where(w, in, new Variable(v), target, path)));
     }
 
     private ValueSpecification scalarFilter(Gql.ObjectValue ops, InputObjectType in, ValueSpecification read,
             String scalar, String path) {
-        boolean insensitive = false;
+        return scalarFilter(ops, in, read, scalar, path, false);
+    }
+
+    /** {@code mode: insensitive} lower-cases both sides of every string comparison of its object, a nested
+     *  {@code not} object included unless it names its own mode (§13.7). */
+    private ValueSpecification scalarFilter(Gql.ObjectValue ops, InputObjectType in, ValueSpecification read,
+            String scalar, String path, boolean inheritedInsensitive) {
+        boolean insensitive = inheritedInsensitive;
         for (Argument a : ops.fields()) {
             if (a.name().equals("mode")) {
                 Value m = resolve(a.value(), path + ".mode");
@@ -1349,15 +1419,16 @@ public final class GqlToPure {
             switch (a.name()) {
                 case "mode" -> { }
                 case "equals" -> conds.add(v instanceof Gql.NullValue ? call("isEmpty", read)
-                        : call("equal", side(read, insensitive), side(literal(v, scalar, at), insensitive)));
+                        : present(read, call("equal", side(one(read, insensitive), insensitive),
+                                side(literal(v, scalar, at), insensitive))));
                 case "not" -> {
                     if (v instanceof Gql.NullValue) {
                         conds.add(call("isNotEmpty", read));
                     } else if (v instanceof Gql.ObjectValue nested) {
-                        conds.add(call("not", scalarFilter(nested, in, read, scalar, at)));
+                        conds.add(call("not", scalarFilter(nested, in, read, scalar, at, insensitive)));
                     } else {
-                        conds.add(call("not", call("equal", side(read, insensitive),
-                                side(literal(v, scalar, at), insensitive))));
+                        conds.add(call("not", present(read, call("equal", side(one(read, insensitive), insensitive),
+                                side(literal(v, scalar, at), insensitive)))));
                     }
                 }
                 case "in", "notIn" -> {
@@ -1373,7 +1444,8 @@ public final class GqlToPure {
                         }
                         set = new PureCollection(lowered);
                     }
-                    ValueSpecification isIn = call("in", side(read, insensitive), set);
+                    ValueSpecification isIn = present(read, call("in", side(one(read, insensitive), insensitive),
+                            set));
                     conds.add(a.name().equals("in") ? isIn : call("not", isIn));
                 }
                 case "lt", "lte", "gt", "gte" -> {
@@ -1386,14 +1458,15 @@ public final class GqlToPure {
                         case "gt" -> "greaterThan";
                         default -> "greaterThanEqual";
                     };
-                    conds.add(call(fn, call("toOne", read), literal(v, scalar, at)));
+                    conds.add(present(read, call(fn, side(call("toOne", read), insensitive),
+                            side(literal(v, scalar, at), insensitive))));
                 }
                 case "contains", "startsWith", "endsWith" -> {
                     if (v instanceof Gql.NullValue) {
                         continue;
                     }
-                    conds.add(call(a.name(), side(call("toOne", read), insensitive),
-                            side(literal(v, scalar, at), insensitive)));
+                    conds.add(present(read, call(a.name(), side(call("toOne", read), insensitive),
+                            side(literal(v, scalar, at), insensitive))));
                 }
                 default -> throw GqlTranslationException.invalid(at, "no such filter operation: " + a.name());
             }
@@ -1406,6 +1479,23 @@ public final class GqlToPure {
             and = call("and", and, conds.get(i));
         }
         return and;
+    }
+
+    /**
+     * A comparison TWO-VALUED (§13.7): it holds of a present value that compares, and is false of an absent one, so
+     * {@code not}, {@code notIn} and {@code NOT} are its exact complements whatever the operator's own negation lowers
+     * to. {@code $x.p->isNotEmpty() && cmp}: the database's {@code p IS NOT NULL AND cmp} is false, never unknown, of a
+     * null. The hardening fuzzer found {@code not: { contains: "x" }, mode: insensitive} dropping null rows its
+     * complement kept (2026-10-20).
+     */
+    /** The read a lower-casing side takes: {@code toOne} under the presence guard, since {@code toLower} takes one
+     *  value (an optional string under {@code mode: insensitive} was refused, the fuzzer, 2026-10-20). */
+    private static ValueSpecification one(ValueSpecification read, boolean insensitive) {
+        return insensitive ? call("toOne", read) : read;
+    }
+
+    private static ValueSpecification present(ValueSpecification read, ValueSpecification comparison) {
+        return call("and", call("isNotEmpty", read), comparison);
     }
 
     private static ValueSpecification side(ValueSpecification v, boolean insensitive) {
@@ -1445,9 +1535,12 @@ public final class GqlToPure {
 
     /** A key: the property chain, the direction, and the subtype the chain reads through ({@code asSub}; null
      *  when none): the key is {@code if($x->instanceOf(Sub), |$x->cast(@Sub).chain, |[])}. */
-    private record SortKey(List<String> path, boolean ascending, @com.legend.base.Nullable String subtypeFqn) {
+    /** A sort key: its property path, its direction, the subclass it reads as ({@code asSub}), and whether its leaf
+     *  is a derived property (read through a to-one hop, it is guarded: an absent hop is an absent key). */
+    private record SortKey(List<String> path, boolean ascending, @com.legend.base.Nullable String subtypeFqn,
+            boolean derivedLeaf) {
         SortKey(List<String> path, boolean ascending) {
-            this(path, ascending, null);
+            this(path, ascending, null, false);
         }
     }
 
@@ -1480,7 +1573,9 @@ public final class GqlToPure {
             if (!dir.equals("ASC") && !dir.equals("DESC")) {
                 throw GqlTranslationException.invalid(at, "a direction, ASC or DESC: " + dir);
             }
-            return new SortKey(List.of(a.name()), dir.equals("ASC"));
+            FieldDef leaf = type.field(a.name());
+            boolean derived = leaf != null && leaf.meaning() instanceof Meaning.Property lp && lp.derived();
+            return new SortKey(List.of(a.name()), dir.equals("ASC"), null, derived);
         }
         FieldDef prop = type.field(a.name());
         if (prop == null) {
@@ -1492,7 +1587,7 @@ public final class GqlToPure {
                 throw GqlTranslationException.invalid(at, "a key object is expected under " + a.name());
             }
             SortKey inner = sortKey(o, subOrder, sub, at);
-            return new SortKey(inner.path(), inner.ascending(), classFqnOf(sub, at));
+            return new SortKey(inner.path(), inner.ascending(), classFqnOf(sub, at), inner.derivedLeaf());
         }
         if (typeName.endsWith("AggregateOrderBy")) {
             throw GqlTranslationException.unsupported(at, a.name() + " sorts by an aggregate: it lands with the"
@@ -1506,17 +1601,35 @@ public final class GqlToPure {
         List<String> chain = new ArrayList<>();
         chain.add(a.name());
         chain.addAll(inner.path());
-        return new SortKey(chain, inner.ascending());
+        return new SortKey(chain, inner.ascending(), null, inner.derivedLeaf());
     }
 
     private static ValueSpecification sortRead(ValueSpecification row, SortKey sk) {
         if (sk.subtypeFqn() == null) {
-            return navigate(row, sk.path());
+            return guardedRead(row, sk.path(), sk.derivedLeaf());
         }
         ValueSpecification cast = call("cast", row, new TypeAnnotation.Named(new TypeExpression.NameRef(sk.subtypeFqn())));
+        ValueSpecification value = guardedRead(cast, sk.path(), sk.derivedLeaf());
         // toOne: the key lambda is {T[1]->U[1]}; the empty arm is the null the database sorts
         return call("toOne", call("if", call("instanceOf", row, new PackageableElementPtr(sk.subtypeFqn())),
-                thunk(navigate(cast, sk.path())), thunk(new PureCollection(List.of()))));
+                thunk(value), thunk(new PureCollection(List.of()))));
+    }
+
+    /**
+     * {@code $x.hop.leaf}, where the leaf is a DERIVED property reached through a to-one hop, guarded: an absent hop is
+     * an absent value (GraphQL's reading of {@code customer { orderCount }}), where the platform's β-inline of the
+     * body over a possibly-absent receiver evaluates it unguarded, as legend-engine does (Typer, ledger cluster 48:
+     * {@code $x.customer.orders->count()} is 0 for an order with no customer). A stored leaf needs no guard: the
+     * database's outer join answers null. The hardening fuzzer found the unguarded read sorting customer-less orders
+     * first (2026-10-20).
+     */
+    private static ValueSpecification guardedRead(ValueSpecification row, List<String> path, boolean derivedLeaf) {
+        ValueSpecification read = navigate(row, path);
+        if (!derivedLeaf || path.size() < 2) {
+            return read;
+        }
+        ValueSpecification hop = navigate(row, path.subList(0, path.size() - 1));
+        return call("toOne", call("if", call("isEmpty", hop), thunk(new PureCollection(List.of())), thunk(read)));
     }
 
     private static LambdaFunction thunk(ValueSpecification body) {

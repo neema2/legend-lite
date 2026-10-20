@@ -1399,15 +1399,30 @@ private static boolean referencesVar(TypedSpec n, String var) {
             // through to the assoc route)
             AssociationJoins.AssocJoin aj2 = assocMaterial.aggJoinMaterial(
                     temporal, th, h, context, hLeaves, hNavTails);
+            TypedSpec ajPipe = aj2.targetPipeline();
+            TypedLambda ajCond = java.util.Objects.requireNonNull(aj2.condition());
+            Type.RelationType ajRow = aj2.targetRow();
+            // a BRIDGE-TABLE hop (tags: @ProductTagProduct > @ProductTagTag): its condition reads the scope row's
+            // sibling joinslot, which a nested row does not carry -- the bridge joins INTO the target, correlated
+            // by the first hop (navSlotChild's composite; the GraphQL hardening fuzzer's many-to-many under a
+            // many-to-many quantifier, 2026-10-20)
+            if (slotBacked && ajCond.parameters().size() == 2) {
+                CompositeChain cc = compositeChainTarget(th, ajCond, ajPipe);
+                if (cc != null) {
+                    ajPipe = cc.pipeline();
+                    ajCond = cc.orientedCond();
+                    ajRow = Type.requireRelationSchema(ajPipe.info().type());
+                }
+            }
             List<Type.Column> cols = new ArrayList<>(
                     (Type.requireRelationSchema(pipe.info().type())).columns());
-            for (Type.Column c : aj2.targetRow().columns()) {
+            for (Type.Column c : ajRow.columns()) {
                 cols.add(new Type.Column(aj2.prefix() + c.name(),
                         c.type(), c.multiplicity()));
             }
             Type.RelationType widened = new Type.RelationType(cols);
-            pipe = new TypedJoin(pipe, aj2.targetPipeline(), AssociationJoins.leftKind(),
-                    java.util.Objects.requireNonNull(aj2.condition()), Optional.of(aj2.prefix()), null,
+            pipe = new TypedJoin(pipe, ajPipe, AssociationJoins.leftKind(),
+                    ajCond, Optional.of(aj2.prefix()), null,
                     new ExprType(Type.relation(widened),
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
                 false /* resolver-synth */);
