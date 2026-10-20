@@ -214,6 +214,7 @@ public final class CompanionSynthesis {
     private static final java.util.Set<String> DATES = java.util.Set.of("Date", "StrictDate", "DateTime",
             "meta::pure::metamodel::type::Date", "meta::pure::metamodel::type::StrictDate",
             "meta::pure::metamodel::type::DateTime");
+    private static final java.util.Set<String> STRINGS = java.util.Set.of("String", "meta::pure::metamodel::type::String");
     private static final TypeExpression INTEGER = new TypeExpression.NameRef("meta::pure::metamodel::type::Integer");
     private static final TypeExpression FLOAT = new TypeExpression.NameRef("meta::pure::metamodel::type::Float");
 
@@ -267,6 +268,7 @@ public final class CompanionSynthesis {
         String c = cd.qualifiedName();
         java.util.Set<String> comparable = new java.util.TreeSet<>(NUMERIC);
         comparable.addAll(DATES);
+        comparable.addAll(STRINGS);
         List<Scalar> numeric = scalars(cd, classes, NUMERIC, new java.util.TreeSet<>());
         List<Scalar> ordered = scalars(cd, classes, comparable, new java.util.TreeSet<>());
         List<PackageableElement> out = new ArrayList<>();
@@ -328,7 +330,7 @@ public final class CompanionSynthesis {
 
     private static Map<String, String> kinds() {
         Map<String, String> m = new java.util.LinkedHashMap<>();
-        for (String k : List.of("Integer", "Float", "Decimal", "Number", "Date", "StrictDate", "DateTime")) {
+        for (String k : List.of("Integer", "Float", "Decimal", "Number", "Date", "StrictDate", "DateTime", "String")) {
             m.put(k, k);
             m.put("meta::pure::metamodel::type::" + k, k);
         }
@@ -346,7 +348,7 @@ public final class CompanionSynthesis {
     }
 
     /** The fold's function, by the catalog's overload of the scalar's kind: sum and average over numbers; min and
-     *  max over numbers or dates. */
+     *  max over numbers or dates, and over strings the collection's own (code point order, register S91). */
     private static String foldFunction(Companion.Fold fold, Scalar sc) {
         String kind = kind(sc);
         return switch (fold) {
@@ -362,6 +364,7 @@ public final class CompanionSynthesis {
                 case "Date" -> com.legend.builtin.Pure.MIN__DATE_MANY.qualifiedName();
                 case "StrictDate" -> com.legend.builtin.Pure.MIN__STRICT_DATE_MANY.qualifiedName();
                 case "DateTime" -> com.legend.builtin.Pure.MIN__DATE_TIME_MANY.qualifiedName();
+                case "String" -> com.legend.builtin.Pure.MIN_GENERIC__X_MANY.qualifiedName();
                 default -> com.legend.builtin.Pure.MIN__NUMBER_MANY.qualifiedName();
             };
             case MAX -> switch (kind) {
@@ -370,6 +373,7 @@ public final class CompanionSynthesis {
                 case "Date" -> com.legend.builtin.Pure.MAX__DATE_MANY.qualifiedName();
                 case "StrictDate" -> com.legend.builtin.Pure.MAX__STRICT_DATE_MANY.qualifiedName();
                 case "DateTime" -> com.legend.builtin.Pure.MAX__DATE_TIME_MANY.qualifiedName();
+                case "String" -> com.legend.builtin.Pure.MAX_GENERIC__X_MANY.qualifiedName();
                 default -> com.legend.builtin.Pure.MAX__NUMBER_MANY.qualifiedName();
             };
         };

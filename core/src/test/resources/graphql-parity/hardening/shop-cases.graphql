@@ -417,6 +417,9 @@ query Q($s: String) { Order(where: { note: { equals: $s } }) { id note } }
 # order: a nested list by an aggregate
 { Customer(orderBy: [{ id: ASC }]) { id orders(orderBy: [{ linesAggregate: { sum: { qty: DESC } } }, { id: ASC }]) { id } } }
 
+# order: by a string fold
+{ Customer(orderBy: [{ ordersAggregate: { max: { note: DESC } } }, { id: ASC }]) { id } }
+
 # order: a nested list by an aggregate through a to-one hop
 { Order(orderBy: [{ id: ASC }]) { id lines(orderBy: [{ order: { linesAggregate: { min: { id: DESC } } } }, { id: DESC }]) { id } } }
 
@@ -453,6 +456,18 @@ query Q($s: String) { Order(where: { note: { equals: $s } }) { id note } }
 # aggregates: a fold of a derived arithmetic leaf
 { Order(orderBy: [{ id: ASC }]) { id linesAggregate { sum { amount qty } avg { amount } } } }
 
+# aggregates: string folds at the root, by code point
+{ CustomerAggregate { min { name email } max { name email } } }
+
+# aggregates: string folds nested, nulls skipped
+{ Customer(orderBy: [{ id: ASC }]) { id ordersAggregate { min { note } max { note } } } }
+
+# aggregates: string folds of derived leaves
+{ Customer(orderBy: [{ id: ASC }]) { id referredAggregate { min { handle } max { loud label } } } }
+
+# aggregates: string folds over the many-to-many
+{ Product(orderBy: [{ sku: ASC }]) { sku tagsAggregate { min { label } max { label } } } }
+
 # groups: by an enum
 { CustomerGroups(orderBy: [{ key: { tier: ASC } }]) { key { tier } count avg { score } } }
 
@@ -482,6 +497,12 @@ query Q($s: String) { Order(where: { note: { equals: $s } }) { id note } }
 
 # groups: aliases on the key, its fields and the folds
 { OrderGroups(orderBy: [{ key: { status: ASC } }]) { k: key { s: status } n: count hi: max { d: discount } lo: min { d: discount } } }
+
+# groups: a string fold in having
+{ CustomerGroups(having: { min: { name: { startsWith: "A" } } }, orderBy: [{ key: { tier: ASC } }]) { key { tier } min { name } } }
+
+# groups: ordered by a string fold
+{ CustomerGroups(orderBy: [{ max: { name: ASC } }, { key: { tier: ASC } }]) { key { tier } max { name } } }
 
 # regressions: a nested list filtered by a non-null derived count, zero included
 { Customer(orderBy: [{ id: ASC }]) { id referred(where: { orderCount: { lte: 0 } }) { id tier } } }

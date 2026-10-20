@@ -3076,7 +3076,9 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 || nc.args().size() == 1 && (com.legend.builtin.Pure.AT_MATH_MIN.contains(id)
                         || com.legend.builtin.Pure.AT_MATH_MAX.contains(id)
                         || com.legend.builtin.Pure.AT_DATE_MIN.contains(id)
-                        || com.legend.builtin.Pure.AT_DATE_MAX.contains(id));
+                        || com.legend.builtin.Pure.AT_DATE_MAX.contains(id)
+                        || com.legend.builtin.Pure.AT_COLLECTION_MIN.contains(id)
+                        || com.legend.builtin.Pure.AT_COLLECTION_MAX.contains(id));
     }
 
     private static boolean hasCol(Type.RelationType row, String name) {

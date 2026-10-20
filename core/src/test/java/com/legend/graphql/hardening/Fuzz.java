@@ -92,10 +92,42 @@ public final class Fuzz {
         }
     }
 
-    /** A document: its root fields, and the named fragments they spread (each rendered whole). */
-    record GDoc(List<GSel> roots, List<String> fragments) {
+    /** A variable: its declared GraphQL type and its value as JSON. */
+    record Var(String type, String json) {
+    }
+
+    /** A document: its root fields, the named fragments they spread (each rendered whole), and the variables its
+     *  values may name ({@code $v0}); only the variables the text still uses are declared and sent (an unused
+     *  variable is a validation error, which would make a shrunk document disagree for the wrong reason). */
+    record GDoc(List<GSel> roots, List<String> fragments, Map<String, Var> vars) {
         GDoc(GSel root) {
-            this(List.of(root), List.of());
+            this(List.of(root), List.of(), Map.of());
+        }
+
+        GDoc(List<GSel> roots, List<String> fragments) {
+            this(roots, fragments, Map.of());
+        }
+
+        private String body() {
+            StringBuilder b = new StringBuilder("{");
+            for (GSel r : roots) {
+                b.append(' ').append(r.render());
+            }
+            return b.append(" }").toString();
+        }
+
+        private List<String> used() {
+            StringBuilder text = new StringBuilder(body());
+            for (String f : fragments) {
+                text.append(' ').append(f);
+            }
+            List<String> out = new ArrayList<>();
+            for (String name : vars.keySet()) {
+                if (java.util.regex.Pattern.compile("\\$" + name + "\\b").matcher(text).find()) {
+                    out.add(name);
+                }
+            }
+            return out;
         }
 
         String render() {
@@ -103,11 +135,30 @@ public final class Fuzz {
             for (String f : fragments) {
                 b.append(f).append(' ');
             }
-            b.append("{");
-            for (GSel r : roots) {
-                b.append(' ').append(r.render());
+            List<String> used = used();
+            if (!used.isEmpty()) {
+                b.append("query Q(");
+                for (int i = 0; i < used.size(); i++) {
+                    b.append(i == 0 ? "" : ", ").append('$').append(used.get(i)).append(": ")
+                            .append(vars.get(used.get(i)).type());
+                }
+                b.append(") ");
             }
-            return b.append(" }").toString();
+            return b.append(body()).toString();
+        }
+
+        /** The used variables' values as a JSON object, null when the document names none. */
+        @com.legend.base.Nullable String variables() {
+            List<String> used = used();
+            if (used.isEmpty()) {
+                return null;
+            }
+            StringBuilder b = new StringBuilder("{");
+            for (int i = 0; i < used.size(); i++) {
+                b.append(i == 0 ? "" : ",").append(Json.toCompact(used.get(i))).append(':')
+                        .append(vars.get(used.get(i)).json());
+            }
+            return b.append('}').toString();
         }
     }
 
@@ -117,13 +168,16 @@ public final class Fuzz {
     final Random r;
     final Map<String, String> unique;           // class -> its unique sort key
     final Map<String, List<String>> enums;      // "Class.field" -> the enum's values
+    final Map<String, String> enumTypes;        // "Class.field" -> the enum's GraphQL type name
     final Map<String, List<Object>> pool = new LinkedHashMap<>();
 
-    public Fuzz(ReferenceModel model, long seed, Map<String, String> unique, Map<String, List<String>> enums) {
+    public Fuzz(ReferenceModel model, long seed, Map<String, String> unique, Map<String, List<String>> enums,
+            Map<String, String> enumTypes) {
         this.model = model;
         this.r = new Random(seed);
         this.unique = unique;
         this.enums = enums;
+        this.enumTypes = enumTypes;
     }
 
     <T> T pick(List<T> xs) {
@@ -190,10 +244,13 @@ public final class Fuzz {
 
     /** Named fragments the document being generated defines. */
     private final List<String> fragments = new ArrayList<>();
+    /** The variables the document being generated declares. */
+    private final Map<String, Var> vars = new LinkedHashMap<>();
     private int aliasCount;
 
     GDoc document() {
         fragments.clear();
+        vars.clear();
         aliasCount = 0;
         List<GSel> roots = new ArrayList<>();
         int n = chance(0.15) ? 2 : 1;
@@ -204,7 +261,48 @@ public final class Fuzz {
             // a second root field is aliased: two roots of one name would merge or conflict
             roots.add(i == 0 ? root : renamed(root, "r" + i + ": " + root.name()));
         }
-        return new GDoc(roots, List.copyOf(fragments));
+        return new GDoc(roots, List.copyOf(fragments), new LinkedHashMap<>(vars));
+    }
+
+    /** A literal moved into a variable now and then ({@code $v3}, its type the position's): the same value through
+     *  the variables' coercion instead of the literal's. */
+    GV maybeVar(GV literal, String type) {
+        if (!chance(0.12) || literal instanceof GLit l && l.text().equals("null")) {
+            return literal;
+        }
+        String name = "v" + vars.size();
+        vars.put(name, new Var(type, json(literal)));
+        return new GLit("$" + name);
+    }
+
+    /** A value literal as JSON: an enum's name quoted, everything else as GraphQL spells it. */
+    static String json(GV v) {
+        return switch (v) {
+            case GLit l -> l.text().matches("[A-Z_][A-Z_0-9]*") ? Json.toCompact(l.text()) : l.text();
+            case GList l -> {
+                StringBuilder b = new StringBuilder("[");
+                for (int i = 0; i < l.items().size(); i++) {
+                    b.append(i == 0 ? "" : ",").append(json(l.items().get(i)));
+                }
+                yield b.append(']').toString();
+            }
+            case GObj o -> throw new IllegalArgumentException("an input object is never a variable here");
+        };
+    }
+
+    /** The GraphQL type a scalar field's filter values take. */
+    String typeOf(String cls, String field, Kind kind) {
+        return switch (kind) {
+            case STRING -> "String";
+            case BIGINT -> "BigInt";
+            case FLOAT -> "Float";
+            case DECIMAL -> "Decimal";
+            case BOOLEAN -> "Boolean";
+            case DATE -> "Date";
+            case DATETIME -> "DateTime";
+            case ENUM -> java.util.Objects.requireNonNull(enumTypes.get(model.get(cls).name() + "." + field),
+                    "enum type of " + cls + "." + field);
+        };
     }
 
     static GSel renamed(GSel s, String name) {
@@ -276,14 +374,30 @@ public final class Fuzz {
         if (chance(0.5)) {
             args.add(e("where", where(cls, 2)));
         }
+        List<Map.Entry<String, GV>> having = new ArrayList<>();
         if (chance(0.3)) {
             GObj bound = obj(List.of(e(pick(List.of("gte", "lt", "equals")), new GLit(Integer.toString(r.nextInt(4))))));
-            args.add(e("having", obj(List.of(e("count", bound)))));
+            having.add(e("count", bound));
         }
-        // a total order over the groups: every selected key, the count first now and then
+        List<String[]> folds = foldable(cls);
+        if (!folds.isEmpty() && chance(0.2)) {
+            // a fold's bound: sum, min or max of a property (the fold need not be selected: S93)
+            String[] fp = pick(folds);
+            Kind k = ((Scalar) model.get(cls).fields.get(fp[1])).kind();
+            GObj bound = obj(List.of(e(pick(List.of("gt", "lt", "gte", "lte", "equals")), literal(cls, fp[1], k))));
+            having.add(e(fp[0], obj(List.of(e(fp[1], bound)))));
+        }
+        if (!having.isEmpty()) {
+            args.add(e("having", obj(having)));
+        }
+        // a total order over the groups: every selected key, the count or a fold first now and then
         List<GV> order = new ArrayList<>();
         if (chance(0.3)) {
             order.add(obj(List.of(e("count", new GLit(chance(0.5) ? "ASC" : "DESC")))));
+        }
+        if (!folds.isEmpty() && chance(0.2)) {
+            String[] fp = pick(folds);
+            order.add(obj(List.of(e(fp[0], obj(List.of(e(fp[1], new GLit(chance(0.5) ? "ASC" : "DESC"))))))));
         }
         for (List<String> kp : keyPaths) {
             GV dir = new GLit(chance(0.5) ? "ASC" : "DESC");
@@ -297,6 +411,24 @@ public final class Fuzz {
             args.add(e("limit", new GLit(Integer.toString(r.nextInt(4)))));
         }
         return new GSel(cls + "Groups", obj(args), sel);
+    }
+
+    /** The (fold, property) pairs a group's {@code having} and {@code orderBy} may name with a literal of the
+     *  property's own kind: sum over numbers, min and max over numbers, dates and strings (avg answers a Float). */
+    List<String[]> foldable(String cls) {
+        List<String[]> out = new ArrayList<>();
+        for (String f : filterable(cls)) {
+            Kind k = ((Scalar) model.get(cls).fields.get(f)).kind();
+            if (k == Kind.BIGINT || k == Kind.FLOAT || k == Kind.DECIMAL) {
+                out.add(new String[] {"sum", f});
+                out.add(new String[] {"min", f});
+                out.add(new String[] {"max", f});
+            } else if (k == Kind.DATE || k == Kind.DATETIME || k == Kind.STRING) {
+                out.add(new String[] {"min", f});
+                out.add(new String[] {"max", f});
+            }
+        }
+        return out;
     }
 
     /** A list field ({@code Customer(...)} at the root, {@code orders(...)} below) with clauses and a selection. */
@@ -321,10 +453,10 @@ public final class Fuzz {
         }
         if (paged) {
             if (chance(0.8)) {
-                args.add(e("limit", new GLit(Integer.toString(r.nextInt(5)))));
+                args.add(e("limit", maybeVar(new GLit(Integer.toString(r.nextInt(5))), "Int")));
             }
             if (chance(0.5)) {
-                args.add(e("offset", new GLit(Integer.toString(r.nextInt(4)))));
+                args.add(e("offset", maybeVar(new GLit(Integer.toString(r.nextInt(4))), "Int")));
             }
         }
         return new GSel(name, obj(args), selection(cls, depth));
@@ -350,7 +482,7 @@ public final class Fuzz {
                     } else {
                         List<Map.Entry<String, GV>> a = new ArrayList<>();
                         for (Map.Entry<String, Kind> p : s.params().entrySet()) {
-                            a.add(e(p.getKey(), new GLit(Long.toString(r.nextInt(7) - 2))));
+                            a.add(e(p.getKey(), maybeVar(new GLit(Long.toString(r.nextInt(7) - 2)), "BigInt!")));
                         }
                         out.add(new GSel(f, obj(a), List.of()));
                     }
@@ -414,7 +546,7 @@ public final class Fuzz {
 
     GSel aggregateField(String toMany, String target) {
         List<GSel> members = new ArrayList<>();
-        members.add(new GSel("count", null, List.of()));
+        members.add(new GSel(chance(0.1) ? "n" + aliasCount++ + ": count" : "count", null, List.of()));
         List<String> numeric = new ArrayList<>();
         List<String> ordered = new ArrayList<>();
         for (String f : filterable(target)) {
@@ -422,7 +554,7 @@ public final class Fuzz {
             if (k == Kind.BIGINT || k == Kind.FLOAT || k == Kind.DECIMAL) {
                 numeric.add(f);
                 ordered.add(f);
-            } else if (k == Kind.DATE || k == Kind.DATETIME) {
+            } else if (k == Kind.DATE || k == Kind.DATETIME || k == Kind.STRING) {
                 ordered.add(f);
             }
         }
@@ -430,11 +562,26 @@ public final class Fuzz {
             List<String> props = fold.equals("sum") || fold.equals("avg") ? numeric : ordered;
             if (!props.isEmpty() && chance(0.35)) {
                 List<GSel> fs = new ArrayList<>();
-                fs.add(new GSel(pick(props), null, List.of()));
-                if (chance(0.1)) {
-                    fs.add(r.nextInt(2), new GSel("__typename", null, List.of()));
+                int leaves = 1 + (chance(0.3) ? 1 : 0) + (chance(0.1) ? 1 : 0);
+                Set<String> seen = new LinkedHashSet<>();
+                for (int i = 0; i < leaves; i++) {
+                    String leaf = pick(props);
+                    if (seen.add(leaf)) {
+                        fs.add(new GSel(chance(0.1) ? "l" + aliasCount++ + ": " + leaf : leaf, null, List.of()));
+                    } else if (chance(0.5)) {
+                        // one leaf under a second key
+                        fs.add(new GSel("l" + aliasCount++ + ": " + leaf, null, List.of()));
+                    }
                 }
-                members.add(new GSel(fold, null, fs));
+                if (chance(0.1)) {
+                    fs.add(r.nextInt(fs.size() + 1), new GSel("__typename", null, List.of()));
+                }
+                members.add(new GSel(chance(0.1) ? "f" + aliasCount++ + ": " + fold : fold, null, fs));
+                if (chance(0.05)) {
+                    // the same fold twice, under two keys, over different leaves
+                    members.add(new GSel("g" + aliasCount++ + ": " + fold, null,
+                            List.of(new GSel(pick(props), null, List.of()))));
+                }
             }
         }
         if (chance(0.1)) {
@@ -518,8 +665,9 @@ public final class Fuzz {
             if (op.equals("not") && !allowNot) {
                 op = "equals";
             }
+            String t = typeOf(cls, field, kind);
             GV v = switch (op) {
-                case "equals" -> chance(0.1) ? new GLit("null") : literal(cls, field, kind);
+                case "equals" -> chance(0.1) ? new GLit("null") : maybeVar(literal(cls, field, kind), t);
                 case "not" -> chance(0.15) ? new GLit("null") : scalarFilter(cls, field, false);
                 case "in", "notIn" -> {
                     List<GV> items = new ArrayList<>();
@@ -527,10 +675,10 @@ public final class Fuzz {
                     for (int k = 0; k < m; k++) {
                         items.add(literal(cls, field, kind));
                     }
-                    yield new GList(items);
+                    yield maybeVar(new GList(items), "[" + t + "!]");
                 }
-                case "contains", "startsWith", "endsWith" -> fragmentLiteral(cls, field, op);
-                default -> literal(cls, field, kind);
+                case "contains", "startsWith", "endsWith" -> maybeVar(fragmentLiteral(cls, field, op), "String");
+                default -> maybeVar(literal(cls, field, kind), t);
             };
             String key = op;
             if (fs.stream().anyMatch(en -> en.getKey().equals(key))) {
@@ -646,7 +794,7 @@ public final class Fuzz {
                 if (k == Kind.BIGINT || k == Kind.FLOAT || k == Kind.DECIMAL) {
                     numeric.add(p);
                     ordered.add(p);
-                } else if (k == Kind.DATE || k == Kind.DATETIME) {
+                } else if (k == Kind.DATE || k == Kind.DATETIME || k == Kind.STRING) {
                     ordered.add(p);
                 }
             }
@@ -658,7 +806,7 @@ public final class Fuzz {
             return obj(List.of(e(f + "Aggregate", obj(List.of(e(fold, obj(List.of(e(pick(props), dir)))))))));
         }
         List<String> ones = toOnes(cls);
-        if (depth < 2 && !ones.isEmpty() && chance(0.25)) {
+        if ((depth < 2 || depth < 3 && chance(0.3)) && !ones.isEmpty() && chance(0.25)) {
             String f = pick(ones);
             String target = ((ToOne) model.get(cls).fields.get(f)).target();
             return obj(List.of(e(f, sortKey(target, depth + 1))));
@@ -675,12 +823,12 @@ public final class Fuzz {
             if (d.roots().size() > 1) {
                 List<GSel> rs = new ArrayList<>(d.roots());
                 rs.remove(i);
-                out.add(new GDoc(rs, used(rs, d.fragments())));
+                out.add(new GDoc(rs, used(rs, d.fragments()), d.vars()));
             }
             for (GSel s : smaller(d.roots().get(i), true)) {
                 List<GSel> rs = new ArrayList<>(d.roots());
                 rs.set(i, s);
-                out.add(new GDoc(rs, used(rs, d.fragments())));
+                out.add(new GDoc(rs, used(rs, d.fragments()), d.vars()));
             }
         }
         return out;
@@ -775,10 +923,19 @@ public final class Fuzz {
 
     /** The verdict of one document: null when lite and the reference agree. */
     public static String verdict(Harness h, ReferenceModel model, String doc) {
+        return verdict(h, model, doc, null);
+    }
+
+    public static String verdict(Harness h, ReferenceModel model, GDoc d) {
+        return verdict(h, model, d.render(), d.variables());
+    }
+
+    static String verdict(Harness h, ReferenceModel model, String doc, @com.legend.base.Nullable String vars) {
+        Json.Obj variables = vars == null ? null : (Json.Obj) Json.parse(vars, Harness.JSON);
         OVal expected;
         boolean refused = false;
         try {
-            expected = Reference.answer(model, doc, null, null);
+            expected = Reference.answer(model, doc, variables, null);
         } catch (Reference.Undetermined u) {
             return null;    // the contract fixes no answer: nothing to judge
         } catch (Reference.Refused u) {
@@ -789,7 +946,7 @@ public final class Fuzz {
         }
         Json.Obj a;
         try {
-            a = h.query(doc);
+            a = h.query(doc, vars, null);
         } catch (RuntimeException e) {
             return "THROWN: " + e;
         }
@@ -815,7 +972,7 @@ public final class Fuzz {
                 if (--budget <= 0) {
                     break;
                 }
-                if (verdict(h, model, c.render()) != null) {
+                if (verdict(h, model, c) != null) {
                     best = c;
                     progress = true;
                     break;

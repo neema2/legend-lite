@@ -36,11 +36,12 @@ public final class GraphqlReference {
             A subclass's fields: `asManager: { budget: { gt: 1000 } }`; `asManager: { isNot: null }` is membership.
 
             ORDER BY. A list of single-key objects, the FIRST key primary: `orderBy: [{ lastName: ASC },
-            { age: DESC }]`; a to-one path `{ firm: { legalName: ASC } }`; a subclass's `{ asManager: { budget: DESC } }`.
+            { age: DESC }]`; a to-one path `{ firm: { legalName: ASC } }`; a subclass's `{ asManager: { budget: DESC } }`;
+            a to-many's aggregate `{ employeesAggregate: { count: DESC } }`, `{ employeesAggregate: { max: { age: ASC } } }`.
             LIMIT and OFFSET are counts applied after the order; a limit without an orderBy is warned.
 
             AGGREGATES. `CAggregate(where: ...) { count sum { salary } avg { age } min { born } max { salary } }`
-            is one object. sum and avg take numbers; min and max take numbers and dates.
+            is one object. sum and avg take numbers; min and max take numbers, dates and strings (by code point).
 
             GROUPS. `CGroups(where, having, orderBy, limit, offset) { key { a b { c } born(truncate: YEAR) } count
             sum { x } avg { x } }`: the selection under `key` IS the grouping (a to-one property nests its own key

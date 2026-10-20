@@ -39,11 +39,13 @@ class FuzzProbeTest {
             Fuzz f = new Fuzz(ShopReference.MODEL, seed, Map.of("Customer", "id", "Order", "id", "Line", "id",
                     "Product", "sku", "Tag", "id"), Map.of("Customer.tier", List.of("GOLD", "SILVER", "BRONZE"),
                     "Order.status", List.of("OPEN", "SHIPPED", "CANCELLED"),
-                    "Product.category", List.of("BOOKS", "TOYS", "GARDEN")));
+                    "Product.category", List.of("BOOKS", "TOYS", "GARDEN")),
+                    Map.of("Customer.tier", "Tier", "Order.status", "Status", "Product.category", "Category"));
             for (int i = 0; i < n; i++) {
                 Fuzz.GDoc d = f.document();
                 try {
-                    Reference.answer(ShopReference.MODEL, d.render(), null, null);
+                    Reference.answer(ShopReference.MODEL, d.render(), d.variables() == null ? null
+                            : (com.legend.json.Json.Obj) com.legend.json.Json.parse(d.variables(), Harness.JSON), null);
                     kinds.merge("answered", 1, Integer::sum);
                 } catch (Reference.Refused rf) {
                     kinds.merge("refused: " + rf.getMessage().replaceAll("[0-9]+", "N").replaceAll("\\[.*", ""), 1,
@@ -53,22 +55,24 @@ class FuzzProbeTest {
                 } catch (RuntimeException re) {
                     kinds.merge("reference threw: " + re, 1, Integer::sum);
                 }
-                for (String root : List.of("Aggregate", "Groups", "... on", "...F", "@include", "@skip", ": ")) {
+                for (String root : List.of("Aggregate", "Groups", "... on", "...F", "@include", "@skip", ": ", "$v")) {
                     if (d.render().contains(root)) {
                         kinds.merge("feature " + root, 1, Integer::sum);
                     }
                 }
-                String v = Fuzz.verdict(h, ShopReference.MODEL, d.render());
+                String v = Fuzz.verdict(h, ShopReference.MODEL, d);
                 if (v == null) {
                     agree++;
                     continue;
                 }
                 String sig = Fuzz.signature(v);
                 clusters.merge(sig, 1, Integer::sum);
-                originals.computeIfAbsent(sig, k -> new java.util.ArrayList<>()).add(d.render() + "\n       " + v);
+                originals.computeIfAbsent(sig, k -> new java.util.ArrayList<>()).add(d.render()
+                        + (d.variables() == null ? "" : "  variables " + d.variables()) + "\n       " + v);
                 if (!examples.containsKey(sig)) {
                     Fuzz.GDoc small = Fuzz.shrink(h, ShopReference.MODEL, d, 150);
-                    examples.put(sig, small.render() + "\n     " + Fuzz.verdict(h, ShopReference.MODEL, small.render()));
+                    examples.put(sig, small.render() + (small.variables() == null ? "" : "  variables "
+                            + small.variables()) + "\n     " + Fuzz.verdict(h, ShopReference.MODEL, small));
                 }
             }
             }

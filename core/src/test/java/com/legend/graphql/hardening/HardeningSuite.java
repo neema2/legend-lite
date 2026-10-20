@@ -153,10 +153,12 @@ abstract class HardeningSuite {
             Fuzz f = new Fuzz(reference(), seed, Map.of("Customer", "id", "Order", "id", "Line", "id",
                     "Product", "sku", "Tag", "id"), Map.of("Customer.tier", List.of("GOLD", "SILVER", "BRONZE"),
                     "Order.status", List.of("OPEN", "SHIPPED", "CANCELLED"),
-                    "Product.category", List.of("BOOKS", "TOYS", "GARDEN")));
+                    "Product.category", List.of("BOOKS", "TOYS", "GARDEN")),
+                    Map.of("Customer.tier", "Tier", "Order.status", "Status", "Product.category", "Category"));
             for (int i = 0; i < PER_SEED; i++) {
-                String doc = f.document().render();
-                String v = Fuzz.verdict(harness, reference(), doc);
+                Fuzz.GDoc d = f.document();
+                String doc = d.render() + (d.variables() == null ? "" : "  variables " + d.variables());
+                String v = Fuzz.verdict(harness, reference(), d);
                 if (v == null) {
                     agree++;
                     continue;

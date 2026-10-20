@@ -643,11 +643,12 @@ public final class SchemaGenerator {
                 && isNumeric(p)).toList();
     }
 
-    /** The properties {@code min} and {@code max} fold: numbers and dates (the Pure functions exist for those; a
-     *  string's min has no Pure spelling yet, PR4's not-done list). */
+    /** The properties {@code min} and {@code max} fold: numbers, dates and strings (a string's by code point, the
+     *  collection's own {@code min}/{@code max}: register S91). */
     private List<Prop> comparableProps(ClassInfo c) {
         return c.props().stream().filter(p -> p.kind() == Kind.SCALAR && !p.toMany() && p.parameters().isEmpty()
-                && (isNumeric(p) || DATE.equals(scalarOf(p)) || DATE_TIME.equals(scalarOf(p)))).toList();
+                && (isNumeric(p) || DATE.equals(scalarOf(p)) || DATE_TIME.equals(scalarOf(p))
+                        || STRING.equals(scalarOf(p)))).toList();
     }
 
     private boolean isNumeric(Prop p) {
