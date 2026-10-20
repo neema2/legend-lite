@@ -23,6 +23,13 @@ public final class SynthFqn {
     private SynthFqn() {
     }
 
+    /** Whether {@code fqn} is a synthesized name: the {@code $} sigil is non-user-writable, so it always names a
+     *  DECLARATION, even when its owner sits in the root package and the name carries no {@code ::}
+     *  ({@code Thing$prop$name}: a root-package class's derived property, 2026-10-20). */
+    public static boolean isSynth(String fqn) {
+        return fqn.indexOf('$') >= 0;
+    }
+
     /** {@code <owner>$prop$<name>} &mdash; an externalized derived-property body (§1.5). */
     public static String prop(String ownerFqn, String propertyName) {
         return hatFqn(ownerFqn, SynthHat.PROP, propertyName);

@@ -105,6 +105,34 @@ public final class ReferenceModel {
 
     final Map<String, Cls> classes = new LinkedHashMap<>();
 
+    /** How the database folds a letter's case: all of Unicode (Java's, DuckDB's), or ASCII only (a Postgres in the
+     *  C locale: the embedded test server's, docs/CYPHER_STUDY_2026_10_15.md's case-folding row). */
+    public enum CaseFolding { UNICODE, ASCII }
+
+    CaseFolding folding = CaseFolding.UNICODE;
+
+    String lower(String s) {
+        if (folding == CaseFolding.UNICODE) {
+            return s.toLowerCase(java.util.Locale.ROOT);
+        }
+        StringBuilder b = new StringBuilder(s.length());
+        for (char c : s.toCharArray()) {
+            b.append(c >= 'A' && c <= 'Z' ? (char) (c + 32) : c);
+        }
+        return b.toString();
+    }
+
+    String upper(String s) {
+        if (folding == CaseFolding.UNICODE) {
+            return s.toUpperCase(java.util.Locale.ROOT);
+        }
+        StringBuilder b = new StringBuilder(s.length());
+        for (char c : s.toCharArray()) {
+            b.append(c >= 'a' && c <= 'z' ? (char) (c - 32) : c);
+        }
+        return b.toString();
+    }
+
     public Cls cls(String name) {
         return cls(name, null);
     }

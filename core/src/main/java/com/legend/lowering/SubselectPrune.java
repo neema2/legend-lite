@@ -70,11 +70,224 @@ final class SubselectPrune {
             collectQuery(q, refs);
             SqlQuery next = rewriteQuery(q, refs);
             if (next.equals(q)) {
-                return q;
+                return Spellings.reconcile(q);
             }
             q = next;
         }
-        return q;
+        return Spellings.reconcile(q);
+    }
+
+    /**
+     * A REFERENCE SPELLS AS ITS SOURCE DELIVERS. Narrowing a star ({@code t0.*}) into explicit projections relabels
+     * each column under its declared name -- a DERIVED label -- while the readers above were resolved against the
+     * star's PHYSICAL passthrough. One identifier where labels fold case-insensitively (DuckDB); two on Postgres,
+     * which quotes a derived label ({@code "t0".id AS "ID"}) and folds a physical one ({@code "t3".id}): the GraphQL
+     * hardening suite's Postgres lane, 2026-10-20, every sorted root filtered through a to-one hop. After pruning,
+     * each column read under a subselect's alias takes the origin of the column that alias delivers (aliases are
+     * globally unique, so the map is the whole tree's, correlated reads included).
+     */
+    static final class Spellings {
+
+        private Spellings() {
+        }
+
+        static SqlQuery reconcile(SqlQuery q) {
+            Map<String, Map<String, OutputCol>> delivered = new HashMap<>();
+            sourcesOf(q, delivered);
+            return delivered.isEmpty() ? q : query(q, delivered);
+        }
+
+        private static void sourcesOf(SqlQuery q, Map<String, Map<String, OutputCol>> out) {
+            switch (q) {
+                case SqlSelect s -> {
+                    if (!(s.from() instanceof SqlSource.Dual)) {
+                        sourceOf(s.from(), out);
+                    }
+                    forEachExpr(s, e -> subqueriesOf(e, out));
+                }
+                case SqlUnion u -> u.branches().forEach(b -> sourcesOf(b, out));
+                case com.legend.sql.SqlWith w -> {
+                    w.ctes().forEach(c -> sourcesOf(c.query(), out));
+                    sourcesOf(w.body(), out);
+                }
+            }
+        }
+
+        private static void sourceOf(SqlSource src, Map<String, Map<String, OutputCol>> out) {
+            switch (src) {
+                case SqlSource.Subselect sub -> {
+                    Map<String, OutputCol> byName = new HashMap<>();
+                    for (OutputCol oc : sub.outputs()) {
+                        byName.putIfAbsent(oc.name(), oc);
+                    }
+                    out.put(sub.alias(), byName);
+                    sourcesOf(sub.inner(), out);
+                }
+                case SqlSource.Join j -> {
+                    sourceOf(j.left(), out);
+                    sourceOf(j.right(), out);
+                    if (j.on() != null) {
+                        subqueriesOf(j.on(), out);
+                    }
+                }
+                case SqlSource.Pivot p -> sourceOf(p.source(), out);
+                default -> { }
+            }
+        }
+
+        private static void subqueriesOf(SqlExpr e, Map<String, Map<String, OutputCol>> out) {
+            switch (e) {
+                case SqlExpr.Exists x -> sourcesOf(x.subquery(), out);
+                case SqlExpr.InSubquery x -> {
+                    subqueriesOf(x.value(), out);
+                    sourcesOf(x.subquery(), out);
+                }
+                case SqlExpr.Quantified x -> {
+                    subqueriesOf(x.value(), out);
+                    sourcesOf(x.subquery(), out);
+                }
+                case SqlExpr.ScalarSubquery x -> sourcesOf(x.subquery(), out);
+                default -> e.children().forEach(c -> subqueriesOf(c, out));
+            }
+        }
+
+        private static void forEachExpr(SqlSelect s, java.util.function.Consumer<SqlExpr> f) {
+            s.projections().forEach(p -> f.accept(p.expr()));
+            if (s.where() != null) {
+                f.accept(s.where());
+            }
+            s.groupBy().forEach(f);
+            if (s.having() != null) {
+                f.accept(s.having());
+            }
+            if (s.qualify() != null) {
+                f.accept(s.qualify());
+            }
+            s.orderBy().forEach(k -> f.accept(k.expr()));
+        }
+
+        private static SqlQuery query(SqlQuery q, Map<String, Map<String, OutputCol>> d) {
+            return switch (q) {
+                case SqlSelect s -> select(s, d);
+                case SqlUnion u -> {
+                    List<SqlQuery> bs = u.branches().stream().map(b -> query(b, d)).toList();
+                    yield bs.equals(u.branches()) ? u : new SqlUnion(bs, u.all(), u.outputs());
+                }
+                case com.legend.sql.SqlWith w -> {
+                    List<com.legend.sql.SqlWith.Cte> cs = w.ctes().stream().map(c -> new com.legend.sql.SqlWith.Cte(
+                            c.name(), query(c.query(), d), c.materialized())).toList();
+                    SqlQuery body = query(w.body(), d);
+                    yield cs.equals(w.ctes()) && body.equals(w.body()) ? w : w.with(cs, body);
+                }
+            };
+        }
+
+        private static SqlSelect select(SqlSelect s, Map<String, Map<String, OutputCol>> d) {
+            SqlSelect r = s;
+            if (!(s.from() instanceof SqlSource.Dual)) {
+                SqlSource from = source(s.from(), d);
+                if (from != s.from()) {
+                    r = r.withFrom(from);
+                }
+            }
+            if (!r.projections().isEmpty()) {
+                List<SqlSelect.Projection> ps = new ArrayList<>(r.projections().size());
+                boolean changed = false;
+                for (SqlSelect.Projection p : r.projections()) {
+                    SqlExpr e = expr(p.expr(), d);
+                    changed |= e != p.expr();
+                    ps.add(e == p.expr() ? p : new SqlSelect.Projection(e, p.alias(), p.out()));
+                }
+                if (changed) {
+                    r = r.withProjections(ps);
+                }
+            }
+            if (r.where() != null) {
+                SqlExpr w = expr(r.where(), d);
+                if (w != r.where()) {
+                    r = r.withWhere(w);
+                }
+            }
+            if (!r.groupBy().isEmpty()) {
+                List<SqlExpr> g = r.groupBy().stream().map(x -> expr(x, d)).toList();
+                if (!g.equals(r.groupBy())) {
+                    r = r.withGroupBy(g);
+                }
+            }
+            if (r.having() != null) {
+                SqlExpr h = expr(r.having(), d);
+                if (h != r.having()) {
+                    r = r.withHaving(h);
+                }
+            }
+            if (r.qualify() != null) {
+                SqlExpr qf = expr(r.qualify(), d);
+                if (qf != r.qualify()) {
+                    r = r.withQualify(qf);
+                }
+            }
+            if (!r.orderBy().isEmpty()) {
+                List<SqlSelect.SortKey> ks = new ArrayList<>();
+                boolean changed = false;
+                for (SqlSelect.SortKey k : r.orderBy()) {
+                    SqlExpr e = expr(k.expr(), d);
+                    changed |= e != k.expr();
+                    ks.add(e == k.expr() ? k : new SqlSelect.SortKey(e, k.ascending(), k.nullOrder(), k.outputName()));
+                }
+                if (changed) {
+                    r = r.withOrderBy(ks);
+                }
+            }
+            return r;
+        }
+
+        private static SqlSource source(SqlSource src, Map<String, Map<String, OutputCol>> d) {
+            return switch (src) {
+                case SqlSource.Subselect sub -> {
+                    SqlQuery inner = query(sub.inner(), d);
+                    yield inner == sub.inner() ? sub : new SqlSource.Subselect(inner, sub.alias(), sub.frameName());
+                }
+                case SqlSource.Join j -> {
+                    SqlSource l = source(j.left(), d);
+                    SqlSource rt = source(j.right(), d);
+                    SqlExpr on = j.on() == null ? null : expr(j.on(), d);
+                    yield l == j.left() && rt == j.right() && on == j.on() ? j
+                            : new SqlSource.Join(l, rt, j.kind(), on);
+                }
+                default -> src;
+            };
+        }
+
+        private static SqlExpr expr(SqlExpr e, Map<String, Map<String, OutputCol>> d) {
+            return switch (e) {
+                case SqlExpr.Column c -> {
+                    Map<String, OutputCol> byName = c.table() == null ? null : d.get(c.table());
+                    OutputCol oc = byName == null ? null : byName.get(c.name());
+                    yield oc == null || oc.origin() == null || c.origin() == null || oc.origin() == c.origin() ? c
+                            : SqlExpr.Column.of(c.table(), oc);
+                }
+                case SqlExpr.Exists x -> {
+                    SqlQuery sq = query(x.subquery(), d);
+                    yield sq == x.subquery() ? x : new SqlExpr.Exists(sq, x.type());
+                }
+                case SqlExpr.InSubquery x -> {
+                    SqlExpr v = expr(x.value(), d);
+                    SqlQuery sq = query(x.subquery(), d);
+                    yield v == x.value() && sq == x.subquery() ? x : new SqlExpr.InSubquery(v, sq, x.type());
+                }
+                case SqlExpr.Quantified x -> {
+                    SqlExpr v = expr(x.value(), d);
+                    SqlQuery sq = query(x.subquery(), d);
+                    yield v == x.value() && sq == x.subquery() ? x
+                            : new SqlExpr.Quantified(v, x.comparison(), x.quantifier(), sq, x.type());
+                }
+                case SqlExpr.ScalarSubquery x -> {
+                    SqlQuery sq = query(x.subquery(), d);
+                    yield sq == x.subquery() ? x : new SqlExpr.ScalarSubquery(sq, x.type());
+                }
+                default -> e.mapChildren(c -> expr(c, d));
+            };
+        }
     }
 
     // ===== reference collection (exhaustive — a new variant must be

@@ -32,7 +32,7 @@ final class FunctionCompiler {
 
     /** THE native+user overload merge — every "functions at this FQN" question routes here. */
     List<Function> functionsAt(String fqn) {
-        if (!fqn.contains("::")) {
+        if (!fqn.contains("::") && !com.legend.compiler.SynthFqn.isSynth(fqn)) {
             // A BARE name is not a declaration: a call's names are on its record (the resolver's or the
             // builder's; L7 "resolve once", 2026-10-10) and a reader looks up each recorded full name here. The
             // tier walk that stood here (BareNames.tiered per lookup) is gone with the ledger's PARK-5.
@@ -45,7 +45,10 @@ final class FunctionCompiler {
         // of a function the platform declares never runs upstream's body (that body is the spec:
         // core_functions_standard's or/and/max bodies once produced wrong SQL, chB-std testOr). No name
         // is owned outright any more: the PCT rule and the platform-owned list are gone.
-        List<Function> all = new ArrayList<>(Pure.nativeFunctionsAt(fqn));
+        // a synthesized name ($-sigil) is never the catalog's: the model declared it (a root-package owner's
+        // carries no `::`, which the catalog's lookup refuses as a bare name)
+        List<Function> all = com.legend.compiler.SynthFqn.isSynth(fqn) ? new ArrayList<>()
+                : new ArrayList<>(Pure.nativeFunctionsAt(fqn));
         java.util.Set<com.legend.model.FunctionId> catalogIds = new java.util.HashSet<>();
         for (Function n : all) {
             catalogIds.add(com.legend.model.FunctionId.of(n));

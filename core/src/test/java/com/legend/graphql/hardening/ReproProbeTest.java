@@ -22,6 +22,11 @@ class ReproProbeTest {
         try (Connection c = TestBackends.platform().open()) {
             ShopFixture.seed(c);
             Harness h = new Harness(ShopFixture.MODEL, ShopFixture.RUNTIME, c);
+            // -Dgql.dialect=postgres: the explain plans Postgres SQL (no server: planning touches no database)
+            Harness pg = new Harness(ShopFixture.MODEL.replace("type: DuckDB;\n  specification: DuckDB { };",
+                    "type: Postgres;\n  specification: Static { host: 'localhost'; port: 5432; name: 'postgres'; };"),
+                    ShopFixture.RUNTIME, c);
+            Harness explainer = "postgres".equals(System.getProperty("gql.dialect")) ? pg : h;
             for (String d : Files.readAllLines(Path.of("/tmp/repro.txt"))) {
                 if (d.isBlank()) {
                     continue;
@@ -34,7 +39,7 @@ class ReproProbeTest {
                     out.append("reference: ").append(e).append("\n");
                 }
                 out.append("verdict: ").append(Fuzz.verdict(h, ShopReference.MODEL, d)).append("\n");
-                Json.Obj ex = h.explain(d);
+                Json.Obj ex = explainer.explain(d);
                 if (ex.fields().get("roots") instanceof Json.Arr roots) {
                     for (Json.Node r : roots.items()) {
                         out.append("pure: ").append(((Json.Obj) r).getString("pure")).append("\n");

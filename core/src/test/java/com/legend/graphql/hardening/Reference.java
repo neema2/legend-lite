@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -518,7 +517,7 @@ public final class Reference {
                     if (x == null) {
                         yield false;
                     }
-                    int c = compare(fold(x, ins), fold(literal(v, kind), ins));
+                    int c = compare(caseFold(x, ins), caseFold(literal(v, kind), ins));
                     yield switch (a.name()) {
                         case "lt" -> c < 0;
                         case "lte" -> c <= 0;
@@ -533,8 +532,8 @@ public final class Reference {
                     if (x == null) {
                         yield false;
                     }
-                    String s = (String) fold(x, ins);
-                    String p = (String) fold(literal(v, kind), ins);
+                    String s = (String) caseFold(x, ins);
+                    String p = (String) caseFold(literal(v, kind), ins);
                     yield switch (a.name()) {
                         case "contains" -> s.contains(p);
                         case "startsWith" -> s.startsWith(p);
@@ -550,12 +549,13 @@ public final class Reference {
         return true;
     }
 
-    static Object fold(Object x, boolean insensitive) {
-        return insensitive && x instanceof String s ? s.toLowerCase(Locale.ROOT) : x;
+    /** A string lower-cased under {@code mode: insensitive}, by the model's case folding (the database's). */
+    Object caseFold(Object x, boolean insensitive) {
+        return insensitive && x instanceof String s ? model.lower(s) : x;
     }
 
-    static boolean eq(Object x, Object lit, boolean insensitive) {
-        return compare(fold(x, insensitive), fold(lit, insensitive)) == 0;
+    boolean eq(Object x, Object lit, boolean insensitive) {
+        return compare(caseFold(x, insensitive), caseFold(lit, insensitive)) == 0;
     }
 
     /** A GraphQL literal as the Java value of the kind it is compared with. */

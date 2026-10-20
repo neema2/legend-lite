@@ -25,7 +25,9 @@ public final class ResolvedNames {
     }
 
     public static List<String> referents(AppliedFunction af) {
-        return af.function().contains("::") ? List.of(af.function()) : af.referents();
+        // a synthesized name ($-sigil: a root-package class's `Thing$prop$shout`) is its own referent too
+        return af.function().contains("::") || SynthFqn.isSynth(af.function()) ? List.of(af.function())
+                : af.referents();
     }
 
     /** The catalog natives among the call's referents — empty when the call

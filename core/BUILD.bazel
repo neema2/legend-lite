@@ -544,6 +544,8 @@ _CORE_TEST_EXCLUDED_TAGS = [
     "census",
     "differential",
     "guardrail",
+    # a Postgres lane compiled with the core tests (the GraphQL hardening suite's), run by its own target
+    "postgres",
     "stress",
 ]
 
@@ -649,6 +651,27 @@ junit_test(
         ":test_cases",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE GRAPHQL HARDENING SUITE ON POSTGRES (docs/GRAPHQL_STUDY_2026_10_18.md §13.7): the corpus and the fuzz seeds
+# core_tests_root runs on DuckDB, judged by the same reference evaluator, through the Postgres dialect on the embedded
+# Postgres 16 (the suite's classes are the core tests'; the class is tagged postgres, out of core_tests_root)
+junit_test(
+    name = "graphql_hardening_postgres_test",
+    memory_mb = 1024,
+    size = "medium",
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.graphql.hardening.GraphQLHardeningPostgresTest"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     visibility = ["//gates:__pkg__"],
 )
 

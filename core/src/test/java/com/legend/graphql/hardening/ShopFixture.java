@@ -30,6 +30,17 @@ public final class ShopFixture {
     }
 
     public static final String MODEL = Harness.resource("models/shop.pure");
+
+    /** The connection the model declares (the DuckDB one {@link #MODEL} spells). */
+    private static final String CONNECTION_BODY = "type: DuckDB;\n  specification: DuckDB { };\n  auth: Test;";
+
+    /** {@link #MODEL} whose connection declares {@code backend}'s database: its dialect plans the SQL. */
+    public static String model(com.legend.testbackend.TestBackend backend) {
+        if (!MODEL.contains(CONNECTION_BODY)) {
+            throw new IllegalStateException("the shop model's connection is not the one the fixture rewrites");
+        }
+        return MODEL.replace(CONNECTION_BODY, backend.connectionBody());
+    }
     public static final String RUNTIME = "shop::Runtime";
 
     public record Customer(int id, String name, String email, String tier, boolean vip, LocalDate joined,
@@ -120,11 +131,11 @@ public final class ShopFixture {
                     + " TIER VARCHAR(10), VIP BOOLEAN, JOINED DATE, LAST_SEEN TIMESTAMP, CREDIT DECIMAL(12, 2),"
                     + " SCORE BIGINT, REFERRER_ID INTEGER)");
             s.execute("CREATE TABLE ORDERS (ID INTEGER PRIMARY KEY, CUSTOMER_ID INTEGER, PLACED DATE,"
-                    + " STATUS VARCHAR(10), NOTE VARCHAR(200), DISCOUNT DOUBLE)");
+                    + " STATUS VARCHAR(10), NOTE VARCHAR(200), DISCOUNT DOUBLE PRECISION)");
             s.execute("CREATE TABLE LINE (ID INTEGER PRIMARY KEY, ORDER_ID INTEGER, SKU VARCHAR(10), QTY INTEGER,"
-                    + " UNIT_PRICE DOUBLE)");
+                    + " UNIT_PRICE DOUBLE PRECISION)");
             s.execute("CREATE TABLE PRODUCT (SKU VARCHAR(10) PRIMARY KEY, TITLE VARCHAR(200), CATEGORY VARCHAR(10),"
-                    + " PRICE DOUBLE, WEIGHT DOUBLE)");
+                    + " PRICE DOUBLE PRECISION, WEIGHT DOUBLE PRECISION)");
             s.execute("CREATE TABLE TAG (ID INTEGER PRIMARY KEY, LABEL VARCHAR(50))");
             s.execute("CREATE TABLE PRODUCT_TAG (SKU VARCHAR(10), TAG_ID INTEGER)");
         }

@@ -9,7 +9,6 @@ import com.legend.graphql.hardening.ReferenceModel.Obj;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -19,10 +18,12 @@ public final class ShopReference {
     private ShopReference() {
     }
 
-    public static final ReferenceModel MODEL = build();
+    public static final ReferenceModel MODEL = build(ReferenceModel.CaseFolding.UNICODE);
 
-    static ReferenceModel build() {
+    /** The model under a database's case folding. */
+    static ReferenceModel build(ReferenceModel.CaseFolding folding) {
         ReferenceModel m = new ReferenceModel();
+        m.folding = folding;
         Map<Integer, Obj> customers = new LinkedHashMap<>();
         Map<Integer, Obj> orders = new LinkedHashMap<>();
         Map<Integer, Obj> lines = new LinkedHashMap<>();
@@ -100,11 +101,10 @@ public final class ShopReference {
                 .scalar("id", Kind.BIGINT).scalar("name", Kind.STRING).scalar("email", Kind.STRING)
                 .scalar("tier", Kind.ENUM).scalar("vip", Kind.BOOLEAN).scalar("joined", Kind.DATE)
                 .scalar("lastSeen", Kind.DATETIME).scalar("credit", Kind.DECIMAL).scalar("score", Kind.BIGINT)
-                .derived("handle", Kind.STRING, c -> ((String) c.get("name")).toLowerCase(Locale.ROOT))
+                .derived("handle", Kind.STRING, c -> m.lower((String) c.get("name")))
                 .derived("label", Kind.STRING, c -> c.get("email") == null ? c.get("name")
                         : c.get("name") + " <" + c.get("email") + ">")
-                .derived("loud", Kind.STRING, c -> ((String) c.get("name")).toLowerCase(Locale.ROOT)
-                        .toUpperCase(Locale.ROOT))
+                .derived("loud", Kind.STRING, c -> m.upper(m.lower((String) c.get("name"))))
                 .derived("idTimes", Kind.BIGINT, Map.of("k", Kind.BIGINT),
                         (c, a) -> (long) c.get("id") * (long) a.get("k"))
                 .derived("orderCount", Kind.BIGINT, c -> (long) ordersOf.apply(c).size())
