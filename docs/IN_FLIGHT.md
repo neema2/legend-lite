@@ -2388,3 +2388,22 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   literal whose leading field has fewer than three digits as no year (`DATE '5-01-01'` is 2001-05-01, measured): this
   line writes four digits where it builds the literal (`MatchFold`, `Scalars.dateArg`); a TDS cell `%5-01-01` lowered
   by `Scalars`' cell reader would still be written as Pure spells it.
+
+## A twelfth line, 2026-10-20: a model from a standard schema, mapped with SQL (the user's ask, rule 5)
+
+Branch `claude/model-import-sql-mapping`; the study and plan are `docs/MODEL_IMPORT_STUDY_2026_10_20.md` (landing with
+the branch). Steps 1 and 2: a JSON Schema or OpenAPI document imported as Pure classes, enumerations and associations,
+a class given its rows by a Postgres SELECT (the `#SQL{...}#` island in a `~func` mapping), an association joined by a
+ModelJoin; three routes beside `createClass`.
+
+**Announced 2026-10-20, before landing: a cross-area edit in `core/`.** It lands as one merge of the branch, after one
+full CI run on it.
+- **New files.** `protocol/schema/` (`ImportedModel`, `JsonSchemaReader`, `SchemaImportException`); `server/`
+  `ImportSchema`, `MapClass`, `JoinAssociation`; their tests `protocol/schema/JsonSchemaReaderTest`,
+  `server/ModelImportTest`.
+- **Edits in the DataCube line's files** (additive): `server/ModelChanges.java` (three doors and one shared check;
+  `afterText` package-private), `server/PureV1Api.java` (three route cases, the routes' javadoc), `core/BUILD.bazel`
+  (the three server files in `:pure_v1`, out of `:server_lib`).
+- **A guard's register, with its dated reason:** `JavaEvalLedgerTest`'s server funnel register gains the three server
+  files. `IdentityGuardrailTest`'s pins are unchanged: the new code dispatches on resolved types, never on name text.
+- **Register rows** S89, S90 in `docs/SEMANTICS_REGISTER.md`.

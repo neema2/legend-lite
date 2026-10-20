@@ -116,6 +116,63 @@ public final class ModelChanges {
         return out;
     }
 
+    /**
+     * {@code importSchema}: {@code {"project", "package", "schema"}} -- a schema's classes and enumerations written as
+     * Pure ({@link ImportSchema}'s request; docs/MODEL_IMPORT_STUDY_2026_10_20.md).
+     */
+    public static Map<String, Object> importSchema(Json.Obj request) {
+        String pkg = packagePath(request.getString("package"));
+        ModelChanges m = new ModelChanges(PureV1Api.modelText(request.getObj("project")));
+        ImportSchema.Made made = ImportSchema.apply(m, pkg, request.getObj("schema"));
+        return m.checked(List.of(), made.json());
+    }
+
+    /** {@code mapClass}: {@code {"project", "package", "class", "sql", ...}} -- a class given its rows by a SELECT
+     *  ({@link MapClass}'s request). */
+    public static Map<String, Object> mapClass(Json.Obj request) {
+        String pkg = packagePath(request.getString("package"));
+        ModelChanges m = new ModelChanges(PureV1Api.modelText(request.getObj("project")));
+        MapClass.Made made = MapClass.apply(m, pkg, request);
+        List<String[]> plans = new ArrayList<>();
+        plans.add(new String[] {made.query(), made.runtime()});
+        return m.checked(plans, made.json());
+    }
+
+    /** {@code joinAssociation}: {@code {"project", "package", "association", "ends"}} -- an association of the
+     *  project joined ({@link JoinAssociation}'s request). */
+    public static Map<String, Object> joinAssociation(Json.Obj request) {
+        String pkg = packagePath(request.getString("package"));
+        ModelChanges m = new ModelChanges(PureV1Api.modelText(request.getObj("project")));
+        JoinAssociation.Made made = JoinAssociation.apply(m, pkg, request);
+        List<String[]> plans = new ArrayList<>();
+        for (String walk : made.walks()) {
+            plans.add(new String[] {walk, made.runtime()});
+        }
+        return m.checked(plans, made.json());
+    }
+
+    /**
+     * The answer of one action, checked ONCE as {@link #made} checks its own: the project's files with the changes
+     * compile, and each of {@code plans} ({query, runtime}) plans; the changes, {@code made}'s fields, the notes.
+     */
+    private Map<String, Object> checked(List<String[]> plans, Map<String, Object> made) {
+        List<Map<String, Object>> changes = changes();
+        String after = afterText();
+        try {
+            ModelContext ctx = com.legend.Compiler.compileModel(after);
+            for (String[] plan : plans) {
+                com.legend.Compiler.query(ctx, "|" + plan[0]).plan(plan[1]);
+            }
+        } catch (LegendCompileException e) {
+            throw refused("the model would not compile: " + e.getMessage());
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("changes", changes);
+        out.putAll(made);
+        out.put("notes", notes);
+        return out;
+    }
+
     private static List<Json.Obj> items(Json.Obj request, String key) {
         List<Json.Obj> out = new ArrayList<>();
         for (Json.Node n : arrOf(request, key).items()) {
@@ -196,7 +253,7 @@ public final class ModelChanges {
      * and each change's file after. Text, not the project printed whole: the model printer prints upstream's elements,
      * and a file of the project need not be one it prints byte for byte.
      */
-    private String afterText() {
+    String afterText() {
         Set<String> replaced = new HashSet<>();
         List<String> files = new ArrayList<>();
         for (Map<String, Object> c : changes()) {

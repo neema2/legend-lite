@@ -111,6 +111,9 @@ public final class PureV1Api {
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
             case "/api/lite/v1/model/createDataSpace" -> modelChanges(body, ModelChanges::createDataSpace);
+            case "/api/lite/v1/model/importSchema" -> modelChanges(body, ModelChanges::importSchema);
+            case "/api/lite/v1/model/mapClass" -> modelChanges(body, ModelChanges::mapClass);
+            case "/api/lite/v1/model/joinAssociation" -> modelChanges(body, ModelChanges::joinAssociation);
             default -> error(404, null, (path.startsWith("/api/lite/") ? "no such legend-lite API: "
                     : "no such legend-engine API in legend-lite: ") + path);
         };
@@ -243,7 +246,8 @@ public final class PureV1Api {
     /**
      * legend-lite's own model routes, {@code /api/lite/v1/model/createClass}, {@code createAssociation} and
      * {@code createDataSpace} (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.6a, the user's ruling of 2026-10-11: named
-     * after Legend's actions; upstream has no HTTP route that does this): each one call to the model's writer
+     * after Legend's actions; upstream has no HTTP route that does this), and {@code importSchema}, {@code mapClass}
+     * and {@code joinAssociation} (docs/MODEL_IMPORT_STUDY_2026_10_20.md): each one call to the model's writer
      * ({@link ModelChanges}), atomic, answered as the files to write in the SDLC's own change shape. The project and
      * each class's source are model contexts, read as {@link #compile} reads one; what cannot be made is answered as a
      * model that does not compile is, 400 COMPILATION.

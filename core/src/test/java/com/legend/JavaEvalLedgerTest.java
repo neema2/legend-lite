@@ -1349,6 +1349,11 @@ class JavaEvalLedgerTest {
                             // (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.6a): the model's writer and its three
                             // actions -- parse, compile, plan and print only; no connection, no JDBC, no value computed
                             "CreateAssociation.java", "CreateClass.java", "CreateDataSpace.java", "ModelChanges.java",
+                            // 2026-10-20, a schema imported and a class mapped with SQL
+                            // (docs/MODEL_IMPORT_STUDY_2026_10_20.md): three more actions of the model's writer --
+                            // read a schema, type a SELECT, compile, plan and print only; no connection, no JDBC, no
+                            // value computed
+                            "ImportSchema.java", "JoinAssociation.java", "MapClass.java",
                             // 2026-09-27, legend-engine's pure/v1 calls: parse, emit,
                             // compile and PLAN only -- no connection, no JDBC, no value
                             // computed; the plan's SQL is the database's to run
