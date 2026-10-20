@@ -4,6 +4,7 @@
 package com.legend.protocol.schema;
 
 import com.legend.json.Json;
+import com.legend.json.Yaml;
 import com.legend.protocol.schema.ImportedModel.ImportedClass;
 import com.legend.protocol.schema.ImportedModel.ImportedEnum;
 import com.legend.protocol.schema.ImportedModel.ImportedProperty;
@@ -24,25 +25,31 @@ import java.util.Set;
 /**
  * JSON SCHEMA AND OPENAPI, READ AS A MODEL (docs/MODEL_IMPORT_STUDY_2026_10_20.md §4): a JSON Schema document (its
  * root, {@code $defs}, {@code definitions}), an OpenAPI 3 document ({@code components.schemas}) or a Swagger 2 one
- * ({@code definitions}) to an {@link ImportedModel}.
+ * ({@code definitions}), written in JSON or YAML ({@link Yaml}), to an {@link ImportedModel}.
  *
  * <ul>
  *   <li>A schema with {@code properties}, or an {@code allOf} naming an object schema, is a <b>class</b>; each
  *       {@code allOf} reference to an object schema a superclass, each inline part's properties its own.</li>
+ *   <li>A <b>union of objects</b> ({@code oneOf} or {@code anyOf} whose alternatives but {@code null} are two or more
+ *       objects) is a class too, a superclass its alternatives extend: {@code allOf} says "I am a Base", a union
+ *       "I am one of these", and Pure says both with a superclass. A union on a property is a superclass named after
+ *       its owner and the property.</li>
  *   <li>A schema with {@code enum} (of text) is an <b>enumeration</b>.</li>
  *   <li>Any other named schema (a number, a list, a free-form object) is no element: a reference to it reads as what
  *       it is.</li>
  *   <li>A property: {@code string} String ({@code format: date} StrictDate, {@code date-time} DateTime),
- *       {@code integer} Integer, {@code number} Float ({@code format: decimal} Decimal), {@code boolean} Boolean, a
- *       free-form object (or no type at all) {@code Variant}; a reference to a class, or an inline object (a class of
- *       its own, named after its owner and the property), a reference the writer makes an association; an
- *       {@code array} many. {@code [1]} when required and not nullable ({@code type: [..., "null"]}, {@code nullable},
+ *       {@code integer} Integer, {@code number} Float ({@code format: decimal} Decimal), {@code boolean} Boolean; a
+ *       reference to a class, or an inline object (a class of its own, named after its owner and the property), a
+ *       reference the writer makes an association; an {@code array} many (or, asked, one {@code Variant} holding the
+ *       list). A JSON value of no one Pure type is a {@code Variant}, the type Pure holds JSON in: a free-form object,
+ *       no type at all, several types, a union not of objects, a tuple, a list of lists (each noted). {@code [1]} when required and not nullable ({@code type: [..., "null"]}, {@code nullable},
  *       an {@code anyOf} of a schema and {@code null}), else {@code [0..1]}; an array {@code [*]}, its bounds its
  *       {@code minItems} (when required) and {@code maxItems} ({@code [1..*]}, {@code [0..3]}).</li>
  * </ul>
  *
- * <p>What has no Pure form yet -- a union, a tuple, a map with properties beside it, a reference outside the document,
- * a keyword this reader does not know -- is REFUSED, each where the schema has it, all in one answer
+ * <p>What has no Pure form -- a reference outside the document, a keyword this reader does not know ({@code not},
+ * {@code if}, ...), an enumeration not of text, a class that would be its own superclass -- is REFUSED, each where the
+ * schema has it, all in one answer
  * ({@link SchemaImportException}). A validation keyword ({@code minimum}, {@code pattern}, ...) is not a shape and is
  * not carried, said in the model's notes; an annotation ({@code description}, {@code example}, {@code x-...}) is read
  * or ignored. A name Pure cannot hold is made one (upstream's camel case) and the rename noted.
@@ -103,32 +110,43 @@ public final class JsonSchemaReader {
     private final List<ImportedEnum> enumerations = new ArrayList<>();
     private final Set<String> notes = new LinkedHashSet<>();
     private final List<String> refusals = new ArrayList<>();
+    /** The superclasses a class gains as an alternative of a union, by the class's name. */
+    private final Map<String, Set<String>> unionSupers = new LinkedHashMap<>();
+    private final boolean listsAsVariant;
 
-    private JsonSchemaReader(Json.Obj document) {
+    private JsonSchemaReader(Json.Obj document, boolean listsAsVariant) {
         this.document = document;
+        this.listsAsVariant = listsAsVariant;
     }
 
     /**
      * The model {@code text} defines: every schema it names, or those of {@code only} (by key or Pure name) and the
      * schemas they reach. {@code rootName} names a JSON Schema's root object when it has no {@code title}.
+     * {@code listsAsVariant}: a list of primitives or enumeration values is one {@code Variant} (the JSON list a
+     * column holds) rather than a property of many values.
      *
      * @throws SchemaImportException naming everything that has no Pure form
      */
-    public static ImportedModel read(String text, @com.legend.base.Nullable String rootName, List<String> only) {
+    public static ImportedModel read(String text, @com.legend.base.Nullable String rootName, List<String> only,
+            boolean listsAsVariant) {
         String trimmed = text.strip();
-        if (!trimmed.startsWith("{")) {
-            throw new SchemaImportException(List.of("the schema is not a JSON document (a YAML document is not read "
-                    + "yet: give it as JSON)"));
-        }
+        // a document of JSON, or of YAML (most OpenAPI documents are): read to the same tree
+        boolean json = trimmed.startsWith("{");
         Json.Node parsed;
         try {
-            parsed = Json.parse(trimmed, DEPTH);
+            parsed = json ? Json.parse(trimmed, DEPTH) : Yaml.parse(text);
         } catch (IllegalArgumentException e) {
-            throw new SchemaImportException(List.of("the schema is not JSON: " + e.getMessage()));
+            throw new SchemaImportException(List.of("the schema is not " + (json ? "JSON" : "YAML") + ": "
+                    + e.getMessage()));
         }
-        JsonSchemaReader reader = new JsonSchemaReader((Json.Obj) parsed);
+        if (!(parsed instanceof Json.Obj document)) {
+            throw new SchemaImportException(List.of("the schema is a document whose root is a mapping, not "
+                    + Json.toCompact(parsed)));
+        }
+        JsonSchemaReader reader = new JsonSchemaReader(document, listsAsVariant);
         reader.collect(rootName);
         reader.build(only);
+        reader.unite();
         if (!reader.refusals.isEmpty()) {
             throw new SchemaImportException(reader.refusals);
         }
@@ -230,15 +248,46 @@ public final class JsonSchemaReader {
             return Shape.CLASS;
         }
         for (Json.Obj part : objects(schema, "allOf")) {
-            if (part.has("properties")) {
-                return Shape.CLASS;
-            }
-            Named target = part.has("$ref") ? named.get(text(part, "$ref")) : null;
-            if (target != null && shape(target) == Shape.CLASS) {
+            if (isObject(part)) {
                 return Shape.CLASS;
             }
         }
-        return Shape.ALIAS;
+        return unionOfObjects(schema) != null ? Shape.CLASS : Shape.ALIAS;
+    }
+
+    /** Whether an alternative or part is an object: a reference to an object schema, or one written in place. */
+    private boolean isObject(Json.Obj part) {
+        if (part.has("properties")) {
+            return true;
+        }
+        Named target = part.has("$ref") ? named.get(text(part, "$ref")) : null;
+        if (target != null) {
+            return shape(target) == Shape.CLASS;
+        }
+        for (Json.Obj p : objects(part, "allOf")) {
+            if (isObject(p)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The keyword of a union ({@code oneOf} or {@code anyOf}) whose alternatives but {@code null} are two or more
+     *  objects, or null when the schema is no such union. */
+    private @com.legend.base.Nullable String unionOfObjects(Json.Obj schema) {
+        for (String union : List.of("oneOf", "anyOf")) {
+            List<Json.Obj> parts = objects(schema, union);
+            List<Json.Obj> values = new ArrayList<>();
+            for (Json.Obj part : parts) {
+                if (!isNull(part)) {
+                    values.add(part);
+                }
+            }
+            if (values.size() >= 2 && values.stream().allMatch(this::isObject)) {
+                return union;
+            }
+        }
+        return null;
     }
 
     // ---------------------------------------------------------------------
@@ -340,6 +389,98 @@ public final class JsonSchemaReader {
                     r.many() ? r.maxItems() : Integer.valueOf(1)));
         }
         classes.add(position, new ImportedClass(name, text(schema, "description"), supers, out, owned));
+        String union = unionOfObjects(schema);
+        if (union != null) {
+            alternatives(name, schema, union, where);
+        }
+    }
+
+    /**
+     * A UNION OF OBJECTS read as inheritance (the study's §4.2): each alternative a subclass of {@code superclass} --
+     * a referenced class gains it as a superclass, an object written in place is a class of its own, named after the
+     * union and its title (or {@code Option1}, {@code Option2}, ...). Pure has no union type; a superclass and its
+     * subclasses is how an object model says "one of these". An anyOf is read as a oneOf: an instance is one class.
+     *
+     * @return whether every alternative is written in place (each a value its owner holds)
+     */
+    private boolean alternatives(String superclass, Json.Obj schema, String union, String where) {
+        if (union.equals("anyOf")) {
+            notes.add(where + ": anyOf is read as oneOf (an instance is one of its alternatives)");
+        }
+        List<Json.Obj> parts = objects(schema, union);
+        boolean inPlace = true;
+        for (int i = 0; i < parts.size(); i++) {
+            Json.Obj part = parts.get(i);
+            String at = where + "/" + union + "/" + i;
+            if (isNull(part)) {
+                continue;
+            }
+            if (part.has("$ref")) {
+                keywords(part, at);
+                Named target = target(part, at);
+                if (target != null) {
+                    unionSupers.computeIfAbsent(target.name(), k -> new LinkedHashSet<>()).add(superclass);
+                }
+                inPlace = false;
+            } else {
+                String title = text(part, "title");
+                String name = unique(superclass + (title != null ? pureName(title, true, at) : "Option" + (i + 1)));
+                buildClass(name, part, at, true);
+                unionSupers.computeIfAbsent(name, k -> new LinkedHashSet<>()).add(superclass);
+            }
+        }
+        return inPlace;
+    }
+
+    /** Each class's superclasses as an alternative of a union, added; a class that would be its own superclass is
+     *  refused by name. */
+    private void unite() {
+        for (int i = 0; i < classes.size(); i++) {
+            ImportedClass c = classes.get(i);
+            Set<String> extra = unionSupers.get(c.name());
+            if (extra == null) {
+                continue;
+            }
+            List<String> supers = new ArrayList<>(c.supers());
+            for (String s : extra) {
+                if (!s.equals(c.name()) && !supers.contains(s)) {
+                    supers.add(s);
+                }
+            }
+            classes.set(i, new ImportedClass(c.name(), c.doc(), supers, c.properties(), c.owned()));
+        }
+        Map<String, List<String>> graph = new HashMap<>();
+        for (ImportedClass c : classes) {
+            graph.put(c.name(), c.supers());
+        }
+        for (ImportedClass c : classes) {
+            List<String> path = cycle(c.name(), c.name(), graph, new ArrayList<>(), new HashSet<>());
+            if (path != null) {
+                refusals.add("the class " + c.name() + " would be its own superclass (" + String.join(" extends ", path)
+                        + "): a union and an allOf name each other");
+                return;
+            }
+        }
+    }
+
+    private static @com.legend.base.Nullable List<String> cycle(String start, String at, Map<String, List<String>> graph,
+            List<String> path, Set<String> seen) {
+        path.add(at);
+        for (String s : graph.getOrDefault(at, List.of())) {
+            if (s.equals(start)) {
+                List<String> out = new ArrayList<>(path);
+                out.add(s);
+                return out;
+            }
+            if (seen.add(s)) {
+                List<String> found = cycle(start, s, graph, path, seen);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        path.remove(path.size() - 1);
+        return null;
     }
 
     private void gather(Json.Obj schema, String where, List<String> supers, Map<String, Gathered> properties,
@@ -415,13 +556,31 @@ public final class JsonSchemaReader {
             if (parts.isEmpty()) {
                 continue;
             }
-            if (parts.size() == 2 && (isNull(parts.get(0)) || isNull(parts.get(1)))) {
-                int other = isNull(parts.get(0)) ? 1 : 0;
-                Resolved r = resolve(parts.get(other), where + "/" + union + "/" + other, owner, property);
-                return r == null ? null : r.orEmpty(true);
+            int values = 0;
+            int value = -1;
+            for (int i = 0; i < parts.size(); i++) {
+                if (!isNull(parts.get(i))) {
+                    values++;
+                    value = i;
+                }
             }
-            refusals.add(where + ": a union (" + union + ") has no Pure form yet");
-            return null;
+            boolean mayBeNull = values < parts.size();
+            if (values == 1) {
+                // one alternative and null: that alternative, which may be empty
+                Resolved r = resolve(parts.get(value), where + "/" + union + "/" + value, owner, property);
+                return r == null ? null : r.orEmpty(mayBeNull || empty);
+            }
+            if (unionOfObjects(schema) != null) {
+                // a union of objects: a superclass of its own, its alternatives its subclasses
+                String name = unique(owner + upperFirst(property));
+                int position = classes.size();
+                boolean inPlace = alternatives(name, schema, union, where);
+                classes.add(position, new ImportedClass(name, text(schema, "description"), List.of(), List.of(), inPlace));
+                return new Resolved(Kind.CLASS, name, mayBeNull || empty);
+            }
+            notes.add(where + ": a union (" + union + ") of values that are not all objects is a Variant (Pure has no "
+                    + "union type)");
+            return new Resolved(Kind.PRIMITIVE, VARIANT, mayBeNull || empty);
         }
         List<Json.Obj> all = objects(schema, "allOf");
         if (all.size() == 1 && !schema.has("properties")) {
@@ -452,30 +611,39 @@ public final class JsonSchemaReader {
             }
         }
         if (types.size() > 1) {
-            refusals.add(where + ": a value of several types (" + String.join(", ", types) + ") has no Pure form yet");
-            return null;
+            notes.add(where + ": a value of several types (" + String.join(", ", types) + ") is a Variant (Pure has no "
+                    + "union type)");
+            return new Resolved(Kind.PRIMITIVE, VARIANT, empty);
         }
         String t = types.isEmpty() ? (schema.has("items") ? "array" : "") : types.get(0);
         return switch (t) {
             case "array" -> {
                 Json.Node items = schema.getOr("items", null);
                 if (items instanceof Json.Arr) {
-                    refusals.add(where + ": a tuple (items as a list) has no Pure form yet");
-                    yield null;
+                    notes.add(where + ": a tuple (items as a list) is a Variant, the JSON list it is");
+                    yield new Resolved(Kind.PRIMITIVE, VARIANT, empty);
                 }
                 int least = schema.getOr("minItems", null) instanceof Json.Num n ? (int) n.longValue() : 0;
                 Integer most = schema.getOr("maxItems", null) instanceof Json.Num n ? Integer.valueOf((int) n.longValue())
                         : null;
                 if (items == null) {
-                    yield new Resolved(Kind.PRIMITIVE, VARIANT, true, empty, least, most);
+                    notes.add(where + ": a list of any values is one Variant, the JSON list it is");
+                    yield new Resolved(Kind.PRIMITIVE, VARIANT, empty);
                 }
                 Resolved item = resolve((Json.Obj) items, where + "/items", owner, singular(property));
                 if (item == null) {
                     yield null;
                 }
-                if (item.many()) {
-                    refusals.add(where + ": a list of lists has no Pure form yet");
-                    yield null;
+                if (item.many() || (item.kind() == Kind.PRIMITIVE && item.type().equals(VARIANT))) {
+                    // a list of lists, or of values of no one type: the JSON list itself
+                    notes.add(where + ": a list of " + (item.many() ? "lists" : "Variants") + " is one Variant, the "
+                            + "JSON list it is");
+                    yield new Resolved(Kind.PRIMITIVE, VARIANT, empty);
+                }
+                if (listsAsVariant && item.kind() != Kind.CLASS) {
+                    notes.add(where + ": a list of " + item.type() + " is one Variant, the JSON list a column holds "
+                            + "('lists': 'variant')");
+                    yield new Resolved(Kind.PRIMITIVE, VARIANT, empty);
                 }
                 yield new Resolved(item.kind(), item.type(), true, empty, least, most);
             }

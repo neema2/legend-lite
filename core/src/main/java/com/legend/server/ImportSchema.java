@@ -55,8 +55,9 @@ final class ImportSchema {
 
     /**
      * One schema, into {@code pkg}: {@code spec} is {@code {"format": "jsonSchema"|"openApi", "content", "name"?,
-     * "schemas"?}} -- {@code content} the document's text, {@code name} its root object's class name when it has no
-     * title, {@code schemas} the schemas to import (each with the schemas it reaches), every one when absent.
+     * "schemas"?, "lists"?}} -- {@code content} the document's text, JSON or YAML, {@code name} its root object's class
+     * name when it has no title, {@code schemas} the schemas to import (each with the schemas it reaches), every one
+     * when absent, {@code lists} {@code "many"} or {@code "variant"} ({@link #listsAsVariant}).
      */
     static Made apply(ModelChanges m, String pkg, Json.Obj spec) {
         String format = spec.getString("format");
@@ -65,7 +66,7 @@ final class ImportSchema {
             // each schema language its reader; an OpenAPI document's schemas are JSON Schema's
             model = switch (format) {
                 case "jsonSchema", "openApi" -> JsonSchemaReader.read(spec.getString("content"),
-                        spec.getStringOr("name", null), spec.getStringArrayOr("schemas", List.of()));
+                        spec.getStringOr("name", null), spec.getStringArrayOr("schemas", List.of()), listsAsVariant(spec));
                 default -> throw refused("a schema is read as jsonSchema or openApi, not '" + format + "'");
             };
         } catch (SchemaImportException e) {
@@ -119,6 +120,17 @@ final class ImportSchema {
             associations.add(associate(m, domain, r, references));
         }
         return new Made(classes, enumerations, associations);
+    }
+
+    /** {@code "lists"}: {@code "many"} (the default), each list a property of many values; or {@code "variant"}, a list
+     *  of primitives or enumeration values one {@code Variant}, the JSON list a column holds. */
+    private static boolean listsAsVariant(Json.Obj spec) {
+        String lists = spec.has("lists") ? spec.getString("lists") : "many";
+        return switch (lists) {
+            case "many" -> false;
+            case "variant" -> true;
+            default -> throw refused("a list is read as 'many' or 'variant', not '" + lists + "'");
+        };
     }
 
     /** A property of {@code owner} typed by a class; {@code owned} when that class is a value the owner holds. */

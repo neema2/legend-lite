@@ -25,7 +25,7 @@ import java.util.List;
 class JsonSchemaReaderTest {
 
     private static ImportedModel read(String json) {
-        return JsonSchemaReader.read(json.replace('`', '"'), null, List.of());
+        return JsonSchemaReader.read(json.replace('`', '"'), null, List.of(), false);
     }
 
     /** Each class as {@code Name(Super, ...){property: Type[m], ...}}, owned ones marked {@code owned}. */
@@ -97,7 +97,7 @@ class JsonSchemaReaderTest {
         assertEquals(List.of("Address{city: P String[0..1]}", "Person{name: P String[1], home: C Address[0..1]}"),
                 classes(read(schema.formatted("`title`: `Person`,"))));
         assertEquals(List.of("Address{city: P String[0..1]}", "Person{name: P String[1], home: C Address[0..1]}"),
-                classes(JsonSchemaReader.read(schema.formatted("").replace('`', '"'), "Person", List.of())));
+                classes(JsonSchemaReader.read(schema.formatted("").replace('`', '"'), "Person", List.of(), false)));
         assertEquals(List.of("#: the root schema is an object with no title: name it (the request's 'name')"),
                 refusals(schema.formatted("")));
     }
@@ -160,15 +160,98 @@ class JsonSchemaReaderTest {
     }
 
     @Test
+    @DisplayName("a JSON value of no one Pure type is a Variant, noted: several types, a union not of objects, a tuple")
+    void valuesOfNoOneTypeAreVariants() {
+        ImportedModel m = read("""
+                {`$defs`: {`T`: {`type`: `object`, `properties`: {
+                  `either`: {`oneOf`: [{`type`: `string`}, {`type`: `integer`}]},
+                  `mixed`: {`type`: [`string`, `integer`]},
+                  `pair`: {`type`: `array`, `items`: [{`type`: `string`}, {`type`: `integer`}]},
+                  `grid`: {`type`: `array`, `items`: {`type`: `array`, `items`: {`type`: `number`}}},
+                  `maybe`: {`anyOf`: [{`type`: `string`}, {`type`: `integer`}, {`type`: `null`}]}}}}}""");
+        String variant = "meta::pure::metamodel::variant::Variant";
+        assertEquals(List.of("T{either: P " + variant + "[0..1], mixed: P " + variant + "[0..1], pair: P " + variant
+                + "[0..1], grid: P " + variant + "[0..1], maybe: P " + variant + "[0..1]}"), classes(m));
+        assertEquals(List.of(
+                "#/$defs/T/properties/either: a union (oneOf) of values that are not all objects is a Variant (Pure has "
+                        + "no union type)",
+                "#/$defs/T/properties/mixed: a value of several types (string, integer) is a Variant (Pure has no union "
+                        + "type)",
+                "#/$defs/T/properties/pair: a tuple (items as a list) is a Variant, the JSON list it is",
+                "#/$defs/T/properties/grid: a list of lists is one Variant, the JSON list it is",
+                "#/$defs/T/properties/maybe: a union (anyOf) of values that are not all objects is a Variant (Pure has "
+                        + "no union type)"), m.notes());
+    }
+
+    @Test
+    @DisplayName("a union of objects is inheritance: the union a superclass, each alternative a subclass of it")
+    void unionsOfObjectsAreInheritance() {
+        ImportedModel m = read("""
+                {`openapi`: `3.1.0`, `components`: {`schemas`: {
+                  `Pet`: {`oneOf`: [{`$ref`: `#/components/schemas/Cat`}, {`$ref`: `#/components/schemas/Dog`}],
+                    `discriminator`: {`propertyName`: `petType`},
+                    `properties`: {`name`: {`type`: `string`}}},
+                  `Cat`: {`type`: `object`, `properties`: {`purrs`: {`type`: `boolean`}}},
+                  `Dog`: {`allOf`: [{`$ref`: `#/components/schemas/Pet`},
+                    {`type`: `object`, `properties`: {`barks`: {`type`: `boolean`}}}]},
+                  `Payment`: {`type`: `object`, `properties`: {
+                    `method`: {`oneOf`: [
+                      {`title`: `card`, `type`: `object`, `properties`: {`last4`: {`type`: `string`}}},
+                      {`type`: `object`, `properties`: {`iban`: {`type`: `string`}}},
+                      {`type`: `null`}]},
+                    `payee`: {`anyOf`: [{`$ref`: `#/components/schemas/Cat`}, {`$ref`: `#/components/schemas/Dog`}]}}}}}}""");
+        assertEquals(List.of(
+                "Pet{name: P String[0..1]}",
+                "Cat[Pet, PaymentPayee]{purrs: P Boolean[0..1]}",
+                "Dog[Pet, PaymentPayee]{barks: P Boolean[0..1]}",
+                "Payment{method: C PaymentMethod[0..1], payee: C PaymentPayee[0..1]}",
+                "owned PaymentMethod{}",
+                "owned PaymentMethodCard[PaymentMethod]{last4: P String[0..1]}",
+                "owned PaymentMethodOption2[PaymentMethod]{iban: P String[0..1]}",
+                "PaymentPayee{}"), classes(m), "Dog's allOf and the union name Pet once; Cat gains it from the union");
+        assertEquals(List.of("#/components/schemas/Payment/properties/method/oneOf/0: 'card' is named Card",
+                "#/components/schemas/Payment/properties/payee: anyOf is read as oneOf (an instance is one of its "
+                        + "alternatives)"), m.notes());
+    }
+
+    @Test
+    @DisplayName("a union and an allOf that name each other would make a class its own superclass: refused by name")
+    void aCycleOfInheritanceIsRefused() {
+        assertEquals(List.of("the class A would be its own superclass (A extends B extends A): a union and an allOf name "
+                + "each other"), refusals("""
+                        {`$defs`: {
+                          `A`: {`allOf`: [{`$ref`: `#/$defs/B`}], `oneOf`: [{`$ref`: `#/$defs/B`}, {`$ref`: `#/$defs/C`}]},
+                          `B`: {`type`: `object`, `properties`: {`b`: {`type`: `string`}}},
+                          `C`: {`type`: `object`, `properties`: {`c`: {`type`: `string`}}}}}"""));
+    }
+
+    @Test
+    @DisplayName("lists asked as Variants: a list of primitives or enumeration values one Variant, a list of objects many")
+    void listsAsVariants() {
+        String json = """
+                {`$defs`: {`Pet`: {`type`: `object`, `properties`: {
+                  `photoUrls`: {`type`: `array`, `items`: {`type`: `string`}},
+                  `moods`: {`type`: `array`, `items`: {`enum`: [`calm`, `wild`]}},
+                  `tags`: {`type`: `array`, `items`: {`$ref`: `#/$defs/Tag`}}}},
+                 `Tag`: {`type`: `object`, `properties`: {`name`: {`type`: `string`}}}}}""".replace('`', '"');
+        assertEquals(List.of("Pet{photoUrls: P String[*], moods: E PetMood[*], tags: C Tag[*]}", "Tag{name: P "
+                + "String[0..1]}"), classes(JsonSchemaReader.read(json, null, List.of(), false)));
+        ImportedModel m = JsonSchemaReader.read(json, null, List.of(), true);
+        String variant = "meta::pure::metamodel::variant::Variant";
+        assertEquals(List.of("Pet{photoUrls: P " + variant + "[0..1], moods: P " + variant + "[0..1], tags: C Tag[*]}",
+                "Tag{name: P String[0..1]}"), classes(m));
+        assertEquals(List.of("#/$defs/Pet/properties/photoUrls: a list of String is one Variant, the JSON list a column "
+                + "holds ('lists': 'variant')", "#/$defs/Pet/properties/moods: a list of PetMood is one Variant, the JSON "
+                + "list a column holds ('lists': 'variant')"), m.notes());
+    }
+
+    @Test
     @DisplayName("what has no Pure form is refused, every one at once, where the schema has it")
     void everythingWithoutAPureFormIsRefusedAtOnce() {
         assertEquals(List.of(
-                "#/$defs/T/properties/either: a union (oneOf) has no Pure form yet",
                 "#/$defs/T/properties/elsewhere: the reference 'other.json#/Thing' is outside the document; only the "
                         + "document's own schemas are read",
                 "#/$defs/T/properties/never: the keyword 'not' has no Pure form yet",
-                "#/$defs/T/properties/pair: a tuple (items as a list) has no Pure form yet",
-                "#/$defs/T/properties/mixed: a value of several types (string, integer) has no Pure form yet",
                 "#/$defs/T/properties/missing: the reference '#/$defs/Nope' names no schema of the document's (a "
                         + "schema of components.schemas, $defs or definitions)",
                 "#/$defs/Level: an enumeration of values that are not text (1) has no Pure form yet",
@@ -176,11 +259,8 @@ class JsonSchemaReaderTest {
                 "#/$defs/Level: an enumeration with no value"),
                 refusals("""
                         {`$defs`: {`T`: {`type`: `object`, `properties`: {
-                          `either`: {`oneOf`: [{`type`: `string`}, {`type`: `integer`}]},
                           `elsewhere`: {`$ref`: `other.json#/Thing`},
                           `never`: {`not`: {`type`: `string`}},
-                          `pair`: {`type`: `array`, `items`: [{`type`: `string`}, {`type`: `integer`}]},
-                          `mixed`: {`type`: [`string`, `integer`]},
                           `missing`: {`$ref`: `#/$defs/Nope`},
                           `level`: {`$ref`: `#/$defs/Level`}}},
                          `Level`: {`type`: `integer`, `enum`: [1, 2]}}}"""));
@@ -212,21 +292,59 @@ class JsonSchemaReaderTest {
                 {`openapi`: `3.1.0`, `components`: {`schemas`: {
                   `Trade`: {`type`: `object`, `properties`: {`customer`: {`$ref`: `#/components/schemas/Customer`}}},
                   `Customer`: {`type`: `object`, `properties`: {`id`: {`type`: `integer`}}},
-                  `Unrelated`: {`type`: `object`, `properties`: {`x`: {`oneOf`: [{`type`: `string`}, {`type`: `integer`}]}}}}}}"""
+                  `Unrelated`: {`type`: `object`, `properties`: {`x`: {`not`: {`type`: `string`}}}}}}}"""
                 .replace('`', '"');
         assertEquals(List.of("Trade{customer: C Customer[0..1]}", "Customer{id: P Integer[0..1]}"),
-                classes(JsonSchemaReader.read(json, null, List.of("Trade"))));
+                classes(JsonSchemaReader.read(json, null, List.of("Trade"), false)));
         SchemaImportException e = assertThrows(SchemaImportException.class,
-                () -> JsonSchemaReader.read(json, null, List.of("Nope")));
+                () -> JsonSchemaReader.read(json, null, List.of("Nope"), false));
         assertEquals(List.of("the schema has no 'Nope' to import"), e.reasons());
-        assertTrue(assertThrows(SchemaImportException.class, () -> JsonSchemaReader.read(json, null, List.of()))
-                .reasons().get(0).contains("a union (oneOf)"), "all of it, read, refuses the union");
+        assertTrue(assertThrows(SchemaImportException.class, () -> JsonSchemaReader.read(json, null, List.of(), false))
+                .reasons().get(0).contains("the keyword 'not'"), "all of it, read, refuses the keyword");
     }
 
     @Test
-    @DisplayName("a document that is not JSON is refused: YAML is not read yet")
-    void yamlIsNotReadYet() {
-        assertEquals(List.of("the schema is not a JSON document (a YAML document is not read yet: give it as JSON)"),
-                refusals("openapi: 3.0.0\ncomponents: {}\n"));
+    @DisplayName("a YAML document reads as the same document in JSON does; a document that is neither is refused")
+    void yamlReadsAsJson() {
+        String yaml = """
+                openapi: 3.0.3
+                components:
+                  schemas:
+                    Order:
+                      type: object
+                      required: [id]
+                      properties:
+                        id: {type: integer, format: int64}
+                        status:
+                          type: string
+                          description: >-
+                            Order
+                            status
+                          enum:
+                            - placed
+                            - delivered
+                        lines:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/Line'
+                    Line:
+                      type: object
+                      properties:
+                        sku: {type: string}
+                """;
+        String json = """
+                {`openapi`: `3.0.3`, `components`: {`schemas`: {
+                  `Order`: {`type`: `object`, `required`: [`id`], `properties`: {
+                    `id`: {`type`: `integer`, `format`: `int64`},
+                    `status`: {`type`: `string`, `description`: `Order status`, `enum`: [`placed`, `delivered`]},
+                    `lines`: {`type`: `array`, `items`: {`$ref`: `#/components/schemas/Line`}}}},
+                  `Line`: {`type`: `object`, `properties`: {`sku`: {`type`: `string`}}}}}}""";
+        ImportedModel fromYaml = JsonSchemaReader.read(yaml, null, List.of(), false);
+        assertEquals(read(json), fromYaml);
+        assertEquals(List.of("Order{id: P Integer[1], status: E OrderStatus[0..1], lines: C Line[*]}",
+                "Line{sku: P String[0..1]}"), classes(fromYaml));
+        assertEquals(List.of("the schema is not YAML: YAML line 2, column 3: bad indentation: a sequence entry more "
+                + "indented than its mapping, under a scalar value"),
+                refusals("openapi: 3.0.0\n  - x\n"));
     }
 }

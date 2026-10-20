@@ -2407,3 +2407,15 @@ full CI run on it.
 - **A guard's register, with its dated reason:** `JavaEvalLedgerTest`'s server funnel register gains the three server
   files. `IdentityGuardrailTest`'s pins are unchanged: the new code dispatches on resolved types, never on name text.
 - **Register rows** S89, S90 in `docs/SEMANTICS_REGISTER.md`.
+
+**Announced 2026-10-20, before landing, on the same branch: YAML, unions, lists** (the user: "Let's do yaml"; the
+study's §4.1-§4.3).
+- **A new file in `json/`:** `Yaml.java` (a YAML 1.2 reader to `Json.Node`, no dependency, compiled to WebAssembly with
+  the planner), and its `YamlTest`. `Json.java` is not touched.
+- **This line's own files:** `JsonSchemaReader` (YAML documents, unions as inheritance, values of no one type as
+  Variants, `listsAsVariant`), `ImportSchema` (`"lists"`), `MapClass` (the refusal's hint), their tests.
+- **Register rows** S91 (unions as inheritance), S92 (YAML 1.2, where upstream reads 1.1).
+- **Found by this line in the compiler's code, for its owners (2026-10-20):** a `Variant[*]` property of a Relation
+  mapping read from one JSON column compiles, and each instance's one value is the whole list where `[*]` promises its
+  elements. And a proposal, the study's D7: a `[*]` property read from a JSON-list column as `->toMany(@T)` in
+  `normalizer/MappingNormalizer`, the database unnesting it.

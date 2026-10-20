@@ -274,7 +274,8 @@ class ModelImportTest {
                 + "- trades::domain::Trade.quantity is Float, its column 'quantity' is String: cast it in the SQL\n"
                 + "- trades::domain::Trade.side is the enumeration trades::domain::Side, read from text; its column "
                 + "'side' is Integer\n"
-                + "- trades::domain::Trade.tags holds many values, which one column does not: leave it unmapped",
+                + "- trades::domain::Trade.tags holds many values, which one column does not: leave it unmapped, or "
+                + "import lists as Variants ('lists': 'variant') to read the list from a JSON column",
                 e.getMessage().substring(e.getMessage().indexOf("the SQL")));
         assertTrue(assertThrows(ModelException.class, () -> mapClass(files, """
                 "class": "trades::domain::Trade", "runtime": "store::RT", "unmapped": ["tags"],
@@ -345,6 +346,130 @@ class ModelImportTest {
                         + "Float"));
     }
 
+    /** A pet store in YAML, as most OpenAPI documents are written: a list of strings, an enumeration, a reference. */
+    private static final String PETSTORE_YAML = """
+            openapi: 3.0.4
+            info: {title: Pets, version: '1'}
+            components:
+              schemas:
+                Category:
+                  type: object
+                  properties:
+                    id: {type: integer, format: int64}
+                    name: {type: string}
+                Pet:
+                  type: object
+                  required: [name, photoUrls]
+                  properties:
+                    id: {type: integer, format: int64}
+                    name: {type: string, example: doggie}
+                    category:
+                      $ref: '#/components/schemas/Category'
+                    photoUrls:
+                      type: array
+                      items:
+                        type: string
+                    status:
+                      type: string
+                      description: >-
+                        pet status
+                        in the store
+                      enum: [available, pending, sold]
+            """;
+
+    @Test
+    @DisplayName("end to end from YAML: a list read as one Variant from a JSON column, queried on DuckDB")
+    void endToEndFromYamlWithAListInAJsonColumn() throws Exception {
+        Map<String, String> files = new LinkedHashMap<>();
+        files.put("store::DB", """
+                ###Relational
+                Database store::DB
+                (
+                  Table pets (pet_id BIGINT NOT NULL, pet_name VARCHAR(100), category_id BIGINT, pet_status VARCHAR(10),
+                              photo_urls JSON)
+                  Table categories (id BIGINT NOT NULL, name VARCHAR(100))
+                )
+                """);
+        files.put("store::Conn", start().get("store::Conn"));
+        files.put("store::RT", start().get("store::RT"));
+        Map<String, Object> imported = wrote(files, ModelChanges.importSchema(Json.parseObject(request(files,
+                "\"schema\": {\"format\": \"openApi\", \"lists\": \"variant\", \"content\": "
+                        + Json.toCompact(PETSTORE_YAML) + "}"))));
+        assertTrue(file(imported, "trades::domain::Pet").contains(
+                "photoUrls: meta::pure::metamodel::variant::Variant[1];"), file(imported, "trades::domain::Pet"));
+        assertTrue(file(imported, "trades::domain::PetStatus").startsWith(
+                "Enum {meta::pure::profiles::doc.doc = 'pet status in the store'} trades::domain::PetStatus"),
+                file(imported, "trades::domain::PetStatus"));
+        wrote(files, mapClass(files, """
+                "class": "trades::domain::Category", "runtime": "store::RT",
+                "sql": "SELECT id, name FROM tb('store::DB.categories')\""""));
+        wrote(files, mapClass(files, """
+                "class": "trades::domain::Pet",
+                "sql": "SELECT pet_id AS id, pet_name AS name, category_id, photo_urls AS \\"photoUrls\\", \
+                pet_status AS status FROM tb('store::DB.pets')\""""));
+        wrote(files, ModelChanges.joinAssociation(Json.parseObject(request(files, """
+                "association": "trades::domain::Pet_Category",
+                "ends": [{"class": "trades::domain::Category", "on": "id"}, {"class": "trades::domain::Pet", "on": "categoryId"}]"""))));
+
+        String model = text(files);
+        try (Connection conn = TestBackends.platform().open(); Statement s = conn.createStatement()) {
+            s.execute("CREATE TABLE pets (pet_id BIGINT NOT NULL, pet_name VARCHAR, category_id BIGINT, pet_status VARCHAR, "
+                    + "photo_urls JSON)");
+            s.execute("INSERT INTO pets VALUES (1, 'Rex', 10, 'available', '[\"rex1.png\", \"rex2.png\"]'), "
+                    + "(2, 'Tom', 20, 'pending', '[]'), (3, 'Nemo', NULL, 'sold', '[\"nemo.png\"]')");
+            s.execute("CREATE TABLE categories (id BIGINT NOT NULL, name VARCHAR)");
+            s.execute("INSERT INTO categories VALUES (10, 'dogs'), (20, 'cats')");
+            assertEquals(List.of("Nemo sold nemo.png 1 null", "Rex available rex1.png 2 dogs", "Tom pending null 0 cats"),
+                    rows(new QueryService().execute(model, "trades::domain::Pet.all()->project(~[name: p|$p.name, "
+                            + "status: p|$p.status, first: p|$p.photoUrls->get(0)->to(@String), "
+                            + "photos: p|$p.photoUrls->toMany(@String)->size(), category: p|$p.category.name])"
+                            + "->sort(~name->ascending())", "store::RT", conn)));
+        }
+    }
+
+    @Test
+    @DisplayName("a union of objects imported as inheritance: each alternative extends the union, and the model compiles")
+    void unionsImportAsInheritance() {
+        Map<String, Object> a = importSchema(start(), """
+                openapi: 3.1.0
+                components:
+                  schemas:
+                    Pet:
+                      oneOf:
+                        - $ref: '#/components/schemas/Cat'
+                        - $ref: '#/components/schemas/Dog'
+                      discriminator: {propertyName: petType}
+                      properties:
+                        name: {type: string}
+                    Cat:
+                      type: object
+                      properties:
+                        purrs: {type: boolean}
+                    Dog:
+                      allOf:
+                        - $ref: '#/components/schemas/Pet'
+                        - type: object
+                          properties:
+                            barks: {type: boolean}
+                """);
+        assertEquals("""
+                Class trades::domain::Cat extends trades::domain::Pet
+                {
+                  purrs: Boolean[0..1];
+                }
+                """, file(a, "trades::domain::Cat"));
+        assertTrue(file(a, "trades::domain::Dog").startsWith("Class trades::domain::Dog extends trades::domain::Pet\n"),
+                file(a, "trades::domain::Dog"));
+        // a subclass's SELECT reads the union's properties too
+        Map<String, String> files = start();
+        wrote(files, a);
+        Map<String, Object> cat = mapClass(files, """
+                "class": "trades::domain::Cat", "runtime": "store::RT",
+                "sql": "SELECT name, true AS purrs FROM tb('store::DB.CUSTOMERS')\"""");
+        assertTrue(file(cat, "trades::mapping::CatMapping").contains("name: name,\n    purrs: purrs"),
+                file(cat, "trades::mapping::CatMapping"));
+    }
+
     private static final PureV1Api.Runner NO_RUN = (model, lambda, runtime, rows) -> {
         throw new AssertionError("nothing is run here");
     };
@@ -361,6 +486,6 @@ class ModelImportTest {
         assertEquals(400, refused.status(), refused.json());
         Json.Obj error = Json.parseObject(refused.json());
         assertEquals("COMPILATION", error.getString("errorType"));
-        assertTrue(error.getString("message").contains("a YAML document is not read yet"), error.getString("message"));
+        assertTrue(error.getString("message").contains("the OpenAPI document names no schema"), error.getString("message"));
     }
 }

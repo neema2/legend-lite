@@ -141,7 +141,8 @@ final class MapClass {
             }
             String at = className + "." + p.name();
             if (p.multiplicity().isMany()) {
-                misfits.add(at + " holds many values, which one column does not: leave it unmapped");
+                misfits.add(at + " holds many values, which one column does not: leave it unmapped, or import lists as "
+                        + "Variants ('lists': 'variant') to read the list from a JSON column");
                 continue;
             }
             if (p.type() instanceof Type.ClassType target && !PlatformTypes.isVariant(p.type())) {
