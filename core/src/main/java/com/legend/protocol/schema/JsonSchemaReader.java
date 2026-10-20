@@ -3,9 +3,24 @@
 
 package com.legend.protocol.schema;
 
+import static com.legend.protocol.schema.SchemaDocuments.child;
+import static com.legend.protocol.schema.SchemaDocuments.digits;
+import static com.legend.protocol.schema.SchemaDocuments.docOf;
+import static com.legend.protocol.schema.SchemaDocuments.loc;
+import static com.legend.protocol.schema.SchemaDocuments.parts;
+import static com.legend.protocol.schema.SchemaDocuments.refOf;
+import static com.legend.protocol.schema.SchemaNames.camelCase;
+import static com.legend.protocol.schema.SchemaNames.inPlaceName;
+import static com.legend.protocol.schema.SchemaNames.isName;
+import static com.legend.protocol.schema.SchemaNames.pureName;
+import static com.legend.protocol.schema.SchemaNames.singular;
+import static com.legend.protocol.schema.SchemaNames.valueName;
+import static com.legend.protocol.schema.SchemaNames.withoutExtension;
+
 import com.legend.json.Json;
 import com.legend.json.Yaml;
 import com.legend.protocol.schema.ImportedModel.All;
+import com.legend.protocol.schema.ImportedModel.Annotation;
 import com.legend.protocol.schema.ImportedModel.Any;
 import com.legend.protocol.schema.ImportedModel.Bound;
 import com.legend.protocol.schema.ImportedModel.Condition;
@@ -26,7 +41,6 @@ import com.legend.protocol.schema.ImportedModel.Rule;
 import com.legend.protocol.schema.ImportedModel.Unique;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -35,7 +49,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -100,6 +113,20 @@ public final class JsonSchemaReader {
 
     private static final String VARIANT = "meta::pure::metamodel::variant::Variant";
 
+    /** legend-engine's profiles for what a JSON Schema says beyond a model's shape
+     *  (core_external_format_json/transformation/toBeRefactored/models.pure, 4.145.0), which its schema-to-model
+     *  generation writes: an element's name in the schema, its title, an example, a default; readOnly, writeOnly, no
+     *  additional properties; a format; OpenAPI's discriminator. */
+    private static final String GENERATION = "meta::json::schema::JSONSchemaGeneration";
+    private static final String TYPE_EXTENSION = "meta::json::schema::JSONSchemaTypeExtension";
+    private static final String OPENAPI_EXTENSION = "meta::json::schema::JSONSchemaOpenAPIExtension";
+
+    /** The formats upstream's type extension names (a property's Pure type says the rest). */
+    private static final Set<String> FORMAT_STEREOTYPES = Set.of("int32", "int64", "double", "byte", "binary");
+
+    /** The longest example carried as a tag: a document's examples can be whole documents. */
+    private static final int EXAMPLE_LIMIT = 500;
+
     /** The keywords read: the shape, its documentation, and the validations made rules. */
     private static final Set<String> READ = Set.of("type", "properties", "required", "items", "prefixItems",
             "minItems", "maxItems", "$ref", "$dynamicRef", "$recursiveRef", "enum", "const", "allOf", "anyOf", "oneOf",
@@ -132,16 +159,12 @@ public final class JsonSchemaReader {
             "minContains", "maxContains", "propertyNames");
 
     /** The words Pure reads as literals, never as a name. */
-    private static final Set<String> LITERAL_WORDS = Set.of("true", "false");
 
     /** The extensions that name an enumeration's values, and that document them. */
     private static final List<String> VALUE_NAMES = List.of("x-enum-varnames", "x-enumNames", "x-enum-names",
             "javaEnumNames", "tsEnumNames");
     private static final List<String> VALUE_DOCS = List.of("x-enum-descriptions", "x-enumDescriptions",
             "enumDescriptions", "markdownEnumDescriptions");
-
-    /** A JSON document nests deeper than a model message does. */
-    private static final Json.Config DEPTH = new Json.Config(512);
 
     /** How a document is read. */
     public record Options(@com.legend.base.Nullable String rootName, List<String> only, boolean listsAsVariant,
@@ -203,12 +226,14 @@ public final class JsonSchemaReader {
     /** The value a property can never hold: a {@code false} schema, an empty {@code enum}, a {@code null} type. */
     private static final Resolved NEVER = new Resolved(Kind.PRIMITIVE, "", false);
 
-    /** A note, said once: where it was first met, and how many times. */
+    /** A note, said once: its code, where it was first met, and how many times. */
     private static final class Note {
+        final String code;
         final String where;
         int count = 1;
 
-        Note(String where) {
+        Note(String code, String where) {
+            this.code = code;
             this.where = where;
         }
     }
@@ -240,9 +265,8 @@ public final class JsonSchemaReader {
     }
 
     private final Options options;
-    private final Map<String, Json.Node> documents = new LinkedHashMap<>();
-    private final Map<String, Map<String, String>> anchors = new HashMap<>();
-    private final Map<String, String> ids = new LinkedHashMap<>();
+    /** The documents read, and the places and references in them. */
+    private final SchemaDocuments docs;
     private final Map<String, Named> named = new LinkedHashMap<>();
     private final Map<String, Shape> shapes = new HashMap<>();
     private final Map<String, String> classAt = new HashMap<>();
@@ -261,11 +285,18 @@ public final class JsonSchemaReader {
     private final Map<String, Set<String>> unionSupers = new LinkedHashMap<>();
     private final Map<String, Note> notes = new LinkedHashMap<>();
     private final List<String> refusals = new ArrayList<>();
+    /** The places of the schemas a document names by a key ({@code $defs}, {@code definitions},
+     *  {@code components.schemas}): their key is their name in the schema. */
+    private final Set<String> keyed = new HashSet<>();
+    /** The class or enumeration of each property's schema written in place, by its text and its document: another
+     *  place of the same text reuses it ({@link #inPlace}). */
+    private final Map<String, String> twins = new HashMap<>();
     /** The place of a map at the root, made a class of its entries: none, or one. */
     private final Set<String> mapRoots = new HashSet<>();
 
-    private JsonSchemaReader(Options options) {
+    private JsonSchemaReader(Options options, SchemaDocuments docs) {
         this.options = options;
+        this.docs = docs;
     }
 
     /**
@@ -287,206 +318,20 @@ public final class JsonSchemaReader {
      * @throws SchemaImportException naming everything that has no Pure form
      */
     public static ImportedModel read(String text, Options options) {
-        JsonSchemaReader reader = new JsonSchemaReader(options);
-        reader.documents.put("", parse(text, "the schema"));
-        if (!(reader.documents.get("") instanceof Json.Obj)) {
-            throw new SchemaImportException(List.of("the schema is a document whose root is a mapping, not "
-                    + Json.toCompact(reader.documents.get(""))));
-        }
-        for (Map.Entry<String, String> d : options.documents().entrySet()) {
-            reader.documents.put(normalized(d.getKey()), parse(d.getValue(), "the document '" + d.getKey() + "'"));
-        }
-        for (String doc : reader.documents.keySet()) {
-            Json.Node d = reader.documents.get(doc);
-            // draft 4 and before: a schema's identifier is its "id"
-            String dialect = d instanceof Json.Obj o ? text(o, "$schema") : null;
-            boolean legacy = dialect != null && (dialect.contains("draft-04") || dialect.contains("draft-03"));
-            reader.index(doc, "", d, legacy);
-        }
+        JsonSchemaReader reader = new JsonSchemaReader(options, SchemaDocuments.of(text, options.documents()));
         reader.collect();
         reader.build();
         reader.unite();
+        reader.discriminators();
         if (!reader.refusals.isEmpty()) {
             throw new SchemaImportException(reader.refusals);
         }
-        List<String> notes = new ArrayList<>();
+        List<ImportedModel.Note> notes = new ArrayList<>();
         for (Map.Entry<String, Note> n : reader.notes.entrySet()) {
             Note note = n.getValue();
-            notes.add(note.where + ": " + n.getKey() + (note.count > 1 ? " (" + note.count + " times)" : ""));
+            notes.add(new ImportedModel.Note(note.code, note.where, n.getKey(), note.count));
         }
         return new ImportedModel(reader.classes, reader.enumerations, notes);
-    }
-
-    /** A document of JSON, or of YAML (most OpenAPI documents are): read to the same tree. */
-    private static Json.Node parse(String text, String what) {
-        boolean json = text.strip().startsWith("{");
-        try {
-            return json ? Json.parse(text.strip(), DEPTH) : Yaml.parse(text);
-        } catch (IllegalArgumentException e) {
-            throw new SchemaImportException(List.of(what + " is not " + (json ? "JSON" : "YAML") + ": "
-                    + e.getMessage()));
-        }
-    }
-
-    // ---------------------------------------------------------------------
-    // Places: a document and a JSON pointer in it, "doc#/a/b"; the main document's name is empty
-    // ---------------------------------------------------------------------
-
-    private static String loc(String doc, String pointer) {
-        return doc + "#" + pointer;
-    }
-
-    private static String docOf(String loc) {
-        return loc.substring(0, loc.indexOf('#'));
-    }
-
-    private static String child(String loc, String... parts) {
-        StringBuilder out = new StringBuilder(loc);
-        for (String p : parts) {
-            out.append('/').append(p.replace("~", "~0").replace("/", "~1"));
-        }
-        return out.toString();
-    }
-
-    /** The schema at a place known to be one (a JSON object); an empty one if it is not. */
-    private Json.Obj schemaAt(String loc) {
-        return at(loc) instanceof Json.Obj o ? o : Json.obj();
-    }
-
-    /** The node at a place, or null. */
-    private @com.legend.base.Nullable Json.Node at(String loc) {
-        int hash = loc.indexOf('#');
-        Json.Node node = documents.get(loc.substring(0, hash));
-        String pointer = loc.substring(hash + 1);
-        if (node == null || pointer.isEmpty()) {
-            return node;
-        }
-        for (String part : parts(pointer.substring(1), '/')) {
-            String key = part.replace("~1", "/").replace("~0", "~");
-            if (node instanceof Json.Obj o && o.has(key)) {
-                node = o.get(key);
-            } else if (node instanceof Json.Arr a && digits(key)
-                    && Integer.parseInt(key) < a.items().size()) {
-                node = a.items().get(Integer.parseInt(key));
-            } else {
-                return null;
-            }
-        }
-        return node;
-    }
-
-    /** Every {@code $id} and {@code $anchor} of a document, by the place it names; instance values not walked. */
-    private void index(String doc, String pointer, @com.legend.base.Nullable Json.Node node, boolean legacy) {
-        if (node instanceof Json.Obj o) {
-            if (o.getOr(legacy ? "id" : "$id", null) instanceof Json.Str id && !id.value().startsWith("#")) {
-                ids.put(stripHash(id.value()), loc(doc, pointer));
-            } else if (legacy && o.getOr("id", null) instanceof Json.Str id && id.value().length() > 1) {
-                // draft 4's plain-name fragment, "#name": an anchor
-                anchors.computeIfAbsent(doc, k -> new HashMap<>()).put(id.value().substring(1), pointer);
-            }
-            for (String a : List.of("$anchor", "$dynamicAnchor")) {
-                if (o.getOr(a, null) instanceof Json.Str name) {
-                    anchors.computeIfAbsent(doc, k -> new HashMap<>()).put(name.value(), pointer);
-                }
-            }
-            for (Map.Entry<String, Json.Node> e : o.fields().entrySet()) {
-                if (!Set.of("enum", "const", "default", "examples", "example").contains(e.getKey())) {
-                    index(doc, pointer + "/" + e.getKey().replace("~", "~0").replace("/", "~1"), e.getValue(),
-                            legacy);
-                }
-            }
-        } else if (node instanceof Json.Arr a) {
-            for (int i = 0; i < a.items().size(); i++) {
-                index(doc, pointer + "/" + i, a.items().get(i), legacy);
-            }
-        }
-    }
-
-    private static String stripHash(String id) {
-        return id.endsWith("#") ? id.substring(0, id.length() - 1) : id;
-    }
-
-    /** A document's name as a reference spells it, {@code ./common.yaml} as {@code common.yaml}. */
-    private static String normalized(String name) {
-        String n = name;
-        while (n.startsWith("./")) {
-            n = n.substring(2);
-        }
-        return n;
-    }
-
-    /** The reference a schema makes: its {@code $ref}, else its {@code $dynamicRef} or {@code $recursiveRef}. */
-    private static @com.legend.base.Nullable String refOf(Json.Obj schema) {
-        for (String k : List.of("$ref", "$dynamicRef", "$recursiveRef")) {
-            if (schema.getOr(k, null) instanceof Json.Str s) {
-                return s.value();
-            }
-        }
-        return null;
-    }
-
-    /**
-     * The place a reference from {@code from} names: a JSON pointer, an anchor, an {@code $id}, or a document given;
-     * null when it names a document not given, or nothing.
-     */
-    private @com.legend.base.Nullable String target(String from, String ref) {
-        int hash = ref.indexOf('#');
-        String uri = hash < 0 ? ref : ref.substring(0, hash);
-        String fragment = decoded(hash < 0 ? "" : ref.substring(hash + 1));
-        String base;
-        if (uri.isEmpty()) {
-            base = loc(docOf(from), "");
-        } else {
-            String found = ids.get(stripHash(uri));
-            if (found == null) {
-                for (Map.Entry<String, String> id : ids.entrySet()) {
-                    if (id.getKey().endsWith("/" + normalized(uri))) {
-                        found = id.getValue();
-                    }
-                }
-            }
-            if (found == null) {
-                String doc = normalized(uri);
-                if (!documents.containsKey(doc)) {
-                    String last = doc.substring(doc.lastIndexOf('/') + 1);
-                    doc = documents.containsKey(last) ? last : null;
-                }
-                found = doc == null ? null : loc(doc, "");
-            }
-            if (found == null) {
-                return null;
-            }
-            base = found;
-        }
-        if (fragment.isEmpty()) {
-            return base;
-        }
-        if (fragment.startsWith("/")) {
-            String placed = base + fragment;
-            return at(placed) == null ? null : placed;
-        }
-        Map<String, String> named = anchors.get(docOf(base));
-        String pointer = named == null ? null : named.get(fragment);
-        return pointer == null ? null : loc(docOf(base), pointer);
-    }
-
-    /** A URI fragment's percent-encoded bytes decoded, as UTF-8. */
-    private static String decoded(String fragment) {
-        if (fragment.indexOf('%') < 0) {
-            return fragment;
-        }
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        for (int i = 0; i < fragment.length(); i++) {
-            char c = fragment.charAt(i);
-            if (c == '%' && i + 2 < fragment.length() && hex(fragment.charAt(i + 1)) && hex(fragment.charAt(i + 2))) {
-                out.write(Integer.parseInt(fragment.substring(i + 1, i + 3), 16));
-                i += 2;
-            } else {
-                byte[] b = String.valueOf(c).getBytes(StandardCharsets.UTF_8);
-                out.write(b, 0, b.length);
-            }
-        }
-        return new String(out.toByteArray(), StandardCharsets.UTF_8);
     }
 
     // ---------------------------------------------------------------------
@@ -494,10 +339,10 @@ public final class JsonSchemaReader {
     // ---------------------------------------------------------------------
 
     private void collect() {
-        Json.Obj main = documents.get("") instanceof Json.Obj o ? o : Json.obj();
+        Json.Obj main = docs.root("");
         boolean openApi = main.has("openapi") || main.has("swagger");
-        for (String doc : documents.keySet()) {
-            Json.Obj d = documents.get(doc) instanceof Json.Obj o ? o : Json.obj();
+        for (String doc : docs.names()) {
+            Json.Obj d = docs.root(doc);
             Json.Obj components = objectAt(d, "components");
             collectFrom(doc, components == null ? null : objectAt(components, "schemas"), "/components/schemas");
             collectFrom(doc, objectAt(d, "definitions"), "/definitions");
@@ -524,12 +369,12 @@ public final class JsonSchemaReader {
                 refusals.add("#: the schema is the reference '" + ref + "' alone, to a document not given: give that "
                         + "document in 'documents'");
             } else {
-                note("#", "the root is the reference '" + ref + "' alone, to a document not given: no class is made "
+                note("root.unresolved", "#", "the root is the reference '" + ref + "' alone, to a document not given: no class is made "
                         + "of it");
             }
             return;
         }
-        if (title == null && at(root) instanceof Json.Obj o) {
+        if (title == null && docs.at(root) instanceof Json.Obj o) {
             title = text(o, "title");
         }
         String rootName = title != null ? title : options.rootName();
@@ -545,7 +390,7 @@ public final class JsonSchemaReader {
                 return;
             }
             add(root, rootName);
-        } else if (at(root) instanceof Json.Obj rootSchema) {
+        } else if (docs.at(root) instanceof Json.Obj rootSchema) {
             // a list of objects at the root: its item a class; a map: its entries
             String item = rootSchema.has("items") ? followed(child(root, "items"), new ArrayList<>()) : null;
             boolean list = item != null && shapeAt(item) == Shape.CLASS && !named.containsKey(item);
@@ -556,10 +401,10 @@ public final class JsonSchemaReader {
                 return;
             }
             if (rootName != null && list && item != null) {
-                add(item, pureName(rootName, true, where(root)) + "Item");
+                add(item, pureName(rootName, true) + "Item");
             } else if (rootName != null && map) {
                 mapRoots.add(root);
-                add(root, pureName(rootName, true, where(root)) + "Entry");
+                add(root, pureName(rootName, true) + "Entry");
             }
         }
         if (named.isEmpty()) {
@@ -573,13 +418,13 @@ public final class JsonSchemaReader {
     private @com.legend.base.Nullable String followed(String loc, List<String> unfollowed) {
         String place = loc;
         Set<String> seen = new HashSet<>();
-        while (at(place) instanceof Json.Obj o && !declaresProperties(o) && objects(o, "allOf").isEmpty()
+        while (docs.at(place) instanceof Json.Obj o && !declaresProperties(o) && objects(o, "allOf").isEmpty()
                 && seen.add(place)) {
             String ref = refOf(o);
             if (ref == null) {
                 break;
             }
-            String t = target(place, ref);
+            String t = docs.target(place, ref);
             if (t == null) {
                 unfollowed.add(ref);
                 return null;
@@ -610,15 +455,16 @@ public final class JsonSchemaReader {
         }
         for (String key : container.fields().keySet()) {
             add(child(loc(doc, pointer), key), key);
+            keyed.add(child(loc(doc, pointer), key));
         }
     }
 
     /** A named schema: its Pure name, numbered when another's (noted). */
     private void add(String loc, String key) {
-        String name = pureName(key, true, where(loc));
+        String name = pureName(key, true);
         String held = unique(name);
         if (!held.equals(name)) {
-            note(where(loc), "its name '" + name + "' is another schema's, so it is named " + held);
+            note("name.numbered", where(loc), "its name '" + name + "' is another schema's, so it is named " + held);
         }
         named.put(loc, new Named(loc, key, held));
     }
@@ -657,7 +503,7 @@ public final class JsonSchemaReader {
                     for (String code : responses.fields().keySet()) {
                         if (code.startsWith("2")) {
                             String response = child(opLoc, "responses", code);
-                            Json.Node r = at(response);
+                            Json.Node r = docs.at(response);
                             if (r instanceof Json.Obj ro && ro.has("schema")) {
                                 addBody(child(response, "schema"), base + "Response");
                             } else {
@@ -674,15 +520,15 @@ public final class JsonSchemaReader {
     /** The schema of a request or response body (OpenAPI 3: its content's JSON media type, else the first). */
     private @com.legend.base.Nullable String body(String loc) {
         String place = loc;
-        Json.Node node = at(place);
+        Json.Node node = docs.at(place);
         String ref = node instanceof Json.Obj o ? refOf(o) : null;
         if (ref != null) {
-            String t = target(place, ref);
+            String t = docs.target(place, ref);
             if (t == null) {
                 return null;
             }
             place = t;
-            node = at(place);
+            node = docs.at(place);
         }
         if (!(node instanceof Json.Obj o) || !(o.getOr("content", null) instanceof Json.Obj content)) {
             return null;
@@ -702,12 +548,12 @@ public final class JsonSchemaReader {
 
     /** An operation's body: a class when it is an object written in place, its item's when a list of one. */
     private void addBody(@com.legend.base.Nullable String loc, String name) {
-        if (loc == null || !(at(loc) instanceof Json.Obj s) || refOf(s) != null) {
+        if (loc == null || !(docs.at(loc) instanceof Json.Obj s) || refOf(s) != null) {
             return;
         }
         if (shapeAt(loc) == Shape.CLASS) {
             add(loc, name);
-        } else if (at(child(loc, "items")) instanceof Json.Obj items && refOf(items) == null
+        } else if (docs.at(child(loc, "items")) instanceof Json.Obj items && refOf(items) == null
                 && shapeAt(child(loc, "items")) == Shape.CLASS) {
             add(child(loc, "items"), name + "Item");
         }
@@ -724,7 +570,7 @@ public final class JsonSchemaReader {
         }
         // a place that reaches itself through references alone is no class
         shapes.put(loc, Shape.ALIAS);
-        Json.Node node = at(loc);
+        Json.Node node = docs.at(loc);
         Shape s = !(node instanceof Json.Obj o) ? Shape.ALIAS
                 : textEnum(o, named.containsKey(loc) ? 1 : 2) || constAlternatives(o) != null ? Shape.ENUMERATION
                 : objectShaped(o, loc) ? Shape.CLASS : Shape.ALIAS;
@@ -784,7 +630,7 @@ public final class JsonSchemaReader {
     private boolean isObject(Json.Obj part, String loc) {
         String ref = refOf(part);
         if (ref != null) {
-            String t = target(loc, ref);
+            String t = docs.target(loc, ref);
             return (t != null && shapeAt(t) == Shape.CLASS) || declaresProperties(part);
         }
         return objectShaped(part, loc);
@@ -913,7 +759,7 @@ public final class JsonSchemaReader {
                 out.add(place);
             }
             List<String> refs = new ArrayList<>();
-            refsIn(place, at(place), refs);
+            refsIn(place, docs.at(place), refs);
             for (String t : refs) {
                 // a reference into another schema's insides reaches what it names, and what that reaches
                 work.add(t);
@@ -926,7 +772,7 @@ public final class JsonSchemaReader {
         if (node instanceof Json.Obj o) {
             String ref = refOf(o);
             if (ref != null) {
-                String t = target(loc, ref);
+                String t = docs.target(loc, ref);
                 if (t != null) {
                     out.add(t);
                 }
@@ -955,8 +801,29 @@ public final class JsonSchemaReader {
         Named n = named.get(loc);
         String held = n != null ? n.name() : unique(name != null ? name : nameFor(loc));
         classAt.put(loc, held);
-        buildClass(held, schemaAt(loc), loc, owned && n == null);
+        buildClass(held, docs.schemaAt(loc), loc, owned && n == null);
         return held;
+    }
+
+    /**
+     * The class (or, {@code enumeration}, the enumeration) of a property's schema written in place: the one another
+     * place of the same text, in the same document, made -- an API's request and response bodies repeat their inline
+     * objects and enums, which openapi-generator's inline model resolver also reuses, named after the first -- else
+     * its own. A schema a document names by a key is never another's: its name is the author's.
+     */
+    private String inPlace(String loc, String name, boolean enumeration) {
+        if (named.containsKey(loc) || (enumeration ? enumAt : classAt).containsKey(loc)) {
+            return enumeration ? enumFor(loc, name) : classFor(loc, name, true);
+        }
+        String text = (enumeration ? "enumeration " : "class ") + docOf(loc) + " " + Json.toCompact(docs.schemaAt(loc));
+        String twin = twins.get(text);
+        if (twin != null) {
+            (enumeration ? enumAt : classAt).put(loc, twin);
+            return twin;
+        }
+        String made = enumeration ? enumFor(loc, name) : classFor(loc, name, true);
+        twins.put(text, made);
+        return made;
     }
 
     /** A name for a place no schema names: its last meaningful parts ({@code #/definitions/A/properties/b} is AB). */
@@ -988,10 +855,10 @@ public final class JsonSchemaReader {
         // then the conditions' properties, after the class's own
         int before = g.properties.size();
         for (int i = 0; i < g.conditions.size(); i++) {
-            gather(schemaAt(g.conditions.get(i)), g.conditions.get(i), g, true);
+            gather(docs.schemaAt(g.conditions.get(i)), g.conditions.get(i), g, true);
         }
         if (g.properties.size() > before) {
-            note(where(loc), "the properties of a condition (if/then/else, dependentSchemas) are read as optional "
+            note("condition.optional-properties", where(loc), "the properties of a condition (if/then/else, dependentSchemas) are read as optional "
                     + "properties");
         }
         List<ImportedProperty> out = new ArrayList<>();
@@ -1002,13 +869,13 @@ public final class JsonSchemaReader {
         for (Map.Entry<String, PropertyAt> e : g.properties.entrySet()) {
             Json.Node ps = e.getValue().schema();
             String at = e.getValue().loc();
-            String property = pureName(e.getKey(), false, where(at));
+            String property = pureName(e.getKey(), false);
             String pureName = property;
             for (int n = 2; !names.add(pureName); n++) {
                 pureName = property + n;
             }
             if (!pureName.equals(property)) {
-                note(where(at), "its name '" + property + "' is another property's, so it is named " + pureName);
+                note("name.numbered", where(at), "its name '" + property + "' is another property's, so it is named " + pureName);
             }
             directs.add(at);
             Resolved r = resolve(ps, at, name, pureName);
@@ -1016,15 +883,29 @@ public final class JsonSchemaReader {
                 continue;
             }
             if (r == NEVER) {
-                note(where(at), "a property that can hold no value is not a property");
+                note("property.no-value", where(at), "a property that can hold no value is not a property");
                 nevers.add(e.getKey());
                 continue;
             }
             boolean mustHave = g.required.contains(e.getKey()) && !g.conditional.contains(e.getKey()) && !r.nullable();
             int lower = r.many() ? (mustHave ? r.minItems() : 0) : (mustHave ? 1 : 0);
             Json.Obj pso = ps instanceof Json.Obj o ? o : Json.obj();
+            Json.Node carried = defaultOf(pso, r, at);
+            List<Annotation> annotations = annotations(pso, e.getKey(), pureName);
+            Json.Node given = pso.getOr("default", null);
+            if (carried == null && given != null && !(given instanceof Json.Null)) {
+                // a default that is no Pure value of the property: kept as the schema says it
+                annotations.add(Annotation.tag(GENERATION, "defaultValue", json(given)));
+            }
+            String format = text(pso, "format");
+            if (format != null && FORMAT_STEREOTYPES.contains(format)) {
+                annotations.add(Annotation.stereotype(TYPE_EXTENSION, format));
+            }
+            if (r.nullable()) {
+                annotations.add(Annotation.stereotype(TYPE_EXTENSION, "null"));
+            }
             out.add(new ImportedProperty(pureName, doc(pso), r.kind(), r.type(), lower, r.many() ? r.maxItems()
-                    : Integer.valueOf(1), deprecated(pso), defaultOf(pso, r, at)));
+                    : Integer.valueOf(1), deprecated(pso), carried, annotations));
             held.put(e.getKey(), pureName);
             for (Rule rule : r.rules()) {
                 rules.add(of(rule, pureName));
@@ -1051,7 +932,7 @@ public final class JsonSchemaReader {
         for (Map.Entry<String, String> l : g.logic.entrySet()) {
             String place = l.getKey().substring(0, l.getKey().lastIndexOf('?'));
             String kind = l.getKey().substring(l.getKey().lastIndexOf('?') + 1);
-            Json.Obj at = at(place) instanceof Json.Obj o ? o : Json.obj();
+            Json.Obj at = docs.at(place) instanceof Json.Obj o ? o : Json.obj();
             ImportedProperty depending = scope.get(l.getValue());
             String named = switch (kind) {
                 case "dependency" -> (depending != null ? depending.name() : camelCase(l.getValue(), false))
@@ -1096,7 +977,7 @@ public final class JsonSchemaReader {
                 }
             }
             if (property == null) {
-                note(where(loc), "a dependentRequired naming a property the schema does not declare of its own is not "
+                note("rule.not-carried", where(loc), "a dependentRequired naming a property the schema does not declare of its own is not "
                         + "carried");
             } else if (!others.isEmpty()) {
                 rules.add(new Requires(property, false, others));
@@ -1105,17 +986,23 @@ public final class JsonSchemaReader {
         // a union of objects: its alternatives subclasses; written in place, each a value the owner holds
         String union = unionOfObjects(schema, loc);
         boolean inPlace = union == null || alternatives(name, schema, union, loc);
+        Named self = named.get(loc);
+        List<Annotation> annotations = annotations(schema, self != null && keyed.contains(loc) ? self.key() : null,
+                name);
+        if (schema.getOr("additionalProperties", null) instanceof Json.Bool b && !b.value()) {
+            annotations.add(Annotation.stereotype(GENERATION, "noAdditionalProperties"));
+        }
         classes.add(position, new ImportedClass(name, doc(schema), g.supers, out, owned && inPlace, deprecated(schema),
-                rules, logic));
+                rules, logic, annotations));
     }
 
     /** A map at the root: a class of its entries, each its key and its value ({@code <Root>Value} when the value is an
      *  object of its own); the key's pattern ({@code patternProperties}' one, {@code propertyNames}') its rules. */
     private void entries(String name, String loc) {
         int position = classes.size();
-        Json.Obj schema = schemaAt(loc);
+        Json.Obj schema = docs.schemaAt(loc);
         keywords(schema, loc);
-        note(where(loc), "a map at the root is a class of its entries, each its key and its value");
+        note("root.map-entries", where(loc), "a map at the root is a class of its entries, each its key and its value");
         String owner = name.endsWith("Entry") ? name.substring(0, name.length() - "Entry".length()) : name;
         List<ImportedProperty> properties = new ArrayList<>();
         List<Rule> rules = new ArrayList<>();
@@ -1134,23 +1021,24 @@ public final class JsonSchemaReader {
         Resolved r;
         Json.Obj valueSchema = Json.obj();
         if (values.size() == 1) {
-            Json.Node v = at(values.get(0));
+            Json.Node v = docs.at(values.get(0));
             valueSchema = v instanceof Json.Obj o ? o : valueSchema;
             r = resolve(v == null ? Json.bool(true) : v, values.get(0), owner, "value");
         } else {
-            note(where(loc), "a map whose values are of several schemas (patternProperties) holds each a Variant");
+            note("variant.map-values", where(loc), "a map whose values are of several schemas (patternProperties) holds each a Variant");
             r = new Resolved(Kind.PRIMITIVE, VARIANT, false);
         }
         if (r != null && r != NEVER) {
             int lower = r.nullable() ? 0 : r.many() ? r.minItems() : 1;
             properties.add(new ImportedProperty("value", doc(valueSchema), r.kind(), r.type(), lower,
-                    r.many() ? r.maxItems() : Integer.valueOf(1), deprecated(valueSchema), null));
+                    r.many() ? r.maxItems() : Integer.valueOf(1), deprecated(valueSchema), null,
+                    annotations(valueSchema, null, "value")));
             for (Rule rule : r.rules()) {
                 rules.add(of(rule, "value"));
             }
         }
         classes.add(position, new ImportedClass(name, doc(schema), List.of(), properties, false, deprecated(schema),
-                rules, List.of()));
+                rules, List.of(), annotations(schema, null, name)));
     }
 
     /** A rule of the property {@code property}. */
@@ -1269,7 +1157,7 @@ public final class JsonSchemaReader {
         boolean hasOwn = schema.getOr("properties", null) instanceof Json.Obj;
         if (hasOwn && (schema.getOr("additionalProperties", null) instanceof Json.Obj
                 || schema.has("patternProperties"))) {
-            note(where(loc), "a map beside the properties (additionalProperties, patternProperties) is not carried: a "
+            note("map.not-carried", where(loc), "a map beside the properties (additionalProperties, patternProperties) is not carried: a "
                     + "class has the properties it names");
         }
     }
@@ -1323,25 +1211,25 @@ public final class JsonSchemaReader {
             addSuper(g, ref, at, at);
             return;
         }
-        String t = target(at, ref);
+        String t = docs.target(at, ref);
         if (t == null) {
-            note(where(at), "the reference '" + ref + "' names nothing in the documents given: its properties are not "
+            note("reference.unresolved", where(at), "the reference '" + ref + "' names nothing in the documents given: its properties are not "
                     + "read");
-        } else if (at(t) instanceof Json.Obj o) {
+        } else if (docs.at(t) instanceof Json.Obj o) {
             gather(o, t, g, true);
         }
     }
 
     /** A superclass from a reference in an allOf or beside properties: a class's; else noted. */
     private void addSuper(Gathered g, String ref, String from, String at) {
-        String t = target(from, ref);
+        String t = docs.target(from, ref);
         if (t == null) {
-            note(where(at), "the reference '" + ref + "' names nothing in the documents given: its properties are not "
+            note("reference.unresolved", where(at), "the reference '" + ref + "' names nothing in the documents given: its properties are not "
                     + "inherited");
             return;
         }
         if (t.equals(g.self)) {
-            note(where(at), "an allOf naming its own schema names no superclass, and is skipped");
+            note("inheritance.self", where(at), "an allOf naming its own schema names no superclass, and is skipped");
             return;
         }
         if (shapeAt(t) == Shape.CLASS) {
@@ -1350,7 +1238,7 @@ public final class JsonSchemaReader {
                 g.supers.add(s);
             }
         } else {
-            note(where(at), "an allOf part that is not an object (a map, a primitive) is not carried: a class has the "
+            note("inheritance.not-object", where(at), "an allOf part that is not an object (a map, a primitive) is not carried: a class has the "
                     + "properties it names");
         }
     }
@@ -1365,7 +1253,7 @@ public final class JsonSchemaReader {
      */
     private boolean alternatives(String superclass, Json.Obj schema, String union, String loc) {
         if (union.equals("anyOf")) {
-            note(where(loc), "anyOf is read as oneOf (an instance is one of its alternatives)");
+            note("inheritance.any-of", where(loc), "anyOf is read as oneOf (an instance is one of its alternatives)");
         }
         List<Json.Obj> parts = objects(schema, union);
         boolean inPlace = true;
@@ -1379,7 +1267,7 @@ public final class JsonSchemaReader {
             String sub;
             if (ref != null && !declaresProperties(part)) {
                 keywords(part, at);
-                String t = target(at, ref);
+                String t = docs.target(at, ref);
                 if (t == null) {
                     continue;
                 }
@@ -1387,7 +1275,7 @@ public final class JsonSchemaReader {
                 inPlace = false;
             } else {
                 String title = text(part, "title");
-                sub = classFor(at, superclass + (title != null ? pureName(title, true, where(at)) : "Option" + (i + 1)),
+                sub = classFor(at, superclass + (title != null ? pureName(title, true) : "Option" + (i + 1)),
                         true);
             }
             unionSupers.computeIfAbsent(sub, k -> new LinkedHashSet<>()).add(superclass);
@@ -1409,8 +1297,7 @@ public final class JsonSchemaReader {
                 }
             }
             boolean owned = c.owned() && !shared.contains(c.name());
-            classes.set(i, new ImportedClass(c.name(), c.doc(), supers, c.properties(), owned, c.deprecated(),
-                    c.rules(), c.logic()));
+            classes.set(i, c.with(supers, owned));
         }
         Map<String, List<String>> graph = new HashMap<>();
         for (ImportedClass c : classes) {
@@ -1423,13 +1310,63 @@ public final class JsonSchemaReader {
                 // the circle's first step from this class is dropped: the class keeps its other superclasses
                 String dropped = path.get(1);
                 graph.computeIfAbsent(c.name(), k -> new ArrayList<>()).remove(dropped);
-                note(c.name(), "a class that would be its own superclass (" + String.join(" extends ", path)
+                note("inheritance.cycle", c.name(), "a class that would be its own superclass (" + String.join(" extends ", path)
                         + ") does not extend " + dropped);
             }
             if (graph.getOrDefault(c.name(), List.of()).size() != c.supers().size()) {
-                classes.set(i, new ImportedClass(c.name(), c.doc(), graph.getOrDefault(c.name(), List.of()),
-                        c.properties(), c.owned(), c.deprecated(), c.rules(), c.logic()));
+                classes.set(i, c.with(graph.getOrDefault(c.name(), List.of()), c.owned()));
             }
+        }
+    }
+
+    /**
+     * OpenAPI's discriminator, as upstream marks it: the property telling the subclasses apart
+     * ({@code <<JSONSchemaOpenAPIExtension.discriminatorProperty>>}), and each subclass's value of it
+     * ({@code JSONSchemaOpenAPIExtension.discriminatorName}): its {@code mapping}'s key, else the subclass's name in
+     * the schema (OpenAPI's default). A subclass's SQL tells its rows apart by it.
+     */
+    private void discriminators() {
+        Map<String, String> locOf = new HashMap<>();
+        for (Map.Entry<String, String> e : classAt.entrySet()) {
+            locOf.put(e.getValue(), e.getKey());
+        }
+        for (int i = 0; i < classes.size(); i++) {
+            ImportedClass c = classes.get(i);
+            String loc = locOf.get(c.name());
+            Json.Obj d = loc == null ? null : objectAt(docs.schemaAt(loc), "discriminator");
+            String property = d == null ? null : text(d, "propertyName");
+            if (loc == null || d == null || property == null) {
+                continue;
+            }
+            // the subclasses' values: the mapping's, by the place each names
+            Map<String, String> valueAt = new HashMap<>();
+            if (objectAt(d, "mapping") instanceof Json.Obj mapping) {
+                for (Map.Entry<String, Json.Node> m : mapping.fields().entrySet()) {
+                    String t = m.getValue() instanceof Json.Str ref ? docs.target(loc, ref.value()) : null;
+                    if (t != null) {
+                        valueAt.put(t, m.getKey());
+                    }
+                }
+            }
+            for (int j = 0; j < classes.size(); j++) {
+                ImportedClass sub = classes.get(j);
+                String subLoc = locOf.get(sub.name());
+                if (!sub.supers().contains(c.name()) || subLoc == null) {
+                    continue;
+                }
+                Named n = named.get(subLoc);
+                String value = valueAt.getOrDefault(subLoc, n != null && keyed.contains(subLoc) ? n.key() : null);
+                if (value != null) {
+                    classes.set(j, sub.with(sub.properties(), List.of(Annotation.tag(OPENAPI_EXTENSION,
+                            "discriminatorName", value))));
+                }
+            }
+            List<ImportedProperty> marked = new ArrayList<>();
+            for (ImportedProperty p : classes.get(i).properties()) {
+                boolean it = p.name().equals(pureName(property, false));
+                marked.add(it ? p.annotated(Annotation.stereotype(OPENAPI_EXTENSION, "discriminatorProperty")) : p);
+            }
+            classes.set(i, classes.get(i).with(marked, List.of()));
         }
     }
 
@@ -1464,16 +1401,16 @@ public final class JsonSchemaReader {
             return b.value() ? new Resolved(Kind.PRIMITIVE, VARIANT, false) : NEVER;
         }
         if (!(node instanceof Json.Obj schema)) {
-            note(where(loc), "a schema that is not a JSON object or a boolean is any value: a Variant");
+            note("variant.not-a-schema", where(loc), "a schema that is not a JSON object or a boolean is any value: a Variant");
             return new Resolved(Kind.PRIMITIVE, VARIANT, false);
         }
         keywords(schema, loc);
         if (!directs.contains(loc)) {
             if (schema.has("not")) {
-                note(where(loc), "not is not carried (a validation Pure states no constraint for here)");
+                note("rule.not-carried", where(loc), "not is not carried (a validation Pure states no constraint for here)");
             }
             if (schema.has("if") && !declaresProperties(schema)) {
-                note(where(loc), "a condition (if/then/else) on a value that is no property's own is not carried");
+                note("logic.not-carried", where(loc), "a condition (if/then/else) on a value that is no property's own is not carried");
             }
         }
         boolean empty = isTrue(schema, "nullable") || isTrue(schema, "x-nullable");
@@ -1481,11 +1418,11 @@ public final class JsonSchemaReader {
         if (ref != null) {
             if (declaresProperties(schema)) {
                 // a reference beside properties: a class of its own, the referenced class its superclass
-                return new Resolved(Kind.CLASS, classFor(loc, owner + upperFirst(property), true), empty);
+                return new Resolved(Kind.CLASS, inPlace(loc, inPlaceName(owner, property), false), empty);
             }
-            String t = target(loc, ref);
+            String t = docs.target(loc, ref);
             if (t == null) {
-                note(where(loc), "the reference '" + ref + "' names nothing in the documents given: a Variant (give "
+                note("reference.unresolved", where(loc), "the reference '" + ref + "' names nothing in the documents given: a Variant (give "
                         + "the document it names in 'documents')");
                 return new Resolved(Kind.PRIMITIVE, VARIANT, empty);
             }
@@ -1497,7 +1434,7 @@ public final class JsonSchemaReader {
                     ? rules(schema, r.type(), loc) : List.of());
         }
         if (shapeAt(loc) == Shape.ENUMERATION) {
-            return new Resolved(Kind.ENUMERATION, enumFor(loc, owner + upperFirst(property)),
+            return new Resolved(Kind.ENUMERATION, inPlace(loc, inPlaceName(owner, property), true),
                     empty || mayBeNull(schema));
         }
         List<Json.Node> values = values(schema);
@@ -1506,7 +1443,7 @@ public final class JsonSchemaReader {
         }
         if (declaresProperties(schema)) {
             // properties of its own: a class, whatever its union says (a union of required lists is a validation)
-            return new Resolved(Kind.CLASS, classFor(loc, owner + upperFirst(property), true), empty);
+            return new Resolved(Kind.CLASS, inPlace(loc, inPlaceName(owner, property), false), empty);
         }
         for (String union : List.of("oneOf", "anyOf")) {
             List<Json.Obj> parts = objects(schema, union);
@@ -1523,7 +1460,7 @@ public final class JsonSchemaReader {
             }
             boolean mayBeNull = count < parts.size();
             if (count == 0) {
-                note(where(loc), "a value that is always null is not a property");
+                note("property.no-value", where(loc), "a value that is always null is not a property");
                 return NEVER;
             }
             if (count == 1 && !declaresProperties(schema)) {
@@ -1531,18 +1468,18 @@ public final class JsonSchemaReader {
                 return r == null || r == NEVER ? r : r.orEmpty(mayBeNull || empty);
             }
             if (unionOfObjects(schema, loc) != null) {
-                return new Resolved(Kind.CLASS, classFor(loc, owner + upperFirst(property), true), mayBeNull || empty);
+                return new Resolved(Kind.CLASS, inPlace(loc, inPlaceName(owner, property), false), mayBeNull || empty);
             }
             String common = commonPrimitive(parts, loc, union);
             if (common != null) {
                 return new Resolved(Kind.PRIMITIVE, common, mayBeNull || empty);
             }
-            note(where(loc), "a union (" + union + ") of values that are not all objects is a Variant (Pure has no "
+            note("variant.union", where(loc), "a union (" + union + ") of values that are not all objects is a Variant (Pure has no "
                     + "union type)");
             return new Resolved(Kind.PRIMITIVE, VARIANT, mayBeNull || empty);
         }
         if (objectShaped(schema, loc)) {
-            return new Resolved(Kind.CLASS, classFor(loc, owner + upperFirst(property), true), empty);
+            return new Resolved(Kind.CLASS, inPlace(loc, inPlaceName(owner, property), false), empty);
         }
         List<Json.Obj> all = objects(schema, "allOf");
         if (!all.isEmpty()) {
@@ -1566,7 +1503,7 @@ public final class JsonSchemaReader {
                 if (common != null) {
                     return new Resolved(Kind.PRIMITIVE, common, empty || partNull);
                 }
-                note(where(loc), "an allOf of values that are not objects is a Variant");
+                note("variant.union", where(loc), "an allOf of values that are not objects is a Variant");
                 return new Resolved(Kind.PRIMITIVE, VARIANT, empty || partNull);
             }
         }
@@ -1581,7 +1518,7 @@ public final class JsonSchemaReader {
         if (types.remove("null")) {
             empty = true;
             if (types.isEmpty()) {
-                note(where(loc), "a value that is always null is not a property");
+                note("property.no-value", where(loc), "a value that is always null is not a property");
                 return NEVER;
             }
         }
@@ -1589,7 +1526,7 @@ public final class JsonSchemaReader {
             if (types.size() == 2 && types.contains("integer") && types.contains("number")) {
                 return new Resolved(Kind.PRIMITIVE, "Number", empty).withRules(rules(schema, "Number", loc));
             }
-            note(where(loc), "a value of several types (" + String.join(", ", types) + ") is a Variant (Pure has no "
+            note("variant.types", where(loc), "a value of several types (" + String.join(", ", types) + ") is a Variant (Pure has no "
                     + "union type)");
             return new Resolved(Kind.PRIMITIVE, VARIANT, empty);
         }
@@ -1607,11 +1544,11 @@ public final class JsonSchemaReader {
                 return new Resolved(Kind.PRIMITIVE, VARIANT, empty);
             }
             case "file" -> {
-                note(where(loc), "a file (Swagger 2) is a Variant");
+                note("variant.file", where(loc), "a file (Swagger 2) is a Variant");
                 return new Resolved(Kind.PRIMITIVE, VARIANT, empty);
             }
             default -> {
-                note(where(loc), "the type '" + t + "' is not JSON Schema's: a Variant");
+                note("variant.unknown-type", where(loc), "the type '" + t + "' is not JSON Schema's: a Variant");
                 return new Resolved(Kind.PRIMITIVE, VARIANT, empty);
             }
         }
@@ -1621,14 +1558,14 @@ public final class JsonSchemaReader {
             boolean empty) {
         Json.Node items = schema.getOr("items", null);
         if (items instanceof Json.Arr || schema.has("prefixItems")) {
-            note(where(loc), "a tuple (prefixItems, items as a list) is a Variant, the JSON list it is");
+            note("variant.tuple", where(loc), "a tuple (prefixItems, items as a list) is a Variant, the JSON list it is");
             return new Resolved(Kind.PRIMITIVE, VARIANT, empty);
         }
         int least = schema.getOr("minItems", null) instanceof Json.Num n ? (int) n.longValue() : 0;
         Integer most = schema.getOr("maxItems", null) instanceof Json.Num n ? Integer.valueOf((int) n.longValue())
                 : null;
         if (items == null || (items instanceof Json.Bool b && b.value())) {
-            note(where(loc), "a list of any values is one Variant, the JSON list it is");
+            note("variant.list", where(loc), "a list of any values is one Variant, the JSON list it is");
             return new Resolved(Kind.PRIMITIVE, VARIANT, empty);
         }
         Resolved item = resolve(items, child(loc, "items"), owner, singular(property));
@@ -1636,16 +1573,16 @@ public final class JsonSchemaReader {
             return null;
         }
         if (item == NEVER) {
-            note(where(loc), "a list that can hold no value is one Variant, the empty JSON list");
+            note("variant.list", where(loc), "a list that can hold no value is one Variant, the empty JSON list");
             return new Resolved(Kind.PRIMITIVE, VARIANT, empty);
         }
         if (item.many() || item.isVariant()) {
-            note(where(loc), "a list of " + (item.many() ? "lists" : "Variants") + " is one Variant, the JSON list it "
+            note("variant.list", where(loc), "a list of " + (item.many() ? "lists" : "Variants") + " is one Variant, the JSON list it "
                     + "is");
             return new Resolved(Kind.PRIMITIVE, VARIANT, empty);
         }
         if (options.listsAsVariant() && item.kind() != Kind.CLASS) {
-            note(where(loc), "a list of " + item.type() + " is one Variant, the JSON list a column holds ('lists': "
+            note("variant.lists-option", where(loc), "a list of " + item.type() + " is one Variant, the JSON list a column holds ('lists': "
                     + "'variant')");
             return new Resolved(Kind.PRIMITIVE, VARIANT, empty);
         }
@@ -1655,7 +1592,7 @@ public final class JsonSchemaReader {
         }
         if (isTrue(schema, "uniqueItems")) {
             if (item.kind() == Kind.CLASS) {
-                note(where(loc), "uniqueItems of a list of objects is not carried (Pure tells objects apart by "
+                note("rule.not-carried", where(loc), "uniqueItems of a list of objects is not carried (Pure tells objects apart by "
                         + "identity, JSON by value)");
             } else {
                 eachRules.add(new Unique("", false));
@@ -1670,7 +1607,7 @@ public final class JsonSchemaReader {
         return switch (shapeAt(loc)) {
             case CLASS -> new Resolved(Kind.CLASS, classFor(loc, null, false), false);
             case ENUMERATION -> new Resolved(Kind.ENUMERATION, enumFor(loc, n != null ? n.name() : nameFor(loc)),
-                    at(loc) instanceof Json.Obj o && mayBeNull(o));
+                    docs.at(loc) instanceof Json.Obj o && mayBeNull(o));
             case ALIAS -> alias(loc, owner, n != null ? n.name() : property);
         };
     }
@@ -1682,10 +1619,10 @@ public final class JsonSchemaReader {
             return aliases.get(loc);
         }
         if (!resolving.add(loc)) {
-            note(where(loc), "a schema that is itself, through references alone, is any value: a Variant");
+            note("variant.self-reference", where(loc), "a schema that is itself, through references alone, is any value: a Variant");
             return new Resolved(Kind.PRIMITIVE, VARIANT, false);
         }
-        Json.Node node = at(loc);
+        Json.Node node = docs.at(loc);
         Resolved r = resolve(node == null ? Json.bool(true) : node, loc, owner, property);
         resolving.remove(loc);
         aliases.put(loc, r);
@@ -1702,7 +1639,7 @@ public final class JsonSchemaReader {
         }
         boolean empty = nullable || present.size() < values.size();
         if (present.isEmpty()) {
-            note(where(loc), values.isEmpty() ? "an enum of no value is not a property"
+            note("property.no-value", where(loc), values.isEmpty() ? "an enum of no value is not a property"
                     : "a value that is always null is not a property");
             return NEVER;
         }
@@ -1714,7 +1651,7 @@ public final class JsonSchemaReader {
                     : Set.of(type, t).equals(Set.of("Integer", "Float")) ? "Float" : VARIANT;
         }
         if (VARIANT.equals(type)) {
-            note(where(loc), "an enum of values of several types, or not single values, is a Variant");
+            note("variant.enum", where(loc), "an enum of values of several types, or not single values, is a Variant");
             return new Resolved(Kind.PRIMITIVE, VARIANT, empty);
         }
         // the type the schema declares, when its values are of it (an integer's values numbers, a date's texts)
@@ -1874,7 +1811,7 @@ public final class JsonSchemaReader {
                 if (type.equals("Integer") && step.signum() > 0 && step.stripTrailingZeros().scale() <= 0) {
                     out.add(new MultipleOf("", false, step));
                 } else {
-                    note(where(loc), "multipleOf of a number that is not a whole number is not carried");
+                    note("rule.not-carried", where(loc), "multipleOf of a number that is not a whole number is not carried");
                 }
             }
         }
@@ -1919,11 +1856,11 @@ public final class JsonSchemaReader {
         try {
             c = condition.get();
         } catch (Unsaid u) {
-            note(where(place), kindName(kind) + " is not carried: Pure's constraint cannot say " + u.getMessage());
+            note("logic.not-carried", where(place), kindName(kind) + " is not carried: Pure's constraint cannot say " + u.getMessage());
             return;
         }
         if (c.equals(FALSE)) {
-            note(where(place), kindName(kind) + " that no value keeps is not carried");
+            note("logic.never-holds", where(place), kindName(kind) + " that no value keeps is not carried");
         } else if (!c.equals(TRUE)) {
             out.add(new Logic(name, c));
         }
@@ -2032,7 +1969,7 @@ public final class JsonSchemaReader {
                 }
                 case "$ref", "$dynamicRef", "$recursiveRef" -> {
                     String t = followed(loc, v, following);
-                    all.add(whole(at(t), t, scope, following));
+                    all.add(whole(docs.at(t), t, scope, following));
                     following.remove(t);
                 }
                 case "type" -> {
@@ -2147,7 +2084,7 @@ public final class JsonSchemaReader {
                 }
                 case "$ref", "$dynamicRef", "$recursiveRef" -> {
                     String t = followed(loc, v, following);
-                    all.add(value(p, at(t), t, following, each));
+                    all.add(value(p, docs.at(t), t, following, each));
                     following.remove(t);
                 }
                 case "additionalProperties", "unevaluatedProperties" -> {
@@ -2176,7 +2113,7 @@ public final class JsonSchemaReader {
 
     /** The place a reference in a logic names, now followed; one naming no document given, or itself, unsaid. */
     private String followed(String loc, Json.Node ref, Set<String> following) {
-        String t = ref instanceof Json.Str s ? target(loc, s.value()) : null;
+        String t = ref instanceof Json.Str s ? docs.target(loc, s.value()) : null;
         if (t == null) {
             throw new Unsaid("the reference " + Json.toCompact(ref) + ", to nothing in the documents given");
         }
@@ -2383,7 +2320,7 @@ public final class JsonSchemaReader {
         Named n = named.get(loc);
         String name = n != null ? n.name() : unique(suggested);
         enumAt.put(loc, name);
-        Json.Obj schema = schemaAt(loc);
+        Json.Obj schema = docs.schemaAt(loc);
         keywords(schema, loc);
         List<String> texts = new ArrayList<>();
         List<@com.legend.base.Nullable String> docs = new ArrayList<>();
@@ -2393,7 +2330,7 @@ public final class JsonSchemaReader {
                 String t = constText(a);
                 if (t != null && !texts.contains(t)) {
                     texts.add(t);
-                    docs.add(doc(a));
+                    docs.add(label(a));
                 }
             }
         } else {
@@ -2409,6 +2346,7 @@ public final class JsonSchemaReader {
         }
         List<String> givenNames = strings(schema, VALUE_NAMES);
         List<String> values = new ArrayList<>();
+        List<List<Annotation>> valueAnnotations = new ArrayList<>();
         for (int i = 0; i < texts.size(); i++) {
             String text = texts.get(i);
             String raw = givenNames != null && givenNames.size() == texts.size() ? givenNames.get(i) : text;
@@ -2417,13 +2355,12 @@ public final class JsonSchemaReader {
             for (int k = 2; values.contains(value); k++) {
                 value = held + "_" + k;
             }
-            if (!value.equals(text)) {
-                note(where(loc), "a value whose text Pure cannot hold as a name is renamed ('" + text + "' is " + value
-                        + ")");
-            }
             values.add(value);
+            // a value named otherwise than its text: the text kept, as upstream keeps it (and a mapping reads it)
+            valueAnnotations.add(value.equals(text) ? List.of() : List.of(Annotation.tag(GENERATION, "name", text)));
         }
-        enumerations.add(new ImportedEnum(name, doc(schema), values, texts, docs));
+        enumerations.add(new ImportedEnum(name, doc(schema), values, texts, docs,
+                annotations(schema, n != null && keyed.contains(loc) ? n.key() : null, name), valueAnnotations));
         return name;
     }
 
@@ -2443,18 +2380,18 @@ public final class JsonSchemaReader {
                 continue;
             }
             if (VALIDATIONS.contains(key)) {
-                note(where(loc), key + " is not carried (a validation Pure states no constraint for here)");
+                note("rule.not-carried", where(loc), key + " is not carried (a validation Pure states no constraint for here)");
             } else {
-                note(where(loc), "the keyword '" + key + "' is not JSON Schema's, and is not read");
+                note("keyword.unknown", where(loc), "the keyword '" + key + "' is not JSON Schema's, and is not read");
             }
         }
     }
 
     /** A note, said once with where it was first met; met again, counted. */
-    private void note(String where, String message) {
+    private void note(String code, String where, String message) {
         Note n = notes.get(message);
         if (n == null) {
-            notes.put(message, new Note(where.isEmpty() ? "#" : where));
+            notes.put(message, new Note(code, where.isEmpty() ? "#" : where));
         } else {
             n.count++;
         }
@@ -2470,16 +2407,6 @@ public final class JsonSchemaReader {
     // Names
     // ---------------------------------------------------------------------
 
-    /** A schema's or property's name as Pure holds it: as it is when it can be, else camel-cased (noted). */
-    private String pureName(String raw, boolean type, String where) {
-        if (isName(raw) && (!type || Character.isUpperCase(raw.charAt(0)) || !Character.isLetter(raw.charAt(0)))) {
-            return raw;
-        }
-        String held = camelCase(raw, type);
-        note(where, "a name Pure cannot hold as it is is camel-cased ('" + raw + "' is " + held + ")");
-        return held;
-    }
-
     /** A name not yet a class's or enumeration's: {@code name}, else {@code name2}, {@code name3}, ... */
     private String unique(String name) {
         String out = name;
@@ -2487,133 +2414,6 @@ public final class JsonSchemaReader {
             out = name + n;
         }
         return out;
-    }
-
-    /** A name Pure holds as it is: an ASCII letter or {@code _}, then letters, digits and {@code _}; no literal's
-     *  word. */
-    private static boolean isName(String name) {
-        if (name.isEmpty() || Character.isDigit(name.charAt(0)) || LITERAL_WORDS.contains(name)) {
-            return false;
-        }
-        for (int i = 0; i < name.length(); i++) {
-            if (!alnum(name.charAt(i)) && name.charAt(i) != '_') {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** An ASCII letter or digit. */
-    private static boolean alnum(char c) {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
-    }
-
-    private static boolean hex(char c) {
-        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-    }
-
-    /** Whether a text is one or more ASCII digits: an index into a list. */
-    private static boolean digits(String text) {
-        for (int i = 0; i < text.length(); i++) {
-            if (text.charAt(i) < '0' || text.charAt(i) > '9') {
-                return false;
-            }
-        }
-        return !text.isEmpty();
-    }
-
-    /** A text cut at each {@code separator}: every part, the empty ones too. */
-    private static List<String> parts(String text, char separator) {
-        List<String> out = new ArrayList<>();
-        int start = 0;
-        for (int i = 0; i <= text.length(); i++) {
-            if (i == text.length() || text.charAt(i) == separator) {
-                out.add(text.substring(start, i));
-                start = i + 1;
-            }
-        }
-        return out;
-    }
-
-    /** A document's file name without its extension ({@code common.yaml} is {@code common}). */
-    private static String withoutExtension(String file) {
-        int dot = file.lastIndexOf('.');
-        if (dot <= 0 || dot == file.length() - 1) {
-            return file;
-        }
-        for (int i = dot + 1; i < file.length(); i++) {
-            char c = file.charAt(i);
-            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))) {
-                return file;
-            }
-        }
-        return file.substring(0, dot);
-    }
-
-    /** The runs of ASCII letters and digits of a text: the words a name is made of. */
-    private static List<String> words(String raw) {
-        List<String> out = new ArrayList<>();
-        int start = -1;
-        for (int i = 0; i <= raw.length(); i++) {
-            boolean in = i < raw.length() && alnum(raw.charAt(i));
-            if (in && start < 0) {
-                start = i;
-            } else if (!in && start >= 0) {
-                out.add(raw.substring(start, i));
-                start = -1;
-            }
-        }
-        return out;
-    }
-
-    /** Upstream's camel case ({@code makeCamelCase}) of the parts between characters a name cannot hold. */
-    static String camelCase(String raw, boolean upperFirst) {
-        StringBuilder out = new StringBuilder();
-        for (String part : words(raw)) {
-            String rest = part.substring(1);
-            boolean first = out.length() == 0;
-            out.append(upperFirst || !first ? part.substring(0, 1).toUpperCase(Locale.ROOT)
-                    : part.substring(0, 1).toLowerCase(Locale.ROOT))
-                    .append(rest.equals(rest.toUpperCase(Locale.ROOT)) ? rest.toLowerCase(Locale.ROOT) : rest);
-        }
-        String held = out.length() == 0 ? "_" : out.toString();
-        held = Character.isDigit(held.charAt(0)) ? "_" + held : held;
-        return LITERAL_WORDS.contains(held) ? held + "_" : held;
-    }
-
-    /** An enumeration value as Pure holds it: each character a name cannot hold made {@code _}. */
-    private static String valueName(String value) {
-        StringBuilder made = new StringBuilder(value.length());
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            made.append(alnum(c) || c == '_' ? c : '_');
-        }
-        String held = made.toString();
-        if (held.isEmpty()) {
-            return "_";
-        }
-        held = Character.isDigit(held.charAt(0)) ? "_" + held : held;
-        return LITERAL_WORDS.contains(held) ? held + "_" : held;
-    }
-
-    private static String upperFirst(String name) {
-        return name.isEmpty() ? name : name.substring(0, 1).toUpperCase(Locale.ROOT) + name.substring(1);
-    }
-
-    /** One of a list property's items, named for a class or enumeration of its own: {@code lines} a line. */
-    static String singular(String plural) {
-        if (plural.endsWith("ies") && plural.length() > 3) {
-            return plural.substring(0, plural.length() - 3) + "y";
-        }
-        if (plural.endsWith("sses") || plural.endsWith("xes") || plural.endsWith("ches") || plural.endsWith("shes")) {
-            return plural.substring(0, plural.length() - 2);
-        }
-        // status, analysis, address: a singular already
-        if (plural.endsWith("s") && !plural.endsWith("ss") && !plural.endsWith("us") && !plural.endsWith("is")
-                && plural.length() > 1) {
-            return plural.substring(0, plural.length() - 1);
-        }
-        return plural;
     }
 
     // ---------------------------------------------------------------------
@@ -2624,8 +2424,8 @@ public final class JsonSchemaReader {
         return o.getOr(key, null) instanceof Json.Str s ? s.value() : null;
     }
 
-    /** An element's documentation: its description (VS Code's markdown one when it has no plain one), else its
-     *  title. */
+    /** An element's documentation: its description (VS Code's markdown one when it has no plain one); its title is
+     *  a tag of its own ({@link #annotations}), as upstream writes it. */
     private static @com.legend.base.Nullable String doc(Json.Obj o) {
         for (String k : List.of("description", "markdownDescription")) {
             String d = text(o, k);
@@ -2633,7 +2433,49 @@ public final class JsonSchemaReader {
                 return d;
             }
         }
-        return text(o, "title");
+        return null;
+    }
+
+    /** A value's documentation, a {@code const} of a union's: its description, else its title. */
+    private static @com.legend.base.Nullable String label(Json.Obj o) {
+        String d = doc(o);
+        return d != null ? d : text(o, "title");
+    }
+
+    /**
+     * What a schema says of an element beyond its shape, as upstream's profiles say it: its name in the schema
+     * ({@code schemaName}) where Pure's differs, its title where it is neither name, an example, readOnly and
+     * writeOnly.
+     */
+    private static List<Annotation> annotations(Json.Obj schema, @com.legend.base.Nullable String schemaName,
+            String pureName) {
+        List<Annotation> out = new ArrayList<>();
+        if (schemaName != null && !schemaName.equals(pureName)) {
+            out.add(Annotation.tag(GENERATION, "name", schemaName));
+        }
+        String title = text(schema, "title");
+        if (title != null && !title.strip().isEmpty() && !title.equals(pureName) && !title.equals(schemaName)) {
+            out.add(Annotation.tag(GENERATION, "title", title));
+        }
+        Json.Node example = schema.getOr("example", null);
+        if (example == null && schema.getOr("examples", null) instanceof Json.Arr examples
+                && !examples.items().isEmpty()) {
+            example = examples.items().get(0);
+        }
+        if (example != null && !(example instanceof Json.Null) && json(example).length() <= EXAMPLE_LIMIT) {
+            out.add(Annotation.tag(GENERATION, "example", json(example)));
+        }
+        for (String k : List.of("readOnly", "writeOnly")) {
+            if (isTrue(schema, k)) {
+                out.add(Annotation.stereotype(GENERATION, k));
+            }
+        }
+        return out;
+    }
+
+    /** A JSON value as a tag holds it: a text as itself, anything else as its JSON. */
+    private static String json(Json.Node value) {
+        return value instanceof Json.Str s ? s.value() : Json.toCompact(value);
     }
 
     /** Whether a schema says it is deprecated: {@code deprecated}, or VS Code's {@code deprecationMessage}. */
@@ -2735,7 +2577,7 @@ public final class JsonSchemaReader {
             case CLASS -> false;
         };
         if (!fits) {
-            note(where(loc), "a default that is not one value of its property's type is not carried");
+            // kept as the schema says it, a tag (buildClass)
             return null;
         }
         if (r.kind() == Kind.ENUMERATION && d instanceof Json.Str s) {
@@ -2743,7 +2585,7 @@ public final class JsonSchemaReader {
                 if (e.name().equals(r.type())) {
                     int i = e.texts().indexOf(s.value());
                     if (i < 0) {
-                        note(where(loc), "a default that is not one of its enumeration's values is not carried");
+                        // not one of its values: kept as the schema says it, a tag (buildClass)
                         return null;
                     }
                     return Json.str(e.values().get(i));

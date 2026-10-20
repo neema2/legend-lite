@@ -100,6 +100,17 @@ class JsonSchemaReaderTest {
         return out;
     }
 
+    /** The notes as a person reads them: {@code where: message (n times)}. */
+    private static List<String> notes(ImportedModel m) {
+        return m.notes().stream().map(ImportedModel.Note::toString).toList();
+    }
+
+    /** Annotations as {@code profile.name} (a stereotype) or {@code profile.name=value} (a tag). */
+    private static List<String> annotations(List<ImportedModel.Annotation> annotations) {
+        return annotations.stream().map(a -> a.profile() + "." + a.name() + (a.value() == null ? "" : "=" + a.value()))
+                .toList();
+    }
+
     private static String rule(Rule r) {
         String p = (r.each() ? "each " : "") + r.property();
         return switch (r) {
@@ -154,7 +165,7 @@ class JsonSchemaReaderTest {
         assertEquals(List.of("Side[BUY, SELL]"), enumerations(m));
         assertEquals("a trade", m.classes().get(0).doc());
         assertEquals("which way", m.enumerations().get(0).doc());
-        assertEquals(List.of(), m.notes(), "a list's bounds are its multiplicity's");
+        assertEquals(List.of(), notes(m), "a list's bounds are its multiplicity's");
     }
 
     @Test
@@ -209,11 +220,37 @@ class JsonSchemaReaderTest {
                 {`$defs`: {`Order`: {`type`: `object`, `properties`: {
                   `status`: {`type`: `string`, `enum`: [`open`, `closed`]},
                   `shipping`: {`type`: `object`, `properties`: {`city`: {`type`: `string`}}},
-                  `lines`: {`type`: `array`, `items`: {`type`: `object`, `properties`: {`sku`: {`type`: `string`}}}}}}}}""");
+                  `lines`: {`type`: `array`, `items`: {`type`: `object`, `properties`: {`sku`: {`type`: `string`}}}},
+                  `tax_ids`: {`type`: `array`, `items`: {`type`: `object`, `properties`: {`id`: {`type`: `string`}}}},
+                  `tax_exempt`: {`type`: `string`, `enum`: [`none`, `exempt`]}}}}}""");
         assertEquals(List.of("Order{status: E OrderStatus[0..1], shipping: C OrderShipping[0..1], "
-                        + "lines: C OrderLine[*]}", "owned OrderShipping{city: P String[0..1]}",
-                "owned OrderLine{sku: P String[0..1]}"), classes(m), "an inline object follows its owner; a list's "
-                + "item named in the singular");
+                        + "lines: C OrderLine[*], tax_ids: C OrderTaxId[*], tax_exempt: E OrderTaxExempt[0..1]}",
+                "owned OrderShipping{city: P String[0..1]}", "owned OrderLine{sku: P String[0..1]}",
+                "owned OrderTaxId{id: P String[0..1]}"), classes(m), "an inline object follows its owner, the "
+                + "property's name in camel case; a list's item named in the singular");
+        assertEquals(List.of("OrderStatus[open, closed]", "OrderTaxExempt[none, exempt]"), enumerations(m));
+    }
+
+    @Test
+    @DisplayName("an object or an enum written in place twice, of one text, is one class or enumeration, named after the "
+            + "first; a schema the document names is its own")
+    void twinsWrittenInPlaceAreOne() {
+        ImportedModel m = read("""
+                {`$defs`: {
+                  `Order`: {`type`: `object`, `properties`: {
+                    `status`: {`type`: `string`, `enum`: [`open`, `closed`]},
+                    `address`: {`type`: `object`, `properties`: {`city`: {`type`: `string`}}}}},
+                  `Invoice`: {`type`: `object`, `properties`: {
+                    `state`: {`type`: `string`, `enum`: [`open`, `closed`]},
+                    `billing`: {`type`: `object`, `properties`: {`city`: {`type`: `string`}}},
+                    `shipping`: {`type`: `object`, `description`: `where it goes`, `properties`: {
+                      `city`: {`type`: `string`}}}}},
+                  `City`: {`type`: `object`, `properties`: {`city`: {`type`: `string`}}}}}""");
+        assertEquals(List.of("Order{status: E OrderStatus[0..1], address: C OrderAddress[0..1]}",
+                "owned OrderAddress{city: P String[0..1]}",
+                "Invoice{state: E OrderStatus[0..1], billing: C OrderAddress[0..1], shipping: C InvoiceShipping[0..1]}",
+                "owned InvoiceShipping{city: P String[0..1]}", "City{city: P String[0..1]}"), classes(m),
+                "billing is address's text: its class; shipping says more (a description): its own; City is named");
         assertEquals(List.of("OrderStatus[open, closed]"), enumerations(m));
     }
 
@@ -251,7 +288,7 @@ class JsonSchemaReaderTest {
                 "#/$defs/T/properties/pair: a tuple (prefixItems, items as a list) is a Variant, the JSON list it is",
                 "#/$defs/T/properties/grid: a list of lists is one Variant, the JSON list it is",
                 "#/$defs/T/properties/maybe: a union (anyOf) of values that are not all objects is a Variant (Pure has "
-                        + "no union type)"), m.notes());
+                        + "no union type)"), notes(m));
     }
 
     @Test
@@ -280,10 +317,8 @@ class JsonSchemaReaderTest {
                 "owned PaymentMethodCard[PaymentMethod]{last4: P String[0..1]}",
                 "owned PaymentMethodOption2[PaymentMethod]{iban: P String[0..1]}",
                 "PaymentPayee{}"), classes(m), "Dog's allOf and the union name Pet once; Cat gains it from the union");
-        assertEquals(List.of("#/components/schemas/Payment/properties/method/oneOf/0: a name Pure cannot hold as it is "
-                + "is camel-cased ('card' is Card)",
-                "#/components/schemas/Payment/properties/payee: anyOf is read as oneOf (an instance is one of its "
-                        + "alternatives)"), m.notes());
+        assertEquals(List.of("#/components/schemas/Payment/properties/payee: anyOf is read as oneOf (an instance is one "
+                + "of its alternatives)"), notes(m));
     }
 
     @Test
@@ -299,7 +334,7 @@ class JsonSchemaReaderTest {
                 classes(m));
         assertEquals(List.of("#/$defs/D/allOf/0: an allOf naming its own schema names no superclass, and is skipped",
                 "A: a class that would be its own superclass (A extends B extends A) does not extend B"),
-                m.notes().stream().sorted().toList());
+                notes(m).stream().sorted().toList());
     }
 
     @Test
@@ -319,7 +354,7 @@ class JsonSchemaReaderTest {
                 "Tag{name: P String[0..1]}"), classes(m));
         assertEquals(List.of("#/$defs/Pet/properties/photoUrls: a list of String is one Variant, the JSON list a column "
                 + "holds ('lists': 'variant')", "#/$defs/Pet/properties/moods: a list of PetMood is one Variant, the JSON "
-                + "list a column holds ('lists': 'variant')"), m.notes());
+                + "list a column holds ('lists': 'variant')"), notes(m));
     }
 
     @Test
@@ -342,7 +377,7 @@ class JsonSchemaReaderTest {
                 "#/$defs/T/properties/missing: the reference '#/$defs/Nope' names nothing in the documents given: a "
                         + "Variant (give the document it names in 'documents')",
                 "#/$defs/T/properties/never/not: a not is not carried: Pure's constraint cannot say the type of a "
-                        + "Variant"), m.notes().stream().sorted().toList());
+                        + "Variant"), notes(m).stream().sorted().toList());
     }
 
     @Test
@@ -361,13 +396,13 @@ class JsonSchemaReaderTest {
                 + "code~/^[A-Z]+$/; price>0; len(each tags)>=1; unique(tags)"), rules(m),
                 "draft 4's boolean exclusiveMinimum; a step that is not whole not carried");
         assertEquals(List.of("TradeEventSide[buy_side, sell]"), enumerations(m));
-        assertEquals(List.of(
-                "#/$defs/trade_event: a name Pure cannot hold as it is is camel-cased ('trade_event' is TradeEvent)",
-                "#/$defs/trade_event/properties/trade-id: a name Pure cannot hold as it is is camel-cased ('trade-id' "
-                        + "is tradeId)",
-                "#/$defs/trade_event/properties/price: multipleOf of a number that is not a whole number is not carried",
-                "#/$defs/trade_event/properties/side: a value whose text Pure cannot hold as a name is renamed "
-                        + "('buy-side' is buy_side)"), m.notes());
+        assertEquals(List.of("#/$defs/trade_event/properties/price: multipleOf of a number that is not a whole number "
+                + "is not carried"), notes(m), "a rename is no note: the name in the schema is carried");
+        String name = "meta::json::schema::JSONSchemaGeneration.name";
+        assertEquals(List.of(name + "=trade_event"), annotations(m.classes().get(0).annotations()));
+        assertEquals(List.of(name + "=trade-id"), annotations(m.classes().get(0).properties().get(0).annotations()));
+        assertEquals(List.of(List.of(name + "=buy-side"), List.of()), m.enumerations().get(0).valueAnnotations().stream()
+                .map(JsonSchemaReaderTest::annotations).toList(), "as legend-engine's import keeps a renamed value's text");
     }
 
     @Test
@@ -442,7 +477,7 @@ class JsonSchemaReaderTest {
         String variant = "meta::pure::metamodel::variant::Variant";
         assertEquals(List.of("T{any: P " + variant + "[1], list: P " + variant + "[0..1]}"), classes(m));
         assertEquals(List.of("#/$defs/T/properties/none: a property that can hold no value is not a property",
-                "#/$defs/T/properties/list: a list of any values is one Variant, the JSON list it is"), m.notes());
+                "#/$defs/T/properties/list: a list of any values is one Variant, the JSON list it is"), notes(m));
     }
 
     @Test
@@ -507,9 +542,9 @@ class JsonSchemaReaderTest {
         }
         assertEquals(List.of("retries = 3", "ratio = 1", "mode = \"slow_mode\"", "on", "old deprecated"), props,
                 "an enumeration's default by its value's Pure name");
-        assertEquals(List.of("#/$defs/Mode: a value whose text Pure cannot hold as a name is renamed ('slow mode' is "
-                + "slow_mode)", "#/$defs/T/properties/on: a default that is not one value of its property's type is not "
-                + "carried"), m.notes());
+        assertEquals(List.of("meta::json::schema::JSONSchemaGeneration.defaultValue=yes"),
+                annotations(t.properties().get(3).annotations()), "a default no Pure value: the schema's, a tag");
+        assertEquals(List.of(), notes(m));
     }
 
     @Test
@@ -520,7 +555,9 @@ class JsonSchemaReaderTest {
                   `defaultSnippets`: [], `javaType`: `x.T`, `properties`: {
                     `a`: {`type`: `string`, `errorMessage`: `bad`, `tsType`: `string`}}}}}""");
         assertEquals(List.of("#/$defs/T: minProperties is not carried (a validation Pure states no constraint for here)",
-                "#/$defs/T: the keyword 'abcIsValid' is not JSON Schema's, and is not read"), m.notes());
+                "#/$defs/T: the keyword 'abcIsValid' is not JSON Schema's, and is not read"), notes(m));
+        assertEquals(List.of("rule.not-carried", "keyword.unknown"), m.notes().stream().map(ImportedModel.Note::code)
+                .toList(), "each note its code, for a reader of notes to group by");
     }
 
     @Test
@@ -561,7 +598,7 @@ class JsonSchemaReaderTest {
                 + "oneOf{((email? & !phone?) | (phone? & !email?))}; "
                 + "ibanDependency{(!iban? | !kind? | kind>=1)}; "
                 + "amountNot{(!amount? | !amount in [0])}"), rules(m), "a required property's presence is always");
-        assertEquals(List.of(), m.notes());
+        assertEquals(List.of(), notes(m));
     }
 
     @Test
@@ -583,7 +620,7 @@ class JsonSchemaReaderTest {
                 "#/$defs/Job/allOf/1: a condition (if/then/else) is not carried: Pure's constraint cannot say a const "
                         + "or enum of a Variant",
                 "#/$defs/Job/allOf/2: a condition (if/then/else) is not carried: Pure's constraint cannot say 'nope', "
-                        + "not a property of the class"), m.notes());
+                        + "not a property of the class"), notes(m));
     }
 
     @Test

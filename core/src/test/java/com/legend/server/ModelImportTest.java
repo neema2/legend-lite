@@ -175,11 +175,12 @@ class ModelImportTest {
                   nameMaxLength: $this.name->length() <= 100
                 ]
                 {
-                  id: Integer[1];
+                  <<meta::json::schema::JSONSchemaTypeExtension.int64>> id: Integer[1];
                   name: String[1];
-                  since: StrictDate[0..1];
+                  <<meta::json::schema::JSONSchemaTypeExtension.null>> since: StrictDate[0..1];
                 }
-                """, file(a, "trades::domain::Customer"), "a validation a constraint");
+                """, file(a, "trades::domain::Customer"), "a validation a constraint; a format and nullable as "
+                + "upstream's import marks them");
         assertEquals(List.of(), a.get("notes"));
 
         // imported again, over what it wrote: nothing changes
@@ -260,14 +261,14 @@ class ModelImportTest {
     }
 
     /** A schema whose validations and logic leave each row of {@link #PAYMENTS} but three: each made a constraint. */
-    private static final String PAYMENT = """
+    static final String PAYMENT = """
             {"title": "Payment", "type": "object", "required": ["id", "method"],
              "properties": {
                "id": {"type": "integer"},
                "method": {"enum": ["card", "bank", "cash"]},
-               "card": {"type": "string", "pattern": "^[0-9]{4}$"},
+               "card": {"type": "string", "pattern": "^\\\\d{4}$"},
                "iban": {"type": "string", "minLength": 4},
-               "cvv": {"type": "string"}, "email": {"type": "string"}, "phone": {"type": "string"},
+               "cvv": {"type": "string", "pattern": "^(?!000)"}, "email": {"type": "string"}, "phone": {"type": "string"},
                "amount": {"type": "integer", "minimum": 1, "maximum": 1000, "multipleOf": 5, "not": {"const": 500}},
                "currency": {"type": "string", "not": {"enum": ["XXX", "XTS"]}}},
              "if": {"properties": {"method": {"const": "card"}}},
@@ -281,7 +282,7 @@ class ModelImportTest {
 
     /** The rows, each the JSON value a NULL leaves out of: each but 1, 3 and 14 breaks one rule of {@link #PAYMENT}
      *  (python-jsonschema 4.26.0, Draft 2020-12, accepts exactly 1, 3 and 14: checked 2026-10-20). */
-    private static final String PAYMENTS = """
+    static final String PAYMENTS = """
             (1, 'card', '1234', NULL, '999', 'a@x', NULL, 10, 'USD'), \
             (2, 'card', NULL, NULL, '999', 'a@x', NULL, NULL, NULL), \
             (3, 'bank', NULL, 'DE00', NULL, NULL, '1', NULL, 'EUR'), \
@@ -301,10 +302,32 @@ class ModelImportTest {
             (17, 'card', '1234', 'DE00', '1', 'a@x', NULL, NULL, 'EUR'), \
             (18, 'cash', NULL, NULL, NULL, NULL, '2', 0, NULL)""";
 
-    @Test
-    @DisplayName("a schema's validations and logic as constraints, each run on DuckDB as a filter: the rows they keep "
-            + "are the rows JSON Schema keeps")
-    void constraintsKeepWhatTheSchemaKeeps() throws Exception {
+    /** Each constraint {@link #PAYMENT} makes, the rows of {@link #PAYMENTS} it rejects. */
+    static final Map<String, List<String>> REJECTED = rejected();
+
+    private static Map<String, List<String>> rejected() {
+        Map<String, List<String>> out = new LinkedHashMap<>();
+        out.put("cardPattern", List.of("7"));
+        out.put("ibanMinLength", List.of("16"));
+        out.put("amountMinimum", List.of("18"));
+        out.put("amountMaximum", List.of("13"));
+        out.put("amountMultipleOf", List.of("12"));
+        out.put("cardRequires", List.of("8"));
+        out.put("condition", List.of("2", "6"));
+        out.put("exclusion", List.of("17"));
+        out.put("oneOf", List.of("9", "10"));
+        out.put("ibanDependency", List.of("4", "5"));
+        out.put("amountNot", List.of("11"));
+        out.put("currencyNot", List.of("15"));
+        return out;
+    }
+
+    /**
+     * {@link #PAYMENT} imported into a project whose store is {@code store::DB} and whose connection is
+     * {@code connection}, its class mapped by {@code SELECT * FROM tb('store::DB.PAYMENTS')}, {@link #PAYMENTS} loaded
+     * on {@code conn}, and each constraint run there as a query's filter: the rows each rejects.
+     */
+    static Map<String, List<String>> rejectedOn(String connection, Connection conn) throws Exception {
         Map<String, String> files = new LinkedHashMap<>();
         files.put("store::DB", """
                 ###Relational
@@ -314,11 +337,16 @@ class ModelImportTest {
                 cvv VARCHAR(5), email VARCHAR(40), phone VARCHAR(20), amount INTEGER, currency VARCHAR(3))
                 )
                 """);
-        files.put("store::Conn", start().get("store::Conn"));
+        files.put("store::Conn", "###Connection\nRelationalDatabaseConnection store::Conn { " + connection + " }\n");
         files.put("store::RT", start().get("store::RT"));
         Map<String, Object> imported = wrote(files, ModelChanges.importSchema(Json.parseObject(request(files,
                 "\"schema\": {\"format\": \"jsonSchema\", \"content\": " + Json.toCompact(PAYMENT) + "}"))));
-        assertEquals(List.of(), imported.get("notes"), "every validation and every condition carried");
+        assertEquals(List.of("Payment.cvv: its pattern is not carried: it looks ahead ((?!), which RE2 cannot "
+                + "(^(?!000))"), imported.get("notes"), "every validation and every condition carried but a lookahead, "
+                + "which no constraint the databases run can say");
+        assertEquals(List.of(Map.of("code", "rule.not-carried", "where", "Payment.cvv", "message", "its pattern is not "
+                + "carried: it looks ahead ((?!), which RE2 cannot (^(?!000))", "count", 1)), imported.get("findings"),
+                "the note as a finding: its code, its place, its message, how many times");
         wrote(files, mapClass(files, """
                 "class": "trades::domain::Payment", "runtime": "store::RT",
                 "sql": "SELECT * FROM tb('store::DB.PAYMENTS')\""""));
@@ -334,48 +362,93 @@ class ModelImportTest {
         assertEquals("(!$this.method->toOne()->in([trades::domain::PaymentMethod.card]) || $this.card->isNotEmpty()) "
                 + "&& ($this.card->isEmpty() || $this.method->toOne()->in([trades::domain::PaymentMethod.card]))",
                 constraints.get("condition"), "if/then/else, the method required: of it, its value alone");
+        assertEquals("$this.card->isEmpty() || $this.card->toOne()->regexpLike('^\\\\d{4}$')",
+                constraints.get("cardPattern"), "a pattern in RE2, matching anywhere as JSON Schema's");
 
         String model = text(files);
         QueryService qs = new QueryService();
-        try (Connection conn = TestBackends.platform().open(); Statement s = conn.createStatement()) {
+        try (Statement s = conn.createStatement()) {
             s.execute("CREATE TABLE PAYMENTS (id INTEGER NOT NULL, method VARCHAR, card VARCHAR, iban VARCHAR, "
                     + "cvv VARCHAR, email VARCHAR, phone VARCHAR, amount INTEGER, currency VARCHAR)");
             s.execute("INSERT INTO PAYMENTS VALUES " + PAYMENTS);
-            Map<String, List<String>> broken = new LinkedHashMap<>();
-            for (Map.Entry<String, String> c : constraints.entrySet()) {
-                // the rows the constraint keeps, each the class's value as $this
-                List<String> kept = rows(qs.execute(model, "trades::domain::Payment.all()->filter(this|" + c.getValue()
-                        + ")->project(~[id: x|$x.id])", "store::RT", conn));
-                List<String> out = new ArrayList<>();
-                for (int id = 1; id <= 18; id++) {
-                    if (!kept.contains(Integer.toString(id))) {
-                        out.add(Integer.toString(id));
-                    }
-                }
-                broken.put(c.getKey(), out);
-            }
-            Map<String, List<String>> expected = new LinkedHashMap<>();
-            expected.put("cardPattern", List.of("7"));
-            expected.put("ibanMinLength", List.of("16"));
-            expected.put("amountMinimum", List.of("18"));
-            expected.put("amountMaximum", List.of("13"));
-            expected.put("amountMultipleOf", List.of("12"));
-            expected.put("cardRequires", List.of("8"));
-            expected.put("condition", List.of("2", "6"));
-            expected.put("exclusion", List.of("17"));
-            expected.put("oneOf", List.of("9", "10"));
-            expected.put("ibanDependency", List.of("4", "5"));
-            expected.put("amountNot", List.of("11"));
-            expected.put("currencyNot", List.of("15"));
-            assertEquals(expected, broken, "each constraint, the rows it rejects");
-            List<String> valid = new ArrayList<>();
+        }
+        Map<String, List<String>> rejected = new LinkedHashMap<>();
+        for (Map.Entry<String, String> c : constraints.entrySet()) {
+            // the rows the constraint keeps, each the class's value as $this
+            List<String> kept = rows(qs.execute(model, "trades::domain::Payment.all()->filter(this|" + c.getValue()
+                    + ")->project(~[id: x|$x.id])", "store::RT", conn));
+            List<String> out = new ArrayList<>();
             for (int id = 1; id <= 18; id++) {
-                String row = Integer.toString(id);
-                if (broken.values().stream().noneMatch(b -> b.contains(row))) {
-                    valid.add(row);
+                if (!kept.contains(Integer.toString(id))) {
+                    out.add(Integer.toString(id));
                 }
             }
-            assertEquals(List.of("1", "3", "14"), valid, "the rows JSON Schema keeps");
+            rejected.put(c.getKey(), out);
+        }
+        return rejected;
+    }
+
+    /** The rows no constraint rejects. */
+    static List<String> valid(Map<String, List<String>> rejected) {
+        List<String> valid = new ArrayList<>();
+        for (int id = 1; id <= 18; id++) {
+            String row = Integer.toString(id);
+            if (rejected.values().stream().noneMatch(b -> b.contains(row))) {
+                valid.add(row);
+            }
+        }
+        return valid;
+    }
+
+    @Test
+    @DisplayName("a schema's validations and logic as constraints, each run on DuckDB as a filter: the rows they keep "
+            + "are the rows JSON Schema keeps")
+    void constraintsKeepWhatTheSchemaKeeps() throws Exception {
+        try (Connection conn = TestBackends.platform().open()) {
+            Map<String, List<String>> rejected = rejectedOn("type: DuckDB; specification: DuckDB { }; auth: Test;",
+                    conn);
+            assertEquals(REJECTED, rejected, "each constraint, the rows it rejects");
+            assertEquals(List.of("1", "3", "14"), valid(rejected), "the rows JSON Schema keeps");
+        }
+    }
+
+    @Test
+    @DisplayName("an enumeration's values renamed for Pure keep their schema text, and a mapping reads the column by it")
+    void enumerationValuesReadTheirSchemaText() throws Exception {
+        Map<String, String> files = new LinkedHashMap<>();
+        files.put("store::DB", """
+                ###Relational
+                Database store::DB
+                (
+                  Table ORDERS (id INTEGER NOT NULL, side VARCHAR(10))
+                )
+                """);
+        files.put("store::Conn", start().get("store::Conn"));
+        files.put("store::RT", start().get("store::RT"));
+        Map<String, Object> imported = wrote(files, ModelChanges.importSchema(Json.parseObject(request(files, """
+                "schema": {"format": "jsonSchema", "content": %s}""".formatted(Json.toCompact("""
+                {"title": "Order", "type": "object", "required": ["id", "side"], "properties": {
+                  "id": {"type": "integer"}, "side": {"enum": ["buy-side", "sell-side", "2x"]}}}
+                """))))));
+        assertEquals("""
+                Enum trades::domain::OrderSide
+                {
+                  {meta::json::schema::JSONSchemaGeneration.name = 'buy-side'} buy_side,
+                  {meta::json::schema::JSONSchemaGeneration.name = 'sell-side'} sell_side,
+                  {meta::json::schema::JSONSchemaGeneration.name = '2x'} _2x
+                }
+                """, file(imported, "trades::domain::OrderSide"), "as legend-engine's import keeps a value's text");
+        Map<String, Object> mapped = wrote(files, mapClass(files, """
+                "class": "trades::domain::Order", "runtime": "store::RT",
+                "sql": "SELECT * FROM tb('store::DB.ORDERS')\""""));
+        assertTrue(file(mapped, "trades::mapping::OrderMapping").contains("    buy_side: ['buy-side'],\n"
+                + "    sell_side: ['sell-side'],\n    _2x: ['2x']\n"), file(mapped, "trades::mapping::OrderMapping"));
+        try (Connection conn = TestBackends.platform().open(); Statement s = conn.createStatement()) {
+            s.execute("CREATE TABLE ORDERS (id INTEGER NOT NULL, side VARCHAR)");
+            s.execute("INSERT INTO ORDERS VALUES (1, 'buy-side'), (2, 'sell-side'), (3, '2x')");
+            assertEquals(List.of("1 buy_side", "2 sell_side", "3 _2x"), rows(new QueryService().execute(text(files),
+                    "trades::domain::Order.all()->project(~[id: x|$x.id, side: x|$x.side])->sort(~id->ascending())",
+                    "store::RT", conn)), "no enumeration mapping written by hand");
         }
     }
 
@@ -583,12 +656,14 @@ class ModelImportTest {
                             barks: {type: boolean}
                 """);
         assertEquals("""
-                Class trades::domain::Cat extends trades::domain::Pet
+                Class {meta::json::schema::JSONSchemaOpenAPIExtension.discriminatorName = 'Cat'} trades::domain::Cat \
+                extends trades::domain::Pet
                 {
                   purrs: Boolean[0..1];
                 }
-                """, file(a, "trades::domain::Cat"));
-        assertTrue(file(a, "trades::domain::Dog").startsWith("Class trades::domain::Dog extends trades::domain::Pet\n"),
+                """, file(a, "trades::domain::Cat"), "the discriminator's value of each alternative, by default its name");
+        assertTrue(file(a, "trades::domain::Dog").startsWith("Class {meta::json::schema::JSONSchemaOpenAPIExtension"
+                + ".discriminatorName = 'Dog'} trades::domain::Dog extends trades::domain::Pet\n"),
                 file(a, "trades::domain::Dog"));
         // a subclass's SELECT reads the union's properties too
         Map<String, String> files = start();

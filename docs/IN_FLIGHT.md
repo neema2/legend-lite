@@ -2434,3 +2434,25 @@ making json schema super bulletproof with all the features"; the study's §4, §
 - **No guard moves.** The two guard-flagged shapes the work met were changed instead: a mutable field made an explicit
   argument (`CodeShapeGuardrailTest`), two `default -> "literal"` arms a table and a throw (`ErrorShapeGuardrailTest`).
 - **Register rows** S93 (validations and logic as constraints), S94 (a root list or map).
+
+**Announced 2026-10-20, before landing, on the same branch: patterns, upstream's conventions, Postgres, a fuzzer**
+(the user: "keep going with making json schema import amazing and bulletproof and useful and expert"; the study's
+§4, §4.4, §4.6, §4.7).
+- **New files:** `server/EcmaPattern.java` (a JSON Schema pattern in RE2, the platform's regex dialect) and its
+  `EcmaPatternTest`; `server/ModelImportPostgresTest.java`; `server/ImportSchemaFuzzTest.java`.
+- **This line's own files:** `ImportedModel` (annotations, coded notes), `JsonSchemaReader` (legend-engine's JSON
+  Schema profiles: a renamed name kept as `JSONSchemaGeneration.name`, title, example, readOnly, the discriminator;
+  renames no longer notes), `ImportSchema` (`regexpLike`; annotations; `findings` in the answer; an association name
+  numbered against this import's own), `MapClass` (an enumeration's values read by their schema text), their tests;
+  then twins (an inline schema of one text one class, as openapi-generator's), generated names in camel case; the
+  reader's documents and references moved to a new `SchemaDocuments`, its naming to a new `SchemaNames` (the reader's
+  output unchanged, byte for byte, over 425 corpus documents); `ImportSchema`'s notes its own `Finding` record (a
+  `protocol` record built in `server` would grow `ArchitectureTest`'s protocol-construction ratchet).
+- **`ModelChanges` (shared with Create a Class's routes):** a new `put(String)` beside `put(Json.Obj)`, which is
+  unchanged: an element whose text the printer prints as written is not read back again (the import's speed, the
+  study's §4.6).
+- **Build edits:** `core/BUILD.bazel` (`EcmaPattern` in `:pure_v1`, out of `:server_lib`; the new
+  `:model_import_postgres_test`, out of `:core_tests_lib` as the other Postgres tests), `gates/BUILD.bazel` (the core
+  lane gains it).
+- **Register:** S89 and S93 verified against legend-engine 4.145.0 (no longer pending); S95 (names).
+- **Found for the compiler's owners:** a tag of a profile no model declares compiles (the study's D11).

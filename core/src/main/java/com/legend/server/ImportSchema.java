@@ -3,7 +3,6 @@
 
 package com.legend.server;
 
-import static com.legend.server.ModelChanges.element;
 import static com.legend.server.ModelChanges.literal;
 import static com.legend.server.ModelChanges.lowerFirst;
 import static com.legend.server.ModelChanges.refused;
@@ -12,6 +11,7 @@ import static com.legend.server.ModelChanges.upperFirst;
 import com.legend.json.Json;
 import com.legend.protocol.schema.ImportedModel;
 import com.legend.protocol.schema.ImportedModel.All;
+import com.legend.protocol.schema.ImportedModel.Annotation;
 import com.legend.protocol.schema.ImportedModel.Any;
 import com.legend.protocol.schema.ImportedModel.Bound;
 import com.legend.protocol.schema.ImportedModel.Condition;
@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -69,15 +70,39 @@ final class ImportSchema {
 
     private static final String DOC = "meta::pure::profiles::doc.doc";
 
-    private static final String DEPRECATED = "<<meta::pure::profiles::doc.deprecated>> ";
+    private static final String DEPRECATED = "meta::pure::profiles::doc.deprecated";
 
-    /** An import made: the elements written, by kind. */
-    record Made(List<String> classes, List<String> enumerations, List<String> associations) {
+    /** A note of an import, as its answer lists it: the reader's ({@link ImportedModel.Note}) and the writer's. */
+    record Finding(String code, String where, String message, int count) {
+        static Finding of(ImportedModel.Note n) {
+            return new Finding(n.code(), n.where(), n.message(), n.count());
+        }
+
+        /** As a person reads it, {@link ImportedModel.Note}'s way. */
+        @Override
+        public String toString() {
+            return where + ": " + message + (count > 1 ? " (" + count + " times)" : "");
+        }
+    }
+
+    /** An import made: the elements written, by kind, and its notes, each with its code. */
+    record Made(List<String> classes, List<String> enumerations, List<String> associations,
+            List<Finding> findings) {
         Map<String, Object> json() {
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("classes", classes);
             out.put("enumerations", enumerations);
             out.put("associations", associations);
+            List<Map<String, Object>> found = new ArrayList<>();
+            for (Finding n : findings) {
+                Map<String, Object> f = new LinkedHashMap<>();
+                f.put("code", n.code());
+                f.put("where", n.where());
+                f.put("message", n.message());
+                f.put("count", n.count());
+                found.add(f);
+            }
+            out.put("findings", found);
             return out;
         }
     }
@@ -107,7 +132,10 @@ final class ImportSchema {
         } catch (SchemaImportException e) {
             throw refused("the schema cannot be imported:\n- " + String.join("\n- ", e.reasons()));
         }
-        m.notes.addAll(model.notes());
+        List<Finding> findings = new ArrayList<>();
+        for (ImportedModel.Note n : model.notes()) {
+            findings.add(Finding.of(n));
+        }
         String domain = pkg + "::domain";
         List<String> written = new ArrayList<>();
 
@@ -117,9 +145,10 @@ final class ImportSchema {
             String path = domain + "::" + e.name();
             List<String> values = new ArrayList<>();
             for (int i = 0; i < e.values().size(); i++) {
-                values.add(docOf(e.valueDocs().get(i)) + e.values().get(i));
+                values.add(decorated(false, e.valueDocs().get(i), e.valueAnnotations().get(i)) + e.values().get(i));
             }
-            written.add(put(m, "Enum " + docOf(e.doc()) + path + "\n{\n  " + String.join(",\n  ", values) + "\n}\n"));
+            written.add(put(m, "Enum " + decorated(false, e.doc(), e.annotations()) + path + "\n{\n  "
+                    + String.join(",\n  ", values) + "\n}\n"));
             enumerations.add(path);
             enums.put(e.name(), e);
         }
@@ -128,7 +157,7 @@ final class ImportSchema {
         for (ImportedClass c : model.classes()) {
             byName.put(c.name(), c);
         }
-        Writing w = new Writing(domain, enums, byName, m.notes);
+        Writing w = new Writing(domain, enums, byName, findings);
         List<String> classes = new ArrayList<>();
         List<Reference> references = new ArrayList<>();
         Set<String> owned = new HashSet<>();
@@ -139,8 +168,8 @@ final class ImportSchema {
         }
         for (ImportedClass c : model.classes()) {
             String path = domain + "::" + c.name();
-            StringBuilder text = new StringBuilder("Class ").append(c.deprecated() ? DEPRECATED : "")
-                    .append(docOf(c.doc())).append(path);
+            StringBuilder text = new StringBuilder("Class ").append(decorated(c.deprecated(), c.doc(), c.annotations()))
+                    .append(path);
             if (!c.supers().isEmpty()) {
                 List<String> supers = new ArrayList<>();
                 for (String s : c.supers()) {
@@ -163,19 +192,21 @@ final class ImportSchema {
                     continue;
                 }
                 String type = p.kind() == Kind.ENUMERATION ? domain + "::" + p.type() : p.type();
-                text.append("  ").append(p.deprecated() ? DEPRECATED : "").append(docOf(p.doc())).append(p.name())
+                text.append("  ").append(decorated(p.deprecated(), p.doc(), p.annotations())).append(p.name())
                         .append(": ").append(type).append(p.multiplicity()).append(defaultOf(p, domain)).append(";\n");
             }
             written.add(put(m, text.append("}\n").toString()));
             classes.add(path);
         }
 
-        List<String> associations = new ArrayList<>();
+        Set<String> associations = new LinkedHashSet<>();
         Map<String, Set<String>> ways = new HashMap<>();
+        Map<List<String>, Integer> toType = new HashMap<>();
         for (Reference r : references) {
-            String text = associate(m, domain, r, references, ways);
-            written.add(text);
-            associations.add(ModelChanges.pathOf(element("###Pure\n" + text)));
+            toType.merge(List.of(r.owner(), r.property().type()), 1, Integer::sum);
+        }
+        for (Reference r : references) {
+            written.add(associate(m, domain, r, toType, ways, associations));
         }
 
         // THE ELEMENTS WRITTEN, compiled on their own, bodies (the constraints) included: they name nothing else
@@ -183,12 +214,15 @@ final class ImportSchema {
         if (!errors.isEmpty()) {
             throw refused("the import would not compile, the importer's defect: " + String.join("; ", errors));
         }
-        return new Made(classes, enumerations, associations);
+        for (Finding n : findings) {
+            m.notes.add(n.toString());
+        }
+        return new Made(classes, enumerations, List.copyOf(associations), findings);
     }
 
     /** One element written into the project, as Pure text; its text, as written. */
     private static String put(ModelChanges m, String text) {
-        m.put(element("###Pure\n" + text));
+        m.put(text);
         return text;
     }
 
@@ -275,8 +309,8 @@ final class ImportSchema {
         for (Logic l : c.logic()) {
             String expression = expression(l.condition(), c, w);
             if (expression == null) {
-                w.notes().add(c.name() + ": its condition " + l.name() + " says what Pure's constraint cannot, and is "
-                        + "not carried");
+                w.notes().add(new Finding("logic.not-carried", c.name(), "its condition " + l.name()
+                        + " says what Pure's constraint cannot, and is not carried", 1));
                 continue;
             }
             String name = l.name();
@@ -291,7 +325,7 @@ final class ImportSchema {
     /** What the writing of a model's constraints reads: its package, its enumerations and classes by name, its
      *  notes. */
     private record Writing(String domain, Map<String, ImportedEnum> enums, Map<String, ImportedClass> classes,
-            List<String> notes) {
+            List<Finding> notes) {
     }
 
     /** A class's property, its own or a superclass's, or one at the end of a path ({@code address.city}) of
@@ -377,32 +411,31 @@ final class ImportSchema {
      *  it. */
     private static @com.legend.base.Nullable String condition(Rule r, ImportedProperty p, Writing w, String cls) {
         String type = p.type();
-        List<String> notes = w.notes();
+        List<Finding> notes = w.notes();
+        String where = cls + "." + r.property();
         return switch (r) {
             case Bound b -> "(%v " + (b.lower() ? ">" : "<") + (b.exclusive() ? "" : "=") + " " + number(b.value())
                     + ")";
             case Length l -> "(%v->length() " + (l.lower() ? ">=" : "<=") + " " + l.value() + ")";
             case MultipleOf m -> "(rem(%v, " + number(m.value()) + ") == 0)";
             case Pattern x -> {
-                try {
-                    java.util.regex.Pattern.compile(x.regex());
-                } catch (java.util.regex.PatternSyntaxException e) {
-                    notes.add(cls + "." + x.property() + ": its pattern is not a regular expression Pure reads, and is "
-                            + "not carried (" + x.regex() + ")");
+                // JSON Schema's pattern is ECMA-262's, matching anywhere; the platform's regexpLike is RE2's, also
+                // matching anywhere: the pattern written in RE2, or noted
+                EcmaPattern.Translation t = EcmaPattern.of(x.regex());
+                if (t.re2() == null) {
+                    notes.add(new Finding("rule.not-carried", where, "its pattern is not carried: "
+                            + t.why() + " (" + x.regex() + ")", 1));
                     yield null;
                 }
-                // JSON Schema's pattern matches anywhere in the text, its own ^ and $ anchoring it; this reads so
-                // whether matches is the whole text's or any part's
-                String whole = "(?s).*(?:" + x.regex() + ").*";
-                yield "%v->matches(" + literal(whole) + ")";
+                yield "%v->regexpLike(" + literal(t.re2()) + ")";
             }
             case OneOf o -> {
                 List<String> values = new ArrayList<>();
                 for (Json.Node v : o.values()) {
                     String lit = p.kind() == Kind.ENUMERATION ? enumLiteral(v, p, w) : valueLiteral(v, type);
                     if (lit == null) {
-                        notes.add(cls + "." + o.property() + ": a value of its const or enum that is not of its type "
-                                + "is not carried (" + Json.toCompact(v) + ")");
+                        notes.add(new Finding("rule.not-carried", where, "a value of its const or enum "
+                                + "that is not of its type is not carried (" + Json.toCompact(v) + ")", 1));
                         yield null;
                     }
                     values.add(lit);
@@ -473,14 +506,16 @@ final class ImportSchema {
         return held != null && !"association".equals(held.getStringOr("_type", ""));
     }
 
-    /** The association a reference is made: its text, written. Its name numbered when it is another element's; its
-     *  way back numbered when the class reached has one of that name already. */
-    private static String associate(ModelChanges m, String domain, Reference r, List<Reference> all,
-            Map<String, Set<String>> ways) {
+    /** The association a reference is made: its text, written. Its name numbered when it is another element's, or
+     *  another association's of this import ({@code made}: {@code name} and {@code Name} both {@code Owner_Name});
+     *  its way back numbered when the class reached has one of that name already. {@code toType}: how many of the
+     *  owner's references reach each class. */
+    private static String associate(ModelChanges m, String domain, Reference r, Map<List<String>, Integer> toType,
+            Map<String, Set<String>> ways, Set<String> made) {
         ImportedProperty p = r.property();
         String base = domain + "::" + r.owner() + "_" + upperFirst(p.name());
         String path = base;
-        for (int n = 2; isOtherElement(m.get(path)); n++) {
+        for (int n = 2; isOtherElement(m.get(path)) || made.contains(path); n++) {
             path = base + "_" + n;
         }
         String back;
@@ -493,11 +528,7 @@ final class ImportSchema {
             backMultiplicity = "[*]";
             // the plural is the way back of ONE reference from the owner to the class, not its own: taken by the
             // class itself, or by another of the owner's references to the class, each is named after its property
-            boolean shared = r.owner().equals(p.type());
-            for (Reference other : all) {
-                shared |= other != r && other.owner().equals(r.owner()) && other.property().type().equals(p.type());
-            }
-            if (shared) {
+            if (r.owner().equals(p.type()) || toType.getOrDefault(List.of(r.owner(), p.type()), 0) > 1) {
                 back = back + "As" + upperFirst(p.name());
             }
         }
@@ -508,10 +539,11 @@ final class ImportSchema {
         for (int n = 2; !used.add(held); n++) {
             held = back + n;
         }
-        String text = "Association " + path + "\n{\n  " + (p.deprecated() ? DEPRECATED : "") + docOf(p.doc()) + p.name()
+        String text = "Association " + path + "\n{\n  " + decorated(p.deprecated(), p.doc(), p.annotations()) + p.name()
                 + ": " + target + p.multiplicity() + ";\n  " + held + ": " + domain + "::" + r.owner()
                 + backMultiplicity + ";\n}\n";
-        m.put(element("###Pure\n" + text));
+        m.put(text);
+        made.add(path);
         return text;
     }
 
@@ -527,7 +559,26 @@ final class ImportSchema {
         return out;
     }
 
-    private static String docOf(@com.legend.base.Nullable String doc) {
-        return doc == null || doc.strip().isEmpty() ? "" : "{" + DOC + " = " + literal(doc.strip()) + "} ";
+    /** An element's stereotypes and tagged values as Pure writes them before its name: {@code <<p.s>> {p.t = 'v'} }
+     *  -- deprecated, its documentation, and its annotations. */
+    private static String decorated(boolean deprecated, @com.legend.base.Nullable String doc,
+            List<Annotation> annotations) {
+        List<String> stereotypes = new ArrayList<>();
+        List<String> tags = new ArrayList<>();
+        if (deprecated) {
+            stereotypes.add(DEPRECATED);
+        }
+        if (doc != null && !doc.strip().isEmpty()) {
+            tags.add(DOC + " = " + literal(doc.strip()));
+        }
+        for (Annotation a : annotations) {
+            if (a.value() == null) {
+                stereotypes.add(a.profile() + "." + a.name());
+            } else {
+                tags.add(a.profile() + "." + a.name() + " = " + literal(a.value()));
+            }
+        }
+        return (stereotypes.isEmpty() ? "" : "<<" + String.join(", ", stereotypes) + ">> ")
+                + (tags.isEmpty() ? "" : "{" + String.join(", ", tags) + "} ");
     }
 }

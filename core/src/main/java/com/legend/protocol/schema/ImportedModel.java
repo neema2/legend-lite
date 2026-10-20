@@ -18,14 +18,30 @@ import java.util.List;
  * @param classes      the classes, in the order the schema defines them (a class made of an inline object follows its
  *                     owner)
  * @param enumerations the enumerations, in order
- * @param notes        what the reader did not carry or renamed, each naming where in the schema
+ * @param notes        what the reader did not carry, or carried otherwise, each naming where in the schema
  */
-public record ImportedModel(List<ImportedClass> classes, List<ImportedEnum> enumerations, List<String> notes) {
+public record ImportedModel(List<ImportedClass> classes, List<ImportedEnum> enumerations, List<Note> notes) {
 
     public ImportedModel {
         classes = List.copyOf(classes);
         enumerations = List.copyOf(enumerations);
         notes = List.copyOf(notes);
+    }
+
+    /**
+     * A NOTE: what a reader did not carry, or carried otherwise, said once however many times it is met.
+     *
+     * @param code    what kind of note it is, for a reader of notes to group and filter by: {@code variant.union},
+     *                {@code rule.not-carried}, {@code logic.not-carried}, {@code reference.unresolved}, ...
+     * @param where   where it was first met (a JSON pointer: {@code #/$defs/T/properties/a}; or a class's name)
+     * @param message what it says
+     * @param count   how many times it was met
+     */
+    public record Note(String code, String where, String message, int count) {
+        @Override
+        public String toString() {
+            return where + ": " + message + (count > 1 ? " (" + count + " times)" : "");
+        }
     }
 
     /** What a property's type is: a primitive (or {@code Variant}), an enumeration of the model, or a class of it. */
@@ -42,23 +58,38 @@ public record ImportedModel(List<ImportedClass> classes, List<ImportedEnum> enum
      *                   of its own
      * @param deprecated whether the schema says it is deprecated
      * @param rules      the rules its properties' values keep (a JSON Schema's validations), each a constraint
-     * @param logic      the conditions its values keep as a whole (a JSON Schema's if/then/else, not, ...), each a
-     *                   constraint
+     * @param logic       the conditions its values keep as a whole (a JSON Schema's if/then/else, not, ...), each a
+     *                    constraint
+     * @param annotations what else the schema says of it, as the format's profiles say it
      */
     public record ImportedClass(String name, @com.legend.base.Nullable String doc, List<String> supers,
             List<ImportedProperty> properties, boolean owned, boolean deprecated, List<Rule> rules,
-            List<Logic> logic) {
+            List<Logic> logic, List<Annotation> annotations) {
         public ImportedClass {
             supers = List.copyOf(supers);
             properties = List.copyOf(properties);
             rules = List.copyOf(rules);
             logic = List.copyOf(logic);
+            annotations = List.copyOf(annotations);
         }
 
-        /** A class with no rule and not deprecated. */
+        /** A class with no rule, not deprecated, and annotated by nothing. */
         public ImportedClass(String name, @com.legend.base.Nullable String doc, List<String> supers,
                 List<ImportedProperty> properties, boolean owned) {
-            this(name, doc, supers, properties, owned, false, List.of(), List.of());
+            this(name, doc, supers, properties, owned, false, List.of(), List.of(), List.of());
+        }
+
+        /** This class with other superclasses, or held otherwise. */
+        public ImportedClass with(List<String> otherSupers, boolean nowOwned) {
+            return new ImportedClass(name, doc, otherSupers, properties, nowOwned, deprecated, rules, logic,
+                    annotations);
+        }
+
+        /** This class with other properties, and more annotations. */
+        public ImportedClass with(List<ImportedProperty> otherProperties, List<Annotation> more) {
+            List<Annotation> all = new java.util.ArrayList<>(annotations);
+            all.addAll(more);
+            return new ImportedClass(name, doc, supers, otherProperties, owned, deprecated, rules, logic, all);
         }
     }
 
@@ -75,15 +106,26 @@ public record ImportedModel(List<ImportedClass> classes, List<ImportedEnum> enum
      * @param deprecated   whether the schema says it is deprecated
      * @param defaultValue its default: a JSON string, number or boolean (an enumeration's value by its Pure name), or
      *                     null
+     * @param annotations  what else the schema says of it, as the format's profiles say it
      */
     public record ImportedProperty(String name, @com.legend.base.Nullable String doc, Kind kind, String type, int lower,
             @com.legend.base.Nullable Integer upper, boolean deprecated,
-            com.legend.json.Json.@com.legend.base.Nullable Node defaultValue) {
+            com.legend.json.Json.@com.legend.base.Nullable Node defaultValue, List<Annotation> annotations) {
+        public ImportedProperty {
+            annotations = List.copyOf(annotations);
+        }
 
-        /** A property not deprecated and with no default. */
+        /** A property not deprecated, with no default, and annotated by nothing. */
         public ImportedProperty(String name, @com.legend.base.Nullable String doc, Kind kind, String type, int lower,
                 @com.legend.base.Nullable Integer upper) {
-            this(name, doc, kind, type, lower, upper, false, null);
+            this(name, doc, kind, type, lower, upper, false, null, List.of());
+        }
+
+        /** This property with one more annotation. */
+        public ImportedProperty annotated(Annotation more) {
+            List<Annotation> all = new java.util.ArrayList<>(annotations);
+            all.add(more);
+            return new ImportedProperty(name, doc, kind, type, lower, upper, deprecated, defaultValue, all);
         }
 
         /** Its multiplicity as Pure writes it: {@code [1]}, {@code [0..1]}, {@code [*]}, {@code [1..*]}. */
@@ -102,19 +144,49 @@ public record ImportedModel(List<ImportedClass> classes, List<ImportedEnum> enum
      * @param doc       its description, or null
      * @param values    its values' Pure names, in order
      * @param texts     each value as the schema spells it (what a column holds), in the same order
-     * @param valueDocs each value's description, or null, in the same order
+     * @param valueDocs        each value's description, or null, in the same order
+     * @param annotations      what else the schema says of the enumeration, as the format's profiles say it
+     * @param valueAnnotations what it says of each value (its text, where its name differs), in the same order
      */
     public record ImportedEnum(String name, @com.legend.base.Nullable String doc, List<String> values,
-            List<String> texts, List<@com.legend.base.Nullable String> valueDocs) {
+            List<String> texts, List<@com.legend.base.Nullable String> valueDocs, List<Annotation> annotations,
+            List<List<Annotation>> valueAnnotations) {
         public ImportedEnum {
             values = List.copyOf(values);
             texts = List.copyOf(texts);
             valueDocs = java.util.Collections.unmodifiableList(new java.util.ArrayList<>(valueDocs));
+            annotations = List.copyOf(annotations);
+            List<List<Annotation>> each = new java.util.ArrayList<>();
+            for (List<Annotation> a : valueAnnotations) {
+                each.add(List.copyOf(a));
+            }
+            valueAnnotations = List.copyOf(each);
         }
 
         /** An enumeration whose values are spelled as they are named, with no value documented. */
         public ImportedEnum(String name, @com.legend.base.Nullable String doc, List<String> values) {
-            this(name, doc, values, values, java.util.Collections.nCopies(values.size(), null));
+            this(name, doc, values, values, java.util.Collections.nCopies(values.size(), null), List.of(),
+                    java.util.Collections.nCopies(values.size(), List.of()));
+        }
+    }
+
+    /**
+     * What a schema says of an element beyond its shape, as a profile says it (upstream's: a JSON Schema's are
+     * legend-engine's {@code meta::json::schema::JSONSchemaGeneration}, {@code ...JSONSchemaTypeExtension} and
+     * {@code ...JSONSchemaOpenAPIExtension}): a stereotype ({@code value} null), or a tag and its value.
+     *
+     * @param profile the profile's path
+     * @param name    the stereotype's or the tag's name
+     * @param value   the tag's value; null for a stereotype
+     */
+    public record Annotation(String profile, String name, @com.legend.base.Nullable String value) {
+
+        public static Annotation stereotype(String profile, String name) {
+            return new Annotation(profile, name, null);
+        }
+
+        public static Annotation tag(String profile, String name, String value) {
+            return new Annotation(profile, name, value);
         }
     }
 

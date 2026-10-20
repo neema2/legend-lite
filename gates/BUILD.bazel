@@ -32,6 +32,8 @@ test_suite(
         # the #SQL{}# island's cases on the embedded Postgres 16: Postgres's own answers, and the islands through the
         # Postgres dialect
         "//core:sql_island_postgres_test",
+        # an imported schema's constraints through the Postgres dialect on the embedded Postgres 16
+        "//core:model_import_postgres_test",
         # Snap's preflight count as Postgres's host operations write it, on the embedded Postgres 16 (D5)
         "//core:host_operations_postgres_test",
         # a clashing fixture set aside in a Postgres corpus workspace survives a failed body's rollback (defect 5)

@@ -224,7 +224,21 @@ public final class ModelChanges {
      * already exists in the package 'trades'").
      */
     void put(Json.Obj element) {
-        String printed = file(element);
+        put(element, file(element));
+    }
+
+    /**
+     * {@link #put(Json.Obj)} of the one element {@code text} holds (no section header): when the printer prints it as
+     * {@code text} is written, its file is {@code text} and reads back as itself -- it was read from it -- so it is not
+     * read again (an import writes thousands, nearly all printed as written).
+     */
+    void put(String text) {
+        Json.Obj element = element("###Pure\n" + text);
+        String printed = printed(element);
+        put(element, printed.equals(text) ? printed : file(element));
+    }
+
+    private void put(Json.Obj element, String printed) {
         String path = pathOf(element);
         Json.Obj was = elements.get(path);
         if (was != null && !textOf(was, "_type").equals(textOf(element, "_type"))) {

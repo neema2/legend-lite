@@ -251,6 +251,7 @@ legend_java_library(
         "src/main/java/com/legend/server/CreateAssociation.java",
         "src/main/java/com/legend/server/CreateClass.java",
         "src/main/java/com/legend/server/CreateDataSpace.java",
+        "src/main/java/com/legend/server/EcmaPattern.java",
         "src/main/java/com/legend/server/ImportSchema.java",
         "src/main/java/com/legend/server/JoinAssociation.java",
         "src/main/java/com/legend/server/MapClass.java",
@@ -267,6 +268,7 @@ legend_java_library(
             "src/main/java/com/legend/server/CreateAssociation.java",
             "src/main/java/com/legend/server/CreateClass.java",
             "src/main/java/com/legend/server/CreateDataSpace.java",
+            "src/main/java/com/legend/server/EcmaPattern.java",
             "src/main/java/com/legend/server/ImportSchema.java",
             "src/main/java/com/legend/server/JoinAssociation.java",
             "src/main/java/com/legend/server/MapClass.java",
@@ -393,6 +395,7 @@ legend_java_library(
         exclude = [
             "src/test/java/com/legend/server/PostgresArmTest.java",
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
+            "src/test/java/com/legend/server/ModelImportPostgresTest.java",
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
             "src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java",
             "src/test/java/com/legend/FixtureAsidePostgresTest.java",
@@ -723,6 +726,30 @@ junit_test(
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# an imported schema's constraints on a real Postgres (docs/MODEL_IMPORT_STUDY_2026_10_20.md §4.4): each, through the
+# Postgres dialect, rejects the rows it rejects on DuckDB (ModelImportTest, in core_tests_server)
+junit_test(
+    name = "model_import_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/server/ModelImportPostgresTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.server.ModelImportPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":core_tests_lib",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
 )

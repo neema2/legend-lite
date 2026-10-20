@@ -161,7 +161,8 @@ final class MapClass {
                     continue;
                 }
                 String id = name + upperFirst(p.name());
-                enumerationMappings.add(enumerationMapping(ctx, e.fqn(), id, objOf(enumerations, e.fqn()), misfits));
+                enumerationMappings.add(enumerationMapping(ctx, m, e.fqn(), id, objOf(enumerations, e.fqn()),
+                        misfits));
                 reads.add(new Read(p.name(), column.name(), id));
                 continue;
             }
@@ -350,13 +351,15 @@ final class MapClass {
     }
 
     /**
-     * The enumeration mapping {@code id} of {@code enumeration}: each value read from its own name, or from the texts
-     * {@code given} says ({@code {"BUY": ["B"]}}); a value {@code given} names that the enumeration does not have is a
-     * misfit.
+     * The enumeration mapping {@code id} of {@code enumeration}: each value read from the texts {@code given} says
+     * ({@code {"BUY": ["B"]}}), else from its text in the schema it was imported from (the value's
+     * {@code JSONSchemaGeneration.name}, as upstream's import keeps it: {@code buy_side} reads {@code 'buy-side'}),
+     * else from its own name; a value {@code given} names that the enumeration does not have is a misfit.
      */
-    private static String enumerationMapping(ModelContext ctx, String enumeration, String id, Json.Obj given,
-            List<String> misfits) {
+    private static String enumerationMapping(ModelContext ctx, ModelChanges m, String enumeration, String id,
+            Json.Obj given, List<String> misfits) {
         List<String> values = ctx.findEnum(enumeration).orElseThrow().values();
+        Map<String, String> schemaText = schemaTexts(m.get(enumeration));
         for (String v : given.fields().keySet()) {
             if (!values.contains(v)) {
                 misfits.add(enumeration + " has no value '" + v + "'");
@@ -364,7 +367,7 @@ final class MapClass {
         }
         List<String> lines = new ArrayList<>();
         for (String v : values) {
-            List<String> texts = given.has(v) ? given.getStringArray(v) : List.of(v);
+            List<String> texts = given.has(v) ? given.getStringArray(v) : List.of(schemaText.getOrDefault(v, v));
             List<String> literals = new ArrayList<>();
             for (String t : texts) {
                 literals.add(ModelChanges.literal(t));
@@ -372,6 +375,30 @@ final class MapClass {
             lines.add("    " + v + ": [" + String.join(", ", literals) + "]");
         }
         return "  " + enumeration + ": EnumerationMapping " + id + "\n  {\n" + String.join(",\n", lines) + "\n  }\n";
+    }
+
+    /** The profile and tag an imported value's text in its schema is kept by (legend-engine's JSON Schema import). */
+    private static final String SCHEMA_NAME_PROFILE = "meta::json::schema::JSONSchemaGeneration";
+
+    /** Each value of an enumeration (its protocol element) whose text in its schema is kept, by its name. */
+    private static Map<String, String> schemaTexts(Json.@com.legend.base.Nullable Obj enumeration) {
+        Map<String, String> out = new LinkedHashMap<>();
+        if (enumeration == null) {
+            return out;
+        }
+        for (Json.Node v : ModelChanges.arrOf(enumeration, "values").items()) {
+            if (!(v instanceof Json.Obj value)) {
+                continue;
+            }
+            for (Json.Node t : ModelChanges.arrOf(value, "taggedValues").items()) {
+                if (t instanceof Json.Obj tv && tv.getOr("tag", null) instanceof Json.Obj tag
+                        && SCHEMA_NAME_PROFILE.equals(tag.getStringOr("profile", ""))
+                        && "name".equals(tag.getStringOr("value", ""))) {
+                    out.put(value.getStringOr("value", ""), tv.getStringOr("value", ""));
+                }
+            }
+        }
+        return out;
     }
 
     /** The model's mapping, made or as the project holds it, including the class's mapping. */
