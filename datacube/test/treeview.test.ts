@@ -670,6 +670,20 @@ describe('opening a group under a column pivot', () => {
     assert.match(detail!, /'EMEA__\|__total'/, detail);
   });
 
+  it('sorts the detail rows by the pivot column the cube is sorted on', async () => {
+    // A pivoted cube's detail rows keep the pivot, so its columns are
+    // there to order by. Dropped as "a source row has no such column",
+    // an opened group's rows came back unsorted under a sorted header.
+    const sent: string[] = [];
+    await fetchTree({ ...PIVOTED, sorts: [{ column: 'AMER__|__total', direction: 'desc' }] },
+      TreeState.empty().expand(['Acme']), {
+        runner: runner(sent), guard: new EpochGuard(), epoch: 0, pivot: VALUES,
+      });
+    const detail = sent.find((q) => q.includes("$x.customer == 'Acme'"));
+    assert.ok(detail, sent.join(' | '));
+    assert.match(detail!, /sort\(\[~'AMER__\|__total'->descending\(\)/, detail);
+  });
+
   it('a child level asks for the SAME pivot columns as its parent, with no probe', async () => {
     const sent: string[] = [];
     const twoLevels = { ...PIVOTED, rows: ['segment', 'customer'] };

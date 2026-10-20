@@ -563,6 +563,20 @@ public final class CypherToPure {
         };
     }
 
+    /** Whether the properties {@code chain} from the class at {@code classPath} read one value of no class: each
+     *  step to-one ({@link Shares.Paths}). */
+    private boolean scalarPath(String classPath, List<String> chain) {
+        String at = classPath;
+        for (int i = 0; i < chain.size(); i++) {
+            Property p = property(at, chain.get(i));
+            if (p == null || p.upper() != 1 || p.classTyped() != (i < chain.size() - 1)) {
+                return false;
+            }
+            at = p.type();
+        }
+        return true;
+    }
+
     private @com.legend.base.Nullable Property property(String classPath, String name) {
         Property[] found = new Property[1];
         model.property(classPath, name, (n, type, classTyped, enumTyped, lower, upper) ->
@@ -790,7 +804,7 @@ public final class CypherToPure {
     public static ValueSpecification translate(CypherAst.Statement statement, Model model) {
         CypherToPure t = new CypherToPure(model);
         t.leading = leadingUse(statement);
-        return t.statement(statement);
+        return Shares.bind(t.statement(statement), t::scalarPath);
     }
 
     /** The refusal of a {@code USE} naming no DataSpace of the model (the seam's, at the clause's place). */
@@ -9546,10 +9560,10 @@ public final class CypherToPure {
                 }
                 if (t.kind() == Kind.FLOAT || t.kind() == Kind.INEXACT) {
                     // IEEE negation: -0.0 is a value of its own in Cypher; Pure's minus lowers to 0 - x, which is +0.0
-                    yield SqlToPure.strict(t.kind(), List.of(t), x -> AppliedFunction.infixRun("times", List.of(
+                    yield strict(t.kind(), List.of(t), x -> AppliedFunction.infixRun("times", List.of(
                             x.get(0), new CFloat(-1.0))));
                 }
-                yield SqlToPure.strict(t.kind(), List.of(t), x -> call("minus", x.get(0)));
+                yield strict(t.kind(), List.of(t), x -> call("minus", x.get(0)));
             }
             default -> throw new IllegalStateException("unreachable: " + u.op());
         });
@@ -9612,7 +9626,7 @@ public final class CypherToPure {
                     case CONTAINS -> "contains";
                     default -> throw new IllegalStateException("unreachable: " + op);
                 };
-                return scalar(SqlToPure.strictTest(List.of(l, r), v -> call(fn, v.get(0), v.get(1))));
+                return scalar(strictTest(List.of(l, r), v -> call(fn, v.get(0), v.get(1))));
             }
             case IN -> {
                 return scalar(in(b, scope));
@@ -9724,7 +9738,7 @@ public final class CypherToPure {
             Tx other = lg ? r : l;
             if (lg && rg ? isNode(l) != isNode(r) : other.kind() != Kind.JSON || other.detail() instanceof ListOf
                     || other.detail() instanceof MapOf || other.detail() instanceof TupleOf) {
-                return l.nullable() || r.nullable() ? SqlToPure.strictTest(List.of(l, r), v -> new CBoolean(false))
+                return l.nullable() || r.nullable() ? strictTest(List.of(l, r), v -> new CBoolean(false))
                         : constant(false);
             }
             throw CypherErrors.unsupported("comparing " + (isNode(l) && isNode(r) ? "relationships over a property"
@@ -9748,7 +9762,7 @@ public final class CypherToPure {
         boolean sameType = l.kind() == Kind.BOOLEAN || r.kind() == Kind.BOOLEAN ? l.kind() == r.kind()
                 : comparable(l.kind(), r.kind());
         if (!sameType) {
-            return l.nullable() || r.nullable() ? SqlToPure.strictTest(List.of(l, r), v -> new CBoolean(false))
+            return l.nullable() || r.nullable() ? strictTest(List.of(l, r), v -> new CBoolean(false))
                     : constant(false);
         }
         if ((l.kind() == Kind.TIME || l.kind() == Kind.DATETIME) && (split(l) || split(r))) {
@@ -9762,7 +9776,7 @@ public final class CypherToPure {
         }
         if (l.kind() == Kind.DURATION) {
             // two durations are equal when their four components are (Neo4j's: months, days, seconds, nanoseconds)
-            return SqlToPure.strictTest(List.of(l, r), v -> {
+            return strictTest(List.of(l, r), v -> {
                 ValueSpecification all = null;
                 for (String f : DURATION_SLOTS) {
                     ValueSpecification one = call("equal", new AppliedProperty(v.get(0), f),
@@ -9772,7 +9786,7 @@ public final class CypherToPure {
                 return java.util.Objects.requireNonNull(all);
             });
         }
-        return SqlToPure.strictTest(List.of(l, r), v -> call("equal", v.get(0), v.get(1)));
+        return strictTest(List.of(l, r), v -> call("equal", v.get(0), v.get(1)));
     }
 
     /** The JSON kind ({@code isKind}'s name) a scalar of this kind is held as by a Variant, where the Variant reads
@@ -10098,7 +10112,7 @@ public final class CypherToPure {
                 case GE -> "greaterThanEqual";
                 default -> throw new IllegalStateException("unreachable: " + op);
             };
-            return SqlToPure.strictTest(List.of(l, r), v -> call(fn, v.get(0), v.get(1)));
+            return strictTest(List.of(l, r), v -> call(fn, v.get(0), v.get(1)));
         }
         if (l.kind() == Kind.BOOLEAN || r.kind() == Kind.BOOLEAN) {
             // null in Neo4j: values of different types do not order
@@ -10159,10 +10173,10 @@ public final class CypherToPure {
         Tx ls = asSplit(l);
         Tx rs = asSplit(r);
         if (l.kind() == Kind.TIME) {
-            return SqlToPure.strictTest(List.of(ofDay(ls), ofDay(rs)), v -> call(fn, v.get(0), v.get(1)));
+            return strictTest(List.of(ofDay(ls), ofDay(rs)), v -> call(fn, v.get(0), v.get(1)));
         }
         // (an order holds strictly between the dates, or on the same date between the clocks)
-        return SqlToPure.strictTest(List.of(datePartOf(ls), ofDay(ls), datePartOf(rs), ofDay(rs)), v -> {
+        return strictTest(List.of(datePartOf(ls), ofDay(ls), datePartOf(rs), ofDay(rs)), v -> {
             ValueSpecification sameDay = call("and", call("equal", v.get(0), v.get(2)), call(fn, v.get(1), v.get(3)));
             return byDate == null ? sameDay : call("or", call(byDate, v.get(0), v.get(2)), sameDay);
         });
@@ -10173,7 +10187,7 @@ public final class CypherToPure {
      *  precision's read into them. */
     private static Tx splitZonedCompared(Tx l, Tx r, String fn, @com.legend.base.Nullable String byDate) {
         if (l.kind() == Kind.ZONED_TIME) {
-            return SqlToPure.strictTest(List.of(epochDayNanos(l), epochDayNanos(r)), v -> call(fn, v.get(0),
+            return strictTest(List.of(epochDayNanos(l), epochDayNanos(r)), v -> call(fn, v.get(0),
                     v.get(1)));
         }
         return splitCompared(instantParts(l), instantParts(r), fn, byDate);
@@ -10203,7 +10217,7 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("+ of a string and a " + cypherType(l.kind() == Kind.STRING ? r.kind()
                         : l.kind()) + " is not supported yet", b.pos());
             }
-            return SqlToPure.strict(Kind.STRING, List.of(l, r), v -> AppliedFunction.infixRun("plus", v));
+            return strict(Kind.STRING, List.of(l, r), v -> AppliedFunction.infixRun("plus", v));
         }
         if (l.kind() == Kind.NULL && r.kind() == Kind.NULL) {
             return SqlToPure.nullOf(Kind.INTEGER);
@@ -10228,17 +10242,17 @@ public final class CypherToPure {
         }
         return switch (op) {
             // Pure's plus, minus and times take one collection: the operator run, as the parser spells a + b
-            case PLUS -> SqlToPure.strict(kind, List.of(l, r), v -> AppliedFunction.infixRun("plus", v));
-            case MINUS -> SqlToPure.strict(kind, List.of(l, r), v -> AppliedFunction.infixRun("minus", v));
-            case TIMES -> SqlToPure.strict(kind, List.of(l, r), v -> AppliedFunction.infixRun("times", v));
+            case PLUS -> strict(kind, List.of(l, r), v -> AppliedFunction.infixRun("plus", v));
+            case MINUS -> strict(kind, List.of(l, r), v -> AppliedFunction.infixRun("minus", v));
+            case TIMES -> strict(kind, List.of(l, r), v -> AppliedFunction.infixRun("times", v));
             case DIVIDE -> {
                 if (l.kind() == Kind.INTEGER && r.kind() == Kind.INTEGER) {
                     // Cypher's integer division truncates toward zero, as Postgres's does
                     noDatabaseLambda("/ of integers", b.pos());
-                    yield SqlToPure.strict(Kind.INTEGER, List.of(l, r), v -> SqlToPure.integerQuotient(v.get(0),
+                    yield strict(Kind.INTEGER, List.of(l, r), v -> SqlToPure.integerQuotient(v.get(0),
                             v.get(1)));
                 }
-                Tx quotient = SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> call("divide", v.get(0), v.get(1)));
+                Tx quotient = strict(Kind.FLOAT, List.of(l, r), v -> call("divide", v.get(0), v.get(1)));
                 if (zeroLiteral(b.right())) {
                     // (NaN or an infinity in Neo4j: marked, so a list or map holding it refuses by name -- Postgres's
                     // division raises, and its JSON holds neither)
@@ -10258,7 +10272,7 @@ public final class CypherToPure {
                     noDatabaseLambda("%", b.pos());
                     boolean spelledZero = zeroLiteral(b.right());
                     boolean nanByZero = r.kind() == Kind.FLOAT;
-                    Tx remainder = SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> {
+                    Tx remainder = strict(Kind.FLOAT, List.of(l, r), v -> {
                         ValueSpecification nan = call("parseFloat", new CString("NaN"));
                         if (spelledZero) {
                             return nan;
@@ -10275,9 +10289,9 @@ public final class CypherToPure {
                     // (a literal divisor that is not zero lowers without the divide-by-zero guard)
                     noDatabaseLambda("%", b.pos());
                 }
-                yield SqlToPure.strict(Kind.INTEGER, List.of(l, r), v -> call("rem", v.get(0), v.get(1)));
+                yield strict(Kind.INTEGER, List.of(l, r), v -> call("rem", v.get(0), v.get(1)));
             }
-            case POWER -> SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> call("pow", call("toFloat", v.get(0)),
+            case POWER -> strict(Kind.FLOAT, List.of(l, r), v -> call("pow", call("toFloat", v.get(0)),
                     v.get(1)));
             default -> throw new IllegalStateException("unreachable: " + op);
         };
@@ -10353,16 +10367,16 @@ public final class CypherToPure {
                 return SqlToPure.nullOf(Kind.BOOLEAN);
             }
             if (ls.tx().kind() == Kind.BOOLEAN ? c.kind() != Kind.BOOLEAN : !comparable(ls.tx().kind(), c.kind())) {
-                return SqlToPure.strictTest(List.of(ls.tx()), v -> new CBoolean(false));
+                return strictTest(List.of(ls.tx()), v -> new CBoolean(false));
             }
             if (spelledParts(c) || split(ls.tx()) && spelledTemporal(c.kind())) {
                 // of nanosecond precision (W13): a member equal to it, each read as its parts
                 Coll held = spelledParts(c) ? c : asSpelledParts(c);
                 Tx eq = SqlToPure.truth(equal(element("e", held), ls.tx(), b.pos()), "IN", b.pos());
-                return SqlToPure.strictTest(List.of(ls.tx()), v -> call("isNotEmpty", call("filter", held.vs(),
+                return strictTest(List.of(ls.tx()), v -> call("isNotEmpty", call("filter", held.vs(),
                         lambda("e", eq.vs()))));
             }
-            return SqlToPure.strictTest(List.of(ls.tx()), v -> call("in", v.get(0), c.vs()));
+            return strictTest(List.of(ls.tx()), v -> call("in", v.get(0), c.vs()));
         }
         ListVal list = (ListVal) r;
         if (list.elements().isEmpty()) {
@@ -10377,7 +10391,7 @@ public final class CypherToPure {
             for (Val e : list.elements()) {
                 members.add(SqlToPure.valueOf(((Scalar) e).tx()));
             }
-            return SqlToPure.strictTest(List.of(ls.tx()), v -> call("in", v.get(0), new PureCollection(members)));
+            return strictTest(List.of(ls.tx()), v -> call("in", v.get(0), new PureCollection(members)));
         }
         Tx any = constant(false);
         for (Val e : list.elements()) {
@@ -10617,7 +10631,7 @@ public final class CypherToPure {
             case Coll col -> scalar(Tx.value(call("size", col.vs()), Kind.INTEGER, false));
             case Scalar s -> switch (s.tx().kind()) {
                 case NULL -> scalar(SqlToPure.nullOf(Kind.INTEGER));
-                case STRING -> scalar(SqlToPure.strict(Kind.INTEGER, List.of(s.tx()), x -> call("length",
+                case STRING -> scalar(strict(Kind.INTEGER, List.of(s.tx()), x -> call("length",
                         x.get(0))));
                 case JSON -> {
                     if (isNode(s.tx()) || s.tx().detail() instanceof PathValue) {
@@ -10702,7 +10716,7 @@ public final class CypherToPure {
             }
             case Coll col -> new Coll(call("reverse", col.vs()), col.kind(), col.rowFree(), col.elementDetail());
             case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
-            case Scalar s when s.tx().kind() == Kind.STRING -> scalar(SqlToPure.strict(Kind.STRING,
+            case Scalar s when s.tx().kind() == Kind.STRING -> scalar(strict(Kind.STRING,
                     List.of(s.tx()), x -> call("reverseString", x.get(0))));
             case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected String or List<T> but was "
                     + cypherType(s.tx().kind()), c.pos());
@@ -10718,7 +10732,7 @@ public final class CypherToPure {
             case MapVal m -> scalar(constant(m.entries().isEmpty()));
             case Coll col -> scalar(Tx.condition(call("isEmpty", col.vs()), call("isNotEmpty", col.vs()), false));
             case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
-            case Scalar s when s.tx().kind() == Kind.STRING -> scalar(SqlToPure.strictTest(List.of(s.tx()),
+            case Scalar s when s.tx().kind() == Kind.STRING -> scalar(strictTest(List.of(s.tx()),
                     x -> call("equal", call("length", x.get(0)), new CInteger(0L))));
             case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected String, List<T> or Map but was "
                     + cypherType(s.tx().kind()), c.pos());
@@ -10865,11 +10879,11 @@ public final class CypherToPure {
         return switch (t.kind()) {
             case NULL -> SqlToPure.nullOf(Kind.STRING);
             case STRING -> t;
-            case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, BOOLEAN -> SqlToPure.strict(Kind.STRING,
+            case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, BOOLEAN -> strict(Kind.STRING,
                     List.of(t), x -> call("toString", x.get(0)));
             // (a date's ISO text, its fields the database's: its own text spells a year past 9999 or before 1 its
             // own way, DuckDB's 0001-12-31 (BC), measured 2026-10-18)
-            case DATE -> SqlToPure.strict(Kind.STRING, List.of(t), x -> dateText(x.get(0), true));
+            case DATE -> strict(Kind.STRING, List.of(t), x -> dateText(x.get(0), true));
             case DATETIME -> temporalText(t, pos);
             case DURATION -> durationText(t);
             case TIME, ZONED, ZONED_TIME -> temporalText(t, pos);
@@ -10992,12 +11006,12 @@ public final class CypherToPure {
         return switch (t.kind()) {
             case NULL -> scalar(SqlToPure.nullOf(Kind.INTEGER));
             case INTEGER, WHOLE -> scalar(t);
-            case FLOAT, DECIMAL, NUMBER, INEXACT -> scalar(SqlToPure.strict(Kind.INTEGER, List.of(t), x -> call("if",
+            case FLOAT, DECIMAL, NUMBER, INEXACT -> scalar(strict(Kind.INTEGER, List.of(t), x -> call("if",
                     call("greaterThanEqual", x.get(0), new CInteger(0L)), thunk(call("floor", x.get(0))),
                     thunk(call("ceiling", x.get(0))))));
             // of a text (the study's §12.23): the database's parse behind a shape guard -- an integer's digits
             // parsed as one, a float's spelling parsed and truncated toward zero, any other text null (Neo4j's)
-            case STRING -> scalar(Tx.value(SqlToPure.strict(Kind.INTEGER, List.of(t), x -> call("if",
+            case STRING -> scalar(Tx.value(strict(Kind.INTEGER, List.of(t), x -> call("if",
                     call("matches", x.get(0), new CString(INTEGER_TEXT)), thunk(call("parseInteger", x.get(0))),
                     thunk(call("if", call("matches", x.get(0), new CString(FLOAT_TEXT)),
                             thunk(integer(call("if", call("greaterThanEqual", call("parseFloat", x.get(0)),
@@ -11005,7 +11019,7 @@ public final class CypherToPure {
                                     thunk(call("ceiling", call("parseFloat", x.get(0))))))),
                             thunk(SqlToPure.nullOf(Kind.INTEGER).vs()))))).vs(), Kind.INTEGER, true));
             // of a boolean: 1 or 0 (Neo4j's)
-            case BOOLEAN -> scalar(SqlToPure.strict(Kind.INTEGER, List.of(t), x -> call("if", x.get(0),
+            case BOOLEAN -> scalar(strict(Kind.INTEGER, List.of(t), x -> call("if", x.get(0),
                     thunk(new CInteger(1L)), thunk(new CInteger(0L)))));
             default -> {
                 String rejected = rejectedByConversions(t);
@@ -11029,10 +11043,10 @@ public final class CypherToPure {
         return switch (t.kind()) {
             case NULL -> scalar(SqlToPure.nullOf(Kind.FLOAT));
             case FLOAT, INEXACT -> scalar(t);
-            case INTEGER, WHOLE, DECIMAL, NUMBER -> scalar(SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call(
+            case INTEGER, WHOLE, DECIMAL, NUMBER -> scalar(strict(Kind.FLOAT, List.of(t), x -> call(
                     "toFloat", x.get(0))));
             // of a text (the study's §12.23): the database's parse behind a shape guard, null for any other text
-            case STRING -> scalar(Tx.value(SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call("if",
+            case STRING -> scalar(Tx.value(strict(Kind.FLOAT, List.of(t), x -> call("if",
                     call("matches", x.get(0), new CString(FLOAT_TEXT)), thunk(call("parseFloat", x.get(0))),
                     thunk(SqlToPure.nullOf(Kind.FLOAT).vs()))).vs(), Kind.FLOAT, true));
             default -> {
@@ -11147,7 +11161,7 @@ public final class CypherToPure {
             throw CypherErrors.invalid("Type mismatch: expected Float or Integer but was " + cypherType(t.kind()),
                     c.pos());
         }
-        return SqlToPure.strict(result == null ? t.kind() : result, List.of(t), x -> call(fn, x.get(0)));
+        return strict(result == null ? t.kind() : result, List.of(t), x -> call(fn, x.get(0)));
     }
 
     /** {@code ceil}, {@code floor}, {@code round}: a float, as Cypher's are (Pure's give an integer). Neo4j's round
@@ -11163,10 +11177,10 @@ public final class CypherToPure {
                     c.pos());
         }
         if (fn.equals("round")) {
-            return SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call("toFloat", call("floor",
+            return strict(Kind.FLOAT, List.of(t), x -> call("toFloat", call("floor",
                     AppliedFunction.infixRun("plus", List.of(call("toFloat", x.get(0)), new CFloat(0.5))))));
         }
-        return SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call("toFloat", call(fn, call("toFloat", x.get(0)))));
+        return strict(Kind.FLOAT, List.of(t), x -> call("toFloat", call(fn, call("toFloat", x.get(0)))));
     }
 
     /** A string function the database computes, of {@code strings} string arguments first and integers after. */
@@ -11184,7 +11198,7 @@ public final class CypherToPure {
             }
             txs.add(t);
         }
-        return SqlToPure.strict(Kind.STRING, txs, x -> call(fn, x.toArray(ValueSpecification[]::new)));
+        return strict(Kind.STRING, txs, x -> call(fn, x.toArray(ValueSpecification[]::new)));
     }
 
     /** {@code substring(string, start [, length])}: from the 0-based start. Lite's {@code substring} is SQL's
@@ -11205,10 +11219,10 @@ public final class CypherToPure {
             throw CypherErrors.invalid("Type mismatch: substring expects a String and Integers", c.pos());
         }
         if (length == null) {
-            return SqlToPure.strict(Kind.STRING, List.of(s, start), x -> call("substring", x.get(0),
+            return strict(Kind.STRING, List.of(s, start), x -> call("substring", x.get(0),
                     AppliedFunction.infixRun("plus", List.of(x.get(1), new CInteger(1L)))));
         }
-        return SqlToPure.strict(Kind.STRING, List.of(s, start, length), x -> call("substring", x.get(0),
+        return strict(Kind.STRING, List.of(s, start, length), x -> call("substring", x.get(0),
                 AppliedFunction.infixRun("plus", List.of(x.get(1), new CInteger(1L))), x.get(2)));
     }
 
@@ -12003,7 +12017,7 @@ public final class CypherToPure {
                     }
                     Kind k = kind == null ? Kind.NULL : kind;
                     // (strict over the place: null for a null place, the place read as one value)
-                    Tx picked = SqlToPure.strict(k, List.of(i), x -> {
+                    Tx picked = strict(k, List.of(i), x -> {
                         ValueSpecification at = call("if", call("lessThan", x.get(0), new CInteger(0L)),
                                 thunk(plus(x.get(0), new CInteger((long) size))), thunk(x.get(0)));
                         ValueSpecification pick = SqlToPure.nullOf(k).vs();
@@ -12041,7 +12055,7 @@ public final class CypherToPure {
                         values.put(e.getKey(), t.kind() == Kind.NULL ? null : SqlToPure.valueOf(t));
                     }
                     Kind k = kind == null ? Kind.NULL : kind;
-                    Tx picked = SqlToPure.strict(k, List.of(i), x -> {
+                    Tx picked = strict(k, List.of(i), x -> {
                         ValueSpecification pick = SqlToPure.nullOf(k).vs();
                         List<String> keys = new ArrayList<>(values.keySet());
                         for (int p = keys.size() - 1; p >= 0; p--) {
@@ -12604,7 +12618,7 @@ public final class CypherToPure {
         Expr matches = new CypherAst.Call("size", false, List.of(new CypherAst.PatternComprehension(ex.pattern(),
                 ex.where(), new CypherAst.IntLit(1L, "1", ex.pos()), ex.pos())), ex.pos());
         Tx count = tx(matches, scope);
-        Tx some = SqlToPure.strictTest(List.of(count), v -> call("greaterThan", v.get(0), new CInteger(0L)));
+        Tx some = strictTest(List.of(count), v -> call("greaterThan", v.get(0), new CInteger(0L)));
         if (counted.having() == null) {
             return some;
         }
@@ -13226,7 +13240,7 @@ public final class CypherToPure {
     }
 
     private static Tx atEpoch(Tx time) {
-        return SqlToPure.strict(Kind.DATETIME, List.of(time), x -> atEpoch(x.get(0)));
+        return strict(Kind.DATETIME, List.of(time), x -> atEpoch(x.get(0)));
     }
 
     private static ValueSpecification epoch() {
@@ -13563,16 +13577,72 @@ public final class CypherToPure {
     }
 
     /** A local time of nanosecond precision from its nanoseconds since midnight. */
-    private static Tx splitTime(Tx ofDay) {
+    private static Tx splitTime(Tx parts) {
+        Tx ofDay = shared(parts);
         return new Tx(ofDay.vs(), Kind.TIME, ofDay.nullable(), null, new Carried(null, true, null, new Parts(null)),
                 ofDay.guard(), ofDay.body());
     }
 
     /** A local date-time of nanosecond precision from its date and its nanoseconds since midnight (each present
      *  exactly when the other is). */
-    private static Tx splitDateTime(Tx date, Tx ofDay) {
+    private static Tx splitDateTime(Tx datePart, Tx nanos) {
+        Tx date = shared(datePart);
+        Tx ofDay = shared(nanos);
         return new Tx(ofDay.vs(), Kind.DATETIME, ofDay.nullable() || date.nullable(), null, new Carried(null, true,
                 null, new Parts(date)), ofDay.guard(), ofDay.body());
+    }
+
+    /** A split value's part as a value its readers share ({@link Shares#share}): every operation over the value reads
+     *  each part more than once (its NULL guard and its value, a date and a clock both from the same total), so a
+     *  chain of them written out repeats each part at each step (lite/temporal/nanos_arithmetic was 33.7 MB of SQL).
+     *  A part is NULL-safe: NULL on NULL inputs, its own guard's. A strict part's body is marked too, what an
+     *  operation merging the part's guard into its own reads ({@link SqlToPure#strict}). */
+    private static Tx shared(Tx part) {
+        if (SqlToPure.isNullConstant(part) || !columnKind(part.kind())) {
+            // (a NULL constant read as itself, what a strict operation tests for; a value no column holds as it is)
+            return part;
+        }
+        ValueSpecification guard = part.guard();
+        ValueSpecification body = part.body();
+        if (guard == null || body == null) {
+            return new Tx(Shares.share(part.vs()), part.kind(), part.nullable(), part.whenFalse(), part.detail(),
+                    guard, body);
+        }
+        ValueSpecification marked = Shares.share(body);
+        ValueSpecification vs = part.vs() instanceof AppliedFunction f && f.parameters().size() == 3
+                && f.parameters().get(0) == guard ? call("if", guard, thunk(SqlToPure.empty()), thunk(marked))
+                : part.vs();
+        return new Tx(Shares.share(vs), part.kind(), part.nullable(), part.whenFalse(), part.detail(), guard, marked);
+    }
+
+    /** Whether a relation's column holds a value of {@code kind} as it is: a scalar, a duration (the database's
+     *  struct) or a Variant; not a NULL of no type, nor a value of another kind (a list, a node). */
+    private static boolean columnKind(Kind kind) {
+        return switch (kind) {
+            case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, STRING, BOOLEAN, DATE, DATETIME, TIME, ZONED,
+                    ZONED_TIME, DURATION, JSON -> true;
+            case NULL, OTHER -> false;
+        };
+    }
+
+    /** {@link SqlToPure#strict} over operands each a value its readers share ({@link #shared}): a strict operation
+     *  reads each operand twice, in its NULL guard and in its value, and a chain of them written out repeats each
+     *  operand at each step. */
+    private static Tx strict(Kind kind, List<Tx> args,
+            java.util.function.Function<List<ValueSpecification>, ValueSpecification> build) {
+        return SqlToPure.strict(kind, args.stream().map(CypherToPure::shared).toList(), build);
+    }
+
+    /** {@link #strict}, merging as {@link SqlToPure#strict(Kind, List, boolean, java.util.function.Function)}. */
+    private static Tx strict(Kind kind, List<Tx> args, boolean merge,
+            java.util.function.Function<List<ValueSpecification>, ValueSpecification> build) {
+        return SqlToPure.strict(kind, args.stream().map(CypherToPure::shared).toList(), merge, build);
+    }
+
+    /** {@link SqlToPure#strictTest} over shared operands, as {@link #strict}. */
+    private static Tx strictTest(List<Tx> operands,
+            java.util.function.Function<List<ValueSpecification>, ValueSpecification> test) {
+        return SqlToPure.strictTest(operands.stream().map(CypherToPure::shared).toList(), test);
     }
 
     /** A time of day's or a date-time's nanoseconds since midnight, an Integer: a split value's own; a microsecond
@@ -13585,7 +13655,7 @@ public final class CypherToPure {
         }
         boolean fine = nanos(t);
         boolean time = t.kind() == Kind.TIME && !fine;
-        return SqlToPure.strict(Kind.INTEGER, List.of(t), x -> {
+        return strict(Kind.INTEGER, List.of(t), x -> {
             ValueSpecification dt = time ? atEpoch(x.get(0)) : x.get(0);
             return fine ? call("dateDiff", call("datePart", dt), dt, unit("NANOSECONDS"))
                     : times(1000, call("dateDiff", call("datePart", dt), dt, unit("MICROSECONDS")));
@@ -13597,7 +13667,7 @@ public final class CypherToPure {
         if (t.detail() instanceof Carried c && c.parts() != null) {
             return java.util.Objects.requireNonNull(c.parts().date());
         }
-        return SqlToPure.strict(Kind.DATE, List.of(t), x -> call("datePart", x.get(0)));
+        return strict(Kind.DATE, List.of(t), x -> call("datePart", x.get(0)));
     }
 
     /** A split value's parts in their order: a date-time's date, then the nanoseconds since midnight. */
@@ -13630,7 +13700,8 @@ public final class CypherToPure {
     /** A zoned time of day of nanosecond precision from its UTC nanoseconds since the epoch day's midnight (below 0,
      *  or past a day, where the offset carries the wall time across midnight: so two order as their instants, as
      *  §12.11's instants on the epoch day do), the offset beside. */
-    private static Tx splitZonedTime(Tx utcNanos, @com.legend.base.Nullable Zone z) {
+    private static Tx splitZonedTime(Tx nanos, @com.legend.base.Nullable Zone z) {
+        Tx utcNanos = shared(nanos);
         return new Tx(utcNanos.vs(), Kind.ZONED_TIME, utcNanos.nullable(), null, new Carried(z, true, null,
                 new Parts(null)), utcNanos.guard(), utcNanos.body());
     }
@@ -13668,15 +13739,15 @@ public final class CypherToPure {
     /** The nanoseconds from the epoch day's midnight of a split date-time within a day or so of it (a zoned time's
      *  instant), the database's. */
     private static Tx fromEpochDay(Tx dt) {
-        return SqlToPure.strict(Kind.INTEGER, List.of(datePartOf(dt), ofDay(dt)), v -> integer(plus(times(DAY_NANOS,
+        return strict(Kind.INTEGER, List.of(datePartOf(dt), ofDay(dt)), v -> integer(plus(times(DAY_NANOS,
                 call("dateDiff", epoch(), v.get(0), days())), v.get(1))));
     }
 
     /** The split date-time {@code n} nanoseconds from the epoch day's midnight (a zoned time's instant): the epoch
      *  day moved by the whole days of them, the rest the clock. */
     private static Tx onEpochDay(Tx n) {
-        Tx clock = SqlToPure.strict(Kind.INTEGER, List.of(n), v -> integer(call("mod", v.get(0), lit(DAY_NANOS))));
-        Tx date = SqlToPure.strict(Kind.DATE, List.of(n), v -> day(call("adjust", epoch(), integer(quotient(v.get(0),
+        Tx clock = strict(Kind.INTEGER, List.of(n), v -> integer(call("mod", v.get(0), lit(DAY_NANOS))));
+        Tx date = strict(Kind.DATE, List.of(n), v -> day(call("adjust", epoch(), integer(quotient(v.get(0),
                 DAY_NANOS)), days())));
         return splitDateTime(date, clock);
     }
@@ -13684,7 +13755,7 @@ public final class CypherToPure {
     /** The microsecond instant (Pure's DateTime) at a split date-time's parts, the digits past the microsecond
      *  dropped: what a region's rules read (an offset changes on a whole second). */
     private static ValueSpecification micros(ValueSpecification date, ValueSpecification ofDay) {
-        return call("adjust", call(AT_TIME, date, MIDNIGHT), integer(quotient(ofDay, 1000L)), unit("MICROSECONDS"));
+        return Shares.share(call("adjust", call(AT_TIME, date, MIDNIGHT), integer(quotient(ofDay, 1000L)), unit("MICROSECONDS")));
     }
 
     /** A zoned date-time's instant in microseconds (a strict body's reading, {@code toOne} where it may be absent):
@@ -13758,12 +13829,13 @@ public final class CypherToPure {
     private static Tx shiftedParts(Tx t, java.util.function.BinaryOperator<ValueSpecification> offset,
             int direction) {
         List<Tx> parts = List.of(datePartOf(t), ofDay(t));
+        // (the total both the clock and the date read, one value: Shares)
         java.util.function.Function<List<ValueSpecification>, ValueSpecification> total = v -> {
             ValueSpecification by = secondsAsNanos(offset.apply(v.get(0), v.get(1)));
-            return integer(direction > 0 ? plus(v.get(1), by) : minus(v.get(1), by));
+            return Shares.share(integer(direction > 0 ? plus(v.get(1), by) : minus(v.get(1), by)));
         };
-        Tx clock = SqlToPure.strict(Kind.INTEGER, parts, v -> integer(call("mod", total.apply(v), lit(DAY_NANOS))));
-        Tx date = SqlToPure.strict(Kind.DATE, parts, v -> day(call("adjust", v.get(0), integer(quotient(
+        Tx clock = strict(Kind.INTEGER, parts, v -> integer(call("mod", total.apply(v), lit(DAY_NANOS))));
+        Tx date = strict(Kind.DATE, parts, v -> day(call("adjust", v.get(0), integer(quotient(
                 total.apply(v), DAY_NANOS)), days())));
         return splitDateTime(date, clock);
     }
@@ -13803,11 +13875,11 @@ public final class CypherToPure {
      *  value of nanosecond precision, read back. */
     private static Tx splitOfIso(Tx text, Kind kind) {
         boolean time = kind == Kind.TIME;
-        Tx clock = SqlToPure.strict(Kind.INTEGER, List.of(text), v -> clockOfIso(v.get(0), time ? 1 : 12));
+        Tx clock = strict(Kind.INTEGER, List.of(text), v -> clockOfIso(v.get(0), time ? 1 : 12));
         if (time) {
             return splitTime(clock);
         }
-        Tx date = SqlToPure.strict(Kind.DATE, List.of(text), v -> call("datePart", call("parseDate", call("substring",
+        Tx date = strict(Kind.DATE, List.of(text), v -> call("datePart", call("parseDate", call("substring",
                 v.get(0), lit(1), lit(10)))));
         Tx parts = splitDateTime(date, clock);
         return switch (kind) {
@@ -13832,7 +13904,7 @@ public final class CypherToPure {
      *  {@code DateTime('...')}, {@link #splitSpelled}). */
     private static Tx splitOfSpelled(Tx spelled, Kind kind) {
         int open = kind == Kind.TIME ? "Time('".length() : "DateTime('".length();
-        Tx inner = SqlToPure.strict(Kind.STRING, List.of(spelled), v -> call("substring", v.get(0), lit(open + 1L),
+        Tx inner = strict(Kind.STRING, List.of(spelled), v -> call("substring", v.get(0), lit(open + 1L),
                 integer(minus(call("length", v.get(0)), lit(open + 2L)))));
         return splitOfIso(inner, kind);
     }
@@ -13844,7 +13916,7 @@ public final class CypherToPure {
         Tx v = t.kind() == Kind.ZONED ? utcParts(t) : t.kind() == Kind.ZONED_TIME ? onEpochDay(ofDay(t)) : t;
         boolean time = v.kind() == Kind.TIME;
         Tx text = splitText(v, null, time, null);
-        return SqlToPure.strict(Kind.STRING, List.of(text), x -> plus(new CString(time ? "Time('" : "DateTime('"),
+        return strict(Kind.STRING, List.of(text), x -> plus(new CString(time ? "Time('" : "DateTime('"),
                 x.get(0), new CString("')")));
     }
 
@@ -13855,7 +13927,7 @@ public final class CypherToPure {
         Tx v = t.kind() == Kind.ZONED ? utcParts(t) : t.kind() == Kind.ZONED_TIME ? onEpochDay(ofDay(t)) : t;
         boolean time = v.kind() == Kind.TIME;
         List<Tx> parts = time ? List.of(ofDay(v)) : List.of(datePartOf(v), ofDay(v));
-        return SqlToPure.strict(Kind.STRING, parts, x -> time ? isoText(null, x.get(0)) : isoText(x.get(0),
+        return strict(Kind.STRING, parts, x -> time ? isoText(null, x.get(0)) : isoText(x.get(0),
                 x.get(1)));
     }
 
@@ -14135,7 +14207,7 @@ public final class CypherToPure {
 
     /** A date as ISO text, {@code yyyy-MM-dd}, every field the database's ({@link #yearText}'s year). */
     private static ValueSpecification dateText(ValueSpecification date, boolean expanded) {
-        return plus(yearText(call("year", date), expanded), new CString("-"), two(call("monthNumber", date)),
+        return plus(yearText(Shares.share(call("year", date)), expanded), new CString("-"), two(call("monthNumber", date)),
                 new CString("-"), two(call("dayOfMonth", date)));
     }
 
@@ -14162,7 +14234,7 @@ public final class CypherToPure {
         Tx v = t.kind() == Kind.ZONED ? utcParts(t) : t.kind() == Kind.ZONED_TIME ? onEpochDay(ofDay(t)) : t;
         boolean time = v.kind() == Kind.TIME;
         List<Tx> parts = time ? List.of(ofDay(v)) : List.of(datePartOf(v), ofDay(v));
-        Tx text = SqlToPure.strict(Kind.STRING, parts, x -> time ? isoText(null, x.get(0)) : isoText(x.get(0),
+        Tx text = strict(Kind.STRING, parts, x -> time ? isoText(null, x.get(0)) : isoText(x.get(0),
                 x.get(1)));
         return Tx.value(call(time ? TIME_OF_TEXT : DATE_TIME_OF_TEXT, SqlToPure.valueOf(text)), t.kind(),
                 text.nullable());
@@ -14176,7 +14248,7 @@ public final class CypherToPure {
             // a split date-time's nanoseconds since midnight, a split time of day (W13)
             return splitTime(ofDay(dt));
         }
-        return SqlToPure.strict(Kind.TIME, List.of(dt), x -> call(TIME_OF, x.get(0)));
+        return strict(Kind.TIME, List.of(dt), x -> call(TIME_OF, x.get(0)));
     }
 
     /** A written fraction of a second as its nanoseconds (its nine digits, the missing ones zeros: the digits
@@ -14207,7 +14279,7 @@ public final class CypherToPure {
         if (split(zoned)) {
             return splitWall(zoned, z);
         }
-        return SqlToPure.strict(Kind.DATETIME, List.of(zoned), x -> toWall(x.get(0), z));
+        return strict(Kind.DATETIME, List.of(zoned), x -> toWall(x.get(0), z));
     }
 
     /** The instant a wall time names in a zone, as a zoned date-time of that zone (a zone whose region the
@@ -14216,7 +14288,7 @@ public final class CypherToPure {
         if (split(local)) {
             return splitInstant(local, z);
         }
-        Tx instant = SqlToPure.strict(Kind.DATETIME, List.of(local), x -> toInstant(x.get(0), z));
+        Tx instant = strict(Kind.DATETIME, List.of(local), x -> toInstant(x.get(0), z));
         return zoned(instant, after(z, instant));
     }
 
@@ -14274,11 +14346,13 @@ public final class CypherToPure {
      *  instant is read, and the instant it names kept where it is earlier and names the same wall time; a gap's
      *  reading is the database's, as java.time's. */
     private static ValueSpecification regionInstant(ValueSpecification wall, ValueSpecification zoneName) {
-        ValueSpecification later = call(INSTANT_IN, wall, zoneName);
-        ValueSpecification dayBefore = call("adjust", later, lit(-1), days());
+        // (each value read more than once one value: Shares)
+        ValueSpecification later = Shares.share(call(INSTANT_IN, wall, zoneName));
+        ValueSpecification dayBefore = Shares.share(call("adjust", later, lit(-1), days()));
         ValueSpecification offsetBefore = call("dateDiff", dayBefore, call(LOCAL_IN, dayBefore, zoneName),
                 unit("SECONDS"));
-        ValueSpecification earlier = call("adjust", wall, integer(minus(lit(0), offsetBefore)), unit("SECONDS"));
+        ValueSpecification earlier = Shares.share(call("adjust", wall, integer(minus(lit(0), offsetBefore)),
+                unit("SECONDS")));
         return call("if", call("and", call("lessThan", earlier, later), call("equal", call(LOCAL_IN, earlier,
                 zoneName), wall)), thunk(earlier), thunk(later));
     }
@@ -14389,10 +14463,10 @@ public final class CypherToPure {
         if (split(zt)) {
             // its UTC nanoseconds moved by the offset, within the day (a converted time's wall time wraps, as
             // §12.11's time of the shifted instant does)
-            return splitTime(SqlToPure.strict(Kind.INTEGER, List.of(ofDay(zt)), v -> integer(call("mod", plus(v.get(0),
+            return splitTime(strict(Kind.INTEGER, List.of(ofDay(zt)), v -> integer(call("mod", plus(v.get(0),
                     secondsAsNanos(fixedSeconds(z))), lit(DAY_NANOS)))));
         }
-        return SqlToPure.strict(Kind.TIME, List.of(zt), x -> call(TIME_OF, shifted(x.get(0), z, 1)));
+        return strict(Kind.TIME, List.of(zt), x -> call(TIME_OF, shifted(x.get(0), z, 1)));
     }
 
     /** The wall time of a zoned time of day as the date-time at it on the epoch day: what its fields and its
@@ -14401,17 +14475,17 @@ public final class CypherToPure {
         if (split(zt)) {
             return wallTimeOf(zt, z);
         }
-        return SqlToPure.strict(Kind.DATETIME, List.of(zt), x -> shifted(x.get(0), z, 1));
+        return strict(Kind.DATETIME, List.of(zt), x -> shifted(x.get(0), z, 1));
     }
 
     /** A zoned time of day from its wall time (Pure's StrictTime) in an offset: the instant on the epoch day. */
     private static Tx zonedTimeOf(Tx wall, Zone z) {
         if (split(wall)) {
             // a split wall time (W13): its nanoseconds less the offset's, from the epoch day's midnight
-            return splitZonedTime(SqlToPure.strict(Kind.INTEGER, List.of(ofDay(wall)), v -> integer(minus(v.get(0),
+            return splitZonedTime(strict(Kind.INTEGER, List.of(ofDay(wall)), v -> integer(minus(v.get(0),
                     secondsAsNanos(fixedSeconds(z))))), z);
         }
-        return zonedTime(SqlToPure.strict(Kind.DATETIME, List.of(wall), x -> shifted(atEpoch(x.get(0)), z, -1)), z);
+        return zonedTime(strict(Kind.DATETIME, List.of(wall), x -> shifted(atEpoch(x.get(0)), z, -1)), z);
     }
 
     /** A time of day's zone: an offset. A region's name is refused by name: Neo4j takes its offset at the current
@@ -14951,7 +15025,7 @@ public final class CypherToPure {
             Tx ns = keys.contains(DurationUnit.NANOSECONDS) ? inputs.get(keys.indexOf(DurationUnit.NANOSECONDS))
                     : null;
             boolean fine = ns != null && ns.vs() instanceof CInteger n && n.value().longValue() % 1000 != 0;
-            return withNanos(SqlToPure.strict(Kind.DURATION, inputs, v -> {
+            return withNanos(strict(Kind.DURATION, inputs, v -> {
                 ValueSpecification[] slots = {lit(0), lit(0), lit(0), lit(0)};
                 for (int i = 0; i < keys.size(); i++) {
                     DurationUnit u = keys.get(i);
@@ -14960,7 +15034,7 @@ public final class CypherToPure {
                 return normalized(cls, slots[0], slots[1], slots[2], slots[3]);
             }), fine);
         }
-        return withNanos(SqlToPure.strict(Kind.DURATION, inputs, v -> {
+        return withNanos(strict(Kind.DURATION, inputs, v -> {
             ValueSpecification[] slots = {new CFloat(0.0), new CFloat(0.0), new CFloat(0.0), new CFloat(0.0)};
             for (int i = 0; i < keys.size(); i++) {
                 DurationUnit u = keys.get(i);
@@ -15230,7 +15304,7 @@ public final class CypherToPure {
                         + " duration, not " + op, b.pos());
             }
             boolean subtract = op == BinaryOp.MINUS;
-            return withNanos(SqlToPure.strict(Kind.DURATION, List.of(l, r), v -> {
+            return withNanos(strict(Kind.DURATION, List.of(l, r), v -> {
                 ValueSpecification[] s = new ValueSpecification[4];
                 for (int i = 0; i < 4; i++) {
                     ValueSpecification x = slot(v.get(0), DURATION_SLOTS.get(i));
@@ -15243,7 +15317,7 @@ public final class CypherToPure {
         if (op == BinaryOp.TIMES && (l.kind() == Kind.INTEGER || r.kind() == Kind.INTEGER)) {
             Tx d = l.kind() == Kind.DURATION ? l : r;
             Tx k = l.kind() == Kind.DURATION ? r : l;
-            return withNanos(SqlToPure.strict(Kind.DURATION, List.of(d, k), v -> {
+            return withNanos(strict(Kind.DURATION, List.of(d, k), v -> {
                 ValueSpecification[] s = new ValueSpecification[4];
                 for (int i = 0; i < 4; i++) {
                     s[i] = AppliedFunction.infixRun("times", List.of(slot(v.get(0), DURATION_SLOTS.get(i)),
@@ -15262,7 +15336,7 @@ public final class CypherToPure {
                         : "divided") + " by a number, not a " + cypherType(k.kind()), b.pos());
             }
             boolean divide = op == BinaryOp.DIVIDE;
-            return withNanos(SqlToPure.strict(Kind.DURATION, List.of(d, k), v -> approximated(cls, v.get(0),
+            return withNanos(strict(Kind.DURATION, List.of(d, k), v -> approximated(cls, v.get(0),
                     v.get(1), divide)), true);
         }
         if (op == BinaryOp.DIVIDE) {
@@ -15299,7 +15373,7 @@ public final class CypherToPure {
             return zoned(moved, after(zone, moved));
         }
         // (of nanosecond precision, either, the parts' above: the rest microseconds, the database's steps)
-        Tx out = SqlToPure.strict(kind == Kind.ZONED ? Kind.DATETIME : kind == Kind.ZONED_TIME ? Kind.TIME : kind,
+        Tx out = strict(kind == Kind.ZONED ? Kind.DATETIME : kind == Kind.ZONED_TIME ? Kind.TIME : kind,
                 List.of(temporal, d), v -> {
             ValueSpecification x = v.get(0);
             ValueSpecification dur = v.get(1);
@@ -15367,12 +15441,12 @@ public final class CypherToPure {
         java.util.function.BinaryOperator<ValueSpecification> total = (n, dur) -> integer(plus(n,
                 integer(AppliedFunction.infixRun("times", List.of(new CFloat(1.0e9), call("mod",
                         part.apply(dur, "seconds"), lit(86_400L))))), part.apply(dur, "nanoseconds")));
-        Tx clock = SqlToPure.strict(Kind.INTEGER, List.of(ofDay(t), d), v -> integer(call("mod", total.apply(v.get(0),
+        Tx clock = strict(Kind.INTEGER, List.of(ofDay(t), d), v -> integer(call("mod", total.apply(v.get(0),
                 v.get(1)), lit(DAY_NANOS))));
         if (t.kind() == Kind.TIME) {
             return splitTime(clock);
         }
-        Tx date = SqlToPure.strict(Kind.DATE, List.of(datePartOf(t), ofDay(t), d), v -> {
+        Tx date = strict(Kind.DATE, List.of(datePartOf(t), ofDay(t), d), v -> {
             ValueSpecification dur = v.get(2);
             ValueSpecification months = day(call("adjust", v.get(0), integer(part.apply(dur, "months")),
                     unit("MONTHS")));
@@ -15433,13 +15507,13 @@ public final class CypherToPure {
             Tx otherSide;
             if (other.kind() == Kind.TIME) {
                 placed = instantOfTime(zt);
-                otherSide = SqlToPure.strict(Kind.DATETIME, List.of(other), v -> shifted(atEpoch(v.get(0)), tz,
+                otherSide = strict(Kind.DATETIME, List.of(other), v -> shifted(atEpoch(v.get(0)), tz,
                         -1));
             } else if (isDateLike(other.kind())) {
                 Zone oz = other.kind() == Kind.ZONED ? zoneKnown(other, c.pos()) : null;
                 Tx otherWall = oz == null ? asDateTime(other) : localOf(other, oz);
                 Tx wallTime = wallTimeOf(zt, tz);
-                Tx onDate = SqlToPure.strict(Kind.DATETIME, List.of(otherWall, wallTime),
+                Tx onDate = strict(Kind.DATETIME, List.of(otherWall, wallTime),
                         v -> call(AT_TIME, call("datePart", v.get(0)), v.get(1)));
                 placed = instantOf(onDate, tz);
                 otherSide = oz != null ? other : instantOf(otherWall, tz);
@@ -15469,7 +15543,7 @@ public final class CypherToPure {
             Tx other = timeFirst ? y : x;
             Zone z = other.kind() == Kind.ZONED ? zoneKnown(other, c.pos()) : null;
             Tx wall = z == null ? asDateTime(other) : localOf(other, z);
-            Tx onDate = SqlToPure.strict(Kind.DATETIME, List.of(wall, time), v -> call(AT_TIME, call("datePart",
+            Tx onDate = strict(Kind.DATETIME, List.of(wall, time), v -> call(AT_TIME, call("datePart",
                     v.get(0)), v.get(1)));
             Tx placed = z == null ? onDate : instantOf(onDate, z);
             Tx otherSide = z == null ? wall : other;
@@ -15490,7 +15564,7 @@ public final class CypherToPure {
         // values' months and days counted on their wall times in the first one's zone, Java's (the second's instant
         // read there), the rest the instants' difference (measured 2026-10-18)
         Zone walls = zx != null ? zx : zy;
-        return scalar(SqlToPure.strict(Kind.DURATION, List.of(x, y), v -> {
+        return scalar(strict(Kind.DURATION, List.of(x, y), v -> {
             ValueSpecification from = walls == null ? v.get(0) : toWall(v.get(0), walls);
             ValueSpecification to = walls == null ? v.get(1) : toWall(v.get(1), walls);
             ValueSpecification fromClock = clockMicros(from);
@@ -15524,7 +15598,7 @@ public final class CypherToPure {
      *  translation did not end), so the walls are read once each, as the microsecond values' are. */
     private Tx namedZoneBetween(TemporalMember member, Tx a, Tx b, Zone zone, String cls) {
         List<Tx> inputs = List.of(datePartOf(a), ofDay(a), datePartOf(b), ofDay(b));
-        return SqlToPure.strict(Kind.DURATION, inputs, v -> {
+        return strict(Kind.DURATION, inputs, v -> {
             ValueSpecification fromInstant = micros(v.get(0), v.get(1));
             ValueSpecification toInstant = micros(v.get(2), v.get(3));
             ValueSpecification fromSub = past(v.get(1), 1000L);
@@ -15669,7 +15743,7 @@ public final class CypherToPure {
         Tx b = asSplit(times ? y : asDateTime(y));
         List<Tx> inputs = times ? List.of(ofDay(a), ofDay(b)) : List.of(datePartOf(a), ofDay(a), datePartOf(b),
                 ofDay(b));
-        return SqlToPure.strict(Kind.DURATION, inputs, v -> {
+        return strict(Kind.DURATION, inputs, v -> {
             if (times) {
                 ValueSpecification rest = integer(minus(v.get(1), v.get(0)));
                 return member == TemporalMember.BETWEEN || member == TemporalMember.IN_SECONDS
@@ -15704,7 +15778,7 @@ public final class CypherToPure {
         if (t.kind() != Kind.DATE) {
             return t;
         }
-        return SqlToPure.strict(Kind.DATETIME, List.of(t), v -> call(AT_TIME, v.get(0),
+        return strict(Kind.DATETIME, List.of(t), v -> call(AT_TIME, v.get(0),
                 new com.legend.protocol.spec.CTime(new com.legend.values.PureTimeLiteral.TimeWithMinute(0, 0),
                         "00:00", null)));
     }
@@ -15949,14 +16023,14 @@ public final class CypherToPure {
             // nanoseconds since midnight
             Tx utc = utcParts(instant);
             Tx wallParts = ws.tx();
-            Tx checkedClock = SqlToPure.strict(Kind.INTEGER, List.of(datePartOf(utc), ofDay(utc),
+            Tx checkedClock = strict(Kind.INTEGER, List.of(datePartOf(utc), ofDay(utc),
                     datePartOf(wallParts), ofDay(wallParts)), v -> call("if", call("equal", call(LOCAL_IN, micros(
                     v.get(0), v.get(1)), new CString(zoneName)), micros(v.get(2), v.get(3))), thunk(v.get(1)),
                     new LambdaFunction(List.of(), List.of(call("fail", new CString("Timezone and offset do not match: "
                             + text)), v.get(1)))));
             return scalar(splitZoned(splitDateTime(datePartOf(utc), checkedClock), named));
         }
-        Tx checked = SqlToPure.strict(Kind.DATETIME, List.of(instant, ws.tx()), v -> call("if",
+        Tx checked = strict(Kind.DATETIME, List.of(instant, ws.tx()), v -> call("if",
                 call("equal", inZone(LOCAL_IN, v.get(0), named), v.get(1)), thunk(v.get(0)),
                 new LambdaFunction(List.of(), List.of(call("fail", new CString("Timezone and offset do not match: "
                         + text)), v.get(0)))));
@@ -16057,13 +16131,13 @@ public final class CypherToPure {
             // the clock what is left
             java.util.function.BinaryOperator<ValueSpecification> rest = (secs, ns) -> integer(plus(secondsAsNanos(
                     call("mod", secs, lit(86_400L))), ns));
-            Tx clock = SqlToPure.strict(Kind.INTEGER, inputs, v -> integer(call("mod", rest.apply(v.get(0), v.get(1)),
+            Tx clock = strict(Kind.INTEGER, inputs, v -> integer(call("mod", rest.apply(v.get(0), v.get(1)),
                     lit(DAY_NANOS))));
-            Tx date = SqlToPure.strict(Kind.DATE, inputs, v -> day(call("adjust", epoch(), integer(plus(quotient(
+            Tx date = strict(Kind.DATE, inputs, v -> day(call("adjust", epoch(), integer(plus(quotient(
                     v.get(0), 86_400L), quotient(rest.apply(v.get(0), v.get(1)), DAY_NANOS))), days())));
             return scalar(zoned(splitDateTime(date, clock), Zone.UTC));
         }
-        return scalar(zoned(SqlToPure.strict(Kind.DATETIME, inputs, v -> millis
+        return scalar(zoned(strict(Kind.DATETIME, inputs, v -> millis
                 ? call("adjust", epochInstant(), integer(v.get(0)), unit("MILLISECONDS"))
                 : call("adjust", call("adjust", epochInstant(), integer(v.get(0)), unit("SECONDS")),
                         integer(call("divide", v.get(1), new CInteger(1000L))), unit("MICROSECONDS"))), Zone.UTC));
@@ -16113,7 +16187,7 @@ public final class CypherToPure {
         }
         if (!s.literal()) {
             // (a text a nanosecond value was printed as, marked so: the parts it spells, W13)
-            return scalar(nanos(t) ? splitOfIso(t, Kind.TIME) : SqlToPure.strict(Kind.TIME, List.of(t),
+            return scalar(nanos(t) ? splitOfIso(t, Kind.TIME) : strict(Kind.TIME, List.of(t),
                     x -> call(TIME_OF, call("parseDate", plus(new CString("1970-01-01T"), x.get(0))))));
         }
         String text = (String) java.util.Objects.requireNonNull(s.constant());
@@ -16257,10 +16331,10 @@ public final class CypherToPure {
             if (base != null) {
                 clockInputs.add(0, ofDay(base));
             }
-            return scalar(splitTime(SqlToPure.strict(Kind.INTEGER, clockInputs, v -> clockOf(hasBase ? v.get(0)
+            return scalar(splitTime(strict(Kind.INTEGER, clockInputs, v -> clockOf(hasBase ? v.get(0)
                     : null, components(keys, v, hasBase ? 1 : 0)))));
         }
-        return scalar(SqlToPure.strict(Kind.TIME, inputs, v -> {
+        return scalar(strict(Kind.TIME, inputs, v -> {
             Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
             int i = hasBase ? 1 : 0;
             for (Component k : keys) {
@@ -16352,7 +16426,7 @@ public final class CypherToPure {
                 // (a text a nanosecond value was printed as, marked so: the parts it spells, W13)
                 return scalar(splitOfIso(t, Kind.DATETIME));
             }
-            return scalar(SqlToPure.strict(withTime ? Kind.DATETIME : Kind.DATE, List.of(t), x -> withTime
+            return scalar(strict(withTime ? Kind.DATETIME : Kind.DATE, List.of(t), x -> withTime
                     ? call("parseDate", x.get(0)) : call("datePart", call("parseDate", x.get(0)))));
         }
         String text = (String) java.util.Objects.requireNonNull(s.constant());
@@ -16822,18 +16896,18 @@ public final class CypherToPure {
             if (clockBase != null) {
                 clockInputs.add(0, clockBase);
             }
-            Tx date = SqlToPure.strict(Kind.DATE, dateInputs, v -> dateOf(c, hasBase ? v.get(0) : null,
+            Tx date = strict(Kind.DATE, dateInputs, v -> dateOf(c, hasBase ? v.get(0) : null,
                     components(keys, v, hasBase ? 1 : 0)));
             boolean clocked = clockBase != null;
-            Tx clock = SqlToPure.strict(Kind.INTEGER, clockInputs, v -> clockOf(clocked ? v.get(0) : null,
+            Tx clock = strict(Kind.INTEGER, clockInputs, v -> clockOf(clocked ? v.get(0) : null,
                     components(keys, v, clocked ? 1 : 0)));
             return scalar(splitDateTime(date, clock));
         }
         if (hasBase && !hasBaseTime && timeBaseIsTime && keys.isEmpty()) {
             // localdatetime({date: d, time: t}): the date-time at that time of that day
-            return scalar(SqlToPure.strict(result, inputs, v -> call(AT_TIME, v.get(0), v.get(1))));
+            return scalar(strict(result, inputs, v -> call(AT_TIME, v.get(0), v.get(1))));
         }
-        return scalar(SqlToPure.strict(result, inputs, v -> {
+        return scalar(strict(result, inputs, v -> {
             Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
             int i = (hasBase ? 1 : 0) + (hasTimeBase ? 1 : 0);
             for (Component k : keys) {
@@ -17030,12 +17104,12 @@ public final class CypherToPure {
             return splitZoneField(t, field, z);
         }
         return switch (field) {
-            case TIMEZONE -> SqlToPure.strict(Kind.STRING, List.of(t), x -> z.named()
+            case TIMEZONE -> strict(Kind.STRING, List.of(t), x -> z.named()
                     ? new CString(java.util.Objects.requireNonNull(z.name())) : z.region() != null
                     ? call("if", call("isEmpty", z.region()), thunk(z.offsetSpelled()), thunk(call("toOne",
                             z.region()))) : z.offsetSpelled());
             // (a named zone's offset at the instant, the database's text: the study's §12.75)
-            case OFFSET -> SqlToPure.strict(Kind.STRING, List.of(t), x -> z.named()
+            case OFFSET -> strict(Kind.STRING, List.of(t), x -> z.named()
                     ? offsetTextOf(namedOffset(x.get(0), z)) : z.offsetSpelled());
             case OFFSET_MINUTES, OFFSET_SECONDS -> {
                 ValueSpecification read = z.read();
@@ -17059,7 +17133,7 @@ public final class CypherToPure {
     private static Tx epochField(Tx t, TemporalField field) {
         if (split(t)) {
             Tx utc = utcParts(t);
-            return SqlToPure.strict(Kind.INTEGER, List.of(datePartOf(utc), ofDay(utc)), v -> field
+            return strict(Kind.INTEGER, List.of(datePartOf(utc), ofDay(utc)), v -> field
                     == TemporalField.EPOCH_SECONDS ? integer(plus(times(86_400L, call("dateDiff", epoch(), v.get(0),
                     days())), quotient(v.get(1), NANOS))) : integer(plus(times(86_400_000L, call("dateDiff", epoch(),
                     v.get(0), days())), quotient(v.get(1), 1_000_000L))));
@@ -17075,7 +17149,7 @@ public final class CypherToPure {
     private static Tx splitZoneField(Tx t, TemporalField field, Zone z) {
         boolean time = t.kind() == Kind.ZONED_TIME;
         Tx utc = time ? onEpochDay(ofDay(t)) : utcParts(t);
-        return SqlToPure.strict(field == TemporalField.OFFSET ? Kind.STRING : Kind.INTEGER, List.of(datePartOf(utc),
+        return strict(field == TemporalField.OFFSET ? Kind.STRING : Kind.INTEGER, List.of(datePartOf(utc),
                 ofDay(utc)), v -> {
             ValueSpecification seconds = time ? fixedSeconds(z) : offsetAt(z, micros(v.get(0), v.get(1)));
             return switch (field) {
@@ -17112,7 +17186,7 @@ public final class CypherToPure {
             // (print then parse is the identity, §12.74: a parse of the text reads the value back, a local one's too)
             return printedFrom(withNanos(splitText(wall, zone, time, named ? utcParts(t) : null), true), t);
         }
-        Tx printed = SqlToPure.strict(Kind.STRING, named ? List.of(wall, t) : List.of(wall), x -> {
+        Tx printed = strict(Kind.STRING, named ? List.of(wall, t) : List.of(wall), x -> {
             ValueSpecification v = x.get(0);
             // the zone as Java prints it: the offset (a named zone's at the instant, its wall time against the
             // instant, then its name in brackets: the study's §12.75), none for a local value
@@ -17154,7 +17228,7 @@ public final class CypherToPure {
             parts.add(datePartOf(utc));
             parts.add(ofDay(utc));
         }
-        return SqlToPure.strict(Kind.STRING, parts, x -> {
+        return strict(Kind.STRING, parts, x -> {
             ValueSpecification n = x.get(clockAt);
             ValueSpecification offset = zone == null ? new CString("") : utc != null ? plus(offsetTextOf(offsetAt(zone,
                     micros(x.get(clockAt + 1), x.get(clockAt + 2)))), new CString("[" + zone.name() + "]"))
@@ -17188,7 +17262,7 @@ public final class CypherToPure {
     }
 
     private static Tx field(Tx t, java.util.function.Function<ValueSpecification, ValueSpecification> read) {
-        return SqlToPure.strict(Kind.INTEGER, List.of(t), x -> read.apply(x.get(0)));
+        return strict(Kind.INTEGER, List.of(t), x -> read.apply(x.get(0)));
     }
 
     /** {@code toString(duration)}, Neo4j's spelling (the study's §12.21): {@code P[nY][nM][nD][T[nH][nM][n[.f]S]]},
@@ -17208,7 +17282,7 @@ public final class CypherToPure {
     }
 
     private static Tx durationTextOf(Tx t) {
-        return SqlToPure.strict(Kind.STRING, List.of(t), x -> {
+        return strict(Kind.STRING, List.of(t), x -> {
             // each quantity read straight from the slots (a quotient toward zero, a remainder keeping the
             // dividend's sign), never from another quantity: a nested quotient would spell the struct once per
             // copy of its argument, and that grew past the container's memory, measured
@@ -17389,7 +17463,7 @@ public final class CypherToPure {
         inputs.add(t);
         inputs.addAll(over.values());
         Set<Component> keys = over.keySet();
-        Tx truncated = SqlToPure.strict(result, inputs, v -> {
+        Tx truncated = strict(result, inputs, v -> {
             ValueSpecification x = v.get(0);
             Map<Component, ValueSpecification> o = new java.util.EnumMap<>(Component.class);
             int i = 1;
@@ -17451,7 +17525,7 @@ public final class CypherToPure {
         boolean seconds = fine || unit == TruncateUnit.SECOND;
         List<Tx> clockInputs = new ArrayList<>(List.of(ofDay(wall)));
         clockInputs.addAll(over.values());
-        Tx clock = SqlToPure.strict(Kind.INTEGER, clockInputs, v -> {
+        Tx clock = strict(Kind.INTEGER, clockInputs, v -> {
             Map<Component, ValueSpecification> o = components(new java.util.LinkedHashSet<>(keys), v, 1);
             ValueSpecification n = v.get(0);
             ValueSpecification zero = lit(0);
@@ -17469,7 +17543,7 @@ public final class CypherToPure {
         }
         List<Tx> dateInputs = new ArrayList<>(List.of(datePartOf(wall)));
         dateInputs.addAll(over.values());
-        Tx date = SqlToPure.strict(Kind.DATE, dateInputs, v -> {
+        Tx date = strict(Kind.DATE, dateInputs, v -> {
             Map<Component, ValueSpecification> o = components(new java.util.LinkedHashSet<>(keys), v, 1);
             ValueSpecification d = v.get(0);
             ValueSpecification start = unit.time() ? d : truncated(unit, d);

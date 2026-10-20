@@ -963,6 +963,13 @@ _CYPHER_SHOWCASE_DATA = [
 
 junit_test(
     name = "cypher_parity_test",
+    # eternal (3600 s), the size kept (2026-10-19): main's Windows core lane timed it out at large's 900 s three times on
+    # 167018c4 (runs 39164681359 and 39262226227); measured 451-820 s on Linux and macOS and 645 s on Windows when
+    # green. Eight temporal cases send 0.3-34 MB of SQL each (CypherToPure's temporal helpers repeat an input in every
+    # use: lite/temporal/nanos_arithmetic is one 33.7 MB statement, 130 s in DuckDB's prepare) and take 75% of the
+    # lane (throwaway branch debug/cypher-parity-timing). Back to large's own timeout when the translator binds a
+    # shared temporal value once.
+    timeout = "eternal",
     # live peak 955 MB at 1024 (measured 2026-10-18, 5062 cases, the review's cases landed): the rule's half again;
     # at 1024 the gate's cgroup killed it beside three other tests
     memory_mb = 1536,
