@@ -623,6 +623,11 @@ public final class GqlToPure {
         final Map<String, ColSpec> aggregates = new LinkedHashMap<>();
         final Map<String, String> columnOf = new LinkedHashMap<>();    // name path -> column
         final List<String> selected = new ArrayList<>();
+        /** The response's columns in SELECTION order (a group answers its members in the order asked, the key
+         *  first or not -- 2026-10-20: the key always came first). */
+        final List<String> order = new ArrayList<>();
+        /** {@code __typename} columns: the schema's type name, a constant the database spells. */
+        final Map<String, String> constants = new LinkedHashMap<>();
         boolean hidden;
     }
 
@@ -645,25 +650,40 @@ public final class GqlToPure {
         for (Field s : flatten(f.selectionSet(), groupType, path)) {
             String key = key(s);
             String at = path + "." + key;
+            if (s.name().equals(TYPENAME)) {
+                g.constants.put(key, groupType.name());
+                g.order.add(key);
+                continue;
+            }
             FieldDef sd = groupType.field(s.name());
             if (sd == null) {
                 throw GqlTranslationException.invalid(at, groupType.name() + " has no field " + s.name());
             }
             switch (sd.meaning()) {
                 case Meaning.GroupKey k -> groupKeys(s.selectionSet(), composite(sd), List.of(), key, x, g, at);
-                case Meaning.Count c -> g.selected.add(aggregateColumn(g, "count", key, "count", x, "__one",
-                        Companion.Fold.SUM.pureName.equals("sum") ? "count" : "count"));
+                case Meaning.Count c -> {
+                    String col = aggregateColumn(g, "count", key, "count", x, "__one", "count");
+                    g.selected.add(col);
+                    g.order.add(col);
+                }
                 case Meaning.Fold fold -> {
                     Composite foldType = composite(sd);
                     for (Field h : flatten(s.selectionSet(), foldType, at)) {
+                        if (h.name().equals(TYPENAME)) {
+                            g.constants.put(key + PATH_SEPARATOR + key(h), foldType.name());
+                            g.order.add(key + PATH_SEPARATOR + key(h));
+                            continue;
+                        }
                         FieldDef hd = foldType.field(h.name());
                         if (hd == null || !(hd.meaning() instanceof Meaning.FoldOf fo)) {
                             throw GqlTranslationException.invalid(at + "." + key(h), foldType.name()
                                     + " has no field " + h.name());
                         }
-                        g.selected.add(aggregateColumn(g, fold.fn().field + "." + fo.property(),
+                        String col = aggregateColumn(g, fold.fn().field + "." + fo.property(),
                                 key + PATH_SEPARATOR + key(h), fo.property(), x, fo.property(),
-                                fold.fn().pureName));
+                                fold.fn().pureName);
+                        g.selected.add(col);
+                        g.order.add(col);
                     }
                 }
                 default -> throw GqlTranslationException.invalid(at, s.name() + " is not a group's member");
@@ -707,17 +727,33 @@ public final class GqlToPure {
         if (limit != null && !(peek(limit, path) instanceof Gql.NullValue)) {
             vs = call("limit", vs, count(limit, path + "(limit)"));
         }
-        if (g.hidden) {
-            List<ColSpec> keep = new ArrayList<>();
-            for (String c : g.keys.keySet()) {
-                keep.add(new ColSpec(c, null, null, null));
+        return inSelectionOrder(vs, g.order, g.constants, new ArrayList<>(g.keys.keySet()),
+                new ArrayList<>(g.aggregates.keySet()));
+    }
+
+    /** A relation root's columns as the response asks them: each {@code __typename} a constant column the database
+     *  spells ({@code extend}), then a {@code select} in selection order -- dropping a hidden column, placing the
+     *  constants -- when the relation's own order is not already it. */
+    private ValueSpecification inSelectionOrder(ValueSpecification vs, List<String> order, Map<String, String> constants,
+            List<String> keys, List<String> aggregates) {
+        if (!constants.isEmpty()) {
+            String t = fresh("t");
+            List<ColSpec> cs = new ArrayList<>();
+            for (Map.Entry<String, String> c : constants.entrySet()) {
+                cs.add(new ColSpec(c.getKey(), lambda(t, new CString(c.getValue())), null, null));
             }
-            for (String c : g.selected) {
-                keep.add(new ColSpec(c, null, null, null));
-            }
-            vs = call("select", vs, new ColSpecArray(keep));
+            vs = call("extend", vs, new ColSpecArray(cs));
         }
-        return vs;
+        List<String> natural = new ArrayList<>(keys);
+        natural.addAll(aggregates);
+        if (constants.isEmpty() && natural.equals(order)) {
+            return vs;
+        }
+        List<ColSpec> keep = new ArrayList<>();
+        for (String c : order) {
+            keep.add(new ColSpec(c, null, null, null));
+        }
+        return call("select", vs, new ColSpecArray(keep));
     }
 
     /** The keys under {@code key { ... }}: a scalar or enum property is a column read off the row (a date key
@@ -726,6 +762,12 @@ public final class GqlToPure {
     private void groupKeys(List<Selection> selections, Composite keyType, List<String> props, String column,
             String x, Groups g, String path) {
         for (Field k : flatten(selections, keyType, path)) {
+            if (k.name().equals(TYPENAME)) {
+                // the key object's own type, a constant column (never a grouping key: G19)
+                g.constants.put(column + PATH_SEPARATOR + key(k), keyType.name());
+                g.order.add(column + PATH_SEPARATOR + key(k));
+                continue;
+            }
             if (k.name().startsWith("__")) {
                 continue;
             }
@@ -754,6 +796,7 @@ public final class GqlToPure {
             }
             g.projected.put(col, new ColSpec(col, lambda(x, read), null, null));
             g.keys.put(col, new ColSpec(col, null, null, null));
+            g.order.add(col);
             g.columnOf.put("key." + String.join(".", chain), col);
         }
     }
@@ -795,9 +838,11 @@ public final class GqlToPure {
     private String aggregateColumn(Groups g, String namePath, @com.legend.base.Nullable String column,
             String property, String x, String projectedAs, String fn) {
         String known = g.columnOf.get(namePath);
-        if (known != null) {
+        if (known != null && (column == null || column.equals(known))) {
             return known;
         }
+        // a member selected again under another alias answers under that key too: its own column (the fold
+        // repeats; 2026-10-20: `a: count b: count` answered `a` alone)
         String col = column != null ? column : "_" + namePath.replace(".", PATH_SEPARATOR);
         if (column == null) {
             g.hidden = true;
@@ -808,7 +853,7 @@ public final class GqlToPure {
         }
         g.aggregates.put(col, new ColSpec(col, lambda(x, new AppliedProperty(new Variable(x), projectedAs)),
                 lambda("y", call(fn, new Variable("y"))), null));
-        g.columnOf.put(namePath, col);
+        g.columnOf.putIfAbsent(namePath, col);
         return col;
     }
 
@@ -1060,10 +1105,17 @@ public final class GqlToPure {
         List<ColSpec> projected = new ArrayList<>();
         List<ColSpec> aggregates = new ArrayList<>();
         java.util.Set<String> columns = new java.util.LinkedHashSet<>();
+        List<String> order = new ArrayList<>();
+        Map<String, String> constants = new LinkedHashMap<>();
         String x = fresh("x");
         for (Field g : flatten(f.selectionSet(), aggType, path)) {
             String key = key(g);
             String at = path + "." + key;
+            if (g.name().equals(TYPENAME)) {
+                constants.put(key, aggType.name());
+                order.add(key);
+                continue;
+            }
             FieldDef gd = aggType.field(g.name());
             if (gd == null) {
                 throw GqlTranslationException.invalid(at, aggType.name() + " has no field " + g.name());
@@ -1075,10 +1127,16 @@ public final class GqlToPure {
                     }
                     aggregates.add(new ColSpec(key, lambda(x, new AppliedProperty(new Variable(x), "__one")),
                             lambda("y", call("count", new Variable("y"))), null));
+                    order.add(key);
                 }
                 case Meaning.Fold fold -> {
                     Composite foldType = composite(gd);
                     for (Field h : flatten(g.selectionSet(), foldType, at)) {
+                        if (h.name().equals(TYPENAME)) {
+                            constants.put(key + PATH_SEPARATOR + key(h), foldType.name());
+                            order.add(key + PATH_SEPARATOR + key(h));
+                            continue;
+                        }
                         FieldDef hd = foldType.field(h.name());
                         if (hd == null || !(hd.meaning() instanceof Meaning.FoldOf fo)) {
                             throw GqlTranslationException.invalid(at + "." + key(h), foldType.name()
@@ -1091,16 +1149,28 @@ public final class GqlToPure {
                         aggregates.add(new ColSpec(key + PATH_SEPARATOR + key(h),
                                 lambda(x, new AppliedProperty(new Variable(x), fo.property())),
                                 lambda("y", call(fold.fn().pureName, new Variable("y"))), null));
+                        order.add(key + PATH_SEPARATOR + key(h));
                     }
                 }
                 default -> throw GqlTranslationException.invalid(at, g.name() + " is not an aggregate member");
             }
         }
-        if (aggregates.isEmpty()) {
+        if (aggregates.isEmpty() && constants.isEmpty()) {
             throw GqlTranslationException.invalid(path, "the aggregate selects nothing");
         }
+        if (aggregates.isEmpty()) {
+            // only meta-fields: the one row still comes from an aggregate (a hidden count the select drops)
+            projected.add(new ColSpec("__one", lambda(x, new CInteger(1L, null)), null, null));
+            aggregates.add(new ColSpec("_count", lambda(x, new AppliedProperty(new Variable(x), "__one")),
+                    lambda("y", call("count", new Variable("y"))), null));
+        }
         vs = call("project", vs, new ColSpecArray(projected));
-        return call("aggregate", vs, new ColSpecArray(aggregates));
+        vs = call("aggregate", vs, new ColSpecArray(aggregates));
+        List<String> names = new ArrayList<>();
+        for (ColSpec a : aggregates) {
+            names.add(a.name());
+        }
+        return inSelectionOrder(vs, order, constants, List.of(), names);
     }
 
     /** The object or interface type a field's type names. */
@@ -1552,10 +1622,21 @@ public final class GqlToPure {
     /** A sort key: its property path, its direction, the subclass it reads as ({@code asSub}), and whether its leaf
      *  is a derived property (read through a to-one hop, it is guarded: an absent hop is an absent key). */
     private record SortKey(List<String> path, boolean ascending, @com.legend.base.Nullable String subtypeFqn,
-            boolean derivedLeaf) {
+            boolean derivedLeaf, @com.legend.base.Nullable AggregateKey aggregate) {
         SortKey(List<String> path, boolean ascending) {
-            this(path, ascending, null, false);
+            this(path, ascending, null, false, null);
         }
+
+        SortKey(List<String> path, boolean ascending, @com.legend.base.Nullable String subtypeFqn,
+                boolean derivedLeaf) {
+            this(path, ascending, subtypeFqn, derivedLeaf, null);
+        }
+    }
+
+    /** A key over a to-many property's aggregate ({@code ordersAggregate: { count: DESC }}, {@code { sum:
+     *  { discount: ASC } }}): the Pure function and the folded property (null for {@code count}); the key's path
+     *  ends at the to-many property. */
+    private record AggregateKey(String fn, @com.legend.base.Nullable String leaf) {
     }
 
     /** One key object: a single property with a direction, or a to-one property's own key object (a chain). */
@@ -1601,11 +1682,30 @@ public final class GqlToPure {
                 throw GqlTranslationException.invalid(at, "a key object is expected under " + a.name());
             }
             SortKey inner = sortKey(o, subOrder, sub, at);
-            return new SortKey(inner.path(), inner.ascending(), classFqnOf(sub, at), inner.derivedLeaf());
+            return new SortKey(inner.path(), inner.ascending(), classFqnOf(sub, at), inner.derivedLeaf(),
+                    inner.aggregate());
         }
-        if (typeName.endsWith("AggregateOrderBy")) {
-            throw GqlTranslationException.unsupported(at, a.name() + " sorts by an aggregate: it lands with the"
-                    + " aggregates landing (PR4)");
+        if (prop.meaning() instanceof Meaning.AggregateOf ag) {
+            // the AGGREGATE of a to-many property (the schema's `pAggregate` key): `count`, or a fold of one of its
+            // properties, read per object -- the database's correlated aggregate (2026-10-20: advertised by the
+            // schema since PR4, refused until now)
+            if (!(v instanceof Gql.ObjectValue o)) {
+                throw GqlTranslationException.invalid(at, "an aggregate key object is expected under " + a.name());
+            }
+            Argument m = one(o, at);
+            Value mv = resolve(m.value(), at + "." + m.name());
+            if (m.name().equals("count")) {
+                return new SortKey(List.of(ag.property()), direction(mv, at + ".count"), null, false,
+                        new AggregateKey("count", null));
+            }
+            Companion.Fold fold = Companion.Fold.of(m.name());
+            if (!(mv instanceof Gql.ObjectValue fo)) {
+                throw GqlTranslationException.invalid(at + "." + m.name(), "a key object naming one property");
+            }
+            Argument leaf = one(fo, at + "." + m.name());
+            return new SortKey(List.of(ag.property()),
+                    direction(resolve(leaf.value(), at), at + "." + m.name() + "." + leaf.name()), null,
+                    false, new AggregateKey(fold.pureName, leaf.name()));
         }
         Composite target = schema.find(GqlSchema.baseName(prop.type())) instanceof Composite c ? c : null;
         if (target == null || !(v instanceof Gql.ObjectValue o)) {
@@ -1615,15 +1715,15 @@ public final class GqlToPure {
         List<String> chain = new ArrayList<>();
         chain.add(a.name());
         chain.addAll(inner.path());
-        return new SortKey(chain, inner.ascending(), null, inner.derivedLeaf());
+        return new SortKey(chain, inner.ascending(), null, inner.derivedLeaf(), inner.aggregate());
     }
 
     private static ValueSpecification sortRead(ValueSpecification row, SortKey sk) {
         if (sk.subtypeFqn() == null) {
-            return guardedRead(row, sk.path(), sk.derivedLeaf());
+            return keyRead(row, sk);
         }
         ValueSpecification cast = call("cast", row, new TypeAnnotation.Named(new TypeExpression.NameRef(sk.subtypeFqn())));
-        ValueSpecification value = guardedRead(cast, sk.path(), sk.derivedLeaf());
+        ValueSpecification value = keyRead(cast, sk);
         // toOne: the key lambda is {T[1]->U[1]}; the empty arm is the null the database sorts
         return call("toOne", call("if", call("instanceOf", row, new PackageableElementPtr(sk.subtypeFqn())),
                 thunk(value), thunk(new PureCollection(List.of()))));
@@ -1637,6 +1737,37 @@ public final class GqlToPure {
      * database's outer join answers null. The hardening fuzzer found the unguarded read sorting customer-less orders
      * first (2026-10-20).
      */
+    /** A key's value off {@code row}: its property read, or its aggregate over the to-many property its path ends
+     *  at ({@code $x.orders->count()}, {@code $x.orders.discount->sum()}), guarded like a derived leaf when a to-one
+     *  hop precedes it (an absent hop is an absent key, never a count of 0). */
+    private static ValueSpecification keyRead(ValueSpecification row, SortKey sk) {
+        if (sk.aggregate() == null) {
+            return guardedRead(row, sk.path(), sk.derivedLeaf());
+        }
+        ValueSpecification many = navigate(row, sk.path());
+        ValueSpecification value = sk.aggregate().leaf() == null ? call("count", many)
+                : call(sk.aggregate().fn(), new AppliedProperty(many, sk.aggregate().leaf()));
+        if (sk.path().size() < 2) {
+            return value;
+        }
+        ValueSpecification hop = navigate(row, sk.path().subList(0, sk.path().size() - 1));
+        return call("toOne", call("if", call("isEmpty", hop), thunk(new PureCollection(List.of())), thunk(value)));
+    }
+
+    /** The one non-null field of a key object (G16), or invalid. */
+    private Argument one(Gql.ObjectValue o, String at) {
+        List<Argument> given = new ArrayList<>();
+        for (Argument x : o.fields()) {
+            if (!(resolve(x.value(), at) instanceof Gql.NullValue)) {
+                given.add(x);
+            }
+        }
+        if (given.size() != 1) {
+            throw GqlTranslationException.invalid(at, "a sort key names exactly one member (G16): got " + given.size());
+        }
+        return given.get(0);
+    }
+
     private static ValueSpecification guardedRead(ValueSpecification row, List<String> path, boolean derivedLeaf) {
         ValueSpecification read = navigate(row, path);
         if (!derivedLeaf || path.size() < 2) {

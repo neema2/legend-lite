@@ -264,10 +264,14 @@ public final class Fuzz {
             keys.add(new GSel(f, args, List.of()));
             keyPaths.add(List.of(f));
         }
+        if (chance(0.1)) {
+            keys.add(r.nextInt(keys.size() + 1), new GSel("__typename", null, List.of()));
+        }
         List<GSel> sel = new ArrayList<>();
-        sel.add(new GSel("key", null, keys));
         GSel agg = aggregateField(cls, cls);
         sel.addAll(agg.sub());
+        // the key anywhere among the members: a group answers in the order asked
+        sel.add(r.nextInt(sel.size() + 1), new GSel("key", null, keys));
         List<Map.Entry<String, GV>> args = new ArrayList<>();
         if (chance(0.5)) {
             args.add(e("where", where(cls, 2)));
@@ -425,8 +429,16 @@ public final class Fuzz {
         for (String fold : List.of("sum", "avg", "min", "max")) {
             List<String> props = fold.equals("sum") || fold.equals("avg") ? numeric : ordered;
             if (!props.isEmpty() && chance(0.35)) {
-                members.add(new GSel(fold, null, List.of(new GSel(pick(props), null, List.of()))));
+                List<GSel> fs = new ArrayList<>();
+                fs.add(new GSel(pick(props), null, List.of()));
+                if (chance(0.1)) {
+                    fs.add(r.nextInt(2), new GSel("__typename", null, List.of()));
+                }
+                members.add(new GSel(fold, null, fs));
             }
+        }
+        if (chance(0.1)) {
+            members.add(r.nextInt(members.size() + 1), new GSel("__typename", null, List.of()));
         }
         GObj args = chance(0.4) ? obj(List.of(e("where", where(target, 1)))) : null;
         return new GSel(toMany + "Aggregate", args, members);
@@ -621,6 +633,30 @@ public final class Fuzz {
     }
 
     GV sortKey(String cls, int depth) {
+        List<String> manys = toManys(cls);
+        if (!manys.isEmpty() && chance(0.12)) {
+            // a to-many property's aggregate: its count, or a fold of one of its properties
+            String f = pick(manys);
+            String target = ((ToMany) model.get(cls).fields.get(f)).target();
+            GLit dir = new GLit(chance(0.5) ? "ASC" : "DESC");
+            List<String> numeric = new ArrayList<>();
+            List<String> ordered = new ArrayList<>();
+            for (String p : filterable(target)) {
+                Kind k = ((Scalar) model.get(target).fields.get(p)).kind();
+                if (k == Kind.BIGINT || k == Kind.FLOAT || k == Kind.DECIMAL) {
+                    numeric.add(p);
+                    ordered.add(p);
+                } else if (k == Kind.DATE || k == Kind.DATETIME) {
+                    ordered.add(p);
+                }
+            }
+            String fold = pick(List.of("count", "sum", "avg", "min", "max"));
+            List<String> props = fold.equals("sum") || fold.equals("avg") ? numeric : ordered;
+            if (fold.equals("count") || props.isEmpty()) {
+                return obj(List.of(e(f + "Aggregate", obj(List.of(e("count", dir))))));
+            }
+            return obj(List.of(e(f + "Aggregate", obj(List.of(e(fold, obj(List.of(e(pick(props), dir)))))))));
+        }
         List<String> ones = toOnes(cls);
         if (depth < 2 && !ones.isEmpty() && chance(0.25)) {
             String f = pick(ones);

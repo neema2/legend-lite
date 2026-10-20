@@ -93,7 +93,7 @@ final class CorrelatedSubselects {
                 leaves.addAll(dm.demandLeaves());
                 if (dm.mapper() != null) {
                     for (TypedSpec b : dm.mapper().body()) {
-                        FlattenOps.consumedPaths(b, dm.mapper().parameters().get(0),
+                        consumedPathsOutsideInner(b, dm.mapper().parameters().get(0),
                                 mapperPaths);
                     }
                 }
@@ -187,6 +187,91 @@ final class CorrelatedSubselects {
         return aggMaterials;
     }
 
+
+    /** The joined parent-copy row's read of the TARGET's first key column (else its first column): NULL exactly
+     *  where the LEFT join kept an unmatched parent. */
+    private TypedSpec targetPresence(ClassSource cs, AssociationJoins.AssocJoin aj, String corrTp,
+            @com.legend.base.Nullable String corrRowVar, Type.@com.legend.base.Nullable RelationType corrJoinedRow) {
+        java.util.List<String> tpk = RelationalRootForm.primaryKeyColumns(
+                aj.target().classFqn(), aj.target().pipeline(), cs.mappingFqn(),
+                sources.ctx());
+        String tcol = tpk.isEmpty() ? aj.targetRow().columns().get(0).name() : tpk.get(0);
+        Type.Column tc = aj.targetRow().columns().stream()
+                .filter(c -> c.name().equals(tcol)).findFirst()
+                .orElse(aj.targetRow().columns().get(0));
+        return new TypedPropertyAccess(
+                new com.legend.compiler.spec.typed.TypedVariable(
+                        java.util.Objects.requireNonNull(corrRowVar, "corrRowVar"),
+                        new ExprType(java.util.Objects.requireNonNull(corrJoinedRow, "corrJoinedRow"),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                corrTp + tc.name(), new ExprType(tc.type(), tc.multiplicity()));
+    }
+
+    static boolean containsInnerReducer(TypedSpec n, String param) {
+        if (innerReducer(n, param)) {
+            return true;
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(param)) {
+            return false;
+        }
+        for (TypedSpec c : n.children()) {
+            if (containsInnerReducer(c, param)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** An INNER reducer of an aggregate's computed mapper: a reducer over a to-many navigation off the mapper's
+     *  element ({@code $o.lines->count()} in {@code max(map($x.orders, o | $o.lines->count()))}, the inlined
+     *  {@code orders.lineCount->max()}). Its own grouped join on the aggregate's target serves it
+     *  (StoreResolver.withInnerAggregates) -- never the target's row, which its navigation would fan out. */
+    static boolean innerReducer(TypedSpec n, String param) {
+        return n instanceof TypedNativeCall nc && !nc.args().isEmpty() && isAggregate(nc)
+                && readsToManyNav(nc.args().get(0), param);
+    }
+
+    /** Whether {@code n} reads a class-typed to-many navigation off {@code param}. */
+    private static boolean readsToManyNav(TypedSpec n, String param) {
+        if (n instanceof TypedPropertyAccess pa && pa.source() instanceof TypedVariable v
+                && v.name().equals(param) && Type.asClassType(pa.info().type()) instanceof Type.ClassType
+                && pa.info().multiplicity().isMany()) {
+            return true;
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(param)) {
+            return false;
+        }
+        for (TypedSpec c : n.children()) {
+            if (readsToManyNav(c, param)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@link FlattenOps#consumedPaths} but for an {@link #innerReducer}'s navigated argument: the target-side
+     *  paths an aggregate's mapper reads off the target's row. */
+    static void consumedPathsOutsideInner(TypedSpec n, String param, Set<List<String>> out) {
+        if (innerReducer(n, param)) {
+            List<TypedSpec> args = ((TypedNativeCall) n).args();
+            for (int i = 1; i < args.size(); i++) {
+                consumedPathsOutsideInner(args.get(i), param, out);
+            }
+            return;
+        }
+        List<String> path = Substitution.pathOf(n, param);
+        if (path != null) {
+            out.add(path);
+        }
+        InnerDemand.composeAutoMapPaths(n, param, out, CorrelatedSubselects::consumedPathsOutsideInner);
+        InnerDemand.scanTdsContainsFns(n, param, (b, pv) -> consumedPathsOutsideInner(b, pv, out));
+        if (n instanceof TypedLambda l && l.parameters().contains(param)) {
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            consumedPathsOutsideInner(c, param, out);
+        }
+    }
 
     /** CHAIN-AGG fold step output: the pipe widened with the MID hop's
      * LEFT join, and the FINAL hop's material with its parent-side
@@ -1106,7 +1191,9 @@ private static boolean referencesVar(TypedSpec n, String var) {
             @com.legend.base.Nullable String corrTp,
             @com.legend.base.Nullable String corrRowVar,
             Type.@com.legend.base.Nullable RelationType corrJoinedRow,
-            @com.legend.base.Nullable ParentCopy pc) {
+            @com.legend.base.Nullable ParentCopy pc,
+            Map<TypedSpec, Substitution.AggRead> innerReads,
+            com.legend.compiler.element.@com.legend.base.Nullable TypedFunction isNotEmpty) {
         TypedSpec mapBody;
         String mapVar = aj.target().rowVar();
         var mapRowType = aj.targetRow();
@@ -1136,7 +1223,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                             aj.targetSlotPrefixes(),
                             aj.targetSubNavs(), Map.of(),
                             Map.of(), aj.target().rowVar(),
-                            aj.targetRow())
+                            aj.targetRow(), innerReads, isNotEmpty)
                     : assocMaterial.corrPredOnJoinedRow(d.mapper(),
                             cs, aj.target(), corrTp,
                             aj.targetSlotPrefixes(),
@@ -1144,7 +1231,8 @@ private static boolean referencesVar(TypedSpec n, String var) {
                             pc == null ? Map.of() : pc.mat().slotPrefixes(),
                             pc == null ? Map.of() : pc.subNavs(),
                             java.util.Objects.requireNonNull(corrRowVar, "corrRowVar"),
-                            java.util.Objects.requireNonNull(corrJoinedRow, "corrJoinedRow"));
+                            java.util.Objects.requireNonNull(corrJoinedRow, "corrJoinedRow"),
+                            innerReads, isNotEmpty);
             mapBody = mm.body().get(0);
             if (corrTp != null && mapBody instanceof com.legend.compiler.spec.typed.TypedCInteger one
                     && one.value().longValue() == 1L) {
@@ -1154,19 +1242,20 @@ private static boolean referencesVar(TypedSpec n, String var) {
                 // matchingRules 1 for 0). Count a TARGET column instead —
                 // NULL on the unmatched row, so the count is 0. The target's
                 // first declared key column when it has one, else its first.
-                java.util.List<String> tpk = RelationalRootForm.primaryKeyColumns(
-                        aj.target().classFqn(), aj.target().pipeline(), cs.mappingFqn(),
-                        sources.ctx());
-                String tcol = tpk.isEmpty() ? aj.targetRow().columns().get(0).name() : tpk.get(0);
-                Type.Column tc = aj.targetRow().columns().stream()
-                        .filter(c -> c.name().equals(tcol)).findFirst()
-                        .orElse(aj.targetRow().columns().get(0));
-                mapBody = new TypedPropertyAccess(
-                        new com.legend.compiler.spec.typed.TypedVariable(
-                                java.util.Objects.requireNonNull(corrRowVar, "corrRowVar"),
-                                new ExprType(java.util.Objects.requireNonNull(corrJoinedRow, "corrJoinedRow"),
-                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
-                        corrTp + tc.name(), new ExprType(tc.type(), tc.multiplicity()));
+                mapBody = targetPresence(cs, aj, corrTp, corrRowVar, corrJoinedRow);
+            } else if (corrTp != null && d.mapper().body().stream()
+                    .anyMatch(b -> containsInnerReducer(b, d.mapper().parameters().get(0)))) {
+                // an INNER reducer's empty-group value (0, true) over the same unmatched parent row: the absent
+                // element would count (a tag with no products, `Tag(orderBy: productsAggregate.min.tagCount)`,
+                // the GraphQL hardening fuzzer, 2026-10-20) -- an absent element has no value
+                TypedSpec present = targetPresence(cs, aj, corrTp, corrRowVar, corrJoinedRow);
+                ExprType opt = new ExprType(mapBody.info().type(),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE);
+                mapBody = new com.legend.compiler.spec.typed.TypedIf(
+                        new TypedNativeCall(java.util.Objects.requireNonNull(isNotEmpty, "isNotEmpty"),
+                                List.of(present), ExprType.one(Type.Primitive.BOOLEAN)),
+                        mapBody, Optional.of(new com.legend.compiler.spec.typed.TypedCollection(List.of(), opt)),
+                        opt);
             }
             leafType = mapBody.info().type();
             leafMult = mapBody.info().multiplicity();
@@ -2541,6 +2630,24 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                     }
                     return;
                 }
+                // a CHAIN source whose one to-many hop is its LAST, behind to-one mids ($x.order.lines->map(l |
+                // $l.qty * $l.unitPrice), the GraphQL hardening fuzzer's `Line(orderBy:
+                // order.linesAggregate.min.amount)`, 2026-10-20): the dotted chain key the leaf-read chain arm
+                // registers, the mapper over the final hop's element
+                if (srcPath != null && srcPath.size() >= 2
+                        && !toManyHead.test(cs, srcPath.get(0))
+                        && bareHead.test(cs, srcPath.get(0))
+                        && firstToManyHop(mapSrc, srcPath.size()) == srcPath.size() - 1) {
+                    aggOut.computeIfAbsent(String.join(".", srcPath), k -> new ArrayList<>())
+                            .add(new StoreResolver.AggDemand(nc, null, tmap.mapper(), mOrder, mAsc));
+                    for (TypedSpec b : tmap.mapper().body()) {
+                        aggScan(b, userVar, cs, aggOut, bareOut, toManyHead, bareHead);
+                    }
+                    for (int i = 1; i < nc.args().size(); i++) {
+                        aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut, toManyHead, bareHead);
+                    }
+                    return;
+                }
             }
             if (path != null && path.size() == 2
                     && toManyHead.test(cs, path.get(0))) {
@@ -2651,7 +2758,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             }
             // STUDY #12: a to-many hop at index > 0 behind a to-one HEAD
             // escaped both audit-9 guards. For the IDENTITY-ELIDING
-            // reducer family (sum/average/mean — Scalars' to-one elision)
+            // reducer family (sum/average/mean/min/max — Scalars' to-one elision)
             // that silently EATS the aggregate (the witnessed wrong
             // rows); list-space reducers (joinStrings, count) reduce the
             // exploded values correctly and stay allowed. Chain-demand
@@ -2721,8 +2828,35 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         return true;
     }
 
+    /** The index of the navigation {@code arg}'s ({@code $x.h0...h(n-1)}) first TO-MANY hop when every hop before
+     *  it is a to-one class read ({@code $x.order.lines.qty}: 1; {@code $x.customer.referrer.referred.joined}: 2);
+     *  -1 for any other shape. */
+    private static int firstToManyHop(TypedSpec arg, int n) {
+        List<com.legend.compiler.spec.typed.TypedPropertyAccess> hops = new ArrayList<>();
+        TypedSpec cur = arg;
+        for (int i = 0; i < n; i++) {
+            cur = Pipelines.unwrapToOne(cur);
+            if (!(cur instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa)) {
+                return -1;
+            }
+            hops.add(0, pa);
+            cur = pa.source();
+        }
+        for (int i = 0; i < hops.size(); i++) {
+            var pa = hops.get(i);
+            if (!(Type.asClassType(pa.info().type()) instanceof Type.ClassType)) {
+                return -1;
+            }
+            if (!(pa.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                    && b.upper() != null && b.upper() <= 1)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     /** STUDY #12's class, the chain-demand registration: an IDENTITY-
-     * ELIDING reducer (sum/average/mean) over a navigation whose to-many
+     * ELIDING reducer (sum/average/mean/min/max) over a navigation whose to-many
      * hop sits behind a TO-ONE association/navigate head —
      * {@code sum($p.firm.employees.age)}, the qualifier-inlined
      * {@code $p.firm->toOne().sumEmployeesAge()} (testFilterTimesWith
@@ -2751,12 +2885,19 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                         && Integer.valueOf(1).equals(cm.upper()))) {
             return false;
         }
-        TypedLambda chainTail = tailMapperOf(nc.args().get(0), userVar, 2);
+        // the key runs to the FIRST to-many hop, past every to-one mid (`customer.referrer.referred`, the GraphQL
+        // hardening fuzzer's `Order(orderBy: customer.referrer.referredAggregate.max.joined)`, 2026-10-20 -- keyed at
+        // the second hop, the to-one referrer stood in for the to-many and the value fanned out)
+        int k = firstToManyHop(nc.args().get(0), path.size());
+        if (k < 1 || k > path.size() - 2) {
+            return false;
+        }
+        TypedLambda chainTail = tailMapperOf(nc.args().get(0), userVar, k + 1);
         if (chainTail == null) {
             return false;
         }
-        aggOut.computeIfAbsent(path.get(0) + "." + path.get(1),
-                        k -> new ArrayList<>())
+        aggOut.computeIfAbsent(String.join(".", path.subList(0, k + 1)),
+                        key -> new ArrayList<>())
                 .add(new StoreResolver.AggDemand(nc, null, chainTail));
         for (int i = 1; i < nc.args().size(); i++) {
             aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut,
@@ -2925,10 +3066,17 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      *  guard fires only for these; list-carrier reducers survive. */
     private static boolean isElidingReducer(
             com.legend.compiler.spec.typed.TypedNativeCall nc) {
-        String n = nc.callee().qualifiedName();
-        return n.equals("meta::pure::functions::math::sum")
-                || n.equals("meta::pure::functions::math::average")
-                || n.equals("meta::pure::functions::math::mean");
+        var id = nc.callee().id();
+        return com.legend.builtin.Pure.AT_MATH_SUM.contains(id)
+                || com.legend.builtin.Pure.AT_MATH_AVERAGE.contains(id)
+                || com.legend.builtin.Pure.AT_MATH_MEAN.contains(id)
+                // min/max over a list (2026-10-20, the GraphQL hardening fuzzer's
+                // `Line(orderBy: order.linesAggregate.min.qty)`: the flat join fanned the row out and the
+                // to-one elision ate the min) -- the two-argument forms are scalar, never a reducer
+                || nc.args().size() == 1 && (com.legend.builtin.Pure.AT_MATH_MIN.contains(id)
+                        || com.legend.builtin.Pure.AT_MATH_MAX.contains(id)
+                        || com.legend.builtin.Pure.AT_DATE_MIN.contains(id)
+                        || com.legend.builtin.Pure.AT_DATE_MAX.contains(id));
     }
 
     private static boolean hasCol(Type.RelationType row, String name) {

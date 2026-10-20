@@ -99,11 +99,23 @@ query Q($withName: Boolean!) { Customer(orderBy: [{ id: ASC }]) { id name @inclu
 # typename: inside a nested aggregate's folds
 { Order(orderBy: [{ id: ASC }]) { id linesAggregate { __typename sum { __typename qty } } } }
 
+# typename: on a groups root, its key and its folds
+{ CustomerGroups(orderBy: [{ key: { vip: ASC } }]) { __typename key { __typename vip } count sum { __typename score } } }
+
+# typename: on a root aggregate and its folds
+{ CustomerAggregate { __typename count min { __typename joined } } }
+
 # aliases: a double underscore inside an alias at the root aggregate
 { CustomerAggregate { all__rows: count sum { s__score: score } } }
 
 # aliases: a double underscore inside a group's alias
 { CustomerGroups(orderBy: [{ key: { tier: ASC } }]) { k__ey: key { t__ier: tier } n__: count } }
+
+# aliases: one fold twice under two aliases
+{ CustomerAggregate { a: max { score } b: max { joined } c: count } }
+
+# aliases: a nested aggregate's folds aliased
+{ Customer(orderBy: [{ id: ASC }]) { id o: ordersAggregate { n: count first: min { p: placed } } } }
 
 # operations: the named operation chosen
 # operation: Second
@@ -354,6 +366,60 @@ query Q($s: String) { Order(where: { note: { equals: $s } }) { id note } }
 # order: a nested list by a derived count through a to-one
 { Tag(orderBy: [{ id: ASC }]) { id products(orderBy: [{ sku: ASC }]) { sku productLines(orderBy: [{ product: { tagCount: DESC } }, { id: ASC }]) { id } } } }
 
+# order: by a nested count
+{ Customer(orderBy: [{ ordersAggregate: { count: DESC } }, { id: ASC }]) { id orderCount } }
+
+# order: by a nested max, nulls largest
+{ Customer(orderBy: [{ ordersAggregate: { max: { discount: DESC } } }, { id: ASC }]) { id } }
+
+# order: by a nested min over a date
+{ Customer(orderBy: [{ ordersAggregate: { min: { placed: ASC } } }, { id: ASC }]) { id } }
+
+# order: by a nested sum over a derived arithmetic leaf
+{ Order(orderBy: [{ linesAggregate: { sum: { amount: DESC } } }, { id: ASC }]) { id } }
+
+# order: by a nested average
+{ Order(orderBy: [{ linesAggregate: { avg: { unitPrice: ASC } } }, { id: DESC }]) { id } }
+
+# order: by an aggregate over a derived filtered collection
+{ Customer(orderBy: [{ liveOrdersAggregate: { count: ASC } }, { id: ASC }]) { id } }
+
+# order: by an aggregate over the many-to-many
+{ Product(orderBy: [{ tagsAggregate: { max: { id: DESC } } }, { sku: ASC }]) { sku } }
+
+# order: by the fold of a derived count
+{ Customer(orderBy: [{ ordersAggregate: { max: { lineCount: ASC } } }, { id: ASC }]) { id } }
+
+# order: by the sum of a derived count, each order counted once
+{ Customer(orderBy: [{ ordersAggregate: { sum: { lineCount: DESC } } }, { id: ASC }]) { id } }
+
+# order: by the fold of a many-to-many count, a tag with no products
+{ Tag(orderBy: [{ productsAggregate: { min: { tagCount: DESC } } }, { id: ASC }]) { id } }
+
+# order: by an aggregate through a to-one hop
+{ Line(orderBy: [{ order: { linesAggregate: { min: { qty: DESC } } } }, { id: ASC }]) { id } }
+
+# order: by an aggregate through two to-one hops
+{ Order(orderBy: [{ customer: { referrer: { referredAggregate: { max: { joined: ASC } } } } }, { id: ASC }]) { id } }
+
+# order: by a computed fold through a to-one hop
+{ Line(orderBy: [{ order: { linesAggregate: { min: { amount: ASC } } } }, { id: DESC }]) { id } }
+
+# order: by a derived filtered collection's aggregate through a to-one hop
+{ Customer(orderBy: [{ referrer: { liveOrdersAggregate: { max: { discount: ASC } } } }, { id: ASC }]) { id } }
+
+# order: by the fold of a derived count through a to-one hop
+{ Order(orderBy: [{ customer: { ordersAggregate: { min: { lineCount: ASC } } } }, { id: ASC }]) { id } }
+
+# order: by an aggregate through a to-one hop into the many-to-many
+{ Line(orderBy: [{ product: { tagsAggregate: { max: { id: ASC } } } }, { id: ASC }]) { id } }
+
+# order: a nested list by an aggregate
+{ Customer(orderBy: [{ id: ASC }]) { id orders(orderBy: [{ linesAggregate: { sum: { qty: DESC } } }, { id: ASC }]) { id } } }
+
+# order: a nested list by an aggregate through a to-one hop
+{ Order(orderBy: [{ id: ASC }]) { id lines(orderBy: [{ order: { linesAggregate: { min: { id: DESC } } } }, { id: DESC }]) { id } } }
+
 # aggregates: the root aggregate
 { CustomerAggregate { count sum { score credit } avg { score credit } min { joined lastSeen score } max { joined lastSeen credit } } }
 
@@ -410,6 +476,12 @@ query Q($s: String) { Order(where: { note: { equals: $s } }) { id note } }
 
 # groups: limited
 { CustomerGroups(orderBy: [{ count: DESC }, { key: { tier: ASC } }], limit: 2) { key { tier } count } }
+
+# groups: the selection's order kept, folds before the key
+{ CustomerGroups(orderBy: [{ key: { tier: ASC } }]) { count max { score } key { tier } } }
+
+# groups: aliases on the key, its fields and the folds
+{ OrderGroups(orderBy: [{ key: { status: ASC } }]) { k: key { s: status } n: count hi: max { d: discount } lo: min { d: discount } } }
 
 # regressions: a nested list filtered by a non-null derived count, zero included
 { Customer(orderBy: [{ id: ASC }]) { id referred(where: { orderCount: { lte: 0 } }) { id tier } } }

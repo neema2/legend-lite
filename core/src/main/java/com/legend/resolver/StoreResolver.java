@@ -2002,6 +2002,49 @@ public final class StoreResolver {
             List<AssociationJoins.AssocJoin> aggAssocJoins,
             Map<TypedSpec, Substitution.AggRead> aggReads) {}
 
+    /** NESTED REDUCERS in an aggregate's computed mapper ({@code orders.lineCount->max()}: the mapper {@code o |
+     * $o.lines->count()} reduces a navigation of the aggregated element; the GraphQL hardening fuzzer's
+     * `Customer(orderBy: ordersAggregate.max.lineCount)`, 2026-10-20): each material's target is a scope of its
+     * own -- its inner reducers scan against it, their grouped subselects fold onto its pipeline exactly as the
+     * root's fold onto the root's, and their reads ({@code innerReads}) serve the mapper's substitution. The
+     * decorrelated shape at every depth: the inner grouped join keyed on the target, never a correlated
+     * subquery and never a fan-out of the target's rows. */
+    private Map<String, AssociationJoins.AssocJoin> withInnerAggregates(
+            Map<String, AssociationJoins.AssocJoin> aggMaterials, Map<String, List<AggDemand>> aggDemands,
+            Context context, Map<TypedSpec, Substitution.AggRead> innerReads) {
+        Map<String, AssociationJoins.AssocJoin> out = new LinkedHashMap<>();
+        for (var e : aggMaterials.entrySet()) {
+            AssociationJoins.AssocJoin aj = e.getValue();
+            Map<String, List<AggDemand>> inner = new LinkedHashMap<>();
+            for (AggDemand d : aggDemands.getOrDefault(e.getKey(), List.of())) {
+                if (d.mapper() == null) {
+                    continue;
+                }
+                String param = d.mapper().parameters().get(0);
+                for (TypedSpec b : d.mapper().body()) {
+                    if (CorrelatedSubselects.containsInnerReducer(b, param)) {
+                        CorrelatedSubselects.aggScan(b, param, aj.target(), inner, new LinkedHashSet<>(),
+                                this::isToManyAssocHead, this::isAssocOrNavHead);
+                    }
+                }
+            }
+            if (!inner.isEmpty()) {
+                Map<String, AssociationJoins.AssocJoin> chainMids = new LinkedHashMap<>();
+                Map<String, AssociationJoins.AssocJoin> mats = withInnerAggregates(
+                        corrSubs.buildAggMaterials(temporal, aj.target(), context, inner, chainMids),
+                        inner, context, innerReads);
+                TypedSpec pipe = aj.targetPipeline();
+                JoinedPipe joined = foldAssociationJoins(aj.target(),
+                        new Pipelines.Materialized(pipe, Map.of(), Set.of()), pipe, List.of(), mats, inner,
+                        chainMids, innerReads);
+                innerReads.putAll(joined.aggReads());
+                aj = aj.withTargetPipeline(joined.m().pipeline());
+            }
+            out.put(e.getKey(), aj);
+        }
+        return out;
+    }
+
     /** PHASE 2b-ii — fold the association joins and the aggregated-
      * navigation grouped subselects onto the materialized pipeline. */
     private JoinedPipe foldAssociationJoins(ClassSource cs,
@@ -2009,7 +2052,8 @@ public final class StoreResolver {
             List<AssociationJoins.AssocJoin> assocJoins,
             Map<String, AssociationJoins.AssocJoin> aggMaterials,
             Map<String, List<AggDemand>> aggDemands,
-            Map<String, AssociationJoins.AssocJoin> chainMids) {
+            Map<String, AssociationJoins.AssocJoin> chainMids,
+            Map<TypedSpec, Substitution.AggRead> innerReads) {
         // 2b. Materialize the association joins (descriptor -> emission,
         //     first-demand order) onto the pipeline.
         TypedSpec withJoins = keyWidenedPipe;
@@ -2149,7 +2193,7 @@ public final class StoreResolver {
                 String alias = "agg_" + ord++;
                 aggs.add(corrSubs.aggColFor(cs, head, aj, d, alias,
                         corrAgg, corrTp, corrRowVar, corrJoinedRow,
-                        cas.pc()));
+                        cas.pc(), innerReads, callees.isNotEmpty()));
                 subCols.add(new Type.RelationType
                         .Column(alias, d.node().info().type(),
                         com.legend.compiler.element.type.Multiplicity
@@ -3041,9 +3085,10 @@ public final class StoreResolver {
         // their conditions participate.
         Map<String, AssociationJoins.AssocJoin> chainMids =
                 new LinkedHashMap<>();
-        Map<String, AssociationJoins.AssocJoin> aggMaterials =
+        Map<TypedSpec, Substitution.AggRead> innerAggReads = new IdentityHashMap<>();
+        Map<String, AssociationJoins.AssocJoin> aggMaterials = withInnerAggregates(
                 corrSubs.buildAggMaterials(temporal, cs, context, aggDemands,
-                        chainMids);
+                        chainMids), aggDemands, context, innerAggReads);
         TypedSpec keyWidenedPipe = Pipelines.widenPipeForJoinKeys(materializedPipe,
                 assocJoins, aggMaterials, existsSubs);
         if (keyWidenedPipe != materializedPipe) {
@@ -3056,7 +3101,7 @@ public final class StoreResolver {
                 assocs, existsSubs, this::nestedScope);
 
         JoinedPipe joined = foldAssociationJoins(cs, m, keyWidenedPipe,
-                assocJoins, aggMaterials, aggDemands, chainMids);
+                assocJoins, aggMaterials, aggDemands, chainMids, innerAggReads);
         m = joined.m();
         // form-2 outer-nav dates: windows over the JOINED frame (Leg 2)
         m = temporal.applyOuterNavDateFilters(cs, m, joinsByChain);
@@ -3391,10 +3436,11 @@ public final class StoreResolver {
         Map<TypedSpec, Substitution.AggRead> innerAggReads = Map.of();
         if (!innerAggDemands.isEmpty()) {
             Map<String, AssociationJoins.AssocJoin> chainMids = new LinkedHashMap<>();
-            Map<String, AssociationJoins.AssocJoin> aggMaterials = corrSubs.buildAggMaterials(temporal, t,
-                    context, innerAggDemands, chainMids);
+            Map<TypedSpec, Substitution.AggRead> deeperReads = new IdentityHashMap<>();
+            Map<String, AssociationJoins.AssocJoin> aggMaterials = withInnerAggregates(corrSubs.buildAggMaterials(
+                    temporal, t, context, innerAggDemands, chainMids), innerAggDemands, context, deeperReads);
             JoinedPipe joined = foldAssociationJoins(t, new Pipelines.Materialized(pipe, Map.of(), Set.of()), pipe,
-                    List.of(), aggMaterials, innerAggDemands, chainMids);
+                    List.of(), aggMaterials, innerAggDemands, chainMids, deeperReads);
             pipe = joined.m().pipeline();
             innerAggReads = joined.aggReads();
         }

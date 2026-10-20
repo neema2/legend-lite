@@ -791,6 +791,14 @@ final class SyntheticHeads {
                     liftFilteredHeads(sb.source(), enabled),
                     (TypedLambda) liftFilteredHeads(sb.key(), enabled),
                     sb.ascending(), sb.keyAlias(), sb.info());
+            // the GRAPH terminals: the walk reaches the fetched chain -- its filters and sort keys lift exactly as
+            // under a project (a GraphQL root's `orderBy: liveOrdersAggregate`, the hardening fuzzer, 2026-10-20:
+            // the walk stopped here and the filtered head reached the substitution unlifted); the tree is never
+            // walked -- graph emission owns it
+            case com.legend.compiler.spec.typed.TypedSerialize sz -> new com.legend.compiler.spec.typed.TypedSerialize(
+                    liftFilteredHeads(sz.source(), enabled), sz.tree(), sz.config(), sz.info());
+            case com.legend.compiler.spec.typed.TypedGraphFetch gf -> new com.legend.compiler.spec.typed.TypedGraphFetch(
+                    liftFilteredHeads(gf.source(), enabled), gf.tree(), gf.info(), gf.checked());
             case TypedLimit l -> new TypedLimit(
                     liftFilteredHeads(l.source(), enabled), l.count(), l.info());
             case TypedDrop d -> new TypedDrop(

@@ -670,6 +670,20 @@ public final class Reference {
             SortKey k = sortKey(inner, sub);
             return new SortKey(x -> model.isA(x.type(), sub) ? k.read().apply(x) : null, k.ascending());
         }
+        if (name.endsWith("Aggregate") && model.get(cls).fields.get(base(name, "Aggregate")) instanceof ToMany tm) {
+            // a to-many property's aggregate: the count of its objects, or a fold of one of their properties
+            // (absent values skipped, null over none -- the same fold the aggregate fields answer)
+            Argument m = single(inner);
+            Value mv = resolve(m.value());
+            if (m.name().equals("count")) {
+                return new SortKey(x -> (long) tm.get().apply(x).size(), ((Gql.EnumValue) mv).value().equals("ASC"));
+            }
+            Argument leaf = single((Gql.ObjectValue) mv);
+            Scalar s = (Scalar) model.get(tm.target()).fields.get(leaf.name());
+            String fn = m.name();
+            return new SortKey(x -> raw(fold(fn, s.kind(), tm.get().apply(x), it -> s.get().apply(it, Map.of()))),
+                    ((Gql.EnumValue) resolve(leaf.value())).value().equals("ASC"));
+        }
         Fld f = model.get(cls).fields.get(name);
         if (!(f instanceof ToOne t)) {
             throw new IllegalArgumentException("not a to-one sort path: " + name);
@@ -679,6 +693,35 @@ public final class Reference {
             Obj c = t.get().apply(x);
             return c == null ? null : k.read().apply(c);
         }, k.ascending());
+    }
+
+    /** The one non-null field of a key object. */
+    Argument single(Gql.ObjectValue o) {
+        Argument a = null;
+        int given = 0;
+        for (Argument x : o.fields()) {
+            if (!(resolve(x.value()) instanceof Gql.NullValue)) {
+                a = x;
+                given++;
+            }
+        }
+        if (given != 1) {
+            throw new Refused("a sort key names exactly one member (G16): " + given);
+        }
+        return a;
+    }
+
+    /** A folded value back as the Java value the comparator reads (null for none). */
+    static Object raw(OVal v) {
+        return switch (v) {
+            case OVal.Null n -> null;
+            case OVal.Num n -> n.value();
+            case OVal.Str x -> x.value();
+            case OVal.Bool b -> b.value();
+            case OVal.DateV d -> d.value();
+            case OVal.DateTimeV d -> d.value();
+            default -> throw new IllegalArgumentException("not a folded value: " + v);
+        };
     }
 
     static Comparator<Obj> comparator(List<SortKey> keys) {
@@ -870,7 +913,9 @@ public final class Reference {
             for (Map.Entry<String, List<Field>> e : top.entrySet()) {
                 Field f = e.getValue().get(0);
                 if (f.name().equals("key")) {
-                    out.put(e.getKey(), keyObject(merged(e.getValue()), List.of(e.getKey()), keys, g.getKey()));
+                    out.put(e.getKey(), keyObject(merged(e.getValue()), cls, List.of(e.getKey()), keys, g.getKey()));
+                } else if (f.name().equals("__typename")) {
+                    out.put(e.getKey(), new OVal.Str(cls + "Group"));
                 } else {
                     out.put(e.getKey(), member(g.getValue(), cls, f, merged(e.getValue())));
                 }
@@ -927,10 +972,14 @@ public final class Reference {
         return v instanceof LocalDate ? out.toLocalDate() : out;
     }
 
-    OVal keyObject(List<Selection> sels, List<String> path, List<GroupKey> keys, List<Object> values) {
+    OVal keyObject(List<Selection> sels, String cls, List<String> path, List<GroupKey> keys, List<Object> values) {
         LinkedHashMap<String, OVal> out = new LinkedHashMap<>();
         for (Map.Entry<String, List<Field>> e : collect(sels, "GroupKey").entrySet()) {
             Field f = e.getValue().get(0);
+            if (f.name().equals("__typename")) {
+                out.put(e.getKey(), new OVal.Str(cls + "GroupKey"));   // the key object's own type
+                continue;
+            }
             if (f.name().startsWith("__")) {
                 continue;
             }
@@ -940,7 +989,9 @@ public final class Reference {
             if (i >= 0) {
                 out.put(e.getKey(), value(keys.get(i).kind(), values.get(i)));
             } else {
-                out.put(e.getKey(), keyObject(merged(e.getValue()), p, keys, values));
+                Fld kf = model.get(cls).fields.get(f.name());
+                String target = kf instanceof ToOne t ? t.target() : cls;
+                out.put(e.getKey(), keyObject(merged(e.getValue()), target, p, keys, values));
             }
         }
         return new OVal.Obj(out);

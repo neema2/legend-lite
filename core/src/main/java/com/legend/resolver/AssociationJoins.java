@@ -1654,13 +1654,29 @@ final class AssociationJoins {
             Map<String, String> parentCopySlotPrefixes,
             Map<String, Substitution.SubNav> parentCopySubNavs,
             String rowVar, Type.RelationType rowType) {
+        return corrPredOnJoinedRow(pred, parent, target, targetPrefix, targetSlotPrefixes, targetSubNavs,
+                parentCopySlotPrefixes, parentCopySubNavs, rowVar, rowType, Map.of(), null);
+    }
+
+    /** As above, the param's INNER reducers ({@code $o.lines->count()} in an aggregate's computed mapper) read
+     *  from {@code innerReads}: their grouped joins already widen the target's row (StoreResolver
+     *  .withInnerAggregates); {@code isNotEmpty} spells the count family's empty-group value. */
+    TypedLambda corrPredOnJoinedRow(@com.legend.base.Nullable TypedLambda pred, ClassSource parent,
+            ClassSource target, String targetPrefix,
+            Map<String, String> targetSlotPrefixes,
+            Map<String, Substitution.SubNav> targetSubNavs,
+            Map<String, String> parentCopySlotPrefixes,
+            Map<String, Substitution.SubNav> parentCopySubNavs,
+            String rowVar, Type.RelationType rowType,
+            Map<TypedSpec, Substitution.AggRead> innerReads,
+            com.legend.compiler.element.@com.legend.base.Nullable TypedFunction isNotEmpty) {
         java.util.Objects.requireNonNull(pred,
                 "corrPredOnJoinedRow requires a predicate");
         return corrPredOnJoinedRowCore(pred, parent, target, targetPrefix,
                 targetSlotPrefixes, targetSubNavs, parentCopySlotPrefixes,
                 parentCopySubNavs, rowVar, rowType,
                 target.classFqn(), target.rowVar(), target.bindings(),
-                targetPrefix);
+                targetPrefix, innerReads, isNotEmpty);
     }
 
     /** {@link #corrPredOnJoinedRow} for a pred whose PARAM binds a target
@@ -1680,7 +1696,7 @@ final class AssociationJoins {
                 Map.of(), sn.children(), parentCopySlotPrefixes,
                 parentCopySubNavs, rowVar, rowType,
                 paramClass, sn.rowVar(), sn.bindings(),
-                targetPrefix + sn.prefix());
+                targetPrefix + sn.prefix(), Map.of(), null);
     }
 
     private TypedLambda corrPredOnJoinedRowCore(TypedLambda pred,
@@ -1692,7 +1708,9 @@ final class AssociationJoins {
             Map<String, Substitution.SubNav> parentCopySubNavs,
             String rowVar, Type.RelationType rowType,
             String paramClassFqn, String paramRowVar,
-            Map<String, TypedSpec> paramBindings, String landPrefix) {
+            Map<String, TypedSpec> paramBindings, String landPrefix,
+            Map<TypedSpec, Substitution.AggRead> innerReads,
+            com.legend.compiler.element.@com.legend.base.Nullable TypedFunction isNotEmpty) {
         Set<String> taken = new LinkedHashSet<>(pred.parameters());
         for (TypedSpec b : pred.body()) {
             collectVarNames(b, taken);
@@ -1732,7 +1750,7 @@ final class AssociationJoins {
                         paramRowVar, paramBindings, rowType,
                         unconvertedTgt, targetSlotPrefixes, Map.of()),
                 new Substitution.Registries(tgtAssocs, java.util.Set.of(),
-                        Map.of(), Map.of(), null, null),
+                        Map.of(), innerReads, isNotEmpty, null),
                 Substitution.TemporalView.NONE,
                 true, true));
         TypedLambda pass1 = tgtSub.rewriteLambda(pred);
