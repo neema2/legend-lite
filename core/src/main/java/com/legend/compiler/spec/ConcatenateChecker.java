@@ -121,8 +121,14 @@ final class ConcatenateChecker {
         if (a.equals(b)) {
             return true;
         }
-        return a instanceof Type.Primitive pa && b instanceof Type.Primitive pb
-                && pa.isNumeric() && pb.isNumeric();
+        return numeric(a) && numeric(b);
+    }
+
+    /** A number's type: a numeric primitive, or a decimal of a stated precision -- which unites with the others as a
+     *  Decimal does (2026-10-17, the IQ island's differential fuzzer: a union of ABS of a BIGINT, a Decimal, and an
+     *  integer branch widened to Decimal(38,18) failed to type). */
+    private static boolean numeric(Type t) {
+        return t instanceof Type.Primitive p && p.isNumeric() || t instanceof Type.PrecisionDecimal;
     }
 
 }

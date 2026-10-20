@@ -6,7 +6,7 @@
 // A property graph's relationship with properties has no element of its own in Pure: an Association is two
 // properties and nothing else. The element that CAN hold a relationship's properties, identity, mapping and
 // constraints is a class, and this profile is how a class says it is one (docs/CYPHER_STUDY_2026_10_15.md §5.6).
-// Four stereotypes and no tags: nothing in the declaration is a string. The engine and Studio compile the profile
+// Eight stereotypes and no tags: nothing in the declaration is a string. The engine and Studio compile the profile
 // and its applications as they compile any; legend-lite reads them in phase F (compiler/element/GraphEdges) and
 // the Cypher island walks a pattern over an edge class as a navigation through its two ends.
 //
@@ -15,7 +15,25 @@
 //   to    likewise: the end node
 //   type  on a derived property of the edge class whose body is one spelled enumeration value: the relationship type's
 //         name (without it, the class's simple name)
+//   Open  on a DataSpace (2026-10-17, docs/CYPHER_STUDY_2026_10_15.md §12.45): the DataSpace is a GRAPH a Cypher
+//         island reads (`USE g::Graph MATCH ...`: its elements the labels, its execution context the store), and an
+//         OPEN one, in GQL's words a graph no graph type constrains (ISO/IEC 39075: a graph with a constraining graph
+//         type is CLOSED): a label or a relationship type naming nothing of the graph reads no rows and a property no
+//         class declares reads null, as Neo4j reads them. Without it, the model is the graph's type and a name the
+//         model lacks is a compile error (the closed reading, docs/SEMANTICS_REGISTER.md S58).
+//   Anonymous  on a class (2026-10-17, docs/CYPHER_STUDY_2026_10_15.md §12.61): the class's name is no label. Its
+//         instances carry its superclasses' labels alone: a node of several labels is an instance of an anonymous
+//         class extending each label's class, a node of none an instance of one extending nothing. Without it a
+//         class's simple name is a label its instances carry, and its subclasses' instances too: `labels(n)` lists
+//         the class's name and its superclasses', and `MATCH (n:Label)` reads the label's class and its subclasses.
+//   nanoseconds  on a DateTime property (2026-10-17, docs/CYPHER_STUDY_2026_10_15.md §12.64): its values are of
+//         nanosecond precision (the store's TIMESTAMP_NS column, lite's own type); the Cypher island spells every
+//         operation on them over the nanosecond epoch, which DuckDB keeps and a microsecond engine refuses by name.
+//   timeOfDay  on a DateTime property (2026-10-17, §12.64): the property holds a time of day as the date-time at it
+//         on the epoch day (1970-01-01), the island's own carriage of a time of day finer than a TIME column holds;
+//         the island reads it as a time of day (`localtime`) of nanosecond precision. A time of day to the
+//         microsecond is a TIME column and a StrictTime property, needing no mark.
 Profile graph::graph
 {
-   stereotypes: [Edge, from, to, type];
+   stereotypes: [Anonymous, Edge, Open, from, to, type, nanoseconds, timeOfDay];
 }

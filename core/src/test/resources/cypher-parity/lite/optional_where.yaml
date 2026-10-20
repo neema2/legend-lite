@@ -1,8 +1,8 @@
 # The #Cypher{...}# island's OPTIONAL MATCH ... WHERE cases (docs/CYPHER_STUDY_2026_10_15.md §12.29): the WHERE is
 # the optional pattern's, a guard on what the pattern bound (each absent where its navigation finds nothing or the
-# WHERE does not hold), over to-one hops; a hop that fans out is refused by name. Each case is judged by Neo4j's
-# answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/optional_where/*'), keyed
-# lite/optional_where/<id>.
+# WHERE does not hold), over to-one hops; over a hop that fans out, read through the rows (§12.78). Each case is
+# judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/optional_where/*'), keyed lite/optional_where/<id>.
 tests:
   - id: optional_hop_filtered_by_a_where
     graph: |
@@ -24,7 +24,7 @@ tests:
     graph: |
       CREATE (:X {val: 1})-[:E1]->(:Y {val: 2}), (:X {val: 4})-[:E1]->(:Y {val: 5}), (:X {val: 6})
     cypher: "MATCH (x:X) OPTIONAL MATCH (x)-[r:E1]->(y:Y) WHERE y.val > 3 RETURN x.val AS xv, type(r) AS t, r, labels(y) AS ls, y.val IS NULL AS absent ORDER BY xv"
-  - id: where_over_a_fanning_hop_refused
+  - id: where_over_a_fanning_hop
     graph: |
       CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1}), (a)-[:T]->(:B {v: 2})
     cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) WHERE b.v > 1 RETURN a.name AS name, b.v AS v"

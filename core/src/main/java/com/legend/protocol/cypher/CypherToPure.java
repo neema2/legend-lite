@@ -90,8 +90,19 @@ public final class CypherToPure {
          *  what a node as a value carries. */
         void properties(String classPath, PropertySink sink);
 
-        /** The label of the class at {@code classPath}: the simple name a pattern names it by. */
-        String labelOf(String classPath);
+        /** The labels of the class at {@code classPath} (the study's §12.61): its own simple name, unless the
+         *  class is anonymous ({@code <<graph.Anonymous>>}: its name is no label), then its superclasses' labels in
+         *  declaration order, each once. What {@code labels(n)} lists and a label predicate tests. */
+        List<String> labels(String classPath);
+
+        /** The graph profile's marks on the property {@code property} of the class at {@code classPath} (declared
+         *  on it or inherited; the study's §12.64): {@code timeOfDay} (a DateTime holding the date-time at a time of
+         *  day on the epoch day, read as a time of day of nanosecond precision) and {@code nanoseconds} (a DateTime
+         *  of nanosecond precision, the store's TIMESTAMP_NS: read into its parts at the property, §12.91).
+         *  None for a model without the profile. */
+        default List<String> marks(String classPath, String property) {
+            return List.of();
+        }
 
         /** Reports the relationships of the class at {@code classPath} read forward, to {@code sink}: its stored
          *  properties holding a class, and the associations whose first end is its (the end a relationship type
@@ -102,6 +113,64 @@ public final class CypherToPure {
         /** Reports every edge class of the model (the study's §5.6: a class carrying {@code <<graph.Edge>>}, a
          *  relationship type with properties) to {@code sink}, in a fixed order. */
         void edges(EdgeSink sink);
+
+        /** Whether the graph is OPEN (the study's §12.45; GQL's open graph, one no graph type constrains): every
+         *  class of the model carries {@code <<graph.Open>>}. A query over an open graph reads a label or a
+         *  relationship type naming nothing of the model as no rows and a property no class declares as null, as
+         *  Neo4j does; over a closed graph (the model is its graph type) each is a compile error (C4, the
+         *  register's S58). */
+        boolean open();
+
+        /** Reports to {@code sink} the procedure {@code name} (Cypher's dotted name, {@code test.my.proc}) names:
+         *  the model's function at the path its dots spell ({@code test::my::proc}), its inputs and the outputs of
+         *  the relation it returns (the study's §12.60); reports nothing when the model declares none. The base: a
+         *  model declaring no procedure. */
+        default void procedure(String name, ProcedureSink sink) {
+        }
+    }
+
+    /** Where the model reports a procedure: its function's path, then each input and each output (a name and a
+     *  Pure primitive type). */
+    public interface ProcedureSink {
+        void procedure(String path);
+
+        void input(String name, String type);
+
+        void output(String name, String type);
+    }
+
+    /** A procedure of the model, as the translator reads a {@code CALL}: the function's path, its inputs (each a
+     *  name and a Pure primitive type, optional) and its outputs (the relation's columns; none for a VOID
+     *  procedure, a function returning no relation). */
+    public record Procedure(String path, List<Param> inputs, List<Param> outputs) {
+    }
+
+    /** The procedure the model reports for {@code name}, null when it reports none. */
+    private @com.legend.base.Nullable Procedure procedureOf(String name) {
+        String[] path = new String[1];
+        List<Param> inputs = new ArrayList<>();
+        List<Param> outputs = new ArrayList<>();
+        model.procedure(name, new ProcedureSink() {
+            @Override
+            public void procedure(String p) {
+                path[0] = p;
+            }
+
+            @Override
+            public void input(String n, String type) {
+                inputs.add(new Param(n, type));
+            }
+
+            @Override
+            public void output(String n, String type) {
+                outputs.add(new Param(n, type));
+            }
+        });
+        return path[0] == null ? null : new Procedure(path[0], List.copyOf(inputs), List.copyOf(outputs));
+    }
+
+    /** An input or output of a procedure: its name and its Pure primitive type. */
+    public record Param(String name, String type) {
     }
 
     /** Where the model reports an edge class: its path, its relationship type, and its two ends, each the property
@@ -140,7 +209,20 @@ public final class CypherToPure {
     }
 
     /** A property as the translator reads it, as the model reported it ({@link PropertySink}). */
-    private record Property(String name, String type, boolean classTyped, boolean enumTyped, int lower, int upper) {
+    private record Property(String name, String type, boolean classTyped, boolean enumTyped, int lower, int upper,
+            List<String> marks) {
+
+        /** Whether the property is marked {@code timeOfDay} (the study's §12.64: a DateTime holding the date-time
+         *  at a time of day on the epoch day, read as a time of day). */
+        boolean timeOfDay() {
+            return marks.contains("timeOfDay");
+        }
+
+        /** Whether its values are of nanosecond precision: marked {@code nanoseconds}, or a time of day (the
+         *  island carries a time of day finer than a TIME as the date-time at it on the epoch day). */
+        boolean nanos() {
+            return marks.contains("nanoseconds") || timeOfDay();
+        }
 
         /** Whether the property may hold more than one value. */
         boolean many() {
@@ -158,16 +240,27 @@ public final class CypherToPure {
     private List<Property> properties(String classPath) {
         List<Property> out = new ArrayList<>();
         model.properties(classPath, (n, type, classTyped, enumTyped, lower, upper) ->
-                out.add(new Property(n, type, classTyped, enumTyped, lower, upper)));
+                out.add(new Property(n, type, classTyped, enumTyped, lower, upper, model.marks(classPath, n))));
         return out;
     }
 
     /** A node carried through a projection as its columns (the study's §12.14): the column specs that compute them
      *  over the row before the projection, the columns they are after it, and the shape the node's own (virtual)
      *  column carries. */
-    private record NodeCarry(NodeShape shape, List<ColSpec> specs, List<Col> columns, boolean relationship) {
+    private record NodeCarry(NodeShape shape, List<ColSpec> specs, List<Col> columns, boolean relationship,
+            /** a carried relationship's shape (its type column, its properties, its identity or its pair) */
+            @com.legend.base.Nullable RelShape rel) {
         NodeCarry(NodeShape shape, List<ColSpec> specs, List<Col> columns) {
-            this(shape, specs, columns, false);
+            this(shape, specs, columns, false, null);
+        }
+
+        NodeCarry(NodeShape shape, List<ColSpec> specs, List<Col> columns, boolean relationship) {
+            this(shape, specs, columns, relationship, null);
+        }
+
+        /** The relationship's shape: its own, else one from the node shape's columns. */
+        RelShape relShape() {
+            return rel != null ? rel : new RelShape(shape.labels(), shape.props(), shape.identity());
         }
     }
 
@@ -180,7 +273,11 @@ public final class CypherToPure {
                 return null;
             }
             if (!b.node()) {
-                return gs.carryRel(b, names, v.pos(), gs.g.variableClasses().getOrDefault(v.name(), List.of()));
+                // (read in a segment of a cut path: its stored direction rides along, the study's §12.56)
+                boolean segment = gs.g.paths().values().stream().anyMatch(ps -> ps.partial()
+                        && ps.rels().contains(v.name()));
+                return gs.carryRel(b, names, v.pos(), gs.g.variableClasses().getOrDefault(v.name(), List.of()),
+                        segment ? Boolean.TRUE.equals(gs.g.forward().get(v.name())) : null);
             }
             return gs.carry(b, v.pos(), names, gs.g.variableClasses().getOrDefault(v.name(), List.of()));
         }
@@ -197,9 +294,36 @@ public final class CypherToPure {
                 for (NodeProp p : rel.props().values()) {
                     specs.add(new ColSpec(p.column(), lambda("r", new AppliedProperty(new Variable("r"), p.column())),
                             null, null));
-                    columns.add(new Col(p.column(), p.kind(), p.nullable()));
+                    // (a split property keeps its parts' mark; its date and zone columns ride along, as a node's)
+                    Col own = rs.column(p.column());
+                    columns.add(new Col(p.column(), p.kind(), p.nullable(), null, own != null
+                            && own.detail() instanceof Carried cp && cp.parts() != null ? cp : p.detail()));
+                    for (String part : List.of(ZONE_PART + p.column(), REGION_PART + p.column(),
+                            DATE_PART + p.column())) {
+                        Col zc = rs.column(part);
+                        if (zc != null) {
+                            specs.add(new ColSpec(part, lambda("r", new AppliedProperty(new Variable("r"), part)),
+                                    null, null));
+                            columns.add(new Col(part, zc.kind(), true));
+                        }
+                    }
                 }
-                return new NodeCarry(new NodeShape(rel.type(), rel.props()), specs, columns, true);
+                for (String id : new String[] {rel.identity(), rel.source(), rel.target()}) {
+                    if (id != null) {
+                        Col c2 = java.util.Objects.requireNonNull(rs.column(id));
+                        specs.add(new ColSpec(id, lambda("r", new AppliedProperty(new Variable("r"), id)), null,
+                                null));
+                        columns.add(new Col(id, Kind.STRING, c2.nullable()));
+                    }
+                }
+                if (rel.forward() != null) {
+                    Col c2 = java.util.Objects.requireNonNull(rs.column(rel.forward()));
+                    specs.add(new ColSpec(rel.forward(), lambda("r", new AppliedProperty(new Variable("r"),
+                            rel.forward())), null, null));
+                    columns.add(new Col(rel.forward(), Kind.BOOLEAN, c2.nullable()));
+                }
+                return new NodeCarry(new NodeShape(rel.type(), rel.props(), false, rel.identity()), specs, columns,
+                        true, rel);
             }
             if (c == null || !(c.detail() instanceof NodeShape shape)) {
                 return null;
@@ -214,7 +338,28 @@ public final class CypherToPure {
             for (NodeProp p : shape.props().values()) {
                 specs.add(new ColSpec(p.column(), lambda("r", new AppliedProperty(new Variable("r"), p.column())),
                         null, null));
-                columns.add(new Col(p.column(), p.kind(), p.nullable()));
+                // (a split property keeps its parts' mark, W13 leg 5)
+                Col own = rs.column(p.column());
+                columns.add(new Col(p.column(), p.kind(), p.nullable(), null, own != null
+                        && own.detail() instanceof Carried cp && cp.parts() != null ? cp : p.detail()));
+                // (a zoned property's zone columns, a split one's date column, kept under their names: the study's
+                // §12.75)
+                for (String part : List.of(ZONE_PART + p.column(), REGION_PART + p.column(),
+                        DATE_PART + p.column())) {
+                    Col zc = rs.column(part);
+                    if (zc != null) {
+                        specs.add(new ColSpec(part, lambda("r", new AppliedProperty(new Variable("r"), part)), null,
+                                null));
+                        columns.add(new Col(part, zc.kind(), true));
+                    }
+                }
+            }
+            if (shape.identity() != null) {
+                // its identity rides along (the study's §12.46)
+                Col identity = java.util.Objects.requireNonNull(rs.column(shape.identity()));
+                specs.add(new ColSpec(shape.identity(), lambda("r", new AppliedProperty(new Variable("r"),
+                        shape.identity())), null, null));
+                columns.add(new Col(shape.identity(), Kind.STRING, identity.nullable()));
             }
             return new NodeCarry(shape, specs, columns);
         }
@@ -227,15 +372,28 @@ public final class CypherToPure {
      *  text; each property's value is spelled by its kind. */
     private static Tx nodeJson(NodeParts parts, Pos pos) {
         return new Tx(present(parts, call("fromJson", nodeJsonText(parts, pos))), Kind.JSON,
-                parts.absent() != null, null, new NodeValue(), null, null);
+                parts.absent() != null, null, new NodeValue(parts.identity()), null, null);
     }
 
-    /** A node's JSON text, built by the database: its labels array and its properties that hold a value. */
+    /** A node's JSON text, built by the database: its labels array, its identity where known ({@code "@id"}, the
+     *  study's §12.71: what a node or relationship read back from a Variant is told apart and re-anchored by; the
+     *  judge reads past it, Neo4j's values carrying none), and its properties that hold a value. */
     private static ValueSpecification nodeJsonText(NodeParts parts, Pos pos) {
         ValueSpecification text = plus(new CString("{" + com.legend.json.Json.toCompact(parts.key()) + ":"),
                 parts.labels());
+        Tx id = parts.identity();
+        if (id != null) {
+            ValueSpecification v = SqlToPure.valueOf(id);
+            ValueSpecification key = new CString(",\"" + IDENTITY_KEY + "\":");
+            // (read as one inside the gate: an identity types [0..1] wherever it is computed)
+            text = plus(text, call("if", call("isEmpty", v), thunk(new CString("")),
+                    thunk(plus(key, jsonText(call("toOne", v), Kind.STRING, IDENTITY_KEY, pos)))));
+        }
         return plus(text, propertyPieces(parts, pos), new CString("}"));
     }
+
+    /** The key of a node's or relationship's identity in its JSON value (the study's §12.71). */
+    private static final String IDENTITY_KEY = "@id";
 
     /** A relationship's JSON text over a property or association: its type, a constant. */
     private static String relTypeJson(String type) {
@@ -246,21 +404,26 @@ public final class CypherToPure {
      *  for an OPTIONAL MATCH's node, whether it is absent (its navigation empty or its WHERE not holding; the
      *  labels column null, after a projection), the node then null. */
     private record NodeParts(ValueSpecification labels, List<Map.Entry<String, Tx>> props,
-            @com.legend.base.Nullable ValueSpecification absent, String key) {
+            @com.legend.base.Nullable ValueSpecification absent, String key, @com.legend.base.Nullable Tx identity) {
         NodeParts(ValueSpecification labels, List<Map.Entry<String, Tx>> props) {
-            this(labels, props, null, "@labels");
+            this(labels, props, null, "@labels", null);
         }
 
         NodeParts(ValueSpecification labels, List<Map.Entry<String, Tx>> props,
                 @com.legend.base.Nullable ValueSpecification absent) {
-            this(labels, props, absent, "@labels");
+            this(labels, props, absent, "@labels", null);
         }
 
         /** A relationship's parts (the study's §5.6): its type's JSON text where a node has its labels', its
          *  properties those of its edge class (none for a relationship over a property or association). */
         static NodeParts rel(ValueSpecification type, List<Map.Entry<String, Tx>> props,
-                @com.legend.base.Nullable ValueSpecification absent) {
-            return new NodeParts(type, props, absent, "@type");
+                @com.legend.base.Nullable ValueSpecification absent, @com.legend.base.Nullable Tx identity) {
+            return new NodeParts(type, props, absent, "@type", identity);
+        }
+
+        /** These parts with {@code identity} (the study's §12.46). */
+        NodeParts withIdentity(@com.legend.base.Nullable Tx identity) {
+            return new NodeParts(labels, props, absent, key, identity);
         }
     }
 
@@ -275,7 +438,8 @@ public final class CypherToPure {
 
     /** {@code labels(n)}: the node's labels, a list. */
     private static Tx nodeLabels(NodeParts parts) {
-        return Tx.value(present(parts, call("fromJson", parts.labels())), Kind.JSON, parts.absent() != null);
+        return Tx.value(present(parts, call("fromJson", parts.labels())), Kind.JSON, parts.absent() != null,
+                new ListOf(Kind.STRING));
     }
 
     /** {@code properties(n)}: the node's properties that hold a value, a map (the pieces each lead with a comma: the
@@ -313,6 +477,13 @@ public final class CypherToPure {
         return new Coll(call("toMany", call("fromJson", text), SqlToPure.typeArg("String")), Kind.STRING, false);
     }
 
+    /** A node's or relationship's keys where it may be absent: null where {@code absent} holds, the keys' list
+     *  where not, held as a Variant of strings. */
+    private static Scalar absentOr(ValueSpecification absent, Coll keys) {
+        return scalar(Tx.value(call("if", absent, thunk(SqlToPure.nullOf(Kind.JSON).vs()), thunk(call("toVariant",
+                keys.vs()))), Kind.JSON, true, new ListOf(Kind.STRING)));
+    }
+
     /** No key: the empty JSON array read as strings, as a node's keys are (a typed empty collection,
      *  {@code []->cast(@String)}, folds to a list of no element type, which Postgres cannot size). */
     private static Coll noKeys() {
@@ -329,8 +500,19 @@ public final class CypherToPure {
             if (t.kind() == Kind.NULL) {
                 continue;
             }
-            ValueSpecification v = SqlToPure.valueOf(t);
             ValueSpecification key = new CString("," + com.legend.json.Json.toCompact(p.getKey()) + ":");
+            if (split(t)) {
+                // of nanosecond precision (W13 leg 5): the oracle's spelling the database writes of the parts
+                Tx spelled = splitSpelled(t);
+                ValueSpecification sv = SqlToPure.valueOf(spelled);
+                ValueSpecification quoted = plus(key, new CString("\""), spelled.nullable() ? call("toOne", sv) : sv,
+                        new CString("\""));
+                ValueSpecification piece = spelled.nullable() ? call("if", call("isEmpty", sv), thunk(new CString("")),
+                        thunk(quoted)) : quoted;
+                text = text == null ? piece : plus(text, piece);
+                continue;
+            }
+            ValueSpecification v = SqlToPure.valueOf(t);
             ValueSpecification piece = t.nullable()
                     ? call("if", call("isEmpty", v), thunk(new CString("")),
                             thunk(plus(key, jsonText(call("toOne", v), t.kind(), p.getKey(), pos))))
@@ -340,9 +522,18 @@ public final class CypherToPure {
         return text == null ? new CString("") : text;
     }
 
+    /** A list's or map's element's JSON text, {@code one} the value of {@code t} present: {@link #jsonText}; a
+     *  float divided by a zero literal ({@link NotANumber}) the database's own JSON of it, NaN or an infinity, which
+     *  no JSON number spells (DuckDB's writes {@code NaN}, {@code Infinity}; the study's §12.79). */
+    private static ValueSpecification elementText(ValueSpecification one, Tx t, String name, Pos pos) {
+        return t.detail() instanceof NotANumber ? call("toString", call("toVariant", one))
+                : jsonText(one, t.kind(), name, pos);
+    }
+
     /** A property value's JSON text, as the database spells it: a number's or a boolean's spelling (a whole float
      *  with its {@code .0}, which Postgres's text drops), a string in quotes with its quotes and backslashes
-     *  escaped. */
+     *  escaped; a temporal the oracle's spelling of it (a value of nanosecond precision is its parts', spelled
+     *  before: §12.89). */
     private static ValueSpecification jsonText(ValueSpecification v, Kind kind, String name, Pos pos) {
         return switch (kind) {
             case INTEGER, WHOLE, BOOLEAN -> call("toString", v);
@@ -353,7 +544,18 @@ public final class CypherToPure {
                     new CString("\\\\")), new CString("\""), new CString("\\\"")), new CString("\""));
             // a date as the oracle's spelling of one, Date('yyyy-MM-dd'), which the judge reads back as that value
             // (the study's §12.21)
-            case DATE -> plus(new CString("\"Date('"), call("toString", v), new CString("')\""));
+            case DATE -> plus(new CString("\"Date('"), dateText(v, true), new CString("')\""));
+            // a time of day as the oracle's spelling, Time('HH:mm:ss.f'), its text Neo4j's (the judge reads the
+            // fraction's digits as a time, the study's §12.59)
+            case TIME -> plus(new CString("\"Time('"), temporalText(Tx.value(v, Kind.TIME, false), pos).vs(), new CString("')\""));
+            // a date-time as the oracle's spelling, DateTime('yyyy-MM-ddTHH:mm:ss.f'), its text Neo4j's (a
+            // nanosecond one's digits past the microsecond kept, the study's §12.64); a zoned value as its instant's
+            // (a zoned time of day's on the epoch day), which the judge reads against Neo4j's zoned text (S65, S68)
+            case DATETIME, ZONED, ZONED_TIME -> plus(new CString("\"DateTime('"), temporalText(Tx.value(v,
+                    Kind.DATETIME, false), pos).vs(), new CString("')\""));
+            // a stored duration as the oracle's spelling too, Duration('P...'), its text the island's (Neo4j's)
+            case DURATION -> plus(new CString("\"Duration('"), durationText(Tx.value(v, Kind.DURATION, false)).vs(),
+                    new CString("')\""));
             // a stored list: its Variant's canonical text, in place
             case JSON -> call("toString", v);
             default -> throw CypherErrors.unsupported("a node holding a " + cypherType(kind) + " property (" + name
@@ -361,10 +563,24 @@ public final class CypherToPure {
         };
     }
 
+    /** Whether the properties {@code chain} from the class at {@code classPath} read one value of no class: each
+     *  step to-one ({@link Shares.Paths}). */
+    private boolean scalarPath(String classPath, List<String> chain) {
+        String at = classPath;
+        for (int i = 0; i < chain.size(); i++) {
+            Property p = property(at, chain.get(i));
+            if (p == null || p.upper() != 1 || p.classTyped() != (i < chain.size() - 1)) {
+                return false;
+            }
+            at = p.type();
+        }
+        return true;
+    }
+
     private @com.legend.base.Nullable Property property(String classPath, String name) {
         Property[] found = new Property[1];
         model.property(classPath, name, (n, type, classTyped, enumTyped, lower, upper) ->
-                found[0] = new Property(n, type, classTyped, enumTyped, lower, upper));
+                found[0] = new Property(n, type, classTyped, enumTyped, lower, upper, model.marks(classPath, n)));
         return found[0];
     }
 
@@ -373,7 +589,7 @@ public final class CypherToPure {
     private @com.legend.base.Nullable Property inverse(String classPath, String propertyName) {
         Property[] found = new Property[1];
         model.inverse(classPath, propertyName, (n, type, classTyped, enumTyped, lower, upper) ->
-                found[0] = new Property(n, type, classTyped, enumTyped, lower, upper));
+                found[0] = new Property(n, type, classTyped, enumTyped, lower, upper, List.of()));
         return found[0];
     }
 
@@ -433,6 +649,10 @@ public final class CypherToPure {
             "none", Quantifier.NONE, "single", Quantifier.SINGLE);
 
     private final Model model;
+    /** The graph is open ({@link Model#open()}): the readings of the study's §12.45. */
+    private final boolean open;
+    /** The leading {@code USE}, which the caller resolved to {@link #model} ({@link #leadingUse}); null when none. */
+    private CypherAst.@com.legend.base.Nullable Use leading;
     private int fresh;
 
     /** How many lambdas the database computes (a comprehension's or predicate's over a collection it computes)
@@ -443,7 +663,123 @@ public final class CypherToPure {
     /** The relationship types the MATCH clause being read has hops of: Neo4j binds two relationship slots of one
      *  MATCH to different relationships (relationship uniqueness), which needs identity (C5, PR3); until then a
      *  second hop of a type already hopped in the same MATCH is refused by name. */
-    private final Set<String> typesInThisMatch = new HashSet<>();
+    /** The relationship bookkeeping of the MATCH being read (the study's §12.48): the types read so far, the named
+     *  relationship variables of each type and the pairwise {@code r1 <> r2} conditions Neo4j's relationship
+     *  uniqueness adds to its WHERE, and the pre-scan of its patterns: the types its relationships repeat (an
+     *  untyped relationship among them, every type), so an unnamed relationship of such a type is named for
+     *  uniqueness to tell it from the others. */
+    private static final class MatchFrame {
+        final Set<String> types = new HashSet<>();
+        final Map<String, List<String>> namedRels = new HashMap<>();
+        final List<Expr> uniqueness = new ArrayList<>();
+        /** The cycle conditions of the MATCH's patterns (a node named again equal to the first by identity, the
+         *  study's §12.50): named once before the arms are read, so they outlive the per-arm clear. */
+        final List<Expr> cycles = new ArrayList<>();
+        final Set<String> repeatedTypes = new HashSet<>();
+        boolean untyped;
+        int relationships;
+        /** Reading a pattern of the MATCH in hand as a MATCH of its own (the product's second pattern): its
+         *  pre-scan is the whole MATCH's, kept. */
+        boolean nested;
+        /** An undirected relationship over a self-association among the arms read (the study's §12.50): a loop
+         *  reads once in Neo4j, so the arms' rows are deduped by identity. */
+        boolean selfAssociation;
+
+        /** The relationship variables read so far (the named ones, the fresh-named among them). */
+        Set<String> relationships() {
+            Set<String> out = new HashSet<>();
+            namedRels.values().forEach(out::addAll);
+            return out;
+        }
+
+        void clear() {
+            types.clear();
+            namedRels.clear();
+            uniqueness.clear();
+        }
+
+        /** The pre-scan of a MATCH's patterns for the types its relationships repeat. */
+        void scan(CypherAst.Match m) {
+            repeatedTypes.clear();
+            cycles.clear();
+            untyped = false;
+            relationships = 0;
+            Set<String> seen = new HashSet<>();
+            for (PathPattern p : m.patterns()) {
+                for (PatternElement e : p.elements()) {
+                    if (!(e instanceof RelPattern r) || hidden(r.variable()) || r.lengthRange() != null) {
+                        continue;
+                    }
+                    relationships++;
+                    if (r.types().size() != 1) {
+                        untyped = true;
+                        continue;
+                    }
+                    if (!seen.add(r.types().get(0))) {
+                        repeatedTypes.add(r.types().get(0));
+                    }
+                }
+            }
+        }
+
+        boolean repeated(String type) {
+            // (one relationship alone is distinct from nothing: nothing to name)
+            return relationships >= 2 && (untyped || repeatedTypes.contains(type));
+        }
+    }
+
+    private final MatchFrame matchFrame = new MatchFrame();
+
+    /** A pattern predicate (or an EXISTS subquery) a WHERE over rows holds, to the column of the rows that answers
+     *  it (the study's §12.52): the predicate's pattern read as its own graph from the carried node's class and
+     *  joined back by identity (a left join to the distinct identities it matches, a constant beside them), so the
+     *  predicate is the constant's presence on the row. Keyed by the predicate's own node (identity). */
+    private final Map<Expr, String> patternFlags = new java.util.IdentityHashMap<>();
+    /** The list columns {@link #withPatternLists} read pattern comprehensions over rows into, by the comprehension. */
+    private final Map<Expr, String> patternLists = new java.util.IdentityHashMap<>();
+    private final Set<String> typesInThisMatch = matchFrame.types;
+
+    /** A MATCH's WHERE with relationship uniqueness conjoined: the named relationships of one type pairwise
+     *  distinct, by identity ({@code r1 <> r2}, the study's §12.48). */
+    private @com.legend.base.Nullable Expr withUniqueness(@com.legend.base.Nullable Expr where, Pos pos) {
+        List<Expr> conditions = new ArrayList<>(matchFrame.cycles);
+        conditions.addAll(matchFrame.uniqueness);
+        for (Expr u : conditions) {
+            where = where == null ? u : new CypherAst.Binary(BinaryOp.AND, where, u, pos);
+        }
+        return where;
+    }
+
+    /** Relationship uniqueness bookkeeping, per MATCH. */
+    private void clearMatch() {
+        matchFrame.clear();
+    }
+
+    /** A relationship pattern read into the MATCH in hand: a second named relationship of a type already read is
+     *  distinct from each earlier one by identity (Neo4j binds the relationship variables of one MATCH to different
+     *  relationships: {@code r1 <> r2} added to the WHERE); an unnamed one beside another of its type is refused by
+     *  name (nothing names it to tell it apart). */
+    private void relationshipRead(RelPattern rel, @com.legend.base.Nullable String var) {
+        String type = rel.types().get(0);
+        if (hidden(var)) {
+            return;
+        }
+        boolean seen = !typesInThisMatch.add(type);
+        if (var == null || seen && !matchFrame.namedRels.containsKey(type)) {
+            if (seen) {
+                throw CypherErrors.unsupported("two relationships of the type " + type + " in one MATCH, one of them"
+                        + " unnamed (Neo4j binds them to different relationships: relationship uniqueness, spelled"
+                        + " over named relationships) are not supported yet", rel.pos());
+            }
+            return;
+        }
+        List<String> earlier = matchFrame.namedRels.computeIfAbsent(type, k -> new ArrayList<>());
+        for (String e : earlier) {
+            matchFrame.uniqueness.add(new CypherAst.Binary(BinaryOp.NE, new CypherAst.Var(e, rel.pos()),
+                    new CypherAst.Var(var, rel.pos()), rel.pos()));
+        }
+        earlier.add(var);
+    }
 
     /** The nodes bound at the far end of a hop over an edge class (the study's §12.38): a hop from one of them is
      *  refused by name, since the resolver's nested navigation does not read an association end past the edge's end
@@ -453,13 +789,35 @@ public final class CypherToPure {
 
     private CypherToPure(Model model) {
         this.model = model;
+        this.open = model.open();
     }
 
     /** The Pure Relation expression {@code cypher} means over {@code model}'s classes; a refusal is a
      *  {@link com.legend.protocol.sql.SqlTranslationException} of the kind the seam maps. */
     public static ValueSpecification translate(String cypher, Model model) {
-        CypherAst.Statement statement = CypherParser.parse(cypher);
-        return new CypherToPure(model).statement(statement);
+        return translate(CypherParser.parse(cypher), model);
+    }
+
+    /** {@link #translate(String, Model)} over a parsed statement: the seam parses first to read the graph a leading
+     *  {@code USE} names ({@link #leadingUse}) and builds {@code model} for that graph, so the leading USE is read
+     *  here as done. */
+    public static ValueSpecification translate(CypherAst.Statement statement, Model model) {
+        CypherToPure t = new CypherToPure(model);
+        t.leading = leadingUse(statement);
+        return Shares.bind(t.statement(statement), t::scalarPath);
+    }
+
+    /** The refusal of a {@code USE} naming no DataSpace of the model (the seam's, at the clause's place). */
+    public static com.legend.protocol.sql.SqlTranslationException noSuchGraph(CypherAst.Use use) {
+        return CypherErrors.invalid("USE " + use.graph() + ": no DataSpace of the model at that path (a Cypher"
+                + " island's graph is a DataSpace: its elements the labels, <<graph::graph.Open>> the open reading)",
+                use.pos());
+    }
+
+    /** The {@code USE} clause a statement opens with, naming the graph it reads (the study's §12.45: a DataSpace,
+     *  by its path, {@code USE g::Graph}); null when the statement names none (the whole model). */
+    public static @com.legend.base.Nullable CypherAst.Use leadingUse(CypherAst.Statement statement) {
+        return !statement.clauses().isEmpty() && statement.clauses().get(0) instanceof CypherAst.Use u ? u : null;
     }
 
     // ------------------------------------------------------------------ the pipeline of clauses
@@ -480,25 +838,37 @@ public final class CypherToPure {
             List<ValueSpecification> conditions, List<String> candidates, boolean fanning,
             List<NodeConstraint> deferredConstraints, List<Expr> deferredWhere,
             Map<String, List<String>> variableClasses, Map<String, PathSpec> paths,
-            Map<String, Boolean> forward, Map<String, List<String>> lists) implements State {
+            Map<String, Boolean> forward, Map<String, List<String>> lists,
+            /** the nodes a second-step hop of a fanning graph reaches: present on the materialized rows where
+             *  their identity is (the study's §12.50; the resolver checks no two-step existence past a bridge
+             *  table in a filter) */
+            List<String> present) implements State {
         Graph(String rootClass, String row, Map<String, Binding> bindings, List<ValueSpecification> conditions,
                 List<String> candidates) {
             this(rootClass, row, bindings, conditions, candidates, false, new ArrayList<>(), new ArrayList<>(),
-                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>());
+                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
+                    new ArrayList<>());
         }
 
         Graph(String rootClass, String row, Map<String, Binding> bindings, List<ValueSpecification> conditions,
                 List<String> candidates, boolean fanning, List<NodeConstraint> deferredConstraints,
                 List<Expr> deferredWhere) {
             this(rootClass, row, bindings, conditions, candidates, fanning, deferredConstraints, deferredWhere,
-                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>());
+                    Map.of(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
+                    new ArrayList<>());
         }
     }
 
     /** A named path (the study's §12.27): its nodes' and its relationships' variables in the pattern's order (every
      *  one named, synthetically where the query did not); each relationship's stored direction is the graph's
      *  {@code forward} (true when the node before it holds the node after). */
-    private record PathSpec(List<String> nodes, List<String> rels) {
+    private record PathSpec(List<String> nodes, List<String> rels,
+            /** a segment of a named path cut around its hops (the study's §12.56): its relationships carry their
+             *  stored directions, the whole path assembled over the rows; no value or parts of its own */
+            boolean partial) {
+        PathSpec(List<String> nodes, List<String> rels) {
+            this(nodes, rels, false);
+        }
     }
 
     /** A far node's property map in a fanning graph, read over the materialized rows (the study's §12.16). */
@@ -512,7 +882,16 @@ public final class CypherToPure {
      *  its own). */
     private record Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path,
             boolean optional, boolean fanning, boolean absent, boolean maybeAbsent,
-            @com.legend.base.Nullable String type, @com.legend.base.Nullable ValueSpecification guard) {
+            @com.legend.base.Nullable String type, @com.legend.base.Nullable ValueSpecification guard,
+            /** a relationship's stored direction along its hop: true when the node before holds the node after
+             *  (its identity over a property or association is the ordered pair of its ends', S74) */
+            @com.legend.base.Nullable Boolean forward) {
+        Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path, boolean optional,
+                boolean fanning, boolean absent, boolean maybeAbsent, @com.legend.base.Nullable String type,
+                @com.legend.base.Nullable ValueSpecification guard) {
+            this(node, classPath, path, optional, fanning, absent, maybeAbsent, type, guard, null);
+        }
+
         Binding(boolean node, @com.legend.base.Nullable String classPath, List<String> path, boolean optional) {
             this(node, classPath, path, optional, false, false, false, null, null);
         }
@@ -525,7 +904,7 @@ public final class CypherToPure {
         /** This binding, absent too where {@code guard} (an OPTIONAL MATCH's WHERE over the graph, the study's
          *  §12.29) does not hold. */
         Binding withGuard(ValueSpecification guard) {
-            return new Binding(node, classPath, path, optional, fanning, absent, maybeAbsent, type, guard);
+            return new Binding(node, classPath, path, optional, fanning, absent, maybeAbsent, type, guard, forward);
         }
 
         /** A node an OPTIONAL MATCH never finds (its relationship's type names nothing of the model, or a label
@@ -550,8 +929,8 @@ public final class CypherToPure {
         /** A relationship over an edge class ({@code edge}, null for one over a property or association): its
          *  path reaches the edge instance, whose properties are the relationship's. */
         static Binding relationship(List<String> path, boolean optional, boolean fanning, String type,
-                boolean maybeAbsent, @com.legend.base.Nullable String edge) {
-            return new Binding(false, edge, path, optional, fanning, false, maybeAbsent, type, null);
+                boolean maybeAbsent, @com.legend.base.Nullable String edge, boolean forward) {
+            return new Binding(false, edge, path, optional, fanning, false, maybeAbsent, type, null, forward);
         }
 
         /** A relationship an OPTIONAL MATCH never finds: null. */
@@ -568,6 +947,17 @@ public final class CypherToPure {
 
     private record Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable Val carried,
             com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+        Col {
+            if (detail instanceof Carried c && (c.printedFrom() != null || c.zone() != null
+                    && c.zone().read() != null || c.parts() != null && c.parts().date() != null)) {
+                // (a column holds no expression of the scope it was computed in: a printed value's source stays
+                // behind, §12.74; so does an offset the database read, which a projection carries as its own
+                // column, §12.75, and a split date-time's date, W13, whose column is DATE_PART's)
+                detail = new Carried(c.zone() != null && c.zone().read() != null ? null : c.zone(), c.nanos(), null,
+                        c.parts() == null ? null : new Parts(null));
+            }
+        }
+
         Col(String name, Kind kind, boolean nullable) {
             this(name, kind, nullable, null, null);
         }
@@ -585,6 +975,219 @@ public final class CypherToPure {
 
     private ValueSpecification statement(CypherAst.Statement s) {
         return statementRows(s).vs();
+    }
+
+    /** What a clause binds a variable as (the study's §12.63): a node, a relationship, the relationships of a
+     *  variable-length pattern (a list), a path, a literal (a boolean, a number, a string, a list or a map written
+     *  out: never a node, a relationship or a path), or a value whose kind the scan does not type (an expression's). */
+    private enum VarKind { NODE, REL, RELS, PATH, LITERAL, LIST, VALUE }
+
+    /**
+     * Neo4j's static variable errors over the whole statement, raised before any clause is read (the study's
+     * §12.63), so an error scenario is the error, never a refusal a clause meets first (an unbounded
+     * variable-length pattern): a path variable bound again, or a relationship variable named as a path, is
+     * VariableAlreadyBound ({@code Variable `p` already declared}); a variable bound as a node, a relationship, a
+     * variable-length relationship or a path, then named as another of those, is VariableTypeConflict
+     * ({@code Type mismatch: r defined with conflicting type}), as is a literal named as any of them ({@code WITH
+     * 123 AS n MATCH (n)}: a literal is never a node); an UNWIND or a YIELD over a bound name is
+     * VariableAlreadyBound. A WITH or RETURN opens the scope of its items (a bare variable keeps its kind, a
+     * literal is a literal, any other expression a value the scan does not type, {@code *} keeps every binding);
+     * an UNWIND of a list of literals binds a literal.
+     * A value never conflicts here (an expression may well be a node: {@code WITH head(collect(n)) AS n MATCH
+     * (n)}); the clauses' own reads keep their checks.
+     */
+    private static void checkVariableKinds(List<Clause> clauses) {
+        Map<String, VarKind> bound = new LinkedHashMap<>();
+        for (Clause c : clauses) {
+            switch (c) {
+                case CypherAst.Match m -> {
+                    for (PathPattern p : m.patterns()) {
+                        for (PatternElement e : p.elements()) {
+                            if (e instanceof NodePattern n && n.variable() != null && !hidden(n.variable())) {
+                                bindKind(bound, n.variable(), VarKind.NODE, p.variable(), n.pos());
+                            } else if (e instanceof RelPattern r && r.variable() != null && !hidden(r.variable())) {
+                                bindKind(bound, r.variable(), r.lengthRange() == null ? VarKind.REL : VarKind.RELS,
+                                        p.variable(), r.pos());
+                            }
+                        }
+                        if (p.variable() != null && !hidden(p.variable())) {
+                            if (bound.containsKey(p.variable())) {
+                                throw CypherErrors.invalid("Variable `" + p.variable() + "` already declared",
+                                        p.pos());
+                            }
+                            bound.put(p.variable(), VarKind.PATH);
+                        }
+                    }
+                    if (m.where() != null) {
+                        checkExpression(m.where(), bound);
+                    }
+                }
+                case CypherAst.Unwind u -> {
+                    if (bound.containsKey(u.variable())) {
+                        throw CypherErrors.invalid("Variable `" + u.variable() + "` already declared", u.pos());
+                    }
+                    checkExpression(u.list(), bound);
+                    bound.put(u.variable(), u.list() instanceof CypherAst.ListLit l && !l.elements().isEmpty()
+                            && l.elements().stream().allMatch(CypherToPure::literal) ? VarKind.LITERAL : VarKind.VALUE);
+                }
+                case CypherAst.With w -> {
+                    checkItems(w.items(), w.orderBy(), bound);
+                    bound = projected(w.items(), bound);
+                    if (w.where() != null) {
+                        checkExpression(w.where(), bound);
+                    }
+                }
+                case CypherAst.Return r -> {
+                    checkItems(r.items(), r.orderBy(), bound);
+                    bound = projected(r.items(), bound);
+                }
+                case CypherAst.ProcedureCall pc -> {
+                    if (pc.yields() != null) {
+                        for (CypherAst.YieldItem y : pc.yields()) {
+                            String as = y.alias() != null ? y.alias() : y.name();
+                            if (bound.containsKey(as)) {
+                                throw CypherErrors.invalid("Variable `" + as + "` already declared", y.pos());
+                            }
+                            bound.put(as, VarKind.VALUE);
+                        }
+                    }
+                }
+                case CypherAst.Use u -> { }
+                case CypherAst.OtherClause o -> { }
+            }
+        }
+    }
+
+    /** A projection's items and sort keys, checked over the scope before it ({@link #checkExpression}). */
+    private static void checkItems(List<Item> items, List<SortItem> orderBy, Map<String, VarKind> bound) {
+        for (Item it : items) {
+            if (it.expr() != null) {
+                checkExpression(it.expr(), bound);
+            }
+        }
+        for (SortItem o : orderBy) {
+            checkExpression(o.expr(), bound);
+        }
+    }
+
+    /**
+     * Neo4j's static expression errors, raised with the variable errors before any clause is read (the study's
+     * §12.84): {@code size()} of a pattern (a pattern expression only tests existence, UnexpectedSyntax), {@code size()}
+     * of a path and a property of a path (InvalidArgumentType). A comprehension's or a quantifier's variable shadows
+     * the name it binds.
+     */
+    private static void checkExpression(Expr e, Map<String, VarKind> bound) {
+        if (e instanceof CypherAst.Call c && c.name().equalsIgnoreCase("size") && c.args().size() == 1
+                && unwrapped(c.args().get(0)) instanceof CypherAst.PatternPredicate pp) {
+            throw CypherErrors.invalid("A pattern expression should only be used in order to test the existence of a"
+                    + " pattern. It can no longer be used inside the function size(), an alternative is to replace"
+                    + " size() with COUNT {}.", pp.pos());
+        }
+        if (e instanceof CypherAst.Call c && c.name().equalsIgnoreCase("size") && c.args().size() == 1
+                && unwrapped(c.args().get(0)) instanceof CypherAst.Var v && bound.get(v.name()) == VarKind.PATH) {
+            throw CypherErrors.invalid("Type mismatch: expected String, Vector or List<T> but was Path",
+                    c.args().get(0).pos());
+        }
+        if (e instanceof CypherAst.Prop p && unwrapped(p.target()) instanceof CypherAst.Var v
+                && bound.get(v.name()) == VarKind.PATH) {
+            throw CypherErrors.invalid("Type mismatch: expected Map, Node, Relationship, Point, Duration, Date, Time,"
+                    + " LocalTime, LocalDateTime or DateTime but was Path", p.pos());
+        }
+        String shadowed = e instanceof CypherAst.ListComprehension lc ? lc.variable()
+                : e instanceof CypherAst.Quantifier q ? q.variable() : null;
+        Expr outer = e instanceof CypherAst.ListComprehension lc ? lc.list()
+                : e instanceof CypherAst.Quantifier q ? q.list() : null;
+        Map<String, VarKind> inner = bound;
+        if (shadowed != null && bound.containsKey(shadowed)) {
+            inner = new LinkedHashMap<>(bound);
+            inner.remove(shadowed);
+        }
+        for (Expr child : children(e)) {
+            checkExpression(child, child == outer ? bound : inner);
+        }
+    }
+
+    /** An expression without the parentheses written around it. */
+    private static Expr unwrapped(Expr e) {
+        Expr out = e;
+        while (out instanceof CypherAst.Paren p) {
+            out = p.inner();
+        }
+        return out;
+    }
+
+    /** The scope a WITH or RETURN opens: its items' names, a bare variable keeping its kind, an expression a
+     *  value; {@code *} every binding in hand. */
+    private static Map<String, VarKind> projected(List<Item> items, Map<String, VarKind> before) {
+        Map<String, VarKind> after = new LinkedHashMap<>();
+        for (Item it : items) {
+            if (it.expr() == null) {
+                after.putAll(before);
+                continue;
+            }
+            String name = it.alias() != null ? it.alias() : it.expr() instanceof CypherAst.Var v ? v.name() : null;
+            if (name == null) {
+                continue;
+            }
+            VarKind kind = it.expr() instanceof CypherAst.Var v && before.containsKey(v.name()) ? before.get(v.name())
+                    : literal(it.expr()) ? VarKind.LITERAL : list(it.expr()) ? VarKind.LIST : VarKind.VALUE;
+            after.put(name, kind);
+        }
+        return after;
+    }
+
+    /** A value written out, whose kind is never a node's, a relationship's or a path's: a boolean, a number, a
+     *  string, a map, or a list of such (a list of variables may list relationships, {@code WITH [r1, r2] AS rs
+     *  MATCH ()-[rs*]->()}: a value; a null conforms to any). */
+    private static boolean literal(Expr e) {
+        return e instanceof CypherAst.IntLit || e instanceof CypherAst.FloatLit || e instanceof CypherAst.StringLit
+                || e instanceof CypherAst.BoolLit || e instanceof CypherAst.MapLit
+                || e instanceof CypherAst.ListLit l && l.elements().stream().allMatch(CypherToPure::literal);
+    }
+
+    /** A list whatever its elements (the study's §12.70): a list written out, or a collect; never a node, a
+     *  relationship or a path (Neo4j's {@code List<Node>}, a VariableTypeConflict where a node is named), though it
+     *  may be a variable-length relationship's list. */
+    private static boolean list(Expr e) {
+        return e instanceof CypherAst.ListLit || e instanceof CypherAst.Call c && c.name().equalsIgnoreCase("collect");
+    }
+
+    /** A pattern element's variable bound as {@code kind}: the pattern's own path variable, or a name bound as a
+     *  path, is VariableAlreadyBound; a name bound as another of node, relationship or relationships, or as a
+     *  literal, is VariableTypeConflict; a node or relationship named again as the same kind is a bound one, read
+     *  again. */
+    private static void bindKind(Map<String, VarKind> bound, String name, VarKind kind,
+            @com.legend.base.Nullable String pathVariable, Pos pos) {
+        if (name.equals(pathVariable)) {
+            throw CypherErrors.invalid("Variable `" + name + "` already declared", pos);
+        }
+        VarKind before = bound.get(name);
+        if (before == null || before == VarKind.VALUE || before == VarKind.LIST && kind == VarKind.RELS) {
+            bound.put(name, kind);
+            return;
+        }
+        if (before != kind) {
+            throw CypherErrors.invalid("Type mismatch: " + name + " defined with conflicting type", pos);
+        }
+    }
+
+    /** {@code rows} with the column at {@code at}, an untyped null, re-projected as the null of {@code kind}: every
+     *  column read as itself, that one spelled typed. */
+    private static Rows retyped(Rows rows, int at, Kind kind) {
+        List<ColSpec> specs = new ArrayList<>();
+        List<Col> columns = new ArrayList<>();
+        for (int i = 0; i < rows.columns().size(); i++) {
+            Col c = rows.columns().get(i);
+            if (i == at) {
+                specs.add(new ColSpec(c.name(), lambda("r", SqlToPure.nullOf(kind).vs()), null, null));
+                columns.add(new Col(c.name(), kind, true, c.carried(), c.detail()));
+            } else {
+                specs.add(new ColSpec(c.name(), lambda("r", new AppliedProperty(new Variable("r"), c.name())), null,
+                        null));
+                columns.add(c);
+            }
+        }
+        return new Rows(call("project", rows.vs(), new ColSpecArray(specs)), columns);
     }
 
     /** A statement's rows: its parts' concatenated when it is a UNION (the study's §12.20) -- each part a query of
@@ -616,8 +1219,18 @@ public final class CypherToPure {
         }
         parts.add(part);
         Rows out = null;
+        Set<String> unidentified = new java.util.TreeSet<>();
         for (List<Clause> p : parts) {
-            Rows rows = new CypherToPure(model).clausesRows(p, s.pos());
+            CypherToPure reader = new CypherToPure(model);
+            // (the statement's leading USE is the first part's: read as done there, the study's §12.45)
+            reader.leading = leading;
+            Rows rows = reader.clausesRows(p, s.pos());
+            for (Col c : rows.columns()) {
+                if (c.virtual() || c.detail() instanceof NodeValue n && n.identity() == null
+                        || c.detail() instanceof RelValue r && r.identity() == null) {
+                    unidentified.add(c.name());
+                }
+            }
             if (out == null) {
                 out = rows;
                 continue;
@@ -636,24 +1249,43 @@ public final class CypherToPure {
                             + " differently (" + cypherType(l.kind()) + " and " + cypherType(r.kind())
                             + ") is not supported yet", java.util.Objects.requireNonNull(unionPos));
                 }
+                // a part returning a split value's text (W13) and one returning a whole value of the kind: the
+                // whole one's spelled as the split one's, so the parts' cells agree (and DISTINCT finds them equal)
+                if (l.detail() instanceof ReturnedText && !(r.detail() instanceof ReturnedText)
+                        && r.kind() == l.kind()) {
+                    rows = returnedAsText(rows, i);
+                } else if (r.detail() instanceof ReturnedText && !(l.detail() instanceof ReturnedText)
+                        && l.kind() == r.kind()) {
+                    out = returnedAsText(out, i);
+                }
+                // a part whose column is an untyped null (a property no class declares over an open graph, the
+                // study's §12.45; `null` itself) takes the other part's type, so the parts concatenate
+                if (l.kind() == Kind.NULL && r.kind() != Kind.NULL) {
+                    out = retyped(out, i, r.kind());
+                } else if (r.kind() == Kind.NULL && l.kind() != Kind.NULL) {
+                    rows = retyped(rows, i, l.kind());
+                }
             }
             out = new Rows(call("concatenate", out.vs(), rows.vs()), out.columns());
         }
         Rows rows = java.util.Objects.requireNonNull(out);
         if (!java.util.Objects.requireNonNull(all)) {
-            for (Col c : rows.columns()) {
-                if (c.detail() instanceof NodeValue || c.detail() instanceof RelValue || c.virtual()) {
-                    throw CypherErrors.unsupported("UNION (distinct) over a node or relationship (" + c.name()
-                            + "; Neo4j tells them apart by identity) is not supported yet; the ALL form reads",
-                            java.util.Objects.requireNonNull(unionPos));
-                }
+            // (a node's or relationship's value carries its identity, S85, so the distinct values are the distinct
+            // nodes; one whose value carries none, a relationship over a property, is refused by name; the study's
+            // §12.73)
+            if (!unidentified.isEmpty()) {
+                throw CypherErrors.unsupported("UNION (distinct) over a node or relationship (" + String.join(", ",
+                        unidentified) + ") whose value carries no identity (Neo4j tells them apart by identity) is"
+                        + " not supported yet; the ALL form reads", java.util.Objects.requireNonNull(unionPos));
             }
             rows = new Rows(call("distinct", rows.vs()), rows.columns());
         }
         return rows;
     }
 
-    private Rows clausesRows(List<Clause> clauses, Pos pos) {
+    private Rows clausesRows(List<Clause> written, Pos pos) {
+        // (a comprehension over a named path's parts holding a pattern, unrolled per part: the study's §12.80)
+        List<Clause> clauses = unrolledOverPaths(written);
         State state = null;
         for (Clause c : clauses) {
             if (c instanceof CypherAst.OtherClause o) {
@@ -665,15 +1297,22 @@ public final class CypherToPure {
             throw CypherErrors.invalid("Query cannot conclude with UNION (must be a RETURN clause, a FINISH clause,"
                     + " an update clause, a unit subquery call, or a procedure call with no YIELD)", pos);
         }
+        checkVariableKinds(clauses);
         for (int i = 0; i < clauses.size(); i++) {
             Clause c = clauses.get(i);
             boolean last = i == clauses.size() - 1;
             switch (c) {
-                case CypherAst.Use u -> throw CypherErrors.unsupported("USE (selecting the graph by its data space)"
-                        + " is not supported yet: name the mapping and runtime with ->from(...) after the island",
-                        u.pos());
+                case CypherAst.Use u -> {
+                    // the graph the statement reads (the study's §12.45): a DataSpace the seam resolved into the
+                    // model before translating; read here as done. USE anywhere else is Neo4j's error
+                    if (u != leading) {
+                        throw CypherErrors.invalid("USE clause must be either the first clause in a (sub-)query or"
+                                + " preceded by an importing WITH clause", u.pos());
+                    }
+                }
                 case CypherAst.OtherClause o -> throw CypherErrors.unsupported(o.keyword() + " is not supported yet",
                         o.pos());
+                case CypherAst.ProcedureCall p -> state = procedureCall(p, state, last);
                 case CypherAst.Match m -> state = match(m, state);
                 case CypherAst.Unwind u -> state = unwind(u, state);
                 case CypherAst.With w -> state = with(w, state);
@@ -701,30 +1340,308 @@ public final class CypherToPure {
             case CypherAst.Unwind u -> "UNWIND";
             case CypherAst.Return r -> "RETURN";
             case CypherAst.Use u -> "USE";
+            case CypherAst.ProcedureCall p -> "CALL";
             case CypherAst.OtherClause o -> o.keyword();
         };
+    }
+
+    // ------------------------------------------------------------------ CALL
+
+    /** {@code CALL name(args) [YIELD items]} (the study's §12.60): the model's procedure, a Pure function returning
+     *  a relation of its outputs, called over the arguments. Standalone, its relation is the result (the yielded
+     *  outputs, every one without a YIELD); after rows, the rows laterally joined to the relation of each row's
+     *  arguments; a VOID procedure (no output) leaves the rows as they are, standalone an empty result (no row,
+     *  under a hidden column: a relation has one at least). Neo4j's static errors are raised as its: an unknown
+     *  procedure, a wrong count or kind of arguments, an aggregate among them, implicit arguments or an unnamed
+     *  yield inside a query, a yield of an unknown output or of a bound name. */
+    private State procedureCall(CypherAst.ProcedureCall c, @com.legend.base.Nullable State state, boolean last) {
+        Procedure proc = procedureOf(c.name());
+        if (proc == null) {
+            throw CypherErrors.invalid("There is no procedure with the name `" + c.name() + "` registered for this"
+                    + " database instance. Please ensure you've spelled the procedure name correctly and that the"
+                    + " procedure is properly deployed.", c.pos());
+        }
+        boolean standalone = state == null && last;
+        List<Expr> args = c.args();
+        if (args == null) {
+            // implicit arguments: the query's parameters named as the inputs
+            if (!proc.inputs().isEmpty()) {
+                if (!standalone) {
+                    throw CypherErrors.invalid("Procedure call inside a query does not support passing arguments"
+                            + " implicitly (pass explicitly after procedure name instead)", c.pos());
+                }
+                throw CypherErrors.unsupported("a procedure call with implicit arguments (the query's parameters"
+                        + " named as the inputs) is not supported yet", c.pos());
+            }
+            args = List.of();
+        }
+        if (args.size() != proc.inputs().size()) {
+            throw CypherErrors.invalid("Procedure call provides too " + (args.size() > proc.inputs().size()
+                    ? "many" : "few") + " arguments: got " + args.size() + " expected " + proc.inputs().size()
+                    + " (" + proc.inputs().stream().map(i -> i.name() + " :: " + i.type()).toList() + ")", c.pos());
+        }
+        for (Expr a : args) {
+            if (isAggregate(a) || containsAggregate(a)) {
+                throw CypherErrors.invalid("Invalid use of aggregating function in this context (a procedure's"
+                        + " argument)", c.pos());
+            }
+        }
+        if (proc.outputs().isEmpty() && args.isEmpty() && state != null) {
+            // a VOID procedure of no argument after a clause: the state passes through untouched (the graph stays a
+            // graph: nothing is read of it here)
+            if (c.yieldAll() || c.yields() != null && !c.yields().isEmpty()) {
+                throw CypherErrors.invalid("Cannot yield value from void procedure.", c.pos());
+            }
+            return state;
+        }
+        if (state instanceof Graph g) {
+            state = materialize(g, c.pos(), List.of());
+        } else if (state instanceof Arms a) {
+            state = materializeArms(a.arms(), new ArrayList<>(a.arms().get(0).bindings().keySet()), c.pos());
+        }
+        Rows rows = (Rows) state;
+        Scope scope = new RowScope(rows == null ? oneRow() : rows);
+        List<ValueSpecification> values = new ArrayList<>();
+        for (int i = 0; i < args.size(); i++) {
+            values.add(argument(args.get(i), proc.inputs().get(i), scope, c.pos()));
+        }
+        ValueSpecification rel = call(proc.path(), values.toArray(new ValueSpecification[0]));
+        if (proc.outputs().isEmpty()) {
+            if (c.yieldAll() || c.yields() != null && !c.yields().isEmpty()) {
+                throw CypherErrors.invalid("Cannot yield value from void procedure.", c.pos());
+            }
+            // a VOID procedure: called for its effect, of which a read has none (the rows in hand pass through;
+            // the one row of a query with none)
+            String column = SYNTHETIC + "void";
+            return standalone ? new Rows(noRows(column), List.of(new Col(column, Kind.STRING, true)))
+                    : rows == null ? oneRow() : rows;
+        }
+        List<CypherAst.YieldItem> yields = c.yields();
+        if (yields == null) {
+            if (!standalone) {
+                throw CypherErrors.invalid("Procedure call inside a query does not support naming results"
+                        + " implicitly (name explicitly using `YIELD` instead)", c.pos());
+            }
+            yields = new ArrayList<>();
+            for (Param out : proc.outputs()) {
+                yields.add(new CypherAst.YieldItem(out.name(), null, c.pos()));
+            }
+        }
+        Set<String> bound = new HashSet<>();
+        if (rows != null) {
+            for (Col col : rows.columns()) {
+                bound.add(col.name());
+            }
+        }
+        List<Col> added = new ArrayList<>();
+        List<ColSpec> selected = new ArrayList<>();
+        List<String[]> renames = new ArrayList<>();
+        for (CypherAst.YieldItem y : yields) {
+            Param out = proc.outputs().stream().filter(o -> o.name().equals(y.name())).findFirst().orElseThrow(
+                    () -> CypherErrors.invalid("Unknown procedure output: `" + y.name() + "`", y.pos()));
+            String as = y.alias() == null ? y.name() : y.alias();
+            if (!bound.add(as)) {
+                throw CypherErrors.invalid("Variable `" + as + "` already declared", y.pos());
+            }
+            selected.add(new ColSpec(out.name(), null, null, null));
+            if (y.alias() != null) {
+                renames.add(new String[] {out.name(), as});
+            }
+            added.add(new Col(as, kindOf(out.type(), out.name(), c.pos()), true));
+        }
+        boolean every = yields.size() == proc.outputs().size();
+        for (int i = 0; every && i < yields.size(); i++) {
+            every = yields.get(i).name().equals(proc.outputs().get(i).name());
+        }
+        if (!every) {
+            rel = call("select", rel, new ColSpecArray(selected));
+        }
+        // each output to its alias through a fresh name first: YIELD a AS b, b AS a swaps two
+        for (int i = 0; i < renames.size(); i++) {
+            rel = call("rename", rel, new ColSpec(renames.get(i)[0], null, null, null),
+                    new ColSpec(HIDDEN + "y" + i, null, null, null));
+        }
+        for (int i = 0; i < renames.size(); i++) {
+            rel = call("rename", rel, new ColSpec(HIDDEN + "y" + i, null, null, null),
+                    new ColSpec(renames.get(i)[1], null, null, null));
+        }
+        if (rows == null) {
+            return new Rows(rel, added);
+        }
+        List<Col> columns = new ArrayList<>(rows.columns());
+        columns.addAll(added);
+        return new Rows(call("lateral", rows.vs(), lambda("r", rel)), columns);
+    }
+
+    /** A procedure's argument, checked against its input's type as Neo4j checks it (an integer for a Number or a
+     *  Float input too, a null for any), spelled for the function's parameter. */
+    private ValueSpecification argument(Expr e, Param input, Scope scope, Pos pos) {
+        Val v = val(e, scope);
+        Kind want = kindOf(input.type(), input.name(), pos);
+        if (!(v instanceof Scalar s)) {
+            throw CypherErrors.invalid("Type mismatch: expected " + cypherType(want) + " but was "
+                    + (v instanceof MapVal ? "Map" : "List<Any>"), pos);
+        }
+        Tx t = s.tx();
+        if (t.kind() == Kind.NULL) {
+            return SqlToPure.nullOf(want).vs();
+        }
+        boolean ok = switch (want) {
+            case INTEGER -> t.kind() == Kind.INTEGER || t.kind() == Kind.WHOLE;
+            case FLOAT, NUMBER, DECIMAL -> t.kind().numeric();
+            case STRING -> t.kind() == Kind.STRING;
+            case BOOLEAN -> t.kind() == Kind.BOOLEAN;
+            default -> throw CypherErrors.unsupported("a procedure input of type " + input.type() + " (" + input.name()
+                    + ") is not supported yet", pos);
+        };
+        if (!ok) {
+            throw CypherErrors.invalid("Type mismatch: expected " + cypherType(want) + " but was "
+                    + cypherType(t.kind()), pos);
+        }
+        ValueSpecification vs = SqlToPure.valueOf(t);
+        return want == Kind.FLOAT && t.kind() != Kind.FLOAT ? call("toFloat", vs) : vs;
     }
 
     // ------------------------------------------------------------------ MATCH
 
     private State match(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        if (open) {
+            // an open graph (the study's §12.45): a name the model lacks reads no rows; a typed hop no way of the
+            // class reads is a null graph from pattern(), read as the same nothing where the pattern is read
+            State none = unknownName(m, state);
+            if (none != null) {
+                return none;
+            }
+        }
         if (m.optional()) {
             return optionalMatch(m, state);
         }
         return matchPattern(m, state);
     }
 
+    /** A MATCH of an OPEN graph naming a label or a relationship type the model has nothing of (the study's
+     *  §12.45; Neo4j's: no node carries the label, no relationship has the type): {@link #noneOf}; null when every
+     *  name is the model's. */
+    private @com.legend.base.Nullable State unknownName(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        boolean unknown = false;
+        for (PathPattern p : m.patterns()) {
+            for (PatternElement e : p.elements()) {
+                if (e instanceof NodePattern n) {
+                    for (String label : n.labels()) {
+                        unknown |= model.classesOf(label).isEmpty();
+                    }
+                } else {
+                    // (a relationship of several types matches through the types the model has: only one whose
+                    // every type is unknown matches nothing)
+                    List<String> types = ((RelPattern) e).types();
+                    unknown |= !types.isEmpty() && types.stream().noneMatch(this::typeKnown);
+                }
+            }
+        }
+        return unknown ? noneOf(m, state) : null;
+    }
+
+    /** Whether a label of {@code n} names no class of the model. */
+    private boolean unknownLabel(NodePattern n) {
+        for (String label : n.labels()) {
+            if (model.classesOf(label).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether the model has a relationship of {@code type}: an edge class of that type, or a class declaring a
+     *  property of that name holding a class. */
+    private boolean typeKnown(String type) {
+        if (!edgesOf(type).isEmpty()) {
+            return true;
+        }
+        for (String cls : model.classes()) {
+            Property p = property(cls, type);
+            if (p != null && p.classTyped()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A MATCH of an OPEN graph that matches nothing (the study's §12.45): as the first clause, no row (an OPTIONAL
+     *  MATCH: one null row); after rows or a graph, the rows in hand limited to none (an OPTIONAL MATCH: kept), the
+     *  pattern's own variables absent and a bound one kept; the property maps and the WHERE read for their static
+     *  errors. */
+    private Rows noneOf(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        String pathVar = null;
+        List<PatternElement> elements = new ArrayList<>();
+        for (PathPattern p : m.patterns()) {
+            if (p.variable() != null) {
+                if (pathVar != null) {
+                    throw CypherErrors.unsupported("two named paths in a MATCH that matches nothing of the open graph"
+                            + " are not supported yet", p.pos());
+                }
+                pathVar = p.variable();
+            }
+            elements.addAll(p.elements());
+        }
+        if (state == null) {
+            return noWay(elements, pathVar, m.where(), null, m.optional(), m.pos());
+        }
+        Rows rows;
+        if (state instanceof Rows r) {
+            rows = r;
+        } else {
+            List<Graph> bases = state instanceof Graph g ? List.of(g) : ((Arms) state).arms();
+            rows = materializeArms(bases, new ArrayList<>(bases.get(0).bindings().keySet()), m.pos());
+        }
+        Set<String> bound = new HashSet<>();
+        rows.columns().forEach(c -> bound.add(c.name()));
+        List<PatternElement> fresh = new ArrayList<>();
+        for (PatternElement e : elements) {
+            // (a variable the rows hold keeps its value: it is the pattern's anchor, not one of its findings)
+            if (e instanceof NodePattern n && n.variable() != null && bound.contains(n.variable())) {
+                fresh.add(new NodePattern(null, n.labels(), n.properties(), n.pos()));
+            } else if (e instanceof RelPattern r && r.variable() != null && bound.contains(r.variable())) {
+                fresh.add(new RelPattern(null, r.types(), r.direction(), r.properties(), r.lengthRange(), r.pos()));
+            } else {
+                fresh.add(e);
+            }
+        }
+        Rows base = m.optional() ? rows : new Rows(call("limit", rows.vs(), new CInteger(0L)), rows.columns());
+        Rows out = absentPattern(base, fresh, 0, pathVar, m.pos());
+        readStatically(elements, m.where(), new RowScope(out));
+        return out;
+    }
+
     /** A MATCH's pattern read as required; {@code m.optional()} only when {@link #optionalMatch} reads an OPTIONAL
      *  MATCH as the first clause this way (a pattern no way reads is then one null row, {@link #noWay}). */
     private State matchPattern(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        if (!matchFrame.nested) {
+            matchFrame.scan(m);
+        }
+        if (!(state instanceof Rows) && !m.optional() && variableLengthPredicate(m.where())) {
+            // a WHERE holding a variable-length pattern predicate (`MATCH (n) WHERE (n)-[:T*]->()`, the study's
+            // §12.69), or a pattern predicate or EXISTS subquery over more than one hop (`MATCH (n) WHERE EXISTS {
+            // (l)<-[:R]-(n)-[:R]->(m) }`, §12.77): the pattern read as rows and the WHERE over them, the predicate
+            // a flag (§12.52) whose pattern, a MATCH of its own, is the unroll, the walk (§12.42, §12.68) or the
+            // re-anchored chain, never a navigation
+            State read = matchPattern(new CypherAst.Match(false, m.patterns(), null, m.pos()), state);
+            return filtered(rowsOf(read, m.pos()), java.util.Objects.requireNonNull(m.where()));
+        }
         if (state instanceof Rows rows) {
             Rows hop = absentHop(m, rows);
             if (hop != null) {
                 return hop;
             }
+            Rows anchored = reanchor(m, rows);
+            if (anchored != null) {
+                return anchored;
+            }
             Rows fresh = freshAfterRows(m, rows);
             if (fresh != null) {
                 return fresh;
+            }
+            if (m.patterns().size() > 1 && !m.optional()) {
+                return joinedPatterns(m, rows);
             }
             throw CypherErrors.unsupported("a MATCH after a WITH that projected its variables is not supported yet",
                     m.pos());
@@ -736,21 +1653,31 @@ public final class CypherToPure {
             return variableLength(m, state);
         }
         if (state == null && m.patterns().size() == 1 && m.patterns().get(0).elements().size() == 1
-                && ((NodePattern) m.patterns().get(0).elements().get(0)).labels().isEmpty()) {
-            // a label-less node alone: a node of any class of the model, one arm per class
+                && readsArms((NodePattern) m.patterns().get(0).elements().get(0))) {
+            // a label-less node alone: a node of any class of the model, one arm per class; labels reading several
+            // classes (a label's class and its subclasses, the study's §12.61), or none, one arm per class too
             return arms(m);
         }
         if (m.patterns().stream().anyMatch(p -> p.elements().stream().anyMatch(e -> e instanceof RelPattern r
-                && (r.types().size() != 1 || edgesOf(r.types().get(0)).size() > 1)))) {
+                && (r.types().size() != 1 || edgesOf(r.types().get(0)).size() > 1
+                        || r.direction() == CypherAst.Direction.BOTH && selfAssociation(r.types().get(0)))
+                || e instanceof NodePattern n && !n.labels().isEmpty() && !boundIn(state, n) && readsArms(n))
+                || againstTheStoredWay(p, state))) {
             // (a relationship of several types too: one arm per type, the study's §12.35; and a type naming several
             // edge classes, one per class pair it joins: one arm per edge class the start node's class allows, the
             // far node's label choosing, the study's §5.6)
             return untypedArms(m, state);
         }
         Graph g = state instanceof Graph existing ? existing : null;
-        typesInThisMatch.clear();
+        clearMatch();
         List<PathPattern> patterns = m.patterns();
         State arms = state instanceof Arms a ? a : null;
+        if (!m.optional() && arms == null && patterns.size() == 1) {
+            Cut cut = segments(patterns.get(0), g);
+            if (cut != null) {
+                return deep(m, cut, g, state);
+            }
+        }
         for (int i = 0; i < patterns.size(); i++) {
             PathPattern p = patterns.get(i);
             if (g == null && arms == null && patterns.size() > 1 && p.elements().size() == 1
@@ -769,22 +1696,52 @@ public final class CypherToPure {
                     : namedPath(p, first == null ? Set.of() : first.bindings().keySet());
             if (first != null && !sharesVariable(named, first)) {
                 if (i != patterns.size() - 1) {
+                    if (!m.optional() && (state == null || i == 0)) {
+                        // (the graph so far is this MATCH's own, or untouched: each pattern read as rows, §12.70)
+                        return joinedPatterns(m, state == null ? null : rowsOf(state, m.pos()));
+                    }
                     throw CypherErrors.unsupported("a pattern sharing no variable with the first, followed by another"
                             + " pattern in the same MATCH, is not supported yet", p.pos());
                 }
-                return cartesian(g != null ? g : java.util.Objects.requireNonNull(arms), named, m.where(), m.pos());
+                // (the MATCH's uniqueness so far rides its WHERE over the product's rows; the relationships read
+                // so far are this MATCH's, distinct from the second pattern's)
+                return cartesian(g != null ? g : java.util.Objects.requireNonNull(arms), named,
+                        withUniqueness(m.where(), m.pos()), m.pos(), matchFrame.relationships());
+            }
+            if (arms != null && patterns.size() == 1 && named.elements().size() == 1 && named.variable() == null
+                    && !m.optional()) {
+                // a bound node named again over arms (MATCH (n:A) WITH n MATCH (n:B)): its labels and property map
+                // constrain each arm (the study's §12.61: an arm of a class without a label reads no row), the
+                // WHERE too
+                NodePattern n = (NodePattern) named.elements().get(0);
+                Expr armsWhere = withUniqueness(m.where(), m.pos());
+                for (Graph arm : ((Arms) arms).arms()) {
+                    nodeConstraints(n, java.util.Objects.requireNonNull(arm.bindings().get(n.variable())), arm);
+                    if (armsWhere != null) {
+                        if (arm.fanning()) {
+                            arm.deferredWhere().add(armsWhere);
+                        } else {
+                            arm.conditions().add(condition(armsWhere, new GraphScope(arm), "WHERE"));
+                        }
+                    }
+                }
+                return arms;
             }
             if (arms != null) {
                 throw CypherErrors.unsupported("a MATCH after a label-less pattern (every class of the model) is not"
                         + " supported yet", m.pos());
             }
             g = pattern(named, g);
+            if (g == null) {
+                // (an open graph, the study's §12.45: a typed hop no way of the class reads)
+                return noneOf(m, state);
+            }
             if (named.variable() != null) {
                 recordPath(g, named);
             }
         }
         Graph graph = java.util.Objects.requireNonNull(g);
-        Expr where = m.where();
+        Expr where = withUniqueness(m.where(), m.pos());
         if (where != null) {
             if (graph.fanning()) {
                 graph.deferredWhere().add(where);
@@ -806,8 +1763,11 @@ public final class CypherToPure {
             return untypedArmsFrom(m, state);
         }
         if (m.patterns().size() != 1) {
-            throw CypherErrors.unsupported("an untyped relationship in a MATCH of several patterns is not supported"
-                    + " yet", m.pos());
+            if (!m.optional()) {
+                return joinedPatterns(m, null);
+            }
+            throw CypherErrors.unsupported("an untyped relationship in an OPTIONAL MATCH of several patterns is not"
+                    + " supported yet", m.pos());
         }
         PathPattern p = m.patterns().get(0);
         if (p.variable() != null) {
@@ -829,19 +1789,30 @@ public final class CypherToPure {
                 n = new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos());
                 elements.set(i, n);
             }
-            order.add(java.util.Objects.requireNonNull(n.variable()));
+            if (!order.contains(n.variable())) {
+                order.add(java.util.Objects.requireNonNull(n.variable()));   // (a node named again: once, the study's §12.50)
+            }
         }
         nameRelationshipsWithMaps(elements, taken);
+        nameRepeats(elements, taken, Set.of());
+        order = patternOrder(elements);
         NodePattern root = (NodePattern) elements.get(0);
-        String rootLabel = labelClass(root);
-        List<String> rootClasses = rootLabel != null ? List.of(rootLabel) : new ArrayList<>(model.classes());
-        rootClasses = new ArrayList<>(rootClasses);
-        rootClasses.removeAll(durationClasses());
+        List<String> rootClasses = rootClassesOf(root);
         List<List<PatternElement>> arms = new ArrayList<>();
         for (String cls : rootClasses) {
             List<PatternElement> head = new ArrayList<>();
             head.add(new NodePattern(root.variable(), List.of(cls), root.properties(), root.pos()));
             assign(elements, 2, cls, head, arms);
+        }
+        if (!arms.isEmpty() && !m.optional() && arms.stream().anyMatch(
+                arm -> !cuts(arm, ((NodePattern) arm.get(0)).labels().get(0)).isEmpty())) {
+            // an arm navigating more than two steps (an edge among its ways): the pattern is cut around its hops,
+            // each untyped one a segment of its own read over the rows before it (the study's §12.55); a named
+            // path assembled over the rows after (§12.56)
+            Cut cut = segments(new PathPattern(p.variable(), elements, p.pos()), null);
+            if (cut != null) {
+                return deep(m, cut, null, state);
+            }
         }
         if (arms.isEmpty()) {
             for (PatternElement e : elements) {
@@ -875,17 +1846,27 @@ public final class CypherToPure {
             }
         }));
         List<Graph> graphs = new ArrayList<>();
+        Set<String> edgeReachedBefore = new HashSet<>(reachedThroughEdge);
+        Set<String> edgeReachedByArms = new HashSet<>(reachedThroughEdge);
         for (List<PatternElement> arm : arms) {
-            typesInThisMatch.clear();
+            clearMatch();
+            // (each arm its own graph: the nodes an earlier arm reached through an edge class are not this arm's,
+            // the study's §12.69)
+            resetReachedThroughEdge(edgeReachedBefore, edgeReachedByArms);
             // (the property maps lenient across every class the arms read, as the WHERE below is)
             Graph g = pattern(new PathPattern(null, arm, p.pos()), null, everyClass);
+            if (g == null) {
+                // (an arm is assigned from the ways the model has: none has no way; kept for the type's sake)
+                continue;
+            }
             if (p.variable() != null) {
                 recordPath(g, new PathPattern(p.variable(), arm, p.pos()));
             }
             // (the WHERE read against the arm's own classes; C4 lenient across every class an arm reads)
             g = new Graph(g.rootClass(), g.row(), g.bindings(), g.conditions(), everyClass, g.fanning(),
-                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists());
-            Expr where = m.where();
+                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists(),
+                    g.present());
+            Expr where = withUniqueness(m.where(), m.pos());
             if (where != null) {
                 if (g.fanning()) {
                     g.deferredWhere().add(where);
@@ -895,7 +1876,8 @@ public final class CypherToPure {
             }
             graphs.add(g);
         }
-        return materializeArms(graphs, order, m.pos());
+        reachedThroughEdge.addAll(edgeReachedByArms);   // (every arm's, once the arms are read)
+        return armsRows(graphs, order, m.pos());
     }
 
     /** The prefix of the names the unroll of a variable-length relationship makes up for the nodes and
@@ -908,8 +1890,522 @@ public final class CypherToPure {
      *  read over rows. */
     private static final String PATH_PART = SYNTHETIC + "path_";
 
+    /** The prefix of the names a named path's segments are recorded under when the path is cut around its hops
+     *  (the study's §12.56, {@code <prefix><path>_<k>}): a partial path, its relationships carrying their stored
+     *  directions, no value or parts of its own; the whole path is assembled over the rows ({@link #withPath}). */
+    private static final String SEGMENT = SYNTHETIC + "seg_";
+
     private static boolean hidden(@com.legend.base.Nullable String name) {
         return name != null && name.startsWith(HIDDEN);
+    }
+
+    // ------------------------------------------------------- the walk the data bounds (the study's §12.68)
+
+    /** lite's recursion over a relation (the study's §12.67): {@code recurse(base, w | step)}, the base's rows and,
+     *  repeatedly, the step's over the previous round's, until a round yields none. */
+    private static final String RECURSE = "meta::legend::lite::recurse";
+    /** The prefix of the walk's own columns (never a variable's). */
+    private static final String WALK = SYNTHETIC + "walk_";
+    /** The walk's columns: the start node's identity, the node reached, the depth, the identities walked (each
+     *  between bars), and the JSON texts of the relationships, the nodes, the path's elements and the stored
+     *  directions walked (each list's body, comma-separated). */
+    private static final String WALK_START = WALK + "start";
+    private static final String WALK_CUR = WALK + "cur";
+    private static final String WALK_DEPTH = WALK + "depth";
+    private static final String WALK_RELS = WALK + "rels";
+    private static final String WALK_RELS_JSON = WALK + "relsj";
+    private static final String WALK_NODES_JSON = WALK + "nodesj";
+    private static final String WALK_PATH_JSON = WALK + "pathj";
+    private static final String WALK_DIRS = WALK + "dirs";
+    private static final List<String> WALK_COLUMNS = List.of(WALK_START, WALK_CUR, WALK_DEPTH, WALK_RELS,
+            WALK_RELS_JSON, WALK_NODES_JSON, WALK_PATH_JSON, WALK_DIRS);
+    /** The hop's columns the step joins: the source's identity, the target's, the relationship's, and the JSON
+     *  texts of the relationship, the target and the stored direction. */
+    private static final String EDGE = SYNTHETIC + "edge_";
+    private static final String EDGE_SRC = EDGE + "src";
+    private static final String EDGE_DST = EDGE + "dst";
+    private static final String EDGE_REL = EDGE + "rel";
+    private static final String EDGE_REL_JSON = EDGE + "relj";
+    private static final String EDGE_DST_JSON = EDGE + "dstj";
+    private static final String EDGE_DIR = EDGE + "dir";
+
+    /** Whether a variable-length relationship is one the walk reads: no upper bound, or one past the unroll's
+     *  (the study's §12.42: beyond 4). */
+    private static boolean walked(RelPattern r) {
+        CypherAst.LengthRange range = r.lengthRange();
+        return range != null && (range.upper() < 0 || range.upper() > 4);
+    }
+
+    /**
+     * {@code MATCH (a)-[:T*]->(x)}, {@code (a {name: 'A'})-[*2..]->(x)}, {@code p = (a)-[r:T*0..]->(x)},
+     * {@code (a)-[:T*..7]->(x)} (the study's §12.68): a variable-length relationship without an upper bound (or
+     * with one past the unroll's) is the walk the data bounds, spelled as lite's recursion ({@link #RECURSE}) over
+     * the relationship's hop read as rows: the walk's rows carry the start node's identity, the node reached, the
+     * depth, the identities walked (Neo4j's relationship uniqueness: no walk takes one relationship twice) and the
+     * JSON texts of the relationships, the nodes and the stored directions walked; the start node's rows join the
+     * walk on its identity, the far node's rows on the node reached, the depth at least the lower bound (zero binds
+     * the far node to the start) and under the upper where there is one. The relationship's variable is the list
+     * of the relationships walked; a named path is assembled from the texts, its length the depth, its nodes and
+     * relationships the lists. The pattern's single hops before and after the walk are the start node's rows and
+     * the far node's (each side read as a MATCH of its own), their relationships never one the walk walked, the
+     * path assembled across the three (the study's §12.83). The WHERE is read over the rows. Refused by name:
+     * another variable-length relationship in the pattern, a property map on the relationship, a MATCH after
+     * another clause from no node the rows carry, several patterns, an OPTIONAL MATCH as the first clause, the walk's
+     * two ends one node, a node named on both of its sides.
+     */
+    private Rows walk(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        if (state != null) {
+            // after rows or a graph: the pattern read from the rows' node as a MATCH of its own and joined back by
+            // identity (the re-anchoring of §12.49; the walk is that MATCH's)
+            Rows anchored = reanchor(m, rowsOf(state, m.pos()));
+            if (anchored != null) {
+                return anchored;
+            }
+            throw CypherErrors.unsupported("a variable-length relationship without an upper bound in a MATCH after"
+                    + " another clause, from no node the rows carry, is not supported yet", m.pos());
+        }
+        if (m.patterns().size() != 1) {
+            throw CypherErrors.unsupported("a variable-length relationship without an upper bound beside another"
+                    + " pattern is not supported yet", m.pos());
+        }
+        if (m.optional()) {
+            throw CypherErrors.unsupported("a variable-length relationship without an upper bound in an OPTIONAL"
+                    + " MATCH as the first clause is not supported yet", m.pos());
+        }
+        PathPattern p = m.patterns().get(0);
+        Pos pos = p.pos();
+        // the walked relationship; the pattern's other relationships single hops, read before and after it (the
+        // study's §12.83)
+        int w = -1;
+        for (int i = 1; i < p.elements().size(); i += 2) {
+            RelPattern r = (RelPattern) p.elements().get(i);
+            if (r.lengthRange() == null) {
+                continue;
+            }
+            if (w >= 0 || !walked(r)) {
+                throw CypherErrors.unsupported("a variable-length relationship without an upper bound beside another"
+                        + " variable-length relationship in one pattern is not supported yet", pos);
+            }
+            w = i;
+        }
+        Set<String> taken = new HashSet<>();
+        for (PatternElement e : p.elements()) {
+            String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+            if (v != null) {
+                taken.add(v);
+            }
+        }
+        if (p.variable() != null) {
+            taken.add(p.variable());
+        }
+        // (every node named, and every single hop: the rows carry each, with its identity)
+        List<PatternElement> elements = new ArrayList<>(p.elements());
+        for (int i = 0; i < elements.size(); i++) {
+            if (elements.get(i) instanceof NodePattern n && n.variable() == null) {
+                elements.set(i, new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos()));
+            } else if (i != w && elements.get(i) instanceof RelPattern r && r.variable() == null) {
+                elements.set(i, new RelPattern(freshName(taken), r.types(), r.direction(), r.properties(), null,
+                        r.pos()));
+            }
+        }
+        List<PatternElement> before = List.copyOf(elements.subList(0, w));
+        List<PatternElement> after = List.copyOf(elements.subList(w + 1, elements.size()));
+        NodePattern a = (NodePattern) elements.get(w - 1);
+        RelPattern rel = (RelPattern) elements.get(w);
+        NodePattern x = (NodePattern) elements.get(w + 1);
+        CypherAst.LengthRange range = java.util.Objects.requireNonNull(rel.lengthRange());
+        int lower = range.lower() < 0 ? 1 : range.lower();
+        int upper = range.upper();
+        String spelled = "*" + (range.lower() < 0 ? "" : range.lower()) + ".." + (upper < 0 ? "" : upper);
+        if (upper >= 0 && lower > upper) {
+            throw CypherErrors.invalid("Invalid input '" + spelled + "': the lower bound exceeds the upper", rel.pos());
+        }
+        if (java.util.Objects.equals(a.variable(), x.variable())) {
+            throw CypherErrors.unsupported("a variable-length relationship without an upper bound from a node back"
+                    + " to itself is not supported yet", pos);
+        }
+        Set<String> beforeNodes = nodeVariables(before);
+        for (String n : nodeVariables(after)) {
+            if (beforeNodes.contains(n)) {
+                throw CypherErrors.unsupported("a variable-length relationship without an upper bound in a pattern"
+                        + " naming a node (" + n + ") on both its sides is not supported yet", pos);
+            }
+        }
+        String aName = java.util.Objects.requireNonNull(a.variable());
+        String xName = java.util.Objects.requireNonNull(x.variable());
+        // the start node's rows and the far node's: each the part of the pattern on its side (the node alone, or
+        // the node with the single hops before or after the walk), read as a MATCH of its own (a label-less node
+        // every class's arms, the study's §12.13), each node carried with its identity, each single hop as a
+        // segment of the path (§12.56) where the path is named, so it carries its stored direction; the walk's hop
+        // read as a segment too, so its relationship carries its identity and its stored direction
+        String s = freshName(taken);
+        String d = freshName(taken);
+        String e = freshName(taken);
+        boolean nestedBefore = matchFrame.nested;
+        matchFrame.nested = true;
+        Rows start;
+        Rows far;
+        Rows edges;
+        try {
+            start = rowsOf(match(new CypherAst.Match(false, List.of(new PathPattern(before.size() > 1
+                    && p.variable() != null ? SEGMENT + p.variable() + "_before" : null, before, pos)), null, pos),
+                    null), pos);
+            far = rowsOf(match(new CypherAst.Match(false, List.of(new PathPattern(after.size() > 1
+                    && p.variable() != null ? SEGMENT + p.variable() + "_after" : null, after, pos)), null, pos),
+                    null), pos);
+            edges = rowsOf(match(new CypherAst.Match(false, List.of(new PathPattern(SEGMENT + "walk", List.of(
+                    new NodePattern(s, List.of(), Map.of(), pos),
+                    new RelPattern(e, rel.types(), rel.direction(), rel.properties(), null, rel.pos()),
+                    new NodePattern(d, List.of(), Map.of(), pos)), pos)), null, pos), null), pos);
+        } finally {
+            matchFrame.nested = nestedBefore;
+        }
+        NodeShape aShape = java.util.Objects.requireNonNull(walkedNode(start, aName));
+        NodeShape xShape = java.util.Objects.requireNonNull(walkedNode(far, xName));
+        // (a hop no way of the model reads, the pattern's nodes absent: the walk is its base alone, the far node
+        // the start at depth zero, or nothing under a lower bound)
+        ValueSpecification hop = walkedNode(edges, s) == null || walkedNode(edges, d) == null ? null
+                : walkedHop(edges, s, e, d, rel, p.variable() != null, pos);
+        // the walk: from each start node at depth zero, the hop from the node reached, never over a relationship
+        // walked (its identity between bars in the text of those walked), under the upper bound
+        RowScope ss = new RowScope(start);
+        Tx aId = java.util.Objects.requireNonNull(ss.identityOf(aShape));
+        List<ColSpec> base = new ArrayList<>();
+        base.add(new ColSpec(WALK_START, lambda("r", call("toOne", aId.vs())), null, null));
+        base.add(new ColSpec(WALK_CUR, lambda("r", call("toOne", aId.vs())), null, null));
+        base.add(new ColSpec(WALK_DEPTH, lambda("r", new CInteger(0L)), null, null));
+        for (String c : List.of(WALK_RELS, WALK_RELS_JSON, WALK_NODES_JSON, WALK_PATH_JSON, WALK_DIRS)) {
+            base.add(new ColSpec(c, lambda("r", new CString("")), null, null));
+        }
+        ValueSpecification baseVs = call("distinct", call("select", call("extend", start.vs(), new ColSpecArray(base)),
+                new ColSpecArray(WALK_COLUMNS.stream().map(c -> new ColSpec(c, null, null, null)).toList())));
+        ValueSpecification joined = call("join", new Variable("w"), hop == null ? start.vs() : hop,
+                new EnumValue(JOIN_KIND, "INNER"),
+                new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(call("equal",
+                        new AppliedProperty(new Variable("l"), WALK_CUR),
+                        new AppliedProperty(new Variable("r"), EDGE_SRC)))));
+        ValueSpecification unseen = call("not", call("contains", read(WALK_RELS),
+                plus(new CString("|"), read(EDGE_REL), new CString("|"))));
+        ValueSpecification within = upper < 0 ? unseen : call("and", unseen, call("lessThan", read(WALK_DEPTH),
+                new CInteger((long) upper)));
+        ValueSpecification kept = call("filter", joined, lambda("r", within));
+        ValueSpecification first = call("equal", read(WALK_DEPTH), new CInteger(0L));
+        String next = SYNTHETIC + "next_";
+        List<ColSpec> step = new ArrayList<>();
+        step.add(new ColSpec(next + WALK_CUR, lambda("r", read(EDGE_DST)), null, null));
+        step.add(new ColSpec(next + WALK_DEPTH, lambda("r", plus(read(WALK_DEPTH), new CInteger(1L))), null, null));
+        step.add(new ColSpec(next + WALK_RELS, lambda("r", plus(read(WALK_RELS), new CString("|"), read(EDGE_REL),
+                new CString("|"))), null, null));
+        step.add(new ColSpec(next + WALK_RELS_JSON, lambda("r", call("if", first, thunk(read(EDGE_REL_JSON)),
+                thunk(plus(read(WALK_RELS_JSON), new CString(","), read(EDGE_REL_JSON))))), null, null));
+        step.add(new ColSpec(next + WALK_NODES_JSON, lambda("r", plus(read(WALK_NODES_JSON), new CString(","),
+                read(EDGE_DST_JSON))), null, null));
+        step.add(new ColSpec(next + WALK_PATH_JSON, lambda("r", plus(read(WALK_PATH_JSON), new CString(","),
+                read(EDGE_REL_JSON), new CString(","), read(EDGE_DST_JSON))), null, null));
+        step.add(new ColSpec(next + WALK_DIRS, lambda("r", call("if", first, thunk(read(EDGE_DIR)),
+                thunk(plus(read(WALK_DIRS), new CString(","), read(EDGE_DIR))))), null, null));
+        List<ColSpec> selected = new ArrayList<>();
+        for (String c : WALK_COLUMNS) {
+            selected.add(new ColSpec(c.equals(WALK_START) ? c : next + c, null, null, null));
+        }
+        ValueSpecification stepVs = call("select", call("extend", kept, new ColSpecArray(step)),
+                new ColSpecArray(selected));
+        for (String c : WALK_COLUMNS) {
+            if (!c.equals(WALK_START)) {
+                stepVs = call("rename", stepVs, new ColSpec(next + c, null, null, null),
+                        new ColSpec(c, null, null, null));
+            }
+        }
+        ValueSpecification walkVs = hop == null ? baseVs : call(RECURSE, baseVs, new LambdaFunction(List.of(
+                new Variable("w")), List.of(stepVs)));
+        // the start node's rows joined to the walk on its identity, the far node's on the node reached
+        ValueSpecification vs = call("join", start.vs(), walkVs, new EnumValue(JOIN_KIND, "INNER"),
+                new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(call("equal",
+                        new AppliedProperty(new Variable("l"), java.util.Objects.requireNonNull(aShape.identity())),
+                        new AppliedProperty(new Variable("r"), WALK_START)))));
+        vs = call("join", vs, far.vs(), new EnumValue(JOIN_KIND, "INNER"),
+                new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(call("equal",
+                        new AppliedProperty(new Variable("l"), WALK_CUR),
+                        new AppliedProperty(new Variable("r"), java.util.Objects.requireNonNull(xShape.identity()))))));
+        if (lower > 0) {
+            vs = call("filter", vs, lambda("r", call("greaterThanEqual", read(WALK_DEPTH), new CInteger((long) lower))));
+        }
+        List<Col> columns = new ArrayList<>(start.columns());
+        for (Col c : far.columns()) {
+            if (columns.stream().anyMatch(l -> l.name().equals(c.name()))) {
+                throw new IllegalStateException("the walk's far node's rows share a column with the start's: " + c.name());
+            }
+            columns.add(c);
+        }
+        vs = uniqueAcrossTheWalk(vs, columns, before, after, rel, pos);
+        // the relationship's list, and the named path with its length, nodes and relationships beside it
+        List<ColSpec> values = new ArrayList<>();
+        com.legend.protocol.sql.InputDialect.TypeDetail relValue = new RelValue(rel.types().size() == 1
+                ? rel.types().get(0) : null);
+        ValueSpecification relList = call("fromJson", plus(new CString("["), read(WALK_RELS_JSON), new CString("]")));
+        if (rel.variable() != null) {
+            values.add(new ColSpec(rel.variable(), lambda("r", relList), null, null));
+            columns.add(new Col(rel.variable(), Kind.JSON, false, null, new ListOf(Kind.JSON, relValue)));
+        }
+        if (p.variable() != null) {
+            // the path in its written order: the part before the walk (its nodes and relationships), the walk's
+            // (each relationship and the node it reaches), the part after the far node; the stored directions
+            // and the relationships the same three parts, joined where the walk's is not empty
+            RowScope scope = new RowScope(new Rows(vs, columns));
+            PathPieces pre = pathPieces(before, false, scope, pos);
+            PathPieces post = pathPieces(after, true, scope, pos);
+            String length = PATH_PART + "length_" + p.variable();
+            String nodesColumn = PATH_PART + "nodes_" + p.variable();
+            String relsColumn = PATH_PART + "relationships_" + p.variable();
+            ValueSpecification dirs = aroundWalk(pre.dirs(), WALK_DIRS, post.dirs());
+            ValueSpecification rels = aroundWalk(pre.rels(), WALK_RELS_JSON, post.rels());
+            values.add(new ColSpec(p.variable(), lambda("r", call("fromJson", plus(new CString("{\"@path\":["),
+                    pre.elements(), read(WALK_PATH_JSON), post.elements(), new CString("],\"@dirs\":["), dirs,
+                    new CString("]}")))), null, null));
+            int hops = pre.rels().size() + post.rels().size();
+            values.add(new ColSpec(length, lambda("r", hops == 0 ? read(WALK_DEPTH) : plus(read(WALK_DEPTH),
+                    new CInteger((long) hops))), null, null));
+            values.add(new ColSpec(nodesColumn, lambda("r", call("fromJson", plus(new CString("["), pre.nodes(),
+                    read(WALK_NODES_JSON), post.nodes(), new CString("]")))), null, null));
+            values.add(new ColSpec(relsColumn, lambda("r", hops == 0 ? relList : call("fromJson", plus(
+                    new CString("["), rels, new CString("]")))), null, null));
+            columns.add(new Col(p.variable(), Kind.JSON, false, null, new PathValue()));
+            columns.add(new Col(length, Kind.INTEGER, false));
+            columns.add(new Col(nodesColumn, Kind.JSON, false, null, new ListOf(Kind.JSON, new NodeValue())));
+            columns.add(new Col(relsColumn, Kind.JSON, false, null, new ListOf(Kind.JSON, relValue)));
+        }
+        if (!values.isEmpty()) {
+            vs = call("extend", vs, new ColSpecArray(values));
+        }
+        // (the walk's own columns dropped: the rows are the pattern's variables)
+        List<ColSpec> kept2 = new ArrayList<>();
+        for (Col c : columns) {
+            if (!c.virtual()) {
+                kept2.add(new ColSpec(c.name(), null, null, null));
+            }
+        }
+        Rows out = new Rows(call("select", vs, new ColSpecArray(kept2)), columns);
+        if (m.where() != null) {
+            out = filtered(out, m.where());
+        }
+        return out;
+    }
+
+    /** A column of the row in hand, read. */
+    private static ValueSpecification read(String column) {
+        return new AppliedProperty(new Variable("r"), column);
+    }
+
+    /** The walk's rows kept where relationship uniqueness holds across the cut: a single hop's relationship never one
+     *  the walk walked (its identity, an edge's own or the ordered pair of its ends', S74, between bars in the text
+     *  of those walked), and the hops before the walk never one of those after (each side's own reading spells its
+     *  own); two hops each of one type, and not the same, never compared. */
+    private ValueSpecification uniqueAcrossTheWalk(ValueSpecification vs, List<Col> columns,
+            List<PatternElement> before, List<PatternElement> after, RelPattern rel, Pos pos) {
+        RowScope across = new RowScope(new Rows(vs, columns));
+        List<RelPattern> beforeRels = singleHops(before);
+        List<RelPattern> afterRels = singleHops(after);
+        ValueSpecification unique = null;
+        List<RelPattern> fixed = new ArrayList<>(beforeRels);
+        fixed.addAll(afterRels);
+        for (RelPattern f : fixed) {
+            if (differentTypes(f, rel)) {
+                continue;
+            }
+            ValueSpecification id = call("toOne", identifiedRel(across, f, pos).vs());
+            ValueSpecification notWalked = call("not", call("contains", read(WALK_RELS), plus(new CString("|"), id,
+                    new CString("|"))));
+            unique = unique == null ? notWalked : call("and", unique, notWalked);
+        }
+        for (RelPattern l : beforeRels) {
+            for (RelPattern r : afterRels) {
+                if (differentTypes(l, r)) {
+                    continue;
+                }
+                ValueSpecification differ = call("not", call("equal", call("toOne", identifiedRel(across, l,
+                        pos).vs()), call("toOne", identifiedRel(across, r, pos).vs())));
+                unique = unique == null ? differ : call("and", unique, differ);
+            }
+        }
+        return unique == null ? vs : call("filter", vs, lambda("r", unique));
+    }
+
+    /** The node variables of a part of a pattern. */
+    private static Set<String> nodeVariables(List<PatternElement> elements) {
+        Set<String> out = new java.util.LinkedHashSet<>();
+        for (PatternElement e : elements) {
+            if (e instanceof NodePattern n && n.variable() != null) {
+                out.add(n.variable());
+            }
+        }
+        return out;
+    }
+
+    /** The single hops of a part of a pattern, in order. */
+    private static List<RelPattern> singleHops(List<PatternElement> elements) {
+        List<RelPattern> out = new ArrayList<>();
+        for (PatternElement e : elements) {
+            if (e instanceof RelPattern r) {
+                out.add(r);
+            }
+        }
+        return out;
+    }
+
+    /** Whether two relationship patterns each name one type, and not the same: never one relationship. */
+    private static boolean differentTypes(RelPattern l, RelPattern r) {
+        return l.types().size() == 1 && r.types().size() == 1 && !l.types().equals(r.types());
+    }
+
+    /** A single hop's identity over the rows; refused by name where the rows carry it without one (a relationship
+     *  over several edge classes, the arms' columns). */
+    private static Tx identifiedRel(RowScope scope, RelPattern r, Pos pos) {
+        String name = java.util.Objects.requireNonNull(r.variable());
+        Col c = scope.column(name);
+        if (c == null || !(c.detail() instanceof RelShape shape) || !shape.identified()) {
+            throw CypherErrors.unsupported("relationship uniqueness between a variable-length relationship without an"
+                    + " upper bound and a relationship (" + name + ") carried without an identity of its own is not"
+                    + " supported yet", pos);
+        }
+        return java.util.Objects.requireNonNull(scope.relIdentity(shape));
+    }
+
+    /** A part of a walk's named path beside the walk: its elements' JSON texts in order (each after a comma when
+     *  the part follows the walk's far node, whose own text the walk wrote), its nodes' texts likewise, and its
+     *  relationships' texts and stored directions, one each. */
+    private record PathPieces(ValueSpecification elements, ValueSpecification nodes, List<ValueSpecification> rels,
+            List<ValueSpecification> dirs) {
+    }
+
+    /** The pieces of the part of a walk's named path before the walk ({@code afterWalk} false: from its first node
+     *  to the walk's start, inclusive) or after it (true: past the walk's far node). */
+    private PathPieces pathPieces(List<PatternElement> part, boolean afterWalk, RowScope scope, Pos pos) {
+        ValueSpecification elements = new CString("");
+        ValueSpecification nodes = new CString("");
+        List<ValueSpecification> rels = new ArrayList<>();
+        List<ValueSpecification> dirs = new ArrayList<>();
+        boolean first = true;
+        for (int i = afterWalk ? 1 : 0; i < part.size(); i++) {
+            ValueSpecification text;
+            if (part.get(i) instanceof NodePattern n) {
+                Col nc = scope.column(java.util.Objects.requireNonNull(n.variable()));
+                if (nc == null || !(nc.detail() instanceof NodeShape ns) || ns.absent()) {
+                    throw new IllegalStateException("the walk's path's node " + n.variable() + " is not carried by"
+                            + " the rows");
+                }
+                text = nodeJsonText(scope.parts(ns), pos);
+                nodes = afterWalk || !first ? plus(nodes, new CString(","), text) : plus(nodes, text);
+            } else {
+                RelPattern r = (RelPattern) part.get(i);
+                Col rc = scope.column(java.util.Objects.requireNonNull(r.variable()));
+                if (rc == null || !(rc.detail() instanceof RelShape rs) || rs.forward() == null) {
+                    throw new IllegalStateException("the walk's path's relationship " + r.variable() + " is carried"
+                            + " without its direction");
+                }
+                text = nodeJsonText(scope.relParts(rs, pos), pos);
+                rels.add(text);
+                dirs.add(jsonTextOf(scalar(columnLike(new AppliedProperty(new Variable(scope.row()), rs.forward()),
+                        Kind.BOOLEAN, false)), pos));
+            }
+            elements = afterWalk || !first ? plus(elements, new CString(","), text) : plus(elements, text);
+            first = false;
+        }
+        return new PathPieces(elements, nodes, rels, dirs);
+    }
+
+    /** A list's text of three parts, the walk's column between (empty at depth zero), each part's texts joined by
+     *  commas and the parts joined where both have some. */
+    private static ValueSpecification aroundWalk(List<ValueSpecification> before, String walkColumn,
+            List<ValueSpecification> after) {
+        ValueSpecification walked = read(walkColumn);
+        ValueSpecification none = call("equal", read(WALK_DEPTH), new CInteger(0L));
+        ValueSpecification out;
+        if (before.isEmpty()) {
+            out = walked;
+        } else {
+            out = joinedTexts(before);
+            out = plus(out, call("if", none, thunk(new CString("")), thunk(plus(new CString(","), walked))));
+        }
+        if (!after.isEmpty()) {
+            ValueSpecification rest = joinedTexts(after);
+            out = before.isEmpty() ? call("if", none, thunk(rest), thunk(plus(walked, new CString(","), rest)))
+                    : plus(out, new CString(","), rest);
+        }
+        return out;
+    }
+
+    /** Texts joined by commas. */
+    private static ValueSpecification joinedTexts(List<ValueSpecification> texts) {
+        ValueSpecification out = texts.get(0);
+        for (int i = 1; i < texts.size(); i++) {
+            out = plus(out, new CString(","), texts.get(i));
+        }
+        return out;
+    }
+
+    /** The shape of a node of the walk's pattern the rows carry with its identity; null for one carried absent (a
+     *  pattern no way of the model reads, §12.36). */
+    private static @com.legend.base.Nullable NodeShape walkedNode(Rows rows, String name) {
+        Col c = column(rows, name);
+        if (c == null || !(c.detail() instanceof NodeShape shape)) {
+            throw new IllegalStateException("the walk's node " + name + " is not carried by the rows");
+        }
+        if (shape.absent()) {
+            return null;
+        }
+        if (shape.identity() == null) {
+            throw new IllegalStateException("the walk's node " + name + " is carried without its identity");
+        }
+        return shape;
+    }
+
+    /** The walk's hop as rows of its columns ({@link #EDGE_SRC} to {@link #EDGE_DIR}): the hop's rows (the
+     *  relationship's pattern between two nodes of any class) with each end's identity, the relationship's
+     *  identity (an edge's own, or the ordered pair of its ends', S74) and the JSON texts of the relationship,
+     *  the far node and the stored direction (the hop's own for a directed pattern; the segment's column for an
+     *  undirected one, which a named path needs). */
+    private ValueSpecification walkedHop(Rows edges, String s, String e, String d, RelPattern rel, boolean path,
+            Pos pos) {
+        NodeShape sShape = java.util.Objects.requireNonNull(walkedNode(edges, s));
+        NodeShape dShape = java.util.Objects.requireNonNull(walkedNode(edges, d));
+        Col ec = column(edges, e);
+        if (ec == null || !(ec.detail() instanceof RelShape eShape)) {
+            throw new IllegalStateException("the walk's relationship " + e + " is not carried by the hop's rows");
+        }
+        RowScope scope = new RowScope(edges);
+        Tx relId = scope.relIdentity(eShape);
+        if (relId == null) {
+            throw CypherErrors.unsupported("a variable-length relationship without an upper bound over a"
+                    + " relationship carried without its identity is not supported yet", rel.pos());
+        }
+        ValueSpecification dir = switch (rel.direction()) {
+            case OUT -> new CString("true");
+            case IN -> new CString("false");
+            case BOTH -> {
+                if (eShape.forward() == null) {
+                    if (path) {
+                        throw CypherErrors.unsupported("a named path over an undirected variable-length"
+                                + " relationship without an upper bound is not supported yet", rel.pos());
+                    }
+                    yield new CString("true");
+                }
+                yield call("if", call("toOne", read(eShape.forward())), thunk(new CString("true")),
+                        thunk(new CString("false")));
+            }
+        };
+        List<ColSpec> specs = List.of(
+                new ColSpec(EDGE_SRC, lambda("r", call("toOne", java.util.Objects.requireNonNull(
+                        scope.identityOf(sShape)).vs())), null, null),
+                new ColSpec(EDGE_DST, lambda("r", call("toOne", java.util.Objects.requireNonNull(
+                        scope.identityOf(dShape)).vs())), null, null),
+                new ColSpec(EDGE_REL, lambda("r", call("toOne", relId.vs())), null, null),
+                new ColSpec(EDGE_REL_JSON, lambda("r", nodeJsonText(scope.relParts(eShape, pos), pos)), null, null),
+                new ColSpec(EDGE_DST_JSON, lambda("r", nodeJsonText(scope.parts(dShape), pos)), null, null),
+                new ColSpec(EDGE_DIR, lambda("r", dir), null, null));
+        return call("select", call("extend", edges.vs(), new ColSpecArray(specs)), new ColSpecArray(List.of(
+                new ColSpec(EDGE_SRC, null, null, null), new ColSpec(EDGE_DST, null, null, null),
+                new ColSpec(EDGE_REL, null, null, null), new ColSpec(EDGE_REL_JSON, null, null, null),
+                new ColSpec(EDGE_DST_JSON, null, null, null), new ColSpec(EDGE_DIR, null, null, null))));
     }
 
     /** The chains of one length each a variable-length relationship unrolls to, with the lists its variable names
@@ -928,14 +2424,25 @@ public final class CypherToPure {
      * zero). The relationship's variable is the list of the chain's relationships. Neo4j's relationship
      * uniqueness (a chain never walks one relationship twice) is not spelled: it needs identity (C5), and only a
      * graph whose data loops a chain back over the same relationship (a self-loop, a two-node cycle walked twice)
-     * can tell the difference (docs/SEMANTICS_REGISTER.md S75). Refused by name: no upper bound (a recursion), a
-     * bound beyond 4, a property map on the relationship, a variable-length relationship after another clause
-     * or beside another pattern, or in an OPTIONAL MATCH.
+     * can tell the difference (docs/SEMANTICS_REGISTER.md S75). No upper bound, or a bound beyond 4, is the walk
+     * the data bounds ({@link #walk}, the study's §12.68). Refused by name: a property map on the relationship, a
+     * variable-length relationship after another clause or beside another pattern, or in an OPTIONAL MATCH.
      */
     private State variableLength(CypherAst.Match m, @com.legend.base.Nullable State state) {
+        if (m.patterns().stream().anyMatch(p -> p.elements().stream().anyMatch(e -> e instanceof RelPattern r
+                && walked(r)))) {
+            // no upper bound, or one past the unroll's: the walk the data bounds, a recursion (the study's §12.68)
+            return walk(m, state);
+        }
         if (state != null) {
-            throw CypherErrors.unsupported("a variable-length relationship in a MATCH after another clause is not"
-                    + " supported yet", m.pos());
+            // after rows or a graph: the pattern read from the rows' node as a MATCH of its own, unrolled there,
+            // and joined back by identity (the re-anchoring of §12.49; the study's §12.69)
+            Rows anchored = reanchor(m, rowsOf(state, m.pos()));
+            if (anchored != null) {
+                return anchored;
+            }
+            throw CypherErrors.unsupported("a variable-length relationship in a MATCH after another clause, from no"
+                    + " node the rows carry, is not supported yet", m.pos());
         }
         if (m.patterns().size() != 1) {
             throw CypherErrors.unsupported("a variable-length relationship in a MATCH of several patterns is not"
@@ -963,9 +2470,13 @@ public final class CypherToPure {
                 n = new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos());
                 elements.set(i, n);
             }
-            order.add(java.util.Objects.requireNonNull(n.variable()));
+            if (!order.contains(n.variable())) {
+                order.add(java.util.Objects.requireNonNull(n.variable()));   // (a node named again: once, the study's §12.50)
+            }
         }
         nameRelationshipsWithMaps(elements, taken);
+        nameRepeats(elements, taken, Set.of());
+        order = patternOrder(elements);
         int combinations = 1;
         for (int i = 1; i < elements.size(); i += 2) {
             RelPattern r = (RelPattern) elements.get(i);
@@ -1003,22 +2514,12 @@ public final class CypherToPure {
         head.add(elements.get(0));
         int[] counter = {0};
         expand(elements, 1, head, new LinkedHashMap<>(), new LinkedHashMap<>(), counter, chains);
-        for (Chain chain : chains) {
-            if (chain.elements().size() > 5) {
-                // (the resolver's nested navigation reads no association end past a second step: IN_FLIGHT,
-                // 2026-10-16, the resolver line's finding)
-                throw CypherErrors.unsupported("a variable-length relationship whose pattern unrolls to more than two"
-                        + " hops in all is not supported yet", p.pos());
-            }
-        }
         // every chain's arms, from every class the start node may be (as the untyped route reads a pattern)
         List<List<PatternElement>> arms = new ArrayList<>();
         List<Chain> armChains = new ArrayList<>();
         for (Chain chain : chains) {
             NodePattern root = (NodePattern) chain.elements().get(0);
-            String rootLabel = labelClass(root);
-            List<String> rootClasses = new ArrayList<>(rootLabel != null ? List.of(rootLabel) : model.classes());
-            rootClasses.removeAll(durationClasses());
+            List<String> rootClasses = rootClassesOf(root);
             int before = arms.size();
             for (String cls : rootClasses) {
                 List<PatternElement> start = new ArrayList<>();
@@ -1032,6 +2533,12 @@ public final class CypherToPure {
         if (arms.isEmpty()) {
             throw CypherErrors.unsupported("a variable-length relationship no way of the model reads is not"
                     + " supported yet", p.pos());
+        }
+        if (arms.stream().anyMatch(arm -> !cuts(arm, ((NodePattern) arm.get(0)).labels().get(0)).isEmpty())) {
+            // a chain running past two steps (an edge among its ways, three hops): every chain read as rows of its
+            // own, the long ones cut around their hops, and the chains' rows concatenated under the same columns
+            // (the study's §12.57)
+            return chainRows(m, p, chains, order);
         }
         Map<String, List<String>> variableClasses = new LinkedHashMap<>();
         for (int a = 0; a < arms.size(); a++) {
@@ -1063,11 +2570,18 @@ public final class CypherToPure {
             }
         }));
         List<Graph> graphs = new ArrayList<>();
+        Set<String> edgeReachedBefore = new HashSet<>(reachedThroughEdge);
+        Set<String> edgeReachedByArms = new HashSet<>(reachedThroughEdge);
         for (int a = 0; a < arms.size(); a++) {
             List<PatternElement> arm = arms.get(a);
             Chain chain = armChains.get(a);
-            typesInThisMatch.clear();
+            clearMatch();
+            resetReachedThroughEdge(edgeReachedBefore, edgeReachedByArms);
             Graph g = pattern(new PathPattern(null, arm, p.pos()), null, everyClass);
+            if (g == null) {
+                // (an arm is assigned from the ways the model has: none has no way; kept for the type's sake)
+                continue;
+            }
             if (p.variable() != null) {
                 recordPath(g, new PathPattern(p.variable(), arm, p.pos()));
             }
@@ -1076,8 +2590,9 @@ public final class CypherToPure {
                     java.util.Objects.requireNonNull(g.bindings().get(near))));
             g.lists().putAll(chain.lists());
             Graph read = new Graph(g.rootClass(), g.row(), g.bindings(), g.conditions(), everyClass, g.fanning(),
-                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists());
-            Expr where = m.where();
+                    g.deferredConstraints(), g.deferredWhere(), variableClasses, g.paths(), g.forward(), g.lists(),
+                    g.present());
+            Expr where = withUniqueness(m.where(), m.pos());
             if (where != null) {
                 if (read.fanning()) {
                     read.deferredWhere().add(where);
@@ -1087,7 +2602,275 @@ public final class CypherToPure {
             }
             graphs.add(read);
         }
-        return materializeArms(graphs, order, m.pos());
+        reachedThroughEdge.addAll(edgeReachedByArms);   // (every arm's, once the arms are read)
+        return armsRows(graphs, order, m.pos());
+    }
+
+    /**
+     * A variable-length pattern a chain of which runs past two steps (the study's §12.57): each chain read as a
+     * MATCH of its own (cut around its hops where it runs past two steps, {@link #deep}; the arms' route where it
+     * does not), the unroll's nodes and relationships named afresh so the rows carry them (a cut re-anchors on
+     * them, the relationship's list and the path read them); the relationship's list the Variant of the chain's
+     * relationships' values; a zero-length hop's far node the near one; the MATCH's WHERE over each chain's rows;
+     * then the chains' rows projected to the pattern's own variables under the same columns
+     * ({@link #canonical}) and concatenated.
+     */
+    private Rows chainRows(CypherAst.Match m, PathPattern p, List<Chain> chains, List<String> order) {
+        Pos pos = m.pos();
+        List<Rows> rowsByChain = new ArrayList<>();
+        for (Chain chain : chains) {
+            Set<String> taken = new HashSet<>(order);
+            for (PatternElement e : chain.elements()) {
+                String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+                if (v != null) {
+                    taken.add(v);
+                }
+            }
+            Map<String, String> renamed = new HashMap<>();
+            List<PatternElement> elements = new ArrayList<>();
+            for (PatternElement e : chain.elements()) {
+                if (e instanceof NodePattern n && hidden(n.variable())) {
+                    String name = freshName(taken);
+                    renamed.put(java.util.Objects.requireNonNull(n.variable()), name);
+                    elements.add(new NodePattern(name, n.labels(), n.properties(), n.pos()));
+                } else if (e instanceof RelPattern r && hidden(r.variable())) {
+                    String name = freshName(taken);
+                    renamed.put(java.util.Objects.requireNonNull(r.variable()), name);
+                    elements.add(new RelPattern(name, r.types(), r.direction(), r.properties(), r.lengthRange(),
+                            r.pos()));
+                } else {
+                    elements.add(e);
+                }
+            }
+            State state = matchPattern(new CypherAst.Match(false, List.of(new PathPattern(p.variable(), elements,
+                    p.pos())), null, pos), null);
+            Rows rows = rowsOf(state, pos);
+            List<Col> columns = new ArrayList<>(rows.columns());
+            for (Map.Entry<String, String> alias : chain.aliases().entrySet()) {
+                // (a zero-length hop: the far node is the near one, its columns under the far name too)
+                Col near = java.util.Objects.requireNonNull(column(rows, alias.getValue()));
+                columns.add(new Col(alias.getKey(), near.kind(), near.nullable(), near.carried(), near.detail()));
+            }
+            rows = new Rows(rows.vs(), columns);
+            if (!chain.lists().isEmpty()) {
+                RowScope scope = new RowScope(rows);
+                List<ColSpec> specs = new ArrayList<>();
+                List<Col> extended = new ArrayList<>(rows.columns());
+                for (Map.Entry<String, List<String>> list : chain.lists().entrySet()) {
+                    // the relationship's list: the chain's relationships' values, the Variant the database builds
+                    // (empty for a zero-length hop)
+                    List<Val> values = new ArrayList<>();
+                    for (String r : list.getValue()) {
+                        values.add(scope.variable(new CypherAst.Var(renamed.getOrDefault(r, r), pos)));
+                    }
+                    Tx t = variant(new ListVal(values), pos);
+                    specs.add(new ColSpec(list.getKey(), lambda(scope.row(), t.vs()), null, null));
+                    extended.add(new Col(list.getKey(), t.kind(), t.nullable(), null, t.detail()));
+                }
+                rows = new Rows(call("extend", rows.vs(), new ColSpecArray(specs)), extended);
+            }
+            if (m.where() != null) {
+                rows = filtered(rows, m.where());
+            }
+            rowsByChain.add(rows);
+        }
+        // the pattern's own variables: its nodes and relationships, the lists, the path with its parts
+        List<String> variables = new ArrayList<>(order);
+        chains.get(0).lists().keySet().forEach(variables::remove);
+        List<String> kept = new ArrayList<>(chains.get(0).lists().keySet());
+        if (p.variable() != null) {
+            kept.add(p.variable());
+            for (String fn : List.of("length", "nodes", "relationships")) {
+                kept.add(PATH_PART + fn + "_" + p.variable());
+            }
+        }
+        // each node's and relationship's properties across the chains: the union, by name
+        Map<String, Map<String, Kind>> kinds = new LinkedHashMap<>();
+        for (String v : variables) {
+            Map<String, Kind> union = kinds.computeIfAbsent(v, k -> new LinkedHashMap<>());
+            for (Rows rows : rowsByChain) {
+                Col c = java.util.Objects.requireNonNull(column(rows, v));
+                Map<String, NodeProp> props = c.detail() instanceof NodeShape n ? n.props()
+                        : c.detail() instanceof RelShape r ? r.props() : Map.of();
+                for (Map.Entry<String, NodeProp> e : props.entrySet()) {
+                    Kind kind = e.getValue().kind();
+                    Kind before = union.putIfAbsent(e.getKey(), kind);
+                    if (before != null && before != kind) {
+                        // typed two ways across the chains (the study's §12.62): a Variant of each chain's value
+                        if (!variantSpelled(before) || !variantSpelled(kind)) {
+                            throw CypherErrors.unsupported("the property " + e.getKey() + " typed differently"
+                                    + " across the chains of a variable-length pattern (" + cypherType(before)
+                                    + " and " + cypherType(kind) + ") is not supported yet", pos);
+                        }
+                        union.put(e.getKey(), Kind.JSON);
+                    }
+                }
+            }
+        }
+        int mark = fresh;
+        Rows out = null;
+        List<List<Col>> chainColumns = new ArrayList<>();
+        for (Rows rows : rowsByChain) {
+            fresh = mark;
+            Rows one = canonical(rows, variables, kinds, kept, rowsByChain, pos);
+            chainColumns.add(one.columns());
+            out = out == null ? one : new Rows(call("concatenate", out.vs(), one.vs()), out.columns());
+        }
+        return new Rows(java.util.Objects.requireNonNull(out).vs(), withoutAbsentMarks(mergedShapes(chainColumns)));
+    }
+
+    /** The parts' mark a chain of {@code every} carries on {@code v}'s property {@code prop} (W13 leg 5: a split
+     *  value's columns), else none. */
+    private static @com.legend.base.Nullable Carried partsIn(List<Rows> every, String v, String prop) {
+        for (Rows o : every) {
+            Col oc = column(o, v);
+            Map<String, NodeProp> props = oc == null ? Map.of() : oc.detail() instanceof NodeShape n ? n.props()
+                    : oc.detail() instanceof RelShape r ? r.props() : Map.of();
+            NodeProp np = props.get(prop);
+            Col own = np == null ? null : column(o, np.column());
+            if (own != null && own.detail() instanceof Carried cp && cp.parts() != null) {
+                return cp;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * One chain's rows projected to the variables every chain carries, under the same columns in every chain
+     * (the fresh-name counter reset before each, as the arms' union does): a node as its labels, the union of its
+     * properties across the chains (null where this chain's shape lacks one) and its identity; a relationship as
+     * its type, its properties likewise, its identity, its pair and its direction where any chain carries them;
+     * the lists and the path's columns under their names.
+     */
+    private Rows canonical(Rows rows, List<String> variables, Map<String, Map<String, Kind>> kinds,
+            List<String> kept, List<Rows> every, Pos pos) {
+        Set<String> names = new HashSet<>();
+        rows.columns().forEach(c -> names.add(c.name()));
+        String row = "r";
+        List<ColSpec> computed = new ArrayList<>();
+        List<ColSpec> selected = new ArrayList<>();
+        List<Col> columns = new ArrayList<>();
+        for (String v : variables) {
+            Col c = java.util.Objects.requireNonNull(column(rows, v));
+            Map<String, NodeProp> props = new LinkedHashMap<>();
+            Map<String, NodeProp> own = c.detail() instanceof NodeShape n ? n.props()
+                    : c.detail() instanceof RelShape r ? r.props() : Map.of();
+            String head = freshName(names);
+            String headSource = c.detail() instanceof NodeShape n ? n.labels()
+                    : c.detail() instanceof RelShape r ? r.type() : null;
+            if (headSource == null) {
+                throw new IllegalStateException("the variable-length pattern's " + v + " is not a node or a"
+                        + " relationship of the rows");
+            }
+            Col headCol = java.util.Objects.requireNonNull(column(rows, headSource));
+            computed.add(new ColSpec(head, lambda(row, new AppliedProperty(new Variable(row), headSource)), null,
+                    null));
+            columns.add(new Col(head, Kind.STRING, headCol.nullable()));
+            selected.add(new ColSpec(head, null, null, null));
+            for (Map.Entry<String, Kind> k : kinds.getOrDefault(v, Map.of()).entrySet()) {
+                String column = freshName(names);
+                NodeProp np = own.get(k.getKey());
+                ValueSpecification read = new AppliedProperty(new Variable(row), np == null ? "" : np.column());
+                // (a union typed two ways, the study's §12.62: this chain's value as a Variant)
+                ValueSpecification value = np == null ? SqlToPure.nullOf(k.getValue()).vs()
+                        : k.getValue() == Kind.JSON && np.kind() != Kind.JSON && np.kind() != Kind.NULL
+                        ? SqlToPure.valueOf(asVariant(columnLike(read, np.kind(), np.nullable()), pos)) : read;
+                boolean nullable = np == null || np.nullable() || every.size() > 1;
+                Carried parts = partsIn(every, v, k.getKey());
+                if (parts != null) {
+                    // a split property (W13 leg 5): its nanoseconds and, for a date-time, its date column beside,
+                    // null where this chain's shape lacks it
+                    computed.add(new ColSpec(column, lambda(row, np == null ? SqlToPure.nullOf(Kind.INTEGER).vs()
+                            : read), null, null));
+                    columns.add(new Col(column, k.getValue(), nullable, null, parts));
+                    selected.add(new ColSpec(column, null, null, null));
+                    if (k.getValue() == Kind.DATETIME || k.getValue() == Kind.ZONED) {
+                        computed.add(new ColSpec(DATE_PART + column, lambda(row, np == null
+                                ? SqlToPure.nullOf(Kind.DATE).vs()
+                                : new AppliedProperty(new Variable(row), DATE_PART + np.column())), null, null));
+                        columns.add(new Col(DATE_PART + column, Kind.DATE, true));
+                        selected.add(new ColSpec(DATE_PART + column, null, null, null));
+                    }
+                    props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, np == null || np.absent(),
+                            np != null && np.nanos()));
+                    continue;
+                }
+                computed.add(new ColSpec(column, lambda(row, value), null, null));
+                columns.add(new Col(column, k.getValue(), nullable, null, np == null ? null : np.detail()));
+                selected.add(new ColSpec(column, null, null, null));
+                props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, np == null || np.absent(),
+                        np != null && np.nanos()));
+            }
+            if (c.detail() instanceof NodeShape n) {
+                if (n.identity() == null) {
+                    throw new IllegalStateException("the variable-length pattern's node " + v + " is carried"
+                            + " without its identity");
+                }
+                String identity = freshName(names);
+                Col id = java.util.Objects.requireNonNull(column(rows, n.identity()));
+                computed.add(new ColSpec(identity, lambda(row, new AppliedProperty(new Variable(row),
+                        n.identity())), null, null));
+                columns.add(new Col(identity, Kind.STRING, id.nullable()));
+                selected.add(new ColSpec(identity, null, null, null));
+                boolean oneClass = n.classPath() != null && every.stream().allMatch(o -> {
+                    Col oc = column(o, v);
+                    return oc != null && oc.detail() instanceof NodeShape on
+                            && n.classPath().equals(on.classPath());
+                });
+                columns.add(new Col(v, c.kind(), c.nullable(), null, new NodeShape(head, props, false, identity,
+                        oneClass ? n.classPath() : null)));
+            } else {
+                RelShape r = java.util.Objects.requireNonNull((RelShape) c.detail());
+                String[] carried = new String[4];
+                String[] sources = {r.identity(), r.source(), r.target(), r.forward()};
+                for (int i = 0; i < sources.length; i++) {
+                    // (a column any chain carries: this chain's, or null where it carries none)
+                    int at = i;
+                    boolean any = every.stream().anyMatch(o -> {
+                        Col oc = column(o, v);
+                        if (oc == null || !(oc.detail() instanceof RelShape os)) {
+                            return false;
+                        }
+                        String[] theirs = {os.identity(), os.source(), os.target(), os.forward()};
+                        return theirs[at] != null;
+                    });
+                    if (!any) {
+                        continue;
+                    }
+                    Kind kind = i == 3 ? Kind.BOOLEAN : Kind.STRING;
+                    String column = freshName(names);
+                    ValueSpecification value = sources[i] == null ? SqlToPure.nullOf(kind).vs()
+                            : new AppliedProperty(new Variable(row), sources[i]);
+                    boolean nullable = sources[i] == null
+                            || java.util.Objects.requireNonNull(column(rows, sources[i])).nullable();
+                    computed.add(new ColSpec(column, lambda(row, value), null, null));
+                    columns.add(new Col(column, kind, nullable));
+                    selected.add(new ColSpec(column, null, null, null));
+                    carried[i] = column;
+                }
+                columns.add(new Col(v, c.kind(), c.nullable(), null, new RelShape(head, props, carried[0],
+                        carried[1], carried[2], carried[3])));
+            }
+        }
+        for (String k : kept) {
+            Col c = column(rows, k);
+            if (c == null) {
+                throw new IllegalStateException("the variable-length pattern's chain carries no " + k);
+            }
+            if (c.carried() != null) {
+                // (a value the chain carries as a constant, an empty path's relationships: a column of the relation,
+                // so the chains' rows agree)
+                Tx t = c.carried() instanceof Scalar sc ? sc.tx() : variant(c.carried(), pos);
+                computed.add(new ColSpec(k, lambda(row, SqlToPure.valueOf(t)), null, null));
+                columns.add(new Col(k, t.kind(), t.nullable(), null, t.detail()));
+            } else {
+                columns.add(c);
+            }
+            selected.add(new ColSpec(k, null, null, null));
+        }
+        ValueSpecification vs = call("select", call("extend", rows.vs(), new ColSpecArray(computed)),
+                new ColSpecArray(selected));
+        return new Rows(vs, columns);
     }
 
     /** The chains from {@code at} (a relationship's place in {@code elements}) on: a fixed relationship and its
@@ -1176,6 +2959,10 @@ public final class CypherToPure {
             if (hop != null) {
                 return hop;
             }
+            Rows anchored = reanchor(m, rows);
+            if (anchored != null) {
+                return anchored;
+            }
             Rows fresh = freshAfterRows(m, rows);
             if (fresh != null) {
                 return fresh;
@@ -1184,8 +2971,11 @@ public final class CypherToPure {
                     m.pos());
         }
         if (m.patterns().size() != 1) {
-            throw CypherErrors.unsupported("an untyped relationship in a MATCH of several patterns is not supported"
-                    + " yet", m.pos());
+            if (!m.optional()) {
+                return joinedPatterns(m, rowsOf(state, m.pos()));
+            }
+            throw CypherErrors.unsupported("an untyped relationship in an OPTIONAL MATCH of several patterns is not"
+                    + " supported yet", m.pos());
         }
         PathPattern p = m.patterns().get(0);
         if (p.variable() != null) {
@@ -1236,9 +3026,13 @@ public final class CypherToPure {
                 n = new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos());
                 ordered.set(i, n);
             }
-            order.add(java.util.Objects.requireNonNull(n.variable()));
+            if (!order.contains(n.variable())) {
+                order.add(java.util.Objects.requireNonNull(n.variable()));   // (a node named again: once, the study's §12.50)
+            }
         }
         nameRelationshipsWithMaps(ordered, taken);
+        nameRepeats(ordered, taken, any.bindings().keySet());
+        order = patternOrder(ordered);
         List<Graph> graphs = new ArrayList<>();
         for (Graph base : bases) {
             Binding from = base.bindings().get(startVar);
@@ -1263,20 +3057,30 @@ public final class CypherToPure {
             head.add(new NodePattern(startVar, List.of(cls), start.properties(), start.pos()));
             List<List<PatternElement>> arms = new ArrayList<>();
             assign(ordered, 2, cls, head, arms);
+            Set<String> edgeReachedBefore = new HashSet<>(reachedThroughEdge);
+            Set<String> edgeReachedByArms = new HashSet<>(reachedThroughEdge);
             for (List<PatternElement> arm : arms) {
-                typesInThisMatch.clear();
+                clearMatch();
+                resetReachedThroughEdge(edgeReachedBefore, edgeReachedByArms);
                 // (a fanning graph: the hop may find many, one row per node reached when the arms materialize)
                 Graph copy = new Graph(base.rootClass(), base.row(), new LinkedHashMap<>(base.bindings()),
                         new ArrayList<>(base.conditions()), base.candidates(), true,
                         new ArrayList<>(base.deferredConstraints()), new ArrayList<>(base.deferredWhere()),
                         base.variableClasses(), new LinkedHashMap<>(base.paths()),
-                        new LinkedHashMap<>(base.forward()), new LinkedHashMap<>(base.lists()));
+                        new LinkedHashMap<>(base.forward()), new LinkedHashMap<>(base.lists()),
+                        new ArrayList<>(base.present()));
                 Graph g = pattern(new PathPattern(null, arm, p.pos()), copy);
-                if (m.where() != null) {
-                    g.deferredWhere().add(m.where());
+                if (g == null) {
+                    // (an arm is assigned from the ways the model has: none has no way; kept for the type's sake)
+                    continue;
+                }
+                Expr where = withUniqueness(m.where(), m.pos());
+                if (where != null) {
+                    g.deferredWhere().add(where);
                 }
                 graphs.add(g);
             }
+            reachedThroughEdge.addAll(edgeReachedByArms);   // (every arm's, once the arms are read)
         }
         if (graphs.isEmpty()) {
             for (PatternElement e : ordered) {
@@ -1290,7 +3094,75 @@ public final class CypherToPure {
             return noWay(ordered, null, m.where(), materializeArms(bases, new ArrayList<>(any.bindings().keySet()),
                     m.pos()), false, p.pos());
         }
-        return materializeArms(graphs, order, m.pos());
+        return armsRows(graphs, order, m.pos());
+    }
+
+    /** Whether {@code type} names a property of some class holding that class itself (a self-association): an
+     *  undirected relationship of the type reads both directions as arms, a loop once (the study's §12.50). */
+    private boolean selfAssociation(String type) {
+        for (String cls : model.classes()) {
+            List<Property> declared = new ArrayList<>(properties(cls));
+            declared.addAll(ends(cls));
+            for (Property p : declared) {
+                if (p.name().equals(type) && p.classTyped() && cls.equals(p.type())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The repeats of a pattern named before its arms are read, so the arms' columns agree (the study's §12.50): a
+     *  node named again within the pattern, or named already by the graph it continues ({@code bound}), reads under
+     *  a fresh name, the same node as the first by identity (a condition of the MATCH's WHERE); an unnamed
+     *  relationship of a type the MATCH repeats is named, for uniqueness to tell it from the others. */
+    private void nameRepeats(List<PatternElement> elements, Set<String> taken, Set<String> bound) {
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < elements.size(); i++) {
+            if (elements.get(i) instanceof NodePattern n && n.variable() != null) {
+                boolean again = i > 0 && (seen.contains(n.variable()) || bound.contains(n.variable()));
+                if (again) {
+                    String fresh = freshName(taken);
+                    matchFrame.cycles.add(new CypherAst.Binary(BinaryOp.EQ, new CypherAst.Var(fresh, n.pos()),
+                            new CypherAst.Var(n.variable(), n.pos()), n.pos()));
+                    elements.set(i, new NodePattern(fresh, n.labels(), n.properties(), n.pos()));
+                }
+                seen.add(n.variable());
+            } else if (elements.get(i) instanceof RelPattern r && r.variable() == null && r.lengthRange() == null
+                    && (r.types().size() != 1 ? matchFrame.relationships >= 2
+                            : matchFrame.repeated(r.types().get(0)))) {
+                elements.set(i, new RelPattern(freshName(taken), r.types(), r.direction(), r.properties(),
+                        r.lengthRange(), r.pos()));
+            }
+        }
+    }
+
+    /** The variables of a pattern in its order, nodes and relationships, each once: the order the arms carry their
+     *  columns in, so the arms' columns agree whatever order each arm bound them in. */
+    private static List<String> patternOrder(List<PatternElement> elements) {
+        List<String> order = new ArrayList<>();
+        for (PatternElement e : elements) {
+            if (e instanceof NodePattern n && n.variable() != null && !order.contains(n.variable())) {
+                order.add(n.variable());
+            }
+        }
+        for (PatternElement e : elements) {
+            if (e instanceof RelPattern r && r.variable() != null && !order.contains(r.variable())) {
+                order.add(r.variable());
+            }
+        }
+        return order;
+    }
+
+    /** The arms' rows, deduped by identity when an undirected relationship over a self-association is among the
+     *  arms (a loop is the same row in both directions; the study's §12.50). */
+    private Rows armsRows(List<Graph> graphs, List<String> order, Pos pos) {
+        Rows rows = materializeArms(graphs, order, pos);
+        if (matchFrame.selfAssociation) {
+            matchFrame.selfAssociation = false;
+            return new Rows(call("distinct", rows.vs()), rows.columns());
+        }
+        return rows;
     }
 
     /** A relationship pattern with a property map and no variable is named before the arms are read (as the nodes
@@ -1315,7 +3187,7 @@ public final class CypherToPure {
         }
         RelPattern rel = (RelPattern) elements.get(at - 1);
         NodePattern node = (NodePattern) elements.get(at);
-        String label = labelClass(node);
+        List<String> labelled = labelClasses(node);
         // (type, direction, the class reached)
         List<Object[]> ways = new ArrayList<>();
         if (!rel.types().isEmpty()) {
@@ -1356,14 +3228,14 @@ public final class CypherToPure {
         }
         for (Object[] way : ways) {
             String reached = (String) way[2];
-            if (label != null && !label.equals(reached) && !model.isSubclass(reached, label)) {
-                refuseNarrowing(label, reached, (String) way[0], node.pos());
+            if (!carries(reached, labelled)) {
+                refuseNarrowing(labelled, reached, (String) way[0], node.pos());
                 continue;
             }
             if (rel.direction() == CypherAst.Direction.BOTH && reached.equals(cls)) {
-                throw CypherErrors.unsupported("an undirected relationship over a self-association (" + way[0]
-                        + " of " + cls + "; a loop matches once in Neo4j, which needs identity) is not supported"
-                        + " yet", rel.pos());
+                // (both directions are arms; a loop, the same link both ways, reads once: the rows deduped by
+                // identity after the arms are materialized, the study's §12.50)
+                matchFrame.selfAssociation = true;
             }
             List<PatternElement> next = new ArrayList<>(head);
             next.add(new RelPattern(rel.variable(), List.of((String) way[0]), (CypherAst.Direction) way[1],
@@ -1376,10 +3248,12 @@ public final class CypherToPure {
     /** A far label that is a subclass of the class a way reaches would narrow the way's instances, which the
      *  translator does not read yet: refused by name (a label of another class leaves the way out, as a label
      *  the way cannot reach). */
-    private void refuseNarrowing(String label, String reached, String way, Pos pos) {
-        if (model.isSubclass(label, reached)) {
-            throw CypherErrors.unsupported("the label " + label + " is a subclass of " + reached + ", which " + way
-                    + " reaches: a label narrowing a relationship's end is not supported yet", pos);
+    private void refuseNarrowing(List<String> labelled, String reached, String way, Pos pos) {
+        for (String label : labelled) {
+            if (model.isSubclass(label, reached)) {
+                throw CypherErrors.unsupported("the label " + label + " is a subclass of " + reached + ", which "
+                        + way + " reaches: a label narrowing a relationship's end is not supported yet", pos);
+            }
         }
     }
 
@@ -1387,7 +3261,7 @@ public final class CypherToPure {
     private List<Property> ends(String classPath) {
         List<Property> out = new ArrayList<>();
         model.ends(classPath, (n, type, classTyped, enumTyped, lower, upper) ->
-                out.add(new Property(n, type, classTyped, enumTyped, lower, upper)));
+                out.add(new Property(n, type, classTyped, enumTyped, lower, upper, List.of())));
         return out;
     }
 
@@ -1444,10 +3318,28 @@ public final class CypherToPure {
      *  as §12.16's and the arms are read as rows (lite's outer join keeps one row for a root with no leaf); a type the
      *  model declares nowhere, or a label the hop does not reach, binds an absent node (null everywhere). As the
      *  first clause, a MATCH (the model has classes, so there are rows). */
+    /** A first OPTIONAL MATCH's rows (the study's §12.72): the pattern's, or one row of nulls where it finds nothing
+     *  (Neo4j's: an OPTIONAL MATCH keeps the row it starts from, and the first starts from one) -- the one row a
+     *  query over no pattern starts from, left-joined to the pattern's rows on nothing, their variables optional. */
+    private Rows orNullRow(State found, Pos pos) {
+        Rows rows = rowsOf(found, pos);
+        // (its one column under a name the pattern's rows do not hold: a pattern no way reads is itself one row)
+        Set<String> names = new HashSet<>();
+        rows.columns().forEach(c -> names.add(c.name()));
+        String name = freshName(names);
+        String one = "\n" + name + "\n1\n";
+        ValueSpecification vs = call("join", com.legend.protocol.spec.TdsLiteral.of(one, "#TDS" + one + "#", null),
+                rows.vs(), new EnumValue(JOIN_KIND, "LEFT"), new LambdaFunction(List.of(new Variable("l"),
+                new Variable("r")), List.of(new CBoolean(true))));
+        List<Col> columns = new ArrayList<>(List.of(new Col(name, Kind.INTEGER, false)));
+        rows.columns().forEach(c -> columns.add(optionalColumn(c)));
+        return new Rows(vs, columns);
+    }
+
     private State optionalMatch(CypherAst.Match m, @com.legend.base.Nullable State state) {
         if (state == null) {
             List<String> classes = new ArrayList<>(model.classes());
-            classes.removeAll(durationClasses());
+            classes.removeAll(valueClasses());
             if (classes.isEmpty() && m.patterns().size() == 1 && m.patterns().get(0).elements().size() == 1
                     && m.patterns().get(0).variable() == null) {
                 // over a model with no class (the study's §12.20): one row, the node absent (Neo4j's null row)
@@ -1460,43 +3352,63 @@ public final class CypherToPure {
                         ((NodePattern) m.patterns().get(0).elements().get(0)).variable());
             }
             // (a pattern no way of the model reads answers one null row here, not no row: noWay reads m.optional())
-            return matchPattern(m, null);
+            return orNullRow(matchPattern(m, null), m.pos());
         }
         if (state instanceof Rows rows) {
             Rows hop = absentHop(m, rows);
             if (hop != null) {
                 return hop;
             }
+            Rows anchored = reanchor(m, rows);
+            if (anchored != null) {
+                return anchored;
+            }
             throw CypherErrors.unsupported("OPTIONAL MATCH after a WITH that projected its variables, or after a"
-                    + " pattern read as rows, is not supported yet", m.pos());
+                    + " pattern read as rows, from no node the rows carry, is not supported yet", m.pos());
         }
         if (m.patterns().size() != 1) {
             throw CypherErrors.unsupported("OPTIONAL MATCH of several patterns is not supported yet", m.pos());
         }
         PathPattern p = m.patterns().get(0);
-        if (p.variable() != null) {
-            throw CypherErrors.unsupported("a named path (" + p.variable() + " = ...) is not supported yet", p.pos());
-        }
         List<PatternElement> elements = new ArrayList<>(p.elements());
         if (elements.size() == 1) {
             throw CypherErrors.unsupported("an OPTIONAL MATCH of a single node (a cartesian product) is not"
                     + " supported yet", p.pos());
         }
+        // what the optional hop does not read, re-anchoring over the graph's rows does (a named path among it: read
+        // as written there, §12.70, its value null where the pattern finds nothing, §12.78)
+        boolean viaRows = p.variable() != null;
         for (PatternElement e : elements) {
             if (e instanceof RelPattern r) {
-                if (r.lengthRange() != null) {
-                    throw CypherErrors.unsupported("a variable-length relationship (*) is not supported yet",
-                            r.pos());
-                }
-                if (r.types().isEmpty()) {
-                    throw CypherErrors.unsupported("an untyped relationship in an OPTIONAL MATCH is not supported"
-                            + " yet", r.pos());
-                }
-                if (!r.properties().isEmpty()) {
-                    throw CypherErrors.unsupported("properties on a relationship pattern in an OPTIONAL MATCH are not"
-                            + " supported yet", r.pos());
-                }
+                // (a variable-length relationship: the pattern read as a MATCH of its own, §12.42's unroll or
+                // §12.68's walk, joined back by identity; a type two of its relationships share, so its uniqueness
+                // is spelled over named relationships there, §12.70)
+                viaRows |= r.lengthRange() != null;
+                viaRows |= r.types().size() == 1 && elements.stream().filter(o -> o instanceof RelPattern or
+                        && or.types().equals(r.types())).count() > 1;
+                viaRows |= r.types().isEmpty() || !r.properties().isEmpty() || r.variable() != null
+                        && state instanceof Graph g0 && g0.bindings().containsKey(r.variable());
+            } else if (e instanceof NodePattern n && e != elements.get(0) && n.variable() != null
+                    && state instanceof Graph g0 && g0.bindings().containsKey(n.variable())) {
+                viaRows = true;   // (both ends bound: joined on the far node's identity)
             }
+        }
+        for (int i = 1; i < elements.size(); i += 2) {
+            // (a relationship read against its stored way to a label-less node: the far node's class is the arms',
+            // §12.70)
+            viaRows |= ((RelPattern) elements.get(i)).direction() != CypherAst.Direction.OUT
+                    && ((NodePattern) elements.get(i + 1)).labels().isEmpty();
+        }
+        if (viaRows) {
+            // (the study's §12.49: the graph materialized, the pattern read as its own graph and joined back by
+            // identity, a left join)
+            Rows anchored = reanchor(m, rowsOf(state, m.pos()));
+            if (anchored != null) {
+                return anchored;
+            }
+            throw CypherErrors.unsupported("an OPTIONAL MATCH over an untyped relationship, a relationship with a"
+                    + " property map or a bound far node, from no node the graph binds, is not supported yet",
+                    p.pos());
         }
         // every node named (an unnamed one synthetically), the same names in every arm
         List<Graph> arms = state instanceof Arms a ? a.arms() : List.of((Graph) state);
@@ -1516,8 +3428,16 @@ public final class CypherToPure {
                 elements.set(i, new NodePattern(freshName(taken), n.labels(), n.properties(), n.pos()));
             }
         }
-        boolean fanning = false;
         Expr where = m.where();
+        if (where != null && arms.stream().anyMatch(g -> optionalFans(elements, g))) {
+            // a WHERE over a hop that fans out (the study's §12.78): the graph materialized, the pattern re-anchored
+            // over its rows, the WHERE over the pattern's rows or, reading a value of the rows, the join's
+            Rows anchored = reanchor(m, rowsOf(state, m.pos()));
+            if (anchored != null) {
+                return anchored;
+            }
+        }
+        boolean fanning = false;
         for (Graph g : arms) {
             Set<String> before = new HashSet<>(g.bindings().keySet());
             fanning |= optionalExtend(elements, g);
@@ -1559,7 +3479,7 @@ public final class CypherToPure {
             throw CypherErrors.unsupported("a property map on the bound node of an OPTIONAL MATCH (a filter of the"
                     + " optional pattern) is not supported yet", first.pos());
         }
-        typesInThisMatch.clear();
+        clearMatch();
         Binding current = java.util.Objects.requireNonNull(g.bindings().get(firstVar));
         if (!current.node()) {
             throw CypherErrors.unsupported("an OPTIONAL MATCH from a relationship variable is not supported yet",
@@ -1584,9 +3504,7 @@ public final class CypherToPure {
             } else {
                 String cls = java.util.Objects.requireNonNull(current.classPath());
                 Hop hop = optionalHop(cls, rel, next);
-                String labelled = labelClass(next);
-                if (hop == null || labelled != null && !labelled.equals(hop.target())
-                        && !model.isSubclass(hop.target(), labelled)) {
+                if (hop == null || !carries(hop.target(), labelClasses(next))) {
                     target = Binding.absentNode();
                 } else {
                     if (!hidden(rel.variable()) && !typesInThisMatch.add(rel.types().get(0))) {
@@ -1600,7 +3518,7 @@ public final class CypherToPure {
                     boolean many = current.fanning() || hop.many();
                     target = Binding.optionalNode(hop.target(), List.copyOf(path), many);
                     relationship = Binding.relationship(List.copyOf(relPath(current, hop)), true, many,
-                            rel.types().get(0), true, hop.edge());
+                            rel.types().get(0), true, hop.edge(), hop.forward());
                     if (hop.edge() != null) {
                         reachedThroughEdge.add(nextVar);
                     }
@@ -1613,6 +3531,28 @@ public final class CypherToPure {
             at += 2;
         }
         return fanning;
+    }
+
+    /** Whether an OPTIONAL MATCH's hops from the graph's bound node fan out (a to-many hop among them), read as
+     *  {@link #optionalExtend} reads them, nothing bound. */
+    private boolean optionalFans(List<PatternElement> elements, Graph g) {
+        String firstVar = ((NodePattern) elements.get(0)).variable();
+        Binding current = firstVar == null ? null : g.bindings().get(firstVar);
+        if (current == null || !current.node() || current.absent()) {
+            return false;
+        }
+        String cls = current.classPath();
+        for (int at = 0; at + 2 < elements.size() && cls != null; at += 2) {
+            Hop hop = optionalHop(cls, (RelPattern) elements.get(at + 1), (NodePattern) elements.get(at + 2));
+            if (hop == null) {
+                return false;
+            }
+            if (hop.many()) {
+                return true;
+            }
+            cls = hop.target();
+        }
+        return false;
     }
 
     /** The hop an OPTIONAL MATCH's relationship pattern spells from {@code from}, or null when its type names no
@@ -1665,16 +3605,98 @@ public final class CypherToPure {
         }));
         int mark = fresh;
         Rows out = null;
+        List<List<Col>> armColumns = new ArrayList<>();
         for (Graph arm : arms) {
             fresh = mark;
             Graph g = new Graph(arm.rootClass(), arm.row(), arm.bindings(), arm.conditions(), everyClass,
                     arm.fanning(), arm.deferredConstraints(), arm.deferredWhere(), variableClasses, arm.paths(),
-                    arm.forward(), arm.lists());
+                    arm.forward(), arm.lists(), arm.present());
             Rows rows = materialize(g, pos, order);
+            armColumns.add(rows.columns());
             out = out == null ? rows : new Rows(call("concatenate", out.vs(), rows.vs()), out.columns());
         }
-        // (the union's columns: a property absent in one arm holds the other arms' values)
-        return new Rows(java.util.Objects.requireNonNull(out).vs(), withoutAbsentMarks(out.columns()));
+        // (the union's columns: a property absent in one arm holds the other arms' values; a list the arms shape
+        // differently, a list of what their places hold in common)
+        return new Rows(java.util.Objects.requireNonNull(out).vs(), withoutAbsentMarks(mergedShapes(armColumns)));
+    }
+
+    /** The arms' union's columns with the shape of a list the arms spell differently merged (a variable-length
+     *  relationship's list: empty in the zero-length arm, one relationship in the next, the study's §12.42): a list
+     *  of what the arms' places hold in common ({@link #mergedShape}), so an index, {@code head} or {@code last}
+     *  over the union reads an element by the kind every arm gives it; the first arm's shape where the arms agree. */
+    private static List<Col> mergedShapes(List<List<Col>> arms) {
+        List<Col> first = arms.get(0);
+        List<Col> out = new ArrayList<>();
+        for (int i = 0; i < first.size(); i++) {
+            Col c = first.get(i);
+            com.legend.protocol.sql.InputDialect.TypeDetail merged = c.detail();
+            for (List<Col> arm : arms.subList(1, arms.size())) {
+                // (the arms' columns align by construction: the same fresh names in every arm)
+                merged = mergedShape(merged, i < arm.size() ? arm.get(i).detail() : null);
+            }
+            out.add(merged == c.detail() ? c : new Col(c.name(), c.kind(), c.nullable(), c.carried(), merged));
+        }
+        return out;
+    }
+
+    /** Two arms' shapes of one column as one: the same shape itself; two list shapes, a list of the kind and mark
+     *  their places share (a place of no known kind, the empty list's, says nothing; two relationships of different
+     *  types, a relationship of no known type), or no shape where the places' kinds differ (the column read as a
+     *  Variant of unknown shape); a shape of another kind, the first arm's (a carried node's columns are the same
+     *  in every arm, a property an arm's class lacks marked, {@link #withoutAbsentMarks}). */
+    private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail mergedShape(
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail a,
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail b) {
+        if (java.util.Objects.equals(a, b)) {
+            return a;
+        }
+        List<Entry> places = new ArrayList<>();
+        for (com.legend.protocol.sql.InputDialect.TypeDetail d : java.util.Arrays.asList(a, b)) {
+            if (d instanceof TupleOf t) {
+                places.addAll(t.entries());
+            } else if (d instanceof ListOf l) {
+                places.add(new Entry(l.element(), true, l.elementDetail()));
+            } else {
+                // (a node's or a relationship's columns, a map: the first arm's, as before the merge)
+                return a;
+            }
+        }
+        Kind kind = null;
+        com.legend.protocol.sql.InputDialect.TypeDetail detail = null;
+        for (Entry e : places) {
+            if (e.kind() == Kind.NULL) {
+                continue;
+            }
+            if (kind == null) {
+                kind = e.kind();
+                detail = e.detail();
+            } else if (kind != e.kind()) {
+                return null;
+            } else {
+                detail = mergedMark(detail, e.detail());
+            }
+        }
+        return kind == null ? null : new ListOf(kind, detail);
+    }
+
+    /** Two places' marks as one: the same mark itself; two relationships', a relationship's of their common type
+     *  (none where they differ); two nodes', a node's; two list shapes, their merge; else none. */
+    private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail mergedMark(
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail a,
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail b) {
+        if (java.util.Objects.equals(a, b)) {
+            return a;
+        }
+        if (a instanceof RelValue x && b instanceof RelValue y) {
+            return new RelValue(java.util.Objects.equals(x.type(), y.type()) ? x.type() : null);
+        }
+        if (a instanceof NodeValue && b instanceof NodeValue) {
+            return new NodeValue();
+        }
+        if ((a instanceof ListOf || a instanceof TupleOf) && (b instanceof ListOf || b instanceof TupleOf)) {
+            return mergedShape(a, b);
+        }
+        return null;
     }
 
     /** {@code columns} with no carried property marked absent ({@link NodeProp#absent}): the columns of the arms'
@@ -1684,10 +3706,12 @@ public final class CypherToPure {
         for (Col c : columns) {
             if (c.detail() instanceof NodeShape shape && shape.props().values().stream().anyMatch(NodeProp::absent)) {
                 out.add(new Col(c.name(), c.kind(), c.nullable(), c.carried(),
-                        new NodeShape(shape.labels(), withoutAbsentMarks(shape.props()), shape.absent())));
+                        new NodeShape(shape.labels(), withoutAbsentMarks(shape.props()), shape.absent(),
+                                shape.identity(), shape.classPath())));
             } else if (c.detail() instanceof RelShape rel && rel.props().values().stream().anyMatch(NodeProp::absent)) {
                 out.add(new Col(c.name(), c.kind(), c.nullable(), c.carried(),
-                        new RelShape(rel.type(), withoutAbsentMarks(rel.props()))));
+                        new RelShape(rel.type(), withoutAbsentMarks(rel.props()), rel.identity(), rel.source(),
+                                rel.target(), rel.forward())));
             } else {
                 out.add(c);
             }
@@ -1724,20 +3748,31 @@ public final class CypherToPure {
             items.add(new Item(new CypherAst.Var(name, pos), name, name, pos));
         }
         // (a path too: its value, a JSON column, and beside it its length, its nodes and its relationships under
-        // the names the row scope reads them by, since a variable-length pattern's arms differ in them; a
-        // variable-length relationship's list likewise)
-        g.paths().keySet().forEach(name -> {
-            items.add(new Item(new CypherAst.Var(name, pos), name, name, pos));
-            for (String fn : List.of("length", "nodes", "relationships")) {
-                String column = PATH_PART + fn + "_" + name;
-                items.add(new Item(new CypherAst.Call(fn, false, List.of(new CypherAst.Var(name, pos)), pos),
-                        column, column, pos));
+        // the names the row scope reads them by, since a variable-length pattern's arms differ in them -- the
+        // projection carries a path's parts beside it, §12.68; a variable-length relationship's list likewise)
+        g.paths().forEach((name, spec) -> {
+            if (spec.partial()) {
+                // (a segment of a cut path: its relationships carry their directions; the path is assembled over
+                // the rows, §12.56)
+                return;
             }
+            items.add(new Item(new CypherAst.Var(name, pos), name, name, pos));
         });
         g.lists().keySet().forEach(name -> items.add(new Item(new CypherAst.Var(name, pos), name, name, pos)));
         Rows rows = project(items, false, List.of(), null, null, null, g, pos, false);
-        RowScope scope = new RowScope(rows);
+        // (the WHERE over the materialized rows: a pattern predicate from a far node reads as a flag, §12.52)
+        Rows flagged = rows;
+        for (Expr w : g.deferredWhere()) {
+            flagged = withPatternFlags(flagged, w);
+        }
+        RowScope scope = new RowScope(flagged);
         ValueSpecification cond = null;
+        for (String name : g.present()) {
+            // a node a second-step hop reached: on the rows where its identity is
+            Tx identity = java.util.Objects.requireNonNull(scope.identity(new CypherAst.Var(name, pos)));
+            ValueSpecification x = call("isNotEmpty", identity.vs());
+            cond = cond == null ? x : call("and", cond, x);
+        }
         for (NodeConstraint c : g.deferredConstraints()) {
             for (Map.Entry<String, Expr> e : c.properties().entrySet()) {
                 Tx value = scalarOf(scope.property(new CypherAst.Prop(new CypherAst.Var(c.variable(), c.pos()),
@@ -1755,7 +3790,8 @@ public final class CypherToPure {
         if (cond == null) {
             return rows;
         }
-        return new Rows(call("filter", rows.vs(), lambda(scope.row(), cond)), rows.columns());
+        return withoutFlags(new Rows(call("filter", flagged.vs(), lambda(scope.row(), cond)), flagged.columns()),
+                rows);
     }
 
     /** {@code rows} with {@code variable} (when named) a virtual column: an absent node, null everywhere, its
@@ -1857,12 +3893,17 @@ public final class CypherToPure {
         String labels = freshName(names);
         nulls.add(new ColSpec(labels, lambda("r", SqlToPure.nullOf(Kind.STRING).vs()), null, null));
         columns.add(new Col(labels, Kind.STRING, true));
+        Set<String> own = new HashSet<>();
         for (int i = start; i < elements.size(); i++) {
             PatternElement e = elements.get(i);
             String var = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
             if (var == null) {
                 continue;
             }
+            if (own.contains(var)) {
+                continue;   // (named twice by the pattern, §12.70: one absent value)
+            }
+            own.add(var);
             if (names.contains(var)) {
                 throw CypherErrors.unsupported("a pattern from an absent node binding " + var + " again (bound already:"
                         + " a cycle compared by identity, or a variable of another kind) is not supported yet",
@@ -1908,15 +3949,16 @@ public final class CypherToPure {
     private State arms(CypherAst.Match m) {
         PathPattern named = m.patterns().get(0).variable() == null ? null : namedPath(m.patterns().get(0), Set.of());
         NodePattern root = (NodePattern) (named != null ? named : m.patterns().get(0)).elements().get(0);
-        // every class of the model but the duration value's (a value the island carries, never a node)
-        List<String> classes = new ArrayList<>(model.classes());
-        classes.removeAll(durationClasses());
+        // every class the root's labels read (the study's §12.61), every class of the model for a label-less root,
+        // but the duration value's (a value the island carries, never a node)
+        List<String> classes = rootClassesOf(root);
         if (classes.isEmpty()) {
             if (named != null) {
                 throw CypherErrors.unsupported("a named path over a model with no class is not supported yet",
                         named.pos());
             }
-            // a model with no class (the study's §12.20): no node, so no row; the variable an absent node. The
+            // a model with no class (the study's §12.20), or none carrying the labels (§12.61): no node, so no
+            // row; the variable an absent node. The
             // WHERE and the property map are still read: Neo4j's static errors are the query's, not the data's
             String column = SYNTHETIC + "row";
             Rows rows = withAbsentNode(new Rows(noRows(column), List.of(new Col(column, Kind.STRING, true))), column,
@@ -1962,12 +4004,1157 @@ public final class CypherToPure {
 
     private static final String JOIN_KIND = "meta::pure::functions::relation::JoinKind";
 
+    /** A MATCH or OPTIONAL MATCH after rows whose pattern starts (or ends) at a node the rows carry with its identity
+     *  (the study's §12.49, re-anchoring): the pattern read as a graph of its own from that node's class, every
+     *  variable the rows hold given a fresh name there, materialized, and joined to the rows on the identity of each
+     *  such variable (a node by its identity column, a relationship by its identity or the pair of its ends'); an
+     *  OPTIONAL MATCH a left join, its WHERE read over the pattern's rows before it; a MATCH's WHERE over the joined
+     *  rows. Null when no end of the pattern is such a node. */
+    private @com.legend.base.Nullable Rows reanchor(CypherAst.Match m, Rows rows) {
+        Anchored a = anchored(m, rows);
+        if (a == null) {
+            return null;
+        }
+        Rows right = a.right();
+        PathPattern p = a.pattern();
+        Expr where = m.where();
+        // (a node the rows hold as a value, read back from a Variant -- an element of an unwound collect, a coalesce
+        // of nodes -- joins on the identity its JSON carries, the study's §12.71)
+        rows = withValueIdentities(rows, a.renamed().values());
+        for (Map.Entry<String, String> r : a.renamed().entrySet()) {
+            Col own = java.util.Objects.requireNonNull(column(rows, r.getValue()));
+            Col copy = column(right, r.getKey());
+            if (own.detail() instanceof HeldNode h && relationshipList(h.original()) && copy != null
+                    && relationshipList(copy.detail())) {
+                right = withListIdentity(right, r.getKey());
+            }
+        }
+        if (absentCopy(a)) {
+            // the pattern read from the rows' node finds nothing anywhere (a hop no way of the model reads, a label
+            // the open graph lacks, the study's §12.70): a MATCH reads no row, an OPTIONAL MATCH keeps every row
+            // with the pattern's own variables absent (§12.36, §12.45)
+            return noneOf(m, rows);
+        }
+        ValueSpecification cond = null;
+        for (Map.Entry<String, String> r : a.renamed().entrySet()) {
+            Col left = java.util.Objects.requireNonNull(column(rows, r.getValue()));
+            Col copy = java.util.Objects.requireNonNull(column(right, r.getKey()));
+            for (String[] key : joinKeys(left, copy, r.getValue(), p.pos())) {
+                ValueSpecification eq = call("equal", new AppliedProperty(new Variable("l"), key[0]),
+                        new AppliedProperty(new Variable("r"), key[1]));
+                cond = cond == null ? eq : call("and", cond, eq);
+            }
+        }
+        if (a.joinWhere() != null) {
+            // (the OPTIONAL MATCH's WHERE over the row and the match: the pattern's own variables read from the
+            // match, every other from the row, the same nodes by the join, §12.78)
+            Set<String> own = new HashSet<>();
+            for (PatternElement e : p.elements()) {
+                String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+                if (v != null && !a.renamed().containsValue(v)) {
+                    own.add(v);
+                }
+            }
+            JoinScope both = new JoinScope(new RowScope(rows, "l"), new RowScope(right, "r"), own);
+            cond = call("and", java.util.Objects.requireNonNull(cond), condition(a.joinWhere(), both, "WHERE"));
+        }
+        ValueSpecification vs = call("join", rows.vs(), right.vs(), new EnumValue(JOIN_KIND, m.optional() ? "LEFT"
+                : "INNER"), new LambdaFunction(List.of(new Variable("l"), new Variable("r")),
+                List.of(java.util.Objects.requireNonNull(cond))));
+        List<Col> columns = new ArrayList<>(unheld(rows.columns()));
+        for (Col c : right.columns()) {
+            if (a.renamed().containsKey(c.name())) {
+                // (the rows' own column stands for the variable; the copy's columns ride along unnamed)
+                continue;
+            }
+            if (columns.stream().anyMatch(l -> l.name().equals(c.name()))) {
+                throw new IllegalStateException("the re-anchored pattern's rows share a column: " + c.name());
+            }
+            columns.add(m.optional() ? optionalColumn(c) : c);
+        }
+        Rows out = new Rows(vs, columns);
+        if (!m.optional() && where != null) {
+            out = filtered(out, where);
+        }
+        return out;
+    }
+
+    /** {@code rows} filtered by {@code where} read over them (a MATCH's or a WITH's WHERE over rows): the pattern
+     *  predicates it holds answered by flag columns first ({@link #withPatternFlags}), dropped after. */
+    private Rows filtered(Rows rows, Expr where) {
+        Rows flagged = withPatternFlags(withPatternLists(rows, List.of(where)), where);
+        RowScope scope = new RowScope(flagged);
+        Rows out = new Rows(call("filter", flagged.vs(), lambda(scope.row(), condition(where, scope, "WHERE"))),
+                flagged.columns());
+        return withoutFlags(out, rows);
+    }
+
+    /** The pattern of a MATCH after rows read as its own graph from the carried node's class (the study's §12.49):
+     *  its rows and the renaming of the variables it shares with the rows; null when the pattern names no variable
+     *  of the rows (a fresh pattern: the product's, §12.44), or is not one pattern of at least a hop. */
+    private @com.legend.base.Nullable Anchored anchored(CypherAst.Match m, Rows rows) {
+        if (m.patterns().size() != 1) {
+            return null;
+        }
+        PathPattern p = m.patterns().get(0);
+        if (p.elements().size() < 3) {
+            return null;
+        }
+        // (a named path, the study's §12.70: read as written, so the path keeps its order; the join on identity
+        // binds whichever of its nodes the rows carry)
+        boolean namedPath = p.variable() != null && !p.variable().startsWith(SEGMENT);
+        if (namedPath && column(rows, java.util.Objects.requireNonNull(p.variable())) != null) {
+            return null;
+        }
+        List<PatternElement> ordered = p.elements();
+        NodeShape anchor = anchorShape(rows, (NodePattern) ordered.get(0));
+        boolean reversed = false;
+        if (anchor == null && !namedPath && anchorShape(rows, (NodePattern) ordered.get(ordered.size() - 1)) != null) {
+            anchor = anchorShape(rows, (NodePattern) ordered.get(ordered.size() - 1));
+            ordered = new ArrayList<>(ordered);
+            java.util.Collections.reverse(ordered);
+            reversed = true;
+        }
+        if (anchor == null) {
+            // (no end of the pattern is a carried node: the pattern reads as written, from its first node's label
+            // or every class, joined on whatever variable it shares with the rows, a relationship among them)
+            boolean shares = false;
+            for (PatternElement e : ordered) {
+                String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+                shares |= v != null && column(rows, v) != null;
+            }
+            if (!shares) {
+                return null;
+            }
+        }
+        // (a node the rows carry as one of several classes, a label-less pattern's arms: the pattern reads from
+        // every class, label-less at its first node, and the join on identity keeps the row's own class; §12.52)
+        Set<String> taken = new HashSet<>();
+        rows.columns().forEach(c -> taken.add(c.name()));
+        Set<String> patternVars = new HashSet<>();
+        for (PatternElement e : ordered) {
+            String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+            if (v != null) {
+                taken.add(v);
+                patternVars.add(v);
+            }
+        }
+        // every variable the rows hold reads under a fresh name in the pattern's own graph, joined back by identity
+        // (a bounded variable-length relationship among them unrolls there, §12.42: the pattern is a first MATCH)
+        Map<String, String> renamed = new LinkedHashMap<>();
+        List<PatternElement> fresh = new ArrayList<>();
+        for (int i = 0; i < ordered.size(); i++) {
+            PatternElement e = ordered.get(i);
+            if (e instanceof NodePattern n) {
+                boolean bound = n.variable() != null && column(rows, n.variable()) != null;
+                String name = bound ? freshName(taken) : n.variable();
+                if (bound) {
+                    renamed.put(name, n.variable());
+                }
+                List<String> labels = i == 0 && anchor != null && anchor.classPath() != null && n.labels().isEmpty()
+                        ? List.of(anchor.classPath()) : n.labels();   // (its path: that class alone, §12.61)
+                fresh.add(new NodePattern(name, labels, n.properties(), n.pos()));
+            } else {
+                RelPattern r = (RelPattern) e;
+                boolean bound = r.variable() != null && column(rows, r.variable()) != null;
+                String name = bound ? freshName(taken) : r.variable();
+                if (bound) {
+                    renamed.put(name, r.variable());
+                }
+                CypherAst.Direction d = !reversed ? r.direction() : switch (r.direction()) {
+                    case OUT -> CypherAst.Direction.IN;
+                    case IN -> CypherAst.Direction.OUT;
+                    case BOTH -> CypherAst.Direction.BOTH;
+                };
+                fresh.add(new RelPattern(name, r.types(), d, r.properties(), r.lengthRange(), r.pos()));
+            }
+        }
+        if (reversed && p.variable() != null) {
+            throw new IllegalStateException("a reversed pattern names its path: " + p.variable());
+        }
+        // (a segment of a cut path keeps its name: the pattern's own graph records it as a partial path, §12.56)
+        Rows right = rowsOf(match(new CypherAst.Match(false, List.of(new PathPattern(p.variable(), fresh, p.pos())),
+                null, m.pos()), null), m.pos());
+        Expr where = m.where();
+        if (m.optional() && where != null) {
+            // the optional pattern's WHERE: over its own rows, before the join (the rows' variables it names read
+            // from the pattern's copy of them, the same nodes by the join)
+            Set<String> read = new HashSet<>();
+            variablesIn(where, read);
+            read.removeAll(patternVars);
+            if (!read.isEmpty()) {
+                // a WHERE reading a value of the rows beside the pattern (`OPTIONAL MATCH (b)-[r2]-(c) WHERE r <> r2`,
+                // the study's §12.78): the join's condition, over the row and the match together, so a row no
+                // match of which holds keeps its nulls (Cypher's OPTIONAL MATCH); one holding a pattern of its own
+                // or an aggregate is refused by name
+                List<Expr> nested = new ArrayList<>();
+                patternPredicatesIn(where, nested);
+                List<CypherAst.PatternComprehension> lists = new ArrayList<>();
+                comprehensionsIn(where, lists);
+                if (!nested.isEmpty() || !lists.isEmpty() || containsAggregate(where)) {
+                    throw CypherErrors.unsupported("an OPTIONAL MATCH's WHERE reading a value of the rows beside its"
+                            + " pattern (" + String.join(", ", new java.util.TreeSet<>(read)) + ") and a pattern or an"
+                            + " aggregate of its own is not supported yet", where.pos());
+                }
+                return new Anchored(right, renamed, p, where);
+            }
+            List<Col> aliased = new ArrayList<>(right.columns());
+            for (Map.Entry<String, String> r : renamed.entrySet()) {
+                Col c = java.util.Objects.requireNonNull(column(right, r.getKey()));
+                aliased.add(new Col(r.getValue(), c.kind(), c.nullable(), c.carried(), c.detail()));
+            }
+            RowScope scope = new RowScope(new Rows(right.vs(), aliased));
+            right = new Rows(call("filter", right.vs(), lambda(scope.row(), condition(where, scope, "WHERE"))),
+                    right.columns());
+        }
+        return new Anchored(right, renamed, p);
+    }
+
+    /** A pattern predicate's answer over rows ({@link #patternFlags}): the flag column's presence, a condition;
+     *  null where the predicate has no flag (one over a graph, or one the rows could not read). */
+    private @com.legend.base.Nullable Tx patternFlag(Expr predicate, Scope scope) {
+        String column = patternFlags.get(predicate);
+        if (column == null) {
+            return null;
+        }
+        Val v = scope.variable(new CypherAst.Var(column, predicate.pos()));
+        ValueSpecification read = SqlToPure.valueOf(((Scalar) v).tx());
+        ValueSpecification found = call("isNotEmpty", read);
+        return Tx.condition(found, call("isEmpty", read), false);
+    }
+
+    /**
+     * {@code MATCH (n), (m) WHERE (n)-[]->(m)}, {@code WITH a, b WHERE (a)-[:T]->(b)}, {@code MATCH (a)-[:T]->(b)
+     * WHERE (b)-[:U]->()} over a fanning graph's rows (the study's §12.52): every pattern predicate and EXISTS
+     * subquery of {@code where} whose named nodes and relationships the rows all carry with their identity is read
+     * before the WHERE as a flag column of the rows: the pattern read as its own graph ({@link #anchored}, the
+     * re-anchoring of §12.49), its rows narrowed to the identities of the variables it shares with these rows and
+     * deduplicated (a pattern matching several times is one match of the predicate), a constant beside them, and
+     * left-joined back on those identities, so the predicate is the constant's presence on the row, which AND, OR
+     * and NOT compose as any boolean. The rows with the flag columns; the predicates registered in
+     * {@link #patternFlags}, their columns dropped by {@link #withoutFlags} after the filter. A predicate reading a
+     * variable the rows do not carry (a lambda's, a graph's) keeps its own reading.
+     */
+    private Rows withPatternFlags(Rows rows, @com.legend.base.Nullable Expr where) {
+        if (where == null) {
+            return rows;
+        }
+        List<Expr> predicates = new ArrayList<>();
+        patternPredicatesIn(where, predicates);
+        Rows out = rows;
+        for (Expr predicate : predicates) {
+            if (patternFlags.containsKey(predicate)) {
+                continue;
+            }
+            PathPattern pattern = predicate instanceof CypherAst.PatternPredicate pp ? pp.pattern()
+                    : ((CypherAst.ExistsSubquery) predicate).pattern();
+            Expr inner = predicate instanceof CypherAst.ExistsSubquery ex ? ex.where() : null;
+            if (pattern.variable() != null || pattern.elements().size() < 3
+                    || predicate instanceof CypherAst.ExistsSubquery cx && cx.counted() != null) {
+                continue;
+            }
+            boolean carried = false;
+            boolean foreign = false;
+            for (PatternElement e : pattern.elements()) {
+                String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+                if (v == null) {
+                    continue;
+                }
+                Col c = column(out, v);
+                if (c == null && predicate instanceof CypherAst.ExistsSubquery) {
+                    // (a variable of the subquery's own, which the rows do not carry: the pattern's, as an unnamed
+                    // node is, §12.77; a lambda's is never here, patternPredicatesIn reads no lambda)
+                    continue;
+                }
+                if (c == null) {
+                    foreign = true;
+                } else if (c.detail() instanceof NodeShape shape && shape.identity() != null && !shape.absent()
+                        || c.detail() instanceof RelShape rel && rel.identified()) {
+                    carried = true;
+                } else {
+                    foreign = true;
+                }
+            }
+            if (!carried || foreign) {
+                continue;
+            }
+            if (inner != null) {
+                Set<String> read = new HashSet<>();
+                variablesIn(inner, read);
+                for (PatternElement e : pattern.elements()) {
+                    String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+                    if (v != null) {
+                        read.remove(v);
+                    }
+                }
+                if (!read.isEmpty()) {
+                    // (the subquery's WHERE reading a value of the rows beside its pattern: not this reading)
+                    continue;
+                }
+            }
+            Anchored a = anchored(new CypherAst.Match(true, List.of(pattern), inner, predicate.pos()), out);
+            if (a == null || a.joinWhere() != null) {
+                continue;
+            }
+            // (a node the rows hold as a value joins on the identity its JSON carries, the study's §12.71)
+            Rows held = withValueIdentities(out, a.renamed().values());
+            // the matches narrowed to the shared variables' identities, deduplicated, a constant beside them
+            Set<String> names = new HashSet<>();
+            held.columns().forEach(c -> names.add(c.name()));
+            a.right().columns().forEach(c -> names.add(c.name()));
+            String flag = freshName(names);
+            if (absentCopy(a)) {
+                // (a pattern that finds nothing anywhere, §12.70: the predicate holds on no row, the flag null)
+                out = new Rows(call("extend", out.vs(), new ColSpecArray(List.of(new ColSpec(flag, lambda("r",
+                        SqlToPure.nullOf(Kind.INTEGER).vs()), null, null)))), with(out.columns(),
+                        new Col(flag, Kind.INTEGER, true)));
+                patternFlags.put(predicate, flag);
+                continue;
+            }
+            List<ColSpec> kept = new ArrayList<>();
+            List<Col> keyColumns = new ArrayList<>();
+            ValueSpecification cond = null;
+            for (Map.Entry<String, String> r : a.renamed().entrySet()) {
+                Col left = java.util.Objects.requireNonNull(column(held, r.getValue()));
+                Col copy = java.util.Objects.requireNonNull(column(a.right(), r.getKey()));
+                for (String[] key : joinKeys(left, copy, r.getValue(), predicate.pos())) {
+                    if (keyColumns.stream().noneMatch(c -> c.name().equals(key[1]))) {
+                        Col keyCol = java.util.Objects.requireNonNull(column(a.right(), key[1]));
+                        keyColumns.add(keyCol);
+                        kept.add(new ColSpec(key[1], null, null, null));
+                    }
+                    ValueSpecification eq = call("equal", new AppliedProperty(new Variable("l"), key[0]),
+                            new AppliedProperty(new Variable("r"), key[1]));
+                    cond = cond == null ? eq : call("and", cond, eq);
+                }
+            }
+            ValueSpecification matches = call("extend", call("distinct", call("select", a.right().vs(),
+                    new ColSpecArray(kept))), new ColSpecArray(List.of(new ColSpec(flag, lambda("r",
+                    new CInteger(1L)), null, null))));
+            ValueSpecification vs = call("join", held.vs(), matches, new EnumValue(JOIN_KIND, "LEFT"),
+                    new LambdaFunction(List.of(new Variable("l"), new Variable("r")),
+                            List.of(java.util.Objects.requireNonNull(cond))));
+            List<Col> columns = new ArrayList<>(unheld(held.columns()));
+            for (Col k : keyColumns) {
+                // (the copy's identity columns ride along unnamed by any variable; the flag is the predicate's)
+                columns.add(new Col(k.name(), k.kind(), true, k.carried(), null));
+            }
+            columns.add(new Col(flag, Kind.INTEGER, true));
+            patternFlags.put(predicate, flag);
+            out = new Rows(vs, columns);
+        }
+        return out;
+    }
+
+    /**
+     * {@code MATCH (n) RETURN [p = (n)-->() | p]}, {@code WITH a RETURN [(a)-[:T]->(x) WHERE x.v > 1 | x.name]} over
+     * rows (the study's §12.72): every pattern comprehension of {@code exprs} that reads over these rows
+     * ({@link #listable}) is read before the projection as a list column of the rows: the pattern read as its own
+     * rows (the re-anchoring of §12.49, {@link #anchored}, its WHERE over them), each match's value of the expression
+     * as its JSON text (the rows' variables read from the pattern's copies of them, the same nodes by the join), the
+     * texts grouped by the identities of the variables the pattern shares with the rows and joined with commas (the
+     * database's string aggregate, in its order: the register's S86), left-joined back on those identities, and read
+     * as a Variant between brackets, {@code []} on a row the pattern does not match. The comprehensions registered in
+     * {@link #patternLists}; one that does not read over these rows keeps its own reading.
+     */
+    private Rows withPatternLists(Rows rows, List<Expr> exprs) {
+        List<CypherAst.PatternComprehension> found = new ArrayList<>();
+        exprs.forEach(e -> comprehensionsIn(e, found));
+        Rows out = rows;
+        for (CypherAst.PatternComprehension pc : found) {
+            if (patternLists.containsKey(pc) || !listable(pc, out)) {
+                continue;
+            }
+            Anchored a = anchored(new CypherAst.Match(true, List.of(pc.pattern()), pc.where(), pc.pos()), out);
+            if (a == null) {
+                continue;
+            }
+            if (a.joinWhere() != null) {
+                throw CypherErrors.unsupported("a pattern comprehension's WHERE reading a value of the rows beside its"
+                        + " pattern is not supported yet", pc.pos());
+            }
+            // (a node the rows hold as a value joins on the identity its JSON carries, the study's §12.71)
+            Rows held = withValueIdentities(out, a.renamed().values());
+            Set<String> names = new HashSet<>();
+            held.columns().forEach(c -> names.add(c.name()));
+            a.right().columns().forEach(c -> names.add(c.name()));
+            String list = freshName(names);
+            if (absentCopy(a)) {
+                // (a pattern that finds nothing anywhere, §12.70: the empty list on every row)
+                out = new Rows(call("extend", out.vs(), new ColSpecArray(List.of(new ColSpec(list, lambda("r",
+                        call("fromJson", new CString("[]"))), null, null)))), with(out.columns(),
+                        new Col(list, Kind.JSON, false)));
+                patternLists.put(pc, list);
+                continue;
+            }
+            // each match's value as its JSON text, over the pattern's rows, the rows' variables read from its copies
+            List<Col> aliased = new ArrayList<>(a.right().columns());
+            for (Map.Entry<String, String> r : a.renamed().entrySet()) {
+                Col c = java.util.Objects.requireNonNull(column(a.right(), r.getKey()));
+                aliased.add(new Col(r.getValue(), c.kind(), c.nullable(), c.carried(), c.detail()));
+            }
+            RowScope scope = new RowScope(new Rows(a.right().vs(), aliased));
+            Val element = val(pc.map(), scope);
+            String piece = freshName(names);
+            ValueSpecification matches = call("extend", a.right().vs(), new ColSpecArray(List.of(new ColSpec(piece,
+                    lambda(scope.row(), jsonTextOf(element, pc.pos())), null, null))));
+            // the texts grouped by the copies' identities, joined back to the rows on them
+            List<ColSpec> keys = new ArrayList<>();
+            List<Col> keyColumns = new ArrayList<>();
+            ValueSpecification cond = null;
+            for (Map.Entry<String, String> r : a.renamed().entrySet()) {
+                Col left = java.util.Objects.requireNonNull(column(held, r.getValue()));
+                Col copy = java.util.Objects.requireNonNull(column(a.right(), r.getKey()));
+                for (String[] key : joinKeys(left, copy, r.getValue(), pc.pos())) {
+                    if (keyColumns.stream().noneMatch(c -> c.name().equals(key[1]))) {
+                        keyColumns.add(java.util.Objects.requireNonNull(column(a.right(), key[1])));
+                        keys.add(new ColSpec(key[1], null, null, null));
+                    }
+                    ValueSpecification eq = call("equal", new AppliedProperty(new Variable("l"), key[0]),
+                            new AppliedProperty(new Variable("r"), key[1]));
+                    cond = cond == null ? eq : call("and", cond, eq);
+                }
+            }
+            String raw = freshName(names);
+            ValueSpecification grouped = call("groupBy", matches, new ColSpecArray(keys), new ColSpecArray(List.of(
+                    new ColSpec(raw, lambda("x", new AppliedProperty(new Variable("x"), piece)), lambda("y",
+                            call("joinStrings", new Variable("y"), new CString(","))), null))));
+            ValueSpecification vs = call("join", held.vs(), grouped, new EnumValue(JOIN_KIND, "LEFT"),
+                    new LambdaFunction(List.of(new Variable("l"), new Variable("r")),
+                            List.of(java.util.Objects.requireNonNull(cond))));
+            ValueSpecification read = new AppliedProperty(new Variable("r"), raw);
+            vs = call("extend", vs, new ColSpecArray(List.of(new ColSpec(list, lambda("r", call("fromJson", plus(
+                    new CString("["), call("if", call("isEmpty", read), thunk(new CString("")), thunk(call("toOne",
+                    read))), new CString("]")))), null, null))));
+            List<Col> columns = new ArrayList<>(unheld(held.columns()));
+            for (Col k : keyColumns) {
+                // (the copy's identity columns and the joined texts ride along unnamed by any variable)
+                columns.add(new Col(k.name(), k.kind(), true, k.carried(), null));
+            }
+            columns.add(new Col(raw, Kind.STRING, true));
+            columns.add(new Col(list, Kind.JSON, false, null, listMark(element)));
+            patternLists.put(pc, list);
+            out = new Rows(vs, columns);
+        }
+        return out;
+    }
+
+    /** Whether a pattern comprehension reads over these rows as a list column ({@link #withPatternLists}): its
+     *  pattern names a node or relationship the rows carry with its identity (a node held as a value among them,
+     *  §12.71) and no other value of the rows, and its expression and WHERE read its own variables alone. */
+    private static boolean listable(CypherAst.PatternComprehension pc, Rows rows) {
+        Set<String> own = new HashSet<>();
+        boolean carried = false;
+        for (PatternElement e : pc.pattern().elements()) {
+            String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+            if (v == null) {
+                continue;
+            }
+            own.add(v);
+            Col c = column(rows, v);
+            if (c == null) {
+                continue;
+            }
+            if (c.detail() instanceof NodeShape shape && shape.identity() != null && !shape.absent()
+                    || c.detail() instanceof RelShape rel && rel.identified()
+                    || c.carried() == null && c.kind() == Kind.JSON && c.detail() instanceof NodeValue) {
+                carried = true;
+            } else {
+                return false;
+            }
+        }
+        String path = pc.pattern().variable();
+        if (path != null) {
+            if (column(rows, path) != null) {
+                return false;
+            }
+            own.add(path);
+        }
+        return carried && !readsRow(pc.map(), own) && (pc.where() == null || !readsRow(pc.where(), own));
+    }
+
+    /** Whether a pattern comprehension over a graph reads through the graph's rows ({@link #withPatternLists}) rather
+     *  than as navigations from its start node (the study's §12.31): a pattern the navigations do not read (more
+     *  than one hop, a variable-length relationship, a bound end or relationship, a start not bound while another of
+     *  its nodes is), or a value a navigation's map does not read beside the navigated instance (a named path, whose
+     *  start is the graph's node; a node outside the pattern, its start among them). */
+    private static boolean throughRows(CypherAst.PatternComprehension pc, Graph g) {
+        List<PatternElement> elements = pc.pattern().elements();
+        Set<String> inner = new HashSet<>();
+        boolean bound = false;
+        for (int i = 0; i < elements.size(); i++) {
+            PatternElement e = elements.get(i);
+            String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+            if (v == null) {
+                continue;
+            }
+            if (g.bindings().containsKey(v) || g.paths().containsKey(v)) {
+                bound = true;
+                if (i > 0) {
+                    return true;
+                }
+            } else if (i > 0) {
+                inner.add(v);
+            }
+        }
+        if (!bound) {
+            return false;
+        }
+        NodePattern start = (NodePattern) elements.get(0);
+        if (start.variable() == null || !g.bindings().containsKey(start.variable()) || elements.size() != 3
+                || ((RelPattern) elements.get(1)).lengthRange() != null || pc.pattern().variable() != null) {
+            return true;
+        }
+        return readsRow(pc.map(), inner);
+    }
+
+    /** Whether {@code exprs} spell {@code toString} of a node, a relationship or a path of the graph (the study's
+     *  §12.73): its text is built from the value the database holds, over the graph's rows (a projection over a
+     *  class extent folds no map over a Variant). Conservatively, a toString beside such a variable read whole. */
+    private static boolean textsGraphValue(List<Expr> exprs, Graph g) {
+        return exprs.stream().anyMatch(e -> containsCall(e, "tostring") && mentionsGraphValue(e, g));
+    }
+
+    /** Whether {@code e} reads a node, a relationship or a path of the graph whole (not a property of it). */
+    private static boolean mentionsGraphValue(Expr e, Graph g) {
+        if (e instanceof CypherAst.Var v) {
+            return g.bindings().containsKey(v.name()) || g.paths().containsKey(v.name());
+        }
+        if (e instanceof CypherAst.Prop p && p.target() instanceof CypherAst.Var) {
+            return false;
+        }
+        return children(e).stream().anyMatch(c -> mentionsGraphValue(c, g));
+    }
+
+    /** Whether any pattern comprehension of {@code exprs} reads through the graph's rows ({@link #throughRows}). */
+    private static boolean throughRows(List<Expr> exprs, Graph g) {
+        List<CypherAst.PatternComprehension> found = new ArrayList<>();
+        exprs.forEach(e -> comprehensionsIn(e, found));
+        return found.stream().anyMatch(pc -> throughRows(pc, g));
+    }
+
+    /**
+     * The clauses with each list comprehension over a fixed-length named path's nodes or relationships, with no
+     * WHERE and a projection that holds a pattern of its own, read as the list of that projection per part (the
+     * study's §12.80): after {@code MATCH p = (n:X)-->()}, {@code RETURN [x IN nodes(p) | size([(x)-->(:Y) | 1])]}
+     * is {@code [size([(n)-->(:Y) | 1]), size([(m)-->(:Y) | 1])]}, each pattern then from a node the MATCH binds
+     * (a comprehension's pattern over a list's element has no node to start from). Read in the RETURN or WITH
+     * right after the MATCH, where the path's parts are in scope; the path's unnamed parts named for it, with
+     * names no {@code *} lists. A shape rearranged, nothing computed.
+     */
+    private static List<Clause> unrolledOverPaths(List<Clause> clauses) {
+        List<Clause> out = new ArrayList<>(clauses);
+        for (int i = 0; i + 1 < out.size(); i++) {
+            if (!(out.get(i) instanceof CypherAst.Match m)) {
+                continue;
+            }
+            Clause next = out.get(i + 1);
+            List<Item> items = next instanceof CypherAst.With w ? w.items()
+                    : next instanceof CypherAst.Return r ? r.items() : null;
+            if (items == null) {
+                continue;
+            }
+            Map<String, PathPattern> named = new LinkedHashMap<>();
+            for (PathPattern p : m.patterns()) {
+                if (p.variable() != null && p.elements().stream().noneMatch(e -> e instanceof RelPattern r
+                        && r.lengthRange() != null)) {
+                    named.put(p.variable(), p);
+                }
+            }
+            Map<String, PathPattern> namedFor = new LinkedHashMap<>();
+            List<Item> rewritten = new ArrayList<>();
+            boolean changed = false;
+            for (Item item : items) {
+                Expr e = item.expr();
+                Expr unrolled = e == null ? null : unrolledOverPath(e, named, namedFor);
+                changed |= unrolled != e;
+                rewritten.add(unrolled == e ? item : new Item(unrolled, item.alias(), item.text(), item.pos()));
+            }
+            if (!changed) {
+                continue;
+            }
+            List<PathPattern> patterns = new ArrayList<>();
+            for (PathPattern p : m.patterns()) {
+                PathPattern n = p.variable() == null ? null : namedFor.get(p.variable());
+                patterns.add(n == null ? p : n);
+            }
+            out.set(i, new CypherAst.Match(m.optional(), patterns, m.where(), m.pos()));
+            out.set(i + 1, next instanceof CypherAst.With w ? new CypherAst.With(w.distinct(), rewritten,
+                    w.orderBy(), w.skip(), w.limit(), w.where(), w.pos())
+                    : new CypherAst.Return(((CypherAst.Return) next).distinct(), rewritten,
+                            ((CypherAst.Return) next).orderBy(), ((CypherAst.Return) next).skip(),
+                            ((CypherAst.Return) next).limit(), next.pos()));
+        }
+        return out;
+    }
+
+    /** {@code e} unrolled over a path of {@code named} ({@link #unrolledOverPaths}), or itself; a path whose parts it
+     *  names is recorded in {@code namedFor}, its unnamed parts named. */
+    private static Expr unrolledOverPath(Expr e, Map<String, PathPattern> named, Map<String, PathPattern> namedFor) {
+        if (!(e instanceof CypherAst.ListComprehension lc) || lc.where() != null || lc.map() == null
+                || !holdsPattern(lc.map()) || !(lc.list() instanceof CypherAst.Call c) || c.args().size() != 1
+                || !(c.args().get(0) instanceof CypherAst.Var p)) {
+            return e;
+        }
+        String fn = c.name().toLowerCase(java.util.Locale.ROOT);
+        PathPattern path = namedFor.containsKey(p.name()) ? namedFor.get(p.name()) : named.get(p.name());
+        if (path == null || !fn.equals("nodes") && !fn.equals("relationships")) {
+            return e;
+        }
+        if (!namedFor.containsKey(p.name())) {
+            // (the path's unnamed parts named for it: a synthetic name, apart from the translator's fresh ones)
+            List<PatternElement> elements = new ArrayList<>();
+            int k = 0;
+            for (PatternElement el : path.elements()) {
+                String part = SYNTHETIC + "part_" + p.name() + "_" + k++;
+                elements.add(switch (el) {
+                    case NodePattern n -> n.variable() != null ? n
+                            : new NodePattern(part, n.labels(), n.properties(), n.pos());
+                    case RelPattern r -> r.variable() != null ? r
+                            : new RelPattern(part, r.types(), r.direction(), r.properties(), r.lengthRange(), r.pos());
+                });
+            }
+            path = new PathPattern(path.variable(), elements, path.pos());
+            namedFor.put(p.name(), path);
+        }
+        List<Expr> parts = new ArrayList<>();
+        for (PatternElement el : path.elements()) {
+            String part = el instanceof NodePattern n ? n.variable() : ((RelPattern) el).variable();
+            if (fn.equals("nodes") == el instanceof NodePattern) {
+                Renaming renaming = new Renaming(lc.variable(), java.util.Objects.requireNonNull(part));
+                Expr one = renaming.of(lc.map());
+                if (renaming.captured) {
+                    return e;
+                }
+                parts.add(one);
+            }
+        }
+        return new CypherAst.ListLit(parts, lc.pos());
+    }
+
+    /** Whether {@code e} holds a pattern (a comprehension, a predicate, an EXISTS) anywhere. */
+    private static boolean holdsPattern(Expr e) {
+        if (e instanceof CypherAst.PatternComprehension || e instanceof CypherAst.PatternPredicate
+                || e instanceof CypherAst.ExistsSubquery) {
+            return true;
+        }
+        for (Expr child : children(e)) {
+            if (holdsPattern(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * An expression with one variable read as another (the study's §12.80): every free {@link CypherAst.Var} of the
+     * name and every pattern element naming it read as the substitute; a list comprehension's or a quantifier's
+     * variable of the name shadows it in that lambda. {@link #captured} where a binder inside names the substitute
+     * (the substitute would be read as the binder's): the caller keeps the expression as written then. A shape
+     * rearranged, nothing computed.
+     */
+    private static final class Renaming {
+        private final String var;
+        private final String with;
+        boolean captured;
+
+        Renaming(String var, String with) {
+            this.var = var;
+            this.with = with;
+        }
+
+        private String name(String n) {
+            return n.equals(var) ? with : n;
+        }
+
+        private @com.legend.base.Nullable String nameOf(@com.legend.base.Nullable String n) {
+            return n == null ? null : name(n);
+        }
+
+        private void binds(@com.legend.base.Nullable String binder) {
+            if (with.equals(binder)) {
+                captured = true;
+            }
+        }
+
+        private @com.legend.base.Nullable Expr opt(@com.legend.base.Nullable Expr e) {
+            return e == null ? null : of(e);
+        }
+
+        private List<Expr> all(List<Expr> es) {
+            List<Expr> out = new ArrayList<>(es.size());
+            for (Expr e : es) {
+                out.add(of(e));
+            }
+            return out;
+        }
+
+        private Map<String, Expr> entries(Map<String, Expr> m) {
+            Map<String, Expr> out = new LinkedHashMap<>();
+            m.forEach((k, v) -> out.put(k, of(v)));
+            return out;
+        }
+
+        PathPattern pattern(PathPattern p) {
+            binds(p.variable());
+            List<PatternElement> elements = new ArrayList<>();
+            for (PatternElement e : p.elements()) {
+                elements.add(switch (e) {
+                    case NodePattern n -> new NodePattern(nameOf(n.variable()), n.labels(), entries(n.properties()),
+                            n.pos());
+                    case RelPattern r -> new RelPattern(nameOf(r.variable()), r.types(), r.direction(),
+                            entries(r.properties()), r.lengthRange(), r.pos());
+                });
+            }
+            return new PathPattern(p.variable(), elements, p.pos());
+        }
+
+        Expr of(Expr e) {
+            return switch (e) {
+                case CypherAst.IntLit x -> x;
+                case CypherAst.FloatLit x -> x;
+                case CypherAst.StringLit x -> x;
+                case CypherAst.BoolLit x -> x;
+                case CypherAst.NullLit x -> x;
+                case CypherAst.Param x -> x;
+                case CypherAst.CountStar x -> x;
+                case CypherAst.Var v -> v.name().equals(var) ? new CypherAst.Var(with, v.pos()) : v;
+                case CypherAst.Prop p -> new CypherAst.Prop(of(p.target()), p.name(), p.pos());
+                case CypherAst.ListLit l -> new CypherAst.ListLit(all(l.elements()), l.pos());
+                case CypherAst.MapLit m -> new CypherAst.MapLit(entries(m.entries()), m.pos());
+                case CypherAst.Unary u -> new CypherAst.Unary(u.op(), of(u.operand()), u.pos());
+                case CypherAst.Binary b -> new CypherAst.Binary(b.op(), of(b.left()), of(b.right()), b.pos());
+                case CypherAst.Call c -> new CypherAst.Call(c.name(), c.distinct(), all(c.args()), c.pos());
+                case CypherAst.Case c -> {
+                    List<CypherAst.When> whens = new ArrayList<>();
+                    for (CypherAst.When w : c.whens()) {
+                        whens.add(new CypherAst.When(of(w.condition()), of(w.result())));
+                    }
+                    yield new CypherAst.Case(opt(c.operand()), whens, opt(c.elseResult()), c.pos());
+                }
+                case CypherAst.Paren p -> new CypherAst.Paren(of(p.inner()), p.pos());
+                case CypherAst.Quantifier q -> {
+                    binds(q.variable());
+                    yield q.variable().equals(var) ? new CypherAst.Quantifier(q.name(), q.variable(), of(q.list()),
+                            q.where(), q.pos()) : new CypherAst.Quantifier(q.name(), q.variable(), of(q.list()),
+                            of(q.where()), q.pos());
+                }
+                case CypherAst.ListComprehension lc -> {
+                    binds(lc.variable());
+                    yield lc.variable().equals(var) ? new CypherAst.ListComprehension(lc.variable(), of(lc.list()),
+                            lc.where(), lc.map(), lc.pos()) : new CypherAst.ListComprehension(lc.variable(),
+                            of(lc.list()), opt(lc.where()), opt(lc.map()), lc.pos());
+                }
+                case CypherAst.PatternComprehension pc -> new CypherAst.PatternComprehension(pattern(pc.pattern()),
+                        opt(pc.where()), of(pc.map()), pc.pos());
+                case CypherAst.LabelPredicate lp -> new CypherAst.LabelPredicate(of(lp.target()), lp.labels(),
+                        lp.pos());
+                case CypherAst.Index i -> new CypherAst.Index(of(i.target()), of(i.index()), i.pos());
+                case CypherAst.Slice s -> new CypherAst.Slice(of(s.target()), opt(s.from()), opt(s.to()), s.pos());
+                case CypherAst.PatternPredicate pp -> new CypherAst.PatternPredicate(pattern(pp.pattern()), pp.pos());
+                case CypherAst.ExistsSubquery x -> {
+                    CypherAst.Counted was = x.counted();
+                    CypherAst.Counted counted = null;
+                    if (was != null) {
+                        binds(was.alias());
+                        counted = new CypherAst.Counted(was.keys().stream().map(this::name).toList(), was.alias(),
+                                opt(was.having()), was.pos());
+                    }
+                    yield new CypherAst.ExistsSubquery(pattern(x.pattern()), opt(x.where()), all(x.items()), counted,
+                            x.pos());
+                }
+            };
+        }
+    }
+
+    /** The pattern comprehensions {@code e} holds, outside any lambda that binds a variable (a quantifier's, a list
+     *  comprehension's: one inside may read the lambda's variable) and outside each other. */
+    private static void comprehensionsIn(Expr e, List<CypherAst.PatternComprehension> out) {
+        if (e instanceof CypherAst.PatternComprehension pc) {
+            out.add(pc);
+            return;
+        }
+        if (e instanceof CypherAst.Quantifier || e instanceof CypherAst.ListComprehension) {
+            return;
+        }
+        for (Expr child : children(e)) {
+            comprehensionsIn(child, out);
+        }
+    }
+
+    /** A comprehension's list's mark: its elements' kind where the Variant reads them back by it (a scalar never
+     *  null), or their shape (a node's, a path's, a Variant's). */
+    private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail listMark(Val v) {
+        if (v instanceof Scalar s) {
+            if (s.tx().kind() == Kind.JSON) {
+                return new ListOf(Kind.JSON, s.tx().detail());
+            }
+            return !s.tx().nullable() && readsBack(s.tx().kind()) ? new ListOf(s.tx().kind(),
+                    scalarMark(s.tx().kind(), nanos(s.tx()))) : null;
+        }
+        return new ListOf(Kind.JSON, shapeOf(v));
+    }
+
+    /** The pattern predicates and EXISTS subqueries {@code e} holds, outside any lambda that binds a variable (a
+     *  quantifier's, a comprehension's: a predicate inside one may read the lambda's variable). */
+    /** Whether {@code where} holds a pattern predicate or an EXISTS subquery over a variable-length relationship
+     *  (the study's §12.69). */
+    private static boolean variableLengthPredicate(@com.legend.base.Nullable Expr where) {
+        if (where == null) {
+            return false;
+        }
+        List<Expr> predicates = new ArrayList<>();
+        patternPredicatesIn(where, predicates);
+        for (Expr predicate : predicates) {
+            PathPattern pattern = predicate instanceof CypherAst.PatternPredicate pp ? pp.pattern()
+                    : ((CypherAst.ExistsSubquery) predicate).pattern();
+            if (pattern.elements().stream().anyMatch(e -> e instanceof RelPattern r && r.lengthRange() != null)) {
+                return true;
+            }
+            // (more than one hop: the navigation reads one, §12.77)
+            if (pattern.variable() == null && pattern.elements().size() > 3
+                    && !(predicate instanceof CypherAst.ExistsSubquery cx && cx.counted() != null)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void patternPredicatesIn(Expr e, List<Expr> out) {
+        if (e instanceof CypherAst.PatternPredicate || e instanceof CypherAst.ExistsSubquery) {
+            out.add(e);
+            return;
+        }
+        if (e instanceof CypherAst.Quantifier || e instanceof CypherAst.ListComprehension
+                || e instanceof CypherAst.PatternComprehension) {
+            return;
+        }
+        for (Expr child : children(e)) {
+            patternPredicatesIn(child, out);
+        }
+    }
+
+    /** {@code rows} without the flag columns {@link #withPatternFlags} added for {@code where} (and the copies'
+     *  identity columns beside them): the rows as they were, after the filter read the flags. */
+    private static Rows withoutFlags(Rows flagged, Rows before) {
+        if (flagged.columns().size() == before.columns().size()) {
+            return flagged;
+        }
+        List<ColSpec> kept = new ArrayList<>();
+        for (Col c : before.columns()) {
+            if (!c.virtual()) {
+                kept.add(new ColSpec(c.name(), null, null, null));
+            }
+        }
+        return new Rows(call("select", flagged.vs(), new ColSpecArray(kept)), before.columns());
+    }
+
+    /** A pattern read as its own graph from the rows' carried node, its rows, and the pattern's copies of the
+     *  rows' variables (the copy's fresh name to the rows' own), to join back on. */
+    private record Anchored(Rows right, Map<String, String> renamed, PathPattern pattern,
+            /** an OPTIONAL MATCH's WHERE reading a value of the rows beside its pattern: the join's to read, over
+             *  both sides (the study's §12.78); null when there is none, or the WHERE was read over the pattern's
+             *  rows */
+            @com.legend.base.Nullable Expr joinWhere) {
+        Anchored(Rows right, Map<String, String> renamed, PathPattern pattern) {
+            this(right, renamed, pattern, null);
+        }
+    }
+
+    /** Whether the anchored pattern's copy of a variable the rows hold is absent: the pattern, read as a MATCH of its
+     *  own, found no way (its nodes absent everywhere, §12.36, §12.45), so it matches nothing (the study's §12.70). */
+    private static boolean absentCopy(Anchored a) {
+        for (String copy : a.renamed().keySet()) {
+            Col c = column(a.right(), copy);
+            if (c != null && c.detail() instanceof NodeShape shape && shape.absent()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@code columns} and {@code c} after them. */
+    private static List<Col> with(List<Col> columns, Col c) {
+        List<Col> out = new ArrayList<>(columns);
+        out.add(c);
+        return out;
+    }
+
+    /** The shape of a node {@code n} names that the rows carry with its identity; null for any other node. */
+    private static @com.legend.base.Nullable NodeShape anchorShape(Rows rows, NodePattern n) {
+        Col c = n.variable() == null ? null : column(rows, n.variable());
+        return c != null && c.detail() instanceof NodeShape shape && !shape.absent() && shape.identity() != null
+                ? shape : null;
+    }
+
+    private static @com.legend.base.Nullable Col column(Rows rows, String name) {
+        for (Col c : rows.columns()) {
+            if (c.name().equals(name)) {
+                return c;
+            }
+        }
+        return null;
+    }
+
+    /** {@code rows} with each of {@code variables} the rows hold as a node value read back from a Variant (its JSON
+     *  carrying its identity, the study's §12.71) given an identity column beside it: the identity its JSON carries,
+     *  read by the database; the variable's own column keeps its value. The column's mark ({@link HeldNode}) names
+     *  that identity column for {@link #joinKeys}. */
+    private Rows withValueIdentities(Rows rows, java.util.Collection<String> variables) {
+        List<ColSpec> specs = new ArrayList<>();
+        List<Col> columns = new ArrayList<>(rows.columns());
+        Set<String> names = new HashSet<>();
+        rows.columns().forEach(c -> names.add(c.name()));
+        for (int i = 0; i < columns.size(); i++) {
+            Col c = columns.get(i);
+            if (variables.contains(c.name()) && c.kind() == Kind.JSON && c.carried() == null
+                    && relationshipList(c.detail())) {
+                // a list of relationships (a variable-length relationship bound to it, `[rs*]`): the sequence of
+                // the identities its elements' JSON carries, as text
+                String ids = freshName(names);
+                specs.add(new ColSpec(ids, lambda("r", identitiesText(new AppliedProperty(new Variable("r"),
+                        c.name()))), null, null));
+                columns.add(new Col(ids, Kind.STRING, true));
+                columns.set(i, new Col(c.name(), c.kind(), c.nullable(), null, new HeldNode(ids,
+                        java.util.Objects.requireNonNull(c.detail()))));
+                continue;
+            }
+            if (!variables.contains(c.name()) || c.kind() != Kind.JSON || c.carried() != null
+                    || !(c.detail() instanceof NodeValue)) {
+                continue;
+            }
+            String id = freshName(names);
+            ValueSpecification held = call("to", call("get", new AppliedProperty(new Variable("r"), c.name()),
+                    new CString(IDENTITY_KEY)), SqlToPure.typeArg("String"));
+            specs.add(new ColSpec(id, lambda("r", held), null, null));
+            columns.add(new Col(id, Kind.STRING, true));
+            columns.set(i, new Col(c.name(), c.kind(), c.nullable(), null, new HeldNode(id, c.detail())));
+        }
+        if (specs.isEmpty()) {
+            return rows;
+        }
+        return new Rows(call("extend", rows.vs(), new ColSpecArray(specs)), columns);
+    }
+
+    /** Whether a Variant's mark says it is a list of relationships (its elements' marks relationships'). */
+    private static boolean relationshipList(com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail d) {
+        return d instanceof ListOf l && l.elementDetail() instanceof RelValue
+                || d instanceof TupleOf t && !t.entries().isEmpty()
+                        && t.entries().stream().allMatch(e -> e.detail() instanceof RelValue);
+    }
+
+    /** A list of relationships' identities in order, as text (each its JSON's {@code "@id"}, bar-separated), what a
+     *  variable-length relationship bound to the list is matched on (the study's §12.71). */
+    private static ValueSpecification identitiesText(ValueSpecification list) {
+        return call("joinStrings", call("map", call("toMany", list, SqlToPure.typeArg(VARIANT_TYPE)), lambda("e",
+                call("to", call("get", new Variable("e"), new CString(IDENTITY_KEY)), SqlToPure.typeArg("String")))),
+                new CString("|"));
+    }
+
+    /** {@code rows} with the relationship-list column {@code variable} given its identities' text beside it, marked
+     *  ({@link HeldNode}) for {@link #joinKeys}: the pattern's copy of a list the rows hold. */
+    private Rows withListIdentity(Rows rows, String variable) {
+        Set<String> names = new HashSet<>();
+        rows.columns().forEach(c -> names.add(c.name()));
+        List<Col> columns = new ArrayList<>(rows.columns());
+        String ids = freshName(names);
+        for (int i = 0; i < columns.size(); i++) {
+            Col c = columns.get(i);
+            if (c.name().equals(variable)) {
+                columns.set(i, new Col(c.name(), c.kind(), c.nullable(), c.carried(), new HeldNode(ids,
+                        java.util.Objects.requireNonNull(c.detail()))));
+            }
+        }
+        columns.add(new Col(ids, Kind.STRING, true));
+        return new Rows(call("extend", rows.vs(), new ColSpecArray(List.of(new ColSpec(ids, lambda("r",
+                identitiesText(new AppliedProperty(new Variable("r"), variable))), null, null)))), columns);
+    }
+
+    /** The mark of a node the rows hold as a value read back from a Variant, re-anchored on (the study's §12.71):
+     *  the column of the identity its JSON carries; of a list of relationships, the column of its identities'
+     *  text. */
+    private record HeldNode(String identity, com.legend.protocol.sql.InputDialect.TypeDetail original)
+            implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** {@code columns} with each held node's own mark back (its value's, after the join it keyed). */
+    private static List<Col> unheld(List<Col> columns) {
+        List<Col> out = new ArrayList<>();
+        for (Col c : columns) {
+            out.add(c.detail() instanceof HeldNode h ? new Col(c.name(), c.kind(), c.nullable(), c.carried(),
+                    h.original()) : c);
+        }
+        return out;
+    }
+
+    /** The column pairs a re-anchored pattern joins {@code copy} (the pattern's copy of a variable) to {@code own}
+     *  (the rows' own) on: a node's identity columns, a relationship's identity columns or the columns of its
+     *  type and the pair of its ends'. */
+    private static List<String[]> joinKeys(Col own, Col copy, String variable, Pos pos) {
+        if (own.detail() instanceof HeldNode held && copy.detail() instanceof NodeShape r && r.identity() != null) {
+            return List.<String[]>of(new String[] {held.identity(), r.identity()});
+        }
+        if (own.detail() instanceof HeldNode held && copy.detail() instanceof HeldNode theirs) {
+            // (a list of relationships the rows hold, against the pattern's: their identities in order)
+            return List.<String[]>of(new String[] {held.identity(), theirs.identity()});
+        }
+        if (own.detail() instanceof NodeShape l && copy.detail() instanceof NodeShape r) {
+            if (l.identity() == null || r.identity() == null) {
+                throw CypherErrors.unsupported("a MATCH after rows naming " + variable + ", a node carried without"
+                        + " its identity, is not supported yet", pos);
+            }
+            return List.<String[]>of(new String[] {l.identity(), r.identity()});
+        }
+        if (own.detail() instanceof RelShape l && copy.detail() instanceof RelShape r) {
+            if (l.identity() != null && r.identity() != null) {
+                return List.<String[]>of(new String[] {l.identity(), r.identity()});
+            }
+            if (l.source() != null && r.source() != null) {
+                return List.<String[]>of(new String[] {l.type(), r.type()}, new String[] {l.source(), r.source()},
+                        new String[] {l.target(), r.target()});
+            }
+            throw CypherErrors.unsupported("a MATCH after rows naming " + variable + ", a relationship carried"
+                    + " without its identity, is not supported yet", pos);
+        }
+        throw CypherErrors.unsupported("a MATCH after rows naming " + variable + ", which the rows hold as a value"
+                + " of another kind (Neo4j's error), is not supported yet", pos);
+    }
+
+    /** A column of an OPTIONAL MATCH's re-anchored pattern after the left join: null where the pattern found
+     *  nothing, its carried shape's properties nullable too. */
+    private static Col optionalColumn(Col c) {
+        com.legend.protocol.sql.InputDialect.TypeDetail detail = c.detail();
+        if (detail instanceof NodeShape n) {
+            detail = new NodeShape(n.labels(), nullableProps(n.props()), n.absent(), n.identity(), n.classPath());
+        } else if (detail instanceof RelShape r) {
+            detail = new RelShape(r.type(), nullableProps(r.props()), r.identity(), r.source(), r.target(),
+                    r.forward());
+        }
+        return new Col(c.name(), c.kind(), true, c.carried(), detail);
+    }
+
+    private static Map<String, NodeProp> nullableProps(Map<String, NodeProp> props) {
+        Map<String, NodeProp> out = new LinkedHashMap<>();
+        props.forEach((k, v) -> out.put(k, new NodeProp(v.column(), v.kind(), true, v.absent(), v.nanos())));
+        return out;
+    }
+
+    /** The variables an expression reads. */
+    private static void variablesIn(Expr e, Set<String> out) {
+        if (e instanceof CypherAst.Var v) {
+            out.add(v.name());
+        }
+        for (Expr child : children(e)) {
+            variablesIn(child, out);
+        }
+    }
+
     /** {@code WITH a.num AS property MATCH (b:End) WHERE property = b.num}, {@code UNWIND xs AS x MATCH (n)}: a MATCH
      *  after rows (a WITH that projected its variables, an UNWIND, a pattern read as rows) whose one pattern names
      *  no variable of the rows is the product of the rows and the pattern's rows ({@link #cartesian}, the study's
      *  §12.44), the WHERE read over the pairs. Null when the pattern names a variable of the rows (a continuation
      *  from a carried node, or a variable of another kind: Neo4j's error, which the island does not spell), or
      *  when the MATCH has several patterns. */
+    /**
+     * {@code MATCH (a)--(b)--(c)--(d)--(a), (b)--(d)}, {@code MATCH (x:X), (a)-->(b)} after rows, {@code MATCH
+     * (a)-->(x), (b)-->(x), (c)-->(x)}, {@code MATCH (a), (b), (c)} (the study's §12.70): a MATCH of several patterns
+     * the graph route does not read as one graph, each pattern read as rows of its own and joined to the rows before
+     * it -- on the identities of the variables it shares with them (the re-anchoring of §12.49), else as their
+     * product (§12.28) -- then the MATCH's relationships pairwise distinct by identity across its patterns (Neo4j's
+     * uniqueness within a MATCH; each pattern's own read spells it within the pattern; an unnamed relationship
+     * named for it), then the WHERE over the joined rows.
+     */
+    private Rows joinedPatterns(CypherAst.Match m, @com.legend.base.Nullable Rows rows) {
+        Pos pos = m.pos();
+        Set<String> taken = new HashSet<>();
+        if (rows != null) {
+            rows.columns().forEach(c -> taken.add(c.name()));
+        }
+        for (PathPattern p : m.patterns()) {
+            if (p.variable() != null) {
+                taken.add(p.variable());
+            }
+            for (PatternElement e : p.elements()) {
+                String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+                if (v != null) {
+                    taken.add(v);
+                }
+            }
+        }
+        List<PathPattern> named = new ArrayList<>();
+        List<Set<String>> relsOf = new ArrayList<>();
+        for (PathPattern p : m.patterns()) {
+            List<PatternElement> es = new ArrayList<>(p.elements());
+            Set<String> rels = new java.util.LinkedHashSet<>();
+            for (int i = 1; i < es.size(); i += 2) {
+                RelPattern r = (RelPattern) es.get(i);
+                if (r.variable() == null) {
+                    r = new RelPattern(freshName(taken), r.types(), r.direction(), r.properties(), r.lengthRange(),
+                            r.pos());
+                    es.set(i, r);
+                }
+                if (r.lengthRange() == null) {
+                    rels.add(java.util.Objects.requireNonNull(r.variable()));
+                }
+            }
+            named.add(new PathPattern(p.variable(), es, p.pos()));
+            relsOf.add(rels);
+        }
+        Rows out = rows;
+        boolean nestedBefore = matchFrame.nested;
+        try {
+            for (PathPattern p : named) {
+                CypherAst.Match one = new CypherAst.Match(false, List.of(p), null, p.pos());
+                matchFrame.nested = false;
+                if (out == null) {
+                    out = rowsOf(match(one, null), pos);
+                    continue;
+                }
+                Rows next = reanchor(one, out);
+                if (next == null) {
+                    next = freshAfterRows(one, out);
+                }
+                if (next == null) {
+                    throw CypherErrors.unsupported("a pattern of a MATCH of several patterns, joined to the rows"
+                            + " before it, is not supported yet", p.pos());
+                }
+                out = next;
+            }
+        } finally {
+            matchFrame.nested = nestedBefore;
+        }
+        Rows joined = java.util.Objects.requireNonNull(out);
+        RowScope scope = new RowScope(joined);
+        Tx distinct = null;
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < relsOf.size(); i++) {
+            for (int j = i + 1; j < relsOf.size(); j++) {
+                for (String l : relsOf.get(i)) {
+                    for (String r : relsOf.get(j)) {
+                        if (l.equals(r) || !seen.add(l + "\u0000" + r)) {
+                            continue;
+                        }
+                        Col lc = column(joined, l);
+                        Col rc = column(joined, r);
+                        if (lc == null || rc == null || !(lc.detail() instanceof RelShape ls) || !ls.identified()
+                                || !(rc.detail() instanceof RelShape rs) || !rs.identified()) {
+                            throw CypherErrors.unsupported("relationships " + l + " and " + r + " of a MATCH of"
+                                    + " several patterns, carried without their identities, are not supported yet",
+                                    pos);
+                        }
+                        Tx differ = SqlToPure.not(equal(java.util.Objects.requireNonNull(scope.relIdentity(ls)),
+                                java.util.Objects.requireNonNull(scope.relIdentity(rs)), pos));
+                        distinct = distinct == null ? differ : and3(distinct, differ);
+                    }
+                }
+            }
+        }
+        if (distinct != null) {
+            joined = new Rows(call("filter", joined.vs(), lambda(scope.row(), distinct.vs())), joined.columns());
+        }
+        return m.where() == null ? joined : filtered(joined, m.where());
+    }
+
     private @com.legend.base.Nullable Rows freshAfterRows(CypherAst.Match m, Rows rows) {
         if (m.patterns().size() != 1) {
             return null;
@@ -1986,18 +5173,352 @@ public final class CypherToPure {
         if (rows.columns().stream().anyMatch(c -> named.contains(c.name()))) {
             return null;
         }
-        return cartesian(rows, p, m.where(), m.pos());
+        return cartesian(rows, p, m.where(), m.pos(), Set.of());
     }
 
     /** {@code MATCH (a:A), (b:B)}, a pattern sharing no variable with the graph (the study's §12.28): the graph read
      *  as rows (every node carried, the paths too), the pattern read into its own graph and as rows, every pair of
      *  rows joined (Pure's join, a condition that always holds); the WHERE over the pairs. The clauses after read
      *  the rows. */
-    private Rows cartesian(State first, PathPattern second, @com.legend.base.Nullable Expr where, Pos pos) {
+    /**
+     * A pattern navigating more than two association steps from its first node (the study's §12.54), cut into
+     * segments of at most two: the resolver reads no association end past a second step in an existence filter
+     * (the plan's W9), so each segment is read as a graph of its own and the segments meet on the nodes they
+     * share, by identity (§12.49's re-anchoring). The steps are the hops' ({@code Hop.steps}: an edge hop is two,
+     * its edge instance and the far end, so a hop after an edge hop opens a segment too); a hop without one type,
+     * or from a node whose class the walk does not know, is read as two (a segment of its own, the arms' route
+     * reads it over the rows, §12.55). Each cut node is named (freshly where the query did not), and a
+     * relationship whose type the whole pattern repeats (any, beside an untyped one) is named so the MATCH's
+     * relationship uniqueness is spelled across the segments. Null when the pattern needs no cut.
+     */
+    private @com.legend.base.Nullable Cut segments(PathPattern p, @com.legend.base.Nullable Graph g) {
+        List<PatternElement> elements = p.elements();
+        if (elements.size() < 5) {
+            return null;
+        }
+        boolean reversed = false;
+        for (PatternElement e : elements) {
+            if (e instanceof RelPattern r && r.lengthRange() != null) {
+                return null;
+            }
+        }
+        NodePattern first = (NodePattern) elements.get(0);
+        NodePattern last = (NodePattern) elements.get(elements.size() - 1);
+        if (g != null) {
+            boolean firstBound = first.variable() != null && g.bindings().containsKey(first.variable());
+            boolean lastBound = last.variable() != null && g.bindings().containsKey(last.variable());
+            if (!firstBound && lastBound) {
+                elements = reversed(elements);
+                first = (NodePattern) elements.get(0);
+                reversed = true;
+            } else if (!firstBound) {
+                return null;
+            }
+        }
+        String cls = g != null && first.variable() != null && g.bindings().containsKey(first.variable())
+                ? g.bindings().get(first.variable()).classPath() : labelClass(first);
+        if (cls == null && g == null && elements.get(1) instanceof RelPattern r0 && r0.types().size() == 1
+                && r0.direction() == CypherAst.Direction.OUT) {
+            // a label-less first node: the class its first relationship's type leaves (rooted's reading of it);
+            // several declaring it, the arms' route's, unknown
+            List<String> declaring = startClasses(r0.types().get(0));
+            cls = declaring.size() == 1 ? declaring.get(0) : null;
+        }
+        List<Integer> cuts = cuts(elements, cls);
+        if (cuts.isEmpty()) {
+            return null;
+        }
+        if (p.variable() != null) {
+            // a named path (the study's §12.56): every node and relationship named, so the path assembled over the
+            // rows reads each from its columns
+            elements = namedPath(new PathPattern(p.variable(), elements, p.pos()), g == null ? Set.of()
+                    : g.bindings().keySet()).elements();
+        }
+        // the relationships' names: a type the pattern repeats names each of its relationships (every
+        // relationship, where an untyped one may be of any type), so the MATCH's uniqueness is spelled across
+        // the segments; a cut node is named for the segments to meet on
+        Map<String, Integer> typeCounts = new java.util.HashMap<>();
+        Set<String> taken = new HashSet<>();
+        if (g != null) {
+            taken.addAll(g.bindings().keySet());
+        }
+        int relationships = 0;
+        boolean untyped = false;
+        for (PatternElement e : elements) {
+            String v = e instanceof NodePattern n ? n.variable() : ((RelPattern) e).variable();
+            if (v != null) {
+                taken.add(v);
+            }
+            if (e instanceof RelPattern r) {
+                relationships++;
+                if (r.types().size() == 1) {
+                    typeCounts.merge(r.types().get(0), 1, Integer::sum);
+                } else {
+                    untyped = true;
+                }
+            }
+        }
+        List<PatternElement> named = new ArrayList<>(elements);
+        for (int i = 1; i < named.size(); i += 2) {
+            RelPattern r = (RelPattern) named.get(i);
+            boolean repeated = untyped ? relationships >= 2
+                    : r.types().size() == 1 && typeCounts.getOrDefault(r.types().get(0), 0) > 1;
+            if (r.variable() == null && repeated) {
+                named.set(i, new RelPattern(freshName(taken), r.types(), r.direction(), r.properties(),
+                        r.lengthRange(), r.pos()));
+            }
+        }
+        for (int at : cuts) {
+            NodePattern cut = (NodePattern) named.get(at);
+            if (cut.variable() == null) {
+                named.set(at, new NodePattern(freshName(taken), cut.labels(), cut.properties(), cut.pos()));
+            }
+        }
+        List<PathPattern> segments = new ArrayList<>();
+        int from = 0;
+        for (int at : cuts) {
+            segments.add(new PathPattern(null, List.copyOf(named.subList(from, at + 1)), p.pos()));
+            from = at;
+        }
+        segments.add(new PathPattern(null, List.copyOf(named.subList(from, named.size())), p.pos()));
+        for (int k = 1; k < segments.size(); k++) {
+            // (the cut node's labels and properties read once, in the segment that found it)
+            List<PatternElement> es = new ArrayList<>(segments.get(k).elements());
+            NodePattern cut = (NodePattern) es.get(0);
+            es.set(0, new NodePattern(cut.variable(), List.of(), Map.of(), cut.pos()));
+            segments.set(k, new PathPattern(null, List.copyOf(es), p.pos()));
+        }
+        return new Cut(segments, reversed, p.variable());
+    }
+
+    /** A pattern cut into segments ({@link #segments}): the segments, whether they read the pattern from its last
+     *  node (a graph in hand binding that node alone), and the path's variable when the pattern names one. */
+    private record Cut(List<PathPattern> segments, boolean reversed, @com.legend.base.Nullable String path) {
+    }
+
+    /** The cuts of a pattern walked from its first node, of class {@code cls} where the walk knows it: the
+     *  indices of the nodes that end a segment of at most two steps and start the next; empty when no cut is
+     *  needed. A hop the walk cannot read (no single type, no class before it, no way of the class, no inverse
+     *  end) counts two steps; the class after it is the next node's label, where it has one. */
+    private List<Integer> cuts(List<PatternElement> elements, @com.legend.base.Nullable String cls) {
+        List<Integer> cuts = new ArrayList<>();
+        int steps = 0;
+        for (int i = 1; i + 1 < elements.size(); i += 2) {
+            RelPattern rel = (RelPattern) elements.get(i);
+            NodePattern next = (NodePattern) elements.get(i + 1);
+            // (a type naming several edge classes read from the class: several ways, the arms' route's, two steps)
+            Hop hop = cls != null && rel.types().size() == 1 && edgeWayCount(cls, rel) <= 1
+                    ? hop(cls, rel, next, false, true) : null;
+            int width = hop == null ? 2 : hop.steps().size();
+            if (steps > 0 && steps + width > 2) {
+                cuts.add(i - 1);
+                steps = 0;
+            }
+            steps += width;
+            cls = hop != null ? hop.target() : labelClass(next);
+        }
+        return cuts;
+    }
+
+    /** The edge classes of the relationship's type read from {@code cls} in its direction (as {@link #edgeHop}
+     *  counts its ways; none for a type that names no edge class). */
+    private int edgeWayCount(String cls, RelPattern rel) {
+        int ways = 0;
+        for (Edge e : edgesOf(rel.types().get(0))) {
+            boolean out = rel.direction() != CypherAst.Direction.IN && model.isSubclass(cls, e.from().classPath());
+            boolean in = rel.direction() != CypherAst.Direction.OUT && model.isSubclass(cls, e.to().classPath());
+            if (out || in) {
+                ways++;
+            }
+        }
+        return ways;
+    }
+
+    /** A MATCH of a deep pattern ({@link #segments}): the first segment a MATCH of its own (a graph over
+     *  {@code g} where there is one, the arms' route for an untyped hop), materialized; each next one a MATCH over
+     *  the rows so far, re-anchored on the cut node; then the relationships across segments distinct by identity,
+     *  and the MATCH's WHERE over the rows. */
+    private State deep(CypherAst.Match m, Cut cut, @com.legend.base.Nullable Graph g,
+            @com.legend.base.Nullable State state) {
+        List<PathPattern> segments = new ArrayList<>();
+        for (int k = 0; k < cut.segments().size(); k++) {
+            // (a named path's segments are recorded as partial paths, so the relationships carry their stored
+            // directions to the rows the path is assembled over, §12.56)
+            PathPattern s = cut.segments().get(k);
+            segments.add(new PathPattern(cut.path() == null ? null : SEGMENT + cut.path() + "_" + k, s.elements(),
+                    s.pos()));
+        }
+        State first = matchPattern(new CypherAst.Match(false, List.of(segments.get(0)), null, m.pos()), state);
+        Rows rows = rowsOf(first, m.pos());
+        List<Set<String>> relsBySegment = new ArrayList<>();
+        relsBySegment.add(relationshipVariables(segments.get(0)));
+        for (int k = 1; k < segments.size(); k++) {
+            PathPattern segment = segments.get(k);
+            State next = matchPattern(new CypherAst.Match(false, List.of(segment), null, m.pos()), rows);
+            rows = rowsOf(next, m.pos());
+            relsBySegment.add(relationshipVariables(segment));
+        }
+        // relationship uniqueness across the segments (within one, each segment's own reading spells it): two
+        // named relationships each carried with an identity (an edge's own, or the ordered pair of its ends,
+        // S74; either names the type, so two of different types never meet) distinct
+        RowScope scope = new RowScope(rows);
+        Map<String, List<String>> types = new HashMap<>();
+        for (PathPattern segment : segments) {
+            for (PatternElement e : segment.elements()) {
+                if (e instanceof RelPattern r && r.variable() != null) {
+                    types.put(r.variable(), r.types());
+                }
+            }
+        }
+        Tx distinct = null;
+        for (int a = 0; a < relsBySegment.size(); a++) {
+            for (int b = a + 1; b < relsBySegment.size(); b++) {
+                for (String l : relsBySegment.get(a)) {
+                    for (String r : relsBySegment.get(b)) {
+                        List<String> lt = types.getOrDefault(l, List.of());
+                        List<String> rt = types.getOrDefault(r, List.of());
+                        if (lt.size() == 1 && rt.size() == 1 && !lt.equals(rt)) {
+                            // (two types: never one relationship)
+                            continue;
+                        }
+                        Col lc = column(rows, l);
+                        Col rc = column(rows, r);
+                        if (lc == null || rc == null || !(lc.detail() instanceof RelShape ls)
+                                || !(rc.detail() instanceof RelShape rs) || !ls.identified() || !rs.identified()) {
+                            // (a relationship over several edge classes, the arms' columns, carries no identity
+                            // yet: the uniqueness Neo4j binds the two to cannot be spelled)
+                            throw CypherErrors.unsupported("relationship uniqueness across a deep pattern's cut ("
+                                    + l + ", " + r + ") over a relationship carried without an identity of its own"
+                                    + " is not supported yet", m.pos());
+                        }
+                        Tx differ = SqlToPure.not(equal(java.util.Objects.requireNonNull(scope.relIdentity(ls)),
+                                java.util.Objects.requireNonNull(scope.relIdentity(rs)), m.pos()));
+                        distinct = distinct == null ? differ : and3(distinct, differ);
+                    }
+                }
+            }
+        }
+        if (distinct != null) {
+            rows = new Rows(call("filter", rows.vs(), lambda(scope.row(), distinct.vs())), rows.columns());
+        }
+        if (cut.path() != null && !cut.path().startsWith(SEGMENT)) {
+            // (a segment cut again over the rows is a partial path still: its relationships carry their
+            // directions, the whole path's assembly reads them)
+            rows = withPath(rows, cut.path(), segments, cut.reversed(), m.pos());
+        }
+        return m.where() == null ? rows : filtered(rows, m.where());
+    }
+
+    /**
+     * The rows of a cut path's segments with the path's value and its parts assembled over them (the study's
+     * §12.56): the path's JSON (§12.27's shape) built as text from each node's and each relationship's columns in
+     * the pattern's written order, each relationship's stored direction its column's (negated where the segments
+     * read the pattern from its last node); beside it {@code length}, {@code nodes} and {@code relationships}
+     * under the {@link #PATH_PART} names a materialized path carries them under, the lists the Variants the
+     * database builds.
+     */
+    private Rows withPath(Rows rows, String path, List<PathPattern> segments, boolean reversed, Pos pos) {
+        List<String> nodes = new ArrayList<>();
+        List<String> rels = new ArrayList<>();
+        for (int k = 0; k < segments.size(); k++) {
+            List<PatternElement> es = segments.get(k).elements();
+            // (a segment after the first starts at the node the one before ended on)
+            for (int i = k == 0 ? 0 : 1; i < es.size(); i++) {
+                if (es.get(i) instanceof NodePattern n) {
+                    nodes.add(java.util.Objects.requireNonNull(n.variable()));
+                } else {
+                    rels.add(java.util.Objects.requireNonNull(((RelPattern) es.get(i)).variable()));
+                }
+            }
+        }
+        if (reversed) {
+            java.util.Collections.reverse(nodes);
+            java.util.Collections.reverse(rels);
+        }
+        RowScope scope = new RowScope(rows);
+        ValueSpecification text = new CString("{\"@path\":[");
+        ValueSpecification dirs = null;
+        List<Val> nodeValues = new ArrayList<>();
+        List<Val> relValues = new ArrayList<>();
+        for (int i = 0; i < nodes.size(); i++) {
+            if (i > 0) {
+                String rel = rels.get(i - 1);
+                Col rc = column(rows, rel);
+                if (rc == null || !(rc.detail() instanceof RelShape rs) || rs.forward() == null) {
+                    throw new IllegalStateException("the cut path's relationship " + rel + " is carried without its"
+                            + " direction");
+                }
+                Col dc = java.util.Objects.requireNonNull(column(rows, rs.forward()));
+                if (dc.nullable()) {
+                    throw CypherErrors.unsupported("a path over a relationship an OPTIONAL MATCH may not find is"
+                            + " not supported yet", pos);
+                }
+                Tx stored = columnLike(new AppliedProperty(new Variable(scope.row()), rs.forward()), Kind.BOOLEAN,
+                        false);
+                ValueSpecification dir = jsonTextOf(scalar(reversed ? SqlToPure.not(stored) : stored), pos);
+                dirs = dirs == null ? dir : plus(dirs, new CString(","), dir);
+                text = plus(text, new CString(","), nodeJsonText(scope.relParts(rs, pos), pos), new CString(","));
+                relValues.add(scope.variable(new CypherAst.Var(rel, pos)));
+            }
+            String node = nodes.get(i);
+            Col nc = column(rows, node);
+            if (nc == null || !(nc.detail() instanceof NodeShape ns) || ns.absent()) {
+                throw new IllegalStateException("the cut path's node " + node + " is not carried by the rows");
+            }
+            NodeParts parts = scope.parts(ns);
+            if (parts.absent() != null) {
+                throw CypherErrors.unsupported("a path over a node an OPTIONAL MATCH may not find is not supported"
+                        + " yet", pos);
+            }
+            text = plus(text, nodeJsonText(parts, pos));
+            nodeValues.add(scope.variable(new CypherAst.Var(node, pos)));
+        }
+        text = plus(text, new CString("],\"@dirs\":["), dirs == null ? new CString("") : dirs,
+                new CString("]}"));
+        Tx nodeList = variant(new ListVal(nodeValues), pos);
+        Tx relList = variant(new ListVal(relValues), pos);
+        String length = PATH_PART + "length_" + path;
+        String nodesColumn = PATH_PART + "nodes_" + path;
+        String relsColumn = PATH_PART + "relationships_" + path;
+        List<ColSpec> specs = List.of(
+                new ColSpec(path, lambda(scope.row(), call("fromJson", text)), null, null),
+                new ColSpec(length, lambda(scope.row(), new CInteger((long) rels.size())), null, null),
+                new ColSpec(nodesColumn, lambda(scope.row(), nodeList.vs()), null, null),
+                new ColSpec(relsColumn, lambda(scope.row(), relList.vs()), null, null));
+        List<Col> columns = new ArrayList<>(rows.columns());
+        columns.add(new Col(path, Kind.JSON, false, null, new PathValue()));
+        columns.add(new Col(length, Kind.INTEGER, false));
+        columns.add(new Col(nodesColumn, nodeList.kind(), nodeList.nullable(), null, nodeList.detail()));
+        columns.add(new Col(relsColumn, relList.kind(), relList.nullable(), null, relList.detail()));
+        return new Rows(call("extend", rows.vs(), new ColSpecArray(specs)), columns);
+    }
+
+    /** A segment's named relationships. */
+    private static Set<String> relationshipVariables(PathPattern p) {
+        Set<String> out = new java.util.LinkedHashSet<>();
+        for (PatternElement e : p.elements()) {
+            if (e instanceof RelPattern r && r.variable() != null) {
+                out.add(r.variable());
+            }
+        }
+        return out;
+    }
+
+    private Rows cartesian(State first, PathPattern second, @com.legend.base.Nullable Expr where, Pos pos,
+            Set<String> thisMatchRels) {
         Rows left = rowsOf(first, pos);
-        typesInThisMatch.clear();
+        clearMatch();
         // the second pattern read as a first pattern is (a graph, a label-less node's arms, or rows), then its rows
-        Rows right = rowsOf(match(new CypherAst.Match(false, List.of(second), null, second.pos()), null), pos);
+        // (under the MATCH's own pre-scan: a relationship of a type the MATCH repeats across its patterns is named)
+        Rows right;
+        boolean nestedBefore = matchFrame.nested;
+        matchFrame.nested = !thisMatchRels.isEmpty() || nestedBefore;
+        matchFrame.cycles.clear();   // (the first pattern's, conjoined into the WHERE in hand already)
+        try {
+            right = rowsOf(match(new CypherAst.Match(false, List.of(second), null, second.pos()), null), pos);
+        } finally {
+            matchFrame.nested = nestedBefore;
+        }
         List<Col> columns = new ArrayList<>(left.columns());
         for (Col c : right.columns()) {
             if (columns.stream().anyMatch(l -> l.name().equals(c.name()))) {
@@ -2008,10 +5529,32 @@ public final class CypherToPure {
         ValueSpecification vs = call("join", left.vs(), right.vs(), new EnumValue(JOIN_KIND, "INNER"),
                 new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(new CBoolean(true))));
         Rows rows = new Rows(vs, columns);
+        // relationship uniqueness across the patterns of one MATCH (Neo4j binds the relationship variables of a
+        // MATCH to different relationships): two relationships carrying an identity (an edge class's, the study's
+        // §12.46) are distinct by it; one over an association has none yet (S75)
+        Tx distinct = null;
+        RowScope joined = new RowScope(rows);
+        // (uniqueness holds within one MATCH, not across clauses: a MATCH after rows or after an earlier MATCH's
+        // graph joins freely; only the relationships this MATCH read so far are distinct from the second pattern's)
+        for (Col l : left.columns()) {
+            if (!thisMatchRels.contains(l.name()) || !(l.detail() instanceof RelShape ls) || !ls.identified()) {
+                continue;
+            }
+            for (Col r : right.columns()) {
+                if (!(r.detail() instanceof RelShape rs) || !rs.identified()) {
+                    continue;
+                }
+                Tx li = java.util.Objects.requireNonNull(joined.relIdentity(ls));
+                Tx ri = java.util.Objects.requireNonNull(joined.relIdentity(rs));
+                Tx differ = SqlToPure.not(equal(li, ri, pos));
+                distinct = distinct == null ? differ : and3(distinct, differ);
+            }
+        }
+        if (distinct != null) {
+            rows = new Rows(call("filter", rows.vs(), lambda(joined.row(), distinct.vs())), rows.columns());
+        }
         if (where != null) {
-            RowScope scope = new RowScope(rows);
-            rows = new Rows(call("filter", rows.vs(), lambda(scope.row(), condition(where, scope, "WHERE"))),
-                    rows.columns());
+            rows = filtered(rows, where);
         }
         return rows;
     }
@@ -2066,19 +5609,22 @@ public final class CypherToPure {
         if (g.bindings().containsKey(name) || g.paths().containsKey(name)) {
             throw CypherErrors.invalid("Variable `" + name + "` already declared", named.pos());
         }
-        g.paths().put(name, new PathSpec(nodes, rels));
+        g.paths().put(name, new PathSpec(nodes, rels, name.startsWith(SEGMENT)));
     }
 
     /** One path pattern read into the graph: the first pattern of a query chooses the root; a later one must start
      *  or end at a node already bound (else it is a cartesian product, which PR1 does not read). */
-    private Graph pattern(PathPattern p, @com.legend.base.Nullable Graph g) {
+    private @com.legend.base.Nullable Graph pattern(PathPattern p, @com.legend.base.Nullable Graph g) {
         return pattern(p, g, List.of());
     }
 
     /** {@link #pattern(PathPattern, Graph)} with, for a first pattern, the classes its property maps are lenient
      *  across ({@code candidates}: an arm's every class, C4 lenient across the classes the arms read, as its
-     *  WHERE is; a property declared on none of them stays an error). */
-    private Graph pattern(PathPattern p, @com.legend.base.Nullable Graph g, List<String> candidates) {
+     *  WHERE is; a property declared on none of them stays an error). Null when a typed hop has no way of the
+     *  class it leaves: over an OPEN graph only (the study's §12.45; a closed graph's C4 error), the pattern
+     *  matches nothing. */
+    private @com.legend.base.Nullable Graph pattern(PathPattern p, @com.legend.base.Nullable Graph g,
+            List<String> candidates) {
         List<PatternElement> elements = p.elements();
         for (PatternElement e : elements) {
             if (e instanceof RelPattern r && r.lengthRange() != null) {
@@ -2094,10 +5640,6 @@ public final class CypherToPure {
         String lastVar = last.variable();
         boolean firstBound = firstVar != null && g.bindings().containsKey(firstVar);
         boolean lastBound = lastVar != null && g.bindings().containsKey(lastVar);
-        if (firstBound && lastBound && elements.size() > 1) {
-            throw CypherErrors.unsupported("a pattern whose two ends are both bound already (a cycle, compared by"
-                    + " identity) is not supported yet", p.pos());
-        }
         if (!firstBound && !lastBound) {
             throw CypherErrors.unsupported("a second pattern sharing no variable with the first (a cartesian"
                     + " product) is not supported yet", p.pos());
@@ -2106,14 +5648,13 @@ public final class CypherToPure {
         NodePattern start = (NodePattern) ordered.get(0);
         Binding bound = java.util.Objects.requireNonNull(g.bindings().get(start.variable()));
         nodeConstraints(start, bound, g);
-        extend(ordered, 0, bound, g, !firstBound);
-        return g;
+        return extend(ordered, 0, bound, g, !firstBound) ? g : null;
     }
 
     /** The first pattern: its root is the node from which every hop navigates to at most one node. The property
      *  maps are lenient across {@code candidates} (a class without the property, where one of them declares it,
      *  reads null: an arm's far node, or a root tried and passed over). */
-    private Graph rooted(PathPattern p, List<String> candidates) {
+    private @com.legend.base.Nullable Graph rooted(PathPattern p, List<String> candidates) {
         List<PatternElement> elements = p.elements();
         for (int rootAt = 0; rootAt < elements.size(); rootAt += 2) {
             NodePattern root = (NodePattern) elements.get(rootAt);
@@ -2128,8 +5669,10 @@ public final class CypherToPure {
             nodeConstraints(root, rootBinding, g);
             // forward from the root, then backward, each hop to-one from the node before it
             if (navigable(elements, rootAt, true) && navigable(elements, rootAt, false)) {
-                extend(elements, rootAt, rootBinding, g, false);
-                extend(reversed(elements), elements.size() - 1 - rootAt, rootBinding, g, true);
+                if (!extend(elements, rootAt, rootBinding, g, false)
+                        || !extend(reversed(elements), elements.size() - 1 - rootAt, rootBinding, g, true)) {
+                    return null;
+                }
                 return g;
             }
         }
@@ -2150,8 +5693,19 @@ public final class CypherToPure {
         Binding rootBinding = new Binding(true, rootClass, List.of(), false);
         bind(g, root.variable(), rootBinding, root.pos());
         nodeConstraints(root, rootBinding, g);
-        extend(elements, 0, rootBinding, g, false);
-        return g;
+        return extend(elements, 0, rootBinding, g, false) ? g : null;
+    }
+
+    /** Whether a pattern starts at a label-less node no clause bound, its relationship read other than outward
+     *  ({@code ()-[r:KNOWS]-()}, {@code ()<-[:T]-()}): the graph route reads a label-less start's class from the type
+     *  its outgoing relationship declares; read any other way, it is the arms' (the study's §12.70: one arm per way
+     *  the model has of the type, each end of its class). */
+    private static boolean againstTheStoredWay(PathPattern p, @com.legend.base.Nullable State state) {
+        if (p.elements().size() < 3 || !(p.elements().get(0) instanceof NodePattern n) || !n.labels().isEmpty()
+                || boundIn(state, n)) {
+            return false;
+        }
+        return ((RelPattern) p.elements().get(1)).direction() != CypherAst.Direction.OUT;
     }
 
     /** The class of a label-less start node, read from its relationship's type: the one class of the model
@@ -2169,6 +5723,18 @@ public final class CypherToPure {
                     + ") is not supported yet", rel.pos());
         }
         String type = rel.types().get(0);
+        List<String> declaring = startClasses(type);
+        if (declaring.size() != 1) {
+            throw CypherErrors.unsupported("a label-less start node of a relationship pattern whose type " + type
+                    + " is declared on " + (declaring.isEmpty() ? "no class" : declaring.size() + " classes ("
+                    + String.join(", ", declaring) + ")") + " is not supported yet", pos);
+        }
+        return declaring.get(0);
+    }
+
+    /** The classes an outgoing relationship of {@code type} is left from: those declaring it as a property holding
+     *  a class, and the from classes of its edge classes (left through the inverse of the from end). */
+    private List<String> startClasses(String type) {
         List<String> declaring = new ArrayList<>();
         for (String cls : model.classes()) {
             Property p = property(cls, type);
@@ -2182,12 +5748,7 @@ public final class CypherToPure {
                 declaring.add(e.from().classPath());
             }
         }
-        if (declaring.size() != 1) {
-            throw CypherErrors.unsupported("a label-less start node of a relationship pattern whose type " + type
-                    + " is declared on " + (declaring.isEmpty() ? "no class" : declaring.size() + " classes ("
-                    + String.join(", ", declaring) + ")") + " is not supported yet", pos);
-        }
-        return declaring.get(0);
+        return declaring;
     }
 
     private static List<PatternElement> reversed(List<PatternElement> elements) {
@@ -2224,6 +5785,15 @@ public final class CypherToPure {
         return true;
     }
 
+    /** Before an arm is read: the nodes reached through an edge class are those before the arms (an arm is its
+     *  own graph, the study's §12.69), the arm before's gathered into {@code byArms}, which the set holds again once
+     *  the arms are read. */
+    private void resetReachedThroughEdge(Set<String> before, Set<String> byArms) {
+        byArms.addAll(reachedThroughEdge);
+        reachedThroughEdge.clear();
+        reachedThroughEdge.addAll(before);
+    }
+
     /** A hop from a node reached through an edge class, refused by name ({@link #reachedThroughEdge}). */
     private void refuseHopPastEdge(@com.legend.base.Nullable String variable, Pos pos) {
         if (variable != null && reachedThroughEdge.contains(variable)) {
@@ -2234,7 +5804,7 @@ public final class CypherToPure {
     }
 
     /** Binds the nodes after {@code at} in {@code ordered}, each navigated from the one before it. */
-    private void extend(List<PatternElement> ordered, int at, Binding from, Graph g, boolean reversed) {
+    private boolean extend(List<PatternElement> ordered, int at, Binding from, Graph g, boolean reversed) {
         Binding current = from;
         String currentVar = ((NodePattern) ordered.get(at)).variable();
         while (at + 2 < ordered.size()) {
@@ -2242,7 +5812,12 @@ public final class CypherToPure {
             NodePattern next = (NodePattern) ordered.get(at + 2);
             refuseHopPastEdge(currentVar, rel.pos());
             String cls = java.util.Objects.requireNonNull(current.classPath());
-            Hop hop = java.util.Objects.requireNonNull(hop(cls, rel, next, true, g.fanning()));
+            Hop hop = hop(cls, rel, next, true, g.fanning());
+            if (hop == null) {
+                // (an open graph only, the study's §12.45: a closed one refused inside hop) no way: the pattern
+                // matches nothing, which the caller reads
+                return false;
+            }
             String nextVar = next.variable();
             if ((g.fanning() || hop.edge() != null) && nextVar == null) {
                 // every node of a fanning graph is carried by name when the graph is materialized; a node reached
@@ -2251,34 +5826,50 @@ public final class CypherToPure {
                 next = new NodePattern(nextVar, next.labels(), next.properties(), next.pos());
             }
             if (nextVar != null && g.bindings().containsKey(nextVar)) {
-                throw CypherErrors.unsupported("a pattern whose two ends are both bound already (a cycle, compared"
-                        + " by identity) is not supported yet", next.pos());
+                // a cycle (the study's §12.50): the node reached again reads under a fresh name, the same node as
+                // the bound one by identity (a condition of the MATCH's WHERE, over the graph or the rows)
+                String again = freshName(new HashSet<>(g.bindings().keySet()));
+                matchFrame.uniqueness.add(new CypherAst.Binary(BinaryOp.EQ, new CypherAst.Var(again, next.pos()),
+                        new CypherAst.Var(nextVar, next.pos()), next.pos()));
+                nextVar = again;
+                next = new NodePattern(nextVar, next.labels(), next.properties(), next.pos());
             }
             if (!rel.properties().isEmpty() && hop.edge() == null) {
                 throw CypherErrors.unsupported("properties on a relationship pattern over a property or association"
                         + " (no edge class, the study's §5.6) are not supported yet", rel.pos());
             }
-            if (!hidden(rel.variable()) && !typesInThisMatch.add(rel.types().get(0))) {
-                throw CypherErrors.unsupported("two relationships of the type " + rel.types().get(0) + " in one MATCH"
-                        + " (Neo4j binds them to different relationships: relationship uniqueness) are not supported"
-                        + " yet", rel.pos());
-            }
             List<String> path = new ArrayList<>(current.path());
             path.addAll(hop.steps());
+            if (path.size() > 2) {
+                // (the resolver's nested navigation reads no association end past a second step: IN_FLIGHT, the
+                // W9 item of the TCK-to-zero plan; a variable-length unroll is limited likewise; an edge hop after
+                // an association hop is three steps too, the re-anchoring leg's chain run caught it resolving)
+                throw CypherErrors.unsupported("a pattern navigating more than two association steps from its root"
+                        + " (" + String.join(".", path) + ") is not supported yet", rel.pos());
+            }
             boolean optional = current.optional() || hop.optional();
             boolean fanning = current.fanning() || hop.many();
-            Binding target = new Binding(true, hop.target(), List.copyOf(path), optional, fanning);
-            if (hop.optional() || hop.many()) {
+            // a hop from a node a fanning hop reached: the rows carry one row per node the first hop found, and
+            // this hop's node is present on a row where its identity is (an optional navigation's identity is
+            // null where it finds none); the graph's filter cannot say it (the resolver reads no two-step
+            // existence past a bridge-table step there: the study's §12.50)
+            boolean onRows = current.fanning() && (hop.optional() || hop.many());
+            Binding target = new Binding(true, hop.target(), List.copyOf(path), optional || onRows, fanning);
+            if (onRows) {
+                g.present().add(java.util.Objects.requireNonNull(nextVar));
+            } else if (hop.optional() || hop.many()) {
                 // the hop must find a node: a row where it finds none is not a match
                 g.conditions().add(call("isNotEmpty", navigate(g.row(), path)));
             }
             String relVar = rel.variable();
-            if (relVar == null && !rel.properties().isEmpty()) {
-                // (the edge's property map is read over the materialized rows, where the relationship is a column)
+            if (relVar == null && (!rel.properties().isEmpty() || matchFrame.repeated(rel.types().get(0)))) {
+                // (the edge's property map is read over the materialized rows, where the relationship is a column;
+                // a relationship of a type the MATCH repeats is named so uniqueness tells it from the others)
                 relVar = freshName(new HashSet<>(g.bindings().keySet()));
             }
+            relationshipRead(rel, relVar);
             Binding relationship = Binding.relationship(List.copyOf(relPath(current, hop)), optional, fanning,
-                    rel.types().get(0), false, hop.edge());
+                    rel.types().get(0), false, hop.edge(), hop.forward());
             bind(g, relVar, relationship, rel.pos());
             if (relVar != null) {
                 // the relationship's stored direction, in the pattern's written order (a path prints it)
@@ -2297,6 +5888,7 @@ public final class CypherToPure {
             currentVar = nextVar;
             at += 2;
         }
+        return true;
     }
 
     /** A hop: the property navigated from the node before it, the class it reaches, whether it may find nothing,
@@ -2387,7 +5979,35 @@ public final class CypherToPure {
                     + ": an edge is reached by its type, never by an end's name (the study's §5.6; the graph is the"
                     + " model)", rel.pos());
         }
+        if (forward == null && backward == null && toClass == null && rel.direction() != CypherAst.Direction.OUT) {
+            // an incoming (or undirected) hop to a label-less node: the one class of the model declaring the type as
+            // a property holding a class the node before is of (as the arms of a label-less root are decided, the
+            // study's §12.17); several such classes are refused by name
+            String declaring = null;
+            Property declared = null;
+            int found = 0;
+            for (String other : model.classes()) {
+                Property back = property(other, type);
+                if (back != null && back.classTyped() && model.isSubclass(from, back.type())) {
+                    found++;
+                    declaring = other;
+                    declared = back;
+                }
+            }
+            if (found > 1) {
+                throw CypherErrors.unsupported("an incoming relationship " + type + " to a label-less node, declared"
+                        + " by " + found + " classes of the model, is not supported yet: label the node", to.pos());
+            }
+            if (found == 1) {
+                toClass = declaring;
+                backward = declared;
+            }
+        }
         if (forward == null && backward == null) {
+            if (open) {
+                // (an open graph, the study's §12.45: no relationship of the type from the class, no way)
+                return null;
+            }
             throw CypherErrors.invalid("the relationship type " + type + " names no property or association end of "
                     + from + (toClass == null ? "" : " or " + toClass) + " holding a class"
                     + " (the graph is the model: a relationship type is a property's name)", rel.pos());
@@ -2490,6 +6110,10 @@ public final class CypherToPure {
                         + String.join(", ", narrowed) + " of type " + type + " reaches nor one of its superclasses: a"
                         + " label narrowing an edge's end is not supported yet", to.pos());
             }
+            if (open) {
+                // (an open graph, the study's §12.45: the edge class joins other classes, no way from this one)
+                return null;
+            }
             throw CypherErrors.invalid("the relationship type " + type + " names the edge class "
                     + edges.get(0).classPath() + " from " + edges.get(0).from().classPath() + " to "
                     + edges.get(0).to().classPath() + ", which no pattern from " + from + " reads"
@@ -2523,31 +6147,121 @@ public final class CypherToPure {
                 + " node its navigation)", pos);
     }
 
-    /** The class a node pattern's labels name: one label's class (PR1 reads one label); null for a label-less node. */
-    private @com.legend.base.Nullable String labelClass(NodePattern n) {
-        if (n.labels().isEmpty()) {
-            return null;
-        }
-        if (n.labels().size() > 1) {
-            throw CypherErrors.unsupported("a node with several labels (" + String.join(":", n.labels()) + ") is not"
-                    + " supported yet", n.pos());
-        }
-        String label = n.labels().get(0);
-        List<String> classes = model.classesOf(label);
+    /** The class one label names (the study's §12.61): the one at that path for a full path (a backticked
+     *  {@code demo::Person}: that class alone), else the one class of that simple name (the label's class, whose
+     *  subclasses carry the label too; several of the name: an error naming them); never the edge class a
+     *  relationship type names, nor the model's Duration value class (which the island carries a duration as). */
+    private String labelledClass(String label, Pos pos) {
+        List<String> classes = model.classesOf(label).stream().filter(c -> !valueClasses().contains(c)).toList();
         if (classes.isEmpty()) {
             throw CypherErrors.invalid("the label " + label + " names no class of the model (the graph is the model:"
-                    + " a label is a class's name)", n.pos());
+                    + " a label is a class's name)", pos);
         }
         if (classes.size() > 1) {
             throw CypherErrors.invalid("the label " + label + " names " + classes.size() + " classes ("
-                    + String.join(", ", classes) + "): write the class's full path in backticks", n.pos());
+                    + String.join(", ", classes) + "): write the class's full path in backticks", pos);
         }
         if (isEdge(classes.get(0))) {
             throw CypherErrors.invalid("the label " + label + " names the edge class " + classes.get(0) + " (a"
                     + " relationship type, not a node label; the graph is the model): a pattern reaches it by its"
-                    + " type", n.pos());
+                    + " type", pos);
         }
         return classes.get(0);
+    }
+
+    /** The classes a node pattern's labels name, one per label (a label spelled twice, once); empty for a
+     *  label-less node. */
+    private List<String> labelClasses(NodePattern n) {
+        List<String> out = new ArrayList<>();
+        for (String label : new java.util.LinkedHashSet<>(n.labels())) {
+            String cls = labelledClass(label, n.pos());
+            if (!out.contains(cls)) {
+                out.add(cls);
+            }
+        }
+        return out;
+    }
+
+    /** Whether every instance of {@code cls} carries the labels of {@code labelClasses}: the class is each, or a
+     *  subclass of each (the study's §12.61: a node's labels are its class's and its superclasses'). */
+    private boolean carries(String cls, List<String> labelClasses) {
+        for (String label : labelClasses) {
+            if (!model.isSubclass(cls, label)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The classes whose instances a node pattern's labels read (the study's §12.61): every node class of the
+     *  model carrying each label (a simple name: the label's class and its subclasses; a full path: that class
+     *  alone), in the model's order, none when no class carries them all; null for a label-less node (every
+     *  class). */
+    private @com.legend.base.Nullable List<String> candidates(NodePattern n) {
+        if (n.labels().isEmpty()) {
+            return null;
+        }
+        List<String> out = new ArrayList<>(model.classes());
+        out.removeAll(valueClasses());
+        for (String label : new java.util.LinkedHashSet<>(n.labels())) {
+            String cls = labelledClass(label, n.pos());
+            // (the label as the class's own path: that class; a simple name: the class and its subclasses)
+            boolean exact = cls.equals(label);
+            out.removeIf(c -> exact ? !c.equals(cls) : !model.isSubclass(c, cls));
+        }
+        return out;
+    }
+
+    /** The classes an arms route's root reads: its labels' candidates; every node class of the model (but the
+     *  duration value's) for a label-less root. */
+    private List<String> rootClassesOf(NodePattern root) {
+        List<String> candidates = candidates(root);
+        if (candidates != null) {
+            return new ArrayList<>(candidates);
+        }
+        List<String> all = new ArrayList<>(model.classes());
+        all.removeAll(valueClasses());
+        return all;
+    }
+
+    /** Whether the state in hand (a graph, or arms) binds the node pattern's variable: its labels are then a
+     *  constraint on the bound node, not the classes to read. */
+    private static boolean boundIn(@com.legend.base.Nullable State state, NodePattern n) {
+        if (n.variable() == null) {
+            return false;
+        }
+        if (state instanceof Graph g) {
+            return g.bindings().containsKey(n.variable());
+        }
+        if (state instanceof Arms arms) {
+            return !arms.arms().isEmpty() && arms.arms().get(0).bindings().containsKey(n.variable());
+        }
+        return false;
+    }
+
+    /** Whether a node pattern reads as arms, one per class: a label-less one (every class), or labels reading
+     *  several classes, or none. */
+    private boolean readsArms(NodePattern n) {
+        List<String> candidates = candidates(n);
+        return candidates == null || candidates.size() != 1;
+    }
+
+    /** The one class a node pattern's labels read; null for a label-less node. Where the route reads one class (a
+     *  to-one graph's root, a hop's far end): labels reading several classes, or none, are arms, which
+     *  {@link #matchPattern} routes as such from a first pattern; elsewhere they are refused by name. */
+    private @com.legend.base.Nullable String labelClass(NodePattern n) {
+        List<String> candidates = candidates(n);
+        if (candidates == null) {
+            return null;
+        }
+        if (candidates.size() != 1) {
+            throw CypherErrors.unsupported("the label" + (n.labels().size() > 1 ? "s " : " ")
+                    + String.join(":", n.labels()) + (candidates.isEmpty() ? " (no class of the model carries"
+                    + " every one)" : " reading several classes (" + String.join(", ", candidates) + ")")
+                    + " in this position of the pattern " + (n.labels().size() > 1 ? "are" : "is")
+                    + " not supported yet", n.pos());
+        }
+        return candidates.get(0);
     }
 
     private void bind(Graph g, @com.legend.base.Nullable String variable, Binding b, Pos pos) {
@@ -2568,14 +6282,11 @@ public final class CypherToPure {
     /** A node pattern's constraints: its label (a bound node's must be its class) and its property map. */
     private void nodeConstraints(NodePattern n, Binding b, Graph g) {
         String cls = java.util.Objects.requireNonNull(b.classPath());
-        String labelled = labelClass(n);
-        if (labelled != null && !labelled.equals(cls)) {
-            if (model.isSubclass(cls, labelled)) {
-                // a superclass's label: every instance of the class carries it
-                return;
-            }
-            throw CypherErrors.unsupported("the label " + labelled + " on " + cls
-                    + " (a label narrowing a node's class) is not supported yet", n.pos());
+        if (!carries(cls, labelClasses(n))) {
+            // a label no instance of the class carries (the study's §12.61: a node's labels are its class's and its
+            // superclasses'): the node matches nothing here (an arm of a class carrying it reads its own rows)
+            g.conditions().add(new CBoolean(false));
+            return;
         }
         if (b.fanning() && !n.properties().isEmpty()) {
             // read over the materialized rows, where the node's properties are typed columns
@@ -2620,6 +6331,12 @@ public final class CypherToPure {
     // ------------------------------------------------------------------ WITH and RETURN
 
     private State with(CypherAst.With w, @com.legend.base.Nullable State state) {
+        for (Item item : w.items()) {
+            if (item.expr() != null && item.alias() == null && !(item.expr() instanceof CypherAst.Var)) {
+                // Neo4j's static error (WithOrderBy4): a WITH names what it projects
+                throw CypherErrors.invalid("Expression in WITH must be aliased (use AS)", item.pos());
+            }
+        }
         if (state == null) {
             // WITH 1 AS x ...: a query over no pattern starts from one row
             state = oneRow();
@@ -2658,7 +6375,7 @@ public final class CypherToPure {
             }
             Graph next = new Graph(g.rootClass(), g.row(), kept, g.conditions(), g.candidates(), g.fanning(),
                     g.deferredConstraints(), g.deferredWhere(), g.variableClasses(), keptPaths, g.forward(),
-                    new LinkedHashMap<>());
+                    new LinkedHashMap<>(), g.present());
             Expr where = w.where();
             if (where != null) {
                 next.conditions().add(condition(where, new GraphScope(next), "WHERE"));
@@ -2672,6 +6389,11 @@ public final class CypherToPure {
                 carried.add((Graph) with(w, arm));
             }
             return new Arms(carried);
+        }
+        if (state instanceof Rows rows && w.where() != null) {
+            // (a pattern predicate of the WHERE over the rows: a flag column of the rows, read by the projection's
+            // WHERE wherever it computes it; the projection drops it, as it drops every synthetic column)
+            state = withPatternFlags(rows, w.where());
         }
         return project(w.items(), w.distinct(), w.orderBy(), w.skip(), w.limit(), w.where(), state, w.pos(), false);
     }
@@ -2721,10 +6443,19 @@ public final class CypherToPure {
      *  needed (a sum of nothing is 0; an average of a null column is null). */
     private record Aggregate(String argColumn, Tx arg, LambdaFunction reduce, Kind kind, boolean nullable,
             java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> finish,
-            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail,
+            /** a bivariate reducer's key (min and max over Variants, §12.58: the orderability key beside the
+             *  value, the map body {@code rowMapper(value, key)}); null for a reducer over the value alone */
+            @com.legend.base.Nullable String keyColumn, @com.legend.base.Nullable Tx key) {
         Aggregate(String argColumn, Tx arg, LambdaFunction reduce, Kind kind, boolean nullable,
                 java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> finish) {
-            this(argColumn, arg, reduce, kind, nullable, finish, null);
+            this(argColumn, arg, reduce, kind, nullable, finish, null, null, null);
+        }
+
+        Aggregate(String argColumn, Tx arg, LambdaFunction reduce, Kind kind, boolean nullable,
+                java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> finish,
+                com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            this(argColumn, arg, reduce, kind, nullable, finish, detail, null, null);
         }
     }
 
@@ -2793,7 +6524,7 @@ public final class CypherToPure {
                 // named path named for it)
                 Graph g = state instanceof Arms a ? a.arms().get(0) : (Graph) state;
                 g.bindings().keySet().stream().filter(n -> !n.startsWith(SYNTHETIC)).forEach(columnNames::add);
-                columnNames.addAll(g.paths().keySet());
+                g.paths().keySet().stream().filter(n -> !n.startsWith(SYNTHETIC)).forEach(columnNames::add);
             }
             java.util.Collections.sort(columnNames);
             for (String name : columnNames) {
@@ -2801,6 +6532,28 @@ public final class CypherToPure {
             }
         }
         items = expanded;
+        // a pattern comprehension read as a list column of the rows (the study's §12.72): over a graph whose
+        // navigations do not read it (or in an ORDER BY, whose key reads it beside the projected items), over the
+        // graph's rows
+        List<Expr> listed = new ArrayList<>();
+        items.forEach(i -> listed.add(java.util.Objects.requireNonNull(i.expr())));
+        List<CypherAst.PatternComprehension> sorted = new ArrayList<>();
+        orderBy.forEach(o -> comprehensionsIn(o.expr(), sorted));
+        Graph graph = state instanceof Arms a ? a.arms().get(0) : state instanceof Graph g ? g : null;
+        if (graph != null && (throughRows(listed, graph) || !sorted.isEmpty() || textsGraphValue(listed, graph)
+                || textsGraphValue(orderBy.stream().map(SortItem::expr).toList(), graph))) {
+            state = rowsOf(state, pos);
+        }
+        orderBy.forEach(o -> listed.add(o.expr()));
+        if (state instanceof Rows rows) {
+            Rows read = withPatternLists(rows, listed);
+            // (a pattern predicate or EXISTS among the items over rows: a flag column, as a WHERE's is, §12.80;
+            // the projection keeps only its items)
+            for (Expr e : listed) {
+                read = withPatternFlags(read, e);
+            }
+            state = read;
+        }
         // a label-less pattern's arms (one graph per class) are each projected to the same columns and
         // concatenated; the grouping, the sort, the SKIP and the LIMIT then read the whole (the study's §12.13)
         List<State> arms = state instanceof Arms a ? new ArrayList<>(a.arms()) : List.of(state);
@@ -2810,7 +6563,8 @@ public final class CypherToPure {
         for (State arm : arms) {
             // the same fresh names in every arm, so the arms' columns agree
             fresh = mark;
-            ArmProjection ap = projectArm(items, distinct, orderBy, skip, limit, where, arm, pos, returning);
+            ArmProjection ap = projectArm(items, distinct, orderBy, skip, limit, where, arm, pos, returning,
+                    arms.size() == 1);
             if (first == null) {
                 first = ap;
                 vs = ap.base();
@@ -2845,7 +6599,8 @@ public final class CypherToPure {
             // the result's columns in the items' order (the grouping puts the keys first), the finished sums in
             // place of their raw ones; the aggregates the sort asked for beyond the items beside them until it
             List<ColSpec> selected = new ArrayList<>();
-            columns.forEach(c -> selected.add(new ColSpec(c.name(), null, null, null)));
+            columns.stream().filter(c -> !c.virtual()).forEach(c -> selected.add(new ColSpec(c.name(), null, null,
+                    null)));
             ap.hiddenColumns().forEach(c -> selected.add(new ColSpec(c.name(), null, null, null)));
             vs = call("select", vs, new ColSpecArray(selected));
         }
@@ -2858,8 +6613,11 @@ public final class CypherToPure {
             if (ap.whereColumn() != null) {
                 vs = call("filter", vs, lambda("r", new AppliedProperty(new Variable("r"), ap.whereColumn())));
             } else {
-                Scope after = new KeyedScope(new Rows(vs, List.copyOf(columns)), keyTexts(items, columns, false));
-                vs = call("filter", vs, lambda(after.row(), condition(where, after, "WHERE")));
+                Rows before = new Rows(vs, List.copyOf(columns));
+                Rows flagged = withPatternFlags(before, where);
+                Scope after = new KeyedScope(flagged, keyTexts(items, columns, false));
+                vs = withoutFlags(new Rows(call("filter", flagged.vs(), lambda(after.row(), condition(where, after,
+                        "WHERE"))), flagged.columns()), before).vs();
             }
         }
         if (!ap.afterGrouping().isEmpty()) {
@@ -2871,6 +6629,7 @@ public final class CypherToPure {
             texts.putAll(ap.sortAggregateColumns());
             Scope after = new KeyedScope(new Rows(vs, readable), texts);
             List<ColSpec> computed = new ArrayList<>();
+            List<SortKey> orderless = new ArrayList<>();
             int k = 0;
             for (SortKey sk : sortKeys) {
                 if (!sk.hidden()) {
@@ -2878,35 +6637,76 @@ public final class CypherToPure {
                 }
                 SortItem o = ap.afterGrouping().get(k++);
                 Tx t = tx(o.expr(), after);
+                if (SqlToPure.isNullConstant(t)) {
+                    // (null on every row: it orders nothing, as an open graph's absent property, §12.82)
+                    orderless.add(sk);
+                    continue;
+                }
                 if (t.kind() == Kind.JSON) {
-                    throw CypherErrors.unsupported("ORDER BY a list, a map or a path the database holds as a Variant"
-                            + " is not supported yet", o.pos());
+                    // (a Variant: its orderability key, the study's §12.58)
+                    t = variantKey(t);
+                } else if (split(t)) {
+                    // (a split value, W13: its sortable text, of fixed width, whose order is the value's)
+                    t = splitSortable(t);
                 }
                 computed.add(new ColSpec(sk.column(), lambda(after.row(), SqlToPure.valueOf(t)), null, null));
             }
-            vs = call("extend", vs, new ColSpecArray(computed));
+            sortKeys = new ArrayList<>(sortKeys);
+            sortKeys.removeAll(orderless);
+            if (!computed.isEmpty()) {
+                vs = call("extend", vs, new ColSpecArray(computed));
+            }
             hidden.addAll(computed);
         }
+        List<ValueSpecification> sortInfos = new ArrayList<>();
+        for (SortKey k : sortKeys) {
+            // Cypher orders null after every value ascending, before them descending, as Postgres does
+            sortInfos.add(call(k.descending() ? "descending" : "ascending", new ColSpec(k.column(), null, null,
+                    null), new EnumValue(NULL_ORDER, k.descending() ? "FIRST" : "LAST")));
+        }
         if (!sortKeys.isEmpty()) {
-            List<ValueSpecification> sortInfos = new ArrayList<>();
-            for (SortKey k : sortKeys) {
-                // Cypher orders null after every value ascending, before them descending, as Postgres does
-                sortInfos.add(call(k.descending() ? "descending" : "ascending", new ColSpec(k.column(), null, null,
-                        null), new EnumValue(NULL_ORDER, k.descending() ? "FIRST" : "LAST")));
-            }
             vs = call("sort", vs, new PureCollection(sortInfos));
         }
-        if (!hidden.isEmpty() || !ap.hiddenColumns().isEmpty()) {
+        boolean computedSlice = computedCount(skip) || computedCount(limit);
+        if (computedSlice) {
+            Set<String> taken = new HashSet<>();
+            columns.forEach(c -> taken.add(c.name()));
+            hidden.forEach(h -> taken.add(h.name()));
+            ap.hiddenColumns().forEach(c -> taken.add(c.name()));
+            vs = slicedByRowNumber(vs, sortInfos, skip, limit, taken);
+        }
+        if (!hidden.isEmpty() || !ap.hiddenColumns().isEmpty() || computedSlice) {
             vs = call("select", vs, new ColSpecArray(columns.stream().filter(c -> !c.virtual())
                     .map(c -> new ColSpec(c.name(), null, null, null)).toList()));
         }
-        if (skip != null) {
+        if (skip != null && !computedSlice) {
             vs = call("drop", vs, rowCount(skip, "SKIP"));
         }
-        if (limit != null) {
+        if (limit != null && !computedSlice) {
             vs = call("limit", vs, rowCount(limit, "LIMIT"));
         }
-        return new Rows(vs, List.copyOf(columns));
+        if (!ap.carriedItems().isEmpty()) {
+            // a returned node or relationship carried as its columns (told apart by identity under the DISTINCT or
+            // the grouping): its JSON rebuilt from them, the result the items' columns alone, in order
+            RowScope rebuilt = new RowScope(new Rows(vs, List.copyOf(columns)));
+            List<ColSpec> json = new ArrayList<>();
+            List<Col> result = new ArrayList<>();
+            for (String name : ap.itemNames()) {
+                if (ap.carriedItems().contains(name)) {
+                    Tx t = scalarOf(rebuilt.variable(new CypherAst.Var(name, pos)), pos);
+                    json.add(new ColSpec(name, lambda(rebuilt.row(), SqlToPure.valueOf(t)), null, null));
+                    result.add(new Col(name, t.kind(), t.nullable(), null, t.detail()));
+                } else {
+                    result.add(columns.stream().filter(c -> c.name().equals(name)).findFirst().orElseThrow());
+                }
+            }
+            vs = call("extend", vs, new ColSpecArray(json));
+            vs = call("select", vs, new ColSpecArray(ap.itemNames().stream()
+                    .map(n -> new ColSpec(n, null, null, null)).toList()));
+            columns = result;
+        }
+        // (a returned split value's cell the value its text spells, last: the sort above read the text, W13)
+        return egressed(new Rows(vs, List.copyOf(columns)));
     }
 
     /** One arm's projection: its relation before the grouping ({@code base}: the projected columns, or the keys and
@@ -2914,7 +6714,9 @@ public final class CypherToPure {
     private record ArmProjection(ValueSpecification base, boolean grouped, List<Col> columns,
             List<SortKey> sortKeys, List<ColSpec> hidden, List<SortItem> afterGrouping, List<ColSpec> keys,
             List<ColSpec> aggregates, List<ColSpec> finishes, List<ColSpec> expressions, List<Col> hiddenColumns,
-            Map<String, String> sortAggregateColumns, @com.legend.base.Nullable String whereColumn) {
+            Map<String, String> sortAggregateColumns, @com.legend.base.Nullable String whereColumn,
+            /** the items' names in order, and the returned ones carried as columns (their JSON rebuilt last) */
+            List<String> itemNames, List<String> carriedItems) {
     }
 
     /** The grouping keys' spelled expressions, each to the column it is projected as (the items and the columns
@@ -2933,60 +6735,42 @@ public final class CypherToPure {
 
     private ArmProjection projectArm(List<Item> items, boolean distinct, List<SortItem> orderBy,
             @com.legend.base.Nullable Expr skip, @com.legend.base.Nullable Expr limit,
-            @com.legend.base.Nullable Expr where, State state, Pos pos, boolean returning) {
+            @com.legend.base.Nullable Expr where, State state, Pos pos, boolean returning, boolean oneArm) {
         Scope scope = state instanceof Graph g ? new GraphScope(g) : new RowScope((Rows) state);
         Set<String> names = new HashSet<>();
         Map<String, NodeCarry> nodes = new LinkedHashMap<>();
         // the aggregating items, by their spelling, to their names (an ORDER BY may re-spell one)
         Map<String, String> aggregateTexts = new LinkedHashMap<>();
-        List<Output> outputs = outputs(items, scope, names, nodes, aggregateTexts, returning);
+        // a returned node or relationship under DISTINCT or a grouping is told apart by identity: carried as its
+        // columns (the identity among them), the DISTINCT or the keys over them, its JSON rebuilt after (§12.47)
+        boolean carryReturned = returning && (distinct || items.stream().anyMatch(i -> i.expr() != null
+                && (isAggregate(i.expr()) || containsAggregate(i.expr()))));
+        List<Output> outputs = outputs(items, scope, names, nodes, aggregateTexts, returning, carryReturned);
         boolean grouped = outputs.stream().anyMatch(o -> o.agg() != null || o.around() != null);
+        List<String> itemNames = outputs.stream().map(Output::name).toList();
+        if (grouped || distinct) {
+            // a relationship told apart needs an identity: an edge class's row has one, a property's or an
+            // association's link has none yet (S74)
+            for (Map.Entry<String, NodeCarry> n : nodes.entrySet()) {
+                if (n.getValue().relationship() && !n.getValue().relShape().identified()) {
+                    throw CypherErrors.unsupported((grouped ? "grouping by" : "DISTINCT over") + " a relationship ("
+                            + n.getKey() + ") with no identity of its own (one over a property or an association)"
+                            + " is not supported yet", pos);
+                }
+            }
+        }
         // each non-aggregating item's scalar (a list or map returned is its Variant), or the shape it is carried as
         Map<String, Tx> scalars = new HashMap<>();
         Map<String, Val> carried = new LinkedHashMap<>();
-        for (Output out : outputs) {
-            Val v = out.value();
-            if (v == null) {
-                continue;
-            }
-            if (v instanceof Scalar s) {
-                scalars.put(out.name(), s.tx());
-            } else if (returning) {
-                scalars.put(out.name(), variant(v, pos));
-            } else if (!rowFree(v) && !grouped) {
-                // a list or map holding a value of the row, carried through WITH: the Variant the database builds
-                // (the study's §12.41), marked with its shape where its spelling says it (its elements' one kind, a
-                // map's entries), so what reads it after reads into it by type (the study's §12.43)
-                scalars.put(out.name(), variant(v, pos));
-            } else if (!rowFree(v)) {
-                throw CypherErrors.unsupported("a list or map holding a value of the row (" + out.name() + ") among"
-                        + " the grouping keys is not supported yet", pos);
-            } else if (grouped) {
-                throw CypherErrors.unsupported("a list or map (" + out.name() + ") among the grouping keys is not"
-                        + " supported yet", pos);
-            } else if (distinct) {
-                throw CypherErrors.unsupported("WITH DISTINCT over a list or map (" + out.name() + ") is not"
-                        + " supported yet", pos);
-            } else {
-                carried.put(out.name(), v);
-            }
-        }
-        for (Output out : outputs) {
-            boolean node = nodes.containsKey(out.name()) || isNode(scalars.get(out.name()));
-            if (node && grouped) {
-                throw CypherErrors.unsupported("a node among the grouping keys (" + out.name() + "; Neo4j groups"
-                        + " nodes by identity) is not supported yet", pos);
-            }
-            if (node && distinct) {
-                throw CypherErrors.unsupported((returning ? "RETURN" : "WITH") + " DISTINCT over a node ("
-                        + out.name() + "; Neo4j tells nodes apart by identity) is not supported yet", pos);
-            }
-        }
+        itemValues(outputs, returning, grouped, distinct, pos, scalars, carried);
         // the sort keys: an item (by its alias or its text), else an expression over the projected aliases first
         // (an alias shadows the variable it was computed from: the TCK's WithOrderBy4) and the scope before the
         // projection
         List<SortKey> sortKeys = new ArrayList<>();
         List<ColSpec> hidden = new ArrayList<>();
+        // the orderability keys of Variant sort keys (§12.58): computed over the rows after the projection (their
+        // lambdas lower over rows, not inside a projection over a class extent)
+        List<ColSpec> keyed = new ArrayList<>();
         Map<String, Val> projected = new HashMap<>();
         for (Output out : outputs) {
             if (out.value() != null) {
@@ -3002,33 +6786,33 @@ public final class CypherToPure {
         Map<String, String> sortAggregateColumns = new LinkedHashMap<>();
         for (SortItem o : orderBy) {
             String key = outputNamed(items, o.expr(), outputs);
-            if (key != null && carried.containsKey(key)) {
-                throw CypherErrors.unsupported("ORDER BY a list or map (" + key + ") is not supported yet", o.pos());
-            }
             if (key != null && (nodes.containsKey(key) || isNode(scalars.get(key)))) {
                 throw CypherErrors.unsupported("ORDER BY a node (" + key + "; Neo4j orders nodes by identity) is not"
                         + " supported yet", o.pos());
             }
-            if (key != null && scalars.get(key) != null && scalars.get(key).kind() == Kind.JSON) {
-                // (a stored list, a path: Neo4j orders a list by its elements, which the Variant's text does not)
-                throw CypherErrors.unsupported("ORDER BY a list, a map or a path the database holds as a Variant ("
-                        + key + ") is not supported yet", o.pos());
+            if (key != null && (carried.containsKey(key) || scalars.get(key) != null
+                    && scalars.get(key).kind() == Kind.JSON)) {
+                // a list, a map or a path the database holds as a Variant (a carried list too): not the column
+                // itself but its orderability key, a hidden key computed below (the study's §12.58)
+                key = null;
             }
             if (key == null && (skip != null || limit != null) && o.expr() instanceof CypherAst.Prop pr
                     && pr.target() instanceof CypherAst.Var pv && nodes.containsKey(pv.name())) {
                 // a carried node's property: its own column is the key (the node is carried under its name)
                 NodeProp np = nodes.get(pv.name()).shape().props().get(pr.name());
                 if (np == null) {
+                    if (open) {
+                        // an open graph (the study's §12.45): null on every row, which orders nothing
+                        continue;
+                    }
                     throw CypherErrors.invalid("the node " + pv.name() + " has no property " + pr.name() + " (the"
                             + " graph is the model: a property no class declares is an error, not null)", o.pos());
                 }
-                if (np.kind() == Kind.JSON) {
-                    // (a stored list: Neo4j orders a list by its elements, which the Variant's text does not)
-                    throw CypherErrors.unsupported("ORDER BY a list, a map or a path the database holds as a Variant ("
-                            + pv.name() + "." + pr.name() + ") is not supported yet", o.pos());
+                if (np.kind() != Kind.JSON) {
+                    sortKeys.add(new SortKey(np.column(), o.descending(), false));
+                    continue;
                 }
-                sortKeys.add(new SortKey(np.column(), o.descending(), false));
-                continue;
+                // (a stored list: its orderability key, a hidden key computed below, §12.58)
             }
             if (key == null) {
                 if (grouped && containsAggregate(o.expr())) {
@@ -3052,24 +6836,44 @@ public final class CypherToPure {
                     sortKeys.add(new SortKey(freshName(names), o.descending(), true));
                     continue;
                 }
-                if (skip == null && limit == null) {
-                    // the lowering's execute path cannot render a sort key that is not an output column (Render:
-                    // "render over an ordered relation whose sort key is not an output column"; reported to the
-                    // database owner, IN_FLIGHT 2026-10-15); with a SKIP or LIMIT the sort is a subquery's and renders
-                    throw CypherErrors.unsupported("an ORDER BY on an expression that is not a returned item, without a"
-                            + " SKIP or LIMIT, is not supported yet (the lowering renders no such sort key)", o.pos());
+                // (a hidden key the projection drops: the lowering's result render carries it as a hidden output
+                // of the ordered relation, Render.withSortOutputs, 2026-10-17; before, only a sort under a SKIP or
+                // LIMIT, a subquery's, rendered)
+                Tx sortTx = tx(o.expr(), sortScope);
+                if (oneArm && SqlToPure.isNullConstant(sortTx)) {
+                    // (null on every row: it orders nothing, §12.82; over several arms the key is null in some
+                    // only, and every arm keeps it, so the arms' columns agree)
+                    continue;
                 }
-                Tx t = tx(o.expr(), sortScope);
-                if (t.kind() == Kind.JSON) {
-                    throw CypherErrors.unsupported("ORDER BY a list, a map or a path the database holds as a Variant"
-                            + " is not supported yet", o.pos());
+                if (split(sortTx)) {
+                    // a split value (W13): ordered by its parts, each a hidden key
+                    for (Tx part : partsOf(sortTx)) {
+                        sortKeys.add(new SortKey(hiddenSortKey(part, scope, names, hidden, keyed), o.descending(),
+                                true));
+                    }
+                    continue;
                 }
-                key = freshName(names);
-                hidden.add(new ColSpec(key, lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
+                key = hiddenSortKey(sortTx, scope, names, hidden, keyed);
                 sortKeys.add(new SortKey(key, o.descending(), true));
-            } else {
+            } else if (scalars.get(key) instanceof Tx item && split(item) && !(grouped && returning)) {
+                // a split item (W13) orders by its parts: through a WITH its columns (the date's beside it, a key of
+                // the grouping too where it groups), when returned ungrouped hidden keys of its parts beside its text
+                // (a grouped one returned orders by its ISO text, of fixed width, whose order is the value's)
+                if (returning) {
+                    for (Tx part : partsOf(item)) {
+                        sortKeys.add(new SortKey(hiddenSortKey(part, scope, names, hidden, keyed), o.descending(),
+                                true));
+                    }
+                } else {
+                    if (item.kind() == Kind.DATETIME || item.kind() == Kind.ZONED) {
+                        sortKeys.add(new SortKey(DATE_PART + key, o.descending(), false));
+                    }
+                    sortKeys.add(new SortKey(key, o.descending(), false));
+                }
+            } else if (!oneArm || scalars.get(key) == null || !SqlToPure.isNullConstant(scalars.get(key))) {
                 sortKeys.add(new SortKey(key, o.descending(), false));
             }
+            // (else an item null on every row: it orders nothing, §12.82)
         }
         // the WHERE of a WITH over an ungrouped projection: a hidden column, read before the sort
         String whereColumn = null;
@@ -3081,37 +6885,8 @@ public final class CypherToPure {
         ValueSpecification vs;
         List<Col> columns = new ArrayList<>();
         if (!grouped) {
-            List<ColSpec> specs = new ArrayList<>();
-            for (Output out : outputs) {
-                Val shape = carried.get(out.name());
-                if (shape != null) {
-                    columns.add(new Col(out.name(), Kind.JSON, false, shape));
-                    continue;
-                }
-                NodeCarry node = nodes.get(out.name());
-                if (node != null) {
-                    // the node's columns, then the node itself under its name (a virtual column; a relationship's
-                    // shape is its type column)
-                    specs.addAll(node.specs());
-                    columns.addAll(node.columns());
-                    columns.add(new Col(out.name(), Kind.JSON, false, null, node.relationship()
-                            ? new RelShape(node.shape().labels(), node.shape().props()) : node.shape()));
-                    continue;
-                }
-                Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
-                specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
-                // (a zoned date-time's zone rides with its column, so the clauses after read its fields in it)
-                columns.add(new Col(out.name(), t.kind(), t.nullable(), null, t.detail()));
-            }
-            if (specs.isEmpty()) {
-                // every item carried: the rows stay (one per row in hand), under a column nothing names
-                String keep = freshName(names);
-                specs.add(new ColSpec(keep, lambda(scope.row(), new CInteger(1L)), null, null));
-                columns.add(new Col(keep, Kind.INTEGER, false));
-            }
-            specs.addAll(hidden);
-            vs = state instanceof Graph g ? call("project", source(g), new ColSpecArray(specs))
-                    : reproject((Rows) state, specs);
+            vs = ungroupedProjection(outputs, carried, nodes, scalars, returning, oneArm, pos, scope, names, hidden,
+                    keyed, state, columns);
         } else {
             // the keys and the aggregates' arguments as columns, then the grouping
             List<ColSpec> specs = new ArrayList<>();
@@ -3126,7 +6901,7 @@ public final class CypherToPure {
                     // an expression around aggregates: its aggregates hidden columns of the grouping, the expression
                     // computed over them (and the keys) after the finishes, under the item's name
                     for (Output a : out.around().aggregates()) {
-                        groupedAggregate(a, scope, names, specs, aggregates, finishes, aroundColumns);
+                        groupedAggregate(a, scope, names, specs, aggregates, finishes, aroundColumns, false);
                     }
                     List<Col> grouping = new ArrayList<>(columns);
                     grouping.addAll(aroundColumns);
@@ -3135,38 +6910,168 @@ public final class CypherToPure {
                     Val av = val(out.around().expr(), after);
                     // (a list or map around aggregates, {name: count(b)}: the Variant it is as a value)
                     Tx t = av instanceof Scalar s ? s.tx() : variant(av, pos);
-                    expressions.add(new ColSpec(out.name(), lambda(after.row(), SqlToPure.valueOf(t)), null, null));
-                    columns.add(new Col(out.name(), t.kind(), t.nullable(), null, t.detail()));
+                    com.legend.protocol.sql.InputDialect.TypeDetail detail = columnDetail(t, oneArm);
+                    if (returning && split(t)) {
+                        // a split value returned (W13): its ISO text, which the result reads as the value (its
+                        // egress), as a returned grouping key's
+                        detail = egressed(t, pos);
+                    }
+                    Tx cell = detail instanceof SortableText st && st.returned() ? splitSortable(t) : t;
+                    expressions.add(new ColSpec(out.name(), lambda(after.row(), SqlToPure.valueOf(cell)), null,
+                            null));
+                    columns.add(new Col(out.name(), t.kind(), t.nullable(), null, detail));
+                    if (!returning && split(t)) {
+                        // a split value through a WITH (W13): its date and its read zone beside it, as an item's
+                        // (the clauses after read the parts back from the columns)
+                        aroundParts(out.name(), t, after.row(), names, expressions, columns);
+                    }
+                } else if (nodes.containsKey(out.name())) {
+                    // a node among the keys: each of its columns a key (its identity among them: two nodes alike
+                    // are two groups), the node itself under its name (a virtual column, as the ungrouped carry)
+                    NodeCarry node = nodes.get(out.name());
+                    specs.addAll(node.specs());
+                    node.columns().forEach(c -> keys.add(new ColSpec(c.name(), null, null, null)));
+                    columns.addAll(node.columns());
+                    columns.add(new Col(out.name(), Kind.JSON, false, null, node.relationship() ? node.relShape()
+                            : node.shape()));
                 } else if (out.agg() == null) {
                     Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
-                    specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
+                    com.legend.protocol.sql.InputDialect.TypeDetail detail = columnDetail(t, oneArm);
+                    if (returning && split(t)) {
+                        // a split value returned as a grouping key (W13): grouped by its ISO text, which the result
+                        // reads as the value (its egress), and a sort after the grouping reads back as the parts
+                        detail = egressed(t, pos);
+                    }
+                    Tx cell = detail instanceof SortableText st && st.returned() ? splitSortable(t) : t;
+                    specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(cell)), null, null));
                     keys.add(new ColSpec(out.name(), null, null, null));
-                    columns.add(new Col(out.name(), t.kind(), t.nullable(), null, t.detail()));
+                    columns.add(new Col(out.name(), t.kind(), t.nullable(), null, detail));
                 } else {
-                    groupedAggregate(out, scope, names, specs, aggregates, finishes, columns);
+                    groupedAggregate(out, scope, names, specs, aggregates, finishes, columns, returning);
                 }
             }
             for (Output a : sortAggregates) {
-                groupedAggregate(a, scope, names, specs, aggregates, finishes, hiddenColumns);
+                groupedAggregate(a, scope, names, specs, aggregates, finishes, hiddenColumns, false);
             }
             vs = state instanceof Graph g ? call("project", source(g), new ColSpecArray(specs))
                     : reproject((Rows) state, specs);
             return new ArmProjection(vs, true, columns, sortKeys, hidden, afterGrouping, keys, aggregates, finishes,
-                    expressions, hiddenColumns, sortAggregateColumns, null);
+                    expressions, hiddenColumns, sortAggregateColumns, null, itemNames,
+                    returning ? List.copyOf(nodes.keySet()) : List.of());
         }
         return new ArmProjection(vs, false, columns, sortKeys, hidden, afterGrouping, List.of(), List.of(), List.of(),
-                List.of(), List.of(), Map.of(), whereColumn);
+                List.of(), List.of(), Map.of(), whereColumn, itemNames, returning ? List.copyOf(nodes.keySet())
+                : List.of());
+    }
+
+    /** {@link #projectArm}'s projection without a grouping: each item's columns into {@code columns} (a carried
+     *  shape's, a node's and the node under its name, a scalar's; a split value returned its ISO text), the hidden
+     *  columns after them, over the graph or the rows in hand, and the Variant sort keys' orderability keys beside. */
+    private ValueSpecification ungroupedProjection(List<Output> outputs, Map<String, Val> carried,
+            Map<String, NodeCarry> nodes, Map<String, Tx> scalars, boolean returning, boolean oneArm, Pos pos,
+            Scope scope, Set<String> names, List<ColSpec> hidden, List<ColSpec> keyed, State state,
+            List<Col> columns) {
+        List<ColSpec> specs = new ArrayList<>();
+        for (Output out : outputs) {
+            Val shape = carried.get(out.name());
+            if (shape != null) {
+                columns.add(new Col(out.name(), Kind.JSON, false, shape));
+                continue;
+            }
+            NodeCarry node = nodes.get(out.name());
+            if (node != null) {
+                // the node's columns, then the node itself under its name (a virtual column; a relationship's
+                // shape is its type column)
+                specs.addAll(node.specs());
+                columns.addAll(node.columns());
+                columns.add(new Col(out.name(), Kind.JSON, false, null, node.relationship() ? node.relShape()
+                        : node.shape()));
+                continue;
+            }
+            Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
+            com.legend.protocol.sql.InputDialect.TypeDetail detail = columnDetail(t, oneArm);
+            if (returning && split(t)) {
+                // a split value returned (W13): its ISO text, which the result reads as the value (and a sort
+                // after a DISTINCT reads back as the parts)
+                detail = egressed(t, pos);
+            }
+            Tx cell = detail instanceof SortableText st && st.returned() ? splitSortable(t) : t;
+            specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(cell)), null, null));
+            // (a zoned date-time's zone rides with its column, so the clauses after read its fields in it)
+            columns.add(new Col(out.name(), t.kind(), t.nullable(), null, detail));
+        }
+        if (specs.isEmpty()) {
+            // every item carried: the rows stay (one per row in hand), under a column nothing names
+            String keep = freshName(names);
+            specs.add(new ColSpec(keep, lambda(scope.row(), new CInteger(1L)), null, null));
+            columns.add(new Col(keep, Kind.INTEGER, false));
+        }
+        specs.addAll(hidden);
+        ValueSpecification vs = state instanceof Graph g ? call("project", source(g), new ColSpecArray(specs))
+                : reproject((Rows) state, specs);
+        if (!keyed.isEmpty()) {
+            vs = call("extend", vs, new ColSpecArray(keyed));
+        }
+        return vs;
+    }
+
+    /** Each non-aggregating item's scalar into {@code scalars} (a list or map returned is its Variant), or the shape
+     *  it is carried as into {@code carried} ({@link #projectArm}'s). */
+    private void itemValues(List<Output> outputs, boolean returning, boolean grouped, boolean distinct, Pos pos,
+            Map<String, Tx> scalars, Map<String, Val> carried) {
+        for (Output out : outputs) {
+            Val v = out.value();
+            if (v == null) {
+                continue;
+            }
+            if (v instanceof Scalar s) {
+                scalars.put(out.name(), s.tx());
+            } else if (returning) {
+                scalars.put(out.name(), variant(v, pos));
+            } else if (!rowFree(v) && !grouped) {
+                // a list or map holding a value of the row, carried through WITH: the Variant the database builds
+                // (the study's §12.41), marked with its shape where its spelling says it (its elements' one kind, a
+                // map's entries), so what reads it after reads into it by type (the study's §12.43)
+                scalars.put(out.name(), variant(v, pos));
+            } else if (grouped || distinct) {
+                // a list or map among the grouping keys, or under DISTINCT (the study's §12.57): the Variant the
+                // database builds, equal as text when its elements are scalars, lists or maps of them; one holding
+                // a node or a relationship (equal by identity in Neo4j, which the text lacks), or elements of a
+                // shape the spelling does not say, is refused by name
+                Tx key = variant(v, pos);
+                if (!scalarShaped(key.detail())) {
+                    throw CypherErrors.unsupported((grouped ? "a list or map (" : "WITH DISTINCT over a list or map (")
+                            + out.name() + ") holding a node, a relationship or an element of unknown shape "
+                            + (grouped ? "among the grouping keys " : "") + "is not supported yet", pos);
+                }
+                scalars.put(out.name(), key);
+            } else {
+                carried.put(out.name(), v);
+            }
+        }
     }
 
     /** An aggregating output's pieces: its argument's column before the grouping, its reduce, its finish (a sum of
      *  nothing is 0: the raw sum under a fresh name, the finished one under the output's), and its column. */
     private void groupedAggregate(Output out, Scope scope, Set<String> names, List<ColSpec> specs,
-            List<ColSpec> aggregates, List<ColSpec> finishes, List<Col> columns) {
+            List<ColSpec> aggregates, List<ColSpec> finishes, List<Col> columns, boolean returned) {
         Aggregate agg = java.util.Objects.requireNonNull(out.agg());
+        if (returned && agg.detail() instanceof SortableText st) {
+            // a split value's min or max returned (W13): its sortable text, which the result reads as the value
+            // last ({@link #egressed(Rows)})
+            agg = new Aggregate(agg.argColumn(), agg.arg(), agg.reduce(), agg.kind(), agg.nullable(), agg.finish(),
+                    new SortableText(st.kind(), null, null, true), agg.keyColumn(), agg.key());
+        }
         specs.add(new ColSpec(agg.argColumn(), lambda(scope.row(), SqlToPure.valueOf(agg.arg())), null, null));
         String computed = agg.finish() != null ? freshName(names) : out.name();
-        aggregates.add(new ColSpec(computed, lambda("x", new AppliedProperty(new Variable("x"), agg.argColumn())),
-                agg.reduce(), null));
+        ValueSpecification mapped = new AppliedProperty(new Variable("x"), agg.argColumn());
+        if (agg.keyColumn() != null) {
+            // (a bivariate reducer: the key's column beside the value's, the map body the pair)
+            specs.add(new ColSpec(agg.keyColumn(), lambda(scope.row(), SqlToPure.valueOf(
+                    java.util.Objects.requireNonNull(agg.key()))), null, null));
+            mapped = call(ROW_MAPPER, mapped, new AppliedProperty(new Variable("x"), agg.keyColumn()));
+        }
+        aggregates.add(new ColSpec(computed, lambda("x", mapped), agg.reduce(), null));
         if (agg.finish() != null) {
             finishes.add(new ColSpec(out.name(), lambda("r", agg.finish().apply(new AppliedProperty(
                     new Variable("r"), computed))), null, null));
@@ -3177,12 +7082,40 @@ public final class CypherToPure {
     private record SortKey(String column, boolean descending, boolean hidden) {
     }
 
+    /** A hidden sort key's column: the value itself, projected under a fresh name; a Variant's orderability key
+     *  (§12.58) computed over the rows after the projection ({@code keyed}), the Variant a hidden column of the
+     *  projection. */
+    private String hiddenSortKey(Tx t, Scope scope, Set<String> names, List<ColSpec> hidden, List<ColSpec> keyed) {
+        String key = freshName(names);
+        if (t.kind() == Kind.JSON) {
+            String raw = freshName(names);
+            hidden.add(new ColSpec(raw, lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
+            keyed.add(new ColSpec(key, lambda("r", keyOf(new AppliedProperty(new Variable("r"), raw), KEY_DEPTH)),
+                    null, null));
+        } else {
+            hidden.add(new ColSpec(key, lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
+        }
+        return key;
+    }
+
     /** The items' outputs over the scope before the projection: a node carried through a WITH (into
      *  {@code nodes}), an aggregate (its spelling into {@code aggregateTexts}), an expression around aggregates, or
      *  a value; the names taken into {@code names}. */
     private List<Output> outputs(List<Item> items, Scope scope, Set<String> names, Map<String, NodeCarry> nodes,
-            Map<String, String> aggregateTexts, boolean returning) {
+            Map<String, String> aggregateTexts, boolean returning, boolean carryReturned) {
         List<Output> outputs = new ArrayList<>();
+        // the grouping keys' spellings (an item that is no aggregate and holds none) to their output names: an
+        // expression around aggregates may read them (Neo4j's: any other item of the projection is a grouping key;
+        // Return6, With6)
+        Map<String, String> keyTexts = new LinkedHashMap<>();
+        for (Item item : items) {
+            Expr e = item.expr();
+            // (a variable or a property of one: Neo4j's leaf keys; `me.age + you.age` projected beside
+            // `me.age + you.age + count(*)` is still its AmbiguousAggregationExpression, Return6/[21])
+            if (e instanceof CypherAst.Var || e instanceof CypherAst.Prop pr && pr.target() instanceof CypherAst.Var) {
+                keyTexts.put(text(e), item.alias() != null ? item.alias() : item.text());
+            }
+        }
         for (Item item : items) {
             Expr e = item.expr();
             if (e == null) {
@@ -3192,11 +7125,28 @@ public final class CypherToPure {
             if (!names.add(name)) {
                 throw CypherErrors.invalid("Multiple result columns with the same name are not supported", item.pos());
             }
-            NodeCarry node = !returning && e instanceof CypherAst.Var v ? carriedNode(v, scope, names) : null;
+            NodeCarry node = (!returning || carryReturned) && e instanceof CypherAst.Var v
+                    ? carriedNode(v, scope, names) : null;
             if (node != null) {
-                // a node through WITH: carried as its columns; its JSON only when returned or used as a value
+                // a node through WITH: carried as its columns; its JSON only when returned or used as a value (a
+                // returned node under DISTINCT or a grouping is carried too, by identity, its JSON rebuilt after)
                 nodes.put(name, node);
                 outputs.add(new Output(name, null, null));
+                continue;
+            }
+            if (!returning && e instanceof CypherAst.Var v && pathCarried(v, scope)) {
+                // a path through WITH (the study's §12.68): its value, and beside it its length, nodes and
+                // relationships under the PATH_PART names the clauses after read them by (as a materialized path
+                // carries them, §12.42): columns of the rows, so a grouping by the path keys on them too and what
+                // reads them after reads a column, never into the grouped value (Postgres reads no grouped
+                // expression inside a subquery)
+                outputs.add(new Output(name, val(e, scope), null));
+                for (String fn : List.of("length", "nodes", "relationships")) {
+                    String column = PATH_PART + fn + "_" + name;
+                    names.add(column);
+                    outputs.add(new Output(column, val(new CypherAst.Call(fn, false, List.of(v), item.pos()), scope),
+                            null));
+                }
                 continue;
             }
             if (isAggregate(e)) {
@@ -3204,15 +7154,13 @@ public final class CypherToPure {
                 outputs.add(new Output(name, null, aggregate(e, scope, names)));
             } else if (containsAggregate(e)) {
                 // an expression around aggregates (the study's §12.24): each aggregate a hidden output of the
-                // grouping, the expression computed over them after it; its other parts are constants and
-                // parameters (a value of the row among them is Neo4j's implicit grouping key, an error)
-                for (CypherAst.Var v : variablesIn(e, false)) {
-                    throw CypherErrors.invalid("Aggregation column contains implicit grouping expressions (" + v.name()
-                            + " in " + item.text() + "): extract them into a preceding WITH", item.pos());
-                }
+                // grouping, the expression computed over them after it; its other parts are constants,
+                // parameters and the grouping keys, read as their columns after the grouping (any other value of
+                // the row is Neo4j's implicit grouping key, an error)
+                refuseImplicitGrouping(e, keyTexts, item);
                 List<Expr> inner = new ArrayList<>();
                 aggregatesIn(e, inner);
-                Map<String, String> aggregateColumns = new LinkedHashMap<>();
+                Map<String, String> aggregateColumns = new LinkedHashMap<>(keyTexts);
                 List<Output> hiddenAggregates = new ArrayList<>();
                 for (Expr a : inner) {
                     if (!aggregateColumns.containsKey(text(a))) {
@@ -3223,10 +7171,49 @@ public final class CypherToPure {
                 }
                 outputs.add(new Output(name, null, null, new Around(e, hiddenAggregates, aggregateColumns)));
             } else {
-                outputs.add(new Output(name, val(e, scope), null));
+                Val value = val(e, scope);
+                outputs.add(new Output(name, value, null));
+                if (!returning && value instanceof Scalar sv && split(sv.tx()) && (sv.tx().kind() == Kind.DATETIME
+                        || sv.tx().kind() == Kind.ZONED)) {
+                    // a split date-time through a WITH (W13): its date beside it, a column of the rows the clauses
+                    // after read it back from
+                    String column = DATE_PART + name;
+                    names.add(column);
+                    outputs.add(new Output(column, scalar(datePartOf(sv.tx())), null));
+                }
+                Zone zone = value instanceof Scalar s ? zoneOf(s.tx()) : null;
+                if (!returning && zone != null && zone.read() != null) {
+                    // a zoned value whose offset the database read, through a WITH: the offset beside it (and its
+                    // region, where one is read), columns of the rows the clauses after read its zone from (the
+                    // study's §12.75)
+                    String column = ZONE_PART + name;
+                    names.add(column);
+                    outputs.add(new Output(column, scalar(Tx.value(zone.read(), Kind.INTEGER,
+                            ((Scalar) value).tx().nullable())), null));
+                    if (zone.region() != null) {
+                        String regionColumn = REGION_PART + name;
+                        names.add(regionColumn);
+                        outputs.add(new Output(regionColumn, scalar(Tx.value(zone.region(), Kind.STRING, true)),
+                                null));
+                    }
+                }
             }
         }
         return outputs;
+    }
+
+    /** Whether {@code v} names a path whose parts the scope can read beside it: a materialized path's columns, or
+     *  a graph's path (a segment of a cut path has no parts of its own). */
+    private static boolean pathCarried(CypherAst.Var v, Scope scope) {
+        if (scope instanceof RowScope rs) {
+            return rs.has(PATH_PART + "length_" + v.name()) && rs.has(PATH_PART + "nodes_" + v.name())
+                    && rs.has(PATH_PART + "relationships_" + v.name());
+        }
+        if (scope instanceof GraphScope gs) {
+            PathSpec spec = gs.g.paths().get(v.name());
+            return spec != null && !spec.partial();
+        }
+        return false;
     }
 
     /** The root class's instances, filtered by the graph's conditions. */
@@ -3300,6 +7287,74 @@ public final class CypherToPure {
         return null;
     }
 
+    /** Whether a SKIP's or LIMIT's count is an expression the database computes ({@link #slicedByRowNumber}): not a
+     *  spelled integer, nor a parameter. */
+    private static boolean computedCount(@com.legend.base.Nullable Expr e) {
+        return e != null && !(e instanceof CypherAst.IntLit) && !(e instanceof CypherAst.Param);
+    }
+
+    /**
+     * {@code WITH n SKIP toInteger(rand() * 9)}, {@code WITH n LIMIT toInteger(ceil(1.7))} (the study's §12.73): a
+     * count the database computes, once -- over one row beside the rows (Neo4j's counts read no variable), its
+     * value raising as Neo4j's does where it is negative -- and the rows kept by their number in the sort's order
+     * (Pure's rowNumber over the sort, the window the database numbers), beyond the SKIP and within the LIMIT, in
+     * that order. A spelled integer beside a computed count is read as written.
+     */
+    private ValueSpecification slicedByRowNumber(ValueSpecification vs, List<ValueSpecification> sortInfos,
+            @com.legend.base.Nullable Expr skip, @com.legend.base.Nullable Expr limit, Set<String> taken) {
+        String number = freshName(taken);
+        ValueSpecification numbered = call("extend", vs, call("over", new PureCollection(sortInfos)), new ColSpec(
+                number, new LambdaFunction(List.of(new Variable("p"), new Variable("w"), new Variable("r")),
+                List.of(call("rowNumber", new Variable("p"), new Variable("r")))), null, null));
+        // the computed counts, over one row
+        String row = freshName(taken);
+        String one = "\n" + row + "\n1\n";
+        Rows single = new Rows(com.legend.protocol.spec.TdsLiteral.of(one, "#TDS" + one + "#", null),
+                List.of(new Col(row, Kind.INTEGER, false)));
+        RowScope none = new RowScope(single);
+        List<ColSpec> counts = new ArrayList<>();
+        ValueSpecification skipped = skip == null ? null : count(skip, "SKIP", none, counts, taken);
+        ValueSpecification limited = limit == null ? null : count(limit, "LIMIT", none, counts, taken);
+        ValueSpecification bounds = call("extend", single.vs(), new ColSpecArray(counts));
+        ValueSpecification joined = call("join", numbered, bounds, new EnumValue(JOIN_KIND, "INNER"),
+                new LambdaFunction(List.of(new Variable("l"), new Variable("r")), List.of(new CBoolean(true))));
+        ValueSpecification at = new AppliedProperty(new Variable("r"), number);
+        ValueSpecification keep = null;
+        if (skipped != null) {
+            keep = call("greaterThan", at, skipped);
+        }
+        if (limited != null) {
+            ValueSpecification within = call("lessThanEqual", at, skipped == null ? limited : plus(skipped, limited));
+            keep = keep == null ? within : call("and", keep, within);
+        }
+        ValueSpecification kept = call("filter", joined, lambda("r", java.util.Objects.requireNonNull(keep)));
+        return call("sort", kept, new PureCollection(List.of(call("ascending", new ColSpec(number, null, null,
+                null)))));
+    }
+
+    /** A SKIP's or LIMIT's count as the filter reads it: a spelled integer as written; a computed one a column of the
+     *  one row ({@code counts}), raising where it is negative. */
+    private ValueSpecification count(Expr e, String clause, RowScope none, List<ColSpec> counts, Set<String> taken) {
+        if (!computedCount(e)) {
+            return rowCount(e, clause);
+        }
+        Tx t = tx(e, none);
+        if (t.kind() != Kind.INTEGER) {
+            throw CypherErrors.invalid("Invalid input. " + clause + " must be a non-negative integer, but was "
+                    + cypherType(t.kind()), e.pos());
+        }
+        if (t.nullable()) {
+            throw CypherErrors.unsupported(clause + " with a count that may be null is not supported yet", e.pos());
+        }
+        String column = freshName(taken);
+        ValueSpecification v = t.vs();
+        ValueSpecification checked = call("if", call("greaterThanEqual", v, new CInteger(0L)), thunk(v),
+                new LambdaFunction(List.of(), List.of(call("fail", new CString("Invalid input. The value of " + clause
+                        + " must be a non-negative integer.")), v)));
+        counts.add(new ColSpec(column, lambda(none.row(), checked), null, null));
+        return new AppliedProperty(new Variable("r"), column);
+    }
+
     private ValueSpecification rowCount(Expr e, String clause) {
         if (e instanceof CypherAst.IntLit n) {
             if (n.value() < 0) {
@@ -3331,6 +7386,19 @@ public final class CypherToPure {
                 || e instanceof CypherAst.Call c && AGGREGATES.contains(c.name().toLowerCase(Locale.ROOT));
     }
 
+    /** Whether {@code e} calls the function {@code name} (lower case) anywhere. */
+    private static boolean containsCall(Expr e, String name) {
+        if (e instanceof CypherAst.Call c && c.name().toLowerCase(Locale.ROOT).equals(name)) {
+            return true;
+        }
+        for (Expr child : children(e)) {
+            if (containsCall(child, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean containsAggregate(Expr e) {
         if (isAggregate(e)) {
             return true;
@@ -3343,6 +7411,28 @@ public final class CypherToPure {
         return false;
     }
 
+    /** An expression around aggregates may read a grouping key (another item's expression, by its spelling) and
+     *  its aggregates; any other value of the row (a variable outside both, a list predicate's or comprehension's
+     *  own left aside) is Neo4j's implicit grouping key, refused in Neo4j's words. */
+    private static void refuseImplicitGrouping(Expr e, Map<String, String> keyTexts, Item item) {
+        if (keyTexts.containsKey(text(e)) || isAggregate(e) || e instanceof CypherAst.Quantifier
+                || e instanceof CypherAst.ListComprehension) {
+            return;
+        }
+        if (e instanceof CypherAst.Var v) {
+            throw CypherErrors.invalid("Aggregation column contains implicit grouping expressions (" + v.name()
+                    + " in " + item.text() + "): extract them into a preceding WITH", item.pos());
+        }
+        if (e instanceof CypherAst.Prop pr && pr.target() instanceof CypherAst.Var v) {
+            // (a property of a key is no key: Neo4j's AmbiguousAggregationExpression, Return6/[21], With6/[9])
+            throw CypherErrors.invalid("Aggregation column contains implicit grouping expressions (" + v.name() + "."
+                    + pr.name() + " in " + item.text() + "): extract them into a preceding WITH", item.pos());
+        }
+        for (Expr child : children(e)) {
+            refuseImplicitGrouping(child, keyTexts, item);
+        }
+    }
+
     /** The aggregates inside {@code e}, outermost (one inside another is Neo4j's error, raised where the aggregate
      *  is read). */
     private static void aggregatesIn(Expr e, List<Expr> out) {
@@ -3352,28 +7442,6 @@ public final class CypherToPure {
         }
         for (Expr child : children(e)) {
             aggregatesIn(child, out);
-        }
-    }
-
-    /** The variables {@code e} reads, inside its aggregates too when {@code intoAggregates} (a list predicate's or
-     *  comprehension's own are not looked into). */
-    private static List<CypherAst.Var> variablesIn(Expr e, boolean intoAggregates) {
-        List<CypherAst.Var> out = new ArrayList<>();
-        variablesIn(e, intoAggregates, out);
-        return out;
-    }
-
-    private static void variablesIn(Expr e, boolean intoAggregates, List<CypherAst.Var> out) {
-        if (e instanceof CypherAst.Quantifier || e instanceof CypherAst.ListComprehension
-                || !intoAggregates && isAggregate(e)) {
-            return;
-        }
-        if (e instanceof CypherAst.Var v) {
-            out.add(v);
-            return;
-        }
-        for (Expr child : children(e)) {
-            variablesIn(child, intoAggregates, out);
         }
     }
 
@@ -3463,8 +7531,26 @@ public final class CypherToPure {
         if (containsAggregate(argExpr)) {
             throw CypherErrors.invalid("Can't use aggregate functions inside of aggregate functions.", c.pos());
         }
-        if (c.distinct()) {
+        if (containsCall(argExpr, "rand")) {
+            throw CypherErrors.invalid("Can't use non-deterministic (random) functions inside of aggregate functions.",
+                    c.pos());
+        }
+        if (c.distinct() && !fn.equals("count") && !fn.equals("collect")) {
             throw CypherErrors.unsupported(c.name() + "(DISTINCT ...) is not supported yet", c.pos());
+        }
+        if (fn.equals("count") && c.distinct() && argExpr instanceof CypherAst.Var v
+                && (scope.isPatternVariable(v.name()) || scope.identity(v) != null)) {
+            // count(DISTINCT n): the distinct identities (the study's §12.47), over a graph or over rows that carry
+            // the node or relationship with its identity (a relationship's value, its type and properties, is one
+            // for two relationships alike: §12.54); an absent node's is null, which count skips
+            Tx identity = scope.identity(v);
+            if (identity == null) {
+                throw CypherErrors.unsupported("count(DISTINCT " + v.name() + ") over a relationship with no"
+                        + " identity of its own (one over a property or an association) is not supported yet",
+                        c.pos());
+            }
+            return new Aggregate(freshName(names), identity,
+                    lambda("y", call("count", call("distinct", new Variable("y")))), Kind.INTEGER, false, null);
         }
         if (fn.equals("count") && argExpr instanceof CypherAst.Var v && scope.isPatternVariable(v.name())) {
             // count(n) for a matched node or relationship: every row has one
@@ -3472,7 +7558,8 @@ public final class CypherToPure {
                     lambda("y", call("count", new Variable("y"))), Kind.INTEGER, false, null);
         }
         Tx arg = tx(argExpr, scope);
-        ValueSpecification values = new Variable("y");
+        // (count(DISTINCT x): the distinct values, Pure's distinct before the count, the database's COUNT(DISTINCT))
+        ValueSpecification values = c.distinct() ? call("distinct", new Variable("y")) : new Variable("y");
         if ((fn.equals("sum") || fn.equals("avg")) && arg.kind() == Kind.NULL) {
             // of a null column (a property no node of an empty graph holds, the study's §12.24): no value to add,
             // so the rows contribute 0 to the sum (0 over no row too) and the average is null -- the grouping
@@ -3486,6 +7573,12 @@ public final class CypherToPure {
                             ZERO_OF_NOTHING)
                     : new Aggregate(freshName(names), zero, lambda("y", call("count", values)), Kind.NULL, true,
                             raw -> SqlToPure.nullOf(Kind.FLOAT).vs());
+        }
+        if (fn.equals("count") && c.distinct() && split(arg)) {
+            // count(DISTINCT x) of nanosecond precision (W13): the distinct values' sortable texts, each the whole
+            // value (its nanoseconds alone would make two dates' same clock one value)
+            return new Aggregate(freshName(names), splitSortable(arg), lambda("y", call("count", values)),
+                    Kind.INTEGER, false, null);
         }
         if (fn.equals("count")) {
             return new Aggregate(freshName(names), arg, lambda("y", call("count", values)), Kind.INTEGER, false,
@@ -3502,36 +7595,63 @@ public final class CypherToPure {
             return new Aggregate(freshName(names), arg, lambda("y", call("average", values)), Kind.FLOAT, true,
                     null);
         }
+        if ((fn.equals("min") || fn.equals("max")) && split(arg)) {
+            // of nanosecond precision (W13): the least or greatest of the values' sortable texts (the ISO text of
+            // fixed width, whose order is the value's), read back as the value's parts by the clauses after
+            Tx sortable = splitSortable(arg);
+            return new Aggregate(freshName(names), sortable, lambda("y", call(fn, new Variable("y"))), arg.kind(),
+                    true, null, new SortableText(arg.kind()));
+        }
         if (fn.equals("min") || fn.equals("max")) {
             if (arg.kind() == Kind.BOOLEAN || arg.kind() == Kind.NULL || arg.kind() == Kind.OTHER) {
                 throw CypherErrors.unsupported(c.name() + " of this value is not supported yet", c.pos());
             }
             if (arg.kind() == Kind.JSON) {
-                throw CypherErrors.unsupported(c.name() + " over lists, maps or values of several kinds (Neo4j ranks"
-                        + " them by type) is not supported yet", c.pos());
+                // over Variants (lists, maps, values of several kinds; the study's §12.58): the value at the
+                // smallest or largest orderability key (lite's minBy and maxBy over rowMapper(value, key), the
+                // lowering's ARG_MIN and ARG_MAX); a null Variant's key is null, so the reducer skips it, as
+                // Neo4j's min and max skip nulls
+                Tx key = variantKey(arg);
+                ValueSpecification keyed = call("if", call("equal", key.vs(), new CString("9")),
+                        thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(key.vs()));
+                return new Aggregate(freshName(names), arg, lambda("y", call(fn.equals("min") ? LITE_MIN_BY
+                        : LITE_MAX_BY, new Variable("y"))), Kind.JSON, true, null, arg.detail(), freshName(names),
+                        Tx.value(keyed, Kind.STRING, true));
             }
             return new Aggregate(freshName(names), arg, lambda("y", call(fn, values)), arg.kind(), true, null);
         }
         if (fn.equals("collect")) {
-            return collect(arg, names, c.pos());
+            return collect(arg, c.distinct(), names, c.pos());
         }
         throw CypherErrors.unsupported(c.name() + "(...) is not supported yet", c.pos());
     }
 
     /** {@code collect(x)} (the study's §12.41): the group's values as a list the database builds -- each value's
-     *  JSON text ({@link #scalarJsonText}: a number, a boolean, a string, a date, a node's or a list's Variant text),
+     *  JSON text ({@link #scalarJsonText}: a number, a boolean, a string, a temporal (§12.76), a node's or a list's
+     *  Variant text),
      *  a null contributing nothing (Neo4j's {@code collect} skips nulls), joined with commas (Pure's
      *  {@code joinStrings}, the database's string aggregate) and read as a Variant between brackets; {@code []} over
      *  no value. The elements' order is the database's, as the TCK's "ignoring element order for lists" allows. */
-    private Aggregate collect(Tx arg, Set<String> names, Pos pos) {
-        if (arg.kind() == Kind.DATETIME || arg.kind() == Kind.TIME || arg.kind() == Kind.ZONED
-                || arg.kind() == Kind.ZONED_TIME || arg.kind() == Kind.DURATION || arg.kind() == Kind.OTHER) {
+    private Aggregate collect(Tx arg, boolean distinct, Set<String> names, Pos pos) {
+        if (arg.kind() == Kind.DURATION || arg.kind() == Kind.OTHER) {
             throw CypherErrors.unsupported("collect of a " + cypherType(arg.kind()) + " is not supported yet (the"
                     + " Variant spells it as text)", pos);
+        }
+        if (distinct && (arg.kind() == Kind.ZONED || arg.kind() == Kind.ZONED_TIME)) {
+            // (a zoned value's text is its instant's: two of one instant in two zones would be one)
+            throw CypherErrors.unsupported("collect(DISTINCT ...) of a " + cypherType(arg.kind()) + " is not"
+                    + " supported yet (the Variant spells its instant alone)", pos);
         }
         Tx piece;
         if (arg.kind() == Kind.NULL) {
             piece = SqlToPure.nullOf(Kind.STRING);
+        } else if (split(arg)) {
+            // of nanosecond precision (W13): the oracle's spelling the database writes of the parts, as a string
+            Tx spelled = splitSpelled(arg);
+            ValueSpecification sv = SqlToPure.valueOf(spelled);
+            piece = spelled.nullable() ? Tx.value(call("if", call("isEmpty", sv), thunk(SqlToPure.nullOf(Kind.STRING)
+                    .vs()), thunk(plus(new CString("\""), call("toOne", sv), new CString("\"")))), Kind.STRING, true)
+                    : Tx.value(plus(new CString("\""), sv, new CString("\"")), Kind.STRING, false);
         } else if (arg.kind() == Kind.BOOLEAN) {
             // (a boolean's condition form: TRUE, FALSE, or neither -- its text where it is known)
             ValueSpecification known = call("or", arg.vs(), arg.falseWhen());
@@ -3540,22 +7660,26 @@ public final class CypherToPure {
         } else if (arg.nullable()) {
             ValueSpecification v = SqlToPure.valueOf(arg);
             piece = Tx.value(call("if", call("isEmpty", v), thunk(SqlToPure.nullOf(Kind.STRING).vs()),
-                    thunk(jsonText(call("toOne", v), arg.kind(), "collect", pos))), Kind.STRING, true);
+                    thunk(elementText(call("toOne", v), arg, "collect", pos))), Kind.STRING, true);
         } else {
-            piece = Tx.value(jsonText(SqlToPure.valueOf(arg), arg.kind(), "collect", pos), Kind.STRING, false);
+            piece = Tx.value(elementText(SqlToPure.valueOf(arg), arg, "collect", pos), Kind.STRING, false);
         }
-        // (collect(DISTINCT x) stays refused: the distinct texts joined would come in the database's order, which
-        // is not Neo4j's encounter order and not the same twice; the study's §12.44)
-        return new Aggregate(freshName(names), piece, lambda("y", call("joinStrings", new Variable("y"),
+        // collect(DISTINCT x): the distinct texts joined, in the database's order (Neo4j's is the encounter
+        // order, which the TCK reads ignoring the elements' order; the register's S78) -- tried and withdrawn in
+        // the study's §12.44 for that order, adopted 2026-10-17
+        ValueSpecification texts = distinct ? call("distinct", new Variable("y")) : new Variable("y");
+        return new Aggregate(freshName(names), piece, lambda("y", call("joinStrings", texts,
                 new CString(","))), Kind.JSON, false, raw -> call("fromJson", plus(new CString("["),
                 call("if", call("isEmpty", raw), thunk(new CString("")), thunk(call("toOne", raw))),
-                new CString("]"))), arg.kind() == Kind.JSON && arg.detail() != null
+                new CString("]"))), arg.kind() == Kind.JSON
+                        // (a list of Variants, each with its mark, or of no known shape: still a list, §12.58)
                         ? new ListOf(Kind.JSON, arg.detail())
-                        : elementType(arg.kind()) == null ? null : new ListOf(arg.kind()));
+                        : !readsBack(arg.kind()) ? null : new ListOf(arg.kind(), scalarMark(arg.kind(), nanos(arg))));
     }
 
     /** The Pure type a list's elements of this kind are read back as ({@code toMany}), or null for a kind the
-     *  Variant does not read back by type (a Variant element, a null, a temporal the text spells). */
+     *  Variant does not read back by type (a Variant element, a null, a temporal the text spells: {@link
+     *  #spelledTemporal}). */
     private static @com.legend.base.Nullable String elementType(Kind kind) {
         return switch (kind) {
             case INTEGER, WHOLE -> "Integer";
@@ -3563,9 +7687,64 @@ public final class CypherToPure {
             case DECIMAL, NUMBER -> "Decimal";
             case STRING -> "String";
             case BOOLEAN -> "Boolean";
-            case DATE -> "StrictDate";
             default -> null;
         };
+    }
+
+    /** Whether a Variant's element of this kind reads back as the value: by its Pure type, or a temporal by its
+     *  text (the study's §12.76). */
+    private static boolean readsBack(Kind kind) {
+        return elementType(kind) != null || spelledTemporal(kind);
+    }
+
+    /** A temporal a Variant holds as the oracle's text ({@link #jsonText}: {@code Date('...')}, {@code
+     *  Time('...')}, {@code DateTime('...')}, a zoned value's its instant's), which the database parses back. */
+    private static boolean spelledTemporal(Kind kind) {
+        return kind == Kind.DATE || kind == Kind.TIME || kind == Kind.DATETIME || kind == Kind.ZONED
+                || kind == Kind.ZONED_TIME;
+    }
+
+    /** The mark of a list's elements of nanosecond precision (a temporal's), its {@link ListOf}'s element detail. */
+    private static final Carried NANOS_ELEMENT = new Carried(null, true);
+
+    /** Whether a list's elements are of nanosecond precision. */
+    private static boolean nanosElements(ListOf shape) {
+        return shape.elementDetail() instanceof Carried c && c.nanos();
+    }
+
+    /** The element mark of a list of values of this kind: a nanosecond temporal's, else none. */
+    private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail scalarMark(Kind kind,
+            boolean nanos) {
+        return nanos && spelledTemporal(kind) ? NANOS_ELEMENT : null;
+    }
+
+    /** The value a temporal's Variant text spells ({@link #spelledTemporal}), the database's parse of the text
+     *  inside the oracle's spelling: a date's, a time of day's on the epoch day, a date-time's (a zoned value's
+     *  instant: its zone is not carried). */
+    private static ValueSpecification temporalOfText(ValueSpecification text, Kind kind) {
+        int open = kind == Kind.DATE ? "Date('".length() : kind == Kind.TIME ? "Time('".length()
+                : "DateTime('".length();
+        ValueSpecification inner = call("substring", text, lit(open + 1), integer(minus(call("length", text),
+                lit(open + 2))));
+        return switch (kind) {
+            case DATE -> call("datePart", call("parseDate", inner));
+            case TIME -> call(TIME_OF, call("parseDate", plus(new CString("1970-01-01T"), inner)));
+            default -> call("parseDate", inner);
+        };
+    }
+
+    /** A Variant list's elements of a kind it reads back ({@link #readsBack}) as the collection of their values:
+     *  by type ({@code toMany}), or a temporal's texts parsed. */
+    private static ValueSpecification elementsOf(ValueSpecification held, Kind kind, boolean nanos) {
+        if (!spelledTemporal(kind)) {
+            return call("toMany", held, SqlToPure.typeArg(java.util.Objects.requireNonNull(elementType(kind))));
+        }
+        if (nanos && kind != Kind.DATE) {
+            // of nanosecond precision (W13): the texts, each element read as its parts where it is read
+            return call("toMany", held, SqlToPure.typeArg("String"));
+        }
+        return call("map", call("toMany", held, SqlToPure.typeArg("String")), lambda("e", temporalOfText(
+                new Variable("e"), kind)));
     }
 
     /** The one scalar kind a spelled list's elements share (nulls aside), or null: what a Variant of it reads back
@@ -3588,7 +7767,7 @@ public final class CypherToPure {
                 return null;
             }
         }
-        return kind != null && elementType(kind) != null ? kind : null;
+        return kind != null && readsBack(kind) ? kind : null;
     }
 
     /** {@code percentileDisc(x, p)}, {@code percentileCont(x, p)} (the study's §12.30): Pure's percentile aggregate
@@ -3669,6 +7848,13 @@ public final class CypherToPure {
         /** Whether {@code v} names a node an OPTIONAL MATCH never finds (null everywhere). */
         default boolean isAbsentNode(CypherAst.Var v) {
             return false;
+        }
+
+        /** The identity of the node or relationship {@code v} names (the study's §12.46): a text, null where an
+         *  OPTIONAL MATCH found none; null when {@code v} names no node or relationship, or one with no identity of
+         *  its own (a relationship over a property or association). */
+        default @com.legend.base.Nullable Tx identity(CypherAst.Var v) {
+            return null;
         }
 
         /** {@code type(r)}: the type of the relationship {@code v} names, a text (null where an OPTIONAL MATCH
@@ -3761,13 +7947,13 @@ public final class CypherToPure {
             }
             ValueSpecification absent = b.maybeAbsent() ? absent(b) : null;
             return NodeParts.rel(new CString(com.legend.json.Json.toCompact(java.util.Objects.requireNonNull(
-                    b.type()))), props, absent);
+                    b.type()))), props, absent, identityOf(b));
         }
 
         /** A bound relationship's JSON text: its type (a constant over a property or association) and, over an edge
          *  class, its properties that hold a value. */
         ValueSpecification relJsonText(Binding b, Pos pos) {
-            if (b.classPath() == null) {
+            if (b.classPath() == null && identityOf(b) == null) {
                 return new CString(relTypeJson(java.util.Objects.requireNonNull(b.type())));
             }
             return nodeJsonText(relParts(b, pos), pos);
@@ -3862,15 +8048,10 @@ public final class CypherToPure {
                     Binding end = java.util.Objects.requireNonNull(hop.g.bindings().get(p.nodes().get(1)));
                     String rel = p.rels().get(0);
                     Binding r = java.util.Objects.requireNonNull(hop.g.bindings().get(rel));
-                    ValueSpecification text = r.classPath() == null
-                            ? plus(new CString("{\"@path\":["), nodeJsonText(outer.parts(start, pos), pos),
-                                    new CString("," + relTypeJson(java.util.Objects.requireNonNull(r.type())) + ","),
-                                    nodeJsonText(hop.parts(end, pos), pos), new CString("],\"@dirs\":["
-                                    + Boolean.TRUE.equals(hop.g.forward().get(rel)) + "]}"))
-                            : plus(new CString("{\"@path\":["), nodeJsonText(outer.parts(start, pos), pos),
-                                    new CString(","), hop.relJsonText(r, pos), new CString(","),
-                                    nodeJsonText(hop.parts(end, pos), pos), new CString("],\"@dirs\":["
-                                    + Boolean.TRUE.equals(hop.g.forward().get(rel)) + "]}"));
+                    ValueSpecification text = plus(new CString("{\"@path\":["),
+                            nodeJsonText(outer.parts(start, pos), pos), new CString(","), hop.relJsonText(r, pos),
+                            new CString(","), nodeJsonText(hop.parts(end, pos), pos), new CString("],\"@dirs\":["
+                            + Boolean.TRUE.equals(hop.g.forward().get(rel)) + "]}"));
                     return new Tx(call("fromJson", text), Kind.JSON, false, null, new PathValue(), null, null);
                 }
             };
@@ -3890,10 +8071,7 @@ public final class CypherToPure {
                         throw CypherErrors.unsupported("a path over a relationship an OPTIONAL MATCH may not find is"
                                 + " not supported yet", pos);
                     }
-                    text = r.classPath() == null
-                            ? plus(text, new CString("," + relTypeJson(java.util.Objects.requireNonNull(r.type()))
-                                    + ","))
-                            : plus(text, new CString(","), relJsonText(r, pos), new CString(","));
+                    text = plus(text, new CString(","), relJsonText(r, pos), new CString(","));
                     dirs.add(String.valueOf(Boolean.TRUE.equals(g.forward().get(rel))));
                 }
                 Binding n = java.util.Objects.requireNonNull(g.bindings().get(path.nodes().get(i)));
@@ -3916,17 +8094,19 @@ public final class CypherToPure {
                         null);
             }
             String type = java.util.Objects.requireNonNull(b.type());
-            if (b.classPath() == null) {
+            if (b.classPath() == null && identityOf(b) == null) {
                 ValueSpecification json = call("fromJson", new CString(relTypeJson(type)));
                 if (b.maybeAbsent()) {
                     json = call("if", absent(b),
                             thunk(SqlToPure.nullOf(Kind.JSON).vs()), thunk(json));
                 }
-                return new Tx(json, Kind.JSON, b.maybeAbsent(), null, new RelValue(type), null, null);
+                // (its identity over a property or association: the pair of its ends', S74, where the hops are
+                // to-one; a fanning one's rides the materialized rows)
+                return new Tx(json, Kind.JSON, b.maybeAbsent(), null, new RelValue(type, identityOf(b)), null, null);
             }
             NodeParts parts = relParts(b, pos);
             return new Tx(present(parts, call("fromJson", nodeJsonText(parts, pos))), Kind.JSON,
-                    parts.absent() != null, null, new RelValue(type), null, null);
+                    parts.absent() != null, null, new RelValue(type, identityOf(b)), null, null);
         }
 
         @Override
@@ -3957,7 +8137,7 @@ public final class CypherToPure {
             for (String other : g.candidates()) {
                 Property elsewhere = CypherToPure.this.property(other, name);
                 if (elsewhere != null && !elsewhere.classTyped() && !elsewhere.enumTyped() && !elsewhere.many()) {
-                    return SqlToPure.nullOf(kindOf(elsewhere.type(), name, pos));
+                    return nullOfStored(kindOf(elsewhere, pos), elsewhere.nanos());
                 }
             }
             return SqlToPure.nullOf(Kind.NULL);
@@ -3975,6 +8155,49 @@ public final class CypherToPure {
             return b != null && b.absent();
         }
 
+        /** The identity of the node or edge-class relationship {@code b} binds (the study's §12.46): lite's
+         *  elementId of the instance its navigation reaches (the root instance itself for the root), null where an
+         *  OPTIONAL MATCH found none; null (no identity of its own) for a relationship over a property or
+         *  association, which has no row. */
+        @com.legend.base.Nullable Tx identityOf(Binding b) {
+            if (b.absent()) {
+                return SqlToPure.nullOf(Kind.STRING);
+            }
+            if (b.classPath() == null) {
+                if (b.node() || b.type() == null || b.forward() == null || b.fanning() || b.path().isEmpty()) {
+                    // (a relationship over a to-many hop: its ends' identities pair only over the materialized
+                    // rows, carryRel; one of no hop, none)
+                    return null;
+                }
+                // a relationship over a property or association (S74): the ordered pair of its ends' identities in
+                // its stored direction, '<type>:<source>><target>', null where the hop finds no node
+                Tx near = nodeIdentityAt(b.path().subList(0, b.path().size() - 1));
+                Tx far = nodeIdentityAt(b.path());
+                return pairIdentity(b.type(), b.forward() ? near : far, b.forward() ? far : near,
+                        b.guard() != null || b.maybeAbsent() ? absent(b) : null);
+            }
+            ValueSpecification id = call(ELEMENT_ID, b.path().isEmpty() ? new Variable(g.row())
+                    : navigate(g.row(), b.path()));
+            boolean nullable = !b.path().isEmpty() && b.optional();
+            if (b.guard() != null || b.maybeAbsent()) {
+                return Tx.value(call("if", absent(b), thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(id)),
+                        Kind.STRING, true);
+            }
+            return Tx.value(id, Kind.STRING, nullable);
+        }
+
+        @Override
+        public @com.legend.base.Nullable Tx identity(CypherAst.Var v) {
+            Binding b = g.bindings().get(v.name());
+            return b == null ? null : identityOf(b);
+        }
+
+        /** The identity of the node a navigation from the root reaches (the root's for the empty path). */
+        private Tx nodeIdentityAt(List<String> path) {
+            return Tx.value(call(ELEMENT_ID, path.isEmpty() ? new Variable(g.row()) : navigate(g.row(), path)),
+                    Kind.STRING, !path.isEmpty());
+        }
+
         /** A bound node's parts: its class's label, its properties navigated from the root instance; a node an
          *  OPTIONAL MATCH reached is present where its navigation finds one (a MATCH's optional hop is never
          *  absent: the hop's isNotEmpty condition is the graph's). */
@@ -3982,12 +8205,15 @@ public final class CypherToPure {
             String cls = java.util.Objects.requireNonNull(b.classPath());
             List<Map.Entry<String, Tx>> props = new ArrayList<>();
             for (Property p : properties(cls)) {
-                if (!p.classTyped() && !p.enumTyped() && !p.many()) {
+                // (a stored duration or zoned value, an embedded instance of a value class, is a property value
+                // too: the study's §12.59, §12.65)
+                if ((!p.classTyped() || CypherToPure.this.storedValueKind(p) != null) && !p.enumTyped()
+                        && !p.many()) {
                     props.add(Map.entry(p.name(), propertyOf(b, p.name(), pos)));
                 }
             }
             ValueSpecification absent = b.maybeAbsent() ? absent(b) : null;
-            return new NodeParts(new CString(labelsJson(cls)), props, absent);
+            return new NodeParts(new CString(labelsJson(cls)), props, absent).withIdentity(identityOf(b));
         }
 
         /** A bound node carried through a projection: its labels' text and its properties as columns -- of every
@@ -4004,11 +8230,25 @@ public final class CypherToPure {
                 Map<String, NodeProp> props = new LinkedHashMap<>();
                 for (Map.Entry<String, Kind> k : unionKinds(acrossArms, pos).entrySet()) {
                     String column = freshName(names);
-                    specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.nullOf(k.getValue()).vs()), null, null));
+                    boolean nanos = CypherToPure.this.nanosDeclared(k.getKey(), acrossArms);
+                    if (nanos) {
+                        // (a nanosecond value's parts, W13 leg 5: null, its date column beside)
+                        partsColumns(column, splitNull(k.getValue()), true, specs, columns);
+                        props.put(k.getKey(), new NodeProp(column, k.getValue(), true, true, nanos));
+                        zoneColumns(column, null, k, acrossArms, specs, columns);
+                        continue;
+                    }
+                    specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.nullOf(k.getValue()).vs()), null,
+                            null));
                     columns.add(new Col(column, k.getValue(), true));
                     props.put(k.getKey(), new NodeProp(column, k.getValue(), true, true));
+                    zoneColumns(column, null, k, acrossArms, specs, columns);
                 }
-                return new NodeCarry(new NodeShape(labels, props, true), specs, columns);
+                // its identity: null too (the column the node has in the other arms)
+                String identity = freshName(names);
+                specs.add(new ColSpec(identity, lambda(g.row(), SqlToPure.nullOf(Kind.STRING).vs()), null, null));
+                columns.add(new Col(identity, Kind.STRING, true));
+                return new NodeCarry(new NodeShape(labels, props, true, identity), specs, columns);
             }
             String cls = java.util.Objects.requireNonNull(b.classPath());
             List<String> classes = !acrossArms.isEmpty() ? acrossArms
@@ -4016,12 +8256,8 @@ public final class CypherToPure {
             Map<String, Kind> kinds = unionKinds(classes, pos);
             List<ColSpec> specs = new ArrayList<>();
             List<Col> columns = new ArrayList<>();
-            if (b.fanning() && kinds.isEmpty()) {
-                // the rows multiply through the properties navigated along the to-many path: none, no rows (lite's
-                // project of a navigation mapped to a constant stays one row per root, measured)
-                throw CypherErrors.unsupported("a pattern that fans out to a node of " + cls + ", a class without a"
-                        + " property, is not supported yet (one row per node needs a navigated column)", pos);
-            }
+            // (a fanning node of a class without a property still multiplies the rows: its identity column
+            // navigates its path, the study's §12.49; before it, such a pattern was refused by name)
             String labels = freshName(names);
             // an OPTIONAL MATCH's node: its labels where its navigation finds one, null where none (the node's
             // presence, read by the clauses after)
@@ -4035,13 +8271,66 @@ public final class CypherToPure {
             for (Map.Entry<String, Kind> k : kinds.entrySet()) {
                 String column = freshName(names);
                 boolean lacks = CypherToPure.this.property(cls, k.getKey()) == null;
-                Tx t = lacks ? SqlToPure.nullOf(k.getValue()) : propertyOf(b, k.getKey(), pos);
+                boolean nanos = CypherToPure.this.nanosDeclared(k.getKey(), classes);
+                if (nanos) {
+                    // a nanosecond value's parts (W13 leg 5): its nanoseconds the column, its date beside
+                    Tx t = lacks ? splitNull(k.getValue()) : propertyOf(b, k.getKey(), pos);
+                    boolean nullable = classes.size() > 1 || t.nullable() || optional;
+                    partsColumns(column, t, nullable, specs, columns);
+                    props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, lacks, nanos));
+                    zoneColumns(column, lacks ? null : zoneOf(t), k, classes, specs, columns);
+                    continue;
+                }
+                Tx t = lacks ? SqlToPure.nullOf(k.getValue())
+                        : asKind(propertyOf(b, k.getKey(), pos), k.getValue(), pos);
                 boolean nullable = classes.size() > 1 || t.nullable() || optional;
                 specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
                 columns.add(new Col(column, k.getValue(), nullable));
                 props.put(k.getKey(), new NodeProp(column, k.getValue(), nullable, lacks));
+                zoneColumns(column, lacks ? null : zoneOf(t), k, classes, specs, columns);
             }
-            return new NodeCarry(new NodeShape(labels, props), specs, columns);
+            // its identity (the study's §12.46), carried beside its properties
+            Tx id = java.util.Objects.requireNonNull(identityOf(b));
+            String identity = freshName(names);
+            specs.add(new ColSpec(identity, lambda(g.row(), SqlToPure.valueOf(id)), null, null));
+            columns.add(new Col(identity, Kind.STRING, id.nullable() || optional));
+            return new NodeCarry(new NodeShape(labels, props, false, identity, classes.size() == 1 ? cls : null),
+                    specs, columns);
+        }
+
+        /** A carried node's split property (W13 leg 5): its nanoseconds under {@code column}, the parts' mark on it,
+         *  a date-time's date under {@link #DATE_PART} beside (its zone, where it has one, {@link #zoneColumns}'). */
+        private void partsColumns(String column, Tx t, boolean nullable, List<ColSpec> specs, List<Col> columns) {
+            specs.add(new ColSpec(column, lambda(g.row(), SqlToPure.valueOf(ofDay(t))), null, null));
+            columns.add(new Col(column, t.kind(), nullable, null, new Carried(null, true, null, new Parts(null))));
+            if (t.kind() == Kind.DATETIME || t.kind() == Kind.ZONED) {
+                specs.add(new ColSpec(DATE_PART + column, lambda(g.row(), SqlToPure.valueOf(datePartOf(t))), null,
+                        null));
+                columns.add(new Col(DATE_PART + column, Kind.DATE, true));
+            }
+        }
+
+        /** Beside a carried node's zoned property's column {@code column}, its zone as the database read it (the
+         *  study's §12.75): the offset under {@link #ZONE_PART} and, where a class of {@code classes} declares the
+         *  region slot, the region under {@link #REGION_PART}, each named after the column (null in an arm whose
+         *  class lacks the property, so the arms' columns agree); none for another kind. */
+        private void zoneColumns(String column, @com.legend.base.Nullable Zone zone, Map.Entry<String, Kind> k,
+                List<String> classes, List<ColSpec> specs, List<Col> columns) {
+            if (k.getValue() != Kind.ZONED && k.getValue() != Kind.ZONED_TIME) {
+                return;
+            }
+            ValueSpecification offset = zone == null ? SqlToPure.nullOf(Kind.INTEGER).vs() : zone.read();
+            if (offset == null) {
+                throw new IllegalStateException("a stored zoned value's zone is read: " + k.getKey());
+            }
+            specs.add(new ColSpec(ZONE_PART + column, lambda(g.row(), offset), null, null));
+            columns.add(new Col(ZONE_PART + column, Kind.INTEGER, true));
+            if (k.getValue() == Kind.ZONED && CypherToPure.this.regionDeclared(k.getKey(), classes)) {
+                ValueSpecification region = zone == null ? null : zone.region();
+                specs.add(new ColSpec(REGION_PART + column, lambda(g.row(), region == null
+                        ? SqlToPure.nullOf(Kind.STRING).vs() : region), null, null));
+                columns.add(new Col(REGION_PART + column, Kind.STRING, true));
+            }
         }
 
         /** A relationship carried through a projection: its type's column (a constant; null where an OPTIONAL
@@ -4049,7 +8338,8 @@ public final class CypherToPure {
          *  columns (the study's §5.6), as a node's are carried -- of every edge class the relationship is over
          *  across a pattern's arms ({@code acrossArms}: the columns agree, null where an edge class lacks the
          *  property). */
-        NodeCarry carryRel(Binding b, Set<String> names, Pos pos, List<String> acrossArms) {
+        NodeCarry carryRel(Binding b, Set<String> names, Pos pos, List<String> acrossArms,
+                @com.legend.base.Nullable Boolean stored) {
             String column = freshName(names);
             ValueSpecification type;
             boolean nullable;
@@ -4068,6 +8358,19 @@ public final class CypherToPure {
             List<Col> columns = new ArrayList<>();
             specs.add(new ColSpec(column, lambda(g.row(), type), null, null));
             columns.add(new Col(column, Kind.STRING, nullable));
+            String direction = null;
+            if (stored != null) {
+                // read in a segment of a cut path (the study's §12.56): its stored direction in the path's written
+                // order, a constant of the arm (an undirected hop reads either way, one per arm), null where the
+                // relationship is absent
+                ValueSpecification dir = b.absent() ? SqlToPure.nullOf(Kind.BOOLEAN).vs()
+                        : b.maybeAbsent() ? call("if", absent(b), thunk(SqlToPure.nullOf(Kind.BOOLEAN).vs()),
+                                thunk(new CBoolean(stored)))
+                        : new CBoolean(stored);
+                direction = freshName(names);
+                specs.add(new ColSpec(direction, lambda(g.row(), dir), null, null));
+                columns.add(new Col(direction, Kind.BOOLEAN, nullable));
+            }
             Map<String, NodeProp> props = new LinkedHashMap<>();
             if (!acrossArms.isEmpty() || b.classPath() != null && !b.absent()) {
                 List<String> classes = !acrossArms.isEmpty() ? acrossArms
@@ -4076,19 +8379,93 @@ public final class CypherToPure {
                 for (Map.Entry<String, Kind> k : unionKinds(classes, pos).entrySet()) {
                     String col = freshName(names);
                     boolean lacks = edge == null || CypherToPure.this.property(edge, k.getKey()) == null;
-                    Tx t = lacks ? SqlToPure.nullOf(k.getValue()) : propertyOf(b, k.getKey(), pos);
+                    boolean nanos = CypherToPure.this.nanosDeclared(k.getKey(), classes);
+                    if (nanos) {
+                        // a nanosecond value's parts (W13 leg 6, as a node's): its nanoseconds the column, its date
+                        // beside, its zone's columns
+                        Tx t = lacks ? splitNull(k.getValue()) : propertyOf(b, k.getKey(), pos);
+                        boolean nullableHere = classes.size() > 1 || t.nullable() || nullable;
+                        partsColumns(col, t, nullableHere, specs, columns);
+                        props.put(k.getKey(), new NodeProp(col, k.getValue(), nullableHere, lacks, nanos));
+                        zoneColumns(col, lacks ? null : zoneOf(t), k, classes, specs, columns);
+                        continue;
+                    }
+                    Tx t = lacks ? SqlToPure.nullOf(k.getValue())
+                            : asKind(propertyOf(b, k.getKey(), pos), k.getValue(), pos);
                     boolean nullableHere = classes.size() > 1 || t.nullable() || nullable;
                     specs.add(new ColSpec(col, lambda(g.row(), SqlToPure.valueOf(t)), null, null));
                     columns.add(new Col(col, k.getValue(), nullableHere));
                     props.put(k.getKey(), new NodeProp(col, k.getValue(), nullableHere, lacks));
+                    // (a zoned property's zone, as a node's: the study's §12.75)
+                    zoneColumns(col, lacks ? null : zoneOf(t), k, classes, specs, columns);
                 }
             }
-            return new NodeCarry(new NodeShape(column, props), specs, columns, true);
+            String identity = null;
+            if (b.classPath() != null && !b.absent() && acrossArms.isEmpty()) {
+                // over an edge class, its identity (the study's §12.46): the edge row's, carried beside its
+                // properties (a relationship over several edge classes, the arms' columns, waits)
+                Tx id = java.util.Objects.requireNonNull(identityOf(b));
+                identity = freshName(names);
+                specs.add(new ColSpec(identity, lambda(g.row(), SqlToPure.valueOf(id)), null, null));
+                columns.add(new Col(identity, Kind.STRING, id.nullable() || nullable));
+            }
+            if (!acrossArms.isEmpty()) {
+                // over the arms (a relationship of several types or edge classes, the study's §12.55): one
+                // identity column in every arm, each arm's own text (an edge's row identity, an association's
+                // ordered pair of ends, S74; null for an absent one, or one with no ends to pair), so the union's
+                // columns agree and the rows compare relationships across it (uniqueness across a deep pattern's
+                // cut, count(DISTINCT r))
+                Tx id;
+                if (b.absent()) {
+                    id = SqlToPure.nullOf(Kind.STRING);
+                } else if (b.classPath() != null) {
+                    id = java.util.Objects.requireNonNull(identityOf(b));
+                } else if (b.type() != null && b.forward() != null && !b.path().isEmpty()) {
+                    Tx near = nodeIdentityAt(b.path().subList(0, b.path().size() - 1));
+                    Tx far = nodeIdentityAt(b.path());
+                    boolean ahead = Boolean.TRUE.equals(b.forward());
+                    id = pairIdentity(java.util.Objects.requireNonNull(b.type()), ahead ? near : far,
+                            ahead ? far : near, b.guard() != null || b.maybeAbsent() ? absent(b) : null);
+                } else {
+                    id = SqlToPure.nullOf(Kind.STRING);
+                }
+                identity = freshName(names);
+                specs.add(new ColSpec(identity, lambda(g.row(), SqlToPure.valueOf(id)), null, null));
+                columns.add(new Col(identity, Kind.STRING, id.nullable() || nullable));
+            }
+            if (b.classPath() == null && !b.absent() && b.type() != null && b.forward() != null
+                    && !b.path().isEmpty() && acrossArms.isEmpty()) {
+                // over a property or association (S74, the study's §12.48): its source's and its target's
+                // identities, two columns the rows pair one row per link (a to-many hop explodes them with the far
+                // node's columns), its identity the text over them after
+                Tx near = nodeIdentityAt(b.path().subList(0, b.path().size() - 1));
+                Tx far = nodeIdentityAt(b.path());
+                if (b.guard() != null || b.maybeAbsent()) {
+                    far = Tx.value(call("if", absent(b), thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(far.vs())),
+                            Kind.STRING, true);
+                }
+                String source = freshName(names);
+                String target = freshName(names);
+                Tx src = b.forward() ? near : far;
+                Tx dst = b.forward() ? far : near;
+                specs.add(new ColSpec(source, lambda(g.row(), SqlToPure.valueOf(src)), null, null));
+                columns.add(new Col(source, Kind.STRING, src.nullable() || nullable));
+                specs.add(new ColSpec(target, lambda(g.row(), SqlToPure.valueOf(dst)), null, null));
+                columns.add(new Col(target, Kind.STRING, dst.nullable() || nullable));
+                return new NodeCarry(new NodeShape(column, props, false, null), specs, columns, true,
+                        new RelShape(column, props, null, source, target, direction));
+            }
+            return new NodeCarry(new NodeShape(column, props, false, identity), specs, columns, true,
+                    new RelShape(column, props, identity, null, null, direction));
         }
 
-        /** The labels array's JSON text of a class: its label. */
+        /** The labels array's JSON text of a class: its label set (the study's §12.61). */
         private String labelsJson(String cls) {
-            return "[" + com.legend.json.Json.toCompact(model.labelOf(cls)) + "]";
+            StringBuilder out = new StringBuilder("[");
+            for (String label : model.labels(cls)) {
+                out.append(out.length() > 1 ? "," : "").append(com.legend.json.Json.toCompact(label));
+            }
+            return out.append(']').toString();
         }
 
         /** The stored properties of these classes, in first-declaration order, each of one kind across them (a
@@ -4097,15 +8474,28 @@ public final class CypherToPure {
             Map<String, Kind> kinds = new LinkedHashMap<>();
             for (String c : classes) {
                 for (Property p : properties(c)) {
-                    if (p.classTyped() || p.enumTyped() || p.many()) {
+                    Kind vk = CypherToPure.this.storedValueKind(p);
+                    if (p.classTyped() && vk == null || p.enumTyped() || p.many()) {
                         continue;
                     }
-                    Kind kind = kindOf(p.type(), p.name(), pos);
+                    Kind kind = vk != null ? vk : kindOf(p, pos);
                     Kind before = kinds.putIfAbsent(p.name(), kind);
+                    if (before != null && before == kind && nanosDeclared(p.name(), classes) != nanosOf(p)) {
+                        // a time of day or date-time of two precisions across the classes (the study's §12.64):
+                        // the nanosecond one is the date-time at it, the other a TIME or a microsecond value
+                        throw CypherErrors.unsupported("the property " + p.name() + " of nanosecond precision on"
+                                + " some of the classes a label-less node reads and not on others is not supported"
+                                + " yet", pos);
+                    }
                     if (before != null && before != kind) {
-                        throw CypherErrors.unsupported("the property " + p.name() + " typed differently across the"
-                                + " classes a label-less node reads (" + cypherType(before) + " and "
-                                + cypherType(kind) + ") is not supported yet", pos);
+                        // typed two ways across the classes (the study's §12.62): a Variant, each class's value as
+                        // the database spells it, where both kinds are a Variant's
+                        if (!variantSpelled(before) || !variantSpelled(kind)) {
+                            throw CypherErrors.unsupported("the property " + p.name() + " typed differently across"
+                                    + " the classes a label-less node reads (" + cypherType(before) + " and "
+                                    + cypherType(kind) + ") is not supported yet", pos);
+                        }
+                        kinds.put(p.name(), Kind.JSON);
                     }
                 }
             }
@@ -4158,18 +8548,20 @@ public final class CypherToPure {
             if (prop == null) {
                 // a label-less node of a class without the property: null (Neo4j's heterogeneous nodes), typed as
                 // the property is where a class declares it
-                for (String other : b.node() ? g.candidates() : List.<String>of()) {
-                    Property elsewhere = CypherToPure.this.property(other, name);
-                    if (elsewhere != null && !elsewhere.classTyped() && !elsewhere.enumTyped()
-                            && !elsewhere.many()) {
-                        return SqlToPure.nullOf(kindOf(elsewhere.type(), name, pos));
-                    }
+                Kind elsewhere = b.node() ? candidateKind(name, null, b.path().isEmpty(), pos) : null;
+                if (elsewhere != null) {
+                    return nullOfStored(elsewhere, CypherToPure.this.nanosDeclared(name, g.candidates()));
+                }
+                if (open) {
+                    // an open graph (the study's §12.45): a property no class declares is Neo4j's null
+                    return nullValue().tx();
                 }
                 throw CypherErrors.invalid("the " + (b.node() ? "class " : "edge class ") + cls + " has no property "
                         + name + " (the graph is the model: a property a class does not declare is an error, not"
                         + " null)", pos);
             }
-            if (prop.classTyped()) {
+            Kind valueKind = CypherToPure.this.storedValueKind(prop);
+            if (prop.classTyped() && valueKind == null) {
                 throw CypherErrors.unsupported("the property " + name + " holds instances of " + prop.type()
                         + ": a node as a value is not supported yet", pos);
             }
@@ -4181,17 +8573,122 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("the property " + name + " holds many values (a list): not supported"
                         + " yet", pos);
             }
-            Kind kind = kindOf(prop.type(), name, pos);
+            // a stored duration: an embedded instance of the model's Duration class (the study's §12.59), read as
+            // the island carries a duration (an instance with the four slots); a stored zoned value: its instant
+            // slot (the study's §12.65), its offset slot its zone (§12.75)
+            Kind kind = valueKind != null ? valueKind : kindOf(prop, pos);
             List<String> path = new ArrayList<>(b.path());
             path.add(name);
-            ValueSpecification v = navigate(g.row(), path);
+            if (prop.classTyped() && CypherToPure.this.partsKind(prop.type()) != null) {
+                // a stored value of nanosecond precision as its parts (W13 leg 5): an embedded instance of the value
+                // class of them, read as the split value its slots spell
+                return storedParts(b, navigate(g.row(), path), prop, kind, pos);
+            }
+            ValueSpecification v = valueKind == Kind.DURATION
+                    ? CypherToPure.this.storedDuration(prop.type(), navigate(g.row(), path))
+                    : valueKind != null ? storedZoned(navigate(g.row(), path)) : navigate(g.row(), path);
             boolean nullable = prop.optional() || b.optional();
             if (b.guard() != null) {
                 // null where the OPTIONAL MATCH's WHERE does not hold, as where its hop finds none
                 v = call("if", absent(b), thunk(SqlToPure.nullOf(kind).vs()), thunk(v));
                 nullable = true;
             }
-            return columnLike(v, kind, nullable);
+            // (a nanosecond time of day or date-time, the study's §12.64: a TIMESTAMP_NS column under the
+            // profile's marks, a model's own; a time of day the date-time at it on the epoch day)
+            boolean marked = CypherToPure.this.nanosOf(prop);
+            Tx own = columnLike(v, kind, nullable);
+            Zone zone = null;
+            if (valueKind == Kind.ZONED || valueKind == Kind.ZONED_TIME) {
+                // a stored zoned value's zone: its offset slot, which the database reads, and its region slot where
+                // the value class declares one (the study's §12.75)
+                ValueSpecification offset = new AppliedProperty(navigate(g.row(), path), ZONED_SLOTS.get(1));
+                ValueSpecification region = CypherToPure.this.regionSlot(prop.type())
+                        ? new AppliedProperty(navigate(g.row(), path), ZONE_SLOT) : null;
+                zone = Zone.read(nullable ? call("toOne", offset) : offset, region);
+            }
+            if (zone != null || marked) {
+                own = new Tx(own.vs(), own.kind(), own.nullable(), own.whenFalse(), new Carried(zone, marked),
+                        own.guard(), own.body());
+            }
+            if (marked) {
+                // read into the parts, as every value of nanosecond precision is carried (W13 leg 6): the database's
+                // nanoseconds since midnight of the column's value (DuckDB's; a microsecond engine refuses the
+                // column by name)
+                own = switch (kind) {
+                    case ZONED -> asSplitZoned(own, java.util.Objects.requireNonNull(zone));
+                    case ZONED_TIME -> asSplitZonedTime(own, java.util.Objects.requireNonNull(zone));
+                    default -> asSplit(own);
+                };
+            }
+            // typed two ways across the classes a label-less root may be (the study's §12.62): the class's own
+            // value as a Variant, so the arms agree
+            return b.node() && b.path().isEmpty() && candidateKind(name, kind, true, pos) == Kind.JSON
+                    ? asVariant(own, pos) : own;
+        }
+
+        /** A stored value of nanosecond precision, {@code holder} its embedded instance of the value class of its
+         *  parts (W13 leg 5): its nanoseconds slot the value, a date-time's date slot beside, a zoned one's offset
+         *  (and region) slot its zone; null where an OPTIONAL MATCH's binding found none. */
+        private Tx storedParts(Binding b, ValueSpecification holder, Property prop, Kind kind, Pos pos) {
+            boolean nullable = prop.optional() || b.optional() || b.guard() != null;
+            java.util.function.BiFunction<String, Kind, Tx> slot = (name, k) -> {
+                ValueSpecification v = new AppliedProperty(holder, name);
+                if (b.guard() != null) {
+                    v = call("if", absent(b), thunk(SqlToPure.nullOf(k).vs()), thunk(v));
+                }
+                return columnLike(v, k, nullable);
+            };
+            Tx clock = slot.apply(NANOS_SLOT, Kind.INTEGER);
+            Zone zone = null;
+            if (kind == Kind.ZONED || kind == Kind.ZONED_TIME) {
+                ValueSpecification offset = new AppliedProperty(holder, ZONED_SLOTS.get(1));
+                ValueSpecification region = CypherToPure.this.regionSlot(prop.type())
+                        ? new AppliedProperty(holder, ZONE_SLOT) : null;
+                zone = Zone.read(nullable ? call("toOne", offset) : offset, region);
+            }
+            Tx own = switch (kind) {
+                case TIME -> splitTime(clock);
+                case ZONED_TIME -> splitZonedTime(clock, zone);
+                case DATETIME -> splitDateTime(slot.apply(DATE_SLOT, Kind.DATE), clock);
+                case ZONED -> splitZoned(splitDateTime(slot.apply(DATE_SLOT, Kind.DATE), clock), zone);
+                default -> throw new IllegalStateException("not a kind of parts: " + kind);
+            };
+            if (b.node() && b.path().isEmpty() && candidateKind(prop.name(), kind, true, pos) == Kind.JSON) {
+                // typed two ways across the classes a label-less root may be (the study's §12.62): a temporal is
+                // no Variant's kind
+                return asVariant(own, pos);
+            }
+            return own;
+        }
+
+        /** The kind the candidate classes (an arm's every class) give the scalar property {@code name}, from
+         *  {@code own} (the class's, or null where it lacks the property): with {@code union}, JSON where two
+         *  classes type it two ways (both a Variant's kind: the study's §12.62), else the one kind they agree on;
+         *  without, the first class declaring it (a far node typed by a root's class); null where none declares
+         *  it. */
+        private @com.legend.base.Nullable Kind candidateKind(String name, @com.legend.base.Nullable Kind own,
+                boolean union, Pos pos) {
+            Kind found = own;
+            for (String other : g.candidates()) {
+                Property p = CypherToPure.this.property(other, name);
+                if (p == null || p.enumTyped() || p.many()) {
+                    continue;
+                }
+                Kind vk = CypherToPure.this.storedValueKind(p);
+                if (p.classTyped() && vk == null) {
+                    continue;
+                }
+                Kind k = vk != null ? vk : kindOf(p, pos);
+                if (found == null) {
+                    found = k;
+                    if (!union) {
+                        return found;
+                    }
+                } else if (union && found != k && variantSpelled(found) && variantSpelled(k)) {
+                    found = Kind.JSON;
+                }
+            }
+            return found;
         }
     }
 
@@ -4344,13 +8841,21 @@ public final class CypherToPure {
             return null;
         }
 
+        /** The name its rows' lambda reads a row by: {@code r}, or a join condition's side ({@link JoinScope}). */
+        private final String rowName;
+
         RowScope(Rows rows) {
+            this(rows, "r");
+        }
+
+        RowScope(Rows rows, String rowName) {
             this.rows = rows;
+            this.rowName = rowName;
         }
 
         @Override
         public String row() {
-            return "r";
+            return rowName;
         }
 
         @Override
@@ -4362,15 +8867,25 @@ public final class CypherToPure {
                     }
                     if (c.detail() instanceof NodeShape shape) {
                         // a carried node as a value: its JSON from its columns; an absent one null
-                        return shape.absent() ? scalar(SqlToPure.nullOf(Kind.JSON))
-                                : scalar(nodeJson(parts(shape), v.pos()));
+                        // (an absent one a node's null, marked as a node: a coalesce of nodes is a node, §12.71)
+                        return shape.absent() ? scalar(new Tx(SqlToPure.nullOf(Kind.JSON).vs(), Kind.JSON, true, null,
+                                new NodeValue(), null, null)) : scalar(nodeJson(parts(shape), v.pos()));
                     }
                     if (c.detail() instanceof RelShape rel && !rel.props().isEmpty()) {
                         // a carried relationship over an edge class as a value: its JSON from its type's column and
                         // its properties' (null where none)
                         NodeParts parts = relParts(rel, v.pos());
                         return scalar(new Tx(present(parts, call("fromJson", nodeJsonText(parts, v.pos()))),
-                                Kind.JSON, parts.absent() != null, null, new RelValue(null), null, null));
+                                Kind.JSON, parts.absent() != null, null, new RelValue(null, parts.identity()), null,
+                                null));
+                    }
+                    if (c.detail() instanceof RelShape rel && relIdentity(rel) != null) {
+                        // a carried relationship with its identity, as a value: its JSON from its type's column and its
+                        // identity (the study's §12.71), null where none
+                        NodeParts parts = relParts(rel, v.pos());
+                        return scalar(new Tx(present(parts, call("fromJson", nodeJsonText(parts, v.pos()))),
+                                Kind.JSON, parts.absent() != null, null, new RelValue(null, parts.identity()), null,
+                                null));
                     }
                     if (c.detail() instanceof RelShape rel) {
                         // a carried relationship as a value: its JSON from its type's column (null where none)
@@ -4382,19 +8897,101 @@ public final class CypherToPure {
                             json = call("if", call("isEmpty", read), thunk(SqlToPure.nullOf(Kind.JSON).vs()),
                                     thunk(json));
                         }
-                        return scalar(new Tx(json, Kind.JSON, type.nullable(), null, new RelValue(null), null, null));
+                        // (its identity rides along: an edge class's column, or the pair of its ends')
+                        return scalar(new Tx(json, Kind.JSON, type.nullable(), null,
+                                new RelValue(null, relIdentity(rel)), null, null));
                     }
                     if (c.kind() == Kind.NULL) {
                         // a null the query named: null wherever it is read
                         return nullValue();
                     }
+                    if (c.detail() instanceof NullConstant) {
+                        // a typed null the projection computed: that null wherever it is read (§12.82)
+                        return scalar(SqlToPure.nullOf(c.kind()));
+                    }
+                    if (c.detail() instanceof SortableText st) {
+                        // a split value's min or max, or a returned one's ISO text (W13): its text the column, read
+                        // as its parts (a zoned one's in the zone the query spells)
+                        if (st.zoneUnreadAt() != null) {
+                            throw CypherErrors.unsupported("a returned zoned value of nanosecond precision whose zone"
+                                    + " the database reads, read again after DISTINCT or a grouping, is not supported"
+                                    + " yet", st.zoneUnreadAt());
+                        }
+                        Tx parts = splitOfIso(columnLike(new AppliedProperty(new Variable(row()), c.name()),
+                                Kind.STRING, c.nullable()), st.kind());
+                        return scalar(st.zone() == null ? parts : st.kind() == Kind.ZONED
+                                ? splitZoned(utcParts(parts), st.zone()) : splitZonedTime(parts, st.zone()));
+                    }
+                    if (c.detail() instanceof Carried split && split.parts() != null) {
+                        // a split value (W13): its columns read back as the parts
+                        return scalar(carriedParts(c.name(), c.kind(), c.nullable()));
+                    }
                     Tx read = columnLike(new AppliedProperty(new Variable(row()), c.name()), c.kind(),
                             c.nullable());
+                    Col zone = column(ZONE_PART + c.name());
+                    boolean zoneless = !(c.detail() instanceof Carried cc) || cc.zone() == null;
+                    if ((c.kind() == Kind.ZONED || c.kind() == Kind.ZONED_TIME) && zoneless && zone != null) {
+                        // a zoned value whose offset the database read: the offset its projection carried beside it
+                        // (the study's §12.75)
+                        ValueSpecification offset = new AppliedProperty(new Variable(row()), zone.name());
+                        Col region = column(REGION_PART + c.name());
+                        return scalar(new Tx(read.vs(), read.kind(), read.nullable(), read.whenFalse(),
+                                new Carried(Zone.read(zone.nullable() ? call("toOne", offset) : offset,
+                                        region == null ? null : new AppliedProperty(new Variable(row()),
+                                                region.name())), c.detail() instanceof Carried cn && cn.nanos())));
+                    }
                     return scalar(c.detail() == null ? read : new Tx(read.vs(), read.kind(), read.nullable(),
                             read.whenFalse(), c.detail()));
                 }
             }
             throw CypherErrors.invalid("Variable `" + v.name() + "` not defined", v.pos());
+        }
+
+        /** A carried node's or relationship's property read from its column: a split value's columns read back as
+         *  the parts (W13 leg 5), any other the column as its kind, a zoned one's zone the columns its carry wrote
+         *  beside it (the study's §12.75). */
+        private Tx carriedProp(NodeProp np) {
+            Col own = column(np.column());
+            if (own != null && own.detail() instanceof Carried cp && cp.parts() != null) {
+                return carriedParts(np.column(), np.kind(), np.nullable());
+            }
+            Tx read = withNanos(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
+                    np.nullable()), np.nanos());
+            Col zone = column(ZONE_PART + np.column());
+            if ((np.kind() == Kind.ZONED || np.kind() == Kind.ZONED_TIME) && zone != null) {
+                ValueSpecification offset = new AppliedProperty(new Variable(row()), zone.name());
+                Col region = column(REGION_PART + np.column());
+                return new Tx(read.vs(), read.kind(), read.nullable(), read.whenFalse(), new Carried(
+                        Zone.read(read.nullable() ? call("toOne", offset) : offset, region == null ? null
+                                : new AppliedProperty(new Variable(row()), region.name())), np.nanos()));
+            }
+            return read;
+        }
+
+        /** A split value carried as columns (W13): its nanoseconds since midnight under {@code name}, a date-time's
+         *  date under {@link #DATE_PART} beside; a zoned one's zone the column's when spelled, else the offset (and
+         *  region) its projection carried beside it (§12.75). */
+        private Tx carriedParts(String name, Kind kind, boolean nullable) {
+            Col c = java.util.Objects.requireNonNull(column(name));
+            Tx clock = columnLike(new AppliedProperty(new Variable(row()), name), Kind.INTEGER, nullable);
+            Zone zone = c.detail() instanceof Carried cc ? cc.zone() : null;
+            Col offsetColumn = column(ZONE_PART + name);
+            if (zone == null && offsetColumn != null) {
+                ValueSpecification offset = new AppliedProperty(new Variable(row()), offsetColumn.name());
+                Col region = column(REGION_PART + name);
+                zone = Zone.read(offsetColumn.nullable() ? call("toOne", offset) : offset, region == null ? null
+                        : new AppliedProperty(new Variable(row()), region.name()));
+            }
+            if (kind == Kind.TIME) {
+                return splitTime(clock);
+            }
+            if (kind == Kind.ZONED_TIME) {
+                return splitZonedTime(clock, zone);
+            }
+            Col date = java.util.Objects.requireNonNull(column(DATE_PART + name));
+            Tx parts = splitDateTime(columnLike(new AppliedProperty(new Variable(row()), date.name()), Kind.DATE,
+                    date.nullable()), clock);
+            return kind == Kind.ZONED ? splitZoned(parts, zone) : parts;
         }
 
         @Override
@@ -4435,14 +9032,31 @@ public final class CypherToPure {
         NodeParts relParts(RelShape shape, Pos pos) {
             List<Map.Entry<String, Tx>> props = new ArrayList<>();
             for (Map.Entry<String, NodeProp> p : shape.props().entrySet()) {
-                NodeProp np = p.getValue();
-                props.add(Map.entry(p.getKey(), columnLike(new AppliedProperty(new Variable(row()), np.column()),
-                        np.kind(), np.nullable())));
+                props.add(Map.entry(p.getKey(), carriedProp(p.getValue())));
             }
             Col type = java.util.Objects.requireNonNull(column(shape.type()));
             ValueSpecification read = new AppliedProperty(new Variable(row()), shape.type());
+            // its identity: an edge class's relationship carries its column (the study's §12.46); one over a
+            // property or an association the pair of its ends' (S74)
             return NodeParts.rel(jsonText(call("toOne", read), Kind.STRING, shape.type(), pos), props,
-                    type.nullable() ? call("isEmpty", read) : null);
+                    type.nullable() ? call("isEmpty", read) : null, relIdentity(shape));
+        }
+
+        /** A carried relationship's identity (the study's §12.46, §12.48): its identity column, else the text over
+         *  its type's, its source's and its target's columns; null when the rows carry neither. */
+        @com.legend.base.Nullable Tx relIdentity(RelShape shape) {
+            if (shape.identity() != null) {
+                return identityColumn(shape.identity());
+            }
+            if (shape.source() == null || shape.target() == null) {
+                return null;
+            }
+            Col type = java.util.Objects.requireNonNull(column(shape.type()));
+            ValueSpecification typeRead = new AppliedProperty(new Variable(row()), shape.type());
+            Tx source = identityColumn(shape.source());
+            Tx target = identityColumn(shape.target());
+            return pairIdentity(call("toOne", typeRead), source, target, type.nullable() ? call("isEmpty", typeRead)
+                    : null);
         }
 
         @Override
@@ -4456,14 +9070,43 @@ public final class CypherToPure {
         NodeParts parts(NodeShape shape) {
             List<Map.Entry<String, Tx>> props = new ArrayList<>();
             for (Map.Entry<String, NodeProp> p : shape.props().entrySet()) {
-                NodeProp np = p.getValue();
-                props.add(Map.entry(p.getKey(), columnLike(new AppliedProperty(new Variable(row()), np.column()),
-                        np.kind(), np.nullable())));
+                props.add(Map.entry(p.getKey(), carriedProp(p.getValue())));
             }
             Col labels = java.util.Objects.requireNonNull(column(shape.labels()));
             ValueSpecification read = new AppliedProperty(new Variable(row()), shape.labels());
             // (the column is read as one: a projected column types [0..1], the labels' text is there when present)
-            return new NodeParts(call("toOne", read), props, labels.nullable() ? call("isEmpty", read) : null);
+            return new NodeParts(call("toOne", read), props, labels.nullable() ? call("isEmpty", read) : null)
+                    .withIdentity(identityOf(shape));
+        }
+
+        /** An identity column of the rows, read as a value. */
+        Tx identityColumn(String column) {
+            Col c = java.util.Objects.requireNonNull(column(column));
+            return Tx.value(new AppliedProperty(new Variable(row()), column), Kind.STRING, c.nullable());
+        }
+
+        /** A carried node's identity: its column (the study's §12.46); null when the rows carry none. */
+        @com.legend.base.Nullable Tx identityOf(NodeShape shape) {
+            if (shape.identity() == null) {
+                // (an absent node carried with no column of its own: no identity, null)
+                return shape.absent() ? SqlToPure.nullOf(Kind.STRING) : null;
+            }
+            Col c = java.util.Objects.requireNonNull(column(shape.identity()));
+            return Tx.value(new AppliedProperty(new Variable(row()), shape.identity()), Kind.STRING, c.nullable());
+        }
+
+        @Override
+        public @com.legend.base.Nullable Tx identity(CypherAst.Var v) {
+            Col c = column(v.name());
+            if (c != null && c.detail() instanceof NodeShape shape) {
+                return shape.absent() ? SqlToPure.nullOf(Kind.STRING) : identityOf(shape);
+            }
+            if (c != null && c.detail() instanceof RelShape shape && shape.identified()) {
+                // a relationship the rows carry with an identity (an edge's own, or the ordered pair of its
+                // ends, S74): what count(DISTINCT r) counts over rows, as over a graph (the study's §12.54)
+                return relIdentity(shape);
+            }
+            return null;
         }
 
         @Override
@@ -4491,15 +9134,21 @@ public final class CypherToPure {
                 }
                 NodeProp np = shape.props().get(p.name());
                 if (np == null) {
+                    if (open) {
+                        // an open graph (the study's §12.45): a property no class declares is Neo4j's null
+                        return nullValue();
+                    }
                     throw CypherErrors.invalid("the node " + v.name() + " has no property " + p.name() + " (the"
                             + " graph is the model: a property no class declares is an error, not null)", p.pos());
                 }
+                Col own = column(np.column());
+                boolean parts = own != null && own.detail() instanceof Carried cp && cp.parts() != null;
                 if (np.absent()) {
                     // (the class this arm reads lacks it: the known null, which a comparison folds)
-                    return scalar(SqlToPure.nullOf(np.kind()));
+                    return scalar(parts ? splitNull(np.kind()) : nullOfStored(np.kind(), np.nanos()));
                 }
-                return scalar(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
-                        np.nullable()));
+                // (a split one's columns read back as the parts, a zoned one's zone the columns beside it)
+                return scalar(carriedProp(np));
             }
             if (found.detail() instanceof RelShape rel) {
                 // a carried relationship's property: its edge class's column (the study's §5.6); of a relationship
@@ -4507,7 +9156,7 @@ public final class CypherToPure {
                 // lacks); of one an OPTIONAL MATCH never found, null too
                 NodeProp np = rel.props().get(p.name());
                 if (np == null) {
-                    if (!rel.props().isEmpty()) {
+                    if (!rel.props().isEmpty() && !open) {
                         throw CypherErrors.invalid("the relationship " + v.name() + " has no property " + p.name()
                                 + " (the graph is the model: a property its edge class does not declare is an error,"
                                 + " not null)", p.pos());
@@ -4516,10 +9165,11 @@ public final class CypherToPure {
                 }
                 if (np.absent()) {
                     // (the edge class this arm reads lacks it: the known null, which a comparison folds)
-                    return scalar(SqlToPure.nullOf(np.kind()));
+                    return scalar(nullOfStored(np.kind(), np.nanos()));
                 }
-                return scalar(columnLike(new AppliedProperty(new Variable(row()), np.column()), np.kind(),
-                        np.nullable()));
+                // (as a node's: a split one's columns read back as the parts, a zoned one's zone the columns beside
+                // it, W13 leg 6)
+                return scalar(carriedProp(np));
             }
             // (a value the database holds as a Variant, a node or map carried through WITH or read by an UNWIND:
             // the entry the platform's get reads, the study's §12.43)
@@ -4534,6 +9184,80 @@ public final class CypherToPure {
         @Override
         public boolean binds(String name) {
             return column(name) != null;
+        }
+    }
+
+    /** A join condition's scope (the study's §12.78): the variables {@code own} read from the right side's rows (the
+     *  pattern's match), every other from the left's (the row); a condition over the pair builds no lambda of its
+     *  own over a row. */
+    private final class JoinScope implements Scope {
+        private final RowScope left;
+        private final RowScope right;
+        private final Set<String> own;
+
+        JoinScope(RowScope left, RowScope right, Set<String> own) {
+            this.left = left;
+            this.right = right;
+            this.own = own;
+        }
+
+        private Scope side(String name) {
+            return own.contains(name) ? right : left;
+        }
+
+        @Override
+        public String row() {
+            throw new IllegalStateException("a join condition reads the row and the match, no row of its own");
+        }
+
+        @Override
+        public Val variable(CypherAst.Var v) {
+            return side(v.name()).variable(v);
+        }
+
+        @Override
+        public @com.legend.base.Nullable NodeParts nodeParts(CypherAst.Var v) {
+            return side(v.name()).nodeParts(v);
+        }
+
+        @Override
+        public boolean isAbsentNode(CypherAst.Var v) {
+            return side(v.name()).isAbsentNode(v);
+        }
+
+        @Override
+        public @com.legend.base.Nullable Tx identity(CypherAst.Var v) {
+            return side(v.name()).identity(v);
+        }
+
+        @Override
+        public @com.legend.base.Nullable Tx relType(CypherAst.Var v) {
+            return side(v.name()).relType(v);
+        }
+
+        @Override
+        public @com.legend.base.Nullable NodeParts relParts(CypherAst.Var v) {
+            return side(v.name()).relParts(v);
+        }
+
+        @Override
+        public @com.legend.base.Nullable PathSpec path(CypherAst.Var v) {
+            return side(v.name()).path(v);
+        }
+
+        @Override
+        public Val property(CypherAst.Prop p) {
+            return p.target() instanceof CypherAst.Var v ? side(v.name()).property(p) : left.property(p);
+        }
+
+        @Override
+        public boolean isPatternVariable(String name) {
+            return side(name).isPatternVariable(name);
+        }
+
+        @Override
+        public boolean binds(String name) {
+            return own.contains(name) ? right.binds(name) : left.binds(name);
         }
     }
 
@@ -4582,6 +9306,38 @@ public final class CypherToPure {
     /** A column's or a lambda parameter's value: a boolean one is a condition. */
     private static Tx columnLike(ValueSpecification v, Kind kind, boolean nullable) {
         return kind == Kind.BOOLEAN ? SqlToPure.booleanValue(v, nullable) : Tx.value(v, kind, nullable);
+    }
+
+    /** A stored property's kind: a time of day under its mark (the study's §12.64: a DateTime, the date-time at
+     *  the time of day on the epoch day), else its type's. */
+    private static Kind kindOf(Property p, Pos pos) {
+        if (p.timeOfDay()) {
+            if (!p.type().equals("DateTime")) {
+                throw CypherErrors.invalid("the property " + p.name() + " is marked timeOfDay but is of type "
+                        + p.type() + " (the mark takes a DateTime: the date-time at the time of day on the epoch"
+                        + " day)", pos);
+            }
+            return Kind.TIME;
+        }
+        return kindOf(p.type(), p.name(), pos);
+    }
+
+    /** A typed null of a stored property's kind: of nanosecond precision, the parts' nulls (W13 leg 6); else the
+     *  kind's. */
+    private static Tx nullOfStored(Kind kind, boolean nanos) {
+        return nanos ? splitNull(kind) : SqlToPure.nullOf(kind);
+    }
+
+    /** Whether the property {@code name} is of nanosecond precision on the classes declaring it (the study's
+     *  §12.64; a precision differing across them is refused by {@link GraphScope#unionKinds}). */
+    private boolean nanosDeclared(String name, List<String> classes) {
+        for (String c : classes) {
+            Property p = property(c, name);
+            if (p != null && nanosOf(p)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** A Pure primitive's kind, as the translator reasons about a value. */
@@ -4669,8 +9425,9 @@ public final class CypherToPure {
             case CypherAst.NullLit n -> nullValue();
             case CypherAst.Var v -> scope.variable(v);
             case CypherAst.Prop p -> scope.property(p);
-            case CypherAst.Param p -> throw CypherErrors.unsupported("a parameter ($" + p.name() + ") is not"
-                    + " supported yet", p.pos());
+            // a parameter the text did not bind (the island has no parameter channel, the study's §12.15: a lane
+            // binds a scenario's parameters into the text before translating): Neo4j's ParameterMissing
+            case CypherAst.Param p -> throw CypherErrors.invalid("Expected parameter(s): " + p.name(), p.pos());
             case CypherAst.ListLit l -> {
                 List<Val> elements = new ArrayList<>();
                 for (Expr x : l.elements()) {
@@ -4715,10 +9472,15 @@ public final class CypherToPure {
                     throw CypherErrors.invalid("PatternExpressions are not allowed to introduce new variables: '"
                             + pp.pattern().variable() + "'.", pp.pos());
                 }
-                yield scalar(patternExists(pp.pattern(), null, List.of(), pp.pos(), scope));
+                Tx flag = patternFlag(pp, scope);
+                yield scalar(flag != null ? flag : patternExists(pp.pattern(), null, List.of(), pp.pos(), scope));
             }
-            case CypherAst.ExistsSubquery ex -> scalar(patternExists(ex.pattern(), ex.where(), ex.items(), ex.pos(),
-                    scope));
+            case CypherAst.ExistsSubquery ex when ex.counted() != null -> scalar(countedExists(ex, scope));
+            case CypherAst.ExistsSubquery ex -> {
+                Tx flag = patternFlag(ex, scope);
+                yield scalar(flag != null ? flag : patternExists(ex.pattern(), ex.where(), ex.items(), ex.pos(),
+                        scope));
+            }
             case CypherAst.Index ix -> index(ix, scope);
             case CypherAst.Slice sl -> slice(sl, scope);
         };
@@ -4737,14 +9499,9 @@ public final class CypherToPure {
      *  double (0.1 + 0.2 is 0.30000000000000004); a bare Float literal lowers to a decimal
      *  (docs/SEMANTICS_REGISTER.md S9). */
     private static Val floatLiteral(CypherAst.FloatLit f, boolean negated) {
-        double v = Math.abs(f.value());
-        if (v >= 1e15 || (v != 0 && v < 1e-15)) {
-            // lite's Postgres dialect spells a Float literal in plain digits, which Postgres types numeric
-            // (1e308 answers an exact numeric, Neo4j a float): reported to the database owner (IN_FLIGHT,
-            // 2026-10-15); refused here until it spells a float
-            throw CypherErrors.unsupported("a float literal beyond 1e15 or below 1e-15 (" + f.text()
-                    + ") is not supported yet", f.pos());
-        }
+        // (a float of an extreme magnitude, 1e308 or 1e-305, was refused by name while Postgres typed its plain
+        // digits numeric; every dialect spells toFloat of one as a DOUBLE cast of its exponent form now, measured
+        // 2026-10-17, the study's §12.66)
         if (!negated) {
             return literal(Tx.value(call("toFloat", new CFloat(f.value())), Kind.FLOAT, false), f.value());
         }
@@ -4803,10 +9560,10 @@ public final class CypherToPure {
                 }
                 if (t.kind() == Kind.FLOAT || t.kind() == Kind.INEXACT) {
                     // IEEE negation: -0.0 is a value of its own in Cypher; Pure's minus lowers to 0 - x, which is +0.0
-                    yield SqlToPure.strict(t.kind(), List.of(t), x -> AppliedFunction.infixRun("times", List.of(
+                    yield strict(t.kind(), List.of(t), x -> AppliedFunction.infixRun("times", List.of(
                             x.get(0), new CFloat(-1.0))));
                 }
-                yield SqlToPure.strict(t.kind(), List.of(t), x -> call("minus", x.get(0)));
+                yield strict(t.kind(), List.of(t), x -> call("minus", x.get(0)));
             }
             default -> throw new IllegalStateException("unreachable: " + u.op());
         });
@@ -4842,9 +9599,13 @@ public final class CypherToPure {
             case PLUS -> {
                 Val l = val(b.left(), scope);
                 Val r = val(b.right(), scope);
-                if (l instanceof Scalar ls && r instanceof Scalar rs) {
+                if (l instanceof Scalar ls && r instanceof Scalar rs && !listShaped(ls) && !listShaped(rs)
+                        && !(unknownVariant(ls) && (unknownVariant(rs) || rs.tx().kind() == Kind.NULL))
+                        && !(unknownVariant(rs) && ls.tx().kind() == Kind.NULL)) {
                     return scalar(arithmetic(b, ls.tx(), rs.tx()));
                 }
+                // (a list the database holds as a Variant, of a known shape, concatenates as a list: §12.52; two
+                // of no known shape, two stored lists, read as lists, S81)
                 return concat(l, r, b.pos());
             }
             case MINUS, TIMES, DIVIDE, MODULO, POWER -> {
@@ -4853,20 +9614,19 @@ public final class CypherToPure {
             case STARTS_WITH, ENDS_WITH, CONTAINS -> {
                 Tx l = tx(b.left(), scope);
                 Tx r = tx(b.right(), scope);
-                if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
+                if (!stringLike(l) || !stringLike(r)) {
+                    // Neo4j: null for an operand that is not a string (a number, a boolean, a list, a map, null)
                     return scalar(SqlToPure.nullOf(Kind.BOOLEAN));
                 }
-                if (l.kind() != Kind.STRING || r.kind() != Kind.STRING) {
-                    throw CypherErrors.unsupported(op.name().replace('_', ' ') + " on a value that is not a string"
-                            + " (null in Neo4j) is not supported yet", b.pos());
-                }
+                l = stringOperand(l);
+                r = stringOperand(r);
                 String fn = switch (op) {
                     case STARTS_WITH -> "startsWith";
                     case ENDS_WITH -> "endsWith";
                     case CONTAINS -> "contains";
                     default -> throw new IllegalStateException("unreachable: " + op);
                 };
-                return scalar(SqlToPure.strictTest(List.of(l, r), v -> call(fn, v.get(0), v.get(1))));
+                return scalar(strictTest(List.of(l, r), v -> call(fn, v.get(0), v.get(1))));
             }
             case IN -> {
                 return scalar(in(b, scope));
@@ -4874,6 +9634,34 @@ public final class CypherToPure {
             case REGEX -> throw CypherErrors.unsupported("=~ (a regular expression) is not supported yet", b.pos());
         }
         throw new IllegalStateException("unreachable: " + op);
+    }
+
+    /** Whether a string predicate's operand may be a string: one, or a Variant, whose kind the database reads. */
+    private static boolean stringLike(Tx t) {
+        return t.kind() == Kind.STRING || t.kind() == Kind.JSON;
+    }
+
+    /** A string predicate's operand that may be a string: a string as it is; a Variant its string when it holds
+     *  one (the database's kind test, lite's {@code isKind}), else null, which the predicate reads as Neo4j does
+     *  (null for an operand that is not a string). */
+    private static Tx stringOperand(Tx t) {
+        if (t.kind() == Kind.STRING) {
+            return t;
+        }
+        ValueSpecification v = SqlToPure.valueOf(t);
+        return Tx.value(call("if", call("equal", call(IS_KIND, v, new CString("string")), new CBoolean(true)),
+                thunk(call("to", v, SqlToPure.typeArg("String"))), thunk(SqlToPure.nullOf(Kind.STRING).vs())),
+                Kind.STRING, true);
+    }
+
+    /** A path's elements' identities in order, as text (each element's {@code "@id"}, bar-separated), null where
+     *  the path is. */
+    private static Tx pathIdentities(Tx path) {
+        ValueSpecification v = SqlToPure.valueOf(path);
+        ValueSpecification ids = identitiesText(call("get", path.nullable() ? call("toOne", v) : v,
+                new CString("@path")));
+        return Tx.value(path.nullable() ? call("if", call("isEmpty", v), thunk(SqlToPure.nullOf(Kind.STRING).vs()),
+                thunk(ids)) : ids, Kind.STRING, path.nullable());
     }
 
     /** Cypher's three-valued AND: null when neither side is false and either is null. A side that is known true
@@ -4930,9 +9718,42 @@ public final class CypherToPure {
         if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
+        if (l.detail() instanceof PathValue && r.detail() instanceof PathValue) {
+            // two paths (the study's §12.73): equal when their nodes and relationships are, in order -- the
+            // identities their elements' values carry (S85), the stored directions apart, as Neo4j's path equality
+            return equal(pathIdentities(l), pathIdentities(r), pos);
+        }
         if (isNode(l) || isNode(r) || l.detail() instanceof PathValue || r.detail() instanceof PathValue) {
-            throw CypherErrors.unsupported("comparing nodes, relationships or paths (Neo4j compares them by identity,"
-                    + " which their values do not carry) is not supported yet", pos);
+            // nodes and relationships compare by identity (the study's §12.46): their identities, each the
+            // instance's primary key as text, null where an OPTIONAL MATCH found none
+            Tx li = identityOf(l);
+            Tx ri = identityOf(r);
+            if (isNode(l) && isNode(r) && li != null && ri != null) {
+                return equal(li, ri, pos);
+            }
+            // a node or relationship against a path, or either against a value of a known other kind (a scalar, a
+            // list or map of known shape): values of different types, never equal (the study's §12.73)
+            boolean lg = isNode(l) || l.detail() instanceof PathValue;
+            boolean rg = isNode(r) || r.detail() instanceof PathValue;
+            Tx other = lg ? r : l;
+            if (lg && rg ? isNode(l) != isNode(r) : other.kind() != Kind.JSON || other.detail() instanceof ListOf
+                    || other.detail() instanceof MapOf || other.detail() instanceof TupleOf) {
+                return l.nullable() || r.nullable() ? strictTest(List.of(l, r), v -> new CBoolean(false))
+                        : constant(false);
+            }
+            throw CypherErrors.unsupported("comparing " + (isNode(l) && isNode(r) ? "relationships over a property"
+                    + " or association (no row of their own, so no identity)" : "nodes, relationships or paths with"
+                    + " values of another kind, or paths") + " is not supported yet", pos);
+        }
+        if ((l.kind() == Kind.JSON) != (r.kind() == Kind.JSON)) {
+            Tx json = l.kind() == Kind.JSON ? l : r;
+            Tx other = l.kind() == Kind.JSON ? r : l;
+            if (json.detail() == null && jsonKindOf(other.kind()) != null) {
+                return variantEqual(json, other);
+            }
+        }
+        if (l.kind() == Kind.JSON && r.kind() == Kind.JSON) {
+            return variantsEqual(l, r);
         }
         if (l.kind() == Kind.JSON || r.kind() == Kind.JSON || l.kind() == Kind.OTHER || r.kind() == Kind.OTHER) {
             throw CypherErrors.unsupported("comparing a " + cypherType(l.kind()) + " with a " + cypherType(r.kind())
@@ -4941,16 +9762,21 @@ public final class CypherToPure {
         boolean sameType = l.kind() == Kind.BOOLEAN || r.kind() == Kind.BOOLEAN ? l.kind() == r.kind()
                 : comparable(l.kind(), r.kind());
         if (!sameType) {
-            return l.nullable() || r.nullable() ? SqlToPure.strictTest(List.of(l, r), v -> new CBoolean(false))
+            return l.nullable() || r.nullable() ? strictTest(List.of(l, r), v -> new CBoolean(false))
                     : constant(false);
         }
-        if (l.kind() == Kind.TIME && (nanos(l) || nanos(r))) {
-            // a nanosecond time of day is the date-time at it on the epoch day: both compare so
-            return SqlToPure.strictTest(List.of(atEpoch(l), atEpoch(r)), v -> call("equal", v.get(0), v.get(1)));
+        if ((l.kind() == Kind.TIME || l.kind() == Kind.DATETIME) && (split(l) || split(r))) {
+            // values of nanosecond precision compare by their parts (W13): equal when their dates and their
+            // nanoseconds since midnight are (another value read into the same parts)
+            return splitCompared(l, r, "equal", null);
+        }
+        if ((l.kind() == Kind.ZONED || l.kind() == Kind.ZONED_TIME) && (split(l) || split(r))) {
+            // zoned values of nanosecond precision: by their instants' parts (W13; by the instants alone, S66)
+            return splitZonedCompared(l, r, "equal", null);
         }
         if (l.kind() == Kind.DURATION) {
             // two durations are equal when their four components are (Neo4j's: months, days, seconds, nanoseconds)
-            return SqlToPure.strictTest(List.of(l, r), v -> {
+            return strictTest(List.of(l, r), v -> {
                 ValueSpecification all = null;
                 for (String f : DURATION_SLOTS) {
                     ValueSpecification one = call("equal", new AppliedProperty(v.get(0), f),
@@ -4960,7 +9786,312 @@ public final class CypherToPure {
                 return java.util.Objects.requireNonNull(all);
             });
         }
-        return SqlToPure.strictTest(List.of(l, r), v -> call("equal", v.get(0), v.get(1)));
+        return strictTest(List.of(l, r), v -> call("equal", v.get(0), v.get(1)));
+    }
+
+    /** The JSON kind ({@code isKind}'s name) a scalar of this kind is held as by a Variant, where the Variant reads
+     *  it back by type; null for a kind the Variant spells as text (a temporal) or cannot hold. */
+    private static @com.legend.base.Nullable String jsonKindOf(Kind kind) {
+        return switch (kind) {
+            case STRING -> "string";
+            case BOOLEAN -> "boolean";
+            case INTEGER, WHOLE, FLOAT, INEXACT, DECIMAL, NUMBER -> "number";
+            default -> null;
+        };
+    }
+
+    /** The mark of a float divided by a zero literal: NaN or an infinity in Neo4j. Inside a list or map it is the
+     *  Variant the database builds of it (the study's §12.79): DuckDB's JSON writes {@code NaN}, {@code Infinity},
+     *  {@code -Infinity}, which no JSON number spells; Postgres's division raises first (S60). */
+    private record NotANumber() implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** The mark of a projected column whose value is a typed null constant (a property no class declares, a null the
+     *  query computes from one): read back as that null wherever the clauses after read it, never as the column
+     *  (whose to-one read would be a statically empty one, §12.82); the column itself stays, a grouping's key. */
+    private record NullConstant() implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** A projected column's detail: a typed null constant marked so ({@link NullConstant}) where the projection has
+     *  one arm (over several, the rows keep the first arm's columns, and the value is null in some arms only), else
+     *  the value's own. */
+    private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail columnDetail(Tx t,
+            boolean oneArm) {
+        return oneArm && t.kind() != Kind.NULL && t.detail() == null && SqlToPure.isNullConstant(t)
+                ? new NullConstant() : t.detail();
+    }
+
+    /** Beside a split value {@code t} computed over the grouped rows under {@code name} (W13): its date under
+     *  {@link #DATE_PART} (a date-time's) and the zone the database read under {@link #ZONE_PART} and
+     *  {@link #REGION_PART} (§12.75), each an expression after the grouping, as an ungrouped item carries them. */
+    private static void aroundParts(String name, Tx t, String row, Set<String> names, List<ColSpec> expressions,
+            List<Col> columns) {
+        if (t.kind() == Kind.DATETIME || t.kind() == Kind.ZONED) {
+            String column = DATE_PART + name;
+            names.add(column);
+            expressions.add(new ColSpec(column, lambda(row, SqlToPure.valueOf(datePartOf(t))), null, null));
+            columns.add(new Col(column, Kind.DATE, true));
+        }
+        Zone zone = zoneOf(t);
+        if (zone != null && zone.read() != null) {
+            String column = ZONE_PART + name;
+            names.add(column);
+            expressions.add(new ColSpec(column, lambda(row, zone.read()), null, null));
+            columns.add(new Col(column, Kind.INTEGER, t.nullable()));
+            if (zone.region() != null) {
+                String region = REGION_PART + name;
+                names.add(region);
+                expressions.add(new ColSpec(region, lambda(row, zone.region()), null, null));
+                columns.add(new Col(region, Kind.STRING, true));
+            }
+        }
+    }
+
+    /** Whether an expression is a zero literal ({@code 0}, {@code 0.0}). */
+    private static boolean zeroLiteral(Expr e) {
+        return e instanceof CypherAst.IntLit i && i.value() == 0 || e instanceof CypherAst.FloatLit f && f.value() == 0.0;
+    }
+
+    /** {@code v = x} where {@code v} is a Variant of no known shape (a property of a node the database holds as a
+     *  Variant, an element of such a list) and {@code x} a scalar the Variant reads back by type (the study's
+     *  §12.57): equal where the Variant holds a value of x's kind and the two agree (a number as a float), false
+     *  where it holds a value of another kind (Cypher: values of different types are never equal), null where
+     *  either is null or the Variant holds the JSON null. */
+    private static Tx variantEqual(Tx json, Tx other) {
+        String kind = java.util.Objects.requireNonNull(jsonKindOf(other.kind()));
+        boolean number = other.kind().numeric();
+        ValueSpecification v = SqlToPure.valueOf(json);
+        ValueSpecification x = SqlToPure.valueOf(other);
+        ValueSpecification present = call("not", call("equal", call(IS_KIND, v, new CString("null")),
+                new CBoolean(true)));
+        if (json.nullable()) {
+            present = call("and", call("isNotEmpty", v), present);
+        }
+        if (other.nullable()) {
+            present = call("and", present, call("isNotEmpty", x));
+        }
+        ValueSpecification holds = call("equal", call(IS_KIND, v, new CString(kind)), new CBoolean(true));
+        ValueSpecification one = other.nullable() ? call("toOne", x) : x;
+        // (trustOne, never toOne: an arm's typed null column is stamped [0..0], and toOne of it is the raise
+        // itself, which Postgres folds at plan time, §12.62)
+        ValueSpecification read = call("to", call(TRUST_ONE, v), SqlToPure.typeArg(number ? "Float"
+                : java.util.Objects.requireNonNull(elementType(other.kind()))));
+        ValueSpecification same = call("equal", read, number ? call("toFloat", one) : one);
+        ValueSpecification whenTrue = call("and", present, call("if", holds, thunk(same), thunk(new CBoolean(false))));
+        ValueSpecification whenFalse = call("and", present, call("if", holds, thunk(call("not", same)),
+                thunk(new CBoolean(true))));
+        return Tx.condition(whenTrue, whenFalse, true);
+    }
+
+    /** The marks of the orderability key ({@link #variantKey}): a list's end, the separator between its elements,
+     *  and the escape before a mark inside a string (none is the NUL byte, which Postgres's text refuses). */
+    private static final String KEY_END = "\u0001";
+    private static final String KEY_SEP = "\u0002";
+    private static final String KEY_ESC = "\u0003";
+
+    /** The depth to which the orderability key spells a list's elements as keys of their own: deeper, a list is its
+     *  JSON text (S81). */
+    private static final int KEY_DEPTH = 3;
+
+    /**
+     * The orderability key of a Variant (the study's §12.58): a text the database builds that orders Variants as
+     * Cypher orders values -- by their type's rank first (a map {@code 0}, a node {@code 1}, a relationship
+     * {@code 2}, a list {@code 3}, a path {@code 4}, a string {@code 5}, a boolean {@code 6}, a number {@code 7},
+     * null {@code 9}: Cypher's order, null last ascending), then by the value: a number as a fixed-width text of
+     * its millionths offset to be positive (S81: its order holds within ±9e12 and to the millionth), a string as
+     * its text (its marks escaped), a boolean as {@code 0} or {@code 1}, a list as its elements' keys joined by the
+     * separator and ended by the end mark (so a prefix orders first, as Cypher's element-wise order does), a map,
+     * node, relationship or path as its JSON text (S81: Neo4j orders nodes and relationships by identity).
+     */
+    private static Tx variantKey(Tx v) {
+        return Tx.value(keyOf(SqlToPure.valueOf(v), KEY_DEPTH), Kind.STRING, false);
+    }
+
+    private static ValueSpecification keyOf(ValueSpecification v, int depth) {
+        java.util.function.Function<String, ValueSpecification> is = k -> call("equal", call(IS_KIND, v,
+                new CString(k)), new CBoolean(true));
+        // the kind test before each place proves the value present: trustOne, the platform's unguarded
+        // conformance, never toOne's raise (a raise Postgres folds at PLAN time where the key sits in a
+        // subquery's WHERE over an outer row's value: the planner's estimate evaluates stable constants in
+        // every CASE arm, 2026-10-17; and where the column is an arm's typed null, stamped [0..0], toOne of
+        // which the lowering spells as the raise itself, §12.62)
+        ValueSpecification one = call(TRUST_ONE, v);
+        ValueSpecification text = call("toString", one);
+        ValueSpecification number = numberKey(call(TRUST_ONE, call("to", one, SqlToPure.typeArg("Float"))));
+        ValueSpecification bool = call("if", call(TRUST_ONE, call("to", one, SqlToPure.typeArg("Boolean"))),
+                thunk(new CString("61")), thunk(new CString("60")));
+        ValueSpecification string = plus(new CString("5"), escapedKey(call(TRUST_ONE, call("to", one,
+                SqlToPure.typeArg("String")))));
+        String var = "e" + depth;
+        ValueSpecification list = depth == 0 ? plus(new CString("3"), text, new CString(KEY_END))
+                : plus(new CString("3"), call("joinStrings", call("map", call("toMany", one,
+                        SqlToPure.typeArg(VARIANT_TYPE)), lambda(var, keyOf(new Variable(var), depth - 1))),
+                        new CString(KEY_SEP)), new CString(KEY_END));
+        java.util.function.Function<String, ValueSpecification> has = k -> call("isNotEmpty", call("get", one,
+                new CString(k)));
+        ValueSpecification map = call("if", has.apply("@path"), thunk(plus(new CString("4"), text)),
+                thunk(call("if", has.apply("@type"), thunk(plus(new CString("2"), text)),
+                        thunk(call("if", has.apply("@labels"), thunk(plus(new CString("1"), text)),
+                                thunk(plus(new CString("0"), text)))))));
+        return call("if", call("or", call("isEmpty", v), is.apply("null")), thunk(new CString("9")),
+                thunk(call("if", is.apply("number"), thunk(number),
+                        thunk(call("if", is.apply("boolean"), thunk(bool),
+                                thunk(call("if", is.apply("string"), thunk(string),
+                                        thunk(call("if", is.apply("list"), thunk(list), thunk(map))))))))));
+    }
+
+    /** A number's key: its rank {@code 7} and the text of its millionths offset by 10^18, left-padded to twenty
+     *  digits, so the texts order as the numbers do (within ±9e12, to the millionth; S81); beyond the largest
+     *  double, {@code 80} for the infinity and {@code 81} for NaN, which the databases order beyond it (Neo4j's
+     *  order: the numbers, Infinity, NaN; the study's §12.79); above 9e12 the
+     *  highest text, below -9e12 the lowest (one key each: the millionths would overflow the database's integer
+     *  there, S81). */
+    private static ValueSpecification numberKey(ValueSpecification number) {
+        ValueSpecification scaled = call("floor", AppliedFunction.infixRun("times", List.of(number,
+                new CFloat(1000000.0))));
+        ValueSpecification shifted = AppliedFunction.infixRun("plus", List.of(scaled,
+                new CInteger(1000000000000000000L)));
+        ValueSpecification finite = plus(new CString("7"), call("lpad", call("toString", shifted), new CInteger(20L),
+                new CString("0")));
+        ValueSpecification beyond = call("greaterThan", number, new CFloat(Double.MAX_VALUE));
+        ValueSpecification notANumber = call("greaterThan", number, call("parseFloat", new CString("Infinity")));
+        ValueSpecification above = call("greaterThan", number, new CFloat(NUMBER_KEY_RANGE));
+        ValueSpecification below = call("lessThan", number, new CFloat(-NUMBER_KEY_RANGE));
+        return call("if", beyond, thunk(call("if", notANumber, thunk(new CString("81")), thunk(new CString("80")))),
+                thunk(call("if", above,
+                thunk(new CString("7" + "9".repeat(20))), thunk(call("if", below,
+                        thunk(new CString("7" + "0".repeat(20))), thunk(finite))))));
+    }
+
+    /** The numbers the orderability key spells exactly: within ±9e12 (their millionths offset by 10^18 fit a
+     *  64-bit integer). */
+    private static final double NUMBER_KEY_RANGE = 9.0e12;
+
+    /** A string's place in the orderability key: its text with the key's marks escaped. */
+    private static ValueSpecification escapedKey(ValueSpecification text) {
+        ValueSpecification out = call("replace", text, new CString(KEY_ESC), new CString(KEY_ESC + KEY_ESC));
+        out = call("replace", out, new CString(KEY_SEP), new CString(KEY_ESC + KEY_SEP));
+        return call("replace", out, new CString(KEY_END), new CString(KEY_ESC + KEY_END));
+    }
+
+    /** The orderability key of a scalar the island types (what a Variant beside it compares with): a string's, a
+     *  boolean's or a number's place after its rank, {@code 9} for a null; null for a kind the key does not spell
+     *  (a temporal). */
+    private static @com.legend.base.Nullable Tx scalarKey(Tx t) {
+        if (t.kind() == Kind.NULL) {
+            return Tx.value(new CString("9"), Kind.STRING, false);
+        }
+        ValueSpecification v = SqlToPure.valueOf(t);
+        ValueSpecification one = t.nullable() ? call(TRUST_ONE, v) : v;   // under the isEmpty test below
+        ValueSpecification key;
+        if (t.kind() == Kind.STRING) {
+            key = plus(new CString("5"), escapedKey(one));
+        } else if (t.kind() == Kind.BOOLEAN) {
+            key = call("if", one, thunk(new CString("61")), thunk(new CString("60")));
+        } else if (t.kind().numeric()) {
+            key = numberKey(call("toFloat", one));
+        } else {
+            return null;
+        }
+        if (t.nullable()) {
+            key = call("if", call("isEmpty", v), thunk(new CString("9")), thunk(key));
+        }
+        return Tx.value(key, Kind.STRING, false);
+    }
+
+    /** {@code l < r} and the others where a side is a Variant (§12.58): by the orderability keys where both are
+     *  of one rank the key orders by value (a string, a boolean, a number, a list -- element-wise by the keys,
+     *  S81), null where the ranks differ (Cypher: values of different types do not order) or either is null. */
+    private static Tx variantOrdered(BinaryOp op, Tx l, Tx r, Pos pos) {
+        // a Variant of no known shape against a string, a boolean or a number (the study's §12.62): ordered where
+        // the Variant holds a value of that kind, null where another (Cypher: values of different types do not
+        // order), as variantEqual tells them apart; two Variants, or a list beside one, by their keys (§12.58)
+        if (l.kind() == Kind.JSON && l.detail() == null && r.kind() != Kind.JSON && jsonKindOf(r.kind()) != null) {
+            return variantOrderedScalar(op, l, r, pos);
+        }
+        if (r.kind() == Kind.JSON && r.detail() == null && l.kind() != Kind.JSON && jsonKindOf(l.kind()) != null) {
+            return variantOrderedScalar(mirrored(op), r, l, pos);
+        }
+        Tx lk = l.kind() == Kind.JSON ? variantKey(l) : scalarKey(l);
+        Tx rk = r.kind() == Kind.JSON ? variantKey(r) : scalarKey(r);
+        if (lk == null || rk == null) {
+            throw CypherErrors.unsupported("comparing a " + cypherType(l.kind()) + " with a " + cypherType(r.kind())
+                    + " (null in Neo4j) is not supported yet", pos);
+        }
+        ValueSpecification lr = call("left", lk.vs(), new CInteger(1L));
+        ValueSpecification rr = call("left", rk.vs(), new CInteger(1L));
+        ValueSpecification same = call("equal", lr, rr);
+        ValueSpecification ordered = null;
+        for (String rank : List.of("3", "5", "6", "7")) {
+            ValueSpecification one = call("equal", lr, new CString(rank));
+            ordered = ordered == null ? one : call("or", ordered, one);
+        }
+        String fn = switch (op) {
+            case LT -> "lessThan";
+            case LE -> "lessThanEqual";
+            case GT -> "greaterThan";
+            case GE -> "greaterThanEqual";
+            default -> throw new IllegalStateException("unreachable: " + op);
+        };
+        ValueSpecification holds = call("and", same, java.util.Objects.requireNonNull(ordered));
+        ValueSpecification test = call(fn, lk.vs(), rk.vs());
+        return Tx.condition(call("and", holds, test), call("and", holds, call("not", test)), true);
+    }
+
+    /** {@code json op other}: a Variant of no known shape ordered against a string, a boolean or a number
+     *  (the study's §12.62): ordered where the Variant holds a value of the other's kind (a number as a float),
+     *  null where it holds another kind (Cypher: values of different types do not order), where either is null,
+     *  or where the Variant holds the JSON null. */
+    private static Tx variantOrderedScalar(BinaryOp op, Tx json, Tx other, Pos pos) {
+        String kind = java.util.Objects.requireNonNull(jsonKindOf(other.kind()));
+        boolean number = other.kind().numeric();
+        ValueSpecification v = SqlToPure.valueOf(json);
+        ValueSpecification x = SqlToPure.valueOf(other);
+        ValueSpecification present = call("not", call("equal", call(IS_KIND, v, new CString("null")),
+                new CBoolean(true)));
+        if (json.nullable()) {
+            present = call("and", call("isNotEmpty", v), present);
+        }
+        if (other.nullable()) {
+            present = call("and", present, call("isNotEmpty", x));
+        }
+        ValueSpecification holds = call("equal", call(IS_KIND, v, new CString(kind)), new CBoolean(true));
+        ValueSpecification one = other.nullable() ? call("toOne", x) : x;
+        Kind as = number ? Kind.FLOAT : other.kind();
+        // (a boolean as a condition, never a bare value: a bare false would read as the null constant)
+        ValueSpecification typed = call("to", call(TRUST_ONE, v), SqlToPure.typeArg(number ? "Float"
+                : java.util.Objects.requireNonNull(elementType(other.kind()))));
+        Tx read = as == Kind.BOOLEAN ? columnLike(typed, Kind.BOOLEAN, false) : Tx.value(typed, as, false);
+        Tx against = as == Kind.BOOLEAN ? other : Tx.value(number ? call("toFloat", one) : one, as, false);
+        Tx test = ordered(op, read, against, pos);
+        ValueSpecification whenTrue = call("and", present, call("if", holds, thunk(test.vs()),
+                thunk(new CBoolean(false))));
+        ValueSpecification whenFalse = call("and", present, call("if", holds, thunk(test.falseWhen()),
+                thunk(new CBoolean(false))));
+        return Tx.condition(whenTrue, whenFalse, true);
+    }
+
+    /** The comparison read from the other side ({@code a < b} is {@code b > a}). */
+    private static BinaryOp mirrored(BinaryOp op) {
+        return switch (op) {
+            case LT -> BinaryOp.GT;
+            case LE -> BinaryOp.GE;
+            case GT -> BinaryOp.LT;
+            case GE -> BinaryOp.LE;
+            default -> throw new IllegalStateException("unreachable: " + op);
+        };
+    }
+
+    /** {@code l = r} where both are Variants of no known shape (§12.58): equal where their orderability keys are
+     *  (a number as a float, a list element-wise, a map, node or relationship as its text: S81), null where either
+     *  is null or holds the JSON null. */
+    private static Tx variantsEqual(Tx l, Tx r) {
+        Tx lk = variantKey(l);
+        Tx rk = variantKey(r);
+        ValueSpecification present = call("and", call("not", call("equal", lk.vs(), new CString("9"))),
+                call("not", call("equal", rk.vs(), new CString("9"))));
+        ValueSpecification same = call("equal", lk.vs(), rk.vs());
+        return Tx.condition(call("and", present, same), call("and", present, call("not", same)), true);
     }
 
     /** {@code l < r} and the others: null when either is null, or when the values are of different types. Booleans
@@ -4968,6 +10099,10 @@ public final class CypherToPure {
     private static Tx ordered(BinaryOp op, Tx l, Tx r, Pos pos) {
         if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
+        }
+        if ((l.kind() == Kind.JSON || r.kind() == Kind.JSON) && !isNode(l) && !isNode(r)
+                && !(l.detail() instanceof PathValue) && !(r.detail() instanceof PathValue)) {
+            return variantOrdered(op, l, r, pos);
         }
         if (l.kind() == Kind.BOOLEAN && r.kind() == Kind.BOOLEAN) {
             String fn = switch (op) {
@@ -4977,7 +10112,7 @@ public final class CypherToPure {
                 case GE -> "greaterThanEqual";
                 default -> throw new IllegalStateException("unreachable: " + op);
             };
-            return SqlToPure.strictTest(List.of(l, r), v -> call(fn, v.get(0), v.get(1)));
+            return strictTest(List.of(l, r), v -> call(fn, v.get(0), v.get(1)));
         }
         if (l.kind() == Kind.BOOLEAN || r.kind() == Kind.BOOLEAN) {
             // null in Neo4j: values of different types do not order
@@ -5000,11 +10135,68 @@ public final class CypherToPure {
             case GT -> SqlAst.BinaryOp.GT;
             default -> SqlAst.BinaryOp.GE;
         };
+        if ((l.kind() == Kind.TIME || l.kind() == Kind.DATETIME) && (split(l) || split(r))) {
+            // values of nanosecond precision order by their parts (W13): by date, then by the nanoseconds since
+            // midnight (another value read into the same parts)
+            boolean less = op == BinaryOp.LT || op == BinaryOp.LE;
+            return splitCompared(l, r, switch (op) {
+                case LT -> "lessThan";
+                case LE -> "lessThanEqual";
+                case GT -> "greaterThan";
+                case GE -> "greaterThanEqual";
+                default -> throw new IllegalStateException("unreachable: " + op);
+            }, less ? "lessThan" : "greaterThan");
+        }
+        if ((l.kind() == Kind.ZONED || l.kind() == Kind.ZONED_TIME) && (split(l) || split(r))) {
+            // zoned values of nanosecond precision order by their instants' parts (W13; by the instants alone, S66)
+            boolean less = op == BinaryOp.LT || op == BinaryOp.LE;
+            return splitZonedCompared(l, r, switch (op) {
+                case LT -> "lessThan";
+                case LE -> "lessThanEqual";
+                case GT -> "greaterThan";
+                case GE -> "greaterThanEqual";
+                default -> throw new IllegalStateException("unreachable: " + op);
+            }, less ? "lessThan" : "greaterThan");
+        }
         if (l.kind() == Kind.TIME) {
             // Pure orders no StrictTime: two times of day order as the date-times at them on one day
             return SqlToPure.compare(sqlOp, atEpoch(l), atEpoch(r));
         }
         return SqlToPure.compare(sqlOp, l, r);
+    }
+
+    /** Two times of day or two date-times compared by their parts (W13) with Pure's {@code fn} ({@code equal} or an
+     *  order): a time of day by its nanoseconds since midnight; a date-time by its date, then, on the same date, by
+     *  its nanoseconds since midnight -- for an order, {@code byDate} the strict order between the dates (null for
+     *  equality). Null when either is null. */
+    private static Tx splitCompared(Tx l, Tx r, String fn, @com.legend.base.Nullable String byDate) {
+        Tx ls = asSplit(l);
+        Tx rs = asSplit(r);
+        if (l.kind() == Kind.TIME) {
+            return strictTest(List.of(ofDay(ls), ofDay(rs)), v -> call(fn, v.get(0), v.get(1)));
+        }
+        // (an order holds strictly between the dates, or on the same date between the clocks)
+        return strictTest(List.of(datePartOf(ls), ofDay(ls), datePartOf(rs), ofDay(rs)), v -> {
+            ValueSpecification sameDay = call("and", call("equal", v.get(0), v.get(2)), call(fn, v.get(1), v.get(3)));
+            return byDate == null ? sameDay : call("or", call(byDate, v.get(0), v.get(2)), sameDay);
+        });
+    }
+
+    /** {@link #splitCompared} of two zoned values (W13): two date-times by their instants' UTC parts, two times of
+     *  day by their nanoseconds from the epoch day's midnight (their instants on that day, §12.11's order), another
+     *  precision's read into them. */
+    private static Tx splitZonedCompared(Tx l, Tx r, String fn, @com.legend.base.Nullable String byDate) {
+        if (l.kind() == Kind.ZONED_TIME) {
+            return strictTest(List.of(epochDayNanos(l), epochDayNanos(r)), v -> call(fn, v.get(0),
+                    v.get(1)));
+        }
+        return splitCompared(instantParts(l), instantParts(r), fn, byDate);
+    }
+
+    /** A zoned time of day's nanoseconds from the epoch day's midnight: a split one's own, another's instant on the
+     *  epoch day read into them. */
+    private static Tx epochDayNanos(Tx zt) {
+        return split(zt) ? ofDay(zt) : fromEpochDay(asSplit(instantOfTime(zt)));
     }
 
     private static boolean comparable(Kind a, Kind b) {
@@ -5025,7 +10217,7 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("+ of a string and a " + cypherType(l.kind() == Kind.STRING ? r.kind()
                         : l.kind()) + " is not supported yet", b.pos());
             }
-            return SqlToPure.strict(Kind.STRING, List.of(l, r), v -> AppliedFunction.infixRun("plus", v));
+            return strict(Kind.STRING, List.of(l, r), v -> AppliedFunction.infixRun("plus", v));
         }
         if (l.kind() == Kind.NULL && r.kind() == Kind.NULL) {
             return SqlToPure.nullOf(Kind.INTEGER);
@@ -5050,27 +10242,56 @@ public final class CypherToPure {
         }
         return switch (op) {
             // Pure's plus, minus and times take one collection: the operator run, as the parser spells a + b
-            case PLUS -> SqlToPure.strict(kind, List.of(l, r), v -> AppliedFunction.infixRun("plus", v));
-            case MINUS -> SqlToPure.strict(kind, List.of(l, r), v -> AppliedFunction.infixRun("minus", v));
-            case TIMES -> SqlToPure.strict(kind, List.of(l, r), v -> AppliedFunction.infixRun("times", v));
+            case PLUS -> strict(kind, List.of(l, r), v -> AppliedFunction.infixRun("plus", v));
+            case MINUS -> strict(kind, List.of(l, r), v -> AppliedFunction.infixRun("minus", v));
+            case TIMES -> strict(kind, List.of(l, r), v -> AppliedFunction.infixRun("times", v));
             case DIVIDE -> {
                 if (l.kind() == Kind.INTEGER && r.kind() == Kind.INTEGER) {
                     // Cypher's integer division truncates toward zero, as Postgres's does
                     noDatabaseLambda("/ of integers", b.pos());
-                    yield SqlToPure.strict(Kind.INTEGER, List.of(l, r), v -> SqlToPure.integerQuotient(v.get(0),
+                    yield strict(Kind.INTEGER, List.of(l, r), v -> SqlToPure.integerQuotient(v.get(0),
                             v.get(1)));
                 }
-                yield SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> call("divide", v.get(0), v.get(1)));
+                Tx quotient = strict(Kind.FLOAT, List.of(l, r), v -> call("divide", v.get(0), v.get(1)));
+                if (zeroLiteral(b.right())) {
+                    // (NaN or an infinity in Neo4j: marked, so a list or map holding it refuses by name -- Postgres's
+                    // division raises, and its JSON holds neither)
+                    yield new Tx(quotient.vs(), quotient.kind(), quotient.nullable(), quotient.whenFalse(),
+                            new NotANumber());
+                }
+                yield quotient;
             }
             case MODULO -> {
                 if (l.kind() != Kind.INTEGER || r.kind() != Kind.INTEGER) {
-                    throw CypherErrors.unsupported("% of values that are not both integers is not supported yet",
-                            b.pos());
+                    // of a float (the study's §12.73): Pure's rem of the two as floats, the remainder with the
+                    // dividend's sign, a Float (exact as Java's on every lane, Postgres's dialect spelling it over
+                    // integers, the study's §12.90). By zero, Java's: NaN for a Float divisor and a spelled zero
+                    // (measured: `2.5 % 0.0`, `WITH 0.0 AS z RETURN 5 % z`, `2.5 % 0` are NaN), the database's
+                    // parse of the text as `Infinity` is; an Integer zero of the row is Neo4j's error (`WITH 0 AS
+                    // i RETURN 2.5 % i` is "/ by zero"), Pure's rem's. A spelled zero is marked as a division's is.
+                    noDatabaseLambda("%", b.pos());
+                    boolean spelledZero = zeroLiteral(b.right());
+                    boolean nanByZero = r.kind() == Kind.FLOAT;
+                    Tx remainder = strict(Kind.FLOAT, List.of(l, r), v -> {
+                        ValueSpecification nan = call("parseFloat", new CString("NaN"));
+                        if (spelledZero) {
+                            return nan;
+                        }
+                        ValueSpecification rem = call("toFloat", call("rem", call("toFloat", v.get(0)),
+                                call("toFloat", v.get(1))));
+                        return nanByZero ? call("if", call("equal", call("toFloat", v.get(1)), new CFloat(0.0)),
+                                thunk(nan), thunk(rem)) : rem;
+                    });
+                    yield spelledZero ? new Tx(remainder.vs(), remainder.kind(), remainder.nullable(),
+                            remainder.whenFalse(), new NotANumber()) : remainder;
                 }
-                noDatabaseLambda("%", b.pos());
-                yield SqlToPure.strict(Kind.INTEGER, List.of(l, r), v -> call("rem", v.get(0), v.get(1)));
+                if (!(r.vs() instanceof CInteger ci && ci.value().longValue() != 0)) {
+                    // (a literal divisor that is not zero lowers without the divide-by-zero guard)
+                    noDatabaseLambda("%", b.pos());
+                }
+                yield strict(Kind.INTEGER, List.of(l, r), v -> call("rem", v.get(0), v.get(1)));
             }
-            case POWER -> SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> call("pow", call("toFloat", v.get(0)),
+            case POWER -> strict(Kind.FLOAT, List.of(l, r), v -> call("pow", call("toFloat", v.get(0)),
                     v.get(1)));
             default -> throw new IllegalStateException("unreachable: " + op);
         };
@@ -5146,9 +10367,16 @@ public final class CypherToPure {
                 return SqlToPure.nullOf(Kind.BOOLEAN);
             }
             if (ls.tx().kind() == Kind.BOOLEAN ? c.kind() != Kind.BOOLEAN : !comparable(ls.tx().kind(), c.kind())) {
-                return SqlToPure.strictTest(List.of(ls.tx()), v -> new CBoolean(false));
+                return strictTest(List.of(ls.tx()), v -> new CBoolean(false));
             }
-            return SqlToPure.strictTest(List.of(ls.tx()), v -> call("in", v.get(0), c.vs()));
+            if (spelledParts(c) || split(ls.tx()) && spelledTemporal(c.kind())) {
+                // of nanosecond precision (W13): a member equal to it, each read as its parts
+                Coll held = spelledParts(c) ? c : asSpelledParts(c);
+                Tx eq = SqlToPure.truth(equal(element("e", held), ls.tx(), b.pos()), "IN", b.pos());
+                return strictTest(List.of(ls.tx()), v -> call("isNotEmpty", call("filter", held.vs(),
+                        lambda("e", eq.vs()))));
+            }
+            return strictTest(List.of(ls.tx()), v -> call("in", v.get(0), c.vs()));
         }
         ListVal list = (ListVal) r;
         if (list.elements().isEmpty()) {
@@ -5157,12 +10385,13 @@ public final class CypherToPure {
         if (isNull(l)) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
-        if (l instanceof Scalar ls && ls.tx().kind() != Kind.BOOLEAN && plainMembers(ls.tx().kind(), list)) {
+        if (l instanceof Scalar ls && ls.tx().kind() != Kind.BOOLEAN && !split(ls.tx())
+                && plainMembers(ls.tx().kind(), list)) {
             List<ValueSpecification> members = new ArrayList<>();
             for (Val e : list.elements()) {
                 members.add(SqlToPure.valueOf(((Scalar) e).tx()));
             }
-            return SqlToPure.strictTest(List.of(ls.tx()), v -> call("in", v.get(0), new PureCollection(members)));
+            return strictTest(List.of(ls.tx()), v -> call("in", v.get(0), new PureCollection(members)));
         }
         Tx any = constant(false);
         for (Val e : list.elements()) {
@@ -5171,13 +10400,21 @@ public final class CypherToPure {
         return any;
     }
 
+    /** A collection of microsecond temporals the database computes as the oracle's texts of their parts (W13),
+     *  each element read into them. */
+    private static Coll asSpelledParts(Coll c) {
+        Tx each = splitSpelled(asParts(elementOf(new Variable("e"), c, false)));
+        return new Coll(call("map", c.vs(), lambda("e", SqlToPure.valueOf(each))), c.kind(), c.rowFree(),
+                NANOS_ELEMENT);
+    }
+
     /** Whether every member is a literal scalar of a kind comparable with {@code kind}, none null. */
     private static boolean plainMembers(Kind kind, ListVal list) {
         if (list.elements().size() < 2) {
             return false;
         }
         for (Val e : list.elements()) {
-            if (!(e instanceof Scalar s) || !s.literal() || s.tx().kind() == Kind.NULL
+            if (!(e instanceof Scalar s) || !s.literal() || split(s.tx()) || s.tx().kind() == Kind.NULL
                     || s.tx().kind() == Kind.BOOLEAN || !comparable(kind, s.tx().kind())) {
                 return false;
             }
@@ -5229,7 +10466,14 @@ public final class CypherToPure {
                         thunk(empty)), Kind.JSON, true));
             }
         }
-        if (fn.equals("size") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.PatternComprehension pc) {
+        if (fn.equals("tostring") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.Var tv
+                && (scope.isPatternVariable(tv.name()) || scope.path(tv) != null)) {
+            // (a projection reads it over the graph's rows, §12.73; a WHERE over the graph does not)
+            throw CypherErrors.unsupported("toString of a node, a relationship or a path of a graph read outside a"
+                    + " projection (a WHERE over the graph) is not supported yet", c.pos());
+        }
+        if (fn.equals("size") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.PatternComprehension pc
+                && !patternLists.containsKey(pc)) {
             // the matches of the hop, counted by the database (the study's §12.31)
             return patternSize(pc, scope);
         }
@@ -5261,6 +10505,24 @@ public final class CypherToPure {
             if (a instanceof Scalar s && (s.tx().kind() == Kind.NULL || s.tx().detail() instanceof AbsentPath)) {
                 return scalar(SqlToPure.nullOf(fn.equals("length") ? Kind.INTEGER : Kind.JSON));
             }
+            if (a instanceof Scalar s && s.tx().detail() instanceof PathValue) {
+                // of a path carried as its value (through a WITH, the study's §12.68): its elements the "@path"
+                // list of its JSON, the nodes those carrying labels, the relationships those carrying a type, the
+                // length the relationships' count, each read by the database
+                if (s.tx().nullable()) {
+                    throw CypherErrors.unsupported("the function " + fn + "(...) of a path an OPTIONAL MATCH may"
+                            + " not find, carried through a WITH, is not supported yet", c.pos());
+                }
+                ValueSpecification elements = call("toMany", call("get", SqlToPure.valueOf(s.tx()),
+                        new CString("@path")), SqlToPure.typeArg(VARIANT_TYPE));
+                String key = fn.equals("nodes") ? "@labels" : "@type";
+                ValueSpecification part = call("filter", elements, lambda("e", call("isNotEmpty", call("get",
+                        new Variable("e"), new CString(key)))));
+                if (fn.equals("length")) {
+                    return scalar(Tx.value(call("size", part), Kind.INTEGER, false));
+                }
+                return new Coll(part, Kind.JSON, false, fn.equals("nodes") ? new NodeValue() : new RelValue(null));
+            }
         }
         if (fn.equals("keys") && c.args().size() == 1 && c.args().get(0) instanceof CypherAst.Var v) {
             // of a node: the names of its properties that hold a value, a collection the database builds (the
@@ -5271,21 +10533,20 @@ public final class CypherToPure {
             NodeParts parts = scope.nodeParts(v);
             if (parts != null) {
                 if (parts.absent() != null) {
-                    throw CypherErrors.unsupported("keys of a node an OPTIONAL MATCH may not find is not supported"
-                            + " yet", c.pos());
+                    // (of a node an OPTIONAL MATCH may not find: null where it is absent, Neo4j's keys(null), the
+                    // keys where it is there, held as a Variant; the study's §12.72)
+                    return absentOr(parts.absent(), nodeKeys(parts));
                 }
                 return nodeKeys(parts);
             }
             Tx type = scope.relType(v);
             if (type != null) {
-                if (type.nullable()) {
-                    throw CypherErrors.unsupported("keys of a relationship an OPTIONAL MATCH may not find is not"
-                            + " supported yet", c.pos());
-                }
                 // (an edge class's properties that hold a value, the study's §5.6; none over a property or
                 // association)
                 NodeParts rel = scope.relParts(v);
-                return rel != null ? nodeKeys(rel) : noKeys();
+                Coll keys = rel != null ? nodeKeys(rel) : noKeys();
+                // (of a relationship an OPTIONAL MATCH may not find: null where it is absent, its type with it)
+                return type.nullable() ? absentOr(call("isEmpty", SqlToPure.valueOf(type)), keys) : keys;
             }
         }
         if ((fn.equals("type") || fn.equals("labels") || fn.equals("properties") || fn.equals("length"))
@@ -5297,8 +10558,9 @@ public final class CypherToPure {
         }
         Function f = FUNCTIONS_BY_NAME.get(fn);
         if (f == null) {
-            // refused by name before its arguments are read: the refusal names the function, not an argument
-            throw CypherErrors.unsupported("the function " + c.name() + "(...) is not supported yet", c.pos());
+            // a name Neo4j does not define is its error (the study's §12.84); one it does is refused by name before
+            // its arguments are read: the refusal names the function, not an argument
+            throw unknownOrUnsupported(c);
         }
         List<Val> args = new ArrayList<>();
         for (Expr a : c.args()) {
@@ -5338,7 +10600,11 @@ public final class CypherToPure {
             case LEFT, RIGHT -> scalar(string(c, arity(c, args, 2), java.util.Objects.requireNonNull(pure), 1));
             case REPLACE -> scalar(string(c, arity(c, args, 3), java.util.Objects.requireNonNull(pure), 3));
             case SUBSTRING -> scalar(substring(c, args));
-            case RAND, RANDOM_UUID, TIMESTAMP -> throw CypherErrors.unsupported("the function " + c.name()
+            // the database's random float in [0, 1) and its uuid as text (the study's §12.51): values of the call,
+            // read once per row they are spelled in
+            case RAND -> scalar(Tx.value(call(RANDOM), Kind.FLOAT, false));
+            case RANDOM_UUID -> scalar(Tx.value(call("generateGuid"), Kind.STRING, false));
+            case TIMESTAMP -> throw CypherErrors.unsupported("the function " + c.name()
                     + "() (a value of the call, not of the data) is not supported yet", c.pos());
         };
     }
@@ -5365,7 +10631,7 @@ public final class CypherToPure {
             case Coll col -> scalar(Tx.value(call("size", col.vs()), Kind.INTEGER, false));
             case Scalar s -> switch (s.tx().kind()) {
                 case NULL -> scalar(SqlToPure.nullOf(Kind.INTEGER));
-                case STRING -> scalar(SqlToPure.strict(Kind.INTEGER, List.of(s.tx()), x -> call("length",
+                case STRING -> scalar(strict(Kind.INTEGER, List.of(s.tx()), x -> call("length",
                         x.get(0))));
                 case JSON -> {
                     if (isNode(s.tx()) || s.tx().detail() instanceof PathValue) {
@@ -5408,23 +10674,33 @@ public final class CypherToPure {
         };
     }
 
-    /** {@code head(list)} and {@code last(list)}: null for an empty list. */
+    /** {@code head(list)} and {@code last(list)}: null for an empty list. A list the database holds as a Variant
+     *  (a variable-length relationship's list, a collected list): its first or last place, as {@code list[0]} and
+     *  {@code list[-1]} read it (the study's §12.43: null beyond either end, so null for an empty list). */
     private Val head(CypherAst.Call c, Val v, boolean first) {
         return switch (v) {
             case ListVal l -> l.elements().isEmpty() ? nullValue()
                     : l.elements().get(first ? 0 : l.elements().size() - 1);
-            case Coll col -> scalar(columnLike(call(first ? "first" : "last", col.vs()), col.kind(), true));
+            case Coll col -> scalar(elementOf(call(first ? "first" : "last", col.vs()), col, true));
             case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
+            case Scalar s when s.tx().kind() == Kind.JSON
+                    && (s.tx().detail() instanceof ListOf || s.tx().detail() instanceof TupleOf) -> {
+                long at = first ? 0 : -1;
+                CypherAst.IntLit place = new CypherAst.IntLit(at, Long.toString(at), c.pos());
+                yield variantIndex(s.tx(), literal(Tx.value(new CInteger(at), Kind.INTEGER, false), at),
+                        new CypherAst.Index(c.args().get(0), place, c.pos()));
+            }
             default -> throw notAList(c, v);
         };
     }
 
     /** {@code tail(list)}: every element but the first. */
     private Val tail(CypherAst.Call c, Val v) {
-        return switch (v) {
+        return switch (asCollection(v)) {
             case ListVal l -> new ListVal(l.elements().isEmpty() ? List.of()
                     : l.elements().subList(1, l.elements().size()));
-            case Coll col -> new Coll(call("drop", col.vs(), new CInteger(1L)), col.kind(), col.rowFree());
+            case Coll col -> new Coll(call("drop", col.vs(), new CInteger(1L)), col.kind(), col.rowFree(),
+                    col.elementDetail());
             case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
             default -> throw notAList(c, v);
         };
@@ -5432,15 +10708,15 @@ public final class CypherToPure {
 
     /** {@code reverse(list)}, {@code reverse(string)}. */
     private Val reverse(CypherAst.Call c, Val v) {
-        return switch (v) {
+        return switch (asCollection(v)) {
             case ListVal l -> {
                 List<Val> out = new ArrayList<>(l.elements());
                 java.util.Collections.reverse(out);
                 yield new ListVal(out);
             }
-            case Coll col -> new Coll(call("reverse", col.vs()), col.kind(), col.rowFree());
+            case Coll col -> new Coll(call("reverse", col.vs()), col.kind(), col.rowFree(), col.elementDetail());
             case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
-            case Scalar s when s.tx().kind() == Kind.STRING -> scalar(SqlToPure.strict(Kind.STRING,
+            case Scalar s when s.tx().kind() == Kind.STRING -> scalar(strict(Kind.STRING,
                     List.of(s.tx()), x -> call("reverseString", x.get(0))));
             case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected String or List<T> but was "
                     + cypherType(s.tx().kind()), c.pos());
@@ -5456,7 +10732,7 @@ public final class CypherToPure {
             case MapVal m -> scalar(constant(m.entries().isEmpty()));
             case Coll col -> scalar(Tx.condition(call("isEmpty", col.vs()), call("isNotEmpty", col.vs()), false));
             case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
-            case Scalar s when s.tx().kind() == Kind.STRING -> scalar(SqlToPure.strictTest(List.of(s.tx()),
+            case Scalar s when s.tx().kind() == Kind.STRING -> scalar(strictTest(List.of(s.tx()),
                     x -> call("equal", call("length", x.get(0)), new CInteger(0L))));
             case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected String, List<T> or Map but was "
                     + cypherType(s.tx().kind()), c.pos());
@@ -5487,7 +10763,11 @@ public final class CypherToPure {
                         ? cypherType(s.tx().kind()) : "List<T>"), c.args().get(i).pos());
             }
             if (s.tx().nullable()) {
-                throw CypherErrors.unsupported("range(...) of a bound that may be null is not supported yet", c.pos());
+                // (a bound that may be null: Neo4j raises where it is, the database raises there too; the study's
+                // §12.73)
+                bounds.add(Tx.value(present(s.tx(), i == 0 ? "start" : "end"), Kind.INTEGER, false));
+                rowFree = false;
+                continue;
             }
             bounds.add(s.tx());
             rowFree &= s.literal();
@@ -5501,8 +10781,7 @@ public final class CypherToPure {
             }
             Long n = integerLiteral(s);
             if (n == null) {
-                throw CypherErrors.unsupported("range(...) with a step that is not a literal is not supported yet",
-                        c.pos());
+                return computedStepRange(bounds, s.tx(), rowFree && s.literal());
             }
             if (n == 0) {
                 throw CypherErrors.invalid("step argument to range() cannot be zero", c.pos());
@@ -5523,6 +10802,38 @@ public final class CypherToPure {
         ValueSpecification vs = args.size() == 3 ? call("range", start, end, new CInteger(step))
                 : call("range", start, end);
         return new Coll(vs, Kind.INTEGER, rowFree);
+    }
+
+    /** A range argument that may be null, read as one: the value where it is, the database's raise where it is
+     *  null (Neo4j's TypeError for a range of a null). */
+    private static ValueSpecification present(Tx t, String which) {
+        ValueSpecification v = SqlToPure.valueOf(t);
+        return raisingWhere(call("isEmpty", v), "Invalid input for " + which + " value in function 'range()':"
+                + " Expected a numeric value but got: NO_VALUE", call("toOne", v));
+    }
+
+    /** {@code value}, but the database's raise of {@code message} where {@code condition} holds. */
+    private static ValueSpecification raisingWhere(ValueSpecification condition, String message,
+            ValueSpecification value) {
+        return call("if", condition, new LambdaFunction(List.of(), List.of(call("fail", new CString(message)),
+                value)), thunk(value));
+    }
+
+    /** {@code range(start, end, step)} of a step the row computes (the study's §12.73): as a spelled step's, the
+     *  last value {@code start + ((end - start) / step) * step} and the end one past it by the step's sign, the
+     *  database's; a zero step raises as Neo4j's does. */
+    private Val computedStepRange(List<Tx> bounds, Tx step, boolean rowFree) {
+        ValueSpecification by = step.nullable() ? present(step, "step") : step.vs();
+        ValueSpecification checked = raisingWhere(call("equal", by, new CInteger(0L)), "step argument to range()"
+                + " cannot be zero", by);
+        ValueSpecification start = bounds.get(0).vs();
+        ValueSpecification steps = SqlToPure.integerQuotient(AppliedFunction.infixRun("minus", List.of(
+                bounds.get(1).vs(), start)), checked);
+        ValueSpecification last = AppliedFunction.infixRun("plus", List.of(start, AppliedFunction.infixRun("times",
+                List.of(steps, by))));
+        ValueSpecification end = AppliedFunction.infixRun("plus", List.of(last, call("if", call("greaterThan", by,
+                new CInteger(0L)), thunk(new CInteger(1L)), thunk(new CInteger(-1L)))));
+        return new Coll(call("range", start, end, by), Kind.INTEGER, rowFree);
     }
 
     /** {@code split(string, delimiter)}: the parts, a list the database computes. */
@@ -5556,22 +10867,137 @@ public final class CypherToPure {
         if (v instanceof ListVal || v instanceof MapVal || v instanceof Coll
                 || v instanceof Scalar s0 && s0.tx().kind() == Kind.JSON) {
             // Neo4j 2026 spells a list, a map, a node, a relationship or a path as text (the TCK's older
-            // InvalidArgumentValue is gone: TypeConversion4 [10] answers rows); its spelling is not read yet
-            throw CypherErrors.unsupported("toString of a list, a map, a node, a relationship or a path (its text in"
-                    + " Neo4j) is not supported yet", c.pos());
+            // InvalidArgumentValue is gone: TypeConversion4 [10] answers rows; the study's §12.73)
+            return scalar(compositeText(v, c.pos()));
         }
-        Tx t = scalarArg(c, v, "String, Boolean, Integer, Float");
+        return scalar(scalarText(scalarArg(c, v, "String, Boolean, Integer, Float"), c.pos()));
+    }
+
+    /** A scalar's text, as {@code toString} spells it: a number's or a boolean's as the database spells it, a
+     *  temporal's ISO text, a string itself. */
+    private Tx scalarText(Tx t, Pos pos) {
         return switch (t.kind()) {
-            case NULL -> scalar(SqlToPure.nullOf(Kind.STRING));
-            case STRING -> scalar(t);
-            case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, BOOLEAN, DATE -> scalar(SqlToPure.strict(
-                    Kind.STRING, List.of(t), x -> call("toString", x.get(0))));
-            case DATETIME -> scalar(temporalText(t, c.pos()));
-            case DURATION -> scalar(durationText(t));
-            case TIME, ZONED, ZONED_TIME -> scalar(temporalText(t, c.pos()));
+            case NULL -> SqlToPure.nullOf(Kind.STRING);
+            case STRING -> t;
+            case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, BOOLEAN -> strict(Kind.STRING,
+                    List.of(t), x -> call("toString", x.get(0)));
+            // (a date's ISO text, its fields the database's: its own text spells a year past 9999 or before 1 its
+            // own way, DuckDB's 0001-12-31 (BC), measured 2026-10-18)
+            case DATE -> strict(Kind.STRING, List.of(t), x -> dateText(x.get(0), true));
+            case DATETIME -> temporalText(t, pos);
+            case DURATION -> durationText(t);
+            case TIME, ZONED, ZONED_TIME -> temporalText(t, pos);
             default -> throw CypherErrors.unsupported("toString of a " + cypherType(t.kind()) + " is not supported"
-                    + " yet", c.pos());
+                    + " yet", pos);
         };
+    }
+
+    /**
+     * {@code toString} of a list, a map, a node, a relationship or a path (the study's §12.73), Neo4j's text built by
+     * the database: a list's elements' texts within brackets and a map's {@code key: text} entries within braces,
+     * each joined with {@code ", "} (a string unquoted, a null {@code null}); a node its labels, {@code (:A:B)}; a
+     * relationship its type, {@code [:T]}; a path its nodes and relationships with their stored directions,
+     * {@code (:A)-[:T]->(:B)<-[:U]-()}. A list the database computes is its elements' texts the same way.
+     */
+    private Tx compositeText(Val v, Pos pos) {
+        return switch (v) {
+            case ListVal l -> {
+                ValueSpecification text = new CString("[");
+                for (int i = 0; i < l.elements().size(); i++) {
+                    text = plus(text, i == 0 ? elementText(l.elements().get(i), pos) : plus(new CString(", "),
+                            elementText(l.elements().get(i), pos)));
+                }
+                yield Tx.value(plus(text, new CString("]")), Kind.STRING, false);
+            }
+            case MapVal m -> {
+                ValueSpecification text = new CString("{");
+                int i = 0;
+                for (Map.Entry<String, Val> e : m.entries().entrySet()) {
+                    text = plus(text, new CString((i++ == 0 ? "" : ", ") + e.getKey() + ": "),
+                            elementText(e.getValue(), pos));
+                }
+                yield Tx.value(plus(text, new CString("}")), Kind.STRING, false);
+            }
+            case Coll c -> Tx.value(elementsText(c.vs(), c.kind(), pos), Kind.STRING, false);
+            case Scalar s -> graphValueText(s.tx(), pos);
+        };
+    }
+
+    /** An element's text inside a list's or a map's: a null's {@code null}. */
+    private ValueSpecification elementText(Val e, Pos pos) {
+        Tx t = e instanceof Scalar s ? (s.tx().kind() == Kind.JSON ? graphValueText(s.tx(), pos)
+                : scalarText(s.tx(), pos)) : compositeText(e, pos);
+        if (t.kind() == Kind.NULL) {
+            return new CString("null");
+        }
+        ValueSpecification v = SqlToPure.valueOf(t);
+        return t.nullable() ? call("if", call("isEmpty", v), thunk(new CString("null")), thunk(call("toOne", v)))
+                : v;
+    }
+
+    /** A collection's elements' texts within brackets, joined with {@code ", "}: of a kind {@code toString} spells. */
+    private ValueSpecification elementsText(ValueSpecification coll, Kind kind, Pos pos) {
+        if (kind != Kind.STRING && kind != Kind.INTEGER && kind != Kind.FLOAT && kind != Kind.BOOLEAN) {
+            throw CypherErrors.unsupported("toString of a list of " + cypherType(kind) + " values the database"
+                    + " computes is not supported yet", pos);
+        }
+        ValueSpecification each = kind == Kind.STRING ? new Variable("e") : call("toString", new Variable("e"));
+        return plus(new CString("["), call("joinStrings", call("map", coll, lambda("e", each)), new CString(", ")),
+                new CString("]"));
+    }
+
+    /** The text of a value the database holds as a Variant: a node's, a relationship's, a path's, or a list's of
+     *  one known element kind; null where the value is. */
+    private Tx graphValueText(Tx t, Pos pos) {
+        ValueSpecification v = SqlToPure.valueOf(t);
+        ValueSpecification one = t.nullable() ? call("toOne", v) : v;
+        ValueSpecification text;
+        if (t.detail() instanceof NodeValue) {
+            text = nodeText(one);
+        } else if (t.detail() instanceof RelValue) {
+            text = relText(one);
+        } else if (t.detail() instanceof PathValue) {
+            text = pathText(one);
+        } else if (t.detail() instanceof ListOf l && readsBack(l.element())) {
+            text = elementsText(elementsOf(one, l.element(), nanosElements(l)), l.element(), pos);
+        } else {
+            throw CypherErrors.unsupported("toString of a value the database holds as a Variant of no known shape is"
+                    + " not supported yet", pos);
+        }
+        return t.nullable() ? Tx.value(call("if", call("isEmpty", v), thunk(SqlToPure.nullOf(Kind.STRING).vs()),
+                thunk(text)), Kind.STRING, true) : Tx.value(text, Kind.STRING, false);
+    }
+
+    /** A node's text from its value: {@code (:A:B)}, its labels each led by a colon. */
+    private static ValueSpecification nodeText(ValueSpecification node) {
+        return plus(new CString("("), call("joinStrings", call("map", call("toMany", call("get", node,
+                new CString("@labels")), SqlToPure.typeArg(VARIANT_TYPE)), lambda("l", plus(new CString(":"),
+                call("toOne", call("to", new Variable("l"), SqlToPure.typeArg("String")))))), new CString("")),
+                new CString(")"));
+    }
+
+    /** A relationship's text from its value: {@code [:T]}. */
+    private static ValueSpecification relText(ValueSpecification rel) {
+        return plus(new CString("[:"), call("toOne", call("to", call("get", rel, new CString("@type")),
+                SqlToPure.typeArg("String"))), new CString("]"));
+    }
+
+    /** A path's text from its value: its first node's, then each relationship's in its stored direction and the
+     *  node after it ({@code -[:T]->(:B)}, {@code <-[:T]-(:B)}). */
+    private static ValueSpecification pathText(ValueSpecification path) {
+        ValueSpecification elements = call("get", path, new CString("@path"));
+        ValueSpecification dirs = call("get", path, new CString("@dirs"));
+        ValueSpecification hops = call("size", call("toMany", dirs, SqlToPure.typeArg(VARIANT_TYPE)));
+        Variable i = new Variable("i");
+        ValueSpecification rel = relText(call("get", elements, AppliedFunction.infixRun("plus", List.of(
+                AppliedFunction.infixRun("times", List.of(new CInteger(2L), i)), new CInteger(1L)))));
+        ValueSpecification next = nodeText(call("get", elements, AppliedFunction.infixRun("plus", List.of(
+                AppliedFunction.infixRun("times", List.of(new CInteger(2L), i)), new CInteger(2L)))));
+        ValueSpecification forward = call("toOne", call("to", call("get", dirs, i), SqlToPure.typeArg("Boolean")));
+        ValueSpecification hop = plus(call("if", forward, thunk(plus(new CString("-"), rel, new CString("->"))),
+                thunk(plus(new CString("<-"), rel, new CString("-")))), next);
+        return plus(nodeText(call("get", elements, new CInteger(0L))), call("joinStrings", call("map", call("range",
+                new CInteger(0L), hops), lambda("i", hop)), new CString("")));
     }
 
     /** {@code toInteger(x)}: a float truncated toward zero. */
@@ -5580,20 +11006,30 @@ public final class CypherToPure {
         return switch (t.kind()) {
             case NULL -> scalar(SqlToPure.nullOf(Kind.INTEGER));
             case INTEGER, WHOLE -> scalar(t);
-            case FLOAT, DECIMAL, NUMBER, INEXACT -> scalar(SqlToPure.strict(Kind.INTEGER, List.of(t), x -> call("if",
+            case FLOAT, DECIMAL, NUMBER, INEXACT -> scalar(strict(Kind.INTEGER, List.of(t), x -> call("if",
                     call("greaterThanEqual", x.get(0), new CInteger(0L)), thunk(call("floor", x.get(0))),
                     thunk(call("ceiling", x.get(0))))));
             // of a text (the study's §12.23): the database's parse behind a shape guard -- an integer's digits
             // parsed as one, a float's spelling parsed and truncated toward zero, any other text null (Neo4j's)
-            case STRING -> scalar(Tx.value(SqlToPure.strict(Kind.INTEGER, List.of(t), x -> call("if",
+            case STRING -> scalar(Tx.value(strict(Kind.INTEGER, List.of(t), x -> call("if",
                     call("matches", x.get(0), new CString(INTEGER_TEXT)), thunk(call("parseInteger", x.get(0))),
                     thunk(call("if", call("matches", x.get(0), new CString(FLOAT_TEXT)),
                             thunk(integer(call("if", call("greaterThanEqual", call("parseFloat", x.get(0)),
                                     new CFloat(0.0)), thunk(call("floor", call("parseFloat", x.get(0)))),
                                     thunk(call("ceiling", call("parseFloat", x.get(0))))))),
                             thunk(SqlToPure.nullOf(Kind.INTEGER).vs()))))).vs(), Kind.INTEGER, true));
-            default -> throw CypherErrors.unsupported("toInteger of a " + cypherType(t.kind()) + " (null for text"
-                    + " that is not a number) is not supported yet", c.pos());
+            // of a boolean: 1 or 0 (Neo4j's)
+            case BOOLEAN -> scalar(strict(Kind.INTEGER, List.of(t), x -> call("if", x.get(0),
+                    thunk(new CInteger(1L)), thunk(new CInteger(0L)))));
+            default -> {
+                String rejected = rejectedByConversions(t);
+                if (rejected == null) {
+                    throw CypherErrors.unsupported("toInteger of a " + cypherType(t.kind()) + " (null for text"
+                            + " that is not a number) is not supported yet", c.pos());
+                }
+                yield invalidArgument(c, t, "toInteger", "a String, Float, Integer or Boolean",
+                        "Boolean, Float, Integer or String", rejected, Kind.INTEGER);
+            }
         };
     }
 
@@ -5607,14 +11043,21 @@ public final class CypherToPure {
         return switch (t.kind()) {
             case NULL -> scalar(SqlToPure.nullOf(Kind.FLOAT));
             case FLOAT, INEXACT -> scalar(t);
-            case INTEGER, WHOLE, DECIMAL, NUMBER -> scalar(SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call(
+            case INTEGER, WHOLE, DECIMAL, NUMBER -> scalar(strict(Kind.FLOAT, List.of(t), x -> call(
                     "toFloat", x.get(0))));
             // of a text (the study's §12.23): the database's parse behind a shape guard, null for any other text
-            case STRING -> scalar(Tx.value(SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call("if",
+            case STRING -> scalar(Tx.value(strict(Kind.FLOAT, List.of(t), x -> call("if",
                     call("matches", x.get(0), new CString(FLOAT_TEXT)), thunk(call("parseFloat", x.get(0))),
                     thunk(SqlToPure.nullOf(Kind.FLOAT).vs()))).vs(), Kind.FLOAT, true));
-            default -> throw CypherErrors.unsupported("toFloat of a " + cypherType(t.kind()) + " (null for text"
-                    + " that is not a number) is not supported yet", c.pos());
+            default -> {
+                String rejected = t.kind() == Kind.BOOLEAN ? "Boolean" : rejectedByConversions(t);
+                if (rejected == null) {
+                    throw CypherErrors.unsupported("toFloat of a " + cypherType(t.kind()) + " (null for text"
+                            + " that is not a number) is not supported yet", c.pos());
+                }
+                yield invalidArgument(c, t, "toFloat", "a String, Float or Integer", "Float, Integer or String", rejected,
+                        Kind.FLOAT);
+            }
         };
     }
 
@@ -5635,9 +11078,69 @@ public final class CypherToPure {
                         SqlToPure.empty(), SqlToPure.typeArg("Boolean"))), thunk(read)) : read;
                 yield scalar(SqlToPure.booleanValue(value, true));
             }
-            default -> throw CypherErrors.unsupported("toBoolean of a " + cypherType(t.kind()) + " is not supported"
-                    + " yet", c.pos());
+            // of an integer: false for 0, true for any other (Neo4j's)
+            case INTEGER, WHOLE -> {
+                ValueSpecification number = SqlToPure.valueOf(t);
+                ValueSpecification nonZero = call("not", call("equal", t.nullable() ? call("toOne", number) : number,
+                        new CInteger(0L)));
+                yield scalar(SqlToPure.booleanValue(t.nullable() ? call("if", call("isEmpty", number), thunk(call(
+                        "cast", SqlToPure.empty(), SqlToPure.typeArg("Boolean"))), thunk(nonZero)) : nonZero,
+                        t.nullable()));
+            }
+            default -> {
+                String rejected = t.kind() == Kind.FLOAT ? "Float" : rejectedByConversions(t);
+                if (rejected == null) {
+                    throw CypherErrors.unsupported("toBoolean of a " + cypherType(t.kind()) + " is not supported"
+                            + " yet", c.pos());
+                }
+                yield invalidArgument(c, t, "toBoolean", "a Boolean, Integer or String", "Boolean, Integer or String",
+                        rejected, Kind.BOOLEAN);
+            }
         };
+    }
+
+    /** The Cypher type of a value none of {@code toBoolean}, {@code toInteger} and {@code toFloat} takes: a node, a
+     *  relationship, a path, a list or a map (by what the translation knows the value to be), a temporal value or a
+     *  duration; null for any other (a Variant of no known shape, read at run time, is not one of them). */
+    private static @com.legend.base.Nullable String rejectedByConversions(Tx t) {
+        if (t.kind() == Kind.JSON) {
+            return switch (t.detail()) {
+                case NodeValue n -> "Node";
+                case RelValue r -> "Relationship";
+                case PathValue p -> "Path";
+                case ListOf l -> "List";
+                case TupleOf tu -> "List";
+                case MapOf m -> "Map";
+                case null, default -> null;
+            };
+        }
+        return switch (t.kind()) {
+            case DATE, DATETIME, TIME, ZONED, ZONED_TIME, DURATION -> cypherType(t.kind());
+            default -> null;
+        };
+    }
+
+    /** A conversion of a value it does not take: Neo4j's TypeError (InvalidArgumentValue), raised by the database
+     *  where a row holds the value (null where it is null), its message listing what the function takes as Neo4j's
+     *  run time does; a literal argument is Neo4j's type mismatch at compile time, listing them as its compiler does
+     *  (the study's §12.84). */
+    private static Scalar invalidArgument(CypherAst.Call c, Tx t, String fn, String expected, String typed,
+            String got, Kind result) {
+        if (literal(c.args().get(0))) {
+            throw CypherErrors.invalid("Type mismatch: expected " + typed + " but was " + got, c.args().get(0).pos());
+        }
+        ValueSpecification present = t.nullable() ? call("isNotEmpty", SqlToPure.valueOf(t)) : new CBoolean(true);
+        ValueSpecification raised = raisingWhere(present, "Invalid input for function '" + fn + "()': Expected "
+                + expected + ", got: " + got, SqlToPure.nullOf(result).vs());
+        return scalar(result == Kind.BOOLEAN ? SqlToPure.booleanValue(raised, true) : Tx.value(raised, result, true));
+    }
+
+    /** A function the translator does not read: Neo4j's own error where Neo4j defines no function of the name
+     *  ({@link CypherFunctions}), else a refusal by name. */
+    private static com.legend.protocol.sql.SqlTranslationException unknownOrUnsupported(CypherAst.Call c) {
+        return CypherFunctions.defines(c.name())
+                ? CypherErrors.unsupported("the function " + c.name() + "(...) is not supported yet", c.pos())
+                : CypherErrors.invalid("Unknown function '" + c.name() + "'", c.pos());
     }
 
     private static Tx scalarArg(CypherAst.Call c, Val v, String expected) {
@@ -5658,7 +11161,7 @@ public final class CypherToPure {
             throw CypherErrors.invalid("Type mismatch: expected Float or Integer but was " + cypherType(t.kind()),
                     c.pos());
         }
-        return SqlToPure.strict(result == null ? t.kind() : result, List.of(t), x -> call(fn, x.get(0)));
+        return strict(result == null ? t.kind() : result, List.of(t), x -> call(fn, x.get(0)));
     }
 
     /** {@code ceil}, {@code floor}, {@code round}: a float, as Cypher's are (Pure's give an integer). Neo4j's round
@@ -5674,10 +11177,10 @@ public final class CypherToPure {
                     c.pos());
         }
         if (fn.equals("round")) {
-            return SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call("toFloat", call("floor",
+            return strict(Kind.FLOAT, List.of(t), x -> call("toFloat", call("floor",
                     AppliedFunction.infixRun("plus", List.of(call("toFloat", x.get(0)), new CFloat(0.5))))));
         }
-        return SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call("toFloat", call(fn, call("toFloat", x.get(0)))));
+        return strict(Kind.FLOAT, List.of(t), x -> call("toFloat", call(fn, call("toFloat", x.get(0)))));
     }
 
     /** A string function the database computes, of {@code strings} string arguments first and integers after. */
@@ -5695,7 +11198,7 @@ public final class CypherToPure {
             }
             txs.add(t);
         }
-        return SqlToPure.strict(Kind.STRING, txs, x -> call(fn, x.toArray(ValueSpecification[]::new)));
+        return strict(Kind.STRING, txs, x -> call(fn, x.toArray(ValueSpecification[]::new)));
     }
 
     /** {@code substring(string, start [, length])}: from the 0-based start. Lite's {@code substring} is SQL's
@@ -5716,15 +11219,27 @@ public final class CypherToPure {
             throw CypherErrors.invalid("Type mismatch: substring expects a String and Integers", c.pos());
         }
         if (length == null) {
-            return SqlToPure.strict(Kind.STRING, List.of(s, start), x -> call("substring", x.get(0),
+            return strict(Kind.STRING, List.of(s, start), x -> call("substring", x.get(0),
                     AppliedFunction.infixRun("plus", List.of(x.get(1), new CInteger(1L)))));
         }
-        return SqlToPure.strict(Kind.STRING, List.of(s, start, length), x -> call("substring", x.get(0),
+        return strict(Kind.STRING, List.of(s, start, length), x -> call("substring", x.get(0),
                 AppliedFunction.infixRun("plus", List.of(x.get(1), new CInteger(1L))), x.get(2)));
     }
 
     /** {@code coalesce(a, b, ...)}: the first value that is not null; the arguments after one that is never null are
      *  never read. The arguments must share a type in PR1 (Cypher's are any). */
+    /** One part of the first present of split values ({@link #coalesce}), each value's presence its nanoseconds'. */
+    private static Tx coalescedPart(List<Tx> values, java.util.function.UnaryOperator<Tx> part, Kind kind,
+            boolean nullable) {
+        ValueSpecification tail = SqlToPure.valueOf(part.apply(values.get(values.size() - 1)));
+        for (int i = values.size() - 2; i >= 0; i--) {
+            ValueSpecification present = SqlToPure.valueOf(ofDay(values.get(i)));
+            tail = call("if", call("isEmpty", present), thunk(tail), thunk(SqlToPure.valueOf(part.apply(
+                    values.get(i)))));
+        }
+        return Tx.value(nullable ? tail : call("toOne", tail), kind, nullable);
+    }
+
     private static Tx coalesce(CypherAst.Call c, List<Tx> arguments) {
         if (arguments.isEmpty()) {
             throw CypherErrors.invalid("Insufficient parameters for function 'coalesce'", c.pos());
@@ -5760,6 +11275,22 @@ public final class CypherToPure {
         for (Tx a : args) {
             nullable &= a.nullable();
         }
+        if ((kind == Kind.TIME || kind == Kind.DATETIME) && args.stream().anyMatch(CypherToPure::split)) {
+            // a split value among the arguments (W13): each part the first present argument's, the presence read
+            // off the nanoseconds since midnight (present exactly when the value is)
+            List<Tx> parts = args.stream().map(CypherToPure::asSplit).toList();
+            Tx clock = coalescedPart(parts, CypherToPure::ofDay, Kind.INTEGER, nullable);
+            return kind == Kind.TIME ? splitTime(clock) : splitDateTime(coalescedPart(parts,
+                    CypherToPure::datePartOf, Kind.DATE, nullable), clock);
+        }
+        if ((kind == Kind.ZONED || kind == Kind.ZONED_TIME) && args.stream().anyMatch(CypherToPure::split)) {
+            // a zoned split value among the arguments (W13): each part the first present argument's, the instants'
+            // (the zone not kept, as a microsecond coalesce keeps none)
+            List<Tx> parts = args.stream().map(CypherToPure::asParts).toList();
+            Tx clock = coalescedPart(parts, CypherToPure::ofDay, Kind.INTEGER, nullable);
+            return kind == Kind.ZONED_TIME ? splitZonedTime(clock, null) : splitZoned(splitDateTime(coalescedPart(
+                    parts, CypherToPure::datePartOf, Kind.DATE, nullable), clock), null);
+        }
         ValueSpecification tail = SqlToPure.valueOf(args.get(args.size() - 1));
         for (int i = args.size() - 2; i >= 0; i--) {
             ValueSpecification v = SqlToPure.valueOf(args.get(i));
@@ -5769,7 +11300,18 @@ public final class CypherToPure {
             // one that is never null is read as one: the typer types the if's branches [0..1]
             tail = call("toOne", tail);
         }
-        return kind == Kind.BOOLEAN ? SqlToPure.booleanValue(tail, nullable) : Tx.value(tail, kind, nullable);
+        if (kind == Kind.BOOLEAN) {
+            return SqlToPure.booleanValue(tail, nullable);
+        }
+        if (kind == Kind.JSON) {
+            // the arguments' shapes as one (lists of one kind in every argument, §12.52), as a CASE's results
+            com.legend.protocol.sql.InputDialect.TypeDetail detail = args.get(0).detail();
+            for (Tx a : args.subList(1, args.size())) {
+                detail = mergedShape(detail, a.detail());
+            }
+            return Tx.value(tail, kind, nullable, detail);
+        }
+        return Tx.value(tail, kind, nullable);
     }
 
     /** {@code CASE}: the first WHEN that holds gives the value, else the ELSE, else null. */
@@ -5810,6 +11352,30 @@ public final class CypherToPure {
         if (kind == Kind.NULL) {
             return SqlToPure.nullOf(Kind.STRING);
         }
+        if (spelledTemporal(kind) && kind != Kind.DATE && results.stream().anyMatch(CypherToPure::split)
+                && (operand != null && containsCall(operand, "rand") || c.whens().stream().anyMatch(
+                        w -> containsCall(w.condition(), "rand")))) {
+            // (each part below is a CASE of its own, each test written once per part: a random test would draw once
+            // per part, and the parts would be of different branches; the database shares no expression)
+            throw CypherErrors.unsupported("a CASE choosing a value of nanosecond precision by a random test is not"
+                    + " supported yet", c.pos());
+        }
+        if ((kind == Kind.TIME || kind == Kind.DATETIME) && results.stream().anyMatch(CypherToPure::split)) {
+            // a split value among the results (W13): each part the CASE of that part
+            Tx clock = chosen(tests, results, r -> ofDay(asSplit(r)), Kind.INTEGER);
+            return kind == Kind.TIME ? splitTime(clock) : splitDateTime(chosen(tests, results,
+                    r -> datePartOf(asSplit(r)), Kind.DATE), clock);
+        }
+        if ((kind == Kind.ZONED || kind == Kind.ZONED_TIME) && results.stream().anyMatch(CypherToPure::split)) {
+            // a zoned split value among the results (W13): each part the CASE of that part, the instants' (a CASE
+            // keeps no zone, as a microsecond one's does not)
+            if (kind == Kind.ZONED_TIME) {
+                return splitZonedTime(chosen(tests, results, r -> ofDay(asParts(r)), Kind.INTEGER), null);
+            }
+            Tx clock = chosen(tests, results, r -> ofDay(asParts(r)), Kind.INTEGER);
+            return splitZoned(splitDateTime(chosen(tests, results, r -> datePartOf(asParts(r)), Kind.DATE), clock),
+                    null);
+        }
         boolean nullable = last.nullable();
         ValueSpecification vs = last.kind() == Kind.NULL ? SqlToPure.nullOf(kind).vs() : SqlToPure.valueOf(last);
         for (int i = results.size() - 2; i >= 0; i--) {
@@ -5818,7 +11384,40 @@ public final class CypherToPure {
             ValueSpecification v = r.kind() == Kind.NULL ? SqlToPure.nullOf(kind).vs() : SqlToPure.valueOf(r);
             vs = call("if", tests.get(i), thunk(v), thunk(vs));
         }
-        return kind == Kind.BOOLEAN ? SqlToPure.booleanValue(vs, nullable) : Tx.value(vs, kind, nullable);
+        if (kind == Kind.BOOLEAN) {
+            return SqlToPure.booleanValue(vs, nullable);
+        }
+        if (kind == Kind.JSON) {
+            // the results' shapes as one (a list in every branch, the kind and mark their places share; the study's
+            // §12.52), so a comprehension or a quantifier over the CASE reads its elements by it
+            com.legend.protocol.sql.InputDialect.TypeDetail detail = null;
+            boolean first = true;
+            for (Tx r : results) {
+                if (r.kind() == Kind.NULL) {
+                    continue;
+                }
+                detail = first ? r.detail() : mergedShape(detail, r.detail());
+                first = false;
+            }
+            return Tx.value(vs, kind, nullable, detail);
+        }
+        return Tx.value(vs, kind, nullable);
+    }
+
+    /** A CASE's choice of one part of its results ({@code tests} the WHEN conditions, the last result the ELSE's),
+     *  a null result the part's null. */
+    private static Tx chosen(List<ValueSpecification> tests, List<Tx> results,
+            java.util.function.UnaryOperator<Tx> part, Kind kind) {
+        java.util.function.UnaryOperator<Tx> read = r -> r.kind() == Kind.NULL ? SqlToPure.nullOf(kind) : part.apply(r);
+        Tx last = read.apply(results.get(results.size() - 1));
+        boolean nullable = last.nullable();
+        ValueSpecification vs = SqlToPure.valueOf(last);
+        for (int i = results.size() - 2; i >= 0; i--) {
+            Tx r = read.apply(results.get(i));
+            nullable |= r.nullable();
+            vs = call("if", tests.get(i), thunk(SqlToPure.valueOf(r)), thunk(vs));
+        }
+        return Tx.value(vs, kind, nullable);
     }
 
     // ------------------------------------------------------------------ values
@@ -5844,7 +11443,13 @@ public final class CypherToPure {
     }
 
     /** A collection the database computes; {@code rowFree} when it reads nothing of the row (literals only). */
-    private record Coll(ValueSpecification vs, Kind kind, boolean rowFree) implements Val {
+    private record Coll(ValueSpecification vs, Kind kind, boolean rowFree,
+            /** the elements' mark where they are values the database holds as Variants (a relationship's, a
+             *  node's, a list's shape; the study's §12.43), null for scalars or an unknown mark */
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail elementDetail) implements Val {
+        Coll(ValueSpecification vs, Kind kind, boolean rowFree) {
+            this(vs, kind, rowFree, null);
+        }
     }
 
     /** A list the database holds as a Variant whose elements are of one known kind ({@link ListOf}: a collected
@@ -5852,13 +11457,40 @@ public final class CypherToPure {
      *  that kind), so that a list predicate, IN, an index or a comprehension reads it as it reads any collection the
      *  database computes; any other value as it is. */
     private static Val asCollection(Val v) {
-        if (v instanceof Scalar s && s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape
-                && elementType(shape.element()) != null) {
-            return new Coll(call("toMany", SqlToPure.valueOf(s.tx()),
-                    SqlToPure.typeArg(java.util.Objects.requireNonNull(elementType(shape.element())))),
-                    shape.element(), false);
+        if (v instanceof Scalar s && s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape) {
+            if (shape.element() != Kind.JSON && !readsBack(shape.element())) {
+                return v;
+            }
+            // (elements the database holds as Variants -- collected relationships, nodes or lists -- read back as
+            // Variants, each carrying the elements' mark; a temporal's text parsed back, §12.76)
+            ValueSpecification held = SqlToPure.valueOf(s.tx());
+            ValueSpecification read = shape.element() == Kind.JSON ? call("toMany", held,
+                    SqlToPure.typeArg(VARIANT_TYPE)) : elementsOf(held, shape.element(), nanosElements(shape));
+            return new Coll(read, shape.element(), false, shape.elementDetail());
         }
         return v;
+    }
+
+    private static final String VARIANT_TYPE = "meta::pure::metamodel::variant::Variant";
+
+    /** A value as the Variant the database builds of it, for a key or a comparison (§12.58): a collection the
+     *  database computes as the JSON text of its elements (as collect spells one: {@code toVariant} of a typed
+     *  collection reads back untyped on Postgres); any other value its own Variant. */
+    private Tx variantOfVal(Val v, Pos pos) {
+        if (v instanceof Coll c) {
+            ValueSpecification texts = call("map", c.vs(), lambda("e", scalarJsonText(element("e", c), pos)));
+            ValueSpecification json = call("fromJson", plus(new CString("["), call("joinStrings", texts,
+                    new CString(",")), new CString("]")));
+            return Tx.value(json, Kind.JSON, false, shapeOf(c));
+        }
+        return scalarOf(v, pos);
+    }
+
+    /** The elements of a Variant of no known shape read as Variants ({@code toMany}): what two stored lists
+     *  concatenate as (§12.58; a value that is no list reads as its one element, S81). */
+    private static Coll variantElements(Tx t) {
+        return new Coll(call("toMany", SqlToPure.valueOf(t), SqlToPure.typeArg(VARIANT_TYPE)), Kind.JSON, false,
+                null);
     }
 
     private static Scalar scalar(Tx tx) {
@@ -5928,10 +11560,57 @@ public final class CypherToPure {
         }
         return switch (v) {
             case Scalar s -> s.tx();
-            case Coll c -> Tx.value(call("toVariant", c.vs()), Kind.JSON, false, shapeOf(c));
+            case Coll c -> Tx.value(collVariant(c, pos), Kind.JSON, false, shapeOf(c));
             case ListVal l -> Tx.value(call("fromJson", jsonTextOf(l, pos)), Kind.JSON, false, shapeOf(l));
-            case MapVal m -> Tx.value(call("fromJson", jsonTextOf(m, pos)), Kind.JSON, false, shapeOf(m));
+            case MapVal m -> {
+                yield Tx.value(call("fromJson", jsonTextOf(m, pos)), Kind.JSON, false, shapeOf(m));
+            }
         };
+    }
+
+    /** A collection the database computes as the Variant it holds: {@code toVariant} of it, or, of temporals, the
+     *  JSON text of their oracle spellings ({@link #jsonText}: the database's own JSON of a date is its ISO text,
+     *  which neither the judge nor a read back takes for the date, §12.76). */
+    private static ValueSpecification collVariant(Coll c, Pos pos) {
+        return spelledTemporal(c.kind()) ? call("fromJson", collJsonText(c, pos)) : call("toVariant", c.vs());
+    }
+
+    /** A collection's JSON text ({@link #collVariant}'s). */
+    private static ValueSpecification collJsonText(Coll c, Pos pos) {
+        if (!spelledTemporal(c.kind())) {
+            return call("toString", call("toVariant", c.vs()));
+        }
+        return plus(new CString("["), call("joinStrings", call("map", c.vs(), lambda("e", scalarJsonText(element("e",
+                c), pos))), new CString(",")), new CString("]"));
+    }
+
+    /** Whether a kind is one a Variant spells (the study's §12.62): a string, a boolean, a number, or a Variant. */
+    private static boolean variantSpelled(Kind kind) {
+        return kind == Kind.STRING || kind == Kind.BOOLEAN || kind.numeric() || kind == Kind.JSON;
+    }
+
+    /** {@code t} as a column of {@code union}'s kind: itself, or the Variant of it where the union is a Variant and
+     *  it is a scalar of another kind (a property typed two ways across classes, the study's §12.62). */
+    private static Tx asKind(Tx t, Kind union, Pos pos) {
+        return union == Kind.JSON && t.kind() != Kind.JSON && t.kind() != Kind.NULL ? asVariant(t, pos) : t;
+    }
+
+    /** A scalar as the Variant the database builds of it ({@code toVariant}): a string, a boolean or a number;
+     *  a Variant or a null as it is; a temporal is not spelled (the Variant would hold its text). */
+    private static Tx asVariant(Tx t, Pos pos) {
+        if (t.kind() == Kind.JSON || t.kind() == Kind.NULL) {
+            return t;
+        }
+        if (t.kind() != Kind.STRING && t.kind() != Kind.BOOLEAN && !t.kind().numeric()) {
+            throw CypherErrors.unsupported("a list or map holding a " + cypherType(t.kind()) + ", as a value, is"
+                    + " not supported yet (the Variant spells it as text)", pos);
+        }
+        ValueSpecification v = SqlToPure.valueOf(t);
+        if (!t.nullable()) {
+            return Tx.value(call("toVariant", v), Kind.JSON, false);
+        }
+        return Tx.value(call("if", call("isEmpty", v), thunk(SqlToPure.nullOf(Kind.JSON).vs()),
+                thunk(call("toVariant", call("toOne", v)))), Kind.JSON, true);
     }
 
     /** The shape of a value the database holds as a Variant, where its spelling says it (the study's §12.43): a
@@ -5943,11 +11622,15 @@ public final class CypherToPure {
     private static com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail shapeOf(Val v) {
         return switch (v) {
             case Scalar s -> s.tx().detail();
-            case Coll c -> elementType(c.kind()) == null ? null : new ListOf(c.kind());
+            // (a collection of Variants -- nodes, relationships, lists -- a list of them, each with its mark)
+            case Coll c -> c.kind() == Kind.JSON ? new ListOf(Kind.JSON, c.elementDetail())
+                    : !readsBack(c.kind()) ? null : new ListOf(c.kind(), c.elementDetail());
             case ListVal l -> {
                 Kind k = elementKind(l);
-                if (k != null && elementType(k) != null) {
-                    yield new ListOf(k);
+                if (k != null && readsBack(k)) {
+                    // (a temporal's precision its mark, §12.76)
+                    boolean fine = l.elements().stream().anyMatch(e -> e instanceof Scalar es && nanos(es.tx()));
+                    yield new ListOf(k, scalarMark(k, fine));
                 }
                 List<Entry> entries = new ArrayList<>();
                 for (Val e : l.elements()) {
@@ -5965,6 +11648,31 @@ public final class CypherToPure {
         };
     }
 
+    /** Whether two scalars of this kind a Variant spells are equal exactly when their texts are: a number, a string,
+     *  a boolean, a local temporal (its canonical text, §12.76); not a zoned value (its text the instant's alone). */
+    private static boolean equalAsText(Kind kind) {
+        return elementType(kind) != null || kind == Kind.DATE || kind == Kind.TIME || kind == Kind.DATETIME;
+    }
+
+    /** Whether a Variant's shape holds scalars alone, lists and maps of them included (what the database compares
+     *  as text): a node, a relationship, a path, or an element of no known shape, is not. */
+    private static boolean scalarShaped(com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail d) {
+        return switch (d) {
+            case null -> false;
+            case ListOf l -> l.element() != Kind.JSON ? equalAsText(l.element()) : scalarShaped(l.elementDetail());
+            case TupleOf t -> t.entries().stream().allMatch(e -> e.kind() == Kind.NULL || e.kind() != Kind.JSON
+                    ? e.kind() == Kind.NULL || equalAsText(e.kind()) : scalarShaped(e.detail()));
+            case MapOf m -> m.entries().values().stream().allMatch(e -> e.kind() == Kind.NULL
+                    || e.kind() != Kind.JSON ? e.kind() == Kind.NULL || equalAsText(e.kind())
+                    : scalarShaped(e.detail()));
+            // (a node or relationship: its JSON carries its identity, the study's §12.71, so it is equal as text
+            // where Neo4j's are equal, by identity)
+            case NodeValue n -> true;
+            case RelValue r -> true;
+            default -> false;
+        };
+    }
+
     /** A spelled list's or map's element as a known entry: a scalar's kind, nullability and mark; a list, map or
      *  collection, a Variant of its shape. */
     private static Entry entryOf(Val v) {
@@ -5978,7 +11686,7 @@ public final class CypherToPure {
     private ValueSpecification jsonTextOf(Val v, Pos pos) {
         return switch (v) {
             case Scalar s -> scalarJsonText(s.tx(), pos);
-            case Coll c -> call("toString", call("toVariant", c.vs()));
+            case Coll c -> collJsonText(c, pos);
             case ListVal l -> {
                 ValueSpecification text = new CString("[");
                 for (int i = 0; i < l.elements().size(); i++) {
@@ -6000,21 +11708,30 @@ public final class CypherToPure {
     }
 
     /** A scalar's JSON text: {@code null} for a null, else its kind's spelling ({@link #jsonText}: a number, a
-     *  boolean, a string, a date as the oracle spells one); a Variant's (a node, a relationship, a list or map the
-     *  database holds) its canonical text. A time or a duration inside a list or map is not spelled yet. */
+     *  boolean, a string, a temporal as the oracle spells one, which the database parses back, §12.76); a
+     *  Variant's (a node, a relationship, a list or map the database holds) its canonical text. A duration inside a
+     *  list or map is not spelled yet. */
     private static ValueSpecification scalarJsonText(Tx t, Pos pos) {
         if (t.kind() == Kind.NULL) {
             return new CString("null");
         }
-        if (t.kind() == Kind.DATETIME || t.kind() == Kind.TIME || t.kind() == Kind.ZONED
-                || t.kind() == Kind.ZONED_TIME || t.kind() == Kind.DURATION || t.kind() == Kind.OTHER) {
+        if (t.kind() == Kind.DURATION || t.kind() == Kind.OTHER) {
             throw CypherErrors.unsupported("a list or map holding a " + cypherType(t.kind()) + ", as a value, is"
                     + " not supported yet (the Variant spells it as text)", pos);
+        }
+        if (split(t)) {
+            // of nanosecond precision (W13): the oracle's spelling the database writes of the parts, as a string
+            Tx spelled = splitSpelled(t);
+            ValueSpecification sv = SqlToPure.valueOf(spelled);
+            ValueSpecification quoted = plus(new CString("\""), spelled.nullable() ? call("toOne", sv) : sv,
+                    new CString("\""));
+            return spelled.nullable() ? call("if", call("isEmpty", sv), thunk(new CString("null")), thunk(quoted))
+                    : quoted;
         }
         ValueSpecification value = SqlToPure.valueOf(t);
         ValueSpecification one = t.nullable() ? call("toOne", value) : value;
         ValueSpecification text = t.kind() == Kind.JSON ? call("toString", one)
-                : jsonText(one, t.kind(), "the element", pos);
+                : elementText(one, t, "the element", pos);
         return t.nullable() ? call("if", call("isEmpty", value), thunk(new CString("null")), thunk(text)) : text;
     }
 
@@ -6046,7 +11763,8 @@ public final class CypherToPure {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
         if (l instanceof Coll || r instanceof Coll) {
-            throw CypherErrors.unsupported("comparing a list the database computes is not supported yet", pos);
+            // (a list the database computes: the Variants' orderability keys, §12.58)
+            return equal(variantOfVal(l, pos), variantOfVal(r, pos), pos);
         }
         if (l instanceof Scalar ls && r instanceof Scalar rs) {
             return equal(ls.tx(), rs.tx(), pos);
@@ -6072,6 +11790,11 @@ public final class CypherToPure {
             }
             return all;
         }
+        if (l instanceof Scalar ls && ls.tx().kind() == Kind.JSON || r instanceof Scalar rs
+                && rs.tx().kind() == Kind.JSON) {
+            // (a list or map the database holds beside a spelled one: the Variants' orderability keys, §12.58)
+            return equal(scalarOf(l, pos), scalarOf(r, pos), pos);
+        }
         // a list, a map and a scalar are values of different types: never equal
         return constant(false);
     }
@@ -6085,7 +11808,13 @@ public final class CypherToPure {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
         if (l instanceof Coll || r instanceof Coll) {
-            throw CypherErrors.unsupported("ordering a list the database computes is not supported yet", pos);
+            // (a list the database computes: the Variants' orderability keys, §12.58)
+            return ordered(op, variantOfVal(l, pos), variantOfVal(r, pos), pos);
+        }
+        if (l instanceof Scalar ls && ls.tx().kind() == Kind.JSON || r instanceof Scalar rs
+                && rs.tx().kind() == Kind.JSON) {
+            // (a list or map the database holds beside a spelled one: the Variants' orderability keys, §12.58)
+            return ordered(op, scalarOf(l, pos), scalarOf(r, pos), pos);
         }
         if (!(l instanceof ListVal a) || !(r instanceof ListVal b)) {
             if (l instanceof MapVal && r instanceof MapVal) {
@@ -6120,13 +11849,114 @@ public final class CypherToPure {
         return result;
     }
 
+    /** Whether {@code s} is a list the database holds as a Variant of a known element kind: one {@link #asCollection}
+     *  reads as a collection. */
+    /** Whether a scalar is a Variant of no known shape (a stored list or map, a property of a node the database
+     *  holds as a Variant). */
+    private static boolean unknownVariant(Scalar s) {
+        return s.tx().kind() == Kind.JSON && s.tx().detail() == null;
+    }
+
+    private static boolean listShaped(Scalar s) {
+        return s.tx().kind() == Kind.JSON && s.tx().detail() instanceof ListOf shape
+                && (readsBack(shape.element()) || shape.element() == Kind.JSON);
+    }
+
+    /** A spelled list as the collection the database reads: through its JSON text where its shape says one kind
+     *  ({@link #asCollection}), else its elements' values ({@link #collection}). */
+    private Coll spelledCollection(ListVal l, Pos pos) {
+        Val read = asCollection(scalar(variant(l, pos)));
+        return read instanceof Coll c ? c : collection(l, pos);
+    }
+
+    /** A value concatenated to a list the database computes: a scalar of the list's kind, never null. */
+    private static Tx elementOf(Val v, @com.legend.base.Nullable Coll list, Pos pos) {
+        if (!(v instanceof Scalar s) || s.tx().kind() == Kind.NULL || s.tx().kind() == Kind.JSON) {
+            throw CypherErrors.unsupported("+ of a list the database computes and a value that is a list or a map is"
+                    + " not supported yet", pos);
+        }
+        if (list != null && s.tx().kind() != list.kind()) {
+            throw CypherErrors.unsupported("+ of a list the database computes and a value of another type ("
+                    + cypherType(s.tx().kind()) + ") is not supported yet", pos);
+        }
+        return s.tx();
+    }
+
+    /** {@code list + x} ({@code x + list}) where {@code x} is a value the database holds as a Variant (the study's
+     *  §12.58): a list's elements in a row with the list's (Cypher concatenates two lists), any other value an
+     *  element after (before) them; null where {@code x} is null or holds the JSON null (Cypher: a list beside
+     *  null is null). The list's elements as Variants, the result a Variant list of them. */
+    private static Val concatVariant(Coll list, Tx x, boolean after, Pos pos) {
+        // (the list's JSON built as text, as collect builds one: a conditional over collections has no SQL
+        // carrier, where one over texts has)
+        ValueSpecification elements = list.kind() == Kind.JSON ? list.vs()
+                : call("toMany", collVariant(list, pos), SqlToPure.typeArg(VARIANT_TYPE));
+        ValueSpecification listText = call("joinStrings", call("map", elements, lambda("e", call("toString",
+                new Variable("e")))), new CString(","));
+        ValueSpecification v = SqlToPure.valueOf(x);
+        ValueSpecification text = call("toString", call("toOne", v));
+        ValueSpecification isList = call("equal", call(IS_KIND, v, new CString("list")), new CBoolean(true));
+        // (a list's elements: its text within the brackets, the first and the last character dropped)
+        ValueSpecification inner = call("left", call("right", text, AppliedFunction.infixRun("minus",
+                List.of(call("length", text), new CInteger(1L)))), AppliedFunction.infixRun("minus",
+                List.of(call("length", text), new CInteger(2L))));
+        ValueSpecification piece = call("if", isList, thunk(inner), thunk(text));
+        List<ValueSpecification> parts = after ? List.of(listText, piece) : List.of(piece, listText);
+        ValueSpecification joined = call("joinStrings", call("filter", new PureCollection(parts), lambda("t",
+                call("not", call("equal", new Variable("t"), new CString(""))))), new CString(","));
+        ValueSpecification absent = call("or", call("isEmpty", v), call("equal", call(IS_KIND, v,
+                new CString("null")), new CBoolean(true)));
+        ValueSpecification result = call("if", absent, thunk(SqlToPure.nullOf(Kind.JSON).vs()),
+                thunk(call("fromJson", plus(new CString("["), joined, new CString("]")))));
+        return scalar(Tx.value(result, Kind.JSON, true, new ListOf(Kind.JSON, list.kind() == Kind.JSON
+                ? list.elementDetail() : null)));
+    }
+
     /** {@code list + list}, {@code list + value}, {@code value + list}: the elements in a row. */
     private Val concat(Val l, Val r, Pos pos) {
         if (isNull(l) || isNull(r)) {
             return nullValue();
         }
-        if (l instanceof Coll || r instanceof Coll) {
-            throw CypherErrors.unsupported("+ of a list the database computes is not supported yet", pos);
+        Val left = l instanceof Scalar ls && unknownVariant(ls) && r instanceof Scalar rs && unknownVariant(rs)
+                ? variantElements(ls.tx()) : asCollection(l);
+        Val right = r instanceof Scalar rs && unknownVariant(rs) && l instanceof Scalar ls && unknownVariant(ls)
+                ? variantElements(rs.tx()) : asCollection(r);
+        if (left instanceof Coll || right instanceof Coll) {
+            // a list the database computes, and a list or a value beside it: the elements in a row, the database's
+            // concatenation (an element of another kind is refused by name: the database's lists are of one type)
+            // (a spelled list beside a collection the database computes: read through its JSON text as a
+            // collection of its kind, the list's element type stamped, which a literal list of Postgres lacks)
+            Coll a = left instanceof Coll c ? c : right instanceof Coll && left instanceof ListVal lv
+                    ? spelledCollection(lv, pos) : null;
+            Coll b = right instanceof Coll c ? c : left instanceof Coll && right instanceof ListVal rv
+                    ? spelledCollection(rv, pos) : null;
+            if (a != null && b == null && right instanceof Scalar rs && rs.tx().kind() == Kind.JSON) {
+                return concatVariant(a, rs.tx(), true, pos);
+            }
+            if (b != null && a == null && left instanceof Scalar ls && ls.tx().kind() == Kind.JSON) {
+                return concatVariant(b, ls.tx(), false, pos);
+            }
+            Tx le = a == null ? elementOf(left, b, pos) : null;
+            Tx re = b == null ? elementOf(right, a, pos) : null;
+            Coll known = a != null ? a : java.util.Objects.requireNonNull(b);
+            if (a != null && b != null && a.kind() != b.kind()) {
+                throw CypherErrors.unsupported("+ of two lists of different element types the database computes is"
+                        + " not supported yet", pos);
+            }
+            Tx maybeNull = le != null && le.nullable() ? le : re != null && re.nullable() ? re : null;
+            ValueSpecification lv = a != null ? a.vs() : SqlToPure.valueOf(java.util.Objects.requireNonNull(le));
+            ValueSpecification rv = b != null ? b.vs() : SqlToPure.valueOf(java.util.Objects.requireNonNull(re));
+            if (maybeNull != null) {
+                // a value that may be null beside the list: null where it is (Cypher's), else the list, held as a
+                // Variant of the list's shape (what a comprehension or a quantifier reads back)
+                ValueSpecification joined = call("concatenate", a != null ? lv : call("toOne", lv),
+                        b != null ? rv : call("toOne", rv));
+                return scalar(Tx.value(call("if", call("isEmpty", maybeNull.vs()), thunk(SqlToPure.nullOf(Kind.JSON)
+                        .vs()), thunk(collVariant(new Coll(joined, known.kind(), false, known.elementDetail()), pos))),
+                        Kind.JSON, true, new ListOf(known.kind(), known.elementDetail())));
+            }
+            return new Coll(call("concatenate", lv, rv), known.kind(), (a == null || a.rowFree())
+                    && (b == null || b.rowFree()), known.elementDetail());
         }
         if (l instanceof MapVal || r instanceof MapVal) {
             throw CypherErrors.invalid("Type mismatch: expected Float, Integer, String, List<T> or Duration but was Map",
@@ -6177,8 +12007,9 @@ public final class CypherToPure {
                         Tx t = scalarOf(e, ix.pos());
                         if (t.kind() != Kind.NULL) {
                             if (kind != null && kind != t.kind()) {
-                                throw CypherErrors.unsupported("indexing a list of values of different types by a"
-                                        + " value of the row is not supported yet", ix.pos());
+                                // (values of several kinds: the Variant the database builds of the list, indexed
+                                // by the platform's get, §12.58)
+                                yield variantIndex(variant(l, ix.pos()), is, ix);
                             }
                             kind = t.kind();
                         }
@@ -6186,7 +12017,7 @@ public final class CypherToPure {
                     }
                     Kind k = kind == null ? Kind.NULL : kind;
                     // (strict over the place: null for a null place, the place read as one value)
-                    Tx picked = SqlToPure.strict(k, List.of(i), x -> {
+                    Tx picked = strict(k, List.of(i), x -> {
                         ValueSpecification at = call("if", call("lessThan", x.get(0), new CInteger(0L)),
                                 thunk(plus(x.get(0), new CInteger((long) size))), thunk(x.get(0)));
                         ValueSpecification pick = SqlToPure.nullOf(k).vs();
@@ -6224,7 +12055,7 @@ public final class CypherToPure {
                         values.put(e.getKey(), t.kind() == Kind.NULL ? null : SqlToPure.valueOf(t));
                     }
                     Kind k = kind == null ? Kind.NULL : kind;
-                    Tx picked = SqlToPure.strict(k, List.of(i), x -> {
+                    Tx picked = strict(k, List.of(i), x -> {
                         ValueSpecification pick = SqlToPure.nullOf(k).vs();
                         List<String> keys = new ArrayList<>(values.keySet());
                         for (int p = keys.size() - 1; p >= 0; p--) {
@@ -6253,7 +12084,8 @@ public final class CypherToPure {
                     throw CypherErrors.unsupported("indexing a list the database computes by a value that is not a"
                             + " literal, or from its end, is not supported yet", ix.pos());
                 }
-                yield scalar(columnLike(call("first", call("drop", c.vs(), new CInteger(n))), c.kind(), true));
+                // (a nanosecond temporal's precision kept, §12.76)
+                yield scalar(elementOf(call("first", call("drop", c.vs(), new CInteger(n))), c, true));
             }
             case Scalar s -> {
                 if (s.tx().kind() == Kind.JSON) {
@@ -6437,11 +12269,22 @@ public final class CypherToPure {
      *  the entry's shape (a nested list's or map's). An entry that may be null is read only where its text is not
      *  the JSON null (a null the Variant spells, which Postgres's cast refuses and DuckDB's reads as none). */
     private static Tx entryRead(ValueSpecification got, Entry e) {
-        String type = e.kind() == Kind.JSON ? null : elementType(e.kind());
-        if (type == null) {
+        if (e.kind() == Kind.JSON || !readsBack(e.kind())) {
             return Tx.value(got, Kind.JSON, true, e.kind() == Kind.JSON ? e.detail() : null);
         }
-        ValueSpecification read = call("to", got, SqlToPure.typeArg(type));
+        // (a temporal's text parsed back, §12.76: the entry's own mark says its precision)
+        boolean fine = e.detail() instanceof Carried c && c.nanos();
+        if (fine && spelledTemporal(e.kind()) && e.kind() != Kind.DATE) {
+            // of nanosecond precision (W13): the text read as its parts, none where the entry is the JSON null
+            ValueSpecification text = call("to", got, SqlToPure.typeArg("String"));
+            ValueSpecification present = e.nullable() ? call("if", call("or", call("isEmpty", got), call("equal",
+                    call("toString", call("toOne", got)), new CString("null"))), thunk(SqlToPure.nullOf(Kind.STRING)
+                    .vs()), thunk(text)) : text;
+            return splitOfSpelled(Tx.value(present, Kind.STRING, true), e.kind());
+        }
+        ValueSpecification read = spelledTemporal(e.kind()) ? temporalOfText(call("toOne", call("to", got,
+                SqlToPure.typeArg("String"))), e.kind()) : call("to", got, SqlToPure.typeArg(
+                java.util.Objects.requireNonNull(elementType(e.kind()))));
         if (e.nullable()) {
             read = call("if", call("or", call("isEmpty", got), call("equal", call("toString", call("toOne", got)),
                     new CString("null"))), thunk(SqlToPure.nullOf(e.kind()).vs()), thunk(read));
@@ -6512,7 +12355,7 @@ public final class CypherToPure {
                     + cypherType(s.tx().kind()), q.list().pos());
             case MapVal m -> throw CypherErrors.invalid("Type mismatch: expected List<T> but was Map", q.list().pos());
             case Coll c -> {
-                Scope inner = new BoundScope(scope, var, scalar(columnLike(new Variable(var), c.kind(), false)));
+                Scope inner = new BoundScope(scope, var, scalar(element(var, c)));
                 databaseLambdas++;
                 Tx pred;
                 try {
@@ -6521,16 +12364,34 @@ public final class CypherToPure {
                     databaseLambdas--;
                 }
                 if (pred.nullable()) {
-                    throw CypherErrors.unsupported("a list predicate whose condition may be null, over a list the"
-                            + " database computes, is not supported yet", q.pos());
+                    // a condition that may be null (the study's §12.57): the elements it holds for, fails for and is
+                    // unknown for counted by the database, combined by Cypher's three-valued rules (as a spelled
+                    // list's are, {@link #single})
+                    ValueSpecification holds = call("size", call("filter", c.vs(), lambda(var, pred.vs())));
+                    ValueSpecification fails = call("size", call("filter", c.vs(), lambda(var, pred.falseWhen())));
+                    ValueSpecification unknowns = call("size", call("filter", c.vs(), lambda(var, call("not",
+                            call("or", pred.vs(), pred.falseWhen())))));
+                    ValueSpecification none = call("equal", holds, new CInteger(0L));
+                    ValueSpecification some = call("greaterThan", holds, new CInteger(0L));
+                    ValueSpecification known = call("equal", unknowns, new CInteger(0L));
+                    return switch (name) {
+                        case ALL -> Tx.condition(call("and", call("equal", fails, new CInteger(0L)), known),
+                                call("greaterThan", fails, new CInteger(0L)), true);
+                        case ANY -> Tx.condition(some, call("and", none, known), true);
+                        case NONE -> Tx.condition(call("and", none, known), some, true);
+                        case SINGLE -> Tx.condition(call("and", call("equal", holds, new CInteger(1L)), known),
+                                call("or", call("greaterThan", holds, new CInteger(1L)), call("and", none, known)),
+                                true);
+                    };
                 }
                 return switch (name) {
                     case ALL -> SqlToPure.booleanValue(call("forAll", c.vs(), lambda(var, pred.vs())), false);
                     case ANY -> SqlToPure.booleanValue(call("exists", c.vs(), lambda(var, pred.vs())), false);
                     case NONE -> SqlToPure.not(SqlToPure.booleanValue(call("exists", c.vs(), lambda(var,
                             pred.vs())), false));
-                    case SINGLE -> throw CypherErrors.unsupported("single(...) over a list the database computes is"
-                            + " not supported yet", q.pos());
+                    // exactly one element holds: the holds counted (the condition is never null here)
+                    case SINGLE -> SqlToPure.booleanValue(call("equal", call("size", call("filter", c.vs(),
+                            lambda(var, pred.vs()))), new CInteger(1L)), false);
                 };
             }
             case ListVal l -> {
@@ -6591,8 +12452,8 @@ public final class CypherToPure {
 
     /** {@code n:Label}, {@code n:A:B} (the study's §12.35): true when the node carries every label, read from its
      *  labels' JSON text (a spelled constant for a node of a known class, the column carrying it for a node read
-     *  as rows: the database tests the text for each quoted label); null for a node an OPTIONAL MATCH may not
-     *  find, or a null value. */
+     *  as rows: the database tests the text for each quoted label); of a relationship, when its type is each label
+     *  (§12.79); null for a node an OPTIONAL MATCH may not find, or a null value. */
     private Tx labelPredicate(CypherAst.LabelPredicate lp, Scope scope) {
         if (!(lp.target() instanceof CypherAst.Var v)) {
             throw CypherErrors.invalid("Type mismatch: expected Node or Relationship but was "
@@ -6602,6 +12463,25 @@ public final class CypherToPure {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
         NodeParts parts = scope.nodeParts(v);
+        Tx type = parts == null ? scope.relType(v) : null;
+        if (type != null) {
+            // of a relationship (Neo4j's label expression on one, the study's §12.79): true when its type is each
+            // label written (a relationship has one type, so two different labels never hold); null where an
+            // OPTIONAL MATCH did not find it
+            ValueSpecification t = SqlToPure.valueOf(type);
+            ValueSpecification one = type.nullable() ? call("toOne", t) : t;
+            ValueSpecification is = null;
+            for (String label : lp.labels()) {
+                ValueSpecification eq = call("equal", one, new CString(label));
+                is = is == null ? eq : call("and", is, eq);
+            }
+            ValueSpecification typed = java.util.Objects.requireNonNull(is);
+            if (!type.nullable()) {
+                return Tx.condition(typed, call("not", typed), false);
+            }
+            ValueSpecification found = call("isNotEmpty", t);
+            return Tx.condition(call("and", found, typed), call("and", found, call("not", typed)), true);
+        }
         if (parts == null) {
             Val value = scope.variable(v);
             if (isNull(value)) {
@@ -6638,6 +12518,11 @@ public final class CypherToPure {
      * (the values joined, §12.25). A named path inside is the path the hop makes.
      */
     private Val patternComprehension(CypherAst.PatternComprehension pc, Scope scope) {
+        String listed = patternLists.get(pc);
+        if (listed != null) {
+            // (read over the rows as a list column, the study's §12.72)
+            return scope.variable(new CypherAst.Var(listed, pc.pos()));
+        }
         Hopped h = hopped(pc, scope);
         List<ValueSpecification> pieces = new ArrayList<>();
         Coll one = null;
@@ -6718,6 +12603,29 @@ public final class CypherToPure {
         return scalar(Tx.value(total == null ? new CInteger(0L) : total, Kind.INTEGER, false));
     }
 
+    /** {@code EXISTS { MATCH pattern [WHERE w] WITH keys, count(*) AS c [WHERE having] }} (the study's §12.77): the
+     *  keys variables of the scope (each one value for the subquery: one group, or none where the pattern matches
+     *  nothing), so the subquery holds where the pattern's matches, counted as the size of their comprehension, are
+     *  some and {@code having} holds of their count; a key the subquery binds itself is refused by name. */
+    private Tx countedExists(CypherAst.ExistsSubquery ex, Scope scope) {
+        CypherAst.Counted counted = java.util.Objects.requireNonNull(ex.counted());
+        for (String key : counted.keys()) {
+            if (!scope.binds(key)) {
+                throw CypherErrors.unsupported("an EXISTS subquery grouping by " + key + ", a variable of its own, is"
+                        + " not supported yet", counted.pos());
+            }
+        }
+        Expr matches = new CypherAst.Call("size", false, List.of(new CypherAst.PatternComprehension(ex.pattern(),
+                ex.where(), new CypherAst.IntLit(1L, "1", ex.pos()), ex.pos())), ex.pos());
+        Tx count = tx(matches, scope);
+        Tx some = strictTest(List.of(count), v -> call("greaterThan", v.get(0), new CInteger(0L)));
+        if (counted.having() == null) {
+            return some;
+        }
+        Tx having = tx(counted.having(), new BoundScope(scope, counted.alias(), scalar(count)));
+        return and3(some, having);
+    }
+
     /** A pattern as a predicate, or an EXISTS subquery (the study's §12.40): whether the hop from the bound node
      *  finds a match, each way the model reads it (§12.31) as the navigation's non-emptiness (filtered by the WHERE
      *  over the hop's node), the ways or-ed; no way, false. Built over the pattern comprehension's hop resolution,
@@ -6796,7 +12704,8 @@ public final class CypherToPure {
             String rel = relName(taken);
             sub.bindings().put(end, new Binding(true, way.hop().target(), edge != null
                     ? List.of(java.util.Objects.requireNonNull(way.hop().far())) : List.of(), false));
-            sub.bindings().put(rel, Binding.relationship(List.of(), false, false, way.type(), false, edge));
+            sub.bindings().put(rel, Binding.relationship(List.of(), false, false, way.type(), false, edge,
+                    way.hop().forward()));
             sub.forward().put(rel, way.hop().forward());
             PathSpec path = pathVar == null ? null : new PathSpec(List.of(startVar, end), List.of(rel));
             return outer.overlay(outer.sub(sub), pathVar, path);
@@ -6808,7 +12717,8 @@ public final class CypherToPure {
             Graph g = outer.g;
             Graph ext = new Graph(g.rootClass(), g.row(), new LinkedHashMap<>(g.bindings()), g.conditions(),
                     g.candidates(), g.fanning(), g.deferredConstraints(), g.deferredWhere(), g.variableClasses(),
-                    new LinkedHashMap<>(g.paths()), new LinkedHashMap<>(g.forward()), new LinkedHashMap<>(g.lists()));
+                    new LinkedHashMap<>(g.paths()), new LinkedHashMap<>(g.forward()), new LinkedHashMap<>(g.lists()),
+                    g.present());
             Set<String> taken = new HashSet<>(g.bindings().keySet());
             taken.addAll(g.paths().keySet());
             String end = endName(taken);
@@ -6818,7 +12728,7 @@ public final class CypherToPure {
             path.addAll(way.hop().steps());
             ext.bindings().put(end, new Binding(true, way.hop().target(), List.copyOf(path), false));
             ext.bindings().put(rel, Binding.relationship(List.copyOf(relPath(from, way.hop())), false, false,
-                    way.type(), false, way.hop().edge()));
+                    way.type(), false, way.hop().edge(), way.hop().forward()));
             ext.forward().put(rel, way.hop().forward());
             if (pathVar != null) {
                 ext.paths().put(pathVar, new PathSpec(List.of(startVar, end), List.of(rel)));
@@ -6828,6 +12738,10 @@ public final class CypherToPure {
     }
 
     private Hopped hopped(CypherAst.PatternComprehension pc, Scope scope) {
+        while (scope instanceof BoundScope bs) {
+            // (a lambda's binding over the graph: the hop starts from a node of the graph beneath it)
+            scope = bs.inner;
+        }
         if (!(scope instanceof GraphScope gs)) {
             throw CypherErrors.unsupported("a pattern comprehension over rows (after a WITH, or a pattern read as"
                     + " rows) is not supported yet", pc.pos());
@@ -6868,18 +12782,25 @@ public final class CypherToPure {
         }
         refuseHopPastEdge(start.variable(), rel.pos());
         String cls = java.util.Objects.requireNonNull(from.classPath());
-        String startLabel = labelClass(start);
-        if (startLabel != null && !model.isSubclass(cls, startLabel)) {
-            if (model.isSubclass(startLabel, cls)) {
-                throw CypherErrors.unsupported("the label " + startLabel + " on " + start.variable() + " (a subclass of"
-                        + " its class " + cls + ") in a pattern comprehension or predicate is not supported yet",
-                        start.pos());
+        if (open && (unknownLabel(start) || unknownLabel(end) || rel.types().stream().anyMatch(t -> !typeKnown(t)))) {
+            // an open graph (the study's §12.45): a label or a type the model has nothing of matches nothing
+            return new Hopped(gs, java.util.Objects.requireNonNull(start.variable()), from, List.of(),
+                    end.variable(), rel.variable(), this::freshName);
+        }
+        List<String> startLabels = labelClasses(start);
+        if (!carries(cls, startLabels)) {
+            for (String startLabel : startLabels) {
+                if (model.isSubclass(startLabel, cls)) {
+                    throw CypherErrors.unsupported("the label " + startLabel + " on " + start.variable() + " (a"
+                            + " subclass of its class " + cls + ") in a pattern comprehension or predicate is not"
+                            + " supported yet", start.pos());
+                }
             }
             // a label the bound node's class does not carry: the pattern matches nothing
             return new Hopped(gs, java.util.Objects.requireNonNull(start.variable()), from, List.of(),
                     end.variable(), rel.variable(), this::freshName);
         }
-        String label = labelClass(end);
+        List<String> endLabels = labelClasses(end);
         // the ways: (type, direction, the class reached), as an untyped pattern's arms are decided (§12.17)
         List<Object[]> candidates = new ArrayList<>();
         if (!rel.types().isEmpty()) {
@@ -6920,8 +12841,8 @@ public final class CypherToPure {
         List<Way> ways = new ArrayList<>();
         for (Object[] way : candidates) {
             String reached = (String) way[2];
-            if (label != null && !label.equals(reached) && !model.isSubclass(reached, label)) {
-                refuseNarrowing(label, reached, (String) way[0], end.pos());
+            if (!carries(reached, endLabels)) {
+                refuseNarrowing(endLabels, reached, (String) way[0], end.pos());
                 continue;
             }
             if (rel.direction() == CypherAst.Direction.BOTH && reached.equals(cls)) {
@@ -7029,18 +12950,19 @@ public final class CypherToPure {
         Kind kind = c.kind();
         Set<String> bound = Set.of(var);
         boolean rowFree = c.rowFree();
-        Scope inner = new BoundScope(scope, var, scalar(columnLike(new Variable(var), kind, false)));
+        Scope inner = new BoundScope(scope, var, scalar(element(var, c)));
         Expr where = lc.where();
         databaseLambdas++;
         try {
-            return comprehensionBody(lc, inner, vs, kind, rowFree, bound);
+            return comprehensionBody(lc, inner, vs, kind, rowFree, bound, c.elementDetail());
         } finally {
             databaseLambdas--;
         }
     }
 
     private Val comprehensionBody(CypherAst.ListComprehension lc, Scope inner, ValueSpecification collection,
-            Kind elementKind, boolean collectionRowFree, Set<String> bound) {
+            Kind elementKind, boolean collectionRowFree, Set<String> bound,
+            com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail elementDetail) {
         String var = lc.variable();
         ValueSpecification vs = collection;
         Kind kind = elementKind;
@@ -7060,14 +12982,33 @@ public final class CypherToPure {
                         lc.pos());
             }
             if (ms.tx().nullable() || ms.tx().kind() == Kind.NULL) {
-                throw CypherErrors.unsupported("a list comprehension producing values that may be null is not"
-                        + " supported yet", lc.pos());
+                // a value that may be null (the study's §12.57): each element's JSON text (a null spelled as JSON's,
+                // which a collection of values would drop), the texts joined as the list's JSON the database
+                // builds (as collect spells one), a Variant of no known shape (a null among the elements is not
+                // what a reader by kind reads back)
+                ValueSpecification texts = call("map", vs, lambda(var, scalarJsonText(ms.tx(), lc.pos())));
+                ValueSpecification json = call("fromJson", plus(new CString("["), call("joinStrings", texts,
+                        new CString(",")), new CString("]")));
+                return scalar(Tx.value(json, Kind.JSON, false));
+            }
+            rowFree &= !readsRow(map, bound);
+            if (split(ms.tx())) {
+                // of nanosecond precision (W13): the oracle's texts the database writes of the parts, each element
+                // read back as its parts, as a spelled list's
+                vs = call("map", vs, lambda(var, SqlToPure.valueOf(splitSpelled(ms.tx()))));
+                return new Coll(vs, ms.tx().kind(), rowFree, NANOS_ELEMENT);
             }
             vs = call("map", vs, lambda(var, SqlToPure.valueOf(ms.tx())));
             kind = ms.tx().kind();
-            rowFree &= !readsRow(map, bound);
+            return new Coll(vs, kind, rowFree, ms.tx().detail());
         }
-        return new Coll(vs, kind, rowFree);
+        return new Coll(vs, kind, rowFree, elementDetail);
+    }
+
+    /** The lambda variable {@code var} bound to an element of {@code c}: its kind and, for an element the database
+     *  holds as a Variant, the elements' mark. */
+    private static Tx element(String var, Coll c) {
+        return elementOf(new Variable(var), c, false);
     }
 
     /** A list of known shape as the collection the database reads: its elements scalars of one kind, none null. */
@@ -7075,24 +13016,38 @@ public final class CypherToPure {
         List<ValueSpecification> values = new ArrayList<>();
         Kind kind = null;
         boolean rowFree = true;
+        boolean variants = false;
         for (Val e : l.elements()) {
             if (!(e instanceof Scalar s)) {
-                throw CypherErrors.unsupported("a list of lists or maps, read by the database, is not supported yet",
-                        pos);
+                variants = true;
+                break;
             }
             Tx t = s.tx();
-            if (t.kind() == Kind.NULL || t.nullable()) {
-                throw CypherErrors.unsupported("a list holding a value that may be null, read by the database, is"
-                        + " not supported yet", pos);
+            if (t.kind() == Kind.NULL || t.nullable() || t.kind() == Kind.JSON || kind != null && kind != t.kind()) {
+                variants = true;
+                break;
             }
-            if (kind == null) {
-                kind = t.kind();
-            } else if (kind != t.kind()) {
-                throw CypherErrors.unsupported("a list holding values of different types, read by the database, is"
-                        + " not supported yet", pos);
-            }
+            kind = t.kind();
             values.add(SqlToPure.valueOf(t));
             rowFree &= s.literal();
+        }
+        if (!variants && kind != null && kind != Kind.DATE && spelledTemporal(kind) && l.elements().stream().anyMatch(
+                e -> nanos(((Scalar) e).tx()))) {
+            // temporals of nanosecond precision among them (W13): the oracle's texts the database writes of their
+            // parts, each element read back as its parts where it is read (a microsecond one read into them)
+            values = new ArrayList<>();
+            for (Val e : l.elements()) {
+                values.add(SqlToPure.valueOf(splitSpelled(asParts(((Scalar) e).tx()))));
+            }
+            return new Coll(new PureCollection(values), kind, rowFree, NANOS_ELEMENT);
+        }
+        if (variants) {
+            // a list of lists or maps, of values of several kinds, or holding a null (the study's §12.58): the
+            // Variant the database builds of it, its elements read back as Variants (a null among them the JSON
+            // null, an element)
+            Tx v = variant(l, pos);
+            return new Coll(call("toMany", SqlToPure.valueOf(v), SqlToPure.typeArg(VARIANT_TYPE)), Kind.JSON,
+                    rowFree(l), null);
         }
         if (kind == null) {
             return new Coll(call("cast", SqlToPure.empty(), SqlToPure.typeArg("Integer")), Kind.INTEGER, true);
@@ -7250,7 +13205,24 @@ public final class CypherToPure {
      *  layer reads no catalog, AGENTS invariant 7b, so their names are spelled here): the time of day of a date-time,
      *  and the date-time at a time of a date. */
     private static final String TIME_OF = "meta::legend::lite::timeOf";
+    /** The database's random float in [0, 1) (Pure's {@code random}, legend-pure's essential/math/random.pure; the
+     *  plan's W3): Cypher's {@code rand()}, a value of the call, not of the data, read once per row it is spelled in. */
+    private static final String RANDOM = "meta::pure::functions::math::random";
+    private static final String IS_KIND = "meta::legend::lite::isKind";
+    /** The platform's unguarded to-one conformance ({@code Pure.Lite.TRUST_ONE}, the lowering's identity): the
+     *  island spells it where its own test proves the value present (the orderability key's places, §12.58). */
+    private static final String TRUST_ONE = "meta::legend::lite::trustOne";
+    private static final String LITE_MIN_BY = "meta::legend::lite::minBy";
+    private static final String LITE_MAX_BY = "meta::legend::lite::maxBy";
+    private static final String ROW_MAPPER = "meta::pure::functions::math::mathUtility::rowMapper";
+    /** The identity of a node or an edge-class relationship (the study's §12.46): lite's elementId of the instance,
+     *  its class's primary key as text; what Cypher compares nodes by. */
+    private static final String ELEMENT_ID = "meta::legend::lite::elementId";
     private static final String AT_TIME = "meta::legend::lite::atTime";
+    /** Lite's temporal values in text carriage ({@code Pure.Lite.DATE_TIME_OF_TEXT}, {@code TIME_OF_TEXT}): the
+     *  date-time or time of day the database's text spells, what a split value leaves the database as (W13). */
+    private static final String DATE_TIME_OF_TEXT = "meta::legend::lite::dateTimeOfText";
+    private static final String TIME_OF_TEXT = "meta::legend::lite::timeOfText";
 
     private static ValueSpecification days() {
         return new EnumValue(DURATION_UNIT, "DAYS");
@@ -7268,12 +13240,7 @@ public final class CypherToPure {
     }
 
     private static Tx atEpoch(Tx time) {
-        if (nanos(time)) {
-            // a nanosecond time of day is the date-time at it on the epoch day already
-            return new Tx(time.vs(), Kind.DATETIME, time.nullable(), time.whenFalse(), time.detail(), time.guard(),
-                    time.body());
-        }
-        return SqlToPure.strict(Kind.DATETIME, List.of(time), x -> atEpoch(x.get(0)));
+        return strict(Kind.DATETIME, List.of(time), x -> atEpoch(x.get(0)));
     }
 
     private static ValueSpecification epoch() {
@@ -7293,20 +13260,54 @@ public final class CypherToPure {
      * UTC} and a zero offset are the UTC offset, as Neo4j prints them.
      */
     private record Zone(String written, int sign, int hours, int minutes, int seconds,
-            @com.legend.base.Nullable String name) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+            @com.legend.base.Nullable String name,
+            /** an offset the database reads, its seconds (a stored zone's offset slot, a named zone's offset at an
+             *  instant: the study's §12.75): an expression of the scope it was read in, which no column keeps
+             *  ({@link Col} drops it; a projection carries its value as a hidden column, {@link #ZONE_PART});
+             *  null for a spelled zone */
+            @com.legend.base.Nullable ValueSpecification read,
+            /** beside a read offset, the region's name the database reads with it (String[0..1]: a stored zoned
+             *  value's zone slot, empty where the value names none), whose rules place a wall time the value is
+             *  moved to (§12.75); null when no region is read */
+            @com.legend.base.Nullable ValueSpecification region)
+            implements com.legend.protocol.sql.InputDialect.TypeDetail {
 
         static final Zone UTC = new Zone("Z", 1, 0, 0, 0, null);
+
+        Zone(String written, int sign, int hours, int minutes, int seconds, @com.legend.base.Nullable String name) {
+            this(written, sign, hours, minutes, seconds, name, null, null);
+        }
+
+        /** The offset of {@code seconds} (Integer[1]), the database's. */
+        static Zone read(ValueSpecification seconds) {
+            return new Zone("", 1, 0, 0, 0, null, seconds, null);
+        }
+
+        /** The offset of {@code seconds} (Integer[1]) and the region {@code region} (String[0..1]), the
+         *  database's. */
+        static Zone read(ValueSpecification seconds, @com.legend.base.Nullable ValueSpecification region) {
+            return new Zone("", 1, 0, 0, 0, null, seconds, region);
+        }
 
         boolean named() {
             return name != null;
         }
 
         boolean zero() {
-            return name == null && hours == 0 && minutes == 0 && seconds == 0;
+            return name == null && read == null && hours == 0 && minutes == 0 && seconds == 0;
+        }
+
+        /** The offset as Neo4j prints it: a spelled one's text, a read one's the database's ({@link
+         *  #offsetTextOf}). */
+        ValueSpecification offsetSpelled() {
+            return read != null ? offsetTextOf(read) : new CString(offsetText());
         }
 
         /** The offset as Neo4j prints it ({@code +01:00}, {@code Z}, {@code +02:05:59}). */
         String offsetText() {
+            if (read != null || name != null) {
+                throw new IllegalStateException("a read or named zone's offset is the database's text");
+            }
             if (zero()) {
                 return "Z";
             }
@@ -7362,10 +13363,45 @@ public final class CypherToPure {
     }
 
     /** What a translation carries beside its value: the zone of a zoned value (§12.8, §12.11) and whether it is of
-     *  nanosecond precision (§12.12: the database's TIMESTAMP_NS, every operation on it spelled over the nanosecond
-     *  epoch, which DuckDB keeps and a microsecond engine refuses by name). */
-    private record Carried(@com.legend.base.Nullable Zone zone, boolean nanos)
-            implements com.legend.protocol.sql.InputDialect.TypeDetail {
+     *  nanosecond precision: a temporal value then carried as its {@link Parts} (W13), a text the printing of one, a
+     *  duration whose nanoseconds count, a list whose elements are such texts. (A temporal marked so without its
+     *  parts lives only at a marked TIMESTAMP_NS column's read, which reads it into them, §12.91.) */
+    private record Carried(@com.legend.base.Nullable Zone zone, boolean nanos,
+            /** the zoned value a text is the printing of ({@code toString}), what a parse of the text reads back:
+             *  print then parse is the identity (the study's §12.74); null for any other value */
+            @com.legend.base.Nullable Tx printedFrom,
+            /** a value of nanosecond precision carried as its parts (W13): its date beside the translation's own
+             *  value, its nanoseconds since midnight; null for a value carried whole */
+            @com.legend.base.Nullable Parts parts) implements com.legend.protocol.sql.InputDialect.TypeDetail {
+        Carried(@com.legend.base.Nullable Zone zone, boolean nanos) {
+            this(zone, nanos, null, null);
+        }
+
+        Carried(@com.legend.base.Nullable Zone zone, boolean nanos, @com.legend.base.Nullable Tx printedFrom) {
+            this(zone, nanos, printedFrom, null);
+        }
+    }
+
+    /**
+     * A value of nanosecond precision as its parts (docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W13, the user's
+     * decision of 2026-10-18): java.time's shape, a local date-time a {@code LocalDate} and a {@code LocalTime}. The
+     * translation's own value is the nanoseconds since midnight (an Integer, the database's BIGINT); a date-time's
+     * date (a StrictDate, the database's DATE) rides here, present exactly when the value is. Every database computes
+     * both exactly, over every year its DATE holds; a time of day has no date.
+     */
+    private record Parts(@com.legend.base.Nullable Tx date) {
+    }
+
+    /** A zoned value's text marked with the value it prints ({@link Carried#printedFrom}). */
+    private static Tx printedFrom(Tx text, Tx source) {
+        return new Tx(text.vs(), text.kind(), text.nullable(), text.whenFalse(), new Carried(zoneOf(text), nanos(text),
+                source), text.guard(), text.body());
+    }
+
+    /** The zoned value of {@code kind} a text of the row is the printing of, or null. */
+    private static @com.legend.base.Nullable Tx printedValue(Scalar s, Kind kind) {
+        return s.tx().detail() instanceof Carried c && c.printedFrom() != null && c.printedFrom().kind() == kind
+                ? c.printedFrom() : null;
     }
 
     /** A node carried through a projection as columns (the study's §12.14): its labels' JSON text in one column
@@ -7373,10 +13409,20 @@ public final class CypherToPure {
      *  own, so the clauses after read {@code n.prop} as a typed column; the node is a Variant ({@link #nodeJson})
      *  only when returned or used as a value. The node's own column is virtual: none of the relation bears its
      *  name. */
-    private record NodeShape(String labels, Map<String, NodeProp> props, boolean absent)
-            implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    private record NodeShape(String labels, Map<String, NodeProp> props, boolean absent,
+            @com.legend.base.Nullable String identity,
+            /** the node's class when the rows carry nodes of one class (a re-anchored pattern reads from it) */
+            @com.legend.base.Nullable String classPath) implements com.legend.protocol.sql.InputDialect.TypeDetail {
         NodeShape(String labels, Map<String, NodeProp> props) {
-            this(labels, props, false);
+            this(labels, props, false, null, null);
+        }
+
+        NodeShape(String labels, Map<String, NodeProp> props, boolean absent) {
+            this(labels, props, absent, null, null);
+        }
+
+        NodeShape(String labels, Map<String, NodeProp> props, boolean absent, @com.legend.base.Nullable String identity) {
+            this(labels, props, absent, identity, null);
         }
     }
 
@@ -7386,14 +13432,26 @@ public final class CypherToPure {
      *  where the column holds the other arms' values). A property map or a WHERE read within the arm compares the
      *  property as the known null it is (the comparison folds to null, as a label-less node's own does), never the
      *  column: Postgres types a null constant navigated to one as text. */
-    private record NodeProp(String column, Kind kind, boolean nullable, boolean absent) {
+    private record NodeProp(String column, Kind kind, boolean nullable, boolean absent, boolean nanos) {
         NodeProp(String column, Kind kind, boolean nullable) {
-            this(column, kind, nullable, false);
+            this(column, kind, nullable, false, false);
+        }
+
+        NodeProp(String column, Kind kind, boolean nullable, boolean absent) {
+            this(column, kind, nullable, absent, false);
+        }
+
+        /** The column's type detail: none (a property of nanosecond precision is carried as its parts' columns, W13,
+         *  read by their own mark; its detail asked is the translator's bug, raised). */
+        com.legend.protocol.sql.InputDialect.@com.legend.base.Nullable TypeDetail detail() {
+            if (nanos) {
+                // (a property of nanosecond precision is carried as its parts' columns, W13)
+                throw new IllegalStateException("a nanosecond property carried whole: " + column);
+            }
+            return null;
         }
     }
 
-    /** The mark of a node's JSON value ({@link #nodeJson}): what DISTINCT, ORDER BY and a grouping refuse by name
-     *  (Neo4j tells nodes apart by identity, which the JSON does not carry). */
     /** A path as a value, the study's §12.27 (its JSON holds its nodes, its relationships and their stored
      *  directions). */
     private record PathValue() implements com.legend.protocol.sql.InputDialect.TypeDetail {
@@ -7404,26 +13462,83 @@ public final class CypherToPure {
     private record AbsentPath() implements com.legend.protocol.sql.InputDialect.TypeDetail {
     }
 
-    private record NodeValue() implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    private record NodeValue(@com.legend.base.Nullable Tx identity)
+            implements com.legend.protocol.sql.InputDialect.TypeDetail {
+        NodeValue() {
+            this(null);
+        }
     }
 
     /** The mark of a relationship's JSON value ({@code {"@type":"T"}}, the study's §12.19), with its type (null
      *  for one an OPTIONAL MATCH never finds): what {@code type(r)} reads, and what DISTINCT, ORDER BY and a
      *  grouping refuse by name as they do a node's. */
-    private record RelValue(@com.legend.base.Nullable String type)
+    private record RelValue(@com.legend.base.Nullable String type, @com.legend.base.Nullable Tx identity)
             implements com.legend.protocol.sql.InputDialect.TypeDetail {
+        RelValue(@com.legend.base.Nullable String type) {
+            this(type, null);
+        }
     }
 
     /** A relationship carried through a projection as its type's column (null where an OPTIONAL MATCH found
      *  none); the relationship's own column is virtual, its value rebuilt from the type (the study's §12.19). Arms
      *  concatenated carry each their own type in the one column. */
-    private record RelShape(String type, Map<String, NodeProp> props)
+    private record RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity,
+            /** over a property or association: the columns of its source's and its target's identities (S74) */
+            @com.legend.base.Nullable String source, @com.legend.base.Nullable String target,
+            /** read in a segment of a cut path (the study's §12.56): the column of its stored direction in the
+             *  path's written order (true when the node before it holds the node after), what the path assembled
+             *  over the rows prints; null when the rows carry none */
+            @com.legend.base.Nullable String forward)
             implements com.legend.protocol.sql.InputDialect.TypeDetail {
+        RelShape(String type, Map<String, NodeProp> props) {
+            this(type, props, null, null, null, null);
+        }
+
+        RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity) {
+            this(type, props, identity, null, null, null);
+        }
+
+        RelShape(String type, Map<String, NodeProp> props, @com.legend.base.Nullable String identity,
+                @com.legend.base.Nullable String source, @com.legend.base.Nullable String target) {
+            this(type, props, identity, source, target, null);
+        }
+
+        /** Whether the rows tell this relationship apart from another (an identity or a pair of its own). */
+        boolean identified() {
+            return identity != null || source != null;
+        }
     }
 
     /** Whether a value is a node's or a relationship's JSON, or a column holding one. */
     private static boolean isNode(@com.legend.base.Nullable Tx t) {
         return t != null && (t.detail() instanceof NodeValue || t.detail() instanceof RelValue);
+    }
+
+    /** A relationship's identity over a property or association (S74, the study's §12.48): its type, its source's
+     *  identity and its target's, '<type>:<source>><target>'; null where either end is absent (the concatenation
+     *  would skip an empty operand) or where {@code absent} holds. */
+    private static Tx pairIdentity(ValueSpecification type, Tx source, Tx target,
+            @com.legend.base.Nullable ValueSpecification absent) {
+        // (an identity types [0..1]: read as one inside the gate, which keeps every operand present)
+        ValueSpecification text = plus(type, new CString(":"), call("toOne", source.vs()), new CString(">"),
+                call("toOne", target.vs()));
+        ValueSpecification none = call("or", call("isEmpty", source.vs()), call("isEmpty", target.vs()));
+        if (absent != null) {
+            none = call("or", absent, none);
+        }
+        return Tx.value(call("if", none, thunk(SqlToPure.nullOf(Kind.STRING).vs()), thunk(text)), Kind.STRING,
+                source.nullable() || target.nullable() || absent != null);
+    }
+
+    private static Tx pairIdentity(String type, Tx source, Tx target,
+            @com.legend.base.Nullable ValueSpecification absent) {
+        return pairIdentity(new CString(type), source, target, absent);
+    }
+
+    /** The identity a node's or relationship's value carries (the study's §12.46); null when none. */
+    private static @com.legend.base.Nullable Tx identityOf(Tx t) {
+        return t.detail() instanceof NodeValue n ? n.identity() : t.detail() instanceof RelValue r ? r.identity()
+                : null;
     }
 
     private static @com.legend.base.Nullable Zone zoneOf(Tx t) {
@@ -7437,6 +13552,13 @@ public final class CypherToPure {
 
     /** {@code t} marked of nanosecond precision, or not (its zone kept). */
     private static Tx withNanos(Tx t, boolean nanos) {
+        if (nanos && !split(t) && spelledTemporal(t.kind()) && t.kind() != Kind.DATE) {
+            // (a temporal value of nanosecond precision is its parts, W13: §12.12's epoch carriage is retired)
+            throw new IllegalStateException("a " + t.kind() + " of nanosecond precision not carried as its parts");
+        }
+        if (split(t)) {
+            return t;
+        }
         if (!nanos && !(t.detail() instanceof Carried)) {
             return t;
         }
@@ -7444,42 +13566,695 @@ public final class CypherToPure {
                 t.body());
     }
 
+    // ------------------------------------------------------------------ nanoseconds as parts (W13)
+
+    /** The nanoseconds of a day. */
+    private static final long DAY_NANOS = 86_400L * 1_000_000_000L;
+
+    /** Whether a value is carried as its parts ({@link Parts}). */
+    private static boolean split(Tx t) {
+        return t.detail() instanceof Carried c && c.parts() != null;
+    }
+
+    /** A local time of nanosecond precision from its nanoseconds since midnight. */
+    private static Tx splitTime(Tx parts) {
+        Tx ofDay = shared(parts);
+        return new Tx(ofDay.vs(), Kind.TIME, ofDay.nullable(), null, new Carried(null, true, null, new Parts(null)),
+                ofDay.guard(), ofDay.body());
+    }
+
+    /** A local date-time of nanosecond precision from its date and its nanoseconds since midnight (each present
+     *  exactly when the other is). */
+    private static Tx splitDateTime(Tx datePart, Tx nanos) {
+        Tx date = shared(datePart);
+        Tx ofDay = shared(nanos);
+        return new Tx(ofDay.vs(), Kind.DATETIME, ofDay.nullable() || date.nullable(), null, new Carried(null, true,
+                null, new Parts(date)), ofDay.guard(), ofDay.body());
+    }
+
+    /** A split value's part as a value its readers share ({@link Shares#share}): every operation over the value reads
+     *  each part more than once (its NULL guard and its value, a date and a clock both from the same total), so a
+     *  chain of them written out repeats each part at each step (lite/temporal/nanos_arithmetic was 33.7 MB of SQL).
+     *  A part is NULL-safe: NULL on NULL inputs, its own guard's. A strict part's body is marked too, what an
+     *  operation merging the part's guard into its own reads ({@link SqlToPure#strict}). */
+    private static Tx shared(Tx part) {
+        if (SqlToPure.isNullConstant(part) || !columnKind(part.kind())) {
+            // (a NULL constant read as itself, what a strict operation tests for; a value no column holds as it is)
+            return part;
+        }
+        ValueSpecification guard = part.guard();
+        ValueSpecification body = part.body();
+        if (guard == null || body == null) {
+            return new Tx(Shares.share(part.vs()), part.kind(), part.nullable(), part.whenFalse(), part.detail(),
+                    guard, body);
+        }
+        ValueSpecification marked = Shares.share(body);
+        ValueSpecification vs = part.vs() instanceof AppliedFunction f && f.parameters().size() == 3
+                && f.parameters().get(0) == guard ? call("if", guard, thunk(SqlToPure.empty()), thunk(marked))
+                : part.vs();
+        return new Tx(Shares.share(vs), part.kind(), part.nullable(), part.whenFalse(), part.detail(), guard, marked);
+    }
+
+    /** Whether a relation's column holds a value of {@code kind} as it is: a scalar, a duration (the database's
+     *  struct) or a Variant; not a NULL of no type, nor a value of another kind (a list, a node). */
+    private static boolean columnKind(Kind kind) {
+        return switch (kind) {
+            case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, STRING, BOOLEAN, DATE, DATETIME, TIME, ZONED,
+                    ZONED_TIME, DURATION, JSON -> true;
+            case NULL, OTHER -> false;
+        };
+    }
+
+    /** {@link SqlToPure#strict} over operands each a value its readers share ({@link #shared}): a strict operation
+     *  reads each operand twice, in its NULL guard and in its value, and a chain of them written out repeats each
+     *  operand at each step. */
+    private static Tx strict(Kind kind, List<Tx> args,
+            java.util.function.Function<List<ValueSpecification>, ValueSpecification> build) {
+        return SqlToPure.strict(kind, args.stream().map(CypherToPure::shared).toList(), build);
+    }
+
+    /** {@link #strict}, merging as {@link SqlToPure#strict(Kind, List, boolean, java.util.function.Function)}. */
+    private static Tx strict(Kind kind, List<Tx> args, boolean merge,
+            java.util.function.Function<List<ValueSpecification>, ValueSpecification> build) {
+        return SqlToPure.strict(kind, args.stream().map(CypherToPure::shared).toList(), merge, build);
+    }
+
+    /** {@link SqlToPure#strictTest} over shared operands, as {@link #strict}. */
+    private static Tx strictTest(List<Tx> operands,
+            java.util.function.Function<List<ValueSpecification>, ValueSpecification> test) {
+        return SqlToPure.strictTest(operands.stream().map(CypherToPure::shared).toList(), test);
+    }
+
+    /** A time of day's or a date-time's nanoseconds since midnight, an Integer: a split value's own; a microsecond
+     *  one's (Pure's StrictTime, DateTime) its microseconds since its day's start a thousandfold; a marked
+     *  TIMESTAMP_NS column's (read into the parts at the property, §12.91) its nanoseconds since its day's start.
+     *  All the database's. */
+    private static Tx ofDay(Tx t) {
+        if (split(t)) {
+            return new Tx(t.vs(), Kind.INTEGER, t.nullable(), null, null, t.guard(), t.body());
+        }
+        boolean fine = nanos(t);
+        boolean time = t.kind() == Kind.TIME && !fine;
+        return strict(Kind.INTEGER, List.of(t), x -> {
+            ValueSpecification dt = time ? atEpoch(x.get(0)) : x.get(0);
+            return fine ? call("dateDiff", call("datePart", dt), dt, unit("NANOSECONDS"))
+                    : times(1000, call("dateDiff", call("datePart", dt), dt, unit("MICROSECONDS")));
+        });
+    }
+
+    /** A date-time's date, a StrictDate: a split one's own, another's its date part (the database's). */
+    private static Tx datePartOf(Tx t) {
+        if (t.detail() instanceof Carried c && c.parts() != null) {
+            return java.util.Objects.requireNonNull(c.parts().date());
+        }
+        return strict(Kind.DATE, List.of(t), x -> call("datePart", x.get(0)));
+    }
+
+    /** A split value's parts in their order: a date-time's date, then the nanoseconds since midnight. */
+    private static List<Tx> partsOf(Tx t) {
+        return t.kind() == Kind.TIME || t.kind() == Kind.ZONED_TIME ? List.of(ofDay(t)) : List.of(datePartOf(t),
+                ofDay(t));
+    }
+
+    /** A local time or date-time as its parts, whatever its precision (a microsecond value read into them: what an
+     *  operation over a split value reads the other operand as). */
+    private static Tx asSplit(Tx t) {
+        if (split(t)) {
+            return t;
+        }
+        return t.kind() == Kind.TIME ? splitTime(ofDay(t)) : splitDateTime(datePartOf(t), ofDay(t));
+    }
+
+    // ------------------------------------------------------------------ zoned values as parts (W13, leg 3)
+
+    /** A zoned date-time of nanosecond precision from the split date-time of its UTC parts (its UTC date, its UTC
+     *  nanoseconds since midnight), the zone beside as §12.8 carries it. */
+    private static Tx splitZoned(Tx utc, @com.legend.base.Nullable Zone z) {
+        if (!(utc.detail() instanceof Carried c) || c.parts() == null || c.parts().date() == null) {
+            throw new IllegalStateException("a zoned value's parts are a split date-time's: " + utc.kind());
+        }
+        return new Tx(utc.vs(), Kind.ZONED, utc.nullable(), null, new Carried(z, true, null, c.parts()), utc.guard(),
+                utc.body());
+    }
+
+    /** A zoned time of day of nanosecond precision from its UTC nanoseconds since the epoch day's midnight (below 0,
+     *  or past a day, where the offset carries the wall time across midnight: so two order as their instants, as
+     *  §12.11's instants on the epoch day do), the offset beside. */
+    private static Tx splitZonedTime(Tx nanos, @com.legend.base.Nullable Zone z) {
+        Tx utcNanos = shared(nanos);
+        return new Tx(utcNanos.vs(), Kind.ZONED_TIME, utcNanos.nullable(), null, new Carried(z, true, null,
+                new Parts(null)), utcNanos.guard(), utcNanos.body());
+    }
+
+    /** A split zoned date-time's UTC parts, as the split date-time of them (no zone). */
+    private static Tx utcParts(Tx zoned) {
+        if (!(zoned.detail() instanceof Carried c) || c.parts() == null) {
+            throw new IllegalStateException("not a split zoned value: " + zoned.kind());
+        }
+        return new Tx(zoned.vs(), Kind.DATETIME, zoned.nullable(), null, new Carried(null, true, null, c.parts()),
+                zoned.guard(), zoned.body());
+    }
+
+    /** A zoned date-time's instant as the split date-time of its UTC parts: a split one's own, another's instant read
+     *  into them. */
+    private static Tx instantParts(Tx zoned) {
+        if (split(zoned)) {
+            return utcParts(zoned);
+        }
+        return asSplit(new Tx(zoned.vs(), Kind.DATETIME, zoned.nullable(), zoned.whenFalse(), new Carried(null,
+                nanos(zoned)), zoned.guard(), zoned.body()));
+    }
+
+    /** A zoned date-time as its parts, whatever its precision (another's instant read into them). */
+    private static Tx asSplitZoned(Tx zoned, Zone z) {
+        return split(zoned) ? zoned : splitZoned(instantParts(zoned), z);
+    }
+
+    /** A zoned time of day as its parts, whatever its precision: another's instant on the epoch day read into its
+     *  nanoseconds from that day's midnight (the instant kept, as a converted one's is). */
+    private static Tx asSplitZonedTime(Tx zt, Zone z) {
+        return split(zt) ? zt : splitZonedTime(epochDayNanos(zt), z);
+    }
+
+    /** The nanoseconds from the epoch day's midnight of a split date-time within a day or so of it (a zoned time's
+     *  instant), the database's. */
+    private static Tx fromEpochDay(Tx dt) {
+        return strict(Kind.INTEGER, List.of(datePartOf(dt), ofDay(dt)), v -> integer(plus(times(DAY_NANOS,
+                call("dateDiff", epoch(), v.get(0), days())), v.get(1))));
+    }
+
+    /** The split date-time {@code n} nanoseconds from the epoch day's midnight (a zoned time's instant): the epoch
+     *  day moved by the whole days of them, the rest the clock. */
+    private static Tx onEpochDay(Tx n) {
+        Tx clock = strict(Kind.INTEGER, List.of(n), v -> integer(call("mod", v.get(0), lit(DAY_NANOS))));
+        Tx date = strict(Kind.DATE, List.of(n), v -> day(call("adjust", epoch(), integer(quotient(v.get(0),
+                DAY_NANOS)), days())));
+        return splitDateTime(date, clock);
+    }
+
+    /** The microsecond instant (Pure's DateTime) at a split date-time's parts, the digits past the microsecond
+     *  dropped: what a region's rules read (an offset changes on a whole second). */
+    private static ValueSpecification micros(ValueSpecification date, ValueSpecification ofDay) {
+        return Shares.share(call("adjust", call(AT_TIME, date, MIDNIGHT), integer(quotient(ofDay, 1000L)), unit("MICROSECONDS")));
+    }
+
+    /** A zoned date-time's instant in microseconds (a strict body's reading, {@code toOne} where it may be absent):
+     *  a split one's from its UTC parts, another's its own. */
+    private static ValueSpecification instantMicros(Tx zoned) {
+        if (!split(zoned)) {
+            return one(zoned);
+        }
+        Tx utc = utcParts(zoned);
+        return micros(one(datePartOf(utc)), one(ofDay(utc)));
+    }
+
+    /** A spelled offset's seconds, a sum the database adds (its hours, minutes and seconds as written, signed). */
+    private static ValueSpecification spelledSeconds(Zone z) {
+        return plus(times(3600L, new CInteger((long) z.sign * z.hours)), times(60L, new CInteger((long) z.sign
+                * z.minutes)), new CInteger((long) z.sign * z.seconds));
+    }
+
+    /** A time of day's offset in seconds: a spelled one's, a read one's (a time of day has no region: a named
+     *  zone's is read at an instant first, {@link #fixedAt}). */
+    private static ValueSpecification fixedSeconds(Zone z) {
+        if (z.named() || z.region() != null) {
+            throw new IllegalStateException("a time of day's offset is fixed: " + z.written());
+        }
+        ValueSpecification read = z.read();
+        return read != null ? read : spelledSeconds(z);
+    }
+
+    /** A zone's offset in seconds (Integer[1]) at the instant {@code instant} (microseconds): a spelled offset's, a
+     *  read one's, a named zone's (and a read region's, where the value names one) the database's reading of the
+     *  instant in the region against it. */
+    private static ValueSpecification offsetAt(Zone z, ValueSpecification instant) {
+        if (z.named()) {
+            return call("dateDiff", instant, call(LOCAL_IN, instant, new CString(java.util.Objects.requireNonNull(
+                    z.name()))), unit("SECONDS"));
+        }
+        ValueSpecification read = z.read();
+        if (read == null) {
+            return spelledSeconds(z);
+        }
+        ValueSpecification region = z.region();
+        return region == null ? read : call("if", call("isEmpty", region), thunk(read), thunk(call("dateDiff",
+                instant, call(LOCAL_IN, instant, call("toOne", region)), unit("SECONDS"))));
+    }
+
+    /** A zone's offset in seconds at the wall time {@code wall} (microseconds): a region's the database's instant
+     *  for the wall time (a gap's and an overlap's reading its own, as §12.8's) against it; a fixed offset's own. */
+    private static ValueSpecification offsetAtWall(Zone z, ValueSpecification wall) {
+        if (z.named()) {
+            return call("dateDiff", regionInstant(wall, new CString(java.util.Objects.requireNonNull(z.name()))),
+                    wall, unit("SECONDS"));
+        }
+        ValueSpecification read = z.read();
+        if (read == null) {
+            return spelledSeconds(z);
+        }
+        ValueSpecification region = z.region();
+        return region == null ? read : call("if", call("isEmpty", region), thunk(read), thunk(call("dateDiff",
+                regionInstant(wall, call("toOne", region)), wall, unit("SECONDS"))));
+    }
+
+    /** {@code seconds} (an offset's: a day or less) as nanoseconds, the database's float product cast back (exact
+     *  below 2^53; a literal's integer product with a billion overflowed 32 bits, as {@link #scaled} found). */
+    private static ValueSpecification secondsAsNanos(ValueSpecification seconds) {
+        return integer(AppliedFunction.infixRun("times", List.of(new CFloat(1.0e9), seconds)));
+    }
+
+    /** A split date-time moved by an offset ({@code direction} 1 towards the wall time, -1 towards the instant) whose
+     *  seconds {@code offset} reads off the parts (the date, the nanoseconds), the clock's whole days carried into
+     *  the date: the database's. */
+    private static Tx shiftedParts(Tx t, java.util.function.BinaryOperator<ValueSpecification> offset,
+            int direction) {
+        List<Tx> parts = List.of(datePartOf(t), ofDay(t));
+        // (the total both the clock and the date read, one value: Shares)
+        java.util.function.Function<List<ValueSpecification>, ValueSpecification> total = v -> {
+            ValueSpecification by = secondsAsNanos(offset.apply(v.get(0), v.get(1)));
+            return Shares.share(integer(direction > 0 ? plus(v.get(1), by) : minus(v.get(1), by)));
+        };
+        Tx clock = strict(Kind.INTEGER, parts, v -> integer(call("mod", total.apply(v), lit(DAY_NANOS))));
+        Tx date = strict(Kind.DATE, parts, v -> day(call("adjust", v.get(0), integer(quotient(
+                total.apply(v), DAY_NANOS)), days())));
+        return splitDateTime(date, clock);
+    }
+
+    /** A split zoned date-time's wall time in its zone, a split date-time: the UTC parts moved by the offset at the
+     *  instant. */
+    private static Tx splitWall(Tx zoned, Zone z) {
+        return shiftedParts(utcParts(zoned), (d, n) -> offsetAt(z, micros(d, n)), 1);
+    }
+
+    /** The instant a split wall time names in a zone, as a split zoned date-time of that zone (a read region's
+     *  offset the one at that instant): the wall time moved back by the offset there. */
+    private static Tx splitInstant(Tx wall, Zone z) {
+        Tx utc = shiftedParts(wall, (d, n) -> offsetAtWall(z, micros(d, n)), -1);
+        return splitZoned(utc, splitAfter(z, utc));
+    }
+
+    /** {@link #after} of a split instant: a read region's offset at the instant (its UTC parts' microseconds). */
+    private static Zone splitAfter(Zone z, Tx utc) {
+        ValueSpecification region = z.region();
+        if (region == null) {
+            return z;
+        }
+        ValueSpecification instant = micros(one(datePartOf(utc)), one(ofDay(utc)));
+        ValueSpecification offset = call("if", call("isEmpty", region), thunk(java.util.Objects.requireNonNull(
+                z.read())), thunk(call("dateDiff", instant, call(LOCAL_IN, instant, call("toOne", region)),
+                unit("SECONDS"))));
+        return Zone.read(offset, region);
+    }
+
+    // ------------------------------------------------------------------ the parts in a text (W13, leg 4)
+
+    /** The split value an ISO text of the island's own spelling spells, the database's parse of its fields: a
+     *  date-time's {@code yyyy-MM-ddTHH:mm:ss[.f]}, a time of day's {@code HH:mm:ss[.f]} (up to nine digits of the
+     *  second, the missing ones zeros); a zoned date-time's text its instant's, a zoned time's its instant's on the
+     *  epoch day (the zone not carried: a list's, an aggregate's). What a list, a Variant or an aggregate holds of a
+     *  value of nanosecond precision, read back. */
+    private static Tx splitOfIso(Tx text, Kind kind) {
+        boolean time = kind == Kind.TIME;
+        Tx clock = strict(Kind.INTEGER, List.of(text), v -> clockOfIso(v.get(0), time ? 1 : 12));
+        if (time) {
+            return splitTime(clock);
+        }
+        Tx date = strict(Kind.DATE, List.of(text), v -> call("datePart", call("parseDate", call("substring",
+                v.get(0), lit(1), lit(10)))));
+        Tx parts = splitDateTime(date, clock);
+        return switch (kind) {
+            case ZONED -> splitZoned(parts, null);
+            case ZONED_TIME -> splitZonedTime(fromEpochDay(parts), null);
+            case DATETIME -> parts;
+            default -> throw new IllegalStateException("not a temporal of parts: " + kind);
+        };
+    }
+
+    /** The nanoseconds since midnight an ISO clock spells from the character {@code at} on ({@code HH:mm:ss}, then
+     *  the fraction's digits after the point padded to nine), the database's parse of each field. */
+    private static ValueSpecification clockOfIso(ValueSpecification text, int at) {
+        ValueSpecification fraction = call("substring", plus(call("substring", text, lit(at + 9L)),
+                new CString("000000000")), lit(1), lit(9));
+        return clockNanos(call("parseInteger", call("substring", text, lit(at), lit(2))), call("parseInteger",
+                call("substring", text, lit(at + 3L), lit(2))), call("parseInteger", call("substring", text,
+                lit(at + 6L), lit(2))), call("parseInteger", fraction));
+    }
+
+    /** {@link #splitOfIso} of the oracle's spelling of a temporal in a Variant ({@code Time('...')},
+     *  {@code DateTime('...')}, {@link #splitSpelled}). */
+    private static Tx splitOfSpelled(Tx spelled, Kind kind) {
+        int open = kind == Kind.TIME ? "Time('".length() : "DateTime('".length();
+        Tx inner = strict(Kind.STRING, List.of(spelled), v -> call("substring", v.get(0), lit(open + 1L),
+                integer(minus(call("length", v.get(0)), lit(open + 2L)))));
+        return splitOfIso(inner, kind);
+    }
+
+    /** A split value as the oracle spells it in a Variant (§12.76): {@code Time('HH:mm:ss.f')} for a time of day,
+     *  {@code DateTime('...')} for a date-time, a zoned value's instant's (a zoned time's on the epoch day), the text
+     *  Neo4j's toString (the fraction trimmed); the database writes it of the parts. */
+    private static Tx splitSpelled(Tx t) {
+        Tx v = t.kind() == Kind.ZONED ? utcParts(t) : t.kind() == Kind.ZONED_TIME ? onEpochDay(ofDay(t)) : t;
+        boolean time = v.kind() == Kind.TIME;
+        Tx text = splitText(v, null, time, null);
+        return strict(Kind.STRING, List.of(text), x -> plus(new CString(time ? "Time('" : "DateTime('"),
+                x.get(0), new CString("')")));
+    }
+
+    /** A split value's sortable text: its ISO text with every digit of the second (§12.85's egress text: of fixed
+     *  width over the years 0 to 9999, so its order is the value's), a zoned value's instant's (a zoned time's on
+     *  the epoch day): what min and max reduce. */
+    private static Tx splitSortable(Tx t) {
+        Tx v = t.kind() == Kind.ZONED ? utcParts(t) : t.kind() == Kind.ZONED_TIME ? onEpochDay(ofDay(t)) : t;
+        boolean time = v.kind() == Kind.TIME;
+        List<Tx> parts = time ? List.of(ofDay(v)) : List.of(datePartOf(v), ofDay(v));
+        return strict(Kind.STRING, parts, x -> time ? isoText(null, x.get(0)) : isoText(x.get(0),
+                x.get(1)));
+    }
+
+    /** The mark of a column or an aggregate holding a split value as its sortable text ({@link #splitSortable}), or
+     *  a returned one as its ISO text ({@link #egress}), read back as the value ({@link #splitOfIso}) by a clause
+     *  after (a returned item's by the sort after a DISTINCT or a grouping): a zoned value's text its instant's, its
+     *  zone {@code zone} where the query spells it; one the database read ({@link Zone#read}) does not ride with the
+     *  text, so a read of it is refused by name at {@code zoneUnreadAt}. */
+    private record SortableText(Kind kind, @com.legend.base.Nullable Zone zone,
+            @com.legend.base.Nullable Pos zoneUnreadAt, boolean returned)
+            implements com.legend.protocol.sql.InputDialect.TypeDetail {
+        SortableText(Kind kind) {
+            this(kind, null, null, false);
+        }
+    }
+
+    /** The mark of a split value's returned column (W13): its sortable text, the ISO text a result's cell is
+     *  ({@link #egress}), the cell's value made of it last ({@link #egressed(Rows)}: a sort after a DISTINCT or a
+     *  grouping reads the text back as the parts first); the zone where the query spells it. */
+    private static SortableText egressed(Tx t, Pos pos) {
+        Zone zone = zoneOf(t);
+        return zone != null && zone.read() != null ? new SortableText(t.kind(), null, pos, true)
+                : new SortableText(t.kind(), zone, null, true);
+    }
+
+    /** The mark of a result's column holding a returned split value's text as the value it spells (W13): a UNION
+     *  spells the same column of an arm of whole values the same way, so the arms' cells agree. */
+    private record ReturnedText() implements com.legend.protocol.sql.InputDialect.TypeDetail {
+    }
+
+    /** {@code rows} with its {@code i}th column, a returned temporal of a whole value, as a returned split value's
+     *  text ({@link #egress} of its parts): what a UNION's other part returns for it (W13). */
+    private Rows returnedAsText(Rows rows, int i) {
+        List<ColSpec> specs = new ArrayList<>();
+        List<Col> columns = new ArrayList<>();
+        for (int k = 0; k < rows.columns().size(); k++) {
+            Col c = rows.columns().get(k);
+            if (c.virtual()) {
+                columns.add(c);
+                continue;
+            }
+            ValueSpecification read = new AppliedProperty(new Variable("e"), c.name());
+            if (k == i) {
+                Tx text = egress(asParts(columnLike(read, c.kind(), c.nullable())));
+                specs.add(new ColSpec(c.name(), lambda("e", SqlToPure.valueOf(text)), null, null));
+                columns.add(new Col(c.name(), c.kind(), c.nullable(), null, new ReturnedText()));
+            } else {
+                specs.add(new ColSpec(c.name(), lambda("e", read), null, null));
+                columns.add(c);
+            }
+        }
+        return new Rows(reproject(rows, specs), columns);
+    }
+
+    /** {@code rows} with each returned split value's text column the value it spells (lite's {@code timeOfText},
+     *  {@code dateTimeOfText}: the executor reads the text into the value), the projection's last step; the rows
+     *  themselves where none is. */
+    private Rows egressed(Rows rows) {
+        if (rows.columns().stream().noneMatch(c -> c.detail() instanceof SortableText st && st.returned())) {
+            return rows;
+        }
+        List<ColSpec> specs = new ArrayList<>();
+        List<Col> columns = new ArrayList<>();
+        for (Col c : rows.columns()) {
+            if (c.virtual()) {
+                columns.add(c);
+                continue;
+            }
+            ValueSpecification read = new AppliedProperty(new Variable("e"), c.name());
+            if (c.detail() instanceof SortableText st && st.returned()) {
+                specs.add(new ColSpec(c.name(), lambda("e", call(st.kind() == Kind.TIME ? TIME_OF_TEXT
+                        : DATE_TIME_OF_TEXT, read)), null, null));
+                columns.add(new Col(c.name(), c.kind(), c.nullable(), null, new ReturnedText()));
+            } else {
+                specs.add(new ColSpec(c.name(), lambda("e", read), null, null));
+                columns.add(c);
+            }
+        }
+        return new Rows(reproject(rows, specs), columns);
+    }
+
+    /** A temporal as its parts, whatever its precision: a local one's ({@link #asSplit}), a zoned one's instant's,
+     *  the zone not carried (what a list holds of it). */
+    private static Tx asParts(Tx t) {
+        return switch (t.kind()) {
+            case ZONED -> split(t) ? t : splitZoned(instantParts(t), null);
+            case ZONED_TIME -> split(t) ? t : splitZonedTime(epochDayNanos(t), null);
+            default -> asSplit(t);
+        };
+    }
+
+    /** Whether a collection the database computes holds the oracle's texts of temporals of nanosecond precision
+     *  (a Variant list's, read back; a spelled list's of split values), each element read as its parts. */
+    private static boolean spelledParts(Coll c) {
+        return spelledTemporal(c.kind()) && c.kind() != Kind.DATE && c.elementDetail() instanceof Carried cc
+                && cc.nanos();
+    }
+
+    /** An element of a collection the database computes, {@code e} its value there: its parts where the collection
+     *  holds the oracle's texts of nanosecond temporals, else the value of the collection's kind. */
+    private static Tx elementOf(ValueSpecification e, Coll c, boolean nullable) {
+        if (spelledParts(c)) {
+            return splitOfSpelled(Tx.value(e, Kind.STRING, nullable), c.kind());
+        }
+        Tx read = columnLike(e, c.kind(), nullable);
+        return c.elementDetail() == null ? read : new Tx(read.vs(), read.kind(), read.nullable(), read.whenFalse(),
+                c.elementDetail());
+    }
+
+    /** Midnight, Pure's time literal. */
+    private static final ValueSpecification MIDNIGHT = new com.legend.protocol.spec.CTime(
+            new com.legend.values.PureTimeLiteral.TimeWithSecond(0, 0, 0), "00:00:00", null);
+
+    /** The nanoseconds since midnight a clock spells, each part an Integer the database multiplies and adds: hours,
+     *  minutes, seconds, and the nanoseconds past the second (null parts are none). */
+    private static ValueSpecification clockNanos(ValueSpecification h, ValueSpecification mi, ValueSpecification s,
+            @com.legend.base.Nullable ValueSpecification fraction) {
+        ValueSpecification sum = plus(scaled(3_600L * NANOS, h), scaled(60L * NANOS, mi), scaled(NANOS, s));
+        return integer(fraction == null ? sum : plus(sum, fraction));
+    }
+
+    /** {@code unit * x} as an Integer: over a literal the database's float product cast back (exact below 2^53: the
+     *  databases type two small integer literals 32 bits wide, and their product overflows, measured on DuckDB, as
+     *  {@link #durationTextOf} found), else the integer product. */
+    private static ValueSpecification scaled(long unit, ValueSpecification x) {
+        return x instanceof CInteger ? integer(AppliedFunction.infixRun("times", List.of(new CFloat((double) unit),
+                x))) : times(unit, x);
+    }
+
+    /** The nanoseconds since midnight a clock's components spell over a base time's nanoseconds since midnight (or
+     *  none), as timeParts reads them: each of hour, minute and second as written, else the base's, else 0; the
+     *  fraction of the second the base's unless a sub-second field is written, else the written ones' sum. With no
+     *  clock component written, the base's own (0 without one). */
+    private static ValueSpecification clockOf(@com.legend.base.Nullable ValueSpecification base,
+            Map<Component, ValueSpecification> p) {
+        boolean clocked = p.keySet().stream().anyMatch(Component::time);
+        if (!clocked) {
+            return base != null ? base : lit(0);
+        }
+        ValueSpecification zero = lit(0);
+        ValueSpecification h = p.containsKey(Component.HOUR) ? inRange(p.get(Component.HOUR), "HourOfDay", 23)
+                : base != null ? quotient(base, 3_600L * NANOS) : zero;
+        ValueSpecification mi = p.containsKey(Component.MINUTE) ? inRange(p.get(Component.MINUTE), "MinuteOfHour", 59)
+                : base != null ? quotient(past(base, 3_600L * NANOS), 60L * NANOS) : zero;
+        ValueSpecification s = p.containsKey(Component.SECOND) ? inRange(p.get(Component.SECOND), "SecondOfMinute",
+                59) : base != null ? quotient(past(base, 60L * NANOS), NANOS) : zero;
+        boolean sub = p.containsKey(Component.MILLISECOND) || p.containsKey(Component.MICROSECOND)
+                || p.containsKey(Component.NANOSECOND);
+        ValueSpecification fraction = sub ? plus(times(1_000_000L, inRange(p.getOrDefault(Component.MILLISECOND,
+                zero), "MilliOfSecond", 999)), times(1000L, inRange(p.getOrDefault(Component.MICROSECOND, zero),
+                "MicroOfSecond", 999_999)), inRange(p.getOrDefault(Component.NANOSECOND, zero), "NanoOfSecond",
+                999_999_999)) : base != null ? past(base, NANOS) : null;
+        return clockNanos(h, mi, s, fraction);
+    }
+
+    /** A clock's field the row computes, the database's raise where it is out of Java's range for it (Neo4j's
+     *  {@code Invalid value for MinuteOfHour (valid values 0 - 59)}); a literal one is checked where it is read, and
+     *  stays as it is. */
+    private static ValueSpecification inRange(ValueSpecification v, String field, long max) {
+        if (v instanceof CInteger) {
+            return v;
+        }
+        return raisingWhere(call("or", call("lessThan", v, lit(0)), call("greaterThan", v, lit(max))),
+                "Invalid value for " + field + " (valid values 0 - " + max + ")", v);
+    }
+
+    /** Neo4j's check of a date's components written with no date to take them from (its builders'
+     *  assertDefinedInOrder): each form's fields in order, a later one never without an earlier ({@code day cannot
+     *  be specified without month}); with a clock written and no time to take it from ({@code whole}), every field
+     *  of the form ({@code day must be specified}). */
+    private static void checkDate(Set<Component> keys, boolean whole, Pos pos) {
+        if (!keys.contains(Component.YEAR)) {
+            throw CypherErrors.invalid("year must be specified", pos);
+        }
+        List<Component> form = keys.contains(Component.WEEK) || keys.contains(Component.DAY_OF_WEEK)
+                ? List.of(Component.YEAR, Component.WEEK, Component.DAY_OF_WEEK)
+                : keys.contains(Component.QUARTER) || keys.contains(Component.DAY_OF_QUARTER)
+                ? List.of(Component.YEAR, Component.QUARTER, Component.DAY_OF_QUARTER)
+                : keys.contains(Component.ORDINAL_DAY) ? List.of(Component.YEAR, Component.ORDINAL_DAY)
+                : List.of(Component.YEAR, Component.MONTH, Component.DAY);
+        List<@com.legend.base.Nullable String> written = new ArrayList<>();
+        for (Component k : form) {
+            written.add(keys.contains(k) ? fieldName(k) : null);
+        }
+        definedInOrder(written, form.stream().map(CypherToPure::fieldName).toList(), pos);
+        if (whole) {
+            for (Component k : form) {
+                if (!keys.contains(k)) {
+                    throw CypherErrors.invalid(fieldName(k) + " must be specified", pos);
+                }
+            }
+        }
+    }
+
+    /** Neo4j's check of a clock's components written with no time to take them from: the hour written, then the
+     *  minute, the second and the sub-second fields in order ({@code subsecond cannot be specified without
+     *  minute}). */
+    private static void checkClock(Set<Component> keys, Pos pos) {
+        if (!keys.contains(Component.HOUR)) {
+            throw CypherErrors.invalid("hour must be specified", pos);
+        }
+        boolean sub = keys.contains(Component.MILLISECOND) || keys.contains(Component.MICROSECOND)
+                || keys.contains(Component.NANOSECOND);
+        List<String> names = List.of("hour", "minute", "second", "subsecond");
+        List<@com.legend.base.Nullable String> written = new ArrayList<>();
+        written.add("hour");
+        written.add(keys.contains(Component.MINUTE) ? "minute" : null);
+        written.add(keys.contains(Component.SECOND) ? "second" : null);
+        written.add(sub ? "subsecond" : null);
+        definedInOrder(written, names, pos);
+    }
+
+    /** Neo4j's assertDefinedInOrder: past the first field not written ({@code written}'s first null), any field
+     *  written is its error, named after that first gap. */
+    private static void definedInOrder(List<@com.legend.base.Nullable String> written, List<String> names,
+            Pos pos) {
+        int gap = written.indexOf(null);
+        if (gap < 0) {
+            return;
+        }
+        for (int i = gap + 1; i < written.size(); i++) {
+            if (written.get(i) != null) {
+                throw CypherErrors.invalid(names.get(i) + " cannot be specified without " + names.get(gap), pos);
+            }
+        }
+    }
+
+    /** A component's name as Neo4j's messages spell it ({@code dayOfWeek}). */
+    private static String fieldName(Component k) {
+        return switch (k) {
+            case DAY_OF_WEEK -> "dayOfWeek";
+            case DAY_OF_QUARTER -> "dayOfQuarter";
+            case ORDINAL_DAY -> "ordinalDay";
+            case YEAR, MONTH, DAY, WEEK, QUARTER, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND, DATE,
+                    DATETIME, TIME, TIMEZONE -> k.cypher;
+        };
+    }
+
+    /** The components {@code keys} read from a strict operation's values, the first at {@code from}. */
+    private static Map<Component, ValueSpecification> components(Set<Component> keys, List<ValueSpecification> v,
+            int from) {
+        Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
+        int i = from;
+        for (Component k : keys) {
+            p.put(k, v.get(i++));
+        }
+        return p;
+    }
+
+    /** The whole {@code unit}s of an Integer below 2^53 in magnitude (a time of day's nanoseconds are below 2^47),
+     *  floored (toward negative infinity: a negative one's whole units are one more below, as {@code mod}'s rest is
+     *  then not negative): the floor of the database's float quotient, exact there (the quotient's rounding error is below
+     *  {@code n / unit} times 2^-53, under the {@code 1 / unit} a fraction is from the next whole number), the
+     *  Integer read once. */
+    private static ValueSpecification quotient(ValueSpecification n, long unit) {
+        return unit == 1 ? n : call("floor", call("divide", n, lit(unit)));
+    }
+
+    /** What is left of a non-negative Integer past its whole {@code unit}s. */
+    private static ValueSpecification past(ValueSpecification n, long unit) {
+        return integer(call("rem", n, lit(unit)));
+    }
+
+    /** The ISO text of a split value's parts, every digit the database's: {@code yyyy-MM-ddTHH:mm:ss.nnnnnnnnn} for a
+     *  date-time, the clock alone for a time of day; what a result leaves the database as ({@link #egress}). */
+    private static ValueSpecification isoText(@com.legend.base.Nullable ValueSpecification date,
+            ValueSpecification ofDay) {
+        ValueSpecification clock = plus(two(quotient(ofDay, 3_600L * NANOS)), new CString(":"),
+                two(quotient(past(ofDay, 3_600L * NANOS), 60L * NANOS)), new CString(":"),
+                two(quotient(past(ofDay, 60L * NANOS), NANOS)), new CString("."),
+                call("substring", call("toString", plus(past(ofDay, NANOS), lit(NANOS))), new CInteger(2L)));
+        if (date == null) {
+            return clock;
+        }
+        return plus(dateText(date, false), new CString("T"), clock);
+    }
+
+    /** A date as ISO text, {@code yyyy-MM-dd}, every field the database's ({@link #yearText}'s year). */
+    private static ValueSpecification dateText(ValueSpecification date, boolean expanded) {
+        return plus(yearText(Shares.share(call("year", date)), expanded), new CString("-"), two(call("monthNumber", date)),
+                new CString("-"), two(call("dayOfMonth", date)));
+    }
+
+    /** A year as an ISO text's: its four digits; a year past 9999 its digits after a {@code +} where
+     *  {@code expanded} (a text, Neo4j's and Java's spelling, {@code +10000-01-01}), the database's raise by name
+     *  where not (a value returned, which the platform's dates hold to four digits); a year before 1 the database's
+     *  raise by name (the databases count those years apart: Postgres has no year zero, its year of 1 BC is -1
+     *  where DuckDB's and Neo4j's is 0, measured 2026-10-18). */
+    private static ValueSpecification yearText(ValueSpecification year, boolean expanded) {
+        ValueSpecification four = call("substring", call("toString", plus(year, lit(10000))), new CInteger(2L));
+        ValueSpecification spelled = expanded ? call("if", call("greaterThan", year, lit(9999)),
+                thunk(plus(new CString("+"), call("toString", year))), thunk(four)) : four;
+        ValueSpecification beyond = expanded ? call("lessThan", year, lit(1)) : call("or", call("lessThan", year,
+                lit(1)), call("greaterThan", year, lit(9999)));
+        return raisingWhere(beyond, expanded ? "a temporal value of a year before 1 is not supported"
+                : "a returned temporal value of a year outside 1 to 9999 is not supported", spelled);
+    }
+
+    /** A split value as a result's cell: its ISO text, which the database writes, carried to the caller as the
+     *  date-time or time of day it spells (lite's {@code dateTimeOfText}, {@code timeOfText}: the executor reads the
+     *  text into the value, nine digits of the second and all). */
+    private static Tx egress(Tx t) {
+        // (a zoned value its instant, a zoned time's on the epoch day: what §12.8 and §12.11 return)
+        Tx v = t.kind() == Kind.ZONED ? utcParts(t) : t.kind() == Kind.ZONED_TIME ? onEpochDay(ofDay(t)) : t;
+        boolean time = v.kind() == Kind.TIME;
+        List<Tx> parts = time ? List.of(ofDay(v)) : List.of(datePartOf(v), ofDay(v));
+        Tx text = strict(Kind.STRING, parts, x -> time ? isoText(null, x.get(0)) : isoText(x.get(0),
+                x.get(1)));
+        return Tx.value(call(time ? TIME_OF_TEXT : DATE_TIME_OF_TEXT, SqlToPure.valueOf(text)), t.kind(),
+                text.nullable());
+    }
+
     // ------------------------------------------------------------------ nanoseconds (the study's §12.12)
 
-    /** The nanoseconds since the epoch, the database's ({@code dateDiff} with {@code NANOSECONDS}: exact where the
-     *  engine keeps nanoseconds, refused by name by a microsecond engine). */
-    private static ValueSpecification epochNanos(ValueSpecification x) {
-        return call("dateDiff", epochInstant(), x, unit("NANOSECONDS"));
-    }
-
-    /** {@code moved}, a microsecond result of a calendar step or a zone conversion of {@code source}, with the
-     *  source's sub-microsecond digits put back (an interval step and a zone conversion keep microseconds). */
-    private static ValueSpecification remainderKept(ValueSpecification moved, ValueSpecification source) {
-        return call("adjust", moved, integer(call("rem", epochNanos(source), new CInteger(1000L))),
-                unit("NANOSECONDS"));
-    }
-
-    /** The time of day of a nanosecond date-time, as the date-time at it on the epoch day. */
-    private static ValueSpecification timeOfNanos(ValueSpecification dt) {
-        return call("adjust", epochInstant(), integer(call("dateDiff", call("datePart", dt), dt,
-                unit("NANOSECONDS"))), unit("NANOSECONDS"));
-    }
-
-    /** The time of day of a date-time (Pure's StrictTime; of nanosecond precision, the date-time at it on the epoch
-     *  day). */
+    /** The time of day of a date-time (Pure's StrictTime; of nanosecond precision, its parts'). */
     private static Tx timeOf(Tx dt) {
-        boolean nanos = nanos(dt);
-        return withNanos(SqlToPure.strict(Kind.TIME, List.of(dt), x -> nanos ? timeOfNanos(x.get(0))
-                : call(TIME_OF, x.get(0))), nanos);
+        if (split(dt)) {
+            // a split date-time's nanoseconds since midnight, a split time of day (W13)
+            return splitTime(ofDay(dt));
+        }
+        return strict(Kind.TIME, List.of(dt), x -> call(TIME_OF, x.get(0)));
     }
 
-    /** The database's TIMESTAMP_NS holds the years 1678 to 2261 (DuckDB 1.4.4, measured): a nanosecond value
-     *  whose written year is outside them is refused by name (one of the row is the database's error). */
-    private static void nanosRange(long year, Pos pos) {
-        if (year < 1678 || year > 2261) {
-            throw CypherErrors.unsupported("a nanosecond value of the year " + year + " (the database's"
-                    + " nanosecond timestamps hold 1678 to 2261) is not supported yet", pos);
-        }
+    /** A written fraction of a second as its nanoseconds (its nine digits, the missing ones zeros: the digits
+     *  split, nothing computed). */
+    private static long fractionNanos(String fraction) {
+        return Long.parseLong((fraction + "000000000").substring(0, 9));
     }
 
     /** A date-time literal's sub-microsecond digits as nanoseconds: 0 when it has none. */
@@ -7487,63 +14262,164 @@ public final class CypherToPure {
         return fraction.length() <= 6 ? 0 : Long.parseLong((fraction.substring(6) + "000").substring(0, 3));
     }
 
-    /** {@code lit}, a literal to the microsecond, moved by the sub-microsecond digits the text wrote: the database's
-     *  nanosecond step over it (the translator splits the written digits, computing nothing). */
-    private static Tx finer(ValueSpecification lit, long subMicro, Kind kind) {
-        return withNanos(Tx.value(call("adjust", lit, new CInteger(subMicro), unit("NANOSECONDS")), kind, false),
-                true);
-    }
 
     /** {@code t}, an instant, as a zoned date-time of zone {@code z}. */
     private static Tx zoned(Tx t, Zone z) {
-        return new Tx(t.vs(), Kind.ZONED, t.nullable(), t.whenFalse(), new Carried(z, nanos(t)), t.guard(),
+        if (split(t)) {
+            // an instant of nanosecond precision (W13): its UTC parts, the zone beside
+            return splitZoned(t.kind() == Kind.ZONED ? utcParts(t) : t, z);
+        }
+        return new Tx(t.vs(), Kind.ZONED, t.nullable(), t.whenFalse(), new Carried(z, false), t.guard(),
                 t.body());
     }
 
     /** The wall time of a zoned date-time in its zone (Pure's DateTime): the instant shifted by the offset, or the
-     *  database's reading of it in the named zone (a nanosecond value's sub-microsecond digits put back after it). */
+     *  database's reading of it in the named zone (a split one's over its parts, W13). */
     private static Tx localOf(Tx zoned, Zone z) {
-        boolean nanos = nanos(zoned);
-        return withNanos(SqlToPure.strict(Kind.DATETIME, List.of(zoned), x -> z.named()
-                ? inZone(LOCAL_IN, x.get(0), z, nanos) : shifted(x.get(0), z, 1, nanos)), nanos);
+        if (split(zoned)) {
+            return splitWall(zoned, z);
+        }
+        return strict(Kind.DATETIME, List.of(zoned), x -> toWall(x.get(0), z));
     }
 
-    /** The instant a wall time names in a zone, as a zoned date-time of that zone. */
+    /** The instant a wall time names in a zone, as a zoned date-time of that zone (a zone whose region the
+     *  database reads, of the offset the region has at that instant). */
     private static Tx instantOf(Tx local, Zone z) {
-        boolean nanos = nanos(local);
-        return zoned(withNanos(SqlToPure.strict(Kind.DATETIME, List.of(local), x -> z.named()
-                ? inZone(INSTANT_IN, x.get(0), z, nanos) : shifted(x.get(0), z, -1, nanos)), nanos), z);
+        if (split(local)) {
+            return splitInstant(local, z);
+        }
+        Tx instant = strict(Kind.DATETIME, List.of(local), x -> toInstant(x.get(0), z));
+        return zoned(instant, after(z, instant));
     }
 
-    /** The database's reading of {@code x} in a named zone ({@code instantIn}, {@code localIn}: microseconds), a
-     *  nanosecond value's sub-microsecond digits put back. */
-    private static ValueSpecification inZone(String fn, ValueSpecification x, Zone z, boolean nanos) {
-        ValueSpecification converted = call(fn, x, new CString(java.util.Objects.requireNonNull(z.name())));
-        return nanos ? remainderKept(converted, x) : converted;
+    /** The wall time of the instant {@code x} of a value of zone {@code z}: the database's reading of it in a named
+     *  zone, else the instant shifted by the offset (a read one the offset at that very instant). */
+    private static ValueSpecification toWall(ValueSpecification x, Zone z) {
+        return z.named() ? inZone(LOCAL_IN, x, z) : shifted(x, z, 1);
+    }
+
+    /** The instant the wall time {@code wall} names in the zone {@code z}: the database's reading of it in a named
+     *  zone or, where a read region names one, in that region; else the wall time shifted back by the offset. */
+    private static ValueSpecification toInstant(ValueSpecification wall, Zone z) {
+        if (z.named()) {
+            return inZone(INSTANT_IN, wall, z);
+        }
+        ValueSpecification region = z.region();
+        if (region != null) {
+            return call("if", call("isEmpty", region), thunk(shifted(wall, z, -1)), thunk(inZone(INSTANT_IN,
+                    wall, call("toOne", region))));
+        }
+        return shifted(wall, z, -1);
+    }
+
+    /** The zone of a value of zone {@code z} moved to the instant {@code moved}: a read region's offset at that
+     *  instant where the region names one (the offset read stays where it names none); any other zone stays (a
+     *  named zone's offset is read at each instant, an offset is fixed). */
+    private static Zone after(Zone z, Tx moved) {
+        ValueSpecification region = z.region();
+        if (region == null) {
+            return z;
+        }
+        if (split(moved)) {
+            return splitAfter(z, moved.kind() == Kind.ZONED ? utcParts(moved) : moved);
+        }
+        ValueSpecification offset = call("if", call("isEmpty", region), thunk(java.util.Objects.requireNonNull(
+                z.read())), thunk(call("dateDiff", one(moved), inZone(LOCAL_IN, one(moved), call("toOne", region)),
+                unit("SECONDS"))));
+        return Zone.read(offset, region);
+    }
+
+    /** The database's reading of {@code x} in a named zone ({@code instantIn}, {@code localIn}: microseconds). */
+    private static ValueSpecification inZone(String fn, ValueSpecification x, Zone z) {
+        return inZone(fn, x, new CString(java.util.Objects.requireNonNull(z.name())));
+    }
+
+    /** {@link #inZone} in the zone the database names {@code zoneName} (String[1]). */
+    private static ValueSpecification inZone(String fn, ValueSpecification x, ValueSpecification zoneName) {
+        return fn.equals(INSTANT_IN) ? regionInstant(x, zoneName) : call(fn, x, zoneName);
+    }
+
+    /** The instant a wall time names in a region, as java.time reads it (Neo4j's): the database's reading, but for a
+     *  wall time the region's clocks show twice (an overlap, summer time ending), where the database reads the
+     *  later instant and java.time the earlier, the offset before the transition (measured: Stockholm's 02:30 on
+     *  2017-10-29 is +02:00 in Neo4j, +01:00 on DuckDB and Postgres). The offset a day before the database's
+     *  instant is read, and the instant it names kept where it is earlier and names the same wall time; a gap's
+     *  reading is the database's, as java.time's. */
+    private static ValueSpecification regionInstant(ValueSpecification wall, ValueSpecification zoneName) {
+        // (each value read more than once one value: Shares)
+        ValueSpecification later = Shares.share(call(INSTANT_IN, wall, zoneName));
+        ValueSpecification dayBefore = Shares.share(call("adjust", later, lit(-1), days()));
+        ValueSpecification offsetBefore = call("dateDiff", dayBefore, call(LOCAL_IN, dayBefore, zoneName),
+                unit("SECONDS"));
+        ValueSpecification earlier = Shares.share(call("adjust", wall, integer(minus(lit(0), offsetBefore)),
+                unit("SECONDS")));
+        return call("if", call("and", call("lessThan", earlier, later), call("equal", call(LOCAL_IN, earlier,
+                zoneName), wall)), thunk(earlier), thunk(later));
     }
 
     /** A date-time shifted by an offset's parts ({@code direction} 1 towards the wall time, -1 towards the
-     *  instant), each part an {@code adjust} step the database computes; a zero part is no step. A nanosecond
-     *  value steps over the nanosecond epoch (an interval step keeps microseconds). */
-    private static ValueSpecification shifted(ValueSpecification x, Zone z, int direction, boolean nanos) {
+     *  instant), each part an {@code adjust} step the database computes; a zero part is no step. */
+    private static ValueSpecification shifted(ValueSpecification x, Zone z, int direction) {
+        if (z.read() != null) {
+            // an offset the database reads: one step of its seconds
+            ValueSpecification secs = direction > 0 ? z.read() : integer(minus(lit(0), z.read()));
+            return call("adjust", x, secs, unit("SECONDS"));
+        }
         ValueSpecification out = x;
         int sign = z.sign * direction;
         if (z.hours != 0) {
-            out = nanos ? call("adjust", out, integer(times(3_600_000_000_000L, new CInteger((long) sign
-                    * z.hours))), unit("NANOSECONDS"))
-                    : call("adjust", out, new CInteger((long) sign * z.hours), unit("HOURS"));
+            out = call("adjust", out, new CInteger((long) sign * z.hours), unit("HOURS"));
         }
         if (z.minutes != 0) {
-            out = nanos ? call("adjust", out, integer(times(60_000_000_000L, new CInteger((long) sign
-                    * z.minutes))), unit("NANOSECONDS"))
-                    : call("adjust", out, new CInteger((long) sign * z.minutes), unit("MINUTES"));
+            out = call("adjust", out, new CInteger((long) sign * z.minutes), unit("MINUTES"));
         }
         if (z.seconds != 0) {
-            out = nanos ? call("adjust", out, integer(times(1_000_000_000L, new CInteger((long) sign
-                    * z.seconds))), unit("NANOSECONDS"))
-                    : call("adjust", out, new CInteger((long) sign * z.seconds), unit("SECONDS"));
+            out = call("adjust", out, new CInteger((long) sign * z.seconds), unit("SECONDS"));
         }
         return out;
+    }
+
+    /** A projection's hidden column holding a zoned value's read offset (the study's §12.75), named for the value's
+     *  column: what the clauses after read the value's zone from. */
+    private static final String ZONE_PART = SYNTHETIC + "zone_offset_";
+
+    /** Beside a split date-time carried through a projection (W13), the hidden column holding its date. */
+    private static final String DATE_PART = SYNTHETIC + "date_";
+
+    /** Beside {@link #ZONE_PART}, the hidden column holding a zoned value's read region. */
+    private static final String REGION_PART = SYNTHETIC + "zone_region_";
+
+    /** {@code x}, a zoned date-time's instant, with {@code toOne} where it may be absent (a strict body's reading). */
+    private static ValueSpecification one(Tx x) {
+        return x.nullable() ? call("toOne", SqlToPure.valueOf(x)) : SqlToPure.valueOf(x);
+    }
+
+    /** A named zone's offset at the instant {@code instant}, its seconds: the database's wall time of it in the zone
+     *  against it. */
+    private static ValueSpecification namedOffset(ValueSpecification instant, Zone z) {
+        return call("dateDiff", instant, inZone(LOCAL_IN, instant, z), unit("SECONDS"));
+    }
+
+    /** The zone of the zoned date-time {@code zoned} as an offset: a named zone's offset at its instant, which the
+     *  database reads (what a time of day selected from it keeps: Neo4j's time of a Stockholm date-time is of
+     *  that date's offset); an offset stays. */
+    private static Zone fixedAt(Tx zoned, Zone z) {
+        if (z.named()) {
+            return Zone.read(namedOffset(instantMicros(zoned), z));
+        }
+        // (a read region: its offset alone, which is the one at the value's instant)
+        return z.read() != null && z.region() != null ? Zone.read(z.read()) : z;
+    }
+
+    /** An offset's seconds as Neo4j prints the offset, the database's text: {@code Z} for none, else its sign, then
+     *  the hours and minutes (and the seconds, when there are any) of its size read as a time on the epoch day. */
+    private static ValueSpecification offsetTextOf(ValueSpecification seconds) {
+        ValueSpecification at = call("adjust", epochInstant(), call("abs", seconds), unit("SECONDS"));
+        ValueSpecification secs = call("second", at);
+        return call("if", call("equal", seconds, lit(0)), thunk(new CString("Z")), thunk(plus(call("if",
+                call("lessThan", seconds, lit(0)), thunk(new CString("-")), thunk(new CString("+"))),
+                two(call("hour", at)), new CString(":"), two(call("minute", at)), call("if", call("equal", secs,
+                        lit(0)), thunk(new CString("")), thunk(plus(new CString(":"), two(secs)))))));
     }
 
     /** A zoned date-time's wall time, for the constructors that read a date-time's fields (Neo4j reads a zoned value
@@ -7564,36 +14440,52 @@ public final class CypherToPure {
      *  (Pure's DateTime; the day before or after when the offset crosses midnight, so two such times order and
      *  compare as Neo4j's do), the offset beside, as a zoned date-time is carried. */
     private static Tx zonedTime(Tx instant, Zone z) {
+        if (split(instant)) {
+            // a split instant near the epoch day (W13): its nanoseconds from that day's midnight
+            return splitZonedTime(fromEpochDay(instant), z);
+        }
         return new Tx(instant.vs(), Kind.ZONED_TIME, instant.nullable(), instant.whenFalse(),
-                new Carried(z, nanos(instant)), instant.guard(), instant.body());
+                new Carried(z, false), instant.guard(), instant.body());
     }
 
     /** A zoned time of day's instant on the epoch day, as the date-time it is (no zone beside). */
     private static Tx instantOfTime(Tx zt) {
+        if (split(zt)) {
+            return onEpochDay(ofDay(zt));
+        }
         return new Tx(zt.vs(), Kind.DATETIME, zt.nullable(), zt.whenFalse(), new Carried(null, nanos(zt)),
                 zt.guard(), zt.body());
     }
 
-    /** The wall time of a zoned time of day (Pure's StrictTime; of nanosecond precision, the date-time at it on the
-     *  epoch day): the instant shifted by the offset. */
+    /** The wall time of a zoned time of day (Pure's StrictTime; of nanosecond precision, its parts'): the instant
+     *  shifted by the offset. */
     private static Tx wallTimeOf(Tx zt, Zone z) {
-        boolean nanos = nanos(zt);
-        return withNanos(SqlToPure.strict(Kind.TIME, List.of(zt), x -> nanos ? shifted(x.get(0), z, 1, true)
-                : call(TIME_OF, shifted(x.get(0), z, 1, false))), nanos);
+        if (split(zt)) {
+            // its UTC nanoseconds moved by the offset, within the day (a converted time's wall time wraps, as
+            // §12.11's time of the shifted instant does)
+            return splitTime(strict(Kind.INTEGER, List.of(ofDay(zt)), v -> integer(call("mod", plus(v.get(0),
+                    secondsAsNanos(fixedSeconds(z))), lit(DAY_NANOS)))));
+        }
+        return strict(Kind.TIME, List.of(zt), x -> call(TIME_OF, shifted(x.get(0), z, 1)));
     }
 
     /** The wall time of a zoned time of day as the date-time at it on the epoch day: what its fields and its
      *  truncation read. */
     private static Tx wallAtEpoch(Tx zt, Zone z) {
-        boolean nanos = nanos(zt);
-        return withNanos(SqlToPure.strict(Kind.DATETIME, List.of(zt), x -> shifted(x.get(0), z, 1, nanos)), nanos);
+        if (split(zt)) {
+            return wallTimeOf(zt, z);
+        }
+        return strict(Kind.DATETIME, List.of(zt), x -> shifted(x.get(0), z, 1));
     }
 
     /** A zoned time of day from its wall time (Pure's StrictTime) in an offset: the instant on the epoch day. */
     private static Tx zonedTimeOf(Tx wall, Zone z) {
-        boolean nanos = nanos(wall);
-        return zonedTime(withNanos(SqlToPure.strict(Kind.DATETIME, List.of(wall), x -> shifted(nanos ? x.get(0)
-                : atEpoch(x.get(0)), z, -1, nanos)), nanos), z);
+        if (split(wall)) {
+            // a split wall time (W13): its nanoseconds less the offset's, from the epoch day's midnight
+            return splitZonedTime(strict(Kind.INTEGER, List.of(ofDay(wall)), v -> integer(minus(v.get(0),
+                    secondsAsNanos(fixedSeconds(z))))), z);
+        }
+        return zonedTime(strict(Kind.DATETIME, List.of(wall), x -> shifted(atEpoch(x.get(0)), z, -1)), z);
     }
 
     /** A time of day's zone: an offset. A region's name is refused by name: Neo4j takes its offset at the current
@@ -7612,8 +14504,8 @@ public final class CypherToPure {
      *  time. */
     private Val zonedTimeFrom(CypherAst.Call c, Scope scope) {
         if (c.args().isEmpty()) {
-            throw CypherErrors.unsupported("the function " + c.name() + "() (the current time: a value of the call,"
-                    + " not of the data) is not supported yet", c.pos());
+            // the statement's clock (the study's §12.51): the time of day of the database's now, in UTC
+            return scalar(zonedTimeOf(timeOf(now()), Zone.UTC));
         }
         if (c.args().size() > 1) {
             throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
@@ -7626,11 +14518,8 @@ public final class CypherToPure {
             case Scalar s when s.tx().kind() == Kind.TIME -> scalar(zonedTimeOf(s.tx(), Zone.UTC));
             case Scalar s when s.tx().kind() == Kind.DATETIME -> scalar(zonedTimeOf(timeOf(s.tx()), Zone.UTC));
             case Scalar s when s.tx().kind() == Kind.ZONED -> {
-                Zone z = zoneKnown(s.tx(), c.pos());
-                if (z.named()) {
-                    throw CypherErrors.unsupported("the time of a date-time in a named zone (its offset is that"
-                            + " date's) is not supported yet", c.pos());
-                }
+                // (a named zone: its offset at the date-time's instant, the database's)
+                Zone z = fixedAt(s.tx(), zoneKnown(s.tx(), c.pos()));
                 yield scalar(zonedTimeOf(timeOf(localOf(s.tx(), z)), z));
             }
             case Scalar s when s.tx().kind() == Kind.DATE -> {
@@ -7652,6 +14541,11 @@ public final class CypherToPure {
     /** A zoned time of day from a text: the time forms, then {@code Z} or an offset (none: the default zone, UTC);
      *  a region's name in brackets is Neo4j's error; a text of the row is refused by name. */
     private Val zonedTimeFromText(CypherAst.Call c, Scalar s) {
+        Tx printed = printedValue(s, Kind.ZONED_TIME);
+        if (!s.literal() && printed != null) {
+            // the text a zoned time was printed as: that time (print then parse is the identity, §12.74)
+            return scalar(printed);
+        }
         if (!s.literal()) {
             throw CypherErrors.unsupported("a zoned time text of the row (its offset read by the database) is not"
                     + " supported yet", c.pos());
@@ -7694,11 +14588,9 @@ public final class CypherToPure {
             if (k == Component.TIME && e.getValue() instanceof Scalar s
                     && (s.tx().kind() == Kind.ZONED_TIME || s.tx().kind() == Kind.ZONED)) {
                 zonedBase = s.tx();
-                baseZone = zoneKnown(s.tx(), c.pos());
-                if (baseZone.named()) {
-                    throw CypherErrors.unsupported("the time of a date-time in a named zone (its offset is that"
-                            + " date's) is not supported yet", c.pos());
-                }
+                // (a named zone: its offset at the date-time's instant, the database's)
+                baseZone = s.tx().kind() == Kind.ZONED ? fixedAt(s.tx(), zoneKnown(s.tx(), c.pos()))
+                        : zoneKnown(s.tx(), c.pos());
             }
             rest.put(e.getKey(), e.getValue());
         }
@@ -7708,10 +14600,9 @@ public final class CypherToPure {
         }
         if (zonedBase != null && written != null && rest.size() == 1) {
             // the conversion: the instant kept, the zone changed
-            Tx instant = zonedBase.kind() == Kind.ZONED_TIME ? instantOfTime(zonedBase)
-                    : instantOfTime(zonedTimeOf(timeOf(localOf(zonedBase, java.util.Objects.requireNonNull(baseZone))),
-                            baseZone));
-            return scalar(zonedTime(instant, written));
+            Tx zt = zonedBase.kind() == Kind.ZONED_TIME ? zonedBase
+                    : zonedTimeOf(timeOf(localOf(zonedBase, java.util.Objects.requireNonNull(baseZone))), baseZone);
+            return scalar(rezoned(zt, written));
         }
         Val wall = timeFromComponents(c, new MapVal(rest));
         if (!(wall instanceof Scalar ws) || ws.tx().kind() == Kind.NULL) {
@@ -7719,7 +14610,14 @@ public final class CypherToPure {
         }
         Zone in = baseZone != null ? baseZone : written != null ? written : Zone.UTC;
         Tx zt = zonedTimeOf(ws.tx(), in);
-        return scalar(written != null && baseZone != null ? zonedTime(instantOfTime(zt), written) : zt);
+        return scalar(written != null && baseZone != null ? rezoned(zt, written) : zt);
+    }
+
+    /** A zoned time of day of the instant of {@code zt} in the offset {@code z}: its wall time there, wrapped within
+     *  the day, in that offset (java.time's withOffsetSameInstant, as Neo4j converts: measured on the server, 23:00
+     *  at +01:00 converted to +14:00 is 12:00 at +14:00, which orders before 00:00Z). */
+    private static Tx rezoned(Tx zt, Zone z) {
+        return zonedTimeOf(wallTimeOf(zonedTime(instantOfTime(zt), z), z), z);
     }
 
     /** The zone of a zoned date-time the translator carries; a zoned value whose zone it does not carry (one of a
@@ -7756,6 +14654,19 @@ public final class CypherToPure {
                     : classes.size() + " (" + classes + ")"), pos);
         }
         return classes.get(0);
+    }
+
+    /** A stored duration (an embedded instance over four columns, the harness's and a model's): the island's own
+     *  instance of its four slots, null where the row holds none (the months slot null: an embedded instance is
+     *  never null itself). */
+    private ValueSpecification storedDuration(String cls, ValueSpecification holder) {
+        ValueSpecification[] slots = new ValueSpecification[DURATION_SLOTS.size()];
+        for (int i = 0; i < slots.length; i++) {
+            slots[i] = call("toOne", new AppliedProperty(holder, DURATION_SLOTS.get(i)));
+        }
+        ValueSpecification instance = duration(cls, slots[0], slots[1], slots[2], slots[3]);
+        return call("if", call("isEmpty", new AppliedProperty(holder, DURATION_SLOTS.get(0))),
+                thunk(call("cast", SqlToPure.empty(), SqlToPure.typeArg(cls))), thunk(instance));
     }
 
     /** An instance of the Duration class from its four slots (each an Integer the database computes). */
@@ -7802,6 +14713,146 @@ public final class CypherToPure {
     /** The model's classes named Duration declaring the four slots (the platform's own
      *  meta::pure::functions::date::Duration, one number and one unit, shares the simple name: the four slots tell
      *  the model's class apart): the duration value's class, never a node. */
+    /** The slots of a stored zoned value's class (the study's §12.65): the instant (a DateTime; for a zoned time of
+     *  day, the date-time at it on the epoch day) and its offset in seconds. */
+    private static final List<String> ZONED_SLOTS = List.of("instant", "offsetSeconds");
+
+    /** A zoned date-time class's optional slot naming the value's region ({@code Europe/Stockholm}; String[0..1],
+     *  empty for a value of an offset alone): the study's §12.75. */
+    private static final String ZONE_SLOT = "zone";
+
+    /** Whether a class of {@code classes} holds its property {@code name} as a zoned value whose class declares the
+     *  region slot. */
+    private boolean regionDeclared(String name, List<String> classes) {
+        for (String cls : classes) {
+            Property p = property(cls, name);
+            if (p != null && p.classTyped() && regionSlot(p.type())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether the zoned value class {@code cls} declares the region slot ({@link #ZONE_SLOT}, one optional
+     *  String). */
+    private boolean regionSlot(String cls) {
+        Property p = property(cls, ZONE_SLOT);
+        return p != null && p.type().equals("String") && !p.many();
+    }
+
+    /** The model's classes named {@code ZonedTime} or {@code ZonedDateTime} declaring the two slots (the study's
+     *  §12.65): a stored zoned value's class, never a node; the island reads the instant and carries no zone (the
+     *  offset slot is the leg to come: an operation reading the zone refuses by name). */
+    private List<String> zonedClasses(String simpleName) {
+        List<String> classes = new ArrayList<>();
+        for (String cls : model.classesOf(simpleName)) {
+            Property instant = property(cls, ZONED_SLOTS.get(0));
+            Property offset = property(cls, ZONED_SLOTS.get(1));
+            if (instant != null && instant.type().equals("DateTime") && !instant.many() && !instant.optional()
+                    && offset != null && offset.type().equals("Integer") && !offset.many() && !offset.optional()) {
+                classes.add(cls);
+            }
+        }
+        return classes;
+    }
+
+    /** The model's value classes: the Duration class, the zoned ones and those of a nanosecond value's parts;
+     *  never nodes. */
+    private List<String> valueClasses() {
+        List<String> out = new ArrayList<>(durationClasses());
+        out.addAll(zonedClasses("ZonedTime"));
+        out.addAll(zonedClasses("ZonedDateTime"));
+        for (String simple : PARTS_CLASSES.values()) {
+            for (String cls : model.classesOf(simple)) {
+                if (partsKind(cls) != null) {
+                    out.add(cls);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** The slots of a stored value of nanosecond precision as its parts (W13 leg 5): a date-time's date and its
+     *  nanoseconds since midnight, a time of day's nanoseconds; a zoned one's UTC parts (a zoned time's UTC
+     *  nanoseconds from the epoch day's midnight) beside its offset ({@link #ZONED_SLOTS}' second) and, for a
+     *  date-time, its region ({@link #ZONE_SLOT}). */
+    private static final String DATE_SLOT = "date";
+    private static final String NANOS_SLOT = "nanosOfDay";
+
+    /** The kind a value class of a nanosecond value's parts holds (W13 leg 5), by its simple name and slots
+     *  ({@code LocalDateTime} its date and nanoseconds, {@code LocalTime} its nanoseconds, {@code ZonedDateTime}
+     *  and {@code ZonedTime} those beside an offset); null for any other class. */
+    private @com.legend.base.Nullable Kind partsKind(String cls) {
+        for (Map.Entry<Kind, String> named : PARTS_CLASSES.entrySet()) {
+            Kind kind = named.getKey();
+            boolean dated = kind == Kind.DATETIME || kind == Kind.ZONED;
+            boolean zoned = kind == Kind.ZONED || kind == Kind.ZONED_TIME;
+            if (model.classesOf(named.getValue()).contains(cls) && slot(cls, NANOS_SLOT, "Integer")
+                    && dated == slot(cls, DATE_SLOT, "StrictDate") && zoned == slot(cls, ZONED_SLOTS.get(1), "Integer")
+                    && property(cls, ZONED_SLOTS.get(0)) == null) {
+                return kind;
+            }
+        }
+        return null;
+    }
+
+    /** The simple names of the value classes of a nanosecond value's parts, by the kind each holds (in the kinds'
+     *  order). */
+    private static final Map<Kind, String> PARTS_CLASSES = java.util.Collections.unmodifiableMap(
+            new java.util.EnumMap<>(Map.of(Kind.DATETIME, "LocalDateTime", Kind.TIME, "LocalTime", Kind.ZONED,
+                    "ZonedDateTime", Kind.ZONED_TIME, "ZonedTime")));
+
+    /** Whether {@code cls} declares the slot {@code name} as one {@code type}, required. */
+    private boolean slot(String cls, String name, String type) {
+        Property p = property(cls, name);
+        return p != null && p.type().equals(type) && !p.many() && !p.optional();
+    }
+
+    /** No value of a split kind (W13): its parts' nulls (a zoned one's zone not carried). */
+    private static Tx splitNull(Kind kind) {
+        Tx clock = SqlToPure.nullOf(Kind.INTEGER);
+        return switch (kind) {
+            case TIME -> splitTime(clock);
+            case ZONED_TIME -> splitZonedTime(clock, null);
+            case DATETIME -> splitDateTime(SqlToPure.nullOf(Kind.DATE), clock);
+            case ZONED -> splitZoned(splitDateTime(SqlToPure.nullOf(Kind.DATE), clock), null);
+            default -> throw new IllegalStateException("not a split kind: " + kind);
+        };
+    }
+
+    /** The kind a class-typed property holds as a VALUE (an embedded instance of a value class): a duration, a zoned
+     *  time of day, a zoned date-time; null for a property holding nodes or many values. */
+    private @com.legend.base.Nullable Kind storedValueKind(Property p) {
+        if (!p.classTyped() || p.many()) {
+            return null;
+        }
+        Kind parts = partsKind(p.type());
+        if (parts != null) {
+            return parts;
+        }
+        return durationClasses().contains(p.type()) ? Kind.DURATION : zonedClasses("ZonedTime").contains(p.type())
+                ? Kind.ZONED_TIME : zonedClasses("ZonedDateTime").contains(p.type()) ? Kind.ZONED : null;
+    }
+
+    /** Whether a stored property's values are of nanosecond precision: its own marks, or its zoned value class's
+     *  instant slot's. */
+    private boolean nanosOf(Property p) {
+        if (p.classTyped() && partsKind(p.type()) != null) {
+            return true;
+        }
+        if (p.classTyped()) {
+            Property instant = property(p.type(), ZONED_SLOTS.get(0));
+            return instant != null && instant.nanos();
+        }
+        return p.nanos();
+    }
+
+    /** A stored zoned value (an embedded instance of a zoned value class): its instant slot, which the island
+     *  carries (the study's §12.65); its offset slot is its zone, read beside it (§12.75). */
+    private static ValueSpecification storedZoned(ValueSpecification holder) {
+        return new AppliedProperty(holder, ZONED_SLOTS.get(0));
+    }
+
     private List<String> durationClasses() {
         List<String> classes = new ArrayList<>();
         for (String cls : model.classesOf("Duration")) {
@@ -7817,6 +14868,56 @@ public final class CypherToPure {
             }
         }
         return classes;
+    }
+
+    /** Neo4j's average month, in nanoseconds (2629746 seconds, a Gregorian year's twelfth). */
+    private static final double AVG_NANOS_PER_MONTH = 2_629_746L * 1_000_000_000.0;
+    /** A day, in nanoseconds. */
+    private static final double NANOS_PER_DAY = 86_400L * 1_000_000_000.0;
+
+    /**
+     * A duration times a float, or divided by a number (the study's §12.74), as Neo4j's {@code DurationValue}
+     * approximates it: each slot scaled as a double, each unit's whole kept (truncated toward zero) and its fraction
+     * carried into the next smaller one -- a month's at the average month, a day's at 86400 seconds, a second's at a
+     * billion nanoseconds -- in that order, the database computing each step in doubles as Neo4j's Java does; the
+     * nanoseconds normalized into a second as any duration's. A division by zero raises (Neo4j's "long overflow").
+     */
+    private ValueSpecification approximated(String cls, ValueSpecification dur, ValueSpecification number,
+            boolean divide) {
+        ValueSpecification by = call("toFloat", number);
+        if (divide) {
+            by = raisingWhere(call("equal", by, new CFloat(0.0)), "long overflow", by);
+        }
+        ValueSpecification factor = by;
+        java.util.function.Function<String, ValueSpecification> scaled = name -> {
+            ValueSpecification x = call("toFloat", slot(dur, name));
+            return divide ? call("divide", x, factor) : AppliedFunction.infixRun("times", List.of(x, factor));
+        };
+        ValueSpecification months = scaled.apply("months");
+        ValueSpecification wholeMonths = truncated(months);
+        ValueSpecification days = AppliedFunction.infixRun("plus", List.of(scaled.apply("days"), call("divide",
+                AppliedFunction.infixRun("times", List.of(new CFloat(AVG_NANOS_PER_MONTH), fraction(months,
+                wholeMonths))), new CFloat(NANOS_PER_DAY))));
+        ValueSpecification wholeDays = truncated(days);
+        ValueSpecification seconds = AppliedFunction.infixRun("plus", List.of(scaled.apply("seconds"), call("divide",
+                AppliedFunction.infixRun("times", List.of(new CFloat(NANOS_PER_DAY), fraction(days, wholeDays))),
+                new CFloat((double) NANOS))));
+        ValueSpecification wholeSeconds = truncated(seconds);
+        ValueSpecification nanos = AppliedFunction.infixRun("plus", List.of(scaled.apply("nanoseconds"),
+                AppliedFunction.infixRun("times", List.of(new CFloat((double) NANOS), fraction(seconds,
+                wholeSeconds)))));
+        return normalized(cls, wholeMonths, wholeDays, wholeSeconds, truncated(nanos));
+    }
+
+    /** A float truncated toward zero, an Integer (Java's long cast, Neo4j's safeDoubleToLong). */
+    private static ValueSpecification truncated(ValueSpecification x) {
+        return call("if", call("greaterThanEqual", x, new CFloat(0.0)), thunk(call("floor", x)),
+                thunk(call("ceiling", x)));
+    }
+
+    /** A float's part beyond its whole, as Neo4j's {@code x - (long) x}. */
+    private static ValueSpecification fraction(ValueSpecification x, ValueSpecification whole) {
+        return minus(x, call("toFloat", whole));
     }
 
     /** The whole seconds of a nanosecond count, floored (Neo4j keeps the nanoseconds in {@code [0, 1e9)}). */
@@ -7924,7 +15025,7 @@ public final class CypherToPure {
             Tx ns = keys.contains(DurationUnit.NANOSECONDS) ? inputs.get(keys.indexOf(DurationUnit.NANOSECONDS))
                     : null;
             boolean fine = ns != null && ns.vs() instanceof CInteger n && n.value().longValue() % 1000 != 0;
-            return withNanos(SqlToPure.strict(Kind.DURATION, inputs, v -> {
+            return withNanos(strict(Kind.DURATION, inputs, v -> {
                 ValueSpecification[] slots = {lit(0), lit(0), lit(0), lit(0)};
                 for (int i = 0; i < keys.size(); i++) {
                     DurationUnit u = keys.get(i);
@@ -7933,7 +15034,7 @@ public final class CypherToPure {
                 return normalized(cls, slots[0], slots[1], slots[2], slots[3]);
             }), fine);
         }
-        return withNanos(SqlToPure.strict(Kind.DURATION, inputs, v -> {
+        return withNanos(strict(Kind.DURATION, inputs, v -> {
             ValueSpecification[] slots = {new CFloat(0.0), new CFloat(0.0), new CFloat(0.0), new CFloat(0.0)};
             for (int i = 0; i < keys.size(); i++) {
                 DurationUnit u = keys.get(i);
@@ -7973,6 +15074,26 @@ public final class CypherToPure {
         }
         List<DurationUnit> keys = new ArrayList<>();
         List<Tx> values = new ArrayList<>();
+        List<String> dateTime = durationDateTimeFields(body);
+        if (dateTime != null) {
+            // the date-time form (P2012-02-02T14:37:21.545: Neo4j's P2012Y2M2DT14H37M21.545S): each field a unit
+            DurationUnit[] units = {DurationUnit.YEARS, DurationUnit.MONTHS, DurationUnit.DAYS, DurationUnit.HOURS,
+                DurationUnit.MINUTES, DurationUnit.SECONDS};
+            for (int g = 0; g < 6; g++) {
+                if (dateTime.get(g) == null) {
+                    continue;
+                }
+                long n = Long.parseLong(dateTime.get(g));
+                keys.add(units[g]);
+                values.add(Tx.value(lit(negated ? -n : n), Kind.INTEGER, false));
+            }
+            if (dateTime.get(6) != null) {
+                long nanos = Long.parseLong((dateTime.get(6) + "000000000").substring(0, 9));
+                keys.add(DurationUnit.NANOSECONDS);
+                values.add(Tx.value(lit(negated ? -nanos : nanos), Kind.INTEGER, false));
+            }
+            return scalar(durationOfParts(cls, keys, values));
+        }
         int i = 1;
         boolean time = false;
         boolean any = false;
@@ -8056,6 +15177,58 @@ public final class CypherToPure {
         return scalar(durationOfParts(cls, keys, values));
     }
 
+    /** A duration text in the date-time form, {@code P<yyyy>-<MM>-<dd>T<hh>:<mm>[:<ss>[.<fraction>]]}, read
+     *  character by character (the translator grows no grammar of its own): its seven fields (years, months, days,
+     *  hours, minutes, seconds, the seconds' fraction; null where the text has none), or null for a text of
+     *  another form. */
+    private static @com.legend.base.Nullable List<String> durationDateTimeFields(String body) {
+        int[] widths = {4, 2, 2, 2, 2};
+        char[] after = {'-', '-', 'T', ':', 0};
+        List<String> fields = new ArrayList<>();
+        int i = 1;
+        for (int f = 0; f < widths.length; f++) {
+            int end = i + widths[f];
+            if (!digits(body, i, widths[f])) {
+                return null;
+            }
+            fields.add(body.substring(i, end));
+            i = end;
+            if (after[f] != 0) {
+                if (i >= body.length() || Character.toUpperCase(body.charAt(i)) != after[f]) {
+                    return null;
+                }
+                i++;
+            }
+        }
+        String seconds = null;
+        String fraction = null;
+        if (i < body.length() && body.charAt(i) == ':') {
+            if (!digits(body, i + 1, 2)) {
+                return null;
+            }
+            seconds = body.substring(i + 1, i + 3);
+            i += 3;
+            if (i < body.length() && (body.charAt(i) == '.' || body.charAt(i) == ',')) {
+                int start = i + 1;
+                int end = start;
+                while (end < body.length() && end - start < 9 && body.charAt(end) >= '0' && body.charAt(end) <= '9') {
+                    end++;
+                }
+                if (end == start) {
+                    return null;
+                }
+                fraction = body.substring(start, end);
+                i = end;
+            }
+        }
+        if (i != body.length()) {
+            return null;
+        }
+        fields.add(seconds);
+        fields.add(fraction);
+        return fields;
+    }
+
     /** A field of a duration ({@code d.minutesOfHour}), by its Cypher name (case-sensitive, as properties are). */
     private enum DurationField {
         YEARS("years"), QUARTERS("quarters"), MONTHS("months"), WEEKS("weeks"), DAYS("days"), HOURS("hours"),
@@ -8131,7 +15304,7 @@ public final class CypherToPure {
                         + " duration, not " + op, b.pos());
             }
             boolean subtract = op == BinaryOp.MINUS;
-            return withNanos(SqlToPure.strict(Kind.DURATION, List.of(l, r), v -> {
+            return withNanos(strict(Kind.DURATION, List.of(l, r), v -> {
                 ValueSpecification[] s = new ValueSpecification[4];
                 for (int i = 0; i < 4; i++) {
                     ValueSpecification x = slot(v.get(0), DURATION_SLOTS.get(i));
@@ -8144,7 +15317,7 @@ public final class CypherToPure {
         if (op == BinaryOp.TIMES && (l.kind() == Kind.INTEGER || r.kind() == Kind.INTEGER)) {
             Tx d = l.kind() == Kind.DURATION ? l : r;
             Tx k = l.kind() == Kind.DURATION ? r : l;
-            return withNanos(SqlToPure.strict(Kind.DURATION, List.of(d, k), v -> {
+            return withNanos(strict(Kind.DURATION, List.of(d, k), v -> {
                 ValueSpecification[] s = new ValueSpecification[4];
                 for (int i = 0; i < 4; i++) {
                     s[i] = AppliedFunction.infixRun("times", List.of(slot(v.get(0), DURATION_SLOTS.get(i)),
@@ -8153,10 +15326,21 @@ public final class CypherToPure {
                 return normalized(cls, s[0], s[1], s[2], s[3]);
             }), nanos(d));
         }
-        if (op == BinaryOp.TIMES || op == BinaryOp.DIVIDE) {
-            throw CypherErrors.unsupported("a duration " + (op == BinaryOp.TIMES ? "multiplied" : "divided")
-                    + " by a " + cypherType(l.kind() == Kind.DURATION ? r.kind() : l.kind()) + " (Neo4j carries"
-                    + " the fractions down the units) is not supported yet", b.pos());
+        if (op == BinaryOp.TIMES || op == BinaryOp.DIVIDE && l.kind() == Kind.DURATION) {
+            // by a float, or divided by any number (the study's §12.74): Neo4j's approximation, the fractions
+            // carried down the units
+            Tx d = l.kind() == Kind.DURATION ? l : r;
+            Tx k = l.kind() == Kind.DURATION ? r : l;
+            if (!k.kind().numeric()) {
+                throw CypherErrors.invalid("Type mismatch: a duration can be " + (op == BinaryOp.TIMES ? "multiplied"
+                        : "divided") + " by a number, not a " + cypherType(k.kind()), b.pos());
+            }
+            boolean divide = op == BinaryOp.DIVIDE;
+            return withNanos(strict(Kind.DURATION, List.of(d, k), v -> approximated(cls, v.get(0),
+                    v.get(1), divide)), true);
+        }
+        if (op == BinaryOp.DIVIDE) {
+            throw CypherErrors.invalid("Type mismatch: a number cannot be divided by a duration", b.pos());
         }
         if (op != BinaryOp.PLUS && op != BinaryOp.MINUS || op == BinaryOp.MINUS && l.kind() == Kind.DURATION) {
             throw CypherErrors.invalid("Type mismatch: a duration can be added to a temporal value, or subtracted"
@@ -8171,67 +15355,106 @@ public final class CypherToPure {
             throw CypherErrors.invalid("Type mismatch: a duration can be added to a temporal value, not a "
                     + cypherType(kind), b.pos());
         }
+        if ((kind == Kind.DATETIME || kind == Kind.TIME) && (split(temporal) || !nanos(temporal) && nanos(d))) {
+            // of nanosecond precision (W13): over the parts
+            return splitMoved(asSplit(temporal), d, subtract);
+        }
         Zone zone = kind == Kind.ZONED || kind == Kind.ZONED_TIME ? zoneKnown(temporal, b.pos()) : null;
-        boolean temporalNanos = nanos(temporal);
-        // of nanosecond precision when either is: the seconds and nanoseconds as one nanosecond step, a calendar
-        // step or a zone conversion with the sub-microsecond digits put back after it
-        boolean fine = temporalNanos || nanos(d);
-        Tx out = withNanos(SqlToPure.strict(kind == Kind.ZONED ? Kind.DATETIME : kind == Kind.ZONED_TIME ? Kind.TIME
-                : kind, List.of(temporal, d), v -> {
+        if (zone != null && (split(temporal) || !nanos(temporal) && nanos(d))) {
+            // a zoned value of nanosecond precision (W13), over the parts: a time of day's wall time moved, wrapping
+            // within its day; a date-time's wall time by the months and days, then its instant by the seconds and
+            // nanoseconds (a read region's offset the one at the instant moved to)
+            if (kind == Kind.ZONED_TIME) {
+                return zonedTimeOf(splitMoved(wallTimeOf(asSplitZonedTime(temporal, zone), zone), d, subtract),
+                        zone);
+            }
+            Tx wall = splitMoved(localOf(asSplitZoned(temporal, zone), zone), d, subtract, true, false);
+            Tx moved = splitMoved(utcParts(instantOf(wall, zone)), d, subtract, false, true);
+            return zoned(moved, after(zone, moved));
+        }
+        // (of nanosecond precision, either, the parts' above: the rest microseconds, the database's steps)
+        Tx out = strict(kind == Kind.ZONED ? Kind.DATETIME : kind == Kind.ZONED_TIME ? Kind.TIME : kind,
+                List.of(temporal, d), v -> {
             ValueSpecification x = v.get(0);
             ValueSpecification dur = v.get(1);
             ValueSpecification months = slot(dur, "months");
             ValueSpecification days = slot(dur, "days");
             ValueSpecification seconds = slot(dur, "seconds");
             ValueSpecification micros = SqlToPure.integerQuotient(slot(dur, "nanoseconds"), lit(1000));
-            ValueSpecification nanos = slot(dur, "nanoseconds");
             if (subtract) {
                 months = minus(lit(0), months);
                 days = minus(lit(0), days);
                 seconds = minus(lit(0), seconds);
                 micros = minus(lit(0), micros);
-                nanos = minus(lit(0), nanos);
             }
             ValueSpecification secs = seconds;
-            ValueSpecification ns = nanos;
+            ValueSpecification us = micros;
             return switch (kind) {
-                case DATE -> day(call("adjust", call("adjust", x, integer(months), unit("MONTHS")), integer(days),
-                        unit("DAYS")));
-                case TIME -> fine ? timeOfNanos(secondsAndNanos(temporalNanos ? x : atEpoch(x), secs, ns,
-                        temporalNanos))
-                        : call(TIME_OF, call("adjust", call("adjust", atEpoch(x), integer(seconds),
-                                unit("SECONDS")), integer(micros), unit("MICROSECONDS")));
+                // a date: the months, then the days and the whole days of the seconds (Neo4j's, the fraction of a
+                // day cut toward zero: a duration of 29 days and 33 hours moves a date by 30; the study's §12.59)
+                case DATE -> day(call("adjust", call("adjust", x, integer(months), unit("MONTHS")),
+                        integer(plus(days, SqlToPure.integerQuotient(seconds, lit(86400)))), unit("DAYS")));
+                case TIME -> call(TIME_OF, call("adjust", call("adjust", atEpoch(x), integer(secs), unit("SECONDS")),
+                        integer(us), unit("MICROSECONDS")));
                 // a zoned time of day: its wall time moved by the seconds, wrapping within the day (Neo4j's)
-                case ZONED_TIME -> fine ? timeOfNanos(secondsAndNanos(shifted(x,
-                        java.util.Objects.requireNonNull(zone), 1, temporalNanos), secs, ns, temporalNanos))
-                        : call(TIME_OF, call("adjust", call("adjust", shifted(x,
-                                java.util.Objects.requireNonNull(zone), 1, false), integer(seconds),
-                                unit("SECONDS")), integer(micros), unit("MICROSECONDS")));
+                case ZONED_TIME -> call(TIME_OF, call("adjust", call("adjust", shifted(x,
+                        java.util.Objects.requireNonNull(zone), 1), integer(secs), unit("SECONDS")), integer(us),
+                        unit("MICROSECONDS")));
                 case ZONED -> {
                     Zone z = java.util.Objects.requireNonNull(zone);
-                    ValueSpecification wall = z.named() ? inZone(LOCAL_IN, x, z, temporalNanos)
-                            : shifted(x, z, 1, temporalNanos);
-                    ValueSpecification moved = step(step(wall, months, "MONTHS", temporalNanos), days, "DAYS",
-                            temporalNanos);
-                    ValueSpecification instant = z.named() ? inZone(INSTANT_IN, moved, z, temporalNanos)
-                            : shifted(moved, z, -1, temporalNanos);
-                    yield fine ? secondsAndNanos(instant, secs, ns, temporalNanos)
-                            : call("adjust", call("adjust", instant, integer(seconds), unit("SECONDS")),
-                                    integer(micros), unit("MICROSECONDS"));
+                    ValueSpecification moved = step(step(toWall(x, z), months, "MONTHS"), days, "DAYS");
+                    yield call("adjust", call("adjust", toInstant(moved, z), integer(secs), unit("SECONDS")),
+                            integer(us), unit("MICROSECONDS"));
                 }
-                default -> {
-                    ValueSpecification moved = step(step(x, months, "MONTHS", temporalNanos), days, "DAYS",
-                            temporalNanos);
-                    yield fine ? secondsAndNanos(moved, secs, ns, temporalNanos)
-                            : call("adjust", call("adjust", moved, integer(seconds), unit("SECONDS")),
-                                    integer(micros), unit("MICROSECONDS"));
-                }
+                default -> call("adjust", call("adjust", step(step(x, months, "MONTHS"), days, "DAYS"),
+                        integer(secs), unit("SECONDS")), integer(us), unit("MICROSECONDS"));
             };
-        }), fine);
+        });
         if (kind == Kind.ZONED_TIME) {
             return zonedTimeOf(out, java.util.Objects.requireNonNull(zone));
         }
-        return kind == Kind.ZONED ? zoned(out, java.util.Objects.requireNonNull(zone)) : out;
+        // (a zone whose region the database reads: the region's offset at the instant moved to)
+        return kind == Kind.ZONED ? zoned(out, after(java.util.Objects.requireNonNull(zone), out)) : out;
+    }
+
+    /** A split value moved by a duration (W13): the months then the days on the date (a time of day has none to
+     *  move), the seconds and nanoseconds on the clock -- the seconds' whole days apart, so no product overflows --
+     *  and the clock's whole days carried into the date; a time of day wraps within its day (Neo4j's). */
+    private Tx splitMoved(Tx t, Tx d, boolean subtract) {
+        return splitMoved(t, d, subtract, true, true);
+    }
+
+    /** {@link #splitMoved(Tx, Tx, boolean)} by the duration's {@code calendar} part (its months and days), its
+     *  {@code clock} part (its seconds and nanoseconds), or both: a zoned value moves its wall time by the one and
+     *  its instant by the other (Neo4j's). */
+    private Tx splitMoved(Tx t, Tx d, boolean subtract, boolean calendar, boolean clockPart) {
+        java.util.function.BiFunction<ValueSpecification, String, ValueSpecification> part = (dur, name) -> {
+            if (!(name.equals("months") || name.equals("days") ? calendar : clockPart)) {
+                return lit(0);
+            }
+            ValueSpecification v = slot(dur, name);
+            return subtract ? minus(lit(0), v) : v;
+        };
+        // the clock and the duration's seconds and nanoseconds past whole days: within three days of nanoseconds (the
+        // seconds' nanoseconds a float product cast back, exact below a day's: a literal-built slot is 32 bits on
+        // DuckDB, and its integer product with a billion overflowed, measured, as durationTextOf found)
+        java.util.function.BinaryOperator<ValueSpecification> total = (n, dur) -> integer(plus(n,
+                integer(AppliedFunction.infixRun("times", List.of(new CFloat(1.0e9), call("mod",
+                        part.apply(dur, "seconds"), lit(86_400L))))), part.apply(dur, "nanoseconds")));
+        Tx clock = strict(Kind.INTEGER, List.of(ofDay(t), d), v -> integer(call("mod", total.apply(v.get(0),
+                v.get(1)), lit(DAY_NANOS))));
+        if (t.kind() == Kind.TIME) {
+            return splitTime(clock);
+        }
+        Tx date = strict(Kind.DATE, List.of(datePartOf(t), ofDay(t), d), v -> {
+            ValueSpecification dur = v.get(2);
+            ValueSpecification months = day(call("adjust", v.get(0), integer(part.apply(dur, "months")),
+                    unit("MONTHS")));
+            ValueSpecification carried = plus(part.apply(dur, "days"), quotient(part.apply(dur, "seconds"), 86_400L),
+                    quotient(total.apply(v.get(1), dur), DAY_NANOS));
+            return day(call("adjust", months, integer(carried), days()));
+        });
+        return splitDateTime(date, clock);
     }
 
     /** {@code duration.between(a, b)}, {@code inMonths}, {@code inDays}, {@code inSeconds}: Neo4j's split, the
@@ -8253,6 +15476,17 @@ public final class CypherToPure {
         if (!(a instanceof Scalar sa) || !(b instanceof Scalar sb)) {
             throw CypherErrors.invalid("Type mismatch: expected temporal values", c.pos());
         }
+        boolean local = sa.tx().kind() == Kind.TIME ? sb.tx().kind() == Kind.TIME
+                : (sa.tx().kind() == Kind.DATE || sa.tx().kind() == Kind.DATETIME)
+                && (sb.tx().kind() == Kind.DATE || sb.tx().kind() == Kind.DATETIME);
+        if (local && (split(sa.tx()) || split(sb.tx()))) {
+            // of nanosecond precision, two local values (W13): over the parts
+            return scalar(splitBetween(member, sa.tx(), sb.tx(), cls));
+        }
+        if (split(sa.tx()) || split(sb.tx())) {
+            // of nanosecond precision, a zoned value among them (W13): over the parts
+            return scalar(partsBetween(member, sa.tx(), sb.tx(), cls, c.pos()));
+        }
         Tx x = sa.tx();
         Tx y = sb.tx();
         Zone ztx = x.kind() == Kind.ZONED_TIME ? zoneKnown(x, c.pos()) : null;
@@ -8273,16 +15507,14 @@ public final class CypherToPure {
             Tx otherSide;
             if (other.kind() == Kind.TIME) {
                 placed = instantOfTime(zt);
-                boolean otherNanos = nanos(other);
-                otherSide = withNanos(SqlToPure.strict(Kind.DATETIME, List.of(other), v -> shifted(otherNanos
-                        ? v.get(0) : atEpoch(v.get(0)), tz, -1, otherNanos)), otherNanos);
+                otherSide = strict(Kind.DATETIME, List.of(other), v -> shifted(atEpoch(v.get(0)), tz,
+                        -1));
             } else if (isDateLike(other.kind())) {
                 Zone oz = other.kind() == Kind.ZONED ? zoneKnown(other, c.pos()) : null;
                 Tx otherWall = oz == null ? asDateTime(other) : localOf(other, oz);
                 Tx wallTime = wallTimeOf(zt, tz);
-                boolean timeNanos = nanos(wallTime);
-                Tx onDate = withNanos(SqlToPure.strict(Kind.DATETIME, List.of(otherWall, wallTime),
-                        v -> atTimeOf(call("datePart", v.get(0)), v.get(1), timeNanos)), timeNanos || nanos(otherWall));
+                Tx onDate = strict(Kind.DATETIME, List.of(otherWall, wallTime),
+                        v -> call(AT_TIME, call("datePart", v.get(0)), v.get(1)));
                 placed = instantOf(onDate, tz);
                 otherSide = oz != null ? other : instantOf(otherWall, tz);
             } else {
@@ -8311,9 +15543,8 @@ public final class CypherToPure {
             Tx other = timeFirst ? y : x;
             Zone z = other.kind() == Kind.ZONED ? zoneKnown(other, c.pos()) : null;
             Tx wall = z == null ? asDateTime(other) : localOf(other, z);
-            boolean timeNanos = nanos(time);
-            Tx onDate = withNanos(SqlToPure.strict(Kind.DATETIME, List.of(wall, time), v -> atTimeOf(call("datePart",
-                    v.get(0)), v.get(1), timeNanos)), timeNanos || nanos(wall));
+            Tx onDate = strict(Kind.DATETIME, List.of(wall, time), v -> call(AT_TIME, call("datePart",
+                    v.get(0)), v.get(1)));
             Tx placed = z == null ? onDate : instantOf(onDate, z);
             Tx otherSide = z == null ? wall : other;
             x = timeFirst ? placed : otherSide;
@@ -8329,38 +15560,213 @@ public final class CypherToPure {
         } else if (zy != null && zx == null) {
             x = instantOf(asDateTime(x), zy);
         }
-        // of nanosecond precision when either is: the calendar steps with the sub-microsecond digits put back, the
-        // rest the nanoseconds' difference
-        boolean fine = nanos(x) || nanos(y);
-        return scalar(withNanos(SqlToPure.strict(Kind.DURATION, List.of(x, y), v -> {
-            ValueSpecification from = v.get(0);
-            ValueSpecification to = v.get(1);
-            ValueSpecification months = lit(0);
-            if (member == TemporalMember.BETWEEN || member == TemporalMember.IN_MONTHS) {
-                months = wholeUnits(from, to, "MONTHS", fine);
-                from = step(from, months, "MONTHS", fine);
-            }
+        // (of nanosecond precision, either, the parts' above: the rest the microseconds' difference); two zoned
+        // values' months and days counted on their wall times in the first one's zone, Java's (the second's instant
+        // read there), the rest the instants' difference (measured 2026-10-18)
+        Zone walls = zx != null ? zx : zy;
+        return scalar(strict(Kind.DURATION, List.of(x, y), v -> {
+            ValueSpecification from = walls == null ? v.get(0) : toWall(v.get(0), walls);
+            ValueSpecification to = walls == null ? v.get(1) : toWall(v.get(1), walls);
+            ValueSpecification fromClock = clockMicros(from);
+            ValueSpecification toDate = call("datePart", to);
+            ValueSpecification toClock = clockMicros(to);
+            Calendar cal = calendarBetween(member, call("datePart", from), fromClock, toDate, toClock);
             if (member == TemporalMember.IN_MONTHS) {
-                return duration(cls, months, lit(0), lit(0), lit(0));
-            }
-            ValueSpecification days = lit(0);
-            if (member == TemporalMember.BETWEEN || member == TemporalMember.IN_DAYS) {
-                days = wholeUnits(from, to, "DAYS", fine);
-                from = step(from, days, "DAYS", fine);
+                return duration(cls, cal.months(), lit(0), lit(0), lit(0));
             }
             if (member == TemporalMember.IN_DAYS) {
-                return duration(cls, lit(0), days, lit(0), lit(0));
+                return duration(cls, lit(0), cal.days(), lit(0), lit(0));
             }
-            if (fine) {
-                ValueSpecification all = call("dateDiff", from, to, unit("NANOSECONDS"));
-                ValueSpecification seconds = call("floor", call("divide", all, lit(1_000_000_000)));
-                return duration(cls, months, days, seconds, minus(all, times(1_000_000_000L, seconds)));
-            }
-            ValueSpecification micros = call("dateDiff", from, to, unit("MICROSECONDS"));
+            // the rest from the start's clock on the date the months and days land on: in a named zone the instants'
+            // difference (a change of its offset makes it other than the wall times'), else the walls'
+            ValueSpecification micros = walls != null && walls.named() ? call("dateDiff", toInstant(call("adjust",
+                    call(AT_TIME, cal.landed(), MIDNIGHT), integer(fromClock), unit("MICROSECONDS")), walls), v.get(1),
+                    unit("MICROSECONDS")) : plus(times(86_400_000_000L, call("dateDiff", cal.landed(), toDate,
+                    days())), minus(toClock, fromClock));
             ValueSpecification seconds = call("floor", call("divide", micros, lit(1_000_000)));
             ValueSpecification nanos = times(1000, minus(micros, times(1_000_000, seconds)));
-            return duration(cls, months, days, seconds, nanos);
-        }), fine));
+            return duration(cls, cal.months(), cal.days(), seconds, nanos);
+        }));
+    }
+
+    /** {@link #between} of two zoned values of nanosecond precision (W13) whose first one's zone is a named one,
+     *  {@code a} and {@code b} their instants' UTC parts: the months and days counted on the wall times in that zone
+     *  (the database's reading of each instant there, to the microsecond, the digits past it carried beside, so the
+     *  clocks compare to the nanosecond), the rest the instants' difference from the start's wall clock on the date
+     *  they land on, read back into its instant in the zone. A wall time spelled from the parts in a named zone is
+     *  the database's offset lookup over them; the span's parts would write it many times over (measured: the
+     *  translation did not end), so the walls are read once each, as the microsecond values' are. */
+    private Tx namedZoneBetween(TemporalMember member, Tx a, Tx b, Zone zone, String cls) {
+        List<Tx> inputs = List.of(datePartOf(a), ofDay(a), datePartOf(b), ofDay(b));
+        return strict(Kind.DURATION, inputs, v -> {
+            ValueSpecification fromInstant = micros(v.get(0), v.get(1));
+            ValueSpecification toInstant = micros(v.get(2), v.get(3));
+            ValueSpecification fromSub = past(v.get(1), 1000L);
+            ValueSpecification toSub = past(v.get(3), 1000L);
+            ValueSpecification from = toWall(fromInstant, zone);
+            ValueSpecification to = toWall(toInstant, zone);
+            ValueSpecification fromMicros = clockMicros(from);
+            ValueSpecification toDate = call("datePart", to);
+            Calendar cal = calendarBetween(member, call("datePart", from), plus(times(1000L, fromMicros), fromSub),
+                    toDate, plus(times(1000L, clockMicros(to)), toSub));
+            if (member == TemporalMember.IN_MONTHS) {
+                return duration(cls, cal.months(), lit(0), lit(0), lit(0));
+            }
+            if (member == TemporalMember.IN_DAYS) {
+                return duration(cls, lit(0), cal.days(), lit(0), lit(0));
+            }
+            ValueSpecification landed = toInstant(call("adjust", call(AT_TIME, cal.landed(), MIDNIGHT),
+                    integer(fromMicros), unit("MICROSECONDS")), zone);
+            ValueSpecification rest = integer(plus(times(1000L, call("dateDiff", landed, toInstant,
+                    unit("MICROSECONDS"))), minus(toSub, fromSub)));
+            return duration(cls, cal.months(), cal.days(), quotient(rest, NANOS), integer(call("mod", rest,
+                    lit(NANOS))));
+        });
+    }
+
+    /** The calendar part of a span, Java's {@code until} (Neo4j's {@code duration.between}), from the date
+     *  {@code from} at the clock {@code clock} to {@code to} at {@code toClock}: the end's date a day back where it is
+     *  after the start's and its clock before the start's (a day on where before and after), then the whole months
+     *  to it ({@link #monthsUntil}), then the whole days from the date the months land on to it; {@code landed} the
+     *  end's date so adjusted, on which the rest of the span starts at the start's clock (the months and days land
+     *  there: the months step stays between the two, so the day adjustment Java makes after them is the one before).
+     *  The adjusted end is written into each part once, so a span of values the database converts (a named zone's
+     *  walls) stays the size of its parts (measured: stepping the start again inside each part wrote a span of two
+     *  named zones' nanosecond values as 95 MB of SQL). */
+    private static Calendar calendarBetween(TemporalMember member, ValueSpecification from, ValueSpecification clock,
+            ValueSpecification to, ValueSpecification toClock) {
+        ValueSpecification end = call("if", call("and", call("greaterThan", to, from), call("lessThan", toClock,
+                clock)), thunk(day(call("adjust", to, integer(minus(lit(0), lit(1))), days()))),
+                thunk(call("if", call("and", call("lessThan", to, from), call("greaterThan", toClock, clock)),
+                        thunk(day(call("adjust", to, lit(1), days()))), thunk(to))));
+        ValueSpecification months = lit(0);
+        ValueSpecification stepped = from;
+        if (member == TemporalMember.BETWEEN || member == TemporalMember.IN_MONTHS) {
+            months = monthsUntil(from, end);
+            stepped = day(call("adjust", from, months, unit("MONTHS")));
+        }
+        if (member != TemporalMember.BETWEEN && member != TemporalMember.IN_DAYS) {
+            return new Calendar(months, lit(0), from);
+        }
+        return new Calendar(months, call("dateDiff", stepped, end, days()), end);
+    }
+
+    /** {@link #calendarBetween}'s parts: the months, the days, the date they land on. */
+    private record Calendar(ValueSpecification months, ValueSpecification days, ValueSpecification landed) {
+    }
+
+    /** {@link #between} over the parts (W13) where a zoned value is among the operands, as §12.11 reads them: two
+     *  zoned times their instants on the epoch day; a zoned time and a local time, the local one read in the zoned
+     *  one's zone; a zoned time and a date or date-time, the time placed on the other's wall date in its own zone; a
+     *  time of day and a date or date-time, the time on the other's date; a zoned and a local value, the local one
+     *  read in the zoned one's zone; then the instants', or the wall times', parts. */
+    private Tx partsBetween(TemporalMember member, Tx a, Tx b, String cls, Pos pos) {
+        Tx x = a;
+        Tx y = b;
+        Zone ztx = x.kind() == Kind.ZONED_TIME ? zoneKnown(x, pos) : null;
+        Zone zty = y.kind() == Kind.ZONED_TIME ? zoneKnown(y, pos) : null;
+        if (ztx != null && zty != null) {
+            x = instantOfTime(asSplitZonedTime(x, ztx));
+            y = instantOfTime(asSplitZonedTime(y, zty));
+        } else if (ztx != null || zty != null) {
+            boolean first = ztx != null;
+            Zone tz = java.util.Objects.requireNonNull(first ? ztx : zty);
+            Tx zt = asSplitZonedTime(first ? x : y, tz);
+            Tx other = first ? y : x;
+            Tx placed;
+            Tx otherSide;
+            if (other.kind() == Kind.TIME) {
+                placed = instantOfTime(zt);
+                otherSide = instantOfTime(zonedTimeOf(asSplit(other), tz));
+            } else if (isDateLike(other.kind())) {
+                Zone oz = other.kind() == Kind.ZONED ? zoneKnown(other, pos) : null;
+                Tx otherWall = oz == null ? asSplit(asDateTime(other)) : localOf(asSplitZoned(other, oz), oz);
+                Tx onDate = splitDateTime(datePartOf(otherWall), ofDay(wallTimeOf(zt, tz)));
+                placed = instantParts(instantOf(onDate, tz));
+                otherSide = oz != null ? instantParts(other) : instantParts(instantOf(otherWall, tz));
+            } else {
+                throw CypherErrors.unsupported("duration.between of a Time and a " + cypherType(other.kind())
+                        + " is not supported yet", pos);
+            }
+            x = first ? placed : otherSide;
+            y = first ? otherSide : placed;
+        }
+        boolean dates = isDateLike(x.kind()) && isDateLike(y.kind());
+        boolean times = x.kind() == Kind.TIME && y.kind() == Kind.TIME;
+        boolean mixed = x.kind() == Kind.TIME && isDateLike(y.kind()) || isDateLike(x.kind()) && y.kind() == Kind.TIME;
+        if (!dates && !times && !mixed) {
+            throw CypherErrors.unsupported("duration.between of a " + cypherType(x.kind()) + " and a "
+                    + cypherType(y.kind()) + " is not supported yet", pos);
+        }
+        if (mixed) {
+            boolean timeFirst = x.kind() == Kind.TIME;
+            Tx time = asSplit(timeFirst ? x : y);
+            Tx other = timeFirst ? y : x;
+            Zone z = other.kind() == Kind.ZONED ? zoneKnown(other, pos) : null;
+            Tx wall = z == null ? asSplit(asDateTime(other)) : localOf(asSplitZoned(other, z), z);
+            Tx onDate = splitDateTime(datePartOf(wall), ofDay(time));
+            Tx placed = z == null ? onDate : instantParts(instantOf(onDate, z));
+            Tx otherSide = z == null ? wall : instantParts(other);
+            x = timeFirst ? placed : otherSide;
+            y = timeFirst ? otherSide : placed;
+        }
+        Zone zx = x.kind() == Kind.ZONED ? zoneKnown(x, pos) : null;
+        Zone zy = y.kind() == Kind.ZONED ? zoneKnown(y, pos) : null;
+        if (zx != null && zy == null) {
+            y = instantOf(asSplit(asDateTime(y)), zx);
+        } else if (zy != null && zx == null) {
+            x = instantOf(asSplit(asDateTime(x)), zy);
+        }
+        if (x.kind() == Kind.ZONED && y.kind() == Kind.ZONED) {
+            // two zoned values (W13): the months and days counted on the wall times in the first one's zone, Java's
+            // (the second's instant read there), the rest the instants' difference (measured 2026-10-18)
+            Zone walls = zoneKnown(x, pos);
+            Tx first = asSplitZoned(x, walls);
+            Tx second = asSplitZoned(y, zoneKnown(y, pos));
+            if (walls.named()) {
+                return namedZoneBetween(member, utcParts(first), utcParts(second), walls, cls);
+            }
+            return splitBetween(member, localOf(first, walls), localOf(second, walls), cls);
+        }
+        Tx from = x.kind() == Kind.ZONED ? instantParts(x) : x;
+        Tx to = y.kind() == Kind.ZONED ? instantParts(y) : y;
+        return splitBetween(member, from, to, cls);
+    }
+
+    /** {@link #between} of two local values of which one is split (W13), over the parts: the whole months from a to
+     *  b (the calendar count, one back where stepping it overshoots b), then the whole days from there, then the
+     *  rest's seconds and nanoseconds -- the days' and the clocks' apart, so no nanosecond count of a long span
+     *  overflows; two times of day, the clocks' difference alone. A date is its midnight. */
+    private Tx splitBetween(TemporalMember member, Tx x, Tx y, String cls) {
+        boolean times = x.kind() == Kind.TIME;
+        Tx a = asSplit(times ? x : asDateTime(x));
+        Tx b = asSplit(times ? y : asDateTime(y));
+        List<Tx> inputs = times ? List.of(ofDay(a), ofDay(b)) : List.of(datePartOf(a), ofDay(a), datePartOf(b),
+                ofDay(b));
+        return strict(Kind.DURATION, inputs, v -> {
+            if (times) {
+                ValueSpecification rest = integer(minus(v.get(1), v.get(0)));
+                return member == TemporalMember.BETWEEN || member == TemporalMember.IN_SECONDS
+                        ? duration(cls, lit(0), lit(0), quotient(rest, NANOS), integer(call("mod", rest, lit(NANOS))))
+                        : duration(cls, lit(0), lit(0), lit(0), lit(0));
+            }
+            ValueSpecification from = v.get(0);
+            ValueSpecification clock = v.get(1);
+            ValueSpecification toDate = v.get(2);
+            ValueSpecification toClock = v.get(3);
+            Calendar cal = calendarBetween(member, from, clock, toDate, toClock);
+            if (member == TemporalMember.IN_MONTHS) {
+                return duration(cls, cal.months(), lit(0), lit(0), lit(0));
+            }
+            if (member == TemporalMember.IN_DAYS) {
+                return duration(cls, lit(0), cal.days(), lit(0), lit(0));
+            }
+            // the rest from the start's clock on the date the months and days land on
+            ValueSpecification clocks = integer(minus(toClock, clock));
+            ValueSpecification seconds = integer(plus(times(86_400L, call("dateDiff", cal.landed(), toDate, days())),
+                    quotient(clocks, NANOS)));
+            return duration(cls, cal.months(), cal.days(), seconds, integer(call("mod", clocks, lit(NANOS))));
+        });
     }
 
     private static boolean isDateLike(Kind k) {
@@ -8372,22 +15778,30 @@ public final class CypherToPure {
         if (t.kind() != Kind.DATE) {
             return t;
         }
-        return SqlToPure.strict(Kind.DATETIME, List.of(t), v -> call(AT_TIME, v.get(0),
+        return strict(Kind.DATETIME, List.of(t), v -> call(AT_TIME, v.get(0),
                 new com.legend.protocol.spec.CTime(new com.legend.values.PureTimeLiteral.TimeWithMinute(0, 0),
                         "00:00", null)));
     }
 
-    /** The whole units of {@code unit} from {@code from} to {@code to}: the calendar count, one back when stepping
-     *  it from {@code from} overshoots {@code to} (forward), one on when it undershoots (backward). */
-    private static ValueSpecification wholeUnits(ValueSpecification from, ValueSpecification to, String unitName,
-            boolean nanos) {
-        ValueSpecification count = call("dateDiff", from, to, unit(unitName));
-        ValueSpecification stepped = step(from, count, unitName, nanos);
-        ValueSpecification forward = call("if", call("greaterThan", stepped, to), thunk(minus(count, lit(1))),
-                thunk(count));
-        ValueSpecification backward = call("if", call("lessThan", stepped, to), thunk(plus(count, lit(1))),
-                thunk(count));
-        return call("if", call("greaterThanEqual", to, from), thunk(forward), thunk(backward));
+    /** The whole months from the date {@code from} to the date {@code end} (the span's end date as Java adjusts it,
+     *  {@link #calendarBetween}), Java's {@code monthsUntil}, Neo4j's: the months of the two dates' packed difference
+     *  ({@code month * 32 + day}) truncated toward zero, so a month counts once the end's day of the month reaches the
+     *  start's: from the 31st of January to the 28th of February is no month (measured 2026-10-18; the database's
+     *  calendar count, stepped back where the step overshoots, made it one, the step clamped to the month's end). */
+    private static ValueSpecification monthsUntil(ValueSpecification from, ValueSpecification end) {
+        ValueSpecification months = integer(plus(times(12L, minus(call("year", end), call("year", from))),
+                minus(call("monthNumber", end), call("monthNumber", from))));
+        ValueSpecification days = integer(minus(call("dayOfMonth", end), call("dayOfMonth", from)));
+        ValueSpecification back = call("if", call("and", call("greaterThan", months, lit(0)), call("lessThan", days,
+                lit(0))), thunk(lit(1)), thunk(lit(0)));
+        ValueSpecification on = call("if", call("and", call("lessThan", months, lit(0)), call("greaterThan", days,
+                lit(0))), thunk(lit(1)), thunk(lit(0)));
+        return integer(plus(minus(months, back), on));
+    }
+
+    /** A date-time's microseconds since its midnight, the database's (a clock to compare: Pure orders no StrictTime). */
+    private static ValueSpecification clockMicros(ValueSpecification dt) {
+        return call("dateDiff", call(AT_TIME, call("datePart", dt), MIDNIGHT), dt, unit("MICROSECONDS"));
     }
 
     private static ValueSpecification epochInstant() {
@@ -8412,7 +15826,7 @@ public final class CypherToPure {
         boolean withTime = family == TemporalFamily.LOCALDATETIME;
         TemporalMember member = TEMPORAL_MEMBERS.get(suffix);
         if (member == null) {
-            throw CypherErrors.unsupported("the function " + c.name() + "(...) is not supported yet", c.pos());
+            throw unknownOrUnsupported(c);
         }
         if (family == TemporalFamily.DURATION) {
             return switch (member) {
@@ -8437,17 +15851,42 @@ public final class CypherToPure {
                 }
                 yield fromEpoch(c, member == TemporalMember.FROM_EPOCH_MILLIS, scope);
             }
-            case REALTIME, STATEMENT, TRANSACTION -> throw CypherErrors.unsupported("the function " + c.name()
-                    + "() (the current date or time: a value of the call, not of the data) is not supported yet",
-                    c.pos());
+            case REALTIME, STATEMENT, TRANSACTION -> {
+                // the three clocks are the statement's one (the database's now, read once per statement:
+                // docs/SEMANTICS_REGISTER.md S77); a null argument, null; a time zone argument is not spelled
+                if (c.args().size() > 1) {
+                    throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
+                }
+                if (!c.args().isEmpty()) {
+                    Val a = val(c.args().get(0), scope);
+                    if (a instanceof Scalar s && s.tx().kind() == Kind.NULL) {
+                        yield nullValue();
+                    }
+                    throw CypherErrors.unsupported("the function " + c.name() + "(...) with an argument (a time zone"
+                            + " for the clock) is not supported yet", c.pos());
+                }
+                CypherAst.Call bare = new CypherAst.Call(c.name(), false, List.of(), c.pos());
+                yield switch (family) {
+                    case LOCALTIME -> timeFrom(bare, scope);
+                    case TIME -> zonedTimeFrom(bare, scope);
+                    case DATETIME -> zonedFrom(bare, scope);
+                    default -> temporalFrom(bare, withTime, scope);
+                };
+            }
         };
+    }
+
+    /** The statement's clock: the database's now, a date-time (Pure's {@code now()}, SQL's transaction or statement
+     *  start on every database: one value per statement, however often it is read, the study's §12.51). */
+    private static Tx now() {
+        return Tx.value(call("now"), Kind.DATETIME, false);
     }
 
     /** {@code date(x)}, {@code localdatetime(x)}: from a map of components, an ISO text, or another temporal value. */
     private Val temporalFrom(CypherAst.Call c, boolean withTime, Scope scope) {
         if (c.args().isEmpty()) {
-            throw CypherErrors.unsupported("the function " + c.name() + "() (the current date or time: a value of the"
-                    + " call, not of the data) is not supported yet", c.pos());
+            // the statement's clock (the study's §12.51): the database's today and now
+            return scalar(withTime ? now() : Tx.value(call("today"), Kind.DATE, false));
         }
         if (c.args().size() > 1) {
             throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
@@ -8463,8 +15902,7 @@ public final class CypherToPure {
                 }
                 yield a;
             }
-            case Scalar s when s.tx().kind() == Kind.DATETIME -> withTime ? a
-                    : scalar(SqlToPure.strict(Kind.DATE, List.of(s.tx()), x -> call("datePart", x.get(0))));
+            case Scalar s when s.tx().kind() == Kind.DATETIME -> withTime ? a : scalar(datePartOf(s.tx()));
             case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected Map, String, Date, LocalDateTime or"
                     + " DateTime but was " + cypherType(s.tx().kind()), c.pos());
             case MapVal m -> temporalFromComponents(c, m, withTime, result);
@@ -8477,8 +15915,9 @@ public final class CypherToPure {
      *  date-time (the default zone, UTC), or another zoned date-time. */
     private Val zonedFrom(CypherAst.Call c, Scope scope) {
         if (c.args().isEmpty()) {
-            throw CypherErrors.unsupported("the function " + c.name() + "() (the current date-time: a value of the"
-                    + " call, not of the data) is not supported yet", c.pos());
+            // the statement's clock (the study's §12.51): the database's now, an instant, in UTC (the session's
+            // zone, pinned; Neo4j's default)
+            return scalar(zoned(now(), Zone.UTC));
         }
         if (c.args().size() > 1) {
             throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
@@ -8546,6 +15985,11 @@ public final class CypherToPure {
      *  Neo4j, the default zone UTC) is Pure's date literal, the instant the database's shift of it; a named zone in
      *  brackets, the other literal forms, and a text of the row are refused by name. */
     private Val zonedFromText(CypherAst.Call c, Scalar s) {
+        Tx printed = printedValue(s, Kind.ZONED);
+        if (!s.literal() && printed != null) {
+            // the text a zoned date-time was printed as: that date-time (print then parse is the identity, §12.74)
+            return scalar(printed);
+        }
         if (!s.literal()) {
             throw CypherErrors.unsupported("a zoned date-time text of the row (its offset read by the database) is"
                     + " not supported yet", c.pos());
@@ -8561,9 +16005,10 @@ public final class CypherToPure {
         Zone offset = tt.zoneText() == null ? null : zone(tt.zoneText(), true, c.pos());
         Zone named = tt.zoneName() == null ? null : zone(tt.zoneName(), false, c.pos());
         Val wall = dateTimeOfText(c, tt, text);
-        if (!(wall instanceof Scalar ws)) {
+        if (!(wall instanceof Scalar written)) {
             return wall;
         }
+        Scalar ws = written;
         Zone in = offset != null ? offset : named != null ? named : Zone.UTC;
         Tx instant = instantOf(ws.tx(), in);
         if (named == null || offset == null) {
@@ -8572,11 +16017,23 @@ public final class CypherToPure {
         // Neo4j's check that the offset is the zone's at that instant (an overlap's second reading passes: the
         // instant read back in the zone is the wall time written): the database judges, and raises as Neo4j does
         String zoneName = java.util.Objects.requireNonNull(named.name());
-        boolean fine = nanos(instant);
-        Tx checked = withNanos(SqlToPure.strict(Kind.DATETIME, List.of(instant, ws.tx()), v -> call("if",
-                call("equal", inZone(LOCAL_IN, v.get(0), named, fine), v.get(1)), thunk(v.get(0)),
+        if (split(instant)) {
+            // of nanosecond precision (W13): the instant's microseconds read in the zone against the wall time's
+            // (the offset a whole number of seconds, the digits past the microsecond agree), the check on its
+            // nanoseconds since midnight
+            Tx utc = utcParts(instant);
+            Tx wallParts = ws.tx();
+            Tx checkedClock = strict(Kind.INTEGER, List.of(datePartOf(utc), ofDay(utc),
+                    datePartOf(wallParts), ofDay(wallParts)), v -> call("if", call("equal", call(LOCAL_IN, micros(
+                    v.get(0), v.get(1)), new CString(zoneName)), micros(v.get(2), v.get(3))), thunk(v.get(1)),
+                    new LambdaFunction(List.of(), List.of(call("fail", new CString("Timezone and offset do not match: "
+                            + text)), v.get(1)))));
+            return scalar(splitZoned(splitDateTime(datePartOf(utc), checkedClock), named));
+        }
+        Tx checked = strict(Kind.DATETIME, List.of(instant, ws.tx()), v -> call("if",
+                call("equal", inZone(LOCAL_IN, v.get(0), named), v.get(1)), thunk(v.get(0)),
                 new LambdaFunction(List.of(), List.of(call("fail", new CString("Timezone and offset do not match: "
-                        + text)), v.get(0))))), fine);
+                        + text)), v.get(0)))));
         return scalar(zoned(checked, named));
     }
 
@@ -8656,21 +16113,41 @@ public final class CypherToPure {
             }
             inputs.add(s.tx());
         }
+        if (!millis && inputs.get(1).vs() instanceof CInteger n && (n.value().longValue() < 0
+                || n.value().longValue() > 999_999_999L)) {
+            // Neo4j's: the nanoseconds are those of the second (measured on the server)
+            throw CypherErrors.invalid("Invalid nanosecond: " + n.value(), c.args().get(1).pos());
+        }
+        if (!millis && !(inputs.get(1).vs() instanceof CInteger)) {
+            // (nanoseconds the row computes: Neo4j's error where they are not those of a second, the database's raise)
+            Tx ns = inputs.get(1);
+            inputs.set(1, Tx.value(raisingWhere(call("or", call("lessThan", ns.vs(), lit(0)), call("greaterThan",
+                    ns.vs(), lit(999_999_999L))), "Invalid nanosecond", ns.vs()), Kind.INTEGER, ns.nullable()));
+        }
         boolean fine = !millis && nanosComponent(inputs.get(1), c.pos());
-        return scalar(zoned(withNanos(SqlToPure.strict(Kind.DATETIME, inputs, v -> millis
+        if (fine) {
+            // of nanosecond precision (W13): the epoch day moved by the seconds' whole days and the whole days of the
+            // rest (the seconds past whole days a float product cast back, exact below 2^53, and the nanoseconds),
+            // the clock what is left
+            java.util.function.BinaryOperator<ValueSpecification> rest = (secs, ns) -> integer(plus(secondsAsNanos(
+                    call("mod", secs, lit(86_400L))), ns));
+            Tx clock = strict(Kind.INTEGER, inputs, v -> integer(call("mod", rest.apply(v.get(0), v.get(1)),
+                    lit(DAY_NANOS))));
+            Tx date = strict(Kind.DATE, inputs, v -> day(call("adjust", epoch(), integer(plus(quotient(
+                    v.get(0), 86_400L), quotient(rest.apply(v.get(0), v.get(1)), DAY_NANOS))), days())));
+            return scalar(zoned(splitDateTime(date, clock), Zone.UTC));
+        }
+        return scalar(zoned(strict(Kind.DATETIME, inputs, v -> millis
                 ? call("adjust", epochInstant(), integer(v.get(0)), unit("MILLISECONDS"))
-                : fine ? call("adjust", call("adjust", epochInstant(), integer(v.get(0)), unit("SECONDS")),
-                        integer(v.get(1)), unit("NANOSECONDS"))
                 : call("adjust", call("adjust", epochInstant(), integer(v.get(0)), unit("SECONDS")),
-                        integer(call("divide", v.get(1), new CInteger(1000L))), unit("MICROSECONDS"))), fine),
-                Zone.UTC));
+                        integer(call("divide", v.get(1), new CInteger(1000L))), unit("MICROSECONDS"))), Zone.UTC));
     }
 
     /** {@code localtime(x)}: from a map of components, an ISO text, or a date-time or time of day. */
     private Val timeFrom(CypherAst.Call c, Scope scope) {
         if (c.args().isEmpty()) {
-            throw CypherErrors.unsupported("the function " + c.name() + "() (the current time: a value of the call,"
-                    + " not of the data) is not supported yet", c.pos());
+            // the statement's clock (the study's §12.51): the time of day of the database's now
+            return scalar(timeOf(now()));
         }
         if (c.args().size() > 1) {
             throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
@@ -8703,12 +16180,15 @@ public final class CypherToPure {
      *  epoch day. */
     private Val timeFromText(CypherAst.Call c, Scalar s) {
         Tx t = s.tx();
+        Tx printed = printedValue(s, Kind.TIME);
+        if (!s.literal() && printed != null) {
+            // the text a split time of day was printed as (W13): that time (print then parse is the identity)
+            return scalar(printed);
+        }
         if (!s.literal()) {
-            boolean fine = nanos(t);
-            // (a nanosecond time is the date-time at it on the epoch day, §12.12)
-            return scalar(withNanos(SqlToPure.strict(Kind.TIME, List.of(t), x -> fine
-                    ? parsedWithNanos(x.get(0), 15, true, "1970-01-01T")
-                    : call(TIME_OF, parsedWithNanos(x.get(0), 15, false, "1970-01-01T"))), fine));
+            // (a text a nanosecond value was printed as, marked so: the parts it spells, W13)
+            return scalar(nanos(t) ? splitOfIso(t, Kind.TIME) : strict(Kind.TIME, List.of(t),
+                    x -> call(TIME_OF, call("parseDate", plus(new CString("1970-01-01T"), x.get(0))))));
         }
         String text = (String) java.util.Objects.requireNonNull(s.constant());
         com.legend.values.PureTimeLiteral lit = timeLiteral(text);
@@ -8726,10 +16206,9 @@ public final class CypherToPure {
      *  microsecond moved by the sub-microsecond digits, on the epoch day (a nanosecond time of day). */
     private static Tx timeValue(com.legend.values.PureTimeLiteral lit) {
         if (lit instanceof com.legend.values.PureTimeLiteral.TimeWithSubsecond sub && sub.subsecond().length() > 6) {
-            com.legend.values.PureTimeLiteral micro = new com.legend.values.PureTimeLiteral.TimeWithSubsecond(
-                    sub.hour(), sub.minute(), sub.second(), sub.subsecond().substring(0, 6));
-            return finer(atEpoch(new com.legend.protocol.spec.CTime(micro, micro.toEngineString(), null)),
-                    subMicro(sub.subsecond()), Kind.TIME);
+            // finer than a microsecond: its nanoseconds since midnight (W13), the database's sum of the written clock
+            return splitTime(Tx.value(clockNanos(lit(sub.hour()), lit(sub.minute()), lit(sub.second()),
+                    lit(fractionNanos(sub.subsecond()))), Kind.INTEGER, false));
         }
         return Tx.value(new com.legend.protocol.spec.CTime(lit, lit.toEngineString(), null), Kind.TIME, false);
     }
@@ -8831,8 +16310,8 @@ public final class CypherToPure {
                 }
             }
         }
-        if (base == null && !parts.containsKey(Component.HOUR)) {
-            throw CypherErrors.invalid("hour must be specified", c.pos());
+        if (base == null) {
+            checkClock(parts.keySet(), c.pos());
         }
         boolean nanosComponent = nanosComponent(parts.get(Component.NANOSECOND), c.pos());
         if (base != null && parts.isEmpty()) {
@@ -8845,21 +16324,26 @@ public final class CypherToPure {
         }
         boolean hasBase = base != null;
         boolean baseIsTime = base != null && base.kind() == Kind.TIME;
-        boolean baseNanos = base != null && nanos(base);
-        boolean fine = baseNanos || nanosComponent;
         Set<Component> keys = parts.keySet();
-        return scalar(withNanos(SqlToPure.strict(Kind.TIME, inputs, v -> {
+        if (base != null && nanos(base) || nanosComponent) {
+            // of nanosecond precision: the nanoseconds since midnight the components spell over the base's (W13)
+            List<Tx> clockInputs = new ArrayList<>(parts.values());
+            if (base != null) {
+                clockInputs.add(0, ofDay(base));
+            }
+            return scalar(splitTime(strict(Kind.INTEGER, clockInputs, v -> clockOf(hasBase ? v.get(0)
+                    : null, components(keys, v, hasBase ? 1 : 0)))));
+        }
+        return scalar(strict(Kind.TIME, inputs, v -> {
             Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
             int i = hasBase ? 1 : 0;
             for (Component k : keys) {
                 p.put(k, v.get(i++));
             }
-            // (a nanosecond time of day is the date-time at it on the epoch day already)
-            ValueSpecification baseTime = hasBase ? baseIsTime && !baseNanos ? atEpoch(v.get(0)) : v.get(0) : null;
+            ValueSpecification baseTime = hasBase ? baseIsTime ? atEpoch(v.get(0)) : v.get(0) : null;
             ValueSpecification one = new CInteger(1L);
-            ValueSpecification at = timeParts(new CInteger(1970L), one, one, baseTime, p, baseNanos, nanosComponent);
-            return fine ? at : call(TIME_OF, at);
-        }), fine));
+            return call(TIME_OF, timeParts(new CInteger(1970L), one, one, baseTime, p));
+        }));
     }
 
     /** A date-time: the date (its year, month and day) at the time the components spell — each of hour, minute and
@@ -8869,7 +16353,7 @@ public final class CypherToPure {
      *  and microseconds. */
     private static ValueSpecification timeParts(ValueSpecification year, ValueSpecification month,
             ValueSpecification day, @com.legend.base.Nullable ValueSpecification baseTime,
-            Map<Component, ValueSpecification> p, boolean baseNanos, boolean nanosComponent) {
+            Map<Component, ValueSpecification> p) {
         ValueSpecification h = p.containsKey(Component.HOUR) ? p.get(Component.HOUR) : baseTime != null
                 ? call("hour", baseTime) : new CInteger(0L);
         ValueSpecification mi = p.containsKey(Component.MINUTE) ? p.get(Component.MINUTE) : baseTime != null
@@ -8879,9 +16363,8 @@ public final class CypherToPure {
         ValueSpecification dt = call("date", year, month, day, integer(h), integer(mi), integer(s));
         if (baseTime != null && !p.containsKey(Component.MILLISECOND) && !p.containsKey(Component.MICROSECOND)
                 && !p.containsKey(Component.NANOSECOND)) {
-            String u = baseNanos ? "NANOSECONDS" : "MICROSECONDS";
             dt = call("adjust", dt, call("dateDiff", call("firstMillisecondOfSecond", baseTime), baseTime,
-                    unit(u)), unit(u));
+                    unit("MICROSECONDS")), unit("MICROSECONDS"));
         }
         if (p.containsKey(Component.MILLISECOND)) {
             dt = call("adjust", dt, integer(p.get(Component.MILLISECOND)), unit("MILLISECONDS"));
@@ -8890,31 +16373,26 @@ public final class CypherToPure {
             dt = call("adjust", dt, integer(p.get(Component.MICROSECOND)), unit("MICROSECONDS"));
         }
         if (p.containsKey(Component.NANOSECOND)) {
-            dt = nanosComponent ? call("adjust", dt, integer(p.get(Component.NANOSECOND)), unit("NANOSECONDS"))
-                    : call("adjust", dt, integer(call("divide", p.get(Component.NANOSECOND), new CInteger(1000L))),
-                            unit("MICROSECONDS"));
+            // (a multiple of a thousand: a nanosecond component that is not one makes the value its parts, W13)
+            dt = call("adjust", dt, integer(call("divide", p.get(Component.NANOSECOND), new CInteger(1000L))),
+                    unit("MICROSECONDS"));
         }
         return dt;
     }
 
     /** Whether a nanosecond component makes the value of nanosecond precision: a spelled number that is not a
-     *  multiple of a thousand (a multiple is the database's microseconds, every engine's); one of the row is
-     *  refused by name. */
+     *  multiple of a thousand (a multiple is the database's microseconds, every engine's), and one of the row (its
+     *  parts carry whatever nanoseconds the row computes, W13). */
     private static boolean nanosComponent(@com.legend.base.Nullable Tx t, Pos pos) {
         if (t == null) {
             return false;
         }
-        if (!(t.vs() instanceof CInteger n)) {
-            throw CypherErrors.unsupported("a nanosecond component that is not a spelled number (the database's"
-                    + " nanoseconds are DuckDB's) is not supported yet", pos);
-        }
-        return n.value().longValue() % 1000 != 0;
+        return !(t.vs() instanceof CInteger n) || n.value().longValue() % 1000 != 0;
     }
 
-    /** {@code dt} with the sub-second fields written over it added, the nanoseconds as the database's nanosecond
-     *  step when of nanosecond precision, else as the microseconds they are. */
-    private static ValueSpecification withSubSecond(ValueSpecification dt, Map<Component, ValueSpecification> o,
-            boolean nanosField) {
+    /** {@code dt} with the sub-second fields written over it added, the nanoseconds as the microseconds they are
+     *  (a nanosecond field that is not a multiple of a thousand makes the value its parts, W13). */
+    private static ValueSpecification withSubSecond(ValueSpecification dt, Map<Component, ValueSpecification> o) {
         ValueSpecification out = dt;
         if (o.containsKey(Component.MILLISECOND)) {
             out = call("adjust", out, integer(o.get(Component.MILLISECOND)), unit("MILLISECONDS"));
@@ -8923,42 +16401,33 @@ public final class CypherToPure {
             out = call("adjust", out, integer(o.get(Component.MICROSECOND)), unit("MICROSECONDS"));
         }
         if (o.containsKey(Component.NANOSECOND)) {
-            out = nanosField ? call("adjust", out, integer(o.get(Component.NANOSECOND)), unit("NANOSECONDS"))
-                    : call("adjust", out, SqlToPure.integerQuotient(o.get(Component.NANOSECOND), new CInteger(
-                            1000L)), unit("MICROSECONDS"));
+            out = call("adjust", out, SqlToPure.integerQuotient(o.get(Component.NANOSECOND), new CInteger(1000L)),
+                    unit("MICROSECONDS"));
         }
         return out;
     }
 
-    /** {@code x} moved by a duration's seconds and nanoseconds: the seconds an interval step (a nanosecond value's
-     *  sub-microsecond digits put back after it), the nanoseconds a nanosecond step — two steps, so no product of
-     *  the seconds and a billion (which the database folds to 32 bits over a literal-built slot). */
-    private static ValueSpecification secondsAndNanos(ValueSpecification x, ValueSpecification seconds,
-            ValueSpecification nanos, boolean xNanos) {
-        ValueSpecification moved = call("adjust", x, integer(seconds), unit("SECONDS"));
-        if (xNanos) {
-            moved = remainderKept(moved, x);
-        }
-        return call("adjust", moved, integer(nanos), unit("NANOSECONDS"));
-    }
-
-    /** A calendar step of a value ({@code adjust} by months, days, ...: an interval, microseconds), a nanosecond
-     *  value's sub-microsecond digits put back. */
-    private static ValueSpecification step(ValueSpecification x, ValueSpecification n, String unitName,
-            boolean nanos) {
-        ValueSpecification moved = call("adjust", x, integer(n), unit(unitName));
-        return nanos ? remainderKept(moved, x) : moved;
+    /** A calendar step of a value ({@code adjust} by months, days, ...: an interval, microseconds). */
+    private static ValueSpecification step(ValueSpecification x, ValueSpecification n, String unitName) {
+        return call("adjust", x, integer(n), unit(unitName));
     }
 
     /** A temporal value from a text: a literal in the ISO calendar form is Pure's date literal; any other literal
      *  form (compact, week, ordinal, a zone) is refused by name; a text of the row is the database's parse. */
     private Val temporalFromText(CypherAst.Call c, Scalar s, boolean withTime) {
         Tx t = s.tx();
+        Tx printed = withTime ? printedValue(s, Kind.DATETIME) : null;
+        if (!s.literal() && printed != null) {
+            // the text a split date-time was printed as (W13): that date-time (print then parse is the identity)
+            return scalar(printed);
+        }
         if (!s.literal()) {
-            boolean fine = withTime && nanos(t);
-            return scalar(withNanos(SqlToPure.strict(withTime ? Kind.DATETIME : Kind.DATE, List.of(t), x -> withTime
-                    ? parsedWithNanos(x.get(0), 26, fine, null) : call("datePart", call("parseDate", x.get(0)))),
-                    fine));
+            if (withTime && nanos(t)) {
+                // (a text a nanosecond value was printed as, marked so: the parts it spells, W13)
+                return scalar(splitOfIso(t, Kind.DATETIME));
+            }
+            return scalar(strict(withTime ? Kind.DATETIME : Kind.DATE, List.of(t), x -> withTime
+                    ? call("parseDate", x.get(0)) : call("datePart", call("parseDate", x.get(0)))));
         }
         String text = (String) java.util.Objects.requireNonNull(s.constant());
         com.legend.values.PureDateLiteral lit = isoLiteral(text, withTime);
@@ -8979,12 +16448,13 @@ public final class CypherToPure {
      *  the microsecond moved by the sub-microsecond digits (a nanosecond date-time). */
     private static Tx dateTimeValue(com.legend.values.PureDateLiteral lit, Kind kind, Pos pos) {
         if (lit instanceof com.legend.values.PureDateLiteral.DateWithSubsecond sub && sub.subsecond().length() > 6) {
-            nanosRange(sub.year(), pos);
-            com.legend.values.PureDateLiteral micro = new com.legend.values.PureDateLiteral.DateWithSubsecond(
-                    sub.year(), sub.month(), sub.day(), sub.hour(), sub.minute(), sub.second(),
-                    sub.subsecond().substring(0, 6));
-            return finer(new com.legend.protocol.spec.CDate(micro, micro.toEngineString(), null),
-                    subMicro(sub.subsecond()), kind);
+            // finer than a microsecond: its parts (W13), the date as written and the nanoseconds since midnight the
+            // database adds up from the written clock
+            com.legend.values.PureDateLiteral.StrictDate day = new com.legend.values.PureDateLiteral.StrictDate(
+                    sub.year(), sub.month(), sub.day());
+            return splitDateTime(Tx.value(new com.legend.protocol.spec.CDate(day, day.toEngineString(), null),
+                    Kind.DATE, false), Tx.value(clockNanos(lit(sub.hour()), lit(sub.minute()), lit(sub.second()),
+                    lit(fractionNanos(sub.subsecond()))), Kind.INTEGER, false));
         }
         return Tx.value(new com.legend.protocol.spec.CDate(lit, lit.toEngineString(), null), kind, false);
     }
@@ -8995,10 +16465,10 @@ public final class CypherToPure {
      * ({@code 2015-W30-2}, {@code 2015W302}, {@code 2015-W30}, {@code 2015W30}), the ordinal forms ({@code 2015-202},
      * {@code 2015202}), the quarter forms ({@code 2015-Q2-60}, {@code 2015Q260}, {@code 2015-Q2}, {@code 2015Q2});
      * a time ({@code 21:40:32.142}, {@code 214032.142}, {@code 21:40}, {@code 2140}, {@code 21}) after a {@code T},
-     * or alone; a zone ({@code Z}, an offset, a region's name in brackets) after the time. Null when the text is
-     * none of these. The parts are the digits as written; what they spell is the database's. (Package-private:
-     * its one construction is inside its own body, which the dead-code guard would read as no use of a private
-     * one.)
+     * or alone (a date-time's, when not written, midnight); a zone ({@code Z}, an offset, a region's name in
+     * brackets) after the time. Null when the text is none of these. The parts are the digits as written; what they
+     * spell is the database's. (Package-private: its one construction is inside its own body, which the dead-code
+     * guard would read as no use of a private one.)
      */
     record TemporalText(Map<Component, Long> date, boolean calendar, @com.legend.base.Nullable Integer hour,
             @com.legend.base.Nullable Integer minute, @com.legend.base.Nullable Integer second, String fraction,
@@ -9021,13 +16491,21 @@ public final class CypherToPure {
             }
             String datePart = null;
             String timePart = null;
+            boolean midnight = false;
             if (wantDate && wantTime) {
                 int t = rest.indexOf('T');
                 if (t < 0) {
-                    return null;
+                    // a date alone: the time midnight (Neo4j's pattern makes the time optional, a zone only after
+                    // it; measured: localdatetime('1984-10-12') is 1984-10-12T00:00)
+                    if (zoneName != null) {
+                        return null;
+                    }
+                    datePart = rest;
+                    midnight = true;
+                } else {
+                    datePart = rest.substring(0, t);
+                    timePart = rest.substring(t + 1);
                 }
-                datePart = rest.substring(0, t);
-                timePart = rest.substring(t + 1);
             } else if (wantDate) {
                 datePart = rest;
             } else {
@@ -9067,6 +16545,10 @@ public final class CypherToPure {
                 minute = parts > 1 ? hms[1] : 0;
                 second = parts > 2 ? hms[2] : 0;
                 fraction = frac[0] == null ? "" : frac[0];
+            } else if (midnight) {
+                hour = 0;
+                minute = 0;
+                second = 0;
             }
             return new TemporalText(date, calendar, hour, minute, second, fraction, zoneText, zoneName);
         }
@@ -9234,6 +16716,13 @@ public final class CypherToPure {
             return scalar(dateTimeValue(lit, Kind.DATETIME, c.pos()));
         }
         ValueSpecification date = dateOfText(c, t);
+        if (rest != 0) {
+            // of nanosecond precision (W13): the date the text spells, the clock its nanoseconds since midnight
+            return scalar(splitDateTime(Tx.value(date, Kind.DATE, false), Tx.value(clockNanos(
+                    lit(java.util.Objects.requireNonNull(t.hour())), lit(java.util.Objects.requireNonNull(t.minute())),
+                    lit(java.util.Objects.requireNonNull(t.second())), lit(fractionNanos(fraction))), Kind.INTEGER,
+                    false)));
+        }
         Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
         p.put(Component.HOUR, lit(java.util.Objects.requireNonNull(t.hour())));
         p.put(Component.MINUTE, lit(java.util.Objects.requireNonNull(t.minute())));
@@ -9241,12 +16730,8 @@ public final class CypherToPure {
         if (!fraction.isEmpty()) {
             p.put(Component.MICROSECOND, lit(Long.parseLong((fraction + "000000").substring(0, 6))));
         }
-        if (rest != 0) {
-            nanosRange(part(d, Component.YEAR), c.pos());
-            p.put(Component.NANOSECOND, lit(rest));
-        }
-        return scalar(withNanos(Tx.value(timeParts(call("year", date), call("monthNumber", date),
-                call("dayOfMonth", date), null, p, false, rest != 0), Kind.DATETIME, false), rest != 0));
+        return scalar(Tx.value(timeParts(call("year", date), call("monthNumber", date), call("dayOfMonth", date),
+                null, p), Kind.DATETIME, false));
     }
 
     /** The ISO calendar form read character by character: {@code yyyy-mm-dd}, and with a time
@@ -9273,7 +16758,9 @@ public final class CypherToPure {
         int h = Integer.parseInt(text.substring(11, 13));
         int mi = Integer.parseInt(text.substring(14, 16));
         if (n == 16) {
-            return new com.legend.values.PureDateLiteral.DateWithMinute(y, mo, d, h, mi);
+            // (to the second: a Cypher date-time has its seconds, zero here; Pure's minute-precision literal has
+            // none, and its second() is Pure's error, which the text of the value reads, §12.76)
+            return new com.legend.values.PureDateLiteral.DateWithSecond(y, mo, d, h, mi, 0);
         }
         if (n < 19 || text.charAt(16) != ':' || !digits(text, 17, 2)) {
             return null;
@@ -9333,8 +16820,8 @@ public final class CypherToPure {
                         throw CypherErrors.invalid("Type mismatch: date must be a Date but was "
                                 + cypherType(t.kind()), c.pos());
                     }
-                    base = t.kind() == Kind.DATE ? t : Tx.value(call("datePart", SqlToPure.valueOf(t)), Kind.DATE,
-                            t.nullable());
+                    base = t.kind() == Kind.DATE ? t : split(t) ? datePartOf(t) : Tx.value(call("datePart",
+                            SqlToPure.valueOf(t)), Kind.DATE, t.nullable());
                 }
                 case DATETIME -> {
                     if (t.kind() != Kind.DATETIME) {
@@ -9369,6 +16856,12 @@ public final class CypherToPure {
         if (!withTime && anyTime) {
             throw CypherErrors.invalid("Cannot assign a time component to a Date", c.pos());
         }
+        if (base == null) {
+            checkDate(parts.keySet(), anyTime && timeBase == null, c.pos());
+        }
+        if (anyTime && timeBase == null && !baseHasTime) {
+            checkClock(parts.keySet(), c.pos());
+        }
         boolean nanosComponent = withTime && nanosComponent(parts.get(Component.NANOSECOND), c.pos());
         // the date: the components the database reads, in order
         List<Tx> inputs = new ArrayList<>(parts.values());
@@ -9382,24 +16875,39 @@ public final class CypherToPure {
         boolean hasBaseTime = baseHasTime;
         boolean hasTimeBase = timeBase != null;
         boolean timeBaseIsTime = timeBase != null && timeBase.kind() == Kind.TIME;
-        boolean timeBaseNanos = timeBase != null && nanos(timeBase);
-        boolean baseNanos = timeBase != null ? timeBaseNanos : baseHasTime && base != null && nanos(base);
+        boolean baseNanos = timeBase != null ? nanos(timeBase) : baseHasTime && base != null && nanos(base);
         boolean fine = withTime && (baseNanos || nanosComponent);
-        if (fine && parts.get(Component.YEAR) != null && parts.get(Component.YEAR).vs() instanceof CInteger y) {
-            nanosRange(y.value().longValue(), c.pos());
-        }
         Set<Component> keys = parts.keySet();
         if (hasBaseTime && keys.isEmpty() && !hasTimeBase) {
             return scalar(java.util.Objects.requireNonNull(base));
         }
-        if (hasBase && !hasBaseTime && timeBaseIsTime && keys.isEmpty()) {
-            // localdatetime({date: d, time: t}): the date-time at that time of that day (a nanosecond time's
-            // nanoseconds since its midnight on the date's)
-            return scalar(withNanos(SqlToPure.strict(result, inputs, v -> timeBaseNanos
-                    ? call("adjust", asMidnight(v.get(0)), integer(epochNanos(v.get(1))), unit("NANOSECONDS"))
-                    : call(AT_TIME, v.get(0), v.get(1))), fine));
+        Tx clockSource = timeBase != null ? timeBase : hasBaseTime ? base : null;
+        if (fine) {
+            // of nanosecond precision: its parts (W13), the date the components spell over the base's date, the
+            // nanoseconds since midnight they spell over the base time's
+            Tx dateBase = base == null ? null : base.kind() == Kind.DATE ? base : datePartOf(base);
+            Tx clockBase = timeBase != null ? ofDay(timeBase) : hasBaseTime ? ofDay(java.util.Objects.requireNonNull(
+                    base)) : null;
+            List<Tx> dateInputs = new ArrayList<>(parts.values());
+            if (dateBase != null) {
+                dateInputs.add(0, dateBase);
+            }
+            List<Tx> clockInputs = new ArrayList<>(parts.values());
+            if (clockBase != null) {
+                clockInputs.add(0, clockBase);
+            }
+            Tx date = strict(Kind.DATE, dateInputs, v -> dateOf(c, hasBase ? v.get(0) : null,
+                    components(keys, v, hasBase ? 1 : 0)));
+            boolean clocked = clockBase != null;
+            Tx clock = strict(Kind.INTEGER, clockInputs, v -> clockOf(clocked ? v.get(0) : null,
+                    components(keys, v, clocked ? 1 : 0)));
+            return scalar(splitDateTime(date, clock));
         }
-        return scalar(withNanos(SqlToPure.strict(result, inputs, v -> {
+        if (hasBase && !hasBaseTime && timeBaseIsTime && keys.isEmpty()) {
+            // localdatetime({date: d, time: t}): the date-time at that time of that day
+            return scalar(strict(result, inputs, v -> call(AT_TIME, v.get(0), v.get(1))));
+        }
+        return scalar(strict(result, inputs, v -> {
             Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
             int i = (hasBase ? 1 : 0) + (hasTimeBase ? 1 : 0);
             for (Component k : keys) {
@@ -9410,24 +16918,10 @@ public final class CypherToPure {
                 return date;
             }
             ValueSpecification tb = hasTimeBase ? v.get(hasBase ? 1 : 0) : null;
-            ValueSpecification baseTime = tb != null ? timeBaseIsTime && !timeBaseNanos ? atEpoch(tb) : tb
+            ValueSpecification baseTime = tb != null ? timeBaseIsTime ? atEpoch(tb) : tb
                     : hasBaseTime ? v.get(0) : null;
-            return timeParts(call("year", date), call("monthNumber", date), call("dayOfMonth", date), baseTime, p,
-                    baseNanos, nanosComponent);
-        }), fine));
-    }
-
-    /** The date-time at a time of day of a date ({@code atTime}); a nanosecond time's nanoseconds since its
-     *  midnight added to the date's. */
-    private static ValueSpecification atTimeOf(ValueSpecification date, ValueSpecification time, boolean nanos) {
-        return nanos ? call("adjust", asMidnight(date), integer(epochNanos(time)), unit("NANOSECONDS"))
-                : call(AT_TIME, date, time);
-    }
-
-    /** A date as the date-time at its midnight. */
-    private static ValueSpecification asMidnight(ValueSpecification d) {
-        return call(AT_TIME, d, new com.legend.protocol.spec.CTime(
-                new com.legend.values.PureTimeLiteral.TimeWithMinute(0, 0), "00:00", null));
+            return timeParts(call("year", date), call("monthNumber", date), call("dayOfMonth", date), baseTime, p);
+        }));
     }
 
     /** The date (Pure's StrictDate) the components spell: over a base date, its fields written over; else the
@@ -9530,11 +17024,20 @@ public final class CypherToPure {
                 }
                 throw CypherErrors.invalid("Cannot get the offset of: " + printed, pos);
             }
+            if (field == TemporalField.EPOCH_SECONDS || field == TemporalField.EPOCH_MILLIS) {
+                // (the instant's distance from the epoch: no zone read, so one the island does not carry serves)
+                return epochField(t, field);
+            }
             return zoneField(t, field, zoneKnown(t, pos), pos);
         }
         // a time of day's fields are read off the date-time at it; a zoned date-time's off its wall time
-        Tx x = t.kind() == Kind.TIME ? atEpoch(t) : t.kind() == Kind.ZONED_TIME ? wallAtEpoch(t, zoneKnown(t, pos))
-                : t.kind() == Kind.ZONED ? localOf(t, zoneKnown(t, pos)) : t;
+        Tx x = t.kind() == Kind.TIME && !split(t) ? atEpoch(t) : t.kind() == Kind.ZONED_TIME ? wallAtEpoch(t,
+                zoneKnown(t, pos)) : t.kind() == Kind.ZONED ? localOf(t, zoneKnown(t, pos)) : t;
+        if (split(x)) {
+            // of nanosecond precision: read off its parts (W13), the date's fields its date's, the clock's the
+            // database's quotients of its nanoseconds since midnight
+            return splitField(x, field, name, dateTime || time, pos);
+        }
         return switch (field) {
             case YEAR -> field(x, v -> call("year", v));
             case QUARTER -> field(x, v -> call("quarterNumber", v));
@@ -9560,16 +17063,8 @@ public final class CypherToPure {
                 }
                 // the whole fraction of the second in that unit (Neo4j's millisecond of 12:31:14.645876 is 645,
                 // its microsecond 645876): the database's distance from the second's start; nanoseconds are the
-                // microseconds a thousandfold (the database keeps microseconds)
-                boolean fine = nanos(x);
+                // microseconds a thousandfold (the database keeps microseconds; a nanosecond value is its parts)
                 yield field(x, v -> {
-                    if (fine) {
-                        // the nanoseconds since the second's start, the database's; the coarser fields their quotients
-                        ValueSpecification ns = call("dateDiff", call("firstMillisecondOfSecond", v), v,
-                                unit("NANOSECONDS"));
-                        return field == TemporalField.NANOSECOND ? ns : SqlToPure.integerQuotient(ns,
-                                new CInteger(field == TemporalField.MILLISECOND ? 1_000_000L : 1000L));
-                    }
                     ValueSpecification micros = call("dateDiff", call("firstMillisecondOfSecond", v), v,
                             unit(field == TemporalField.MILLISECOND ? "MILLISECONDS" : "MICROSECONDS"));
                     return field == TemporalField.NANOSECOND ? integer(AppliedFunction.infixRun("times",
@@ -9581,24 +17076,51 @@ public final class CypherToPure {
         };
     }
 
+    /** A field of a split value (W13): a date field of its date, a clock field a quotient of its nanoseconds since
+     *  midnight (the millisecond and microsecond the whole ones of the second's nanoseconds). */
+    private static Tx splitField(Tx x, TemporalField field, String name, boolean clocked, Pos pos) {
+        if (field.compareTo(TemporalField.HOUR) < 0) {
+            return temporalField(datePartOf(x), name, pos);
+        }
+        if (!clocked) {
+            throw CypherErrors.invalid("No such field: " + name + " (a Date has no time)", pos);
+        }
+        return field(ofDay(x), v -> switch (field) {
+            case HOUR -> quotient(v, 3_600L * NANOS);
+            case MINUTE -> quotient(past(v, 3_600L * NANOS), 60L * NANOS);
+            case SECOND -> quotient(past(v, 60L * NANOS), NANOS);
+            case MILLISECOND -> quotient(past(v, NANOS), 1_000_000L);
+            case MICROSECOND -> quotient(past(v, NANOS), 1000L);
+            case NANOSECOND -> past(v, NANOS);
+            default -> throw new IllegalStateException("not a clock field: " + field);
+        });
+    }
+
     /** A zoned date-time's zone fields: the zone's name or offset as Neo4j prints them (a spelled zone's are
      *  spelled; a named zone's offset is the database's, the instant against its wall time), the epoch distances
      *  the database's. */
     private static Tx zoneField(Tx t, TemporalField field, Zone z, Pos pos) {
+        if (split(t) && field != TemporalField.TIMEZONE) {
+            return splitZoneField(t, field, z);
+        }
         return switch (field) {
-            case TIMEZONE -> SqlToPure.strict(Kind.STRING, List.of(t), x -> new CString(z.named()
-                    ? java.util.Objects.requireNonNull(z.name()) : z.offsetText()));
-            case OFFSET -> {
-                if (z.named()) {
-                    throw CypherErrors.unsupported("the offset of a named zone as a text is not supported yet",
-                            pos);
-                }
-                yield SqlToPure.strict(Kind.STRING, List.of(t), x -> new CString(z.offsetText()));
-            }
+            case TIMEZONE -> strict(Kind.STRING, List.of(t), x -> z.named()
+                    ? new CString(java.util.Objects.requireNonNull(z.name())) : z.region() != null
+                    ? call("if", call("isEmpty", z.region()), thunk(z.offsetSpelled()), thunk(call("toOne",
+                            z.region()))) : z.offsetSpelled());
+            // (a named zone's offset at the instant, the database's text: the study's §12.75)
+            case OFFSET -> strict(Kind.STRING, List.of(t), x -> z.named()
+                    ? offsetTextOf(namedOffset(x.get(0), z)) : z.offsetSpelled());
             case OFFSET_MINUTES, OFFSET_SECONDS -> {
+                ValueSpecification read = z.read();
+                if (read != null) {
+                    // an offset the database reads: its seconds, its whole minutes toward zero (Java's)
+                    yield field(t, v -> field == TemporalField.OFFSET_SECONDS ? read
+                            : SqlToPure.integerQuotient(read, lit(60)));
+                }
                 String u = field == TemporalField.OFFSET_MINUTES ? "MINUTES" : "SECONDS";
                 yield field(t, v -> call("dateDiff", v, z.named() ? call(LOCAL_IN, v, new CString(
-                        java.util.Objects.requireNonNull(z.name()))) : shifted(v, z, 1, false), unit(u)));
+                        java.util.Objects.requireNonNull(z.name()))) : shifted(v, z, 1), unit(u)));
             }
             case EPOCH_SECONDS, EPOCH_MILLIS -> field(t, v -> call("dateDiff", epochInstant(), v,
                     unit(field == TemporalField.EPOCH_SECONDS ? "SECONDS" : "MILLISECONDS")));
@@ -9606,32 +17128,77 @@ public final class CypherToPure {
         };
     }
 
+    /** A zoned date-time's epoch distance ({@code epochSeconds}, {@code epochMillis}): of its instant, the
+     *  database's (a split one's of its UTC parts). */
+    private static Tx epochField(Tx t, TemporalField field) {
+        if (split(t)) {
+            Tx utc = utcParts(t);
+            return strict(Kind.INTEGER, List.of(datePartOf(utc), ofDay(utc)), v -> field
+                    == TemporalField.EPOCH_SECONDS ? integer(plus(times(86_400L, call("dateDiff", epoch(), v.get(0),
+                    days())), quotient(v.get(1), NANOS))) : integer(plus(times(86_400_000L, call("dateDiff", epoch(),
+                    v.get(0), days())), quotient(v.get(1), 1_000_000L))));
+        }
+        return field(t, v -> call("dateDiff", epochInstant(), v, unit(field == TemporalField.EPOCH_SECONDS ? "SECONDS"
+                : "MILLISECONDS")));
+    }
+
+    /** {@link #zoneField} of a split zoned value (W13): the offset's text and seconds at its instant (a spelled or
+     *  read one's own; a named zone's the database's, its UTC parts' microseconds read in the region), its whole
+     *  minutes toward zero (Java's); the epoch distances 86,400 seconds a day of its UTC date's distance from the
+     *  epoch day and the whole seconds (or milliseconds) of its UTC nanoseconds since midnight. */
+    private static Tx splitZoneField(Tx t, TemporalField field, Zone z) {
+        boolean time = t.kind() == Kind.ZONED_TIME;
+        Tx utc = time ? onEpochDay(ofDay(t)) : utcParts(t);
+        return strict(field == TemporalField.OFFSET ? Kind.STRING : Kind.INTEGER, List.of(datePartOf(utc),
+                ofDay(utc)), v -> {
+            ValueSpecification seconds = time ? fixedSeconds(z) : offsetAt(z, micros(v.get(0), v.get(1)));
+            return switch (field) {
+                case OFFSET -> z.named() || z.read() != null ? offsetTextOf(seconds) : new CString(z.offsetText());
+                case OFFSET_SECONDS -> seconds;
+                case OFFSET_MINUTES -> SqlToPure.integerQuotient(seconds, lit(60));
+                case EPOCH_SECONDS -> integer(plus(times(86_400L, call("dateDiff", epoch(), v.get(0), days())),
+                        quotient(v.get(1), NANOS)));
+                case EPOCH_MILLIS -> integer(plus(times(86_400_000L, call("dateDiff", epoch(), v.get(0), days())),
+                        quotient(v.get(1), 1_000_000L)));
+                case TIMEZONE, YEAR, QUARTER, MONTH, WEEK, WEEK_YEAR, DAY, ORDINAL_DAY, WEEK_DAY, DAY_OF_QUARTER, HOUR,
+                        MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND ->
+                        throw new IllegalStateException("not an offset or epoch field: " + field);
+            };
+        });
+    }
+
     /** {@code toString} of a date-time or a time (the study's §12.22), Neo4j's spelling, which is Java's:
      *  {@code yyyy-MM-ddTHH:mm:ss[.f]} for a local date-time, with the offset ({@code +01:00}, {@code Z}) after it
      *  for a zoned one, {@code HH:mm:ss[.f]} for a time (with its offset for a zoned one); the fraction of the second
      *  trimmed of its trailing zeros (Neo4j's, as a duration's), none when zero. Every field is the database's,
-     *  read off the wall time as the fields are (§12.8, §12.11), zero-padded by text arithmetic; a named zone and
-     *  a year outside 0..9999 are refused by name. */
+     *  read off the wall time as the fields are (§12.8, §12.11), zero-padded by text arithmetic; a named zone's
+     *  offset is the one at the instant, its name after it in brackets (Java's); a year outside 0..9999 is refused
+     *  by name. */
     private static Tx temporalText(Tx t, Pos pos) {
         Zone zone = t.kind() == Kind.ZONED || t.kind() == Kind.ZONED_TIME ? zoneKnown(t, pos) : null;
-        if (zone != null && zone.named()) {
-            throw CypherErrors.unsupported("toString of a value in a named zone (" + zone.name() + "; Neo4j spells"
-                    + " the zone's offset at that instant and the name) is not supported yet", pos);
-        }
-        boolean fine = nanos(t);
         boolean time = t.kind() == Kind.TIME || t.kind() == Kind.ZONED_TIME;
-        Tx wall = t.kind() == Kind.TIME ? atEpoch(t)
+        Tx wall = t.kind() == Kind.TIME ? split(t) ? t : atEpoch(t)
                 : t.kind() == Kind.ZONED_TIME ? wallAtEpoch(t, java.util.Objects.requireNonNull(zone))
                 : t.kind() == Kind.ZONED ? localOf(t, java.util.Objects.requireNonNull(zone)) : t;
-        String offset = zone == null ? "" : zone.offsetText();
-        // (the text of a nanosecond value is marked as one: a parse of it reads the digits past the microsecond)
-        return withNanos(SqlToPure.strict(Kind.STRING, List.of(wall), x -> {
+        boolean named = zone != null && zone.named();
+        if (split(wall)) {
+            // of nanosecond precision: spelled from its parts (W13), a named zone's offset the one at the instant
+            // (print then parse is the identity, §12.74: a parse of the text reads the value back, a local one's too)
+            return printedFrom(withNanos(splitText(wall, zone, time, named ? utcParts(t) : null), true), t);
+        }
+        Tx printed = strict(Kind.STRING, named ? List.of(wall, t) : List.of(wall), x -> {
             ValueSpecification v = x.get(0);
-            // the digits of the fraction: the nanoseconds since the second's start (the microseconds a thousandfold
-            // when the value keeps microseconds), behind a leading 1 that keeps the zeros, then cut to the three,
-            // six or nine Java prints
-            ValueSpecification ns = fine ? call("dateDiff", call("firstMillisecondOfSecond", v), v,
-                    unit("NANOSECONDS")) : integer(AppliedFunction.infixRun("times", List.of(call("dateDiff",
+            // the zone as Java prints it: the offset (a named zone's at the instant, its wall time against the
+            // instant, then its name in brackets: the study's §12.75), none for a local value
+            ValueSpecification offset = zone == null ? new CString("") : named ? plus(offsetTextOf(call("dateDiff",
+                    x.get(1), v, unit("SECONDS"))), new CString("[" + zone.name() + "]")) : zone.region() != null
+                    ? plus(zone.offsetSpelled(), call("if", call("isEmpty", zone.region()), thunk(new CString("")),
+                            thunk(plus(new CString("["), call("toOne", zone.region()), new CString("]")))))
+                    : zone.offsetSpelled();
+            // the digits of the fraction: the nanoseconds since the second's start (the microseconds a thousandfold:
+            // the value keeps microseconds), behind a leading 1 that keeps the zeros, then cut to the three, six or
+            // nine Java prints
+            ValueSpecification ns = integer(AppliedFunction.infixRun("times", List.of(call("dateDiff",
                     call("firstMillisecondOfSecond", v), v, unit("MICROSECONDS")), new CInteger(1000L))));
             // (Neo4j trims the fraction's trailing zeros to the digit, as a duration's: 10 microseconds is .00001)
             ValueSpecification digits = call("regexpReplace", call("substring", call("toString", plus(ns,
@@ -9639,35 +17206,49 @@ public final class CypherToPure {
             ValueSpecification fraction = call("if", call("equal", ns, lit(0)), thunk(new CString("")),
                     thunk(plus(new CString("."), digits)));
             ValueSpecification clock = plus(two(call("hour", v)), new CString(":"), two(call("minute", v)),
-                    new CString(":"), two(call("second", v)), fraction, new CString(offset));
+                    new CString(":"), two(call("second", v)), fraction, offset);
             if (time) {
                 return clock;
             }
-            ValueSpecification year = call("year", v);
-            // (a year of four digits: 0..9999; Neo4j's expanded years are refused by name above the lane's reach)
-            ValueSpecification date = plus(call("substring", call("toString", plus(year, lit(10000))),
-                    new CInteger(2L)), new CString("-"), two(call("monthNumber", v)), new CString("-"),
-                    two(call("dayOfMonth", v)));
-            return plus(date, new CString("T"), clock);
-        }), fine);
+            return plus(dateText(v, true), new CString("T"), clock);
+        });
+        // (a zoned value's text read back by a parse is the value itself, §12.74)
+        return zone != null ? printedFrom(printed, t) : printed;
     }
 
-    /** A text of the row parsed to a date-time ({@code micro} characters hold its microsecond form); a text marked
-     *  as a nanosecond value's (one {@link #temporalText} spelled) has its digits past the microsecond read and
-     *  stepped on (the database's: the first three of them, zero-padded, as nanoseconds). */
-    private static ValueSpecification parsedWithNanos(ValueSpecification text, int micro, boolean nanos,
-            @com.legend.base.Nullable String prefix) {
-        ValueSpecification whole = prefix == null ? text : plus(new CString(prefix), text);
-        if (!nanos) {
-            return call("parseDate", whole);
+    /** {@link #temporalText} of a split wall time (W13) in a zone the text spells (none for a local value): the clock
+     *  the database's quotients of its nanoseconds since midnight, the fraction their remainder trimmed of its
+     *  trailing zeros (none when zero), the date its date's fields. */
+    private static Tx splitText(Tx wall, @com.legend.base.Nullable Zone zone, boolean time,
+            @com.legend.base.Nullable Tx utc) {
+        List<Tx> parts = new ArrayList<>(time ? List.of(ofDay(wall)) : List.of(datePartOf(wall), ofDay(wall)));
+        int clockAt = parts.size() - 1;
+        if (utc != null) {
+            // (a named zone's: the instant's UTC parts, whose offset the text spells, then the region in brackets)
+            parts.add(datePartOf(utc));
+            parts.add(ofDay(utc));
         }
-        ValueSpecification head = call("parseDate", prefix == null ? call("substring", text, new CInteger(1L),
-                new CInteger((long) micro)) : plus(new CString(prefix), call("substring", text, new CInteger(1L),
-                new CInteger((long) micro))));
-        ValueSpecification tail = call("if", call("greaterThan", call("length", text), new CInteger((long) micro)),
-                thunk(call("parseInteger", call("substring", plus(text, new CString("00")),
-                        new CInteger((long) micro + 1), new CInteger(3L)))), thunk(new CInteger(0L)));
-        return call("adjust", head, tail, unit("NANOSECONDS"));
+        return strict(Kind.STRING, parts, x -> {
+            ValueSpecification n = x.get(clockAt);
+            ValueSpecification offset = zone == null ? new CString("") : utc != null ? plus(offsetTextOf(offsetAt(zone,
+                    micros(x.get(clockAt + 1), x.get(clockAt + 2)))), new CString("[" + zone.name() + "]"))
+                    : zone.region() != null
+                    ? plus(zone.offsetSpelled(), call("if", call("isEmpty", zone.region()), thunk(new CString("")),
+                            thunk(plus(new CString("["), call("toOne", zone.region()), new CString("]")))))
+                    : zone.offsetSpelled();
+            ValueSpecification ns = past(n, NANOS);
+            ValueSpecification digits = call("regexpReplace", call("substring", call("toString", plus(ns,
+                    lit(NANOS))), new CInteger(2L)), new CString("0+$"), new CString(""), new CBoolean(true));
+            ValueSpecification fraction = call("if", call("equal", ns, lit(0)), thunk(new CString("")),
+                    thunk(plus(new CString("."), digits)));
+            ValueSpecification clock = plus(two(quotient(n, 3_600L * NANOS)), new CString(":"),
+                    two(quotient(past(n, 3_600L * NANOS), 60L * NANOS)), new CString(":"),
+                    two(quotient(past(n, 60L * NANOS), NANOS)), fraction, offset);
+            if (time) {
+                return clock;
+            }
+            return plus(dateText(x.get(0), true), new CString("T"), clock);
+        });
     }
 
     /** A number of at most two digits, zero-padded to two: the digits of 100 plus it, after the 1. */
@@ -9681,7 +17262,7 @@ public final class CypherToPure {
     }
 
     private static Tx field(Tx t, java.util.function.Function<ValueSpecification, ValueSpecification> read) {
-        return SqlToPure.strict(Kind.INTEGER, List.of(t), x -> read.apply(x.get(0)));
+        return strict(Kind.INTEGER, List.of(t), x -> read.apply(x.get(0)));
     }
 
     /** {@code toString(duration)}, Neo4j's spelling (the study's §12.21): {@code P[nY][nM][nD][T[nH][nM][n[.f]S]]},
@@ -9701,7 +17282,7 @@ public final class CypherToPure {
     }
 
     private static Tx durationTextOf(Tx t) {
-        return SqlToPure.strict(Kind.STRING, List.of(t), x -> {
+        return strict(Kind.STRING, List.of(t), x -> {
             // each quantity read straight from the slots (a quotient toward zero, a remainder keeping the
             // dividend's sign), never from another quantity: a nested quotient would spell the struct once per
             // copy of its argument, and that grew past the container's memory, measured
@@ -9809,10 +17390,13 @@ public final class CypherToPure {
         }
         Zone sourceZone = Zone.UTC;
         if (t.kind() == Kind.TIME) {
-            t = atEpoch(t);
+            t = split(t) ? t : atEpoch(t);
         } else if (t.kind() == Kind.ZONED) {
-            sourceZone = zoneKnown(t, c.args().get(1).pos());
-            t = localOf(t, sourceZone);
+            Zone z = zoneKnown(t, c.args().get(1).pos());
+            // (a time of day truncated from a date-time in a named zone keeps the offset at its instant, the
+            // database's, as time(d) does)
+            sourceZone = toZonedTime ? fixedAt(t, z) : z;
+            t = localOf(t, z);
         } else if (t.kind() == Kind.ZONED_TIME) {
             sourceZone = zoneKnown(t, c.args().get(1).pos());
             t = wallAtEpoch(t, sourceZone);
@@ -9860,21 +17444,33 @@ public final class CypherToPure {
                 over.put(k, s.tx());
             }
         }
+        Kind result = toTime ? Kind.TIME : withTime ? Kind.DATETIME : Kind.DATE;
+        boolean sourceNanos = nanos(t);
+        boolean nanosField = nanosComponent(over.get(Component.NANOSECOND), c.pos());
+        boolean fineWithFields = (unit == TruncateUnit.MILLISECOND || unit == TruncateUnit.MICROSECOND)
+                && !over.isEmpty();
+        if (sourceNanos || nanosField || fineWithFields) {
+            // of nanosecond precision (W13), or to a millisecond or microsecond with fields written over (whose
+            // sub-second rule is spelled over the parts alone): truncated over the wall time's parts (a zoned
+            // value's wall time read into them), the result split, a zoned one's instant converted after
+            Tx parts = splitTruncated(unit, asSplit(t), over, result);
+            if (toZonedTime) {
+                return scalar(zonedTimeOf(parts, written != null ? written : sourceZone));
+            }
+            return scalar(toZoned ? instantOf(parts, written != null ? written : sourceZone) : parts);
+        }
         List<Tx> inputs = new ArrayList<>();
         inputs.add(t);
         inputs.addAll(over.values());
         Set<Component> keys = over.keySet();
-        Kind result = toTime ? Kind.TIME : withTime ? Kind.DATETIME : Kind.DATE;
-        boolean sourceNanos = nanos(t);
-        boolean nanosField = nanosComponent(over.get(Component.NANOSECOND), c.pos());
-        Tx truncated = withNanos(SqlToPure.strict(result, inputs, v -> {
+        Tx truncated = strict(result, inputs, v -> {
             ValueSpecification x = v.get(0);
             Map<Component, ValueSpecification> o = new java.util.EnumMap<>(Component.class);
             int i = 1;
             for (Component k : keys) {
                 o.put(k, v.get(i++));
             }
-            ValueSpecification start = truncated(unit, x, sourceNanos);
+            ValueSpecification start = truncated(unit, x);
             // a day of the week, quarter or year written over the unit's start: that many days on
             for (Component positional : List.of(Component.DAY_OF_WEEK, Component.DAY_OF_QUARTER,
                     Component.ORDINAL_DAY)) {
@@ -9906,11 +17502,10 @@ public final class CypherToPure {
                         ? call("second", start) : zero));
                 dt = call("date", y, mo, d, h, mi, s);
             }
-            // the sub-second fields written over the start (a nanosecond one makes the result of nanosecond
-            // precision: the date-time at it on the epoch day for a time)
-            dt = withSubSecond(dt, o, nanosField);
-            return toTime ? nanosField ? timeOfNanos(dt) : call(TIME_OF, dt) : dt;
-        }), nanosField);
+            // the sub-second fields written over the start (a nanosecond one, the parts' above)
+            dt = withSubSecond(dt, o);
+            return toTime ? call(TIME_OF, dt) : dt;
+        });
         if (toZonedTime) {
             // the zone written over a truncation replaces the source's (Neo4j's: no conversion)
             return scalar(zonedTimeOf(truncated, written != null ? written : sourceZone));
@@ -9918,8 +17513,99 @@ public final class CypherToPure {
         return scalar(toZoned ? instantOf(truncated, written != null ? written : sourceZone) : truncated);
     }
 
+    /** A truncation of a split wall time (W13), as {@link #truncate} reads one: a unit of a day or more on the date
+     *  (the unit's start, a day of the week, quarter or year written over it as that many days on, the year, month
+     *  and day written over), the clock from midnight; a smaller unit on the clock, floored to the unit, its hour,
+     *  minute and second written over, its fraction by {@link #subSecond}. A date is the date alone, a time of day
+     *  the clock alone. */
+    private Tx splitTruncated(TruncateUnit unit, Tx wall, Map<Component, Tx> over, Kind result) {
+        List<Component> keys = new ArrayList<>(over.keySet());
+        boolean fine = unit == TruncateUnit.MILLISECOND || unit == TruncateUnit.MICROSECOND;
+        boolean minutes = fine || unit == TruncateUnit.MINUTE || unit == TruncateUnit.SECOND;
+        boolean seconds = fine || unit == TruncateUnit.SECOND;
+        List<Tx> clockInputs = new ArrayList<>(List.of(ofDay(wall)));
+        clockInputs.addAll(over.values());
+        Tx clock = strict(Kind.INTEGER, clockInputs, v -> {
+            Map<Component, ValueSpecification> o = components(new java.util.LinkedHashSet<>(keys), v, 1);
+            ValueSpecification n = v.get(0);
+            ValueSpecification zero = lit(0);
+            ValueSpecification start = !unit.time() ? zero : integer(minus(n, past(n, unitNanos(unit))));
+            ValueSpecification whole = clockNanos(
+                    o.getOrDefault(Component.HOUR, unit.time() ? quotient(start, 3_600L * NANOS) : zero),
+                    o.getOrDefault(Component.MINUTE, minutes ? quotient(past(start, 3_600L * NANOS), 60L * NANOS)
+                            : zero),
+                    o.getOrDefault(Component.SECOND, seconds ? quotient(past(start, 60L * NANOS), NANOS) : zero),
+                    null);
+            return integer(plus(whole, subSecond(unit, past(start, NANOS), o)));
+        });
+        if (result == Kind.TIME) {
+            return splitTime(clock);
+        }
+        List<Tx> dateInputs = new ArrayList<>(List.of(datePartOf(wall)));
+        dateInputs.addAll(over.values());
+        Tx date = strict(Kind.DATE, dateInputs, v -> {
+            Map<Component, ValueSpecification> o = components(new java.util.LinkedHashSet<>(keys), v, 1);
+            ValueSpecification d = v.get(0);
+            ValueSpecification start = unit.time() ? d : truncated(unit, d);
+            // a day of the week, quarter or year written over the unit's start: that many days on
+            for (Component positional : List.of(Component.DAY_OF_WEEK, Component.DAY_OF_QUARTER,
+                    Component.ORDINAL_DAY)) {
+                if (o.containsKey(positional)) {
+                    start = day(call("adjust", start, integer(minus(o.get(positional), lit(1))), days()));
+                }
+            }
+            if (!o.containsKey(Component.YEAR) && !o.containsKey(Component.MONTH) && !o.containsKey(Component.DAY)) {
+                return unit == TruncateUnit.DAY ? start : call("datePart", start);
+            }
+            return call("date", integer(o.getOrDefault(Component.YEAR, call("year", start))),
+                    integer(o.getOrDefault(Component.MONTH, call("monthNumber", start))),
+                    integer(o.getOrDefault(Component.DAY, call("dayOfMonth", start))));
+        });
+        return result == Kind.DATE ? date : splitDateTime(date, clock);
+    }
+
+    /** The fraction of a second, in nanoseconds, of a truncation whose start's is {@code start} and over which
+     *  {@code o}'s sub-second fields are written, as Neo4j's (measured 2026-10-18 over every combination of the
+     *  three fields and the units): with none, the start's; the fields compose the fraction, {@code millisecond *
+     *  10^6 + microsecond * 10^3 + nanosecond}; to a millisecond, a written millisecond is the fraction alone (the
+     *  finer fields dropped), and microseconds or nanoseconds without it are added to the start's milliseconds; to
+     *  a microsecond, a written millisecond or microsecond composes the fraction floored to the microsecond, and
+     *  nanoseconds without them are added to the start's microseconds. */
+    private static ValueSpecification subSecond(TruncateUnit unit, ValueSpecification start,
+            Map<Component, ValueSpecification> o) {
+        ValueSpecification ms = o.get(Component.MILLISECOND);
+        ValueSpecification us = o.get(Component.MICROSECOND);
+        ValueSpecification ns = o.get(Component.NANOSECOND);
+        if (ms == null && us == null && ns == null) {
+            return start;
+        }
+        ValueSpecification zero = lit(0);
+        ValueSpecification finer = plus(scaled(1000L, us == null ? zero : us), ns == null ? zero : ns);
+        ValueSpecification composed = plus(scaled(1_000_000L, ms == null ? zero : ms), finer);
+        return switch (unit) {
+            case MILLISECOND -> ms != null ? scaled(1_000_000L, ms)
+                    : plus(minus(start, past(start, 1_000_000L)), finer);
+            case MICROSECOND -> ms != null || us != null ? minus(composed, past(composed, 1000L))
+                    : plus(minus(start, past(start, 1000L)), finer);
+            default -> composed;
+        };
+    }
+
+    /** A clock unit's nanoseconds. */
+    private static long unitNanos(TruncateUnit unit) {
+        return switch (unit) {
+            case HOUR -> 3_600L * NANOS;
+            case MINUTE -> 60L * NANOS;
+            case SECOND -> NANOS;
+            case MILLISECOND -> 1_000_000L;
+            case MICROSECOND -> 1000L;
+            case MILLENNIUM, CENTURY, DECADE, YEAR, WEEK_YEAR, QUARTER, MONTH, WEEK, DAY ->
+                    throw new IllegalStateException("not a clock unit: " + unit);
+        };
+    }
+
     /** The start of a value's unit, as the database computes it. */
-    private static ValueSpecification truncated(TruncateUnit unit, ValueSpecification x, boolean nanos) {
+    private static ValueSpecification truncated(TruncateUnit unit, ValueSpecification x) {
         ValueSpecification one = new CInteger(1L);
         return switch (unit) {
             case MILLENNIUM, CENTURY, DECADE -> {
@@ -9945,9 +17631,8 @@ public final class CypherToPure {
             // microsecond's start is the value itself
             case MILLISECOND -> call("adjust", call("firstMillisecondOfSecond", x), call("dateDiff",
                     call("firstMillisecondOfSecond", x), x, unit("MILLISECONDS")), unit("MILLISECONDS"));
-            // a nanosecond value's microsecond start: the second's start plus the whole microseconds since it
-            case MICROSECOND -> nanos ? call("adjust", call("firstMillisecondOfSecond", x), call("dateDiff",
-                    call("firstMillisecondOfSecond", x), x, unit("MICROSECONDS")), unit("MICROSECONDS")) : x;
+            // (a nanosecond value's is its parts', W13)
+            case MICROSECOND -> x;
         };
     }
 
@@ -9973,8 +17658,18 @@ public final class CypherToPure {
         if (rows != null && rows.columns().stream().anyMatch(c -> c.name().equals(x))) {
             throw CypherErrors.invalid("Variable `" + x + "` already declared", u.pos());
         }
+        if (v instanceof ListVal lv && !lv.elements().isEmpty() && lv.elements().stream().allMatch(e -> e instanceof Scalar
+                es && es.tx().kind() != Kind.NULL && !es.tx().nullable())) {
+            Coll held = collection(lv, u.pos());
+            if (spelledParts(held)) {
+                // a spelled list of temporals of nanosecond precision (W13): the oracle's texts of their parts,
+                // unwound
+                v = held;
+            }
+        }
         ValueSpecification rel;
         Col col;
+        Col datePart = null;
         switch (v) {
             case Scalar s when s.tx().kind() == Kind.NULL -> {
                 rel = noRows(x);
@@ -9988,11 +17683,24 @@ public final class CypherToPure {
                             + " not supported yet", u.pos());
                 }
                 ListOf shape = s.tx().detail() instanceof ListOf l ? l : null;
-                Kind element = shape == null || elementType(shape.element()) == null ? null : shape.element();
-                String type = element == null ? "meta::pure::metamodel::variant::Variant"
-                        : java.util.Objects.requireNonNull(elementType(element));
-                rel = call("flatten", call("toMany", SqlToPure.valueOf(s.tx()), SqlToPure.typeArg(type)),
-                        new ColSpec(x, null, null, null));
+                Kind element = shape == null || !readsBack(shape.element()) ? null : shape.element();
+                // (a temporal's text parsed back, §12.76)
+                ValueSpecification elements = element == null ? call("toMany", SqlToPure.valueOf(s.tx()),
+                        SqlToPure.typeArg(VARIANT_TYPE)) : elementsOf(SqlToPure.valueOf(s.tx()), element,
+                        nanosElements(java.util.Objects.requireNonNull(shape)));
+                if (element != null) {
+                    Coll texts = new Coll(elements, element, false, java.util.Objects.requireNonNull(shape)
+                            .elementDetail());
+                    if (spelledParts(texts)) {
+                        // of nanosecond precision (W13): each text unwound, then read as its parts
+                        rel = unwoundParts(texts, x);
+                        col = splitColumn(x, element);
+                        datePart = element == Kind.TIME || element == Kind.ZONED_TIME ? null
+                                : new Col(DATE_PART + x, Kind.DATE, true);
+                        break;
+                    }
+                }
+                rel = call("flatten", elements, new ColSpec(x, null, null, null));
                 col = new Col(x, element == null ? Kind.JSON : element, true, null,
                         shape == null ? null : shape.elementDetail());
             }
@@ -10001,6 +17709,14 @@ public final class CypherToPure {
             case MapVal m -> throw CypherErrors.unsupported("UNWIND of a map (one row in Neo4j) is not supported"
                     + " yet", u.pos());
             case Coll c -> {
+                if (spelledParts(c)) {
+                    // of nanosecond precision (W13): each text unwound, then read as its parts
+                    rel = unwoundParts(c, x);
+                    col = splitColumn(x, c.kind());
+                    datePart = c.kind() == Kind.TIME || c.kind() == Kind.ZONED_TIME ? null
+                            : new Col(DATE_PART + x, Kind.DATE, true);
+                    break;
+                }
                 rel = call("flatten", c.vs(), new ColSpec(x, null, null, null));
                 col = new Col(x, c.kind(), true);
             }
@@ -10046,7 +17762,9 @@ public final class CypherToPure {
                             elements.add(s.tx());
                             continue;
                         }
-                        elements.add(variant(e, u.pos()));
+                        // (a scalar the row computes beside Variants: a Variant too, so the places' picks are of
+                        // one type, §12.58)
+                        elements.add(e instanceof Scalar es ? asVariant(es.tx(), u.pos()) : variant(e, u.pos()));
                         if (e instanceof ListVal le && le.elements().stream().allMatch(CypherToPure::isNull)) {
                             continue;
                         }
@@ -10057,19 +17775,23 @@ public final class CypherToPure {
                     kind = Kind.JSON;
                     shape = agree ? common : null;
                 }
-                // a list holding a temporal value of nanosecond precision: every element at that precision (a
-                // time of day as the date-time at it on the epoch day), the column of it
-                boolean fine = elements.stream().anyMatch(CypherToPure::nanos);
-                Kind carrier = kind;
-                if (fine && kind == Kind.TIME) {
-                    List<Tx> moved = new ArrayList<>();
+                if (!variants && kind != null && spelledTemporal(kind) && kind != Kind.DATE
+                        && elements.stream().anyMatch(CypherToPure::nanos)) {
+                    // a list holding a temporal value of nanosecond precision and a null (W13; one without is a
+                    // spelled list's flatten above): each element's oracle text at its place, read back as its
+                    // parts (a microsecond one read into them), a null a null
+                    List<Tx> texts = new ArrayList<>();
                     for (Tx t : elements) {
-                        moved.add(t.kind() == Kind.NULL ? t : atEpoch(t));
+                        texts.add(t.kind() == Kind.NULL ? t : splitSpelled(asParts(t)));
                     }
-                    elements = moved;
-                    carrier = Kind.DATETIME;
+                    String text = SYNTHETIC + "text_" + x;
+                    rel = partsOfTexts(places(texts.size(), text, Kind.STRING, texts), text, kind, x);
+                    col = splitColumn(x, kind);
+                    datePart = kind == Kind.TIME || kind == Kind.ZONED_TIME ? null
+                            : new Col(DATE_PART + x, Kind.DATE, true);
+                    break;
                 }
-                com.legend.protocol.sql.InputDialect.TypeDetail detail = fine ? new Carried(null, true) : shape;
+                com.legend.protocol.sql.InputDialect.TypeDetail detail = shape;
                 if (kind == null) {
                     // every element null
                     rel = places(elements.size(), x, Kind.STRING, elements);
@@ -10083,19 +17805,48 @@ public final class CypherToPure {
                     rel = call("flatten", new PureCollection(values), new ColSpec(x, null, null, null));
                     col = new Col(x, kind, true, null, detail);
                 } else {
-                    rel = places(elements.size(), x, java.util.Objects.requireNonNull(carrier), elements);
+                    rel = places(elements.size(), x, java.util.Objects.requireNonNull(kind), elements);
                     col = new Col(x, kind, true, null, detail);
                 }
             }
         }
         // (the typer types a flattened column [0..1], whatever the collection's elements: the column is read as one
         // that may be null)
+        List<Col> unwound = datePart == null ? List.of(col) : List.of(col, datePart);
         if (rows == null) {
-            return new Rows(rel, List.of(col));
+            return new Rows(rel, unwound);
         }
         List<Col> columns = new ArrayList<>(rows.columns());
-        columns.add(col);
+        columns.addAll(unwound);
         return new Rows(call("lateral", rows.vs(), lambda("r", rel)), columns);
+    }
+
+    /** The rows of a collection of the oracle's texts of nanosecond temporals ({@link #spelledParts}), one per
+     *  element: the nanoseconds of its parts under {@code x}, a date-time's date under {@link #DATE_PART} beside
+     *  (a zoned value's instant's: the zone not carried). */
+    private static ValueSpecification unwoundParts(Coll texts, String x) {
+        String text = SYNTHETIC + "text_" + x;
+        return partsOfTexts(call("flatten", texts.vs(), new ColSpec(text, null, null, null)), text, texts.kind(), x);
+    }
+
+    /** The rows {@code rel}, whose column {@code text} holds the oracle's texts of nanosecond temporals of
+     *  {@code kind} (null where an element is null), as the parts' columns: the nanoseconds under {@code x}, a
+     *  date-time's date under {@link #DATE_PART} beside. */
+    private static ValueSpecification partsOfTexts(ValueSpecification rel, String text, Kind kind, String x) {
+        Tx parts = splitOfSpelled(Tx.value(new AppliedProperty(new Variable("t"), text), Kind.STRING, true), kind);
+        List<ColSpec> specs = new ArrayList<>(List.of(new ColSpec(x, lambda("t", SqlToPure.valueOf(ofDay(parts))),
+                null, null)));
+        List<ColSpec> kept = new ArrayList<>(List.of(new ColSpec(x, null, null, null)));
+        if (parts.kind() != Kind.TIME && parts.kind() != Kind.ZONED_TIME) {
+            specs.add(new ColSpec(DATE_PART + x, lambda("t", SqlToPure.valueOf(datePartOf(parts))), null, null));
+            kept.add(new ColSpec(DATE_PART + x, null, null, null));
+        }
+        return call("select", call("extend", rel, new ColSpecArray(specs)), new ColSpecArray(kept));
+    }
+
+    /** The column of a split value of {@code kind} whose zone is not carried: its nanoseconds, the parts' mark. */
+    private static Col splitColumn(String x, Kind kind) {
+        return new Col(x, kind, true, null, new Carried(null, true, null, new Parts(null)));
     }
 
     /** No row, under a column of strings. */

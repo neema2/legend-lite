@@ -63,11 +63,11 @@ tests:
     graph: |
       CREATE (b:B {v: 1}), (b)-[:T]->(:A {name: 'a'}), (b)-[:T]->(:A {name: 'b'}), (:A {name: 'c'})
     cypher: "MATCH (n:A) RETURN n.name AS name, [p = (n)<-[:T]-(x) | p] AS list, [p = (n)<-[:T]-(x) | length(p)] AS lengths, [(n)<-[:T]-(x) | x.v + 1] AS vs ORDER BY name"
-  - id: a_path_over_a_relationship_holding_many_refused
+  - id: a_path_over_a_relationship_holding_many
     graph: |
       CREATE (a:A {name: 'a'}), (:B)-[:T]->(a), (:B)-[:T]->(a), (:A {name: 'c'})
     cypher: "MATCH (n:A) RETURN n.name AS name, [p = (n)<-[:T]-(x) | p] AS list ORDER BY name"
-  - id: an_outer_node_in_the_expression_refused
+  - id: an_outer_node_in_the_expression
     graph: |
       CREATE (a:A {k: 1}), (a)-[:T]->(:B {v: 1}), (a)-[:T]->(:B {v: 1}), (:A {k: 2})
     cypher: "MATCH (n:A) RETURN n.k AS k, [(n)-[:T]->(x) | n.k + x.v] AS list ORDER BY k"
@@ -75,15 +75,15 @@ tests:
     graph: |
       CREATE (a:A), (:A), (:A), (a)-[:HAS]->()
     cypher: "MATCH (n:A) RETURN count([p = (n)-[:HAS]->() | p]) AS c"
-  - id: a_comprehension_over_rows_refused
+  - id: a_comprehension_over_rows
     graph: |
       CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1})
     cypher: "MATCH (a:A) WITH a.name AS name, a AS node RETURN name, [(node)-[:T]->() | 1] AS l"
-  - id: a_comprehension_with_both_ends_bound_refused
+  - id: a_comprehension_with_both_ends_bound
     graph: |
       CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1})
     cypher: "MATCH (a:A)-[:T]->(b:B) RETURN a.name AS name, [(a)-[:T]->(b) | 1] AS l"
-  - id: a_comprehension_over_two_hops_refused
+  - id: a_comprehension_over_two_hops
     graph: |
       CREATE (a:A {name: 'a'}), (a)-[:T]->(:B {v: 1})-[:U]->(:C {w: 1})
     cypher: "MATCH (a:A) RETURN a.name AS name, [(a)-[:T]->()-[:U]->(c) | c.w] AS l"

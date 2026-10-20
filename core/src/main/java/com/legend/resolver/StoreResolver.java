@@ -548,6 +548,15 @@ public final class StoreResolver {
                     when anchored(pa.source())
                     && Type.schemaView(pa.source().info().type()) != null ->
                     structural(pa, context);
+            // a recursion (lite's recurse, the Cypher island's walk the data bounds, 2026-10-17): its base
+            // resolves as the relation chain it is, and so does its step's body: the step's parameter is a
+            // relation (no chain of a store), so what the body joins, filters and projects over resolves as any
+            // relation expression above a class chain does, never as a lambda's data (which would leave a class
+            // chain the step joins unresolved)
+            case com.legend.compiler.spec.typed.TypedRecurse r -> new com.legend.compiler.spec.typed.TypedRecurse(
+                    resolveNode(r.source(), context), new TypedLambda(r.step().parameters(),
+                    r.step().body().stream().map(b -> resolveNode(b, context)).toList(), r.step().info(),
+                    r.step().quoted()), r.info());
             // every RELATION OPERATOR above a resolved class chain is a
             // relation-space wrapper, rebuilt over its resolved source — named
             // once (TypedRelationOp), so none can be missed (TypedPivot was)
@@ -586,6 +595,15 @@ public final class StoreResolver {
                     structural(Pipelines.classEmptinessRewrite(nc,
                             this::objectSpace),
                             RoutingContext.routedContext(nc, context, specs, this::letBound));
+            // the identity of a mapped instance as a value (lite's elementId, the Cypher island's identity,
+            // docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W2, 2026-10-17): the class's primary-key pseudo-binding
+            // (the mapping's ~primaryKey, else the main table's PRIMARY KEY: ClassSources.pseudoBindings) read as
+            // text through the ordinary property funnel
+            case TypedNativeCall nc
+                    when com.legend.builtin.NativeFn.ResolverForm.of(nc.callee().id()).orElse(null)
+                            == com.legend.builtin.NativeFn.ResolverForm.ELEMENT_ID
+                    && nc.args().size() == 1 && objectSpace(nc.args().get(0)) ->
+                    resolveNode(elementIdRead(nc, context), context);
             // scalar/relation NATIVES over chains bottoming at a getAll:
             // args resolve structurally; CLASS-typed emptiness rewrites
             // FIRST (constant-project relation -> lowerer EXISTS; map §2).
@@ -1252,6 +1270,100 @@ public final class StoreResolver {
     /** size()/count() over a class extent = the ROW COUNT of the resolved
      * pipeline: project ONE constant column (no slot demand — engine emits
      * select count(*)) and count the relation. */
+    /** Every {@code elementId(X)} under {@code n} (the chain's lambdas included) rewritten to the read of X's
+     *  identity ({@link #elementIdRead}); a lambda's own variables rewrite in place, so the read then rides the
+     *  ordinary property funnel. Identity-preserving when there is nothing to rewrite. */
+    private TypedSpec identityReads(TypedSpec n, Context context) {
+        TypedSpec rw = n.mapChildren(k -> identityReads(k, context));
+        if (rw instanceof TypedNativeCall nc
+                && com.legend.builtin.NativeFn.ResolverForm.of(nc.callee().id()).orElse(null)
+                        == com.legend.builtin.NativeFn.ResolverForm.ELEMENT_ID
+                && nc.args().size() == 1) {
+            return elementIdRead(nc, context);
+        }
+        return rw;
+    }
+
+    /** {@code elementId($instance)} as the read of the instance's identity: its class's one primary-key
+     *  pseudo-binding (the engine's precedence: the mapping's {@code ~primaryKey}, else the main table's
+     *  {@code PRIMARY KEY}) as text. A class with neither has no identity: a compile error naming it; a composite
+     *  key is refused by name until it is spelled. */
+    private TypedSpec elementIdRead(TypedNativeCall nc, Context context) {
+        TypedSpec instance = nc.args().get(0);
+        if (!(Type.asClassType(instance.info().type()) instanceof Type.ClassType ct)) {
+            throw new MappingResolutionException("elementId: its argument must be an instance of a class, not "
+                    + instance.info().type().typeName());
+        }
+        String classFqn = ct.fqn();
+        ClassSource cs = sources.get(dispatch(context, classFqn), classFqn, null);
+        List<String> keys = cs.bindings().keySet().stream()
+                .filter(com.legend.model.ClassMapping::isPrimaryKeyBinding).toList();
+        if (keys.isEmpty()) {
+            throw new MappingResolutionException("elementId: the class " + classFqn + " has no identity under the"
+                    + " mapping " + cs.mappingFqn() + ": its mapping declares no ~primaryKey and its main table no"
+                    + " PRIMARY KEY");
+        }
+        if (keys.size() > 1) {
+            throw new com.legend.error.NotImplementedException("elementId: a composite key (" + keys.size()
+                    + " columns) as the identity of " + classFqn + " is not supported yet");
+        }
+        // (the read composes the instance's multiplicity, as a property's does along its path)
+        var mult = instance.info().multiplicity();
+        if (!(mult instanceof com.legend.compiler.element.type.Multiplicity.Bounded mb)
+                || !Integer.valueOf(1).equals(mb.upper())) {
+            // several instances (the [*] overload: a to-many navigation): each its own identity, element-wise --
+            // the concatenation over a collection would join them all (Pure's plus over String[*])
+            String v = "_identity" + freshVarCounter++;
+            var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+            TypedSpec each = new TypedVariable(v, new ExprType(ct, one));
+            TypedSpec identity = identityText(each, classFqn, keys.get(0), cs, one);
+            // (the lambda is typed by its function type, as every lambda is: {ct[1] -> String[1]})
+            return new TypedMap(instance, new TypedLambda(List.of(v), List.of(identity),
+                    new ExprType(new Type.FunctionType(List.of(new Type.Param(ct, one)),
+                            new Type.Param(identity.info().type(), identity.info().multiplicity())), one)),
+                    new ExprType(Type.Primitive.STRING, mult));
+        }
+        return identityText(instance, classFqn, keys.get(0), cs, mult);
+    }
+
+    /** One instance's identity as text: {@code '<class fqn>:' + toString($x.$pk)}, gated by the key's presence
+     *  when the instance is optional. */
+    private TypedSpec identityText(TypedSpec instance, String classFqn, String key, ClassSource cs,
+            com.legend.compiler.element.type.Multiplicity mult) {
+        TypedSpec binding = java.util.Objects.requireNonNull(cs.bindings().get(key));
+        TypedSpec read = new TypedPropertyAccess(instance, key, new ExprType(binding.info().type(), mult));
+        TypedSpec text = new TypedNativeCall(callees.toStringFn(), List.of(read),
+                new ExprType(Type.Primitive.STRING, mult));
+        // the identity is unique across the model: the class's FQN, a colon, the key's text (Neo4j's elementId
+        // carries its type and database the same way) -- the run ['<fqn>:', text] of string::plus(String[*])
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        var bound = mult instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                ? new com.legend.compiler.element.type.Multiplicity.Bounded(1 + b.lower(),
+                        b.upper() == null ? null : 1 + b.upper())
+                : com.legend.compiler.element.type.Multiplicity.Bounded.ONE_MANY;
+        TypedSpec prefixed = new TypedNativeCall(GraphEmission.stringPlusCallee(ctx), List.of(
+                new com.legend.compiler.spec.typed.TypedCollection(List.of(
+                        new TypedCString(classFqn + ":", new ExprType(Type.Primitive.STRING, one)), text),
+                        new ExprType(Type.Primitive.STRING, bound), false)),
+                new ExprType(Type.Primitive.STRING, mult));
+        // an absent instance has NO identity: the concatenation skips an empty operand (Pure's plus over
+        // String[*], the database's concat), so the key's presence gates it. Every read, not only an optional
+        // instance's (an optional navigation, a left join's empty side): an element of a to-many navigation is
+        // [1] in Pure, yet the database reads it as a null row where the navigation finds none (the far node of a
+        // fanning hop, whose presence the Cypher island tests by its identity, 2026-10-17: ungated, the far node
+        // of an empty second hop read as present under 'cls:' alone)
+        var gated = mult instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.upper() != null && b.upper() == 1
+                ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE : mult;
+        return new TypedIf(new TypedNativeCall(callees.isNotEmpty(), List.of(read),
+                new ExprType(Type.Primitive.BOOLEAN, one)),
+                prefixed,
+                Optional.of(new com.legend.compiler.spec.typed.TypedCollection(List.of(),
+                        new ExprType(Type.Primitive.STRING,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE))),
+                new ExprType(Type.Primitive.STRING, gated));
+    }
+
     private TypedSpec classExtentCount(TypedNativeCall nc, Context context) {
 
                 Type intType =
@@ -2450,6 +2562,12 @@ public final class StoreResolver {
                     }
                     continue;
                 }
+                if (hop > 0 && parent.bindings().containsKey(SyntheticHeads.realHead(path.get(hop)))) {
+                    // an embedded/slot property of the hop's target ($a.T.d.instant, d an embedded value of T's
+                    // class): a read on the target's row, as at the root, no further join (2026-10-17, the
+                    // #Cypher{...}# island's stored zoned values on a node a hop reaches, the study's §12.75)
+                    break;
+                }
                 String chainKey = String.join(".", path.subList(0, hop + 1));
                 AssociationJoins.AssocJoin known = joinsByChain.get(chainKey);
                 if (known != null) {
@@ -2642,6 +2760,10 @@ public final class StoreResolver {
                 fqn -> dispatch(canonCtx, fqn),
                 java.util.Objects.requireNonNull(callees.isNotEmpty(), "callees.isNotEmpty()")));
         top = synthetics.liftFilteredHeads(top);
+        // The identity reads (lite's elementId, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W2, 2026-10-17): an
+        // elementId($x) anywhere in the chain's lambdas becomes the text of $x's primary-key pseudo-binding, a
+        // property read the one funnel (demand scan + substitution) then carries like any other
+        top = identityReads(top, canonCtx);
         // The relation-shaping TERMINAL: project or class-source groupBy
         // (lambdas through the one funnel), or the GRAPH terminals —
         // explicit serialize, and every other class-shaped root = the

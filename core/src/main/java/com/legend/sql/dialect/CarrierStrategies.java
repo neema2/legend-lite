@@ -898,9 +898,15 @@ public final class CarrierStrategies extends SqlRewriter {
                 }
                 if (vg.fn() == com.legend.sql.SqlFn.VARIANT_ELEMENTS
                         && node instanceof List<?> l) {
+                    // the elements of a Variant array are Variants: each a JSON
+                    // cast literal, a scalar too (a bare literal mistyped the
+                    // element as its SQL kind, and jsonb_typeof(integer) has no
+                    // Postgres spelling: the Cypher island's orderability key
+                    // over a spelled list, 2026-10-17)
                     List<SqlExpr> els = new ArrayList<>(l.size());
                     for (Object el : l) {
-                        els.add(jsonLitExpr(el));
+                        els.add(new SqlExpr.Cast(new SqlExpr.StringLit(jsonText(el)),
+                                com.legend.sql.SqlType.Scalar.JSON));
                     }
                     return new SqlExpr.ArrayLit(els);
                 }

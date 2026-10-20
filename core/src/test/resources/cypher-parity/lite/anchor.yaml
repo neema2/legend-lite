@@ -1,0 +1,63 @@
+# The #Cypher{...}# island's re-anchoring cases (docs/CYPHER_STUDY_2026_10_15.md §12.49, the plan's W2 leg 4): a MATCH
+# or OPTIONAL MATCH after rows (a WITH that projected values, a grouping, a pattern read as rows) whose pattern
+# starts or ends at a node the rows carry is read as a graph of its own from that node's class and joined back to
+# the rows on the identity of every variable both hold (nodes, relationships); an OPTIONAL MATCH a left join. Each
+# case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/anchor/*'), keyed lite/anchor/<id>.
+tests:
+  - id: a_match_after_a_with_projecting_a_value
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'}), (a)-[:T]->(:B {name: 'c'}), (:A {name: 'd'})
+    cypher: "MATCH (a:A) WITH a, a.name AS n MATCH (a)-[:T]->(b:B) RETURN n, b.name AS bn ORDER BY n, bn"
+  - id: a_match_after_a_grouping
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'}), (a)-[:T]->(:B {name: 'c'}), (:A {name: 'd'})-[:T]->(:B {name: 'e'})
+    cypher: "MATCH (a:A)-[:T]->() WITH a, count(*) AS c MATCH (a)-[:T]->(b:B) RETURN a.name AS an, c, b.name AS bn ORDER BY an, bn"
+  - id: an_optional_match_after_rows
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'd'})
+    cypher: "MATCH (a:A) WITH a, a.name AS n OPTIONAL MATCH (a)-[:T]->(b:B) RETURN n, b.name AS bn, b IS NULL AS absent ORDER BY n"
+  - id: an_optional_match_after_rows_with_a_where
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'}), (a)-[:T]->(:B {name: 'c'}), (:A {name: 'd'})
+    cypher: "MATCH (a:A) WITH a, a.name AS n OPTIONAL MATCH (a)-[:T]->(b:B) WHERE b.name = 'c' RETURN n, b.name AS bn ORDER BY n"
+  - id: a_match_after_rows_with_a_where_over_the_rows
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'a'}), (a)-[:T]->(:B {name: 'c'})
+    cypher: "MATCH (a:A) WITH a, a.name AS n MATCH (a)-[:T]->(b:B) WHERE b.name <> n RETURN n, b.name AS bn"
+  - id: both_ends_bound_after_rows
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (a)-[:U]->(b), (a)-[:T]->(:B {name: 'c'})
+    cypher: "MATCH (a:A)-[:T]->(b:B) WITH a, b, 1 AS x MATCH (a)-[:U]->(b) RETURN a.name AS an, b.name AS bn, x"
+  - id: a_pattern_ending_at_the_carried_node
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (:A {name: 'c'})-[:T]->(b), (:B {name: 'd'})
+    cypher: "MATCH (b:B) WITH b, b.name AS n MATCH (a:A)-[:T]->(b) RETURN n, a.name AS an ORDER BY n, an"
+  - id: a_bound_relationship_matched_again
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})-[:T]->(:B {name: 'd'})
+    cypher: "MATCH (x:A)-[r:T]->(:B) WITH r, x.name AS xn MATCH (y:A)-[r]->(z:B) RETURN xn, y.name AS yn, z.name AS zn ORDER BY xn"
+  - id: a_relationship_variable_grouped_then_matched
+    graph: |
+      CREATE ()-[:T1]->(:X), ()-[:T2]->(:X), ()-[:T3]->()
+    cypher: "MATCH ()-[r1]->(:X) WITH r1 AS r2, count(*) AS c MATCH ()-[r2]->() RETURN r2 AS rel"
+  - id: re_anchored_twice
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'})-[:U]->(:C {name: 'c'}), (a)-[:T]->(:B {name: 'e'})
+    cypher: "MATCH (a:A) WITH a, 1 AS x MATCH (a)-[:T]->(b:B) WITH a, b, x, 2 AS y MATCH (b)-[:U]->(c:C) RETURN a.name AS an, b.name AS bn, c.name AS cn, x, y"
+  - id: a_fan_out_to_a_class_without_a_property
+    graph: |
+      CREATE (a:A), (b:B), (c:B), (a)-[:T]->(b), (a)-[:T]->(c)
+    cypher: "MATCH (a:A)-[:T]->(b:B) RETURN count(*) AS c, count(DISTINCT b) AS d"
+  - id: nodes_without_properties_returned_after_a_fan_out
+    graph: |
+      CREATE (a:A), (b:B), (c:B), (a)-[:T]->(b), (a)-[:T]->(c)
+    cypher: "MATCH (a:A)-[:T]->(b:B) RETURN a, b"
+  - id: an_optional_match_from_a_node_of_several_classes_refused
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:B {name: 'c'})
+    cypher: "MATCH (n) WITH n, n.name AS x OPTIONAL MATCH (n)-[:T]->(m) RETURN x, m.name AS mn ORDER BY x"
+  - id: an_optional_match_where_reading_the_rows
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A) WITH a, a.name AS n OPTIONAL MATCH (a)-[:T]->(b:B) WHERE b.name <> n RETURN n, b.name AS bn"

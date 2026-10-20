@@ -1543,7 +1543,7 @@ public final class NameResolver {
         return changed ? new com.legend.model.DataSpaceDefinition(
                 ds.qualifiedName(), contexts, ds.defaultExecutionContext(),
                 ds.title(), ds.description(), executables, diagrams,
-                ds.supportInfoSource(), ds.elements()) : ds;
+                ds.supportInfoSource(), ds.elements(), ds.stereotypes()) : ds;
     }
 
     private static ConnectionDefinition resolveConnection(

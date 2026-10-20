@@ -32,6 +32,20 @@ public interface InputDialect {
         return this;
     }
 
+    /** The statement {@link #reading} was given is translated, before its relation is returned: a dialect raises here
+     *  an error it held while translating, which an error met later in the statement comes before (IQ island,
+     *  2026-10-17: IQ's -157 for a string an integer column cannot be, before its -1001013 for comparing a string with
+     *  a number, wherever each stands in the WHERE). */
+    default void translated() {
+    }
+
+    /** The statement {@link #reading} was given failed to translate with {@code e}: the error to raise, {@code e} or
+     *  one the dialect held that comes before it (IQ island, 2026-10-17: IQ raises a subquery's placement error after
+     *  the statement's names, grouping and functions are checked). */
+    default SqlTranslationException failed(SqlTranslationException e) {
+        return e;
+    }
+
     // ------------------------------------------------------------------ names
 
     /** The name an unquoted identifier declares ({@code AS x}, a WITH query's name): Postgres folds it to lower
@@ -53,6 +67,12 @@ public interface InputDialect {
 
     /** The output name of a select item written without an alias. */
     String defaultName(SqlAst.SelectExpr item);
+
+    /** The join {@code join} is read as: its own type; a dialect may read an outer join as the inner one it is (IQ
+     *  island, 2026-10-17: IQ's engine, under a WHERE that rejects the null-supplying side's NULLs). */
+    default SqlAst.JoinType joinType(SqlAst.Join join) {
+        return join.type();
+    }
 
     /** The output name of a select item written without an alias, where {@code tables} says which FROM item of the
      *  item's query each of its column references reads: {@link #defaultName(SqlAst.SelectExpr)} unless the dialect
@@ -431,6 +451,8 @@ public interface InputDialect {
         DISTINCT_ORDER_KEY,
         /** IQ island, 2026-10-14 (the third landing): a set operation's two sides of different widths: the operation
          *  ({@code UNION}, {@code INTERSECT}, {@code EXCEPT}). */
-        SET_WIDTHS
+        SET_WIDTHS,
+        /** IQ island, 2026-10-17: an aggregate call inside an aggregate's arguments. */
+        NESTED_AGGREGATE
     }
 }

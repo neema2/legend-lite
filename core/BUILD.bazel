@@ -844,7 +844,9 @@ _IQ_SHOWCASE_DATA = [
 junit_test(
     name = "iq_parity_test",
     memory_mb = 768,
-    size = "medium",
+    # 4,100 cases, 8,500 runs by profile, each a model compiled and a query run (IQ island, 2026-10-17): 43 s alone,
+    # past medium's 300 s in //gates:local beside the other lanes (landing 5's gate run)
+    size = "large",
     srcs = ["src/test/java/com/legend/integration/IqParityTest.java"],
     data = _IQ_PARITY_DATA + _IQ_SHOWCASE_DATA,
     jvm_flags = _IQ_PARITY_FLAGS + [
@@ -916,7 +918,8 @@ junit_test(
 junit_test(
     name = "iq_parity_postgres_test",
     memory_mb = 768,
-    size = "medium",
+    # :iq_parity_test's cases on an embedded Postgres (IQ island, 2026-10-17): sized as that lane is
+    size = "large",
     srcs = ["src/test/java/com/legend/server/IqParityPostgresTest.java"],
     data = _IQ_PARITY_DATA + [
         "@embedded_postgres//:pg/PG_ROOT",
@@ -950,6 +953,7 @@ _CYPHER_PARITY_DATA = glob(
     exclude = ["src/test/resources/cypher-parity/tck/**/*.md"],
 ) + [
     "src/test/resources/cypher-parity/neo4j-answers.jsonl",
+    "src/test/resources/cypher-parity/cypher-functions.txt",
     "src/test/resources/cypher-parity/ledger.tsv",
     "src/test/resources/cypher-parity/decisions.tsv",
 ]
@@ -958,6 +962,7 @@ _CYPHER_PARITY_FLAGS = [
     # the TCK's directory: the directory of its LICENSE
     "-Dcypher.parity.tck=$(rlocationpath src/test/resources/cypher-parity/tck/LICENSE)",
     "-Dcypher.parity.answers=$(rlocationpath src/test/resources/cypher-parity/neo4j-answers.jsonl)",
+    "-Dcypher.parity.functions=$(rlocationpath src/test/resources/cypher-parity/cypher-functions.txt)",
     "-Dcypher.parity.ledger=$(rlocationpath src/test/resources/cypher-parity/ledger.tsv)",
     "-Dcypher.parity.decisions=$(rlocationpath src/test/resources/cypher-parity/decisions.tsv)",
     # the case files: the directory of this file
@@ -988,7 +993,16 @@ _CYPHER_SHOWCASE_DATA = [
 
 junit_test(
     name = "cypher_parity_test",
-    memory_mb = 1024,
+    # eternal (3600 s), the size kept (2026-10-19): main's Windows core lane timed it out at large's 900 s three times on
+    # 167018c4 (runs 39164681359 and 39262226227); measured 451-820 s on Linux and macOS and 645 s on Windows when
+    # green. Eight temporal cases send 0.3-34 MB of SQL each (CypherToPure's temporal helpers repeat an input in every
+    # use: lite/temporal/nanos_arithmetic is one 33.7 MB statement, 130 s in DuckDB's prepare) and take 75% of the
+    # lane (throwaway branch debug/cypher-parity-timing). Back to large's own timeout when the translator binds a
+    # shared temporal value once.
+    timeout = "eternal",
+    # live peak 955 MB at 1024 (measured 2026-10-18, 5062 cases, the review's cases landed): the rule's half again;
+    # at 1024 the gate's cgroup killed it beside three other tests
+    memory_mb = 1536,
     # 3,900 cases, each a model compiled and a query run: measured below medium's 300 s only on a fast machine
     size = "large",
     srcs = ["src/test/java/com/legend/integration/CypherParityTest.java"],
@@ -1011,7 +1025,8 @@ junit_test(
 
 junit_test(
     name = "cypher_parity_postgres_test",
-    memory_mb = 1024,
+    # live peak 840 MB, 1021 MB before a collection, at 1024 (measured 2026-10-18, 5062 cases): the rule's half again
+    memory_mb = 1280,
     # 3,900 cases, each a model compiled and a query run: measured below medium's 300 s only on a fast machine
     size = "large",
     srcs = ["src/test/java/com/legend/server/CypherParityPostgresTest.java"],

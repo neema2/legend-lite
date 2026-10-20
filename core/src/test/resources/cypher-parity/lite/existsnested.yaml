@@ -1,0 +1,51 @@
+# The #Cypher{...}# island's nested and multi-hop EXISTS subqueries (docs/CYPHER_STUDY_2026_10_15.md §12.77): an EXISTS
+# whose match is a lone node the inner pattern binds is the inner pattern's own existence (the parser's normal form);
+# a pattern predicate or EXISTS subquery of more than one hop in a MATCH's WHERE is read over the pattern's rows, a
+# flag joined back by identity (§12.52), the subquery's own variables the pattern's. Each case is judged by Neo4j's
+# answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/existsnested/*'), keyed
+# lite/existsnested/<id>.
+tests:
+  - id: nested_simple
+    graph: |
+      CREATE (a:A {prop: 1})-[:R]->(:B {prop: 1}), (a)-[:R]->(:C {prop: 2}), (:A {prop: 5})-[:R]->(:B {prop: 6})
+    cypher: "MATCH (n) WHERE exists { MATCH (m) WHERE exists { (n)-[]->(m) WHERE n.prop = m.prop } RETURN true } RETURN n.prop AS p"
+  - id: nested_with_a_pattern_predicate
+    graph: |
+      CREATE (a:A {prop: 1})-[:R]->(:B {prop: 1}), (a)-[:R]->(:C {prop: 2}), (x:A {prop: 7})-[:R]->(:B {prop: 8})
+    cypher: "MATCH (n:A) WHERE exists { MATCH (m) WHERE exists { MATCH (l) WHERE (l)<-[:R]-(n)-[:R]->(m) RETURN true } RETURN true } RETURN n.prop AS p"
+  - id: two_hops_need_two_relationships
+    graph: |
+      CREATE (:A {name: 'a'})-[:R]->(:B), (c:A {name: 'c'})-[:R]->(:B), (c)-[:R]->(:B)
+    cypher: "MATCH (n:A) WHERE EXISTS { (l)<-[:R]-(n)-[:R]->(m) } RETURN n.name AS n"
+  - id: a_chain_of_two_hops
+    graph: |
+      CREATE (:A {name: 'a'})-[:R]->(:B)-[:S]->(:C), (:A {name: 'b'})-[:R]->(:B), (:A {name: 'c'})
+    cypher: "MATCH (n:A) WHERE EXISTS { (n)-[:R]->()-[:S]->(x:C) } RETURN n.name AS n ORDER BY n"
+  - id: not_a_chain_of_two_hops
+    graph: |
+      CREATE (:A {name: 'a'})-[:R]->(:B)-[:S]->(:C), (:A {name: 'b'})-[:R]->(:B), (:A {name: 'c'})
+    cypher: "MATCH (n:A) WHERE NOT EXISTS { (n)-[:R]->()-[:S]->() } RETURN n.name AS n ORDER BY n"
+  - id: a_chain_with_a_where
+    graph: |
+      CREATE (:A {name: 'a'})-[:R]->(:B)-[:S]->(:C {v: 2}), (:A {name: 'b'})-[:R]->(:B)-[:S]->(:C {v: 0})
+    cypher: "MATCH (n:A) WHERE EXISTS { MATCH (n)-[:R]->(x)-[:S]->(y) WHERE y.v > 1 RETURN y } RETURN n.name AS n"
+  - id: the_lone_node_labelled
+    graph: |
+      CREATE (a:A {name: 'a'})-[:R]->(:B), (b:A {name: 'b'})-[:R]->(:C)
+    cypher: "MATCH (n:A) WHERE EXISTS { MATCH (m:B) WHERE EXISTS { (n)-->(m) } } RETURN n.name AS n"
+  - id: a_chain_or_a_property
+    graph: |
+      CREATE (:A {name: 'a', k: 1})-[:R]->(:B)-[:S]->(:C), (:A {name: 'b', k: 2}), (:A {name: 'c', k: 1})
+    cypher: "MATCH (n:A) WHERE n.k = 2 OR EXISTS { (n)-[:R]->()-[:S]->() } RETURN n.name AS n ORDER BY n"
+  - id: counted_matches
+    graph: |
+      CREATE (a:A {name: 'a'})-[:R]->(:B), (a)-[:R]->(:B), (b:A {name: 'b'})-[:R]->(:B), (:A {name: 'c'})
+    cypher: "MATCH (n:A) WHERE EXISTS { MATCH (n)-[:R]->(m) WITH n, count(*) AS k WHERE k = 2 RETURN true } RETURN n.name AS n"
+  - id: counted_none_is_no_group
+    graph: |
+      CREATE (a:A {name: 'a'})-[:R]->(:B), (:A {name: 'c'})
+    cypher: "MATCH (n:A) WHERE EXISTS { MATCH (n)-[:R]->(m) WITH n, count(*) AS k WHERE k = 0 RETURN true } RETURN n.name AS n"
+  - id: counted_with_a_where_and_not
+    graph: |
+      CREATE (a:A {name: 'a'})-[:R]->(:B {v: 1}), (a)-[:R]->(:B {v: 5}), (b:A {name: 'b'})-[:R]->(:B {v: 6}), (:A {name: 'c'})
+    cypher: "MATCH (n:A) WHERE NOT EXISTS { MATCH (n)-[:R]->(m) WHERE m.v > 2 WITH n, count(*) AS k WHERE k >= 1 RETURN k } RETURN n.name AS n ORDER BY n"

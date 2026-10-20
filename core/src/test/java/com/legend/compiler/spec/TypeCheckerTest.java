@@ -363,6 +363,22 @@ class TypeCheckerTest {
     }
 
     @Test
+    void anEmptyCastToAClassIsTheTypedEmptyNotNil() {
+        // []->cast(@C): the cast TYPES the empty (C[0..0]), as []->cast(@String) is String[0..0]; until 2026-10-17
+        // the identity rule (a source already conforming to the target is the source) took the []-born Nil, the
+        // bottom of every class, and a Variant NULL column under a concatenate refused to unite (the Cypher
+        // island's property typed two ways, the study's §12.62)
+        TypedSpec v = typeQuery("[]->cast(@meta::pure::metamodel::variant::Variant)");
+        assertEquals("meta::pure::metamodel::variant::Variant", ((Type.ClassType) v.info().type()).fqn());
+        assertEquals(new Multiplicity.Bounded(0, 0), v.info().multiplicity());
+        String none = T_PERSON + "->extend(~a: x | []->cast(@meta::pure::metamodel::variant::Variant))";
+        String some = T_PERSON + "->extend(~a: x | 'v'->toVariant())";
+        assertEquals(new Multiplicity.Bounded(0, 1), column(typeQuery(some + "->concatenate(" + none + ")"), "a"));
+        // a non-empty source conforming to the target stays the identity
+        assertInstanceOf(TypedCast.class, typeQuery("[]->cast(@String)"));
+    }
+
+    @Test
     void concatenateUnitesTheColumnStamps() {
         // the islands spell a NULL constant as []->cast(@String), a column stamped [0..0]; united with a value
         // column it is [0..1] on either side -- until 2026-10-14 the left schema was taken whole, stamps included,

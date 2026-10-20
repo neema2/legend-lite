@@ -172,6 +172,9 @@ public enum CoreFn {
     /** {@code inlineView(rel)} &mdash; a SQL island's derived table that computes windows: its relation, each window
      *  a boundary (lite-internal; Pure.Lite.INLINE_VIEW). */
     INLINE_VIEW("inlineView"),
+    /** {@code recurse(base, r | step)} &mdash; a recursion over a relation, the database's recursive CTE (lite-internal;
+     *  Pure.Lite.RECURSE, the Cypher island's unbounded variable-length patterns). */
+    RECURSE("recurse"),
     /** {@code isDistinct(collection, #{Class{a, b}}#)} &mdash; no duplicates comparing by the tree's leaves (the 1-arg collection form types generically). */
     IS_DISTINCT("isDistinct"),
     /** {@code graphFetch(#{Class{…}}#)} &mdash; object-graph projection; result = source type. */
@@ -380,6 +383,8 @@ public enum CoreFn {
                 "meta::legend::lite::route"));
         m.put(INLINE_VIEW, java.util.Set.of(
                 "meta::legend::lite::inlineView"));
+        m.put(RECURSE, java.util.Set.of(
+                "meta::legend::lite::recurse"));
         m.put(IS_DISTINCT, java.util.Set.of(
                 "meta::pure::functions::collection::isDistinct"));
         m.put(GRAPH_FETCH, java.util.Set.of(

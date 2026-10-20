@@ -386,6 +386,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             case "BIT" -> "Bit";
             case "DATE" -> "Date";
             case "TIMESTAMP" -> "Timestamp";
+            case "TIME" -> "Time";
+            case "TIMESTAMP_NS" -> "TimestampNs";
             case "SEMISTRUCTURED" -> "SemiStructured";
             case "JSON" -> "Json";
             // engine has no Array wire type: the ARRAY keyword walks to

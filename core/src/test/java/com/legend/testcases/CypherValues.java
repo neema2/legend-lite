@@ -465,7 +465,7 @@ public final class CypherValues {
         // a list or map, as the Variant lite returns (C8): DuckDB's JsonNode, Postgres's json/jsonb PGobject
         String cls = cell.getClass().getName();
         if (cls.equals("org.duckdb.JsonNode")) {
-            return ofJson(com.legend.json.Json.parse(cell.toString()));
+            return ofJson(NonFiniteJson.parse(cell.toString()));
         }
         if (cls.equals("org.postgresql.util.PGobject")) {
             try {
@@ -512,6 +512,46 @@ public final class CypherValues {
             }
         }
         return true;
+    }
+
+    /** Two local times of day ({@code Time('HH:mm:ss.nnnnnnnnn')}, no offset): equal when they name one time, whatever
+     *  the fraction's digits (Neo4j spells nine, the island's text of a stored time Neo4j's toString, which cuts the
+     *  trailing zeros: the study's §12.59). */
+    static boolean sameLocalTime(String a, String b) {
+        java.time.LocalTime x = localTime(a);
+        java.time.LocalTime y = localTime(b);
+        return x != null && x.equals(y);
+    }
+
+    /** Two local date-times of the value grammar ({@code DateTime('2017-01-01T12:00:00')}, Neo4j's nine digits of
+     *  the second or the island's trimmed ones, a list's or map's element, the study's §12.76): equal when they
+     *  name one local date-time. */
+    static boolean sameLocalDateTime(String a, String b) {
+        java.time.LocalDateTime x = localDateTime(a);
+        java.time.LocalDateTime y = localDateTime(b);
+        return x != null && x.equals(y);
+    }
+
+    private static java.time.@com.legend.base.Nullable LocalDateTime localDateTime(String text) {
+        if (!text.startsWith("DateTime('") || !text.endsWith("')")) {
+            return null;
+        }
+        try {
+            return java.time.LocalDateTime.parse(text.substring(10, text.length() - 2));
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;   // a zoned date-time
+        }
+    }
+
+    private static java.time.@com.legend.base.Nullable LocalTime localTime(String text) {
+        if (!text.startsWith("Time('") || !text.endsWith("')")) {
+            return null;
+        }
+        try {
+            return java.time.LocalTime.parse(text.substring(6, text.length() - 2));
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;   // a zoned time, or a date-time's text
+        }
     }
 
     /** The four slots a duration text of Neo4j's spells; null when the text is not one. */
@@ -565,9 +605,15 @@ public final class CypherValues {
                 }
             }
         }
-        long total = nanos.longValueExact();
-        long seconds = Math.floorDiv(total, 1_000_000_000L);
-        long rest = Math.floorMod(total, 1_000_000_000L);
+        // The seconds and their nanoseconds apart: a duration across the millennia (9998 years and more, the year 1's
+        // date-time to the year 9999's) is past a long's nanoseconds, its seconds well inside one.
+        java.math.BigDecimal[] split = nanos.divideAndRemainder(java.math.BigDecimal.valueOf(1_000_000_000L));
+        long seconds = split[0].longValueExact();
+        long rest = split[1].longValueExact();
+        if (rest < 0) {
+            seconds--;
+            rest += 1_000_000_000L;
+        }
         return new long[] {months, days, seconds, rest};
     }
 
@@ -625,7 +671,7 @@ public final class CypherValues {
         return text.startsWith("Time('") && text.endsWith("')") && !zonedTimeText(text);
     }
 
-    private static boolean zonedTimeText(String text) {
+    static boolean zonedTimeText(String text) {
         if (!text.startsWith("Time('") || !text.endsWith("')")) {
             return false;
         }
@@ -633,13 +679,54 @@ public final class CypherValues {
         return body.indexOf('+') > 0 || body.indexOf('-') > 0 || body.endsWith("Z");
     }
 
-    private static boolean zonedText(String text) {
+    static boolean zonedText(String text) {
         if (!text.startsWith("DateTime('") || !text.endsWith("')")) {
             return false;
         }
         String body = text.substring(10, text.length() - 2);
         int t = body.indexOf('T');
         return t > 0 && (body.indexOf('+', t) > 0 || body.indexOf('-', t) > 0 || body.endsWith("Z"));
+    }
+
+    /** A zoned value's text ({@code Time('HH:mm:ss.n+01:00')}, {@code DateTime('...T...+00:15')}) split for the
+     *  store (the Cypher island's stored zoned values, docs/CYPHER_STUDY_2026_10_15.md §12.65): its instant's text
+     *  as a seed binds it (a zoned time's on the epoch day, 1969-12-31 or 1970-01-02 when the offset crosses
+     *  midnight) and its offset in seconds; null for another text. */
+    static @com.legend.base.Nullable ZonedParts zonedParts(String text) {
+        try {
+            if (zonedTimeText(text)) {
+                java.time.OffsetTime t = java.time.OffsetTime.parse(text.substring(6, text.length() - 2));
+                java.time.LocalDateTime utc = java.time.LocalDateTime.ofInstant(t.atDate(java.time.LocalDate.EPOCH)
+                        .toInstant(), java.time.ZoneOffset.UTC);
+                return new ZonedParts(seedText(utc), t.getOffset().getTotalSeconds(), null);
+            }
+            if (zonedText(text)) {
+                String body = text.substring(10, text.length() - 2);
+                // (a region's name in brackets after the offset, as the oracle dumps a value of a named zone:
+                // tools/neo4j-oracle/README.md)
+                int bracket = body.indexOf('[');
+                java.time.OffsetDateTime t = java.time.OffsetDateTime.parse(bracket < 0 ? body
+                        : body.substring(0, bracket));
+                java.time.LocalDateTime utc = java.time.LocalDateTime.ofInstant(t.toInstant(),
+                        java.time.ZoneOffset.UTC);
+                return new ZonedParts(seedText(utc), t.getOffset().getTotalSeconds(), bracket < 0 ? null
+                        : body.substring(bracket + 1, body.length() - 1));
+            }
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
+        }
+        return null;
+    }
+
+    /** A stored zoned value's parts: the instant's seed text, the offset in seconds, and the region's name where
+     *  the value is of a named zone (null for an offset alone). */
+    record ZonedParts(String instant, long offsetSeconds, @com.legend.base.Nullable String region) {
+    }
+
+    /** A date-time as the seed binds it: {@code yyyy-MM-dd HH:mm:ss.nnnnnnnnn}, nine digits. */
+    private static String seedText(java.time.LocalDateTime dt) {
+        return dt.toLocalDate() + " " + String.format(java.util.Locale.ROOT, "%02d:%02d:%02d.%09d", dt.getHour(),
+                dt.getMinute(), dt.getSecond(), dt.getNano());
     }
 
     private static java.time.@com.legend.base.Nullable Instant instantOf(String text) {
@@ -707,9 +794,10 @@ public final class CypherValues {
                 }
                 if (o.fields().get("@type") instanceof com.legend.json.Json.Str type) {
                     // a relationship as lite returns it (the study's §12.19): its type, its properties beside it
+                    // (its identity, "@id", the island's own key, read past: Neo4j's values carry none, §12.71)
                     Map<String, Value> props = new TreeMap<>();
                     o.fields().forEach((k, v) -> {
-                        if (!k.equals("@type")) {
+                        if (!k.equals("@type") && !k.equals("@id")) {
                             props.put(k, ofJson(v));
                         }
                     });
@@ -723,7 +811,7 @@ public final class CypherValues {
                     }
                     Map<String, Value> props = new TreeMap<>();
                     o.fields().forEach((k, v) -> {
-                        if (!k.equals("@labels")) {
+                        if (!k.equals("@labels") && !k.equals("@id")) {
                             props.put(k, ofJson(v));
                         }
                     });
@@ -753,7 +841,8 @@ public final class CypherValues {
         }
         if (a instanceof Opaque x && b instanceof Opaque y) {
             return x.text().equals(y.text()) || sameInstant(x.text(), y.text()) || sameEpochTime(x.text(), y.text())
-                    || sameEpochLocalTime(x.text(), y.text());
+                    || sameEpochLocalTime(x.text(), y.text()) || sameLocalTime(x.text(), y.text())
+                    || sameLocalDateTime(x.text(), y.text());
         }
         if (a instanceof Opaque x && b instanceof Mp y || a instanceof Mp x2 && b instanceof Opaque y2) {
             Opaque o = a instanceof Opaque x3 ? x3 : (Opaque) b;

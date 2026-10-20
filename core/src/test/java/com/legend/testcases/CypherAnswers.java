@@ -149,9 +149,13 @@ public final class CypherAnswers {
     /** What an answer is for, hashed as the oracle hashes it ({@code snap.py}, {@code sha}): the query, its Cypher
      *  version, the setup statements, the parameters as written, and a lite case's decision and expect. */
     public static String sha(String query, String version, List<String> setup, String paramsText,
-            @com.legend.base.Nullable String decision, @com.legend.base.Nullable String expectText) {
+            @com.legend.base.Nullable String decision, @com.legend.base.Nullable String expectText,
+            String proceduresText) {
         String text = String.join("\n\0\n", query, version, String.join("\n;\n", setup), paramsText,
                 decision == null ? "" : decision, expectText == null ? "" : expectText);
+        if (!proceduresText.isEmpty()) {
+            text += "\n\0\n" + proceduresText;   // (a case declaring procedures, the study's §12.60)
+        }
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(
                     StandardCharsets.UTF_8)));

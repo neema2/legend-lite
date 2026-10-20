@@ -774,7 +774,14 @@ public final class ClassSources {
             bindings.put(e.getKey(), e.getValue());
         }
 
-        pseudoBindings(bindings, rowType, mapper.parameters().get(0), binding.primaryKeyColumns());
+        // the engine's resolvePrimaryKey order (RelationalRootForm.primaryKeyColumns, 2026-10-17: the Cypher
+        // island's identity, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W2): the mapping's declared ~primaryKey
+        // columns first; the root table's PRIMARY KEY flags only when the mapping declares none; never any other
+        // column (a class with neither has no identity, which elementId refuses by name)
+        List<String> identity = binding.primaryKeyColumns().isEmpty()
+                ? RelationalRootForm.primaryKeyColumns(classFqn, pipeline, mappingFqn, ctx)
+                : binding.primaryKeyColumns();
+        pseudoBindings(bindings, rowType, mapper.parameters().get(0), identity);
 
         ForeignKeyIdentity.register(bindings, ctor, mapper.parameters().get(0),
                 pipeline, rowType, mapping, ctx);

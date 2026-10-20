@@ -1,15 +1,19 @@
 """The #Cypher{...}# island's oracle: Neo4j Community's answers for the cypher-parity cases, snapped (README.md).
 
   snap.sh --write [--only GLOB]   run the cases, write core/src/test/resources/cypher-parity/neo4j-answers.jsonl
-  snap.sh --check [--only GLOB]   run the cases, report DRIFT, UNSNAPPED, STALE and GONE; exit 1 on any
+  snap.sh --check [--only GLOB]   run the cases, report DRIFT, UNSNAPPED, STALE and GONE (and FUNCTIONS when the
+                                  server's function names are not cypher-functions.txt's); exit 1 on any
+  snap.sh --functions             write core/src/test/resources/cypher-parity/cypher-functions.txt: the server's
+                                  function names (SHOW FUNCTIONS), lower-cased, which CypherFunctions must list
 
 The cases are the openCypher TCK's scenarios (core/src/test/resources/cypher-parity/tck, Apache 2.0, read by the
 Gherkin subset below, which the Java reader CypherTck mirrors step for step: the two must produce the same keys and
 the same sha inputs, or every answer is STALE) and lite's own (cypher-parity/lite/*.yaml). Each case runs on a
 local Neo4j Community over Bolt (the Apache 2.0 Python driver; the standard library otherwise, run isolated with
-python3 -I): the graph emptied, the case's setup run, the graph dumped (that dump is what the lanes seed their
-tables from: CI never interprets a CREATE), then the query, under the Cypher version the case names or lite's
-default (25), its rows written in the TCK's value grammar, or its error by Neo4j's code and message.
+python3 -I): the graph emptied, the case's setup run (under CYPHER 5, SETUP_CYPHER: the data the case is judged
+over, not what is judged), the graph dumped (that dump is what the lanes seed their tables from: CI never interprets
+a CREATE), then the query, under the Cypher version the case names or lite's default (25), its rows written in the
+TCK's value grammar, or its error by Neo4j's code and message.
 
 Neo4j Community is GPLv3: it runs here only, never on a classpath, never in CI; CI judges from the committed file.
 """
@@ -27,6 +31,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 PARITY = os.path.join(ROOT, "core", "src", "test", "resources", "cypher-parity")
 DEFAULT_CYPHER = "25"
+# The version a setup statement runs under: the TCK's setups are openCypher 9's text, which Cypher 5 reads as written
+# and Cypher 25 narrows (a variable created in a CREATE read in a property map of the same CREATE, measured: "Creating
+# an entity (a) and referencing that entity in a property definition in the same CREATE is not allowed" for
+# WithSkipLimit1/[1], WithSkipLimit2/[2] and With2/[1]). A setup only builds the graph; the query is what is judged,
+# under its own version. A setup statement that names its version keeps it.
+SETUP_CYPHER = "5"
 FORMAT = 1
 TIMEOUT_S = 60.0
 
@@ -72,6 +82,21 @@ def fmt(v):
         return "<" + out + ">"
     # temporal, spatial, bytes: an opaque tagged text the judge compares as text (lite refuses these values today)
     return type(v).__name__ + "(" + fmt(str(v)) + ")"
+
+
+def stored(v):
+    """A stored value as the dump writes it: fmt's, but a date-time of a named zone carries the zone's name in brackets
+    after its offset (Java's spelling, `DateTime('1984-11-11T12:31:14.645876123+01:00[Europe/Stockholm]')`): the
+    driver's text is the offset alone, and the lanes store the zone the value names
+    (docs/CYPHER_STUDY_2026_10_15.md §12.75). UTC, by any name, is the offset Z."""
+    from neo4j.time import DateTime
+    if isinstance(v, DateTime) and v.tzinfo is not None:
+        zone = getattr(v.tzinfo, "zone", None) or getattr(v.tzinfo, "key", None)
+        if zone is not None and zone != "UTC":
+            return "DateTime(" + fmt(str(v) + "[" + zone + "]") + ")"
+    if isinstance(v, list):
+        return "[" + ", ".join(stored(x) for x in v) + "]"
+    return fmt(v)
 
 
 def props(entity):
@@ -288,6 +313,7 @@ def case(prefix, name, steps, graphs):
     setup = []
     params = {}
     params_text = []
+    procedures = []
     query = None
     expect = None
     skip = None
@@ -318,8 +344,12 @@ def case(prefix, name, steps, graphs):
         elif re.match(r"an? (\w+) should be raised at (compile time|runtime|any time): (\S+)", text):
             m = re.match(r"an? (\w+) should be raised at (compile time|runtime|any time): (\S+)", text)
             expect = {"kind": "error", "type": m.group(1), "phase": m.group(2), "detail": m.group(3)}
-        elif text.startswith("there exists a procedure") or text.startswith("having defined"):
-            skip = skip or "a procedure"
+        elif text.startswith("there exists a procedure"):
+            # a procedure the scenario declares (CypherTck.Procedure): its graph is Neo4j's, its answer the TCK's
+            # own table (the harness judges a procedure case by its expectation; Neo4j runs no procedure of ours)
+            procedures.append(procedure_text(text, table))
+        elif text.startswith("having defined"):
+            skip = skip or "a defined function"
         elif text in ("no side effects",) or text.startswith("the side effects should be"):
             pass
         else:
@@ -327,7 +357,47 @@ def case(prefix, name, steps, graphs):
     if query is None:
         skip = skip or "no query"
     return {"key": prefix + "/" + name, "query": query or "", "setup": setup, "params": params,
-            "paramsText": "\n".join(params_text), "version": version, "expect": expect, "skip": skip}
+            "paramsText": "\n".join(params_text), "version": version, "expect": expect, "skip": skip,
+            "proceduresText": "\n".join(procedures)}
+
+
+def lite_procedures_text(block):
+    """A lite case's procedures block (declaration lines, each followed by its table's lines) as the text."""
+    if not block:
+        return ""
+    out = []
+    declaration = None
+    table = []
+    for line in block.split("\n"):
+        l = line.strip()
+        if not l:
+            continue
+        if l.startswith("|"):
+            table.append(cells(l))
+        else:
+            if declaration is not None:
+                out.append(procedure_text(declaration, table))
+            declaration = l
+            table = []
+    if declaration is not None:
+        out.append(procedure_text(declaration, table))
+    return "\n".join(out)
+
+
+def procedure_text(text, table):
+    """A procedure declaration as CypherTck.Procedure.text spells it: name(in :: T?, ...) :: (out :: T?, ...), then
+    its rows (a table of one empty cell is none), each row's cells joined by |."""
+    m = re.match(r"(?:there exists a procedure )?(\S+?)\((.*?)\)\s*::\s*\((.*?)\)\s*:?\s*$", text.strip())
+    if not m:
+        raise SystemExit("a procedure declaration the snapper does not read: " + text)
+    def params(t):
+        return ", ".join(p.strip().split("::")[0].strip() + " :: " + p.strip().split("::")[1].strip().replace("?", "") + "?"
+                         for p in t.split(",") if p.strip())
+    out = m.group(1) + "(" + params(m.group(2)) + ") :: (" + params(m.group(3)) + ")"
+    for row in (table or [])[1:]:   # the first row is the header (the inputs' then the outputs' names)
+        if not (len(row) == 1 and row[0] == ""):
+            out += "\n" + "|".join(row)
+    return out
 
 
 # ------------------------------------------------------------------ lite's own cases
@@ -396,7 +466,8 @@ def lite_cases(lite_dir):
             cases.append({"key": "lite/" + file + "/" + it["id"], "query": it.get("cypher", ""), "setup": setup,
                           "params": params, "paramsText": it.get("params") or "", "version": it.get("version"),
                           "expect": None, "skip": it.get("skip"), "decision": it.get("decision"),
-                          "expectText": it.get("expect")})
+                          "expectText": it.get("expect"),
+                          "proceduresText": lite_procedures_text(it.get("procedures"))})
     return cases
 
 
@@ -415,6 +486,8 @@ def sha(c):
     and expect; a change to any makes the answer STALE (CypherAnswers.sha computes the same)."""
     parts = [c["query"], cypher_version(c), "\n;\n".join(c["setup"]), c["paramsText"], c.get("decision") or "",
              c.get("expectText") or ""]
+    if c.get("proceduresText"):
+        parts.append(c["proceduresText"])   # (a case declaring procedures, the study's §12.60)
     return hashlib.sha256("\n\x00\n".join(parts).encode("utf-8")).hexdigest()
 
 
@@ -424,6 +497,24 @@ def sha(c):
 def connect(url):
     from neo4j import GraphDatabase
     return GraphDatabase.driver(url)
+
+
+FUNCTIONS_HEADER = ("# Neo4j's built-in functions on the pinned release (SHOW FUNCTIONS), lower-cased, one per line:"
+                    " written by\n# tools/neo4j-oracle/snap.sh --functions, checked by every --check; CypherParityTest"
+                    " holds\n# com.legend.protocol.cypher.CypherFunctions to this file.\n")
+
+
+def function_names(driver):
+    """The server's function names, lower-cased (Cypher's function names are case-insensitive), sorted."""
+    with driver.session() as s:
+        return sorted({r["name"].lower() for r in s.run("SHOW FUNCTIONS YIELD name RETURN name").data()})
+
+
+def read_function_names(path):
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return [l.strip() for l in f if l.strip() and not l.startswith("#")]
 
 
 def server_version(driver):
@@ -441,12 +532,16 @@ def run_case(driver, c):
     with driver.session() as s:
         s.run("MATCH (n) DETACH DELETE n").consume()
         for stmt in c["setup"]:
+            if not re.match(r"\s*CYPHER\b", stmt):
+                stmt = "CYPHER " + SETUP_CYPHER + " " + stmt
             try:
                 s.run(stmt).consume()
             except Exception as e:  # a setup Neo4j refuses: the case is unrunnable, recorded as such
                 out["setupError"] = error_of(e)
                 return out
         out["graph"] = dump(s)
+        if c.get("proceduresText"):
+            return out   # the query calls a procedure Neo4j has not: the graph alone is the oracle's
         query = c["query"]
         if not re.match(r"\s*CYPHER\b", query):
             query = "CYPHER " + cypher_version(c) + " " + query
@@ -487,12 +582,12 @@ def dump(s):
     for rec in s.run("MATCH (n) RETURN elementId(n) AS id, labels(n) AS labels, properties(n) AS props ORDER BY id"):
         ids[rec["id"]] = len(nodes)
         nodes.append({"id": len(nodes), "labels": sorted(rec["labels"]),
-                      "props": {k: fmt(v) for k, v in sorted(rec["props"].items())}})
+                      "props": {k: stored(v) for k, v in sorted(rec["props"].items())}})
     rels = []
     for rec in s.run("MATCH (a)-[r]->(b) RETURN elementId(r) AS id, elementId(a) AS a, elementId(b) AS b, type(r) AS t,"
                      " properties(r) AS props ORDER BY id"):
         rels.append({"id": len(rels), "start": ids[rec["a"]], "end": ids[rec["b"]], "type": rec["t"],
-                     "props": {k: fmt(v) for k, v in sorted(rec["props"].items())}})
+                     "props": {k: stored(v) for k, v in sorted(rec["props"].items())}})
     return {"nodes": nodes, "rels": rels}
 
 
@@ -587,6 +682,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--functions", action="store_true", help="write the server's function names and exit")
     ap.add_argument("--only", default=None, help="a glob over case keys")
     ap.add_argument("--url", default="bolt://127.0.0.1:7687")
     ap.add_argument("--parity", default=PARITY)
@@ -602,8 +698,17 @@ def main():
             kinds[k] = kinds.get(k, 0) + 1
         print(len(cases), "cases", kinds)
         return 0
+    functions_file = os.path.join(args.parity, "cypher-functions.txt")
+    if args.functions:
+        driver = connect(args.url)
+        names = function_names(driver)
+        driver.close()
+        with open(functions_file, "w", encoding="utf-8") as f:
+            f.write(FUNCTIONS_HEADER + "".join(n + "\n" for n in names))
+        print("wrote", functions_file, "-", len(names), "names")
+        return 0
     if not (args.write or args.check):
-        ap.error("--write or --check")
+        ap.error("--write, --check or --functions")
     answers_file = os.path.join(args.parity, "neo4j-answers.jsonl")
     old_meta, old = read_answers(answers_file)
     driver = connect(args.url)
@@ -615,6 +720,7 @@ def main():
         live[c["key"]] = run_case(driver, c)
         if n % 100 == 0:
             print("  ", n, "of", len(runnable), file=sys.stderr)
+    names = function_names(driver)
     driver.close()
     meta = {"tool": "tools/neo4j-oracle/snap.py", "format": FORMAT, "server": version, "edition": edition,
             "defaultCypher": DEFAULT_CYPHER}
@@ -639,6 +745,8 @@ def main():
             problems.append("STALE: " + c["key"])
         elif not same_answer(a, live[c["key"]], bool((c.get("expect") or {}).get("ignoreListOrder"))):
             problems.append("DRIFT: " + c["key"])
+    if read_function_names(functions_file) != names:
+        problems.append("FUNCTIONS: the server's function names are not " + functions_file + "'s (snap.sh --functions)")
     keys = {c["key"] for c in runnable}
     for k in old:
         if (not args.only or fnmatch.fnmatchcase(k, args.only)) and k not in keys:

@@ -1480,6 +1480,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case SHA1 -> writer.append("TO_HEX(SHA1(").piece(asText(a.get(0))).append("))");
             case SHA256 -> writer.append("TO_HEX(SHA256(").piece(asText(a.get(0))).append("))");
             case GUID -> writer.append("GENERATE_UUID()");
+            case RANDOM -> writer.append("RAND()");
             // printf-like as DuckDB's: %d takes an INT64, %s a STRING on both (measured)
             case FORMAT -> format(writer, a);
             case JARO_WINKLER -> throw wall(c.fn(), "BigQuery has no Jaro-Winkler similarity");
@@ -2899,9 +2900,11 @@ public final class BigQuery extends AnsiSqlRenderer {
                 case BIT -> "BOOL";
                 case TIMESTAMP -> "DATETIME";
                 case DATE -> "DATE";
+                case TIME -> "TIME";
                 case JSON -> "JSON";
                 case VARCHAR -> "STRING";
-                case OTHER, DISTINCT, ARRAY, OBJECT -> throw new DialectCapability("a " + p.kind()
+                // a nanosecond timestamp column: BigQuery's DATETIME keeps microseconds
+                case TIMESTAMP_NS, OTHER, DISTINCT, ARRAY, OBJECT -> throw new DialectCapability("a " + p.kind()
                         + " column reached BigQuery's DDL");
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> z.kind().toUpperCase(Locale.ROOT).contains("BINARY")

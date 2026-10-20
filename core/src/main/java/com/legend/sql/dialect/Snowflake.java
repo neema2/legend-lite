@@ -346,6 +346,8 @@ public final class Snowflake extends AnsiSqlRenderer {
                 case BIT -> "BOOLEAN";
                 case TIMESTAMP -> "TIMESTAMP_NTZ";
                 case DATE -> "DATE";
+                case TIME -> "TIME";
+                case TIMESTAMP_NS -> "TIMESTAMP_NTZ(9)";
                 case JSON -> "VARIANT";
                 case VARCHAR -> "VARCHAR";
                 case OTHER, DISTINCT -> throw DdlSpelling.unspelled(p.kind());
@@ -1425,6 +1427,10 @@ public final class Snowflake extends AnsiSqlRenderer {
             case STRPOS -> writer.append("CHARINDEX(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")");
             case SHA256 -> writer.append("SHA2(").expr(a.get(0), 0).append(", 256)");
             case GUID -> writer.append("UUID_STRING()");
+            // an integer of 53 bits over 2^53, in [0, 1): UNIFORM's range is inclusive, so a FLOAT one could draw
+            // 1 (Snowflake's documented UNIFORM, an integer one between integer bounds; the independent review,
+            // 2026-10-18)
+            case RANDOM -> writer.append("(UNIFORM(0, 9007199254740991, RANDOM()) / 9007199254740992::FLOAT)");
             case FORMAT -> writer.piece(format(a));
             case JARO_WINKLER -> writer.piece(jaroWinkler(a.get(0), a.get(1)));
             case CURRENT_USER_FN -> writer.append("CURRENT_USER()");

@@ -294,9 +294,11 @@ final class IqWindows {
         boolean framed = spec.frame() != null;
         for (SqlAst.Expr k : spec.partitionBy()) {
             position(k);
+            subqueryKey(f, k);
         }
         for (SqlAst.SortItem o : spec.orderBy()) {
             position(o.expr());
+            subqueryKey(f, o.expr());
         }
         if (fn.equals("median")) {
             throw SqlTranslationException.unsupported("MEDIAN over a window is not supported: IQ computes its integer"
@@ -429,6 +431,16 @@ final class IqWindows {
         }
     }
 
+    /** IQ island, 2026-10-17 (the claim verification's SEDE ROW_NUMBER() OVER (ORDER BY (SELECT NULL)); measured on IQ
+     *  17.1, PARTITION BY too, an aggregate's window too, with or without a FROM): a subquery in a window's key is IQ's
+     *  -156, an invalid expression near the function. */
+    private static void subqueryKey(SqlAst.FunctionCall f, SqlAst.Expr k) {
+        if (hasSubquery(k)) {
+            throw iq("a subquery in a window's key is an invalid expression near " + f.name().get(f.name().size() - 1)
+                    .text().toUpperCase(Locale.ROOT), -156, "42W08", k.pos());
+        }
+    }
+
     private static SqlTranslationException wrongArguments(SqlAst.FunctionCall f) {
         return iq("wrong number of arguments to " + f.name().get(0).text().toUpperCase(Locale.ROOT), -154, "37505",
                 f.pos());
@@ -441,11 +453,15 @@ final class IqWindows {
         if (spec.frame() != null) {
             throw frameNotAllowed(f, upper, r, iqEngine);
         }
+        // IQ island, 2026-10-17 (the differential fuzzer; measured on IQ 17.1): IQ's -1005028 where no key reads a
+        // column; a constant key beside one that does is answered (ORDER BY MOD(5, 2), id)
+        boolean anyColumn = false;
         for (SqlAst.SortItem o : spec.orderBy()) {
-            if (columns(o.expr()).isEmpty() && IqAggregates.aggregateCalls(o.expr()).isEmpty()) {
-                throw iq(upper + "'s ORDER BY keys are expressions over a column", -1005028, "QTA28",
-                        o.expr().pos());
-            }
+            anyColumn |= !columns(o.expr()).isEmpty() || !IqAggregates.aggregateCalls(o.expr()).isEmpty();
+        }
+        if (!anyColumn) {
+            throw iq(upper + "'s ORDER BY keys are expressions over a column", -1005028, "QTA28",
+                    spec.orderBy().get(0).expr().pos());
         }
     }
 
@@ -887,8 +903,23 @@ final class IqWindows {
                 }
                 yield new SqlAst.TypeName(family, List.of(type.size()), d.pos());
             }
-            default -> throw SqlTranslationException.unsupported(upper + "'s default for a " + type.spelling()
-                    + " is not supported yet", d.pos());
+            default -> {
+                BigInteger n = d instanceof SqlAst.IntegerLit l ? l.value() : d instanceof SqlAst.Unary u
+                        && u.op() == SqlAst.UnaryOp.MINUS && u.operand() instanceof SqlAst.IntegerLit l
+                        ? l.value().negate() : null;
+                if (!type.spelling().equals("UNSIGNED BIGINT") || n == null) {
+                    throw SqlTranslationException.unsupported(upper + "'s default for a " + type.spelling()
+                            + " is not supported yet", d.pos());
+                }
+                // IQ island, 2026-10-17 (the corpus lane's JOB: LAG(cast_count, 1, 0) of a COUNT; measured on IQ
+                // 17.1): a COUNT's default is an integer constant read as its UNSIGNED BIGINT, a negative one IQ's
+                // -1009145 whether or not a row takes it
+                if (n.signum() < 0) {
+                    throw SqlTranslationException.invalid(upper + "'s default " + n + " is no UNSIGNED BIGINT"
+                            + IqDialect.code(-1009145, "QFA2E"), d.pos());
+                }
+                yield new SqlAst.TypeName("BIGINT", List.of(), d.pos());
+            }
         };
         return at.tx(new SqlAst.Cast(d, target, d.pos()));
     }
@@ -980,20 +1011,34 @@ final class IqWindows {
         String count = at.fresh();
         Tx t = Tx.value(at.column(total), Kind.DECIMAL, true);
         Tx n = Tx.value(at.column(count), Kind.INTEGER, false);
-        if (IqFunctions.cutQuotient(at.column(total), s1, whole, at.column(count), 19, scale) == null) {
+        // IQ island, 2026-10-17 (the TPC-H corpus lane's 16): where one step does not fit, the dividend made whole
+        // first (IqFunctions.truncatedQuotient), or the quotient divided in chunks, a value past 38 digits refused at
+        // run time (IqFunctions.longQuotient), as the IQ engine's AVG over a group is
+        String past = IqDialect.REFUSED_AT_RUN_TIME + "an AVG over a window of more than " + (38 - scale) + " digits"
+                + " before its point is not supported: its NUMERIC(" + precision + "," + scale + ") needs more than the"
+                + " 38 digits lite's decimals hold";
+        java.util.function.BiFunction<ValueSpecification, ValueSpecification, ValueSpecification> divided = (x, y) -> {
+            ValueSpecification one = IqFunctions.cutQuotient(x, s1, whole, y, 19, scale);
+            if (one != null) {
+                return one;
+            }
+            return IqFunctions.truncatedFits(s1, whole, scale) ? IqFunctions.truncatedQuotient(x, s1, whole, y, scale)
+                    : IqFunctions.longQuotient(x, s1, whole, y, 19, scale, past);
+        };
+        if (divided.apply(at.column(total), at.column(count)) == null) {
             throw SqlTranslationException.unsupported("AVG over a window needs a step of more than the 38 digits"
                     + " lite's decimals hold here", f.pos());
         }
         Tx quotient = SqlToPure.strict(Kind.DECIMAL, List.of(t, n), v -> IqDialect.ifThen(SqlToPure.call("equal",
                 v.get(1), new CInteger(0L)), SqlToPure.nullOf(Kind.DECIMAL).vs(), java.util.Objects.requireNonNull(
-                IqFunctions.cutQuotient(v.get(0), s1, whole, SqlToPure.call("toDecimal", v.get(1)), 19, scale))));
+                divided.apply(v.get(0), SqlToPure.call("toDecimal", v.get(1))))));
         List<ColSpec> windows = List.of(
                 new ColSpec(total, at.overWindow(SqlToPure.valueOf(dec)), at.overGroup(SqlToPure.call("sum",
                         at.values())), null),
                 new ColSpec(count, at.overWindow(SqlToPure.valueOf(dec)), at.overGroup(SqlToPure.call("count",
                         at.values())), null));
         return new SqlToPure.WindowFunction(windows, new ColSpec(at.name(), at.overRow(quotient.vs()), null, null),
-                Kind.DECIMAL, true, new IqType("NUMERIC(" + precision + "," + scale + ")"));
+                Kind.DECIMAL, true, new IqType("NUMERIC(" + Math.min(precision, 38) + "," + scale + ")"));
     }
 
     /** SUM and AVG of a DOUBLE over a window: Pure's sum or average, IQ's -1001010 where the frame's positive or

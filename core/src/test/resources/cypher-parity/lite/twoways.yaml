@@ -1,0 +1,70 @@
+# The #Cypher{...}# island's properties typed two ways (docs/CYPHER_STUDY_2026_10_15.md §12.62): a property whose
+# values differ in kind across the nodes of one label is a Variant column (the harness: the value's JSON, as a list
+# property's), and one typed two ways across the classes a label-less node reads is a Variant of each class's value
+# (the island: the arms agree); a Variant of no known shape compared with a string, a boolean or a number orders
+# where it holds that kind and is null where it holds another (Cypher's null across types), equality as §12.57.
+# Each case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/twoways/*'), keyed lite/twoways/<id>.
+tests:
+  - id: a_property_typed_two_ways_on_one_label
+    graph: |
+      CREATE (:A {v: 1, name: 'one'}), (:A {v: 'x', name: 'x'}), (:A {name: 'none'})
+    cypher: "MATCH (n:A) RETURN n.name AS name, n.v AS v ORDER BY name"
+  - id: compared_with_a_string
+    graph: |
+      CREATE (:A {v: 1, name: 'one'}), (:A {v: 'x', name: 'x'}), (:A {name: 'none'})
+    cypher: "MATCH (n:A) WHERE n.v > 'w' RETURN n.name AS name"
+  - id: compared_with_a_number
+    graph: |
+      CREATE (:A {v: 1, name: 'one'}), (:A {v: 'x', name: 'x'}), (:A {v: 2.5, name: 'half'}), (:A {name: 'none'})
+    cypher: "MATCH (n:A) WHERE n.v >= 1 RETURN n.name AS name ORDER BY name"
+  - id: equal_to_a_string_or_a_number
+    graph: |
+      CREATE (:A {v: 1, name: 'one'}), (:A {v: 'x', name: 'x'}), (:A {name: 'none'})
+    cypher: "MATCH (n:A) RETURN n.name AS name, n.v = 'x' AS isX, n.v = 1 AS isOne ORDER BY name"
+  - id: null_or_compared_in_a_where
+    graph: |
+      CREATE (:A {v: 0, name: 'zero'}), (:A {v: 'xx', name: 'xx'}), (:A {name: 'none'})
+    cypher: "MATCH (n:A) WHERE n.v IS NULL OR n.v > 'x' RETURN n.name AS name ORDER BY name"
+  - id: not_of_a_comparison_across_kinds_is_null
+    graph: |
+      CREATE (:A {v: 1, name: 'one'}), (:A {v: 'x', name: 'x'}), (:A {name: 'none'})
+    cypher: "MATCH (n:A) RETURN n.name AS name, NOT (n.v > 'w') AS notGreater, n.v < 5 AS small ORDER BY name"
+  - id: the_variant_on_the_right_of_a_comparison
+    graph: |
+      CREATE (:A {v: 1, name: 'one'}), (:A {v: 'x', name: 'x'})
+    cypher: "MATCH (n:A) RETURN n.name AS name, 'w' < n.v AS lt, 2 >= n.v AS ge ORDER BY name"
+  - id: a_boolean_and_a_float
+    graph: |
+      CREATE (:A {v: true, name: 't'}), (:A {v: 2.5, name: 'f'})
+    cypher: "MATCH (n:A) RETURN n.name AS name, n.v AS v, n.v = true AS isTrue, n.v > 2 AS big, n.v < false AS lessThanFalse ORDER BY name"
+  - id: a_list_and_a_scalar_on_one_label
+    graph: |
+      CREATE (:A {v: [1, 2], name: 'list'}), (:A {v: 3, name: 'three'})
+    cypher: "MATCH (n:A) RETURN n.name AS name, n.v AS v ORDER BY name"
+  - id: a_node_value_holding_the_variant
+    graph: |
+      CREATE (:A {v: 1, name: 'one'}), (:A {v: 'x', name: 'x'}), (:A {v: [true], name: 'list'})
+    cypher: "MATCH (n:A) RETURN n ORDER BY n.name"
+  - id: across_the_classes_of_a_labelless_node
+    graph: |
+      CREATE (:A {v: 1}), (:B {v: 'x'}), (:C {other: 2})
+    cypher: "MATCH (n) RETURN n.v AS v ORDER BY v"
+  - id: across_the_classes_the_node_carried
+    graph: |
+      CREATE (root:Root {name: 'x'}), (child1:TextNode {var: 'text'}), (child2:IntNode {var: 0}), (child3:Bare {name: 'bare'})
+      CREATE (root)-[:T]->(child1), (root)-[:T]->(child2), (root)-[:T]->(child3)
+    cypher: "MATCH (:Root {name: 'x'})-->(i) WITH i WHERE i.var > 'te' OR i.var IS NOT NULL RETURN i"
+  - id: across_the_classes_returned_from_a_hop
+    graph: |
+      CREATE (root:Root {name: 'x'}), (child1:TextNode {var: 'text'}), (child2:IntNode {var: 0})
+      CREATE (root)-[:T]->(child1), (root)-[:T]->(child2)
+    cypher: "MATCH (:Root)-->(i) RETURN i.var AS v, i.var > 'te' AS gt ORDER BY v"
+  - id: across_the_chains_of_a_variable_length
+    graph: |
+      CREATE (:A {v: 1, name: 'a'})-[:T]->(:B {v: 'x', name: 'b'})-[:T]->(:C {v: true, name: 'c'})
+    cypher: "MATCH (a:A)-[:T*1..2]->(m) RETURN m.name AS name, m.v AS v ORDER BY name"
+  - id: grouped_by_the_variant
+    graph: |
+      CREATE (:A {v: 1}), (:A {v: 'x'}), (:A {v: 1}), (:A {v: 'x'}), (:A {v: 'x'})
+    cypher: "MATCH (n:A) RETURN n.v AS v, count(*) AS c ORDER BY c"

@@ -239,8 +239,12 @@ tests:
   - id: date_ordered_against_a_string
     sql: "SELECT id FROM t WHERE dt <= '1999-12-31' ORDER BY id"
   # IQ island, 2026-10-14 (review 4's m3): renamed, its id shared six words with the manuals' text
-  - id: date_against_a_time_past_midnight_is_refused
+  # IQ island, 2026-10-17 (measured on IQ 17.1): read now, IQ's engine reading the string as a DATE (its time
+  # dropped), so renamed from date_against_a_time_past_midnight_is_refused; iq17 alone, SQL Anywhere 17 (the iq16
+  # profiles' judge) comparing it as a TIMESTAMP
+  - id: date_against_a_time_past_midnight
     sql: "SELECT id FROM t WHERE dt < '2026-03-04 10:00' ORDER BY id"
+    profile: iq17-default
   # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from date_and_other_spelling_is_refused
   - id: date_and_other_spelling
     sql: "SELECT id FROM t WHERE dt = '2026/03/04' ORDER BY id"

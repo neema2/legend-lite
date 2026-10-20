@@ -799,20 +799,13 @@ def _uncommented(s):
 
 
 def single_select(sql):
-    """Only a single SELECT or WITH (or a parenthesised one) ever runs, and nothing with a statement separator (IQ
-    island, 2026-10-14: after a run of SET statements, each ended by ';')."""
+    """Only SELECTs and WITHs (or parenthesised ones) ever run (IQ island, 2026-10-14: after a run of SET statements,
+    each ended by ';'). IQ island, 2026-10-17 (the batches, the user's approval to measure them): a batch of them, each
+    a SELECT or a WITH, separated by ';' or not, as a client reading one result runs it -- nothing that writes."""
     sql = set_prefix(sql)[1]
-    s = sql
-    while True:
-        s = s.lstrip()
-        if s.startswith("--") or s.startswith("//"):
-            s = s[s.index("\n") + 1:] if "\n" in s else ""
-        elif s.startswith("/*"):
-            s = s[s.index("*/") + 2:] if "*/" in s else ""
-        else:
-            break
-    # one statement: a ';' inside a string, a delimited name or a comment is no separator (review 8, m5)
-    return len(statements(sql)) == 1 and re.match(r"(SELECT|WITH)\b|\(", s, re.I) is not None
+    # a ';' inside a string, a delimited name or a comment is no separator (review 8, m5); a trailing one ends nothing
+    parts = [p for p in statements(sql) if _uncommented(p).strip()]
+    return bool(parts) and all(re.match(r"(SELECT|WITH)\b|\(", _uncommented(p), re.I) is not None for p in parts)
 
 
 def sql_sha(case, profile, schema_bytes):
@@ -1493,7 +1486,7 @@ def main(argv):
         if c["skip"] is None and c["key"] in crashers:
             c["skip"] = "known to crash SQL Anywhere 17 (known_crashers.txt)"
         if c["skip"] is None and not single_select(c["run"]):
-            raise Bad("%s: not a single SELECT or WITH without ';'" % c["key"])
+            raise Bad("%s: not SELECTs or WITHs alone" % c["key"])
         (skipped if c["skip"] is not None else live).append(c)
     expected = {(c["key"], p): c for c in live for p in c["profiles"] if mine(p)}
     run = [c for c in live if selected(c) and any(mine(p) for p in c["profiles"])]

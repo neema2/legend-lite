@@ -7,7 +7,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { buildColumnModel } from '../src/grid/columns.ts';
+import { DEFAULT_CONFIGURATION, withColumn } from '../src/config.ts';
 import { exportTable, flatHeader, REDACTED } from '../src/export-model.ts';
+import { heatmapColour, heatmapSetting, measureHeatmaps } from '../src/export-render.ts';
+import { pivotTotalColumn } from '../src/snapshot.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { TreeRow } from '../src/tree.ts';
 
@@ -133,5 +136,48 @@ describe('the export LOOKS like the grid: each cell styled as the grid styles it
     const one: ResultTable = { ...money, rowCount: 1, columns: money.columns.map((c) => ({ ...c, values: c.values.slice(0, 1) })) };
     const totals = exportTable({ ...base, rows: one, model: buildColumnModel(one), treeRows: tree, appearance });
     assert.deepEqual([totals.rows[0]?.styles[0]?.background, totals.rows[0]?.styles[0]?.bold], ['#fafafa', true]);
+  });
+});
+
+describe('a pivot total\'s heatmap is its own: its measure\'s leaves it alone (the user, 2026-10-18)', () => {
+  // the heatmap's lookup and drawing, export-render.ts heatmapSetting and measureHeatmaps -- what the grid and every
+  // export call -- over a pivot whose plan lists its total beside its cells, as query.ts pivotColumns makes it
+  const total = pivotTotalColumn('notional');
+  const rows: ResultTable = {
+    columns: [
+      { name: '2021__|__notional', type: 'Float', values: [1, 2] },
+      { name: '2022__|__notional', type: 'Float', values: [3, 4] },
+      { name: total, type: 'Float', values: [4, 6] },
+    ],
+    rowCount: 2, epoch: 1, elapsedMs: 0,
+  };
+  const notional = { column: 'notional', fn: 'sum' as const, name: 'notional' };
+  const view = {
+    columns: buildColumnModel(rows, [], ['notional'], { pivotTotal: { label: 'Total', placement: 'right' } }, 1),
+    rows,
+    pivot: { columns: [
+      { name: '2021__|__notional', measure: notional, tuple: ['2021'] },
+      { name: '2022__|__notional', measure: notional, tuple: ['2022'] },
+      { name: total, measure: notional, tuple: null },
+    ] },
+  } as unknown as Parameters<typeof heatmapSetting>[1] & {};
+  const RED = { from: '#ffffff', to: '#ff0000' };
+  const painted = (config: Parameters<typeof heatmapSetting>[0]): string[] =>
+    [...measureHeatmaps(view, [], (n) => heatmapSetting(config, view, n)).keys()]
+      .map((i) => view.columns.leaves.find((l) => l.index === i)!.name);
+
+  it('the measure\'s heatmap paints every pivot value\'s cells, and not the total', () => {
+    const config = withColumn(DEFAULT_CONFIGURATION, 'notional', { heatmap: RED });
+    assert.deepEqual(painted(config), ['2021__|__notional', '2022__|__notional']);
+    assert.equal(heatmapSetting(config, view, total), undefined);
+  });
+
+  it('the total\'s own heatmap paints the total alone, scaled against the totals (its sums are larger than any cell)', () => {
+    const config = withColumn(DEFAULT_CONFIGURATION, total, { heatmap: RED });
+    assert.deepEqual(painted(config), [total]);
+    const heat = measureHeatmaps(view, [], (n) => heatmapSetting(config, view, n));
+    const leaf = view.columns.leaves.find((l) => l.name === total)!;
+    assert.equal(heatmapColour(heat, [], leaf, 0, 4), '#ffffff');
+    assert.equal(heatmapColour(heat, [], leaf, 1, 6), '#ff0000');
   });
 });

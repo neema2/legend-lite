@@ -1,0 +1,71 @@
+# The #Cypher{...}# island's relationship-uniqueness cases (docs/CYPHER_STUDY_2026_10_15.md §12.48, the plan's W2 leg
+# 3): Neo4j binds the relationships of one MATCH to different relationships; the island spells it as the
+# relationships' identities pairwise distinct (an edge class's row, or over a property or association the ordered
+# pair of the ends' identities, S74), named ones by name, an unnamed one of a repeated type named for it. Each case
+# is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/uniqueness/*'),
+# keyed lite/uniqueness/<id>.
+tests:
+  - id: a_chain_over_a_self_loop_finds_nothing
+    graph: |
+      CREATE (n:A {name: 'n'})-[:T]->(n)
+    cypher: "MATCH (a:A)-[:T]->(b:A)-[:T]->(c:A) RETURN a.name AS an, c.name AS cn"
+  - id: a_chain_round_a_two_node_cycle_walks_no_relationship_twice
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:A {name: 'b'}), (b)-[:T]->(a)
+    cypher: "MATCH (x:A)-[:T]->(y:A)-[:T]->(z:A) RETURN x.name AS xn, z.name AS zn ORDER BY xn"
+  - id: a_chain_back_and_forth_over_one_relationship_finds_nothing
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'})
+    cypher: "MATCH (x:A)-[:T]->(y:B)<-[:T]-(z:A) RETURN x.name AS xn, z.name AS zn"
+  - id: two_named_relationships_of_one_type_are_distinct
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (:A {name: 'c'})-[:T]->(b)
+    cypher: "MATCH (x:A)-[r:T]->(y:B)<-[s:T]-(z:A) RETURN x.name AS xn, z.name AS zn ORDER BY xn"
+  - id: two_relationships_of_different_types_may_share_nothing
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (a)-[:U]->(b)
+    cypher: "MATCH (x:A)-[:T]->(y:B)<-[:U]-(z:A) RETURN x.name AS xn, z.name AS zn"
+  - id: untyped_relationships_in_a_chain_are_distinct
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (:A {name: 'c'})-[:T]->(b)
+    cypher: "MATCH (x:A)-->(y:B)<--(z:A) RETURN x.name AS xn, z.name AS zn ORDER BY xn"
+  - id: uniqueness_across_the_patterns_of_one_match
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})-[:T]->(:B {name: 'd'})
+    cypher: "MATCH (x:A)-[r:T]->(), (z:A)-[s:T]->() RETURN x.name AS xn, z.name AS zn ORDER BY xn"
+  - id: uniqueness_across_the_patterns_of_one_match_compared
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})-[:T]->(:B {name: 'd'})
+    cypher: "MATCH (x:A)-[r:T]->(), (z:A)-[s:T]->() WHERE r = s RETURN x.name AS xn"
+  - id: the_same_relationship_in_two_matches
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})-[:T]->(:B {name: 'd'})
+    cypher: "MATCH (x:A)-[r:T]->() MATCH (z:A)-[s:T]->() WHERE r = s RETURN x.name AS xn, z.name AS zn ORDER BY xn"
+  - id: two_relationships_from_one_node_are_distinct
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'}), (a)-[:T]->(:B {name: 'c'}), (:A {name: 'd'})-[:T]->(:B {name: 'e'})
+    cypher: "MATCH (y:B)<-[:T]-(x:A)-[:T]->(z:B) RETURN x.name AS xn, y.name AS yn, z.name AS zn ORDER BY yn, zn"
+  - id: an_association_relationship_compared_after_a_with
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})-[:T]->(:B {name: 'd'})
+    cypher: "MATCH ()-[a]->() WITH a MATCH ()-[b]->() WHERE a = b RETURN count(b) AS c"
+  - id: an_association_relationship_equals_itself
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (:A)-[r:T]->(:B) RETURN r = r AS same, r <> r AS diff"
+  - id: an_absent_association_relationship_has_no_identity
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})
+    cypher: "MATCH (x:A) OPTIONAL MATCH (x)-[r:T]->(:B) RETURN x.name AS xn, r = r AS same ORDER BY xn"
+  - id: count_distinct_association_relationships
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'}), (a)-[:T]->(:B {name: 'c'}), (:A {name: 'd'})-[:T]->(:B {name: 'e'})
+    cypher: "MATCH (x:A)-[r:T]->(y:B) RETURN count(DISTINCT r) AS c, count(r) AS all"
+  - id: a_variable_length_chain_past_two_steps_walks_no_relationship_twice
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:A {name: 'b'}), (b)-[:T]->(a)
+    cypher: "MATCH (x:A)-[:T*3]->(z:A) RETURN x.name AS xn, z.name AS zn ORDER BY xn"
+  - id: unnamed_relationships_across_the_patterns_of_one_match
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})-[:T]->(:B {name: 'd'})
+    cypher: "MATCH (x:A)-[:T]->(), (z:A)-[:T]->() RETURN x.name AS xn, z.name AS zn ORDER BY xn"

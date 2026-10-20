@@ -13,7 +13,7 @@ import { exportCsv, exportFileName } from './export.ts';
 import { toXlsx, XLSX_MIME } from './export-xlsx.ts';
 import type { FormatterCache, ColumnFormat } from './format.ts';
 import type { ColumnModel, LeafColumn } from './grid/columns.ts';
-import { rowColumns, type CubeSnapshot } from './snapshot.ts';
+import { isPivotTotalColumn, rowColumns, type CubeSnapshot } from './snapshot.ts';
 import { columnRange, heatColour, type HeatmapRange, type HeatmapSpec } from './style.ts';
 import type { TreeRow } from './tree.ts';
 
@@ -61,11 +61,12 @@ export interface Heatmap {
 
 /**
  * A leaf's heatmap setting: its own, else its measure's -- a pivoted leaf is named for its measure, so a setting made
- * on `notional` reaches every `2021__|__notional` the pivot produced.
+ * on `notional` reaches every `2021__|__notional` the pivot produced. A pivot TOTAL is a column of its own (the user,
+ * 2026-10-18): it sums every pivot value, on its own scale, so it takes only its own heatmap, never its measure's.
  */
 export function heatmapSetting(config: CubeConfiguration, view: CubeView | undefined, leafName: string): HeatmapSpec | undefined {
   const own = columnConfig(config, leafName).heatmap;
-  if (own) return own;
+  if (own || isPivotTotalColumn(leafName)) return own;
   const measure = view?.pivot?.columns.find((c) => c.name === leafName)?.measure.name;
   return measure !== undefined ? columnConfig(config, measure).heatmap : undefined;
 }

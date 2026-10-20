@@ -1,0 +1,38 @@
+# The #Cypher{...}# island's temporal tail (docs/CYPHER_STUDY_2026_10_15.md §12.74): a duration multiplied by a float
+# or divided by a number, Neo4j's approximation (each unit's fraction carried into the next smaller one, truncated
+# toward zero); a zoned value's text parsed back in its scope, the value itself. Each case is judged by Neo4j's
+# answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/temporaltail/*'), keyed
+# lite/temporaltail/<id>.
+tests:
+  - id: a_second_in_thirds
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "RETURN duration({seconds: 1}) / 3 AS d, duration({seconds: 1}) * 0.1 AS e"
+  - id: months_in_fractions
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "RETURN duration({months: 1}) * 0.5 AS h, duration({months: 7}) / 3 AS t, duration({years: 1, days: 3}) / 2.5 AS f"
+  - id: negative_factors
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "RETURN duration({days: 3, hours: 5}) * -0.5 AS n, duration({months: 1, seconds: 7}) / -2 AS m"
+  - id: of_the_row
+    graph: |
+      CREATE (:A {k: 2.5}), (:A {k: 4.0})
+    cypher: "MATCH (a:A) RETURN a.k AS k, duration({days: 10, minutes: 3}) / a.k AS d, duration({hours: 1}) * a.k AS p ORDER BY k"
+  - id: divided_by_zero
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "RETURN duration({days: 1}) / 0 AS d"
+  - id: a_zoned_time_printed_and_parsed
+    graph: |
+      CREATE (:A {h: 9})
+    cypher: "MATCH (a:A) WITH time({hour: a.h, minute: 5, timezone: '-03:30'}) AS t RETURN toString(t) AS s, time(toString(t)) = t AS same"
+  - id: a_zoned_date_time_printed_and_parsed
+    graph: |
+      CREATE (:A {h: 9})
+    cypher: "MATCH (a:A) WITH datetime({year: 2020, month: 2, day: 29, hour: a.h, timezone: '+05:45'}) AS d RETURN toString(d) AS s, datetime(toString(d)) = d AS same"
+  - id: a_printed_text_parsed_after_a_with_refused
+    graph: |
+      CREATE (:A {h: 9})
+    cypher: "MATCH (a:A) WITH datetime({year: 2020, month: 2, day: 29, hour: a.h, timezone: '+05:45'}) AS d WITH toString(d) AS s RETURN datetime(s) AS d"

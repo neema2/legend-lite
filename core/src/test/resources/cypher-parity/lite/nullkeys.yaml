@@ -1,0 +1,47 @@
+# The #Cypher{...}# island's grouping keys and sort keys that are null on every row: a property no class declares (an
+# open graph's typed null, docs/CYPHER_STUDY_2026_10_15.md §12.82) or a value computed from one. One group over the
+# rows (none over no rows), the key typed for Postgres, which reads a constant key only as an expression; the key
+# read back as the null it is by the clauses after, so arithmetic over it and an aggregate is null; a sort key null on
+# every row orders nothing. Each case is judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/nullkeys/*'), keyed lite/nullkeys/<id>.
+tests:
+  - id: a_key_no_class_declares
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "MATCH (p:P) RETURN p.nope AS k, count(*) AS n"
+  - id: a_key_no_class_declares_over_no_rows
+    graph: |
+      CREATE (:P {name: 'a'})
+    cypher: "MATCH (p:Nope) RETURN p.nope AS k, count(*) AS n"
+  - id: a_key_no_class_declares_in_a_with
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "MATCH (p:P) WITH p.nope AS k, count(*) AS n RETURN n"
+  - id: such_a_key_beside_a_real_one
+    graph: |
+      CREATE (:P {name: 'a', g: 1}), (:P {name: 'b', g: 1}), (:P {name: 'c', g: 2})
+    cypher: "MATCH (p:P) RETURN p.g AS g, p.nope AS k, count(*) AS n ORDER BY g"
+  - id: such_a_key_around_an_aggregate
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "MATCH (p:P) WITH p.nope AS k, p RETURN k, k + count(p) AS s"
+  - id: a_sum_of_such_keys_ordered_with_an_aggregate
+    graph: |
+      CREATE (a:P {name: 'a'})-[:T]->(b:P {name: 'b'})
+    cypher: "MATCH (x:P)-->(y:P) RETURN x.nope + y.nope AS s, count(*) AS c ORDER BY x.nope + y.nope + count(*)"
+  - id: a_computed_key_of_one_ordered_after_a_with
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "MATCH (p:P) WITH p.nope + 1 AS k, count(*) AS n RETURN k, n ORDER BY k"
+  - id: ordered_by_a_property_no_class_declares_then_a_name
+    graph: |
+      CREATE (:P {name: 'b'}), (:P {name: 'a'}), (:P {name: 'c'})
+    cypher: "MATCH (p:P) RETURN p.name AS name ORDER BY p.nope, name"
+  - id: ordered_by_such_an_item_then_a_name_with_a_limit
+    graph: |
+      CREATE (:P {name: 'b'}), (:P {name: 'a'}), (:P {name: 'c'})
+    cypher: "MATCH (p:P) RETURN p.nope AS k, p.name AS name ORDER BY k DESC, name LIMIT 2"
+  - id: a_key_null_on_some_classes_only
+    graph: |
+      CREATE (:A {v: 1}), (:A {v: 1}), (:C {other: 2})
+    cypher: "MATCH (n) WITH n.v AS v, count(*) AS c RETURN v, c ORDER BY v"

@@ -285,6 +285,10 @@ public final class PlatformTypes {
     public static final String DATATYPE_BIT = "meta::relational::metamodel::datatype::Bit";
     public static final String DATATYPE_TIMESTAMP = "meta::relational::metamodel::datatype::Timestamp";
     public static final String DATATYPE_DATE = "meta::relational::metamodel::datatype::Date";
+    /** A time of day, lite's extension of the store grammar (RelationalDataType.Time, 2026-10-17). */
+    public static final String DATATYPE_TIME = "meta::relational::metamodel::datatype::Time";
+    /** A nanosecond timestamp, lite's extension of the store grammar (RelationalDataType.TimestampNs, 2026-10-17). */
+    public static final String DATATYPE_TIMESTAMP_NS = "meta::relational::metamodel::datatype::TimestampNs";
     public static final String DATATYPE_DISTINCT = "meta::relational::metamodel::datatype::Distinct";
     public static final String DATATYPE_OTHER = "meta::relational::metamodel::datatype::Other";
     public static final String DATATYPE_SEMI_STRUCTURED = "meta::relational::metamodel::datatype::SemiStructured";

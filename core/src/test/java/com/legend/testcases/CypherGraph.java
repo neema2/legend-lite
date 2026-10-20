@@ -16,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 
 /**
@@ -29,8 +30,10 @@ import java.util.regex.Pattern;
  * two associations ({@code <<graph::graph.from>> from} with the start class's {@code T_out}, {@code <<graph::graph.to>>
  * to} with the end class's {@code T_in}), over a bridge table {@code r_t} (one row per relationship, its id the
  * key). The lanes seed the tables from the dump and never interpret a {@code CREATE}. What the inference cannot
- * model yet is said by name ({@link Unsupported}), and the case is SKIP in the ledger with that reason: a node with
- * several labels and a relationship type between several class pairs wait for PR3's inheritance.
+ * model yet is said by name ({@link Unsupported}), and the case is SKIP in the ledger with that reason (a property
+ * typed two ways across a label's nodes, a stored zoned or nanosecond value). A node of several labels is an
+ * instance of an anonymous class per label set extending each label's class (the study's §12.61); a relationship
+ * type between several class pairs is one edge class per pair (§5.6).
  */
 public final class CypherGraph {
 
@@ -40,6 +43,9 @@ public final class CypherGraph {
     public static final String DATABASE = "g::DB";
     public static final String MAPPING = "g::Map";
     public static final String RUNTIME = "g::RT";
+    /** The graph a lane's island reads with {@code USE} (the study's §12.45): the DataSpace of every class the
+     *  dump implies, marked {@code <<graph::graph.Open>>} (a Neo4j graph is open). */
+    public static final String DATASPACE = "g::Graph";
 
     /** A graph the harness cannot model yet, and why. */
     public static final class Unsupported extends Exception {
@@ -55,47 +61,28 @@ public final class CypherGraph {
 
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
-    /** The class of the nodes without a label. */
+    /** The class of the nodes without a label: anonymous (the study's §12.61), so the island reads no label on
+     *  its instances. */
     private static final String UNLABELLED = "Unlabelled";
-
-    /** A value lite returned, its node labels as Neo4j's: the class of the unlabelled nodes is no label -- on a node,
-     *  and as the one element of a {@code labels(n)} list (the harness refuses a graph that labels a node so, above,
-     *  so the list is its own). */
-    static CypherValues.Value ownLabels(CypherValues.Value v) {
-        if (v instanceof CypherValues.Node n && n.labels().size() == 1 && n.labels().first().equals(UNLABELLED)) {
-            return new CypherValues.Node(new java.util.TreeSet<>(), n.props());
-        }
-        if (v instanceof CypherValues.Lst l && l.items().size() == 1 && l.items().get(0) instanceof CypherValues.Str s
-                && s.value().equals(UNLABELLED)) {
-            return new CypherValues.Lst(List.of());
-        }
-        // a node inside a list, a map or a path (the study's §12.25, §12.27) is read the same way
-        if (v instanceof CypherValues.Lst l) {
-            return new CypherValues.Lst(l.items().stream().map(CypherGraph::ownLabels).toList());
-        }
-        if (v instanceof CypherValues.Mp m) {
-            Map<String, CypherValues.Value> entries = new TreeMap<>();
-            m.entries().forEach((k, x) -> entries.put(k, ownLabels(x)));
-            return new CypherValues.Mp(entries);
-        }
-        if (v instanceof CypherValues.Path p) {
-            return new CypherValues.Path(p.nodes().stream().map(CypherGraph::ownLabels).toList(), p.rels(),
-                    p.forward());
-        }
-        return v;
-    }
 
     private static final class Cls {
         final String name;
         final String table;
+        /** Whether the class's name is no label ({@code <<graph.Anonymous>>}: the class of a label set, or of the
+         *  unlabelled nodes). */
+        final boolean anonymous;
+        /** The label classes an anonymous label-set class extends (none for a label's own class). */
+        final List<String> supers;
         final Map<String, String> propertyTypes = new TreeMap<>();
         final Set<String> keys = new HashSet<>();
         final List<CypherAnswers.GraphNode> nodes = new ArrayList<>();
         final Map<String, String> fkColumns = new LinkedHashMap<>();   // end name -> column
         final List<String> ends = new ArrayList<>();                   // "T: g::Dst[0..1];"
 
-        Cls(String name) {
+        Cls(String name, boolean anonymous, List<String> supers) {
             this.name = name;
+            this.anonymous = anonymous;
+            this.supers = List.copyOf(supers);
             this.table = "n_" + name.toLowerCase(Locale.ROOT);
         }
     }
@@ -105,6 +92,9 @@ public final class CypherGraph {
      *  in the order the pairs appear. */
     private static final class RelType {
         final String name;
+        /** The name its tables and columns are spelled by: {@link #name} in lower case (the databases fold an unquoted
+         *  name's case), with a suffix where another type's name differs from it only in case. */
+        final String sql;
         final Cls src;
         final Cls dst;
         final List<CypherAnswers.GraphRel> rels = new ArrayList<>();
@@ -113,8 +103,9 @@ public final class CypherGraph {
         /** 0 for the one pair of its type; 1, 2, ... for a type joining several pairs (always edge classes). */
         int pair;
 
-        RelType(String name, Cls src, Cls dst) {
+        RelType(String name, String sql, Cls src, Cls dst) {
             this.name = name;
+            this.sql = sql;
             this.src = src;
             this.dst = dst;
         }
@@ -134,7 +125,7 @@ public final class CypherGraph {
         }
 
         String table() {
-            return "r_" + stem().toLowerCase(Locale.ROOT);
+            return "r_" + (pair == 0 ? sql : sql + "_" + pair);
         }
 
         String outEnd() {
@@ -150,41 +141,86 @@ public final class CypherGraph {
     private static final String RELATIONSHIP_TYPE = "g::RelationshipType";
 
     /** The property-graph profile, as projects/graph/model.pure declares it (inlined: the model is one text). */
-    private static final String GRAPH_PROFILE = "Profile graph::graph\n{\n    stereotypes: [Edge, from, to, type];\n}\n";
+    private static final String GRAPH_PROFILE = "Profile graph::graph\n{\n    stereotypes: [Anonymous, Edge, Open, from, to, type,"
+            + " nanoseconds, timeOfDay];\n}\n";
 
     public static Inferred infer(CypherAnswers.Graph g) throws Unsupported {
         Map<String, Cls> classes = new TreeMap<>();
         Map<Integer, Cls> classOfNode = new HashMap<>();
         Map<String, String> tableOwner = new HashMap<>();
+        // a node's class is its label set's (the study's §12.61): the label's own class for a label no node carries
+        // among others; else an anonymous class per set (named N_ and its labels, its name no label) extending each
+        // label's class, which then holds no node of its own (a marker every class of its sets extends: so an
+        // association is always a leaf class's, never inherited)
+        Set<String> labels = new HashSet<>();
+        Set<String> otherLabels = new HashSet<>();
         for (CypherAnswers.GraphNode n : g.nodes()) {
+            labels.addAll(n.labels());
             if (n.labels().size() > 1) {
-                throw new Unsupported("harness: a node with several labels (" + String.join(":", n.labels())
-                        + ") waits for PR3's inheritance");
+                otherLabels.addAll(n.labels());
             }
-            String label = n.labels().isEmpty() ? UNLABELLED : n.labels().get(0);
-            if (!n.labels().isEmpty() && label.equals(UNLABELLED)) {
-                throw new Unsupported("harness: the label " + UNLABELLED + " is the class of the unlabelled nodes");
+        }
+        // a property name's precision is the finest the graph holds under it (the study's §12.64): a time of day or
+        // date-time with sub-microsecond digits on any node or relationship makes every class's property of that
+        // name a nanosecond one (an embedded value of its parts, the plan's W13 legs 5 and 6), so a label-less read
+        // unites them
+        Set<String> nanoNames = new HashSet<>();
+        // (a zoned value class holds the instant's parts in the instant's stead when any zoned value of its kind in
+        // the graph, on a node or a relationship, is sub-microsecond: one class per kind, the study's §12.65)
+        boolean[] zonedNanos = new boolean[2];
+        // (the zoned date-time class declares the region slot when a stored date-time of the graph is of a named
+        // zone: the study's §12.75)
+        boolean zonedRegion = false;
+        List<Map<String, String>> propertySets = new ArrayList<>();
+        g.nodes().forEach(n -> propertySets.add(n.props()));
+        g.rels().forEach(r -> propertySets.add(r.props()));
+        for (Map<String, String> props : propertySets) {
+            for (Map.Entry<String, String> p : props.entrySet()) {
+                if (subMicro(p.getValue())) {
+                    nanoNames.add(p.getKey());
+                }
+                CypherValues.Value v = CypherValues.parse(p.getValue());
+                if (v instanceof CypherValues.Opaque o && CypherValues.zonedParts(o.text()) != null
+                        && !java.util.Objects.requireNonNull(CypherValues.zonedParts(o.text())).instant()
+                        .substring(26).matches("0+")) {
+                    zonedNanos[CypherValues.zonedTimeText(o.text()) ? 0 : 1] = true;
+                }
+                if (v instanceof CypherValues.Opaque o && CypherValues.zonedParts(o.text()) != null
+                        && java.util.Objects.requireNonNull(CypherValues.zonedParts(o.text())).region() != null) {
+                    zonedRegion = true;
+                }
             }
-            if (!IDENTIFIER.matcher(label).matches()) {
-                throw new Unsupported("harness: the label " + label + " is not a Pure identifier");
+        }
+        for (CypherAnswers.GraphNode n : g.nodes()) {
+            List<String> set = new ArrayList<>(new java.util.TreeSet<>(n.labels()));
+            for (String label : set) {
+                if (label.equals(UNLABELLED)) {
+                    throw new Unsupported("harness: the label " + UNLABELLED + " is the class of the unlabelled"
+                            + " nodes");
+                }
+                if (!IDENTIFIER.matcher(label).matches()) {
+                    throw new Unsupported("harness: the label " + label + " is not a Pure identifier");
+                }
+                if (otherLabels.contains(label)) {
+                    declare(classes, tableOwner, label, false, List.of());
+                }
             }
-            Cls c = classes.computeIfAbsent(label, Cls::new);
-            String owner = tableOwner.putIfAbsent(c.table, label);
-            if (owner != null && !owner.equals(label)) {
-                throw new Unsupported("harness: the labels " + owner + " and " + label + " differ only in case");
+            boolean own = set.size() == 1 && !otherLabels.contains(set.get(0));
+            String name = set.isEmpty() ? UNLABELLED : own ? set.get(0) : "N_" + String.join("_", set);
+            if (!own && labels.contains(name)) {
+                throw new Unsupported("harness: the label " + name + " is the class the model makes up for the label"
+                        + " set " + String.join(":", set));
             }
+            Cls c = declare(classes, tableOwner, name, !own, own ? List.of() : set);
             c.nodes.add(n);
             classOfNode.put(n.id(), c);
             for (Map.Entry<String, String> p : n.props().entrySet()) {
                 if (!IDENTIFIER.matcher(p.getKey()).matches()) {
                     throw new Unsupported("harness: the property " + p.getKey() + " is not a Pure identifier");
                 }
-                String type = typeOf(p.getValue(), p.getKey());
-                String before = c.propertyTypes.putIfAbsent(p.getKey(), type);
-                if (before != null && !before.equals(type)) {
-                    throw new Unsupported("harness: the property " + label + "." + p.getKey() + " is typed two ways ("
-                            + before + ", " + type + ")");
-                }
+                String type = typeOf(p.getValue(), p.getKey(), nanoNames.contains(p.getKey()));
+                c.propertyTypes.put(p.getKey(), merged(c.propertyTypes.get(p.getKey()), type, c.name + "."
+                        + p.getKey()));
             }
         }
         for (Cls c : classes.values()) {
@@ -196,21 +232,32 @@ public final class CypherGraph {
             }
         }
         Map<String, RelType> types = new TreeMap<>();
-        Map<String, String> typeByLower = new HashMap<>();
+        // (a type's SQL spelling: its name in lower case; one differing from another's only in case, T2 and t2 of
+        // Graph5/[2], two Pure names, takes a suffix no type's lower-case name has)
+        Set<String> lowerNames = new HashSet<>();
+        for (CypherAnswers.GraphRel r : g.rels()) {
+            lowerNames.add(r.type().toLowerCase(Locale.ROOT));
+        }
+        Map<String, String> sqlOfType = new HashMap<>();
+        Set<String> sqlTaken = new HashSet<>();
         for (CypherAnswers.GraphRel r : g.rels()) {
             if (!IDENTIFIER.matcher(r.type()).matches()) {
                 throw new Unsupported("harness: the relationship type " + r.type() + " is not a Pure identifier");
             }
-            String other = typeByLower.putIfAbsent(r.type().toLowerCase(Locale.ROOT), r.type());
-            if (other != null && !other.equals(r.type())) {
-                throw new Unsupported("harness: the relationship types " + other + " and " + r.type() + " differ only"
-                        + " in case");
-            }
+            String sql = sqlOfType.computeIfAbsent(r.type(), k -> {
+                String lower = k.toLowerCase(Locale.ROOT);
+                String name = lower;
+                for (int n = 1; sqlTaken.contains(name) || !name.equals(lower) && lowerNames.contains(name); n++) {
+                    name = lower + "_c" + n;
+                }
+                sqlTaken.add(name);
+                return name;
+            });
             Cls src = classOfNode.get(r.start());
             Cls dst = classOfNode.get(r.end());
             // (one entry per class pair the type joins, in the order the pairs appear)
             RelType t = types.computeIfAbsent(r.type() + "|" + src.name + "|" + dst.name,
-                    k -> new RelType(r.type(), src, dst));
+                    k -> new RelType(r.type(), sql, src, dst));
             t.rels.add(r);
             for (Map.Entry<String, String> p : r.props().entrySet()) {
                 if (!IDENTIFIER.matcher(p.getKey()).matches()) {
@@ -220,12 +267,11 @@ public final class CypherGraph {
                     throw new Unsupported("harness: the relationship property " + p.getKey() + " is named as the"
                             + " edge class's end or type");
                 }
-                String type = typeOf(p.getValue(), p.getKey());
-                String before = t.propertyTypes.putIfAbsent(p.getKey(), type);
-                if (before != null && !before.equals(type)) {
-                    throw new Unsupported("harness: the property " + r.type() + "." + p.getKey() + " is typed two"
-                            + " ways (" + before + ", " + type + ")");
-                }
+                // (a duration, a zoned value, a nanosecond one: an embedded value of the edge class, as a node's,
+                // the plan's W13 leg 6)
+                String type = typeOf(p.getValue(), p.getKey(), nanoNames.contains(p.getKey()));
+                t.propertyTypes.put(p.getKey(), merged(t.propertyTypes.get(p.getKey()), type, r.type() + "."
+                        + p.getKey()));
             }
         }
         // a type joining several pairs: its entries numbered (each an edge class of the type)
@@ -246,8 +292,8 @@ public final class CypherGraph {
         for (Cls c : classes.values()) {
             madeTables.add(c.table);
         }
-        if (classes.containsKey("RelationshipType") || classes.containsKey("Duration")) {
-            throw new Unsupported("harness: the label RelationshipType or Duration is a class the model makes up");
+        if (classes.containsKey("RelationshipType")) {
+            throw new Unsupported("harness: the label RelationshipType is a class the model makes up");
         }
         for (RelType t : types.values()) {
             Set<String> lower = new HashSet<>();
@@ -265,7 +311,7 @@ public final class CypherGraph {
                             + ", is a label's or another type's");
                 }
             }
-            String table = t.edge() ? t.table() : "r_" + t.name.toLowerCase(Locale.ROOT);
+            String table = t.edge() ? t.table() : "r_" + t.sql;
             if (!madeTables.add(table)) {
                 throw new Unsupported("harness: the table " + table + ", made up for the relationship type " + t.name
                         + ", is another's");
@@ -277,8 +323,11 @@ public final class CypherGraph {
         StringBuilder joins = new StringBuilder();
         StringBuilder associationMappings = new StringBuilder();
         StringBuilder edgeClasses = new StringBuilder();
+        List<String> scope = new ArrayList<>();
         StringBuilder edgeMappings = new StringBuilder();
         List<SqlParity.Table> junctions = new ArrayList<>();
+        // (an edge class's table's DDL, by its name)
+        Map<String, String> edgeDdl = new HashMap<>();
         List<String> edgeTypes = new ArrayList<>();
         for (RelType t : types.values()) {
             Cls src = java.util.Objects.requireNonNull(t.src);
@@ -298,6 +347,7 @@ public final class CypherGraph {
                     edgeTypes.add(t.name);
                 }
                 String edge = t.edgeClass();
+                scope.add(edge);
                 edgeClasses.append("Class <<graph::graph.Edge>> ").append(edge).append("\n{\n")
                         .append("    <<graph::graph.type>> type() { ").append(RELATIONSHIP_TYPE).append('.')
                         .append(t.name).append(" }: ").append(RELATIONSHIP_TYPE).append("[1];\n");
@@ -306,22 +356,37 @@ public final class CypherGraph {
                 columns.add(new SqlParity.Column("src_id", "BIGINT"));
                 columns.add(new SqlParity.Column("dst_id", "BIGINT"));
                 List<String> propertyMappings = new ArrayList<>();
+                StringBuilder ddl = new StringBuilder("    Table " + t.table()
+                        + " (id BIGINT PRIMARY KEY, src_id BIGINT, dst_id BIGINT");
                 for (Map.Entry<String, String> p : t.propertyTypes.entrySet()) {
                     String column = "p_" + p.getKey().toLowerCase(Locale.ROOT);
-                    edgeClasses.append("    ").append(p.getKey()).append(": ").append(p.getValue()).append("[0..1];\n");
+                    edgeClasses.append("    ").append(p.getKey()).append(": ").append(p.getValue())
+                            .append("[0..1];\n");
+                    if (embeddedValue(p.getValue())) {
+                        propertyMappings.add(embeddedColumns(p.getKey(), column, p.getValue(), t.table(), zonedNanos,
+                                zonedRegion, columns, ddl));
+                        continue;
+                    }
                     columns.add(new SqlParity.Column(column, sqlType(p.getValue())));
+                    ddl.append(", ").append(column).append(' ').append(relationalType(p.getValue()));
                     propertyMappings.add("        " + p.getKey() + ": [g::DB] " + t.table() + "." + column);
                 }
                 edgeClasses.append("}\n");
+                edgeDdl.put(t.table(), ddl.append(")\n").toString());
                 List<List<Object>> rows = new ArrayList<>();
                 for (CypherAnswers.GraphRel r : t.rels) {
                     List<Object> row = new ArrayList<>();
                     row.add((long) r.id());
                     row.add((long) r.start());
                     row.add((long) r.end());
-                    for (String key : t.propertyTypes.keySet()) {
-                        String text = r.props().get(key);
-                        row.add(text == null ? null : cell(text));
+                    for (Map.Entry<String, String> p : t.propertyTypes.entrySet()) {
+                        String text = r.props().get(p.getKey());
+                        if (embeddedValue(p.getValue())) {
+                            embeddedCells(text, p.getValue(), zonedNanos, zonedRegion, row);
+                            continue;
+                        }
+                        row.add(text == null ? null : p.getValue().equals(VARIANT)
+                                ? jsonOf(CypherValues.parse(text), p.getKey(), text) : cell(text));
                     }
                     rows.add(row);
                 }
@@ -363,7 +428,7 @@ public final class CypherGraph {
             int maxIn = inDegree.values().stream().mapToInt(Integer::intValue).max().orElse(0);
             // named apart from the classes: a label may be spelled like a relationship type
             String assoc = "g::R_" + t.name;
-            String column = "r_" + t.name.toLowerCase(Locale.ROOT);
+            String column = "r_" + t.sql;
             String target = src == dst ? "{target}." : dst.table + ".";
             if (maxOut <= 1) {
                 // the start node holds at most one end node: a foreign key on the start class's table
@@ -438,13 +503,36 @@ public final class CypherGraph {
         // the classes, the tables and the mapping; the Duration class the island carries a duration as (the study's
         // §12.9: a class of the model, not a platform type)
         StringBuilder pure = new StringBuilder("###Pure\n");
-        pure.append("Class g::Duration\n{\n    months: Integer[1];\n    days: Integer[1];\n    seconds: Integer[1];\n"
+        pure.append("Class " + DURATION + "\n{\n    months: Integer[1];\n    days: Integer[1];\n    seconds: Integer[1];\n"
                 + "    nanoseconds: Integer[1];\n}\n");
+        // the zoned value classes (the study's §12.65): the instant (a time of day's on the epoch day) and the offset
+        // in seconds (and, for a date-time of a named zone, the region's name: the study's §12.75); where any zoned
+        // value of its kind is sub-microsecond, the instant's parts in the instant's stead (a zoned time's UTC
+        // nanoseconds from the epoch day's midnight, a zoned date-time's UTC date and nanoseconds since midnight,
+        // the plan's W13 leg 5)
+        for (int i = 0; i < 2; i++) {
+            pure.append("Class " + (i == 0 ? ZONED_TIME : ZONED_DATETIME) + "\n{\n"
+                    + (!zonedNanos[i] ? "    instant: DateTime[1];\n" : i == 1 ? "    date: StrictDate[1];\n"
+                    + "    nanosOfDay: Integer[1];\n" : "    nanosOfDay: Integer[1];\n")
+                    + "    offsetSeconds: Integer[1];\n" + (i == 1 && zonedRegion ? "    zone: String[0..1];\n" : "")
+                    + "}\n");
+        }
+        // the value classes of a local nanosecond value's parts (W13 leg 5): a date-time's date and nanoseconds
+        // since midnight, a time of day's nanoseconds
+        pure.append("Class " + LOCAL_DATETIME_PARTS + "\n{\n    date: StrictDate[1];\n    nanosOfDay: Integer[1];\n}\n");
+        pure.append("Class " + LOCAL_TIME_PARTS + "\n{\n    nanosOfDay: Integer[1];\n}\n");
         StringBuilder tablesDdl = new StringBuilder();
         StringBuilder mapping = new StringBuilder();
         List<SqlParity.Table> tables = new ArrayList<>();
         for (Cls c : classes.values()) {
-            pure.append("Class g::").append(c.name).append("\n{\n");
+            pure.append("Class ").append(c.anonymous ? "<<graph::graph.Anonymous>> " : "").append("g::")
+                    .append(c.name);
+            if (!c.supers.isEmpty()) {
+                pure.append(" extends ").append(c.supers.stream().map(s -> "g::" + s)
+                        .collect(java.util.stream.Collectors.joining(", ")));
+            }
+            pure.append("\n{\n");
+            scope.add("g::" + c.name);
             List<SqlParity.Column> columns = new ArrayList<>();
             columns.add(new SqlParity.Column("id", "BIGINT"));
             StringBuilder ddl = new StringBuilder("    Table " + c.table + " (id BIGINT PRIMARY KEY");
@@ -454,6 +542,11 @@ public final class CypherGraph {
             for (Map.Entry<String, String> p : c.propertyTypes.entrySet()) {
                 String column = "p_" + p.getKey().toLowerCase(Locale.ROOT);
                 pure.append("    ").append(p.getKey()).append(": ").append(p.getValue()).append("[0..1];\n");
+                if (embeddedValue(p.getValue())) {
+                    propertyMappings.add(embeddedColumns(p.getKey(), column, p.getValue(), c.table, zonedNanos,
+                            zonedRegion, columns, ddl));
+                    continue;
+                }
                 columns.add(new SqlParity.Column(column, sqlType(p.getValue())));
                 ddl.append(", ").append(column).append(' ').append(relationalType(p.getValue()));
                 propertyMappings.add("        " + p.getKey() + ": [g::DB] " + c.table + "." + column);
@@ -486,7 +579,13 @@ public final class CypherGraph {
                 row.add((long) n.id());
                 for (Map.Entry<String, String> p : c.propertyTypes.entrySet()) {
                     String text = n.props().get(p.getKey());
-                    row.add(text == null ? null : cell(text));
+                    if (embeddedValue(p.getValue())) {
+                        embeddedCells(text, p.getValue(), zonedNanos, zonedRegion, row);
+                        continue;
+                    }
+                    // (a Variant column, a list property's or a property typed two ways: the value's JSON)
+                    row.add(text == null ? null : p.getValue().equals(VARIANT)
+                            ? jsonOf(CypherValues.parse(text), p.getKey(), text) : cell(text));
                 }
                 Map<String, Long> fk = fks.getOrDefault(n.id(), Map.of());
                 for (String column : c.fkColumns.values()) {
@@ -501,25 +600,61 @@ public final class CypherGraph {
                 tablesDdl.append("    Table ").append(j.name()).append(" (src_id BIGINT, dst_id BIGINT)\n");
             } else {
                 // a bridge table: its id the relationship's identity, its ends, its properties
-                StringBuilder ddl = new StringBuilder("    Table " + j.name()
-                        + " (id BIGINT PRIMARY KEY, src_id BIGINT, dst_id BIGINT");
-                RelType t = types.values().stream().filter(x -> x.table().equals(j.name())).findFirst().orElseThrow();
-                for (Map.Entry<String, String> p : t.propertyTypes.entrySet()) {
-                    ddl.append(", p_").append(p.getKey().toLowerCase(Locale.ROOT)).append(' ')
-                            .append(relationalType(p.getValue()));
-                }
-                tablesDdl.append(ddl).append(")\n");
+                tablesDdl.append(java.util.Objects.requireNonNull(edgeDdl.get(j.name())));
             }
             tables.add(j);
         }
+        // (the profile always: the DataSpace below carries its Open stereotype)
+        pure.append(GRAPH_PROFILE);
         if (!edgeTypes.isEmpty()) {
-            pure.append(GRAPH_PROFILE).append("Enum ").append(RELATIONSHIP_TYPE).append("\n{\n    ")
+            pure.append("Enum ").append(RELATIONSHIP_TYPE).append("\n{\n    ")
                     .append(String.join(", ", edgeTypes)).append("\n}\n").append(edgeClasses);
         }
+        scope.add(DURATION);
+        scope.add(ZONED_TIME);
+        scope.add(ZONED_DATETIME);
+        scope.add(LOCAL_DATETIME_PARTS);
+        scope.add(LOCAL_TIME_PARTS);
+        java.util.Collections.sort(scope);
         String model = pure + associations.toString() + "###Relational\nDatabase " + DATABASE + "\n(\n" + tablesDdl
                 + joins + ")\n###Mapping\nMapping " + MAPPING + "\n(\n" + mapping + edgeMappings
-                + associationMappings + ")\n";
+                + associationMappings + ")\n"
+                // the graph (the study's §12.45): a DataSpace of every class, open as a Neo4j graph is
+                + "###DataSpace\nDataSpace <<graph::graph.Open>> " + DATASPACE + "\n{\n  executionContexts:\n  [\n"
+                + "    {\n      name: 'default';\n      mapping: " + MAPPING + ";\n    }\n  ];\n"
+                + "  defaultExecutionContext: 'default';\n  elements: [ " + String.join(", ", scope) + " ];\n}\n";
         return new Inferred(model, tables, graphKey(g));
+    }
+
+    /** The class {@code name}, declared once: anonymous and extending {@code supers} as its first declaration says
+     *  (a second one disagreeing, a label spelled as a class the model makes up, is refused); two names differing
+     *  only in case are refused (one table). */
+    private static Cls declare(Map<String, Cls> classes, Map<String, String> tableOwner, String name,
+            boolean anonymous, List<String> supers) throws Unsupported {
+        Cls c = classes.computeIfAbsent(name, k -> new Cls(k, anonymous, supers));
+        if (c.anonymous != anonymous || !c.supers.equals(supers)) {
+            throw new Unsupported("harness: the label " + name + " is the class the model makes up for the label set "
+                    + String.join(":", c.anonymous ? c.supers : supers));
+        }
+        String owner = tableOwner.putIfAbsent(c.table, name);
+        if (owner != null && !owner.equals(name)) {
+            throw new Unsupported("harness: the labels " + owner + " and " + name + " differ only in case");
+        }
+        return c;
+    }
+
+    /** The type of a property across its nodes: one type where they agree; a Variant where they differ and each
+     *  is one a Variant spells (Neo4j's property typed two ways, the study's §12.62); else refused by name. */
+    private static String merged(@com.legend.base.Nullable String before, String type, String property)
+            throws Unsupported {
+        if (before == null || before.equals(type)) {
+            return type;
+        }
+        if (VARIANT_SPELLED.contains(before) && VARIANT_SPELLED.contains(type)) {
+            return VARIANT;
+        }
+        throw new Unsupported("harness: the property " + property + " is typed two ways (" + before + ", " + type
+                + ")");
     }
 
     /** The model with its connection and runtime, as a lane runs it. */
@@ -529,7 +664,30 @@ public final class CypherGraph {
                 + DATABASE + ": [ environment: g::Conn ] ];\n}\n";
     }
 
-    private static String typeOf(String valueText, String key) throws Unsupported {
+    /** Whether a value is a local time or date-time with digits past the microsecond. */
+    private static boolean subMicro(String valueText) {
+        CypherValues.Value v = CypherValues.parse(valueText);
+        if (!(v instanceof CypherValues.Opaque o)) {
+            return false;
+        }
+        CypherValues.ZonedParts zoned = CypherValues.zonedParts(o.text());
+        if (zoned != null) {
+            return !zoned.instant().substring(26).matches("0+");
+        }
+        java.util.regex.Matcher m = LOCAL_DATE_TIME.matcher(o.text());
+        if (!m.matches()) {
+            m = LOCAL_TIME.matcher(o.text());
+        }
+        if (!m.matches()) {
+            return false;
+        }
+        String fraction = m.group(2);
+        return fraction.length() > 6 && !fraction.substring(6).matches("0+");
+    }
+
+    /** The harness's type of a property's value: a Pure type's name, the Variant, or a value class
+     *  ({@code nanos}: the property name's precision across the graph). */
+    private static String typeOf(String valueText, String key, boolean nanos) throws Unsupported {
         CypherValues.Value v = CypherValues.parse(valueText);
         return switch (v) {
             case CypherValues.Int i -> "Integer";
@@ -543,23 +701,229 @@ public final class CypherGraph {
                 jsonOf(l, key, valueText);
                 yield VARIANT;
             }
+            // a date-time: of nanosecond precision, an embedded instance of the value class of its parts (its date
+            // and its nanoseconds since midnight, the plan's W13 legs 5 and 6: every database holds them, over every
+            // year its DATE does), on a node or a relationship
             case CypherValues.Opaque o when LOCAL_DATE_TIME.matcher(o.text()).matches() -> {
-                String fraction = LOCAL_DATE_TIME.matcher(o.text()).replaceAll("$2");
+                java.util.regex.Matcher m = LOCAL_DATE_TIME.matcher(o.text());
+                m.matches();
+                if (nanos) {
+                    yield LOCAL_DATETIME_PARTS;
+                }
+                String fraction = m.group(2);
                 if (fraction.length() > 6 && !fraction.substring(6).matches("0+")) {
-                    throw new Unsupported("harness: the property " + key + " holds a date-time of sub-microsecond"
-                            + " precision (" + valueText + ")");
+                    throw new IllegalStateException("a sub-microsecond date-time under a microsecond name: " + key);
                 }
                 yield "DateTime";
             }
-            // a time of day is not stored: the ###Relational store grammar (legend-engine's, lite's) has no TIME
-            // column type (docs/SEMANTICS_REGISTER.md S64); the island computes times from texts and date-times
+            // a time of day: lite's TIME store column (the relational grammar's extension, docs/SEMANTICS_REGISTER.md
+            // S64 revised 2026-10-17), the property a StrictTime; its offset, where it has one, is a column beside
+            // it (a zoned time: not yet)
+            // (of nanosecond precision, the value class of its nanoseconds since midnight, W13 legs 5 and 6)
+            case CypherValues.Opaque o when LOCAL_TIME.matcher(o.text()).matches() -> {
+                if (nanos) {
+                    yield LOCAL_TIME_PARTS;
+                }
+                String fraction = LOCAL_TIME.matcher(o.text()).replaceAll("$2");
+                if (fraction.length() > 6 && !fraction.substring(6).matches("0+")) {
+                    throw new IllegalStateException("a sub-microsecond time under a microsecond name: " + key);
+                }
+                yield "StrictTime";
+            }
+            // a duration: an embedded instance of the model's Duration class over four columns (its slots)
+            case CypherValues.Opaque o when CypherValues.durationSlots(o.text()) != null -> DURATION;
+            // a zoned time of day or date-time (the study's §12.65): an embedded instance of a value class over
+            // two columns, its instant (on the epoch day for a time) and its offset in seconds (of nanosecond
+            // precision, the instant's parts: the model's classes above)
+            case CypherValues.Opaque o when CypherValues.zonedParts(o.text()) != null ->
+                    CypherValues.zonedTimeText(o.text()) ? ZONED_TIME : ZONED_DATETIME;
             default -> throw new Unsupported("harness: the property " + key + " holds a " + v.getClass()
                     .getSimpleName().toLowerCase(Locale.ROOT) + " (" + valueText + "), a kind the model does not"
-                    + " hold yet (a time of day: no TIME store column; a zoned date-time; a duration)");
+                    + " hold yet");
         };
     }
 
+    /** The scenario's procedures as Pure functions (the study's §12.60): {@code test.my.proc} is the function
+     *  {@code test::my::proc}, its inputs the parameters (each optional), its outputs the relation it returns; the
+     *  body a typed TDS literal of the declared rows, filtered on the inputs (a null input matches a null cell) and
+     *  cut to the outputs; a procedure of no output returns a Boolean (VOID). */
+    public static String procedures(List<CypherTck.Procedure> procedures) {
+        StringBuilder pure = new StringBuilder("###Pure\n");
+        for (CypherTck.Procedure p : procedures) {
+            String path = p.name().replace(".", "::");
+            String params = p.inputs().stream().map(i -> i.name() + ": " + pureType(i.type()) + "[0..1]")
+                    .collect(Collectors.joining(", "));
+            if (p.outputs().isEmpty()) {
+                pure.append("function ").append(path).append('(').append(params).append("): Boolean[1]\n{\n")
+                        .append("    true\n}\n");
+                continue;
+            }
+            String relation = p.outputs().stream().map(o -> o.name() + ": " + pureType(o.type()))
+                    .collect(Collectors.joining(", "));
+            pure.append("function ").append(path).append('(').append(params).append("): Relation<(")
+                    .append(relation).append(")>[1]\n{\n    #TDS\n      ");
+            List<CypherTck.Procedure.Param> columns = new ArrayList<>(p.inputs());
+            columns.addAll(p.outputs());
+            pure.append(columns.stream().map(c -> c.name() + ":" + pureType(c.type())).collect(
+                    Collectors.joining(", "))).append('\n');
+            for (List<String> row : p.rows()) {
+                if (row.size() != columns.size()) {
+                    throw new IllegalStateException("the procedure " + p.name() + " declares a row of " + row.size()
+                            + " cells for " + columns.size() + " columns: " + row);
+                }
+                pure.append("      ").append(row.stream().map(CypherGraph::tdsCell).collect(Collectors.joining(", ")))
+                        .append('\n');
+            }
+            pure.append("    #");
+            if (!p.inputs().isEmpty()) {
+                pure.append("->filter(r | ").append(p.inputs().stream().map(i -> "$r." + i.name() + " == $"
+                        + i.name()).collect(Collectors.joining(" && "))).append(')');
+            }
+            pure.append("->select(~[").append(p.outputs().stream().map(CypherTck.Procedure.Param::name).collect(
+                    Collectors.joining(", "))).append("])\n}\n");
+        }
+        return pure.toString();
+    }
+
+    /** The TCK's parameter types as Pure's (a NUMBER is a Float in the rows, a Number as the parameter). */
+    private static String pureType(String tckType) {
+        return switch (tckType) {
+            case "INTEGER" -> "Integer";
+            case "FLOAT" -> "Float";
+            case "NUMBER" -> "Number";
+            case "STRING" -> "String";
+            case "BOOLEAN" -> "Boolean";
+            default -> throw new IllegalStateException("a procedure type the harness does not declare: " + tckType);
+        };
+    }
+
+    /** A TCK table cell as a TDS literal cell: a null empty, a string in its quotes (the grammar's spelling is
+     *  the literal's). */
+    private static String tdsCell(String cell) {
+        return cell.equals("null") ? "" : cell;
+    }
+
+    /** The model's Duration value class (the island carries a duration as an instance of it): a stored duration
+     *  is an embedded instance over four columns, one per slot. */
+    private static final String DURATION = "g::values::Duration";
+    /** The value classes of a local nanosecond value's parts (the plan's W13 leg 5): a date-time's date and
+     *  nanoseconds since midnight, a time of day's nanoseconds. */
+    private static final String LOCAL_DATETIME_PARTS = "g::values::LocalDateTime";
+    private static final String LOCAL_TIME_PARTS = "g::values::LocalTime";
+
+    /** A value class's slots, in its columns' order. */
+    private static List<String> slotsOf(String type, boolean[] zonedNanos) {
+        return switch (type) {
+            case DURATION -> DURATION_SLOTS;
+            case LOCAL_DATETIME_PARTS -> List.of("date", "nanosOfDay");
+            case LOCAL_TIME_PARTS -> List.of("nanosOfDay");
+            case ZONED_TIME -> zonedNanos[0] ? List.of("nanosOfDay", "offsetSeconds") : ZONED_SLOTS;
+            case ZONED_DATETIME -> zonedNanos[1] ? List.of("date", "nanosOfDay", "offsetSeconds") : ZONED_SLOTS;
+            default -> throw new IllegalStateException("not a value class: " + type);
+        };
+    }
+
+    /** Whether a harness type is a value class a property holds as an embedded instance (a duration, a zoned
+     *  value, a nanosecond value's parts): one column per slot, the property mapping's embedded block. */
+    private static boolean embeddedValue(String type) {
+        return type.equals(DURATION) || type.equals(ZONED_TIME) || type.equals(ZONED_DATETIME)
+                || type.equals(LOCAL_DATETIME_PARTS) || type.equals(LOCAL_TIME_PARTS);
+    }
+
+    /** The columns of {@code property}'s embedded instance of {@code type} in {@code table}, one per slot (a
+     *  duration's four BIGINTs; a zoned value's instant and offset, or of nanosecond precision the instant's parts,
+     *  and a date-time's region where the graph names one; a local nanosecond value's parts), added to
+     *  {@code columns} and {@code ddl}; the property mapping's embedded block. */
+    private static String embeddedColumns(String property, String column, String type, String table,
+            boolean[] zonedNanos, boolean zonedRegion, List<SqlParity.Column> columns, StringBuilder ddl) {
+        List<String> slots = new ArrayList<>();
+        List<String> slotNames = new ArrayList<>(slotsOf(type, zonedNanos));
+        if (type.equals(ZONED_DATETIME) && zonedRegion) {
+            slotNames.add(ZONE_SLOT);
+        }
+        for (String slot : slotNames) {
+            String slotColumn = column + "_" + slot.toLowerCase(Locale.ROOT);
+            String sql = slot.equals(ZONE_SLOT) ? "VARCHAR(4000)" : slot.equals("date") ? "DATE"
+                    : slot.equals("instant") ? "TIMESTAMP" : "BIGINT";
+            columns.add(new SqlParity.Column(slotColumn, sql));
+            ddl.append(", ").append(slotColumn).append(' ').append(sql);
+            slots.add("            " + slot + ": [g::DB] " + table + "." + slotColumn);
+        }
+        return "        " + property + "\n        (\n" + String.join(",\n", slots) + "\n        )";
+    }
+
+    /** The cells of an embedded instance of {@code type} the scenario's {@code text} spells (nulls for none), in
+     *  {@link #embeddedColumns}' order: the seed's own reading of the scenario's text, the data the lane is seeded
+     *  with. */
+    private static void embeddedCells(@com.legend.base.Nullable String text, String type, boolean[] zonedNanos,
+            boolean zonedRegion, List<Object> row) {
+        if (type.equals(DURATION)) {
+            long[] slots = text == null ? null : CypherValues.durationSlots(
+                    CypherValues.parse(text) instanceof CypherValues.Opaque o ? o.text() : text);
+            for (int i = 0; i < DURATION_SLOTS.size(); i++) {
+                row.add(slots == null ? null : slots[i]);
+            }
+            return;
+        }
+        if (type.equals(LOCAL_DATETIME_PARTS) || type.equals(LOCAL_TIME_PARTS)) {
+            // a local nanosecond value's parts: its date as written, its nanoseconds since midnight
+            boolean time = type.equals(LOCAL_TIME_PARTS);
+            java.util.regex.Matcher m = text == null ? null : (time ? LOCAL_TIME : LOCAL_DATE_TIME).matcher(
+                    ((CypherValues.Opaque) CypherValues.parse(text)).text());
+            boolean found = m != null && m.matches();
+            if (!time) {
+                row.add(found ? m.group(1).substring(0, 10) : null);
+            }
+            row.add(found ? nanosOfDay(time ? m.group(1) : m.group(1).substring(11), m.group(2)) : null);
+            return;
+        }
+        CypherValues.ZonedParts parts = text == null ? null : CypherValues.zonedParts(
+                ((CypherValues.Opaque) CypherValues.parse(text)).text());
+        boolean time = type.equals(ZONED_TIME);
+        if (zonedNanos[time ? 0 : 1]) {
+            // of nanosecond precision, the instant's parts: a date-time's UTC date and nanoseconds since midnight, a
+            // time's nanoseconds from the epoch day's midnight
+            String instant = parts == null ? null : parts.instant();
+            Long nanos = instant == null ? null : nanosOfDay(instant.substring(11, 19), instant.substring(20));
+            if (!time) {
+                row.add(instant == null ? null : instant.substring(0, 10));
+                row.add(nanos);
+            } else {
+                row.add(instant == null ? null : java.time.LocalDate.parse(instant.substring(0, 10)).toEpochDay()
+                        * 86_400_000_000_000L + java.util.Objects.requireNonNull(nanos));
+            }
+        } else {
+            // (a TIMESTAMP column binds the text to the microsecond)
+            row.add(parts == null ? null : parts.instant().substring(0, 26));
+        }
+        row.add(parts == null ? null : parts.offsetSeconds());
+        if (type.equals(ZONED_DATETIME) && zonedRegion) {
+            row.add(parts == null ? null : parts.region());
+        }
+    }
+
+    /** The nanoseconds since midnight a clock {@code HH:mm:ss} and its fraction's digits spell (the seed's own
+     *  arithmetic over the scenario's text: the data the lane is seeded with, not a value of the query's). */
+    private static long nanosOfDay(String clock, String fraction) {
+        long seconds = Long.parseLong(clock.substring(0, 2)) * 3600 + Long.parseLong(clock.substring(3, 5)) * 60
+                + Long.parseLong(clock.substring(6, 8));
+        return seconds * 1_000_000_000L + Long.parseLong((fraction + "000000000").substring(0, 9));
+    }
+
+    /** The zoned value classes (the study's §12.65): an embedded instance of the instant and its offset. */
+    private static final String ZONED_TIME = "g::values::ZonedTime";
+    private static final String ZONED_DATETIME = "g::values::ZonedDateTime";
+    private static final List<String> ZONED_SLOTS = List.of("instant", "offsetSeconds");
+    /** A zoned date-time's region slot, declared when a stored date-time names its zone (the study's §12.75). */
+    private static final String ZONE_SLOT = "zone";
+    private static final List<String> DURATION_SLOTS = List.of("months", "days", "seconds", "nanoseconds");
+    /** Neo4j's {@code Time('HH:mm:ss.nnnnnnnnn')} with no offset: a local time of day. */
+    private static final java.util.regex.Pattern LOCAL_TIME = java.util.regex.Pattern.compile(
+            "Time\\('(\\d\\d:\\d\\d:\\d\\d)\\.(\\d+)'\\)");
+
     private static final String VARIANT = "meta::pure::metamodel::variant::Variant";
+    /** The types a Variant column holds as JSON (an integer, a float, a string, a boolean, a list). */
+    private static final Set<String> VARIANT_SPELLED = Set.of("Integer", "Float", "String", "Boolean", VARIANT);
 
     /** A list property's JSON text, as the seed binds it (DuckDB's JSON, Postgres's JSONB): its primitives spelled
      *  as JSON spells them. */
@@ -593,6 +957,7 @@ public final class CypherGraph {
     private static final java.util.regex.Pattern LOCAL_DATE_TIME = java.util.regex.Pattern.compile(
             "DateTime\\('(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})\\.(\\d{1,9})'\\)");
 
+    /** A stored value as the seed binds it (a value class's cells are {@link #embeddedCells}'). */
     private static Object cell(String text) {
         CypherValues.Value v = CypherValues.parse(text);
         return switch (v) {
@@ -603,6 +968,13 @@ public final class CypherGraph {
             // a date or date-time: the text the seed binds (java.sql.Date.valueOf, Timestamp.valueOf)
             case CypherValues.Opaque o when o.text().startsWith("Date('") -> o.text().substring(6,
                     o.text().length() - 2);
+            // a time of day: its text to the microsecond (the seed binds a LocalTime)
+            case CypherValues.Opaque o when LOCAL_TIME.matcher(o.text()).matches() -> {
+                java.util.regex.Matcher m = LOCAL_TIME.matcher(o.text());
+                m.matches();
+                String fraction = m.group(2);
+                yield m.group(1) + "." + (fraction.length() > 6 ? fraction.substring(0, 6) : fraction);
+            }
             case CypherValues.Lst l -> {
                 try {
                     yield jsonOf(l, "", text);
@@ -629,6 +1001,7 @@ public final class CypherGraph {
             case "Boolean" -> "BOOLEAN";
             case "StrictDate" -> "DATE";
             case "DateTime" -> "TIMESTAMP";
+            case "StrictTime" -> "TIME";
             case VARIANT -> "JSONB";
             default -> throw new IllegalStateException(pureType);
         };
@@ -642,6 +1015,7 @@ public final class CypherGraph {
             case "Boolean" -> "BIT";
             case "StrictDate" -> "DATE";
             case "DateTime" -> "TIMESTAMP";
+            case "StrictTime" -> "TIME";
             case VARIANT -> "SEMISTRUCTURED";
             default -> throw new IllegalStateException(pureType);
         };

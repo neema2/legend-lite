@@ -1,0 +1,77 @@
+# The #Cypher{...}# island's nodes with several labels (docs/CYPHER_STUDY_2026_10_15.md §12.61): a node of several
+# labels is an instance of an anonymous class per label set (named by its labels, its name no label) extending
+# each label's class; a label reads its class and the subclasses (one arm per class); labels(n) is the class's
+# label set; n:B tests the set; a label set no class carries reads no rows. Each case is judged by Neo4j's answer
+# in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/labelsets/*'), keyed
+# lite/labelsets/<id>. The labels of a node are created in alphabetical order here: the island lists a class's
+# labels in the model's declaration order (the harness declares them sorted), Neo4j in creation order.
+tests:
+  - id: a_label_reads_its_class_and_the_subclasses
+    graph: |
+      CREATE (:A:B {name: 'ab'}), (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (n:A) RETURN n.name AS name ORDER BY name"
+  - id: two_labels_read_the_classes_carrying_both
+    graph: |
+      CREATE (:A:B {name: 'ab'}), (:A {name: 'a'}), (:B {name: 'b'}), (:A:B:C {name: 'abc'})
+    cypher: "MATCH (n:A:B) RETURN n.name AS name ORDER BY name"
+  - id: two_labels_in_either_order
+    graph: |
+      CREATE (:A:B {name: 'ab'}), (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (n:B:A) RETURN n.name AS name"
+  - id: labels_of_a_node_with_two_labels
+    graph: |
+      CREATE (:A:B {name: 'ab'}), (:A {name: 'a'}), ({name: 'n'})
+    cypher: "MATCH (n) RETURN n.name AS name, labels(n) AS labels ORDER BY name"
+  - id: a_label_predicate_over_a_node_with_two_labels
+    graph: |
+      CREATE (:A:B {name: 'ab'}), (:A {name: 'a'}), (:B {name: 'b'}), ({name: 'n'})
+    cypher: "MATCH (n) RETURN n.name AS name, n:A AS isA, n:B AS isB, n:A:B AS both, n:B:A:B AS bothAgain ORDER BY name"
+  - id: a_node_value_with_two_labels
+    graph: |
+      CREATE (:A:B {name: 'ab'}), (:A {name: 'a'})
+    cypher: "MATCH (n:A:B) RETURN n"
+  - id: a_node_value_with_many_labels
+    graph: |
+      CREATE (:A:B:C:D {name: 'abcd'}), (:B:D {name: 'bd'})
+    cypher: "MATCH (n:D:B) RETURN n, labels(n) AS labels ORDER BY n.name"
+  - id: a_typed_hop_from_a_label_with_subclasses
+    graph: |
+      CREATE (:A:B {name: 'ab'})-[:T]->(:C {name: 'c'}), (:A {name: 'a'})-[:T]->(:C {name: 'c2'})
+    cypher: "MATCH (n:A)-[:T]->(c) RETURN n.name AS name, c.name AS target ORDER BY name"
+  - id: an_untyped_hop_to_a_label_with_subclasses
+    graph: |
+      CREATE (:X {name: 'x'})-[:R]->(:Y {name: 'y'}), (:X {name: 'x2'})-[:R]->(:Y:Z {name: 'yz'}), (:X {name: 'x3'})-[:R]->(:W {name: 'w'})
+    cypher: "MATCH (x:X)-->(m:Y) RETURN x.name AS name, m.name AS target ORDER BY name"
+  - id: an_optional_match_to_a_label_with_subclasses
+    graph: |
+      CREATE (:X {name: 'x1'}), (x:X {name: 'x2'}), (y1:Y {name: 'y'}), (y2:Y:Z {name: 'yz'})
+      CREATE (x)-[:REL]->(y1), (x)-[:REL]->(y2)
+    cypher: "MATCH (a:X) OPTIONAL MATCH (a)-->(b:Y) RETURN a.name AS name, b.name AS target ORDER BY name, target"
+  - id: a_bound_node_rematched_with_a_label_of_its_set
+    graph: |
+      CREATE (:A:B {name: 'ab'}), (:A {name: 'a'})
+    cypher: "MATCH (n:A) WITH n MATCH (n:B) RETURN n.name AS name"
+  - id: a_bound_node_rematched_with_a_label_it_lacks
+    graph: |
+      CREATE (:A:B {name: 'ab'}), (:A {name: 'a'})
+    cypher: "MATCH (n:A) WHERE n.name = 'a' WITH n MATCH (n:B) RETURN n.name AS name"
+  - id: labels_of_an_unlabelled_node
+    graph: |
+      CREATE ({name: 'n'})
+    cypher: "MATCH (n) RETURN labels(n) AS labels, n"
+  - id: a_property_only_the_two_labelled_nodes_hold
+    graph: |
+      CREATE (:A:B {name: 'ab', extra: 1}), (:A {name: 'a'})
+    cypher: "MATCH (n:A) RETURN n.name AS name, n.extra AS extra ORDER BY name"
+  - id: a_label_set_class_is_no_label
+    graph: |
+      CREATE (:A:B {name: 'ab'})
+    cypher: "MATCH (n:N_A_B) RETURN n.name AS name"
+  - id: a_count_over_a_label_with_subclasses
+    graph: |
+      CREATE (:A:B), (:A), (:A:C), (:B), (:B:C)
+    cypher: "MATCH (n:A) RETURN count(n) AS n"
+  - id: a_label_set_no_node_carries
+    graph: |
+      CREATE (:A:B {name: 'ab'}), (:C {name: 'c'})
+    cypher: "MATCH (n:A:C) RETURN n.name AS name"

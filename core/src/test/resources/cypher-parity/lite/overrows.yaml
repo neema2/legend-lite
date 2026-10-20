@@ -1,0 +1,73 @@
+# The #Cypher{...}# island's pattern predicates over rows and its comprehensions and quantifiers over lists the
+# database holds (docs/CYPHER_STUDY_2026_10_15.md §12.52, the plan's W12): a pattern predicate or an EXISTS subquery
+# in a WHERE over rows (a cartesian product's, a WITH's, a fanning graph's materialized rows) whose named nodes and
+# relationships the rows carry is read as its own graph from the carried node's class and left-joined back on their
+# identities as a flag the WHERE tests; a list comprehension, a quantifier, reverse, tail, +, CASE and coalesce
+# over a list the database holds as a Variant of a known element kind read it as the collection the database
+# computes. Each case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/overrows/*' snaps them), keyed lite/overrows/<id>.
+tests:
+  - id: a_predicate_over_a_product
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b'}), (c:B {name: 'c'}) CREATE (a)-[:T]->(b)
+    cypher: "MATCH (x:A), (y:B) WHERE (x)-[:T]->(y) RETURN x.name AS xn, y.name AS yn"
+  - id: an_untyped_predicate_over_label_less_nodes
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b'}), (c:C {name: 'c'}) CREATE (a)-[:T]->(b), (b)-[:U]->(c)
+    cypher: "MATCH (n), (m) WHERE (n)-->(m) RETURN n.name AS nn, m.name AS mn ORDER BY nn"
+  - id: an_undirected_predicate_over_a_product
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:A {name: 'b'}), (c:A {name: 'c'}) CREATE (a)-[:T]->(b)
+    cypher: "MATCH (n:A), (m:A) WHERE (n)-[:T]-(m) RETURN n.name AS nn, m.name AS mn ORDER BY nn, mn"
+  - id: a_negated_predicate_and_a_disjunction
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b'}), (c:B {name: 'c'}) CREATE (a)-[:T]->(b), (c)-[:U]->(a)
+    cypher: "MATCH (x:A), (y:B) WHERE NOT (x)-[:T]->(y) OR (y)-[:U]->(x) RETURN x.name AS xn, y.name AS yn ORDER BY yn"
+  - id: a_predicate_in_a_with_where
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b'}), (c:B {name: 'c'}) CREATE (a)-[:T]->(b)
+    cypher: "MATCH (x:A), (y:B) WITH x, y WHERE (x)-[:T]->(y) RETURN x.name AS xn, y.name AS yn"
+  - id: a_predicate_in_a_with_where_with_a_grouping
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b'}), (c:B {name: 'c'}) CREATE (a)-[:T]->(b), (a)-[:T]->(c)
+    cypher: "MATCH (x:A), (y:B) WITH x, y WHERE (x)-[:T]->(y) RETURN x.name AS xn, count(y) AS n"
+  - id: an_exists_subquery_over_rows_with_its_where
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b', v: 1}), (c:B {name: 'c', v: 2}) CREATE (a)-[:T]->(b), (a)-[:T]->(c)
+    cypher: "MATCH (x:A), (y:B) WHERE EXISTS { (x)-[:T]->(y) WHERE y.v > 1 } RETURN x.name AS xn, y.name AS yn"
+  - id: a_predicate_from_a_far_node_with_an_open_end
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b'}), (c:B {name: 'c'}), (d:C {name: 'd'}) CREATE (a)-[:T]->(b), (a)-[:T]->(c), (b)-[:U]->(d)
+    cypher: "MATCH (x:A)-[:T]->(y) WHERE (y)-[:U]->() RETURN x.name AS xn, y.name AS yn"
+  - id: a_predicate_matching_several_times_counts_once
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b'}), (c:C {name: 'c'}), (d:C {name: 'd'}) CREATE (a)-[:T]->(b), (b)-[:U]->(c), (b)-[:U]->(d)
+    cypher: "MATCH (x:A), (y:B) WHERE (x)-[:T]->(y) AND (y)-[:U]->() RETURN x.name AS xn, y.name AS yn"
+  - id: a_comprehension_over_a_collected_list
+    graph: |
+      CREATE (a:A {name: 'a', v: 1}), (b:A {name: 'b', v: 2}), (c:A {name: 'c', v: 3})
+    cypher: "MATCH (n:A) WITH collect(n.v) AS vs RETURN [x IN vs WHERE x > 1 | x * 10] AS big, size([x IN vs WHERE x > 1]) AS n, all(x IN vs WHERE x > 0) AS a, any(x IN vs WHERE x > 2) AS s, none(x IN vs WHERE x > 3) AS z, single(x IN vs WHERE x = 2) AS o"
+  - id: a_comprehension_over_collected_relationships
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b'}), (c:B {name: 'c'}) CREATE (a)-[:T]->(b), (a)-[:U]->(c)
+    cypher: "MATCH (n:A)-[r]->() WITH collect(r) AS rs RETURN size([x IN rs WHERE x <> null]) AS n, size([x IN rs WHERE type(x) = 'T']) AS ts, [x IN rs | 1] AS ones"
+  - id: list_functions_over_a_variant_list
+    graph: |
+      CREATE (:A {name: 'a'})
+    cypher: "UNWIND [[1, 2, 3], [4]] AS l RETURN reverse(l) AS r, tail(l) AS t, l + 9 AS c, l + [7, 8] AS cc, head(l) AS h, last(l) AS la"
+  - id: a_case_and_a_coalesce_keep_the_lists_shape
+    graph: |
+      CREATE (:A {name: 'a'})
+    cypher: "UNWIND [{l: [1, 2], f: true}, {l: [3, 4, 5], f: false}] AS m WITH CASE WHEN m.f THEN m.l ELSE [0] END AS c, coalesce(null, m.l) AS d RETURN [x IN c WHERE x > 0 | x] AS cs, any(x IN d WHERE x > 4) AS big"
+  - id: a_list_plus_a_value_that_may_be_null
+    graph: |
+      CREATE (:A {name: 'a'})
+    cypher: "UNWIND [1, 2] AS x WITH [10, 20] AS l, x RETURN x, l + x AS c, none(y IN l + x WHERE y = x) AS n ORDER BY x"
+  - id: a_comprehension_over_labels
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (n) RETURN n.name AS name, [x IN labels(n) | toLower(x)] AS ls, any(x IN labels(n) WHERE x = 'B') AS isB ORDER BY name"
+  - id: modulo_inside_a_lambda
+    graph: |
+      CREATE (:A {name: 'a'})
+    cypher: "WITH [1, 2, 3, 4, 5, 6] AS l RETURN [x IN l WHERE x % 2 = 0 | x] AS even, none(x IN l WHERE x % 7 = 0) AS n"

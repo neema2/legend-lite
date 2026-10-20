@@ -714,6 +714,12 @@ public final class IqSettings {
         return text(IqOption.CHAR_SET).equalsIgnoreCase("ISO_8859-1:1987");
     }
 
+    /** Whether the database is the real SAP IQ 17.1's the {@code iq17-*} presets describe (IQ's base, a UTF-8 CHAR
+     *  charset), whose judge is the live IQ; IQ 16's stand-in, SQL Anywhere 17, judges the others. */
+    public boolean iq17() {
+        return base() == Base.IQ16 && !latin1();
+    }
+
     /** {@code ansinull}: On, a comparison with NULL is UNKNOWN; Off (a TDS login), {@code = NULL} means IS NULL. */
     public boolean ansinull() {
         return on(IqOption.ANSINULL);

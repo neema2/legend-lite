@@ -28,6 +28,7 @@ public sealed interface TypedRelationOp extends TypedSpec permits
         TypedExtendWindow,
         TypedExtendAgg,
         TypedRename,
+        TypedRecurse,
         TypedSelect {
 
     /** The relation this operator reads. */

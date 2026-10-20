@@ -189,9 +189,25 @@ class CypherParserTest {
         assertTrue(expr("[(n:Foo)-[:T]->(m) | m]") instanceof CypherAst.PatternComprehension);
         OtherClause detach = (OtherClause) parse("MATCH (n) DETACH DELETE n").clauses().get(1);
         assertEquals("DETACH DELETE", detach.keyword());
-        OtherClause call = (OtherClause) parse("CALL db.labels() YIELD label RETURN label").clauses().get(0);
-        assertEquals("CALL", call.keyword());
-        assertEquals("CALL db.labels() YIELD label", call.text());
+        // CALL is read since the procedures leg (the study's §12.60): the dotted name, the arguments when written
+        // in parentheses (null for the implicit form), the yielded outputs under their aliases, YIELD *
+        CypherAst.ProcedureCall call = (CypherAst.ProcedureCall) parse("CALL db.labels() YIELD label RETURN label")
+                .clauses().get(0);
+        assertEquals("db.labels", call.name());
+        assertEquals(List.of(), call.args());
+        assertEquals(List.of("label"), call.yields().stream().map(CypherAst.YieldItem::name).toList());
+        CypherAst.ProcedureCall renamed = (CypherAst.ProcedureCall) parse("CALL test.my.proc('a', 1) YIELD city AS c,"
+                + " code RETURN c").clauses().get(0);
+        assertEquals("test.my.proc", renamed.name());
+        assertEquals(2, renamed.args().size());
+        assertEquals("c", renamed.yields().get(0).alias());
+        assertEquals(null, renamed.yields().get(1).alias());
+        CypherAst.ProcedureCall implicit = (CypherAst.ProcedureCall) parse("CALL test.my.proc").clauses().get(0);
+        assertEquals(null, implicit.args());
+        assertEquals(null, implicit.yields());
+        assertTrue(((CypherAst.ProcedureCall) parse("CALL test.my.proc() YIELD *").clauses().get(0)).yieldAll());
+        OtherClause foreach = (OtherClause) parse("MATCH (n) FOREACH (x IN [1] | SET n.p = x)").clauses().get(1);
+        assertEquals("FOREACH", foreach.keyword());
     }
 
     @Test

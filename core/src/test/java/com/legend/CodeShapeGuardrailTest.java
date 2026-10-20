@@ -66,6 +66,11 @@ class CodeShapeGuardrailTest {
             // reads in flight on an enclosing row's behalf (2026-10-15): the depth the resolvers consult so a
             // correlated read spends no pass's fold budget; raised and lowered around the read
             "Lowerer.correlatedReads",
+            // a writer's depth inside a set function's arguments the database evaluates when it plans (2026-10-17,
+            // the Cypher island's range of a bound that may be null, docs/CYPHER_STUDY_2026_10_15.md §12.73):
+            // raised and lowered around the write (SqlWriter.planned), one writer per statement; Postgres's raise
+            // reads it so no planner pre-evaluates a raise there
+            "SqlWriter.planned",
             // a LAZY value (2026-09-23): an execute() call's activity rows
             // carry a second render of its chain, computed on the first
             // read and kept — set once, never reassigned after
@@ -121,6 +126,9 @@ class CodeShapeGuardrailTest {
             // lambdas the database computes (a comprehension's or predicate's over a collection), raised and lowered
             // around their reading, scoped to one translation (the fresh-name counter's lifecycle)
             "CypherToPure.databaseLambdas",
+            // the Cypher translator's let (2026-10-19, the parity lanes' exponential temporal SQL): Shares' count of
+            // the hidden columns it has named, scoped to one translation (the CypherToPure.fresh shape)
+            "Shares.next",
             // the island's reader of a date's or a timestamp's text (2026-10-13, Postgres's date spellings,
             // docs/LEGEND_SQL_STUDY_2026_10_11.md §9.4): PostgresDateTime.Decoder is datetime.c's DecodeDateTime,
             // these its struct pg_tm and the field mask it fills field by field -- scoped to one constant's read,

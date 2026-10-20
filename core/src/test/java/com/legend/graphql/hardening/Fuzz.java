@@ -381,7 +381,7 @@ public final class Fuzz {
         }
         List<String[]> folds = foldable(cls);
         if (!folds.isEmpty() && chance(0.2)) {
-            // a fold's bound: sum, min or max of a property (the fold need not be selected: S93)
+            // a fold's bound: sum, min or max of a property (the fold need not be selected: S106)
             String[] fp = pick(folds);
             Kind k = ((Scalar) model.get(cls).fields.get(fp[1])).kind();
             GObj bound = obj(List.of(e(pick(List.of("gt", "lt", "gte", "lte", "equals")), literal(cls, fp[1], k))));

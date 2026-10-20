@@ -513,6 +513,9 @@ describe('a KPI tile (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, batch 1)', () =
       debounceMs: 0,
       formOpen: true,
     });
+    // the form's module, which the panel loads on demand: the first load in this file, slower than settle's turns on
+    // a slow runner (PR #62's Windows runs read an empty form)
+    await import('../src/ui/chart-form.ts');
     await settle();
     assert.equal(host.querySelector('.dc-kpi-value')?.textContent, '$1500');
     const against = host.querySelector('.dc-kpi-target')!;

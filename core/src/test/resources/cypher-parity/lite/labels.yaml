@@ -44,10 +44,6 @@ tests:
     graph: |
       CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
     cypher: "MATCH (a)-[:T|:T]->(b) RETURN b"
-  - id: comparing_nodes_refused
-    graph: |
-      CREATE (:A {name: 'a'}), (:A {name: 'b'})
-    cypher: "MATCH (a:A), (b:A) WHERE a = b RETURN a.name AS name"
   - id: label_predicate_in_parentheses
     graph: |
       CREATE ({name: 'plain'}), (:Foo {name: 'foo'})

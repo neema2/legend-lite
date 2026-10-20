@@ -1,0 +1,30 @@
+# The #Cypher{...}# island's OPTIONAL MATCH whose WHERE reads a value of the rows beside its pattern
+# (docs/CYPHER_STUDY_2026_10_15.md §12.78): the WHERE is the join's condition, over the row and the match together
+# (the pattern's own variables read from the match, the others from the row), so a row no match of which holds keeps
+# its nulls. Each case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/optrows/*'), keyed lite/optrows/<id>.
+tests:
+  - id: a_relationship_other_than_the_row_s
+    graph: |
+      CREATE (a:A {num: 1})-[:REL {name: 'r1'}]->(b:B {num: 2})-[:REL {name: 'r2'}]->(c:C {num: 3})
+    cypher: "MATCH (a)-[r {name: 'r1'}]-(b) OPTIONAL MATCH (b)-[r2]-(c) WHERE r <> r2 RETURN a.num AS a, b.num AS b, c.num AS c ORDER BY a"
+  - id: a_node_equal_to_the_row_s
+    graph: |
+      CREATE (:A)-[:T]->(:B)
+    cypher: "MATCH (a1)-[r]->() WITH r, a1 LIMIT 1 OPTIONAL MATCH (a2)<-[r]-(b2) WHERE a1 = a2 RETURN labels(a1) AS a1, type(r) AS r, b2, a2"
+  - id: a_property_against_the_row_s
+    graph: |
+      CREATE (x:X {v: 2}), (x)-[:T]->(:Y {w: 1}), (x)-[:T]->(:Y {w: 3}), (z:X {v: 5}), (z)-[:T]->(:Y {w: 4})
+    cypher: "MATCH (x:X) OPTIONAL MATCH (x)-[:T]->(y:Y) WHERE y.w > x.v RETURN x.v AS v, y.w AS w ORDER BY v, w"
+  - id: two_rows_of_one_node
+    graph: |
+      CREATE (x:X {v: 1}), (x)-[:T]->(:Y {w: 1}), (x)-[:T]->(:Y {w: 2})
+    cypher: "MATCH (x:X) UNWIND [1, 2, 3] AS k OPTIONAL MATCH (x)-[:T]->(y:Y) WHERE y.w = k RETURN k, y.w AS w ORDER BY k"
+  - id: none_holds_keeps_the_row
+    graph: |
+      CREATE (x:X {v: 9}), (x)-[:T]->(:Y {w: 1})
+    cypher: "MATCH (x:X) OPTIONAL MATCH (x)-[:T]->(y:Y) WHERE y.w > x.v RETURN x.v AS v, y IS NULL AS missing"
+  - id: a_value_carried_by_a_with
+    graph: |
+      CREATE (x:X {v: 1}), (x)-[:T]->(:Y {w: 10}), (x)-[:T]->(:Y {w: 20})
+    cypher: "MATCH (x:X) WITH x, 15 AS limit OPTIONAL MATCH (x)-[:T]->(y:Y) WHERE y.w < limit RETURN y.w AS w"

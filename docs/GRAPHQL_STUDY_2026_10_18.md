@@ -1041,9 +1041,9 @@ milestoning arguments and `Gql.Field` positions (below).
   schema's own graph (`protocol/graphql/Introspection`), so GraphiQL's introspection query and every agent's read
   exactly the fields they asked. The data-space path (`/graphql/{dataSpace}`) and the `describe`/`explain` tool
   names wait on PR6 with the MCP wrapper; the route takes `dataSpace` or `classes` today.
-- **Declared.** `docs/SEMANTICS_REGISTER.md` S79 (`every` and `none` as negated `exists`), S80 (a null under
-  `orderBy` sits where the database puts it), S81 (a derived leaf is keyed by the field's name), S82 (`is`/`isNot`
-  on a relation and at the root), S83 (the composed node).
+- **Declared.** `docs/SEMANTICS_REGISTER.md` S92 (`every` and `none` as negated `exists`), S93 (a null under
+  `orderBy` sits where the database puts it), S94 (a derived leaf is keyed by the field's name), S95 (`is`/`isNot`
+  on a relation and at the root), S96 (the composed node).
 - **Measured.** 21 documents on DuckDB through the island (`GqlExecutionTest`: root clauses, two keys through a
   to-one chain, paging, nodes with aliases, `some`/`every`/`none`, string operations with `mode: insensitive`,
   null tests, `NOT`/`OR`, enumerations, dates, a derived leaf, fragments and directives, scope variables, nested
@@ -1090,15 +1090,15 @@ the SQL-twin cases on the Postgres lane (below).
   |false)` -- the cast's reads stand behind the membership test, which the database's CASE evaluates lazily;
   `asSub: { isNot: null }` is the membership test alone, `is: null` its negation. A sort key `asSub: { p: DESC }`
   is `if($x->instanceOf(Sub), |$x->cast(@Sub).p, |[])->toOne()`: the key where the row is a member, a null
-  elsewhere, where the database puts it (S80). No companion member is spelled on the input side: `instanceOf` and
+  elsewhere, where the database puts it (S93). No companion member is spelled on the input side: `instanceOf` and
   `cast` are the resolver's own forms over the row.
 - **What the probes found in the union lowering, fixed.** (1) `StackBuilder`'s membership witness skipped an arm
   of the union's own class, so over `union(p, e, m)` of Person, Employee[e], Manager[m] the membership of Employee
   read as total and `instanceOf(Employee)` held on every Person: a correctness bug, now an arm conforms only when
-  its class is the target or below it (S86). (2) A sorted union's graph fetch raised an unfoldable reference to the
+  its class is the target or below it (S99). (2) A sorted union's graph fetch raised an unfoldable reference to the
   serial ordinal (`u_serial_ord__`): the injection now bails at an ordered or limited pass-through, as its own
   contract says, and the envelope's witness keys yield to an explicit sort as the primary-key keys already did
-  (S87). The DuckDB corpus is green on both.
+  (S100). The DuckDB corpus is green on both.
 - **Measured.** `GqlInheritanceTest`: 11 cases on DuckDB over a union of a class's and its subclasses' sets
   (table per class), the SQL-twin shape: the members on the class, `__typename` in Pure and in GraphQL, subtype
   fragments, `asSub` in `where` three ways and in `orderBy`, the exact-type trap refused with its fix (G10), a

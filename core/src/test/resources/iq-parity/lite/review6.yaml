@@ -270,10 +270,12 @@ tests:
     sql: "SELECT sm AS z FROM t GROUP BY sm HAVING NOT (z = @lo) ORDER BY 1"
     params: "lo = 1"
     profile: iq16-tds, sqla17-tds
+  # IQ island, 2026-10-17 (the differential fuzzer; measured on IQ 17.1): IQ's engine reads sm + 0 as sm outside GROUP
+  # BY, so its iq17-tds run is IQ's -149; SQL Anywhere's two-valued reading is judged in a SQL Anywhere database
   - id: b1_having_alias_of_arithmetic_is_two_valued
     sql: "SELECT sm + 0 AS z FROM t GROUP BY sm + 0 HAVING NOT (z = @lo) ORDER BY 1"
     params: "lo = 1"
-    profile: iq16-tds
+    profile: sqla17-tds, iq17-tds
   - id: b1_having_key_arithmetic_is_two_valued
     sql: "SELECT k FROM g GROUP BY k HAVING NOT (k + 0 = @lo) ORDER BY k"
     params: "lo = 1"

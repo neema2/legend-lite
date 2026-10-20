@@ -90,7 +90,7 @@ final class MatchFold {
         }
         return switch (d) {
             case PureDateLiteral.StrictDate sd ->
-                    new SqlExpr.DateLit(sd.toEngineString());
+                    new SqlExpr.DateLit(iso(sd.toEngineString(), sd.year()));
             // Partials carry as the TEMPORAL_TEXT-stamped print form
             // (§4bZ-V B3): the marker cast never renders — same SQL,
             // and the slot's contract says temporal-in-text-carriage
@@ -106,13 +106,23 @@ final class MatchFold {
                 // shape SQL demands (%2015-04-15T17 is 17:00:00); second-level
                 // precision is already full.
             case PureDateLiteral.DateWithHour h ->
-                    new SqlExpr.TimestampLit(h.toEngineString() + ":00:00");
+                    new SqlExpr.TimestampLit(iso(h.toEngineString(), h.year()) + ":00:00");
             case PureDateLiteral.DateWithMinute mi ->
-                    new SqlExpr.TimestampLit(mi.toEngineString() + ":00");
+                    new SqlExpr.TimestampLit(iso(mi.toEngineString(), mi.year()) + ":00");
             case PureDateLiteral.DateWithSecond se ->
-                    new SqlExpr.TimestampLit(se.toEngineString());
+                    new SqlExpr.TimestampLit(iso(se.toEngineString(), se.year()));
             case PureDateLiteral.DateWithSubsecond su ->
-                    new SqlExpr.TimestampLit(su.toEngineString());
+                    new SqlExpr.TimestampLit(iso(su.toEngineString(), su.year()));
         };
+    }
+
+    /** A date literal's text with its year in ISO's four digits: Pure spells the year 1 {@code %1-01-01}, and Postgres
+     *  reads a leading field of fewer than three digits as no year of four ({@code '1-01-01'} as 2001-01-01,
+     *  {@code '10-01-01'} as 2001-10-01, measured 2026-10-18), where {@code 0001-01-01} is the year 1 on every
+     *  database. A year outside 0 to 9999 keeps Pure's spelling. */
+    static String iso(String text, int year) {
+        return year >= 0 && year < 1000
+                ? String.format(java.util.Locale.ROOT, "%04d", year) + text.substring(Integer.toString(year).length())
+                : text;
     }
 }

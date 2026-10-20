@@ -119,6 +119,8 @@ final class PostgresOperators {
                             b.pos());
                 }
                 if (l.kind() == Kind.INTEGER && r.kind() == Kind.INTEGER) {
+                    // 2026-10-18 (IQ landing 5's review): the exact estimate, not lite's quotient, until every
+                    // dialect's integer division is exact (Snowflake's rounds a / b to six places before it cuts)
                     return heldToWidth(translator, strict(Kind.INTEGER, List.of(l, r), v -> integerQuotient(v.get(0),
                             v.get(1))),
                             b);

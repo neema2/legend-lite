@@ -1,0 +1,65 @@
+# The #Cypher{...}# island's tail of small shapes (docs/CYPHER_STUDY_2026_10_15.md §12.53, the plan's W12 leg 2): an
+# ORDER BY on an expression the query does not return, without a SKIP or LIMIT (the lowering's result render
+# carries the hidden key); STARTS WITH, ENDS WITH and CONTAINS on a value that is not a string (null, as Neo4j
+# answers), a value the rows hold as a Variant read by its kind (lite's isKind); collect(DISTINCT x) as the distinct
+# texts joined in the database's order (register row S78); a duration text in the date-time form. Each case is judged
+# by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/tail/*' snaps them),
+# keyed lite/tail/<id>.
+tests:
+  - id: an_order_by_on_an_expression_not_returned
+    graph: |
+      CREATE (:P {name: 'a', age: 30}), (:P {name: 'b', age: 20}), (:P {name: 'c', age: 25})
+    cypher: "MATCH (n:P) RETURN n.name AS name ORDER BY n.age"
+  - id: an_order_by_on_an_expression_not_returned_descending
+    graph: |
+      CREATE (:P {name: 'a', age: 30}), (:P {name: 'b', age: 20}), (:P {name: 'c', age: 25})
+    cypher: "MATCH (n:P) RETURN n.name AS name ORDER BY n.age * 2 DESC, n.name"
+  - id: an_order_by_on_a_dropped_item_after_a_with
+    graph: |
+      CREATE (:P {name: 'a', age: 30}), (:P {name: 'b', age: 20}), (:P {name: 'c', age: 25})
+    cypher: "MATCH (n:P) WITH n.name AS name, n.age AS age RETURN name ORDER BY age"
+  - id: a_string_predicate_on_a_number
+    graph: |
+      CREATE (:P {name: 'abc', n: 12})
+    cypher: "MATCH (p:P) RETURN p.n STARTS WITH '1' AS a, p.name ENDS WITH 3 AS b, true CONTAINS 'r' AS c, p.name STARTS WITH 'a' AS d"
+  - id: string_predicates_over_values_the_rows_hold_as_variants
+    graph: |
+      CREATE ()
+    cypher: "UNWIND [1, 'ab', true, null, [1], {a: 1}, 'b'] AS x RETURN x STARTS WITH 'a' AS s, x ENDS WITH 'b' AS e, 'cab' CONTAINS x AS c"
+  - id: string_predicates_over_two_variants
+    graph: |
+      CREATE ()
+    cypher: "WITH ['ab', 1, 'b'] AS l UNWIND l AS x UNWIND l AS y WITH x STARTS WITH y AS v RETURN v, count(*) AS n ORDER BY v"
+  - id: collect_distinct_of_one_value_and_nulls
+    graph: |
+      CREATE ()
+    cypher: "UNWIND [null, 1, null, 1] AS x RETURN collect(DISTINCT x) AS c"
+  - id: collect_distinct_of_nulls_only
+    graph: |
+      CREATE ()
+    cypher: "UNWIND [null, null] AS x RETURN collect(DISTINCT x) AS c"
+  - id: the_size_of_a_collect_distinct
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'}), (:P {name: 'a'}), (:P {name: 'c'})
+    cypher: "MATCH (p:P) RETURN size(collect(DISTINCT p.name)) AS n, size(collect(p.name)) AS m"
+  - id: a_collect_distinct_of_a_node_property_ignoring_order
+    graph: |
+      CREATE (:P {name: 'x', group: 1}), (:P {name: 'x', group: 1}), (:P {name: 'y', group: 2})
+    cypher: "MATCH (p:P) RETURN p.group AS g, collect(DISTINCT p.name) AS names ORDER BY g"
+  - id: a_duration_text_in_the_date_time_form
+    graph: |
+      CREATE ()
+    cypher: "RETURN duration('P2012-02-02T14:37:21.545') AS d, toString(duration('P2012-02-02T14:37')) AS t, duration('-P0001-01-01T01:01:01') AS n"
+  - id: to_string_of_a_list_a_map_and_a_node_refused
+    graph: |
+      CREATE (:A {k: 1})
+    cypher: "MATCH (n:A) RETURN toString([1, 'a', [2, true]]) AS l, toString({a: 1, b: 'x'}) AS m, toString(n) AS node"
+  # extreme float literals and an unbound parameter (docs/CYPHER_STUDY_2026_10_15.md §12.66)
+  - id: extreme_float_literals
+    graph: |
+      CREATE (:A {k: 1})
+    cypher: "RETURN 1e308 AS big, -1e-305 AS tiny, 123456789e300 AS nine, .00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 AS verySmall"
+  - id: an_unbound_parameter_is_neo4js_error
+    graph: |
+      CREATE (:A {k: 1})
+    cypher: "MATCH (a:A) RETURN a.k + $x AS y"

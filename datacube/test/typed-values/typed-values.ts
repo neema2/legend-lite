@@ -433,7 +433,7 @@ describe('T7: one formatter on compiler types', () => {
       derived: [], rows: [], pivotOn: [], measures: [], sorts: [], epoch: 1,
     }, { ...DEFAULT_CONFIGURATION, showSelectionStats: true });
     o.root.querySelector<HTMLElement>('.dc-th[data-column="pnl"]')!
-      .dispatchEvent(new o.dom.window.MouseEvent('click', { bubbles: true }));
+      .dispatchEvent(new o.dom.window.MouseEvent('click', { bubbles: true, shiftKey: true }));
     const stats = o.root.querySelector('.dc-status-stats')?.textContent ?? '';
     assert.equal(stats, 'sum 1,222.06 · avg 407.35 · min (12.50) · max 1,234.56 · 3 of 3 numeric');
   });

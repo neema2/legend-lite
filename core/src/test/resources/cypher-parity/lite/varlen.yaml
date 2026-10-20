@@ -1,5 +1,6 @@
-# A variable-length relationship with an upper bound, unrolled into the chains of each length (the study's §12.42):
-# each judged by Neo4j.
+# A variable-length relationship with an upper bound, unrolled into the chains of each length (the study's §12.42),
+# and one without (or with one past the unroll's), the walk the data bounds as lite's recursion (§12.68): each
+# judged by Neo4j.
 cases:
   - id: a_fixed_length_of_two
     graph: |
@@ -41,7 +42,7 @@ cases:
     graph: |
       CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:U]->(:D {name: 'd'})
     cypher: "MATCH (a:A)-[:T*0..1]->(x)-[:U]->(d) RETURN x.name AS x, d.name AS d"
-  - id: a_variable_length_unrolling_past_two_hops_is_refused
+  - id: a_variable_length_unrolling_past_two_hops
     graph: |
       CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:T]->(:A {name: 'c'})-[:U]->(:D {name: 'd'})
     cypher: "MATCH (a:A)-[:T*1..2]->(x)-[:U]->(d) RETURN x.name AS x, d.name AS d"
@@ -49,10 +50,90 @@ cases:
     graph: |
       CREATE (:A {name: 'a'})-[:T]->(:A {name: 'b'})-[:T]->(:A {name: 'c'})
     cypher: "MATCH (a:A {name: 'a'})-[:T*..2]->(x) RETURN x.name AS x ORDER BY x"
-  - id: an_unbounded_variable_length_is_refused
+  - id: an_unbounded_variable_length_walks
     graph: |
-      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
-    cypher: "MATCH (a:A)-[:T*]->(x) RETURN x.name AS x"
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:B {name: 'c'})-[:T]->(:B {name: 'd'})
+    cypher: "MATCH (a:A)-[:T*]->(x) RETURN x.name AS x ORDER BY x"
+  - id: an_unbounded_walk_with_a_lower_bound
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:B {name: 'c'})-[:T]->(:B {name: 'd'})
+    cypher: "MATCH (a:A)-[:T*2..]->(x) RETURN x.name AS x ORDER BY x"
+  - id: an_unbounded_walk_from_zero
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:B {name: 'c'})
+    cypher: "MATCH (a:A)-[:T*0..]->(x) RETURN x.name AS x ORDER BY x"
+  - id: a_bound_past_the_unroll_walks
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:B {name: 'c'})-[:T]->(:B {name: 'd'})
+    cypher: "MATCH (a:A)-[:T*..7]->(x) RETURN x.name AS x ORDER BY x"
+  - id: a_bound_past_the_unroll_stops_at_it
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:B {name: 'c'})-[:T]->(:B {name: 'd'})
+    cypher: "MATCH (a:A)-[:T*2..5]->(x) RETURN x.name AS x ORDER BY x"
+  - id: an_unbounded_walk_round_a_cycle_takes_no_relationship_twice
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:A {name: 'b'})-[:T]->(a)
+    cypher: "MATCH (x:A {name: 'a'})-[:T*]->(y) RETURN y.name AS y ORDER BY y"
+  - id: an_undirected_unbounded_walk
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})<-[:T]-(:B {name: 'c'})
+    cypher: "MATCH (a:A)-[:T*]-(x) RETURN x.name AS x ORDER BY x"
+  - id: an_incoming_unbounded_walk
+    graph: |
+      CREATE (:A {name: 'a'})<-[:T]-(:B {name: 'b'})<-[:T]-(:B {name: 'c'})
+    cypher: "MATCH (a:A)<-[:T*]-(x) RETURN x.name AS x ORDER BY x"
+  - id: an_untyped_unbounded_walk
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:U]->(:C {name: 'c'})
+    cypher: "MATCH (a:A)-[*]->(x) RETURN x.name AS x ORDER BY x"
+  - id: an_unbounded_walk_to_a_far_label
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'})-[:T]->(:B {name: 'd'})
+    cypher: "MATCH (a:A)-[:T*]->(x:B) RETURN x.name AS x ORDER BY x"
+  - id: the_relationship_list_of_an_unbounded_walk
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:B {name: 'c'})
+    cypher: "MATCH (a:A)-[r:T*]->(x) RETURN x.name AS x, r, size(r) AS n ORDER BY n"
+  - id: a_named_path_over_an_unbounded_walk
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:B {name: 'c'})
+    cypher: "MATCH p = (a:A)-[:T*]->(x) RETURN p, length(p) AS n, nodes(p) AS ns, relationships(p) AS rs ORDER BY n"
+  - id: a_path_over_an_unbounded_walk_through_a_with
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:B {name: 'c'})
+    cypher: "MATCH p = (a:A)-[:T*]->(x) WITH p, length(p) AS n RETURN nodes(p) AS ns, relationships(p) AS rs, length(p) AS l ORDER BY n"
+  - id: an_unbounded_walk_with_a_where
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:B {name: 'c'})
+    cypher: "MATCH (a:A)-[:T*]->(x) WHERE x.name <> 'b' RETURN x.name AS x"
+  - id: an_unbounded_walk_over_a_property_map
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {w: 1}]->(:B {name: 'b'})-[:T {w: 2}]->(:B {name: 'c'})-[:T {w: 1}]->(:B {name: 'd'})
+    cypher: "MATCH (a:A)-[:T* {w: 1}]->(x) RETURN x.name AS x ORDER BY x"
+  - id: an_unbounded_walk_after_rows
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:B {name: 'c'})
+    cypher: "MATCH (a:A) WITH a MATCH (a)-[:T*]->(x) RETURN x.name AS x ORDER BY x"
+  - id: an_unbounded_walk_in_an_optional_match
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'z'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T*]->(x) RETURN a.name AS a, x.name AS x ORDER BY a"
+  - id: an_unbounded_walk_between_bound_nodes
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'}), (:C {name: 'z'})
+    cypher: "MATCH (a:A), (c:C) OPTIONAL MATCH (a)-[:T*]->(c) RETURN c.name AS c, a.name AS a ORDER BY c"
+  - id: an_unbounded_walk_as_a_pattern_predicate
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'}), (:C {name: 'z'})
+    cypher: "MATCH (a:A), (c:C) WHERE (a)-[:T*]->(c) RETURN c.name AS c"
+  - id: an_unbounded_walk_no_way_reads
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH p = (a:A)-[*0..]->(x) RETURN x.name AS x, length(p) AS n"
+  - id: an_unbounded_walk_then_a_hop
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:U]->(:C {name: 'c'})
+    cypher: "MATCH (a:A)-[:T*]->(x)-[:U]->(y) RETURN y.name AS y"
   - id: a_variable_length_round_a_cycle
     graph: |
       CREATE (a:A {name: 'a'})-[:T]->(b:A {name: 'b'})-[:T]->(a)
@@ -65,3 +146,27 @@ cases:
     graph: |
       CREATE (:A {name: 'a'})-[:T {w: 1}]->(:A {name: 'b'})
     cypher: "MATCH (a:A)-[:T*1..2 {w: 1}]->(x) RETURN x.name AS x"
+  - id: a_bounded_variable_length_after_a_match
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'})
+    cypher: "MATCH (a:A) MATCH (a)-[r:T*2]->(x) RETURN x.name AS x, size(r) AS n"
+  - id: a_variable_length_pattern_as_a_predicate
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'})
+    cypher: "MATCH (n) WHERE (n)-[:T*]->(:C) RETURN n.name AS n ORDER BY n"
+  - id: an_undirected_fixed_length_pattern_as_a_predicate
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'})
+    cypher: "MATCH (n) WHERE (n)-[:T*2]-() RETURN n.name AS n ORDER BY n"
+  - id: a_negated_variable_length_predicate
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'})
+    cypher: "MATCH (n) WHERE NOT (n)-[:T*]->() RETURN n.name AS n"
+  - id: a_relationship_of_an_edge_type_and_an_association_type
+    graph: |
+      CREATE (a:A {name: 'a'})-[:R]->(:B {name: 'b'}), (a)-[:R]->(:D {name: 'd'}), (:B {name: 'x'})-[:S]->(a)
+    cypher: "MATCH (n)-[:R|S]-(m) RETURN n.name AS n, m.name AS m ORDER BY n, m"
+  - id: an_optional_walk_with_a_lower_bound_past_its_reach
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[*3..]-(b) RETURN a.name AS a, b.name AS b"

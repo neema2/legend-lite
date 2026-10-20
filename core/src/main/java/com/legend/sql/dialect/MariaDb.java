@@ -1885,6 +1885,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case JARO_WINKLER -> throw wall(c.fn(), product() + " has no string-distance function");
             // UUID() is of the UUID type (11.x): its text
             case GUID -> writer.append("CAST(UUID() AS CHAR)");
+            case RANDOM -> writer.append("RAND()");
             case FORMAT -> format(writer, a);
             case CURRENT_USER_FN -> writer.append("SUBSTRING_INDEX(CURRENT_USER(), '@', 1)");
 
@@ -3377,6 +3378,9 @@ public class MariaDb extends AnsiSqlRenderer {
                 case FLOAT, DOUBLE, REAL -> "DOUBLE";
                 case TIMESTAMP -> "DATETIME(6)";
                 case DATE -> "DATE";
+                case TIME -> "TIME(6)";
+                // a nanosecond timestamp column: MariaDB's DATETIME keeps microseconds
+                case TIMESTAMP_NS -> throw new DialectCapability("a TIMESTAMP_NS column: MariaDB keeps microseconds");
                 case JSON, VARCHAR, OTHER, DISTINCT, ARRAY, OBJECT -> "LONGTEXT";
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> z.kind().toUpperCase(Locale.ROOT).contains("BINARY")

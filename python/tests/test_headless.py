@@ -60,6 +60,25 @@ class Grids(unittest.TestCase):
         self.assertIn('groupBy', view.query)
         self.assertIn('GROUP BY', view.sql.upper())
 
+    def test_a_pivot_totals_heatmap_is_its_own_set_and_cleared_by_configure(self):
+        # a total's heatmap is its own (export-render.ts heatmapSetting; the audit of neema2/legend-lite#57): Python sets
+        # and clears it by the total's own column, as the screen's menu does, and its kind and Aggregation are its
+        # measure's, refused on the total
+        import pandas as pd
+        frame = pd.DataFrame({'region': ['EMEA', 'EMEA', 'APAC'], 'desk': ['A', 'B', 'A'], 'qty': [1200, 34, 5000]})
+        grid = self.page.grid(frame, name='trades_totals', rows=['region'], columns=['desk'], measures={'qty': 'sum'})
+        total = '__pivot_total____|__qty'
+        red = r'background(-color)?:\s*(#ff0000|rgb\(255,\s*0,\s*0\))'
+        self.assertNotRegex(grid.export('html').lower(), red)
+        grid.configure({'columns': {total: {'heatmap': {'from': '#ffffff', 'to': '#ff0000'}}}})
+        self.assertRegex(grid.export('html').lower(), red)
+        grid.configure({'columns': {total: {'heatmap': None}}})
+        self.assertNotRegex(grid.export('html').lower(), red)
+        with self.assertRaisesRegex(ValueError, "is the pivot total of 'qty'"):
+            grid.configure({'columns': {total: {'aggregateFn': 'max'}}})
+        with self.assertRaisesRegex(ValueError, "is not a column of the grid"):
+            grid.configure({'columns': {'__pivot_total____|__nope': {'hidden': True}}})
+
     def test_a_grid_exports_as_its_export_menu_makes_the_file(self):
         # the screen's own core (export-render.ts), run headless: each format DataCube's Export menu offers, with the
         # grid's formats (a sum past a thousand, written with its separator where a person reads it) and its heatmap

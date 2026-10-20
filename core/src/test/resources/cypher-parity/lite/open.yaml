@@ -1,0 +1,123 @@
+# The #Cypher{...}# island's open-graph cases (docs/CYPHER_STUDY_2026_10_15.md §12.45): the harness's graphs are OPEN
+# (every class <<graph::graph.Open>>; GQL's open graph, one no graph type constrains), so a label or a relationship
+# type the model has nothing of reads no rows and a property no class declares reads null, as Neo4j answers; a
+# closed graph (a model without the stereotype) keeps C4's compile errors (docs/SEMANTICS_REGISTER.md S58). Each
+# case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/open/*'), keyed lite/open/<id>.
+tests:
+  - id: a_label_no_node_carries
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (n:Nope) RETURN n, n.name AS name"
+  - id: a_label_no_node_carries_counted
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (n:Nope) RETURN count(n) AS c, count(*) AS all"
+  - id: an_optional_match_of_a_label_no_node_carries
+    graph: |
+      CREATE (:A {name: 'a'})
+    cypher: "OPTIONAL MATCH (n:Nope) RETURN n, n.name AS name, n IS NULL AS absent"
+  - id: a_label_no_node_carries_after_a_match
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A) MATCH (a)-[:T]->(x:Nope) RETURN a.name AS an, x.name AS xn"
+  - id: an_optional_label_no_node_carries_after_a_match
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "OPTIONAL MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(x:Nope) RETURN a.name AS an, x.name AS xn, x"
+  - id: a_label_no_node_carries_after_a_with
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (a:A) WITH a.name AS n MATCH (x:Nope) RETURN n, x.name AS xn"
+  - id: an_optional_label_no_node_carries_after_a_with
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (a:A) WITH a.name AS n OPTIONAL MATCH (x:Nope) RETURN n, x.name AS xn, x ORDER BY n"
+  - id: a_cartesian_product_with_a_label_no_node_carries
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (a:A), (x:Nope) RETURN a.name AS an, x"
+  - id: a_relationship_type_no_relationship_has
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A)-[r:NOPE]->(b) RETURN a, r, b"
+  - id: a_relationship_type_no_relationship_has_counted
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A)-[r:NOPE]->(b) RETURN count(*) AS c"
+  - id: an_optional_relationship_type_no_relationship_has
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[r:NOPE]->(b) RETURN a.name AS an, r, b, type(r) AS t"
+  - id: a_relationship_type_from_a_label_that_never_has_it
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:B {name: 'c'})-[:U]->(:C {name: 'd'})
+    cypher: "MATCH (a:A)-[:U]->(x) RETURN a.name AS an, x.name AS xn"
+  - id: an_optional_relationship_type_from_a_label_that_never_has_it
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:B {name: 'c'})-[:U]->(:C {name: 'd'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:U]->(x) RETURN a.name AS an, x.name AS xn, x"
+  - id: a_property_no_node_has
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (n:A) RETURN n.name AS name, n.nope AS nope, n.nope IS NULL AS missing, n.nope IS NOT NULL AS has ORDER BY name"
+  - id: a_property_no_node_has_in_a_where
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (n:A) WHERE n.nope = 'a' RETURN n.name AS name"
+  - id: a_property_no_node_has_in_a_where_is_null
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (n:A) WHERE n.nope IS NULL RETURN n.name AS name ORDER BY name"
+  - id: a_property_no_node_has_in_a_property_map
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (n:A {nope: 'a'}) RETURN n.name AS name"
+  - id: a_property_no_node_has_coalesced
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (n:A) RETURN coalesce(n.nope, n.name, 'z') AS v ORDER BY v"
+  - id: a_property_no_node_has_after_a_with
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (n:A) WITH n RETURN n.nope AS nope, n.name AS name ORDER BY name"
+  - id: a_property_no_node_has_as_a_sort_key
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (n:A) WITH n ORDER BY n.nope, n.name LIMIT 1 RETURN n.name AS name"
+  - id: a_property_no_node_has_in_arithmetic
+    graph: |
+      CREATE (:A {name: 'a', age: 3})
+    cypher: "MATCH (n:A) RETURN n.age + n.nope AS s, n.nope + 1 AS t, toString(n.nope) AS str, n.nope = n.nope AS eq"
+  - id: a_property_no_node_has_on_a_label_less_node
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {title: 'b'})
+    cypher: "MATCH (n) RETURN n.name AS name, n.title AS title, n.nope AS nope ORDER BY name"
+  - id: a_property_no_relationship_has
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {w: 1}]->(:B {name: 'b'})
+    cypher: "MATCH (:A)-[r:T]->(:B) RETURN r.w AS w, r.nope AS nope"
+  - id: a_label_predicate_no_node_carries
+    graph: |
+      CREATE (:A {name: 'a'})
+    cypher: "MATCH (n:A) RETURN n:A AS isA, n:Nope AS isNope, (n:A AND NOT n:Nope) AS both"
+  - id: a_pattern_comprehension_over_a_type_no_relationship_has
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A) RETURN [(a)-[:NOPE]->(x) | x.name] AS l, size([(a)-[:NOPE]->() | 1]) AS n, [(a)-[:T]->(x:Nope) | x.name] AS m"
+  - id: a_pattern_predicate_over_a_type_no_relationship_has
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) WHERE NOT (a)-[:NOPE]->() AND (a)-[:T]->() RETURN a.name AS name"
+  - id: exists_over_a_label_no_node_carries
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A) RETURN EXISTS { (a)-[:T]->(:Nope) } AS e, EXISTS { (a)-[:T]->(:B) } AS f"
+  - id: a_union_with_a_label_no_node_carries
+    graph: |
+      CREATE (:A {name: 'a'})
+    cypher: "MATCH (n:A) RETURN n.name AS name UNION MATCH (n:Nope) RETURN n.name AS name"
+  - id: a_variable_not_defined_is_still_an_error
+    graph: |
+      CREATE (:A {name: 'a'})
+    cypher: "MATCH (n:Nope) RETURN q.name AS name"

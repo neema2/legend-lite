@@ -376,7 +376,10 @@ export function buildColumnModel(
   // hidden, blurred, a width, a link -- holds for every `2021__|__notional`
   // the pivot makes, unless the cell has its own; before, pivoting
   // dropped them all, and blurred figures showed in the clear (P2-211).
+  // A PIVOT TOTAL IS TOO (2026-10-18): a blurred measure's total showed
+  // its sum in the clear, and a hidden one's stayed on screen.
   const measureOf = (name: string): string | undefined => {
+    if (name.startsWith(totalPrefix)) return name.slice(totalPrefix.length);
     const path = pivotPaths?.get(name);
     return path === undefined ? undefined : path[path.length - 1];
   };

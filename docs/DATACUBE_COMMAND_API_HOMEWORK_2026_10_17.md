@@ -158,7 +158,8 @@ could not fail.
   both axes.
 - Removing a grid clears a frozen chart's chip, but the detached copy of the grid keeps those conditions in its filter.
 - The save dialog's blank-name rule differs from `givenName`.
-- A header's click refuses a sort of a pivot total, while the header menu sorts by it.
+- ~~A header's click refuses a sort of a pivot total, while the header menu sorts by it.~~ **Fixed 2026-10-18**: a header
+  click sorts by any column (grid-edits.ts clickSort), a total too, and a total's menu offers what a pivot cell's does.
 - `setSorts` takes a pivot's header while pivoted, as the screen offers it; a header a pivoted level does not produce
   is left out of that level's query without a word (round 2's Python refused it; the screen never did).
 

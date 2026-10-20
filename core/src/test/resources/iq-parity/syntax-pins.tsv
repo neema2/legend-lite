@@ -156,16 +156,65 @@
 # reject REJECTED 1,013 -> 1,014 (REFUSED 771 -> 770). Reject-parsed and accept-rejected unchanged.
 # IQ island, 2026-10-16 (measured on IQ 17.1: T-SQL's COLLATE clause and an aggregate's FILTER (WHERE ...), IQ's syntax
 # error -131): reject REJECTED 1,014 -> 1,016 (REFUSED 770 -> 768). Reject-parsed and accept-rejected unchanged.
-accept	parsed	3162
-accept	refused	1786
-accept	rejected	1
+# IQ island, 2026-10-17 (measured on IQ 17.1: a row limit spelled LIMIT, in a subquery or after a table, is IQ's
+# syntax error -131 under the reserved_keywords option's default, where it was refused): a case run under
+# reserved_keywords is now REFUSED, as the island refuses a database that sets it (IqSettingsTest): flag PARSED 80 -> 79
+# (s1_lexical-183, SELECT 1 AS limit, which that option makes an error; REFUSED 54 -> 55), and the two accept-with-option
+# LIMIT cases stay REFUSED. And TO_CHAR now reads (a5_sa_fn3-490 and -493, z2_redteam-678): accept PARSED 3,202 ->
+# 3,205 (REFUSED 1,746 -> 1,743). Reject-parsed and accept-rejected unchanged.
+# IQ island, 2026-10-17 (measured on IQ 17.1: a subquery in GROUP BY is IQ's -1001030 under its engine): the reader
+# reads one, and the dialect places it as it plans: accept PARSED 3,205 -> 3,206 (REFUSED 1,743 -> 1,742), flag PARSED
+# 79 -> 81 (REFUSED 55 -> 53). Reject-parsed and accept-rejected unchanged.
+# IQ island, 2026-10-17 (measured on IQ 17.1: VAR, VARP, STDEVP, UNNEST, SUBSTRING_INDEX, SPLITPART, PARSENAME and
+# DATEDIFF_BIG are no functions of IQ's, its -265; DATEDIFF_BIG's part a column there): each is read as a call, the
+# dialect naming IQ's error as it translates: accept PARSED 3,206 -> 3,207 (z2_redteam-199, DATEDIFF_BIG(ms, ...);
+# REFUSED 1,742 -> 1,741). Reject-parsed and accept-rejected unchanged.
+# IQ island, 2026-10-17 (measured on IQ 17.1: a reserved word qualifying a column, top.id or order.id, and a reserved
+# type's name standing as a value, FOO(int), are its -131): reject REJECTED 1,026 -> 1,027 (REFUSED 758 -> 757). A case
+# run under non_keywords is now REFUSED, as the island refuses a database that sets it, as reserved_keywords
+# (2026-10-17, above): accept PARSED 3,207 -> 3,206 (s2_query-416, SELECT limit ..., under non_keywords=LIMIT), and
+# accept REJECTED 1 -> 0 (a1_sa_lang-24 leaves the accept-rejected list; REFUSED 1,741 -> 1,743 with a1_sa_lang-25,
+# merge.a). Reject-parsed unchanged; contains.score (CONTAINS's correlation name) stays refused.
+# IQ island, 2026-10-17 (measured on IQ 17.1: FOR XML PATH, a date part after a value, a type's name before a
+# string, AS after a function's argument and T-SQL's OPTION hints are its -131): reject REJECTED 1,027 -> 1,029 (REFUSED
+# 757 -> 755). Reject-parsed and accept-rejected unchanged.
+# IQ island, 2026-10-17 (a closing parenthesis no opening one matches is IQ's -131, measured; LATERAL (SELECT ...)
+# read, its engine's -1001030 and its front end's refusal named in IqDialect): reject REJECTED 1,029 -> 1,031
+# (REFUSED 755 -> 753). Reject-parsed and accept-rejected unchanged; LATERAL's other forms stay refused.
+# IQ island, 2026-10-17 (measured on IQ 17.1 and SQL Anywhere 17, with the user's approval to measure ';'): a batch's
+# later statements, separated by ';' or not, are read for their syntax, the first the answer, and one that does not
+# parse is the batch's -131: accept PARSED 3,206 -> 3,208 (REFUSED 1,743 -> 1,741), reject REJECTED 1,031 -> 1,033
+# (REFUSED 753 -> 751). Reject-parsed and accept-rejected unchanged.
+# IQ island, 2026-10-17 (WITH RECURSIVE, the TPC-H corpus lane's 1,805; measured on IQ 17.1): the reader reads WITH
+# RECURSIVE at the statement's head; IQ raises its error for every statement that reads one (-706 a recursion beside an
+# IQ table, -922 a recursive CTE with no column list, -1001030 one that recurses nowhere over IQ's tables alone), and
+# the dialect raises it while translating, in IQ's order (after -154, and the names where IQ checks them first). So
+# a6_sa_query-91 (a recursive CTE with no column list, SQL Anywhere's -922, "other error") moves from REFUSED to PARSED:
+# reject PARSED 25 -> 26 (REFUSED 751 -> 750), its -922 pinned by corpus_gaps' recursion_without_a_column_list cases;
+# accept PARSED 3,208 -> 3,211 (REFUSED 1,741 -> 1,738), the accept cases of WITH RECURSIVE.
+# IQ island, 2026-10-17 (the TPC-H corpus lane's SUBSTRING(s FROM 1 FOR 10) and x::text; measured on IQ 17.1 and SQL
+# Anywhere 17): FROM or FOR among a call's arguments, and '::', are IQ's syntax error -131, named now, not refused:
+# reject REJECTED 1,033 -> 1,037 (REFUSED 750 -> 746).
+# IQ island, 2026-10-17 (the TPC-H, TPC-DS and JOB corpus lane; measured on IQ 17.1): REGEXP_REPLACE, REGEXP_LIKE,
+# REGEXP_COUNT, REGEXP_INSTR, DATE_PART, RANDOM, ARRAY_LENGTH, STRING_TO_ARRAY, TRUNC, LISTAGG, INSTR, MD5, CHR,
+# NTH_VALUE and POSITION(a, b) are no functions of IQ's, its -265 while translating: accept PARSED 3,211 -> 3,216
+# (REFUSED 1,738 -> 1,733), z2_redteam-688/693/694/701/704, each SQL Anywhere 17's "other error".
+# IQ island, 2026-10-17 (LPAD and RPAD, the corpus lane's 38; measured on IQ 17.1): IQ's engine's own, SQL Anywhere's
+# front end's -134 (not implemented), which the dialect raises while translating. So a5_sa_fn3-688 (SELECT RPAD('abc',
+# 5), no table: the front end's -134, "other error") moves from REFUSED to PARSED: reject PARSED 26 -> 27, its -134
+# pinned by corpus_gaps' lpad_in_sql_anywhere (REFUSED 746 -> 745); accept PARSED 3,216 -> 3,220 (c06_fn_c-70..72,
+# c07_fn_d-58).
+# IQ island, 2026-10-17 (BIRD's table Match; measured on IQ 17.1): a reserved word right after FROM, JOIN or AS, not
+# opening a call, is IQ's syntax error -131, named now: reject REJECTED 1,037 -> 1,038 (REFUSED 745 -> 744).
+accept	parsed	3220
+accept	refused	1729
 accept-with-option	refused	90
 accept-with-option	rejected	1
-flag	parsed	80
-flag	refused	54
-reject	parsed	25
-reject	refused	768
-reject	rejected	1016
+flag	parsed	81
+flag	refused	53
+reject	parsed	27
+reject	refused	741
+reject	rejected	1041
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609
@@ -186,10 +235,11 @@ reject-parsed	a4_sa_fn2-60
 reject-parsed	a4_sa_fn2-645
 reject-parsed	a4_sa_fn2-702
 reject-parsed	a5_sa_fn3-482
+reject-parsed	a5_sa_fn3-688
 reject-parsed	a6_sa_query-695
+reject-parsed	a6_sa_query-91
 reject-parsed	c13_olap-302
 reject-parsed	s1_lexical-1164
 reject-parsed	s1_lexical-614
 reject-parsed	s1_lexical-683
-accept-rejected	a1_sa_lang-24
 accept-rejected	z2_redteam-382

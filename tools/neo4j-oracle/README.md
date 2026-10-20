@@ -35,7 +35,8 @@ answers file.
 ```sh
 tools/neo4j-oracle/snap.sh --write                    # every case: write the answers file
 tools/neo4j-oracle/snap.sh --write --only 'lite/*'    # one glob of case keys, merged into the file
-tools/neo4j-oracle/snap.sh --check                    # the live drift check: DRIFT, UNSNAPPED, STALE, GONE, VERSION
+tools/neo4j-oracle/snap.sh --check                    # the live drift check: DRIFT, UNSNAPPED, STALE, GONE, VERSION, FUNCTIONS
+tools/neo4j-oracle/snap.sh --functions                # write cypher-parity/cypher-functions.txt: SHOW FUNCTIONS's names
 tools/neo4j-oracle/snap.sh --census                   # the cases by what they expect; no server needed
 bazel run //tools/neo4j-oracle:snap -- --check        # the same through Bazel
 ```
@@ -43,9 +44,14 @@ bazel run //tools/neo4j-oracle:snap -- --check        # the same through Bazel
 ## What a run does
 
 For each case, in key order: `MATCH (n) DETACH DELETE n`; the case's setup statements (a TCK scenario's named graph
-or `having executed` blocks, a lite case's `graph`); the graph DUMPED (every node's labels and properties, every
-relationship's ends, type and properties, in the TCK's value grammar) -- that dump is what the lanes seed their
-tables from, so CI never interprets a `CREATE`; then the query, under the Cypher version the case names (its own
+or `having executed` blocks, a lite case's `graph`), each under `CYPHER 5` unless it names its version (the TCK's
+setups are openCypher 9's text, which Cypher 5 reads as written; Cypher 25 refuses a variable created in a `CREATE`
+read in a property map of the same `CREATE`, the three setups of WithSkipLimit1/[1], WithSkipLimit2/[2] and With2/[1],
+measured; a setup only builds the graph the case is judged over); the graph DUMPED (every node's labels and properties, every
+relationship's ends, type and properties, in the TCK's value grammar; a date-time of a named zone with the zone's
+name in brackets after its offset, `DateTime('1984-11-11T12:31:14.645876123+01:00[Europe/Stockholm]')`, Java's
+spelling, since the driver's text is the offset alone and the lanes store the zone the value names) -- that dump is
+what the lanes seed their tables from, so CI never interprets a `CREATE`; then the query, under the Cypher version the case names (its own
 `CYPHER 5` or `CYPHER 25` prefix, a lite case's `version:`) or lite's default (25, C1), with the case's parameters,
 within 60 seconds. Its rows go to the file in the value grammar, or Neo4j's error by its code (`Neo.ClientError...`)
 and its message's first line. A setup Neo4j refuses is recorded as `setupError`, and the lanes mark the case SKIP.

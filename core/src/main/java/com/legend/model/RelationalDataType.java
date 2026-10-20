@@ -55,6 +55,8 @@ public sealed interface RelationalDataType permits
         RelationalDataType.Numeric,
         RelationalDataType.Timestamp,
         RelationalDataType.Date_,
+        RelationalDataType.Time,
+        RelationalDataType.TimestampNs,
         RelationalDataType.Distinct,
         RelationalDataType.Other,
         RelationalDataType.SemiStructured,
@@ -72,6 +74,14 @@ public sealed interface RelationalDataType permits
     record Bit()            implements RelationalDataType { }
     record Timestamp()      implements RelationalDataType { }
     record Date_()          implements RelationalDataType { }
+    /** A time of day ({@code TIME}): lite's extension of the relational grammar (legend-engine's has none, which
+     *  docs/SEMANTICS_REGISTER.md S64 recorded; the Cypher island's stored times of day, 2026-10-17). Its Pure
+     *  type is StrictTime. */
+    record Time()           implements RelationalDataType { }
+    /** A date-time of nanosecond precision ({@code TIMESTAMP_NS}): lite's extension of the relational grammar (the
+     *  Cypher island's stored nanosecond times and date-times, 2026-10-17, docs/SEMANTICS_REGISTER.md S64). Its Pure
+     *  type is DateTime, as TIMESTAMP's; a dialect whose timestamps keep microseconds refuses the column by name. */
+    record TimestampNs()    implements RelationalDataType { }
     record Distinct()       implements RelationalDataType { }
     record Other()          implements RelationalDataType { }
     record SemiStructured() implements RelationalDataType { }
@@ -131,6 +141,8 @@ public sealed interface RelationalDataType permits
             case "BIT"            -> new Bit();
             case "TIMESTAMP"      -> new Timestamp();
             case "DATE"           -> new Date_();
+            case "TIME"           -> new Time();
+            case "TIMESTAMP_NS"   -> new TimestampNs();
             case "DISTINCT"       -> new Distinct();
             case "OTHER"          -> new Other();
             // JSON is the same semi-structured carrier (engine DDL accepts both).

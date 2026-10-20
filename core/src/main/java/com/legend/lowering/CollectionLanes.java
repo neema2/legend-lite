@@ -179,6 +179,7 @@ final class CollectionLanes {
             case TypedTds ignored -> false;
             case TypedProject ignored -> false;
             case TypedSelect ignored -> false;
+            case com.legend.compiler.spec.typed.TypedRecurse ignored -> false;
             case TypedRename ignored -> false;
             case TypedExtend ignored -> false;
             case TypedExtendAgg ignored -> false;

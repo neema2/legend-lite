@@ -1,0 +1,63 @@
+# The #Cypher{...}# island's temporal values inside lists and maps (docs/CYPHER_STUDY_2026_10_15.md §12.76): a Variant
+# holds a temporal as the oracle spells one (Date('...'), Time('...'), DateTime('...'); a zoned value as its instant),
+# and the database parses the text back where the list or map is read as values (an UNWIND, an index, a comprehension,
+# IN, a map's entry); a collection of temporals the database computes is spelled the same way when it is held as a
+# Variant. Each case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/temporallists/*'), keyed lite/temporallists/<id>.
+tests:
+  - id: dates_unwound_in_order
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "WITH [date('2017-01-01'), date('1910-05-06'), date('1984-10-12')] AS v UNWIND v AS d RETURN d ORDER BY d"
+  - id: dates_filtered_and_indexed
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "WITH [date('2017-01-01'), date('2015-01-01')] AS v RETURN [x IN v WHERE x > date('2016-01-01')] AS a, v[0].year AS y, v[1] AS b, size(v) AS s, date('2015-01-01') IN v AS i"
+  - id: local_times_of_two_precisions
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "WITH [localtime('12:31:14.645876123'), localtime('10:35')] AS v RETURN v[1] = localtime('10:35') AS e, v[0].nanosecond AS n, localtime('10:35') IN v AS i, localtime('12:31:14.645876124') IN v AS j"
+  - id: local_times_in_microseconds
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "WITH [localtime('12:31:14'), localtime('10:35:00.5')] AS v RETURN localtime('12:31:14.000000001') IN v AS i, localtime('12:31:14') IN v AS j, v AS l"
+  - id: times_with_offsets_in_order
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "WITH [time('10:35-08:00'), time('12:31:14.645876123+01:00'), time('12:35:15+05:00')] AS v UNWIND v AS t RETURN t ORDER BY t"
+  - id: local_date_times_mapped
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "WITH [localdatetime('2017-01-01T12:00'), localdatetime('2015-01-01T00:00:01.5')] AS v RETURN [x IN v | x.year] AS y, [x IN v | x + duration({days: 1})] AS later, v[1].millisecond AS ms"
+  - id: zoned_date_times_by_their_instants
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "WITH [datetime('2017-01-01T12:00+01:00'), datetime('2017-01-01T11:30Z')] AS v RETURN v[0] < v[1] AS before, [x IN v WHERE x > datetime('2017-01-01T11:15Z')] AS later"
+  - id: collected_dates_unwound
+    graph: |
+      CREATE (:A {d: date('2017-01-01')}), (:A {d: date('2015-06-01')}), (:A {d: date('2016-03-04')})
+    cypher: "MATCH (a:A) WITH collect(a.d) AS ds UNWIND ds AS d RETURN d.month AS m ORDER BY d"
+  - id: collected_times_indexed
+    graph: |
+      CREATE (:A {name: 'x', t: localtime('12:00')}), (:A {name: 'y', t: localtime('09:30:15.25')})
+    cypher: "MATCH (a:A) WITH a ORDER BY a.name WITH collect(a.t) AS ts RETURN ts[1].second AS s, ts[0] < ts[1] AS later, size(ts) AS n"
+  - id: a_list_of_times_returned
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "RETURN [localtime('12:00'), localtime('10:35:00.5')] AS l, [localdatetime('2017-01-01T12:00')] AS m, [date('2017-01-01'), null] AS n"
+  - id: a_map_of_temporals
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "WITH {a: localdatetime('2017-01-01T12:00'), b: localtime('10:35'), c: date('2015-01-01')} AS m RETURN m.a.year AS y, m.b.hour AS h, m.c.month AS mo, m AS whole"
+  - id: distinct_lists_of_dates
+    graph: |
+      CREATE (:A {d: date('2017-01-01')}), (:A {d: date('2017-01-01')}), (:A {d: date('2015-06-01')})
+    cypher: "MATCH (a:A) WITH DISTINCT [a.d] AS l RETURN l ORDER BY l[0]"
+  - id: sort_consistent_with_comparisons
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "WITH [localdatetime('1984-10-11T12:30:14.000000012'), localdatetime('1984-10-11T12:31:14.645876123'), localdatetime('1980-12-11T12:31:14')] AS values WITH values, size(values) AS numOfValues UNWIND values AS value WITH size([x IN values WHERE x < value]) AS x, value, numOfValues ORDER BY value WITH numOfValues, collect(x) AS orderedX RETURN orderedX = range(0, numOfValues - 1) AS equal"
+  - id: a_comprehension_of_dates_returned
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "WITH [date('2017-01-01'), date('2015-01-01')] AS v RETURN [x IN v WHERE x.year > 2016] AS a, [x IN v | x + duration({months: 1})] AS b"

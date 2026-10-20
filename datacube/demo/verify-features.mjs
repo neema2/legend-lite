@@ -755,51 +755,63 @@ try {
     return 'set, then cleared';
   });
 
-  await check('an Alt+click on a header sorts: up, down, off', async () => {
-    // Upstream turns on ag-grid's column selection, which makes a plain
-    // header click SELECT and sorting "require holding down the Alt
-    // key". Multi-sort is always on; the header shows the arrow. Three
-    // Alt+clicks walk a column through ascending, descending and out.
+  await check('a header click sorts: a number from the largest, then up, then off; Ctrl (Cmd) chains another, numbered', async () => {
+    // the user, 2026-10-18: a plain click sorts by the column alone -- a number or a date from the largest first, text
+    // from A -- then the other way, then no sort; Ctrl-click (Cmd on a Mac) adds a column to the sort's end, and the
+    // headers number their places
     await menu(['Sort', 'Clear All Sorts']).catch(() => {});
-    const name = await page.evaluate(() =>
-      document.querySelector('.dc-th.dc-sortable[data-column]')?.dataset.column);
-    if (!name) throw new Error('no sortable header');
-    const th = page.locator(`.dc-th[data-column="${name}"]`);
-    const click = async () => {
+    const numeric = await page.evaluate(() => {
+      const types = new Map(window.__dataCube.snapshot.columns.map((c) => [c.name, c.type]));
+      return [...document.querySelectorAll('.dc-th.dc-sortable[data-column]')].map((e) => e.dataset.column)
+        .filter((n) => /^(Integer|Float|Decimal|Number)$/.test(types.get(n) ?? ''));
+    });
+    const [name, other] = numeric;
+    if (!name || !other) throw new Error(`need two number columns on screen, have ${numeric}`);
+    const th = (n) => page.locator(`.dc-th[data-column="${n}"]`);
+    const click = async (n, modifiers = []) => {
       const before = await statusNow();
-      await th.click({ position: { x: 8, y: 8 }, modifiers: ['Alt'] });
+      await th(n).click({ position: { x: 8, y: 8 }, modifiers });
       await settle(before);
     };
-    const ident = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    await click();
+    const sorted = (pure, n, way) => new RegExp(`~'?${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'?->${way}`).test(pure);
+    await click(name);
     let s = await state();
-    if (!new RegExp(`~'?${ident}'?->ascending`).test(s.pure)) {
-      throw new Error(`first click: no ascending sort on ${name}: ${s.pure.slice(-120)}`);
-    }
-    if ((await th.getAttribute('aria-sort')) !== 'ascending') {
-      throw new Error('the header does not say ascending');
-    }
-    await click();
+    if (!sorted(s.pure, name, 'descending')) throw new Error(`first click: no descending sort on ${name}: ${s.pure.slice(-120)}`);
+    if ((await th(name).getAttribute('aria-sort')) !== 'descending') throw new Error('the header does not say descending');
+    await click(name);
     s = await state();
-    if (!new RegExp(`~'?${ident}'?->descending`).test(s.pure)) {
-      throw new Error(`second click: no descending sort on ${name}`);
-    }
-    await click();
+    if (!sorted(s.pure, name, 'ascending')) throw new Error(`second click: no ascending sort on ${name}`);
+    await click(name);
     s = await state();
-    if (new RegExp(`~'?${ident}'?->(a|de)scending`).test(s.pure)) {
-      throw new Error(`third click left ${name} in the sort`);
+    if (sorted(s.pure, name, '(a|de)scending')) throw new Error(`third click left ${name} in the sort`);
+    // chained: the first by a plain click, the second added after it
+    await click(name);
+    await click(other, [process.platform === 'darwin' ? 'Meta' : 'Control']);
+    s = await state();
+    if (!sorted(s.pure, name, 'descending') || !sorted(s.pure, other, 'descending')) {
+      throw new Error(`a chained click did not keep both: ${s.pure.slice(-160)}`);
     }
-    return `${name}: asc → desc → off`;
+    const marks = await page.evaluate(([a, b]) => [a, b].map((n) =>
+      document.querySelector(`.dc-th[data-column="${n}"] .dc-sort-mark`)?.textContent), [name, other]);
+    if (marks.join() !== '\u21931,\u21932') throw new Error(`the headers say ${marks}`);
+    // a plain click on the first again: it alone, turned
+    await click(name);
+    s = await state();
+    if (!sorted(s.pure, name, 'ascending') || sorted(s.pure, other, '(a|de)scending')) {
+      throw new Error(`a plain click did not sort by ${name} alone: ${s.pure.slice(-160)}`);
+    }
+    await menu(['Sort', 'Clear All Sorts']).catch(() => {});
+    return `${name}: desc -> asc -> off; ${name} then ${other} chained (${marks.join(' ')})`;
   });
 
-  await check('a header click selects its column; Shift+click extends; no sort', async () => {
+  await check('Shift+click selects a column; a second Shift+click every column between; no sort', async () => {
     await reset();
     const heads = await page.evaluate(() =>
       [...document.querySelectorAll('.dc-th.dc-sortable[data-column]')].map((e) => e.dataset.column));
     const [a, b] = heads;
     if (!a || !b) throw new Error(`need two headers, have ${heads}`);
     const before = (await state()).pure;
-    await page.locator(`.dc-th[data-column="${a}"]`).click({ position: { x: 8, y: 8 } });
+    await page.locator(`.dc-th[data-column="${a}"]`).click({ position: { x: 8, y: 8 }, modifiers: ['Shift'] });
     await page.locator(`.dc-th[data-column="${b}"]`).click({ position: { x: 8, y: 8 }, modifiers: ['Shift'] });
     await settle();
     const marked = await page.evaluate(() =>
@@ -808,7 +820,7 @@ try {
     const rendered = await page.locator('.dc-row').count();
     const after = (await state()).pure;
     await page.keyboard.press('Escape');
-    if (after !== before) throw new Error('a plain header click changed the query (sorted?)');
+    if (after !== before) throw new Error('a Shift+click on a header changed the query (sorted?)');
     if (marked.join() !== [a, b].join()) throw new Error(`headers marked ${marked}`);
     if (selectedCells < rendered * 2) {
       throw new Error(`${selectedCells} cells selected over ${rendered} rendered rows in two columns`);

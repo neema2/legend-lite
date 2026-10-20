@@ -732,7 +732,9 @@ public sealed interface SqlExpr
     record ArrayLit(List<SqlExpr> elements, TypeFact type)
             implements SqlExpr {
         public ArrayLit {
-            type = SqlTyping.arrayLitType(elements);
+            // the elements' common type; an EMPTY literal keeps the type it is given (what it stands in for: the
+            // empty side of a one-element concatenation, 2026-10-17), since its elements say nothing
+            type = elements.isEmpty() && type instanceof TypeFact.Typed ? type : SqlTyping.arrayLitType(elements);
         }
 
         public ArrayLit(List<SqlExpr> elements) {

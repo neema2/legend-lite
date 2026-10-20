@@ -76,9 +76,52 @@ class IqDateTimeTest {
             assertEquals(Arrays.asList("2005-03-04 00:00:00", "2005-03-04 00:00:00"), Arrays.asList(both(text)), text);
         }
         // the forms IQ reads otherwise or by DATE_ORDER, and its other abbreviations (it matches any prefix)
-        for (String text : new String[] {"4 Mar 05", "Mar 2005", "Sept 4 2005", "Ma 4 2005", "Mar4 2005",
+        for (String text : new String[] {"4 Mar 05", "Sept 4 2005", "Ma 4 2005", "Mar4 2005",
                 "Friday Mar 4 2005", "2005 4 Mar"}) {
             assertEquals(Arrays.asList(null, null), Arrays.asList(both(text)), text);
+        }
+    }
+
+    /** IQ island, 2026-10-17 (the corpus lane; measured on IQ 17.1 in both its engines, and on SQL Anywhere 17): a
+     *  year alone, or a year and a month, is the month's first day, in every DATE_ORDER; a time may follow. */
+    @Test
+    void aYearAloneOrAYearAndAMonth() {
+        String[][] cases = {
+                {"2010", "2010-01-01 00:00:00"},
+                {" 2010 ", "2010-01-01 00:00:00"},
+                {"0999", "0999-01-01 00:00:00"},
+                {"2010-05", "2010-05-01 00:00:00"},
+                {"2010/5", "2010-05-01 00:00:00"},
+                {"2010.05", "2010-05-01 00:00:00"},
+                {"2010 May", "2010-05-01 00:00:00"},
+                {"May 2010", "2010-05-01 00:00:00"},
+                {"Mar 2005", "2005-03-01 00:00:00"},
+                {"2010 10:30", "2010-01-01 10:30:00"},
+                {"2010T10:30", "2010-01-01 10:30:00"},
+                {"2010-05 10:30", "2010-05-01 10:30:00"},
+        };
+        for (String[] c : cases) {
+            assertEquals(Arrays.asList(c[1], c[1]), Arrays.asList(both(c[0])), c[0]);
+        }
+        // IQ's errors (-157), and two digits alone, which IQ reads as a century ('20' is 2000-01-01, '00' its error)
+        for (String text : new String[] {"999", "5", "20101", "10000", "2010-13", "2010 Mai", "20"}) {
+            assertEquals(Arrays.asList(null, null), Arrays.asList(both(text)), text);
+        }
+    }
+
+    /** IQ island, 2026-10-17 (the corpus lane's SEDE; measured on IQ 17.1): numbers ending in a four-digit year are no
+     *  date under DATE_ORDER YMD -- IQ's error wherever it converts one -- and are read under MDY and DMY. */
+    @Test
+    void numbersEndingInAFourDigitYearAreNoDateUnderYmd() {
+        IqSettings ymd = IqProfile.IQ16_DEFAULT.settings();
+        IqSettings mdy = IqProfile.IQ16_TDS.settings();
+        for (String text : new String[] {"01/02/2018", "8/1/2018", "1-1-2009", "13/01/2018", "8-16-2011", "05/2010",
+                "1/01/2012 12:00AM", "1.1.2009"}) {
+            assertEquals(true, IqDateTime.unconvertible(text, ymd), text);
+            assertEquals(false, IqDateTime.unconvertible(text, mdy), text);
+        }
+        for (String text : new String[] {"2018/01/02", "01/02/18", "20-Oct-17", "Oct 20 2017", "x", "", "2010"}) {
+            assertEquals(false, IqDateTime.unconvertible(text, ymd), text);
         }
     }
 

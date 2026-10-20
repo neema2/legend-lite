@@ -2047,6 +2047,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
             // generateGuid's contract is text: the uuid as VARCHAR
             case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
+            case RANDOM -> writer.append("rand()");
             case NOW -> writer.append("now()");
             case CURRENT_USER_FN -> writer.append("current_user");
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());

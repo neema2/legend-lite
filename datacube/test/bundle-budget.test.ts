@@ -174,8 +174,11 @@ const BUDGET = 283_500;
  *  388,000 -> 391,000 (2026-10-14, batch 3 step 1): as the grid's. Measured 389,154.
  *  391,000 -> 270,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's
  *  "does minify buy anything if already zipped?" -- it does, about a third). Measured 266,978; unminified, the same
- *  tree 390,443. */
-const ENGINE_BUDGET = 270_000;
+ *  tree 390,443.
+ *  270,000 -> 271,000 (2026-10-18, neema2/legend-lite#57 and its audit: a header click sorts (grid-edits.ts clickSort,
+ *  clickTreeSort), the header's marks from the order the query applies (headerSorts), and a child group's aggregate
+ *  refused as a sort). Measured 270,114. */
+const ENGINE_BUDGET = 271_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

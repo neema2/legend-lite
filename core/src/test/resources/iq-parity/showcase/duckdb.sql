@@ -13,7 +13,7 @@ FROM (
           SELECT t2.id, t2.t_id, CASE WHEN t2.label IS NULL THEN NULL ELSE regexp_replace(t2.label, '(\n|[\t-\r ])+$', '', '') END AS lbl
           FROM u AS t2
         ) AS t3
-      ) AS t4 ON t4.t_id IS NOT NULL AND t1.id IS NOT NULL AND t4.t_id = t1.id
+      ) AS t4 ON t4.t_id = t1.id
       GROUP BY t1.id
     ) AS t5
   ) AS t6 ON t6.tid IS NOT NULL AND t0.id IS NOT NULL AND t6.tid = t0.id

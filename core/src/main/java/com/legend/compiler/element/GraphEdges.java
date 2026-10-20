@@ -44,7 +44,7 @@ import java.util.stream.Stream;
  * disagree are errors; an association linking an edge class by an end carrying neither marker is a third link,
  * refused (a relationship has two ends); a to-many property holding a class is refused on an edge; a derived
  * end ({@code <<graph.from>> from() {...}}) is not read yet, refused by name; the profile at
- * {@link PlatformTypes#GRAPH_PROFILE} must be declared with exactly the four stereotypes. The engine checks every
+ * {@link PlatformTypes#GRAPH_PROFILE} must be declared with exactly the eight stereotypes ({@link #STEREOTYPES}). The engine checks every
  * reference in the declaration; only lite checks the rule, since only lite runs the island. The Cypher seam reads
  * the result as a derived view of the model ({@code ModelContext.derived}).
  */
@@ -364,18 +364,31 @@ public record GraphEdges(List<Edge> edges) {
         return found != null ? found : Protocol.splitFqn(cd.qualifiedName())[1];
     }
 
-    /** The profile at its path, declaring exactly the four stereotypes and no tag: checked for each edge class
-     *  (the island reads the stereotypes by the profile's full name). */
+    /** The stereotypes the profile declares, and no tag: {@code Edge}, {@code from}, {@code to}, {@code type} (the
+     *  edge classes, §5.6) and {@code Open} (2026-10-17, §12.45: on a DataSpace, the graph a Cypher island's
+     *  {@code USE} names, open; the Cypher seam reads it, this reader only checks the declaration) and
+     *  {@code Anonymous} (2026-10-17, §12.61: on a class, its name is no label, its instances carry its
+     *  superclasses' labels alone; the Cypher seam reads it, this reader only checks the declaration) and
+     *  {@code nanoseconds}, {@code timeOfDay} (2026-10-17, §12.64: on a DateTime property, its values of
+     *  nanosecond precision, the store's TIMESTAMP_NS; a time of day held as the date-time at it on the epoch day;
+     *  the Cypher seam reads them, this reader only checks the declaration). */
+    public static final List<String> STEREOTYPES = List.of("Anonymous", "Edge", "Open", "from", "to", "type",
+            "nanoseconds", "timeOfDay");
+
+    /** The profile at its path, declaring exactly the eight stereotypes and no tag: checked for each edge class
+     *  (the island reads the stereotypes by the profile's full name). Exactly, not at least (the independent review
+     *  asked, 2026-10-18; kept): the path names the graph project's one profile, so a declaration with fewer is an
+     *  older one, refused by name until the model declares the current one, and a stereotype beyond these would be
+     *  read as nothing, where a marker the island does not know must not pass silently. */
     private static void checkProfile(Source src, ClassDefinition cd) {
         ProfileDefinition p = src.findProfile(PlatformTypes.GRAPH_PROFILE).orElse(null);
         if (p == null) {
             throw refuse(cd, "is an edge class, but the profile " + PlatformTypes.GRAPH_PROFILE + " is not declared:"
                     + " a model with edge classes depends on the graph project");
         }
-        if (!new TreeSet<>(p.stereotypes()).equals(new TreeSet<>(List.of("Edge", "from", "to", "type")))
-                || !p.tags().isEmpty()) {
+        if (!new TreeSet<>(p.stereotypes()).equals(new TreeSet<>(STEREOTYPES)) || !p.tags().isEmpty()) {
             throw refuse(cd, "is an edge class, but the profile " + PlatformTypes.GRAPH_PROFILE + " declares "
-                    + p.stereotypes() + " and tags " + p.tags() + ", not the stereotypes [Edge, from, to, type] and no"
+                    + p.stereotypes() + " and tags " + p.tags() + ", not the stereotypes " + STEREOTYPES + " and no"
                     + " tag");
         }
     }

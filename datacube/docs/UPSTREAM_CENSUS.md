@@ -180,7 +180,7 @@ Upstream: `DataCubeGridConfigurationBuilder.tsx`, `DataCubeGrid.tsx`,
 
 | Feature | Upstream | Ours | St | Ev |
 |---|---|---|---|---|
-| **Alt+click a header to sort** (column selection is on, so a plain click selects — ag-grid's rule); multi-sort always on; sort arrow + index in the header | ✓ | ✓ | ✅ | H, T |
+| **Click a header to sort** — upstream: Alt+click (column selection is on, so a plain click selects — ag-grid's rule); ours (the user, 2026-10-18): a click sorts (a number or a date from the largest, text from A, then the other way, then off), Ctrl/⌘-click chains, Shift-click selects; sort arrow + index in the header | ✓ | ✓ (deliberately different) | ✅ | H, T |
 | **Drag a column edge to resize** (unless fixed width) | ✓ | ❌ (width from the editor / Resize menu) | ❌ | C no resize handle in `grid/` |
 | Drag a header to reorder, persisted | ✓ | ✓ | ✅ | H |
 | Drag to the row-group panel ("drag here to group") | ✓ ag-grid panel always shown | ✓ drag zones (can be folded) | ✅ | H |

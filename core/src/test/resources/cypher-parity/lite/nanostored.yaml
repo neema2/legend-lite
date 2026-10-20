@@ -1,0 +1,61 @@
+# The #Cypher{...}# island's stored temporal values of nanosecond precision over their parts (the TCK-to-zero plan's
+# W13, leg 5, docs/CYPHER_STUDY_2026_10_15.md §12.89): a node's property is an embedded instance of a value class of
+# the parts (a date-time's date and nanoseconds since midnight, a time's nanoseconds; a zoned value's instant's UTC
+# parts and its offset), over every year the database's DATE holds; read, compared, carried with its node through
+# WITH, across a label-less pattern's arms, an OPTIONAL MATCH and a variable-length chain. Each case is judged by
+# Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/nanostored/*'), keyed
+# lite/nanostored/<id>.
+tests:
+  - id: stored_over_every_year
+    graph: |
+      CREATE (:A {d: localdatetime('0001-01-01T00:00:00.000000001'), t: localtime('23:59:59.999999999')}),
+             (:A {d: localdatetime('9999-12-31T23:59:59.999999999'), t: localtime('00:00:00.000000001')})
+    cypher: "MATCH (a:A) RETURN a.d AS d, a.t AS t, a.d.year AS y, a.d.nanosecond AS n, toString(a.t) AS s ORDER BY d"
+  - id: stored_zoned_over_every_year
+    graph: |
+      CREATE (:A {z: datetime('0001-01-01T12:00:00.000000001+05:00')}),
+             (:A {z: datetime('9999-12-31T12:00:00.000000002-05:00')})
+    cypher: "MATCH (a:A) RETURN a.z AS z, a.z.year AS y, a.z.offset AS o, a.z.nanosecond AS n, a.z.epochSeconds AS e ORDER BY z DESC"
+  - id: stored_zoned_times_across_midnight
+    graph: |
+      CREATE (:A {t: time('23:30:00.000000001-02:00')}), (:A {t: time('00:30:00.000000002+03:00')}),
+             (:A {t: time('12:00:00.000000003Z')})
+    cypher: "MATCH (a:A) RETURN a.t AS t, a.t.hour AS h, a.t.offsetSeconds AS o ORDER BY t"
+  - id: carried_through_two_withs
+    graph: |
+      CREATE (:A {name: 'a', d: localdatetime('1984-10-11T12:31:14.645876123')}),
+             (:A {name: 'b', d: localdatetime('0001-01-01T00:00:00.000000001')})
+    cypher: "MATCH (a:A) WITH a WITH a, a.d AS d ORDER BY d DESC RETURN a, d.nanosecond AS n, a.d = d AS same"
+  - id: across_the_arms_of_a_labelless_node
+    graph: |
+      CREATE (:A {name: 'a', d: localdatetime('1984-10-11T12:31:14.645876123')}), (:B {name: 'b'}),
+             (:C {name: 'c', d: localdatetime('2015-07-21T21:40:32.142000009')})
+    cypher: "MATCH (n) WITH n ORDER BY n.name RETURN n, n.d AS d"
+  - id: through_an_optional_match
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {t: localtime('12:31:14.645876123')}), (:A {name: 'x'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) WITH a, b RETURN a.name AS name, b.t AS t, b ORDER BY name"
+  - id: compared_and_moved
+    graph: |
+      CREATE (:A {d: localdatetime('1984-10-11T12:31:14.645876123')}), (:A {d: localdatetime('1984-10-11T12:31:14.645876122')})
+    cypher: "MATCH (a:A) WHERE a.d > localdatetime('1984-10-11T12:31:14.645876122') RETURN a.d + duration({nanoseconds: 1}) AS later, duration.between(a.d, localdatetime('1984-10-12')) AS gap, localdatetime.truncate('second', a.d) AS whole"
+  - id: least_greatest_and_grouped
+    graph: |
+      CREATE (:A {t: localtime('12:31:14.645876123')}), (:A {t: localtime('12:31:14.645876123')}),
+             (:A {t: localtime('00:00:00.000000001')})
+    cypher: "MATCH (a:A) WITH a.t AS t, count(*) AS c RETURN t, c ORDER BY t"
+  - id: least_and_greatest_of_stored
+    graph: |
+      CREATE (:A {d: localdatetime('0001-01-01T00:00:00.000000001'), z: datetime('2017-07-01T12:00:00.000000001+02:00')}),
+             (:A {d: localdatetime('1984-10-11T12:31:14.645876123'), z: datetime('2017-07-01T12:00:00.000000002Z')})
+    cypher: "MATCH (a:A) RETURN min(a.d) AS lo, max(a.d) AS hi, min(a.z) AS zlo, max(a.z) AS zhi, size(collect(a.d)) AS n"
+  - id: along_a_variable_length_chain
+    graph: |
+      CREATE (:A {name: 'a', t: localtime('01:00:00.000000001')})-[:T]->(:A {name: 'b', t: localtime('02:00:00.000000002')})-[:T]->(:A {name: 'c', t: localtime('03:00:00.000000003')})
+    cypher: "MATCH (x:A {name: 'a'})-[:T*1..2]->(y) RETURN y.name AS name, y.t AS t, y ORDER BY name"
+  - id: in_a_list_and_a_map
+    graph: |
+      CREATE (:A {d: localdatetime('0001-01-01T00:00:00.000000001'), t: localtime('12:31:14.645876123')})
+    cypher: "MATCH (a:A) RETURN [a.d, a.t] AS l, {d: a.d} AS m, a.t IN [localtime('12:31:14.645876123')] AS i"
+  - id: a_date_time_text_without_its_time
+    cypher: "RETURN localdatetime('1984-10-12') AS a, localdatetime('19841012') AS b, localdatetime('1984-W10-2') AS c, datetime('1984-10-12') AS d, localdatetime('1984') AS e, datetime('2015-07') AS f"

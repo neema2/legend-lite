@@ -790,3 +790,33 @@ describe('Horizontal Pivots > sort direction', () => {
     );
   });
 });
+
+describe('a pivot total is its measure\'s, as a pivot cell is (2026-10-18)', () => {
+  // a blurred measure's total showed its sum in the clear, and a hidden measure's total stayed on screen: the settings
+  // made on `notional` reached every `2021__|__notional` but not `__pivot_total____|__notional`
+  const pivoted = table(['2021__|__notional', '2022__|__notional', '__pivot_total____|__notional', '2021__|__qty']);
+  const paths = new Map([
+    ['2021__|__notional', ['2021', 'notional']], ['2022__|__notional', ['2022', 'notional']], ['2021__|__qty', ['2021', 'qty']],
+  ]);
+  const model = (layout: Parameters<typeof buildColumnModel>[3]): ColumnModel =>
+    buildColumnModel(pivoted, [], ['notional', 'qty'], { pivotTotal: { label: 'Total', placement: 'right' }, ...layout }, 1, paths);
+  const leaf = (m: ColumnModel, name: string) => m.leaves.find((l) => l.name === name);
+  const TOTAL = '__pivot_total____|__notional';
+
+  it('a blurred measure blurs its total', () => {
+    const m = model({ blurred: ['notional'] });
+    assert.equal(leaf(m, '2021__|__notional')?.blurred, true);
+    assert.equal(leaf(m, TOTAL)?.blurred, true);
+    assert.notEqual(leaf(m, '2021__|__qty')?.blurred, true);
+  });
+
+  it('a hidden measure hides its total', () => {
+    const m = model({ hidden: ['notional'] });
+    assert.deepEqual(m.leaves.map((l) => l.name), ['2021__|__qty']);
+  });
+
+  it('a width set on the measure is its total\'s, unless the total has its own', () => {
+    assert.equal(leaf(model({ widths: { notional: 140 } }), TOTAL)?.width, 140);
+    assert.equal(leaf(model({ widths: { notional: 140, [TOTAL]: 90 } }), TOTAL)?.width, 90);
+  });
+});

@@ -444,6 +444,7 @@ public final class PostgresDialect implements InputDialect {
             case NO_SUCH_TABLE -> "missing FROM-clause entry for table \"" + args[0] + "\"";
             case NOT_GROUPED -> "column \"" + args[0] + "\" must appear in the GROUP BY clause or be used in an"
                     + " aggregate function";
+            case NESTED_AGGREGATE -> "aggregate function calls cannot be nested";
             case DUPLICATE_TABLE -> "table name \"" + args[0] + "\" specified more than once";
             case DUPLICATE_USING_COLUMN -> "common column name \"" + args[0] + "\" appears more than once in "
                     + args[1] + " table";

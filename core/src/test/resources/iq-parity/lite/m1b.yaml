@@ -129,6 +129,8 @@ tests:
   # is kept as the ledger's key
   - id: name_with_a_comment_is_refused
     sql: "SELECT id /* one */ + 1 FROM t WHERE id = 1"
+  # IQ island, 2026-10-17 (measured on IQ 17.1): named now, by the derived column's definition (t.id as x+1), the id
+  # kept from when it was refused
   - id: name_over_a_derived_column_is_refused
     sql: "SELECT x + 1 FROM (SELECT id AS x FROM t) d WHERE x = 1"
   - id: name_of_a_bare_derived_column
@@ -473,7 +475,7 @@ tests:
     sql: "SELECT id FROM t WHERE vc IN (SELECT 'x' FROM DUMMY)"
   - id: in_subquery_of_dummy
     sql: "SELECT id FROM t WHERE id IN (SELECT dummy_col + 1 FROM DUMMY)"
-  - id: in_subquery_of_a_union_is_refused
+  - id: in_subquery_of_a_union
     sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM u UNION SELECT 7 FROM DUMMY) ORDER BY 1"
   - id: in_subquery_of_a_union_in_the_front_end
     sql: "SELECT IF 2 IN (SELECT 1 FROM DUMMY UNION ALL SELECT 2 FROM DUMMY) THEN 'T' ELSE 'F' ENDIF AS x"

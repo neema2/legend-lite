@@ -1,0 +1,51 @@
+# The #Cypher{...}# island's answers the independent review of the TCK-to-zero branch found wrong (2026-10-18,
+# docs/CYPHER_STUDY_2026_10_15.md §12.93), each its review's query: values of nanosecond precision around aggregates,
+# counted distinct, ordered after a grouping or a DISTINCT, mapped by a comprehension, unwound with a null, in a
+# UNION beside a microsecond value; a year past 9999 in a text; truncation with fields written over; the months and
+# days of duration.between, of local and zoned values, across a change of a named zone's offset; a clock's field the
+# row computes out of its range; a CASE choosing by a random test. Each case is judged by Neo4j's answer in
+# neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/review/*'), keyed lite/review/<id>; a decided
+# one by decisions.tsv.
+tests:
+  - id: an_aggregate_expression_returned
+    cypher: "UNWIND [localtime('12:00:00.000000001'), localtime('13:00:00.000000002')] AS t RETURN max(t) + duration('PT1S') AS m"
+  - id: an_aggregate_expression_through_with
+    cypher: "UNWIND [localdatetime('2020-01-01T10:00:00.000000001'), localdatetime('2021-01-01T10:00:00.000000002')] AS x WITH max(x) + duration('PT1S') AS m RETURN m, m.year AS y"
+  - id: count_distinct_of_nanosecond_date_times
+    cypher: "UNWIND [localdatetime('2020-01-01T10:00:00.000000001'), localdatetime('2021-01-01T10:00:00.000000001'), localdatetime('2021-01-01T10:00:00.000000001')] AS x RETURN count(DISTINCT x) AS c"
+  - id: ordered_after_a_grouping
+    cypher: "UNWIND [localdatetime('2020-01-01T10:00:00.000000001'), localdatetime('2021-01-01T09:00:00.000000001')] AS x WITH x, count(*) AS c ORDER BY x LIMIT 1 RETURN x"
+  - id: distinct_ordered_by_an_expression
+    cypher: "UNWIND [localdatetime('2020-01-01T10:00:00.000000001'), localdatetime('2021-01-01T09:00:00.000000001')] AS x WITH DISTINCT x ORDER BY x + duration('PT1H') LIMIT 1 RETURN x"
+  - id: distinct_returned_ordered_by_a_field
+    cypher: "UNWIND [localdatetime('2020-01-01T10:00:00.000000001'), localdatetime('2021-01-01T09:00:00.000000001')] AS x RETURN DISTINCT x ORDER BY x.hour"
+  - id: a_returned_maximum_ordered_by_a_field
+    cypher: "UNWIND [localtime('12:00:00.000000001'), localtime('13:00:00.000000002')] AS t WITH t.second AS s, max(t) AS m RETURN s, m ORDER BY m.nanosecond DESC"
+  - id: a_comprehension_mapping_to_nanoseconds
+    cypher: "UNWIND [1] AS i RETURN [x IN [localtime('10:00:00.000000001'), localtime('11:00:00.000000001')] WHERE x > localtime('10:30') | x + duration('PT1S')] AS l"
+  - id: a_nanosecond_list_with_a_null
+    cypher: "UNWIND [localtime('12:00:00.000000001'), null, localtime('01:00')] AS t RETURN t"
+  - id: a_union_across_precisions
+    cypher: "RETURN localdatetime('2020-01-01T10:00:00.000000001') - duration('PT0.000000001S') AS d UNION RETURN localdatetime('2020-01-01T10:00') AS d"
+  - id: years_past_9999_in_texts
+    cypher: "RETURN toString(localdatetime('9999-12-31T23:59:59.999999999') + duration('PT1S')) AS a, toString(localdatetime('9999-12-31T23:59:59') + duration('PT1S')) AS b, toString(date('9999-12-31') + duration('P1D')) AS c, toString(datetime('9999-12-31T23:00+00:00') + duration('PT2H')) AS d"
+  - id: a_year_before_1_in_a_text
+    cypher: "RETURN toString(date('0001-01-01') - duration('P1D')) AS a"
+  - id: truncation_with_fields_written_over
+    cypher: "WITH localdatetime('2017-10-11T12:31:14.645876123') AS t RETURN localdatetime.truncate('millisecond', t, {day: 2}) AS a, localdatetime.truncate('millisecond', t, {millisecond: 7}) AS b, localdatetime.truncate('millisecond', t, {microsecond: 7, nanosecond: 9}) AS c, localdatetime.truncate('microsecond', t, {millisecond: 7, nanosecond: 9}) AS d, localdatetime.truncate('microsecond', t, {nanosecond: 7}) AS e, localdatetime.truncate('second', t, {millisecond: 7, microsecond: 8, nanosecond: 9}) AS f"
+  - id: truncation_of_microseconds_with_fields_written_over
+    cypher: "WITH localdatetime('2017-10-11T12:31:14.645876') AS t RETURN localdatetime.truncate('millisecond', t, {day: 2, second: 5}) AS a, localdatetime.truncate('microsecond', t, {hour: 1}) AS b, localtime.truncate('millisecond', localtime('12:31:14.645876'), {minute: 3}) AS c"
+  - id: between_months_by_the_day_of_the_month
+    cypher: "RETURN duration.between(localdatetime('2021-01-31T00:00:00.000000001'), localdatetime('2021-02-28T00:00:00.000000001')) AS a, duration.between(localdatetime('2021-02-28T00:00:00.000000001'), localdatetime('2021-01-31T00:00:00.000000001')) AS b, duration.between(localdatetime('2021-01-31T10:00:00.000000001'), localdatetime('2021-03-31T09:00:00.000000002')) AS c, duration.between(localdatetime('2021-03-31T09:00:00.000000002'), localdatetime('2021-01-31T10:00:00.000000001')) AS d"
+  - id: between_months_of_microsecond_values
+    cypher: "RETURN duration.between(localdatetime('2021-01-31T00:00:00.000001'), localdatetime('2021-02-28T00:00:00.000001')) AS a, duration.between(date('2021-01-31'), date('2021-02-28')) AS b, duration.inMonths(localdatetime('2021-01-31T10:00'), localdatetime('2021-03-31T09:00')) AS c, duration.inDays(localdatetime('2021-01-31T10:00'), localdatetime('2021-02-01T09:00')) AS d"
+  - id: between_zoned_values_on_their_wall_times
+    cypher: "RETURN duration.between(datetime('2020-01-31T22:00:00.000000001-05:00'), datetime('2020-02-29T23:00:00.000000001-05:00')) AS a, duration.between(datetime('2020-01-31T22:00-05:00'), datetime('2020-02-29T23:00-05:00')) AS b, duration.between(datetime('2020-01-31T22:00:00.000000001-05:00'), datetime('2020-02-29T23:00:00.000000001+01:00')) AS c, duration.between(localdatetime('2020-01-31T22:00'), datetime('2020-02-29T23:00+01:00')) AS d"
+  - id: between_across_a_named_zones_change
+    cypher: "RETURN duration.between(datetime('2017-10-28T12:00:00.000000001[Europe/Stockholm]'), datetime('2017-10-30T12:00:00.000000001[Europe/Stockholm]')) AS a, duration.between(datetime('2017-10-29T01:00:00.000000001[Europe/Stockholm]'), datetime('2017-10-29T04:00:00.000000001[Europe/Stockholm]')) AS b, duration.between(datetime('2017-10-28T12:00[Europe/Stockholm]'), datetime('2017-10-30T12:00[Europe/Stockholm]')) AS c, duration.between(datetime('2017-10-29T01:00[Europe/Stockholm]'), datetime('2017-10-29T04:00[Europe/Stockholm]')) AS d"
+  - id: a_clock_field_of_the_row_out_of_range
+    cypher: "UNWIND [60] AS m RETURN localtime({hour: 10, minute: m, second: 0, nanosecond: 1}).hour AS h"
+  - id: epoch_nanoseconds_of_the_row_out_of_range
+    cypher: "UNWIND [1000000000] AS n RETURN datetime.fromepoch(0, n) AS d"
+  - id: a_case_choosing_by_a_random_test
+    cypher: "UNWIND range(1, 100) AS i WITH CASE WHEN rand() < 0.5 THEN localdatetime('2020-01-01T10:00:00.000000001') ELSE localdatetime('2021-06-15T20:00:00.000000002') END AS v RETURN DISTINCT toString(v) AS s ORDER BY s"

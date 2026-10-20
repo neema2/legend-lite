@@ -38,6 +38,10 @@ class TypeSpellingParityTest {
                 new RelationalDataType.Numeric(10, 2),
                 new RelationalDataType.Timestamp(),
                 new RelationalDataType.Date_(),
+                // lite's TIME column (the Cypher island's stored times of day, 2026-10-17): both conventions spell it
+                new RelationalDataType.Time(),
+                // lite's TIMESTAMP_NS column (the island's stored nanosecond values, 2026-10-17): both spell it
+                new RelationalDataType.TimestampNs(),
                 new RelationalDataType.Bit());
         for (RelationalDataType t : shared) {
             assertEquals(

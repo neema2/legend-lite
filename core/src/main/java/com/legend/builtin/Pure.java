@@ -417,12 +417,39 @@ public final class Pure {
          *  the Cypher translator only (its {@code localtime} values); neither has an upstream counterpart,
          *  legend-engine refuses StrictTime in SQL. */
         public static final String TIME_OF = PKG + "timeOf";
+        /** The identity of a mapped instance as a value (the Cypher island's, 2026-10-17). */
+        public static final String ELEMENT_ID = PKG + "elementId";
+        /** Whether a Variant holds a value of a JSON kind, named as Cypher names them ({@code string},
+         *  {@code number}, {@code boolean}, {@code list}, {@code map}, {@code null}): the database's reading of
+         *  the kind, which Pure's Variant has no function for (the Cypher island's predicates over values the
+         *  rows hold as Variants, 2026-10-17); null of a null Variant. */
+        public static final String IS_KIND = PKG + "isKind";
+        /** The value at the smallest or the largest of text keys ({@code minBy}, {@code maxBy} over
+         *  {@code rowMapper(value, key)} rows, the lowering's ARG_MIN and ARG_MAX): what Cypher's {@code min} and
+         *  {@code max} over values of several kinds answer, the key the island's orderability text (the Cypher
+         *  island's W11, 2026-10-17); Pure's own {@code minBy} and {@code maxBy} take a number key. */
+        public static final String MIN_BY = PKG + "minBy";
+        public static final String MAX_BY = PKG + "maxBy";
         public static final String AT_TIME = PKG + "atTime";
         /** A named zone, read by the database (2026-10-16, the Cypher island's zoned date-time leg):
          *  {@code instantIn(local, zone)} the instant a wall time names in the zone, {@code localIn(instant, zone)}
          *  the wall time of an instant in it. Emitted by the Cypher translator only. */
         public static final String INSTANT_IN = PKG + "instantIn";
         public static final String LOCAL_IN = PKG + "localIn";
+        /** An integer quotient, cut toward zero (2026-10-17, the IQ island's scale): {@code quotient(a, b)} is
+         *  {@code a / b} without its remainder, the database's own integer division ({@code //}, {@code div}).
+         *  Pure has none -- its {@code divide} of integers is a Float -- so the SQL islands wrote the quotient as a
+         *  Float estimate corrected by remainders, each operand read about fourteen times; nested quotients
+         *  multiplied that into statements of megabytes. Emitted by the SQL islands only, where both operands are
+         *  integers and the divisor's zero is tested before. */
+        public static final String QUOTIENT = PKG + "quotient";
+        /** A temporal value in text carriage (2026-10-18, the Cypher island's nanosecond values as a date and a time
+         *  of day, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W13): {@code dateTimeOfText(text)} is the date-time,
+         *  {@code timeOfText(text)} the time of day, the database's ISO text spells, carried to the caller as that
+         *  text (the TEMPORAL_TEXT label, the executor's decode): a value finer than every database's date-time
+         *  type leaves the database so. Emitted by the Cypher translator only, at a result's columns. */
+        public static final String DATE_TIME_OF_TEXT = PKG + "dateTimeOfText";
+        public static final String TIME_OF_TEXT = PKG + "timeOfText";
         /** The #TDS literal's desugar target (SpecParser spells this
          *  FQN literally — the parser stays free of this class). */
         public static final String TDS = PKG + "tds";
@@ -442,6 +469,12 @@ public final class Pure {
          *  every window inside stamped as a boundary ({@code TypedExtendWindow.extentBoundary}, the class extent's
          *  rule): the lowerer closes each window's select, so the enclosing filter lands outside. Erased at typing. */
         public static final String INLINE_VIEW = PKG + "inlineView";
+        /** A recursion over a relation (2026-10-17, the Cypher island's unbounded variable-length patterns,
+         *  docs/CYPHER_STUDY_2026_10_15.md §12.67): {@code recurse(base, r | step(r))} is the rows of {@code base}
+         *  and, repeatedly, the rows the step yields from the rows of the previous round, until a round yields none:
+         *  the database's recursive common table expression ({@code WITH RECURSIVE}, UNION ALL). The step's relation
+         *  has the base's columns. Emitted by the Cypher translator only. */
+        public static final String RECURSE = PKG + "recurse";
         /** ASOR store-object-reference readers (batch 72b): the pk value
          *  at position i of a reference (typed by the resolver as the pk
          *  column's type), and the engine's decode-to-pkMap JSON over a
@@ -546,7 +579,10 @@ public final class Pure {
                     Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE,
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
-                    Lite.TUPLE, Lite.INLINE_VIEW, Lite.TIME_OF, Lite.AT_TIME, Lite.INSTANT_IN, Lite.LOCAL_IN)
+                    Lite.TUPLE, Lite.INLINE_VIEW, Lite.RECURSE, Lite.TIME_OF, Lite.AT_TIME, Lite.INSTANT_IN,
+                    Lite.LOCAL_IN,
+                    Lite.ELEMENT_ID, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY, Lite.DATE_TIME_OF_TEXT, Lite.TIME_OF_TEXT,
+                    Lite.QUOTIENT)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
 
@@ -846,6 +882,9 @@ public final class Pure {
     public static final NativeFunctionDefinition TRUST_ONE__T_MANY = signature("native function meta::legend::lite::trustOne<T>(values:T[*]):T[1];");
     /** A SQL island's inline view (see {@link Lite#INLINE_VIEW}): types as its relation, its windows a boundary. */
     public static final NativeFunctionDefinition INLINE_VIEW__RELATION_1 = signature("native function meta::legend::lite::inlineView<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
+    /** A recursion over a relation ({@link Lite#RECURSE}): the base's rows and, repeatedly, the step's over the previous
+     *  round's, until a round yields none (the Cypher island's unbounded variable-length patterns, 2026-10-17). */
+    public static final NativeFunctionDefinition RECURSE__RELATION_1__FUNCTION_1 = signature("native function meta::legend::lite::recurse<T>(base:meta::pure::metamodel::relation::Relation<T>[1], step:meta::pure::metamodel::function::Function<{meta::pure::metamodel::relation::Relation<T>[1]->meta::pure::metamodel::relation::Relation<T>[1]}>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
 
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
@@ -962,13 +1001,36 @@ public final class Pure {
      *  the abstract Date, as every date native's: an {@code adjust} answers a Date); {@code atTime} is the date-time
      *  at a time of a date (the database's date plus time). The Cypher island's time-of-day leg,
      *  2026-10-16 (docs/CYPHER_STUDY_2026_10_15.md §12.7). */
+    /** The identity of a mapped instance as a value (docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W2, 2026-10-17): the
+     *  class mapping's {@code ~primaryKey} column, else its main table's {@code PRIMARY KEY} column (the engine's
+     *  own precedence, ClassSources.pseudoBindings), spelled as text; a class with neither has no identity (a
+     *  compile error naming it); a composite key is refused by name until spelled. Never {@code <<equality.Key>>},
+     *  which is value equality. Cypher's {@code elementId(n)} and {@code id(n)}; what {@code a = b} on nodes, DISTINCT,
+     *  grouping and uniqueness compare. Resolved by the store resolver (StoreResolver.elementIdRead), never lowered
+     *  as a call: lite's own, no upstream counterpart. */
+    public static final NativeFunctionDefinition ELEMENT_ID__ANY_0_1 = signature("native function meta::legend::lite::elementId(instance:meta::pure::metamodel::type::Any[0..1]):meta::pure::metamodel::type::String[0..1];");
+    public static final NativeFunctionDefinition ELEMENT_ID__ANY_MANY = signature("native function meta::legend::lite::elementId(instances:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[*];");
+    /** Whether a Variant holds a value of a JSON kind ({@link Lite#IS_KIND}: the kind named as Cypher names them,
+     *  the lowering's JSON_TYPE test, {@code SqlExpr.JsonKindLit}); null of a null Variant. */
+    public static final NativeFunctionDefinition IS_KIND__VARIANT_0_1__STRING_1 = signature("native function meta::legend::lite::isKind(variant:meta::pure::metamodel::variant::Variant[0..1], kind:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[0..1];");
+    /** The value at the smallest (largest) text key over {@code rowMapper(value, key)} rows ({@link Lite#MIN_BY},
+     *  {@link Lite#MAX_BY}: the lowering's ARG_MIN and ARG_MAX, a text key where Pure's own take a number). */
+    public static final NativeFunctionDefinition LITE_MIN_BY__ROW_MAPPER_MANY = signature("native function meta::legend::lite::minBy<T>(colRows:meta::pure::functions::math::mathUtility::RowMapper<T, meta::pure::metamodel::type::String>[*]):T[0..1];");
+    public static final NativeFunctionDefinition LITE_MAX_BY__ROW_MAPPER_MANY = signature("native function meta::legend::lite::maxBy<T>(colRows:meta::pure::functions::math::mathUtility::RowMapper<T, meta::pure::metamodel::type::String>[*]):T[0..1];");
     public static final NativeFunctionDefinition TIME_OF__DATE_1 = signature("native function meta::legend::lite::timeOf(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::StrictTime[1];");
     public static final NativeFunctionDefinition AT_TIME__DATE_1__STRICT_TIME_1 = signature("native function meta::legend::lite::atTime(d:meta::pure::metamodel::type::Date[1], t:meta::pure::metamodel::type::StrictTime[1]):meta::pure::metamodel::type::DateTime[1];");
+    /** A temporal value in text carriage ({@link Lite#DATE_TIME_OF_TEXT}, {@link Lite#TIME_OF_TEXT}): the
+     *  date-time or time of day the database's ISO text spells, the text itself the cell (the TEMPORAL_TEXT label,
+     *  a cast that never renders), the executor's decode the value; null of a null text. Lite's own, no upstream
+     *  counterpart: legend-engine carries a date-time in the database's own type. */
+    public static final NativeFunctionDefinition DATE_TIME_OF_TEXT__STRING_0_1 = signature("native function meta::legend::lite::dateTimeOfText(text:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::DateTime[0..1];");
+    public static final NativeFunctionDefinition TIME_OF_TEXT__STRING_0_1 = signature("native function meta::legend::lite::timeOfText(text:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::StrictTime[0..1];");
     /** A named time zone, read by the database (the Cypher island's zoned date-time leg, 2026-10-16,
      *  docs/CYPHER_STUDY_2026_10_15.md §12.8): {@code instantIn} is the instant a wall time names in a zone,
      *  {@code localIn} the wall time of an instant in a zone — each two of the database's zone conversions (the
      *  convertTimeZone lowering's pair), a Pure DateTime in and out. Upstream knows zones only at formatting and on
      *  the connection; a spelled offset needs neither (the translator spells it as adjust steps). */
+    public static final NativeFunctionDefinition QUOTIENT__INTEGER_1__INTEGER_1 = signature("native function meta::legend::lite::quotient(dividend:meta::pure::metamodel::type::Integer[1], divisor:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition INSTANT_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::instantIn(local:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition LOCAL_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::localIn(instant:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1 = signature("native function meta::legend::lite::convertTimeZoneFormat(d:meta::pure::metamodel::type::DateTime[0..1], tz:meta::pure::metamodel::type::String[1], fmt:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[0..1];");
@@ -1947,6 +2009,7 @@ public final class Pure {
     public static final NativeFunctionDefinition PERCENTILE__NUMBER_MANY__FLOAT_1__BOOLEAN_1__BOOLEAN_1 = signature("native function meta::pure::functions::math::percentile(numbers:meta::pure::metamodel::type::Number[*], percentile:meta::pure::metamodel::type::Float[1], ascending:meta::pure::metamodel::type::Boolean[1], continuous:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Number[0..1];");
     public static final NativeFunctionDefinition PERCENT_RANK__RELATION_1__WINDOW_1__T_1 = signature("native function meta::pure::functions::relation::percentRank<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition PI = signature("native function meta::pure::functions::math::pi():meta::pure::metamodel::type::Float[1];");
+    public static final NativeFunctionDefinition RANDOM = signature("native function meta::pure::functions::math::random():meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
     public static final NativeFunctionDefinition PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
     public static final NativeFunctionDefinition PIVOT__RELATION_1__COL_SPEC_1__ANY_1_MANY__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::pivot<T,Z,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1], values:meta::pure::metamodel::type::Any[1..*], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]}, {K[*]->V[0..1]}, R>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
@@ -2374,7 +2437,9 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_TIME_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_TIME_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_TIME_ZONE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DATE_TIME_OF_TEXT = com.legend.model.FunctionId.ofAll(DATE_TIME_OF_TEXT__STRING_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DIVIDE_ROUND = com.legend.model.FunctionId.ofAll(DIVIDE_ROUND__NUMBER_1__NUMBER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ELEMENT_ID = com.legend.model.FunctionId.ofAll(ELEMENT_ID__ANY_0_1, ELEMENT_ID__ANY_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN = com.legend.model.FunctionId.ofAll(GREATER_THAN_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN_EQUAL = com.legend.model.FunctionId.ofAll(GREATER_THAN_EQUAL_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GROUP_BY_COMPUTED_KEYS = com.legend.model.FunctionId.ofAll(GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1, GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1);
@@ -2382,6 +2447,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_INLINE_VIEW = com.legend.model.FunctionId.ofAll(INLINE_VIEW__RELATION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_INSTANT_IN = com.legend.model.FunctionId.ofAll(INSTANT_IN__DATE_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_DISTINCT_FROM = com.legend.model.FunctionId.ofAll(IS_DISTINCT_FROM__ANY_1__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_KIND = com.legend.model.FunctionId.ofAll(IS_KIND__VARIANT_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_NUMERIC = com.legend.model.FunctionId.ofAll(IS_NUMERIC__STRING_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_JOIN_SLOT = com.legend.model.FunctionId.ofAll(JOIN_SLOT__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_JOIN_WITH_PREFIX = com.legend.model.FunctionId.ofAll(JOIN_WITH_PREFIX__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1__STRING_1);
@@ -2391,14 +2457,19 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LESS_THAN = com.legend.model.FunctionId.ofAll(LESS_THAN_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LESS_THAN_EQUAL = com.legend.model.FunctionId.ofAll(LESS_THAN_EQUAL_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LOCAL_IN = com.legend.model.FunctionId.ofAll(LOCAL_IN__DATE_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_MAX_BY = com.legend.model.FunctionId.ofAll(LITE_MAX_BY__ROW_MAPPER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_MIN_BY = com.legend.model.FunctionId.ofAll(LITE_MIN_BY__ROW_MAPPER_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_NAVIGATE = com.legend.model.FunctionId.ofAll(NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1, NAVIGATE__C_MANY__FUNC_COL_SPEC_1__FUNCTION_1, NAVIGATE__T_MANY__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_NOT_EQUAL_ANSI = com.legend.model.FunctionId.ofAll(NOT_EQUAL_ANSI__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_OTHERWISE = com.legend.model.FunctionId.ofAll(OTHERWISE__T_1__T_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_PARSE_DATE_FORMAT = com.legend.model.FunctionId.ofAll(PARSE_DATE_FORMAT__STRING_0_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_QUOTIENT = com.legend.model.FunctionId.ofAll(QUOTIENT__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RECURSE = com.legend.model.FunctionId.ofAll(RECURSE__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ROUTE = com.legend.model.FunctionId.ofAll(ROUTE__C_MANY__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SOURCE_URL = com.legend.model.FunctionId.ofAll(SOURCE_URL__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TDS = com.legend.model.FunctionId.ofAll(TDS__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF = com.legend.model.FunctionId.ofAll(TIME_OF__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF_TEXT = com.legend.model.FunctionId.ofAll(TIME_OF_TEXT__STRING_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TRUST_ONE = com.legend.model.FunctionId.ofAll(TRUST_ONE__T_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TUPLE = com.legend.model.FunctionId.ofAll(TUPLE__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_AS_DECLARED = com.legend.model.FunctionId.ofAll(TYPE_AS_DECLARED__ANY_01__T_1);
@@ -2639,6 +2710,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_MATH_PI = com.legend.model.FunctionId.ofAll(PI);
     public static final List<com.legend.model.FunctionId> AT_MATH_PLUS = com.legend.model.FunctionId.ofAll(PLUS__DECIMAL_MANY, PLUS__FLOAT_MANY, PLUS__NUMBER_MANY, PLUS__INTEGER_MANY);
     public static final List<com.legend.model.FunctionId> AT_MATH_POW = com.legend.model.FunctionId.ofAll(POW__NUMBER_1__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_RANDOM = com.legend.model.FunctionId.ofAll(RANDOM);
     public static final List<com.legend.model.FunctionId> AT_MATH_REM = com.legend.model.FunctionId.ofAll(REM__NUMBER_1__NUMBER_1);
     public static final List<com.legend.model.FunctionId> AT_MATH_ROUND = com.legend.model.FunctionId.ofAll(ROUND__DECIMAL_1__INTEGER_1, ROUND__FLOAT_1__INTEGER_1, ROUND__NUMBER_1);
     public static final List<com.legend.model.FunctionId> AT_MATH_SIGN = com.legend.model.FunctionId.ofAll(SIGN__NUMBER_1);

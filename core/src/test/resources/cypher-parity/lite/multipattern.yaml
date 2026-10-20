@@ -1,0 +1,54 @@
+# The #Cypher{...}# island's MATCH of several patterns read as rows joined on identity, re-anchored patterns that
+# find nothing, named paths re-anchored after rows, and the arms of a label-less start read against the stored way
+# (docs/CYPHER_STUDY_2026_10_15.md §12.70). Each case is judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/multipattern/*'), keyed lite/multipattern/<id>.
+cases:
+  - id: an_optional_pattern_finding_nothing_after_rows
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)<-[:T]-(x) RETURN a.name AS a, x.name AS x"
+  - id: a_pattern_finding_nothing_after_rows
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A) WITH a MATCH (a)<-[:T]-(x) RETURN x.name AS x"
+  - id: a_predicate_over_a_missing_label
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A), (b:B) WHERE NOT (a)-[:T]->(b:Missing) RETURN a.name AS a, b.name AS b"
+  - id: an_optional_named_path_after_rows
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:B {name: 'c'})
+    cypher: "MATCH (a:A), (x:B) OPTIONAL MATCH p = (a)-[:T]->(x) RETURN x.name AS x, p ORDER BY x"
+  - id: two_patterns_after_rows_meeting_at_a_node
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:A {name: 'b'}), (x:X {name: 'x'}), (y:X {name: 'y'}),
+             (a)-[:T]->(x), (b)-[:T]->(x), (a)-[:T]->(y)
+    cypher: "MATCH (a:A {name: 'a'}), (b:A {name: 'b'}) MATCH (a)-->(x), (b)-->(x) RETURN x.name AS x"
+  - id: three_unconnected_patterns
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'}), (:X {name: 'x'})
+    cypher: "MATCH (a:A {name: 'a'}), (b:A {name: 'b'}), (x:X {name: 'x'}) RETURN a.name AS a, b.name AS b, x.name AS x"
+  - id: an_untyped_cycle_with_a_second_pattern
+    graph: |
+      CREATE (a:A {id: 0}), (b:B {id: 1}), (c:C {id: 2}), (a)-[:T]->(b), (b)-[:T]->(c), (c)-[:T]->(a)
+    cypher: "MATCH (a)--(b)--(c), (c)--(a) WHERE a.id = 0 RETURN b.id AS b, c.id AS c ORDER BY b"
+  - id: connected_components_after_a_with
+    graph: |
+      CREATE (:A {name: 'a'})-[:REL]->(:X {name: 'x'}), (:B {name: 'b'})
+    cypher: "MATCH (n:A) WITH n MATCH (m:B), (n)-->(x:X) RETURN m.name AS m, n.name AS n, x.name AS x"
+  - id: an_undirected_typed_relationship_from_a_label_less_node
+    graph: |
+      CREATE ({name: 'a'})-[:KNOWS]->({name: 'b'})
+    cypher: "MATCH (x)-[:KNOWS]-(y) RETURN x.name AS x, y.name AS y ORDER BY x"
+  - id: an_incoming_typed_relationship_from_a_label_less_node
+    graph: |
+      CREATE ({name: 'a'})-[:KNOWS]->({name: 'b'})
+    cypher: "MATCH (x)<-[:KNOWS]-(y) RETURN x.name AS x, y.name AS y"
+  - id: an_optional_pattern_repeating_a_type
+    graph: |
+      CREATE (:A {name: 'a'})-[:K]->(:A {name: 'b'})-[:K]->(:A {name: 'c'})
+    cypher: "MATCH (a:A {name: 'a'}) OPTIONAL MATCH (a)-[:K]->()-[:K]->(x) RETURN x.name AS x"
+  - id: two_patterns_sharing_a_relationship_type_stay_distinct
+    graph: |
+      CREATE (a:A {name: 'a'})-[:K]->(b:A {name: 'b'}), (b)-[:K]->(a)
+    cypher: "MATCH (x)-->(y), (y)-->(z) RETURN x.name AS x, y.name AS y, z.name AS z ORDER BY x"

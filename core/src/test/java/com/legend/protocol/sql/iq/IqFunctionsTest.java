@@ -124,7 +124,11 @@ class IqFunctionsTest {
         // a style the island does not read, a domain, TIMESTAMP WITH TIME ZONE, a type of no value read (TIME, TINYINT,
         // unsigned, binary), a FLOAT's precision outside 1 to 53, a constant IQ cannot convert: refused by name (IQ
         // island, 2026-10-15: REAL and FLOAT(24) read now, IqToPureTest)
-        for (String sql : List.of("SELECT CONVERT(VARCHAR(10), dt, 23) AS x", "SELECT CONVERT(INT, dt, 112) AS x",
+        // IQ island, 2026-10-17: a style IQ's engine raises -1009145 for is read past the reader (IqFunctions
+        // .convertStyle), and refused by name under SQL Anywhere's front end (IqDialect.frontEndStyles)
+        assertTrue(assertThrows(SqlSyntaxException.class, () -> IqDialect.of(IqProfile.IQ16_DEFAULT.settings())
+                .parse("SELECT CONVERT(VARCHAR(10), CURRENT DATE, 23) AS x")).unsupported());
+        for (String sql : List.of("SELECT CONVERT(INT, dt, 112) AS x",
                 "SELECT CONVERT(VARCHAR(10), dt, 99999999999) AS x", "SELECT CAST(1 AS my_domain) AS x",
                 "SELECT CAST(ts AS TIMESTAMP WITH TIME ZONE) AS x", "SELECT CURRENT TIME AS x",
                 "SELECT CAST(id AS FLOAT(54)) AS x", "SELECT CAST(id AS FLOAT(0)) AS x", "SELECT CAST(id AS TIME) AS x",
@@ -146,6 +150,23 @@ class IqFunctionsTest {
                     .parse(c[0])).unsupported(), c[0]);
             assertTrue(pure(c[0] + " FROM " + T).contains(c[1]), c[0]);
         }
+    }
+
+    @Test
+    void aNameOfNoFunctionOfIqsIsItsErrorInIqsOrder() {
+        // IQ island, 2026-10-17 (measured on IQ 17.1): -265 once its arguments are read; a grouped query's column
+        // outside the GROUP BY first (-149); a syntax error in its arguments first of all (-131)
+        assertTrue(assertThrows(SqlTranslationException.class, () -> pure("SELECT STRING_AGG(vc, ',') AS a FROM " + T))
+                .getMessage().contains("-265"));
+        assertTrue(assertThrows(SqlTranslationException.class, () -> pure("SELECT sm, STRING_AGG(vc, ',') AS a FROM "
+                + T + " GROUP BY sm")).getMessage().contains("-149"));
+        assertTrue(assertThrows(SqlTranslationException.class, () -> pure("SELECT COUNT(*) AS n, STDEV(id) AS s FROM "
+                + T)).getMessage().contains("-149"));
+        assertTrue(assertThrows(RuntimeException.class, () -> pure("SELECT STRING_AGG(DATEPART(yyyy, dt), ',') AS a FROM "
+                + T)).getMessage().contains("-131"));
+        // the aggregates' forms after the name stay refused by name, as -265
+        assertTrue(assertThrows(RuntimeException.class, () -> pure("SELECT STRING_AGG(vc, ',') WITHIN GROUP (ORDER BY"
+                + " id) AS a FROM " + T)).getMessage().contains("-265"));
     }
 
     @Test
@@ -184,15 +205,21 @@ class IqFunctionsTest {
     }
 
     @Test
-    void countsLiteSComputesIn64BitsAreRefusedByName() {
-        // Postgres's substr, left, right, repeat and chr take a 32-bit integer
+    void countsLiteComputesIn64BitsAreReadAndCheckedAtRunTime() {
+        // IQ island, 2026-10-17 (the corpus lane; measured on IQ 17.1): a count or a position computed in 64 bits, or
+        // a BIGINT, is read; one past 32 bits is refused by name where the row computes it (IQ is not consistent
+        // there), and Postgres's dialect narrows it to its substr's, left's, right's and repeat's 32-bit integer
         for (String sql : List.of("SELECT SUBSTRING(vc, bg, 1) AS s FROM " + T,
                 "SELECT LEFT(vc, sm + 1) AS s FROM " + T, "SELECT REPEAT(vc, id * 2) AS s FROM " + T,
                 "SELECT LEFT('abc', row_num) AS s FROM sa_rowgenerator(1, 3)")) {
-            assertTrue(refusal(sql).getMessage().contains("32-bit"), sql);
+            assertFalse(pure(sql).isEmpty(), sql);
         }
-        assertTrue(refusal("SELECT CHAR(sm + 1) AS c FROM " + T).getMessage().contains("chr"));
-        assertTrue(refusal("SELECT CHAR(sm) AS c FROM " + T).getMessage().contains("NUL"));
+        assertTrue(pure("SELECT SUBSTRING(vc, bg, 1) AS s FROM " + T).contains("past 32 bits"));
+        // IQ island, 2026-10-17: DuckDB's and Postgres's chr are given a 32-bit integer, so a computed code is read; a
+        // code that may be 0 is refused where a row is 0 (a NUL), a constant 0 before translating
+        assertTrue(pure("SELECT CHAR(sm + 1) AS c FROM " + T).contains("NUL character"));
+        assertTrue(pure("SELECT CHAR(sm) AS c FROM " + T).contains("NUL character"));
+        assertTrue(refusal("SELECT CHAR(0) AS c FROM " + T).getMessage().contains("NUL"));
     }
 
     @Test
@@ -284,12 +311,14 @@ class IqFunctionsTest {
     @Test
     void whatTheIqEngineTypesOrComputesOtherwiseIsRefusedByItsDecision() {
         String[][] decided = {
-                {"SELECT STUFF(vc, 1, 1, 'x') AS s FROM " + T, "D-F3"},
                 {"SELECT PATINDEX('%', vc) AS p FROM " + T, "D-F6"},
         };
         for (String[] d : decided) {
             assertTrue(refusal(d[0]).getMessage().contains(d[1]), d[0]);
         }
+        // IQ island, 2026-10-17 (D-F3, measured on IQ 17.1): STUFF appends at a start just past the string under IQ's
+        // engine too, and a length past 32,767 is NULL there
+        assertTrue(pure("SELECT STUFF(vc, 1, 1, 'x') AS s FROM " + T).contains("32767"));
         // IQ island, 2026-10-15 (checklist 0.5; D-C2, D-N6, D-C1, measured on IQ 17.1): under IQ's engine a longer
         // string is cut to the target's bytes (characters in ISO-8859-1, whole characters in UTF-8), a DOUBLE to a
         // NUMERIC is its DOUBLE product cut toward zero, a NUMERIC whose text is too long raises for that row

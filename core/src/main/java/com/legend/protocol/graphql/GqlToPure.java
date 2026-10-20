@@ -1409,7 +1409,7 @@ public final class GqlToPure {
             if (eq == null) {
                 throw new IllegalStateException("filter " + in.name() + " without equals");
             }
-            // a NON-NULL property's comparisons need no presence guard (S99 holds by the type): the guard's
+            // a NON-NULL property's comparisons need no presence guard (S112 holds by the type): the guard's
             // emptiness test over a derived count was one more subquery per row
             return scalarFilter(o, in, read, GqlSchema.baseName(eq.type()), path, false, !prop.type().nullable());
         }

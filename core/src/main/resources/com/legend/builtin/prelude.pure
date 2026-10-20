@@ -389,34 +389,6 @@ native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::
 
 
 ###Pure
-// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/math/random.pure
-import meta::pure::test::pct::*;
-'''
-A pseudo-random number in the half-open interval from 0 inclusive to 1 exclusive.
-
-Marked as a side-effecting function because it returns a different value on each call: it is not
-referentially transparent, so an expression containing it cannot be assumed to be repeatable or safely
-cached.
-
-Scale it to the range you need — `$lo + random() * ($hi - $lo)` — and note that `1.0` never occurs, so
-`floor(random() * $n)` yields `0` to `n - 1`.
-
-Not suitable for cryptographic use.
-
-**Returns** a pseudo-random value in `[0, 1)`.
-
-**Examples**
-```pure
-random()                           // e.g. 0.7208...
-floor(random() * 6) + 1            // a die roll, 1 to 6
-```
-
-**See also** `floor(Number[1]):Integer[1]`
-'''
-native function <<functionType.SideEffectFunction, PCT.function>> meta::pure::functions::math::random():Float[1];
-
-
-###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/math/round/binFloor.pure
 import meta::pure::test::pct::*;
 '''
@@ -6582,11 +6554,11 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 485 classes, 23 enums, 153 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// 485 classes, 23 enums, 152 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
 // ENGINE LIBRARY FUNCTIONS — 1 bodied declarations outside the platform roots, carried by membership
 // (PreludeGenerator.ENGINE_LIBRARY_FUNCTIONS, each with its reason), verbatim, every overload:
 //   meta::pure::functions::collection::removeAll (2 overloads) — the corpus's tds extensions (columnValueDifference) and the prelude's SchemaState bodies call it; the corpus loader refuses the namespace as runtime (MinimalCorpus.refusePlatformNamespace), so this module is its only home. INTERIM for the namespace rule (charter D7: every bodied function upstream declares under meta::pure::functions:: is library, measured 2026-09-25 at 126 functions / 26 boot-typing failures / the agg form unowned) — one row until that lands
-// RESPELLED NATIVES — 66 upstream `native function` declarations the platform does not implement (carried so they
+// RESPELLED NATIVES — 65 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // ENGINE NATIVES NOT CARRIED — the signature names a type the platform does not carry
 // (a decided exclusion or a platform-owned name); a call is 'unknown function':
@@ -6733,6 +6705,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::math::mod
 //   meta::pure::functions::math::plus
 //   meta::pure::functions::math::pow
+//   meta::pure::functions::math::random
 //   meta::pure::functions::math::rem
 //   meta::pure::functions::math::round
 //   meta::pure::functions::math::sign

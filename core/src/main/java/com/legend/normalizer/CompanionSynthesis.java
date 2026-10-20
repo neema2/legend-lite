@@ -348,7 +348,7 @@ public final class CompanionSynthesis {
     }
 
     /** The fold's function, by the catalog's overload of the scalar's kind: sum and average over numbers; min and
-     *  max over numbers or dates, and over strings the collection's own (code point order, register S91). */
+     *  max over numbers or dates, and over strings the collection's own (code point order, register S104). */
     private static String foldFunction(Companion.Fold fold, Scalar sc) {
         String kind = kind(sc);
         return switch (fold) {

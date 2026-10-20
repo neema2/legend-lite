@@ -1,0 +1,80 @@
+# The #Cypher{...}# island's cases of nodes and relationships told apart by identity under DISTINCT and a grouping
+# (docs/CYPHER_STUDY_2026_10_15.md §12.47, the plan's W2): a returned or carried node is its columns (the identity
+# among them), the DISTINCT or the grouping keys over them, its JSON rebuilt after; count(DISTINCT x) the distinct
+# values, count(DISTINCT n) the distinct identities. Each case is judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/grouping/*'), keyed lite/grouping/<id>.
+tests:
+  - id: distinct_nodes_alike_are_two
+    graph: |
+      CREATE (:A {num: 9}), (:A {num: 9}), (:A {num: 5})
+    cypher: "MATCH (n:A) RETURN DISTINCT n ORDER BY n.num"
+  - id: distinct_nodes_after_a_hop
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (:A {name: 'c'})-[:T]->(b), (:A {name: 'd'})-[:T]->(:B {name: 'e'})
+    cypher: "MATCH (a:A)-[:T]->(b:B) RETURN DISTINCT b ORDER BY b.name"
+  - id: distinct_over_a_label_less_pattern
+    graph: |
+      CREATE ({name: 'x'}), (:A {name: 'x'}), (:A {name: 'x'})
+    cypher: "MATCH (n) RETURN DISTINCT n"
+  # sorted before its collect (2026-10-18): a collect's list has no order of its own, and DuckDB's came back either
+  # way over the DISTINCT (the IQ landing's gate runs); the sorted rows are collected in order, in Neo4j and in lite
+  - id: with_distinct_node_then_counted
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B), (a)-[:T]->(:B), (:A {name: 'c'})-[:T]->(:B)
+    cypher: "MATCH (a:A)-[:T]->(:B) WITH DISTINCT a ORDER BY a.name RETURN count(*) AS c, collect(a.name) AS names"
+  - id: nodes_alike_group_apart
+    graph: |
+      CREATE (:A {num: 9}), (:A {num: 9}), (:A {num: 5})
+    cypher: "MATCH (n:A) RETURN n, count(*) AS c ORDER BY n.num"
+  - id: a_node_grouped_over_its_hops
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B), (a)-[:T]->(:B), (:A {name: 'c'})-[:T]->(:B)
+    cypher: "MATCH (a:A)-[:T]->(b:B) RETURN a, count(b) AS c ORDER BY a.name"
+  - id: a_node_grouped_then_filtered
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B), (a)-[:T]->(:B), (:A {name: 'c'})-[:T]->(:B)
+    cypher: "MATCH (a:A)-[:T]->(:B) WITH a, count(*) AS c WHERE c > 1 RETURN a"
+  - id: two_nodes_among_the_keys
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (a)-[:T]->(b), (a)-[:T]->(:B {name: 'c'})
+    cypher: "MATCH (a:A)-[:T]->(b:B) RETURN a, b, count(*) AS c ORDER BY b.name"
+  - id: an_absent_node_among_the_keys
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) RETURN b, count(*) AS c ORDER BY b.name"
+  - id: a_node_and_an_expression_around_its_count
+    graph: |
+      CREATE (:A {num: 42})
+    cypher: "MATCH (a:A) RETURN a, count(a) + 3 AS c"
+  - id: count_distinct_values
+    graph: |
+      CREATE (:A {num: 1}), (:A {num: 1}), (:A {num: 2}), (:A)
+    cypher: "MATCH (n:A) RETURN count(DISTINCT n.num) AS c, count(n.num) AS all"
+  - id: count_distinct_nodes
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B), (a)-[:T]->(:B), (:A {name: 'c'})-[:T]->(:B)
+    cypher: "MATCH (a:A)-[:T]->(b:B) RETURN count(DISTINCT a) AS distinctA, count(a) AS allA, count(DISTINCT b) AS distinctB"
+  - id: count_distinct_of_absent_nodes
+    graph: |
+      CREATE (:A {name: 'a'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) RETURN count(DISTINCT b) AS c"
+  - id: distinct_edge_relationships
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {w: 1}]->(:B {name: 'b'}), (:A {name: 'c'})-[:T {w: 1}]->(:B {name: 'd'})
+    cypher: "MATCH (:A)-[r:T]->(:B) RETURN DISTINCT r"
+  - id: an_edge_relationship_among_the_keys
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {w: 1}]->(:B {name: 'b'}), (:A {name: 'c'})-[:T {w: 1}]->(:B {name: 'd'})
+    cypher: "MATCH (:A)-[r:T]->(:B) RETURN r, count(*) AS c"
+  - id: distinct_association_relationships
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B), (:A {name: 'c'})-[:T]->(:B)
+    cypher: "MATCH (:A)-[r:T]->(:B) RETURN DISTINCT r"
+  - id: grouping_by_an_association_relationship
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B), (:A {name: 'c'})-[:T]->(:B)
+    cypher: "MATCH (:A)-[r:T]->(:B) WITH r, count(*) AS c RETURN c"
+  - id: collect_distinct_stays_refused
+    graph: |
+      CREATE (:A {num: 1}), (:A {num: 1})
+    cypher: "MATCH (n:A) RETURN collect(DISTINCT n.num) AS l"

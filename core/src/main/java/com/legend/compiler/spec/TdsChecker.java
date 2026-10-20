@@ -46,6 +46,12 @@ final class TdsChecker {
         if (content.endsWith("#")) {
             content = content.substring(0, content.length() - 1);
         }
+        // the engine's brace form, #TDS{...}#: the braces wrap the grid (the brace-less form is legend-pure's; a
+        // literal parsed from text arrived with its braces and read '{' as its first header cell, 2026-10-17)
+        content = content.strip();
+        if (content.startsWith("{") && content.endsWith("}")) {
+            content = content.substring(1, content.length() - 1);
+        }
         String[] lines = content.strip().split("\n");
         if (lines.length == 0 || lines[0].strip().isEmpty()) {
             throw new TypeInferenceException("a TDS literal needs a header row of column names");

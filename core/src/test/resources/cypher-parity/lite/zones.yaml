@@ -1,0 +1,79 @@
+# The #Cypher{...}# island's zones the database reads (docs/CYPHER_STUDY_2026_10_15.md §12.75): a stored zoned time's or
+# date-time's offset slot, and a stored date-time's region slot where it names one, read beside the instant (through a
+# WITH as hidden columns of the rows); a named zone's offset at an instant, the database's (the time of a Stockholm
+# date-time, its offset text, its toString with the zone's name in brackets); a value moved in a stored region taking
+# the region's offset at the instant it is moved to. Each case is judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/zones/*'), keyed lite/zones/<id>.
+tests:
+  - id: stored_offset_fields
+    graph: |
+      CREATE (:Val {t: time('12:31:14.645+05:30'), d: datetime('1984-11-11T12:31:14-03:00')})
+    cypher: "MATCH (v:Val) RETURN v.t.hour AS h, v.t.timezone AS tz, v.t.offset AS o, v.t.offsetMinutes AS m, v.t.offsetSeconds AS s, v.d.hour AS dh, v.d.offset AS dofs, v.d.timezone AS dtz, v.d.day AS dd"
+  - id: stored_offset_through_with
+    graph: |
+      CREATE (:Val {t: time('12:31:14.645+05:30'), d: datetime('1984-11-11T23:31:14-03:00')})
+    cypher: "MATCH (v:Val) WITH v.t AS t, v.d AS d RETURN t.minute AS m, t.offset AS o, d.day AS day, d.hour AS h, d.offsetMinutes AS om, toString(t) AS ts, toString(d) AS ds"
+  - id: stored_offset_texts
+    graph: |
+      CREATE (:Val {name: 'a', t: time('00:15+00:45'), d: datetime('2000-01-01T00:00Z')}), (:Val {name: 'b', t: time('23:59:59-09:30'), d: datetime('2000-01-01T00:00:00+14:00')})
+    cypher: "MATCH (v:Val) RETURN v.name AS n, toString(v.t) AS t, toString(v.d) AS d, v.t.offset AS o, v.d.timezone AS z ORDER BY n"
+  - id: stored_time_plus_duration_ordered
+    graph: |
+      CREATE (:Val {name: 'a', t: time('23:50+01:00')}), (:Val {name: 'b', t: time('00:10+05:00')}), (:Val {name: 'c', t: time('12:00-02:00')})
+    cypher: "MATCH (v:Val) WITH v ORDER BY v.t + duration({minutes: 20}) RETURN v.name AS n, toString(v.t + duration({minutes: 20})) AS t"
+  - id: stored_time_moved_through_with
+    graph: |
+      CREATE (:Val {name: 'a', t: time('23:50+01:00')}), (:Val {name: 'b', t: time('00:10+05:00')})
+    cypher: "MATCH (v:Val) WITH v.name AS n, v.t + duration({minutes: 20}) AS t RETURN n, t.hour AS h, t.offset AS o, toString(t) AS ts ORDER BY n"
+  - id: stored_region_fields
+    graph: |
+      CREATE (:Val {d: datetime('1984-07-11T12:31:14.645[Europe/Stockholm]')})
+    cypher: "MATCH (v:Val) RETURN v.d.timezone AS z, v.d.offset AS o, v.d.hour AS h, v.d.offsetSeconds AS s, toString(v.d) AS t"
+  - id: stored_region_through_with
+    graph: |
+      CREATE (:Val {d: datetime('1984-01-11T12:31:14[America/New_York]')})
+    cypher: "MATCH (v:Val) WITH v.d AS d RETURN d.timezone AS z, d.offset AS o, d.hour AS h, toString(d) AS t"
+  - id: stored_regions_and_offsets
+    graph: |
+      CREATE (:Val {name: 'a', d: datetime('2017-07-01T12:00[Europe/Stockholm]')}), (:Val {name: 'b', d: datetime('2017-07-01T12:00+02:00')}), (:Val {name: 'c'})
+    cypher: "MATCH (v:Val) RETURN v.name AS n, v.d.timezone AS z, v.d.offset AS o, toString(v.d) AS t ORDER BY n"
+  - id: stored_region_moved_across_summer_time
+    graph: |
+      CREATE (:Val {name: 'a', d: datetime('2017-01-15T12:00[Europe/Stockholm]')}), (:Val {name: 'b', d: datetime('2017-01-15T12:00+01:00')})
+    cypher: "MATCH (v:Val) WITH v.name AS n, v.d + duration({months: 6}) AS d RETURN n, d.hour AS h, d.offset AS o, d.timezone AS z, toString(d) AS t ORDER BY n"
+  - id: stored_region_moved_by_hours
+    graph: |
+      CREATE (:Val {d: datetime('2017-03-26T01:30[Europe/Stockholm]')})
+    cypher: "MATCH (v:Val) RETURN toString(v.d + duration({hours: 1})) AS a, toString(v.d + duration({days: 1})) AS b"
+  - id: stored_region_rebuilt
+    graph: |
+      CREATE (:Val {d: datetime('2017-01-15T12:00[Europe/Stockholm]')})
+    cypher: "MATCH (v:Val) RETURN toString(datetime({datetime: v.d, month: 7})) AS a, toString(datetime({datetime: v.d, timezone: '+05:00'})) AS b, toString(datetime.truncate('month', v.d)) AS c"
+  - id: stored_region_time_of
+    graph: |
+      CREATE (:Val {d: datetime('2017-07-15T12:00[Europe/Stockholm]')})
+    cypher: "MATCH (v:Val) RETURN toString(time(v.d)) AS t, time(v.d).timezone AS z, time(v.d).offset AS o"
+  - id: stored_region_between
+    graph: |
+      CREATE (:Val {d: datetime('2017-10-29T04:00[Europe/Stockholm]')})
+    cypher: "MATCH (v:Val) RETURN duration.between(localdatetime('2017-10-29T00:00'), v.d) AS a, duration.between(v.d, localtime('01:00')) AS b"
+  - id: named_zone_time_of
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "WITH datetime('2017-07-01T12:00[Europe/Stockholm]') AS d, datetime('2017-01-01T12:00[Europe/Stockholm]') AS w RETURN toString(time(d)) AS a, time(d).offset AS b, toString(time(w)) AS c, toString(time({time: d, second: 5})) AS e"
+  - id: named_zone_texts
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "RETURN toString(datetime({year: 2017, month: 1, day: 8, hour: 12, timezone: 'Europe/London'})) AS a, toString(datetime({year: 2017, month: 7, day: 8, hour: 12, timezone: 'America/New_York'})) AS b, datetime('2017-07-08T12:00[Asia/Kolkata]').offset AS c"
+  - id: named_zone_time_through_with
+    graph: |
+      CREATE (:A {v: 1})
+    cypher: "WITH time(datetime('2017-07-01T12:00[Europe/Stockholm]')) AS t RETURN t.offset AS o, t.offsetSeconds AS s, toString(t) AS ts"
+  - id: stored_zone_grouped
+    graph: |
+      CREATE (:Val {d: datetime('2017-07-01T12:00+02:00')}), (:Val {d: datetime('2017-07-01T12:00+02:00')}), (:Val {d: datetime('2017-07-01T13:00+03:00')})
+    cypher: "MATCH (v:Val) WITH v.d AS d, count(*) AS c RETURN toString(d) AS t, c ORDER BY t"
+  - id: stored_zone_optional_absent
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (:A {name: 'a2'}), (b1:B {d: datetime('2017-07-01T12:00+02:00')}), (a1)-[:T]->(b1)
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) WITH a.name AS n, b.d AS d RETURN n, d.offset AS o, toString(d) AS t ORDER BY n"

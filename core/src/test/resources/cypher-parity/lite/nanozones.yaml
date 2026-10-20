@@ -1,0 +1,37 @@
+# The #Cypher{...}# island's zoned date-times and zoned times of nanosecond precision as their parts (the TCK-to-zero
+# plan's W13, leg 3, docs/CYPHER_STUDY_2026_10_15.md §12.87): a zoned date-time its UTC date and UTC nanoseconds since
+# midnight, a zoned time its UTC nanoseconds from the epoch day's midnight, the zone beside (a spelled offset, a named
+# region the database reads, an offset the database reads); every operation the database's integer and date
+# arithmetic, so every lane computes them. With them, Neo4j's reading of a wall time a region's clocks show twice
+# and of a zoned time converted to another offset, at either precision (one instant in two zones compares as one
+# value here, the register's S66). Each case is judged by Neo4j's answer in
+# neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/nanozones/*'), keyed lite/nanozones/<id>.
+tests:
+  - id: zoned_values_returned
+    cypher: "RETURN datetime('1984-10-11T12:31:14.645876123+01:00') AS a, datetime({year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, nanosecond: 1, timezone: '-05:00'}) AS b, datetime({year: 9999, month: 12, day: 31, hour: 23, minute: 59, second: 59, nanosecond: 999999999, timezone: '+05:00'}) AS c, datetime('2017-07-01T12:00:00.000000001[Europe/Stockholm]') AS d, time('12:31:14.645876123+01:00') AS e, time('00:30:00.000000001+05:00') AS f"
+  - id: fields_in_the_zone
+    cypher: "WITH datetime('2017-03-26T01:30:00.123456789+01:00[Europe/Stockholm]') AS z, datetime('1984-10-11T23:31:14.645876123-02:00') AS o, time('00:15:00.000000007+05:00') AS t RETURN z.hour, z.nanosecond, z.offset, z.offsetMinutes, z.offsetSeconds, z.timezone, z.epochSeconds, z.epochMillis, o.day, o.hour, o.offset, o.epochSeconds, o.epochMillis, t.hour, t.minute, t.nanosecond, t.offset, t.offsetSeconds"
+  - id: texts_in_the_zone
+    cypher: "RETURN toString(datetime('2017-07-01T12:00:00.000000001[Europe/Stockholm]')) AS a, toString(datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876100, timezone: '+02:05:59'})) AS b, toString(time('23:59:59.999999999-18:00')) AS c, datetime(toString(datetime('2015-07-21T21:40:32.142000009+01:00'))) = datetime('2015-07-21T21:40:32.142000009+01:00') AS d"
+  - id: compared_across_zones
+    cypher: "WITH datetime('2017-01-01T12:00:00.000000001+01:00') AS a, datetime('2017-01-01T11:00:00.000000001Z') AS b, datetime('2017-01-01T11:00:00.000000002Z') AS c, time('12:00:00.000000001+01:00') AS t, time('11:00:00.000000001Z') AS u RETURN a < c, c > a, a >= b, a = datetime('2017-01-01T12:00:00.000000001+01:00') AS same, a <> c AS ne, t >= u, t < time('11:00:00.000000002Z') AS tl, u < time('12:00:00.000000002+01:00') AS ul"
+  - id: carried_through_with
+    cypher: "WITH datetime('2017-10-29T02:30:00.000000005[Europe/Stockholm]') AS z, time('23:00:00.000000003+01:00') AS t WITH z, t WITH z, t WHERE z.nanosecond = 5 RETURN z, z.offset, z.hour, t, t.offset, toString(z) AS s"
+  - id: ordered_through_a_with
+    cypher: "UNWIND [3, 1, 2] AS i WITH datetime({year: 2020, month: 6, day: i, hour: 23, minute: 0, second: 0, nanosecond: 9, timezone: '-02:00'}) AS d, time({hour: i, minute: 0, second: 0, nanosecond: 9, timezone: '+05:00'}) AS t, i WITH d, t, i ORDER BY d DESC RETURN d, t, i"
+  - id: moved_by_durations
+    cypher: "WITH datetime('2017-03-25T02:30:00.000000001[Europe/Stockholm]') AS z, datetime('1984-10-11T23:59:59.999999999+01:00') AS o, time('23:59:59.999999999+01:00') AS t RETURN z + duration({days: 1}) AS a, z + duration({hours: 24}) AS b, o + duration({nanoseconds: 1}) AS c, o - duration({months: 1, seconds: 1}) AS e, t + duration({nanoseconds: 2}) AS f, t - duration({hours: 25}) AS g"
+  - id: truncated_in_the_zone
+    cypher: "WITH datetime('2017-10-29T02:30:00.645876123+02:00[Europe/Stockholm]') AS z, datetime('1984-10-11T12:31:14.645876123+01:00') AS o, time('12:31:14.645876123+01:00') AS t RETURN datetime.truncate('day', z) AS a, datetime.truncate('hour', z) AS b, datetime.truncate('hour', o, {timezone: '+03:00'}) AS c, datetime.truncate('millisecond', o, {nanosecond: 7}) AS e, time.truncate('hour', z) AS f, time.truncate('second', t, {nanosecond: 2}) AS g, localdatetime.truncate('day', z) AS h"
+  - id: between_zoned_values
+    cypher: "WITH datetime('2017-10-29T00:00:00.000000001[Europe/Stockholm]') AS z, localdatetime('2017-10-29T04:00:00.000000002') AS l, datetime('1984-10-11T12:31:14.645876123+01:00') AS o, time('12:31:14.645876123+01:00') AS t, localtime('11:00:00.000000001') AS u RETURN duration.between(z, l) AS a, duration.between(o, z) AS b, duration.inSeconds(o, z) AS c, duration.between(t, u) AS e, duration.between(t, o) AS f, duration.between(date('2017-10-29'), z) AS g"
+  - id: from_the_epoch
+    cypher: "RETURN datetime.fromepoch(1, 999999999) AS a, datetime.fromepoch(-1, 1) AS b, datetime.fromepoch(253402300799, 999999999) AS c, datetime.fromepoch(1, 999999999).epochMillis AS e, datetime.fromepoch(-86401, 999999999) AS f"
+  - id: converted_between_zones
+    cypher: "WITH datetime('2017-07-01T12:00:00.000000001[Europe/Stockholm]') AS z, time('23:00:00.000000001+01:00') AS t RETURN datetime({datetime: z, timezone: '-05:00'}) AS a, datetime({datetime: z, timezone: 'Asia/Tokyo'}) AS b, time({time: t, timezone: '+14:00'}) AS c, time({time: t, timezone: '+14:00'}) < time('00:00Z') AS d, localdatetime({datetime: z}) AS e, time(z) AS f, date(z) AS g"
+  - id: an_offset_its_zone_disowns
+    cypher: "RETURN datetime('2017-07-01T12:00:00.000000001+05:00[Europe/Stockholm]') AS d"
+  - id: fromepoch_nanoseconds_past_the_second_is_neo4js_error
+    cypher: "RETURN datetime.fromepoch(0, 1000000000) AS d"
+  - id: wall_times_a_region_shows_twice_or_skips
+    cypher: "RETURN datetime('2017-10-29T02:30[Europe/Stockholm]') AS overlap, datetime('2017-03-26T02:30[Europe/Stockholm]') AS gap, datetime({year: 2017, month: 10, day: 29, hour: 2, minute: 59, second: 59, nanosecond: 999999999, timezone: 'Europe/Stockholm'}) AS lastOverlap, datetime('2017-10-29T01:59:59.999999999[Europe/Stockholm]') AS before, time({time: time('23:00+01:00'), timezone: '+14:00'}) < time('00:00Z') AS converted"

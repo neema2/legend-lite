@@ -1,0 +1,47 @@
+# The #Cypher{...}# island's cycle and self-association cases (docs/CYPHER_STUDY_2026_10_15.md §12.50, the plan's W2
+# leg 5): a node named again within one pattern reads under a fresh name equal to the first by identity; an OPTIONAL
+# MATCH the optional hop cannot read (an untyped relationship, a bound far node) re-anchors over the graph's rows; an
+# undirected relationship over a self-association reads both directions, a loop once (the rows deduped by identity).
+# Each case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/cycles/*'), keyed lite/cycles/<id>.
+tests:
+  - id: a_self_loop_matched
+    graph: |
+      CREATE (n:A {name: 'n'})-[:T]->(n), (:A {name: 'm'})-[:T]->(:A {name: 'o'})
+    cypher: "MATCH (n:A)-[r:T]->(n) RETURN n.name AS nn"
+  - id: a_two_node_cycle_matched
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:A {name: 'b'}), (b)-[:T]->(a), (a)-[:T]->(:A {name: 'c'})
+    cypher: "MATCH (a:A)-[:T]->(b:A)-[:T]->(a) RETURN a.name AS an, b.name AS bn ORDER BY an"
+  - id: a_cycle_through_a_label_less_node
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (b)-[:U]->(a), (a)-[:T]->(:B {name: 'c'})
+    cypher: "MATCH (a:A)-[:T]->()-[:U]->(a) RETURN a.name AS an"
+  - id: a_cycle_in_a_second_pattern_of_one_match
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (b)-[:U]->(a), (a)-[:T]->(:B {name: 'c'})
+    cypher: "MATCH (a:A)-[:T]->(b:B), (b)-[:U]->(a) RETURN a.name AS an, b.name AS bn"
+  - id: an_optional_cycle
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (b)-[:U]->(a), (a)-[:T]->(:B {name: 'c'})
+    cypher: "MATCH (a:A)-[:T]->(b:B) OPTIONAL MATCH (b)-[u:U]->(a) RETURN a.name AS an, b.name AS bn, u IS NULL AS none ORDER BY bn"
+  - id: an_optional_untyped_hop
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-->(x) RETURN a.name AS an, x.name AS xn ORDER BY an"
+  - id: a_self_loop_undirected_matches_once
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(a), (b:A {name: 'b'})-[:T]->(:A {name: 'c'})
+    cypher: "MATCH (x:A)-[r:T]-(y:A) RETURN x.name AS xn, y.name AS yn ORDER BY xn, yn"
+  - id: a_self_loop_undirected_untyped
+    graph: |
+      CREATE (a) CREATE (a)-[:T]->(a)
+    cypher: "MATCH ()-[r]-() RETURN type(r) AS r"
+  - id: a_self_loop_undirected_bound_both_ends
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(a), (:A {name: 'b'})-[:T]->(:A {name: 'c'})
+    cypher: "MATCH (n)-[r]-(n) RETURN n.name AS nn"
+  - id: a_looper_in_a_chain
+    graph: |
+      CREATE (:A)-[:T1]->(l:Looper), (l)-[:LOOP]->(l), (l)-[:T2]->(:B)
+    cypher: "MATCH (x:A)-[r1]->(y)-[r2]-(z) RETURN x, r1, y, r2, z"

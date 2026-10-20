@@ -115,12 +115,14 @@ tests:
   - id: substring_in_sql_anywhere
     sql: "SELECT id, SUBSTRING(vc, -1, 4) AS s FROM t ORDER BY id"
     profile: sqla17-default
-  - id: substring_by_a_bigint_is_refused
+  - id: substring_by_a_bigint
     sql: "SELECT SUBSTRING(vc, bg, 1) AS s FROM t WHERE id = 3"
-  - id: substring_by_a_rowgenerator_value_is_refused
+    decision: D-F18
+    expect: '[["R"]]'
+  - id: substring_by_a_rowgenerator_value
     sql: "SELECT row_num, LEFT('mnopqrst', row_num) AS s FROM sa_rowgenerator(0, 3)"
     engine: sa
-  - id: substring_by_computed_position_is_refused
+  - id: substring_by_a_computed_position
     sql: "SELECT row_num, SUBSTRING('mnopqrst', row_num - 3, 4) AS s FROM sa_rowgenerator(0, 3)"
     engine: sa
   - id: substring_by_a_numeric_is_refused
@@ -346,10 +348,10 @@ tests:
     engine: sa
   - id: patindex_over_columns
     sql: "SELECT id, PATINDEX('%l%', vc) AS a, PATINDEX('h%', vc) AS b, PATINDEX('%e', vc) AS c FROM t ORDER BY id"
-  - id: patindex_of_a_single_character_wildcard_is_refused
+  - id: patindex_of_a_single_character_wildcard
     sql: "SELECT PATINDEX('%b_', 'abc') AS a"
     engine: sa
-  - id: patindex_of_a_set_is_refused
+  - id: patindex_of_a_set
     sql: "SELECT PATINDEX('%[0-9]%', 'ab1') AS a"
     engine: sa
   - id: patindex_of_percents_alone_under_iq_is_refused
@@ -370,6 +372,8 @@ tests:
   - id: stuff_in_sql_anywhere
     sql: "SELECT id, STUFF(vc, 2, 1, '#') AS s FROM t ORDER BY id"
     profile: sqla17-default
+  # IQ island, 2026-10-17 (D-F3, measured on IQ 17.1): read under IQ's engine too (stuff_under_iqs_engine in
+  # corpus_gaps), the id kept from when it was refused
   - id: stuff_under_the_iq_engine_is_refused
     sql: "SELECT STUFF(vc, 2, 1, '#') AS s FROM t WHERE id = 1"
 
@@ -397,7 +401,7 @@ tests:
   - id: char_of_a_numeric_is_refused
     sql: "SELECT CHAR(65.7) AS c"
     engine: sa
-  - id: ascii_in_sql_anywhere_is_refused
+  - id: ascii_in_sql_anywhere
     sql: "SELECT ASCII(vc) AS a FROM t WHERE id = 1"
     profile: sqla17-default
   - id: char_below_128_in_sql_anywhere

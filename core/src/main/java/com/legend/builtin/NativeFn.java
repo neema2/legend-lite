@@ -640,7 +640,12 @@ public final class NativeFn {
         WITH_CHAINED_MAPPINGS("meta::pure::mapping::withChainedMappings",
                 Pure.WITH_CHAINED_MAPPINGS),
         RELATIONAL_MAPPER_POST_PROCESSOR("meta::pure::alloy::connections::relationalMapperPostProcessor",
-                Pure.RELATIONAL_MAPPER_PP);
+                Pure.RELATIONAL_MAPPER_PP),
+        // a mapped instance's identity as text, rewritten by the store resolver to the read of its class's primary
+        // key (StoreResolver.elementIdRead; the Cypher island's identity, W2 of
+        // docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md; claimed here 2026-10-17, the spec guards' repair)
+        ELEMENT_ID(Pure.Lite.ELEMENT_ID,
+                Pure.ELEMENT_ID__ANY_0_1, Pure.ELEMENT_ID__ANY_MANY);
 
         private final String fqn;
         private final List<NativeFunctionDefinition> overloads;

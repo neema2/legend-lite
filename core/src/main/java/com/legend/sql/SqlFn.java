@@ -64,6 +64,9 @@ public enum SqlFn {
     PURE_SPLIT_PART,
     REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST,
     ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT, HASH, MD5, SHA1, SHA256,
+    /** The database's random float in [0, 1) (lite's {@code random()}, the Cypher island's {@code rand()}): a value
+     *  of the call, not of the data, read once per row it is spelled in. */
+    RANDOM,
     // Temporal: EXTRACT takes a part-name literal first (one entry, all parts)
     EXTRACT, TODAY, NOW, DATE_TRUNC_DAY, MAKE_DATE, MAKE_TIMESTAMP,
     // Temporal (part-literal-first like EXTRACT): truncation, arithmetic,

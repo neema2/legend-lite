@@ -184,9 +184,63 @@ public final class UserCallInliner {
             // (engine inScopeVars)
             queryLets.putAll(scope.terms);
             TypedSpec last = body.get(body.size() - 1);
-            return List.of(last instanceof TypedLet let
+            TypedSpec result = last instanceof TypedLet let
                     ? reduce(let.value(), scope)
-                    : reduce(last, scope));
+                    : reduce(last, scope);
+            readOnce(scope.terms, result);
+            return List.of(result);
+        }
+    }
+
+    /**
+     * A term that draws afresh where it is written ({@code random()}, {@code generateGuid()}: the database draws at
+     * each place, SqlFn.RANDOM and GUID) bound to a name read more than once, or read under a lambda the binding
+     * stands outside (once per row), in {@code reduced}: refused by name. Pure's let and parameter bind one value;
+     * the substitution above writes the term at each read, so each would draw again ({@code let r = random(); $r ==
+     * $r} false; the independent review, 2026-10-18). A term is found by reference: the substitution places the one
+     * bound term at each read. A draw written at each place in the source is the program's own, and stays.
+     */
+    private static void readOnce(Map<String, TypedSpec> bound, TypedSpec reduced) {
+        for (Map.Entry<String, TypedSpec> e : bound.entrySet()) {
+            if (!drawsAfresh(e.getValue())) {
+                continue;
+            }
+            int[] reads = {0};
+            boolean[] perRow = {false};
+            countReads(reduced, e.getValue(), false, reads, perRow);
+            if (reads[0] > 1 || perRow[0]) {
+                throw new NotImplementedException("$" + e.getKey() + " holds a value drawn afresh where it is"
+                        + " written (random(), generateGuid()) and is read " + (perRow[0] ? "once per row"
+                        : reads[0] + " times") + ": each reading would draw again, where the binding is one value;"
+                        + " not supported yet");
+            }
+        }
+    }
+
+    /** Whether {@code t} holds a call that draws afresh at each place it is written. */
+    private static boolean drawsAfresh(TypedSpec t) {
+        if (t instanceof TypedNativeCall c && (com.legend.builtin.Pure.AT_MATH_RANDOM.contains(c.callee().id())
+                || com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID.contains(c.callee().id()))) {
+            return true;
+        }
+        for (TypedSpec k : t.children()) {
+            if (drawsAfresh(k)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The places {@code term} stands in {@code t} (by reference), and whether one is under a lambda. */
+    private static void countReads(TypedSpec t, TypedSpec term, boolean underLambda, int[] reads, boolean[] perRow) {
+        if (t == term) {
+            reads[0]++;
+            perRow[0] |= underLambda;
+            return;
+        }
+        boolean lambda = underLambda || t instanceof TypedLambda;
+        for (TypedSpec k : t.children()) {
+            countReads(k, term, lambda, reads, perRow);
         }
     }
 
@@ -432,6 +486,7 @@ public final class UserCallInliner {
                 }
                 reduced = instantiate(deepFoldInlined(
                         reduceStatements(body, callEnv)), call, args);
+                readOnce(callEnv.terms, reduced);
             }
             if (widened && com.legend.compiler.element.type.Type
                     .relationSchema(call.info().type())
@@ -856,9 +911,11 @@ public final class UserCallInliner {
             // it) — `{ let r = $x + 100 }` returns the sum, and no let node
             // survives into H/I.
             TypedSpec last = body.get(body.size() - 1);
-            return last instanceof TypedLet let
+            TypedSpec value = last instanceof TypedLet let
                     ? reduce(let.value(), scope)
                     : reduce(last, scope);
+            readOnce(scope.terms, value);
+            return value;
         }
     }
 

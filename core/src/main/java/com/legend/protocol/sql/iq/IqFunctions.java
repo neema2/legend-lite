@@ -41,8 +41,9 @@ import java.util.function.Function;
  *       length is IQ's error -1090); {@code LEFT} and {@code RIGHT} (a negative count is ''); {@code TRIM},
  *       {@code LTRIM} and {@code RTRIM} of what an ISO-8859-1 database trims (the space, tab, line feed, vertical tab,
  *       form feed, carriage return), or of a constant set; {@code REPLACE}, {@code CHARINDEX}, {@code LOCATE} (a
- *       negative start finds the last occurrence) and {@code PATINDEX} (of a constant pattern of one literal
- *       between %s) case-sensitively, as an IQ database matches, a search of 255 characters or more NULL;
+ *       negative start finds the last occurrence) and {@code PATINDEX} (of a constant pattern, LIKE's parts read
+ *       as a regular expression where they are not one literal between %s) case-sensitively, as an IQ database
+ *       matches, a search of 255 characters or more NULL;
  *       {@code UPPER}, {@code LOWER}, {@code UCASE}, {@code LCASE} by IQ's ASCII-only fold, and a {@code sqla17}
  *       profile's matching without regard to the ASCII letters' case, both composed of {@code replace} (IQ island,
  *       2026-10-14: the natives' slice);
@@ -91,17 +92,19 @@ final class IqFunctions {
     private enum Fn {
         LENGTH(1, 1), LEN(1, 1), CHAR_LENGTH(1, 1), SUBSTRING(2, 3), SUBSTR(2, 3), LEFT(2, 2), RIGHT(2, 2),
         TRIM(1, 2), LTRIM(1, 2), RTRIM(1, 2), REPLACE(3, 3), REPEAT(2, 2), REPLICATE(2, 2), SPACE(1, 1),
-        CHARINDEX(2, 2), LOCATE(2, 3), PATINDEX(2, 2), STUFF(4, 4), ASCII(1, 1), CHAR(1, 1),
+        CHARINDEX(2, 2), LOCATE(2, 3), PATINDEX(2, 2), STUFF(4, 4), ASCII(1, 1), CHAR(1, 1), LPAD(2, 3), RPAD(2, 3),
         STRING(1, Integer.MAX_VALUE), UPPER(1, 1), LOWER(1, 1), UCASE(1, 1), LCASE(1, 1),
         ABS(1, 1), SIGN(1, 1), CEILING(1, 1), CEIL(1, 1), FLOOR(1, 1), ROUND(2, 2), TRUNCNUM(2, 2), MOD(2, 2),
-        REMAINDER(2, 2), SQRT(1, 1), EXP(1, 1), LN(1, 1), LOG(1, 1), LOG10(1, 1), POWER(2, 2), PI(0, 0),
+        REMAINDER(2, 2), SQRT(1, 1), EXP(1, 1), LN(1, 1), LOG(1, 1), LOG10(1, 1), POWER(2, 2), SQUARE(1, 1), PI(0, 0),
         GETDATE(0, 0), NOW(0, 0), TODAY(0, 0), CURRENT_DATE(0, 0, "current date"),
         CURRENT_TIMESTAMP(0, 0, "current timestamp"), YEAR(1, 1), MONTH(1, 1), DAY(1, 1), HOUR(1, 1),
         MINUTE(1, 1), SECOND(1, 1), QUARTER(1, 1), DOW(1, 1), DATE(1, 1), DATEPART(2, 2), DATENAME(2, 2),
         DATEADD(3, 3), DATEDIFF(3, 3), ISNUMERIC(1, 1), YEARS(1, 2), MONTHS(1, 2), WEEKS(1, 2), DAYS(1, 2),
-        HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2), CONVERT_STYLE(3, 3, IqParser.CONVERT_STYLE), STR(1, 3),
+        HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2), CONVERT_STYLE(3, 3, IqParser.CONVERT_STYLE),
+        CONVERT_DATE_STYLE(3, 3, IqParser.CONVERT_DATE_STYLE), STR(1, 3),
         EXTRACT(2, 2, IqParser.EXTRACT), DATEFORMAT(2, 2), DAYNAME(1, 1), MONTHNAME(1, 1), DATETIME(1, 1), YMD(3, 3),
         GREATER(2, 2), LESSER(2, 2), ARGN(2, Integer.MAX_VALUE), REVERSE(1, 1), INSERTSTR(3, 3), BYTE_LENGTH(1, 1),
+        TO_CHAR(1, 2),
         REGEXP_SUBSTR(2, 5), DATALENGTH(1, 1);
 
         final int min;
@@ -138,7 +141,21 @@ final class IqFunctions {
     static final java.util.Set<String> NO_SUCH_FUNCTION = java.util.Set.of("string_agg", "concat", "concat_ws", "eomonth", "format",
             "choose", "datefromparts", "date_trunc", "split_part", "age", "getutcdate", "sysdatetime", "json_value",
             "last_day", "nvl", "group_concat", "stdev", "strftime", "translate", "initcap", "quotename", "decode",
-            "greatest", "least", "to_date", "string_split");
+            "greatest", "least", "to_date", "string_split",
+            // IQ island, 2026-10-17 (the corpus lane's 19; measured on IQ 17.1): SQL Server's, MySQL's and Postgres's
+            // too -- DATEDIFF_BIG's part is read as a column there (its -143 for day)
+            "var", "varp", "stdevp", "unnest", "substring_index", "splitpart", "parsename", "datediff_big",
+            "split_string",
+            // IQ island, 2026-10-17 (the TPC-H, TPC-DS and JOB corpus lane's 450; measured on IQ 17.1): PostgreSQL's,
+            // Oracle's and MySQL's (IQ reads REGEXP as a search condition, and LPAD, RPAD, GREATER and LESSER)
+            "regexp_replace", "regexp_like", "regexp_count", "regexp_instr", "date_part", "random", "array_length",
+            "string_to_array", "trunc", "listagg", "instr", "md5", "chr", "nth_value", "position", "array_to_string",
+            "julianday");
+
+    /** Whether {@code name} is one of the scalar functions IQ's catalog holds that the island reads ({@link Fn}). */
+    static boolean catalogued(String name) {
+        return Fn.named(name) != null;
+    }
 
     /** The refusal of a call of {@code name}, one of {@link #NO_SUCH_FUNCTION}. */
     static SqlTranslationException noSuchFunction(String name, SqlAst.Pos pos) {
@@ -151,27 +168,36 @@ final class IqFunctions {
                 + " function holds the name), refused before translating";
     }
 
+    /** Other dialects' form of {@code fn} with {@code n} arguments, which IQ raises -154 for (measured on IQ 17.1, as
+     *  it plans: over no rows too); null for any other. */
+    private static @com.legend.base.Nullable String foreign(Fn fn, int n) {
+        return fn == Fn.CHARINDEX && n == 3 ? "CHARINDEX's start (other dialects'; IQ's is LOCATE(s, search, start))"
+                : fn == Fn.ROUND && n == 3 ? "ROUND's third argument (other dialects'; IQ's is TRUNCNUM)"
+                : fn == Fn.LOG && n == 2 ? "LOG's base (other dialects'; IQ's LOG is the natural one, LOG10 the"
+                + " decimal)" : null;
+    }
+
     /** How many arguments {@code f} takes, {min, max}, for a function of this catalog ({@link IqDialect}'s parse checks
      *  the count). Refused by name before translation: a delimited name with a space (only the reader writes
-     *  {@code CURRENT DATE}); other dialects' forms IQ raises -154 for (CHARINDEX's start, ROUND's third argument, LOG's
-     *  base); a constant negative SUBSTRING length (IQ's -1090 wherever computed, under ANSI_SUBSTRING On: {@code
-     *  ansiSubstring}). */
-    static int[] arity(SqlAst.FunctionCall f, boolean ansiSubstring) {
+     *  {@code CURRENT DATE}); a constant negative SUBSTRING length (IQ's -1090 wherever computed, under ANSI_SUBSTRING On: {@code
+     *  ansiSubstring}). Other dialects' forms IQ raises -154 for (CHARINDEX's start, ROUND's third argument, LOG's
+     *  base) are refused by name: the syntax research holds some an accepted form, some a rejected one. IQ island,
+     *  2026-10-17 (the corpus lane's 21; measured on IQ 17.1): under the {@code iq17} presets each is IQ's -154, before
+     *  a missing column's -143, a conversion's -157 and a grouping's -149. */
+    static int[] arity(SqlAst.FunctionCall f, boolean ansiSubstring, boolean iq17) {
         SqlAst.Ident name = f.name().get(f.name().size() - 1);
         Fn fn = Fn.named(name.text());
-        if (fn == null && NO_SUCH_FUNCTION.contains(IqLexer.lower(name.text()))) {
-            throw noSuchFunction(name.text(), f.pos());
-        }
         if (fn == null || name.quoted() && name.text().indexOf(' ') >= 0) {
             throw SqlTranslationException.unsupported("function " + name.text() + "(...) is not supported yet",
                     f.pos());
         }
         int n = f.args().size();
-        String foreign = fn == Fn.CHARINDEX && n == 3 ? "CHARINDEX's start (other dialects'; IQ's is LOCATE(s, search,"
-                + " start))" : fn == Fn.ROUND && n == 3 ? "ROUND's third argument (other dialects'; IQ's is TRUNCNUM)"
-                : fn == Fn.LOG && n == 2 ? "LOG's base (other dialects'; IQ's LOG is the natural one, LOG10 the"
-                + " decimal)" : null;
+        String foreign = foreign(fn, n);
         if (foreign != null) {
+            if (iq17) {
+                throw SqlTranslationException.invalid("wrong number of arguments to " + name.text().toUpperCase(
+                        java.util.Locale.ROOT) + ": " + foreign + IqDialect.code(-154, "37505"), f.pos());
+            }
             throw SqlTranslationException.unsupported(foreign + " is not supported: IQ raises its error -154", f.pos());
         }
         if ((fn == Fn.SUBSTRING || fn == Fn.SUBSTR) && n == 3 && ansiSubstring
@@ -266,6 +292,10 @@ final class IqFunctions {
                         // IQ island, 2026-10-16 (measured on IQ 17.1): read on 1900-01-01 by IQ's engine
                         frontEnd = "the string '" + text + "' is a time alone, which SQL Anywhere's front end reads on"
                                 + " the current date";
+                    } else if (parts == null && IqDateTime.unconvertible(text, settings)) {
+                        // IQ island, 2026-10-17 (measured on IQ 17.1): numbers ending in a four-digit year
+                        problem = "the string '" + text + "' is no date under DATE_ORDER YMD (IQ's error -157 in SQL"
+                                + " Anywhere's front end, -1001006 under IQ's engine)";
                     } else if (parts == null) {
                         problem = "the string '" + text + "' is no date the island reads (IQ's error -157, or a"
                                 + " spelling of IQ's date order)";
@@ -341,7 +371,7 @@ final class IqFunctions {
             case SUBSTRING, SUBSTR -> substring(name, f, args);
             case LEFT, RIGHT -> leftRight(fn == Fn.LEFT, name, f, args);
             case TRIM, LTRIM, RTRIM -> trim(fn, name, f, args);
-            case REPLACE -> replace(name, f, args);
+            case REPLACE -> replace(name, f, args, at);
             case REPEAT, REPLICATE -> repeat(name, f, args.get(0), f.args().get(0), args.get(1), f.args().get(1));
             case SPACE -> repeat(name, f, Tx.value(new CString(" "), Kind.STRING, false, new IqType("CHAR(1)")),
                     f, args.get(0), f.args().get(0));
@@ -350,6 +380,7 @@ final class IqFunctions {
                     args.size() == 3 ? args.get(2) : null, args.size() == 3 ? f.args().get(2) : null);
             case PATINDEX -> patindex(name, f, args);
             case STUFF -> stuff(name, f, args);
+            case LPAD, RPAD -> pad(fn == Fn.LPAD, name, f, args);
             case ASCII -> ascii(name, f, args);
             case CHAR -> chr(name, f, args);
             case STRING -> string(f, args);
@@ -369,9 +400,11 @@ final class IqFunctions {
                         + " it answers +Infinity (an overflow, a zero to a negative power) or NULL (a negative base to"
                         + " a fraction) where lite's databases raise or answer NaN", f.pos());
             }
+            case SQUARE -> square(name, f, args);
             case GREATER, LESSER -> greaterLesser(fn == Fn.GREATER, f, at);
             case ARGN -> argn(f, at);
             case REVERSE -> reverse(name, f, args);
+            case TO_CHAR -> toChar(name, f, args);
             case INSERTSTR -> insertstr(name, f, args);
             case BYTE_LENGTH -> byteLength(name, f, args);
             case DATALENGTH -> dataLength(name, f, args);
@@ -390,6 +423,7 @@ final class IqFunctions {
             case ISNUMERIC -> isNumeric(f, args);
             case YEARS, MONTHS, WEEKS, DAYS, HOURS, MINUTES, SECONDS -> dateUnit(fn, name, f, args);
             case CONVERT_STYLE -> convertStyle(f, args);
+            case CONVERT_DATE_STYLE -> convertDateStyle(f, args, at);
             case STR -> str(f, args);
             case EXTRACT -> extract(f, args);
             case DATEFORMAT -> dateFormat(f, args);
@@ -790,6 +824,11 @@ final class IqFunctions {
                         + " places is not supported yet: its whole part may exceed 18 digits", f.pos());
             }
             digits = new Digits(whole, ps[1], false);
+        } else if (x.kind() == Kind.INTEGER && x.detail() instanceof IqType u && u.low() == null
+                && (u.spelling().equals("UNSIGNED INT") || u.spelling().equals("UNSIGNED BIGINT"))) {
+            // IQ island, 2026-10-17 (the corpus lane: STR(NTILE(100) OVER (...), 3), 5 queries): an unsigned result
+            // of IQ's engine (NTILE's, a COUNT's), its digits its type's most
+            digits = new Digits(u.spelling().equals("UNSIGNED INT") ? 10 : 20, 0, true);
         } else if (x.kind() == Kind.INTEGER) {
             IqType t = integerType(x, e, "STR");
             int whole = Math.max(t.lo().abs().toString().length(), t.hi().abs().toString().length());
@@ -920,9 +959,212 @@ final class IqFunctions {
         return ifThen(digits.zero(x, k), zero, shown);
     }
 
+    /**
+     * {@code CONVERT(DATE | TIMESTAMP, x, style)} (IQ island, 2026-10-17; the corpus lane's {@code CONVERT(DATETIME,
+     * '01/01/2012', 103)} and kin, measured on IQ 17.1):
+     * <ul>
+     *   <li>of a date or a timestamp: under IQ's engine its error -1009145 as it plans ("CONVERT argument does not
+     *       match the required data type"); in SQL Anywhere's front end the style is not read, a CONVERT without
+     *       it;</li>
+     *   <li>of a constant string, read by the style ({@link #styledDate});</li>
+     *   <li>of a string the database computes, under IQ's engine, by 20, 21, 120 or 121: {@code yyyy-mm-dd} and a time
+     *       {@code hh:mm[:ss]} after one space, as CAST reads them; any other spelling is refused where it is computed
+     *       -- IQ rejects most ({@code 2009-11-7}, blanks around: its -1001006) and reads others by rules of its own
+     *       (its seconds past 59 carried, its fractions dropped). Another style there, and SQL Anywhere's front end,
+     *       are refused by name.</li>
+     * </ul>
+     */
+    private Tx convertDateStyle(SqlAst.FunctionCall f, List<Tx> args, SqlToPure.At at) {
+        Tx x = args.get(0);
+        SqlAst.Expr operand = f.args().get(0);
+        BigInteger written = ((SqlAst.IntegerLit) f.args().get(1)).value();
+        boolean toDate = ((SqlAst.IntegerLit) f.args().get(2)).value().signum() > 0;
+        Kind kind = toDate ? Kind.DATE : Kind.DATETIME;
+        String target = toDate ? "DATE" : "TIMESTAMP";
+        if (isNull(x)) {
+            return Tx.value(SqlToPure.nullOf(kind).vs(), kind, true, dated(target, null));
+        }
+        if (x.kind() == Kind.DATE || x.kind() == Kind.DATETIME) {
+            if (engine == IqDialect.Engine.IQ) {
+                throw SqlTranslationException.invalid("CONVERT of " + kindName(x.kind()) + " to " + target + " with a"
+                        + " style: the data type conversion is not possible under IQ's engine (CONVERT argument does"
+                        + " not match the required data type)" + code(-1009145, "QFA2E"), f.pos());
+            }
+            return at.tx(new SqlAst.Cast(operand, new SqlAst.TypeName(IqParser.CONVERT + target, List.of(), f.pos()),
+                    f.pos()));
+        }
+        if (x.kind() != Kind.STRING) {
+            throw SqlTranslationException.unsupported("CONVERT of " + kindName(x.kind()) + " to " + target + " with a"
+                    + " style is not supported yet", f.pos());
+        }
+        int style = written.bitLength() > 31 ? -1 : written.intValue();
+        if (operand instanceof SqlAst.StringLit s) {
+            String[] parts = styledDate(s.value(), style, settings.nearestCentury());
+            if (parts == null) {
+                throw SqlTranslationException.unsupported("CONVERT of the string '" + s.value() + "' to " + target
+                        + " by style " + written + " is not supported: it is no date of that style the island reads"
+                        + " (IQ reads some other spellings by rules of its own, and raises -157 for others)", f.pos());
+            }
+            IqType type = dated(target, Integer.parseInt(parts[0].substring(0, 4)));
+            if (toDate) {
+                return Tx.value(new CDate(PureDateLiteral.parse(parts[0]), parts[0], null), Kind.DATE, false, type);
+            }
+            String body = parts[0] + "T" + parts[1];
+            return Tx.value(new CDate(PureDateLiteral.parse(body), body, null), Kind.DATETIME, false, type);
+        }
+        if (engine != IqDialect.Engine.IQ || !ODBC_STYLES.contains(style)) {
+            throw SqlTranslationException.unsupported("CONVERT of a string the database computes to " + target + " by"
+                    + " style " + written + " is not supported yet" + (engine == IqDialect.Engine.IQ ? ": the island"
+                    + " reads styles 20, 21, 120 and 121 there" : " in SQL Anywhere's front end"), f.pos());
+        }
+        List<String[]> steps = canonicalSteps(true);
+        Tx r = SqlToPure.strict(kind, List.of(x), v -> refusedPast(SqlToPure.call("not", SqlToPure.call("matches",
+                v.get(0), new CString(ODBC_TEXT))), UNREAD_STYLE_RAISE, readDate(v.get(0), toDate, steps),
+                raise(toDate ? "StrictDate" : "DateTime")));
+        return Tx.value(r.vs(), kind, r.nullable(), dated(target, null));
+    }
+
+    /** The styles whose computed strings {@link #convertDateStyle} reads: yyyy-mm-dd and a time. */
+    private static final java.util.Set<Integer> ODBC_STYLES = java.util.Set.of(20, 21, 120, 121);
+
+    /** What {@link #convertDateStyle} reads of a computed string by an {@link #ODBC_STYLES} style. */
+    private static final String ODBC_TEXT = "^[0-9]{4}-[0-9]{2}-[0-9]{2}( [0-9]{2}:[0-9]{2}(:[0-9]{2})?)?$";
+
+    /** {@link #convertDateStyle}'s refusal of another spelling, where the database computes the string. */
+    static final String UNREAD_STYLE_RAISE = IqDialect.REFUSED_AT_RUN_TIME + "CONVERT by an ODBC style (20, 21, 120,"
+            + " 121) of a string other than yyyy-mm-dd and a time hh:mm[:ss] is not supported: IQ rejects most and reads"
+            + " others by rules of its own";
+
+    /** {@link #styledDate}'s ODBC spelling, {@code d} a digit: its date alone, with hh:nn, or with hh:nn:ss. */
+    private static final String STYLED_ODBC = "dddd-dd-dd dd:dd:dd";
+
+    /**
+     * A constant string read as a date by a CONVERT style (IQ island, 2026-10-17, measured on IQ 17.1): its date
+     * {@code yyyy-mm-dd} and time {@code hh:nn:ss}, or null where the island does not read it. 1, 101, 10 and 110 read
+     * the month first, 3, 103, 4, 104, 5 and 105 the day, 2, 102, 11 and 111 the year: three numbers, the month's and
+     * the day's of one or two digits, apart by one of /, - and . twice, blanks around. A style past 100 reads the year as
+     * written, of one to four digits ({@code 13/01/012} is the year 12); one below 100 a year of two digits by
+     * NEAREST_CENTURY ({@code 13/01/49} is 2049, {@code 13/01/50} 1950), four being IQ's -157. 12 reads {@code yymmdd},
+     * 112 {@code yyyymmdd}; 20, 21, 120 and 121 {@code yyyy-mm-dd} and a time {@code hh:nn[:ss]} after a space. A date
+     * that does not exist is IQ's -157, as is a time after the day-first styles' date: null, as is any other style.
+     */
+    static String @com.legend.base.Nullable [] styledDate(String text, int style, int nearest) {
+        char order;
+        boolean century = style >= 100 || style == 20 || style == 21;
+        switch (style) {
+            case 1, 10, 101, 110 -> order = 'M';
+            case 3, 4, 5, 103, 104, 105 -> order = 'D';
+            case 2, 11, 102, 111 -> order = 'Y';
+            case 12, 112 -> order = 'C';
+            case 20, 21, 120, 121 -> order = 'I';
+            default -> {
+                return null;
+            }
+        }
+        String time = "00:00:00";
+        String y;
+        String m;
+        String d;
+        if (order == 'I') {
+            int n = text.length();
+            if (n != 10 && n != 16 && n != 19) {
+                return null;
+            }
+            for (int i = 0; i < n; i++) {
+                char c = text.charAt(i);
+                if (STYLED_ODBC.charAt(i) == 'd' ? c < '0' || c > '9' : c != STYLED_ODBC.charAt(i)) {
+                    return null;
+                }
+            }
+            y = text.substring(0, 4);
+            m = text.substring(5, 7);
+            d = text.substring(8, 10);
+            if (n > 10) {
+                int hh = Integer.parseInt(text.substring(11, 13));
+                int nn = Integer.parseInt(text.substring(14, 16));
+                int ss = n == 19 ? Integer.parseInt(text.substring(17, 19)) : 0;
+                if (hh > 23 || nn > 59 || ss > 59) {
+                    return null;
+                }
+                time = text.substring(11, 16) + (n == 19 ? text.substring(16) : ":00");
+            }
+        } else if (order == 'C') {
+            int digits = century ? 8 : 6;
+            if (text.length() != digits || !text.chars().allMatch(c -> c >= '0' && c <= '9')) {
+                return null;
+            }
+            y = text.substring(0, digits - 4);
+            m = text.substring(digits - 4, digits - 2);
+            d = text.substring(digits - 2);
+        } else {
+            // three numbers apart by one of / - . twice, blanks around
+            int from = 0;
+            int to = text.length();
+            while (from < to && text.charAt(from) == ' ') {
+                from++;
+            }
+            while (to > from && text.charAt(to - 1) == ' ') {
+                to--;
+            }
+            String[] numbers = new String[3];
+            char separator = 0;
+            int i = from;
+            for (int k = 0; k < 3; k++) {
+                int start = i;
+                while (i < to && text.charAt(i) >= '0' && text.charAt(i) <= '9') {
+                    i++;
+                }
+                if (i == start) {
+                    return null;
+                }
+                numbers[k] = text.substring(start, i);
+                if (k < 2) {
+                    char c = i < to ? text.charAt(i) : 0;
+                    if ("/.-".indexOf(c) < 0 || c == 0 || separator != 0 && c != separator) {
+                        return null;
+                    }
+                    separator = c;
+                    i++;
+                }
+            }
+            if (i != to) {
+                return null;
+            }
+            y = order == 'Y' ? numbers[0] : numbers[2];
+            m = order == 'M' ? numbers[0] : numbers[1];
+            d = order == 'D' ? numbers[0] : order == 'M' ? numbers[1] : numbers[2];
+        }
+        if (m.length() > 2 || d.length() > 2 || (century ? y.length() > 4 : y.length() != 2)) {
+            return null;
+        }
+        int year = Integer.parseInt(y);
+        if (!century) {
+            year += year < nearest ? 2000 : 1900;
+        }
+        int month = Integer.parseInt(m);
+        int day = Integer.parseInt(d);
+        if (year < 1 || month < 1 || month > 12 || day < 1 || day > IqDateTime.daysIn(year, month)) {
+            return null;
+        }
+        return new String[] {String.format(Locale.ROOT, "%04d-%02d-%02d", year, month, day), time};
+    }
+
     /** The months' abbreviations IQ's engine writes in CONVERT's styles (lower case, measured on IQ 17.1). */
     private static final List<String> MONTHS_SHORT = List.of("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug",
             "sep", "oct", "nov", "dec");
+
+    /** The styles {@link #convertStyle} reads, every one IQ's engine writes a date or a timestamp in (measured on IQ
+     *  17.1 from -1 to 400 and at 1000; {@link #engineRejects}). */
+    private static final java.util.Set<Integer> STYLES = java.util.Set.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 20,
+            21, 36, 37, 38, 39, 40, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 120, 121,
+            136, 137, 138, 139, 140, 365);
+
+    /** IQ island, 2026-10-17 (the corpus lane's style 126; each style from -1 to 400 and 1000 measured on IQ 17.1):
+     *  the styles past which IQ's engine raises -1009145 for a date or a timestamp, as it plans -- every one but
+     *  {@link #STYLES}; one beyond them is refused by name. */
+    private static boolean engineRejects(int style) {
+        return !STYLES.contains(style) && (style >= -1 && style <= 400 || style == 1000);
+    }
 
     /**
      * {@code CONVERT(VARCHAR(n), d, style)} of a DATE or a TIMESTAMP under IQ's engine (IQ island, 2026-10-15; each
@@ -930,14 +1172,11 @@ final class IqFunctions {
      * 5 dd-mm-yy (105), 10 mm-dd-yy (110), 11 yy/mm/dd (111), 12 yymmdd (112); 20 and 120 yyyy-mm-dd and a timestamp's
      * hh:nn:ss, 21 and 121 its hh:nn:ss.sss; 108 a timestamp's hh:nn:ss (a date's yyyy-mm-dd); 0 and 100 mon dd yyyy
      * and a timestamp's hh:nnAM (the hour of twelve), 106 dd mon yyyy, 107 mon dd, yyyy -- the month's abbreviation in
-     * lower case. A date shows no time in any style. Refused by name: another style, another operand, a target too
-     * short for the text, SQL Anywhere's front end (whose styles differ: its month names are capitalized).
+     * lower case; 2026-10-17, 6 dd mon yy, 7 mon dd, yy, 8 as 108, 9 and 109 mon dd yyyy hh:nn:ss:sssAM, 13 and 113
+     * dd mon yyyy hh:nn:ss:sss, 14 and 114 hh:nn:ss:sss (a date's as 108's). A date shows no time in any style.
+     * Refused by name: another style, another operand, a target too short for the text, SQL Anywhere's front end
+     * (whose styles differ: its month names are capitalized).
      */
-    /** The styles {@link #convertStyle} reads; {@link IqParser} refuses another by name (IQ raises -1009145 for some,
-     *  "CONVERT format style ... is invalid", and writes others the island does not read). */
-    static final java.util.Set<Integer> STYLES = java.util.Set.of(0, 1, 2, 3, 4, 5, 10, 11, 12, 20, 21, 100, 101, 102,
-            103, 104, 105, 106, 107, 108, 110, 111, 112, 120, 121);
-
     private Tx convertStyle(SqlAst.FunctionCall f, List<Tx> args) {
         if (engine != IqDialect.Engine.IQ) {
             throw SqlTranslationException.unsupported("CONVERT with a style is supported under IQ's engine only yet:"
@@ -954,6 +1193,12 @@ final class IqFunctions {
         boolean ts = x.kind() == Kind.DATETIME;
         int style = ((SqlAst.IntegerLit) f.args().get(1)).value().intValue();
         int length = ((SqlAst.IntegerLit) f.args().get(2)).value().intValue();
+        if (engineRejects(style)) {
+            // held: IQ raises it after the statement's names (measured on IQ 17.1, WHERE nosuch = 1 its -143)
+            dialect.hold(SqlTranslationException.invalid("CONVERT format style " + style + " is invalid for " + kindName(
+                    x.kind()) + " under IQ's engine" + IqDialect.code(-1009145, "QFA2E"), f.args().get(1).pos()));
+            return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, new IqType("VARCHAR"));
+        }
         List<Object> spec = switch (style) {
             case 1 -> List.of("MM", "/", "DD", "/", "YY");
             case 101 -> List.of("MM", "/", "DD", "/", "YYYY");
@@ -980,6 +1225,33 @@ final class IqFunctions {
                     : List.of("MON", " ", "DD", " ", "YYYY");
             case 106 -> List.of("DD", " ", "MON", " ", "YYYY");
             case 107 -> List.of("MON", " ", "DD", ", ", "YYYY");
+            // IQ island, 2026-10-17 (the corpus lane's style 113; measured on IQ 17.1): 6 dd mon yy, 7 mon dd, yy, 8 as
+            // 108; 9 and 109 mon dd yyyy and a timestamp's hh:nn:ss:sss and AM or PM (the hour of twelve), 13 and 113 dd
+            // mon yyyy and its hh:nn:ss:sss, 14 and 114 its hh:nn:ss:sss (a date's yyyy-mm-dd)
+            case 6 -> List.of("DD", " ", "MON", " ", "YY");
+            case 7 -> List.of("MON", " ", "DD", ", ", "YY");
+            case 8 -> ts ? List.of("HH", ":", "NN", ":", "SS") : List.of("YYYY", "-", "MM", "-", "DD");
+            case 9, 109 -> ts ? List.of("MON", " ", "DD", " ", "YYYY", " ", "H12", ":", "NN", ":", "SS", ":", "SSS",
+                    "AMPM") : List.of("MON", " ", "DD", " ", "YYYY");
+            case 13, 113 -> ts ? List.of("DD", " ", "MON", " ", "YYYY", " ", "HH", ":", "NN", ":", "SS", ":", "SSS")
+                    : List.of("DD", " ", "MON", " ", "YYYY");
+            case 14, 114 -> ts ? List.of("HH", ":", "NN", ":", "SS", ":", "SSS") : List.of("YYYY", "-", "MM", "-",
+                    "DD");
+            // IQ island, 2026-10-17 (measured on IQ 17.1): 36 and 136 a timestamp's hh:nn:ss.ssssss and AM or PM (the
+            // hour of twelve), 37 and 137 its hh:nn:ss.ssssss (a date's yyyy-mm-dd); 38 mon dd yy and the first, 39 mon
+            // dd yy and the second (138, 139 with yyyy); 40 yy-mm-dd and the second (140 with yyyy); 365 yyyyjjj, the
+            // day of the year
+            case 36, 136 -> ts ? List.of("H12", ":", "NN", ":", "SS", ".", "SSSSSS", "AMPM") : List.of("YYYY", "-",
+                    "MM", "-", "DD");
+            case 37, 137 -> ts ? List.of("HH", ":", "NN", ":", "SS", ".", "SSSSSS") : List.of("YYYY", "-", "MM", "-",
+                    "DD");
+            case 38, 138 -> concat(List.of("MON", " ", "DD", " ", style == 38 ? "YY" : "YYYY"), ts ? List.of(" ",
+                    "H12", ":", "NN", ":", "SS", ".", "SSSSSS", "AMPM") : List.of());
+            case 39, 139 -> concat(List.of("MON", " ", "DD", " ", style == 39 ? "YY" : "YYYY"), ts ? List.of(" ",
+                    "HH", ":", "NN", ":", "SS", ".", "SSSSSS") : List.of());
+            case 40, 140 -> concat(List.of(style == 40 ? "YY" : "YYYY", "-", "MM", "-", "DD"), ts ? List.of(" ", "HH",
+                    ":", "NN", ":", "SS", ".", "SSSSSS") : List.of());
+            case 365 -> List.of("YYYY", "JJJ");
             default -> throw SqlTranslationException.unsupported("CONVERT style " + style + " is not supported yet",
                     f.args().get(1).pos());
         };
@@ -989,13 +1261,22 @@ final class IqFunctions {
             width += switch (piece) {
                 case "YYYY" -> 4;
                 case "YY", "MM", "DD", "HH", "NN", "SS", "H12", "AMPM" -> 2;
-                case "SSS", "MON" -> 3;
+                case "SSS", "MON", "JJJ" -> 3;
+                case "SSSSSS" -> 6;
                 default -> piece.length();
             };
         }
         if (length >= 0 && length < width) {
-            throw SqlTranslationException.unsupported("CONVERT style " + style + " to a string of " + length + " is"
-                    + " not supported yet: its text has " + width + " characters", f.pos());
+            // IQ island, 2026-10-17 (the corpus lane; measured on IQ 17.1): a style's text longer than the string it
+            // is converted to is IQ's error for each row that computes it -- -1009145 under its engine (in a select
+            // list, a WHERE, a GROUP BY, a ranked derived table alike; none over no rows), -638 in its front end; NULL
+            // stays NULL
+            String error = "the text of CONVERT style " + style + " has " + width + " characters, more than the"
+                    + " string of " + length + " it is converted to: IQ's error (-1009145 under its engine, -638 in SQL"
+                    + " Anywhere's front end)";
+            Tx raised = SqlToPure.strict(Kind.STRING, List.of(x), v -> refusedPast(SqlToPure.call("isNotEmpty",
+                    v.get(0)), error, new CString(""), new CString("")));
+            return Tx.value(raised.vs(), Kind.STRING, raised.nullable(), new IqType("VARCHAR(" + length + ")"));
         }
         Tx r = SqlToPure.strict(Kind.STRING, List.of(x), v -> {
             ValueSpecification d = v.get(0);
@@ -1014,6 +1295,10 @@ final class IqFunctions {
                             AppliedFunction.infixRun("plus", List.of(SqlToPure.call("mod", epochMicros(d, false),
                                     integer(1_000_000L)), integer(1_000_000L))), integer(1_000_000L)),
                             integer(1000L))), 3);
+                    case "SSSSSS" -> lpad(SqlToPure.call("mod", AppliedFunction.infixRun("plus", List.of(
+                            SqlToPure.call("mod", epochMicros(d, false), integer(1_000_000L)), integer(1_000_000L))),
+                            integer(1_000_000L)), 6);
+                    case "JJJ" -> lpad(SqlToPure.call("dayOfYear", d), 3);
                     case "H12" -> lpad(ifThen(SqlToPure.call("equal", SqlToPure.call("rem", SqlToPure.call("hour",
                             d), integer(12)), integer(0)), integer(12), SqlToPure.call("rem", SqlToPure.call("hour",
                             d), integer(12))), 2);
@@ -1026,6 +1311,13 @@ final class IqFunctions {
             return AppliedFunction.infixRun("plus", parts);
         });
         return Tx.value(r.vs(), Kind.STRING, r.nullable(), new IqType("VARCHAR(" + width + ")"));
+    }
+
+    /** A style's pieces, {@code a}'s then {@code b}'s. */
+    private static List<Object> concat(List<Object> a, List<Object> b) {
+        List<Object> out = new ArrayList<>(a);
+        out.addAll(b);
+        return out;
     }
 
     /** {@code n}'s digits, zeros before them to {@code width}. */
@@ -1060,8 +1352,11 @@ final class IqFunctions {
             default -> throw new IllegalStateException("no date unit " + fn);
         };
         if (args.size() == 1) {
-            throw SqlTranslationException.unsupported(name + " of one argument (the " + part + "s from IQ's own epoch)"
-                    + " is not supported yet", f.pos());
+            if (engine != IqDialect.Engine.IQ) {
+                throw SqlTranslationException.unsupported(name + " of one argument (the " + part + "s from SQL"
+                        + " Anywhere's own epoch) is not supported in its front end yet", f.pos());
+            }
+            return sinceYearZero(fn, name, f, args.get(0));
         }
         SqlAst.StringLit unit = new SqlAst.StringLit(part, f.pos());
         Tx partTx = Tx.value(new CString(part), Kind.STRING, false, new IqType("VARCHAR(" + part.length() + ")"));
@@ -1078,6 +1373,52 @@ final class IqFunctions {
         }
         throw SqlTranslationException.unsupported(name + " of a " + kindName(second.kind()) + " second argument is not"
                 + " supported yet: IQ converts it by its own rules", f.args().get(1).pos());
+    }
+
+    /** The days from 0000-01-01 (proleptic Gregorian) to 1970-01-01, IQ's engine's DAYS of 1970-01-01. */
+    private static final long DAYS_TO_1970 = 719_528L;
+
+    /**
+     * IQ island, 2026-10-17 (the differential fuzzer's fifth round; measured on IQ 17.1): under IQ's engine {@code
+     * DAYS(d)} is the days from 0000-01-01 in the proleptic Gregorian calendar (DAYS of 1970-01-01 is 719528, of
+     * 0001-01-01 366), {@code WEEKS(d)} those days / 7 rounded down, {@code YEARS(d)} the year, {@code MONTHS(d)} year *
+     * 12 + month - 1, all INTEGERs; {@code HOURS(t)}, {@code MINUTES(t)} and {@code SECONDS(t)} the days' hours,
+     * minutes and seconds with the time's own, BIGINTs (a DATE's time is midnight). SQL Anywhere's front end counts
+     * from another epoch (DAYS of 2020-01-15 is 737745 there, 737804 here), refused.
+     */
+    private Tx sinceYearZero(Fn fn, String name, SqlAst.FunctionCall f, Tx x) {
+        Tx d = dateArgument(x, f.args().get(0), name);
+        boolean big = fn == Fn.HOURS || fn == Fn.MINUTES || fn == Fn.SECONDS;
+        IqType type = big ? IqType.integer("BIGINT", BigInteger.ZERO, IqType.BIGINT_MAX, true)
+                : IqType.integer("INTEGER", BigInteger.ZERO, IqType.INTEGER_MAX, true);
+        if (d == null) {
+            return Tx.value(SqlToPure.nullOf(Kind.INTEGER).vs(), Kind.INTEGER, true, type);
+        }
+        boolean date = d.kind() == Kind.DATE;
+        return strict(Kind.INTEGER, type, List.of(d), v -> {
+            ValueSpecification t = v.get(0);
+            ValueSpecification days = AppliedFunction.infixRun("plus", List.of(SqlToPure.call("dateDiff",
+                    new CDate(PureDateLiteral.parse("1970-01-01"), "1970-01-01", null), day(t, date),
+                    new EnumValue(DURATION_UNIT, "DAYS")), integer(DAYS_TO_1970)));
+            ValueSpecification hours = date ? AppliedFunction.infixRun("times", List.of(days, integer(24)))
+                    : AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("times", List.of(days,
+                            integer(24))), SqlToPure.call("hour", t)));
+            ValueSpecification minutes = date ? AppliedFunction.infixRun("times", List.of(hours, integer(60)))
+                    : AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("times", List.of(hours,
+                            integer(60))), SqlToPure.call("minute", t)));
+            return switch (fn) {
+                case DAYS -> days;
+                case WEEKS -> truncatedQuotient(days, 7);
+                case YEARS -> SqlToPure.call("year", t);
+                case MONTHS -> minus(months(t, 12), integer(1));
+                case HOURS -> hours;
+                case MINUTES -> minutes;
+                case SECONDS -> date ? AppliedFunction.infixRun("times", List.of(minutes, integer(60)))
+                        : AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("times", List.of(minutes,
+                                integer(60))), SqlToPure.call("second", t)));
+                default -> throw new IllegalStateException("no date unit " + fn);
+            };
+        });
     }
 
     /**
@@ -1394,7 +1735,104 @@ final class IqFunctions {
      *  'a', 'x') is 'xxbBx', REPLACE('éÉe', 'é', 'x') is 'xÉe'): a global {@code regexpReplace} whose pattern spells
      *  each letter of a constant search as a class of its two cases (IQ island, 2026-10-14, natives); refused by name
      *  there: a search with a letter that is no constant, a replacement that is no constant. */
-    private Tx replace(String name, SqlAst.FunctionCall f, List<Tx> args) {
+    /** A string type as IQ's engine reads it for {@link #replace}: a CHAR's ({@code fixed}) or a VARCHAR's, of
+     *  {@code width} bytes (null where not known). */
+    private record Text(boolean fixed, @com.legend.base.Nullable Integer width) {
+    }
+
+    /**
+     * The type IQ's engine gives string {@code e} (measured on IQ 17.1, 2026-10-17: {@link #replace}), null where not
+     * known: a constant a VARCHAR of its length; a column its declared type; a CAST its type; LEFT, RIGHT and SUBSTRING
+     * of a CHAR the CHAR, of a VARCHAR a VARCHAR of the lesser of its width and a constant length (0 for a length of
+     * 0); the TRIMs, UPPER and LOWER a VARCHAR of their string's width; SPACE and REPEAT by their constant counts;
+     * COALESCE, ISNULL, IF and CASE their widest; {@code ||} and STRING their sum.
+     */
+    private static @com.legend.base.Nullable Text text(SqlAst.Expr e, SqlToPure.At at) {
+        return switch (e) {
+            case SqlAst.StringLit l -> new Text(false, l.value().getBytes(java.nio.charset.StandardCharsets.UTF_8)
+                    .length);
+            case SqlAst.ColumnRef r -> at.tx(r).detail() instanceof IqType type && type.size() >= 0
+                    && (type.family().equals("CHAR") || type.family().equals("VARCHAR"))
+                    ? new Text(type.family().equals("CHAR"), type.size()) : null;
+            case SqlAst.Cast c when !c.type().modifiers().isEmpty() && (c.type().name().equalsIgnoreCase("char")
+                    || c.type().name().equalsIgnoreCase("varchar")) ->
+                    new Text(c.type().name().equalsIgnoreCase("char"), c.type().modifiers().get(0));
+            case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.CONCAT -> sum(List.of(b.left(), b.right()), at);
+            case SqlAst.Case c -> {
+                List<SqlAst.Expr> branches = new ArrayList<>();
+                c.whens().forEach(w -> branches.add(w.result()));
+                if (c.otherwise() != null) {
+                    branches.add(java.util.Objects.requireNonNull(c.otherwise()));
+                }
+                yield widest(branches, at);
+            }
+            case SqlAst.FunctionCall f when f.name().size() == 1 -> {
+                String fn = f.name().get(0).text().toLowerCase(Locale.ROOT);
+                List<SqlAst.Expr> a = f.args();
+                yield switch (fn) {
+                    case "left", "right" -> a.size() == 2 ? cut(text(a.get(0), at), count(a.get(1))) : null;
+                    case "substring", "substr" -> a.size() == 3 ? cut(text(a.get(0), at), count(a.get(2)))
+                            : a.size() == 2 ? text(a.get(0), at) : null;
+                    case "space" -> a.size() == 1 && count(a.get(0)) != null ? new Text(false, count(a.get(0))) : null;
+                    case "repeat", "replicate" -> {
+                        Integer n = a.size() == 2 ? count(a.get(1)) : null;
+                        Text x = a.size() == 2 ? text(a.get(0), at) : null;
+                        yield n == null ? null : n == 0 ? new Text(false, 0) : x == null || x.width() == null ? null
+                                : new Text(false, x.width() * n);
+                    }
+                    case "trim", "ltrim", "rtrim", "upper", "lower", "ucase", "lcase" -> {
+                        Text x = a.size() == 1 ? text(a.get(0), at) : null;
+                        yield x == null ? null : new Text(false, x.width());
+                    }
+                    case "coalesce", "isnull", "ifnull" -> widest(a, at);
+                    case "string" -> sum(a, at);
+                    default -> null;
+                };
+            }
+            default -> null;
+        };
+    }
+
+    private static @com.legend.base.Nullable Integer count(SqlAst.Expr e) {
+        return e instanceof SqlAst.IntegerLit n && n.value().signum() >= 0 && n.value().bitLength() < Integer.SIZE
+                ? n.value().intValue() : null;
+    }
+
+    /** LEFT's, RIGHT's or SUBSTRING's of {@code x} to {@code n} characters (null when not constant). */
+    private static @com.legend.base.Nullable Text cut(@com.legend.base.Nullable Text x,
+            @com.legend.base.Nullable Integer n) {
+        if (x == null || x.fixed()) {
+            return x;
+        }
+        Integer w = x.width();
+        return new Text(false, n == null ? w : n == 0 ? Integer.valueOf(0) : w == null ? null : Math.min(w, n));
+    }
+
+    private static @com.legend.base.Nullable Text widest(List<SqlAst.Expr> es, SqlToPure.At at) {
+        int most = 0;
+        for (SqlAst.Expr x : es) {
+            Text t = text(x, at);
+            if (t == null || t.width() == null) {
+                return null;
+            }
+            most = Math.max(most, java.util.Objects.requireNonNull(t.width()));
+        }
+        return es.isEmpty() ? null : new Text(false, most);
+    }
+
+    private static @com.legend.base.Nullable Text sum(List<SqlAst.Expr> es, SqlToPure.At at) {
+        int total = 0;
+        for (SqlAst.Expr x : es) {
+            Text t = text(x, at);
+            if (t == null || t.width() == null) {
+                return null;
+            }
+            total += java.util.Objects.requireNonNull(t.width());
+        }
+        return es.isEmpty() ? null : new Text(false, total);
+    }
+
+    private Tx replace(String name, SqlAst.FunctionCall f, List<Tx> args, SqlToPure.At at) {
         Tx s = text(args.get(0), f.args().get(0), name);
         Tx search = text(args.get(1), f.args().get(1), name);
         Tx replacement = text(args.get(2), f.args().get(2), name);
@@ -1417,12 +1855,51 @@ final class IqFunctions {
                     "regexpReplace", v.get(0), new CString(pattern), new CString(rewrite),
                     new com.legend.protocol.spec.CBoolean(true)));
         }
+        Text typed = engine == IqDialect.Engine.IQ ? text(f.args().get(0), at) : null;
+        if (typed != null && Integer.valueOf(0).equals(typed.width())) {
+            // IQ island, 2026-10-17 (the differential fuzzer's REPLACE('', 'a', ''), and its fifth round's LEFT(ch, 0);
+            // measured on IQ 17.1): IQ's engine answers NULL for a string it types with no width ('', LEFT(vc, 0),
+            // SPACE(0), TRIM(''), a derived table's '' column), whatever it replaces; '' for a wider one (CAST('' AS
+            // VARCHAR(1)), LEFT(vc, id - 1), LEFT(ch, 0) of a CHAR(5), which keeps its width)
+            return nullString();
+        }
         boolean guard = !shortConstant(f.args().get(1));
         Tx r = strict(Kind.STRING, varchar(), List.of(s, search, replacement), v -> {
             ValueSpecification value = SqlToPure.call("replace", v.get(0), v.get(1), v.get(2));
             return guard ? ifThen(tooLong(v.get(1)), SqlToPure.empty(), value) : value;
         });
         return guard ? Tx.value(r.vs(), Kind.STRING, true, r.detail()) : r;
+    }
+
+    /**
+     * IQ island, 2026-10-17 (the corpus lane's 38; measured on IQ 17.1): {@code LPAD(s, n [, pad])} and RPAD, IQ's
+     * engine's alone (SQL Anywhere's front end raises -134, not implemented): s padded on the left (the right) to n
+     * characters with the pad repeated (a space without one), or cut to its first n; '' for an n below 1; NULL for a
+     * NULL s or n. Refused by name: a pad that is no constant non-empty string (IQ reads a NULL or '' one as none),
+     * and a constant n past 32767 (IQ's -1001005: no string is longer).
+     */
+    private Tx pad(boolean left, String name, SqlAst.FunctionCall f, List<Tx> args) {
+        if (engine != IqDialect.Engine.IQ) {
+            throw SqlTranslationException.invalid("Feature '" + name.toLowerCase(Locale.ROOT) + "' not implemented: "
+                    + name + " is IQ's engine's alone" + code(-134, "0A000"), f.pos());
+        }
+        Tx s = text(args.get(0), f.args().get(0), name);
+        Tx n = count(args.get(1), f.args().get(1), name);
+        String fill = " ";
+        if (args.size() == 3) {
+            if (!(f.args().get(2) instanceof SqlAst.StringLit lit) || lit.value().isEmpty()) {
+                throw SqlTranslationException.unsupported(name + " with a pad that is no constant non-empty string is"
+                        + " not supported yet (IQ reads a NULL or an empty one as none)", f.args().get(2).pos());
+            }
+            fill = lit.value();
+        }
+        if (f.args().get(1) instanceof SqlAst.IntegerLit width && width.value().compareTo(BigInteger.valueOf(32767)) > 0) {
+            throw SqlTranslationException.unsupported(name + " to more than 32767 characters is IQ's error -1001005 (a"
+                    + " string length error) where a row computes it, which is not supported", f.args().get(1).pos());
+        }
+        String padding = fill;
+        return strict(Kind.STRING, varchar(), List.of(s, n), v -> ifThen(lt(v.get(1), integer(1)), new CString(""),
+                SqlToPure.call(left ? "lpad" : "rpad", v.get(0), v.get(1), new CString(padding))));
     }
 
     /** Whether {@code c} is one of the 26 ASCII letters, either case. */
@@ -1542,12 +2019,79 @@ final class IqFunctions {
     }
 
     /**
+     * {@code PATINDEX} of a pattern with a {@code _}, a {@code [set]} or a {@code %} inside its run. IQ island,
+     * 2026-10-17 (the corpus lane: {@code '%[^a-z]%'}, {@code '%[ :,.]%'}, {@code '[^?.]'}; measured on IQ 17.1, its
+     * engine's and its front end's alike): a pattern that does not start with {@code %} is LIKE's test, 1 or 0; one
+     * that does is the first place from which the rest of the pattern matches the rest of s, 0 where none does
+     * ({@code PATINDEX('%a%b', 'xaxbxb')} is 2, {@code PATINDEX('%[^?.]', 'ab?')} 0) -- a regular expression's first
+     * match, held to s's end where the pattern does not end with {@code %}, and a {@code _} a line feed too. The
+     * pattern's parts are LIKE's ({@link IqDialect#likeParts}, no escape): an empty set or one that descends (IQ finds
+     * nothing) is refused as LIKE's is, and so is a set in a case-insensitive database.
+     */
+    private Tx patternIndex(String name, SqlAst.StringLit lit, SqlAst.FunctionCall f, Tx s, IqType type) {
+        List<String> parts = IqDialect.likeParts(lit, null, true, settings.latin1());
+        boolean caseless = !settings.caseSensitive();
+        for (int i = 1; caseless && i < parts.size(); i += 2) {
+            if (parts.get(i).startsWith("[")) {
+                throw SqlTranslationException.unsupported(name + "'s [set] classes in a case-insensitive database are"
+                        + " not supported yet", lit.pos());
+            }
+        }
+        Tx str = text(s, f.args().get(1), name);
+        if (str.kind() == Kind.NULL) {
+            return Tx.value(integer(0), Kind.INTEGER, false, type);
+        }
+        ValueSpecification value = SqlToPure.valueOf(str);
+        ValueSpecification x = str.nullable() ? SqlToPure.call("toOne", value) : value;
+        ValueSpecification found;
+        if (!parts.get(0).isEmpty() || !parts.get(1).equals("%")) {
+            found = ifThen(IqDialect.likeTest(x, parts, caseless), integer(1), integer(0));
+        } else {
+            int first = 0;
+            while (parts.get(first).isEmpty() && parts.get(first + 1).equals("%")) {
+                first += 2;
+            }
+            int last = parts.size() - 1;
+            boolean open = false;
+            while (last - 1 > first && parts.get(last).isEmpty() && parts.get(last - 1).equals("%")) {
+                last -= 2;
+                open = true;
+            }
+            StringBuilder regex = new StringBuilder();
+            for (int i = first; i <= last; i++) {
+                String part = parts.get(i);
+                if (i % 2 == 1) {
+                    regex.append(part.equals("%") ? "(?:.|\\n)*" : part.equals("_") ? "(?:.|\\n)" : part);
+                } else if (caseless) {
+                    regex.append(caselessPattern(part));
+                } else {
+                    for (int k = 0; k < part.length(); k++) {
+                        char c = part.charAt(k);
+                        if ("\\.[]{}()*+?^$|".indexOf(c) >= 0) {
+                            regex.append('\\');
+                        }
+                        regex.append(c);
+                    }
+                }
+            }
+            if (!open) {
+                regex.append('$');
+            }
+            found = AppliedFunction.infixRun("plus", List.of(SqlToPure.call("regexpIndexOf", x,
+                    new CString(regex.toString())), integer(1)));
+        }
+        ValueSpecification result = str.nullable() ? ifThen(SqlToPure.call("isEmpty", value), integer(0), found)
+                : found;
+        return Tx.value(result, Kind.INTEGER, false, type);
+    }
+
+    /**
      * {@code PATINDEX(pattern, s)} of a constant pattern of one literal run between optional %s: where the run first
      * occurs ({@code '%lit%'}), 1 or 0 for {@code 'lit%'}, where it ends s for {@code '%lit'}, 1 or 0 for {@code 'lit'};
      * 0 when either argument is NULL (measured: not NULL). A pattern of %s alone (or '') is 0 in SQL Anywhere and 1 in
-     * IQ's manual: the IQ engine's is the research's D-F6, refused. Refused by name: a pattern that is no constant, one
-     * with {@code _}, a {@code [set]} or a % inside its run, one over 126 characters (SQL Anywhere's -606, IQ's NULL:
-     * D-F7). A {@code sqla17} profile's database matches without regard to the ASCII letters' case
+     * IQ's manual: the IQ engine's is the research's D-F6, refused. A {@code _}, a {@code [set]} or a % inside the run
+     * is read by {@link #patternIndex}. Refused by name: a pattern that is no constant, one over 126 characters (SQL
+     * Anywhere's -606, IQ's NULL: D-F7). A {@code sqla17} profile's database matches without regard to the ASCII letters' case
      * ({@link #asciiFold}).
      */
     private Tx patindex(String name, SqlAst.FunctionCall f, List<Tx> args) {
@@ -1585,8 +2129,7 @@ final class IqFunctions {
         }
         String run = p.substring(from, to);
         if (run.indexOf('%') >= 0 || run.indexOf('_') >= 0 || run.indexOf('[') >= 0) {
-            throw SqlTranslationException.unsupported(name + " with a pattern other than one literal between %s (a _, a"
-                    + " [set], a % inside) is not supported yet", pe.pos());
+            return patternIndex(name, lit, f, s, type);
         }
         boolean anchoredStart = from == 0;
         boolean anchoredEnd = to == p.length();
@@ -1623,15 +2166,12 @@ final class IqFunctions {
     /**
      * {@code STUFF(s, start, length, replacement)}: s with its length characters from start replaced; a NULL
      * replacement deletes them. NULL when s, start or length is NULL, start is below 1 or beyond the string's length
-     * plus 1, or length is negative (measured: start = length + 1 appends). IQ's manual answers NULL for start = length
-     * + 1 (the research's D-F3, not yet verified): refused under the IQ engine.
+     * plus 1, or length is negative (measured: start = length + 1 appends). IQ island, 2026-10-17 (the differential
+     * fuzzer's fifth round; measured on IQ 17.1, the research's D-F3): IQ's engine appends at start = length + 1 too,
+     * where its manual says NULL, and a length past 32,767 is NULL there.
      */
     private Tx stuff(String name, SqlAst.FunctionCall f, List<Tx> args) {
-        if (engine == IqDialect.Engine.IQ) {
-            throw SqlTranslationException.unsupported(name + " is not supported under the IQ engine yet: at a start"
-                    + " just past the string SQL Anywhere appends, IQ's manual answers NULL (the research's D-F3, not"
-                    + " yet verified)", f.pos());
-        }
+        boolean iq = engine == IqDialect.Engine.IQ;
         Tx s = text(args.get(0), f.args().get(0), name);
         Tx start = count(args.get(1), f.args().get(1), name);
         Tx len = count(args.get(2), f.args().get(2), name);
@@ -1646,6 +2186,9 @@ final class IqFunctions {
                     SqlToPure.call("greaterThanEqual", p, integer(1)), SqlToPure.call("greaterThanEqual", n,
                             integer(0))), SqlToPure.call("lessThanEqual", p, AppliedFunction.infixRun("plus",
                     List.of(SqlToPure.call("length", str), integer(1)))));
+            if (iq) {
+                valid = SqlToPure.call("and", valid, SqlToPure.call("lessThanEqual", n, integer(32767)));
+            }
             ValueSpecification value = AppliedFunction.infixRun("plus", List.of(SqlToPure.call("left", str,
                     AppliedFunction.infixRun("minus", List.of(p, integer(1)))), replacement,
                     SqlToPure.call("substring", str, AppliedFunction.infixRun("plus", List.of(p, n)))));
@@ -1661,33 +2204,69 @@ final class IqFunctions {
     }
 
     /** {@code ASCII(s)}: its first character's code (an ISO-8859-1 database's byte), 0 for '', a SMALLINT. In a
-     *  {@code sqla17} profile's UTF-8 database a character above 127 is NULL (measured), refused by name. */
+     *  UTF-8 database (IQ island, 2026-10-17, the corpus lane; measured on IQ 17.1): under IQ's engine the first byte
+     *  of the first character's UTF-8, an INTEGER ({@code ASCII('é')} is 195, {@code ASCII('あ')} 227); in SQL
+     *  Anywhere's front end a character above 127 is NULL. */
     private Tx ascii(String name, SqlAst.FunctionCall f, List<Tx> args) {
-        if (!settings.latin1()) {
-            throw SqlTranslationException.unsupported(name + " in profile " + settings.spelling() + "'s UTF-8 database"
-                    + " is not supported yet: a character above 127 is NULL there", f.pos());
-        }
         Tx s = text(args.get(0), f.args().get(0), name);
-        return strict(Kind.INTEGER, IqType.integer("SMALLINT", BigInteger.ZERO, BigInteger.valueOf(255), false),
-                List.of(s), v -> SqlToPure.call("ascii", v.get(0)));
+        IqType smallint = IqType.integer("SMALLINT", BigInteger.ZERO, BigInteger.valueOf(255), false);
+        if (settings.latin1()) {
+            return strict(Kind.INTEGER, smallint, List.of(s), v -> SqlToPure.call("ascii", v.get(0)));
+        }
+        if (engine == IqDialect.Engine.IQ) {
+            return strict(Kind.INTEGER, IqType.integer("INTEGER", BigInteger.ZERO, BigInteger.valueOf(255), false),
+                    List.of(s), v -> {
+                        // the code point's leading UTF-8 byte: 192, 224 or 240 beside its top 5, 4 or 3 bits
+                        ValueSpecification c = SqlToPure.call("ascii", v.get(0));
+                        return ifThen(lt(c, integer(128)), c, ifThen(lt(c, integer(2048)), lead(192, c, 64), ifThen(
+                                lt(c, integer(65536)), lead(224, c, 4096), lead(240, c, 262144))));
+                    });
+        }
+        Tx r = strict(Kind.INTEGER, smallint, List.of(s), v -> ifThen(SqlToPure.call("greaterThan", SqlToPure.call(
+                "ascii", v.get(0)), integer(127)), SqlToPure.empty(), SqlToPure.call("ascii", v.get(0))));
+        return Tx.value(r.vs(), Kind.INTEGER, true, r.detail());
+    }
+
+    /** {@code base + c / unit}, c's leading UTF-8 byte ({@link #ascii}). */
+    private static ValueSpecification lead(long base, ValueSpecification c, long unit) {
+        return AppliedFunction.infixRun("plus", List.of(integer(base), SqlToPure.wholeQuotient(c, integer(unit))));
     }
 
     /** {@code CHAR(n)}: the character of code n (an ISO-8859-1 database's), NULL outside 0 .. 255. Refused by name: a
      *  code that may be 0 (a NUL, which lite's databases cannot hold), and above 127 in a {@code sqla17} profile's UTF-8
-     *  database (SQL Anywhere answers a lone byte there). */
+     *  database (SQL Anywhere answers a lone byte there). IQ island, 2026-10-17 (the differential fuzzer's fifth round;
+     *  measured on IQ 17.1): under IQ's engine in a UTF-8 database the byte n modulo 256 (CHAR(256) a NUL, CHAR(-1)
+     *  byte 255), refused for a row whose byte is 0 or above 127 (a NUL, a lone byte). */
     private Tx chr(String name, SqlAst.FunctionCall f, List<Tx> args) {
         SqlAst.Expr e = f.args().get(0);
-        if (!(e instanceof SqlAst.ColumnRef) && signedInteger(e) == null && !(e instanceof SqlAst.NullLit)) {
-            throw SqlTranslationException.unsupported(name + " of a computed code is not supported yet: DuckDB's chr"
-                    + " takes a 32-bit integer, which lite's lowering does not cast to yet (a column or a constant is"
-                    + " read)", e.pos());
-        }
         Tx n = count(args.get(0), e, name);
         if (n.kind() == Kind.NULL) {
             return nullString();
         }
+        if (engine == IqDialect.Engine.IQ && !settings.latin1()) {
+            BigInteger constant = signedInteger(e);
+            int b = constant == null ? -1 : constant.mod(BigInteger.valueOf(256)).intValue();
+            if (constant != null && (b == 0 || b > 127)) {
+                throw SqlTranslationException.unsupported(name + " of a code whose byte (modulo 256) is 0 or above 127"
+                        + " is not supported in a UTF-8 database: IQ's engine answers that byte alone", f.pos());
+            }
+            if (constant != null) {
+                // the byte is the database's to compute (2026-10-18, landing 5's review: compare, not compute); the
+                // constant's is read here only to refuse it by name
+                return strict(Kind.STRING, varchar(), List.of(n), v -> SqlToPure.call("char", SqlToPure.call("mod",
+                        v.get(0), integer(256))));
+            }
+            String lone = IqDialect.REFUSED_AT_RUN_TIME + name + " of a code whose byte (modulo 256) is 0 or above 127"
+                    + " is no character of a UTF-8 database: IQ's engine answers that byte alone";
+            return strict(Kind.STRING, varchar(), List.of(n), v -> {
+                ValueSpecification byteOf = SqlToPure.call("mod", v.get(0), integer(256));
+                return refusedPast(SqlToPure.call("or", SqlToPure.call("equal", byteOf, integer(0)), SqlToPure.call(
+                        "greaterThan", byteOf, integer(127))), lone, SqlToPure.call("char", byteOf), SqlToPure.empty());
+            });
+        }
         IqType t = (IqType) java.util.Objects.requireNonNull(n.detail());
-        if (t.lo().signum() <= 0 && t.hi().signum() >= 0) {
+        boolean maybeZero = t.lo().signum() <= 0 && t.hi().signum() >= 0;
+        if (maybeZero && signedInteger(e) != null) {
             throw SqlTranslationException.unsupported(name + " of a code that may be 0 is not supported: CHAR(0) is a"
                     + " NUL character, which lite's databases cannot hold", f.pos());
         }
@@ -1696,9 +2275,17 @@ final class IqFunctions {
                     + settings.spelling() + "'s UTF-8 database: SQL Anywhere answers a lone byte there", f.pos());
         }
         boolean outside = t.lo().signum() < 0 || t.hi().compareTo(BigInteger.valueOf(255)) > 0;
-        Tx r = strict(Kind.STRING, varchar(), List.of(n), v -> outside ? ifThen(SqlToPure.call("or", lt(v.get(0),
-                integer(1)), SqlToPure.call("greaterThan", v.get(0), integer(255))), SqlToPure.empty(),
-                SqlToPure.call("char", v.get(0))) : SqlToPure.call("char", v.get(0)));
+        // IQ island, 2026-10-17 (the differential fuzzer's fifth round: CHAR(65 + MOD(id, 26))): a computed code that
+        // may be 0 is refused for the row that is (a NUL, which lite's databases cannot hold), not before
+        String nul = IqDialect.REFUSED_AT_RUN_TIME + name + " of 0 is a NUL character, which lite's databases cannot"
+                + " hold";
+        Tx r = strict(Kind.STRING, varchar(), List.of(n), v -> {
+            ValueSpecification c = SqlToPure.call("char", v.get(0));
+            ValueSpecification checked = maybeZero ? refusedPast(SqlToPure.call("equal", v.get(0), integer(0)), nul,
+                    c, SqlToPure.empty()) : c;
+            return outside ? ifThen(SqlToPure.call("or", lt(v.get(0), integer(0)), SqlToPure.call("greaterThan",
+                    v.get(0), integer(255))), SqlToPure.empty(), checked) : checked;
+        });
         return outside ? Tx.value(r.vs(), Kind.STRING, true, r.detail()) : r;
     }
 
@@ -1818,9 +2405,15 @@ final class IqFunctions {
             if (decimal(x)) {
                 int[] ps = scaleOf(x, e, "SIGN");
                 IqType own = (IqType) java.util.Objects.requireNonNull(x.detail());
+                // IQ island, 2026-10-17 (the differential fuzzer; measured on IQ 17.1): a NUMERIC with no digit before
+                // its point (0.5 is a NUMERIC(1,1)) cannot hold 1, so a value not 0 is IQ's -1001014 (data conversion
+                // failed) in each row that computes it
+                boolean holdsNoOne = ps[0] <= ps[1];
                 return strict(Kind.DECIMAL, own, List.of(x), v -> {
                     ValueSpecification d = SqlToPure.call("toDecimal", SqlToPure.call("sign", v.get(0)));
-                    return ps[1] > 0 ? atScale(d, ps[1]) : d;
+                    ValueSpecification shown = ps[1] > 0 ? atScale(d, ps[1]) : d;
+                    return holdsNoOne ? ifThen(SqlToPure.call("equal", SqlToPure.call("sign", v.get(0)), integer(0)),
+                            shown, raise("Decimal")) : shown;
                 });
             }
             IqType t = integerType(x, e, "SIGN");
@@ -2186,7 +2779,17 @@ final class IqFunctions {
             throw new IllegalStateException("a quotient of more than 38 digits");
         }
         ValueSpecification ax = SqlToPure.call("abs", x);
-        ValueSpecification n = s > 0 ? times(ax, new CDecimal(pow10(s))) : ax;
+        ValueSpecification n;
+        if (whole1 + s + s1 <= 38) {
+            n = s > 0 ? times(ax, new CDecimal(pow10(s))) : ax;
+        } else {
+            // IQ island, 2026-10-17 (TPC-H's AVG of a NUMERIC(15,2), IQ's NUMERIC(37,23)): |x| made whole first,
+            // |x| * 10^s1 through a BIGINT (exact: at most 18 digits) to a scale-0 decimal, so that n needs
+            // whole1 + s digits, not whole1 + s + s1
+            ValueSpecification whole = SqlToPure.call("toDecimal", SqlToPure.call("floor",
+                    times(ax, new CDecimal(pow10(s1)))));
+            n = s > s1 ? times(whole, new CDecimal(pow10(s - s1))) : whole;
+        }
         ValueSpecification m = whole(n, y, pow10(whole1 + s));
         BigDecimal unit = pow10(-s);
         return times(m, ifThen(lt(x, integer(0)), new CDecimal(unit.negate()), new CDecimal(unit)));
@@ -2212,14 +2815,56 @@ final class IqFunctions {
         return times(m, ifThen(negative, new CDecimal(unit.negate()), new CDecimal(unit)));
     }
 
+    /** The most chunks {@link #longQuotient} divides in (2026-10-17: TPC-DS's AVG of an AVG took 19, and its plan did
+     *  not finish in 20 s over empty tables). */
+    private static final int LONG_QUOTIENT_CHUNKS = 3;
+
+    /**
+     * IQ island, 2026-10-17 (the TPC-H and TPC-DS corpus lanes' 900 AVGs of a NUMERIC whose type IQ's engine makes
+     * wider than 38 digits, NUMERIC(p+22, s+21)): {@code x / y} cut toward zero at scale {@code s} by long division, so
+     * that no step needs more than 38 digits -- the whole quotient of |x| by y ({@link #whole}), then the places in
+     * chunks of at most k digits, each the whole quotient of the rest times 10^k -- with x's sign. x is a decimal of
+     * scale {@code s1} with at most {@code whole1} digits before its point, y a whole decimal above 0 of at most
+     * {@code wholeY}. A quotient of 38 - s digits or more before its point is refused at run time ({@code refusal}):
+     * lite's decimals hold no more, where IQ's type does. Null where a step would still need more than 38 digits.
+     */
+    static @com.legend.base.Nullable ValueSpecification longQuotient(ValueSpecification x, int s1, int whole1,
+            ValueSpecification y, int wholeY, int s, String refusal) {
+        // a chunk of at most 13 digits takes whole() one estimate: fewer repeats of the rest (2026-10-17)
+        int k = Math.min(38 - wholeY - s1 - 1, 13);
+        // each chunk reads the rest the one before it leaves, so the expression grows with their count: past three
+        // (a quotient of many places over a dividend of many, an AVG of an AVG) the plan is refused by name
+        if (k < 1 || s < s1 || s > 37 || whole1 + s1 > 38 || (s + k - 1) / k > LONG_QUOTIENT_CHUNKS) {
+            return null;
+        }
+        ValueSpecification ax = SqlToPure.call("abs", x);
+        ValueSpecification q0 = whole(ax, y, pow10(whole1));
+        ValueSpecification rest = AppliedFunction.infixRun("minus", List.of(ax, times(q0, y)));
+        ValueSpecification result = q0;
+        int done = 0;
+        while (done < s) {
+            int step = Math.min(k, s - done);
+            ValueSpecification a = times(rest, new CDecimal(pow10(step)));
+            ValueSpecification q = whole(a, y, pow10(step));
+            done += step;
+            result = AppliedFunction.infixRun("plus", List.of(result, times(q, new CDecimal(pow10(-done)))));
+            rest = AppliedFunction.infixRun("minus", List.of(a, times(q, y)));
+        }
+        ValueSpecification signed = times(result, ifThen(lt(x, integer(0)), new CDecimal(BigDecimal.ONE.negate()),
+                new CDecimal(BigDecimal.ONE)));
+        return refusedPast(SqlToPure.call("greaterThanEqual", q0, new CDecimal(pow10(38 - s))), refusal, signed,
+                raise("Decimal"));
+    }
+
     /** Whether {@link #truncatedDivision}'s steps fit lite's 38 digits, scales counted. */
     static boolean truncatedDivisionFits(int s1, int whole1, int s2, int whole2, int s) {
         return s <= 38 && whole1 + s + s2 <= 38 && Math.max(whole1 + s + s2, whole2) + 1 + Math.max(s1, s2) <= 38;
     }
 
-    /** Whether {@link #truncatedQuotient}'s steps fit lite's 38 digits, scales counted (n keeps x's scale). */
+    /** Whether {@link #truncatedQuotient}'s steps fit lite's 38 digits, scales counted (n keeps x's scale, unless x
+     *  is made whole first, through a BIGINT). */
     static boolean truncatedFits(int s1, int whole1, int s) {
-        return s1 <= s && whole1 + s + s1 <= 38;
+        return s1 <= s && (whole1 + s + s1 <= 38 || whole1 + s <= 38 && whole1 + s1 <= FLOOR_DIGITS);
     }
 
     /** Whether {@link #quotient}'s steps fit lite's 38 digits, scales counted (n = |x| * 10^s keeps x's scale, and
@@ -2322,6 +2967,22 @@ final class IqFunctions {
         return AppliedFunction.infixRun("times", List.of(a, b));
     }
 
+    /**
+     * IQ island, 2026-10-17 (the TPC-H corpus lane's 257 comparisons of a sum with a wide AVG): {@code y}, a decimal of
+     * scale {@code sy} with at most {@code wy} digits before its point, at {@code s} places (fewer than sy), rounded up
+     * (toward +infinity) or down, exactly: y less its remainder by 10^-s (toward zero), one step away where the
+     * remainder points so, at scale s. So a comparison with a value of s places needs no decimal holding both scales.
+     */
+    static ValueSpecification placesToward(ValueSpecification y, int sy, int wy, int s, boolean up) {
+        CDecimal unit = new CDecimal(pow10(-s));
+        ValueSpecification r = remainder(y, sy, wy, unit, s, 1);
+        ValueSpecification toward = AppliedFunction.infixRun("minus", List.of(y, r));
+        ValueSpecification step = ifThen(up ? SqlToPure.call("greaterThan", r, integer(0)) : lt(r, integer(0)), unit,
+                new CDecimal(BigDecimal.ZERO));
+        return SqlToPure.call("round", AppliedFunction.infixRun(up ? "plus" : "minus", List.of(toward, step)),
+                integer(s));
+    }
+
     /** {@code MOD(a, b)} and {@code REMAINDER(a, b)}: IQ's {@code a % b} (the same function: the dividend's sign, a
      *  zero divisor IQ's error -628, IQ's types). */
     private Tx mod(String name, SqlAst.FunctionCall f, SqlToPure.At at) {
@@ -2377,8 +3038,28 @@ final class IqFunctions {
      * A string is IQ's -1009145 (refused); in SQL Anywhere's front end POWER stays refused.
      */
     private Tx iqPower(String name, SqlAst.FunctionCall f, List<Tx> args) {
-        Tx x = asDouble(args.get(0), f.args().get(0), name);
-        Tx y = asDouble(args.get(1), f.args().get(1), name);
+        return power(asDouble(args.get(0), f.args().get(0), name), asDouble(args.get(1), f.args().get(1), name));
+    }
+
+    /**
+     * {@code SQUARE(x)} (IQ island, 2026-10-17, the corpus lane; measured on IQ 17.1, its engine's and its front
+     * end's alike): {@code POWER(x, 2)} -- IQ's own error for a string names POWER -- a DOUBLE, NULL past the largest
+     * DOUBLE or where it underflows to 0 (SQUARE(1e-162)), a subnormal kept (SQUARE(3e-162) is 1e-323). In SQL
+     * Anywhere's front end read in an iq17 profile only: SQL Anywhere 17, the other profiles' judge, answers Infinity
+     * and 0 there, as its POWER does (refused by name).
+     */
+    private Tx square(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        if (engine != IqDialect.Engine.IQ && (settings.base() != IqSettings.Base.IQ16 || settings.latin1())) {
+            throw SqlTranslationException.unsupported(name + "(...) is not supported yet in SQL Anywhere's front end"
+                    + " in profile " + settings.spelling() + ": SQL Anywhere 17 answers +Infinity past the largest"
+                    + " DOUBLE and 0 where it underflows, where IQ 17.1 answers NULL", f.pos());
+        }
+        return power(asDouble(args.get(0), f.args().get(0), name), Tx.value(new CFloat(2.0), Kind.FLOAT, false,
+                new IqType("DOUBLE")));
+    }
+
+    /** x to the power y, DOUBLEs, as {@link #iqPower} reads it. */
+    private Tx power(Tx x, Tx y) {
         Tx r = strict(Kind.FLOAT, new IqType("DOUBLE"), List.of(x, y), v -> {
             ValueSpecification b = v.get(0);
             ValueSpecification e = v.get(1);
@@ -2431,6 +3112,29 @@ final class IqFunctions {
                     i), f.pos()), f.pos()), f.args().get(i)));
         }
         return at.tx(new SqlAst.Case(null, whens, null, f.pos()));
+    }
+
+    /** {@code TO_CHAR(x [, charset])} (IQ island, 2026-10-17; BIRD's TO_CHAR(date, 'YYYY'), 19 queries, measured on IQ
+     *  17.1): SQL Anywhere's conversion of a binary string to text by a character set, not other dialects' format --
+     *  a date or a timestamp is IQ's -157 as it plans (no conversion to a binary string), over no rows too; a string
+     *  alone is itself, a LONG VARCHAR. Refused by name: a character set, and a number (its bytes). */
+    private Tx toChar(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx x = args.get(0);
+        if (x.kind() == Kind.DATE || x.kind() == Kind.DATETIME) {
+            // held: IQ raises it as it plans, after the statement's names
+            dialect.hold(SqlTranslationException.invalid("cannot convert " + kindName(x.kind()) + " to long binary: "
+                    + name + " converts a binary string by a character set, not by a format" + code(-157, "53018"),
+                    f.pos()));
+            return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, new IqType("LONG VARCHAR"));
+        }
+        if (args.size() == 1 && (x.kind() == Kind.STRING || x.kind() == Kind.NULL)) {
+            // a LONG VARCHAR (measured on IQ 17.1: TO_CHAR('abc'))
+            return x.kind() == Kind.NULL ? nullString() : Tx.value(x.vs(), Kind.STRING, x.nullable(),
+                    new IqType("LONG VARCHAR"));
+        }
+        throw SqlTranslationException.unsupported(name + " of " + kindName(x.kind()) + (args.size() > 1 ? " by a"
+                + " character set" : "") + " is not supported yet: SQL Anywhere's conversion of a binary string",
+                f.pos());
     }
 
     /** {@code REVERSE(s)} (IQ island, 2026-10-15, checklist 1.10, measured on IQ 17.1): its characters in reverse, a
@@ -2722,6 +3426,11 @@ final class IqFunctions {
                         dated("TIMESTAMP", Integer.parseInt(parts[0].substring(0, 4))));
             }
         }
+        if (x.kind() == Kind.STRING && engine == IqDialect.Engine.IQ) {
+            // IQ island, 2026-10-17 (BIRD's DATE(SUBSTR(s, 1, 10)); measured on IQ 17.1): DATE, DATEPART,
+            // YEAR and DATEADD read a computed string as CAST to TIMESTAMP reads it (stringDate), their -1001006 alike
+            return stringDate(x, false, dated("TIMESTAMP", null));
+        }
         throw SqlTranslationException.unsupported(name + " of " + kindName(x.kind()) + " is not supported yet: IQ"
                 + " converts it to a date by its own rules (a constant string in a spelling of IQ's the island reads is"
                 + " read)", e.pos());
@@ -2948,9 +3657,16 @@ final class IqFunctions {
             // 2,000,000,000 is 6036-09-01, YEAR -2,147,483,648 leaves the date as it is): its defect, refused by name
             BigInteger bound = WRAPS.get(part);
             if (bound != null && (count.hi().compareTo(bound) > 0 || count.lo().compareTo(bound.negate()) < 0)) {
-                throw SqlTranslationException.unsupported(name + "(" + part + ", n, ...) with a count that may pass "
-                        + bound + " is not supported: SQL Anywhere wraps such a count rather than raising its -158"
-                        + " (its defect)", f.args().get(1).pos());
+                // IQ island, 2026-10-17 (the corpus lane: DATEADD(WEEK, DATEDIFF(WEEK, ...), ...), 10 queries): a
+                // count whose type may pass the bound, a computed one's, is refused by name where the row computes
+                // one past it; its others are read
+                String past = IqDialect.REFUSED_AT_RUN_TIME + name + "(" + part + ", n, ...) with a count past " + bound
+                        + " is not supported: SQL Anywhere wraps such a count rather than raising its -158 (its defect)";
+                Tx checked = SqlToPure.strict(Kind.INTEGER, List.of(n), v -> refusedPast(SqlToPure.call("or",
+                        SqlToPure.call("greaterThan", v.get(0), SqlToPure.integer(bound)), lt(v.get(0),
+                        SqlToPure.integer(bound.negate()))), past, v.get(0), IqDialect.raise()));
+                count = IqType.integer(count.family(), bound.negate(), bound, false);
+                n = Tx.value(checked.vs(), Kind.INTEGER, checked.nullable(), count);
             }
         }
         Tx d = dateArgument(args.get(2), f.args().get(2), name);
@@ -3656,16 +4372,30 @@ final class IqFunctions {
         }
         int n = s;
         boolean round = n < ss;
-        if (round && sp - ss + n > 18) {
+        // IQ island, 2026-10-17 (the corpus lane's TPC-H and TPC-DS: CAST(SUM(...) AS DECIMAL(12,2)) of a NUMERIC(32,4)):
+        // past the 18 digits places() computes in, rounded or cut by placesExact in 38, as ROUND is; a value of more
+        // digits than that holds is refused at run time
+        boolean exact = round && sp - ss + n > 18;
+        int heldDigits = Math.min(sp - ss, 37 - ss);
+        if (exact && heldDigits < 1) {
             throw SqlTranslationException.unsupported(what + " of a NUMERIC(" + sp + "," + ss + ") to " + n + " places"
                     + " is not supported yet: its scaled value may exceed 18 digits", c.pos());
         }
+        String past = exact && heldDigits < sp - ss ? IqDialect.REFUSED_AT_RUN_TIME + what + " of a value of more than "
+                + heldDigits + " digits before its point is not supported: its NUMERIC(" + sp + "," + ss + ") needs"
+                + " more than the 38 digits lite's decimals hold" : null;
         // can the value need more whole digits than p - s? (rounding up may add one; IQ's engine truncates)
         boolean check = sp - ss + (round && !iq ? 1 : 0) > p - s;
         boolean fromWhole = whole;
+        int fromScale = ss;
         return strict(Kind.DECIMAL, type, List.of(value), v -> {
             ValueSpecification d = fromWhole ? SqlToPure.call("toDecimal", v.get(0)) : v.get(0);
-            ValueSpecification r = round ? places(d, n, !iq) : s == ss ? d : atScale(d, s);
+            ValueSpecification r = !round ? (s == fromScale ? d : atScale(d, s)) : !exact ? places(d, n, !iq)
+                    : SqlToPure.call("round", placesExact(d, fromScale, n, !iq), integer(n));
+            if (past != null) {
+                r = refusedPast(SqlToPure.call("greaterThanEqual", SqlToPure.call("abs", d), new CDecimal(pow10(
+                        heldDigits))), past, r, raise("Decimal"));
+            }
             if (!check) {
                 return r;
             }
@@ -3720,8 +4450,16 @@ final class IqFunctions {
             }
             BigDecimal d = IqTypes.atScale(java.util.Objects.requireNonNull(IqDialect.numericText(s.value())));
             if (d.precision() > 15 || d.scale() > 38) {
-                throw SqlTranslationException.unsupported(what + " of a string of more than 15 significant digits to"
-                        + " DOUBLE is not supported yet", c.operand().pos());
+                // IQ island, 2026-10-17 (the corpus lane's Public BI, cast('21.280000000000001' as double): a double's
+                // seventeen-digit spelling): the database parses the digits, to the nearest DOUBLE, where a NUMERIC's
+                // conversion may miss it by a unit in the last place; a magnitude past a DOUBLE's is refused
+                if (d.signum() != 0 && (d.abs().compareTo(new BigDecimal("1e308")) >= 0
+                        || d.abs().compareTo(new BigDecimal("1e-307")) <= 0)) {
+                    throw SqlTranslationException.unsupported(what + " of a string past a DOUBLE's magnitude is not"
+                            + " supported yet", c.operand().pos());
+                }
+                return Tx.value(SqlToPure.call("parseFloat", new CString(d.toPlainString())), Kind.FLOAT, false,
+                        type);
             }
             return Tx.value(SqlToPure.call("toFloat", new CDecimal(d)), Kind.FLOAT, false, type);
         }
@@ -3744,11 +4482,38 @@ final class IqFunctions {
             return x;
         }
         if (x.kind() == Kind.STRING) {
-            throw SqlTranslationException.unsupported(what + " of a string to REAL is not supported yet: IQ reads it by"
-                    + " its own rules", c.operand().pos());
+            if (engine != IqDialect.Engine.IQ) {
+                throw SqlTranslationException.unsupported(what + " of a string to REAL is not supported in SQL"
+                        + " Anywhere's front end yet: it reads it by its own rules", c.operand().pos());
+            }
+            return stringToReal(x, type);
         }
         Tx d = asDouble(x, c.operand(), what);
         Tx r = SqlToPure.strict(Kind.FLOAT, List.of(d), v -> single(v.get(0)));
+        return Tx.value(r.vs(), Kind.FLOAT, r.nullable(), type);
+    }
+
+    /** IQ's engine's spelling of a float: blanks or tabs around a sign, digits with one point (a digit on one side),
+     *  an exponent of digits ({@link #stringToReal}). */
+    private static final String FLOAT_TEXT = "^[ \\t]*[+-]?([0-9]+[.]?[0-9]*|[.][0-9]+)([eE][+-]?[0-9]+)?[ \\t]*$";
+
+    /**
+     * IQ island, 2026-10-17 (the corpus lane's JOB, 26 queries; measured on IQ 17.1): under IQ's engine a string read
+     * as a REAL is its float spelling ({@link #FLOAT_TEXT}: ' 7.5 ', '+.5', '5.', '-.5E+2', a tab around it) rounded to
+     * single precision ('1.555' is 1.5549999475479126), '' or blanks alone 0.0, any other spelling IQ's -1009145 ('.',
+     * '1e', 'inf', '1,5') raised for its row; past the largest REAL IQ answers Infinity, refused for its row.
+     */
+    private static Tx stringToReal(Tx x, IqType type) {
+        String past = IqDialect.REFUSED_AT_RUN_TIME + "a string past the largest REAL read as one: IQ answers Infinity";
+        Tx r = SqlToPure.strict(Kind.FLOAT, List.of(x), v -> {
+            ValueSpecification bare = SqlToPure.call("trim", SqlToPure.call("replace", v.get(0), new CString("\t"),
+                    new CString("")));
+            ValueSpecification parsed = SqlToPure.call("parseFloat", bare);
+            ValueSpecification read = refusedPast(SqlToPure.call("greaterThan", SqlToPure.call("abs", parsed),
+                    new CFloat(SINGLE_MAX)), past, single(parsed), raise("Float"));
+            return ifThen(SqlToPure.call("equal", bare, new CString("")), new CFloat(0.0), ifThen(SqlToPure.call(
+                    "matches", v.get(0), new CString(FLOAT_TEXT)), read, raise("Float")));
+        });
         return Tx.value(r.vs(), Kind.FLOAT, r.nullable(), type);
     }
 
@@ -4073,26 +4838,36 @@ final class IqFunctions {
     private Tx stringDate(Tx x, boolean toDate, IqType type) {
         Kind kind = toDate ? Kind.DATE : Kind.DATETIME;
         List<String[]> steps = canonicalSteps(engine == IqDialect.Engine.IQ);
-        Tx r = SqlToPure.strict(kind, List.of(x), v -> {
-            // each step reads the last once: the string's Pure grows with the steps, not with their groups
-            ValueSpecification text = SqlToPure.call("toLower", v.get(0));
-            for (String[] step : steps) {
-                text = SqlToPure.call("regexpReplace", text, new CString(step[0]), new CString(step[1]),
-                        new com.legend.protocol.spec.CBoolean(false));
-            }
-            ValueSpecification at = SqlToPure.call("parseDate", text);
-            ValueSpecification value = toDate ? typed(SqlToPure.call("datePart", at), "StrictDate")
-                    : typed(at, "DateTime");
-            if (!toDate) {
-                // as the constant's reader refuses it (IqDateTime.read; 2026-10-16, the landing's review): SQL
-                // Anywhere drops a timestamp's hours and minutes after the year 7910
-                value = refusedPast(SqlToPure.call("matches", text, new CString(PAST_TIMED)), PAST_TIMED_RAISE, value,
-                        raise("DateTime"));
-            }
-            return refusedPast(SqlToPure.call("not", SqlToPure.call("matches", text, new CString(CANONICAL))),
-                    UNREAD_DATE_RAISE, value, raise(toDate ? "StrictDate" : "DateTime"));
-        });
+        Tx r = SqlToPure.strict(kind, List.of(x), v -> readDate(v.get(0), toDate, steps));
         return Tx.value(r.vs(), kind, r.nullable(), type);
+    }
+
+    /** A string the database computes of constants, compared with a timestamp under IQ's engine: the TIMESTAMP CAST
+     *  reads; with a DATE ({@code date}), the DATE ({@link #stringDate}; IqDialect's comparison, IQ island,
+     *  2026-10-17). */
+    Tx compared(Tx x, boolean date) {
+        return stringDate(x, date, dated(date ? "DATE" : "TIMESTAMP", null));
+    }
+
+    /** A string's value {@code v} read as {@link #stringDate} reads it, by {@code steps}. */
+    private static ValueSpecification readDate(ValueSpecification v, boolean toDate, List<String[]> steps) {
+        // each step reads the last once: the string's Pure grows with the steps, not with their groups
+        ValueSpecification text = SqlToPure.call("toLower", v);
+        for (String[] step : steps) {
+            text = SqlToPure.call("regexpReplace", text, new CString(step[0]), new CString(step[1]),
+                    new com.legend.protocol.spec.CBoolean(false));
+        }
+        ValueSpecification at = SqlToPure.call("parseDate", text);
+        ValueSpecification value = toDate ? typed(SqlToPure.call("datePart", at), "StrictDate")
+                : typed(at, "DateTime");
+        if (!toDate) {
+            // as the constant's reader refuses it (IqDateTime.read; 2026-10-16, the landing's review): SQL
+            // Anywhere drops a timestamp's hours and minutes after the year 7910
+            value = refusedPast(SqlToPure.call("matches", text, new CString(PAST_TIMED)), PAST_TIMED_RAISE, value,
+                    raise("DateTime"));
+        }
+        return refusedPast(SqlToPure.call("not", SqlToPure.call("matches", text, new CString(CANONICAL))),
+                UNREAD_DATE_RAISE, value, raise(toDate ? "StrictDate" : "DateTime"));
     }
 
     /** A year of 1 to 9999, four digits. */
@@ -4244,10 +5019,13 @@ final class IqFunctions {
     }
 
     /**
-     * A count or a position argument: an integer that lite's SQL computes in 32 bits (a SMALLINT, an INTEGER, a BIT, a
-     * constant), or a NULL. A BIGINT, or an integer the translation computes in 64 bits, is refused by name: Postgres's
-     * substr, left, right, repeat and chr take a 32-bit integer, and lite's lowering does not cast one to it yet. A
-     * value IQ converts (a NUMERIC truncated, a string read) is refused too.
+     * A count or a position argument: an integer (a SMALLINT, an INTEGER, a BIGINT, a BIT, a constant, one computed in
+     * 64 bits), or a NULL. IQ island, 2026-10-17 (the corpus lane: 23 queries, {@code SUBSTRING(s, 2, LEN(s) -
+     * 2)}; measured on IQ 17.1): IQ takes a 32-bit one. Past its range IQ is not consistent -- a constant's or a
+     * computed value's is its error (-1009145 under its engine, -1001014 in SUBSTRING, -158 in its front end), a BIGINT
+     * column's extremes give '' -- so the island refuses such a value by name where the row computes it. Postgres's
+     * string functions take a 32-bit integer too, which its dialect narrows a 64-bit one to
+     * ({@code StringCountsAsInt}). A value IQ converts (a NUMERIC truncated, a string read) is refused.
      */
     private Tx count(Tx t, SqlAst.Expr e, String fn) {
         if (t.kind() == Kind.NULL) {
@@ -4255,9 +5033,13 @@ final class IqFunctions {
         }
         if (t.kind() == Kind.INTEGER && t.detail() instanceof IqType type && type.isInteger()) {
             if (type.family().equals("BIGINT") || type.wide() && !type.exact()) {
-                throw SqlTranslationException.unsupported(fn + " with a count or position that is a BIGINT, or"
-                        + " computed in 64 bits, is not supported yet: Postgres's string functions take a 32-bit"
-                        + " integer, which lite's lowering does not cast to yet", e.pos());
+                String past = IqDialect.REFUSED_AT_RUN_TIME + fn + " with a count or position past 32 bits is not"
+                        + " supported: IQ raises its error for a computed one, and reads a BIGINT column's otherwise";
+                Tx checked = SqlToPure.strict(Kind.INTEGER, List.of(t), v -> refusedPast(SqlToPure.call("or",
+                        SqlToPure.call("greaterThan", v.get(0), integer(Integer.MAX_VALUE)), SqlToPure.call("lessThan",
+                        v.get(0), integer(Integer.MIN_VALUE))), past, v.get(0), IqDialect.raise()));
+                return Tx.value(checked.vs(), Kind.INTEGER, checked.nullable(), IqType.integer("INTEGER",
+                        BigInteger.valueOf(Integer.MIN_VALUE), BigInteger.valueOf(Integer.MAX_VALUE), false));
             }
             return t;
         }
@@ -4329,7 +5111,9 @@ final class IqFunctions {
                 throw SqlTranslationException.unsupported(fn + " of a NUMERIC of more than 15 digits is not supported"
                         + " yet: its DOUBLE may round otherwise in lite's databases", e.pos());
             }
-        } else {
+        } else if (!(x.detail() instanceof IqType t && t.spelling().equals("UNSIGNED BIGINT"))) {
+            // IQ island, 2026-10-17 (the corpus lane: LOG10(COUNT(x)), 8 queries): a COUNT's UNSIGNED BIGINT
+            // under IQ's engine is a DOUBLE as a BIGINT is
             integerType(x, e, fn);
         }
         Tx r = SqlToPure.strict(Kind.FLOAT, List.of(x), v -> SqlToPure.call("toFloat", v.get(0)));

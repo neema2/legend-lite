@@ -25,8 +25,10 @@ public sealed interface SqlDdl
         /** The unsized kinds. {@code VARCHAR}: text of any length &mdash; no store
          *  declares it (the grammar sizes VARCHAR); a bulk load's staging
          *  columns hold each cell as text before the database casts it. */
-        enum Kind { BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, BIT, TIMESTAMP, DATE,
-            JSON, VARCHAR, OTHER, DISTINCT, ARRAY, OBJECT }
+        /** {@code TIMESTAMP_NS}: a date-time of nanosecond precision, lite's column type (2026-10-17); a dialect
+         *  whose timestamps keep microseconds refuses it by name. */
+        enum Kind { BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, BIT, TIMESTAMP, DATE, TIME,
+            TIMESTAMP_NS, JSON, VARCHAR, OTHER, DISTINCT, ARRAY, OBJECT }
         record Plain(Kind kind) implements ColumnType {
         }
         /** {@code VARCHAR(n)}, {@code CHAR(n)}, {@code BINARY(n)}, {@code VARBINARY(n)}. */

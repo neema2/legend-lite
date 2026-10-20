@@ -4796,6 +4796,63 @@ class RelationalMappingIntegrationTest {
             assertTrue(upper.contains("T_ADDRESS"), "JOIN should be to T_ADDRESS: " + sql);
             assertTrue(sql.contains("FIRM_NAME"), "Firm should reference parent column directly: " + sql);
         }
+
+        @Test
+        @DisplayName("An embedded property of an association's target: the join, then the target's own column")
+        void testEmbeddedOnAssociationTarget() throws SQLException {
+            // (2026-10-17: the resolver took the embedded `geo` after the `address` hop for a second association
+            // and named it unmapped; a stored zoned value of the #Cypher{...}# island on a node a hop reaches)
+            sql("CREATE TABLE T_PERSON (ID INT PRIMARY KEY, NAME VARCHAR(100), ADDR_ID INT)",
+                "CREATE TABLE T_ADDRESS (ID INT PRIMARY KEY, CITY VARCHAR(100), LAT DOUBLE, LNG DOUBLE)",
+                "INSERT INTO T_ADDRESS VALUES (1, 'New York', 40.7, -74.0), (2, 'Boston', 42.4, -71.1)",
+                "INSERT INTO T_PERSON VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Carol', NULL)");
+            var model = withRuntime("""
+###Pure
+                    import model::*;
+                    import store::*;
+
+                    Class model::Person { name: String[1]; }
+                    Class model::Geo { lat: Float[1]; lng: Float[1]; }
+                    Class model::Address { city: String[1]; geo: Geo[0..1]; }
+                    Association model::Person_Address { person: Person[*]; address: Address[0..1]; }
+###Relational
+                    Database store::DB (
+                        Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), ADDR_ID INTEGER)
+                        Table T_ADDRESS (ID INTEGER PRIMARY KEY, CITY VARCHAR(100), LAT DOUBLE, LNG DOUBLE)
+                        Join Person_Address(T_PERSON.ADDR_ID = T_ADDRESS.ID)
+                    )
+###Mapping
+                    import model::*;
+                    import store::*;
+                    Mapping model::M (
+                        Person: Relational {
+                            ~mainTable [store::DB] T_PERSON
+                            name: [store::DB] T_PERSON.NAME
+                        }
+                        Address: Relational {
+                            ~mainTable [store::DB] T_ADDRESS
+                            city: [store::DB] T_ADDRESS.CITY,
+                            geo (
+                                lat: [store::DB] T_ADDRESS.LAT,
+                                lng: [store::DB] T_ADDRESS.LNG
+                            )
+                        }
+
+                        model::Person_Address: Relational { AssociationMapping ( person: [store::DB]@Person_Address, address: [store::DB]@Person_Address ) }
+)
+                    """, "store::DB", "model::M");
+
+            var query = "model::Person.all()->project(~[name:p|$p.name, lat:p|$p.address.geo.lat])->sort(~name->ascending())";
+            var r = exec(model, query);
+            assertEquals(List.of("Alice", "Bob", "Carol"), colStr(r, 0));
+            assertEquals(40.7, ((Number) r.rows().get(0).get(1)).doubleValue(), 1e-9);
+            assertEquals(42.4, ((Number) r.rows().get(1).get(1)).doubleValue(), 1e-9);
+            assertNull(r.rows().get(2).get(1));
+            // one JOIN, to the address; the embedded latitude its own column
+            String sql = planSql(model, query).toUpperCase(java.util.Locale.ROOT);
+            assertEquals(1, sql.split("JOIN").length - 1, "Expected exactly 1 JOIN (address): " + sql);
+            assertTrue(sql.contains(".LAT"), "The latitude should read the address's column: " + sql);
+        }
     }
 
     // ==================== 30. Inline Mappings ====================

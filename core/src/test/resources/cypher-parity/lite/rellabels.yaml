@@ -1,0 +1,26 @@
+# The #Cypher{...}# island's label expressions on relationships and relationship types differing only in case
+# (docs/CYPHER_STUDY_2026_10_15.md §12.79): `r:T` is true when the relationship's type is T (a relationship has one
+# type, so `r:T:U` never holds), null where an OPTIONAL MATCH did not find it; two types spelled alike but for case
+# are two types (the harness names their tables and columns apart). Each case is judged by Neo4j's answer in
+# neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/rellabels/*'), keyed lite/rellabels/<id>.
+tests:
+  - id: a_relationship_s_type_as_a_label
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b'}), (a)-[:T]->(b), (a)-[:U]->(b)
+    cypher: "MATCH ()-[r]->() RETURN type(r) AS t, r:T AS isT ORDER BY t"
+  - id: two_labels_on_a_relationship_never_hold
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b'}), (a)-[:T]->(b), (a)-[:U]->(b)
+    cypher: "MATCH ()-[r]->() RETURN type(r) AS t, r:T:U AS both, r:T:T AS twice ORDER BY t"
+  - id: an_optional_relationship_s_label
+    graph: |
+      CREATE (a:A {name: 'a'}), (c:A {name: 'c'}), (b:B {name: 'b'}), (a)-[:T]->(b)
+    cypher: "MATCH (n:A) OPTIONAL MATCH (n)-[r]->() RETURN n.name AS n, r:T AS isT ORDER BY n"
+  - id: types_differing_only_in_case
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b'}), (a)-[:T]->(b), (a)-[:t]->(b), (b)-[:t]->(a)
+    cypher: "MATCH (x)-[r:t]->(y) RETURN x.name AS x, y.name AS y, type(r) AS ty ORDER BY x"
+  - id: types_differing_only_in_case_counted
+    graph: |
+      CREATE (a:A {name: 'a'}), (b:B {name: 'b'}), (a)-[:T]->(b), (a)-[:t]->(b), (b)-[:t]->(a)
+    cypher: "MATCH ()-[r]->() RETURN type(r) AS ty, count(*) AS n ORDER BY ty"

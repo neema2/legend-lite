@@ -1,0 +1,32 @@
+# The #Cypher{...}# island's non-deterministic functions (docs/CYPHER_STUDY_2026_10_15.md §12.51, the plan's W3):
+# rand() is the database's random float in [0, 1), read once per row it is spelled in; date(), localtime(), time(),
+# localdatetime() and datetime() with no argument are the statement's clock (the database's now, read once per
+# statement), their .transaction, .statement and .realtime forms the same clock (docs/SEMANTICS_REGISTER.md S77);
+# randomUUID() the database's uuid as text. The cases pin predicates only: the values are the call's, never Neo4j's.
+# Each case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
+# 'lite/clock/*' snaps them), keyed lite/clock/<id>.
+tests:
+  - id: rand_in_its_range
+    cypher: "RETURN rand() >= 0.0 AND rand() < 1.0 AS ok"
+  - id: rand_read_once_per_row
+    cypher: "UNWIND [1, 2, 3] AS x WITH x, rand() AS r RETURN x, r = r AS same, r >= 0.0 AS inRange ORDER BY x"
+  - id: rand_in_a_where
+    cypher: "UNWIND range(1, 50) AS x WITH x WHERE rand() < 2.0 RETURN count(x) AS n"
+  - id: rand_in_an_aggregate_refused
+    cypher: "RETURN count(rand()) AS n"
+  - id: random_uuid_is_text
+    cypher: "RETURN size(randomUUID()) AS n, randomUUID() = randomUUID() AS same"
+  - id: the_clocks_agree_with_themselves
+    cypher: "RETURN date() = date() AS d, localdatetime() = localdatetime() AS ldt, localtime() = localtime() AS lt, datetime() = datetime() AS dt, time() = time() AS t"
+  - id: the_three_clocks_are_one
+    cypher: "RETURN date.statement() = date.transaction() AS a, date.realtime() = date() AS b, localdatetime.statement() = localdatetime() AS c, datetime.transaction() = datetime() AS d, localtime.statement() = localtime() AS e, time.transaction() = time() AS f"
+  - id: the_realtime_clock_is_the_statements
+    cypher: "RETURN localdatetime.realtime() <= localdatetime() + duration('PT1S') AS near, time.realtime() IS NOT NULL AS t"
+  - id: a_clock_of_null_is_null
+    cypher: "RETURN date.statement(null) AS a, datetime.realtime(null) AS b, localtime.transaction(null) AS c, time(null) AS d, localdatetime(null) AS e"
+  - id: the_clocks_are_of_their_kinds
+    cypher: "RETURN date() > date('2000-01-01') AS a, localdatetime() > localdatetime('2000-01-01T00:00:00') AS b, datetime() > datetime('2000-01-01T00:00:00Z') AS c, localtime() >= localtime('00:00:00') AS d, time() >= time('00:00:00Z') AS e"
+  - id: the_date_of_now_is_today
+    cypher: "RETURN date(localdatetime()) = date() AS same, localdatetime().year >= 2026 AS recent"
+  - id: no_difference_between_two_reads
+    cypher: "RETURN duration.inSeconds(localdatetime(), localdatetime()) AS a, duration.inSeconds(date(), date()) AS b, duration.inSeconds(localtime(), localtime()) AS c"

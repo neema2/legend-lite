@@ -334,11 +334,13 @@ final class ListEncodings {
                 || !(toOne || e instanceof SqlExpr.Case)) {
             return e;
         }
+        // (the empty side typed as the one-element side: Postgres spells no untyped empty list)
+        SqlExpr one = new SqlExpr.ArrayLit(List.of(e));
         return new SqlExpr.Case(
                 List.of(new SqlExpr.Case.When(
                         SqlExpr.Call.of(SqlFn.IS_NULL, e),
-                        new SqlExpr.ArrayLit(List.of()))),
-                new SqlExpr.ArrayLit(List.of(e)));
+                        new SqlExpr.ArrayLit(List.of(), one.type()))),
+                one);
     }
 
     /** Clamp a (possibly negative) index to zero — PCT's slice/drop/take edge semantics. */

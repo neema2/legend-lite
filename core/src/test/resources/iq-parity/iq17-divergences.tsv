@@ -21,8 +21,6 @@ cause	not-in-unknown	IS UNKNOWN over NOT IN of a subquery holding NULL: IQ's eng
 cause	D-F17	MEDIAN of integers: IQ's engine truncates the midpoint toward zero, where lite floors (WP2 item 10)
 cause	D-S5	blank padding with a tab: IQ's engine pads the shorter string with blanks before comparing (WP2 item 10)
 cause	exp-underflow	EXP's underflow is NULL in IQ 17.1's front end, 0 in SQL Anywhere 17's (WP2 item 10)
-cause	true-keyword	TRUE is a keyword in IQ 17.1, a name in SQL Anywhere 17 (WP2 item 10)
-cause	having-alias	a GROUP BY expression read by its alias in HAVING is IQ's -149 under its engine
 cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is false where no row matches; the internal error -1006000 for ISNULL(LEFT(...)) beside a CASE of SUBSTRING; (IQ island, 2026-10-16) a filter of the null-supplying side of a LEFT JOIN inside a windowed derived table, or an outer join's condition on it, applied below its window functions (a RANK or a COUNT(*) OVER () of the filtered rows)
 cause	pg-double-overflow	a DOUBLE beyond the largest is NULL under IQ's engine, which the island answers; Postgres raises its own float8 overflow before the island's test can read the infinity
 
@@ -66,8 +64,6 @@ run	lite/m1review/m2_median_of_smallint_extremes@iq17-default	D-F17	duckdb,postg
 run	lite/natives/between_with_a_tab_and_blanks@iq17-default	D-S5	duckdb,postgres
 run	lite/m1d/exp_at_the_largest_and_the_smallest_doubles@iq17-default	exp-underflow	duckdb,postgres
 run	lite/m1d/exp_of_constants@iq17-default	exp-underflow	duckdb,postgres
-run	lite/basics/true_is_a_name@iq17-default	true-keyword	duckdb,postgres
-run	lite/review6/b1_having_alias_of_arithmetic_is_two_valued@iq17-tds	having-alias	duckdb,postgres
 run	lite/m1d/functions_in_case_and_isnull@iq17-default	iq-defect	duckdb,postgres
 run	lite/m1gaps/duplicate_aggregate_names_in_exists@iq17-default	iq-defect	duckdb,postgres
 # IQ island, 2026-10-15 (landing 4: the window cases, lite/windows.yaml, snapped from the live IQ): IQ's engine types k * 2
@@ -77,13 +73,3 @@ run	lite/windows/window_of_an_alias@iq17-default	D-N3	duckdb,postgres
 # IQ island, 2026-10-15 (landing 4: the census's scale suite, DOUBLE arithmetic linear in size): IQ's engine answers a
 # DOUBLE overflow NULL (measured on IQ 17.1), which the DuckDB lane now answers; Postgres raises on float8 overflow.
 run	lite/m1a/double_overflow@iq17-default	pg-double-overflow	postgres
-# IQ island, 2026-10-16 (the corpus lane's sqlstorm-2642, measured on IQ 17.1): IQ applies a WHERE over a windowed
-# derived table's LEFT JOIN, on its null-supplying side, below the window (RANK 2 and 1 for SQL's 7 and 5); lite
-# computes the window over all of the derived table's rows, as SQL does.
-run	lite/corpus_gaps/a_left_join_and_a_filter_of_a_joined_derived_rank@iq17-default	iq-defect	duckdb,postgres
-# IQ island, 2026-10-16 (the corpus lane's sqlstorm-6989, measured on IQ 17.1): the same, through an outer JOIN's
-# condition on the derived table's null-supplying column (RANK 2, 2, 1 for SQL's 7, 7, 5).
-run	lite/corpus_gaps/a_join_on_the_null_side_of_a_joined_derived_rank@iq17-default	iq-defect	duckdb,postgres
-# IQ island, 2026-10-16 (inline views: lite now computes a derived table's windows over all of its rows): the IQ
-# defect above, with a WHERE alone (IQ ranks the filtered rows: RANK 2 and 1 for SQL's 7 and 5).
-run	lite/corpus_gaps/a_filter_of_a_joined_derived_rank@iq17-default	iq-defect	duckdb,postgres

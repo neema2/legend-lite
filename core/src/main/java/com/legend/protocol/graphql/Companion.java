@@ -28,7 +28,7 @@ public final class Companion {
 
     /** The folds of an aggregate (G6), in the schema's order: each a member of the aggregate class, a generated
      *  class, and a Pure function of the catalog. The numeric ones take numeric properties; the others every
-     *  comparable one (numbers, dates and strings: register S91). */
+     *  comparable one (numbers, dates and strings: register S104). */
     public enum Fold {
         SUM("sum", "Sum", "sum", true),
         AVG("avg", "Avg", "average", true),

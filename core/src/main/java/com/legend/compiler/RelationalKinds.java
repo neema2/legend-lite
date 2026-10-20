@@ -35,6 +35,8 @@ public final class RelationalKinds {
             case RelationalDataType.Bit b -> "Boolean";
             case RelationalDataType.Timestamp ts -> "DateTime";
             case RelationalDataType.Date_ d -> "StrictDate";
+            case RelationalDataType.Time tm -> "StrictTime";
+            case RelationalDataType.TimestampNs tn -> "DateTime";
             // EXHAUSTIVE (remediation T1.5): null previously meant BOTH
             // "column not found" and "variant unmapped" — the coercion was
             // silently skipped. Aligned with StoreCompiler.columnType:

@@ -1,0 +1,115 @@
+# The #Cypher{...}# island's procedure cases (docs/CYPHER_STUDY_2026_10_15.md §12.60): a procedure the case declares
+# (`procedures:` a declaration line in the TCK's form, then its table) is a Pure function over its rows, which
+# `CALL name(args) [YIELD items]` calls standalone or over the rows in hand. Neo4j runs no procedure of the harness's:
+# a case's `expect:` block judges it (`rows in order` / `rows in any order` then the table, `empty`, `error <type>`),
+# its graph snapped by Neo4j as every case's is (tools/neo4j-oracle/snap.sh --write --only 'lite/procedures/*').
+tests:
+  - id: a_standalone_call_yields_every_output
+    procedures: |
+      test.cities(name :: STRING?) :: (city :: STRING?, code :: INTEGER?):
+        | name     | city     | code |
+        | 'Stefan' | 'Berlin' | 49   |
+        | 'Stefan' | 'Munich' | 49   |
+        | 'Petra'  | 'London' | 44   |
+    cypher: "CALL test.cities('Stefan')"
+    expect: |
+      rows in order
+        | city     | code |
+        | 'Berlin' | 49   |
+        | 'Munich' | 49   |
+  - id: a_call_over_the_rows_of_a_match
+    graph: |
+      CREATE (:P {name: 'Stefan'}), (:P {name: 'Petra'}), (:P {name: 'Nobody'})
+    procedures: |
+      test.cities(name :: STRING?) :: (city :: STRING?, code :: INTEGER?):
+        | name     | city     | code |
+        | 'Stefan' | 'Berlin' | 49   |
+        | 'Stefan' | 'Munich' | 49   |
+        | 'Petra'  | 'London' | 44   |
+    cypher: "MATCH (p:P) CALL test.cities(p.name) YIELD city AS c, code RETURN p.name AS name, c, code ORDER BY name, c"
+    expect: |
+      rows in order
+        | name     | c        | code |
+        | 'Petra'  | 'London' | 44   |
+        | 'Stefan' | 'Berlin' | 49   |
+        | 'Stefan' | 'Munich' | 49   |
+  - id: a_void_procedure_keeps_the_rows
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    procedures: |
+      test.doNothing() :: ():
+        |
+    cypher: "MATCH (p:P) CALL test.doNothing() RETURN p.name AS name ORDER BY name"
+    expect: |
+      rows in order
+        | name |
+        | 'a'  |
+        | 'b'  |
+  - id: a_null_argument_matches_a_null_cell
+    procedures: |
+      test.my.proc(in :: INTEGER?) :: (out :: STRING?):
+        | in   | out   |
+        | null | 'nix' |
+        | 1    | 'one' |
+    cypher: "CALL test.my.proc(null) YIELD out WITH out AS a RETURN a"
+    expect: |
+      rows in order
+        | a     |
+        | 'nix' |
+  - id: a_number_input_takes_an_integer_or_a_float
+    procedures: |
+      test.my.proc(in :: NUMBER?) :: (out :: STRING?):
+        | in   | out           |
+        | 42   | 'wisdom'      |
+        | 42.3 | 'about right' |
+    cypher: "CALL test.my.proc(42) YIELD out WITH out AS a CALL test.my.proc(42.3) YIELD out RETURN a, out"
+    expect: |
+      rows in order
+        | a        | out           |
+        | 'wisdom' | 'about right' |
+  - id: outputs_swapped_by_their_aliases
+    procedures: |
+      test.my.proc(in :: INTEGER?) :: (a :: INTEGER?, b :: INTEGER?):
+        | in   | a | b |
+        | null | 1 | 2 |
+    cypher: "CALL test.my.proc(null) YIELD a AS b, b AS a RETURN a, b"
+    expect: |
+      rows in order
+        | a | b |
+        | 2 | 1 |
+  - id: a_call_twice_over_a_count
+    procedures: |
+      test.labels() :: (label :: STRING?):
+        | label |
+        | 'A'   |
+        | 'B'   |
+    cypher: "CALL test.labels() YIELD label WITH count(*) AS c CALL test.labels() YIELD label RETURN *"
+    expect: |
+      rows in order
+        | c | label |
+        | 2 | 'A'   |
+        | 2 | 'B'   |
+  - id: an_unknown_procedure_is_an_error
+    procedures: |
+      test.labels() :: (label :: STRING?):
+        | label |
+        | 'A'   |
+    cypher: "CALL test.other() YIELD label RETURN label"
+    expect: |
+      error ProcedureError
+  - id: a_wrong_argument_kind_is_an_error
+    procedures: |
+      test.my.proc(in :: INTEGER?) :: (out :: STRING?):
+        | in | out   |
+        | 1  | 'one' |
+    cypher: "CALL test.my.proc('x') YIELD out RETURN out"
+    expect: |
+      error SyntaxError
+  - id: a_yield_of_a_bound_name_is_an_error
+    procedures: |
+      test.labels() :: (label :: STRING?):
+        | label |
+        | 'A'   |
+    cypher: "WITH 'Hi' AS label CALL test.labels() YIELD label RETURN *"
+    expect: |
+      error SyntaxError

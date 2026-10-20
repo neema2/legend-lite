@@ -275,8 +275,11 @@ tests:
     sql: "SELECT TOP (2*2) START AT (1+1) id FROM t ORDER BY id"
   - id: top_two_plus_one_is_top_two
     sql: "SELECT TOP 2+1 x FROM t ORDER BY 1, id"
-  - id: top_percent_is_refused
+  # IQ island, 2026-10-17 (measured on IQ 17.1): read as IQ reads it, TOP 10 then a column named PERCENT, so renamed
+  # from top_percent_is_refused
+  - id: top_percent_is_a_column_named_percent
     sql: "SELECT TOP 10 PERCENT id FROM t ORDER BY id"
+    nondeterministic: "tests IQ's -143 for the column named PERCENT that TOP 10 PERCENT reads"
   - id: top_with_ties
     sql: "SELECT TOP 2 WITH TIES id FROM t ORDER BY id"
   - id: top_before_distinct

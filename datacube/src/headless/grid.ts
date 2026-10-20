@@ -46,7 +46,8 @@ import { PlanThenRun } from '../runner.ts';
 import { SampleRefusal, sampleOf, type SampleRows } from '../sample-rows.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
-  AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, isJsonValue, isRelativeDate, rowColumns, type AggregateFn,
+  AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, isJsonValue, isPivotTotalColumn, isRelativeDate, pivotTotalColumn, rowColumns,
+  type AggregateFn,
   type ColumnKind, type ColumnSpec, type CubeSnapshot, type FilterValue, type Measure, type SortDirection,
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
@@ -453,10 +454,19 @@ function configured(draft: GridDraft, given: unknown): GridDraft {
   if (!isObject(columns)) throw new CubeRefusal("a grid's columns' settings are by name: {name: {setting: value}}");
   for (const [name, c] of Object.entries(columns)) {
     const named = allColumns(d);
-    if (!named.includes(name)) throw new CubeRefusal(`'${name}' is not a column of the grid (${named.join(', ')})`);
+    // a pivot total is a column of its own (its heatmap, width, hiding: the screen's menu offers them), of a measure
+    // column the grid has; its kind and Aggregation are its measure's
+    const total = isPivotTotalColumn(name) ? name.slice(pivotTotalColumn('').length) : undefined;
+    if (!named.includes(name) && (total === undefined || !named.includes(total))) {
+      throw new CubeRefusal(`'${name}' is not a column of the grid (${named.join(', ')})`);
+    }
     if (!isObject(c)) throw new CubeRefusal(`a column's settings are an object, not ${JSON.stringify(c)}`);
     known(Object.keys(c), COLUMN_SETTINGS, "a column's setting");
     const { kind, aggregateFn, aggregationParameters, excludedFromPivot, ...presentation } = c;
+    if (total !== undefined && [kind, aggregateFn, aggregationParameters, excludedFromPivot].some((x) => x !== undefined)) {
+      throw new CubeRefusal(`${name} is the pivot total of '${total}': its kind, Aggregation and pivot exclusion are `
+        + `'${total}''s, set on '${total}'`);
+    }
     if (kind === null) {
       throw new CubeRefusal(`${name}'s kind is set, never cleared: 'dimension' or 'measure' (Column Properties > Column Kind)`);
     }

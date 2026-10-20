@@ -1,0 +1,39 @@
+# The #Cypher{...}# island's floats that are not finite inside lists and maps (docs/CYPHER_STUDY_2026_10_15.md
+# §12.79): a float divided by a zero literal is NaN or an infinity in Neo4j; inside a list or map it is the Variant
+# the database builds of it (DuckDB's JSON writes NaN, Infinity and -Infinity), ordered as Cypher orders numbers
+# (Infinity after them, NaN after Infinity). Postgres's float division raises on a zero divisor where Neo4j answers
+# (S60, judged against that error). Each case is judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/nonfinite/*'), keyed lite/nonfinite/<id>.
+tests:
+  - id: nan_in_a_returned_list
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "RETURN [1, 0.0 / 0.0, 'a'] AS l"
+  - id: nan_in_a_list_of_floats
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "RETURN [0.0 / 0.0, 1.5] AS l"
+  - id: infinities_in_a_returned_list
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "RETURN [1.0 / 0.0, -1.0 / 0.0, 'a'] AS l"
+  - id: nan_in_a_returned_map
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "RETURN {a: 0.0 / 0.0, b: 1} AS m"
+  - id: nan_and_infinities_ordered
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "UNWIND [0.0 / 0.0, 'b', 1.0 / 0.0, 2, -1.0 / 0.0] AS v RETURN v ORDER BY v"
+  - id: nan_and_infinities_ordered_descending
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "UNWIND [0.0 / 0.0, 'b', 1.0 / 0.0, 2, -1.0 / 0.0, null] AS v RETURN v ORDER BY v DESC"
+  - id: collect_of_a_quotient_by_zero
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "WITH 2.0 AS x RETURN collect(x / 0.0) AS c"
+  - id: nan_from_a_row_value_in_a_list
+    graph: |
+      CREATE (:P {name: 'p', v: 0.0})
+    cypher: "MATCH (p:P) RETURN [p.name, p.v / 0.0] AS l"

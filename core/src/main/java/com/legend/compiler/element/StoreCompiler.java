@@ -67,6 +67,8 @@ public final class StoreCompiler {
             case RelationalDataType.Varbinary b -> Type.Primitive.BYTE;
             case RelationalDataType.Date_ d -> Type.Primitive.STRICT_DATE;
             case RelationalDataType.Timestamp t -> Type.Primitive.DATE_TIME;
+            case RelationalDataType.Time t -> Type.Primitive.STRICT_TIME;
+            case RelationalDataType.TimestampNs t -> Type.Primitive.DATE_TIME;
             case RelationalDataType.Distinct d -> Type.Primitive.STRING;
             case RelationalDataType.Other o -> Type.Primitive.STRING;
             // nested values are Variant — the get()/to(@Type) navigation
@@ -96,6 +98,8 @@ public final class StoreCompiler {
             case RelationalDataType.Bit ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.BIT);
             case RelationalDataType.Timestamp ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.TIMESTAMP);
             case RelationalDataType.Date_ ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.DATE);
+            case RelationalDataType.Time ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.TIME);
+            case RelationalDataType.TimestampNs ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.TIMESTAMP_NS);
             case RelationalDataType.SemiStructured ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
             case RelationalDataType.Other ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.OTHER);
             case RelationalDataType.Distinct ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.DISTINCT);

@@ -86,12 +86,12 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      * Pure identifier). Registered as a binding beside the subtype
      * pseudo-bindings (ClassSources) — the same contract shape.
      */
-    static String primaryKeyBinding(String column) {
+    public static String primaryKeyBinding(String column) {
         return "$pk:" + column;
     }
 
     /** Whether {@code key} is a primary-key pseudo-binding. */
-    static boolean isPrimaryKeyBinding(String key) {
+    public static boolean isPrimaryKeyBinding(String key) {
         return key.startsWith("$pk:");
     }
 

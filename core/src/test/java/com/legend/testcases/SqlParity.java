@@ -154,7 +154,7 @@ public final class SqlParity {
             return t;
         }
         return switch (t) {
-            case "INTEGER", "BIGINT", "DATE", "TIMESTAMP" -> t;
+            case "INTEGER", "BIGINT", "DATE", "TIMESTAMP", "TIME" -> t;
             case "DOUBLE PRECISION" -> "DOUBLE";
             case "BOOLEAN" -> "BIT";
             case "JSON", "JSONB" -> "SEMISTRUCTURED";
@@ -224,9 +224,14 @@ public final class SqlParity {
         } else if (val instanceof Boolean b) {
             ps.setBoolean(i, b);
         } else if (type.contains("DATE") && !type.contains("TIMESTAMP")) {
-            ps.setDate(i, java.sql.Date.valueOf(val.toString()));
+            // (the JDK's LocalDate, its proleptic Gregorian calendar: java.sql.Date's is Julian before 1582, so the
+            // year 1 would move)
+            ps.setObject(i, java.time.LocalDate.parse(val.toString()));
         } else if (type.contains("TIMESTAMP")) {
             ps.setTimestamp(i, java.sql.Timestamp.valueOf(val.toString()));
+        } else if (type.contains("TIME")) {
+            // a time of day: bound as the JDK's (DuckDB's and pgjdbc's TIME)
+            ps.setObject(i, java.time.LocalTime.parse(val.toString()));
         } else if (type.contains("JSON")) {
             json.bind(ps, i, type, val.toString());
         } else {
@@ -468,7 +473,9 @@ public final class SqlParity {
             // a json or jsonb value, from Postgres (a PGobject) or from DuckDB (its JsonNode): the JSON value it holds
             case Object o when o.getClass().getName().equals("org.postgresql.util.PGobject")
                     && JSON_TYPES.contains(pgObject(o, "getType")) -> JsonValue.of(pgObject(o, "getValue"));
-            case Object o when o.getClass().getName().equals("org.duckdb.JsonNode") -> JsonValue.of(o.toString());
+            // (DuckDB's JSON holds a double that is not finite, NaN or an infinity, as a bare token: NonFiniteJson)
+            case Object o when o.getClass().getName().equals("org.duckdb.JsonNode") -> JsonValue.ofNonFinite(
+                    o.toString());
             case java.sql.Timestamp ts -> timestamp(ts.toLocalDateTime());
             case java.sql.Date d -> d.toLocalDate().toString();
             case java.time.LocalDate d -> d.toString();
@@ -546,6 +553,12 @@ public final class SqlParity {
             return new JsonValue(canonical(Json.parse(text)));
         }
 
+        /** A JSON text that may hold a double that is not finite as a bare token, as DuckDB's JSON writes one
+         *  ({@link NonFiniteJson}). */
+        static JsonValue ofNonFinite(String text) {
+            return new JsonValue(canonical(NonFiniteJson.parse(text)));
+        }
+
         private static String canonical(Json.Node n) {
             return switch (n) {
                 case Json.Obj o -> {
@@ -556,6 +569,9 @@ public final class SqlParity {
                 }
                 case Json.Arr a -> "[" + String.join(",", a.items().stream().map(JsonValue::canonical).toList()) + "]";
                 case Json.Str str -> Json.toCompact(str.value());
+                case Json.Num num when num.decimalValue() == null && num.token() == null
+                        && !Double.isFinite(num.doubleValue()) -> Double.isNaN(num.doubleValue()) ? "NaN"
+                                : num.doubleValue() > 0 ? "Infinity" : "-Infinity";
                 case Json.Num num -> {
                     BigDecimal d = num.decimalValue() != null ? num.decimalValue()
                             : new BigDecimal(num.token() != null ? num.token() : Double.toString(num.doubleValue()));

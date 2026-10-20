@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -117,6 +118,21 @@ class CypherParityTest {
         assertTrue(problems.isEmpty(), "the showcase's SQL moved (if on purpose, rewrite it with"
                 + " -Dcypher.showcase.update=<core/src/test/resources/cypher-parity/showcase in the workspace> and"
                 + " update docs/CYPHER_SHOWCASE.md):\n" + String.join("\n", problems));
+    }
+
+    @Test
+    void theTranslatorKnowsCyphersFunctionsByName() throws Exception {
+        // (the study's §12.84) a name Neo4j does not define is its error, Unknown function, and one it does is refused
+        // by name where the translator does not implement it: the names are the oracle's snap of SHOW FUNCTIONS
+        List<String> snapped = new ArrayList<>();
+        for (String line : java.nio.file.Files.readAllLines(Runfile.property("cypher.parity.functions"))) {
+            if (!line.isBlank() && !line.startsWith("#")) {
+                snapped.add(line.strip());
+            }
+        }
+        assertEquals(new java.util.TreeSet<>(snapped), new java.util.TreeSet<>(
+                com.legend.protocol.cypher.CypherFunctions.names()), "CypherFunctions is not the snapped list"
+                + " (cypher-parity/cypher-functions.txt, tools/neo4j-oracle/snap.sh --functions)");
     }
 
     @Test

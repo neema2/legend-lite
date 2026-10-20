@@ -697,11 +697,12 @@ export function parentConditions(
  * and the rows come back as they are, sorted and capped as the cube
  * says. Group-level calculated columns still apply ("computed for each
  * row in the table, no matter whether it's a leaf-level row or an
- * aggregate"). Sorts on names only an aggregate has (a measure, a
- * pivot column) are dropped: a source row has no such column.
+ * aggregate"). Sorts on names only an aggregate has (a measure) are
+ * dropped: a source row has no such column.
  *
  * A PIVOTED cube keeps its pivot, grouped by every dimension -- the
- * finest rows a pivot has, as upstream's pivot without its groupBy.
+ * finest rows a pivot has, as upstream's pivot without its groupBy --
+ * and so its sorts: a pivot column is this query's too.
  */
 export function detailSnapshot(s: QuerySnapshot, parent: RowPath): QuerySnapshot {
   const keys = parentConditions(s, parent);
@@ -718,17 +719,18 @@ export function detailSnapshot(s: QuerySnapshot, parent: RowPath): QuerySnapshot
   const base: QuerySnapshot = {
     ...rest,
     ...(filter ? { filter } : {}),
-    sorts: s.sorts.filter((x) => visible.has(x.column)),
     leafCount: false,
   };
-  if (s.pivotOn.length === 0) return { ...base, rows: [] };
+  if (s.pivotOn.length === 0) return { ...base, rows: [], sorts: s.sorts.filter((x) => visible.has(x.column)) };
   const isOn = new Set(s.pivotOn);
   const dims = rowColumns(s)
     .filter((c) => c.kind === 'dimension' && !isOn.has(c.name))
     .map((c) => c.name);
   // The same pivot columns as every level above it: the cube's values,
   // not the group's, so a group with no EMEA rows shows an empty EMEA
-  // column rather than a missing one.
+  // column rather than a missing one. Its sorts are the cube's: the level orders by only what its groupBy
+  // writes (levelRelation's `produced`), so a sort on a pivot column orders the rows, as it does the groups above
+  // (dropped as a source row's, an opened group's rows came back unsorted under a sorted header: found 2026-10-18)
   return { ...base, rows: dims, ...(asked !== undefined ? { measures: asked } : {}) };
 }
 

@@ -1,0 +1,70 @@
+# The #Cypher{...}# island's identity cases (docs/CYPHER_STUDY_2026_10_15.md §12.46, the plan's W2): a node compares
+# by identity, the mapped instance's key as elementId ('<class>:<key>': the mapping's ~primaryKey, else the main
+# table's PRIMARY KEY), carried as a column like its properties; an absent node has none (null); nodes of different
+# classes never compare equal. Each case is judged by Neo4j's answer in neo4j-answers.jsonl
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/identity/*'), keyed lite/identity/<id>.
+tests:
+  - id: two_nodes_equal
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (a:A), (b:A) WHERE a = b RETURN a.name AS name ORDER BY name"
+  - id: two_nodes_unequal
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (a:A), (b:A) WHERE a <> b RETURN a.name AS an, b.name AS bn ORDER BY an"
+  - id: nodes_of_different_labels_differ
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (a), (b) WHERE a <> b RETURN a, b"
+  - id: nodes_of_different_labels_equal_only_to_themselves
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (a), (b) WHERE a = b RETURN a, b"
+  - id: a_node_equals_itself
+    graph: |
+      CREATE (:A {name: 'a'})
+    cypher: "MATCH (a:A) RETURN a = a AS same, a <> a AS diff"
+  - id: an_absent_node_has_no_identity
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) RETURN a.name AS an, b = b AS same, b <> a AS diff ORDER BY an"
+  - id: identity_after_a_with
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'b'})
+    cypher: "MATCH (a:A) WITH a MATCH (b:A) WHERE a = b RETURN a.name AS name ORDER BY name"
+  - id: identity_after_a_with_of_both
+    graph: |
+      CREATE (:A {name: 'a'}), (:B {name: 'b'})
+    cypher: "MATCH (a), (b) WITH a, b WHERE a <> b RETURN a, b"
+  - id: a_hopped_node_joined_by_identity
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (a)-[:T]->(:B {name: 'c'}), (:A {name: 'd'})-[:T]->(b)
+    cypher: "MATCH (a:A)-[:T]->(b:B), (c:B) WHERE b = c RETURN a.name AS an, c.name AS cn ORDER BY an, cn"
+  - id: two_hops_sharing_a_node
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (:A {name: 'd'})-[:T]->(b), (:A {name: 'e'})-[:T]->(:B {name: 'f'})
+    cypher: "MATCH (a:A)-[:T]->(b:B), (a2:A)-[:T]->(b2:B) WHERE b = b2 AND a <> a2 RETURN a.name AS an, a2.name AS a2n ORDER BY an"
+  - id: a_label_less_node_compared_to_itself
+    graph: |
+      CREATE ()
+    cypher: "MATCH (a) WITH a MATCH (b) WHERE a = b RETURN count(b) AS c"
+  - id: comparing_relationships_over_an_association
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH ()-[a]->() WITH a MATCH ()-[b]->() WHERE a = b RETURN count(b) AS c"
+  - id: comparing_relationships_of_an_edge_class
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {w: 1}]->(:B {name: 'b'}), (:A {name: 'c'})-[:T {w: 2}]->(:B {name: 'd'})
+    cypher: "MATCH (a:A)-[r:T]->(), (b:A)-[s:T]->() WHERE r = s RETURN a.name AS an, b.name AS bn ORDER BY an"
+  - id: an_absent_node_is_neither_equal_nor_unequal
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'}), (:A {name: 'c'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) RETURN a.name AS an, a = b AS eq, a <> b AS ne ORDER BY an"
+  - id: a_carried_relationship_of_an_edge_class_compared
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {w: 1}]->(:B {name: 'b'}), (:A {name: 'c'})-[:T {w: 2}]->(:B {name: 'd'})
+    cypher: "MATCH (a:A)-[r:T]->(:B) WITH a, r MATCH (b:A)-[s:T]->(:B) WHERE r = s RETURN a.name AS an, b.name AS bn ORDER BY an"
+  - id: two_edge_relationships_in_one_match_are_distinct
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {w: 1}]->(:B {name: 'b'}), (:A {name: 'c'})-[:T {w: 2}]->(:B {name: 'd'})
+    cypher: "MATCH (a:A)-[r:T]->(), (b:A)-[s:T]->() RETURN a.name AS an, b.name AS bn ORDER BY an"

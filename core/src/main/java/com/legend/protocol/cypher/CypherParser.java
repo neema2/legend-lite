@@ -55,6 +55,9 @@ public final class CypherParser {
     private static final Set<String> LIST_PREDICATES = Set.of("all", "any", "none", "single", "filter", "extract",
             "reduce");
 
+    /** The clauses that update the graph: none may stand inside an EXISTS subquery (Neo4j's InvalidClauseComposition). */
+    private static final Set<String> UPDATES = Set.of("CREATE", "MERGE", "SET", "REMOVE", "DELETE", "DETACH", "FOREACH");
+
     private static final Set<String> RESERVED = Set.of("AND", "OR", "XOR", "NOT", "IS", "NULL", "TRUE", "FALSE",
             "IN", "STARTS", "ENDS", "CONTAINS", "AS", "ASC", "ASCENDING", "DESC", "DESCENDING", "DISTINCT", "CASE",
             "WHEN", "THEN", "ELSE", "CYPHER");
@@ -216,11 +219,53 @@ public final class CypherParser {
             expectWord("AS");
             return new CypherAst.Unwind(list, identifier("a variable"), pos);
         }
+        if (atWord("CALL")) {
+            advance();
+            if (peek().is(Type.LBRACE)) {
+                throw CypherErrors.unsupported("a CALL subquery (CALL { ... }) is not supported yet", pos);
+            }
+            return procedureCall(pos);
+        }
         if (t.is(Type.IDENT) && !t.backticked()
                 && OTHER_CLAUSE_WORDS.contains(t.text().toUpperCase(java.util.Locale.ROOT))) {
             return otherClause(t);
         }
         throw error("expected a clause but found '" + t.text() + "'");
+    }
+
+    /** {@code CALL name[(args)] [YIELD * | item [AS alias], ...]}: the procedure's dotted name, its arguments when
+     *  written in parentheses, its yielded outputs. */
+    private Clause procedureCall(Pos pos) {
+        StringBuilder name = new StringBuilder(identifier("a procedure name"));
+        while (match(Type.DOT)) {
+            name.append('.').append(identifier("a procedure name"));
+        }
+        List<Expr> args = null;
+        if (match(Type.LPAREN)) {
+            args = new ArrayList<>();
+            if (!peek().is(Type.RPAREN)) {
+                do {
+                    args.add(expression());
+                } while (match(Type.COMMA));
+            }
+            expect(Type.RPAREN, "')'");
+        }
+        List<CypherAst.YieldItem> yields = null;
+        boolean all = false;
+        if (matchWord("YIELD")) {
+            if (match(Type.STAR)) {
+                all = true;
+            } else {
+                yields = new ArrayList<>();
+                do {
+                    Pos at = peek().pos();
+                    String output = identifier("a procedure output");
+                    String alias = matchWord("AS") ? identifier("an alias") : null;
+                    yields.add(new CypherAst.YieldItem(output, alias, at));
+                } while (match(Type.COMMA));
+            }
+        }
+        return new CypherAst.ProcedureCall(name.toString(), args, yields, all, pos);
     }
 
     /** A path the query names as its graph: {@code demo::MovieSpace} or a backticked text. */
@@ -730,7 +775,12 @@ public final class CypherParser {
             }
             case FLOAT -> {
                 advance();
-                return new CypherAst.FloatLit(Double.parseDouble(t.text()), t.text(), pos);
+                double value = Double.parseDouble(t.text());
+                if (Double.isInfinite(value)) {
+                    // (Neo4j's FloatingPointOverflow, the study's §12.84)
+                    throw CypherErrors.syntax("floating point number is too large", pos);
+                }
+                return new CypherAst.FloatLit(value, t.text(), pos);
             }
             case STRING -> {
                 advance();
@@ -872,6 +922,9 @@ public final class CypherParser {
                 // row's existence is what counts)
                 advance();
                 advance();
+                if (UPDATES.contains(peek().text().toUpperCase(java.util.Locale.ROOT))) {
+                    throw CypherErrors.invalid("An Exists Expression cannot contain any updates", pos);
+                }
                 if (peek().isWord("OPTIONAL") || peek().isWord("WITH") || peek().isWord("UNWIND")
                         || peek().isWord("CALL")) {
                     throw CypherErrors.unsupported("an EXISTS subquery starting with " + peek().text().toUpperCase(
@@ -884,6 +937,7 @@ public final class CypherParser {
                             pos);
                 }
                 Expr where = matchWord("WHERE") ? expression() : null;
+                CypherAst.Counted counted = peek().isWord("WITH") ? counted() : null;
                 List<Expr> items = new ArrayList<>();
                 if (matchWord("RETURN")) {
                     matchWord("DISTINCT");
@@ -900,12 +954,16 @@ public final class CypherParser {
                         }
                     }
                 }
+                if (UPDATES.contains(peek().text().toUpperCase(java.util.Locale.ROOT))) {
+                    // (Neo4j's InvalidClauseComposition, the study's §12.84)
+                    throw CypherErrors.invalid("An Exists Expression cannot contain any updates", pos);
+                }
                 if (!peek().is(Type.RBRACE)) {
                     throw CypherErrors.unsupported("an EXISTS subquery with more than one pattern, a WHERE and a RETURN"
                             + " (a " + peek().text() + " clause) is not supported yet", pos);
                 }
                 advance();
-                return new CypherAst.ExistsSubquery(pattern, where, items, pos);
+                return nested(new CypherAst.ExistsSubquery(pattern, where, items, counted, pos));
             }
             if ((t.isWord("COUNT") || t.isWord("COLLECT")) && peek(1).is(Type.LBRACE)) {
                 throw CypherErrors.unsupported(t.text().toUpperCase(java.util.Locale.ROOT)
@@ -978,5 +1036,94 @@ public final class CypherParser {
         Expr elseResult = matchWord("ELSE") ? expression() : null;
         expectWord("END");
         return new CypherAst.Case(operand, whens, elseResult, pos);
+    }
+
+    /** An EXISTS subquery's {@code WITH v1, ..., count(*) AS c [WHERE having]} (the study's §12.77): variables and
+     *  one aliased {@code count(*)}, in any order; any other WITH is refused by name. */
+    private CypherAst.Counted counted() {
+        Token with = advance();
+        List<String> keys = new ArrayList<>();
+        String alias = null;
+        do {
+            Token t = peek();
+            if (t.isWord("COUNT") && peek(1).is(Type.LPAREN) && peek(2).is(Type.STAR) && peek(3).is(Type.RPAREN)
+                    && peek(4).isWord("AS") && peek(5).is(Type.IDENT) && alias == null) {
+                for (int i = 0; i < 5; i++) {
+                    advance();
+                }
+                alias = advance().text();
+            } else if (t.is(Type.IDENT) && (peek(1).is(Type.COMMA) || peek(1).isWord("WHERE")
+                    || peek(1).isWord("RETURN") || peek(1).is(Type.RBRACE))) {
+                keys.add(advance().text());
+            } else {
+                throw CypherErrors.unsupported("an EXISTS subquery's WITH other than its variables and one count(*)"
+                        + " is not supported yet", with.pos());
+            }
+        } while (match(Type.COMMA));
+        if (alias == null) {
+            throw CypherErrors.unsupported("an EXISTS subquery's WITH other than its variables and one count(*) is"
+                    + " not supported yet", with.pos());
+        }
+        Expr having = matchWord("WHERE") ? expression() : null;
+        return new CypherAst.Counted(List.copyOf(keys), alias, having, with.pos());
+    }
+
+    /**
+     * An EXISTS subquery's normal form (docs/CYPHER_STUDY_2026_10_15.md §12.77): {@code EXISTS { MATCH (m) WHERE
+     * EXISTS { pattern } }} and {@code EXISTS { MATCH (m) WHERE pattern }}, the outer match a lone node {@code m}
+     * (its labels and properties, if any, moved onto the inner pattern's {@code m}) whose variable the inner pattern
+     * binds, are the inner pattern's own existence: a lone node has no relationship, so the two matches' uniqueness
+     * rules agree, and the rows the outer match adds are the inner pattern's {@code m}. The shape is rearranged,
+     * nothing computed; any other subquery stays as written.
+     */
+    static CypherAst.ExistsSubquery nested(CypherAst.ExistsSubquery ex) {
+        if (ex.counted() != null) {
+            return ex;
+        }
+        PathPattern outer = ex.pattern();
+        if (outer.variable() != null || outer.elements().size() != 1
+                || !(outer.elements().get(0) instanceof CypherAst.NodePattern lone) || lone.variable() == null) {
+            return ex;
+        }
+        Expr where = ex.where();
+        while (where instanceof CypherAst.Paren paren) {
+            where = paren.inner();
+        }
+        PathPattern inner;
+        Expr innerWhere;
+        if (where instanceof CypherAst.ExistsSubquery sub && sub.counted() == null) {
+            inner = sub.pattern();
+            innerWhere = sub.where();
+        } else if (where instanceof CypherAst.PatternPredicate pp) {
+            inner = pp.pattern();
+            innerWhere = null;
+        } else {
+            return ex;
+        }
+        if (inner.variable() != null) {
+            return ex;
+        }
+        List<PatternElement> elements = new ArrayList<>();
+        boolean bound = false;
+        for (PatternElement e : inner.elements()) {
+            if (!bound && e instanceof CypherAst.NodePattern n && lone.variable().equals(n.variable())) {
+                if (!lone.labels().isEmpty() && !n.labels().isEmpty()
+                        || !lone.properties().isEmpty() && !n.properties().isEmpty()) {
+                    // (both levels constrain the node: kept as written)
+                    return ex;
+                }
+                bound = true;
+                elements.add(new CypherAst.NodePattern(n.variable(), n.labels().isEmpty() ? lone.labels()
+                        : n.labels(), n.properties().isEmpty() ? lone.properties() : n.properties(), n.pos()));
+                continue;
+            }
+            elements.add(e);
+        }
+        if (!bound) {
+            // (an inner pattern that does not bind the node: the outer match counts every node, not the same)
+            return ex;
+        }
+        return nested(new CypherAst.ExistsSubquery(new PathPattern(null, elements, inner.pos()), innerWhere,
+                ex.items(), ex.pos()));
     }
 }

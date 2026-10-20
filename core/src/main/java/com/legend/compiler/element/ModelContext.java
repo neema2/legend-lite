@@ -169,6 +169,12 @@ public interface ModelContext extends StoreLookups {
         return Optional.empty();
     }
 
+    /** The {@code ###DataSpace} element for {@code fqn}, if present &mdash; the graph a Cypher island's
+     *  {@code USE} names (docs/CYPHER_STUDY_2026_10_15.md §12.45). */
+    default Optional<com.legend.model.DataSpaceDefinition> findDataSpace(String fqn) {
+        return Optional.empty();
+    }
+
     /** Every {@code ###Data} element, in ingest order &mdash; what a project's own database is filled from
      *  ({@code com.legend.setup.ProjectData}, docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5). */
     default java.util.stream.Stream<com.legend.model.DataDefinition> dataElements() {

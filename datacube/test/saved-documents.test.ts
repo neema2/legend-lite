@@ -53,6 +53,7 @@ import type { ChartSpec } from '../src/chart-spec.ts';
 import type { ColumnSpec, CubeSnapshot } from '../src/snapshot.ts';
 import type { GridAppearance } from '../src/style.ts';
 import { TreeState } from '../src/tree.ts';
+import { pivotTotalColumn } from '../src/snapshot.ts';
 import { accessor, col, lambda, lit, times } from '../../pure-protocol/src/index.ts';
 
 const RELATION = { query: accessor('local::DB', 'trades') };
@@ -235,6 +236,17 @@ describe('the pivot sort, the pivot total and the row cap, folded into the saved
 });
 
 // ------------------------------------------------------------------------------------------------ writing
+
+describe('a pivot total\'s own heatmap, saved and reopened (2026-10-18)', () => {
+  it('is kept under the total\'s name, apart from its measure\'s', () => {
+    const total = pivotTotalColumn('notional');
+    const heat = { from: '#ffffff', to: '#ff0000' };
+    const c = withColumn(DEFAULT_CONFIGURATION, total, { heatmap: heat });
+    const back = reopened(saved({ snapshot: { ...SNAPSHOT, pivotOn: ['desk'] }, configuration: c }));
+    assert.deepEqual(columnConfig(back, total).heatmap, heat);
+    assert.equal(columnConfig(back, 'notional').heatmap, undefined);
+  });
+});
 
 describe('what a cube writes besides its settings', () => {
   it('fields carried from the document it was opened from, and none when there were none', () => {

@@ -963,6 +963,26 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("#TDS{...}# literal (the engine's brace form) reads its grid, not its braces")
+        void testTdsLiteralBraceForm() throws SQLException {
+            // the braces wrap the grid: a literal parsed from text read '{' as its first header cell (2026-10-17, the
+            // Cypher island's procedures, the study's §12.60)
+            String pureQuery = """
+                    #TDS{
+                      name:String, age:Integer
+                      Alice, 25
+                      Bob, 30
+                    }#->select(~[name])
+                    """;
+
+            var result = executeRelation(pureQuery);
+
+            assertEquals(1, result.columns().size());
+            assertEquals(2, result.rows().size());
+            assertEquals("Alice", result.rows().get(0).get(0));
+        }
+
+        @Test
         @DisplayName("#TDS literal generates correct SQL VALUES clause")
         void testTdsLiteralSqlGeneration() throws SQLException {
             String pureQuery = """

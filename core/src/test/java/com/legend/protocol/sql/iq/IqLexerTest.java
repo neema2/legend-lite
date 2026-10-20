@@ -95,6 +95,9 @@ class IqLexerTest {
                 kinds("select Date FIRST limit timestamp iq TRUE"));
         assertTrue(IqLexer.reserved("WINDOW"));
         assertFalse(IqLexer.reserved("offset"));
+        // IQ island, 2026-10-17 (measured on IQ 17.1, its sa_reserved_words()): IQ 17.1 reserves four more
+        assertEquals("KEYWORD:iq KEYWORD:timeline KEYWORD:clear KEYWORD:aes_decrypt WORD:limit WORD:dynamic",
+                kinds("iq timeline clear aes_decrypt limit dynamic", IqProfile.IQ17_DEFAULT.settings()));
     }
 
     @Test

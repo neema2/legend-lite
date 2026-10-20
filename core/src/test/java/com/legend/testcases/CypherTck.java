@@ -54,7 +54,122 @@ public final class CypherTck {
      */
     public record Scenario(String key, String query, List<String> setup, String paramsText,
             Map<String, String> params, @com.legend.base.Nullable Expect expect,
-            @com.legend.base.Nullable String skip) {
+            @com.legend.base.Nullable String skip, List<Procedure> procedures) {
+    }
+
+    /** A procedure the scenario declares ({@code there exists a procedure test.my.proc(in :: INTEGER?) :: (out ::
+     *  STRING?):} and its rows, the header the inputs then the outputs): the harness declares it as a Pure function
+     *  over its rows (the study's §12.60). The types are the TCK's ({@code INTEGER}, {@code STRING}, {@code NUMBER},
+     *  {@code FLOAT}, {@code BOOLEAN}), each optional. */
+    public record Procedure(String name, List<Param> inputs, List<Param> outputs, List<List<String>> rows) {
+        public record Param(String name, String type) {
+        }
+
+        private static final Pattern DECLARATION = Pattern.compile(
+                "(?:there exists a procedure )?(\\S+?)\\((.*?)\\)\\s*::\\s*\\((.*?)\\)\\s*:?\\s*$");
+
+        /** The declaration's text with its table (the header row first; a table of one empty cell is none). */
+        static Procedure parse(String text, @com.legend.base.Nullable List<List<String>> table) {
+            Matcher m = DECLARATION.matcher(text.strip());
+            if (!m.matches()) {
+                throw new IllegalStateException("a procedure declaration the harness does not read: " + text);
+            }
+            // the table's first row is its header (the inputs' then the outputs' names), the rest the rows
+            List<List<String>> rows = new ArrayList<>();
+            if (table != null) {
+                for (int i = 1; i < table.size(); i++) {
+                    List<String> row = table.get(i);
+                    if (!(row.size() == 1 && row.get(0).isEmpty())) {
+                        rows.add(row);
+                    }
+                }
+            }
+            return new Procedure(m.group(1), params(m.group(2)), params(m.group(3)), rows);
+        }
+
+        private static List<Param> params(String text) {
+            List<Param> out = new ArrayList<>();
+            for (String p : text.split(",")) {
+                if (p.isBlank()) {
+                    continue;
+                }
+                String[] parts = p.split("::");
+                if (parts.length != 2) {
+                    throw new IllegalStateException("a procedure parameter the harness does not read: " + p);
+                }
+                out.add(new Param(parts[0].strip(), parts[1].strip().replace("?", "")));
+            }
+            return out;
+        }
+
+        /** The declarations of a lite case's {@code procedures:} block: each a declaration line followed by its
+         *  table's lines. */
+        public static List<Procedure> parseAll(String block) {
+            List<Procedure> out = new ArrayList<>();
+            String declaration = null;
+            List<List<String>> table = new ArrayList<>();
+            for (String line : block.split("\n")) {
+                String l = line.strip();
+                if (l.isEmpty()) {
+                    continue;
+                }
+                if (l.startsWith("|")) {
+                    table.add(cells(l));
+                } else {
+                    if (declaration != null) {
+                        out.add(parse(declaration, table));
+                    }
+                    declaration = l;
+                    table = new ArrayList<>();
+                }
+            }
+            if (declaration != null) {
+                out.add(parse(declaration, table));
+            }
+            return out;
+        }
+
+        /** What the answer is for: the declaration and its rows, as the oracle's snapper spells them. */
+        public String text() {
+            StringBuilder sb = new StringBuilder(name).append('(');
+            sb.append(inputs.stream().map(p -> p.name() + " :: " + p.type() + "?").collect(
+                    java.util.stream.Collectors.joining(", "))).append(") :: (");
+            sb.append(outputs.stream().map(p -> p.name() + " :: " + p.type() + "?").collect(
+                    java.util.stream.Collectors.joining(", "))).append(")");
+            for (List<String> row : rows) {
+                sb.append('\n').append(String.join("|", row));
+            }
+            return sb.toString();
+        }
+
+        public static String text(List<Procedure> procedures) {
+            return procedures.stream().map(Procedure::text).collect(java.util.stream.Collectors.joining("\n"));
+        }
+    }
+
+    /** A lite case's {@code expect:} block: {@code rows in order}, {@code rows in any order} or {@code rows
+     *  (ignoring element order)} then the table, {@code empty}, or {@code error <type>}. */
+    public static Expect expectOf(String block) {
+        String[] lines = block.strip().split("\n");
+        String head = lines[0].strip();
+        if (head.equals("empty")) {
+            return new EmptyExpected();
+        }
+        if (head.startsWith("error")) {
+            return new ErrorExpected(head.substring(5).strip(), "compile time", "");
+        }
+        if (!head.startsWith("rows")) {
+            throw new IllegalStateException("an expect block the harness does not read: " + head);
+        }
+        List<List<String>> table = new ArrayList<>();
+        for (int i = 1; i < lines.length; i++) {
+            if (lines[i].strip().startsWith("|")) {
+                table.add(cells(lines[i].strip()));
+            }
+        }
+        return new RowsExpected(table.isEmpty() ? List.of() : table.get(0),
+                table.isEmpty() ? List.of() : table.subList(1, table.size()), head.contains("in order"),
+                head.contains("ignoring element order"));
     }
 
     /** Every scenario under {@code tckDir} ({@code features/} and {@code graphs/}). */
@@ -228,6 +343,7 @@ public final class CypherTck {
         List<String> setup = new ArrayList<>();
         Map<String, String> params = new LinkedHashMap<>();
         List<String> paramsText = new ArrayList<>();
+        List<Procedure> procedures = new ArrayList<>();
         String query = null;
         Expect expect = null;
         String skip = null;
@@ -270,8 +386,10 @@ public final class CypherTck {
                 Matcher e = ERROR.matcher(text);
                 e.matches();
                 expect = new ErrorExpected(e.group(1), e.group(2), e.group(3));
-            } else if (text.startsWith("there exists a procedure") || text.startsWith("having defined")) {
-                skip = skip == null ? "a procedure" : skip;
+            } else if (text.startsWith("there exists a procedure")) {
+                procedures.add(Procedure.parse(text, st.table()));
+            } else if (text.startsWith("having defined")) {
+                skip = skip == null ? "a defined function" : skip;
             } else if (text.equals("no side effects") || text.startsWith("the side effects should be")) {
                 continue;
             } else {
@@ -282,7 +400,7 @@ public final class CypherTck {
             skip = skip == null ? "no query" : skip;
         }
         return new Scenario(prefix + "/" + name, query == null ? "" : query, List.copyOf(setup),
-                String.join("\n", paramsText), params, expect, skip);
+                String.join("\n", paramsText), params, expect, skip, List.copyOf(procedures));
     }
 
     /** A setup block as one statement: trailing whitespace and a trailing semicolon dropped, as the oracle does. */

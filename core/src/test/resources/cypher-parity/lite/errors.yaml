@@ -1,0 +1,94 @@
+# The #Cypher{...}# island raising Neo4j's own errors where it refused by name (docs/CYPHER_STUDY_2026_10_15.md
+# §12.84): a conversion of a value it does not take (Neo4j's TypeError, raised by the database on the rows that
+# hold the value), toBoolean of an integer and toInteger of a boolean (which Neo4j takes), size() of a pattern and a
+# property of a path (Neo4j's static errors), an update inside EXISTS. Each case is judged by Neo4j's answer in
+# neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/errors/*'), keyed lite/errors/<id>.
+tests:
+  - id: to_boolean_of_a_float_in_a_list
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "MATCH (n:N) RETURN [x IN [true, 1.0] | toBoolean(x)] AS l"
+  - id: to_boolean_of_a_float_in_a_list_over_no_rows
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "MATCH (n:Nope) RETURN [x IN [true, 1.0] | toBoolean(x)] AS l"
+  - id: to_integer_of_a_node_in_a_list
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "MATCH (n:N) RETURN [x IN [1, n] | toInteger(x)] AS l"
+  - id: to_float_of_a_relationship_in_a_list
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})
+    cypher: "MATCH ()-[r:T]->() RETURN [x IN [1.0, r] | toFloat(x)] AS l"
+  - id: to_float_of_a_boolean_in_a_list
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "MATCH (n:N) RETURN [x IN [1.0, true] | toFloat(x)] AS l"
+  - id: to_float_of_a_boolean_literal
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "RETURN toFloat(true) AS f"
+  - id: to_boolean_of_integers
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "RETURN toBoolean(0) AS zero, toBoolean(7) AS seven, toBoolean(-1) AS negative"
+  - id: to_boolean_of_a_stored_integer
+    graph: |
+      CREATE (:N {name: 'a', v: 0}), (:N {name: 'b', v: 3}), (:N {name: 'c'})
+    cypher: "MATCH (n:N) RETURN n.name AS name, toBoolean(n.v) AS b ORDER BY name"
+  - id: to_integer_of_booleans
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "RETURN toInteger(true) AS t, toInteger(false) AS f"
+  - id: to_integer_of_a_stored_boolean
+    graph: |
+      CREATE (:N {name: 'a', b: true}), (:N {name: 'b', b: false}), (:N {name: 'c'})
+    cypher: "MATCH (n:N) RETURN n.name AS name, toInteger(n.b) AS i ORDER BY name"
+  - id: conversions_of_null
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "RETURN toBoolean(null) AS b, toInteger(null) AS i, toFloat(null) AS f"
+  - id: size_of_a_pattern
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})
+    cypher: "MATCH (a:N) RETURN size((a)-->()) AS s"
+  - id: a_property_of_a_path
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})
+    cypher: "MATCH p = (a:N)-->(b) RETURN p.name AS n"
+  - id: a_property_of_a_path_in_a_where
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})
+    cypher: "MATCH p = (a:N)-->(b) WHERE p.name = 'x' RETURN a.name AS a"
+  - id: a_comprehension_shadowing_a_path
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})
+    cypher: "MATCH p = (a:N)-->(b) RETURN [q IN [{name: 'x'}] | q.name] AS l, length(p) AS len"
+  - id: an_update_inside_exists
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})
+    cypher: "MATCH (n:N) WHERE EXISTS { MATCH (n)-->(m) SET m.prop = 1 } RETURN n.name AS n"
+  - id: an_unknown_function
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "RETURN foo(1) AS x"
+  - id: an_unknown_function_in_a_where
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "MATCH (n:N) WHERE bar(n.name) RETURN n.name AS n"
+  - id: an_unknown_member_of_a_temporal_namespace
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "RETURN date.yesterday() AS d"
+  - id: size_of_a_path
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})
+    cypher: "MATCH p = (a:N)-->(b) RETURN size(p) AS s"
+  - id: a_float_literal_too_large
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "RETURN 1.5e400 AS f"
+  - id: a_float_literal_at_the_largest
+    graph: |
+      CREATE (:N {name: 'a'})
+    cypher: "RETURN 1.7976931348623157e308 AS f"

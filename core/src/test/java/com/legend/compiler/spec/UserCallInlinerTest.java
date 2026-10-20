@@ -52,6 +52,8 @@ class UserCallInlinerTest {
             function m::doubler(): Function<{Integer[1]->Integer[1]}>[1] { {x: Integer[1] | $x * 2} }
             function m::mapDoubled(v: Integer[1]): Integer[1] { $v->map(m::doubler()) }
             function m::recurse(n: Integer[1]): Integer[1] { m::recurse($n - 1) }
+            function m::sq(x: Float[1]): Float[1] { $x * $x }
+            function m::once(x: Float[1]): Float[1] { $x + 1.0 }
             """;
 
     private static Connection conn;
@@ -194,5 +196,28 @@ class UserCallInlinerTest {
                 "the inliner rebuild must not drop the agg's order");
         org.junit.jupiter.api.Assertions.assertFalse(g2.aggs().get(0).order().get(0).ascending(),
                 "the direction must ride along too");
+    }
+
+    @Test
+    @DisplayName("a value drawn afresh bound once and read twice, or per row, is refused by name (2026-10-18)")
+    void aDrawBoundOnceIsReadOnce() throws SQLException {
+        // the substitution writes the bound term at each read, and the database draws at each place: `let r =
+        // random(); $r == $r` would be false, m::sq(random()) the product of two draws (the independent review)
+        for (String q : java.util.List.of("|let r = random(); $r == $r;",
+                "|let r = random(); [1.0, 2.0]->map(x | $x + $r);", "|let g = generateGuid(); $g + $g;")) {
+            Exception e = assertThrows(Exception.class, () -> run(q), q);
+            assertTrue(String.valueOf(e.getMessage()).contains("drawn afresh"), q + ": " + e.getMessage());
+        }
+        // a call whose parameter binds the draw does not reduce: the call STANDS, as a recursive one does (a channel
+        // that runs calls binds the one value), and SQL-bound use walls naming the function
+        Exception call = assertThrows(Exception.class,
+                () -> run("m::Person.all()->project(~[v: p | m::sq(random())])"));
+        assertTrue(String.valueOf(call.getMessage()).contains("m::sq")
+                && call.getMessage().contains("TypedUserCall"), call.getMessage());
+        // read once, or drawn where it is written, it stands
+        assertEquals(true, ((ExecutionResult.Scalar) run("|let r = random(); $r < 1.0;")).value());
+        assertEquals(java.util.List.of(true, true, true),
+                col(run("m::Person.all()->project(~[v: p | m::once(random()) < 2.0])")));
+        assertEquals(true, ((ExecutionResult.Scalar) run("|random() < 1.0")).value());
     }
 }

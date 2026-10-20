@@ -33,6 +33,14 @@ final class Callees {
         return fns.get(0);
     }
 
+    /** The one-arg {@code string::toString} — the identity read's text (StoreResolver.elementIdRead). */
+    TypedFunction toStringFn() {
+        return ctx.findFunction(com.legend.builtin.Pure.TO_STRING__ANY_1.qualifiedName())
+                .stream().filter(f -> f.parameters().size() == 1)
+                .findFirst().orElseThrow(() -> new IllegalStateException(
+                        "resolver bug: no toString(Any) registration"));
+    }
+
     TypedFunction bool(String n2) {
         return ctx.findFunction("meta::pure::functions::boolean::" + n2).get(0);
     }

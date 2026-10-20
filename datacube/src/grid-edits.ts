@@ -5,6 +5,7 @@
 // Python's calls may.
 
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
+import { isNumeric, isTemporal } from '../../engine-client/src/types.ts';
 import { lambda, property, variable } from '../../pure-protocol/src/index.ts';
 import { nameProblem } from './calc.ts';
 import { draftColumn, newDraft } from './column-draft.ts';
@@ -12,8 +13,8 @@ import { applyToSnapshot, columnConfig, withColumn, type ColumnPatch, type CubeC
 import { spreadMeasures } from './query.ts';
 import { takesAggregate } from './offers.ts';
 import {
-  AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SORT_DIRECTIONS, rowColumns, type AggregateFn, type ColumnKind,
-  type CubeSnapshot, type DerivedColumn, type Measure, type SortDirection, type SortSpec,
+  AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SORT_DIRECTIONS, rowColumns, totalOrderSorts, type AggregateFn,
+  type ColumnKind, type CubeSnapshot, type DerivedColumn, type Measure, type SortDirection, type SortSpec,
 } from './snapshot.ts';
 
 /** What an edit changes: the grid's query and its configuration (the editor's draft carries both). */
@@ -94,12 +95,15 @@ function checkGroupable(draft: GridDraft, names: readonly string[], had: readonl
  * has (the Sorts panel's), or, pivoted, a pivot's header -- a pivot value's column or a pivot total's, each ending with
  * a measure the pivot spreads (query.ts spreadMeasures: a measure column, or the count a pivot of none fills with),
  * made unique by `~N` when its name is taken (pivotColumns) -- as the header menu sorts by the header clicked; a sort
- * it has is kept or taken away as it is. A header of values the level does not have is left out of its query.
+ * it has is kept or taken away as it is. A header of values the level does not have is left out of its query. A child
+ * group's aggregate is refused: no query of the level has it to order by (P2-15).
  */
 export function setSorts<D extends GridDraft>(draft: D, sorts: readonly SortSpec[]): D {
   const columns = allColumns(draft);
   const pivoted = draft.snapshot.pivotOn.length > 0;
   const spread = new Set(pivoted ? spreadMeasures(applyToSnapshot(draft.snapshot, draft.config)).map((m) => m.name) : []);
+  // a child group's aggregate is read by its own query, beside the level's: the level's rows cannot be ordered by it
+  const apart = new Set((draft.snapshot.groupDerived ?? []).filter((d) => d.childAggregate).map((d) => d.name));
   const seen = new Set<string>();
   for (const { column, direction } of sorts) {
     if (!SORT_DIRECTIONS.includes(direction)) {
@@ -108,6 +112,10 @@ export function setSorts<D extends GridDraft>(draft: D, sorts: readonly SortSpec
     if (seen.has(column)) throw new CubeRefusal(`the sorts name '${column}' twice`);
     seen.add(column);
     if (draft.snapshot.sorts.some((x) => x.column === column)) continue;
+    if (apart.has(column)) {
+      throw new CubeRefusal(`'${column}' is worked out from each group's child rows after the groups are read, `
+        + 'so the groups cannot be sorted by it');
+    }
     const at = column.lastIndexOf(PIVOT_SEPARATOR);
     const header = at > 0 && spread.has(column.slice(at + PIVOT_SEPARATOR.length).replace(/~\d+$/, ''));
     if (!columns.includes(column) && !header) {
@@ -126,6 +134,77 @@ export function addSort<D extends GridDraft>(draft: D, column: string, direction
   const sorts = draft.snapshot.sorts;
   if (sorts.some((x) => x.column === column && x.direction === direction)) return draft;
   return setSorts(draft, [...sorts.filter((x) => x.column !== column), { column, direction }]);
+}
+
+/**
+ * The direction a header click sorts a column in first (the user, 2026-10-18): a number or a date from the largest,
+ * the latest; anything else from A. `type` is the column's as the result reports it (a pivot's cell is its aggregate's).
+ */
+export function firstSortDirection(type: string | undefined): SortDirection {
+  return isNumeric(type) || isTemporal(type) ? 'desc' : 'asc';
+}
+
+/**
+ * A HEADER CLICK'S SORT (the user, 2026-10-18): the column's first direction, then the other, then none. A plain
+ * click sorts by the column alone, every other sort taken off; a chained click (Ctrl, or ⌘ on a Mac) keeps the others
+ * and the column's place among them, and puts a column with no sort last.
+ */
+export function clickSort<D extends GridDraft>(draft: D, column: string, first: SortDirection, chained: boolean): D {
+  const sorts = draft.snapshot.sorts;
+  const now = sorts.find((x) => x.column === column)?.direction;
+  const next = now === undefined ? first : now === first ? (first === 'asc' ? 'desc' : 'asc') : undefined;
+  if (!chained) return setSorts(draft, next === undefined ? [] : [{ column, direction: next }]);
+  if (next === undefined) return setSorts(draft, sorts.filter((x) => x.column !== column));
+  return setSorts(draft, now === undefined
+    ? [...sorts, { column, direction: next }]
+    : sorts.map((x) => (x.column === column ? { column, direction: next } : x)));
+}
+
+/**
+ * THE HEADERS' SORT MARKS: the order the grid's query gives its rows (snapshot.ts totalOrderSorts), as its headers can
+ * show it -- so no header claims an order the rows do not have. Each sort the query applies, in its order, on the
+ * header it has among `headed` (the grid's leaves); a sort of the first row group, which has no header of its own in
+ * the tree, on the tree column's (`tree`); and, with no sort applied, the tree column's own direction, which then
+ * orders the groups. A sort the query leaves out -- a pivot total's with the totals off, a child group's aggregate
+ * (P2-15) -- is neither marked nor counted, so the positions a person reads have no gaps. `snapshot` is folded (a view's).
+ */
+export function headerSorts(snapshot: CubeSnapshot, headed: readonly string[], tree: string): SortSpec[] {
+  const marks: SortSpec[] = [];
+  const applied = appliedSorts(snapshot);
+  for (const x of applied) {
+    if (headed.includes(x.column)) marks.push(x);
+    else if (x.column === snapshot.rows[0] && headed.includes(tree)) marks.push({ column: tree, direction: x.direction });
+  }
+  if (applied.length === 0 && snapshot.rows.length > 0 && headed.includes(tree)) {
+    marks.push({ column: tree, direction: snapshot.treeColumnSort ?? 'asc' });
+  }
+  return marks;
+}
+
+/** The sorts a folded snapshot's query applies, in its order: its ORDER BY without the row groups no sort names. */
+function appliedSorts(snapshot: CubeSnapshot): SortSpec[] {
+  const sorted = new Set(snapshot.sorts.map((x) => x.column));
+  return totalOrderSorts(snapshot).filter((x) => sorted.has(x.column));
+}
+
+/**
+ * A click on the TREE column's header (the user, 2026-10-18). The groups are always ordered, so it has no "none". A
+ * plain click orders the rows by the groups alone, every other sort taken off: the other way from the order the tree's
+ * header shows (headerSorts), or, when it shows none, its first group column's first direction (firstSortDirection). A
+ * chained click with sorts applied chains that first group column, as a click chains any column (clickSort); with none
+ * applied there is nothing to chain after, and it is a plain click.
+ */
+export function clickTreeSort<D extends GridDraft>(draft: D, chained: boolean): D {
+  const folded = applyToSnapshot(draft.snapshot, draft.config);
+  const group = folded.rows[0];
+  if (group === undefined) throw new CubeRefusal('the grid has no row groups to order');
+  const first = firstSortDirection(rowColumns(folded).find((c) => c.name === group)?.type);
+  const applied = appliedSorts(folded);
+  if (chained && applied.length > 0) return clickSort(draft, group, first, true);
+  const shown = applied.length === 0 ? folded.treeColumnSort ?? 'asc' : applied.find((x) => x.column === group)?.direction;
+  const alone = setSorts(draft, []);
+  const direction = shown === undefined ? first : shown === 'asc' ? 'desc' : 'asc';
+  return { ...alone, config: { ...alone.config, treeColumnSort: direction } };
 }
 
 /** What Column Properties sets of a column through this module: its kind, its Aggregation, and a weighted average's

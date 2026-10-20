@@ -452,6 +452,9 @@ tests:
   - id: star_calls_are_named_without_the_star
     sql: "SELECT IF TODAY(*) IS NULL THEN 1 ELSE 0 ENDIF, PI(*)"
     engine: sa
+  # IQ island, 2026-10-17 (the JOB corpus lane): these three were refused while the compiler typed a union's column
+  # by its first branch alone; a union's column is both branches' since 2026-10-14 (d619c5cd6), and they are read
+  # (the ids keep their snapshots)
   - id: a_null_first_branch_read_by_a_derived_table_is_refused
     sql: "SELECT x FROM (SELECT CAST(NULL AS VARCHAR(3)) AS x UNION ALL SELECT 'a') d WHERE x = 'a'"
     engine: sa

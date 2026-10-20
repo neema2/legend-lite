@@ -1,0 +1,71 @@
+# The #Cypher{...}# island's static variable errors (docs/CYPHER_STUDY_2026_10_15.md §12.63): Neo4j's
+# VariableAlreadyBound and VariableTypeConflict raised over the whole statement before any clause is read, so an
+# error scenario is the error and never a refusal a clause meets first (an unbounded variable-length pattern); a
+# node or relationship named again as the same kind is a bound one, read again. Each case is judged by Neo4j's
+# answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/varkinds/*'), keyed
+# lite/varkinds/<id>.
+tests:
+  - id: a_relationship_named_as_a_node_in_a_later_match
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH ()-[r*]->() MATCH (r) RETURN r"
+  - id: a_path_named_as_a_node_in_the_same_match
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH r = ()-[*]->(), (r) RETURN r"
+  - id: a_node_named_as_a_relationship_in_the_same_pattern
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (r)-[]-()-[r*]-() RETURN r"
+  - id: a_relationship_named_as_a_path_in_a_later_match
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH ()-[p*]->() MATCH p = ()-[]-() RETURN p"
+  - id: a_path_bound_again_in_the_same_match
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH p = ()-[p*]-() RETURN p"
+  - id: a_variable_length_named_as_a_single_relationship
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH ()-[r*]->() MATCH ()-[r]->() RETURN r"
+  - id: a_literal_named_as_a_node
+    graph: |
+      CREATE (:A {name: 'a'})
+    cypher: "WITH 123 AS n MATCH (n)-[*]->() RETURN n"
+  - id: a_literal_list_named_as_a_relationship
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "WITH [1] AS r MATCH ()-[r*]->() RETURN r"
+  - id: a_literal_named_as_a_path
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "WITH 'foo' AS p MATCH p = ()-[*]->() RETURN p"
+  - id: a_value_named_as_a_path
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A) WITH head(collect(a)) AS p MATCH p = ()-[*]->() RETURN p"
+  - id: an_unwound_literal_named_as_a_node
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "UNWIND [1, 2] AS x MATCH (x)-[*]->() RETURN x"
+  - id: an_unwind_over_a_bound_name
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (x:A)-[*]->() UNWIND [1] AS x RETURN x"
+  - id: a_node_bound_again_as_a_node_reads_it_again
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A)-[:T]->(b) MATCH (a)-[:T]->(c) RETURN a.name AS a, b.name AS b, c.name AS c"
+  - id: a_name_dropped_by_a_with_binds_afresh
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH ()-[r:T]->() WITH count(r) AS n MATCH (r:B) RETURN n, r.name AS name"
+  - id: a_list_of_relationships_named_as_a_variable_length_reads_on
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'})-[:T]->(c:C {name: 'c'})
+    cypher: "MATCH ()-[r1]->()-[r2]->() WITH [r1, r2] AS rs LIMIT 1 MATCH (first)-[rs*]->(second) RETURN first.name AS first, second.name AS second"
+  - id: a_node_carried_through_with_star_conflicts
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (r:A) WITH * MATCH ()-[r*]->() RETURN r"

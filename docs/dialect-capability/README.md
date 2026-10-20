@@ -36,21 +36,21 @@ input).
 
 | dialect | database types | spelled | emulated | refused | not here | written, not reached by PCT |
 |---|---|---:|---:|---:|---:|---:|
-| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 84 | 70 | 50 | 15 | 23 |
-| H2Modern ([functions](functions.md#h2modern), [aggregates](aggregates.md#h2modern)) | no database type's own (it extends `H2`) | 83 | 72 | 49 | 15 | — |
-| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 75 | 120 | 9 | 15 | 29 |
-| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 95 | 103 | 6 | 15 | 32 |
-| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 83 | 116 | 5 | 15 | 32 |
-| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 70 | 123 | 11 | 15 | 30 |
-| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 95 | 102 | 7 | 15 | 30 |
-| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 145 | 59 | 0 | 15 | 38 |
-| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 64 | 133 | 7 | 15 | 30 |
-| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 136 | 12 | 15 | 32 |
-| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 51 | 145 | 8 | 15 | 31 |
-| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 51 | 145 | 8 | 15 | 31 |
-| EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 104 | 82 | 18 | 15 | — |
-| EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 106 | 80 | 18 | 15 | — |
-| EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 107 | 79 | 18 | 15 | — |
+| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 85 | 70 | 50 | 15 | 24 |
+| H2Modern ([functions](functions.md#h2modern), [aggregates](aggregates.md#h2modern)) | no database type's own (it extends `H2`) | 84 | 72 | 49 | 15 | — |
+| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 75 | 121 | 9 | 15 | 30 |
+| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 95 | 104 | 6 | 15 | 33 |
+| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 84 | 116 | 5 | 15 | 33 |
+| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 71 | 123 | 11 | 15 | 31 |
+| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 96 | 102 | 7 | 15 | 31 |
+| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 145 | 60 | 0 | 15 | 39 |
+| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 65 | 133 | 7 | 15 | 31 |
+| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 137 | 12 | 15 | 33 |
+| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 52 | 145 | 8 | 15 | 32 |
+| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 52 | 145 | 8 | 15 | 32 |
+| EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 105 | 82 | 18 | 15 | — |
+| EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 107 | 80 | 18 | 15 | — |
+| EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 108 | 79 | 18 | 15 | — |
 
 ## Functions
 
@@ -154,7 +154,7 @@ input).
 | `PURE_SPLIT_PART` | E | E | E | E | E | E | E | E | E | E | E | E | E | E | E |
 | `REVERSE_STRING` | S | S | S | S | S | S | S | S | S | S | S | S | S | S | S |
 | `ASCII_CODE` | S | S | S | S | E | S | S | S | E | E | E | E | S | S | S |
-| `CHR` | S | S | S | S | S | S | S | S | S | S | E | E | S | S | S |
+| `CHR` | S | S | E | S | S | S | S | E | S | S | E | E | S | S | S |
 | `UC_FIRST` | E | E | E | E | E | E | E | E | E | E | E | E | E | E | E |
 | `LC_FIRST` | E | E | E | E | E | E | E | E | E | E | E | E | E | E | E |
 | `ENCODE_BASE64` | R | R | E | S | E | E | E | E | S | E | E | E | E | E | E |
@@ -165,6 +165,7 @@ input).
 | `MD5` | E | E | S | S | E | E | S | S | E | R | S | S | E | E | E |
 | `SHA1` | E | E | R | S | E | E | S | S | E | R | S | S | E | E | E |
 | `SHA256` | E | E | E | E | E | E | E | S | E | R | E | E | E | E | E |
+| `RANDOM` | S· | S | S· | E· | S· | S· | S· | S· | S· | E· | S· | S· | S | S | S |
 | `EXTRACT` | E | E | E | E | E | E | E | E | E | E | E | E | E | E | E |
 | `TODAY` | S· | S | S· | S· | S· | S· | S· | S· | R | E· | S· | S· | E | E | E |
 | `NOW` | S· | S | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· | S | S | S |

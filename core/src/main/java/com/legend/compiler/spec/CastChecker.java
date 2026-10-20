@@ -43,11 +43,15 @@ final class CastChecker {
         // through it ($c.owner->cast(@Table).name) keeps its property-path
         // shape for the resolver's slot demand. Only cast itself: to/toMany
         // over a Variant DECODE (an array explodes), never the identity.
+        // (never the []-born Nil: the bottom conforms to every class, and the cast is what TYPES the empty --
+        // []->cast(@Variant) is Variant[0..0], as []->cast(@String) is String[0..0]; 2026-10-17, the Cypher
+        // island's typed null Variant column under a concatenate)
         if (a.chosen().qualifiedName().equals("meta::pure::functions::lang::cast")
                 && ref.target() instanceof com.legend.compiler.element.type.Type.ClassType tc
                 && a.args().get(0).info().type()
                         instanceof com.legend.compiler.element.type.Type.ClassType sc
                 && !com.legend.compiler.element.type.PlatformTypes.isVariant(sc)
+                && !com.legend.compiler.element.type.PlatformTypes.isNil(sc)
                 && (sc.fqn().equals(tc.fqn()) || t.model().isSubtype(sc.fqn(), tc.fqn()))) {
             return a.args().get(0);
         }

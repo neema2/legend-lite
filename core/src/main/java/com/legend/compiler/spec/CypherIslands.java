@@ -45,7 +45,9 @@ public final class CypherIslands {
      *  before resolution): what the showcase dump prints. */
     public static ValueSpecification translate(SqlIsland island, ModelContext model) {
         try {
-            return CypherToPure.translate(island.sql(), new Graph(model));
+            com.legend.protocol.cypher.CypherAst.Statement statement =
+                    com.legend.protocol.cypher.CypherParser.parse(island.sql());
+            return CypherToPure.translate(statement, new Graph(model, graphOf(statement, model)));
         } catch (SqlTranslationException e) {
             String message = island.opening() + "...}# at " + SqlIslands.position(island, e.line(), e.column()) + ": "
                     + e.getMessage();
@@ -57,23 +59,64 @@ public final class CypherIslands {
         }
     }
 
-    /** The classes of the model by their simple names, computed once per model: what a label names. */
-    record Labels(Map<String, List<String>> bySimpleName) {
+    /** The classes of the model by their simple names (what a label names: an anonymous class, one carrying
+     *  {@code <<graph.Anonymous>>}, is named by no label), every class in a fixed order, and each class's label set
+     *  (its own simple name unless anonymous, then its superclasses' sets in declaration order, each label once:
+     *  the study's §12.61), computed once per model. */
+    record Labels(Map<String, List<String>> bySimpleName, List<String> all, Map<String, List<String>> sets) {
 
         static Labels of(ModelContext model) {
             Map<String, List<String>> out = new TreeMap<>();
+            List<String> all = new ArrayList<>();
+            java.util.Set<String> anonymous = new java.util.HashSet<>();
             for (String fqn : new java.util.TreeSet<>(model.elementFqns())) {
                 // a synthetic class (the GraphQL companion's) is no label: unmapped, and not the user's
                 if (model.findClass(fqn).isEmpty() || model.isSynthetic(fqn)) {
                     continue;
                 }
-                int i = fqn.lastIndexOf("::");
-                String simple = i < 0 ? fqn : fqn.substring(i + 2);
-                out.computeIfAbsent(simple, k -> new ArrayList<>()).add(fqn);
+                all.add(fqn);
+                if (model.findClassDefinition(fqn).map(cd -> cd.stereotypes().stream().anyMatch(st -> com.legend
+                        .compiler.element.type.PlatformTypes.isProfile(st.profileName(), com.legend.compiler.element
+                        .type.PlatformTypes.GRAPH_PROFILE) && "Anonymous".equals(st.stereotypeName())))
+                        .orElse(false)) {
+                    anonymous.add(fqn);
+                    continue;
+                }
+                out.computeIfAbsent(simpleName(fqn), k -> new ArrayList<>()).add(fqn);
+            }
+            Map<String, List<String>> sets = new TreeMap<>();
+            for (String fqn : all) {
+                sets.put(fqn, List.copyOf(labelSet(model, fqn, anonymous, new java.util.LinkedHashSet<>(),
+                        new java.util.HashSet<>())));
             }
             Map<String, List<String>> frozen = new TreeMap<>();
             out.forEach((k, v) -> frozen.put(k, List.copyOf(v)));
-            return new Labels(java.util.Collections.unmodifiableMap(frozen));
+            return new Labels(java.util.Collections.unmodifiableMap(frozen), List.copyOf(all),
+                    java.util.Collections.unmodifiableMap(sets));
+        }
+
+        private static String simpleName(String fqn) {
+            int i = fqn.lastIndexOf("::");
+            return i < 0 ? fqn : fqn.substring(i + 2);
+        }
+
+        /** The class's label set into {@code out}: its own simple name unless anonymous, then each superclass's
+         *  (a class reached twice, a diamond, contributes once; a cycle is phase F's own error). */
+        private static java.util.Set<String> labelSet(ModelContext model, String fqn, java.util.Set<String> anonymous,
+                java.util.Set<String> out, java.util.Set<String> seen) {
+            if (!seen.add(fqn)) {
+                return out;
+            }
+            if (!anonymous.contains(fqn)) {
+                out.add(simpleName(fqn));
+            }
+            com.legend.compiler.element.TypedClass tc = model.findClass(fqn).orElse(null);
+            if (tc != null) {
+                for (String s : tc.superClassFqns()) {
+                    labelSet(model, s, anonymous, out, seen);
+                }
+            }
+            return out;
         }
     }
 
@@ -105,22 +148,63 @@ public final class CypherIslands {
         }
     }
 
-    /** The model as the translator reads it. */
+    /** The graph a statement's leading {@code USE} names (the study's §12.45; GQL's graph): a DataSpace of the
+     *  model, by its path, whose {@code elements} are the labels the island reads and whose {@code <<graph.Open>>}
+     *  declares the open reading; null when the statement names none (the whole model, closed). */
+    private static com.legend.model.@com.legend.base.Nullable DataSpaceDefinition graphOf(
+            com.legend.protocol.cypher.CypherAst.Statement statement, ModelContext model) {
+        com.legend.protocol.cypher.CypherAst.Use use = CypherToPure.leadingUse(statement);
+        if (use == null) {
+            return null;
+        }
+        return model.findDataSpace(use.graph()).orElseThrow(() -> CypherToPure.noSuchGraph(use));
+    }
+
+    /** The model as the translator reads it: the whole model, or the graph a DataSpace declares ({@link #graphOf}). */
     private static final class Graph implements CypherToPure.Model {
         private final ModelContext model;
+        private final com.legend.model.@com.legend.base.Nullable DataSpaceDefinition graph;
 
-        Graph(ModelContext model) {
+        Graph(ModelContext model, com.legend.model.@com.legend.base.Nullable DataSpaceDefinition graph) {
             this.model = model;
+            this.graph = graph;
+        }
+
+        /** Whether the class at {@code fqn} is of the graph: every class when no DataSpace is named or it lists no
+         *  elements; else one its elements include (a path, or a package the path is under) and none exclude. */
+        private boolean inScope(String fqn) {
+            if (graph == null || graph.elements().isEmpty()) {
+                return true;
+            }
+            boolean included = false;
+            for (String ref : graph.elements()) {
+                boolean exclude = ref.startsWith("-");
+                String path = exclude ? ref.substring(1) : ref;
+                if (fqn.equals(path) || fqn.startsWith(path + "::")) {
+                    if (exclude) {
+                        return false;
+                    }
+                    included = true;
+                }
+            }
+            return included;
+        }
+
+        @Override
+        public boolean open() {
+            return graph != null && graph.stereotypes().stream().anyMatch(st -> com.legend.compiler.element.type
+                    .PlatformTypes.isProfile(st.profileName(), com.legend.compiler.element.type.PlatformTypes
+                    .GRAPH_PROFILE) && "Open".equals(st.stereotypeName()));
         }
 
         @Override
         public List<String> classesOf(String label) {
             // the label as a class's full path first (a backticked `demo::Person`), else as a simple name
             if (model.findClass(label).isPresent()) {
-                return List.of(label);
+                return inScope(label) ? List.of(label) : List.of();
             }
             List<String> classes = model.derived(Labels.class, Labels::of).bySimpleName().get(label);
-            return classes == null ? List.of() : classes;
+            return classes == null ? List.of() : classes.stream().filter(this::inScope).toList();
         }
 
         @Override
@@ -151,6 +235,40 @@ public final class CypherIslands {
             Integer upper = m.upperBound();
             sink.property(other.propertyName(), other.targetClassFqn(), true, false, m.lowerBound(),
                     upper == null ? -1 : upper);
+        }
+
+        @Override
+        public List<String> marks(String classPath, String property) {
+            // the graph profile's stereotypes on the property's declaration: the class's own, else the first
+            // superclass's declaring it (the study's §12.64)
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            java.util.Deque<String> todo = new java.util.ArrayDeque<>(List.of(classPath));
+            while (!todo.isEmpty()) {
+                String path = todo.poll();
+                if (!seen.add(path)) {
+                    continue;
+                }
+                com.legend.model.ClassDefinition cd = model.findClassDefinition(path).orElse(null);
+                if (cd != null) {
+                    for (com.legend.model.ClassDefinition.PropertyDefinition pd : cd.properties()) {
+                        if (pd.name().equals(property)) {
+                            List<String> out = new ArrayList<>();
+                            for (com.legend.model.StereotypeApplication st : pd.stereotypes()) {
+                                if (com.legend.compiler.element.type.PlatformTypes.isProfile(st.profileName(),
+                                        com.legend.compiler.element.type.PlatformTypes.GRAPH_PROFILE)) {
+                                    out.add(st.stereotypeName());
+                                }
+                            }
+                            return out;
+                        }
+                    }
+                }
+                com.legend.compiler.element.TypedClass tc = model.findClass(path).orElse(null);
+                if (tc != null) {
+                    todo.addAll(tc.superClassFqns());
+                }
+            }
+            return List.of();
         }
 
         @Override
@@ -215,14 +333,12 @@ public final class CypherIslands {
         }
 
         @Override
-        public String labelOf(String classPath) {
-            for (Map.Entry<String, List<String>> e : model.derived(Labels.class, Labels::of).bySimpleName()
-                    .entrySet()) {
-                if (e.getValue().contains(classPath)) {
-                    return e.getKey();
-                }
+        public List<String> labels(String classPath) {
+            List<String> set = model.derived(Labels.class, Labels::of).sets().get(classPath);
+            if (set == null) {
+                throw new IllegalArgumentException("no class of the model at " + classPath);
             }
-            throw new IllegalArgumentException("no class of the model at " + classPath);
+            return set;
         }
 
         @Override
@@ -230,18 +346,73 @@ public final class CypherIslands {
             // the model's own classes: the platform's declarations (the resolver's type universe and the system
             // metamodel's elements, by their declared names) are never nodes, nor is an edge class (a relationship
             // type, the study's §5.6)
-            List<String> out = new ArrayList<>();
-            model.derived(Labels.class, Labels::of).bySimpleName().values().forEach(out::addAll);
+            List<String> out = new ArrayList<>(model.derived(Labels.class, Labels::of).all());
             GraphEdges edges = model.derived(GraphEdges.class, GraphEdges::of);
             out.removeIf(c -> com.legend.compiler.NameResolver.platformFqns().contains(c)
-                    || com.legend.builtin.SystemMetamodel.elementFqns().contains(c) || edges.edgeAt(c) != null);
+                    || com.legend.builtin.SystemMetamodel.elementFqns().contains(c) || edges.edgeAt(c) != null
+                    || !inScope(c));
             java.util.Collections.sort(out);
             return List.copyOf(out);
+        }
+
+        /** The function at the dotted name's path, its parameters the inputs, its relation's columns the outputs
+         *  (a function returning no relation is a VOID procedure); null when the model declares none. */
+        @Override
+        public void procedure(String name, CypherToPure.ProcedureSink sink) {
+            List<com.legend.compiler.element.TypedFunction> found = model.findFunction(name.replace(".", "::"));
+            if (found.isEmpty()) {
+                return;
+            }
+            if (found.size() > 1) {
+                // a procedure is one function: several of the name would be chosen among by nothing (the
+                // independent review, 2026-10-18)
+                throw new com.legend.error.NotImplementedException("the procedure " + name + ": the model declares "
+                        + found.size() + " functions " + name.replace(".", "::") + " (overloads), and a procedure"
+                        + " names one; not supported yet");
+            }
+            com.legend.compiler.element.TypedFunction f = found.get(0);
+            sink.procedure(name.replace(".", "::"));
+            for (com.legend.compiler.element.TypedParameter p : f.parameters()) {
+                sink.input(p.name(), primitiveName(p.type(), name));
+            }
+            // Relation<(col: T, ...)>: the generic Relation over its row type
+            if (f.returnType() instanceof Type.GenericType g && g.arguments().size() == 1
+                    && g.arguments().get(0) instanceof Type.RelationType rt) {
+                for (Type.Column c : rt.columns()) {
+                    sink.output(c.name(), primitiveName(c.type(), name));
+                }
+            }
+        }
+
+        /** A parameter's or column's type by its Pure name: the translator reads the kinds it supports and refuses
+         *  the others by name (no protocol node is built here: the guard on protocol-node construction). */
+        private static String primitiveName(Type t, String procedure) {
+            if (t instanceof Type.Primitive p) {
+                return switch (p) {
+                    case INTEGER -> "Integer";
+                    case FLOAT -> "Float";
+                    case NUMBER -> "Number";
+                    case DECIMAL -> "Decimal";
+                    case STRING -> "String";
+                    case BOOLEAN -> "Boolean";
+                    case BYTE -> "Byte";
+                    case DATE -> "Date";
+                    case STRICT_DATE -> "StrictDate";
+                    case DATE_TIME -> "DateTime";
+                    case LATEST_DATE -> "LatestDate";
+                    case STRICT_TIME -> "StrictTime";
+                };
+            }
+            // (another type by its name, which the translator refuses by name)
+            return t.typeName();
         }
 
         @Override
         public void edges(CypherToPure.EdgeSink sink) {
             for (GraphEdges.Edge e : model.derived(GraphEdges.class, GraphEdges::of).edges()) {
+                if (!inScope(e.classFqn())) {
+                    continue;
+                }
                 sink.edge(e.classFqn(), e.type(), e.from().property(), e.from().classFqn(), e.from().inverse(),
                         e.from().inverseMany(), e.to().property(), e.to().classFqn(), e.to().inverse(),
                         e.to().inverseMany());

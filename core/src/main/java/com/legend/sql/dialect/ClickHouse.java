@@ -1683,6 +1683,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case SHA1 -> writer.append("lower(hex(SHA1(").expr(a.get(0), 0).append(")))");
             case SHA256 -> writer.append("lower(hex(SHA256(").expr(a.get(0), 0).append(")))");
             case GUID -> writer.append("toString(generateUUIDv4())");
+            case RANDOM -> writer.append("randCanonical()");
             // printf takes native numbers and strings (a Decimal is refused, measured)
             // printf takes a Float64 for %f and only a String for %s: a Float under %s is its Pure text
             case FORMAT -> formatCall(writer, c);
@@ -2776,10 +2777,12 @@ public final class ClickHouse extends AnsiSqlRenderer {
                 case REAL -> "REAL";
                 case BIT -> "Bool";
                 case TIMESTAMP -> "TIMESTAMP";
+                case TIMESTAMP_NS -> "DateTime64(9)";
                 case DATE -> "DATE";
                 case JSON -> "JSON";
                 case VARCHAR -> "VARCHAR";
-                case OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
+                // a time of day: ClickHouse's Time type is experimental (the TIME scalar's own wall)
+                case TIME, OTHER, DISTINCT, ARRAY, OBJECT -> throw DdlSpelling.unspelled(p.kind());
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
             case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);

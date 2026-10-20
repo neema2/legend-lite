@@ -41,13 +41,16 @@ import java.util.Map;
  *       fraction after {@code .}, {@code :} or {@code ,} read as decimal places ({@code 12:34:56:7} is .7; past six
  *       places cut, not rounded), and {@code AM} or {@code PM} (12 AM is midnight, 12 PM noon, a PM hour past 12 kept);
  *       {@code 24:00:00} is the next day's midnight.</li>
+ *   <li>a year alone, or a year and a month ({@code 2010}, {@code 2010-05}, {@code 2010/5}, {@code 2010 May},
+ *       {@code May 2010}): the month's first day (IQ island, 2026-10-17, measured on IQ 17.1).</li>
  * </ul>
- * Anything else is not read and refused by name by the caller: a time or a month and a year alone (IQ fills in the
- * current date or day 1; IQ's engine reads a time alone on 1900-01-01, {@link #timeAlone}), weekday names, ISO week and ordinal dates, a zone offset, a time after a tab or with spaces
- * inside it, a month name's other abbreviations ({@code Sept}; IQ matches any prefix). A date before the year 100 is
- * refused by name (review 3's B3: lite's lowering writes its year without its zeros), and so is a time of day with hours
- * or minutes after the year 7910 (review 4's M2: SQL Anywhere 17 drops them there). An invalid date or time (IQ's
- * error -157) is not read either.
+ * Numbers ending in a four-digit year under DATE_ORDER YMD are IQ's error ({@link #unconvertible}).
+ * Anything else is not read and refused by name by the caller: a time alone (IQ fills in the current date; IQ's
+ * engine reads it on 1900-01-01, {@link #timeAlone}), two digits alone (a century there), weekday names, ISO week
+ * and ordinal dates, a zone offset, a time after a tab or with spaces inside it, a month name's other abbreviations
+ * ({@code Sept}; IQ matches any prefix). A date before the year 100 is refused by name (review 3's B3: lite's
+ * lowering writes its year without its zeros), and so is a time of day with hours or minutes after the year 7910
+ * (review 4's M2: SQL Anywhere 17 drops them there). An invalid date or time (IQ's error -157) is not read either.
  *
  * <p><b>Writing</b> ({@link #text}) a DATE or a TIMESTAMP as text -- CAST to a string type, {@code ||}, STRING,
  * LENGTH -- is composed of Pure's own natives (the parts of the date, each written with its zeros), in the profile's
@@ -254,7 +257,29 @@ final class IqDateTime {
                 Integer m = MONTHS.get(t.get(2).toLowerCase(java.util.Locale.ROOT));
                 return m == null ? -1 : set(out, Integer.parseInt(t.get(4)), m, Integer.parseInt(first), 5);
             }
+            // IQ island, 2026-10-17 (the corpus lane, measured on IQ 17.1 in both engines): a year alone, or a year
+            // and a month, is read on the month's first day -- '2010' is 2010-01-01, '2010-05', '2010/5', '2010.05'
+            // and '2010 May' are 2010-05-01 -- a time after it read as after a date. (Two digits alone are read as a
+            // century there, '20' 2000-01-01 but '00' IQ's error: not read.)
+            if (first.length() == 4 && t.size() >= 3 && separator(t.get(1)) && digits(t.get(2)) && small(t.get(2))
+                    && boundary(t, 3)) {
+                return set(out, Integer.parseInt(first), Integer.parseInt(t.get(2)), 1, 3);
+            }
+            if (first.length() == 4 && t.size() >= 3 && t.get(1).equals(" ") && letters(t.get(2))
+                    && !t.get(2).equals("T") && boundary(t, 3)) {
+                Integer m = MONTHS.get(t.get(2).toLowerCase(java.util.Locale.ROOT));
+                return m == null ? -1 : set(out, Integer.parseInt(first), m, 1, 3);
+            }
+            if (first.length() == 4 && boundary(t, 1)) {
+                return set(out, Integer.parseInt(first), 1, 1, 1);
+            }
             return -1;
+        }
+        if (letters(first) && t.size() >= 3 && t.get(1).equals(" ") && digits(t.get(2)) && t.get(2).length() == 4
+                && boundary(t, 3)) {
+            // IQ island, 2026-10-17 (measured on IQ 17.1): Mon yyyy, the month's first day
+            Integer m = MONTHS.get(first.toLowerCase(java.util.Locale.ROOT));
+            return m == null ? -1 : set(out, Integer.parseInt(t.get(2)), m, 1, 3);
         }
         if (letters(first) && t.size() >= 5 && t.get(1).equals(" ") && digits(t.get(2)) && small(t.get(2))) {
             // Mon d yyyy, Mon d, yyyy, Mon d yy
@@ -279,6 +304,34 @@ final class IqDateTime {
                     Integer.parseInt(t.get(2)), at + 1);
         }
         return -1;
+    }
+
+    /** Whether the date read so far ends at token {@code at}: the text's end, or the space or ISO {@code T} before a
+     *  time. */
+    private static boolean boundary(List<String> t, int at) {
+        return at == t.size() || t.get(at).equals(" ") || t.get(at).equals("T");
+    }
+
+    /**
+     * IQ island, 2026-10-17 (the corpus lane's SEDE, measured on IQ 17.1): whether {@code text} is a date IQ cannot
+     * convert under {@code settings} -- under DATE_ORDER YMD, numbers ending in a four-digit year ({@code 01/02/2018},
+     * {@code 8-16-2011}, {@code 05/2010}, with a time after it or not): IQ's error wherever it is converted (-157 in
+     * SQL Anywhere's front end; under IQ's engine -1009145 compared, -1001006 cast). Other spellings not read stay
+     * refused by name.
+     */
+    static boolean unconvertible(String text, IqSettings settings) {
+        if (!settings.dateOrder().equalsIgnoreCase("YMD")) {
+            return false;
+        }
+        List<String> t = tokens(text);
+        if (t == null || t.size() < 3 || !small(t.get(0)) || !separator(t.get(1)) || !digits(t.get(2))) {
+            return false;
+        }
+        if (t.get(2).length() == 4) {
+            return boundary(t, 3);
+        }
+        return small(t.get(2)) && t.size() >= 5 && separator(t.get(3)) && digits(t.get(4)) && t.get(4).length() == 4
+                && boundary(t, 5);
     }
 
     /** Three numbers of a date in the order DATE_ORDER says, a year of one or two digits by NEAREST_CENTURY. */

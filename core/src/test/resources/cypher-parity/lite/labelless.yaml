@@ -60,7 +60,7 @@ tests:
     graph: |
       CREATE (:A {num: 9}), (:B {num: 5})
     cypher: "MATCH (n) MATCH (m:A) RETURN m.num AS num"
-  - id: property_typed_differently_refused_by_name
+  - id: property_typed_differently_reads_a_variant
     graph: |
       CREATE (:A {v: 1}), (:B {v: 'x'})
     cypher: "MATCH (n) RETURN n.v AS v"

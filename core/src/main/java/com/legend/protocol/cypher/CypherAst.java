@@ -25,8 +25,20 @@ public final class CypherAst {
 
     // ------------------------------------------------------------------ clauses
 
-    public sealed interface Clause permits Match, With, Return, Unwind, Use, OtherClause {
+    public sealed interface Clause permits Match, With, Return, Unwind, Use, ProcedureCall, OtherClause {
         Pos pos();
+    }
+
+    /** {@code CALL name[(args)] [YIELD * | item, ...]} (the study's §12.60): a procedure of the model, called standalone
+     *  or over the rows in hand. {@code args} is null when the call is written without parentheses (its arguments
+     *  implicit: the query's parameters); {@code yields} null when nothing is yielded, {@code yieldAll} for
+     *  {@code YIELD *}. */
+    public record ProcedureCall(String name, @com.legend.base.Nullable List<Expr> args,
+            @com.legend.base.Nullable List<YieldItem> yields, boolean yieldAll, Pos pos) implements Clause {
+    }
+
+    /** A yielded output of a procedure, under its alias when written. */
+    public record YieldItem(String name, @com.legend.base.Nullable String alias, Pos pos) {
     }
 
     /** {@code [OPTIONAL] MATCH pattern, ... [WHERE expr]}. */
@@ -108,9 +120,19 @@ public final class CypherAst {
     }
 
     /** {@code EXISTS { MATCH pattern WHERE where RETURN ... }}, or {@code EXISTS { pattern }}: true where the pattern
-     *  has a match (the items returned do not matter; the subquery's one pattern, one optional WHERE). */
-    public record ExistsSubquery(PathPattern pattern, @com.legend.base.Nullable Expr where, List<Expr> items, Pos pos)
-            implements Expr {
+     *  has a match (the items returned do not matter; the subquery's one pattern, one optional WHERE); with a
+     *  {@code counted} part, {@code EXISTS { MATCH pattern WITH keys, count(*) AS alias WHERE having RETURN ... }}
+     *  (docs/CYPHER_STUDY_2026_10_15.md §12.77). */
+    public record ExistsSubquery(PathPattern pattern, @com.legend.base.Nullable Expr where, List<Expr> items,
+            @com.legend.base.Nullable Counted counted, Pos pos) implements Expr {
+        public ExistsSubquery(PathPattern pattern, @com.legend.base.Nullable Expr where, List<Expr> items, Pos pos) {
+            this(pattern, where, items, null, pos);
+        }
+    }
+
+    /** An EXISTS subquery's {@code WITH keys, count(*) AS alias [WHERE having]}: the matches grouped by the keys
+     *  (variables), counted, the groups kept where {@code having} holds. */
+    public record Counted(List<String> keys, String alias, @com.legend.base.Nullable Expr having, Pos pos) {
     }
 
     public record IntLit(long value, String text, Pos pos) implements Expr {

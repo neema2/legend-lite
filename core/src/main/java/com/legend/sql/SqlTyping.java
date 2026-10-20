@@ -384,7 +384,7 @@ public final class SqlTyping {
                     // says UBIGINT — the CEILING lesson again: rules
                     // describe what WE deliver, not the raw builtin.
                     HASH -> T_BIGINT;
-            case SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN,
+            case SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, RANDOM,
                     ACOS, ATAN, ATAN2, SINH, COSH, TANH, COT, RADIANS,
                     DEGREES, DIVIDE, JARO_WINKLER -> T_DOUBLE;
             case TODAY, MAKE_DATE -> T_DATE;

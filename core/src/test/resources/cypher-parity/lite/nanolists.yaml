@@ -1,0 +1,29 @@
+# The #Cypher{...}# island's lists, maps and aggregates of temporal values of nanosecond precision over their parts
+# (the TCK-to-zero plan's W13, leg 4, docs/CYPHER_STUDY_2026_10_15.md §12.88): a list or map holds each value as the
+# oracle's text the database writes of its parts, read back as the parts where it is read (an index, an UNWIND, a
+# comprehension, IN); min and max reduce the values' sortable texts; a returned grouping key groups by the value's text.
+# Every lane computes them, over every year the database's DATE holds. Each case is judged by Neo4j's answer in
+# neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/nanolists/*'), keyed lite/nanolists/<id>.
+tests:
+  - id: lists_returned
+    cypher: "RETURN [localtime('12:31:14.645876123'), localtime('10:35')] AS t, [localdatetime('0001-01-01T00:00:00.000000001'), localdatetime('9999-12-31T23:59:59.999999999')] AS d, [datetime('1984-10-11T12:31:14.645876123+01:00')] AS z, [time('23:59:59.999999999-02:00'), time('00:00:00.000000001+05:00')] AS zt"
+  - id: indexed_and_tested
+    cypher: "WITH [localtime('12:31:14.645876123'), localtime('10:35')] AS v, [localdatetime('0001-01-01T00:00:00.000000001'), localdatetime('9999-12-31T23:59:59.999999999')] AS d RETURN v[0] AS first, v[1] = localtime('10:35') AS e, v[0].nanosecond AS n, localtime('12:31:14.645876123') IN v AS i, localtime('12:31:14.645876124') IN v AS j, d[1].year AS y, localdatetime('0001-01-01T00:00:00.000000001') IN d AS k, size(d) AS s"
+  - id: unwound_and_ordered
+    cypher: "UNWIND [localdatetime('9999-09-09T09:59:59.999999999'), localdatetime('0001-01-01T01:01:01.000000001'), localdatetime('1984-10-11T12:31:14.645876123'), localdatetime('1984-10-11T12:30:14.000000012')] AS d WITH d ORDER BY d LIMIT 3 RETURN d, d.nanosecond AS n"
+  - id: unwound_after_a_with
+    cypher: "WITH [time('10:35-08:00'), time('12:31:14.645876123+01:00'), time('12:31:14.645876124+01:00'), time('12:35:15+05:00')] AS values WITH values, size(values) AS n UNWIND values AS v RETURN v, n, size([x IN values WHERE x < v]) AS below ORDER BY v"
+  - id: comprehended_over_the_parts
+    cypher: "WITH [localdatetime('1984-10-11T12:31:14.645876123'), localdatetime('2015-07-21T21:40:32.142000009'), localdatetime('0001-01-01T00:00:00.000000001')] AS l WITH l RETURN [x IN l WHERE x.year > 1000 | x.nanosecond] AS n, [x IN l | toString(x)] AS s, any(x IN l WHERE x.year = 1) AS early, head(l) AS h, last(l) AS t"
+  - id: collected_and_unwound
+    cypher: "UNWIND [3, 1, 2] AS i WITH localdatetime({year: 2000, month: 1, day: i, hour: 0, minute: 0, second: 0, nanosecond: i}) AS d WITH collect(d) AS l UNWIND l AS x RETURN x ORDER BY x"
+  - id: least_and_greatest
+    cypher: "UNWIND [localdatetime('0001-01-01T00:00:00.000000001'), localdatetime('1984-10-11T12:31:14.645876123'), localdatetime('9999-12-31T23:59:59.999999999')] AS d WITH d, localtime({hour: 12, minute: 0, second: 0, nanosecond: d.nanosecond}) AS t RETURN min(d) AS lo, max(d) AS hi, min(t) AS tlo, max(t) AS thi"
+  - id: least_through_a_with
+    cypher: "UNWIND [1, 2, 3] AS i WITH datetime({year: 2000, month: 1, day: i, hour: 12, minute: 0, second: 0, nanosecond: i, timezone: '+05:00'}) AS z, localtime({hour: i, minute: 0, second: 0, nanosecond: 7}) AS t WITH min(z) AS lo, max(t) AS hi RETURN lo, hi, hi.hour AS h, hi.nanosecond AS n, lo.epochSeconds AS e"
+  - id: grouped_and_returned
+    cypher: "UNWIND [1, 1, 2] AS i RETURN localdatetime({year: 1, month: 1, day: i, hour: 0, minute: 0, second: 0, nanosecond: 1}) AS d, count(*) AS c ORDER BY d"
+  - id: in_a_map
+    cypher: "WITH {t: localtime('12:31:14.645876123'), d: localdatetime('0001-01-01T00:00:00.000000001')} AS m RETURN m, m.t.nanosecond AS n, m.d.year AS y"
+  - id: chosen_among_zoned
+    cypher: "UNWIND [1, 2] AS i RETURN CASE i WHEN 1 THEN datetime('2017-07-01T12:00:00.000000001+02:00') ELSE datetime('2017-07-01T12:00:00.000000002Z') END AS z, coalesce(CASE WHEN i = 1 THEN null ELSE time('12:00:00.000000003+01:00') END, time('13:00:00.000000004+01:00')) AS t ORDER BY i"

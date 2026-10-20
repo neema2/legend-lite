@@ -150,13 +150,26 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     ]);
   });
 
-  it('a pivot total is hidden, pinned, copied and heat-mapped by nothing: it is no column of the cube, only of the grid', () => {
-    const ctx: MenuContext = { snapshot: { ...CUBE, pivotTotal: { placement: 'right' } }, column: pivotTotalColumn('notional'), pivotTotal: true };
-    for (const label of ['Hide', 'Selected Column as Plain Text', 'Add Heatmap', 'Pin Left', 'Pin Right', 'Minimize Column']) {
-      assert.equal(find(ctx, label)?.disabled, true, label);
+  it('a pivot total is offered what a pivot\'s cell is: hidden, copied, sized and a heatmap of its own; never pinned', () => {
+    // the app's context for a total (2026-10-18): its measure the pivot's base, no dimension to group by
+    const total = pivotTotalColumn('notional');
+    const ctx: MenuContext = { snapshot: { ...CUBE, pivotTotal: { placement: 'right' } }, column: total, pivotBase: 'notional',
+      canGroup: false, isMeasure: true };
+    for (const label of ['Hide Total / notional', 'Column Total / notional as Plain Text', 'Add Heatmap to Total / notional',
+      'Minimize Column', 'Auto-size to Fit Content']) {
+      assert.equal(find(ctx, label)?.disabled, false, label);
+      assert.equal(find(ctx, label)?.column, total, label);
     }
-    // nothing about it as a calculated column either
-    assert.deepEqual(labels(submenu({ ...ctx, calcStage: 'group' }, 'Extended Columns')), ['Add New Column...']);
+    // a pivot's result is not pinned, as upstream's
+    for (const label of ['Pin Left', 'Pin Right']) assert.equal(find(ctx, label)?.disabled, true, label);
+    // with its own heatmap on (the app's hasHeatmap: heatmapSetting, a total's alone), its menu offers to take it off
+    assert.equal(find({ ...ctx, hasHeatmap: true }, 'Remove Heatmap')?.disabled, false);
+    // named as its header names it: Properties' Pivot Statistic Column Name, when renamed
+    assert.equal(find({ ...ctx, totalLabel: 'All years' }, 'Hide All years / notional')?.column, total);
+    // nothing about it as a calculated column (the app finds no stage for it: calcStageOf), nor as a dimension
+    assert.deepEqual(calcStageOf(ctx.snapshot, total), {});
+    assert.deepEqual(labels(submenu(ctx, 'Extended Columns')), ['Add New Column...']);
+    assert.ok(labels(submenu(ctx, 'Pivot')).every((l) => !/on Total/.test(l) || l.endsWith('[off]')), labels(submenu(ctx, 'Pivot')).join(' | '));
   });
 
   it('a value on a column whose type is not known yet offers no value filter: the operators are the type\'s, never guessed', () => {

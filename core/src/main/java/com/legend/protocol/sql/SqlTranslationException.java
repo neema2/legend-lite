@@ -23,12 +23,29 @@ public final class SqlTranslationException extends RuntimeException {
     private final Kind kind;
     private final int line;
     private final int column;
+    private final boolean pastSizeBound;
 
     public SqlTranslationException(Kind kind, String message, int line, int column) {
+        this(kind, message, line, column, false);
+    }
+
+    private SqlTranslationException(Kind kind, String message, int line, int column, boolean pastSizeBound) {
         super(message);
         this.kind = kind;
         this.line = line;
         this.column = column;
+        this.pastSizeBound = pastSizeBound;
+    }
+
+    /** IQ island, 2026-10-17: a translation refused for its size alone (a dialect's bound on the Pure it writes), which
+     *  the translator answers by computing the item's long operands once each and trying again. */
+    public static SqlTranslationException pastSizeBound(String message, SqlAst.Pos pos) {
+        return new SqlTranslationException(Kind.UNSUPPORTED, message, pos.line(), pos.column(), true);
+    }
+
+    /** Whether this is a refusal for size alone ({@link #pastSizeBound}). */
+    public boolean pastSizeBound() {
+        return pastSizeBound;
     }
 
     public static SqlTranslationException unsupported(String message, SqlAst.Pos pos) {

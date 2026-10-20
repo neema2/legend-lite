@@ -1,0 +1,51 @@
+# The #Cypher{...}# island's walks beside single hops (docs/CYPHER_STUDY_2026_10_15.md §12.83): a variable-length
+# relationship without an upper bound in a pattern of other relationships, the pattern cut at the walk (the single
+# hops before it the start node's rows, those after it the far node's, each a MATCH of its own), the single hops'
+# relationships never one the walk walked, a named path assembled across the three. Each case is judged by Neo4j's
+# answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/walkbeside/*'), keyed
+# lite/walkbeside/<id>.
+tests:
+  - id: a_hop_then_a_walk
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})-[:T]->(:N {name: 'c'})-[:T]->(:N {name: 'd'})
+    cypher: "MATCH p = (x:N {name: 'a'})-->(y)-[*]->(z) RETURN y.name AS y, z.name AS z, length(p) AS l ORDER BY z"
+  - id: a_hop_then_a_walk_as_a_path
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})-[:T]->(:N {name: 'c'})-[:T]->(:N {name: 'd'})
+    cypher: "MATCH p = (x:N {name: 'a'})-[:T]->(y)-[:T*]->(z) RETURN p ORDER BY length(p)"
+  - id: a_walk_then_a_hop
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})-[:T]->(:N {name: 'c'})-[:T]->(:N {name: 'd'})
+    cypher: "MATCH p = (x:N)-[*]->(y)-[:T]->(z:N {name: 'd'}) RETURN x.name AS x, y.name AS y, length(p) AS l ORDER BY x"
+  - id: hops_on_both_sides_of_a_walk
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})-[:T]->(:N {name: 'c'})-[:T]->(:N {name: 'd'})-[:T]->(:N {name: 'e'})
+    cypher: "MATCH p = (w:N {name: 'a'})-->(x)-[*]->(y)-->(z) RETURN x.name AS x, y.name AS y, z.name AS z, length(p) AS l ORDER BY z"
+  - id: the_hop_never_one_the_walk_walks
+    graph: |
+      CREATE (a:N {name: 'a'})-[:T]->(b:N {name: 'b'}), (b)-[:T]->(a)
+    cypher: "MATCH (x:N {name: 'a'})-[r]->(y)-[*]->(z) RETURN y.name AS y, z.name AS z ORDER BY z"
+  - id: a_hop_then_a_walk_of_zero_or_more
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})-[:T]->(:N {name: 'c'})
+    cypher: "MATCH p = (x:N {name: 'a'})-->(y)-[*0..]->(z) RETURN z.name AS z, length(p) AS l ORDER BY l"
+  - id: the_hop_and_the_walk_by_their_variables
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})-[:U]->(:N {name: 'c'})-[:U]->(:N {name: 'd'})
+    cypher: "MATCH (a:N {name: 'a'})-[r]->(b)-[rs*]->(c) RETURN type(r) AS t, size(rs) AS n, c.name AS c ORDER BY n"
+  - id: an_optional_hop_then_a_walk_finding_none
+    graph: |
+      CREATE (a {name: 'A'}), (b {name: 'B'}), (a)-[:X]->(b)
+    cypher: "MATCH (a {name: 'A'}) OPTIONAL MATCH p = (a)-->(b)-[*]->(c) RETURN p"
+  - id: an_optional_hop_then_a_walk_finding_some
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})-[:T]->(:N {name: 'c'})-[:T]->(:N {name: 'd'})
+    cypher: "MATCH (a:N {name: 'a'}) OPTIONAL MATCH p = (a)-->(b)-[*]->(c) RETURN c.name AS c, length(p) AS l ORDER BY c"
+  - id: the_parts_of_a_path_across_a_walk
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})-[:T]->(:N {name: 'c'})-[:T]->(:N {name: 'd'})
+    cypher: "MATCH p = (x:N {name: 'a'})-->()-[*]->(z:N {name: 'd'}) RETURN [n IN nodes(p) | n.name] AS ns, size(relationships(p)) AS rs"
+  - id: an_undirected_hop_then_a_walk
+    graph: |
+      CREATE (:N {name: 'a'})-[:T]->(:N {name: 'b'})-[:T]->(:N {name: 'c'})-[:T]->(:N {name: 'd'})
+    cypher: "MATCH p = (x:N {name: 'b'})--(y)-[*]->(z) RETURN y.name AS y, z.name AS z, p ORDER BY y, z"

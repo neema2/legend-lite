@@ -26,6 +26,7 @@ final class DatabaseComposer {
             Map.entry("Float", "FLOAT"), Map.entry("Double", "DOUBLE"), Map.entry("Real", "REAL"),
             Map.entry("Integer", "INTEGER"), Map.entry("BigInt", "BIGINT"), Map.entry("SmallInt", "SMALLINT"),
             Map.entry("TinyInt", "TINYINT"), Map.entry("Date", "DATE"), Map.entry("Timestamp", "TIMESTAMP"),
+            Map.entry("Time", "TIME"), Map.entry("TimestampNs", "TIMESTAMP_NS"),
             Map.entry("Bit", "BIT"), Map.entry("Other", "OTHER"), Map.entry("SemiStructured", "SEMISTRUCTURED"),
             Map.entry("Json", "JSON"));
     /** A column type with a size: its keyword. */

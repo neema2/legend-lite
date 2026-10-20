@@ -136,6 +136,7 @@ Database types planned with it: H2.
 | `MD5` | emulated | `digest: MD5` |  | 1 |
 | `SHA1` | emulated | `digest: SHA-1` |  | 1 |
 | `SHA256` | emulated | `digest: SHA-256` |  | 1 |
+| `RANDOM` | spelled | `RAND` |  | 0 |
 | `EXTRACT` | emulated | `datePart, part: extract(… FROM …)` |  | 24 |
 | `TODAY` | spelled | `current_date` |  | 0 |
 | `NOW` | spelled | `now` |  | 0 |
@@ -322,6 +323,7 @@ Database types planned with it: no database type's own (it extends `H2`). No PCT
 | `MD5` | emulated | `digest: MD5` | `as H2` | — |
 | `SHA1` | emulated | `digest: SHA-1` | `as H2` | — |
 | `SHA256` | emulated | `digest: SHA-256` | `as H2` | — |
+| `RANDOM` | spelled | `RAND` | `as H2` | — |
 | `EXTRACT` | emulated | `datePart, part: extract(… FROM …)` | `as H2` | — |
 | `TODAY` | spelled | `current_date` | `as H2` | — |
 | `NOW` | spelled | `now` | `as H2` | — |
@@ -497,7 +499,7 @@ Database types planned with it: Postgres.
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverse` |  | 2 |
 | `ASCII_CODE` | spelled | `ascii` |  | 10 |
-| `CHR` | spelled | `chr` |  | 9 |
+| `CHR` | emulated | `chr(CAST(… AS INTEGER))` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
 | `ENCODE_BASE64` | emulated | `replace(encode(convert_to(…, 'UTF8'), 'base64'), chr(10), '')` |  | 3 |
@@ -508,6 +510,7 @@ Database types planned with it: Postgres.
 | `MD5` | spelled | `md5` |  | 1 |
 | `SHA1` | refused | `an extension function (pgcrypto) reached Postgres:` |  | 1 |
 | `SHA256` | emulated | `encode(sha256(convert_to(…, 'UTF8')), 'hex')` |  | 1 |
+| `RANDOM` | spelled | `random` |  | 0 |
 | `EXTRACT` | emulated | `extractArm` |  | 24 |
 | `TODAY` | spelled | `current_date` |  | 0 |
 | `NOW` | emulated | `(now() AT TIME ZONE 'UTC')` |  | 0 |
@@ -539,7 +542,7 @@ Database types planned with it: Postgres.
 | `CURRENT_USER_FN` | spelled | `current_user` |  | 2 |
 | `LIST_LENGTH` | emulated | `listOf: cardinality(…)` |  | 27 |
 | `LIST_ZIP` | refused | `collections over the jsonb carrier are leg P4 reached Postgres:` |  | 0 |
-| `LIST_DISTINCT` | emulated | `(CASE WHEN … IS NULL THEN NULL ELSE ARRAY(SELECT FROM unnest(…) WITH ORDINALI...` | `via Postgres.listCall` | 0 |
+| `LIST_DISTINCT` | emulated | `unnest: (CASE WHEN … IS NULL THEN NULL ELSE ARRAY(SELECT FROM … WITH ORDINALITY AS __...` | `via Postgres.listCall` | 0 |
 | `LIST_APPEND` | emulated | `encode: array_append(…, …)` | `via Postgres.listCall` | 8 |
 | `LIST_SUM` | emulated | `overReduce: …sum()` | `via Postgres.listCall` | 0 |
 | `LIST_MIN` | emulated | `overReduce: …bool_and(min()` | `via Postgres.listCall` | 58 |
@@ -694,6 +697,7 @@ Database types planned with it: Snowflake.
 | `MD5` | spelled | `md5` |  | 1 |
 | `SHA1` | spelled | `sha1` |  | 1 |
 | `SHA256` | emulated | `SHA2(…, 256)` |  | 1 |
+| `RANDOM` | emulated | `(UNIFORM(0, 9007199254740991, RANDOM()) / 9007199254740992::FLOAT)` |  | 0 |
 | `EXTRACT` | emulated | `extract` |  | 24 |
 | `TODAY` | spelled | `current_date` |  | 0 |
 | `NOW` | emulated | `CAST(CURRENT_TIMESTAMP() AS TIMESTAMP_NTZ)` |  | 0 |
@@ -880,6 +884,7 @@ Database types planned with it: Trino.
 | `MD5` | emulated | `lower(to_hex(md5(to_utf8(…))))` |  | 1 |
 | `SHA1` | emulated | `lower(to_hex(sha1(to_utf8(…))))` |  | 1 |
 | `SHA256` | emulated | `lower(to_hex(sha256(to_utf8(…))))` |  | 1 |
+| `RANDOM` | spelled | `random` |  | 0 |
 | `EXTRACT` | emulated | `extract` |  | 24 |
 | `TODAY` | spelled | `current_date` |  | 0 |
 | `NOW` | emulated | `CAST(current_timestamp AS TIMESTAMP(6))` |  | 0 |
@@ -1066,6 +1071,7 @@ Database types planned with it: BigQuery.
 | `MD5` | emulated | `asText: TO_HEX(MD5(…))` |  | 1 |
 | `SHA1` | emulated | `asText: TO_HEX(SHA1(…))` |  | 1 |
 | `SHA256` | emulated | `asText: TO_HEX(SHA256(…))` |  | 1 |
+| `RANDOM` | spelled | `RAND` |  | 0 |
 | `EXTRACT` | emulated | `extract` |  | 24 |
 | `TODAY` | spelled | `CURRENT_DATE` |  | 0 |
 | `NOW` | emulated | `typeOf: CURRENT_TIMESTAMP()CURRENT_DATETIME()` |  | 0 |
@@ -1252,6 +1258,7 @@ Database types planned with it: Databricks.
 | `MD5` | spelled | `md5` |  | 1 |
 | `SHA1` | spelled | `sha1` |  | 1 |
 | `SHA256` | emulated | `sha2(…, 256)` |  | 1 |
+| `RANDOM` | spelled | `rand` |  | 0 |
 | `EXTRACT` | emulated | `extract` |  | 24 |
 | `TODAY` | spelled | `current_date` |  | 0 |
 | `NOW` | spelled | `current_timestamp` |  | 0 |
@@ -1427,7 +1434,7 @@ Database types planned with it: DuckDB.
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverse` |  | 2 |
 | `ASCII_CODE` | spelled | `ascii` |  | 10 |
-| `CHR` | spelled | `chr` |  | 9 |
+| `CHR` | emulated | `chr(CAST(… AS INTEGER))` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
 | `ENCODE_BASE64` | emulated | `encodeBase64` |  | 3 |
@@ -1438,6 +1445,7 @@ Database types planned with it: DuckDB.
 | `MD5` | spelled | `md5` |  | 1 |
 | `SHA1` | spelled | `sha1` |  | 1 |
 | `SHA256` | spelled | `sha256` |  | 1 |
+| `RANDOM` | spelled | `random` |  | 0 |
 | `EXTRACT` | emulated | `stringLit, datePart, part: date_part(…, …)` |  | 24 |
 | `TODAY` | spelled | `current_date` |  | 0 |
 | `NOW` | emulated | `CAST(now() AS TIMESTAMP)` |  | 0 |
@@ -1624,6 +1632,7 @@ Database types planned with it: ClickHouse.
 | `MD5` | emulated | `lower(hex(MD5(…)))` |  | 1 |
 | `SHA1` | emulated | `lower(hex(SHA1(…)))` |  | 1 |
 | `SHA256` | emulated | `lower(hex(SHA256(…)))` |  | 1 |
+| `RANDOM` | spelled | `randCanonical` |  | 0 |
 | `EXTRACT` | emulated | `extract` | `via ClickHouse.temporal` | 24 |
 | `TODAY` | refused | `today() reached ClickHouse, which has no bare current_date` |  | 0 |
 | `NOW` | emulated | `now64(6, 'UTC')` | `via ClickHouse.temporal` | 0 |
@@ -1810,6 +1819,7 @@ Database types planned with it: SQLite.
 | `MD5` | refused | `SQLite has no digest function reached SQLite:` |  | 1 |
 | `SHA1` | refused | `SQLite has no digest function reached SQLite:` |  | 1 |
 | `SHA256` | refused | `SQLite has no digest function reached SQLite:` |  | 1 |
+| `RANDOM` | emulated | `((random() & 9007199254740991) / 9007199254740992.0)` |  | 0 |
 | `EXTRACT` | emulated | `extract` |  | 24 |
 | `TODAY` | emulated | `date('now')` |  | 0 |
 | `NOW` | emulated | `strftime('%Y-%m-%d %H:%M:%f', 'now')` |  | 0 |
@@ -1996,6 +2006,7 @@ Database types planned with it: MariaDB.
 | `MD5` | spelled | `MD5` |  | 1 |
 | `SHA1` | spelled | `SHA1` |  | 1 |
 | `SHA256` | emulated | `SHA2(…, 256)` |  | 1 |
+| `RANDOM` | spelled | `RAND` |  | 0 |
 | `EXTRACT` | emulated | `extract` |  | 24 |
 | `TODAY` | spelled | `UTC_DATE` |  | 0 |
 | `NOW` | emulated | `UTC_TIMESTAMP(6)` |  | 0 |
@@ -2182,6 +2193,7 @@ Database types planned with it: MySQL.
 | `MD5` | spelled | `MD5` | `as MariaDb` | 1 |
 | `SHA1` | spelled | `SHA1` | `as MariaDb` | 1 |
 | `SHA256` | emulated | `SHA2(…, 256)` | `as MariaDb` | 1 |
+| `RANDOM` | spelled | `RAND` | `as MariaDb` | 0 |
 | `EXTRACT` | emulated | `extract` | `as MariaDb` | 24 |
 | `TODAY` | spelled | `UTC_DATE` | `as MariaDb` | 0 |
 | `NOW` | emulated | `UTC_TIMESTAMP(6)` | `as MariaDb` | 0 |
@@ -2368,6 +2380,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `MD5` | emulated | `digest: MD5` |  | — |
 | `SHA1` | emulated | `digest: SHA-1` |  | — |
 | `SHA256` | emulated | `digest: SHA-256` |  | — |
+| `RANDOM` | spelled | `rand` |  | — |
 | `EXTRACT` | emulated | `extractArm` |  | — |
 | `TODAY` | emulated | `cast(now() as date)` |  | — |
 | `NOW` | spelled | `now` |  | — |
@@ -2554,6 +2567,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `MD5` | emulated | `digest: MD5` | `as EngineStyleH2` | — |
 | `SHA1` | emulated | `digest: SHA-1` | `as EngineStyleH2` | — |
 | `SHA256` | emulated | `digest: SHA-256` | `as EngineStyleH2` | — |
+| `RANDOM` | spelled | `rand` | `as EngineStyleH2` | — |
 | `EXTRACT` | emulated | `extract` |  | — |
 | `TODAY` | emulated | `date(current date)` |  | — |
 | `NOW` | spelled | `now` | `as EngineStyleH2` | — |
@@ -2740,6 +2754,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `MD5` | emulated | `digest: MD5` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `SHA1` | emulated | `digest: SHA-1` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `SHA256` | emulated | `digest: SHA-256` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `RANDOM` | spelled | `rand` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `EXTRACT` | emulated | `extract` | `as EngineStyleDB2` | — |
 | `TODAY` | emulated | `date(current date)` | `as EngineStyleDB2` | — |
 | `NOW` | spelled | `now` | `as EngineStyleDB2, as EngineStyleH2` | — |

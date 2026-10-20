@@ -31,12 +31,13 @@ class LowerRelationDuckDbTest {
      *  session runs them (named for it by the dialect program's Phase 6, 2026-10-17: it was the platform's engine). */
     private static final TestBackend DUCKDB = TestBackends.of(DatabaseType.DuckDB);
     /** DuckDB's toMany(@Variant) of a stored Variant column (DuckDb.variantElements, 2026-10-12): JSON's null elements
-     *  kept, a value that is not an array toMany's error. */
+     *  kept, a value that is not an array toMany's error; the wildcard's list cast to JSON[] (2026-10-17: a constant
+     *  NULL input binds the wildcard as JSON, not a list). */
     private static final java.util.function.Function<String, String> ELEMENTS = col -> "(CASE WHEN json_type(CAST(t0."
-            + col + " AS JSON)) = 'ARRAY' THEN json_extract(CAST(t0." + col + " AS JSON), '$[*]') WHEN CAST(t0." + col
-            + " AS JSON) IS NULL OR json_type(CAST(t0." + col + " AS JSON)) = 'NULL' THEN NULL ELSE error('Expect"
-            + " variant that contains an ''ARRAY'', but got ''' || json_type(CAST(t0." + col + " AS JSON)) || '''')"
-            + " END)";
+            + col + " AS JSON)) = 'ARRAY' THEN CAST(json_extract(CAST(t0." + col + " AS JSON), '$[*]') AS JSON[]) WHEN"
+            + " CAST(t0." + col + " AS JSON) IS NULL OR json_type(CAST(t0." + col + " AS JSON)) = 'NULL' THEN NULL ELSE"
+            + " error('Expect variant that contains an ''ARRAY'', but got ''' || json_type(CAST(t0." + col
+            + " AS JSON)) || '''') END)";
 
 
     private static final String MODEL = """
@@ -142,6 +143,19 @@ class LowerRelationDuckDbTest {
         String without = sqlOf("#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 50)");
         assertEquals(without, withFrom, "from() adds nothing to the SQL");
         assertEquals(List.of("Dan|55|null"), exec(withFrom));
+    }
+
+    @Test
+    @DisplayName("recurse(base, r | step): the database's recursive CTE, the step over the previous round's rows")
+    void aRecursionWalksUntilItsStepYieldsNoRow() throws SQLException {
+        // meta::legend::lite::recurse (the Cypher island's unbounded variable-length patterns, 2026-10-17): the
+        // base's rows and, repeatedly, the step's over the previous round's, until a round yields none; the step
+        // reads the expression by its own name, and the database stops the recursion
+        String sql = sqlOf("#TDS{n\n1\n}#->meta::legend::lite::recurse(r|$r->filter(x|$x.n < 5)"
+                + "->project(~[n:x|$x.n + 1]))->sort(~n->ascending())");
+        assertTrue(sql.contains("WITH RECURSIVE __walk0 AS ("), sql);
+        assertTrue(sql.contains("UNION ALL"), sql);
+        assertEquals(List.of("1", "2", "3", "4", "5"), exec(sql), sql);
     }
 
     @Test
@@ -987,5 +1001,16 @@ class LowerRelationDuckDbTest {
     void sortByComputedProjectionIsolates() throws SQLException {
         String sql = sqlOf("#>{test::DB.T_PERSON}#->project(~[older: x|$x.AGE + 10])->sort(~older->ascending())");
         assertEquals(List.of("35", "45", "55", "65"), exec(sql));
+    }
+
+    @Test
+    void anEmptyTypedAsTheVariantIsTheTypedNull() {
+        // []->cast(@Variant), folded into the literal's own type before lowering, lowers to the TYPED null, inline
+        // under a later read too: Postgres's jsonb operators over an untyped NULL are ambiguous (2026-10-17, the
+        // Cypher island's arm of a class lacking a property typed two ways, docs/CYPHER_STUDY_2026_10_15.md §12.62)
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->project(~[v: x|[]->cast(@meta::pure::metamodel::variant::Variant)])"
+                + "->extend(~[k: r|$r.v->meta::legend::lite::trustOne()->toString()])");
+        assertTrue(sql.contains("CAST(NULL AS JSON) AS v"), sql);
+        assertFalse(sql.contains("to_json(NULL)"), sql);
     }
 }

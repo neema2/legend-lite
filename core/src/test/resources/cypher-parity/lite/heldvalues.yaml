@@ -1,0 +1,34 @@
+# The #Cypher{...}# island's nodes and relationships held as values carry their identities (docs/CYPHER_STUDY_2026_10_15.md
+# §12.71): a node read back from a Variant re-anchors on it, a variable-length relationship bound to a list matches
+# its identities in order, and lists of nodes or relationships group by identity. Each case is judged by Neo4j's
+# answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/heldvalues/*'), keyed
+# lite/heldvalues/<id>.
+cases:
+  - id: an_unwound_collected_node_re_anchors
+    graph: |
+      CREATE (s:S {name: 's'}), (e:E {name: 'e'}), (f:E {name: 'f'}), (s)-[:X]->(e), (s)-[:Y]->(e), (s)-[:X]->(f)
+    cypher: "MATCH (a:S)-[:X]->(b) WITH a, collect(b) AS bs UNWIND bs AS b2 MATCH (a)-[:Y]->(b2) RETURN b2.name AS b"
+  - id: a_coalesce_of_nodes_re_anchors
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) WITH coalesce(b, a) AS x MATCH (x)<-[:T]-(y) RETURN y.name AS y"
+  - id: a_variable_length_bound_to_a_list_of_relationships
+    graph: |
+      CREATE (:A {name: 'a'})-[:Y]->(:B {name: 'b'})-[:Y]->(:C {name: 'c'})
+    cypher: "MATCH (:A)-[r1:Y]->()-[r2:Y]->() WITH [r1, r2] AS rs MATCH (f)-[rs*]->(s) RETURN f.name AS f, s.name AS s"
+  - id: the_same_list_reversed_matches_nothing
+    graph: |
+      CREATE (:A {name: 'a'})-[:Y]->(:B {name: 'b'})-[:Y]->(:C {name: 'c'})
+    cypher: "MATCH (:A)-[r1:Y]->()-[r2:Y]->() WITH [r2, r1] AS rs MATCH (f)-[rs*]->(s) RETURN f.name AS f"
+  - id: a_list_of_nodes_as_a_grouping_key
+    graph: |
+      CREATE (:A {name: 'a'}), (:A {name: 'a'})
+    cypher: "MATCH (n:A) WITH [n] AS l, count(*) AS c RETURN size(l) AS s, c"
+  - id: a_node_returned_inside_a_list
+    graph: |
+      CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})
+    cypher: "MATCH (n:A)-[r:T]->(m) RETURN [n, r, m] AS l"
+  - id: a_relationship_list_as_a_grouping_key
+    graph: |
+      CREATE (a:A)-[:T {w: 1}]->(:B), (a)-[:T {w: 1}]->(:B)
+    cypher: "MATCH (:A)-[r:T]->() WITH [r] AS rs, count(*) AS c RETURN c"

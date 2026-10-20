@@ -157,7 +157,38 @@ tests:
   - id: convert_style_107
     sql: "SELECT id, CONVERT(VARCHAR(40), dt, 107) AS a, CONVERT(VARCHAR(40), ts, 107) AS b FROM t ORDER BY id"
     profile: iq17-default
-  - id: convert_style_into_a_too_short_string_is_refused
+  - id: convert_style_6
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 6) AS a, CONVERT(VARCHAR(40), ts, 6) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_7
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 7) AS a, CONVERT(VARCHAR(40), ts, 7) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_8
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 8) AS a, CONVERT(VARCHAR(40), ts, 8) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_9
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 9) AS a, CONVERT(VARCHAR(40), ts, 9) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_109
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 109) AS a, CONVERT(VARCHAR(40), ts, 109) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_13
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 13) AS a, CONVERT(VARCHAR(40), ts, 13) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_113
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 113) AS a, CONVERT(VARCHAR(40), ts, 113) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_14
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 14) AS a, CONVERT(VARCHAR(40), ts, 14) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_114
+    sql: "SELECT id, CONVERT(VARCHAR(40), dt, 114) AS a, CONVERT(VARCHAR(40), ts, 114) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  # IQ island, 2026-10-17 (measured on IQ 17.1): a style IQ's engine writes no date in is its -1009145
+  - id: convert_style_126_is_refused
+    sql: "SELECT id, CONVERT(VARCHAR(40), ts, 126) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_into_a_too_short_string_is_iqs_error
     sql: "SELECT CONVERT(VARCHAR(5), dt, 101) AS a FROM t WHERE id = 1"
     profile: iq17-default
   - id: convert_style_iq_rejects_is_refused

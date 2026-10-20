@@ -403,7 +403,7 @@ tests:
     sql: "SELECT k, j, COUNT(*) FROM g GROUP BY 1, 2"
   - id: group_by_a_constant_beside_a_column
     sql: "SELECT k, COUNT(*) FROM g GROUP BY k, 1 ORDER BY k"
-  - id: group_by_only_a_constant_under_the_iq_engine_is_refused
+  - id: group_by_only_a_constant_under_the_iq_engine
     sql: "SELECT COUNT(*) FROM g GROUP BY 1"
   - id: group_by_only_a_constant_in_sql_anywhere
     sql: "SELECT COUNT(*) FROM sa_rowgenerator(1, 5) GROUP BY 1"
@@ -411,7 +411,7 @@ tests:
   - id: group_by_only_a_constant_over_no_rows
     sql: "SELECT COUNT(*) FROM sa_rowgenerator(5, 1) GROUP BY 1"
     engine: sa
-  - id: group_by_null_is_refused
+  - id: group_by_null
     sql: "SELECT COUNT(*) FROM g GROUP BY NULL"
   - id: group_by_rowgenerator_remainders
     sql: "SELECT row_num % 3 AS m, COUNT(*), SUM(row_num) FROM sa_rowgenerator(1, 10) GROUP BY m ORDER BY m"

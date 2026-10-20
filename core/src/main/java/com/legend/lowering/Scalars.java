@@ -429,6 +429,12 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_MATH_REM) {
             RULES.put(f, (n, rawArgs) -> {
                 var args = decimalJoin(rawArgs);
+                if (args.get(1) instanceof SqlExpr.IntLit lit && lit.value() != 0) {
+                    // a literal divisor that is not zero: no guard to raise (the Cypher island's x % 2 inside a
+                    // lambda, 2026-10-17: the guard's raise envelope types as text where Postgres wants the
+                    // remainder's integer)
+                    return new SqlExpr.Call(SqlFn.REM, args);
+                }
                 return guarded(
                         SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
                         cat(new SqlExpr.StringLit("Cannot divide "), str(args.get(0)),
@@ -544,6 +550,7 @@ final class Scalars {
                 Map.entry(Pure.AT_FLOW_COALESCE, SqlFn.COALESCE),
                 // Temporal
                 Map.entry(Pure.AT_DATE_TODAY, SqlFn.TODAY), Map.entry(Pure.AT_DATE_NOW, SqlFn.NOW),
+                Map.entry(Pure.AT_MATH_RANDOM, SqlFn.RANDOM),
 
                 // Lists / collections
 
@@ -1575,6 +1582,27 @@ final class Scalars {
                         eq.params().get(1), key.apply(cand)));
             });
         }
+        // lite's isKind(variant, 'kind'): the database's JSON kind test, the kind a literal named as Cypher
+        // names them (a kind of no such name, or not a literal, is the translator's bug: loud)
+        RULES.put(com.legend.model.FunctionId.of(Pure.IS_KIND__VARIANT_0_1__STRING_1), (n, args) -> {
+            if (!(args.get(1) instanceof SqlExpr.StringLit lit)) {
+                throw new IllegalStateException("isKind: the kind must be a string literal, was " + args.get(1));
+            }
+            SqlExpr type = SqlExpr.Call.of(SqlFn.JSON_TYPE, args.get(0));
+            java.util.function.Function<com.legend.sql.JsonKind, SqlExpr> is = k -> SqlExpr.Call.of(SqlFn.EQUAL,
+                    type, new SqlExpr.JsonKindLit(k));
+            return switch (lit.value()) {
+                case "string" -> is.apply(com.legend.sql.JsonKind.STRING);
+                case "boolean" -> is.apply(com.legend.sql.JsonKind.BOOLEAN);
+                case "list" -> is.apply(com.legend.sql.JsonKind.ARRAY);
+                case "map" -> is.apply(com.legend.sql.JsonKind.OBJECT);
+                case "null" -> is.apply(com.legend.sql.JsonKind.NULL);
+                case "number" -> SqlExpr.Call.of(SqlFn.OR, SqlExpr.Call.of(SqlFn.OR,
+                        is.apply(com.legend.sql.JsonKind.INTEGER), is.apply(com.legend.sql.JsonKind.UNSIGNED_INTEGER)),
+                        is.apply(com.legend.sql.JsonKind.FLOAT));
+                default -> throw new IllegalStateException("isKind: no JSON kind named " + lit.value());
+            };
+        });
         // collection::distinct = removeDuplicates (real distinct.pure) —
         // registered by the EXACT collection overload key.
         RULES.put(com.legend.model.FunctionId.of(Pure.DISTINCT__T_MANY),
@@ -2352,12 +2380,30 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_AT_TIME) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.DATE_AT_TIME, args));
         }
+        // a temporal value in text carriage (lite's dateTimeOfText and timeOfText): the database's ISO text, the
+        // TEMPORAL_TEXT label the executor reads it by as the temporal it spells -- the Cypher island's nanosecond
+        // values as a date and a time of day, 2026-10-18 (docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W13)
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_DATE_TIME_OF_TEXT) {
+            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), SqlType.Scalar.TEMPORAL_TEXT));
+        }
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TIME_OF_TEXT) {
+            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), SqlType.Scalar.TEMPORAL_TEXT));
+        }
         // a named zone, read by the database (the Cypher island's zoned date-time leg, 2026-10-16): the
         // convertTimeZone pair below — timezone(zone, naive) reads a wall time in the zone (its instant), and
         // timezone('UTC', instant) is that instant as the naive UTC date-time the platform carries; the other way
         // round, timezone('UTC', naive) pins the naive value as a UTC instant and timezone(zone, instant) is its
         // wall time in the zone (measured on DuckDB 1.4.4 through the ICU it bundles, Europe/Stockholm in and out
         // of summer time; Postgres's timezone(zone, t) is AT TIME ZONE, the same pair)
+        // an integer quotient cut toward zero: the database's integer division (every dialect's INT_DIVIDE
+        // truncates; 2026-10-17, the IQ island's scale)
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_QUOTIENT) {
+            // a zero divisor raises as rem's does ('Cannot divide 5 by zero'): DuckDB's // gives NULL
+            RULES.put(f, (n, args) -> guarded(
+                    SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
+                    cat(new SqlExpr.StringLit("Cannot divide "), str(args.get(0)), new SqlExpr.StringLit(" by zero")),
+                    SqlExpr.Call.of(SqlFn.INT_DIVIDE, args.get(0), args.get(1))));
+        }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_INSTANT_IN) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"),
                     new SqlExpr.Call(SqlFn.TIMEZONE, List.of(args.get(1), args.get(0))))));
@@ -3012,11 +3058,13 @@ final class Scalars {
     static SqlExpr dateArg(TypedSpec typed,
                                    SqlExpr lowered) {
         if (typed instanceof TypedCDate d) {
+            // (a year below 1000 written with four digits, as a date literal's is: the independent review,
+            // 2026-10-18)
             if (d.value() instanceof PureDateLiteral.Year y) {
-                return new SqlExpr.DateLit(y.toEngineString() + "-01-01");
+                return new SqlExpr.DateLit(MatchFold.iso(y.toEngineString() + "-01-01", y.year()));
             }
             if (d.value() instanceof PureDateLiteral.YearMonth ym) {
-                return new SqlExpr.DateLit(ym.toEngineString() + "-01");
+                return new SqlExpr.DateLit(MatchFold.iso(ym.toEngineString() + "-01", ym.year()));
             }
         }
         return lowered;

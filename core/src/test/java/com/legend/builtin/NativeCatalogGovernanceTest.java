@@ -109,7 +109,47 @@ class NativeCatalogGovernanceTest {
         // (InlineViewChecker; ClassSources' extent rule) and erased: SQL computes such windows before the enclosing
         // WHERE, which Pure's relation composition folds under them. Within the ceiling: merged with the Cypher
         // island's four (2026-10-16), whose 21 counted from the ceiling 17, the count is 16 + 4 + 1 = 21.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 21,
+        // +1 2026-10-17 (the Cypher island's identity leg, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W2):
+        // elementId — the identity of a mapped instance as a value (its class's primary key by the engine's
+        // precedence, as text), what Cypher's elementId(n) and id(n) answer and node comparisons, DISTINCT and
+        // grouping use; Pure has no expression for it. Resolved by the store resolver through the primary-key
+        // pseudo-binding; emitted by the Cypher translator only, by FQN. 21 -> 22.
+        // +1 2026-10-17 (the Cypher island's rand-and-clocks leg, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W3):
+        // random — the database's random float in [0, 1), what Cypher's rand() answers. 22 -> 23; and -1 the same
+        // day (the spec guards' repair, which regenerated the prelude): legend-pure DOES declare it
+        // (essential/math/random.pure, meta::pure::functions::math::random():Float[1]), which the leg had missed,
+        // so the platform implements upstream's native (native-membership.tsv, Scalars' RANDOM rule) and lite's
+        // twin left. The counts below are as landed; the ceiling is one lower.
+        // +1 2026-10-17 (the Cypher island's tail leg 2, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W12): isKind — the
+        // database's reading of a Variant's JSON kind (SqlFn.JSON_TYPE, which every dialect spells, against the
+        // dialect's own kind name, SqlExpr.JsonKindLit), what Cypher's predicates over a value the rows hold as a
+        // Variant ask first (STARTS WITH on a value that is a string, null otherwise); legend-pure's Variant has no
+        // kind function. Emitted by the Cypher translator only, by FQN. 23 -> 24.
+        // +2 2026-10-17 (the Cypher island's W11, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md): minBy and maxBy over
+        // rowMapper(value, key) rows with a TEXT key (the lowering's ARG_MIN and ARG_MAX, which every dialect
+        // renders), what Cypher's min and max over values of several kinds answer by the island's orderability
+        // text; legend-pure's own minBy and maxBy take a number key, which a type rank over Variants is not.
+        // Emitted by the Cypher translator only, by FQN. 24 -> 26.
+        // +1 2026-10-17 (the Cypher island's W10 leg 2a, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md): recurse —
+        // recurse(base, r | step): the database's recursive common table expression (WITH RECURSIVE name AS (base
+        // UNION ALL step)), the step reading the previous round's rows through its parameter until a round yields
+        // none; what Cypher's unbounded variable-length pattern walks. legend-pure has no recursion over a relation
+        // (its Pure functions recurse in the host, which the execution tenet forbids). Emitted by the Cypher
+        // translator only, by FQN. 26 -> 27; 27 -> 26 for random (above).
+        // +2 2026-10-18 (the Cypher island's nanosecond values as a date and a time of day, the user's decision,
+        // docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W13): dateTimeOfText / timeOfText — a temporal value in text
+        // carriage, the database's ISO text labelled TEMPORAL_TEXT (a cast that never renders) and read by the
+        // executor as the date-time or time of day it spells: a value finer than every database's date-time type
+        // (Postgres keeps microseconds, DuckDB's TIMESTAMP_NS holds 1678 to 2261) leaves the database so.
+        // legend-engine carries a date-time in the database's own type, so neither has an upstream counterpart.
+        // Emitted by the Cypher translator only, by FQN, at a result's columns. 26 -> 28.
+        // +1 2026-10-17 (the IQ island's scale, docs/IQ_CENSUS_CHECKLIST.md "the refusals the live IQ answers"):
+        // quotient — an integer quotient cut toward zero, the database's own integer division (MIR's INT_DIVIDE,
+        // every dialect's arm). legend-pure's divide of integers is a Float and upstream has no integer division,
+        // so the SQL islands wrote one as a Float estimate corrected by remainders, reading each operand about
+        // fourteen times; nested quotients made statements of megabytes (44 corpus queries refused by the
+        // translation-size bound). Emitted by the SQL islands only, by FQN. 28 -> 29 (merging main, 2026-10-18).
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 29,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

@@ -257,8 +257,8 @@ class IqToPureTest {
         // a BIGINT result is never checked: the database computes it in 64 bits and raises its own overflow first
         String wide = saNumbers("SELECT i + bg AS n FROM " + T);
         assertFalse(wide.contains("9223372036854775807") || wide.contains("cast(@Integer)->toOne()"), wide);
-        // / truncates toward zero (the shared exact quotient); % is rem
-        assertTrue(saNumbers("SELECT i / 2 AS q FROM " + T).contains("->rem("));
+        // / truncates toward zero (lite's quotient, the database's integer division: 2026-10-17); % is rem
+        assertTrue(saNumbers("SELECT i / 2 AS q FROM " + T).contains("quotient(2)"));
         assertTrue(saNumbers("SELECT i % 2 AS r FROM " + T).contains("->rem(2)->cast(@Integer)"));
         // a minus before a column is checked in its type; before a constant it is a constant typed by its value
         assertTrue(saNumbers("SELECT -sm AS n FROM " + T).contains("> 32767"));
@@ -308,12 +308,15 @@ class IqToPureTest {
         String twelve = String.join(" + ", java.util.Collections.nCopies(12, "sm"));
         // (in SQL Anywhere's front end, which checks each step; IQ island, 2026-10-15: IQ's engine checks none, D-N3,
         // so there a chain stays linear, below)
-        SqlTranslationException e = assertTimeoutPreemptively(java.time.Duration.ofSeconds(10),
-                () -> saNumbersRefusal("SELECT " + twelve + " AS n FROM " + T));
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind());
-        assertTrue(e.getMessage().contains("nests too many operations"), e.getMessage());
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, saNumbersRefusal("SELECT i / 2 / 2 / 2 AS n FROM " + T)
-                .kind());
+        // IQ island, 2026-10-17: past the bound, the item's long operands are computed once each, a column before it,
+        // so the chain translates, small and quickly
+        String chained = assertTimeoutPreemptively(java.time.Duration.ofSeconds(10),
+                () -> saNumbers("SELECT " + twelve + " AS n FROM " + T));
+        assertTrue(chained.length() < 100_000, "" + chained.length());
+        assertTrue(chained.contains("->extend(~[_sql_"), chained.substring(0, Math.min(400, chained.length())));
+        // IQ island, 2026-10-17: a quotient reads each operand once now (lite's quotient), so nested ones stay small
+        String quotients = saNumbers("SELECT i / 2 / 2 / 2 AS n FROM " + T);
+        assertTrue(quotients.length() < 20_000, "" + quotients.length());
         String chain = numbers("SELECT " + String.join(" + ", java.util.Collections.nCopies(200, "sm")) + " AS n FROM "
                 + T);
         assertTrue(chain.length() < 20_000, "" + chain.length());
@@ -590,20 +593,43 @@ class IqToPureTest {
     }
 
     @Test
+    void iqReportsItsErrorsInItsOrder() {
+        // IQ island, 2026-10-17 (the corpus lane's IQ_ERROR verification, measured on IQ 17.1): a row limit in a
+        // subquery before the outer join's ON rule (-1001030 before -1001047)
+        String m = refusal("SELECT a.id FROM " + T + " a LEFT JOIN " + T + " b ON b.id = a.id AND b.id = (SELECT TOP 1"
+                + " c.id FROM " + T + " c WHERE c.id = a.id ORDER BY c.id)").getMessage();
+        assertTrue(m.contains("TOP") && m.contains("-1001030"), m);
+        // a held item's subquery inside a conditional expression before a qualified read (-1001030 before -1005004)
+        m = refusal("SELECT d.n FROM (SELECT id, COALESCE((SELECT MAX(c.id) FROM " + T + " c WHERE c.id = t.id), 0)"
+                + " AS n FROM " + T + " t) d").getMessage();
+        assertTrue(m.contains("-1001030") && m.contains("conditional"), m);
+    }
+
+    @Test
     void aStringComparedWithADateIsATimestamp() {
         assertTrue(pure("SELECT id FROM " + T + " WHERE dt = '2026-03-04'").contains("%2026-03-04"));
         assertTrue(pure("SELECT id FROM " + T + " WHERE dt >= '2026-03-04 00:00:00.000'").contains("%2026-03-04"));
         // IQ island, 2026-10-16 (measured on IQ 17.1): a string of no digit is no date in any spelling, IQ's -157
         assertEquals(SqlTranslationException.Kind.INVALID, refusal("SELECT id FROM " + T + " WHERE dt = 'x'").kind());
-        for (String s : new String[] {"'2026-03-04 10:00'", "'2026-02-30'", "''", "'Mar 2026'", "'10:11:12'"}) {
+        for (String s : new String[] {"'2026-02-30'", "''", "'10:11:12'"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE dt = " + s)
                     .kind(), s);
         }
+        // IQ island, 2026-10-17 (measured on IQ 17.1): beside a DATE, IQ's engine reads the string as a DATE, its time
+        // dropped; SQL Anywhere's front end as a TIMESTAMP, the DATE at its midnight
+        String dated = pure("SELECT id FROM " + T + " WHERE dt = '2026-03-04 10:00'");
+        assertTrue(dated.contains("%2026-03-04") && !dated.contains("10:00"), dated);
+        assertTrue(pure("SELECT id FROM " + T + " WHERE dt = '2026-03-04 10:00'", IqProfile.SQLA17_DEFAULT.settings())
+                .contains("%2026-03-04T10:00:00"));
         // IQ island, 2026-10-14 (M1e): IQ's other spellings are read now (IqDateTime, measured): '2026/03/04',
         // '2026-3-4', and a seventh place of the second, cut
         for (String s : new String[] {"'2026/03/04'", "'2026-3-4'", "'2026-03-04 00:00:00.0000009'"}) {
             assertTrue(pure("SELECT id FROM " + T + " WHERE dt = " + s).contains("%2026-03-04"), s);
         }
+        // IQ island, 2026-10-17 (the corpus lane, measured on IQ 17.1): a month and a year are its first day; numbers
+        // ending in a four-digit year are IQ's error under DATE_ORDER YMD, -157 beside a DATE column
+        assertTrue(pure("SELECT id FROM " + T + " WHERE dt = 'Mar 2026'").contains("%2026-03-01"));
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE dt > '01/02/2018'").getMessage().contains("-157 here"));
         SqlAst.Pos at = new SqlAst.Pos(1, 1);
         assertEquals(java.util.Arrays.asList("2026-03-04", "05:06:07.100000"), java.util.Arrays.asList(
                 IqDateTime.read("2026-03-04 05:06:07.1", IqProfile.IQ16_DEFAULT.settings(), at)));
@@ -685,7 +711,17 @@ class IqToPureTest {
         // IQ island, 2026-10-15 (the corpus lane, measured on IQ 17.1): a set of ASCII members reads now; an
         // unclosed one, an empty one, a dash at its edge do not
         assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE '%[^a-z]%'").contains("[^a-z]"));
-        for (String like : new String[] {"vc LIKE 'a[b'", "vc LIKE '[]a'", "vc LIKE '[e-]'", "vc LIKE 'a' ESCAPE '!!'",
+        // IQ island, 2026-10-17 (the corpus lane, measured on IQ 17.1): every character a member as itself, a dash at
+        // a set's edge too, ranges by code point; a range that descends and a character past U+FFFF are not read
+        for (String like : new String[] {"vc LIKE '[e-]'", "vc LIKE '[-+]1%'", "vc LIKE '%[%_]'", "vc LIKE '%[é-ÿ]%'",
+                "vc LIKE '[[(\\]%'", "vc LIKE 'x[, ][:,-]%'"}) {
+            assertTrue(pure("SELECT id FROM " + T + " WHERE " + like).contains("matches("), like);
+        }
+        // a UTF-8 database's characters past ISO-8859-1's
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE '%[あ-ん]%'", IqProfile.IQ17_DEFAULT.settings(), COLUMNS)
+                .contains("matches("));
+        for (String like : new String[] {"vc LIKE 'a[b'", "vc LIKE '[]a'", "vc LIKE '[z-a]'", "vc LIKE '[\uD83D\uDE00]'",
+                "vc LIKE 'a' ESCAPE '!!'",
                 "vc LIKE 'a' ESCAPE ''", "vc LIKE '!a' ESCAPE '!'", "vc LIKE 'a!' ESCAPE '!'",
                 "vc LIKE '" + "a".repeat(127) + "'"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE " + like)
@@ -707,7 +743,10 @@ class IqToPureTest {
         // measured) on SQL Anywhere's front end; under IQ's engine it is IQ's error -1001013 (2026-10-15)
         assertTrue(pure("SELECT id FROM " + T + " WHERE dt LIKE '2%'", IqProfile.SQLA17_DEFAULT.settings(), COLUMNS)
                 .contains("lpad(4, '0')"));
-        assertTrue(refusal("SELECT id FROM " + T + " WHERE dt LIKE '2%'").getMessage().contains("-1001013"));
+        // IQ island, 2026-10-17 (measured on IQ 17.1): IQ converts the pattern to the date's type first -- one that is
+        // no date is its -1009145, one that is a date its -1001013
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE dt LIKE '2%'").getMessage().contains("-1009145"));
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE dt LIKE '2026-03-04'").getMessage().contains("-1001013"));
     }
 
     // ------------------------------------------------------------------ M1a: NUMERIC and DOUBLE arithmetic
@@ -789,9 +828,12 @@ class IqToPureTest {
                 .contains("['T.id +1', 'COALESCE( T.sm,0)', 'case when T.id > 1 then   T.id   +1 else 0 end']"));
         // SQL Anywhere's own folding of a constant test over a table names the item otherwise: not named here
         assertTrue(refusal("SELECT IF 1 = 3 THEN vc ELSE 'b' ENDIF FROM " + T).getMessage().contains("needs an"));
-        // no rendering: a derived table's column (SQL Anywhere renders its definition)
-        assertTrue(refusal("SELECT x + 1 FROM (SELECT id AS x FROM " + T + ") d").getMessage().contains("needs an"
-                + " alias"));
+        // IQ island, 2026-10-17 (measured on IQ 17.1): a plain derived table's column by its definition (t.it as x+1,
+        // t.it+2 as x+1); a CAST's definition is not rendered yet
+        assertTrue(pure("SELECT x + 1 FROM (SELECT id AS x FROM " + T + ") d").contains(" as x+1"));
+        assertTrue(pure("SELECT x + 1 FROM (SELECT id + 2 AS x FROM " + T + ") d").contains("+2 as x+1"));
+        assertTrue(refusal("SELECT x + 1 FROM (SELECT CAST(id AS SMALLINT) AS x FROM " + T + ") d").getMessage()
+                .contains("needs an alias"));
         // a name no one sees (an EXISTS subquery's item) is never refused
         pure("SELECT id FROM " + T + " a WHERE EXISTS (SELECT b.sm + b.id FROM " + T + " b WHERE b.id = a.id)");
         // IQ island, 2026-10-14 (review 7's M1): an enclosing query's column read there is (the planner's pending fix)
@@ -823,19 +865,26 @@ class IqToPureTest {
         // ANY and IN compare each row as IQ's = does (blank padding)
         assertTrue(pure("SELECT id FROM " + T + " a WHERE vc = ANY (SELECT b.vc FROM " + T + " b)").contains(
                 "startsWith"));
+        // IQ island, 2026-10-17 (the corpus lane's SEDE, measured on IQ 17.1): an IN subquery that is a UNION is read
+        assertTrue(pure("SELECT id FROM " + T + " WHERE id IN (SELECT 1 FROM DUMMY UNION SELECT 2 FROM DUMMY)")
+                .contains("concatenate("));
         // the IQ engine's restrictions, refused by name; SQL Anywhere's front end takes them
         for (String sql : new String[] {"SELECT id FROM " + T + " WHERE id + (SELECT 1 FROM DUMMY) = 2",
                 "SELECT IF id = 1 THEN (SELECT 1 FROM DUMMY) ENDIF AS x FROM " + T,
                 "SELECT COALESCE((SELECT 1 FROM DUMMY), id) AS x FROM " + T,
                 "SELECT SUM((SELECT 1 FROM DUMMY)) AS x FROM " + T,
-                "SELECT id FROM " + T + " ORDER BY (SELECT 1 FROM DUMMY)",
-                "SELECT id FROM " + T + " WHERE id IN (SELECT 1 FROM DUMMY UNION SELECT 2 FROM DUMMY)"}) {
+                "SELECT id FROM " + T + " WHERE id IN (SELECT 1 FROM DUMMY INTERSECT SELECT 2 FROM DUMMY)"}) {
             // IQ island, 2026-10-15 (measured on IQ 17.1): one inside a conditional expression or an aggregate names
             // IQ's error, -1001030
             String m = refusal(sql).getMessage();
             assertTrue(m.contains("IQ's engine") || m.contains("IQ's error -1001030 under its engine"), sql);
             pure(sql, IqProfile.SQLA17_DEFAULT.settings());
         }
+        // IQ island, 2026-10-17 (measured on IQ 17.1): a subquery in the statement's ORDER BY is IQ's -1005004; SQL
+        // Anywhere's front end reads it
+        String orderedBySubquery = "SELECT id FROM " + T + " ORDER BY (SELECT 1 FROM DUMMY)";
+        assertTrue(refusal(orderedBySubquery).getMessage().contains("IQ's error -1005004"));
+        pure(orderedBySubquery, IqProfile.SQLA17_DEFAULT.settings());
         // IQ island, 2026-10-15 (measured on IQ 17.1): it takes more than the research's flag list held -- a scalar
         // subquery in the select list's arithmetic, a function's arguments, a CAST; one in a join's ON and BETWEEN
         for (String sql : new String[] {"SELECT id + (SELECT 1 FROM DUMMY) AS x FROM " + T,
@@ -884,10 +933,12 @@ class IqToPureTest {
         String byAlias = pure("SELECT sm AS id, COUNT(*) AS n FROM " + T + " GROUP BY id HAVING n > 1");
         assertTrue(byAlias.contains("groupBy(~[sm]"), byAlias);
         assertTrue(byAlias.contains("> 1"), byAlias);
-        // an integer is a constant: IQ's -149 for a column it does not group, else refused
+        // an integer is a constant: IQ's -149 for a column it does not group; else every row one group (IQ island,
+        // 2026-10-17, measured on IQ 17.1: GROUP BY 1, 'Total' and NULL), its key a computed column
         assertTrue(refusal("SELECT sm, COUNT(*) FROM " + T + " GROUP BY 1").getMessage().contains("-149"));
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT COUNT(*) FROM " + T + " GROUP BY 1")
-                .kind());
+        for (String key : new String[] {"1", "2", "'Total'", "NULL"}) {
+            assertTrue(pure("SELECT COUNT(*) FROM " + T + " GROUP BY " + key).contains("groupBy("), key);
+        }
         // a constant beside another key divides no group
         assertTrue(pure("SELECT sm FROM " + T + " GROUP BY sm, 1").contains("distinct()"));
         // a string key shown shows one value of its group (IQ island, 2026-10-15); a column of a GROUP BY expression
@@ -955,10 +1006,14 @@ class IqToPureTest {
                 "SELECT sm FROM " + T + " GROUP BY sm HAVING COUNT(*) > 2 AND SUM(i) > 0",
                 "SELECT TOP 1 sm, SUM(i) AS s FROM " + T + " GROUP BY sm ORDER BY sm")) {
             // SQL Anywhere's front end checks the running total (IQ island, 2026-10-15: IQ's engine checks none,
-            // D-N3, so there each is read)
-            assertTrue(saNumbersRefusal(sql).getMessage().contains("D-E3"), sql);
+            // D-N3, so there each is read); IQ island, 2026-10-17: read so by the statement's own SELECT, the check is
+            // a filter of every group after the aggregation (IqAggregates.readEverywhere's guard)
+            assertTrue(saNumbers(sql).contains("running total leaves its type in a group"), sql);
             assertTrue(numbers(sql).contains("sum()"), sql);
         }
+        // from a query around it, which may keep groups from the aggregation itself, still refused
+        assertTrue(saNumbersRefusal("SELECT * FROM (SELECT sm, SUM(i) AS s FROM " + T + " GROUP BY sm) d WHERE sm = 1")
+                .getMessage().contains("D-E3"));
         assertTrue(saNumbers("SELECT sm, SUM(i) AS s FROM " + T + " GROUP BY sm HAVING SUM(i) > 0").contains("sum()"));
         for (String sql : List.of("SELECT sm FROM " + T + " GROUP BY sm HAVING NOT (SUM(d) <= 0)",
                 "SELECT sm, IF SUM(i) > 0 THEN 1 ELSE 0 ENDIF AS s FROM " + T + " GROUP BY sm",

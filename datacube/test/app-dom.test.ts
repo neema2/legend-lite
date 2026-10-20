@@ -14,6 +14,7 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { pivotTotalColumn } from '../src/snapshot.ts';
 import { setHeaderDrag } from '../src/ui/pivot-panel.ts';
+import { TREE_COLUMN } from '../src/treeview.ts';
 import { FakeEngine } from './fake-engine.ts';
 import { fakeParse, fakePrint } from './fake-planner.ts';
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
@@ -634,6 +635,39 @@ describe('the app', () => {
     );
   });
 
+  it('a header click sorts a number from the largest, then up, then off; Ctrl chains; the tree header orders the groups (2026-10-18)', async () => {
+    const settle = async (): Promise<void> => {
+      for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    };
+    const head = (name: string): HTMLElement => root.querySelector(`.dc-th[data-column="${name}"]`) as HTMLElement;
+    const click = async (name: string, ctrlKey = false): Promise<void> => {
+      head(name).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, ctrlKey }));
+      await settle();
+    };
+    // the tree header says the groups' order, A first, with no place number
+    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark')?.textContent, '\u2191');
+    await click('notional');
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'desc' }]);
+    assert.equal(head('notional').querySelector('.dc-sort-mark')?.textContent, '\u2193');
+    await click('notional');
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'asc' }]);
+    await click('notional');
+    assert.deepEqual(app.snapshot.sorts, []);
+    // a measure orders the groups: its header says so, and the tree's says nothing (the audit of #57)
+    await click('notional');
+    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark'), null);
+    // a chained click on the tree chains the first group after it, and the tree shows its place
+    await click(TREE_COLUMN, true);
+    assert.deepEqual(app.snapshot.sorts, [{ column: 'notional', direction: 'desc' }, { column: 'region', direction: 'asc' }]);
+    assert.equal(head('notional').querySelector('.dc-sort-mark')?.textContent, '\u21931');
+    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark')?.textContent, '\u21912');
+    // a plain click on the tree header: the groups alone, the other way from what it showed
+    await click(TREE_COLUMN);
+    assert.deepEqual(app.snapshot.sorts, []);
+    assert.equal(app.configuration.treeColumnSort, 'desc');
+    assert.equal(head(TREE_COLUMN).querySelector('.dc-sort-mark')?.textContent, '\u2193');
+  });
+
   it('adds and removes a heatmap from the menu', () => {
     rightClick('.dc-cell:not(.dc-dim)');
     pick('Add Heatmap to notional');
@@ -928,6 +962,47 @@ describe('the app', () => {
       (c) => (c as HTMLElement).style.backgroundColor !== '',
     );
     assert.ok(painted.length > 0, 'no cell was painted');
+  });
+
+  it('a pivot total\'s menu turns on the total\'s own heatmap: the total painted, its measure\'s cells left alone (2026-10-18)', async () => {
+    // the total's right-click menu greyed out Add Heatmap ("a pivot total is no column of the cube"); and a total is a
+    // column of its own (the user: "shouldn't the default be just for the column itself?"), so its heatmap is its own
+    const total = pivotTotalColumn('notional');
+    class TotalEngine extends PivotEngine {
+      override async answer(sql: string, epoch: number): Promise<ResultTable> {
+        const t = await super.answer(sql, epoch);
+        if (sql.includes('"function":"distinct"')) return t;
+        return { ...t, columns: [...t.columns, { name: total, type: 'Float', values: [4, 6] }] };
+      }
+    }
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const app = new CubeApp(host, PIVOTED, { engine: new TotalEngine(), planner: new EchoPlanner() });
+    await app.open();
+    const settle = async (): Promise<void> => {
+      for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    };
+    const cells = (column: string): HTMLElement[] => [...host.querySelectorAll<HTMLElement>(`.dc-cell[data-column="${column}"]`)];
+    const pickOnTotal = async (label: string): Promise<void> => {
+      cells(total)[0]!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+      const entry = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role="menuitem"]')]
+        .find((i) => i.querySelector('.dc-menu-label')?.textContent === label);
+      assert.ok(entry, `the total offers "${label}"`);
+      assert.notEqual(entry.getAttribute('aria-disabled'), 'true', label);
+      entry.click();
+      await settle();
+    };
+    assert.ok(cells(total).length > 0, 'the total is on screen');
+    assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'no heatmap yet');
+    await pickOnTotal('Add Heatmap to Total / notional');
+    assert.ok(app.configuration.columns[total]?.heatmap, "the total's own heatmap");
+    assert.equal(app.configuration.columns['notional']?.heatmap, undefined, "its measure's is left alone");
+    assert.ok(cells(total).some((c) => c.style.backgroundColor !== ''), 'the total is painted');
+    assert.ok(cells('A__|__notional').every((c) => c.style.backgroundColor === ''), 'the cells are not');
+    await pickOnTotal('Remove Heatmap');
+    assert.equal(app.configuration.columns[total]?.heatmap, undefined);
+    assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'taken off');
+    app.dispose();
   });
 
   it('lists a pivoted measure as the columns the pivot MADE of it', async () => {

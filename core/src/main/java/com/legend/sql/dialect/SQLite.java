@@ -1549,6 +1549,10 @@ public final class SQLite extends AnsiSqlRenderer {
             case MD5, SHA1, SHA256 -> throw wall(c.fn(), "SQLite has no digest function");
             case LEVENSHTEIN -> writer.piece(levenshtein(a.get(0), a.get(1)));
             case JARO_WINKLER -> throw wall(c.fn(), "SQLite has no string-distance function");
+            // random() is a signed 64-bit integer: its low 53 bits over 2^53, every value a double exactly, in
+            // [0, 1) (shifted by 2^63 as a REAL and scaled, a draw within 1024 of the top rounded to 1.0: measured,
+            // the independent review, 2026-10-18)
+            case RANDOM -> writer.append("((random() & 9007199254740991) / 9007199254740992.0)");
             case GUID -> writer.append("lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' ||"
                     + " substr(hex(randomblob(2)), 2) || '-' || substr('89ab', 1 + (abs(random()) % 4), 1) ||"
                     + " substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))");
@@ -3098,7 +3102,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case com.legend.sql.SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
                 case BIGINT, SMALLINT, TINYINT, INTEGER, BIT -> "INTEGER";
                 case FLOAT, DOUBLE, REAL -> "REAL";
-                case TIMESTAMP, DATE, JSON, VARCHAR, OTHER, DISTINCT, ARRAY, OBJECT -> "TEXT";
+                case TIMESTAMP, DATE, TIME, TIMESTAMP_NS, JSON, VARCHAR, OTHER, DISTINCT, ARRAY, OBJECT -> "TEXT";
             };
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> z.kind().toUpperCase(Locale.ROOT).contains("BINARY")
                     ? "BLOB" : "TEXT";

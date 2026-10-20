@@ -2,7 +2,9 @@
 # is a Variant over a SEMISTRUCTURED column (JSON on DuckDB, JSONB on Postgres), read as a value, in a node's value,
 # in a map, under DISTINCT and a grouping; ordered by, refused by name (Neo4j orders a list by its elements). Each
 # case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only
-# 'lite/stored/*'), keyed lite/stored/<id>.
+# 'lite/stored/*'), keyed lite/stored/<id>. From 2026-10-17 (the TCK-to-zero plan's W5, the study's §12.59) also the
+# stored temporal values: a time of day in a TIME store column (lite's extension of the relational grammar), a
+# duration as an embedded Duration over four columns.
 tests:
   - id: stored_list_returned
     graph: |
@@ -32,3 +34,127 @@ tests:
     graph: |
       CREATE (:A {list: [2, -2]}), (:B {list: [1, 2]})
     cypher: "MATCH (a) RETURN a ORDER BY a.list LIMIT 1"
+  - id: a_stored_time_of_day_read_and_ordered
+    graph: |
+      CREATE (:T {name: 'a', t: localtime('10:35:00')}), (:T {name: 'b', t: localtime('09:15:30.5')}), (:T {name: 'c', t: localtime('23:59:59.999999')})
+    cypher: "MATCH (n:T) RETURN n.name AS name, n.t AS t ORDER BY n.t"
+  - id: a_stored_time_s_fields_and_text
+    graph: |
+      CREATE (:T {name: 'a', t: localtime('10:35:07.250')})
+    cypher: "MATCH (n:T) RETURN n.t.hour AS h, n.t.minute AS m, n.t.second AS s, n.t.millisecond AS ms, toString(n.t) AS text"
+  - id: a_stored_time_compared_with_a_spelled_one
+    graph: |
+      CREATE (:T {name: 'a', t: localtime('10:35:00')}), (:T {name: 'b', t: localtime('12:00:00')})
+    cypher: "MATCH (n:T) WHERE n.t < localtime('11:00:00') RETURN n.name AS name"
+  - id: a_stored_time_absent_on_a_node
+    graph: |
+      CREATE (:T {name: 'a', t: localtime('10:35:00')}), (:T {name: 'b'})
+    cypher: "MATCH (n:T) RETURN n.name AS name, n.t IS NULL AS missing ORDER BY name"
+  - id: a_node_with_a_stored_time_as_a_value
+    graph: |
+      CREATE (:T {name: 'a', t: localtime('10:35:00')})
+    cypher: "MATCH (n:T) RETURN n"
+  - id: a_stored_time_plus_a_duration
+    graph: |
+      CREATE (:T {name: 'a', t: localtime('10:35:00')})
+    cypher: "MATCH (n:T) RETURN n.t + duration({hours: 2, minutes: 30}) AS later, n.t - duration({minutes: 40}) AS earlier"
+  - id: a_stored_duration_added_to_a_date
+    graph: |
+      CREATE (:D {dur: duration({years: 12, months: 5, days: 14, hours: 16, minutes: 13, seconds: 10})})
+    cypher: "WITH date({year: 1984, month: 10, day: 11}) AS x MATCH (d:D) RETURN x + d.dur AS sum, x - d.dur AS diff"
+  - id: a_stored_duration_added_to_a_date_time_and_a_time
+    graph: |
+      CREATE (:D {dur: duration({months: 1, days: -14, hours: 15, minutes: 49, seconds: 10})})
+    cypher: "WITH localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14}) AS x, localtime({hour: 12, minute: 31, second: 14}) AS t MATCH (d:D) RETURN x + d.dur AS sum, x - d.dur AS diff, t + d.dur AS tsum"
+  - id: a_stored_duration_s_fields_and_text
+    graph: |
+      CREATE (:D {dur: duration({years: 1, months: 2, days: 3, hours: 4, minutes: 5, seconds: 6, nanoseconds: 7})})
+    cypher: "MATCH (d:D) RETURN d.dur.months AS months, d.dur.days AS days, d.dur.seconds AS seconds, d.dur.nanoseconds AS nanos, toString(d.dur) AS text"
+  - id: a_stored_duration_compared_and_absent
+    graph: |
+      CREATE (:D {name: 'a', dur: duration({days: 3})}), (:D {name: 'b', dur: duration({days: 30})}), (:D {name: 'c'})
+    cypher: "MATCH (d:D) RETURN d.name AS name, d.dur = duration({days: 3}) AS three, d.dur IS NULL AS missing ORDER BY name"
+  - id: a_node_labelled_duration_holding_one
+    graph: |
+      CREATE (:Duration {dur: duration({days: 2, hours: 1})})
+    cypher: "MATCH (d:Duration) RETURN d.dur AS dur, d.dur.days AS days"
+  - id: a_stored_duration_read_label_less
+    graph: |
+      CREATE (:D {dur: duration({days: 3})}), (:E {name: 'e'})
+    cypher: "MATCH (n) RETURN n.dur IS NULL AS missing ORDER BY missing"
+  - id: a_node_with_a_stored_duration_as_a_value
+    graph: |
+      CREATE (:D {name: 'a', dur: duration({years: 1, days: 2, hours: 3, nanoseconds: 4})}), (:D {name: 'b'})
+    cypher: "MATCH (d:D) RETURN d ORDER BY d.name"
+  # a stored nanosecond time of day or date-time (docs/CYPHER_STUDY_2026_10_15.md §12.64): a TIMESTAMP_NS column
+  # under the graph profile's timeOfDay and nanoseconds marks, the Postgres lane refusing by name
+  - id: a_stored_nanosecond_time_ordered_and_read
+    graph: |
+      CREATE (:A {name: 'a', time: localtime({hour: 10, minute: 35})}), (:B {name: 'b', time: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:C {name: 'c', time: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876124})}), (:D {name: 'd', time: localtime({hour: 12, minute: 30, second: 14, nanosecond: 645876123})})
+    cypher: "MATCH (n) WITH n, n.time AS time ORDER BY time DESC LIMIT 3 RETURN n.name AS name, time"
+  - id: a_stored_nanosecond_time_s_fields_and_text
+    graph: |
+      CREATE (:Val {date: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123})})
+    cypher: "MATCH (v:Val) WITH v.date AS d RETURN d.hour AS h, d.minute AS m, d.second AS s, d.millisecond AS ms, d.microsecond AS us, d.nanosecond AS ns, toString(d) AS text"
+  - id: a_stored_nanosecond_time_plus_a_duration
+    graph: |
+      CREATE (:A {name: 'a', time: localtime({hour: 10, minute: 35})}), (:B {name: 'b', time: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:C {name: 'c', time: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876124})})
+    cypher: "MATCH (a) WITH a ORDER BY a.time + duration({minutes: 6}) LIMIT 2 RETURN a.name AS name, a.time + duration({minutes: 6}) AS later"
+  - id: a_node_with_a_stored_nanosecond_time_as_a_value
+    graph: |
+      CREATE (:T {name: 'a', t: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:T {name: 'b'})
+    cypher: "MATCH (n:T) RETURN n ORDER BY n.name"
+  - id: a_stored_nanosecond_time_compared
+    graph: |
+      CREATE (:T {name: 'a', t: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:T {name: 'b', t: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876124})})
+    cypher: "MATCH (n:T) RETURN n.name AS name, n.t = localtime('12:31:14.645876123') AS same, n.t > localtime('12:31:14.645876123') AS later ORDER BY name"
+  - id: a_stored_nanosecond_date_time_s_fields
+    graph: |
+      CREATE (:Val {date: localdatetime({year: 1984, month: 11, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123})})
+    cypher: "MATCH (v:Val) WITH v.date AS d RETURN d.year AS y, d.month AS mo, d.day AS day, d.hour AS h, d.minute AS mi, d.second AS s, d.millisecond AS ms, d.microsecond AS us, d.nanosecond AS ns"
+  - id: a_stored_nanosecond_date_time_ordered_truncated_and_moved
+    graph: |
+      CREATE (:A {name: 'a', datetime: localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 30, second: 14, nanosecond: 12})}), (:B {name: 'b', datetime: localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:E {name: 'e', datetime: localdatetime({year: 1980, month: 12, day: 11, hour: 12, minute: 31, second: 14})})
+    cypher: "MATCH (a) WITH a ORDER BY a.datetime + duration({days: 4, minutes: 6}) DESC RETURN a.name AS name, a.datetime AS dt, localdatetime.truncate('millisecond', a.datetime) AS ms, a.datetime + duration({days: 4, minutes: 6}) AS moved"
+  - id: a_stored_nanosecond_date_time_as_a_node_value_and_text
+    graph: |
+      CREATE (:D {name: 'a', at: localdatetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:D {name: 'b'})
+    cypher: "MATCH (d:D) RETURN d, toString(d.at) AS text ORDER BY d.name"
+  - id: a_stored_nanosecond_time_absent_on_a_class
+    graph: |
+      CREATE (:T {name: 'a', t: localtime({hour: 12, minute: 31, second: 14, nanosecond: 645876123})}), (:U {name: 'u'})
+    cypher: "MATCH (n) RETURN n.name AS name, n.t IS NULL AS missing, n.t AS t ORDER BY name"
+  # a stored zoned time of day or date-time (docs/CYPHER_STUDY_2026_10_15.md §12.65): an embedded value class of the
+  # instant (a time's on the epoch day) and its offset in seconds; the island reads the instant and carries no zone
+  - id: a_stored_zoned_time_ordered_and_read
+    graph: |
+      CREATE (:A {name: 'a', time: time({hour: 10, minute: 35, timezone: '-08:00'})}), (:B {name: 'b', time: time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'})}), (:C {name: 'c', time: time({hour: 12, minute: 31, second: 14, nanosecond: 645876124, timezone: '+01:00'})}), (:D {name: 'd', time: time({hour: 12, minute: 30, second: 14, nanosecond: 645876123, timezone: '+01:00'})})
+    cypher: "MATCH (a) WITH a, a.time AS time WITH a, time ORDER BY time LIMIT 3 RETURN a, time"
+  - id: a_stored_zoned_time_plus_a_duration_ordered
+    graph: |
+      CREATE (:A {name: 'a', time: time({hour: 10, minute: 35, timezone: '-08:00'})}), (:B {name: 'b', time: time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'})}), (:C {name: 'c', time: time({hour: 12, minute: 31, second: 14, nanosecond: 645876124, timezone: '+01:00'})})
+    cypher: "MATCH (a) WITH a ORDER BY a.time + duration({minutes: 6}) DESC LIMIT 2 RETURN a.name AS name, a.time + duration({minutes: 6}) AS later"
+  - id: a_stored_zoned_time_compared_with_a_zoned_literal
+    graph: |
+      CREATE (:T {name: 'a', t: time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'})}), (:T {name: 'b', t: time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+02:00'})})
+    cypher: "MATCH (n:T) RETURN n.name AS name, n.t > time('11:00:00Z') AS late, n.t = time('11:31:14.645876123Z') AS same ORDER BY name"
+  - id: a_stored_zoned_time_absent_on_a_class
+    graph: |
+      CREATE (:T {name: 'a', t: time({hour: 12, minute: 31, second: 14, timezone: '+01:00'})}), (:U {name: 'u'})
+    cypher: "MATCH (n) RETURN n.name AS name, n.t IS NULL AS missing, n.t AS t ORDER BY name"
+  - id: a_stored_zoned_time_s_zone
+    graph: |
+      CREATE (:Val {date: time({hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+01:00'})})
+    cypher: "MATCH (v:Val) WITH v.date AS d RETURN d.hour, d.timezone, d.offsetSeconds"
+  - id: a_stored_zoned_time_s_text
+    graph: |
+      CREATE (:Val {date: time({hour: 12, minute: 31, second: 14, timezone: '+01:00'})})
+    cypher: "MATCH (v:Val) RETURN toString(v.date) AS text"
+  - id: a_stored_zoned_date_time_ordered_and_read
+    graph: |
+      CREATE (:A {name: 'a', datetime: datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 30, second: 14, nanosecond: 12, timezone: '+00:15'})}), (:B {name: 'b', datetime: datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, nanosecond: 645876123, timezone: '+00:17'})}), (:E {name: 'e', datetime: datetime({year: 1980, month: 12, day: 11, hour: 12, minute: 31, second: 14, timezone: '-11:59'})})
+    cypher: "MATCH (a) WITH a, a.datetime AS datetime WITH a, datetime ORDER BY datetime DESC LIMIT 2 RETURN a, datetime"
+  - id: a_stored_zoned_date_time_moved_and_compared
+    graph: |
+      CREATE (:A {name: 'a', datetime: datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 30, second: 14, timezone: '+00:15'})}), (:B {name: 'b', datetime: datetime({year: 1984, month: 10, day: 11, hour: 12, minute: 31, second: 14, timezone: '+00:17'})})
+    cypher: "MATCH (a) RETURN a.name AS name, a.datetime + duration({days: 4, minutes: 6}) AS moved, a.datetime < datetime('1984-10-11T12:15:00Z') AS early ORDER BY name"

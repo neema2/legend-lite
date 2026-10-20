@@ -33,8 +33,8 @@ import java.util.Set;
  * <ul>
  *   <li><b>GROUP BY and HAVING</b> read a select-list alias before a column of its name, anywhere in them (in an
  *       aggregate's argument too); an integer constant there is a constant, never a position ({@code SELECT k, COUNT(*)
- *       ... GROUP BY 1} is IQ's error -149). A GROUP BY of constants only is refused under the IQ engine, which
- *       restricts it (the research's D-R1); SQL Anywhere groups all rows by it. Strings group by IQ's collation
+ *       ... GROUP BY 1} is IQ's error -149). A GROUP BY of constants only groups all rows (IQ island, 2026-10-17,
+ *       measured on IQ 17.1, where the research's D-R1 held that IQ's engine restricts it). Strings group by IQ's collation
  *       ({@code 'a'} and {@code 'a '} are one group in IQ, {@code 'A'} and {@code 'a'} in a {@code sqla17} profile;
  *       IQ island, 2026-10-14, {@link IqKeys}): a key the query shows only where each value is its own key.</li>
  *   <li><b>COUNT</b> ({@code *}, a value, DISTINCT -- of strings, the distinct collation keys) counts as everywhere; its type is SQL Anywhere's INTEGER in its
@@ -86,7 +86,7 @@ final class IqAggregates {
 
     /** The aggregates the island reads ({@link IqParser#READ_AGGREGATES}). */
     private enum Fn {
-        COUNT, SUM, AVG, MIN, MAX, MEDIAN, LIST, PERCENTILE_CONT, PERCENTILE_DISC;
+        COUNT, SUM, AVG, MIN, MAX, MEDIAN, LIST, PERCENTILE_CONT, PERCENTILE_DISC, ARRAY_AGG;
 
         static Fn of(SqlAst.FunctionCall f) {
             return valueOf(IqLexer.lower(f.name().get(0).text()).toUpperCase(java.util.Locale.ROOT));
@@ -111,6 +111,17 @@ final class IqAggregates {
         for (SqlAst.Expr e : IqDialect.expressions(s)) {
             calls(e);
         }
+        // IQ island, 2026-10-17 (the differential fuzzer; measured on IQ 17.1): an aggregate inside a select item's
+        // aggregate is IQ's -156 before an aggregate in WHERE (-150), and -150 itself where an IN reads the inner one
+        Nested inner = nestedInItems(s);
+        SqlTranslationException nested = inner == null ? null : inner.byIn()
+                ? SqlTranslationException.invalid("an aggregate an IN reads inside an aggregate" + code(-150, "42W06"),
+                        inner.call().pos())
+                : SqlTranslationException.invalid("an aggregate's argument holds an aggregate (aggregate calls cannot"
+                        + " be nested)" + code(-156, "42W08"), inner.call().pos());
+        if (inner != null && inner.byIn()) {
+            throw nested;
+        }
         List<SqlAst.Expr> placed = new ArrayList<>(grouping(s).groupBy());
         if (s.where() != null) {
             placed.add(java.util.Objects.requireNonNull(s.where()));
@@ -118,16 +129,29 @@ final class IqAggregates {
         for (SqlAst.FromItem f : s.from()) {
             onConditions(f, placed);
         }
-        for (SqlAst.Expr e : placed) {
-            List<SqlAst.FunctionCall> misplaced = aggregateCalls(e);
-            if (!misplaced.isEmpty()) {
-                throw SqlTranslationException.invalid("an aggregate is not allowed in WHERE, ON or GROUP BY"
-                        + code(-150, "42W06"), misplaced.get(0).pos());
+        Set<String> own = new java.util.HashSet<>();
+        for (SqlAst.FromItem f : s.from()) {
+            for (SqlAst.FromItem leaf : IqDialect.leaves(f)) {
+                SqlAst.Ident name = IqDialect.correlation(leaf);
+                if (name != null) {
+                    own.add(IqLexer.lower(name.text()));
+                }
             }
         }
-        for (SqlAst.Expr key : s.groupBy()) {
-            if (key instanceof SqlAst.NullLit) {
-                throw SqlTranslationException.unsupported("GROUP BY NULL is not supported", key.pos());
+        for (SqlAst.Expr e : placed) {
+            List<SqlAst.FunctionCall> misplaced = new ArrayList<>(aggregateCalls(e));
+            // IQ island, 2026-10-17 (the claim verification's corpus: (SELECT TOP 1 id FROM u WHERE v =
+            // max(p.v)), p the outer query's): an aggregate of the outer query's columns alone, qualified by its
+            // names, is the outer query's (IQ raised its subquery's -1001030 there, not -150)
+            misplaced.removeIf(a -> {
+                List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                columns(a, refs, true);
+                return !refs.isEmpty() && refs.stream().allMatch(r -> r.parts().size() >= 2 && !own.contains(
+                        IqLexer.lower(r.parts().get(r.parts().size() - 2).text())));
+            });
+            if (!misplaced.isEmpty()) {
+                throw nested != null ? nested : SqlTranslationException.invalid("an aggregate is not allowed in WHERE,"
+                        + " ON or GROUP BY" + code(-150, "42W06"), misplaced.get(0).pos());
             }
         }
         SqlAst.Select read = grouping(s);
@@ -165,7 +189,7 @@ final class IqAggregates {
                 throw SqlTranslationException.invalid("wrong number of arguments to " + f.name().get(0).text()
                         .toUpperCase(java.util.Locale.ROOT) + code(-154, "37505"), f.pos());
             }
-            if (!f.orderBy().isEmpty() && !fn.equals("list")) {
+            if (!f.orderBy().isEmpty() && !fn.equals("list") && !fn.equals("array_agg")) {
                 throw SqlTranslationException.invalid("ORDER BY is not allowed in " + f.name().get(0).text()
                         + "(...): only LIST orders its values" + code(-949, "42WA5"), f.orderBy().get(0).pos());
             }
@@ -381,6 +405,7 @@ final class IqAggregates {
         Set<String> grouped = new java.util.HashSet<>();
         s.groupBy().forEach(k -> columns(k).forEach(r -> grouped.add(last(r))));
         Set<String> outputs = new java.util.HashSet<>();
+        Set<String> columnOutputs = columnOutputs(s);
         List<SqlAst.Expr> listed = new ArrayList<>();
         for (SqlAst.SelectItem item : s.items()) {
             if (item instanceof SqlAst.SelectExpr x) {
@@ -402,8 +427,7 @@ final class IqAggregates {
         // IQ island, 2026-10-14 (review 7's m2, measured): the ORDER BY's first (-854), then the select list's and
         // HAVING's (-149)
         for (SqlAst.SortItem o : s.orderBy()) {
-            if (o.expr() instanceof SqlAst.IntegerLit || o.expr() instanceof SqlAst.ColumnRef r && r.parts().size() == 1
-                    && outputs.contains(last(r))) {
+            if (o.expr() instanceof SqlAst.IntegerLit || namesOutput(o.expr(), outputs, columnOutputs)) {
                 continue;
             }
             notGrouped(o.expr(), known, own, grouped, -854, "42W65", false);
@@ -437,9 +461,9 @@ final class IqAggregates {
                 }
             }
         }
+        Set<String> columnOutputs = columnOutputs(s);
         for (SqlAst.SortItem o : s.orderBy()) {
-            if (o.expr() instanceof SqlAst.IntegerLit || o.expr() instanceof SqlAst.ColumnRef r && r.parts().size() == 1
-                    && outputs.contains(last(r))) {
+            if (o.expr() instanceof SqlAst.IntegerLit || namesOutput(o.expr(), outputs, columnOutputs)) {
                 continue;
             }
             for (SqlAst.ColumnRef r : columns(o.expr())) {
@@ -449,6 +473,25 @@ final class IqAggregates {
             }
         }
         return false;
+    }
+
+    /** The names of a select list's items that are a column alone (unaliased, qualified or not). */
+    private static Set<String> columnOutputs(SqlAst.Select s) {
+        Set<String> out = new java.util.HashSet<>();
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr x && x.alias() == null && x.expr() instanceof SqlAst.ColumnRef r) {
+                out.add(last(r));
+            }
+        }
+        return out;
+    }
+
+    /** Whether an ORDER BY key names an output, as IQ reads it for its grouping errors: a bare name an output's (an
+     *  alias or a column item's), or a qualified column a column item's -- IQ island, 2026-10-17 (BIRD's dev set,
+     *  measured on IQ 17.1: SELECT t.id, sm ... GROUP BY t.id ORDER BY t.sm is -149, the select list's, not -854). */
+    private static boolean namesOutput(SqlAst.Expr e, Set<String> outputs, Set<String> columnOutputs) {
+        return e instanceof SqlAst.ColumnRef r && (r.parts().size() == 1 ? outputs.contains(last(r))
+                : columnOutputs.contains(last(r)));
     }
 
     private static void notGrouped(SqlAst.Expr e, Set<String> known, Set<String> own, Set<String> grouped, int sqlcode,
@@ -659,6 +702,44 @@ final class IqAggregates {
     }
 
     /** The calls of the aggregates read under {@code e}, in the order they are written (not into subqueries). */
+    /** An aggregate inside a select item's aggregate ({@link #nestedInItems}), and whether an IN reads it. */
+    private record Nested(SqlAst.FunctionCall call, boolean byIn) {
+    }
+
+    /** A select item's aggregate holding another in its arguments, as IQ raises it ({@link #parsed}): -156, or -150
+     *  where an IN reads the inner aggregate (measured on IQ 17.1: SUM(CASE WHEN COUNT(*) IN (1, 2) THEN 1 END)); null
+     *  for none. */
+    private static @com.legend.base.Nullable Nested nestedInItems(SqlAst.Select s) {
+        for (SqlAst.SelectItem i : s.items()) {
+            if (!(i instanceof SqlAst.SelectExpr x)) {
+                continue;
+            }
+            for (SqlAst.FunctionCall outer : aggregateCalls(x.expr())) {
+                for (SqlAst.Expr arg : outer.args()) {
+                    List<SqlAst.FunctionCall> inner = aggregateCalls(arg);
+                    if (!inner.isEmpty()) {
+                        return new Nested(inner.get(0), readByIn(arg, false));
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Whether an aggregate under {@code e} is read by an IN ({@code in}: below one already). */
+    private static boolean readByIn(SqlAst.Expr e, boolean in) {
+        if (e instanceof SqlAst.FunctionCall f && named(f)) {
+            return in;
+        }
+        boolean below = in || e instanceof SqlAst.InList;
+        for (SqlAst.Expr child : IqDialect.children(e)) {
+            if (readByIn(child, below)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static List<SqlAst.FunctionCall> aggregateCalls(SqlAst.Expr e) {
         List<SqlAst.FunctionCall> out = new ArrayList<>();
         aggregateCalls(e, out);
@@ -683,8 +764,7 @@ final class IqAggregates {
      *   <li>an expression of a column that is part of a GROUP BY expression, outside that expression and not grouped by
      *       itself ({@code SELECT 1 + k ... GROUP BY k + 1}): IQ may read it as the GROUP BY expression (measured: it
      *       does for {@code 1 + k}, it raises -149 for {@code k * 3});</li>
-     *   <li>a GROUP BY of constants only (when no column outside an aggregate makes it IQ's -149 first: lite's
-     *       databases read an integer there as a position); and two LISTs ordered differently (the research's D-A1),
+     *   <li>two LISTs ordered differently (the research's D-A1),
      *       which SQL Anywhere's front end rejects (-904). IQ island, 2026-10-15 (the corpus lane; measured on IQ
      *       17.1): an aggregate's DISTINCT over an expression, and one in a SELECT DISTINCT, are read under IQ's engine
      *       too -- the research's D-R1 held that it restricts them; IQ 17.1 answers COUNT(DISTINCT CASE ... END),
@@ -771,7 +851,7 @@ final class IqAggregates {
         return out;
     }
 
-    /** A column of a GROUP BY expression read outside it and not grouped by itself: refused (IQ may match it). */
+    /** A column of a GROUP BY expression read outside it and not grouped by itself: IQ's -149. */
     private static void keyMatches(SqlAst.Select s) {
         List<SqlAst.Expr> keys = expressionKeys(s);
         if (keys.isEmpty()) {
@@ -785,28 +865,55 @@ final class IqAggregates {
                 bare.add(last(r));
             }
         }
+        Set<String> own = new java.util.HashSet<>();
+        for (SqlAst.FromItem f : s.from()) {
+            for (SqlAst.FromItem leaf : IqDialect.leaves(f)) {
+                SqlAst.Ident name = IqDialect.correlation(leaf);
+                if (name != null) {
+                    own.add(IqLexer.lower(name.text()));
+                }
+            }
+        }
         for (SqlAst.Expr e : groupedExpressions(s)) {
-            keyMatch(e, keys, inKeys, bare);
+            keyMatch(e, keys, inKeys, bare, own);
         }
     }
 
-    private static void keyMatch(SqlAst.Expr e, List<SqlAst.Expr> keys, Set<String> inKeys, Set<String> bare) {
+    private static void keyMatch(SqlAst.Expr e, List<SqlAst.Expr> keys, Set<String> inKeys, Set<String> bare,
+            Set<String> own) {
         if (e instanceof SqlAst.FunctionCall f && named(f)) {
             return;
         }
         for (SqlAst.Expr k : keys) {
-            if (same(k, e)) {
+            // IQ island, 2026-10-17 (the corpus lane's CAST(d.ts AS DATE) under GROUP BY CAST(ts AS DATE); measured on
+            // IQ 17.1): a column qualified or not is the same column there; the translator, which resolves each,
+            // decides whether two are one
+            if (unqualifiedShape(k).equals(unqualifiedShape(e))) {
                 return;
             }
         }
-        if (e instanceof SqlAst.ColumnRef r && inKeys.contains(last(r)) && !bare.contains(last(r))) {
-            throw SqlTranslationException.unsupported("'" + String.join(".", r.parts().stream().map(SqlAst.Ident::text)
-                    .toList()) + "' is read here outside the GROUP BY expression it is part of, which is not supported:"
-                    + " IQ may read the expression around it as that GROUP BY expression; write it as GROUP BY does",
-                    r.pos());
+        for (SqlAst.Expr k : keys) {
+            if (commutedShape(k).equals(commutedShape(e))) {
+                // measured on IQ 17.1: SELECT 1 + k ... GROUP BY k + 1 is answered -- IQ reads an expression written
+                // otherwise as the key where it may; which forms it reads so is not known beyond this one
+                throw SqlTranslationException.unsupported("a GROUP BY expression written otherwise here is not"
+                        + " supported: IQ may read it as that GROUP BY expression (it reads 1 + k as k + 1); write it"
+                        + " as GROUP BY does", e.pos());
+            }
+        }
+        // the landing's review (2026-10-17): an enclosing query's column, qualified by none of this query's names, is
+        // no column of its groups
+        if (e instanceof SqlAst.ColumnRef r && inKeys.contains(last(r)) && !bare.contains(last(r))
+                && (r.parts().size() < 2 || own.contains(IqLexer.lower(r.parts().get(r.parts().size() - 2).text())))) {
+            // IQ island, 2026-10-17 (the corpus lane's 20 such queries sent to IQ 17.1: 4 answered once a column
+            // qualified or not was read as one, and the other 15 raised -149): IQ's -149 where no expression around
+            // the column is a key written otherwise
+            throw SqlTranslationException.invalid("'" + String.join(".", r.parts().stream().map(SqlAst.Ident::text)
+                    .toList()) + "' is read here outside the GROUP BY expression it is part of, and is no GROUP BY item"
+                    + " itself" + IqDialect.code(-149, "53003"), r.pos());
         }
         for (SqlAst.Expr child : IqDialect.children(e)) {
-            keyMatch(child, keys, inKeys, bare);
+            keyMatch(child, keys, inKeys, bare, own);
         }
     }
 
@@ -853,10 +960,71 @@ final class IqAggregates {
         return out;
     }
 
+    /** IQ island, 2026-10-17 (the differential fuzzer's GROUP BY (0 + it); measured on IQ 17.1): IQ's engine reads
+     *  {@code 0 + x} as {@code x} in the select list and HAVING, not in GROUP BY ({@link IqDialect}'s identity), so a
+     *  key holding {@code identity}, written again there outside an aggregate, is no key of the item, which reads
+     *  {@code x} ungrouped: -149 ({@code SELECT 0 + it ... GROUP BY 0 + it}), unless {@code x} is a key itself.
+     *  ORDER BY reads the key (measured), and so does an item whose alias the GROUP BY names (its key is the item). */
+    static void foldedOutOfGroup(SqlAst.Select s, SqlAst.Expr identity, SqlAst.Expr x) {
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr e && holds(e.expr(), identity)) {
+                return;
+            }
+        }
+        for (SqlAst.Expr k : s.groupBy()) {
+            if (!holds(k, identity)) {
+                continue;
+            }
+            if (s.groupBy().stream().anyMatch(g -> unqualifiedShape(g).equals(unqualifiedShape(x)))) {
+                return;
+            }
+            List<SqlAst.Expr> read = new ArrayList<>();
+            for (SqlAst.SelectItem item : s.items()) {
+                if (item instanceof SqlAst.SelectExpr e) {
+                    read.add(e.expr());
+                }
+            }
+            if (s.having() != null) {
+                read.add(java.util.Objects.requireNonNull(s.having()));
+            }
+            String key = unqualifiedShape(k);
+            for (SqlAst.Expr e : read) {
+                if (readsOutsideAggregates(e, key) && !columns(x).isEmpty()) {
+                    SqlAst.ColumnRef r = columns(x).get(0);
+                    throw SqlTranslationException.invalid("'" + String.join(".", r.parts().stream()
+                            .map(SqlAst.Ident::text).toList()) + "' is not grouped: IQ reads " + identityText(identity)
+                            + " outside GROUP BY as its column, which this GROUP BY does not hold" + code(-149,
+                            "53003"), r.pos());
+                }
+            }
+        }
+    }
+
+    /** Whether {@code e} is {@code part}, or holds it outside subqueries (by identity). */
+    private static boolean holds(SqlAst.Expr e, SqlAst.Expr part) {
+        return e == part || IqDialect.children(e).stream().anyMatch(c -> holds(c, part));
+    }
+
+    /** Whether {@code e} holds an expression of {@code shape} outside aggregates and subqueries. */
+    private static boolean readsOutsideAggregates(SqlAst.Expr e, String shape) {
+        if (unqualifiedShape(e).equals(shape)) {
+            return true;
+        }
+        if (e instanceof SqlAst.FunctionCall f && named(f)) {
+            return false;
+        }
+        return IqDialect.children(e).stream().anyMatch(c -> readsOutsideAggregates(c, shape));
+    }
+
+    private static String identityText(SqlAst.Expr identity) {
+        return identity instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.MINUS ? "x - 0" : "0 + x";
+    }
+
     /** A GROUP BY of constants only: IQ's error -149 when the select list reads a column outside an aggregate (it
-     *  groups by the constant, not by a select-list position: measured); else refused, under the IQ engine because it
-     *  restricts it (the research's D-R1), in SQL Anywhere's front end because lite's databases read an integer there
-     *  as a position. */
+     *  groups by the constant, not by a select-list position: measured); else every row is one group. IQ island,
+     *  2026-10-17 (the corpus lane's SQLStorm, measured on IQ 17.1): IQ's engine reads it too ({@code GROUP BY 'a
+     *  b'}, {@code GROUP BY 1}, {@code GROUP BY NULL}), where the research's D-R1 held that it restricts it; the
+     *  key is computed as a column, which lite's databases never read as a position. */
     private static void constantKeys(SqlAst.Select s, IqDialect.Engine engine) {
         if (s.groupBy().isEmpty() || !s.groupBy().stream().allMatch(IqAggregates::constant)) {
             return;
@@ -869,9 +1037,6 @@ final class IqAggregates {
                         + " select-list position; name the columns" + code(-149, "53003"), r.pos());
             }
         }
-        throw SqlTranslationException.unsupported("a GROUP BY of constants only is not supported" + (engine
-                == IqDialect.Engine.IQ ? " under IQ's engine, which restricts it (the research's D-R1)"
-                : ": lite's databases read an integer there as a select-list position"), s.groupBy().get(0).pos());
     }
 
     // ------------------------------------------------------------------ one expression as another
@@ -880,6 +1045,44 @@ final class IqAggregates {
      *  equal without regard to ASCII case, parentheses and places aside. */
     static boolean same(SqlAst.Expr a, SqlAst.Expr b) {
         return shape(a).equals(shape(b));
+    }
+
+    /** Whether {@code a} and {@code b} are written as one expression but for their columns' qualifiers. */
+    static boolean sameUnqualified(SqlAst.Expr a, SqlAst.Expr b) {
+        return unqualifiedShape(a).equals(unqualifiedShape(b));
+    }
+
+    /** {@code e}'s form as {@link #unqualifiedShape} writes it, but a chain of + or of * (and AND, OR) by its operands'
+     *  forms in order, so that {@code 1 + k} and {@code k + 1} are one. */
+    private static String commutedShape(SqlAst.Expr e) {
+        if (e instanceof SqlAst.Binary b && COMMUTED.contains(b.op())) {
+            List<SqlAst.Expr> operands = new ArrayList<>();
+            chain(b, b.op(), operands);
+            List<String> forms = new ArrayList<>(operands.stream().map(IqAggregates::commutedShape).toList());
+            java.util.Collections.sort(forms);
+            return b.op() + forms.toString();
+        }
+        return e instanceof SqlAst.ColumnRef r ? "col(" + last(r) + ")" : shapeOf(e, IqAggregates::commutedShape);
+    }
+
+    /** The operators {@link #commutedShape} reads in any order. */
+    private static final Set<SqlAst.BinaryOp> COMMUTED = Set.of(SqlAst.BinaryOp.PLUS, SqlAst.BinaryOp.TIMES,
+            SqlAst.BinaryOp.AND, SqlAst.BinaryOp.OR);
+
+    /** Into {@code out}, the operands of the chain of {@code op} {@code e} is. */
+    private static void chain(SqlAst.Expr e, SqlAst.BinaryOp op, List<SqlAst.Expr> out) {
+        if (e instanceof SqlAst.Binary b && b.op() == op) {
+            chain(b.left(), op, out);
+            chain(b.right(), op, out);
+        } else {
+            out.add(e);
+        }
+    }
+
+    /** {@code e}'s form as {@link #shape} writes it, but each column by its name alone. */
+    private static String unqualifiedShape(SqlAst.Expr e) {
+        return e instanceof SqlAst.ColumnRef r ? "col(" + last(r) + ")"
+                : shapeOf(e, IqAggregates::unqualifiedShape);
     }
 
     /** {@code e}'s form, for {@link #same}. */
@@ -1242,6 +1445,7 @@ final class IqAggregates {
             case MEDIAN -> median(f, at, x, type, values);
             case LIST -> list(f, at, x, type, dialect);
             case PERCENTILE_CONT, PERCENTILE_DISC -> percentile(f, at, x, type, values);
+            case ARRAY_AGG -> arrayAgg(f, at, x, engine);
         };
     }
 
@@ -1322,9 +1526,9 @@ final class IqAggregates {
                 throw SqlTranslationException.unsupported(what + " of a value of this type is not supported yet",
                         f.pos());
             }
-            readEverywhere(f, dialect);
+            boolean guard = readEverywhere(f, dialect);
             return checkedSum(at, x, values, average ? "average" : "sum", Kind.FLOAT, new IqType("DOUBLE"),
-                    new CFloat(0.0), new CFloat(Double.MAX_VALUE), new CFloat(-Double.MAX_VALUE));
+                    new CFloat(0.0), new CFloat(Double.MAX_VALUE), new CFloat(-Double.MAX_VALUE), guard);
         }
         if (average && engine == IqDialect.Engine.IQ) {
             return iqAverage(f, at, x, type, values, settings);
@@ -1344,12 +1548,12 @@ final class IqAggregates {
             if (engine == IqDialect.Engine.IQ) {
                 return iqIntegerSum(at, x, values, family);
             }
-            readEverywhere(f, dialect);
+            boolean guard = readEverywhere(f, dialect);
             boolean bigint = family.equals("BIGINT");
             BigInteger min = bigint ? IqType.BIGINT_MIN : IqType.INTEGER_MIN;
             BigInteger max = bigint ? IqType.BIGINT_MAX : IqType.INTEGER_MAX;
             return checkedSum(at, x, values, "sum", Kind.INTEGER, IqType.integer(bigint ? "BIGINT" : "INTEGER", min,
-                    max, true), new CInteger(0L), SqlToPure.integer(max), SqlToPure.integer(min));
+                    max, true), new CInteger(0L), SqlToPure.integer(max), SqlToPure.integer(min), guard);
         }
         if (kind == Kind.INTEGER && type != null && engine == IqDialect.Engine.IQ && type.spelling().equals(
                 "UNSIGNED BIGINT")) {
@@ -1453,6 +1657,12 @@ final class IqAggregates {
         measuredOptions(f, settings, "SUM");
         int[] ps = numeric(type);
         int p = Math.min(ps[0] + 1, 126);
+        if (p > 38 && p <= settings.precision() && ps[1] <= 37) {
+            // IQ island, 2026-10-17 (a benchmark's SUM(a * (1 - b) * (1 + c)) of NUMERIC(15,2)s, IQ's NUMERIC(48,6)):
+            // past 38 digits IQ's type holds what lite's 38 do at its scale; the database adds in 38, a sum past them
+            // its own overflow, so lite types the value it holds
+            p = 38;
+        }
         if (p > 38 || p > settings.precision()) {
             throw SqlTranslationException.unsupported("SUM of a NUMERIC(" + ps[0] + "," + ps[1] + ") is not supported"
                     + " under IQ's engine: its type, NUMERIC(" + p + "," + ps[1] + "), is capped by the profile or needs"
@@ -1493,7 +1703,7 @@ final class IqAggregates {
             spelling = !counts ? "NUMERIC(36,16)" : type.low() == null ? "NUMERIC(51,16)" : "NUMERIC(45,16)";
         } else if (type != null && numeric && (x.kind() == Kind.DECIMAL || x.kind() == Kind.INTEGER)) {
             int[] ps = numeric(type);
-            if (ps[0] + 22 > 38 || ps[0] + 22 > settings.precision()) {
+            if (ps[0] + 22 > settings.precision() || ps[1] + 21 > 37) {
                 throw SqlTranslationException.unsupported("AVG of a NUMERIC(" + ps[0] + "," + ps[1] + ") is not"
                         + " supported under IQ's engine: its NUMERIC(" + (ps[0] + 22) + "," + (ps[1] + 21) + ") needs"
                         + " more than lite's 38 digits or the profile's PRECISION", f.pos());
@@ -1501,13 +1711,22 @@ final class IqAggregates {
             scale = ps[1] + 21;
             sumScale = ps[1];
             sumWhole = ps[0] + 1 - ps[1];
-            spelling = "NUMERIC(" + (ps[0] + 22) + "," + scale + ")";
+            // IQ island, 2026-10-17: past 38 digits IQ's type holds what lite's 38 do (longQuotient refuses at run time
+            // a value past them), so lite types the value it holds: its comparisons and arithmetic sized within 38
+            spelling = "NUMERIC(" + Math.min(ps[0] + 22, 38) + "," + scale + ")";
         } else {
             throw SqlTranslationException.unsupported("AVG of " + (x.kind() == Kind.STRING ? "a string"
                     : x.kind() == Kind.DATE || x.kind() == Kind.DATETIME ? "a date" : "a value of this type")
                     + " is not supported yet (IQ converts it to a number by its own rules)", f.pos());
         }
-        if (!IqFunctions.truncatedFits(sumScale, sumWhole, scale)) {
+        // IQ island, 2026-10-17: a quotient a single step cannot hold is divided in chunks (IqFunctions.longQuotient),
+        // a value of more digits than lite's decimals hold refused at run time
+        boolean chunked = !IqFunctions.truncatedFits(sumScale, sumWhole, scale) || numeric
+                && numeric(java.util.Objects.requireNonNull(type))[0] + 22 > 38;
+        String past = IqDialect.REFUSED_AT_RUN_TIME + "an AVG of more than " + (38 - scale) + " digits before its point"
+                + " is not supported: its " + spelling + " needs more than the 38 digits lite's decimals hold";
+        if (chunked && IqFunctions.longQuotient(new CDecimal(java.math.BigDecimal.ONE), sumScale, sumWhole,
+                new CDecimal(java.math.BigDecimal.ONE), COUNT_DIGITS, scale, past) == null) {
             throw SqlTranslationException.unsupported("AVG of " + java.util.Objects.requireNonNull(type).spelling()
                     + " under IQ's engine needs a step"
                     + " of more than the 38 digits lite's decimals hold", f.pos());
@@ -1524,10 +1743,34 @@ final class IqAggregates {
         Tx n = Tx.value(at.column(count), Kind.INTEGER, false);
         int s1 = sumScale;
         int whole1 = sumWhole;
-        Tx quotient = SqlToPure.strict(Kind.DECIMAL, List.of(total, n), v -> IqFunctions.truncatedQuotient(
-                IqDialect.wide(v.get(0)), s1, whole1, SqlToPure.call("toDecimal", v.get(1)), scale));
+        Tx quotient = SqlToPure.strict(Kind.DECIMAL, List.of(total, n), v -> chunked
+                ? java.util.Objects.requireNonNull(IqFunctions.longQuotient(IqDialect.wide(v.get(0)), s1, whole1,
+                        SqlToPure.call("toDecimal", v.get(1)), COUNT_DIGITS, scale, past))
+                : IqFunctions.truncatedQuotient(IqDialect.wide(v.get(0)), s1, whole1, SqlToPure.call("toDecimal",
+                        v.get(1)), scale));
         return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(quotient.vs()), null, null),
                 Kind.DECIMAL, true, new IqType(spelling));
+    }
+
+    /**
+     * ARRAY_AGG (IQ island, 2026-10-17; the JOB corpus lane's 553, measured on IQ 17.1): under IQ's engine its -1001030
+     * (an aggregate it does not support), which the dialect holds before translating ({@code IqDialect}'s placements)
+     * and raises after the names, the grouping and the conversions; here, an aggregate that reads its argument and
+     * shows a NULL string, which no answer ever carries. In SQL Anywhere's front end an array is no value a client
+     * reads (its -1599 in a select list): refused by name.
+     */
+    private static SqlToPure.Aggregation arrayAgg(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x,
+            IqDialect.Engine engine) {
+        if (engine != IqDialect.Engine.IQ) {
+            throw SqlTranslationException.unsupported("ARRAY_AGG is not supported in SQL Anywhere's front end: its"
+                    + " array is no value a client reads (its -1599 in a select list)", f.pos());
+        }
+        String read = at.fresh();
+        ColSpec count = new ColSpec(read, at.overRow(SqlToPure.valueOf(x)), at.overGroup(SqlToPure.call("count",
+                at.values())), null);
+        ColSpec shown = new ColSpec(at.name(), at.overRow(SqlToPure.call("cast", SqlToPure.empty(),
+                SqlToPure.typeArg("String"))), null, null);
+        return new SqlToPure.Aggregation(List.of(count), shown, Kind.STRING, true, new IqType("LONG VARCHAR"));
     }
 
     /** IQ island, 2026-10-15: the IQ engine's SUM and AVG types were measured on IQ 17.1 at its PUBLIC PRECISION 126
@@ -1555,7 +1798,14 @@ final class IqAggregates {
      *  the finish that raises IQ's -158 where either leaves the type. */
     /** IQ island, 2026-10-14 (review 3's B1): a checked SUM or AVG ({@link #checkedSum}) that the statement reads only
      *  for some rows or groups is refused by name ({@link IqDialect#lazilyRead}). */
-    private static void readEverywhere(SqlAst.FunctionCall f, IqDialect dialect) {
+    private static boolean readEverywhere(SqlAst.FunctionCall f, IqDialect dialect) {
+        // IQ island, 2026-10-17 (measured on IQ 17.1: a DOUBLE sum's overflow is its engine's -1001010 in every group,
+        // those its TOP drops too): read for some groups only by the statement's own SELECT (a CASE, a COALESCE, its
+        // row limit), the check is a filter of every group after the aggregation (the guard); from a query around
+        // it, which may keep groups from the aggregation itself, refused by name
+        if (!dialect.lazilyReadAround(f)) {
+            return dialect.lazilyRead(f);
+        }
         if (dialect.lazilyRead(f)) {
             throw SqlTranslationException.unsupported(f.name().get(0).text().toUpperCase(java.util.Locale.ROOT)
                     + " read only for some groups (a CASE's or an IF's value or later test, a later argument of"
@@ -1564,11 +1814,12 @@ final class IqAggregates {
                     + " is not supported: IQ checks its running total for every group (D-E3), lite's databases only"
                     + " where they read it", f.pos());
         }
+        return false;
     }
 
     private static SqlToPure.Aggregation checkedSum(SqlToPure.Grouping at, Tx x, ValueSpecification values,
             String reduce, Kind kind, IqType type, ValueSpecification zero, ValueSpecification max,
-            ValueSpecification min) {
+            ValueSpecification min, boolean guarded) {
         String raw = at.fresh();
         String positive = at.fresh();
         String negative = at.fresh();
@@ -1589,8 +1840,19 @@ final class IqAggregates {
         Tx checked = SqlToPure.strict(kind, List.of(p, n, r), v -> IqDialect.ifThen(SqlToPure.call("or",
                 SqlToPure.call("greaterThan", v.get(0), max), SqlToPure.call("lessThan", v.get(1), min)),
                 kind == Kind.FLOAT ? IqDialect.floatRaise() : IqDialect.raise(), v.get(2)));
+        // IQ island, 2026-10-17: the same test of every group, a filter after the aggregation, where the statement
+        // reads the value for some groups only (readEverywhere)
+        ValueSpecification guard = null;
+        if (guarded) {
+            Tx leaves = SqlToPure.strictTest(List.of(p, n), v -> SqlToPure.call("or", SqlToPure.call("greaterThan",
+                    v.get(0), max), SqlToPure.call("lessThan", v.get(1), min)));
+            guard = IqDialect.ifThen(leaves.vs(), SqlToPure.call("fail", new com.legend.protocol.spec.CString("a "
+                    + (reduce.equals("average") ? "AVG" : "SUM") + "'s running total leaves its type in a group: IQ's"
+                    + " error (-158; -1001010 under its engine for a DOUBLE), raised in its aggregation for every"
+                    + " group")), new com.legend.protocol.spec.CBoolean(true));
+        }
         return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(checked.vs()), null, null), kind,
-                true, type);
+                true, type, guard);
     }
 
     /** MEDIAN of a SMALLINT or an INTEGER (or a TINYINT): Pure's continuous percentile at 0.5 of the values as
@@ -1866,7 +2128,14 @@ final class IqAggregates {
                     + " supported yet: the order of tied rows is the plan's", order.pos());
         }
         boolean strings = x.kind() == Kind.STRING;
-        if (strings && order != null && !dialect.keys().own(value)) {
+        // IQ island, 2026-10-17 (the differential fuzzer's fifth round; measured on IQ 17.1's UTF8BIN database): under
+        // IQ's engine in a case-sensitive database the values of one collation key differ only in trailing spaces,
+        // which the list drops, so their order is not seen; ordered by the values' bytes, as IQ's blank-padded order
+        // is but for a character below a space (a tab, a line break), whose row is refused at run time
+        boolean byBytes = strings && order != null && !dialect.keys().own(value)
+                && dialect.engine() == IqDialect.Engine.IQ && dialect.settings().caseSensitive()
+                && !dialect.settings().latin1();
+        if (strings && order != null && !dialect.keys().own(value) && !byBytes) {
             // IQ island, 2026-10-14 (the merge): the order of values of one collation key is the plan's
             throw SqlTranslationException.unsupported("LIST of strings is supported only where every value is its own"
                     + " collation key (a derived table's RTRIM, TRIM or constant" + (dialect.settings().caseSensitive()
@@ -1884,6 +2153,11 @@ final class IqAggregates {
         // trailing spaces ('x  ' is listed 'x', 'a \t' as it is), '' kept as an item, and no values at all NULL
         boolean iqEngine = dialect.engine() == IqDialect.Engine.IQ;
         Tx digits = SqlToPure.strict(Kind.STRING, List.of(x), v -> !strings ? SqlToPure.call("toString", v.get(0))
+                : byBytes ? IqFunctions.refusedPast(SqlToPure.call("or", SqlToPure.call("or", SqlToPure.call(
+                        "contains", v.get(0), new CString("\t")), SqlToPure.call("contains", v.get(0), new CString(
+                        "\n"))), SqlToPure.call("contains", v.get(0), new CString("\r"))), IqDialect.REFUSED_AT_RUN_TIME
+                        + "LIST of a string holding a tab or a line break: IQ orders it by blank padding",
+                        IqFunctions.trailingSpacesDropped(v.get(0)), SqlToPure.empty())
                 : iqEngine ? IqFunctions.trailingSpacesDropped(v.get(0)) : IqDialect.ifThen(SqlToPure.call("equal",
                 v.get(0), new CString("")), SqlToPure.nullOf(Kind.STRING).vs(), v.get(0)));
         if (f.distinct()) {

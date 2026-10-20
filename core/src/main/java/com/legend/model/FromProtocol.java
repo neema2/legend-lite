@@ -319,6 +319,8 @@ public final class FromProtocol {
             case "Real" -> new RelationalDataType.Real();
             case "Bit" -> new RelationalDataType.Bit();
             case "Timestamp" -> new RelationalDataType.Timestamp();
+            case "Time" -> new RelationalDataType.Time();
+            case "TimestampNs" -> new RelationalDataType.TimestampNs();
             case "Date" -> new RelationalDataType.Date_();
             case "Distinct" -> new RelationalDataType.Distinct();
             case "Other" -> new RelationalDataType.Other();
@@ -712,7 +714,8 @@ public final class FromProtocol {
         };
         return new DataSpaceDefinition(d.qualifiedName(), contexts,
                 d.defaultExecutionContext(), d.title(), d.description(),
-                executables, diagrams, supportInfo, elementScope);
+                executables, diagrams, supportInfo, elementScope,
+                stereotypes(d.stereotypes() == null ? java.util.List.of() : d.stereotypes()));
     }
 
     private static ConnectionDefinition toRelationalConnection(String qualifiedName,

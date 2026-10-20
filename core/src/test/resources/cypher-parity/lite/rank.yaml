@@ -1,0 +1,94 @@
+# Cypher's orderability over Variants (the study's §12.58, W11): a type rank, then the value; lists element-wise
+cases:
+  - id: lists_order_element_wise_a_prefix_first
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "UNWIND [[], ['a'], ['a', 1], [1], [1, 'a'], [1, null], [null, 1], [null, 2], [1, 2], [1, 2, 0]] AS l RETURN l ORDER BY l"
+  - id: lists_order_descending_with_a_limit
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "UNWIND [[2, 2], [2, -2], [1, 2], [], [1], [300, 0], [1, -20], [2, -2, 100]] AS l WITH l ORDER BY l DESC LIMIT 4 RETURN l"
+  - id: values_of_several_kinds_order_by_rank
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "UNWIND [1.5, ['list'], 'text', null, false, true, {a: 'map'}, 2, 'alpha', [1], -3.25] AS v RETURN v ORDER BY v"
+  - id: values_of_several_kinds_order_by_rank_descending
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "UNWIND [1.5, ['list'], 'text', null, false, {a: 'map'}, 2, 'alpha'] AS v RETURN v ORDER BY v DESC"
+  - id: nodes_and_relationships_order_before_lists
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T {w: 1}]->(b:B {name: 'b'})
+    cypher: "MATCH p = (n:A)-[r:T]->(m) UNWIND [n, r, ['x'], 'text', 1, p] AS v RETURN v ORDER BY v"
+  - id: a_stored_list_property_orders_its_rows
+    graph: |
+      CREATE (:A {name: 'a', list: [2, -2]}), (:B {name: 'b', list: [1, 2]}), (:C {name: 'c', list: [300, 0]}), (:D {name: 'd', list: [1, -20]}), (:E {name: 'e', list: [2, -2, 100]})
+    cypher: "MATCH (a) WITH a ORDER BY a.list LIMIT 3 RETURN a.name AS n"
+  - id: a_stored_list_carried_then_ordered_descending
+    graph: |
+      CREATE (:A {name: 'a', list: [2, -2]}), (:B {name: 'b', list: [1, 2]}), (:C {name: 'c', list: [300, 0]}), (:D {name: 'd', list: [1, -20]})
+    cypher: "MATCH (a) WITH a, a.list AS list WITH a, list ORDER BY list DESC LIMIT 2 RETURN a.name AS n, list"
+  - id: min_and_max_over_mixed_values
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "UNWIND [1, 'a', null, [1, 2], 0.2, 'b', true, {k: 1}] AS x RETURN min(x) AS mn, max(x) AS mx"
+  - id: min_and_max_over_lists_and_numbers
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "UNWIND [[1], [2], [2, 1], []] AS x WITH collect(x) AS lists UNWIND lists AS y RETURN min(y) AS mn, max(y) AS mx, min(size(y)) AS s"
+  - id: min_and_max_over_mixed_numbers_keep_the_values_type
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "UNWIND [1, 2.0, 5, null, 3.2, 0.1] AS x RETURN max(x) AS mx, min(x) AS mn"
+  - id: comparisons_across_types_are_null_except_numbers
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "WITH ['', 1, 3.14, true, null, [], {}] AS types UNWIND range(0, size(types) - 1) AS i UNWIND range(0, size(types) - 1) AS j WITH types[i] AS lhs, types[j] AS rhs WHERE i <> j WITH lhs, rhs, lhs < rhs AS result WHERE result RETURN lhs, rhs"
+  - id: ordering_agrees_with_comparisons_over_strings
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "WITH ['Sort', 'order', ' ', 'should', 'be', '', 'consistent', '!'] AS values WITH values, size(values) AS n UNWIND values AS value WITH size([x IN values WHERE x < value]) AS x, value, n ORDER BY value WITH n, collect(x) AS ordered RETURN ordered = range(0, n - 1) AS equal"
+  - id: ordering_agrees_with_comparisons_over_lists
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "WITH [[2, 2], [2, -2], [1, 2], [], [1], [300, 0], [1, -20], [2, -2, 100]] AS values WITH values, size(values) AS n UNWIND values AS value WITH size([x IN values WHERE x < value]) AS x, value, n ORDER BY value WITH n, collect(x) AS ordered RETURN ordered = range(0, n - 1) AS equal"
+  - id: two_stored_lists_concatenated
+    graph: |
+      CREATE (:A {list1: [1, 2, 3], list2: [4, 5]})
+    cypher: "MATCH (a) RETURN a.list2 + a.list1 AS foo"
+  - id: a_computed_list_equal_to_a_range
+    graph: |
+      CREATE (:P {n: 1}), (:P {n: 2}), (:P {n: 3})
+    cypher: "MATCH (p:P) WITH p.n AS n ORDER BY n WITH collect(n) AS ns RETURN ns = range(1, 3) AS same, ns = [1, 2, 4] AS other, ns = [1.0, 2.0, 3.0] AS floats"
+  - id: a_variant_of_no_known_shape_ordered_by_rank_among_numbers
+    graph: |
+      CREATE (:P {k: 3}), (:Q {k: 1.5}), (:R {k: 'two'}), (:S {k: true})
+    cypher: "MATCH (n) WITH collect(n) AS ns UNWIND ns AS m RETURN m.k AS k ORDER BY k"
+  - id: nan_inside_a_list
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "UNWIND [1.5, 0.0 / 0.0, 'text'] AS v RETURN v ORDER BY v"
+  - id: a_list_of_dates_read_back_is_refused
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "WITH [date('1910-05-06'), date('1980-12-24')] AS values UNWIND values AS value RETURN size([x IN values WHERE x < value]) AS before"
+  - id: a_list_beside_a_variant_concatenates_by_its_kind
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "UNWIND [1, 2] AS y WITH collect(y) AS l UNWIND [3, [4, 5], null, 'x', [], {k: 1}] AS x RETURN l + x AS after, x + l AS before"
+  - id: a_mixed_spelled_list_read_by_the_database
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "WITH [1, 'a', null, [2], {k: 1}, true] AS xs RETURN [x IN xs WHERE x = 1 OR x = 'a' OR x = true] AS some, size([x IN xs]) AS n, [x IN xs | x] AS all"
+  - id: a_mixed_spelled_list_indexed_by_a_value_of_the_row
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "WITH [1, 'a', true, [2], {k: 1}, null] AS xs UNWIND range(0, 5) AS i RETURN i, xs[i] AS v"
+  - id: a_list_of_the_row_ordered_against_a_spelled_list
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "WITH [[2, 2], [1], [1, 3], [], [1, 3, 0]] AS values UNWIND values AS value RETURN value, value < [1, 3] AS before, value >= [1, 3] AS after, value = [1, 3] AS same ORDER BY value"
+  - id: a_comprehension_comparing_the_lists_of_the_row
+    graph: |
+      CREATE (:P {name: 'p'})
+    cypher: "WITH [[2, 2], [1], [1, 3], []] AS values UNWIND values AS value RETURN value, [x IN values WHERE x < value] AS smaller, size([x IN values WHERE x > value]) AS larger ORDER BY value"

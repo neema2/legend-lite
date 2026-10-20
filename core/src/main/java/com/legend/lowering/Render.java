@@ -186,6 +186,7 @@ public final class Render {
             boolean renderTdsNull, String rowAlias, String headerSep,
             boolean trailingNewline) {
         List<OutputCol> cols = inner.outputs();
+        inner = withSortOutputs(inner);
         if (cols.size() != relCols.size()) {
             throw new IllegalStateException("toCSV: " + cols.size()
                     + " output columns vs " + relCols.size()
@@ -246,6 +247,7 @@ public final class Render {
     static SqlSelect csvWire(SqlSelect inner, List<Type.Column> relCols,
             String rowAlias) {
         List<OutputCol> cols = inner.outputs();
+        inner = withSortOutputs(inner);
         if (cols.size() != relCols.size()) {
             throw new IllegalStateException("csv wire: " + cols.size()
                     + " output columns vs " + relCols.size()
@@ -298,6 +300,7 @@ public final class Render {
      *  loud otherwise). */
     static SqlSelect jsonWireRows(SqlSelect inner, String rowAlias) {
         List<OutputCol> cols = inner.outputs();
+        inner = withSortOutputs(inner);
         List<SqlExpr> kv = new ArrayList<>(cols.size() * 2);
         for (OutputCol oc : cols) {
             kv.add(new SqlExpr.StringLit(oc.name()));
@@ -309,7 +312,8 @@ public final class Render {
         for (SqlSelect.SortKey k : inner.orderBy()) {
             String out = k.outputName() != null ? k.outputName()
                     : k.expr() instanceof SqlExpr.Column c ? c.name() : null;
-            OutputCol outCol = out == null ? null : cols.stream()
+            // the inner's own outputs, as the hoist's: a hidden sort column (withSortOutputs) is one, not one of cols
+            OutputCol outCol = out == null ? null : inner.outputs().stream()
                     .filter(oc -> oc.name().equals(out)).findFirst()
                     .orElse(null);
             if (outCol == null) {
@@ -333,6 +337,7 @@ public final class Render {
      *  pinned {@code []} wire). */
     static SqlSelect jsonWire(SqlSelect inner, String rowAlias) {
         List<OutputCol> cols = inner.outputs();
+        inner = withSortOutputs(inner);
         String aggAlias = rowAlias + "_a";
         List<SqlExpr> kv = new ArrayList<>(cols.size() * 2);
         for (OutputCol oc : cols) {
@@ -540,6 +545,7 @@ public final class Render {
     static SqlSelect tdsString(SqlSelect inner, List<Type.Column> relCols,
             String rowAlias) {
         List<OutputCol> cols = inner.outputs();
+        inner = withSortOutputs(inner);
         String aggAlias = rowAlias + "_a";
         if (cols.isEmpty()) {
             throw new IllegalStateException(
@@ -701,6 +707,41 @@ public final class Render {
         return new SqlExpr.ScalarSubquery(count);
     }
 
+    /** {@code inner} with every sort key among its outputs: a key the projection dropped ({@code SELECT a FROM
+     *  ... ORDER BY h}, legal SQL whose order the hoist above must carry from outside the row subselect: the
+     *  Cypher island's ORDER BY an expression it does not return, 2026-10-17) is projected as a hidden
+     *  {@code _sortN} column, which the hoist carries and the rows' rendering, built from the outputs read
+     *  before, never shows. The key's type is its expression's typed fact; an untyped key walls, as before. A
+     *  star frame (no projections) is left as it is. */
+    private static SqlSelect withSortOutputs(SqlSelect inner) {
+        if (inner.orderBy().isEmpty() || inner.projections().isEmpty()) {
+            return inner;
+        }
+        List<SqlSelect.Projection> ps = new ArrayList<>(inner.projections());
+        List<OutputCol> outs = new ArrayList<>(inner.outputs());
+        List<SqlSelect.SortKey> keys = new ArrayList<>();
+        int n = 0;
+        for (SqlSelect.SortKey k : inner.orderBy()) {
+            String out = k.outputName() != null ? k.outputName()
+                    : k.expr() instanceof SqlExpr.Column c ? c.name() : null;
+            if (out != null && inner.outputs().stream().anyMatch(oc -> oc.name().equals(out))) {
+                keys.add(k);
+                continue;
+            }
+            if (!(k.expr().type() instanceof com.legend.sql.TypeFact.Typed t)) {
+                throw new com.legend.error.NotImplementedException(
+                        "render over an ordered relation whose sort key is"
+                        + " not an output column and carries no type");
+            }
+            String name = "_sort" + n++;
+            OutputCol oc = new OutputCol(name, t.type(), t.nullable());
+            ps.add(new SqlSelect.Projection(k.expr(), name, oc));
+            outs.add(oc);
+            keys.add(new SqlSelect.SortKey(k.expr(), k.ascending(), k.nullOrder(), name));
+        }
+        return n == 0 ? inner : inner.withProjections(ps, outs).withOrderBy(keys);
+    }
+
     /** RESULT-ORDER hoist: an ordered inner select keeps its order
      *  INSIDE the aggregate; only plain output-column keys hoist —
      *  anything else walls loudly, never a silently unordered render.
@@ -715,7 +756,8 @@ public final class Render {
         for (SqlSelect.SortKey k : inner.orderBy()) {
             String out = k.outputName() != null ? k.outputName()
                     : k.expr() instanceof SqlExpr.Column c ? c.name() : null;
-            OutputCol src = out == null ? null : cols.stream()
+            // the inner's own outputs: a hidden sort column (withSortOutputs) is one, not one of cols
+            OutputCol src = out == null ? null : inner.outputs().stream()
                     .filter(oc -> oc.name().equals(out)).findFirst()
                     .orElse(null);
             if (src == null) {
@@ -811,6 +853,7 @@ public final class Render {
     public static SqlSelect pctTds(SqlSelect inner, List<Type.Column> typedCols,
             String rowAlias) {
         List<OutputCol> cols = inner.outputs();
+        inner = withSortOutputs(inner);
         java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
         for (Type.Column c : typedCols) {
             byName.put(c.name(), c);

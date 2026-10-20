@@ -1,0 +1,68 @@
+# The #Cypher{...}# island's pattern comprehensions read over rows (docs/CYPHER_STUDY_2026_10_15.md §12.72): the
+# pattern read as its own rows, re-anchored on the identities of the nodes it shares with the rows, each match's
+# value collected per row and joined back (the empty list where the pattern does not match); over a graph whose
+# navigations do not read the comprehension (a named path, a value outside the pattern, a bound end, more than one
+# hop, a variable-length relationship), over the graph's rows. Each case is judged by Neo4j's answer in
+# neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/patternlists/*'), keyed
+# lite/patternlists/<id>.
+tests:
+  - id: a_named_path_over_a_graph
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'}), (c:A {name: 'a3'})-[:T]->(:B {name: 'b3'})
+    cypher: "MATCH (a:A) RETURN a.name AS a, [p = (a)-[:T]->() | length(p)] AS ls ORDER BY a"
+  - id: the_path_itself
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})
+    cypher: "MATCH (a:A) RETURN a.name AS a, [p = (a)-[:T]->() | p] AS ps ORDER BY a"
+  - id: the_start_read_inside
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})
+    cypher: "MATCH (a:A) RETURN a.name AS a, [(a)-[:T]->(b) | a.name + b.name] AS ns ORDER BY a"
+  - id: after_a_with
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})
+    cypher: "MATCH (a:A) WITH a, 1 AS one RETURN a.name AS a, [(a)-[:T]->(b) | b.name] AS bs, one ORDER BY a"
+  - id: a_size_after_a_with
+    graph: |
+      CREATE (a:A {name: 'a1'}), (a)-[:T]->(:B {v: 1}), (a)-[:T]->(:B {v: 2}), (:A {name: 'a2'})
+    cypher: "MATCH (a:A) WITH a, 1 AS one RETURN a.name AS a, size([(a)-[:T]->() | 1]) AS n ORDER BY a"
+  - id: a_where_after_a_with
+    graph: |
+      CREATE (a:A {name: 'a1'}), (a)-[:T]->(:B {v: 1}), (a)-[:T]->(:B {v: 2}), (:A {name: 'a2'})
+    cypher: "MATCH (a:A) WITH a, 1 AS one RETURN a.name AS a, [(a)-[:T]->(b) WHERE b.v > 1 | b.v] AS vs ORDER BY a"
+  - id: both_ends_bound
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'}), (:B {name: 'b2'})
+    cypher: "MATCH (a:A), (b:B) RETURN a.name AS a, b.name AS b, [(a)-[:T]->(b) | 1] AS l ORDER BY a, b"
+  - id: in_a_where_over_rows
+    graph: |
+      CREATE (a:A {name: 'a1'}), (a)-[:T]->(:B {v: 1}), (a)-[:T]->(:B {v: 2}), (c:A {name: 'a2'}), (c)-[:T]->(:B {v: 3})
+    cypher: "MATCH (a:A) WITH a WHERE size([(a)-[:T]->() | 1]) > 1 RETURN a.name AS a"
+  - id: a_grouping_key
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (c:A {name: 'a2'})-[:T]->(:B {name: 'b2'})
+    cypher: "MATCH (a:A)-[:T]->(b) WITH [(a)-[:T]->(c) | c.name] AS cs, count(b) AS n RETURN cs, n ORDER BY n, cs[0]"
+  - id: a_node_inside
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(:B {name: 'b1'}), (:A {name: 'a2'})
+    cypher: "MATCH (a:A) WITH a RETURN a.name AS a, [(a)-[:T]->(b) | b] AS bs ORDER BY a"
+  - id: a_variable_length_size
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(b:A {name: 'a2'})-[:T]->(:A {name: 'a3'})
+    cypher: "MATCH (a:A) RETURN a.name AS a, size([p = (a)-[:T*]->() | p]) AS n ORDER BY a"
+  - id: two_hops
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(:B {name: 'b1'})-[:U]->(:C {name: 'c1'}), (:A {name: 'a2'})
+    cypher: "MATCH (a:A) RETURN a.name AS a, [(a)-[:T]->()-[:U]->(c) | c.name] AS cs ORDER BY a"
+  - id: from_a_null
+    graph: |
+      CREATE (a:A {name: 'a1'})-[:T]->(:B {name: 'b1'})
+    cypher: "OPTIONAL MATCH (a:A {name: 'zz'}) WITH a RETURN [(a)-[:T]->(b) | b.name] AS bs"
+  - id: in_order_by
+    graph: |
+      CREATE (a:A {name: 'a1'}), (a)-[:T]->(:B {v: 1}), (a)-[:T]->(:B {v: 2}), (c:A {name: 'a2'}), (c)-[:T]->(:B {v: 3})
+    cypher: "MATCH (a:A) WITH a RETURN a.name AS name ORDER BY size([(a)-[:T]->() | 1]) DESC"
+  - id: nothing_matches
+    graph: |
+      CREATE (:A {name: 'a1'}), (:B {name: 'b1'})
+    cypher: "MATCH (a:A) WITH a RETURN a.name AS a, [(a)-[:T]->(b) | b.name] AS bs"

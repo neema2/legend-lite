@@ -47,7 +47,7 @@ public final class CypherParity {
     public record Case(String file, String id, String query, List<String> setup, String paramsText,
             @com.legend.base.Nullable String version, CypherTck.@com.legend.base.Nullable Expect expect,
             @com.legend.base.Nullable String skip, @com.legend.base.Nullable String decision,
-            @com.legend.base.Nullable String expectText) {
+            @com.legend.base.Nullable String expectText, List<CypherTck.Procedure> procedures) {
 
         public String key() {
             return file + "/" + id;
@@ -63,16 +63,21 @@ public final class CypherParity {
         }
 
         public String sha() {
-            return CypherAnswers.sha(query, cypherVersion(), setup, paramsText, decision, expectText);
+            return CypherAnswers.sha(query, cypherVersion(), setup, paramsText, decision, expectText,
+                    CypherTck.Procedure.text(procedures));
         }
 
         /** The island as the lane runs it: the parameters bound into the query's text, the version named outside
          *  the query made its prefix. */
         public String island() {
-            String q = bindParameters(query, paramsText);
+            String q = bindParameters(implicitArguments(query), paramsText);
             if (version != null && !PREFIX.matcher(q).lookingAt()) {
                 q = "CYPHER " + version + " " + q;
             }
+            // the graph: the harness's DataSpace, named after the version prefix (the study's §12.45)
+            java.util.regex.Matcher m = PREFIX.matcher(q);
+            q = m.lookingAt() ? q.substring(0, m.end()) + " USE " + CypherGraph.DATASPACE + q.substring(m.end())
+                    : "USE " + CypherGraph.DATASPACE + " " + q;
             return "#Cypher{" + q + "}#";
         }
 
@@ -84,6 +89,21 @@ public final class CypherParity {
          *  TCK scenario's {@code name=value} lines, or a lite case's flow map in the value grammar, each
          *  {@code $name} replaced by its value's literal text -- the grammar's spelling of a list, map, string,
          *  number, boolean or null is Cypher's. The oracle passes the same values to Neo4j as parameters. */
+        /** {@code CALL test.my.proc} with no parentheses calls the procedure with its inputs' namesakes among the
+         *  query's parameters (Cypher's implicit arguments): spelled as the explicit call of those parameters,
+         *  which the binding below fills as it fills every parameter (the study's §12.60). */
+        private String implicitArguments(String query) {
+            for (CypherTck.Procedure p : procedures) {
+                // the standalone call alone (Cypher allows implicit arguments nowhere else: inside a query the
+                // island raises Neo4j's error)
+                if (!p.inputs().isEmpty() && query.strip().equals("CALL " + p.name())) {
+                    return "CALL " + p.name() + "(" + p.inputs().stream().map(i -> "$" + i.name())
+                            .collect(java.util.stream.Collectors.joining(", ")) + ")";
+                }
+            }
+            return query;
+        }
+
         static String bindParameters(String query, String paramsText) {
             if (paramsText == null || paramsText.isBlank()) {
                 return query;
@@ -118,7 +138,7 @@ public final class CypherParity {
         for (CypherTck.Scenario s : CypherTck.read(tckDir)) {
             int slash = s.key().lastIndexOf('/');
             out.add(new Case(s.key().substring(0, slash), s.key().substring(slash + 1), s.query(), s.setup(),
-                    s.paramsText(), null, s.expect(), s.skip(), null, null));
+                    s.paramsText(), null, s.expect(), s.skip(), null, null, s.procedures()));
         }
         out.addAll(liteCases(liteDir));
         return out;
@@ -159,9 +179,15 @@ public final class CypherParity {
                 } else if (!graph.isBlank()) {
                     setup.add(statement(graph));
                 }
+                // a lite case declaring procedures (the study's §12.60) is judged by its own expect block, as the
+                // TCK's are by theirs: Neo4j runs no procedure of the harness's
+                String procedures = item.get("procedures");
+                String expect = item.get("expect");
                 out.add(new Case(file, item.get("id"), item.getOrDefault("cypher", ""), setup,
-                        item.getOrDefault("params", ""), item.get("version"), null, item.get("skip"),
-                        item.get("decision"), item.get("expect")));
+                        item.getOrDefault("params", ""), item.get("version"),
+                        procedures != null && expect != null ? CypherTck.expectOf(expect) : null, item.get("skip"),
+                        item.get("decision"), expect,
+                        procedures == null ? List.of() : CypherTck.Procedure.parseAll(procedures)));
             }
         }
         return out;
@@ -346,7 +372,8 @@ public final class CypherParity {
             try {
                 lane.seed(inf.tables());
             } catch (Exception seeding) {
-                // the graph's tables could not be made: every case over it is an error of the harness, named
+                // the graph's tables could not be made: every case over it is an error of the harness, named (the
+                // harness's last column a dialect refused, TIMESTAMP_NS on a microsecond engine, went with W13 leg 6)
                 for (Case c : e.getValue()) {
                     outcomes.put(c.key(), new SqlParity.Outcome(SqlParity.Status.ERROR, "seeding: "
                             + oneLine(seeding)));
@@ -366,6 +393,9 @@ public final class CypherParity {
      *  against the rows its decision names. */
     public static SqlParity.Outcome outcome(Case c, CypherAnswers.Answer a, @com.legend.base.Nullable Decision decided,
             String model, Lane lane) {
+        if (!c.procedures().isEmpty()) {
+            return procedureOutcome(c, model + CypherGraph.procedures(c.procedures()), lane);
+        }
         ExecutionResult result;
         try {
             result = lane.run(model, c.island());
@@ -405,7 +435,7 @@ public final class CypherParity {
         for (var row : result.rows()) {
             List<CypherValues.Value> cells = new ArrayList<>();
             for (Object cell : row.values()) {
-                cells.add(CypherGraph.ownLabels(CypherValues.ofCell(cell)));
+                cells.add(CypherValues.ofCell(cell));
             }
             got.add(cells);
         }
@@ -429,6 +459,64 @@ public final class CypherParity {
 
     /** The outcome of a run that threw: refused by name, lite's compile error, or another error, each BOTH_ERROR
      *  where Neo4j errs too. */
+    /** A case declaring procedures (the study's §12.60): Neo4j runs none of the harness's, so the TCK's own
+     *  expectation judges (its rows, an empty result, or an error: any error of lite's but a refusal by name). */
+    private static SqlParity.Outcome procedureOutcome(Case c, String model, Lane lane) {
+        CypherTck.Expect expect = c.expect();
+        if (expect == null) {
+            return new SqlParity.Outcome(SqlParity.Status.ERROR, "a procedure case with no expectation to judge by");
+        }
+        ExecutionResult result;
+        try {
+            result = lane.run(model, c.island());
+        } catch (Exception | StackOverflowError e) {
+            boolean refusal = e instanceof com.legend.error.NotImplementedException;
+            for (Throwable t = e; t != null; t = t.getCause()) {
+                refusal |= t instanceof com.legend.sql.dialect.DialectCapability;
+            }
+            if (refusal) {
+                return new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
+            }
+            if (expect instanceof CypherTck.ErrorExpected err) {
+                return new SqlParity.Outcome(SqlParity.Status.PASS, "the TCK expects " + err.type() + " ("
+                        + err.detail() + "); lite: " + oneLine(e));
+            }
+            return new SqlParity.Outcome(SqlParity.Status.ERROR, oneLine(e));
+        }
+        SqlParity.Grid actual = SqlParity.grid(result);
+        List<List<CypherValues.Value>> got = new ArrayList<>();
+        for (var row : result.rows()) {
+            List<CypherValues.Value> cells = new ArrayList<>();
+            for (Object cell : row.values()) {
+                cells.add(CypherValues.ofCell(cell));
+            }
+            got.add(cells);
+        }
+        return switch (expect) {
+            case CypherTck.ErrorExpected err -> new SqlParity.Outcome(SqlParity.Status.FAIL, "the TCK expects "
+                    + err.type() + " (" + err.detail() + ") and lite answered " + got.size() + " rows");
+            case CypherTck.EmptyExpected ignored -> got.isEmpty()
+                    ? new SqlParity.Outcome(SqlParity.Status.PASS, "")
+                    : new SqlParity.Outcome(SqlParity.Status.FAIL, "the TCK expects no row, lite answered "
+                            + got.size());
+            case CypherTck.RowsExpected r -> {
+                if (!r.columns().equals(actual.columns())) {
+                    yield new SqlParity.Outcome(SqlParity.Status.FAIL, "columns: the TCK " + r.columns() + ", lite "
+                            + actual.columns());
+                }
+                List<List<CypherValues.Value>> expected = new ArrayList<>();
+                for (List<String> row : r.rows()) {
+                    expected.add(CypherValues.row(row));
+                }
+                yield CypherValues.sameRows(expected, got, r.ordered(), r.ignoreListOrder())
+                        ? new SqlParity.Outcome(SqlParity.Status.PASS, "")
+                        : new SqlParity.Outcome(SqlParity.Status.FAIL, "the TCK " + expected.size() + " rows "
+                                + firstRows(expected) + (r.ordered() ? " in order" : " in any order") + ", lite "
+                                + got.size() + " rows " + firstRows(got));
+            }
+        };
+    }
+
     private static SqlParity.Outcome failed(Throwable e, CypherAnswers.Answer a) {
         // a dialect's refusal by name (DialectCapability, at render: a microsecond engine asked for nanoseconds)
         // is a refusal, wherever it sits in the cause chain
@@ -443,8 +531,11 @@ public final class CypherParity {
                     : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
         }
         if (e instanceof com.legend.compiler.spec.TypeInferenceException) {
-            // C4 (docs/SEMANTICS_REGISTER.md S58): a label, property or relationship type the model does not declare
-            // is lite's compile error where Neo4j answers no rows or null -- a decided refusal, by name
+            // C4 (docs/SEMANTICS_REGISTER.md S58): over a CLOSED graph a label, property or relationship type the
+            // model does not declare is lite's compile error where Neo4j answers no rows or null -- a decided
+            // refusal, by name. The harness's graphs are OPEN (the island's USE names its DataSpace, marked
+            // <<graph::graph.Open>>, the study's §12.45), so the lanes read Neo4j's answers; the classification
+            // stays for a reading the open graph does not cover yet
             boolean c4 = String.valueOf(e.getMessage()).contains("the graph is the model");
             return a.error() != null ? new SqlParity.Outcome(SqlParity.Status.BOTH_ERROR, oneLine(e))
                     : new SqlParity.Outcome(c4 ? SqlParity.Status.REFUSED : SqlParity.Status.ERROR, oneLine(e));

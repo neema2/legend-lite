@@ -644,7 +644,7 @@ public final class SchemaGenerator {
     }
 
     /** The properties {@code min} and {@code max} fold: numbers, dates and strings (a string's by code point, the
-     *  collection's own {@code min}/{@code max}: register S91). */
+     *  collection's own {@code min}/{@code max}: register S104). */
     private List<Prop> comparableProps(ClassInfo c) {
         return c.props().stream().filter(p -> p.kind() == Kind.SCALAR && !p.toMany() && p.parameters().isEmpty()
                 && (isNumeric(p) || DATE.equals(scalarOf(p)) || DATE_TIME.equals(scalarOf(p))

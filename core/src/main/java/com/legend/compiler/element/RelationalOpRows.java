@@ -180,6 +180,8 @@ public final class RelationalOpRows {
             case RelationalDataType.Bit ignored -> "Bit";
             case RelationalDataType.Timestamp ignored -> "Timestamp";
             case RelationalDataType.Date_ ignored -> "Date";
+            case RelationalDataType.Time ignored -> "Time";
+            case RelationalDataType.TimestampNs ignored -> "TimestampNs";
             case RelationalDataType.Distinct ignored -> "Distinct";
             case RelationalDataType.Other ignored -> "Other";
             case RelationalDataType.SemiStructured ignored -> "SemiStructured";

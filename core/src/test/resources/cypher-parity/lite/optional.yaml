@@ -2,7 +2,8 @@
 # graph in hand from a bound node with optional hops (a node the hop finds none of is null, its properties null),
 # a to-many optional hop reading one row per leaf and one row for a root without any (lite's outer join), a type
 # the model declares nowhere binding an absent node. Each case is judged by Neo4j's answer in neo4j-answers.jsonl
-# (tools/neo4j-oracle/snap.sh --write --only 'lite/optional/*'), keyed lite/optional/<id>.
+# (tools/neo4j-oracle/snap.sh --write --only 'lite/optional/*'), keyed lite/optional/<id>. A first OPTIONAL MATCH
+# that finds nothing is one row of nulls (§12.72).
 tests:
   - id: optional_to_one_hop
     graph: |
@@ -39,7 +40,7 @@ tests:
   - id: optional_to_many_node_as_value
     graph: |
       CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (b2:B {name: 'b2'}), (a1)-[:T]->(b1), (a1)-[:T]->(b2)
-    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) RETURN a.name AS a, b ORDER BY a"
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) RETURN a.name AS a, b ORDER BY a, b.name"
   - id: optional_through_with
     graph: |
       CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1', x: 1}), (a1)-[:T]->(b1)
@@ -52,3 +53,31 @@ tests:
     graph: |
       CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1', x: 1}), (a1)-[:T]->(b1)
     cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[:T]->(b:B) WHERE b.x > 0 RETURN a.name AS a"
+  - id: optional_first_finding_nothing
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (b1:B {name: 'b1'}), (a1)-[:T]->(b1)
+    cypher: "OPTIONAL MATCH (a:A {name: 'zz'}) RETURN a.name AS n, a IS NULL AS missing"
+  - id: optional_first_finding_one
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (a2:A {name: 'a2'}), (b1:B {name: 'b1'}), (a1)-[:T]->(b1)
+    cypher: "OPTIONAL MATCH (a:A) WHERE a.name = 'a1' RETURN a.name AS n"
+  - id: optional_first_counted
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (b1:B {name: 'b1'}), (a1)-[:T]->(b1)
+    cypher: "OPTIONAL MATCH (a:A) WHERE a.name = 'zz' RETURN count(a) AS n, count(*) AS c"
+  - id: optional_first_hop_finding_nothing
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (b1:B {name: 'b1'}), (a1)-[:T]->(b1)
+    cypher: "OPTIONAL MATCH (a:A)-[:T]->(b:B {name: 'zz'}) RETURN a.name AS a, b.name AS b"
+  - id: optional_first_then_with
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (b1:B {name: 'b1'}), (a1)-[:T]->(b1)
+    cypher: "OPTIONAL MATCH (a:A {name: 'zz'}) WITH a OPTIONAL MATCH (a)-[:T]->(b) RETURN a.name AS a, b.name AS b"
+  - id: optional_first_keys_of_nothing
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (b1:B {name: 'b1'}), (a1)-[:T]->(b1)
+    cypher: "OPTIONAL MATCH (a:A {name: 'zz'}) RETURN keys(a) AS k"
+  - id: optional_first_keys_of_a_relationship
+    graph: |
+      CREATE (a1:A {name: 'a1'}), (b1:B {name: 'b1'}), (a1)-[:T]->(b1)
+    cypher: "OPTIONAL MATCH (a:A)-[r:T]->(b:B {name: 'zz'}) RETURN keys(r) AS k, r IS NULL AS missing"

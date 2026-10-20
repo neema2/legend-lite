@@ -25,8 +25,8 @@ cases:
     cypher: "UNWIND [1, 2, 3] AS x WITH collect(x) AS xs UNWIND xs AS y RETURN y ORDER BY y"
   - id: size_of_a_collected_list
     cypher: "UNWIND [1, 2, 3] AS x RETURN size(collect(x)) AS n"
-  - id: collect_distinct_is_refused
-    cypher: "UNWIND [1, 1, 2] AS x RETURN collect(DISTINCT x) AS xs"
+  - id: collect_distinct_counts_the_distinct_values
+    cypher: "UNWIND [1, 1, 2] AS x RETURN size(collect(DISTINCT x)) AS n, size(collect(x)) AS m"
   - id: collect_with_a_count_beside
     graph: |
       CREATE (:P {name: 'a'}), (:P {name: 'b'})

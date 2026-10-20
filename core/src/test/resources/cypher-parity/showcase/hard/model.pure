@@ -1,10 +1,29 @@
 ###Pure
-Class g::Duration
+Class g::values::Duration
 {
     months: Integer[1];
     days: Integer[1];
     seconds: Integer[1];
     nanoseconds: Integer[1];
+}
+Class g::values::ZonedTime
+{
+    instant: DateTime[1];
+    offsetSeconds: Integer[1];
+}
+Class g::values::ZonedDateTime
+{
+    instant: DateTime[1];
+    offsetSeconds: Integer[1];
+}
+Class g::values::LocalDateTime
+{
+    date: StrictDate[1];
+    nanosOfDay: Integer[1];
+}
+Class g::values::LocalTime
+{
+    nanosOfDay: Integer[1];
 }
 Class g::City
 {
@@ -20,6 +39,10 @@ Class g::Person
     active: Boolean[0..1];
     age: Integer[0..1];
     name: String[0..1];
+}
+Profile graph::graph
+{
+    stereotypes: [Anonymous, Edge, Open, from, to, type, nanoseconds, timeOfDay];
 }
 Association g::R_HQ
 {
@@ -64,3 +87,16 @@ Mapping g::Map
     g::R_HQ: Relational { AssociationMapping ( HQ: [g::DB]@HQ, HQ_in: [g::DB]@HQ ) }
     g::R_WORKS_AT: Relational { AssociationMapping ( WORKS_AT: [g::DB]@WORKS_AT, WORKS_AT_in: [g::DB]@WORKS_AT ) }
 )
+###DataSpace
+DataSpace <<graph::graph.Open>> g::Graph
+{
+  executionContexts:
+  [
+    {
+      name: 'default';
+      mapping: g::Map;
+    }
+  ];
+  defaultExecutionContext: 'default';
+  elements: [ g::City, g::Firm, g::Person, g::values::Duration, g::values::LocalDateTime, g::values::LocalTime, g::values::ZonedDateTime, g::values::ZonedTime ];
+}

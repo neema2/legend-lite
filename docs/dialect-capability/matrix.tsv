@@ -111,6 +111,7 @@ H2	H2	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spell
 H2	H2	call	MD5	emulated	digest: MD5		1
 H2	H2	call	SHA1	emulated	digest: SHA-1		1
 H2	H2	call	SHA256	emulated	digest: SHA-256		1
+H2	H2	call	RANDOM	spelled	RAND		0
 H2	H2	call	EXTRACT	emulated	datePart, part: extract(… FROM …)		24
 H2	H2	call	TODAY	spelled	current_date		0
 H2	H2	call	NOW	spelled	now		0
@@ -330,6 +331,7 @@ H2Modern	-	call	HASH	refused	signed 64-bit hashCode reached a dialect without a 
 H2Modern	-	call	MD5	emulated	digest: MD5	as H2	-
 H2Modern	-	call	SHA1	emulated	digest: SHA-1	as H2	-
 H2Modern	-	call	SHA256	emulated	digest: SHA-256	as H2	-
+H2Modern	-	call	RANDOM	spelled	RAND	as H2	-
 H2Modern	-	call	EXTRACT	emulated	datePart, part: extract(… FROM …)	as H2	-
 H2Modern	-	call	TODAY	spelled	current_date	as H2	-
 H2Modern	-	call	NOW	spelled	now	as H2	-
@@ -538,7 +540,7 @@ Postgres	Postgres	call	TRANSLATE	spelled	translate		0
 Postgres	Postgres	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 Postgres	Postgres	call	REVERSE_STRING	spelled	reverse		2
 Postgres	Postgres	call	ASCII_CODE	spelled	ascii		10
-Postgres	Postgres	call	CHR	spelled	chr		9
+Postgres	Postgres	call	CHR	emulated	chr(CAST(… AS INTEGER))		9
 Postgres	Postgres	call	UC_FIRST	emulated	firstCharCased: upper		5
 Postgres	Postgres	call	LC_FIRST	emulated	firstCharCased: lower		5
 Postgres	Postgres	call	ENCODE_BASE64	emulated	replace(encode(convert_to(…, 'UTF8'), 'base64'), chr(10), '')		3
@@ -549,6 +551,7 @@ Postgres	Postgres	call	HASH	emulated	hashSigned		5
 Postgres	Postgres	call	MD5	spelled	md5		1
 Postgres	Postgres	call	SHA1	refused	an extension function (pgcrypto) reached Postgres:		1
 Postgres	Postgres	call	SHA256	emulated	encode(sha256(convert_to(…, 'UTF8')), 'hex')		1
+Postgres	Postgres	call	RANDOM	spelled	random		0
 Postgres	Postgres	call	EXTRACT	emulated	extractArm		24
 Postgres	Postgres	call	TODAY	spelled	current_date		0
 Postgres	Postgres	call	NOW	emulated	(now() AT TIME ZONE 'UTC')		0
@@ -580,7 +583,7 @@ Postgres	Postgres	call	DECODE_BASE64	emulated	convert_from(decode(…, 'base64')
 Postgres	Postgres	call	CURRENT_USER_FN	spelled	current_user		2
 Postgres	Postgres	call	LIST_LENGTH	emulated	listOf: cardinality(…)		27
 Postgres	Postgres	call	LIST_ZIP	refused	collections over the jsonb carrier are leg P4 reached Postgres:		0
-Postgres	Postgres	call	LIST_DISTINCT	emulated	(CASE WHEN … IS NULL THEN NULL ELSE ARRAY(SELECT FROM unnest(…) WITH ORDINALI...	via Postgres.listCall	0
+Postgres	Postgres	call	LIST_DISTINCT	emulated	unnest: (CASE WHEN … IS NULL THEN NULL ELSE ARRAY(SELECT FROM … WITH ORDINALITY AS __...	via Postgres.listCall	0
 Postgres	Postgres	call	LIST_APPEND	emulated	encode: array_append(…, …)	via Postgres.listCall	8
 Postgres	Postgres	call	LIST_SUM	emulated	overReduce: …sum()	via Postgres.listCall	0
 Postgres	Postgres	call	LIST_MIN	emulated	overReduce: …bool_and(min()	via Postgres.listCall	58
@@ -768,6 +771,7 @@ Snowflake	Snowflake	call	HASH	emulated	hashSigned		5
 Snowflake	Snowflake	call	MD5	spelled	md5		1
 Snowflake	Snowflake	call	SHA1	spelled	sha1		1
 Snowflake	Snowflake	call	SHA256	emulated	SHA2(…, 256)		1
+Snowflake	Snowflake	call	RANDOM	emulated	(UNIFORM(0, 9007199254740991, RANDOM()) / 9007199254740992::FLOAT)		0
 Snowflake	Snowflake	call	EXTRACT	emulated	extract		24
 Snowflake	Snowflake	call	TODAY	spelled	current_date		0
 Snowflake	Snowflake	call	NOW	emulated	CAST(CURRENT_TIMESTAMP() AS TIMESTAMP_NTZ)		0
@@ -987,6 +991,7 @@ Trino	Trino	call	HASH	emulated	hashSigned		5
 Trino	Trino	call	MD5	emulated	lower(to_hex(md5(to_utf8(…))))		1
 Trino	Trino	call	SHA1	emulated	lower(to_hex(sha1(to_utf8(…))))		1
 Trino	Trino	call	SHA256	emulated	lower(to_hex(sha256(to_utf8(…))))		1
+Trino	Trino	call	RANDOM	spelled	random		0
 Trino	Trino	call	EXTRACT	emulated	extract		24
 Trino	Trino	call	TODAY	spelled	current_date		0
 Trino	Trino	call	NOW	emulated	CAST(current_timestamp AS TIMESTAMP(6))		0
@@ -1206,6 +1211,7 @@ BigQuery	BigQuery	call	HASH	emulated	hashSigned		5
 BigQuery	BigQuery	call	MD5	emulated	asText: TO_HEX(MD5(…))		1
 BigQuery	BigQuery	call	SHA1	emulated	asText: TO_HEX(SHA1(…))		1
 BigQuery	BigQuery	call	SHA256	emulated	asText: TO_HEX(SHA256(…))		1
+BigQuery	BigQuery	call	RANDOM	spelled	RAND		0
 BigQuery	BigQuery	call	EXTRACT	emulated	extract		24
 BigQuery	BigQuery	call	TODAY	spelled	CURRENT_DATE		0
 BigQuery	BigQuery	call	NOW	emulated	typeOf: CURRENT_TIMESTAMP()CURRENT_DATETIME()		0
@@ -1425,6 +1431,7 @@ Databricks	Databricks	call	HASH	emulated	hashSigned		5
 Databricks	Databricks	call	MD5	spelled	md5		1
 Databricks	Databricks	call	SHA1	spelled	sha1		1
 Databricks	Databricks	call	SHA256	emulated	sha2(…, 256)		1
+Databricks	Databricks	call	RANDOM	spelled	rand		0
 Databricks	Databricks	call	EXTRACT	emulated	extract		24
 Databricks	Databricks	call	TODAY	spelled	current_date		0
 Databricks	Databricks	call	NOW	spelled	current_timestamp		0
@@ -1633,7 +1640,7 @@ DuckDb	DuckDB	call	TRANSLATE	spelled	translate		0
 DuckDb	DuckDB	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 DuckDb	DuckDB	call	REVERSE_STRING	spelled	reverse		2
 DuckDb	DuckDB	call	ASCII_CODE	spelled	ascii		10
-DuckDb	DuckDB	call	CHR	spelled	chr		9
+DuckDb	DuckDB	call	CHR	emulated	chr(CAST(… AS INTEGER))		9
 DuckDb	DuckDB	call	UC_FIRST	emulated	firstCharCased: upper		5
 DuckDb	DuckDB	call	LC_FIRST	emulated	firstCharCased: lower		5
 DuckDb	DuckDB	call	ENCODE_BASE64	emulated	encodeBase64		3
@@ -1644,6 +1651,7 @@ DuckDb	DuckDB	call	HASH	emulated	hashSigned		5
 DuckDb	DuckDB	call	MD5	spelled	md5		1
 DuckDb	DuckDB	call	SHA1	spelled	sha1		1
 DuckDb	DuckDB	call	SHA256	spelled	sha256		1
+DuckDb	DuckDB	call	RANDOM	spelled	random		0
 DuckDb	DuckDB	call	EXTRACT	emulated	stringLit, datePart, part: date_part(…, …)		24
 DuckDb	DuckDB	call	TODAY	spelled	current_date		0
 DuckDb	DuckDB	call	NOW	emulated	CAST(now() AS TIMESTAMP)		0
@@ -1863,6 +1871,7 @@ ClickHouse	ClickHouse	call	HASH	emulated	hashSigned		5
 ClickHouse	ClickHouse	call	MD5	emulated	lower(hex(MD5(…)))		1
 ClickHouse	ClickHouse	call	SHA1	emulated	lower(hex(SHA1(…)))		1
 ClickHouse	ClickHouse	call	SHA256	emulated	lower(hex(SHA256(…)))		1
+ClickHouse	ClickHouse	call	RANDOM	spelled	randCanonical		0
 ClickHouse	ClickHouse	call	EXTRACT	emulated	extract	via ClickHouse.temporal	24
 ClickHouse	ClickHouse	call	TODAY	refused	today() reached ClickHouse, which has no bare current_date		0
 ClickHouse	ClickHouse	call	NOW	emulated	now64(6, 'UTC')	via ClickHouse.temporal	0
@@ -2082,6 +2091,7 @@ SQLite	SQLite	call	HASH	refused	hashCode reached SQLite, which has no hash funct
 SQLite	SQLite	call	MD5	refused	SQLite has no digest function reached SQLite:		1
 SQLite	SQLite	call	SHA1	refused	SQLite has no digest function reached SQLite:		1
 SQLite	SQLite	call	SHA256	refused	SQLite has no digest function reached SQLite:		1
+SQLite	SQLite	call	RANDOM	emulated	((random() & 9007199254740991) / 9007199254740992.0)		0
 SQLite	SQLite	call	EXTRACT	emulated	extract		24
 SQLite	SQLite	call	TODAY	emulated	date('now')		0
 SQLite	SQLite	call	NOW	emulated	strftime('%Y-%m-%d %H:%M:%f', 'now')		0
@@ -2301,6 +2311,7 @@ MariaDb	MariaDB	call	HASH	emulated	hashSigned		5
 MariaDb	MariaDB	call	MD5	spelled	MD5		1
 MariaDb	MariaDB	call	SHA1	spelled	SHA1		1
 MariaDb	MariaDB	call	SHA256	emulated	SHA2(…, 256)		1
+MariaDb	MariaDB	call	RANDOM	spelled	RAND		0
 MariaDb	MariaDB	call	EXTRACT	emulated	extract		24
 MariaDb	MariaDB	call	TODAY	spelled	UTC_DATE		0
 MariaDb	MariaDB	call	NOW	emulated	UTC_TIMESTAMP(6)		0
@@ -2520,6 +2531,7 @@ MySql	MySQL	call	HASH	emulated	hashSigned	as MariaDb	5
 MySql	MySQL	call	MD5	spelled	MD5	as MariaDb	1
 MySql	MySQL	call	SHA1	spelled	SHA1	as MariaDb	1
 MySql	MySQL	call	SHA256	emulated	SHA2(…, 256)	as MariaDb	1
+MySql	MySQL	call	RANDOM	spelled	RAND	as MariaDb	0
 MySql	MySQL	call	EXTRACT	emulated	extract	as MariaDb	24
 MySql	MySQL	call	TODAY	spelled	UTC_DATE	as MariaDb	0
 MySql	MySQL	call	NOW	emulated	UTC_TIMESTAMP(6)	as MariaDb	0
@@ -2739,6 +2751,7 @@ EngineStyleH2	-	call	HASH	refused	signed 64-bit hashCode reached a dialect witho
 EngineStyleH2	-	call	MD5	emulated	digest: MD5		-
 EngineStyleH2	-	call	SHA1	emulated	digest: SHA-1		-
 EngineStyleH2	-	call	SHA256	emulated	digest: SHA-256		-
+EngineStyleH2	-	call	RANDOM	spelled	rand		-
 EngineStyleH2	-	call	EXTRACT	emulated	extractArm		-
 EngineStyleH2	-	call	TODAY	emulated	cast(now() as date)		-
 EngineStyleH2	-	call	NOW	spelled	now		-
@@ -2958,6 +2971,7 @@ EngineStyleDB2	-	call	HASH	refused	signed 64-bit hashCode reached a dialect with
 EngineStyleDB2	-	call	MD5	emulated	digest: MD5	as EngineStyleH2	-
 EngineStyleDB2	-	call	SHA1	emulated	digest: SHA-1	as EngineStyleH2	-
 EngineStyleDB2	-	call	SHA256	emulated	digest: SHA-256	as EngineStyleH2	-
+EngineStyleDB2	-	call	RANDOM	spelled	rand	as EngineStyleH2	-
 EngineStyleDB2	-	call	EXTRACT	emulated	extract		-
 EngineStyleDB2	-	call	TODAY	emulated	date(current date)		-
 EngineStyleDB2	-	call	NOW	spelled	now	as EngineStyleH2	-
@@ -3177,6 +3191,7 @@ EngineStyleComposite	-	call	HASH	refused	signed 64-bit hashCode reached a dialec
 EngineStyleComposite	-	call	MD5	emulated	digest: MD5	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	SHA1	emulated	digest: SHA-1	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	SHA256	emulated	digest: SHA-256	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	RANDOM	spelled	rand	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	EXTRACT	emulated	extract	as EngineStyleDB2	-
 EngineStyleComposite	-	call	TODAY	emulated	date(current date)	as EngineStyleDB2	-
 EngineStyleComposite	-	call	NOW	spelled	now	as EngineStyleDB2, as EngineStyleH2	-

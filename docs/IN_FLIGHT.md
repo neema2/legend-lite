@@ -1933,6 +1933,55 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
       order rides alone, as before the landing: carried, the relational corpus's ordered compare of
       testRenameColumnsAfterGroupBy moved), so on a database that does not keep a subselect's order a later LIMIT
       may keep other rows.
+- **Announced 2026-10-17: landing 5's cross-area edits** (`claude/iq-island-5`; one PR and one CI run after review,
+  the user's merge). The corpus lane was rebuilt (the session scratchpad that held it was wiped; the private repo
+  neema2/iq-sql-research's `corpus-lane/` keeps its scripts) and its refusals the live IQ 17.1 answers were worked
+  top-down; each edit is judged by both `iq-parity` lanes, both `sql-parity` lanes and the corpus judge:
+  - **An integer quotient, a lite native.** `builtin/Pure.java`: `meta::legend::lite::quotient(Integer[1],
+    Integer[1]):Integer[1]` (`INTERNAL_DESUGAR` 21 to 22, `NOT_UPSTREAM` 48 to 49, both with dated notes; census row in
+    `docs/LITE_INVENTION_CENSUS.md`); `lowering/Scalars.java`: its rule, MIR's `INT_DIVIDE` with rem's zero-divisor
+    raise; `protocol/sql/SqlToPure.java`: `wholeQuotient`, used where both operands are integers (the function-FQN
+    literal ratchet 324 to 325, the Cypher translator's precedent). The Float estimate it replaces read each operand
+    about fourteen times.
+  - `sql/dialect/StringCountsAsInt.java` (new, Postgres): a string function's 64-bit count cast to its 32-bit integer.
+  - `sql/dialect/OuterJoinSubqueryFilters.java` (new, DuckDB): a LEFT JOIN condition's scalar subquery of the
+    null-supplying side filters that side first, which DuckDB cannot plan otherwise.
+  - `sql/dialect/ConstantKeysAsExpressions.java`: on DuckDB's GROUP BY integers too (`groupByOnly`), and a NULL key
+    grouped by as an integer's NULL.
+  - `protocol/sql/SqlToPure.java`, also: `*` in a grouped query shows its group keys; a scalar subquery a select item
+    reads on every path is computed once, a column before the item (`Output.pre`, in the item's phase), where it was
+    written once per check of each checked operation around it.
+  - Later the same day (follow-on branch `claude/iq-island-5-next`, the same landing):
+    - `lowering/Fold.java`, `lowering/Lowerer.java`: a large computed column that later columns read twice is written
+      once in its own select (`Fold.rereadsLarge`; removed 2026-10-18 in the landing's review: main's `Fold.Budget`
+      does it since the merge, and the lowering is main's again).
+    - `protocol/sql/SqlToPure.java`:
+      - an item past the size bound computes its long operands once, a column before it
+        (`SqlTranslationException.pastSizeBound`);
+      - a dialect's group guard (`Aggregation.guard`), each grouping's own;
+      - `Scope.enclosing`, a window's correlated-reference check that no longer asks a grouped scope to resolve a
+        column that is no group key;
+      - `SELECT DISTINCT t.*` ordered by a column the `*` shows;
+      - joins read by `InputDialect.joinType`.
+    - `protocol/sql/InputDialect.java`: `joinType`, a dialect's reading of an outer join as the inner one it is (the
+      IQ island's, under a WHERE that rejects the null-supplying side's NULLs).
+    - `protocol/sql/InputDialect.java`, also: `Problem.NESTED_AGGREGATE`, whose wording is the dialect's (Postgres's
+      unchanged; the IQ island's its -156); the shared translator's seven nested-aggregate refusals read it.
+    - `protocol/sql/InputDialect.java`, `protocol/sql/SqlToPure.java`: `translated()`, called once a statement is
+      translated, where a dialect raises an error it held while translating (the IQ island's -1001013 for a string
+      compared with a number, which IQ raises after any -157 of the statement and after a missing column's -143);
+      and `failed(e)`, the error to raise when a statement fails to translate (the IQ island's held placement error,
+      which comes after the statement's names, grouping and functions).
+    - `core/BUILD.bazel`: `//core:iq_parity_test` and `//core:iq_parity_postgres_test` sized `large`. The first ran 43 s
+      alone but past `medium`'s 300 s in `//gates:local`.
+  - 2026-10-18, the landing's review and gate (the user's request: the flaky case fixed to be deterministic):
+    - `cypher-parity/lite/grouping.yaml`: `with_distinct_node_then_counted` sorts before its collect (`WITH DISTINCT a
+      ORDER BY a.name`). A collect's list has no order of its own; DuckDB's came back either way over the DISTINCT
+      (two passes and two failures on one head). Re-snapped from Neo4j 2026.09.0 (`[2, ['a', 'c']]`), the other 17
+      grouping answers reproduced unchanged first.
+    - `protocol/sql/PostgresOperators.java`: Postgres's integer division keeps its exact estimate (Snowflake's
+      INT_DIVIDE rounds to six places before it cuts); `sql/dialect/ConstantKeysAsExpressions.java` names its database.
+
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
   - **The compiler's files** (one call site, and the island's read of the model and the scope):
@@ -2344,6 +2393,50 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   against its profile (`<<graph.Edgee>>`, undeclared, compiles with zero errors; legend-engine refuses it: "Can't
   find stereotype 'Edgee' in profile 'graph'"), and `docs/LENIENCY_CATALOG.md` does not list the leniency. The
   compiler line's; this line validates the graph profile's own references in its reader (PR3).
+- **Announced here as landed, 2026-10-17 and 2026-10-18 (the TCK-to-zero program, `docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md`;
+  each landing's record is its GATES entry, the forty-second to the eighty-ninth): the other lines' files this line touched** — the
+  dialects: `sql/dialect/Postgres.java` (the orderability key, the list encodings, the W7 casts, a `concat` of more than
+  100 arguments nested, the exact double-precision `REM`, §12.90), `AnsiSqlRenderer.java` (`maxFunctionArguments`),
+  `DuckDb.java`, `CarrierStrategies.java`, `SqlWriter.java`, and every dialect for `random()` (W3) and the `TIME` and
+  `TIMESTAMP_NS` column types' DDL (W5); the MIR (`sql/SqlFn.java`, `SqlTyping.java`, `SqlExpr.java`, `SqlDdl.java`);
+  the lowering (`Scalars.java`, `Lowerer.java`, `MatchFold.java` (an ISO year of four digits), `Fold.java`,
+  `Render.java`, `ListEncodings.java`, `CastPolicy.java`, `CollectionLanes.java`, `Aggregates.java`); the natives
+  (`builtin/Pure.java`: `random`, `recurse`, the governance ceiling moved with dated comments; `NativeFn.java`,
+  `SystemMetamodel.java`, `platform/CoreFn.java`); the compiler (`compiler/spec/RecurseChecker.java`, `Typer.java`,
+  `TdsChecker.java`, `CastChecker.java`, `typed/TypedRecurse.java`; `compiler/element/StoreCompiler.java`,
+  `GraphEdges.java`, `RelationalOpRows.java`, `type/PlatformTypes.java`; `compiler/RelationalKinds.java`); the resolver
+  (`resolver/StoreResolver.java`); the grammar and model (`parser/DatabaseProtocolParser.java`,
+  `model/RelationalDataType.java`, `model/FromProtocol.java`, `protocol/DatabaseComposer.java`); the plan and
+  execution (`plan/PlanText.java`, `plan/PreciseTypes.java`, `StatementExecutor.java`, `exec/Executor.java`,
+  `setup/Ddl.java`, `testdatagen/TestDataGenerator.java`). **Not touched since 2026-10-17: `protocol/sql/`** (no edit to
+  `SqlToPure.java` or `InputDialect.java`; the island implements no `InputDialect` and calls no `postgresName`, so
+  nothing of it extends what the ninth line's D11 moves; told to the ninth line, 2026-10-18). The lanes: DuckDB and
+  Postgres the same census (PASS 3976 of 5041), the TCK at 3597 of 3880 on both; left the write clauses, 3 setups Neo4j
+  refuses and 2 years past every database's dates. Next on this line: one PR of the branch (origin/main merged), then
+  the write clauses.
+  Later, 2026-10-18: the 3 setups were the oracle's, not Neo4j's (it ran the TCK's openCypher 9 setups under Cypher 25,
+  which narrows `CREATE`; a setup now runs under `CYPHER 5`, `tools/neo4j-oracle/snap.py`): all three pass on both
+  lanes, PASS 3979 of 5041 on both, the TCK at 3600 of 3880. Left outside the write clauses: the 2 signed years.
+- **Announced here as landed, 2026-10-18 (the independent review of the branch before its PR, the study's §12.93;
+  the user: "Fix them before PR"): the other lines' files these fixes touched** — `compiler/spec/UserCallInliner.java`
+  (a bound `random()` or `generateGuid()` read twice, or once per row, is refused by name: the substitution writes the
+  term at each read and the database draws at each place; a call whose parameter binds one stands, as a recursive
+  call does), `sql/dialect/Postgres.java` (the exact float `REM` written inline, its NULL arm, so it runs under a
+  grouped computed key: a scalar subquery cannot read an ungrouped column), `H2.java` (`TIME(9)`: H2's `TIME` keeps no
+  fraction of a second, measured 2.1.214), `SQLite.java` and `Snowflake.java` (`random()` in `[0, 1)`: SQLite's
+  shifted formula answered exactly 1.0 within 1024 of the top, measured; Snowflake's `UNIFORM` is inclusive),
+  `lowering/Render.java` (the streamed JSON rows carry a hidden sort key, as the snapshot's hoist does),
+  `lowering/Scalars.java` and `MatchFold.java` (a partial date in date arithmetic written with a year of four digits),
+  `resolver/StoreResolver.java` (the to-many `elementId` lambda typed by its function type), `model/RelationalDataType.java`
+  (`fromName` reads `TIMESTAMP_NS`), `compiler/element/GraphEdges.java` (the exact profile check kept, its reason
+  written). `docs/dialect-capability/` regenerated.
+- **Found by this line in other lines' code, 2026-10-18 (the database owner's):** Postgres has no year zero, so a date
+  before the year 1 reads apart by lane: `EXTRACT(YEAR FROM DATE '0001-01-01' - 1)` is -1 on Postgres and 0 on DuckDB
+  (and in Neo4j's and Java's proleptic count), so Pure's `year()` of such a date, and any text built from it, differs
+  by lane. The Cypher island raises by name where its text would spell a year before 1 (S88). And Postgres reads a date
+  literal whose leading field has fewer than three digits as no year (`DATE '5-01-01'` is 2001-05-01, measured): this
+  line writes four digits where it builds the literal (`MatchFold`, `Scalars.dateArg`); a TDS cell `%5-01-01` lowered
+  by `Scalars`' cell reader would still be written as Pure spells it.
 
 ## A twelfth line, 2026-10-18: GraphQL in Pure, the schema generated from the class model (the user's ask, rule 5)
 

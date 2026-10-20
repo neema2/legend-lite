@@ -93,6 +93,13 @@ final class CastPolicy {
                                                 PureSql.type(c.target()))))
                         : new SqlExpr.Cast(value, PureSql.type(c.target()));
             }
+            // the []-born Nil cast to a Variant is the TYPED null: the cast is what types the empty (as the
+            // typer reads it, Variant[0..0]), and Postgres's jsonb operators refuse an untyped NULL (2026-10-17,
+            // the Cypher island's arm of a class lacking a property typed two ways, the study's §12.62)
+            if ((value instanceof SqlExpr.NullLit || src instanceof Type.ClassType sn && PlatformTypes.isNil(sn))
+                    && c.target() instanceof Type.ClassType tv && PlatformTypes.isVariant(tv)) {
+                return new SqlExpr.Cast(value, SqlType.Scalar.JSON);
+            }
             return value;
         }
         boolean many = isMany;

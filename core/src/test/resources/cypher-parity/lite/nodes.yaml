@@ -44,7 +44,7 @@ tests:
     graph: |
       CREATE (:A {num: 1}), (:A {num: 2}), (:A {num: 3}), (:A {num: 4})
     cypher: "MATCH (n:A) WITH n ORDER BY n.num SKIP 1 LIMIT 2 RETURN n"
-  - id: distinct_over_nodes_refused_by_name
+  - id: distinct_over_nodes
     graph: |
       CREATE (:A {num: 9}), (:A {num: 9})
     cypher: "MATCH (n:A) RETURN DISTINCT n"
@@ -52,7 +52,7 @@ tests:
     graph: |
       CREATE (:A {num: 9}), (:A {num: 5})
     cypher: "MATCH (n:A) RETURN n ORDER BY n"
-  - id: node_as_a_grouping_key_refused_by_name
+  - id: node_as_a_grouping_key
     graph: |
       CREATE (:A {num: 9}), (:A {num: 5})
     cypher: "MATCH (n:A) RETURN n, count(*) AS c"

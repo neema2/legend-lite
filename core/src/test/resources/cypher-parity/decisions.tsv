@@ -9,8 +9,27 @@ tck/expressions/comparison/Comparison1/[8] Equality and inequality of NaN #3	S60
 tck/expressions/comparison/Comparison2/[5] Comparing NaN #1	S60	[["true", "true", "false", "false"]]	ERROR
 tck/expressions/comparison/Comparison2/[5] Comparing NaN #2	S60	[["true", "true", "false", "false"]]	ERROR
 tck/expressions/comparison/Comparison2/[5] Comparing NaN #3	S60	[["false", "true", "false", "true"]]	ERROR
+tck/clauses/return-orderby/ReturnOrderBy1/[11] ORDER BY should order distinct types in the expected order	S60	-	ERROR
+tck/clauses/return-orderby/ReturnOrderBy1/[12] ORDER BY DESC should order distinct types in the expected order	S60	-	ERROR
+tck/clauses/with-orderBy/WithOrderBy1/[21] Sort distinct types in ascending order	S60	-	ERROR
+tck/clauses/with-orderBy/WithOrderBy1/[22] Sort distinct types in descending order	S60	-	ERROR
+lite/rank/nan_inside_a_list	S60	-	ERROR
+lite/nonfinite/nan_in_a_returned_list	S60	-	ERROR
+lite/nonfinite/nan_in_a_list_of_floats	S60	-	ERROR
+lite/nonfinite/infinities_in_a_returned_list	S60	-	ERROR
+lite/nonfinite/nan_in_a_returned_map	S60	-	ERROR
+lite/nonfinite/nan_and_infinities_ordered	S60	-	ERROR
+lite/nonfinite/nan_and_infinities_ordered_descending	S60	-	ERROR
+lite/nonfinite/collect_of_a_quotient_by_zero	S60	-	ERROR
+lite/nonfinite/nan_from_a_row_value_in_a_list	S60	-	ERROR
 lite/temporal/datetime_comparison	S66	[["true", "false", "true", "true", "true", "true"]]	[["true", "false", "true", "true", "true", "true"]]
 lite/temporal/time_comparison	S66	[["false", "true", "false", "true", "false", "true", "true", "true", "true"]]	[["false", "true", "false", "true", "false", "true", "true", "true", "true"]]
 lite/temporal/time_offset_with_seconds	S69	[["Time('12:34:56.000000000+02:05:59')", "Time('12:34:56.000000000-02:05:07')", "7559"]]	[["Time('12:34:56.000000000+02:05:59')", "Time('12:34:56.000000000-02:05:07')", "7559"]]
 tck/expressions/temporal/Temporal1/[13] Should construct temporal with time offset with second precision #2	S69	[["Time('12:34:56.000000000+02:05:59')"]]	[["Time('12:34:56.000000000+02:05:59')"]]
 tck/expressions/temporal/Temporal1/[13] Should construct temporal with time offset with second precision #3	S69	[["Time('12:34:56.000000000-02:05:07')"]]	[["Time('12:34:56.000000000-02:05:07')"]]
+# 2026-10-18, W13 leg 5 (docs/CYPHER_STUDY_2026_10_15.md §12.89): the Postgres lane seeds this case now (a stored
+# nanosecond zoned time as its parts, no TIMESTAMP_NS column), so S66 decides it there as on DuckDB
+lite/stored/a_stored_zoned_time_compared_with_a_zoned_literal	S66	[["'a'", "true", "true"], ["'b'", "false", "false"]]	[["'a'", "true", "true"], ["'b'", "false", "false"]]
+# 2026-10-18, the independent review (docs/CYPHER_STUDY_2026_10_15.md §12.93): a text of a year before 1 raises on
+# both lanes, where Neo4j spells 0000-12-31 (the databases count the years before 1 apart, S88)
+lite/review/a_year_before_1_in_a_text	S88	ERROR	ERROR

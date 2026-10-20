@@ -1,0 +1,33 @@
+# The #Cypher{...}# island's stored temporal values on relationships (the TCK-to-zero plan's W13, leg 6,
+# docs/CYPHER_STUDY_2026_10_15.md §12.91): an edge class's property of nanosecond precision, a zoned value or a
+# duration is an embedded instance of its value class, as a node's is (§12.59, §12.65, §12.89); read, returned in the
+# relationship's value, carried through WITH, through an OPTIONAL MATCH and along a variable-length pattern. Each case is
+# judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh --write --only 'lite/edgevalues/*'),
+# keyed lite/edgevalues/<id>.
+tests:
+  - id: nanosecond_values_on_a_relationship
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {d: localdatetime('0001-01-01T00:00:00.000000001'), t: localtime('12:31:14.645876123')}]->(:B {name: 'b'}),
+             (:A {name: 'c'})-[:T {d: localdatetime('2015-07-21T21:40:32.142000009'), t: localtime('00:00:00.000000001')}]->(:B {name: 'd'})
+    cypher: "MATCH (a)-[r:T]->(b) RETURN a.name AS name, r.d AS d, r.t AS t, r.d.year AS y, r.t.nanosecond AS n, r ORDER BY d"
+  - id: zoned_values_and_a_duration_on_a_relationship
+    graph: |
+      CREATE (:A)-[:T {z: datetime('2017-07-01T12:00:00+02:00'), zt: time('12:00:00-05:00'), dur: duration({days: 1, hours: 2})}]->(:B)
+    cypher: "MATCH ()-[r:T]->() RETURN r.z AS z, r.zt AS zt, r.dur AS dur, r.z.offset AS o, r.zt.hour AS h, r"
+  - id: a_nanosecond_zoned_value_of_a_region_on_a_relationship
+    graph: |
+      CREATE (:A)-[:T {z: datetime('2017-07-01T12:00:00.000000001[Europe/Stockholm]'), zt: time('23:30:00.000000002-02:00')}]->(:B)
+    cypher: "MATCH ()-[r:T]->() WITH r RETURN r.z AS z, r.z.timezone AS tz, r.zt AS zt, r.zt.offset AS o, r"
+  - id: carried_through_two_withs
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {d: localdatetime('0001-01-01T00:00:00.000000001')}]->(:B),
+             (:A {name: 'c'})-[:T {d: localdatetime('2015-07-21T21:40:32.142000009')}]->(:B)
+    cypher: "MATCH ()-[r:T]->() WITH r WITH r, r.d AS d ORDER BY d DESC RETURN r, d.nanosecond AS n, r.d = d AS same"
+  - id: through_an_optional_match
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {t: localtime('12:31:14.645876123'), z: datetime('2017-07-01T12:00:00+02:00')}]->(:B), (:A {name: 'x'})
+    cypher: "MATCH (a:A) OPTIONAL MATCH (a)-[r:T]->() RETURN a.name AS name, r.t AS t, r.z AS z, r ORDER BY name"
+  - id: along_a_variable_length_pattern
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {t: localtime('01:00:00.000000001')}]->(:A {name: 'b'})-[:T {t: localtime('02:00:00.000000002')}]->(:A {name: 'c'})
+    cypher: "MATCH (x:A {name: 'a'})-[rs:T*1..2]->(y) RETURN y.name AS name, [r IN rs | r.t] AS ts, size(rs) AS n ORDER BY name"

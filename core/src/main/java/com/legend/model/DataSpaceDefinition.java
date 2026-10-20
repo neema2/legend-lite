@@ -22,6 +22,9 @@ import java.util.Objects;
  *                                 body), or null
  * @param elements                 element-scope paths as written, exclusions
  *                                 keeping their {@code -} prefix
+ * @param stereotypes              the stereotypes applied to the element ({@code <<graph::graph.Open>>}: the
+ *                                 graph a Cypher island names with {@code USE} is open, docs/CYPHER_STUDY_2026_10_15.md
+ *                                 §12.45)
  */
 public record DataSpaceDefinition(
         String qualifiedName,
@@ -32,7 +35,8 @@ public record DataSpaceDefinition(
         List<Executable> executables,
         List<Diagram> diagrams,
         @com.legend.base.Nullable String supportInfoSource,
-        List<String> elements) implements PackageableElement {
+        List<String> elements,
+        List<StereotypeApplication> stereotypes) implements PackageableElement {
 
     public DataSpaceDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
@@ -40,6 +44,7 @@ public record DataSpaceDefinition(
         executables = List.copyOf(executables);
         diagrams = List.copyOf(diagrams);
         elements = List.copyOf(elements);
+        stereotypes = List.copyOf(stereotypes);
     }
 
     /** One {@code executionContexts:} entry; {@code testDataSource} carries

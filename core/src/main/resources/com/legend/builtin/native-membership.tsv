@@ -490,6 +490,7 @@ PLUS__FLOAT_MANY	meta::pure::functions::math::plus	meta::pure::functions::math::
 PLUS__INTEGER_MANY	meta::pure::functions::math::plus	meta::pure::functions::math::plus(meta::pure::metamodel::type::Integer[*])
 PLUS__NUMBER_MANY	meta::pure::functions::math::plus	meta::pure::functions::math::plus(meta::pure::metamodel::type::Number[*])
 POW__NUMBER_1__NUMBER_1	meta::pure::functions::math::pow	meta::pure::functions::math::pow(meta::pure::metamodel::type::Number[1],meta::pure::metamodel::type::Number[1])
+RANDOM	meta::pure::functions::math::random	meta::pure::functions::math::random()
 REM__NUMBER_1__NUMBER_1	meta::pure::functions::math::rem	meta::pure::functions::math::rem(meta::pure::metamodel::type::Number[1],meta::pure::metamodel::type::Number[1])
 ROUND__DECIMAL_1__INTEGER_1	meta::pure::functions::math::round	meta::pure::functions::math::round(meta::pure::metamodel::type::Decimal[1],meta::pure::metamodel::type::Integer[1])
 ROUND__FLOAT_1__INTEGER_1	meta::pure::functions::math::round	meta::pure::functions::math::round(meta::pure::metamodel::type::Float[1],meta::pure::metamodel::type::Integer[1])

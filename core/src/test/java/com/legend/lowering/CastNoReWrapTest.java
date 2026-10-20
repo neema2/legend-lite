@@ -50,6 +50,20 @@ class CastNoReWrapTest {
     }
 
     @Test
+    void anEmptyCastToAVariantIsTheTypedNull() {
+        // []->cast(@Variant): the typed NULL (the cast types the empty; Postgres's jsonb operators refuse an
+        // untyped NULL), 2026-10-17
+        Type variant = new Type.ClassType(PlatformTypes.VARIANT);
+        Type nil = new Type.ClassType(PlatformTypes.NIL);
+        TypedCast c = new TypedCast(new TypedVariable("v", new ExprType(nil, new Multiplicity.Bounded(0, 0))),
+                variant, new ExprType(variant, new Multiplicity.Bounded(0, 0)), false);
+        SqlExpr.Cast cast = assertInstanceOf(SqlExpr.Cast.class,
+                CastPolicy.lower(c, new SqlExpr.NullLit(), false, false));
+        assertSame(SqlType.Scalar.JSON, cast.target());
+        assertInstanceOf(SqlExpr.NullLit.class, cast.value());
+    }
+
+    @Test
     void unmarkedValueStillGetsTheCarrierCast() {
         // the control: without the LITERAL mark the variant arm's
         // carrier cast emits exactly as before

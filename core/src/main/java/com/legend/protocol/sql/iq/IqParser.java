@@ -77,7 +77,7 @@ public final class IqParser {
      *  {@code *} (or nothing), LIST's delimiter, and an ORDER BY inside the call (IQ's syntax in any call; the dialect
      *  takes it in LIST's only). */
     static final Set<String> READ_AGGREGATES = Set.of("count", "sum", "avg", "min", "max", "median", "list",
-            "percentile_cont", "percentile_disc");
+            "percentile_cont", "percentile_disc", "array_agg");
 
     /** IQ's statistical aggregates: SQL Anywhere computes them by a formula that loses precision (the research's
      *  TYPING §7: three equal values of 9999999999999999.9999 give a STDDEV of 134217728), which lite's databases do
@@ -115,6 +115,9 @@ public final class IqParser {
      *  ({@code CASE x WHEN v ...}), the CASEs that are IF expressions. */
     private final Map<SqlAst.Expr, Integer> parens = new IdentityHashMap<>();
     private final Set<SqlAst.Expr> simpleCases = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+    /** IQ island, 2026-10-17: each {@code value = v} a simple CASE's WHEN reads as, by identity (IQ's engine checks
+     *  their types otherwise than a comparison's: IqDialect's simple CASE). */
+    private final Set<SqlAst.Expr> simpleWhens = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<SqlAst.Expr> ifs = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
     /** IQ island, 2026-10-14 (the merge of M1b and M1d): each date part as written, in lower case (the constant the
      *  tree holds is the part's full name; SQL Anywhere names a call by the spelling, measured: {@code DATEPART(mm,
@@ -123,6 +126,12 @@ public final class IqParser {
     /** IQ island, 2026-10-15: where ORDER BY dropped a parenthesized integer constant ({@code (1)}), a constant that
      *  orders nothing in SQL Anywhere's front end and a position under IQ's engine (measured on IQ 17.1). */
     private final List<SqlAst.Pos> droppedOrderKeys = new ArrayList<>();
+    /** IQ island, 2026-10-17: where LATERAL (query) is written ({@link #fromItem}), which IqDialect names IQ's engine's
+     *  -1001030 for. */
+    private final List<SqlAst.Pos> laterals = new ArrayList<>();
+    /** IQ island, 2026-10-17: the batch's statements after the first ({@link #laterStatements}), read for their syntax
+     *  (IqDialect counts their calls' arguments, as IQ does as it parses). */
+    private final List<SqlAst.Statement> later = new ArrayList<>();
     /** IQ island, 2026-10-15 (checklist 0.5): each CAST or CONVERT of a constant only one engine cannot convert
      *  ({@link IqFunctions#constantCast}), with its refusals' texts. */
     private final List<EngineCast> engineCasts = new ArrayList<>();
@@ -149,19 +158,36 @@ public final class IqParser {
     /** The CTEs being read again where they are named, the innermost last: one named again inside its own reading is
      *  IQ's error (-938 itself, -914 a cycle; measured on IQ 17.1). */
     private final List<CteDef> reading = new ArrayList<>();
+    /** IQ island, 2026-10-17: whether the statement's WITH says RECURSIVE; where its CTEs are named inside their own
+     *  readings, and those of them with no column list; the CTEs whose first branch is being read as such a name's
+     *  reading ({@link #recursion}). */
+    private final boolean[] recursiveWith = {false};
+    private final List<SqlAst.Pos> recursions = new ArrayList<>();
+    private final List<SqlAst.Pos> columnless = new ArrayList<>();
+    private final List<CteDef> standingIn = new ArrayList<>();
     /** The tokens read again for CTEs so far ({@link CteDef#read}), bounded by {@link #REREAD_LARGEST} and
      *  {@link #REREAD_RATIO}. */
     private final long[] reread = {0};
+    /** IQ island, 2026-10-17 (found by verifying the corpus lane's IQ_ERROR claims: SQLStorm's recursive CTE and
+     *  STRING_AGG(...) WITHIN GROUP before an OFFSET; measured on IQ 17.1): the errors IQ raises after it has read the
+     *  whole statement that this reader finds as it reads ({@link #afterReading}); a syntax error later in the text is
+     *  IQ's first. */
+    private final Set<SqlSyntaxException> afterReadingErrors = java.util.Collections.newSetFromMap(
+            new IdentityHashMap<>());
+    /** Whether this reading only looks for a syntax error after such an error ({@link #parsed}): the error's site reads
+     *  on past it. */
+    private final boolean pastAnError;
     /** A statement's CTEs are read again where each is named, so one named twice in each of a chain of CTEs doubles
      *  with each link: the tokens read again are refused past both this many and {@link #REREAD_RATIO} times the
      *  statement's (IQ island, 2026-10-15, the scale suite's bound for the island's other expansions). */
     private static final long REREAD_LARGEST = 20_000;
     private static final long REREAD_RATIO = 50;
 
-    private IqParser(String text, List<IqLexer.Token> tokens, IqSettings settings) {
+    private IqParser(String text, List<IqLexer.Token> tokens, IqSettings settings, boolean pastAnError) {
         this.text = text;
         this.tokens = tokens;
         this.settings = settings;
+        this.pastAnError = pastAnError;
     }
 
     /** The query {@code sql} is, read under {@code settings}'s options. */
@@ -172,7 +198,18 @@ public final class IqParser {
     /** A statement as read ({@link #parsed}): its tree, and the text of each GROUP BY item and each aggregate's call
      *  in it, as written (by identity). */
     public record Parsed(SqlAst.Statement statement, Map<SqlAst.Expr, String> spans,
-            List<SqlAst.Pos> droppedOrderKeys, List<EngineCast> engineCasts) {
+            List<SqlAst.Pos> droppedOrderKeys, List<EngineCast> engineCasts, List<SqlAst.Pos> laterals,
+            List<SqlAst.Statement> later, Recursion recursion, Set<SqlAst.Expr> simpleWhens) {
+    }
+
+    /** IQ island, 2026-10-17 (the TPC-H corpus lane's 1,805 WITH RECURSIVE): whether the statement's WITH says
+     *  RECURSIVE; where a CTE of it is named inside its own reading, read as its first branch ({@link #recursion});
+     *  those of them with no column list. */
+    public record Recursion(boolean with, List<SqlAst.Pos> reads, List<SqlAst.Pos> columnless) {
+        public Recursion {
+            reads = List.copyOf(reads);
+            columnless = List.copyOf(columnless);
+        }
     }
 
     /** A CAST or CONVERT of a constant only one engine cannot convert: where, and the refusal under each engine (null
@@ -182,17 +219,104 @@ public final class IqParser {
 
     /** The query {@code sql} is, read under {@code settings}'s options, with the texts the tree does not keep. */
     public static Parsed parsed(String sql, IqSettings settings) {
-        IqParser p = new IqParser(sql, IqLexer.tokenize(sql, settings), settings);
+        List<IqLexer.Token> tokens = IqLexer.tokenize(sql, settings);
+        IqParser p = new IqParser(sql, tokens, settings, false);
         if (p.peek().kind() == IqLexer.Kind.EOF) {
             throw new SqlSyntaxException("no statement" + IqDialect.syntaxCode(), p.peek().pos());
         }
-        SqlAst.Statement statement = p.statement();
-        IqLexer.Token end = p.peek();
-        if (end.kind() != IqLexer.Kind.EOF) {
-            throw p.unexpected(end);
+        SqlAst.Statement statement;
+        try {
+            statement = p.whole();
+        } catch (SqlSyntaxException e) {
+            if (!p.afterReadingErrors.contains(e)) {
+                throw e;
+            }
+            // an error IQ raises once it has read the statement: a syntax error after it is IQ's first, and a form
+            // after it the reader refuses may be one (refused, naming it)
+            new IqParser(sql, tokens, settings, true).whole();
+            throw e;
         }
         return new Parsed(statement, java.util.Collections.unmodifiableMap(p.spans), List.copyOf(p.droppedOrderKeys),
-                List.copyOf(p.engineCasts));
+                List.copyOf(p.engineCasts), List.copyOf(p.laterals), List.copyOf(p.later),
+                new Recursion(p.recursiveWith[0], p.recursions, p.columnless),
+                java.util.Collections.unmodifiableSet(p.simpleWhens));
+    }
+
+    /** The statement, the whole text. */
+    private SqlAst.Statement whole() {
+        SqlAst.Statement statement = statement();
+        IqLexer.Token end = peek();
+        if (end.kind() != IqLexer.Kind.EOF) {
+            throw unexpected(end);
+        }
+        return statement;
+    }
+
+    /** {@code e}, an error IQ raises once it has read the whole statement, met as this reader reads it: thrown on a
+     *  first reading, to be raised unless the text has a syntax error after it ({@link #parsed}); null on the reading
+     *  past it, where the site reads on. */
+    private @com.legend.base.Nullable SqlSyntaxException afterReading(SqlSyntaxException e) {
+        if (pastAnError) {
+            return null;
+        }
+        afterReadingErrors.add(e);
+        return e;
+    }
+
+    /** After an ORDER that a call of no function of IQ's holds: {@code BY key [ASC | DESC], ...}, each key into
+     *  {@code into}, read as the call's argument (IQ island, 2026-10-17); NULLS FIRST or LAST is IQ's syntax error. */
+    private void orderKeys(List<SqlAst.Expr> into) {
+        expectKeyword("by");
+        do {
+            SqlAst.Expr e = expression();
+            value(e, "ORDER BY");
+            if (peek().is("desc") || peek().is("asc")) {
+                take();
+            }
+            if (peek().isWord("nulls")) {
+                throw new SqlSyntaxException("IQ has no NULLS FIRST or NULLS LAST" + IqDialect.syntaxCode(),
+                        peek().pos());
+            }
+            into.add(e);
+        } while (takeOp(","));
+    }
+
+    /** On the reading past an error ({@link #afterReading}): the rest of a call from inside its parentheses -- to its
+     *  closing one -- and a WITHIN GROUP (...) or OVER after it, read for their parentheses only. */
+    private SqlAst.Expr pastCall(List<SqlAst.Ident> parts, IqLexer.Token first, boolean inside) {
+        if (inside) {
+            skipToClose();
+        }
+        while (peek().is("within") || peek().is("over")) {
+            boolean within = peek().is("within");
+            take();
+            if (within) {
+                expectKeyword("group");
+            }
+            if (peek().isOp("(")) {
+                take();
+                skipToClose();
+            } else if (!within) {
+                take();
+            }
+        }
+        return new SqlAst.FunctionCall(parts, List.of(), false, false, first.pos());
+    }
+
+    /** Past the closing parenthesis of the one open before the next token. */
+    private void skipToClose() {
+        int depth = 1;
+        while (depth > 0) {
+            IqLexer.Token t = take();
+            if (t.kind() == IqLexer.Kind.EOF) {
+                throw new SqlSyntaxException("a parenthesis is not closed" + IqDialect.syntaxCode(), t.pos());
+            }
+            if (t.isOp("(")) {
+                depth++;
+            } else if (t.isOp(")")) {
+                depth--;
+            }
+        }
     }
 
     /** An expression as it was written ({@link #written}): its tree, and what the tree does not keep -- the parentheses
@@ -207,6 +331,17 @@ public final class IqParser {
          *  which an unaliased column's name keeps. */
         public boolean nationalAt(SqlAst.Pos pos) {
             return nationals.contains(pos);
+        }
+
+        /** IQ island, 2026-10-17: the constant word written at {@code pos} ({@code true}, {@code false}: IQ 17.1's
+         *  1 and 0, IqLexer.IQ_CONSTANTS), which an unaliased item's name keeps, lower case; null for none. */
+        public @com.legend.base.Nullable String constantWordAt(SqlAst.Pos pos) {
+            for (IqLexer.Token t : tokens) {
+                if (t.pos().equals(pos) && (t.is("true") || t.is("false"))) {
+                    return t.text().toLowerCase(java.util.Locale.ROOT);
+                }
+            }
+            return null;
         }
 
         /** The parentheses written around {@code e}. */
@@ -226,7 +361,7 @@ public final class IqParser {
      *  is no expression. */
     public static Written written(String text, IqSettings settings) {
         List<IqLexer.Token> tokens = IqLexer.tokenize(text, settings);
-        IqParser p = new IqParser(text, tokens, settings);
+        IqParser p = new IqParser(text, tokens, settings, false);
         SqlAst.Expr e = p.expression();
         if (p.peek().kind() != IqLexer.Kind.EOF) {
             throw p.unexpected(p.peek());
@@ -274,15 +409,102 @@ public final class IqParser {
         return n;
     }
 
-    /** A statement: a query expression ({@link #queryBlock}), with the tail clauses IQ reads after it refused. */
+    /** A statement: a query expression ({@link #queryBlock}), with the tail clauses IQ reads after it refused, and the
+     *  statements of its batch after it ({@link #laterStatements}). */
     private SqlAst.Statement statement() {
         IqLexer.Token first = peek();
         if (!first.is("with") && !first.is("select") && !first.isOp("(")) {
             throw SqlSyntaxException.unsupported("only a SELECT is read in an #IQ{...}# island, not '" + first.text()
                     + "'", first.pos());
         }
-        SqlAst.Statement query = first.is("with") ? with() : queryBlock();
+        SqlAst.Statement query = oneStatement();
+        laterStatements();
+        return query;
+    }
+
+    /**
+     * IQ island, 2026-10-17 (the corpus lane's SEDE batches, 134 queries, 85 and more of them IQ answers; measured on IQ
+     * 17.1, separated by ';' or not): the statements after the first are a batch's, of which a client reading one
+     * result -- as an island does -- gets the first statement's answer, or its error. A later statement that does not
+     * parse fails the batch, IQ's syntax error -131 (any error IQ raises as it parses: LIMIT, IN (), a date part's
+     * argument count, DATETIME2), and nothing else a later statement holds is raised (a missing column, a function of
+     * no name of IQ's, a grouping, a conversion, a CTE naming itself). Each is read for its syntax; one holding what
+     * the reader does not read, or no SELECT, refuses the batch by name.
+     */
+    private void laterStatements() {
+        while (true) {
+            boolean separated = false;
+            while (peek().isOp(";")) {
+                take();
+                separated = true;
+            }
+            IqLexer.Token t = peek();
+            if (t.kind() == IqLexer.Kind.EOF) {
+                return;
+            }
+            if (t.is("with") && !separated) {
+                // measured on IQ 17.1: WITH begins a later statement only after a ';' (SELECT 1 WITH c AS (...) ... is
+                // its -131 near WITH)
+                throw new SqlSyntaxException("WITH begins a batch's later statement only after a ';'"
+                        + IqDialect.syntaxCode(), t.pos());
+            }
+            if (!t.is("with") && !t.is("select") && !(t.isOp("(") && separated)) {
+                throw SqlSyntaxException.unsupported("a later statement of a batch that is no SELECT ('" + t.text()
+                        + "') is not read in an #IQ{...}# island: IQ runs it after the first statement's answer",
+                        t.pos());
+            }
+            int start = at;
+            // 2026-10-18 (landing 5's review): each later statement is read by a reader of its own, so what it holds
+            // (a recursive WITH, a LATERAL, an ORDER BY key, a constant one engine cannot convert) is never taken for
+            // the first statement's
+            IqParser own = new IqParser(text, tokens, settings, false);
+            own.at = start;
+            try {
+                later.add(own.oneStatement());
+                at = own.at;
+            } catch (SqlSyntaxException e) {
+                if (!own.afterReadingErrors.contains(e)) {
+                    throw batchError(e, t);
+                }
+                // an error IQ raises once it has read the statement: read on past it, for the syntax alone
+                IqParser past = new IqParser(text, tokens, settings, true);
+                past.at = start;
+                try {
+                    later.add(past.oneStatement());
+                } catch (SqlSyntaxException again) {
+                    throw batchError(again, t);
+                }
+                at = past.at;
+            }
+        }
+    }
+
+    /** {@code e}, met reading a later statement of the batch that {@code t} heads: a refusal as it is; any other error,
+     *  IQ's syntax error -131 for the batch (measured on IQ 17.1, where the statement alone raises -154 too). */
+    private static SqlSyntaxException batchError(SqlSyntaxException e, IqLexer.Token t) {
+        if (e.unsupported()) {
+            return e;
+        }
+        return new SqlSyntaxException("a later statement of this batch does not parse, which fails the batch"
+                + IqDialect.syntaxCode(), t.pos());
+    }
+
+    /** One statement of the batch: its query and its tail clauses. */
+    private SqlAst.Statement oneStatement() {
+        IqLexer.Token first = peek();
+        SqlAst.Statement query = first.is("with") ? with(true) : queryBlock();
+        if (peek().is("for") && peek(1).isWord("xml") && peek(2).isWord("path")) {
+            throw unexpected(peek());
+        }
         refuseClause("for", "FOR READ ONLY, FOR UPDATE and FOR XML are not supported yet");
+        if (peek().is("option") && peek(1).isOp("(") && peek(2).isName() && !peek(3).isOp("=")
+                && !peek(2).isWord("force") && !peek(2).isWord("materialized")) {
+            // IQ island, 2026-10-17 (the corpus lane's OPTION (MAXRECURSION 0), OPTION (RECOMPILE), 10; measured on IQ
+            // 17.1): IQ's OPTION clause sets options, (name = value, ...), or reads its own hints (FORCE [NO]
+            // OPTIMIZATION, MATERIALIZED VIEW OPTIMIZATION ...), so T-SQL's query hints are its syntax error
+            throw new SqlSyntaxException("the OPTION clause sets options, (name = value, ...): '" + peek(3).text()
+                    + "' cannot follow '" + peek(2).text() + "'" + IqDialect.syntaxCode(), peek(3).pos());
+        }
         refuseClause("option", "the OPTION clause is not supported yet");
         if (peek().isWord("offset") || peek().isWord("fetch")) {
             // IQ island, 2026-10-16 (measured on IQ 17.1; the corpus lane: 5,724 of SQLStorm's queries): T-SQL's
@@ -291,34 +513,39 @@ public final class IqParser {
                     + IqDialect.syntaxCode(), peek().pos());
         }
         if (peek().isWord("limit")) {
-            // a syntax error too (measured on IQ 17.1), but a clause where the reserved_keywords option names it
-            throw SqlSyntaxException.unsupported("LIMIT is not supported: IQ reads it only where the reserved_keywords"
-                    + " option names it (its syntax error otherwise)", peek().pos());
+            // a syntax error (measured on IQ 17.1), a clause only where the reserved_keywords option names it, which
+            // no profile does (IqOption.RESERVED_KEYWORDS, not yet read: its default alone)
+            throw limit(peek());
         }
         // IQ island, 2026-10-15 (the corpus lane: 1,691 of SEDE's 11,708 queries end so; measured on IQ 17.1): a
-        // statement's one trailing separator is read, as IQ reads it; a second statement after it is refused
-        if (peek().isOp(";") && peek(1).kind() == IqLexer.Kind.EOF) {
-            take();
+        // statement's trailing separators are read, as IQ reads them; what follows is the batch's (laterStatements)
+        if (!peek().isOp(";") && peek().kind() != IqLexer.Kind.EOF && !peek().is("select") && !peek().is("with")) {
+            throw unexpected(peek());
         }
-        if (peek().isOp(";")) {
-            throw SqlSyntaxException.unsupported("a second statement, after a separator (;), is not read in an"
-                    + " #IQ{...}# island", peek().pos());
-        }
+        // (a WITH after a statement with no ';' between is IQ's syntax error: laterStatements)
         return query;
     }
 
     /**
      * {@code WITH [RECURSIVE] name [(column, ...)] AS (query), ... query} at the head of the statement or of a derived
      * table (IQ island, 2026-10-15: common table expressions, 25% of production BI queries): each a name the WITH's
-     * queries read as a table, each other's too (WITH RECURSIVE is refused by name). Measured on IQ 17.1: a CTE may
+     * queries read as a table, each other's too (WITH RECURSIVE at the statement's head: {@link #recursion}; a derived
+     * table's is refused by name). Measured on IQ 17.1: a CTE may
      * name one written after it; of two with one name (in any case) the first is read, and a CTE no query names is
      * never read (its errors but its syntax's are none); a derived table's WITH sees no CTE outside it; a WITH in a
      * subquery, a CTE's query or a set operation's branch is IQ's syntax error (-131).
      */
-    private SqlAst.Statement with() {
+    private SqlAst.Statement with(boolean head) {
         take();
+        boolean recursive = false;
         if (peek().isWord("recursive")) {
-            throw SqlSyntaxException.unsupported("WITH RECURSIVE is not supported yet", peek().pos());
+            if (!head) {
+                throw SqlSyntaxException.unsupported("WITH RECURSIVE in a derived table is not supported yet",
+                        peek().pos());
+            }
+            take();
+            recursive = true;
+            recursiveWith[0] = true;
         }
         // every CTE of the WITH sees every other, a later one too, and the first of two with one name is the one
         // read (measured on IQ 17.1); their queries are read here for their syntax only, no name resolving to a CTE
@@ -353,7 +580,8 @@ public final class IqParser {
                 }
                 int start = at;
                 queryBlock();
-                scope.putIfAbsent(IqLexer.lower(name.text()), new CteDef(name, columns, start, at, scope));
+                scope.putIfAbsent(IqLexer.lower(name.text()), new CteDef(name, columns, start, at, scope,
+                        recursive));
                 expectOp(")");
             } while (takeOp(","));
         } finally {
@@ -372,6 +600,35 @@ public final class IqParser {
     }
 
     /**
+     * IQ island, 2026-10-17 (the TPC-H corpus lane; measured on IQ 17.1): a CTE of a WITH RECURSIVE named inside its own
+     * reading, read as its first branch -- the query before its first UNION or EXCEPT -- under its column list. Not
+     * the recursion's meaning: IQ raises its error for every statement that reads one (the dialect's
+     * {@code recursion}), after the names, which bind to this as they bind to the recursion's columns. A first branch
+     * that names the CTE is refused by name.
+     */
+    private SqlAst.SubqueryFrom recursion(CteDef def, SqlAst.Ident alias, SqlAst.Pos pos) {
+        if (standingIn.contains(def)) {
+            throw SqlSyntaxException.unsupported("the recursive common table expression '" + def.name().text() + "'"
+                    + " is named in its first branch, which is not supported", pos);
+        }
+        recursions.add(pos);
+        if (def.columns().isEmpty()) {
+            columnless.add(pos);
+        }
+        int save = at;
+        cteScopes.push(def.visible());
+        standingIn.add(def);
+        try {
+            at = def.start();
+            return new SqlAst.SubqueryFrom(queryTerm(), alias, def.columns(), false, pos);
+        } finally {
+            standingIn.remove(standingIn.size() - 1);
+            cteScopes.pop();
+            at = save;
+        }
+    }
+
+    /**
      * A common table expression (IQ island, 2026-10-15), read where it is named as a table: a derived table whose
      * query is read again from the CTE's own tokens, so each reference is a tree of its own (the island's readings key
      * on its nodes); its WITH's CTEs are the names its query sees. IQ's meaning of a CTE that is not recursive is
@@ -379,7 +636,7 @@ public final class IqParser {
      * itself, -914 where CTEs name each other in a cycle), raised only where it is read, as IQ raises it.
      */
     private record CteDef(SqlAst.Ident name, List<SqlAst.Ident> columns, int start, int end,
-            Map<String, CteDef> visible) {
+            Map<String, CteDef> visible, boolean recursive) {
 
         /** One definition is itself only (2026-10-16, the landing's review): {@code visible} is the scope that holds
          *  it, so a record's equality recursed through it without end (a derived table's WITH inside a CTE of the
@@ -396,14 +653,27 @@ public final class IqParser {
 
         SqlAst.SubqueryFrom read(IqParser p, SqlAst.Ident alias, SqlAst.Pos pos) {
             int here = p.reading.indexOf(this);
+            if (here >= 0 && recursive) {
+                if (here != p.reading.size() - 1) {
+                    throw SqlSyntaxException.unsupported("the common table expressions from '" + name.text() + "'"
+                            + " name each other in a cycle: mutual recursion is not supported", pos);
+                }
+                return p.recursion(this, alias, pos);
+            }
             if (here >= 0) {
                 // IQ's error, refused by name naming it: the syntax cases call the form accept in one case and reject
-                // in others (z2_redteam-763; a6_sa_query-92, c09_statements-70, s2_query-346), as M1b's pins note
-                throw SqlSyntaxException.unsupported(here == p.reading.size() - 1
+                // in others (z2_redteam-763; a6_sa_query-92, c09_statements-70, s2_query-346), as M1b's pins note;
+                // raised once the statement is read (afterReading)
+                SqlSyntaxException e = p.afterReading(SqlSyntaxException.unsupported(here == p.reading.size() - 1
                         ? "the common table expression '" + name.text() + "' names itself: recursion is not allowed"
                                 + " without the RECURSIVE keyword" + IqDialect.code(-938, "42WA0")
                         : "the common table expressions from '" + name.text() + "' name each other in a cycle"
-                                + IqDialect.code(-914, "42W93"), pos);
+                                + IqDialect.code(-914, "42W93"), pos));
+                if (e != null) {
+                    throw e;
+                }
+                return new SqlAst.SubqueryFrom(new SqlAst.Select(false, List.of(), List.of(), null, List.of(), null,
+                        List.of(), List.of(), null, null, pos), alias, columns, false, pos);
             }
             p.reread[0] += end - start;
             if (p.reread[0] > REREAD_LARGEST && p.reread[0] > REREAD_RATIO * p.tokens.size()) {
@@ -624,6 +894,11 @@ public final class IqParser {
             do {
                 from.add(tableExpression());
             } while (takeOp(","));
+        } else if (items.stream().anyMatch(i -> i instanceof SqlAst.AllColumns)) {
+            // IQ island, 2026-10-17 (the corpus lane's SELECT * SELECT COUNT(ID) ...; measured on IQ 17.1): a SELECT with
+            // no FROM reads SYS.DUMMY's one row, so * shows its dummy_col
+            SqlAst.Pos at = peek().pos();
+            from.add(new SqlAst.TableName(List.of(new SqlAst.Ident("DUMMY", false, at)), null, List.of(), at));
         }
         SqlAst.Expr where = null;
         if (peek().is("where")) {
@@ -729,11 +1004,8 @@ public final class IqParser {
                     throw SqlSyntaxException.unsupported("an empty grouping, GROUP BY ( ), is not supported yet",
                             t.pos());
                 }
-                if (peek(1).is("select")) {
-                    throw SqlSyntaxException.unsupported("a subquery in GROUP BY is not supported (IQ's engine"
-                            + " restricts it)", t.pos());
-                }
-                if (composite(at)) {
+                // a subquery is read here, and placed by the dialect (IqDialect.groupBySubqueries)
+                if (!peek(1).is("select") && composite(at)) {
                     throw SqlSyntaxException.unsupported("a composite GROUP BY item, (a, b), is not supported yet",
                             t.pos());
                 }
@@ -800,11 +1072,9 @@ public final class IqParser {
         } else {
             count = limitValue("TOP");
         }
-        if (peek().isWord("percent")) {
-            // IQ has no PERCENT: it reads TOP n, then a column named PERCENT (the research's GRAMMAR S2, a parse trap)
-            throw SqlSyntaxException.unsupported("TOP n PERCENT is not read: IQ has no PERCENT keyword, it reads TOP n"
-                    + " and then a column named PERCENT", peek().pos());
-        }
+        // IQ has no PERCENT: it reads TOP n, then a column named PERCENT (the research's GRAMMAR S2). IQ island,
+        // 2026-10-17 (the corpus lane's TOP 10 PERCENT, measured on IQ 17.1): read so, as IQ reads it -- a table of no
+        // such column is its -143, TOP n PERCENT * its syntax error -131
         SqlAst.Expr offset = null;
         if (peek().is("start")) {
             IqLexer.Token start = take();
@@ -986,9 +1256,17 @@ public final class IqParser {
         }
         if (t.isName()) {
             take();
+            if (fromItem && peek().isOp("(") && peek(1).isWord("index")) {
+                // SQL Anywhere's index hint after a correlation name (the syntax research's flag cases)
+                throw SqlSyntaxException.unsupported("an index hint after a FROM item's correlation name is not"
+                        + " supported yet", peek().pos());
+            }
             if (fromItem && peek().isOp("(")) {
-                throw SqlSyntaxException.unsupported("a FROM item's column alias list is not supported yet",
-                        peek().pos());
+                // IQ island, 2026-10-17 (the corpus lane's STRING_SPLIT(...) AS t(name), [u] (NOLOCK); measured on IQ
+                // 17.1): only a derived table takes a column list; after a table's, a CTE's or a function's name it is
+                // IQ's syntax error
+                throw new SqlSyntaxException("a column list follows only a derived table's correlation name"
+                        + IqDialect.syntaxCode(), peek().pos());
             }
             return name(t);
         }
@@ -1169,12 +1447,18 @@ public final class IqParser {
             return derivedTable(query, first);
         }
         take();
+        if (peek().is("values")) {
+            // IQ island, 2026-10-17 (the corpus lane's FROM (VALUES (0), (1), ...); measured on IQ 17.1): no table
+            // value constructor of IQ's, its syntax error
+            throw new SqlSyntaxException("VALUES as a FROM item is no syntax of IQ's" + IqDialect.syntaxCode(),
+                    peek().pos());
+        }
         if (peek().is("with")) {
             // a derived table's own WITH (measured on IQ 17.1): its queries see no CTE outside it
             cteScopes.push(Map.of());
             SqlAst.Statement inner;
             try {
-                inner = with();
+                inner = with(false);
             } finally {
                 cteScopes.pop();
             }
@@ -1230,6 +1514,17 @@ public final class IqParser {
 
     private SqlAst.FromItem fromItem() {
         IqLexer.Token first = peek();
+        if (first.is("lateral") && peek(1).isOp("(") && (peek(2).is("select") || peek(2).is("with"))) {
+            // IQ island, 2026-10-17 (the corpus lane's 4; measured on IQ 17.1): read, the island naming its engine's
+            // -1001030 for it and refusing it in its front end (IqDialect.parse)
+            take();
+            laterals.add(first.pos());
+            SqlAst.FromItem item = tableFactor();
+            if (item instanceof SqlAst.SubqueryFrom d) {
+                return new SqlAst.SubqueryFrom(d.query(), d.alias(), d.columnAliases(), true, d.pos());
+            }
+            throw SqlSyntaxException.unsupported("LATERAL of no derived table is not supported yet", first.pos());
+        }
         if (first.is("lateral") || first.isWord("apply") || first.is("openstring") || first.is("openxml")) {
             throw SqlSyntaxException.unsupported(first.text() + " in FROM is not supported yet", first.pos());
         }
@@ -1726,6 +2021,11 @@ public final class IqParser {
                     take();
                     return new SqlAst.NullLit(t.pos());
                 }
+                if (t.is("true") || t.is("false")) {
+                    // IQ island, 2026-10-17 (measured on IQ 17.1): its constants 1 and 0 (IqLexer.IQ_CONSTANTS)
+                    take();
+                    return new SqlAst.IntegerLit(java.math.BigInteger.valueOf(t.is("true") ? 1 : 0), t.pos());
+                }
                 if (t.is("if")) {
                     return ifExpression();
                 }
@@ -1749,6 +2049,16 @@ public final class IqParser {
                     throw new SqlSyntaxException("the reserved word '" + t.text() + "' is no value: a column of its name"
                             + " must be delimited" + IqDialect.syntaxCode(), t.pos());
                 }
+                if (peek(1).isOp(".") && !t.is("contains") || TYPE_WORDS.contains(IqLexer.lower(t.text()))
+                        && (peek(1).isOp(",") || peek(1).isOp(")"))) {
+                    // IQ island, 2026-10-17 (the corpus lane's top.n, TRY_CONVERT(int, ...); measured on IQ
+                    // 17.1): a reserved word qualifying a column, or a reserved type's name standing as a value, is
+                    // IQ's -131 (top.id, order.id; FOO(int), FOO(1, bigint)); but CONTAINS, whose clause in FROM is
+                    // a correlation name (contains.score)
+                    throw new SqlSyntaxException("the reserved word '" + t.text() + "' is no value here"
+                            + (peek(1).isOp(".") ? ": a correlation name of its spelling must be delimited" : "")
+                            + IqDialect.syntaxCode(), t.pos());
+                }
                 throw SqlSyntaxException.unsupported("'" + t.text() + "' here (" + keywordForm(t)
                         + ") is not supported yet", t.pos());
             }
@@ -1767,6 +2077,13 @@ public final class IqParser {
                     take();
                     try {
                         SqlAst.Expr inner = expression();
+                        if (peek().isOp(",") && !predicate(inner)) {
+                            // IQ island, 2026-10-17 (the corpus lane's TPC-H and TPC-DS: (a, b) IN (SELECT ...);
+                            // measured on IQ 17.1): a row value is no syntax of IQ's, its -131 at the comma (a
+                            // predicate's estimated selectivity, (c, 40) or (c, 'S:40'), it reads)
+                            throw new SqlSyntaxException("a row value, (a, b), is no syntax of IQ's"
+                                    + IqDialect.syntaxCode(), peek().pos());
+                        }
                         expectOp(")");
                         parens.merge(inner, 1, Integer::sum);
                         return inner;
@@ -1809,11 +2126,39 @@ public final class IqParser {
      *  Key: each -131). */
     private static final Set<String> BARE_RESERVED = Set.of("date", "comment", "time", "key");
 
+    /** Reserved words naming a type, which IQ reads as no value before a comma or a closing parenthesis (measured on IQ
+     *  17.1, each -131; timestamp, money and text are names there, a column's -143). */
+    private static final Set<String> TYPE_WORDS = Set.of("int", "integer", "smallint", "tinyint", "bigint", "char",
+            "decimal", "numeric", "float", "double", "real", "bit", "binary", "varbinary", "long", "varchar",
+            "nvarchar", "uniqueidentifier");
+
     /** What a keyword heading a value would begin, for the refusal's message. */
     private static String keywordForm(IqLexer.Token t) {
         String k = IqLexer.lower(t.text());
         return k.equals("current") ? "a special value" : k.equals("exists") ? "a subquery"
                 : "a function or special form";
+    }
+
+    /** Whether {@code e} is a predicate (a comparison, AND, OR, NOT, a truth test, BETWEEN, IN, LIKE, IS NULL,
+     *  EXISTS, a quantified comparison), not a value. */
+    private static boolean predicate(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.Binary b -> switch (b.op()) {
+                case EQ, NE, LT, LE, GT, GE, AND, OR -> true;
+                default -> false;
+            };
+            case SqlAst.Unary u -> u.op() == SqlAst.UnaryOp.NOT;
+            case SqlAst.Between b -> true;
+            case SqlAst.InList in -> true;
+            case SqlAst.InSubquery in -> true;
+            case SqlAst.Like l -> true;
+            case SqlAst.IsNull n -> true;
+            case SqlAst.IsTruth t -> true;
+            case SqlAst.IsDistinct d -> true;
+            case SqlAst.Exists x -> true;
+            case SqlAst.Quantified q -> true;
+            default -> false;
+        };
     }
 
     /** {@code IF condition THEN value [ELSE value] (ENDIF | END IF)} (the research's GRAMMAR E14), as the CASE it
@@ -1877,6 +2222,7 @@ public final class IqParser {
                 SqlAst.Expr v = expression();
                 value(v, "WHEN");
                 test = new SqlAst.Binary(SqlAst.BinaryOp.EQ, operand, v, when.pos());
+                simpleWhens.add(test);
             }
             expectSyntax("then", "WHEN needs THEN");
             SqlAst.Expr result = expression();
@@ -1995,6 +2341,17 @@ public final class IqParser {
         return new SqlAst.ColumnRef(parts, first.pos());
     }
 
+    /** TRIM and its one-sided forms ({@link #ansiTrim}). */
+    private static final Set<String> TRIMS = Set.of("trim", "ltrim", "rtrim");
+
+    /** IQ island, 2026-10-17 (the corpus lane's TRIM(BOTH '<>' FROM s); measured on IQ 17.1): the ANSI forms of
+     *  TRIM -- BOTH, LEADING or TRAILING, a FROM -- are no syntax of IQ's (TRIM(s), TRIM(s, set) are), its syntax error
+     *  at {@code at}. */
+    private static SqlSyntaxException ansiTrim(IqLexer.Token at) {
+        return new SqlSyntaxException("TRIM's ANSI forms (BOTH, LEADING, TRAILING, FROM) are no syntax of IQ's, which"
+                + " reads TRIM(s) and TRIM(s, set)" + IqDialect.syntaxCode(), at.pos());
+    }
+
     /** {@code name(value, ...)}: a scalar function's call, which the dialect's catalog reads (or refuses by name). An
      *  owner-qualified name, an aggregate, {@code DISTINCT} or {@code *} in the call, and a window ({@code OVER}) are
      *  refused by name. */
@@ -2016,11 +2373,13 @@ public final class IqParser {
                     + " that loses precision for large values, which lite's databases do not reproduce", first.pos());
         }
         // IQ island, 2026-10-15 (checklist 2.16b): GROUPING(x) is read as a call, IqDialect.rolledUp's to read
-        if (IqFunctions.NO_SUCH_FUNCTION.contains(lower)) {
-            // IQ island, 2026-10-16 (measured on IQ 17.1): STRING_AGG, GROUP_CONCAT, STDEV
-            throw SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name), first.pos());
-        }
-        if (AGGREGATES.contains(lower) && !lower.equals("grouping")) {
+        // IQ island, 2026-10-17 (measured on IQ 17.1): a name of no function of IQ's (STRING_AGG, STDEV, CONCAT) is read
+        // as a call -- a syntax error in its arguments comes first (-131), a grouped query's column it reads outside
+        // the GROUP BY next (-149), its -265 last, as it is translated (IqDialect.function); under the iq17 presets
+        // an aggregate's DISTINCT, an ORDER BY inside and WITHIN GROUP read as the call (their keys its arguments;
+        // SQL Anywhere 17 rejects them: the syntax research's z2_redteam-714), OVER and * its -265 here
+        boolean noSuch = IqFunctions.NO_SUCH_FUNCTION.contains(lower);
+        if (AGGREGATES.contains(lower) && !lower.equals("grouping") && !noSuch) {
             throw SqlSyntaxException.unsupported("the aggregate or OLAP function " + name + "(...) is not supported"
                     + " yet", first.pos());
         }
@@ -2035,7 +2394,20 @@ public final class IqParser {
             take();
             take();
             return new SqlAst.FunctionCall(parts, List.of(), false, true, List.of(), List.of(), null, first.pos());
+        } else if (noSuch && settings.iq17() && (peek().is("distinct") || peek().is("all")) && !peek(1).isOp(")")) {
+            // IQ island, 2026-10-17 (the claim verification's SQLStorm STRING_AGG(DISTINCT ...); measured on IQ 17.1):
+            // read as the call it is, its arguments as written -- a grouped query's column outside the GROUP BY is
+            // its -149 there, its -265 else
+            take();
         } else if (peek().is("distinct") || peek().is("all") || peek().isOp("*")) {
+            if (noSuch) {
+                SqlSyntaxException e = afterReading(SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name),
+                        first.pos()));
+                if (e != null) {
+                    throw e;
+                }
+                return pastCall(parts, first, true);
+            }
             throw SqlSyntaxException.unsupported("'" + peek().text() + "' in a call (an aggregate's form) is not"
                     + " supported yet", peek().pos());
         }
@@ -2062,15 +2434,59 @@ public final class IqParser {
                 return new SqlAst.FunctionCall(parts, args, false, false, first.pos());
             }
         }
+        boolean trims = TRIMS.contains(IqLexer.lower(name));
+        if (trims && (peek().isWord("both") || peek().isWord("leading") || peek().isWord("trailing"))
+                && (peek(1).kind() == IqLexer.Kind.STRING || peek(1).is("from"))) {
+            throw ansiTrim(peek(1));
+        }
         if (!empty && !peek().isOp(")")) {
             do {
-                noNamedArgument();
+                // IQ island, 2026-10-17 (BIRD's SUM(Currency = 'EUR'); measured on IQ 17.1): IQ's own functions take
+                // no named argument, so x = y there is a condition, its -131 (value below)
+                if (!IqFunctions.catalogued(name)) {
+                    noNamedArgument();
+                }
                 SqlAst.Expr a = expression();
                 value(a, "a function's arguments");
                 args.add(a);
+                if (trims && peek().is("from")) {
+                    throw ansiTrim(peek());
+                }
+                if (peek().is("as") && !IqLexer.lower(name).startsWith("xml") && !IqLexer.lower(name).equals("treat")) {
+                    // IQ island, 2026-10-17 (the corpus lane's COALESCE(COUNT(a.id) AS n, 0); measured on IQ
+                    // 17.1): AS after an argument (but an XML function's or TREAT's) is its syntax error
+                    throw new SqlSyntaxException("AS cannot follow a function's argument" + IqDialect.syntaxCode(),
+                            peek().pos());
+                }
+                if (noSuch && settings.iq17() && peek().is("order")) {
+                    // IQ island, 2026-10-17 (measured on IQ 17.1): an ORDER BY inside, its keys read as arguments
+                    take();
+                    orderKeys(args);
+                    break;
+                }
             } while (takeOp(","));
         }
         expectOp(")");
+        if (noSuch && settings.iq17() && peek().is("within") && peek(1).isWord("group") && peek(2).isOp("(")
+                && peek(3).is("order")) {
+            // IQ island, 2026-10-17 (the claim verification's SQLStorm STRING_AGG(...) WITHIN GROUP (ORDER BY ...);
+            // measured on IQ 17.1): its keys read as arguments, as an ORDER BY inside is
+            take();
+            take();
+            take();
+            take();
+            orderKeys(args);
+            expectOp(")");
+            return new SqlAst.FunctionCall(parts, args, false, false, first.pos());
+        }
+        if (noSuch && (peek().is("over") || peek().is("within"))) {
+            SqlSyntaxException e = afterReading(SqlSyntaxException.unsupported(IqFunctions.noSuchFunctionText(name),
+                    first.pos()));
+            if (e != null) {
+                throw e;
+            }
+            return pastCall(parts, first, false);
+        }
         if (peek().is("over") || peek().is("within")) {
             // IQ island, 2026-10-15 (windows): a scalar function is no window function (SQL Anywhere's -131 after one
             // it knows; IQ's -265 for one it does not, as NTH_VALUE, measured)
@@ -2110,7 +2526,6 @@ public final class IqParser {
                 take();
             }
             do {
-                noNamedArgument();
                 SqlAst.Expr a = expression();
                 value(a, "an aggregate's argument");
                 args.add(a);
@@ -2170,6 +2585,12 @@ public final class IqParser {
         SqlAst.FunctionCall call = new SqlAst.FunctionCall(parts, args, distinct, star, orderBy, within, null,
                 first.pos());
         spans.put(call, text.substring(tokens.get(start - 1).start(), tokens.get(at - 1).end()));
+        if (peek().isWord("filter") && peek(1).isOp("(")) {
+            // IQ island, 2026-10-17 (the corpus lane's COUNT(*) FILTER (WHERE ...); measured on IQ 17.1): no clause of
+            // IQ's, its syntax error
+            throw new SqlSyntaxException("an aggregate's FILTER (WHERE ...) is no clause of IQ's"
+                    + IqDialect.syntaxCode(), peek().pos());
+        }
         if (peek().is("over") && percentile) {
             // measured on IQ 17.1: a percentile takes no OVER
             throw new SqlSyntaxException("a percentile takes no OVER" + IqDialect.syntaxCode(), peek().pos());
@@ -2209,7 +2630,6 @@ public final class IqParser {
                         + " is not supported", peek().pos());
             }
             do {
-                noNamedArgument();
                 SqlAst.Expr a = expression();
                 value(a, "a function's arguments");
                 args.add(a);
@@ -2355,7 +2775,12 @@ public final class IqParser {
         }
         if (t.is("current")) {
             take();
-            expectSyntax("row", "CURRENT needs ROW");
+            // a word in the iq17 profiles (IqLexer.IQ_NAMES), a keyword elsewhere
+            if (!peek().isWord("row")) {
+                throw new SqlSyntaxException("CURRENT needs ROW, not '" + peek().text() + "'"
+                        + IqDialect.syntaxCode(), peek().pos());
+            }
+            take();
             return new SqlAst.FrameBound(SqlAst.BoundKind.CURRENT_ROW, null);
         }
         SqlAst.Expr offset = concatenation();
@@ -2448,6 +2873,9 @@ public final class IqParser {
     /** The name of the call a CONVERT with a style is read as (IQ island, 2026-10-15): no name a query can write. */
     static final String CONVERT_STYLE = "convert style";
 
+    /** The name of the call a CONVERT to DATE or TIMESTAMP with a style is read as (IQ island, 2026-10-17). */
+    static final String CONVERT_DATE_STYLE = "convert date style";
+
     /** The call {@link #extractCall} makes, of {@link IqFunctions}'s EXTRACT: a name no query can write. */
     static final String EXTRACT = "extract from";
 
@@ -2475,7 +2903,9 @@ public final class IqParser {
     }
 
     /** {@code CONVERT(data_type, expression [, style])} (GRAMMAR F15): without a style, a {@code Cast} whose type name
-     *  begins with {@link #CONVERT}; a style is refused by name, after the call reads. */
+     *  begins with {@link #CONVERT}; with an integer constant style, to CHAR or VARCHAR a {@link #CONVERT_STYLE} call,
+     *  to DATE or TIMESTAMP a {@link #CONVERT_DATE_STYLE} call, to a national type the {@code Cast}; any other style is
+     *  refused by name, after the call reads. */
     private SqlAst.Expr convertCall() {
         IqLexer.Token t = take();
         expectOp("(");
@@ -2496,14 +2926,29 @@ public final class IqParser {
             value(style, "CONVERT's style");
             expectOp(")");
             String target = IqLexer.lower(type.name());
+            if (style instanceof SqlAst.IntegerLit && (target.equals("nchar") || target.equals("nvarchar"))) {
+                // IQ island, 2026-10-17 (the corpus lane's CONVERT(NVARCHAR(7), d, 23); measured on IQ 17.1): to a
+                // national type as without a style -- IQ's engine converts to none, its -1001030 with a style too
+                engineCast(operand, type, "CONVERT");
+                return new SqlAst.Cast(operand, new SqlAst.TypeName(CONVERT + type.name(), type.modifiers(),
+                        type.pos()), t.pos());
+            }
+            if (style instanceof SqlAst.IntegerLit && (target.equals("date") || target.equals("timestamp"))) {
+                // IQ island, 2026-10-17: a date read by a style ({@link IqFunctions}'s CONVERT_DATE_STYLE): the
+                // operand, the style, and 1 for a DATE (0 for a TIMESTAMP)
+                return new SqlAst.FunctionCall(List.of(new SqlAst.Ident(CONVERT_DATE_STYLE, false, t.pos())), List.of(
+                        operand, style, new SqlAst.IntegerLit(java.math.BigInteger.valueOf(target.equals("date") ? 1
+                                : 0), t.pos())), false, false, t.pos());
+            }
             if (!(style instanceof SqlAst.IntegerLit n) || !target.equals("varchar") && !target.equals("char")) {
-                throw SqlSyntaxException.unsupported("CONVERT with a style is supported only to CHAR or VARCHAR with"
-                        + " an integer constant style yet", style.pos());
+                throw SqlSyntaxException.unsupported("CONVERT with a style is supported only to CHAR, VARCHAR, DATE or"
+                        + " TIMESTAMP with an integer constant style yet", style.pos());
             }
-            if (n.value().bitLength() > 31 || !IqFunctions.STYLES.contains(n.value().intValue())) {
+            if (n.value().bitLength() > 31) {
                 throw SqlSyntaxException.unsupported("CONVERT style " + n.value() + " is not supported: the island"
-                        + " reads IQ's date styles 0-5, 10-12, 20, 21, 100-108, 110-112, 120 and 121", style.pos());
+                        + " reads IQ's date styles 0-14, 20, 21, 36-40, 100-114, 120, 121, 136-140 and 365", style.pos());
             }
+            // IQ island, 2026-10-17: another style is IQ's engine's -1009145 (IqFunctions.convertStyle)
             // IQ island, 2026-10-15: a date's text by an IQ style ({@link IqFunctions}'s CONVERT_STYLE, measured on
             // IQ 17.1): the operand, the style and the target's length (-1 for none)
             int length = type.modifiers().isEmpty() ? -1 : type.modifiers().get(0);
@@ -2516,6 +2961,9 @@ public final class IqParser {
         return new SqlAst.Cast(operand, new SqlAst.TypeName(CONVERT + type.name(), type.modifiers(), type.pos()),
                 t.pos());
     }
+
+    /** Other dialects' type names IQ raises its syntax error for (IQ island, 2026-10-17, measured on IQ 17.1). */
+    private static final Set<String> FOREIGN_TYPES = Set.of("datetime2", "interval");
 
     /**
      * A data type (GRAMMAR T1-T11), as the name the dialect reads and its sizes: {@code CHAR}, {@code VARCHAR} (with a
@@ -2651,8 +3099,16 @@ public final class IqParser {
                 }
                 throw notRead(w.toUpperCase(java.util.Locale.ROOT), pos);
             }
-            default -> throw SqlSyntaxException.unsupported("the data type '" + first.text() + "' is not supported"
-                    + " (a user-defined domain, or a type the #IQ{...}# island does not read)", pos);
+            default -> {
+                if (FOREIGN_TYPES.contains(w)) {
+                    // IQ island, 2026-10-17 (the corpus lane's CAST(x AS DATETIME2); measured on IQ 17.1): no type of
+                    // IQ's, its syntax error (an unknown type's name is -131 there: foobar, datetime3)
+                    throw new SqlSyntaxException("the data type '" + first.text() + "' is no type of IQ's, its syntax"
+                            + " error unless a user-defined domain holds the name" + IqDialect.syntaxCode(), pos);
+                }
+                throw SqlSyntaxException.unsupported("the data type '" + first.text() + "' is not supported (a"
+                        + " user-defined domain, or a type the #IQ{...}# island does not read)", pos);
+            }
         }
     }
 
@@ -2951,7 +3407,9 @@ public final class IqParser {
             return new SqlSyntaxException("INTERVAL is no type of IQ's (a name here): '" + t.text() + "' cannot follow"
                     + " it" + IqDialect.syntaxCode(), t.pos());
         }
-        if (t.isWord("collate") || t.isOp("(") && before != null && before.isWord("filter")) {
+        IqLexer.Token after = at + 1 < tokens.size() && tokens.get(at) == t ? tokens.get(at + 1) : null;
+        if (t.isWord("collate") || t.isOp("(") && before != null && before.isWord("filter")
+                || t.isWord("filter") && after != null && after.isOp("(")) {
             // IQ island, 2026-10-16 (measured on IQ 17.1): T-SQL's COLLATE clause and an aggregate's FILTER (WHERE
             // ...) are its syntax error too (FILTER alone is an alias)
             return new SqlSyntaxException("'" + t.text() + "' cannot stand here: COLLATE and an aggregate's FILTER"
@@ -2961,6 +3419,120 @@ public final class IqParser {
             return new SqlSyntaxException("OFFSET and FETCH are no clauses of IQ's (its row limit is TOP n START AT m)"
                     + IqDialect.syntaxCode(), t.pos());
         }
+
+        IqLexer.Token third = after != null && at + 2 < tokens.size() ? tokens.get(at + 2) : null;
+        if (t.kind() == IqLexer.Kind.KEYWORD && before != null && (before.is("from") || before.is("join")
+                || before.is("as")) && (after == null || !after.isOp("("))) {
+            // IQ island, 2026-10-17 (BIRD's table Match, 26 queries; measured on IQ 17.1): a reserved word where only
+            // a name stands (a table's, an alias) is IQ's syntax error, unless delimited; one that opens a call there
+            // (UNNEST(...), a FROM item SQL Anywhere reads) is not claimed
+            return new SqlSyntaxException("the reserved word '" + t.text() + "' cannot stand as a name here: a name of"
+                    + " it must be delimited" + IqDialect.syntaxCode(), t.pos());
+        }
+        if (t.isWord("ilike")) {
+            // IQ island, 2026-10-17 (the JOB corpus lane's 35; measured on IQ 17.1): PostgreSQL's ILIKE
+            return new SqlSyntaxException("ILIKE is no syntax of IQ's (it reads LIKE)" + IqDialect.syntaxCode(),
+                    t.pos());
+        }
+        if (bracketed(t) || t.is("as") && before != null && bracketed(before)) {
+            // IQ island, 2026-10-17 (the JOB corpus lane's ARRAY[m.id] AS path, names[1], ARRAY['x']; measured on IQ
+            // 17.1): IQ reads [...] as a name in brackets, so PostgreSQL's arrays are its syntax error where that name
+            // cannot stand
+            return new SqlSyntaxException("'" + t.text() + "' cannot stand here: [...] is a name in brackets to IQ, no"
+                    + " array" + IqDialect.syntaxCode(), t.pos());
+        }
+        IqLexer.Token opener = tokens.get(at) == t ? openedBy(at) : null;
+        if ((t.is("from") || t.is("for")) && opener != null && opener.isName()) {
+            // IQ island, 2026-10-17 (the TPC-H corpus lane's SUBSTRING(s FROM 1 FOR 10), 105 queries; measured on IQ
+            // 17.1): no call of IQ's reads FROM or FOR among its arguments (EXTRACT's is read where it stands), so SQL's
+            // SUBSTRING and SUBSTR forms are its syntax error
+            return new SqlSyntaxException("'" + t.text() + "' among a call's arguments is no syntax of IQ's (it reads"
+                    + " SUBSTRING(s, start, length))" + IqDialect.syntaxCode(), t.pos());
+        }
+        if (t.isOp(":") && after != null && after.isOp(":")) {
+            // IQ island, 2026-10-17 (the TPC-H corpus lane's x::text; measured on IQ 17.1): PostgreSQL's cast
+            return new SqlSyntaxException("'::' is no cast of IQ's (it reads CAST(x AS type))" + IqDialect.syntaxCode(),
+                    t.pos());
+        }
+        if (t.is("for") && after != null && after.isWord("xml") && third != null && third.isWord("path")) {
+            // IQ island, 2026-10-17 (the corpus lane's FOR XML PATH(''), 15; measured on IQ 17.1): FOR XML RAW, AUTO
+            // and EXPLICIT are IQ's, PATH its syntax error
+            return new SqlSyntaxException("FOR XML PATH is no syntax of IQ's (its FOR XML reads RAW, AUTO and"
+                    + " EXPLICIT)" + IqDialect.syntaxCode(), third.pos());
+        }
+        if (before != null && (before.kind() == IqLexer.Kind.NUMBER || before.isOp(")"))
+                && DATE_UNITS.contains(IqLexer.lower(t.text()))) {
+            // IQ island, 2026-10-17 (the corpus lane's ts - 1 YEAR, - 90 DAY; measured on IQ 17.1): a date part after
+            // a value is no interval of IQ's, its syntax error
+            return new SqlSyntaxException("a date part after a value ('" + t.text() + "') is no interval of IQ's (it"
+                    + " reads DATEADD(part, n, d))" + IqDialect.syntaxCode(), t.pos());
+        }
+        if (t.kind() == IqLexer.Kind.STRING && before != null && TYPED_LITERALS.contains(IqLexer.lower(
+                before.text()))) {
+            // IQ island, 2026-10-17 (the corpus lane's DATETIME2 '2024-10-01 12:34:56'; measured on IQ 17.1): a type's
+            // name before a string is no typed constant of IQ's, its syntax error
+            return new SqlSyntaxException("'" + before.text() + " '...'' is no typed constant of IQ's (it reads"
+                    + " CAST('...' AS type))" + IqDialect.syntaxCode(), t.pos());
+        }
+        if (t.isOp(")") && tokens.get(at) == t && unopened(at)) {
+            // IQ island, 2026-10-17 (the corpus lane's SQLStorm STRING_SPLIT(...) ...)) AS value): a closing
+            // parenthesis no opening one before it matches is a syntax error wherever it stands
+            return new SqlSyntaxException("this ')' closes no '('" + IqDialect.syntaxCode(), t.pos());
+        }
+        if (t.isWord("limit") || before != null && before.isWord("limit") && t.kind() == IqLexer.Kind.NUMBER) {
+            // IQ island, 2026-10-17 (the corpus lane's subqueries' ORDER BY x LIMIT 1 and FROM t LIMIT 5; measured on
+            // IQ 17.1): LIMIT is a name under the reserved_keywords option's default, so a row limit spelled so is its
+            // syntax error, inside a subquery as after a table (its alias then)
+            return limit(t);
+        }
         return SqlSyntaxException.unsupported("'" + t.text() + "' here is not supported", t.pos());
+    }
+
+    /** Whether {@code t} is a name written in brackets ({@code [name]}). */
+    private boolean bracketed(IqLexer.Token t) {
+        return t.kind() == IqLexer.Kind.QUOTED && t.start() < text.length() && text.charAt(t.start()) == '[';
+    }
+
+    /** The token before the innermost {@code (} left open before token {@code i}; null where none is open, or it opens
+     *  the statement. */
+    private IqLexer.@com.legend.base.Nullable Token openedBy(int i) {
+        int depth = 0;
+        for (int k = i - 1; k >= 0; k--) {
+            if (tokens.get(k).isOp(")")) {
+                depth++;
+            } else if (tokens.get(k).isOp("(")) {
+                if (depth == 0) {
+                    return k > 0 ? tokens.get(k - 1) : null;
+                }
+                depth--;
+            }
+        }
+        return null;
+    }
+
+    /** Whether the {@code )} at token {@code i} has no {@code (} before it left open. */
+    private boolean unopened(int i) {
+        int depth = 0;
+        for (int k = 0; k < i; k++) {
+            if (tokens.get(k).isOp("(")) {
+                depth++;
+            } else if (tokens.get(k).isOp(")")) {
+                depth--;
+            }
+        }
+        return depth <= 0;
+    }
+
+    /** The date parts IQ raises its syntax error for after a value ({@link #unexpected}; measured on IQ 17.1). */
+    private static final Set<String> DATE_UNITS = Set.of("year", "quarter", "month", "week", "day", "hour", "minute",
+            "second", "years", "months", "weeks", "days", "hours", "minutes", "seconds");
+
+    /** Type names IQ raises its syntax error for before a string ({@link #unexpected}; measured on IQ 17.1). */
+    private static final Set<String> TYPED_LITERALS = Set.of("datetime", "datetime2", "smalldatetime", "timestamp");
+
+    /** LIMIT as a row limit: IQ's syntax error under the reserved_keywords option's default ({@link #unexpected}). */
+    private static SqlSyntaxException limit(IqLexer.Token t) {
+        return new SqlSyntaxException("LIMIT is no clause of IQ's under the reserved_keywords option's default (its row"
+                + " limit is TOP n START AT m)" + IqDialect.syntaxCode(), t.pos());
     }
 }

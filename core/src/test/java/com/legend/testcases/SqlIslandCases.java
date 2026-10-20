@@ -374,5 +374,16 @@ public final class SqlIslandCases {
                     List.of()),
             new Case("select \"ID\" from tb('store::HR.EMP') where dept is not distinct from null order by \"ID\"",
                     true, List.of("ID"),
-                    List.of(List.of("5"))));
+                    List.of(List.of("5"))),
+            // 2026-10-18 (IQ landing 5's review): a scalar subquery an item computes for every row is computed once, a
+            // column before the item (SqlToPure.output), in the Postgres front end too
+            new Case("select \"ID\", age - (select min(age) from tb('store::HR.EMP')) as d, (select max(age) from"
+                    + " tb('store::HR.EMP') e where e.dept = t.dept) * 2 as m from tb('store::HR.EMP') t order by \"ID\"",
+                    true, List.of("ID", "d", "m"),
+                    List.of(List.of("1", "5", "80"),
+                            List.of("2", "15", "80"),
+                            List.of("3", "0", "50"),
+                            List.of("4", "null", "50"),
+                            List.of("5", "10", "null"),
+                            List.of("6", "5", "80"))));
 }

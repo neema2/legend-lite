@@ -51,7 +51,9 @@ import { AdHocSession } from './adhoc/session.ts';
 import { drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, isPivotTotalColumn, withoutConditions, type QuerySnapshot } from './snapshot.ts';
-import { columnKind, setGrouping, setPivot, setSorts, type GridDraft } from './grid-edits.ts';
+import {
+  clickSort, clickTreeSort, columnKind, firstSortDirection, headerSorts, setGrouping, setPivot, type GridDraft,
+} from './grid-edits.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
@@ -116,6 +118,7 @@ import {
   applyMenuAction,
   buildMenu,
   calcStageOf,
+  columnLabel,
   emailItems,
   exportItems,
   type MenuGroup,
@@ -735,7 +738,7 @@ export class CubeApp {
       onActivateCell: (row, column) => {
         void this.#drillThrough(row, column);
       },
-      onHeaderSort: (column) => this.#sortByHeader(column),
+      onHeaderSort: (column, chained) => this.#sortByHeader(column, chained),
       // A dragged edge is a width like Auto-size's -- resizable again,
       // unlike an explicit Fixed one.
       onResizeColumn: (column, width) => this.#patchColumn(column, { width }),
@@ -1198,7 +1201,7 @@ export class CubeApp {
     this.#refreshFormats();
     this.#refreshHeatmaps(view);
     this.#grid.setColumns(model);
-    this.#grid.setSorts(view.snapshot.sorts);
+    this.#grid.setSorts(headerSorts(view.snapshot, model.leaves.map((l) => l.name), TREE_COLUMN));
     this.#grid.setRows(view.rows, 0, view.rows.rowCount);
 
     // The panel is refreshed from the view, not only from a
@@ -1882,6 +1885,9 @@ export class CubeApp {
         hasExpanded: this.#owner.current.tree.openPaths.length > 0,
         hasHeatmap:
           column !== undefined && this.#heatmapFor(column) !== undefined,
+        ...(this.#config.pivotStatisticColumnName !== undefined
+          ? { totalLabel: this.#config.pivotStatisticColumnName }
+          : {}),
         canGroup: column === undefined || this.#kindOf(column, this.#shown) === 'dimension',
         ...(this.#config.pivotMeasuresFirst ? { measuresFirst: true } : {}),
         // A host mailer, or upstream's way: a .eml draft to download.
@@ -1891,9 +1897,6 @@ export class CubeApp {
         ...(this.#controlsHidden ? { controlsHidden: true } : {}),
         ...(column !== undefined && this.#config.columns[column]?.pinned
           ? { pinned: this.#config.columns[column]?.pinned as 'left' | 'right' }
-          : {}),
-        ...(column !== undefined && isPivotTotalColumn(column)
-          ? { pivotTotal: true }
           : {}),
         ...(column !== undefined && this.#kindOf(column, this.#shown) !== undefined
           ? { extendable: true }
@@ -2171,43 +2174,31 @@ export class CubeApp {
    *
    * Set on the MEASURE rather than the leaf, so it reaches every
    * `2021__|__notional` the pivot produced -- a heatmap applied to
-   * one pivoted leaf and not its siblings is worse than none.
+   * one pivoted leaf and not its siblings is worse than none. A pivot
+   * TOTAL is a column of its own (the user, 2026-10-18): its heatmap is
+   * its own, and its measure's leaves it alone (export-render.ts
+   * heatmapSetting).
    */
   #setHeatmap(leafName: string, on: boolean): void {
-    const measure = this.#pivotMeasureOf(leafName) ?? leafName;
+    const measure = isPivotTotalColumn(leafName) ? leafName : this.#pivotMeasureOf(leafName) ?? leafName;
     this.#patchColumn(measure, {
       heatmap: on ? { from: '#ffffff', to: '#ff8a65' } : undefined,
     });
   }
 
   /**
-   * A header click: upstream's sort-on-click, with multi-sort always on.
-   * Off, ascending, descending, off again -- each column in its own
-   * place among the sorts. The tree column orders the GROUPS, so it
-   * flips the tree's direction; a pivot total is no query's column.
+   * A header click (grid-edits.ts clickSort, the user's rule of 2026-10-18): the column alone, or `chained` after the
+   * other sorts -- first a number or a date from the largest, anything else from A, then the other way, then no sort.
+   * The tree column orders the groups, and turns their order (clickTreeSort). A pivot total sorts as any column.
    */
-  #sortByHeader(column: string): void {
-    if (isPivotTotalColumn(column)) {
-      this.#status('a pivot total cannot be sorted on', 'warn');
-      return;
-    }
+  #sortByHeader(column: string, chained: boolean): void {
     if (column === TREE_COLUMN) {
-      void this.applyConfiguration({
-        treeColumnSort: this.#config.treeColumnSort === 'asc' ? 'desc' : 'asc',
-      });
+      void this.#edit((d) => clickTreeSort(d, chained), 'sort the groups');
       return;
     }
-    void this.#edit((d) => {
-      const sorts = d.snapshot.sorts;
-      const at = sorts.findIndex((x) => x.column === column);
-      const now = sorts[at];
-      const next = now === undefined
-        ? [...sorts, { column, direction: 'asc' as const }]
-        : now.direction === 'asc'
-          ? sorts.map((x, i) => (i === at ? { column, direction: 'desc' as const } : x))
-          : sorts.filter((_x, i) => i !== at);
-      return setSorts(d, next);
-    }, `sort ${column}`);
+    const type = this.#view?.columns.leaves.find((l) => l.name === column)?.type;
+    void this.#edit((d) => clickSort(d, column, firstSortDirection(type), chained),
+      `sort ${columnLabel(column, this.#config.pivotStatisticColumnName)}`);
   }
 
   /**

@@ -1,0 +1,37 @@
+# The #Cypher{...}# island's list comprehensions over a named path's parts whose projection holds a pattern
+# (docs/CYPHER_STUDY_2026_10_15.md §12.80): read as the list of that projection per part, each pattern then from a
+# node the MATCH binds; and a pattern predicate or EXISTS among a projection's items over rows. Each case is judged by Neo4j's answer in neo4j-answers.jsonl (tools/neo4j-oracle/snap.sh
+# --write --only 'lite/pathunroll/*'), keyed lite/pathunroll/<id>.
+tests:
+  - id: a_count_per_node_of_the_path
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (b)-[:T]->(:C), (b)-[:T]->(:C), (a)-[:T]->(:C)
+    cypher: "MATCH p = (a:A)-->(b:B) RETURN a.name AS a, [x IN nodes(p) | size([(x)-->(:C) | 1])] AS list"
+  - id: a_pattern_predicate_per_node
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (b)-[:T]->(:C)
+    cypher: "MATCH p = (a:A)-[:T]->(b) RETURN [x IN nodes(p) | EXISTS { (x)-->(:C) }] AS l"
+  - id: an_unnamed_node_of_the_path
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(:B), (a)-[:T]->(b2:B), (b2)-[:T]->(:C)
+    cypher: "MATCH p = (a:A)-->(:B) RETURN [x IN nodes(p) | size([(x)-->() | 1])] AS outs ORDER BY outs"
+  - id: two_hops
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B)-[:T]->(c:C), (:D)-[:T]->(c)
+    cypher: "MATCH p = (a:A)-->(b)-->(c) RETURN [x IN nodes(p) | size([(x)<--() | 1])] AS ins"
+  - id: in_a_with
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B), (b)-[:T]->(:C), (a2:A {name: 'z'})-[:T]->(:B)
+    cypher: "MATCH p = (a:A)-->(b) WITH a, [x IN nodes(p) | size([(x)-->() | 1])] AS outs RETURN a.name AS a, outs ORDER BY a"
+  - id: the_variable_named_as_a_node_of_the_path
+    graph: |
+      CREATE (x:A {name: 'a'})-[:T]->(:B)-[:T]->(:C)
+    cypher: "MATCH p = (x:A)-->(y) RETURN [x IN nodes(p) | size([(x)-->() | 1])] AS l"
+  - id: exists_in_a_return_over_rows
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (a)-[:T]->(:B {name: 'c'}), (b)-[:T]->(:C)
+    cypher: "MATCH (a:A)-->(b:B) RETURN b.name AS b, EXISTS { (b)-->(:C) } AS e ORDER BY b"
+  - id: exists_as_a_grouping_key
+    graph: |
+      CREATE (a:A {name: 'a'})-[:T]->(b:B {name: 'b'}), (a)-[:T]->(:B {name: 'c'}), (a)-[:T]->(:B {name: 'd'}), (b)-[:T]->(:C)
+    cypher: "MATCH (a:A)-->(b:B) RETURN EXISTS { (b)-->(:C) } AS e, count(*) AS n ORDER BY e"

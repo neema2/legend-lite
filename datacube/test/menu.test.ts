@@ -503,10 +503,10 @@ describe('valueLabel', () => {
 });
 
 describe('a pivot Total column', () => {
-  // A total is a real column of the level's query (a conditional aggregate), so it sorts;
-  // filters apply to source rows, before any total exists, so it offers none.
+  // A total is a column of the level's query like any other, so it sorts; filters apply to source rows, before any
+  // total exists, so it offers none. The context is the app's for a total: its measure the pivot's base, no dimension.
   const total = pivotTotalColumn('notional');
-  const ctx = { snapshot: { ...CUBE, pivotTotal: { placement: 'right' as const } }, column: total, pivotTotal: true };
+  const ctx = { snapshot: { ...CUBE, pivotTotal: { placement: 'right' as const } }, column: total, pivotBase: 'notional', canGroup: false, isMeasure: true };
 
   it('offers Sort on the total', () => {
     const on = enabled(ctx);

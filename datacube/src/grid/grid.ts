@@ -144,10 +144,11 @@ export interface GridOptions {
     value: Scalar,
   ) => string | null;
   /**
-   * A header was clicked: sort by it. Upstream sorts on a header click
-   * with multi-sort always on; the host decides what a click means.
+   * A header was clicked: sort by it, alone or `chained` after the other
+   * sorts (Ctrl, or Cmd on a Mac). The host decides the direction
+   * (grid-edits.ts clickSort). With none, a click selects the column.
    */
-  readonly onHeaderSort?: (column: string) => void;
+  readonly onHeaderSort?: (column: string, chained: boolean) => void;
   /** A column's right edge was dragged to a new width. */
   readonly onResizeColumn?: (column: string, width: number) => void;
   /**
@@ -469,7 +470,10 @@ export class DataGrid {
   }
 
 
-  /** The sorts to mark on the header: an arrow, and a position when several. */
+  /**
+   * The sorts to mark on the header, in their order: an arrow, and a position when several. The host marks only what
+   * the rows are ordered by (grid-edits.ts headerSorts).
+   */
   setSorts(sorts: readonly HeaderSort[]): void {
     this.#sorts = sorts;
     this.#renderHeader();
@@ -809,18 +813,16 @@ export class DataGrid {
   }
 
   /**
-   * A header click SELECTS the column and Alt+click sorts -- ag-grid's
-   * rule once column selection is on, as upstream turns it on
-   * (`cellSelection.enableColumnSelection`): "clicking a column header
-   * selects the column"; sorting "requires holding down the Alt key".
-   * Shift extends the selection to another column, Ctrl (Cmd) takes one
-   * off its edge. The header says how the column sorts: an arrow, and
-   * its place in the sort when there are several.
+   * A header click SORTS by the column (the user, 2026-10-18): alone, or chained after the other sorts with Ctrl (Cmd
+   * on a Mac, where Ctrl-click is a right click). Shift-click SELECTS the column, and a second Shift-click every column
+   * between; a grid that does not sort (Ad Hoc's) selects on any click. A click on the resize grip does neither, and a
+   * drag (reordering, or onto a drop zone) is no click. The header says how the column sorts: an arrow, and its place
+   * in the sort when there are several. aria-sort names the first sort alone, as ARIA asks of a table.
    */
   #sortable(el: HTMLElement, leaf: LeafColumn, col: number): void {
     const at = this.#sorts.findIndex((x) => x.column === leaf.name);
     const sort = this.#sorts[at];
-    el.setAttribute('aria-sort', sort === undefined ? 'none'
+    el.setAttribute('aria-sort', sort === undefined || at > 0 ? 'none'
       : sort.direction === 'asc' ? 'ascending' : 'descending');
     if (sort !== undefined) {
       const mark = el.ownerDocument.createElement('span');
@@ -836,16 +838,16 @@ export class DataGrid {
       const target = event.target as { closest?: unknown } | null;
       if (target && typeof target.closest === 'function'
         && (target as Element).closest('.dc-col-resize')) return;
-      if (event.altKey) {
-        onSort?.(leaf.name);
+      if (event.shiftKey || onSort === undefined) {
+        this.#selectColumn(col);
         return;
       }
-      this.#selectColumn(col, event);
+      onSort(leaf.name, event.ctrlKey || event.metaKey);
     });
   }
 
-  /** A header click on column `col`: select it, extend to it, or drop it. */
-  #selectColumn(col: number, event: MouseEvent): void {
+  /** A selecting click on column `col`'s header: select it, or, with columns selected, every column from the first to it. */
+  #selectColumn(col: number): void {
     const last = this.#totalRows - 1;
     if (last < 0) return;
     const whole = (a: number, b: number): CellRange =>
@@ -853,21 +855,7 @@ export class DataGrid {
     const current = this.#selection;
     const b = current ? bounds(current) : null;
     const columns = b !== null && b.top === 0 && b.bottom === last;
-    if (event.shiftKey && current && columns) {
-      this.select(whole(current.anchor.col, col));
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && b !== null && columns
-      && col >= b.left && col <= b.right) {
-      // One rectangle: a column comes off an EDGE. Taking one from the
-      // middle would need two selections, which this grid does not
-      // hold, so that click does nothing rather than something else.
-      if (b.left === b.right) this.select(null);
-      else if (col === b.left) this.select(whole(b.left + 1, b.right));
-      else if (col === b.right) this.select(whole(b.left, b.right - 1));
-      return;
-    }
-    this.select(whole(col, col));
+    this.select(current && columns ? whole(current.anchor.col, col) : whole(col, col));
   }
 
   /** Headers of selected columns are highlighted (upstream's enableHeaderHighlight). */

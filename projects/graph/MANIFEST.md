@@ -9,7 +9,7 @@ Prefixes: none (one element).
 
 | element | kind | note |
 | --- | --- | --- |
-| graph::graph | profile | stereotypes `Edge` (a class is a relationship with properties), `from` and `to` (the class-typed `[1]` properties holding its two ends, own, inherited or association-injected), `type` (a derived property whose body spells the relationship type as one enumeration value); no tags |
+| graph::graph | profile | stereotypes `Edge` (a class is a relationship with properties), `from` and `to` (the class-typed `[1]` properties holding its two ends, own, inherited or association-injected), `type` (a derived property whose body spells the relationship type as one enumeration value), `Open` (on a DataSpace, 2026-10-17: the graph a Cypher island's `USE` names is open, so a name the graph lacks reads as Neo4j reads it, no rows or null); no tags |
 
 ## Notes for downstream projects
 

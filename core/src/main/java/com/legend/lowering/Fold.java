@@ -637,7 +637,9 @@ final class Fold {
      * changing semantics: pure scalar over the current row. Reducers and
      * windows compute over a ROW SET, exists/subqueries carry their own
      * queries (duplication deferred until pinned), list aggs are reducers
-     * in disguise, and UNNEST is row-multiplying — each isolates. */
+     * in disguise, UNNEST is row-multiplying, and a non-deterministic
+     * call draws a new value at each place it is written
+     * ({@link #nondeterministic}) — each isolates. */
     private static boolean scalarInlineable(SqlExpr e) {
         if (e instanceof com.legend.sql.SqlAgg.Reducer
                 || e instanceof SqlExpr.WindowCall
@@ -647,7 +649,8 @@ final class Fold {
                 || e instanceof SqlExpr.JsonArrayAgg
                 || e instanceof SqlExpr.Star
                 || e instanceof SqlExpr.StarExcept
-                || e instanceof SqlExpr.Call c && c.fn() == SqlFn.UNNEST) {
+                || e instanceof SqlExpr.Call c && c.fn() == SqlFn.UNNEST
+                || nondeterministic(e)) {
             return false;
         }
         for (SqlExpr ch : e.children()) {
@@ -881,12 +884,14 @@ final class Fold {
 
     /** A projection expression that may be repeated in WHERE: no window
      * calls (partition semantics), no aggregate reducers (illegal in
-     * WHERE), no subqueries (double evaluation of a correlated read). */
+     * WHERE), no subqueries (double evaluation of a correlated read), no
+     * non-deterministic call (a second draw, {@link #nondeterministic}). */
     private static boolean whereSafe(SqlExpr e) {
         if (e instanceof SqlExpr.WindowCall
                 || e instanceof com.legend.sql.SqlAgg.Reducer
                 || e instanceof SqlExpr.ScalarSubquery
-                || e instanceof SqlExpr.Exists) {
+                || e instanceof SqlExpr.Exists
+                || nondeterministic(e)) {
             return false;
         }
         for (SqlExpr c : e.children()) {
@@ -895,6 +900,15 @@ final class Fold {
             }
         }
         return true;
+    }
+
+    /** A call whose value is the call's, not the row's: the database's random float ({@link SqlFn#RANDOM}) or
+     *  uuid ({@link SqlFn#GUID}) draws afresh at every place it is written, so a projection holding one is computed
+     *  once, in its own select, never substituted into a consumer (the Cypher island's {@code WITH rand() AS r
+     *  RETURN r = r} is true, 2026-10-17; the statement clocks, {@link SqlFn#NOW} and {@link SqlFn#TODAY}, are one
+     *  value per statement on every database and substitute freely). */
+    static boolean nondeterministic(SqlExpr e) {
+        return e instanceof SqlExpr.Call c && (c.fn() == SqlFn.RANDOM || c.fn() == SqlFn.GUID);
     }
 
     /** A per-row cell that CAN be empty: {@code [0..1]} stamped. */

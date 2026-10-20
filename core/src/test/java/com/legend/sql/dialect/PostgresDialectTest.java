@@ -199,6 +199,16 @@ class PostgresDialectTest {
     }
 
     @Test
+    void aRaiseInARangesArgumentIsNoPlannersToEvaluate() {
+        // Postgres estimates generate_series's rows from its arguments when it plans, so a raise written as a constant
+        // there fires before any row asks for it: within those arguments it carries a volatile piece, as a raise an
+        // unnest reads does (2026-10-17, docs/CYPHER_STUDY_2026_10_15.md §12.73)
+        String sql = plan("->extend(~[l: r|range(if($r.qty->isEmpty(), {|fail('no start'); 0;}, |$r.qty->toOne()), 3)"
+                + "->toVariant()])->select(~[id, l])");
+        assertTrue(sql.contains("('no start') || chr(31) || left(CAST(random() AS VARCHAR), 0) AS TIMESTAMPTZ)"), sql);
+    }
+
+    @Test
     void intervalFramesAreQuotedSingulars() {
         assertTrue(plan("->extend(over(~ok, ~ts->ascending(), _range(-2, DurationUnit.WEEKS, 3, DurationUnit.HOURS)),"
                 + " ~[run:{p,w,r|$r.qty}:y|$y->plus()])->select(~[id, run])")
@@ -233,5 +243,35 @@ class PostgresDialectTest {
                 SELECT "t0".id AS "id", CAST(round(CAST("t0".f8 AS DOUBLE PRECISION)) AS BIGINT) AS "r"
                 FROM trades AS "t0"\
                 """, plan("->extend(~[r: r|$r.f8->toOne()->round()])->select(~[id, r])"));
+    }
+
+    @Test
+    void everyUnnestHoldsItsArgumentBehindAScalarSubquery() {
+        // Postgres estimates unnest's rows while planning, evaluating the argument's constant
+        // sub-expressions (a toOne guard's raise among them) after pulling simple subqueries
+        // up, so the argument holds by then the expression of every column it reads; a scalar
+        // subquery reaches the estimate as a parameter it does not open (measured on 16.15,
+        // 2026-10-17: the Cypher island's UNWIND of a CASE whose guard raises)
+        String sql = plan("->extend(~n: r | [1, 2, 3]->filter(e | $e > $r.qty)->size())->select(~[id, n])");
+        assertEquals("""
+                SELECT "t0".id AS "id", coalesce(cardinality((CASE WHEN (CASE WHEN CAST(ARRAY[1, 2, 3] AS BIGINT[]) \
+                IS NULL THEN NULL ELSE ARRAY(SELECT "e" FROM unnest((SELECT CAST(ARRAY[1, 2, 3] AS BIGINT[]))) \
+                WITH ORDINALITY AS __u("e", __o) WHERE ("t0".qty IS NOT NULL AND "e" > "t0".qty) ORDER BY __o) END) \
+                IS NULL THEN NULL ELSE ARRAY(SELECT "x" FROM unnest((SELECT (CASE WHEN CAST(ARRAY[1, 2, 3] AS BIGINT[]) \
+                IS NULL THEN NULL ELSE ARRAY(SELECT "e" FROM unnest((SELECT CAST(ARRAY[1, 2, 3] AS BIGINT[]))) \
+                WITH ORDINALITY AS __u("e", __o) WHERE ("t0".qty IS NOT NULL AND "e" > "t0".qty) ORDER BY __o) END))) \
+                WITH ORDINALITY AS __u("x", __o) WHERE "x" IS NOT NULL ORDER BY __o) END)), 0) AS "n"
+                FROM trades AS "t0"\
+                """, sql);
+        assertFalse(sql.matches("(?s).*unnest\\((?!\\(SELECT ).*"), "an unnest whose argument is not held: " + sql);
+    }
+
+    @Test
+    void aPartialDateInDateArithmeticHasAYearOfFourDigits() {
+        // Postgres reads a leading field of fewer than three digits as no year ('5-01-01' is 2001-05-01, measured
+        // 2026-10-18): the year 5 padded to the first of its period is written 0005 (the independent review)
+        String sql = plan("->extend(~[y: r|%5->dateDiff(%6-03, meta::pure::functions::date::DurationUnit.MONTHS)])"
+                + "->select(~[id, y])");
+        assertTrue(sql.contains("DATE '0005-01-01'") && sql.contains("DATE '0006-03-01'"), sql);
     }
 }

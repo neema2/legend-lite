@@ -18,7 +18,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * THE SYNTHETIC RULE (docs/GRAPHQL_STUDY_2026_10_18.md §5.8; register row S98; the fifth landing's full gate):
+ * THE SYNTHETIC RULE (docs/GRAPHQL_STUDY_2026_10_18.md §5.8; register row S111; the fifth landing's full gate):
  * the GraphQL companion's classes are callable from Pure by name and hidden from every listing that reads
  * "every class of the model". This pins the rule on each listing that reads one: {@code ModelContext.isSynthetic}
  * itself, a label-less Cypher node's labels, the untyped relationship's ends, the graph's edge classes, the GraphQL

@@ -199,8 +199,19 @@ class CatalogUpstreamDiffTest {
      *  four meta::legend::lite natives (timeOf, atTime, instantIn, localIn -- the time-of-day and the zoned date-time
      *  legs, docs/CYPHER_STUDY_2026_10_15.md), declared by Pure.Lite: ours alone by design, never upstream's. 48 on
      *  2026-10-16 (the user's decision, the SQL islands' inline views): meta::legend::lite::inlineView, a lite-internal
-     *  desugar native (NativeCatalogGovernanceTest's INTERNAL_DESUGAR, docs/LITE_INVENTION_CENSUS.md). */
-    private static final int NOT_UPSTREAM_MAX = 48;
+     *  desugar native (NativeCatalogGovernanceTest's INTERNAL_DESUGAR, docs/LITE_INVENTION_CENSUS.md). 54 on
+     *  2026-10-17 (the Cypher TCK-to-zero program, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md; landed by its W2,
+     *  W10 and W11 legs without moving this pin, restored by the spec guards' repair): six meta::legend::lite
+     *  overloads, ours alone -- elementId's two (a mapped instance's identity, W2), recurse (an unbounded
+     *  variable-length pattern's WITH RECURSIVE, W10), isKind, minBy and maxBy (Cypher's orderability over Variants,
+     *  W11). The W3 leg's lite random left in the same repair: rand() is upstream's meta::pure::functions::math::random.
+     *  56 on 2026-10-18 (the user's decision of that day, the plan's W13 leg 1, docs/CYPHER_STUDY_2026_10_15.md
+     *  §12.85): dateTimeOfText and timeOfText, a temporal value in text carriage -- what a nanosecond value leaves
+     *  the database as; ours alone, legend-engine carries a date-time in the database's own type. 57 on 2026-10-18 (merging main into
+     *  the IQ island's landing 5, docs/IQ_CENSUS_CHECKLIST.md): meta::legend::lite::quotient, an integer quotient cut
+     *  toward zero, the database's own integer division -- upstream has none (legend-pure's divide of integers is a
+     *  Float). */
+    private static final int NOT_UPSTREAM_MAX = 57;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

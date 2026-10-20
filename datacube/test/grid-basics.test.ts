@@ -1,5 +1,5 @@
-// The grid's everyday interactions, as upstream's ag-grid gives them:
-// a header click sorts (and says so), an edge drag resizes, a cell and
+// The grid's everyday interactions: a header click sorts (and says so),
+// Shift-click selects columns, an edge drag resizes, a cell and
 // a header explain themselves on hover, and an empty or loading grid
 // says which it is.
 
@@ -49,57 +49,66 @@ function grid(options: ConstructorParameters<typeof DataGrid>[2] = {},
 const header = (name: string): HTMLElement =>
   container.querySelector(`.dc-th[data-column="${name}"]`) as HTMLElement;
 
-const click = (el: HTMLElement, keys: { altKey?: boolean; shiftKey?: boolean; ctrlKey?: boolean } = {}): void => {
+const click = (el: HTMLElement, keys: { altKey?: boolean; shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean } = {}): void => {
   el.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, ...keys }));
 };
 
-describe('a header click selects the column; Alt+click sorts (upstream: ag-grid column selection)', () => {
-  it('Alt+click reports the column, and the header marks the sort with its place', () => {
+describe('a header click sorts; Ctrl or Cmd chains it; Shift-click selects (the user, 2026-10-18)', () => {
+  it('a plain click sorts by the column alone; Ctrl, or Cmd on a Mac, chains it after the others', () => {
     const clicked: string[] = [];
-    const g = grid({ onHeaderSort: (c) => clicked.push(c) });
-    click(header('notional'), { altKey: true });
-    assert.deepEqual(clicked, ['notional']);
+    const g = grid({ onHeaderSort: (c, chained) => clicked.push(`${c}${chained ? ' chained' : ''}`) });
+    click(header('notional'));
+    click(header('region'), { ctrlKey: true });
+    click(header('settled'), { metaKey: true });
+    assert.deepEqual(clicked, ['notional', 'region chained', 'settled chained']);
+    assert.equal(g.selection, null, 'a sorting click selects nothing');
+  });
+
+  it('a grid that does not sort (Ad Hoc\'s) selects the column on a plain click, as it did', () => {
+    const g = grid();
+    click(header('notional'));
+    assert.deepEqual(g.selection, { anchor: { row: 0, col: 1 }, focus: { row: 1, col: 1 } });
+  });
+
+  it('the header marks each sort with an arrow, and its place when there are several', () => {
+    const g = grid({ onHeaderSort: () => {} });
     g.setSorts([
       { column: 'region', direction: 'asc' },
       { column: 'notional', direction: 'desc' },
     ]);
-    assert.equal(header('notional').getAttribute('aria-sort'), 'descending');
-    assert.equal(header('notional').querySelector('.dc-sort-mark')?.textContent,
-      '↓2');
+    // aria-sort names the first sort alone, as ARIA asks of a table; the marks show the chain
+    assert.equal(header('region').getAttribute('aria-sort'), 'ascending');
+    assert.equal(header('notional').getAttribute('aria-sort'), 'none');
+    assert.equal(header('notional').querySelector('.dc-sort-mark')?.textContent, '↓2');
+    assert.equal(header('region').querySelector('.dc-sort-mark')?.textContent, '↑1');
     assert.equal(header('settled').getAttribute('aria-sort'), 'none');
+    assert.equal(header('settled').querySelector('.dc-sort-mark'), null);
   });
 
-  it('a plain click selects every row of the column, and never sorts', () => {
+  it('a lone sort shows no position number', () => {
+    const g = grid({ onHeaderSort: () => {} });
+    g.setSorts([{ column: 'region', direction: 'asc' }]);
+    assert.equal(header('region').querySelector('.dc-sort-mark')?.textContent, '↑');
+  });
+
+  it('Shift-click selects every row of the column, and never sorts', () => {
     const clicked: string[] = [];
     const g = grid({ onHeaderSort: (c) => clicked.push(c) });
-    click(header('notional'));
+    click(header('notional'), { shiftKey: true });
     assert.deepEqual(clicked, []);
     assert.deepEqual(g.selection, { anchor: { row: 0, col: 1 }, focus: { row: 1, col: 1 } });
     assert.equal(header('notional').classList.contains('dc-th-selected'), true);
     assert.equal(header('region').classList.contains('dc-th-selected'), false);
   });
 
-  it('Shift extends to another column; Ctrl takes one off an edge', () => {
+  it('a second Shift-click selects every column from the first to it, either way', () => {
     const g = grid();
-    click(header('region'));
+    click(header('region'), { shiftKey: true });
     click(header('settled'), { shiftKey: true });
     assert.deepEqual(g.selection, { anchor: { row: 0, col: 0 }, focus: { row: 1, col: 2 } });
-    click(header('settled'), { ctrlKey: true });
+    // back to the middle: the range shrinks to it, from the first column still
+    click(header('notional'), { shiftKey: true });
     assert.deepEqual(g.selection, { anchor: { row: 0, col: 0 }, focus: { row: 1, col: 1 } });
-    // The middle of a range cannot come out of ONE rectangle: nothing.
-    click(header('settled'), { shiftKey: true });
-    click(header('notional'), { ctrlKey: true });
-    assert.deepEqual(g.selection, { anchor: { row: 0, col: 0 }, focus: { row: 1, col: 2 } });
-    click(header('region'));
-    click(header('region'), { ctrlKey: true });
-    assert.equal(g.selection, null);
-  });
-
-  it('a lone sort shows no position number', () => {
-    const g = grid({ onHeaderSort: () => {} });
-    g.setSorts([{ column: 'region', direction: 'asc' }]);
-    assert.equal(header('region').querySelector('.dc-sort-mark')?.textContent,
-      '↑');
   });
 });
 
@@ -113,7 +122,7 @@ describe('a header edge resizes', () => {
   it('a click on the grip neither sorts nor selects', () => {
     const clicked: string[] = [];
     const g = grid({ onHeaderSort: (c) => clicked.push(c), onResizeColumn: () => {} });
-    click(header('notional').querySelector('.dc-col-resize') as HTMLElement, { altKey: true });
+    click(header('notional').querySelector('.dc-col-resize') as HTMLElement, { shiftKey: true });
     click(header('notional').querySelector('.dc-col-resize') as HTMLElement);
     assert.deepEqual(clicked, []);
     assert.equal(g.selection, null);

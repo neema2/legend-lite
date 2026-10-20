@@ -65,6 +65,19 @@ class FoldTest {
     }
 
     @Test
+    @DisplayName("a non-deterministic call is never substituted into a consumer: random and uuid draw afresh per place")
+    void nondeterministicCallsIsolate() {
+        // (the Cypher island's rand-and-clocks leg, 2026-10-17: WITH rand() AS r RETURN r = r answered false while
+        // the projection's random() was written at both places)
+        assertTrue(Fold.nondeterministic(SqlExpr.Call.of(SqlFn.RANDOM)));
+        assertTrue(Fold.nondeterministic(SqlExpr.Call.of(SqlFn.GUID)));
+        // the statement clocks are one value per statement: they substitute freely
+        assertFalse(Fold.nondeterministic(SqlExpr.Call.of(SqlFn.NOW)));
+        assertFalse(Fold.nondeterministic(SqlExpr.Call.of(SqlFn.TODAY)));
+        assertFalse(Fold.nondeterministic(col("A")));
+    }
+
+    @Test
     @DisplayName("filter isolates on every truncation/dedup boundary")
     void filterBoundaries() {
         assertEquals(Fold.FilterSlot.ISOLATE, Fold.filterSlot(BARE.withLimit(5L), false));
