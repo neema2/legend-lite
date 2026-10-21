@@ -677,6 +677,7 @@ public final class PreludeGenerator {
         }
         int classes = 0;
         int enums = 0;
+        int profiles = 0;
         int functions = 0;
         for (Map.Entry<String, List<String>> section : bySection.entrySet()) {
             String file = section.getKey().split("\t")[1];
@@ -696,6 +697,8 @@ public final class PreludeGenerator {
                     functions++;
                 } else if (resolved.get(fqn) instanceof ClassDefinition) {
                     classes++;
+                } else if (resolved.get(fqn) instanceof com.legend.model.ProfileDefinition) {
+                    profiles++;
                 } else {
                     enums++;
                 }
@@ -703,6 +706,7 @@ public final class PreludeGenerator {
             }
         }
         sb.append("// ").append(classes).append(" classes, ").append(enums).append(" enums, ")
+                .append(profiles).append(" profiles, ")
                 .append(functions).append(" functions (legend-pure's platform library, bodied and non-test;")
                 .append(functionWalls.size()).append(" files unparsed, the census's load walls).\n");
         if (!engineLibraryFunctions.isEmpty()) {
@@ -774,7 +778,7 @@ public final class PreludeGenerator {
             throw new IllegalStateException("prelude generator: the module does not resolve"
                     + " against the boot names (" + resolveWalls.size() + "): " + resolveWalls);
         }
-        if (whole.elements().size() - parsedFunctions != classes + enums
+        if (whole.elements().size() - parsedFunctions != classes + enums + profiles
                 || !parsedFqns.equals(new TreeSet<>(want)) || parsedFunctions != functions) {
             Set<String> missing = new TreeSet<>(want);
             missing.removeAll(parsedFqns);
@@ -782,7 +786,7 @@ public final class PreludeGenerator {
             extra.removeAll(want);
             throw new IllegalStateException("prelude generator: the module parses to "
                     + (whole.elements().size() - parsedFunctions) + " declarations + "
-                    + parsedFunctions + " functions, expected " + (classes + enums) + " + " + functions
+                    + parsedFunctions + " functions, expected " + (classes + enums + profiles) + " + " + functions
                     + "; missing " + missing + ", extra " + extra);
         }
         return module;
@@ -888,7 +892,8 @@ public final class PreludeGenerator {
                                 + " wanted declarations: " + shapeWalls);
                     }
                     for (PackageableElement el : r.elements()) {
-                        if (el instanceof ClassDefinition || el instanceof EnumDefinition) {
+                        if (el instanceof ClassDefinition || el instanceof EnumDefinition
+                                || el instanceof com.legend.model.ProfileDefinition) {
                             resolved.putIfAbsent(el.qualifiedName(), el);
                             String srcName = parsed.elementSources().get(el.qualifiedName());
                             Integer off = parsed.elementOffsets().get(el.qualifiedName());
@@ -898,7 +903,7 @@ public final class PreludeGenerator {
                                         TokenStream ts = tokensOf.computeIfAbsent(srcName,
                                                 k -> Lexer.tokenize(ms.text()));
                                         declText.put(el.qualifiedName(), declarationText(ts, ms.text(), off,
-                                                el instanceof EnumDefinition));
+                                                el));
                                         fileOf.put(el.qualifiedName(), srcName);
                                         offsetOf.put(el.qualifiedName(), off);
                                         scopeOf.put(el.qualifiedName(), parsed.elementImports()
@@ -919,6 +924,13 @@ public final class PreludeGenerator {
                 // class is admitted and listed (T4 receipt — the graph's copy yields)
                 for (String fqn : new ArrayList<>(want)) {
                     PackageableElement el = resolved.get(fqn);
+                    // the profiles a wanted declaration's stereotypes and tags name are part of its shape too
+                    // (the boot layer refuses a stereotype of a profile it has not, 2026-10-21)
+                    for (String ref : referencedProfiles(el)) {
+                        if (!excludedByDecision(ref) && index.containsKey(ref) && want.add(ref)) {
+                            grew = true;
+                        }
+                    }
                     if (el instanceof ClassDefinition cd) {
                         for (String ref : referencedFqns(cd)) {
                             if (!platformOwned.contains(ref) && !excludedByDecision(ref)
@@ -1565,7 +1577,7 @@ public final class PreludeGenerator {
      * brace inside a string literal — the parser that will read the module
      * decides, never a regex or a brace count.
      */
-    static String declarationText(TokenStream tokens, String source, int offset, boolean isEnum) {
+    static String declarationText(TokenStream tokens, String source, int offset, PackageableElement kind) {
         int i = -1;
         for (int k = 0; k < tokens.count(); k++) {
             if (tokens.start(k) == offset) {
@@ -1577,10 +1589,10 @@ public final class PreludeGenerator {
             throw new IllegalStateException("prelude generator: no token starts at offset " + offset);
         }
         ElementParser p = ElementParser.at(tokens, i, Dialect.LEGEND_PLATFORM);
-        if (isEnum) {
-            p.parseEnumDefinition();
-        } else {
-            p.parseClassDefinition(false);
+        switch (kind) {
+            case EnumDefinition e -> p.parseEnumDefinition();
+            case com.legend.model.ProfileDefinition pr -> p.parseProfileDefinition();
+            default -> p.parseClassDefinition(false);
         }
         return source.substring(tokens.start(i), tokens.end(p.pos() - 1));
     }
@@ -1637,12 +1649,12 @@ public final class PreludeGenerator {
     /** A declaration header, stereotypes/tags and line breaks tolerated
      * ({@code Class <<typemodifiers.abstract>>\n  meta::…::RoutedValueSpecification}). */
     static final Pattern DECL_HEADER = Pattern.compile(
-            "(?m)^(Class|Enum)\\s+(?:<<[^>]*>>\\s*)*(?:\\{[^}]*\\}\\s*)?([A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)+)");
+            "(?m)^(Class|Enum|Profile)\\s+(?:<<[^>]*>>\\s*)*(?:\\{[^}]*\\}\\s*)?([A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)+)");
     /** A bodied {@code function} declaration's header (natives start with {@code native}). */
     static final Pattern FUNCTION_HEADER = Pattern.compile(
             "(?m)^function\\s+(?:<<[^>]*>>\\s*)*(?:\\{[^}]*\\}\\s*)?([A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)+)\\s*[<(]");
     private static final Pattern DECL = Pattern.compile(
-            "^(Class|Enum)\\s+(?:<<[^>]*>>\\s*)*(?:\\{[^}]*\\}\\s*)?([A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)+)");
+            "^(Class|Enum|Profile)\\s+(?:<<[^>]*>>\\s*)*(?:\\{[^}]*\\}\\s*)?([A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)+)");
     /** An m3.pure bootstrap header: {@code ^Root.…children[Class] Name @Root.…children[pkg].children}. */
     private static final Pattern M3_HEADER = Pattern.compile(
             "(?m)^\\^Root\\.[^ ]*children\\[(Class|PrimitiveType|Enumeration)\\] ([A-Za-z_][A-Za-z0-9_]*)(?: @(Root\\.[^ \\n]*))?$");
@@ -1678,6 +1690,28 @@ public final class PreludeGenerator {
 
     /** Every QUALIFIED type a class declaration names: supertypes, stored
      * and derived property types, derived parameter types. */
+    /** The profiles a class's or an enumeration's stereotypes and tagged values name (its own, its members'). */
+    static Set<String> referencedProfiles(@com.legend.base.Nullable PackageableElement el) {
+        Set<String> out = new LinkedHashSet<>();
+        if (el instanceof ClassDefinition cd) {
+            cd.stereotypes().forEach(s -> out.add(s.profileName()));
+            cd.taggedValues().forEach(t -> out.add(t.profileName()));
+            for (ClassDefinition.PropertyDefinition p : cd.properties()) {
+                p.stereotypes().forEach(s -> out.add(s.profileName()));
+                p.taggedValues().forEach(t -> out.add(t.profileName()));
+            }
+        } else if (el instanceof EnumDefinition ed) {
+            ed.stereotypes().forEach(s -> out.add(s.profileName()));
+            ed.taggedValues().forEach(t -> out.add(t.profileName()));
+            for (EnumDefinition.ValueAnnotations v : ed.valueAnnotations()) {
+                v.stereotypes().forEach(s -> out.add(s.profileName()));
+                v.taggedValues().forEach(t -> out.add(t.profileName()));
+            }
+        }
+        out.removeIf(n -> !n.contains("::"));
+        return out;
+    }
+
     static Set<String> referencedFqns(ClassDefinition cd) {
         Set<String> out = new LinkedHashSet<>();
         for (TypeExpression t : cd.superClasses()) {

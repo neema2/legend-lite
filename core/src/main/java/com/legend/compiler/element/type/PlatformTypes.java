@@ -442,15 +442,12 @@ public final class PlatformTypes {
      * {@code GraphEdges}, the way {@link #EQUALITY_PROFILE} is read for {@code <<equality.Key>>}. */
     public static final String GRAPH_PROFILE = "graph::graph";
 
-    /** Whether a stereotype's RESOLVED profile name is {@code profileFqn}.
-     * The resolver qualifies a bare profile name through the file's
-     * imports and the core-import group when the profile is declared in
-     * the model; a model that does not declare it keeps the bare spelling
-     * — that spelling is the same profile (the m3 profiles are the only
-     * ones the compiler reads). */
+    /** Whether a stereotype's RESOLVED profile name is {@code profileFqn}: the resolver qualifies a profile's name
+     * through the file's imports and the core-import group, and the platform's profiles are declared (the prelude
+     * carries legend-pure's, 2026-10-21), so a bare spelling is a profile the model has not -- refused by the
+     * integrity pass, never taken for the platform's. */
     public static boolean isProfile(String resolvedName, String profileFqn) {
-        return profileFqn.equals(resolvedName)
-                || profileFqn.substring(profileFqn.lastIndexOf(':') + 1).equals(resolvedName);
+        return profileFqn.equals(resolvedName);
     }
 
 

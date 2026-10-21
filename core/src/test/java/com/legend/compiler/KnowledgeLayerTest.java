@@ -176,7 +176,7 @@ class KnowledgeLayerTest {
 
     private static ClassDefinition cls(String fqn, TypeExpression... supers) {
         return new ClassDefinition(fqn, List.of(), List.of(), List.of(supers), List.of(),
-                List.of(), List.of(), List.of(), List.of(), false);
+                List.of(), List.of(), List.of(), List.of(), false, List.of());
     }
 
     @Test

@@ -62,17 +62,21 @@ final class ModelIntegrity {
         // boot layer's elements joined this index at the gate (2026-10-11)
         refuseDuplicates(model, wallSink);
         model.classes().filter(fresh).forEach(cd -> withElement(cd.qualifiedName(),
-                () -> checkClass(cd, classifier, functions), wallSink));
+                () -> checkClass(cd, classifier, functions, model), wallSink));
         checkInheritanceAcyclic(model, classifier, wallSink, fresh);
         // a function's wall is under its KEY, its id (ParsedModel.keyOf): the
         // overload the signature belongs to, with its own file and position
         model.functions().filter(fresh).forEach(f -> withElement(com.legend.model.FunctionId.of(f).qualified(),
-                () -> checkFunction(f, classifier), wallSink));
+                () -> checkFunction(f, classifier, model), wallSink));
         checkDuplicateSignatures(model, wallSink, fresh,
                 prior == null ? java.util.Set.of() : prior.signatureKeys());
         model.associations().filter(fresh).forEach(a -> withElement(a.qualifiedName(), () -> {
             classifier.classify(a.property1().targetClass(), List.of());
             classifier.classify(a.property2().targetClass(), List.of());
+            classifier.requireArguments(a.property1().targetClass(), List.of());
+            classifier.requireArguments(a.property2().targetClass(), List.of());
+            requireAnnotations(a.property1().stereotypes(), List.of(), model);
+            requireAnnotations(a.property2().stereotypes(), List.of(), model);
         }, wallSink));
         // the property-graph profile's rule over the edge classes (docs/CYPHER_STUDY_2026_10_15.md §5.6): a
         // misdeclared edge is its class's error, one wall per class (the error names the class declaring the
@@ -81,12 +85,111 @@ final class ModelIntegrity {
         GraphEdges.Index graphIndex = GraphEdges.Index.of(graphSource);
         model.classes().filter(fresh).filter(cd -> !cd.isNative()).forEach(cd -> withElement(cd.qualifiedName(),
                 () -> GraphEdges.readOne(graphSource, graphIndex, cd), wallSink));
-        model.enums().filter(fresh).forEach(ed -> withElement(ed.qualifiedName(),
-                () -> checkEnum(ed), wallSink));
+        model.enums().filter(fresh).forEach(ed -> withElement(ed.qualifiedName(), () -> {
+            checkEnum(ed);
+            requireAnnotations(ed.stereotypes(), ed.taggedValues(), model);
+            for (com.legend.model.EnumDefinition.ValueAnnotations va : ed.valueAnnotations()) {
+                requireAnnotations(va.stereotypes(), va.taggedValues(), model);
+            }
+        }, wallSink));
         model.databases().filter(fresh).forEach(db -> withElement(db.qualifiedName(),
                 () -> checkDatabase(db, model), wallSink));
         model.mappings().filter(fresh).forEach(md -> withElement(md.qualifiedName(),
                 () -> checkMapping(md, model, classifier, functions), wallSink));
+        // the elements that only NAME others (2026-10-21, ReferenceIntegrityTest): each name is an element of its
+        // kind, as legend-engine's compiler resolves them (PureModel.getMapping / getRuntime / getConnection /
+        // getStore, its own words)
+        model.runtimes().filter(fresh).forEach(rt -> withElement(rt.qualifiedName(),
+                () -> checkRuntime(rt, model), wallSink));
+        model.connections().filter(fresh).forEach(c -> withElement(c.qualifiedName(),
+                () -> requireStore(c.storeName(), model), wallSink));
+        model.services().filter(fresh).forEach(sv -> withElement(sv.qualifiedName(),
+                () -> checkService(sv, model), wallSink));
+        model.dataSpaces().filter(fresh).forEach(ds -> withElement(ds.qualifiedName(), () -> {
+            for (com.legend.model.DataSpaceDefinition.ExecutionContext ec : ds.executionContexts()) {
+                requireMapping(ec.mapping(), model);
+                requireRuntime(ec.defaultRuntime(), model);
+            }
+        }, wallSink));
+    }
+
+    private static void checkRuntime(com.legend.model.RuntimeDefinition rt, ModelBuilder model) {
+        for (String mapping : rt.mappings()) {
+            requireMapping(mapping, model);
+        }
+        for (java.util.Map.Entry<String, List<String>> binding : rt.connectionBindings().entrySet()) {
+            requireStore(binding.getKey(), model);
+            for (String connection : binding.getValue()) {
+                if (model.findConnection(connection).isEmpty() && !model.isModelConnection(connection)
+                        && !model.hasElement(connection)) {
+                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                            "Can't find connection '" + connection + "'");
+                }
+            }
+        }
+    }
+
+    private static void checkService(com.legend.model.ServiceDefinition sv, ModelBuilder model) {
+        requireMapping(sv.mappingRef(), model);
+        requireRuntime(sv.runtimeRef(), model);
+        if (sv.multiExecution() != null) {
+            for (com.legend.model.ServiceDefinition.KeyedExecution kx : sv.multiExecution().executions()) {
+                requireMapping(kx.mapping(), model);
+                requireRuntime(kx.runtime(), model);
+            }
+        }
+    }
+
+    /**
+     * Every stereotype and tag names a profile the model has, and one that profile declares -- legend-engine's
+     * PureModel.getProfile / getStereotype / getTag, in its words. The platform's own profiles (legend-pure's, carried
+     * by the prelude) are the model's like any other (2026-10-21; before, no annotation was checked, and a bare
+     * {@code temporal} stood for the platform's profile unresolved).
+     */
+    private static void requireAnnotations(List<com.legend.model.StereotypeApplication> stereotypes,
+            List<com.legend.model.TaggedValue> taggedValues, ModelBuilder model) {
+        for (com.legend.model.StereotypeApplication st : stereotypes) {
+            if (!profile(st.profileName(), model).stereotypes().contains(st.stereotypeName())) {
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                        "Can't find stereotype '" + st.stereotypeName() + "' in profile '" + st.profileName() + "'");
+            }
+        }
+        for (com.legend.model.TaggedValue tv : taggedValues) {
+            if (!profile(tv.profileName(), model).tags().contains(tv.tagName())) {
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                        "Can't find tag '" + tv.tagName() + "' in profile '" + tv.profileName() + "'");
+            }
+        }
+    }
+
+    private static com.legend.model.ProfileDefinition profile(String fqn, ModelBuilder model) {
+        return model.findProfile(fqn).orElseThrow(() -> new com.legend.error.ModelException(
+                com.legend.error.LegendCompileException.Phase.MODEL, "Can't find the profile '" + fqn + "'"));
+    }
+
+    /** A named mapping exists; {@code null} is a reference not written (an optional one). */
+    private static void requireMapping(@com.legend.base.Nullable String mapping, ModelBuilder model) {
+        if (mapping != null && model.findMapping(mapping).isEmpty()) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                    "Can't find mapping '" + mapping + "'");
+        }
+    }
+
+    /** A named runtime exists ({@code null}: none written, or an inline one). */
+    private static void requireRuntime(@com.legend.base.Nullable String runtime, ModelBuilder model) {
+        if (runtime != null && model.findRuntime(runtime).isEmpty()) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                    "Can't find runtime '" + runtime + "'");
+        }
+    }
+
+    /** A named store exists: the model store, a database, or another store element ({@code null}: none written). */
+    private static void requireStore(@com.legend.base.Nullable String store, ModelBuilder model) {
+        if (store != null && !"ModelStore".equals(store) && model.findDatabase(store).isEmpty()
+                && !model.hasElement(store)) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                    "The store '" + store + "' can't be found.");
+        }
     }
 
     /** Every FQN registered more than once in {@code model}'s shared element
@@ -134,8 +237,27 @@ final class ModelIntegrity {
      * {@code IllegalArgumentException}. (Derived-property NAME dups stay
      * accepted: qualified properties legally overload.) */
     private static void checkClass(ClassDefinition cd, TypeClassifier classifier,
-                                   FunctionCompiler functions) {
+                                   FunctionCompiler functions, ModelBuilder model) {
         List<String> typeParams = cd.typeParams();
+        requireAnnotations(cd.stereotypes(), cd.taggedValues(), model);
+        for (ClassDefinition.PropertyDefinition pd : cd.properties()) {
+            requireAnnotations(pd.stereotypes(), pd.taggedValues(), model);
+        }
+        for (com.legend.protocol.TypeExpression sup : cd.superClasses()) {
+            // a supertype is a type that exists (its head, each argument, a generic's arity: classify) and a class:
+            // legend-engine's words (ClassCompilerExtension: "Invalid supertype", the class named by its path), which
+            // legend-pure refuses too (TypeValidator: "Invalid generalization")
+            classifier.classify(sup, typeParams);
+            classifier.requireArguments(sup, typeParams);
+            String supFqn = TypeClassifier.headFqn(sup);
+            // its kind, not its catalog entry: the native catalog lists the primitives among its classes
+            if (!(classifier.findType(supFqn).orElseThrow() instanceof com.legend.compiler.element.type.Type.ClassType)) {
+                throw new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.MODEL,
+                        "Invalid supertype: '" + cd.qualifiedName() + "' cannot extend '" + supFqn
+                                + "' as it is not a class.");
+            }
+        }
         java.util.Set<String> propertyNames = new java.util.HashSet<>();
         for (ClassDefinition.PropertyDefinition pd : cd.properties()) {
             if (!propertyNames.add(pd.name())) {
@@ -145,15 +267,18 @@ final class ModelIntegrity {
                                 + "' in class '" + cd.qualifiedName() + "'");
             }
             classifier.classify(pd.type(), typeParams);
+            classifier.requireArguments(pd.type(), typeParams);
             requireValidBounds(pd.multiplicity(),
                     "property '" + pd.name() + "' of " + cd.qualifiedName());
         }
         for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
             classifier.classify(dp.type(), typeParams);
+            classifier.requireArguments(dp.type(), typeParams);
             requireValidBounds(dp.multiplicity(),
                     "derived property '" + dp.name() + "' of " + cd.qualifiedName());
             for (ParameterDefinition p : dp.parameters()) {
                 classifier.classify(p.type(), typeParams);
+                classifier.requireArguments(p.type(), typeParams);
                 requireValidBounds(p.multiplicity(),
                         "parameter '" + p.name() + "' of derived property '"
                                 + dp.name() + "' of " + cd.qualifiedName());
@@ -196,11 +321,21 @@ final class ModelIntegrity {
     }
 
     /** Function signature references (params + return). */
-    private static void checkFunction(Function f, TypeClassifier classifier) {
+    private static void checkFunction(Function f, TypeClassifier classifier, ModelBuilder model) {
+        requireAnnotations(f.stereotypes(), f.taggedValues(), model);
+        // a declaration's types name their classes' arguments; lite's own synthesized signatures name a mapped class
+        // bare (TypeClassifier.requireArguments)
+        boolean declared = !(f instanceof com.legend.model.FunctionDefinition fd && fd.isSynthesized());
         for (var p : f.parameters()) {
             classifier.classify(p.type(), f.typeParameters());
+            if (declared) {
+                classifier.requireArguments(p.type(), f.typeParameters());
+            }
         }
         classifier.classify(f.returnType(), f.typeParameters());
+        if (declared) {
+            classifier.requireArguments(f.returnType(), f.typeParameters());
+        }
     }
 
     /**
@@ -211,6 +346,18 @@ final class ModelIntegrity {
      */
     private static void checkMapping(MappingDefinition md, ModelBuilder model,
                                      TypeClassifier classifier, FunctionCompiler functions) {
+        // an include's store substitutions name databases (legend-engine resolves both sides,
+        // HelperRelationalBuilder.resolveDatabase); the included mapping itself is the normalizer's to find
+        for (com.legend.model.MappingInclude inc : md.includes()) {
+            for (com.legend.model.MappingInclude.StoreSubstitution sub : inc.substitutions()) {
+                for (String store : List.of(sub.originalStore(), sub.replacementStore())) {
+                    if (model.findDatabase(store).isEmpty()) {
+                        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MAPPING,
+                                "Can't find database '" + store + "'");
+                    }
+                }
+            }
+        }
         for (MappingDefinition.ClassBinding cb : md.classBindings()) {
             if (!classifier.isClassFqn(cb.classFqn())) {
                 throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, "mapping '" + md.qualifiedName()
@@ -327,6 +474,12 @@ final class ModelIntegrity {
      */
     private static void checkDatabase(com.legend.model.DatabaseDefinition db,
             ModelBuilder model) {
+        for (String include : db.includes()) {
+            if (model.findDatabase(include).isEmpty()) {
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                        "Can't find database '" + include + "'");
+            }
+        }
         for (var j : db.joins()) {
             checkStoreRefs(db, model, j.operation(), "join '" + j.name() + "'");
         }

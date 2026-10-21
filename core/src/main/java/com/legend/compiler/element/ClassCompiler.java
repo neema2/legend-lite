@@ -98,7 +98,7 @@ final class ClassCompiler {
 
         return new TypedClass(
                 cd.qualifiedName(), typeParams, superFqns, superTypes, properties, constraints,
-                cd.isNative());
+                cd.isNative(), cd.multiplicityParams());
     }
 
     /**

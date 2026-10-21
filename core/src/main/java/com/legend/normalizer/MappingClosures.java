@@ -52,6 +52,13 @@ final class MappingClosures {
     private final Map<String, LegacyMappingDefinition> surfaces = new HashMap<>();
     private final Map<String, Closure> closures = new HashMap<>();
 
+    /** An include naming a mapping the model has not: the model's error, in legend-engine's words
+     *  ({@code PureModel.getMapping}). */
+    private static com.legend.error.ModelException missingMapping(String path) {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MAPPING,
+                "Can't find mapping '" + path + "'");
+    }
+
     private MappingClosures(ModelBuilder model) {
         this.model = model;
     }
@@ -208,8 +215,7 @@ final class MappingClosures {
                     continue;
                 }
                 LegacyMappingDefinition included = surfaceOf(inc.mappingPath()).orElseThrow(
-                        () -> MissProbe.neverFired("MappingClosures#1 (include of '"
-                                + inc.mappingPath() + "' has no mapping surface)"));
+                        () -> missingMapping(inc.mappingPath()));
                 Map<String, ClassMapping> local = new LinkedHashMap<>();
                 walkSets(included.includes(), local, seen);
                 for (ClassMapping cm : included.classMappings()) {
@@ -280,7 +286,7 @@ final class MappingClosures {
             if (!seen.add(mappingFqn)) {
                 return;
             }
-            LegacyMappingDefinition md = surfaceOf(mappingFqn).orElseThrow(() -> MissProbe.neverFired("MappingClosures#2"));
+            LegacyMappingDefinition md = surfaceOf(mappingFqn).orElseThrow(() -> missingMapping(mappingFqn));
             for (MappingInclude inc : md.includes()) {
                 walkIds(inc.mappingPath(), owner, first, dups, seen);
             }
@@ -373,7 +379,8 @@ final class MappingClosures {
                 if (!seen.add(path)) {
                     continue;
                 }
-                LegacyMappingDefinition included = surfaceOf(path).orElseThrow(() -> MissProbe.neverFired("MappingClosures#3"));
+                String includedPath = path;
+                LegacyMappingDefinition included = surfaceOf(includedPath).orElseThrow(() -> missingMapping(includedPath));
                 out.addAll(included.enumerationMappings());
                 walkEnums(included, out, seen);
             }
@@ -416,7 +423,9 @@ final class MappingClosures {
             for (AssociationMapping am : md.associationMappings()) {
                 if (!(am instanceof AssociationMapping.Relational rel)) continue;
                 AssociationDefinition ad =
-                        model.findAssociation(am.associationName()).orElseThrow(() -> MissProbe.neverFired("MappingClosures#4"));
+                        model.findAssociation(am.associationName()).orElseThrow(() -> new com.legend.error.ModelException(
+                                com.legend.error.LegendCompileException.Phase.MAPPING,
+                                "Can't find association '" + am.associationName() + "'"));
                 for (AssociationPropertyMapping apm : rel.propertyMappings()) {
                     if (!(apm.body() instanceof PropertyMapping.Join join)
                             || apm.sourceSetId() == null) {

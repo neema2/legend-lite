@@ -22,9 +22,32 @@ import java.util.Objects;
  * @param values        the enum value names; must be non-empty
  * @throws IllegalArgumentException if {@code values} is empty
  */
-public record EnumDefinition(String qualifiedName, List<String> values) implements PackageableElement {
+public record EnumDefinition(String qualifiedName, List<String> values,
+        /** the enumeration's own stereotypes and tagged values (their profiles are references the compiler checks) */
+        List<StereotypeApplication> stereotypes,
+        List<TaggedValue> taggedValues,
+        /** a value's stereotypes and tagged values, for each value that has any */
+        List<ValueAnnotations> valueAnnotations) implements PackageableElement {
+
+    /** An enumeration with no annotations. */
+    public EnumDefinition(String qualifiedName, List<String> values) {
+        this(qualifiedName, values, List.of(), List.of(), List.of());
+    }
+
+    /** One value's stereotypes and tagged values. */
+    public record ValueAnnotations(String value, List<StereotypeApplication> stereotypes,
+            List<TaggedValue> taggedValues) {
+        public ValueAnnotations {
+            Objects.requireNonNull(value, "value");
+            stereotypes = List.copyOf(stereotypes);
+            taggedValues = List.copyOf(taggedValues);
+        }
+    }
 
     public EnumDefinition {
+        stereotypes = List.copyOf(stereotypes);
+        taggedValues = List.copyOf(taggedValues);
+        valueAnnotations = List.copyOf(valueAnnotations);
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         Objects.requireNonNull(values, "Values cannot be null");
         // An EMPTY enum is legal Legend: the whole value list is optional

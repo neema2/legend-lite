@@ -1289,6 +1289,21 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
         return inOrder(runtimes);
     }
 
+    /** All {@link ServiceDefinition}s in ingest order (the integrity pass's references). */
+    public Stream<ServiceDefinition> services() {
+        return inOrder(services);
+    }
+
+    /** All data spaces in ingest order (the integrity pass's references). */
+    public Stream<com.legend.model.DataSpaceDefinition> dataSpaces() {
+        return inOrder(dataSpaces);
+    }
+
+    /** All registered relational connections in ingest order, a runtime's hoisted inline ones among them. */
+    public Stream<ConnectionDefinition> connections() {
+        return inOrder(connections);
+    }
+
     /** The ELEMENT's own import scope, else the model-wide one — store
      * refs inside a mapping resolve through the section that declared it. */
     public ImportScope importsOf(String elementKey) {

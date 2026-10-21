@@ -3220,7 +3220,26 @@ public final class Protocol {
                          /** older JSON's milestoned properties written out (the engine's Pure-side serializer), which
                           * the engine's compiler reads and merges and its writer writes back; the grammar writes none
                           * (docs/PROTOCOL_PROGRAM_2026_10_05.md leg 2 step 2) */
-                         List<PProperty> originalMilestonedProperties) implements Element {
+                         List<PProperty> originalMilestonedProperties,
+                         /** {@code Class X<T|m>} -- the MULTIPLICITY parameters after the pipe (legend-pure's
+                          * {@code M_MultiplicityHolder<|m>}, {@code Property<U,V|m>}), apart from the type parameters:
+                          * a reference's type arguments and multiplicity arguments are counted against each (lite's
+                          * dialects only; the engine's grammar has neither) */
+                         List<String> multiplicityParams) implements Element {
+        /** The arity before the multiplicity parameters: none. */
+        public PClass(String pkg, String name, List<String> typeParams,
+                      List<com.legend.protocol.ParameterDefinition> typeVariables,
+                      List<PSuperType> superTypes, List<PProperty> properties,
+                      List<com.legend.protocol.DerivedPropertyDefinition> derivedProperties,
+                      List<com.legend.protocol.ConstraintDefinition> constraints,
+                      List<PStereotype> stereotypes, List<PTaggedValue> taggedValues,
+                      boolean isNative, @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                      List<PProperty> originalMilestonedProperties) {
+            this(pkg, name, typeParams, typeVariables, superTypes, properties, derivedProperties,
+                    constraints, stereotypes, taggedValues, isNative, sourceInformation, originalMilestonedProperties,
+                    List.of());
+        }
+
         /** The arity before the milestoned properties: none written out. */
         public PClass(String pkg, String name, List<String> typeParams,
                       List<com.legend.protocol.ParameterDefinition> typeVariables,
@@ -3247,6 +3266,7 @@ public final class Protocol {
         public PClass {
             originalMilestonedProperties = List.copyOf(originalMilestonedProperties);
             typeParams = List.copyOf(typeParams);
+            multiplicityParams = List.copyOf(multiplicityParams);
             typeVariables = List.copyOf(typeVariables);
             superTypes = List.copyOf(superTypes);
             properties = List.copyOf(properties);

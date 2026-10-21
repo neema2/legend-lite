@@ -61,6 +61,7 @@ final class MappingValidation {
                 switch (cm) {
                     case ClassMapping.Relational rcm -> validatePmNames(rcm, model, md);
                     case ClassMapping.Pure pcm -> validateM2mRoutes(pcm, model, r);
+                    case ClassMapping.Union u -> validateUnionMembers(u, r);
                     default -> { }
                 }
             } catch (ModelException e) {
@@ -68,6 +69,21 @@ final class MappingValidation {
             }
         }
         return invalid;
+    }
+
+    /** An Operation union's every member set is a class mapping of the mapping or its includes, as legend-engine's
+     * compiler requires (ClassMappingSecondPassBuilder: "Can't find class mapping"). */
+    private static void validateUnionMembers(ClassMapping.Union u, ResolvedMapping r) {
+        java.util.Set<String> ids = new java.util.HashSet<>(r.includedSets().keySet());
+        for (ClassMapping cm : r.raw().classMappings()) {
+            ids.add(ResolvedMapping.idOf(cm));
+        }
+        for (String member : u.memberSetIds()) {
+            if (!ids.contains(member)) {
+                throw new ModelException(LegendCompileException.Phase.MAPPING, "Can't find class mapping '" + member
+                        + "' in mapping '" + r.raw().qualifiedName() + "'", r.raw().qualifiedName());
+            }
+        }
     }
 
     /** Every property mapping names a property its class declares or

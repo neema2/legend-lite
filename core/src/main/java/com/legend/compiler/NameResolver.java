@@ -213,6 +213,13 @@ public final class NameResolver {
         // implicit same-package import — §2.4b of the resolution audit).
         List<PackageableElement> resolved = new ArrayList<>(model.elements().size());
         boolean changed = false;
+        // the profiles a stereotype's or tag's name may mean: the model's and the platform's
+        Set<String> profiles = new java.util.HashSet<>(com.legend.builtin.Prelude.profileFqns());
+        for (PackageableElement el : model.elements()) {
+            if (el instanceof ProfileDefinition pd) {
+                profiles.add(pd.qualifiedName());
+            }
+        }
         for (PackageableElement el : model.elements()) {
             String elementKey = ParsedModel.keyOf(el);
             ImportScope own = model.elementImports().get(elementKey);
@@ -220,7 +227,7 @@ public final class NameResolver {
             int cut0 = fqn0.lastIndexOf("::");
             String ownPkg = cut0 > 0 ? fqn0.substring(0, cut0) : null;
             Scope scope = new Scope(own == null ? model.imports() : own,
-                    knownFqns, Set.of(), ownPkg, preludeOn);
+                    knownFqns, Set.of(), ownPkg, preludeOn, profiles);
             PackageableElement r;
             try {
                 r = resolveElement(el, scope);
@@ -445,7 +452,7 @@ public final class NameResolver {
             // Explicit pass-through so adding a new PackageableElement variant
             // surfaces as an unhandled-case compile error rather than silently
             // skipping resolution.
-            case EnumDefinition ed -> ed;
+            case EnumDefinition ed -> resolveEnum(ed, scope);
             case ProfileDefinition pd -> pd;
             // unit conversion lambdas are numeric expressions over their own
             // parameter — no cross-element names to resolve
@@ -824,7 +831,7 @@ public final class NameResolver {
         }
         return new ClassDefinition(cd.qualifiedName(), cd.typeParams(), cd.typeVariables(),
                 superClasses, properties, derived, constraints,
-                stereotypes, taggedValues, cd.isNative());
+                stereotypes, taggedValues, cd.isNative(), cd.multiplicityParams());
     }
 
     private static PropertyDefinition resolveProperty(
@@ -1705,9 +1712,37 @@ public final class NameResolver {
     // Stereotype / TaggedValue profile-name resolution
     // =================================================================
 
+    /**
+     * A stereotype's or tag's PROFILE name: resolved among profiles first, through the same tiers (the section's
+     * imports, the element's own package, the core-import group) -- as legend-engine resolves it, with a
+     * profile-typed lookup ({@code CompileContext.resolveProfile}), so {@code functionType} is the profile
+     * {@code meta::pure::profiles::functionType}, never the function {@code meta::pure::functions::meta::functionType}
+     * that the core group lists first. A name no profile has resolves as any name does, and the integrity pass then
+     * refuses it as no profile ("Can't find the profile").
+     */
+    private static String resolveProfile(String name, Scope scope) {
+        if (name.contains("::")) {
+            return name;
+        }
+        for (String pkg : scope.imports().wildcards()) {
+            if (scope.profileFqns().contains(pkg + "::" + name)) {
+                return pkg + "::" + name;
+            }
+        }
+        if (scope.ownPackage() != null && scope.profileFqns().contains(scope.ownPackage() + "::" + name)) {
+            return scope.ownPackage() + "::" + name;
+        }
+        for (String pkg : CoreImports.SEQUENCE) {
+            if (scope.profileFqns().contains(pkg + "::" + name)) {
+                return pkg + "::" + name;
+            }
+        }
+        return resolveName(name, scope);
+    }
+
     private static StereotypeApplication resolveStereotype(
             StereotypeApplication app, Scope scope) {
-        String resolved = resolveName(app.profileName(), scope);
+        String resolved = resolveProfile(app.profileName(), scope);
         return resolved.equals(app.profileName()) ? app
                 : new StereotypeApplication(resolved, app.stereotypeName());
     }
@@ -1718,7 +1753,7 @@ public final class NameResolver {
     }
 
     private static TaggedValue resolveTaggedValue(TaggedValue tv, Scope scope) {
-        String resolved = resolveName(tv.profileName(), scope);
+        String resolved = resolveProfile(tv.profileName(), scope);
         return resolved.equals(tv.profileName()) ? tv
                 : new TaggedValue(resolved, tv.tagName(), tv.value());
     }
@@ -1726,6 +1761,18 @@ public final class NameResolver {
     private static List<TaggedValue> resolveTaggedValues(
             List<TaggedValue> tvs, Scope scope) {
         return resolveList(tvs, NameResolver::resolveTaggedValue, scope);
+    }
+
+    /** An enumeration's names are its annotations' profiles, its own and its values'. */
+    private static EnumDefinition resolveEnum(EnumDefinition ed, Scope scope) {
+        List<EnumDefinition.ValueAnnotations> values = new ArrayList<>(ed.valueAnnotations().size());
+        for (EnumDefinition.ValueAnnotations va : ed.valueAnnotations()) {
+            values.add(new EnumDefinition.ValueAnnotations(va.value(), resolveStereotypes(va.stereotypes(), scope),
+                    resolveTaggedValues(va.taggedValues(), scope)));
+        }
+        EnumDefinition resolved = new EnumDefinition(ed.qualifiedName(), ed.values(),
+                resolveStereotypes(ed.stereotypes(), scope), resolveTaggedValues(ed.taggedValues(), scope), values);
+        return resolved.equals(ed) ? ed : resolved;
     }
 
     // =================================================================
@@ -2089,7 +2136,9 @@ public final class NameResolver {
             Set<String> knownFqns,
             Set<String> typeParams,
             @com.legend.base.Nullable String ownPackage,
-            boolean prelude) {
+            boolean prelude,
+            /** the profiles a stereotype's or tag's name may mean (an element scope's; none in a query's) */
+            Set<String> profileFqns) {
 
         public Scope {
             Objects.requireNonNull(imports, "imports");
@@ -2102,13 +2151,13 @@ public final class NameResolver {
          * primitives pass through for the downstream primitive
          * machinery; prelude fires only at the prelude-aware entries). */
         public static Scope of(ImportScope imports, Set<String> knownFqns) {
-            return new Scope(imports, knownFqns, Set.of(), null, false);
+            return new Scope(imports, knownFqns, Set.of(), null, false, Set.of());
         }
 
         /** Prelude-aware scope — the {@code resolve(ParsedModel)} and
          * query entries (the old withPrelude wiring, as a fallback tier). */
         public static Scope preludeOf(ImportScope imports, Set<String> knownFqns) {
-            return new Scope(imports, knownFqns, Set.of(), null, true);
+            return new Scope(imports, knownFqns, Set.of(), null, true, Set.of());
         }
 
         /**
@@ -2122,7 +2171,7 @@ public final class NameResolver {
             HashSet<String> merged = new HashSet<>(typeParams);
             merged.addAll(params);
             return new Scope(imports, knownFqns, java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(merged)), ownPackage,
-                    prelude);
+                    prelude, profileFqns);
         }
     }
 }

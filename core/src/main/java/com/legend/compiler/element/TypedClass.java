@@ -31,9 +31,12 @@ public record TypedClass(
         List<com.legend.compiler.element.type.Type> superTypes,
         List<Property> properties,
         List<TypedConstraint> constraints,
-        boolean isNative) implements TypedNominal {
+        boolean isNative,
+        /** the multiplicity parameters ({@code <T|m>}), apart from {@link #typeParameters} */
+        List<String> multiplicityParameters) implements TypedNominal {
 
     public TypedClass {
+        multiplicityParameters = List.copyOf(multiplicityParameters);
         Objects.requireNonNull(qualifiedName, "qualifiedName");
         typeParameters = typeParameters == null ? List.of() : List.copyOf(typeParameters);
         superClassFqns = superClassFqns == null ? List.of() : List.copyOf(superClassFqns);

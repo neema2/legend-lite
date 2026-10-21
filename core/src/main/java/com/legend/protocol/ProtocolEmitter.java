@@ -1720,7 +1720,8 @@ public final class ProtocolEmitter {
 
     private static void pclass(StringBuilder b, PClass c) {
         // Not yet emitted. Loud rather than silently dropped — AGENTS.md invariant 4.
-        require(c.typeParams().isEmpty(), "class type parameters", c.qualifiedName());
+        require(c.typeParams().isEmpty() && c.multiplicityParams().isEmpty(), "class type parameters",
+                c.qualifiedName());
         b.append("{\"_type\":\"class\",\"constraints\":[");
         for (int i = 0; i < c.constraints().size(); i++) {
             if (i > 0) {

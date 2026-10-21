@@ -457,9 +457,11 @@ public final class ElementParser implements TokenStreamCursor {
                 taggedValuesWithDocumentation(doc, parseTaggedValues());
         String qualifiedName = parseQualifiedName();
 
-        List<String> typeParams = parseClassTypeParams();
+        List<String> typeParams = new ArrayList<>();
+        List<String> multiplicityParams = new ArrayList<>();
+        parseClassTypeParams(typeParams, multiplicityParams);
         List<com.legend.protocol.ParameterDefinition> typeVariables = parseTypeVariableDeclarations();
-        if (dialect.refusesLiteExtensions() && !typeParams.isEmpty()) {
+        if (dialect.refusesLiteExtensions() && !(typeParams.isEmpty() && multiplicityParams.isEmpty())) {
             // DECLARED extension LITE-DESIGN-function-types-generics
             // (OWN_CORPUS_DECISIONS §11): LEGEND_LITE parses generics,
             // the exact-engine surface refuses engine-verbatim
@@ -488,7 +490,7 @@ public final class ElementParser implements TokenStreamCursor {
             String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
             return new com.legend.protocol.Protocol.PClass(pn[0], pn[1], typeParams, typeVariables, List.of(),
                     List.of(), List.of(), List.of(), stereotypes, taggedValues, isNative,
-                    spanOf(classStartTok, pos - 1));
+                    spanOf(classStartTok, pos - 1), List.of(), multiplicityParams);
         }
 
         List<com.legend.protocol.Protocol.PSuperType> superClasses = new ArrayList<>();
@@ -539,7 +541,9 @@ public final class ElementParser implements TokenStreamCursor {
                 stereotypes,
                 taggedValues,
                 isNative,
-                spanOf(classStartTok, pos - 1));
+                spanOf(classStartTok, pos - 1),
+                List.of(),
+                multiplicityParams);
     }
 
     /** Optional generic type parameters: {@code <T>}, {@code <U, V>}, ... */
@@ -570,14 +574,12 @@ public final class ElementParser implements TokenStreamCursor {
         return out;
     }
 
-    private List<String> parseClassTypeParams() {
-        if (peek() != TokenType.LESS_THAN) return List.of();
+    private void parseClassTypeParams(List<String> params, List<String> multiplicityParams) {
+        if (peek() != TokenType.LESS_THAN) return;
         advance(); // consume <
-        List<String> params = new ArrayList<>();
         // M3 DIALECT: `<T|m>` / `<|m>` — multiplicity parameters after
-        // the pipe (PCT map.pure's M_MultiplicityHolder<|m>). The names
-        // join the parameter list (the checker's late-binding treats
-        // them nominally); the exact-engine surface refuses at the
+        // the pipe (PCT map.pure's M_MultiplicityHolder<|m>), kept apart
+        // from the type parameters; the exact-engine surface refuses at the
         // caller's gate as before.
         if (peek() != TokenType.PIPE) {
             params.add(parseTypeParamName());
@@ -586,13 +588,12 @@ public final class ElementParser implements TokenStreamCursor {
             }
         }
         if (!dialect.refusesPlatformDialect() && match(TokenType.PIPE)) {
-            params.add(parseIdentifier());
+            multiplicityParams.add(parseIdentifier());
             while (match(TokenType.COMMA)) {
-                params.add(parseIdentifier());
+                multiplicityParams.add(parseIdentifier());
             }
         }
         expect(TokenType.GREATER_THAN);
-        return params;
     }
 
     /** M3 DIALECT: a VARIANCE marker on a type parameter — {@code

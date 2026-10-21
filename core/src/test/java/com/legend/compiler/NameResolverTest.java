@@ -729,7 +729,7 @@ class NameResolverTest {
     void enumDefinitionPassesThrough() {
         var en = new EnumDefinition("model::Status", List.of("ACTIVE", "INACTIVE"));
         var r = resolveOne(en);
-        assertSame(en, r, "EnumDefinition has no cross-element refs; same instance");
+        assertSame(en, r, "an enumeration without annotations names no other element; same instance");
     }
 
     @Test

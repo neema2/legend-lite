@@ -49,7 +49,7 @@ public final class DerivedProps {
         return new FunctionDefinition(
                 SynthFqn.prop(cd.qualifiedName(), dp.name()),
                 cd.typeParams(),
-                List.of(),
+                cd.multiplicityParams(),
                 params,
                 dp.type(),
                 dp.multiplicity(),
@@ -65,14 +65,14 @@ public final class DerivedProps {
      * {@code $this} carries the class's type parameters).
      */
     public static TypeExpression receiverType(ClassDefinition cd) {
-        if (cd.typeParams().isEmpty()) {
+        if (cd.typeParams().isEmpty() && cd.multiplicityParams().isEmpty()) {
             return new TypeExpression.NameRef(cd.qualifiedName());
         }
         List<TypeExpression> args = new ArrayList<>(cd.typeParams().size());
         for (String tp : cd.typeParams()) {
             args.add(new TypeExpression.NameRef(tp));
         }
-        return new TypeExpression.Generic(cd.qualifiedName(), args);
+        return new TypeExpression.Generic(cd.qualifiedName(), args, cd.multiplicityParams());
     }
 
     /** The {@code $prop$} FQN split: {owner, name}, or null if {@code fqn}

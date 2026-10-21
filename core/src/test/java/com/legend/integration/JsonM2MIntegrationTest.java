@@ -68,6 +68,11 @@ class JsonM2MIntegrationTest {
                 }
             )
 
+            ###Relational
+            Database store::TestDb
+            (
+            )
+
             ###Connection
             RelationalDatabaseConnection store::TestConnection
             {

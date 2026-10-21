@@ -2065,17 +2065,14 @@ public final class InferenceKernel {
         Bindings b = new Bindings();
         List<Type> targs = t instanceof Type.GenericType g ? g.arguments() : List.of();
         List<Multiplicity> margs = t instanceof Type.GenericType g ? g.multArguments() : List.of();
-        int pi = 0;
-        for (String p : cls.typeParameters()) {
-            if (pi < targs.size()) {
-                b.bindType(p, targs.get(pi));
-            } else if (pi - targs.size() < margs.size()) {
-                b.bindMult(p, margs.get(pi - targs.size()));
-            } else {
-                b.bindType(p, anyType());
-                b.bindMult(p, Multiplicity.Bounded.ZERO_MANY);
-            }
-            pi++;
+        // type arguments to type parameters, multiplicity arguments to multiplicity parameters; a receiver written
+        // without them (a mapped class named bare) has Any and [*]
+        for (int i = 0; i < cls.typeParameters().size(); i++) {
+            b.bindType(cls.typeParameters().get(i), i < targs.size() ? targs.get(i) : anyType());
+        }
+        for (int i = 0; i < cls.multiplicityParameters().size(); i++) {
+            b.bindMult(cls.multiplicityParameters().get(i),
+                    i < margs.size() ? margs.get(i) : Multiplicity.Bounded.ZERO_MANY);
         }
         for (Type st : cls.superTypes()) {
             Type inst;

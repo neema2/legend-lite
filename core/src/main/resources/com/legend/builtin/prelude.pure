@@ -50,6 +50,15 @@ Class meta::pure::functions::collection::ValueHolder<T>
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/documentation.pure
+Profile meta::pure::profiles::doc
+{
+    stereotypes: [deprecated];
+    tags: [doc, todo];
+}
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/boolean/equality/is.pure
 import meta::pure::test::pct::*;
 import meta::pure::functions::boolean::tests::equalitymodel::*;
@@ -1266,6 +1275,14 @@ native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/typemodifiers.pure
+Profile meta::pure::profiles::typemodifiers
+{
+    stereotypes: [abstract];
+}
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/string/index/lastIndexOf.pure
 function meta::pure::functions::string::lastIndexOf(str:String[1], toFind:String[1]):Integer[1]
 {
@@ -1369,8 +1386,28 @@ function meta::pure::functions::asserts::assertNotEq(notExpected:Any[1], actual:
 
 
 ###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/tests/fct_core.pure
+Profile meta::pure::test::fct::FCT
+{
+    stereotypes : [test, adapter, testCollection];
+}
+
+
+###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/tests/pct_core.pure
 import meta::pure::test::pct::*;
+Profile meta::pure::test::pct::PCT
+{
+    stereotypes : [test, adapter, function, platformOnly, testQualifierProfile];
+    tags: [grammarDoc, grammarCharacters, adapterName];
+}
+
+Profile <<meta::pure::test::pct::PCT.testQualifierProfile>> meta::pure::test::pct::PCTCoreQualifier
+{
+    stereotypes : [variant, needsImplementation];
+
+}
+
 function
     <<PCT.adapter>>
     {
@@ -1388,6 +1425,20 @@ Class meta::pure::test::pct::PCTManifest
 }
 
 native function meta::pure::test::pct::loadPCTManifest(manifestPath:String[1]): PCTManifest[1];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/tests/profile.pure
+Profile meta::pure::profiles::test
+{
+    stereotypes : [Test, TestCollection, BeforePackage, AfterPackage, ToFix, ExcludeAlloy, ExcludeLazy, ExcludeModular, AlloyOnly, ExcludeAlloyTextMode];
+    tags: [excludePlatform, sensitiveToStereotype];
+}
+
+Profile meta::pure::profiles::temporaryLazyExclusion
+{
+   stereotypes: [exclude];
+}
 
 
 ###Pure
@@ -1621,6 +1672,22 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::tools::noDebug():DebugCo
 Class meta::pure::executionPlan::PlanVariablePlaceHolder
 {
     name : String[1];
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/access.pure
+Profile meta::pure::profiles::access
+{
+    stereotypes: [public, protected, private, externalizable];
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/boolean/equality/profile.pure
+Profile meta::pure::profiles::equality
+{
+    stereotypes: [Key];
 }
 
 
@@ -2105,6 +2172,11 @@ Class meta::pure::metamodel::relation::Column<U,V|m> extends meta::pure::metamod
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/milestoning.pure
 import meta::pure::milestoning::*;
 import meta::pure::functions::string::*;
+Profile meta::pure::profiles::temporal
+{
+    stereotypes: [bitemporal, businesstemporal, processingtemporal];
+}
+
 Class meta::pure::milestoning::TemporalStrategy{}
 
 Class meta::pure::milestoning::SingleDateTemporalStrategy extends TemporalStrategy{}
@@ -2133,6 +2205,19 @@ Class meta::pure::milestoning::BusinessDateMilestoning extends DateMilestoning
 
 Class meta::pure::milestoning::BiTemporalMilestoning extends ProcessingDateMilestoning, BusinessDateMilestoning
 {
+}
+
+Profile meta::pure::profiles::milestoning
+{
+    stereotypes: [generatedmilestoningproperty, generatedmilestoningdateproperty];
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/profile.pure
+Profile meta::pure::profiles::functionType
+{
+    stereotypes : [SideEffectFunction, NotImplementedFunction, NormalizeRequiredFunction, ReducerFunction, EvaluationRequiredFunction];
 }
 
 
@@ -2185,6 +2270,12 @@ Class meta::pure::router::RoutedValueSpecification extends ValueSpecification
 
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/service.pure
+Profile meta::pure::service::service
+{
+    stereotypes: [disableStreaming];
+    tags: [contentType, contentDisposition, url, paramsExample];
+}
+
 Class meta::pure::service::ServiceResult<T|m>
 {
    value : T[m];
@@ -6554,7 +6645,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 485 classes, 23 enums, 152 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// 485 classes, 23 enums, 13 profiles, 152 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
 // ENGINE LIBRARY FUNCTIONS — 1 bodied declarations outside the platform roots, carried by membership
 // (PreludeGenerator.ENGINE_LIBRARY_FUNCTIONS, each with its reason), verbatim, every overload:
 //   meta::pure::functions::collection::removeAll (2 overloads) — the corpus's tds extensions (columnValueDifference) and the prelude's SchemaState bodies call it; the corpus loader refuses the namespace as runtime (MinimalCorpus.refusePlatformNamespace), so this module is its only home. INTERIM for the namespace rule (charter D7: every bodied function upstream declares under meta::pure::functions:: is library, measured 2026-09-25 at 126 functions / 26 boot-typing failures / the agg form unowned) — one row until that lands

@@ -207,6 +207,11 @@ class JsonM2MChainIntegrationTest {
             )
 
             // ===== Connection & Runtime =====
+            ###Relational
+            Database store::TestDb
+            (
+            )
+
             ###Connection
             import model::*;
             import store::*;
@@ -294,6 +299,11 @@ class JsonM2MChainIntegrationTest {
                     age: $src.age,
                     dept: $src.dept
                 }
+            )
+
+            ###Relational
+            Database store::TestDb
+            (
             )
 
             ###Connection
@@ -814,6 +824,11 @@ class JsonM2MChainIntegrationTest {
                     }
                 )
 
+                ###Relational
+                Database store::TestDb
+                (
+                )
+
                 ###Connection
                 import model::*;
                 import store::*;
@@ -1014,6 +1029,11 @@ class JsonM2MChainIntegrationTest {
                             displayName: $src.fullName->toUpper(),
                             department: $src.dept
                         }
+                    )
+
+                    ###Relational
+                    Database store::TestDb
+                    (
                     )
 
                     ###Connection

@@ -258,14 +258,14 @@ public final class ModelNormalizer {
      * {@code $this} carries the class's type parameters).
      */
     private static TypeExpression receiverType(ClassDefinition cd) {
-        if (cd.typeParams().isEmpty()) {
+        if (cd.typeParams().isEmpty() && cd.multiplicityParams().isEmpty()) {
             return new TypeExpression.NameRef(cd.qualifiedName());
         }
         List<TypeExpression> args = new ArrayList<>(cd.typeParams().size());
         for (String tp : cd.typeParams()) {
             args.add(new TypeExpression.NameRef(tp));
         }
-        return new TypeExpression.Generic(cd.qualifiedName(), args);
+        return new TypeExpression.Generic(cd.qualifiedName(), args, cd.multiplicityParams());
     }
 
     /**
@@ -313,7 +313,7 @@ public final class ModelNormalizer {
         return new FunctionDefinition(
                 SynthFqn.constraint(cd.qualifiedName(), c.name()),
                 cd.typeParams(),
-                List.of(),
+                cd.multiplicityParams(),
                 List.of(self),
                 new TypeExpression.NameRef(Pure.BOOLEAN.qualifiedName()),
                 Multiplicity.Concrete.PURE_ONE,
@@ -333,7 +333,7 @@ public final class ModelNormalizer {
         return new FunctionDefinition(
                 SynthFqn.constraintMsg(cd.qualifiedName(), c.name()),
                 cd.typeParams(),
-                List.of(),
+                cd.multiplicityParams(),
                 List.of(self),
                 new TypeExpression.NameRef(Pure.STRING.qualifiedName()),
                 Multiplicity.Concrete.PURE_ONE,

@@ -1046,12 +1046,12 @@ public final class SystemMetamodel {
                 $_this->meta::pure::mapping::_classMappingByClass($class)->filter(s|$s.root == true)->last()
             }
 
-            function meta::pure::mapping::enumerationMappingByName(_this:meta::pure::mapping::Mapping[1], name:String[1]):meta::pure::mapping::EnumerationMapping[0..1]
+            function meta::pure::mapping::enumerationMappingByName(_this:meta::pure::mapping::Mapping[1], name:String[1]):meta::pure::mapping::EnumerationMapping<meta::pure::metamodel::type::Any>[0..1]
             {
                 $_this.visibility->sortBy(v|$v.includeRank).visible.enumerationMappings->filter(em|$em.name == $name)->first()
             }
 
-            function meta::pure::mapping::toDomainValue(_this:meta::pure::mapping::EnumerationMapping[1], sourceValue:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1]
+            function meta::pure::mapping::toDomainValue<T>(_this:meta::pure::mapping::EnumerationMapping<T>[1], sourceValue:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1]
             {
                 $_this.enumValueMappings->filter(m|$m.sources.value->contains($sourceValue))->toOne().enum
             }

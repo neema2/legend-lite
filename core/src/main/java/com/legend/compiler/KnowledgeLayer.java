@@ -468,7 +468,7 @@ public final class KnowledgeLayer {
                 merged.addAll(adoptions.get(cd.qualifiedName()));
                 out.add(new ClassDefinition(cd.qualifiedName(), cd.typeParams(), cd.typeVariables(),
                         cd.superClasses(), cd.properties(), merged, cd.constraints(),
-                        cd.stereotypes(), cd.taggedValues(), cd.isNative()));
+                        cd.stereotypes(), cd.taggedValues(), cd.isNative(), cd.multiplicityParams()));
             } else {
                 out.add(el);
             }

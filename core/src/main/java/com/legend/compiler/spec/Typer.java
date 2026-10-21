@@ -1560,19 +1560,19 @@ final class Typer {
         Property prop = ctx.findProperty(g.rawFqn(), ap.property()).orElseThrow(() ->
                 new TypeInferenceException("class " + g.rawFqn()
                         + " has no property '" + ap.property() + "'"));
-        int supplied = g.arguments().size() + g.multArguments().size();
-        if (supplied > cls.typeParameters().size()) {
+        if (g.arguments().size() > cls.typeParameters().size()
+                || g.multArguments().size() > cls.multiplicityParameters().size()) {
             throw new TypeInferenceException("class " + g.rawFqn() + " declares "
-                    + cls.typeParameters().size() + " type parameter(s) but the receiver "
-                    + g.typeName() + " supplies " + supplied);
+                    + cls.typeParameters().size() + " type parameter(s) and " + cls.multiplicityParameters().size()
+                    + " multiplicity parameter(s) but the receiver " + g.typeName() + " supplies "
+                    + g.arguments().size() + " and " + g.multArguments().size());
         }
         Bindings b = new Bindings();
-        int pi = 0;
-        for (Type targ : g.arguments()) {
-            b.bindType(cls.typeParameters().get(pi++), targ);
+        for (int i = 0; i < g.arguments().size(); i++) {
+            b.bindType(cls.typeParameters().get(i), g.arguments().get(i));
         }
-        for (Multiplicity marg : g.multArguments()) {
-            b.bindMult(cls.typeParameters().get(pi++), marg);
+        for (int i = 0; i < g.multArguments().size(); i++) {
+            b.bindMult(cls.multiplicityParameters().get(i), g.multArguments().get(i));
         }
         Multiplicity pm = prop.multiplicity();
         if (pm instanceof Multiplicity.Var mv) {

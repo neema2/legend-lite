@@ -57,21 +57,25 @@ public record ClassDefinition(
         List<ConstraintDefinition> constraints,
         List<StereotypeApplication> stereotypes,
         List<TaggedValue> taggedValues,
-        boolean isNative)
+        boolean isNative,
+        /** {@code Class X<T|m>}: the MULTIPLICITY parameters, apart from {@link #typeParams} (a reference's type
+         * and multiplicity arguments are counted against each) */
+        List<String> multiplicityParams)
         implements PackageableElement {
 
-    /** The pre-type-variable arity: no type variables. */
+    /** The pre-type-variable arity: no type variables and no multiplicity parameters. */
     public ClassDefinition(String qualifiedName, List<String> typeParams,
             List<TypeExpression> superClasses, List<PropertyDefinition> properties,
             List<DerivedPropertyDefinition> derivedProperties, List<ConstraintDefinition> constraints,
             List<StereotypeApplication> stereotypes, List<TaggedValue> taggedValues, boolean isNative) {
         this(qualifiedName, typeParams, List.of(), superClasses, properties, derivedProperties,
-                constraints, stereotypes, taggedValues, isNative);
+                constraints, stereotypes, taggedValues, isNative, List.of());
     }
 
     public ClassDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         typeParams = typeParams == null ? List.of() : List.copyOf(typeParams);
+        multiplicityParams = List.copyOf(multiplicityParams);
         superClasses = superClasses == null ? List.of() : List.copyOf(superClasses);
         properties = properties == null ? List.of() : List.copyOf(properties);
         derivedProperties = derivedProperties == null ? List.of() : List.copyOf(derivedProperties);

@@ -102,8 +102,7 @@ final class TypeClassifier {
                     yield new Type.TypeVar("?");
                 }
                 yield com.legend.compiler.element.type.PlatformTypes.eraseTdsRow(
-                        findType(nr.name()).orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                                "Unknown type: '" + nr.name() + "' is not a known primitive, class, or enum")));
+                        findType(nr.name()).orElseThrow(() -> unknownType(nr.name())));
             }
             case TypeExpression.Generic g -> {
                 if (g.arguments().isEmpty() && !g.typeVariableValues().isEmpty()) {
@@ -111,6 +110,8 @@ final class TypeClassifier {
                     // (Primitive P(x:Integer[1]) extends Integer): the type is P
                     yield classify(new TypeExpression.NameRef(g.name(), g.pos()), typeParams);
                 }
+                // the head is a type that exists (its arguments' count is a declaration's: requireArguments)
+                findType(g.name()).orElseThrow(() -> unknownType(g.name()));
                 List<Type> args = new ArrayList<>(g.arguments().size());
                 for (TypeExpression arg : g.arguments()) {
                     args.add(classify(arg, typeParams));
@@ -145,6 +146,76 @@ final class TypeClassifier {
             case TypeExpression.SchemaAlgebra sa -> new Type.SchemaAlgebra(
                     classify(sa.left(), typeParams), op(sa.op()), classify(sa.right(), typeParams));
         };
+    }
+
+    private static com.legend.error.ModelException unknownType(String name) {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                "Unknown type: '" + name + "' is not a known primitive, class, or enum");
+    }
+
+    /**
+     * A DECLARED type (a supertype, a property's, a parameter's, a return): every class it names is given as many
+     * type and multiplicity arguments as it declares parameters (legend-pure's GenericTypeValidator), a type
+     * parameter in scope naming none. Lite's own synthesized signatures name a mapped class bare and are not
+     * declarations.
+     */
+    void requireArguments(TypeExpression te, List<String> typeParams) {
+        switch (te) {
+            case TypeExpression.NameRef nr -> {
+                if (!typeParams.contains(nr.name()) && isClassFqn(nr.name())) {
+                    requireArity(nr.name(), 0, 0);
+                }
+            }
+            case TypeExpression.Generic g -> {
+                if (g.arguments().isEmpty() && !g.typeVariableValues().isEmpty()) {
+                    return;   // a precise primitive's values (P(8)), no type arguments
+                }
+                if (isClassFqn(g.name())) {
+                    requireArity(g.name(), g.arguments().size(), g.multiplicityArguments().size());
+                }
+                for (TypeExpression arg : g.arguments()) {
+                    requireArguments(arg, typeParams);
+                }
+            }
+            case TypeExpression.FunctionType ft -> {
+                for (TypeExpression.TypedParameter tp : ft.parameters()) {
+                    requireArguments(tp.type(), typeParams);
+                }
+                requireArguments(ft.result().type(), typeParams);
+            }
+            case TypeExpression.RelationType rt -> {
+                for (TypeExpression.Column c : rt.columns()) {
+                    requireArguments(c.type(), typeParams);
+                }
+            }
+            case TypeExpression.SchemaAlgebra sa -> {
+                requireArguments(sa.left(), typeParams);
+                requireArguments(sa.right(), typeParams);
+            }
+        }
+    }
+
+    /** A class named with {@code types} type arguments and {@code multiplicities} multiplicity arguments: as many
+     *  of each as it declares parameters, or refused in legend-pure's words (GenericTypeValidator's for the types;
+     *  for the multiplicities, the same sentence). */
+    private void requireArity(String fqn, int types, int multiplicities) {
+        ClassDefinition def = classDef(fqn).orElseThrow(() -> new IllegalStateException(
+                fqn + " classifies as a class but has no definition"));
+        if (def.typeParams().size() != types) {
+            throw arityMismatch(def, "", def.typeParams().size(), types);
+        }
+        if (def.multiplicityParams().size() != multiplicities) {
+            throw arityMismatch(def, "multiplicity ", def.multiplicityParams().size(), multiplicities);
+        }
+    }
+
+    private static com.legend.error.ModelException arityMismatch(ClassDefinition def, String kind, int expected,
+            int got) {
+        String params = String.join(", ", def.typeParams())
+                + (def.multiplicityParams().isEmpty() ? "" : "|" + String.join(", ", def.multiplicityParams()));
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                "Type " + kind + "argument mismatch for the class " + def.qualifiedName() + "<" + params
+                        + "> (expected " + expected + ", got " + got + ")");
     }
 
     /** FQN of a superclass / generic head reference. */
