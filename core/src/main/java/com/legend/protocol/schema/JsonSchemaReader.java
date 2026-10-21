@@ -291,6 +291,11 @@ public final class JsonSchemaReader {
     /** The class or enumeration of each property's schema written in place, by its text and its document: another
      *  place of the same text reuses it ({@link #inPlace}). */
     private final Map<String, String> twins = new HashMap<>();
+    /** The unions written in place that are one class for each set of alternatives ({@link #unionFor}), by place:
+     *  their superclass says nothing of one property's. */
+    private final Set<String> sharedUnions = new HashSet<>();
+    /** What a union named after its members names its wrappers after, by its place: its objects' names. */
+    private final Map<String, String> wrapperBases = new HashMap<>();
     /** The place of a map at the root, made a class of its entries: none, or one. */
     private final Set<String> mapRoots = new HashSet<>();
 
@@ -636,24 +641,41 @@ public final class JsonSchemaReader {
         return objectShaped(part, loc);
     }
 
-    /** The union keyword ({@code oneOf}, {@code anyOf}) whose alternatives but {@code null} are two or more objects. */
+    /**
+     * The union keyword ({@code oneOf}, {@code anyOf}) whose alternatives but {@code null} are two or more, one an
+     * object at least and each other a value of its own (a primitive, an enumeration, a list), which
+     * {@link #alternatives} wraps; a union one of whose alternatives says no value (a {@code required} alone) is
+     * logic, and one of no object a {@code Variant} or the primitive its alternatives share.
+     */
     private @com.legend.base.Nullable String unionOfObjects(Json.Obj schema, String loc) {
         for (String union : List.of("oneOf", "anyOf")) {
             List<Json.Obj> parts = objects(schema, union);
             int values = 0;
-            boolean all = true;
+            boolean anObject = false;
+            boolean allValues = true;
             for (int i = 0; i < parts.size(); i++) {
                 if (isNull(parts.get(i))) {
                     continue;
                 }
                 values++;
-                all &= isObject(parts.get(i), child(loc, union, Integer.toString(i)));
+                if (isObject(parts.get(i), child(loc, union, Integer.toString(i)))) {
+                    anObject = true;
+                } else {
+                    allValues &= saysValue(parts.get(i));
+                }
             }
-            if (values >= 2 && all) {
+            if (values >= 2 && anObject && allValues) {
                 return union;
             }
         }
         return null;
+    }
+
+    /** Whether a union's alternative says a value of its own -- a type, a reference, an {@code enum} or a
+     *  {@code const}, or keywords that imply a type -- rather than a requirement alone. */
+    private static boolean saysValue(Json.Obj part) {
+        return refOf(part) != null || part.has("type") || part.has("enum") || part.has("const")
+                || !implied(part).isEmpty();
     }
 
     /** Whether a schema is an enumeration of {@code least} texts or more (and maybe null): two, inline, where one is a
@@ -821,9 +843,21 @@ public final class JsonSchemaReader {
             (enumeration ? enumAt : classAt).put(loc, twin);
             return twin;
         }
-        String made = enumeration ? enumFor(loc, name) : classFor(loc, name, true);
-        twins.put(text, made);
-        return made;
+        if (enumeration) {
+            String made = enumFor(loc, name);
+            twins.put(text, made);
+            return made;
+        }
+        return twinClass(text, loc, unique(name));
+    }
+
+    /** A class written in place, of a name already its own and the text it is the class of: the text recorded before
+     *  the class is built, so a place of the same text met while building it (through a reference back) is it. */
+    private String twinClass(String text, String loc, String held) {
+        twins.put(text, held);
+        classAt.put(loc, held);
+        buildClass(held, docs.schemaAt(loc), loc, true);
+        return held;
     }
 
     /** A name for a place no schema names: its last meaningful parts ({@code #/definitions/A/properties/b} is AB). */
@@ -987,12 +1021,15 @@ public final class JsonSchemaReader {
         String union = unionOfObjects(schema, loc);
         boolean inPlace = union == null || alternatives(name, schema, union, loc);
         Named self = named.get(loc);
-        List<Annotation> annotations = annotations(schema, self != null && keyed.contains(loc) ? self.key() : null,
-                name);
+        // a union one for its alternatives, wherever written: its documentation is each property's own
+        boolean shared = sharedUnions.contains(loc);
+        List<Annotation> annotations = shared ? new ArrayList<>() : annotations(schema,
+                self != null && keyed.contains(loc) ? self.key() : null, name);
         if (schema.getOr("additionalProperties", null) instanceof Json.Bool b && !b.value()) {
             annotations.add(Annotation.stereotype(GENERATION, "noAdditionalProperties"));
         }
-        classes.add(position, new ImportedClass(name, doc(schema), g.supers, out, owned && inPlace, deprecated(schema),
+        classes.add(position, new ImportedClass(name, shared ? null : doc(schema), g.supers, out, owned && inPlace,
+                deprecated(schema),
                 rules, logic, annotations));
     }
 
@@ -1246,8 +1283,8 @@ public final class JsonSchemaReader {
     /**
      * A UNION OF OBJECTS read as inheritance (the study's §4.2): each alternative a subclass of {@code superclass} --
      * a referenced class gains it as a superclass, an object written in place is a class of its own, named after the
-     * union and its title (or {@code Option1}, {@code Option2}, ...). An anyOf is read as a oneOf: an instance is one
-     * class.
+     * union and its title (or {@code Option1}, {@code Option2}, ...), and a value that is no object a class wrapping
+     * it ({@link #wrapper}). An anyOf is read as a oneOf: an instance is one class.
      *
      * @return whether every alternative is written in place (each a value its owner holds)
      */
@@ -1265,7 +1302,12 @@ public final class JsonSchemaReader {
             }
             String ref = refOf(part);
             String sub;
-            if (ref != null && !declaresProperties(part)) {
+            if (!isObject(part, at)) {
+                sub = wrapper(wrapperBases.getOrDefault(loc, superclass), part, at);
+                if (sub == null) {
+                    continue;
+                }
+            } else if (ref != null && !declaresProperties(part)) {
                 keywords(part, at);
                 String t = docs.target(at, ref);
                 if (t == null) {
@@ -1281,6 +1323,129 @@ public final class JsonSchemaReader {
             unionSupers.computeIfAbsent(sub, k -> new LinkedHashSet<>()).add(superclass);
         }
         return inPlace;
+    }
+
+    /**
+     * The superclass of a union written in place: ONE for each set of alternatives in a document, wherever it is
+     * written -- Stripe writes {@code anyOf: [string, $ref customer, $ref deleted_customer]} on twenty properties,
+     * each with its own description, and they are one type -- named after its members when each object among them is
+     * a schema the document names, three at most ({@code CustomerOrDeletedCustomerOrString}, its wrapper
+     * {@code CustomerOrDeletedCustomerString}); else after its first place, as a twin ({@link #inPlace}). A union
+     * that says more than its alternatives (properties, a type, a rule) is its place's own.
+     */
+    private String unionFor(String loc, Json.Obj schema, String union, String owner, String property) {
+        if (named.containsKey(loc) || classAt.containsKey(loc) || saysMoreThan(schema, union)) {
+            return inPlace(loc, inPlaceName(owner, property), false);
+        }
+        String text = "union " + docOf(loc) + " " + union + " " + Json.toCompact(schema.get(union)) + " "
+                + (schema.getOr("discriminator", null) instanceof Json.Obj d ? Json.toCompact(d) : "");
+        String twin = twins.get(text);
+        if (twin != null) {
+            classAt.put(loc, twin);
+            return twin;
+        }
+        sharedUnions.add(loc);
+        List<String> members = members(schema, union, loc);
+        if (members != null) {
+            wrapperBases.put(loc, members.get(0));
+        }
+        return twinClass(text, loc, unique(members != null ? members.get(1) : inPlaceName(owner, property)));
+    }
+
+    /** Whether a union's schema says something beyond its alternatives: documentation, nullability, a discriminator,
+     *  {@code type: object} and extensions say nothing more. */
+    private static boolean saysMoreThan(Json.Obj schema, String union) {
+        for (Map.Entry<String, Json.Node> e : schema.fields().entrySet()) {
+            String k = e.getKey();
+            boolean object = k.equals("type") && e.getValue() instanceof Json.Str t && t.value().equals("object");
+            if (!k.equals(union) && !k.equals("discriminator") && !object && saysShape(only(schema, k))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A union's name of its members, and its wrappers' base: its objects' names joined by {@code Or}, then its
+     *  values' types ({@code [CustomerOrDeletedCustomer, CustomerOrDeletedCustomerOrString]}); null unless each
+     *  object is a schema the document names, three at most. */
+    private @com.legend.base.Nullable List<String> members(Json.Obj schema, String union, String loc) {
+        List<String> objects = new ArrayList<>();
+        List<String> values = new ArrayList<>();
+        List<Json.Obj> parts = objects(schema, union);
+        for (int i = 0; i < parts.size(); i++) {
+            Json.Obj part = parts.get(i);
+            String at = child(loc, union, Integer.toString(i));
+            if (isNull(part)) {
+                continue;
+            }
+            if (!isObject(part, at)) {
+                values.add(wrapperSuffix(part, at));
+                continue;
+            }
+            String ref = refOf(part);
+            String t = ref == null || declaresProperties(part) ? null : docs.target(at, ref);
+            Named n = t == null ? null : named.get(t);
+            if (n == null) {
+                return null;
+            }
+            objects.add(n.name());
+        }
+        if (objects.isEmpty() || objects.size() > 3) {
+            return null;
+        }
+        String base = String.join("Or", objects);
+        return List.of(base, values.isEmpty() ? base : base + "Or" + String.join("Or", values));
+    }
+
+    /**
+     * An alternative of a union that is no object, as a class of its own: its one property {@code value}, the
+     * alternative's value -- Stripe's {@code anyOf: [string, $ref card]} is a {@code CustomerDefaultSource} whose
+     * subclasses are {@code Card} and {@code CustomerDefaultSourceString {value: String[1]}}. Pure has no union of a
+     * primitive and a class; a superclass of classes is one every reader of Pure reads (register S91). Null when the
+     * alternative can hold no value.
+     */
+    private @com.legend.base.Nullable String wrapper(String superclass, Json.Obj part, String at) {
+        String base = superclass + wrapperSuffix(part, at);
+        Resolved r = resolve(part, at, base, "value");
+        if (r == null || r == NEVER) {
+            return null;
+        }
+        String name = unique(base);
+        List<Rule> rules = new ArrayList<>();
+        for (Rule rule : r.rules()) {
+            rules.add(of(rule, "value"));
+        }
+        ImportedProperty value = new ImportedProperty("value", null, r.kind(), r.type(),
+                r.many() ? r.minItems() : (r.nullable() ? 0 : 1), r.many() ? r.maxItems() : Integer.valueOf(1));
+        classes.add(new ImportedClass(name, doc(part), List.of(), List.of(value), true, deprecated(part), rules,
+                List.of(), annotations(part, null, name)));
+        return name;
+    }
+
+    /** A wrapper's name after its superclass's: the alternative's title, the name of the schema it references, or
+     *  its type ({@code String}, {@code StrictDate}; a list's, {@code StringList}); else {@code Value}. */
+    private String wrapperSuffix(Json.Obj part, String at) {
+        String title = text(part, "title");
+        if (title != null && !title.strip().isEmpty()) {
+            return pureName(title, true);
+        }
+        String ref = refOf(part);
+        if (ref != null) {
+            String t = docs.target(at, ref);
+            Named n = t == null ? null : named.get(t);
+            return n != null ? n.name() : t != null ? nameFor(t) : "Value";
+        }
+        List<String> types = new ArrayList<>(types(part));
+        types.remove("null");
+        String type = types.size() == 1 ? types.get(0) : types.isEmpty() ? implied(part) : "";
+        if (PRIMITIVES.contains(type)) {
+            return primitive(type, text(part, "format"));
+        }
+        if (type.equals("array")) {
+            return (part.getOr("items", null) instanceof Json.Obj items && refOf(items) == null
+                    ? wrapperSuffix(items, child(at, "items")) : "") + "List";
+        }
+        return "Value";
     }
 
     /** Each class's superclasses as an alternative of a union, added; each class a place outside its owner names
@@ -1467,8 +1632,10 @@ public final class JsonSchemaReader {
                 Resolved r = resolve(parts.get(one), child(loc, union, Integer.toString(one)), owner, property);
                 return r == null || r == NEVER ? r : r.orEmpty(mayBeNull || empty);
             }
-            if (unionOfObjects(schema, loc) != null) {
-                return new Resolved(Kind.CLASS, inPlace(loc, inPlaceName(owner, property), false), mayBeNull || empty);
+            String alternatives = unionOfObjects(schema, loc);
+            if (alternatives != null) {
+                return new Resolved(Kind.CLASS, unionFor(loc, schema, alternatives, owner, property),
+                        mayBeNull || empty);
             }
             String common = commonPrimitive(parts, loc, union);
             if (common != null) {

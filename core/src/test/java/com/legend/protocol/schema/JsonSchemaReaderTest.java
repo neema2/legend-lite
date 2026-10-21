@@ -310,15 +310,51 @@ class JsonSchemaReaderTest {
                     `payee`: {`anyOf`: [{`$ref`: `#/components/schemas/Cat`}, {`$ref`: `#/components/schemas/Dog`}]}}}}}}""");
         assertEquals(List.of(
                 "Pet{name: P String[0..1]}",
-                "Cat[Pet, PaymentPayee]{purrs: P Boolean[0..1]}",
-                "Dog[Pet, PaymentPayee]{barks: P Boolean[0..1]}",
-                "Payment{method: C PaymentMethod[0..1], payee: C PaymentPayee[0..1]}",
+                "Cat[Pet, CatOrDog]{purrs: P Boolean[0..1]}",
+                "Dog[Pet, CatOrDog]{barks: P Boolean[0..1]}",
+                "Payment{method: C PaymentMethod[0..1], payee: C CatOrDog[0..1]}",
                 "owned PaymentMethod{}",
                 "owned PaymentMethodCard[PaymentMethod]{last4: P String[0..1]}",
                 "owned PaymentMethodOption2[PaymentMethod]{iban: P String[0..1]}",
-                "PaymentPayee{}"), classes(m), "Dog's allOf and the union name Pet once; Cat gains it from the union");
+                "CatOrDog{}"), classes(m), "Dog's allOf and the union name Pet once; Cat gains it from the union; a "
+                + "union written in place of schemas the document names is named after them");
         assertEquals(List.of("#/components/schemas/Payment/properties/payee: anyOf is read as oneOf (an instance is one "
                 + "of its alternatives)"), notes(m));
+    }
+
+    @Test
+    @DisplayName("a union of objects and values: each value a class wrapping it; the unions of the same alternatives one "
+            + "superclass, named after its members; a union of no object a Variant")
+    void unionsOfObjectsAndValuesWrapTheValues() {
+        ImportedModel m = read("""
+                {`openapi`: `3.1.0`, `components`: {`schemas`: {
+                  `Card`: {`type`: `object`, `properties`: {`last4`: {`type`: `string`}}},
+                  `Charge`: {`type`: `object`, `properties`: {
+                    `source`: {`description`: `the card, or its id`, `nullable`: true, `anyOf`: [
+                      {`type`: `string`, `maxLength`: 10}, {`$ref`: `#/components/schemas/Card`}]},
+                    `tags`: {`oneOf`: [{`$ref`: `#/components/schemas/Card`},
+                      {`type`: `array`, `items`: {`type`: `string`}}, {`type`: `string`, `format`: `date`}]}}},
+                  `Refund`: {`type`: `object`, `properties`: {
+                    `source`: {`description`: `the card refunded`, `anyOf`: [
+                      {`type`: `string`, `maxLength`: 10}, {`$ref`: `#/components/schemas/Card`}]},
+                    `either`: {`oneOf`: [{`type`: `string`}, {`type`: `integer`}]}}}}}}""");
+        assertEquals(List.of(
+                "Card[CardOrString, CardOrStringListOrStrictDate]{last4: P String[0..1]}",
+                "Charge{source: C CardOrString[0..1], tags: C CardOrStringListOrStrictDate[0..1]}",
+                "CardOrString{}",
+                "owned CardString[CardOrString]{value: P String[1]}",
+                "CardOrStringListOrStrictDate{}",
+                "owned CardStringList[CardOrStringListOrStrictDate]{value: P String[*]}",
+                "owned CardStrictDate[CardOrStringListOrStrictDate]{value: P StrictDate[1]}",
+                "Refund{source: C CardOrString[0..1], either: P meta::pure::metamodel::variant::Variant[0..1]}"), classes(m),
+                "Charge's and Refund's sources, described apart, are one union; the string a class of the union, as "
+                        + "Pure says a union of a class and a primitive, and every reader of Pure reads");
+        assertEquals(List.of("CardString: len(value)<=10"), rules(m), "the wrapped value keeps its rules");
+        assertEquals(List.of(
+                "#/components/schemas/Charge/properties/source: anyOf is read as oneOf (an instance is one of its "
+                        + "alternatives)",
+                "#/components/schemas/Refund/properties/either: a union (oneOf) of values that are not all objects is "
+                        + "a Variant (Pure has no union type)"), notes(m));
     }
 
     @Test

@@ -151,9 +151,9 @@ to import (`schemas`), and each brings the schemas it reaches.
 | `const`, or an `enum` not an enumeration (of numbers, of booleans, of one text) | its values' type, the values a rule; values of several types a `Variant` |
 | `$ref` to a class / an enumeration | an association end / the enumeration |
 | an inline object, an inline `enum` | a class / enumeration of its own, named after its owner and the property in upper camel case (`OrderShipping`, `OrderStatus`; Stripe's `Customer.tax_exempt` is `CustomerTaxExempt`); a list's item in the singular (`OrderLine`); one already made for the same text, below |
-| a union of objects | a superclass of its own, named after the owner and the property (§4.2) |
+| a union of objects, or of objects and values | a superclass, one for each set of alternatives, a value alternative a class wrapping it (§4.2) |
 | an `allOf` of no object | the one part that says a shape, or the shape its parts share |
-| `true`, `{}`, a free-form `object`, a map; a union not of objects, several types, a tuple (`prefixItems`), a list of lists | `meta::pure::metamodel::variant::Variant`, as Pure holds JSON (the last four noted) |
+| `true`, `{}`, a free-form `object`, a map; a union of no object, several types, a tuple (`prefixItems`), a list of lists | `meta::pure::metamodel::variant::Variant`, as Pure holds JSON (the last four noted) |
 | `false`, `{type: null}` | no property: it can hold no value (noted) |
 | `array` | the item's type, many; or, asked (`"lists": "variant"`), one `Variant` (§4.3) |
 
@@ -270,13 +270,31 @@ Register row S92 records that upstream's YAML readers are YAML 1.1.
 
 `allOf: [Base, {...}]` says "I am a Base, and more". `oneOf: [Cat, Dog]` says "I am exactly one of these". An object
 model says both the same way: a superclass and its subclasses. So a union whose alternatives (but `null`) are two or
-more objects becomes a class:
+more, one of them an object at least, becomes a class:
 - **A named union** (`Pet: {oneOf: [Cat, Dog]}`) becomes the class `Pet`, with any properties of its own. Each
   referenced alternative gains `Pet` as a superclass.
-- **A union written on a property** becomes a superclass named after the owner and the property (`PaymentMethod`).
-  The property is the association to it.
+- **A union written on a property** becomes a superclass. Unions of the same alternatives in a document are ONE
+  superclass, wherever they are written and however each is described: they are one type. It is named after its
+  members when each object among them is a schema the document names, three at most (`CatOrDog`,
+  `CustomerOrDeletedCustomerOrString`); else after the owner and the property where it is first met
+  (`PaymentMethod`). The property is the association to it.
 - **An object written in place as an alternative** becomes a subclass of its own, named after the union and its
   `title`, or `Option1`, `Option2`, ....
+- **A value as an alternative** (a primitive, an enumeration, a list of them) becomes a class wrapping it, a
+  subclass like the others, its one property `value` (with the alternative's rules), named after the union's objects
+  and the value's type. Pure has no union of a primitive and a class; a superclass of classes is a union every reader
+  of Pure reads, legend-engine's and Studio's included. Stripe's expandable fields (an object, or its id):
+
+  ```
+  Class CustomerOrDeletedCustomerOrString { }
+  Class CustomerOrDeletedCustomerString extends CustomerOrDeletedCustomerOrString
+  [ valueMaxLength: $this.value->length() <= 5000 ]
+  { value: String[1]; }
+  Class Customer extends CustomerOrString, CustomerOrDeletedCustomerOrString { ... }
+  ```
+
+  Each of Stripe's sixteen `customer` properties is an association to the one union, and `Customer` extends the two
+  unions it is a member of, where it extended a superclass per property before unions were merged.
 
 Three things are lost, and the register's S91 records them:
 - **Closedness.** A union is closed (exactly these), and a superclass is open.
@@ -292,8 +310,9 @@ naming its own schema names no superclass, and is skipped, noted.
 **Not built: mapping a union's superclass, and querying through it polymorphically** (§8, D8). Each subclass maps and
 queries as any class does, its inherited properties included (`ModelImportTest.unionsImportAsInheritance`).
 
-A union whose alternatives are not all objects (`string | integer`, an object or a string) has no class form. Its
-value is a `Variant`, as are several types, a tuple and a list of lists.
+A union of no object (`string | integer`) has no class form: its value is the primitive its alternatives share
+(`Number`), else a `Variant`, as are several types, a tuple and a list of lists. A union one of whose alternatives
+says no value (`oneOf: [{required: [a]}, ...]`) is logic (§4.4).
 
 ### 4.3 Lists and Variant
 
@@ -377,13 +396,14 @@ parties'):
 | refused | 20 roots that are a reference to a document not given (each named); 8 that define no object (a root `anyOf` of texts, ...) | 87 that name no schema and whose bodies are free-form objects or examples only |
 | the writer's defect (the model did not compile) | 0 | 0 |
 | crashed, or over a minute | 0 | 0 |
-| written | 65,649 classes, 6,345 enumerations, 37,275 associations; 23,003 rules and 377 conditions as constraints | 48,457 classes, 7,503 enumerations, 48,080 associations; 26,713 rules and 7 conditions as constraints |
-| notes (each said once, counted) | 3,460 | 374 |
+| written | 40,362 classes, 6,454 enumerations, 44,909 associations; 23,597 rules and 390 conditions as constraints | 49,869 classes, 7,503 enumerations, 49,634 associations; 26,770 rules and 7 conditions as constraints |
+| notes (each said once, counted) | 3,412 | 369 |
 | time, a document | median 22 ms, the 99th percentile 0.5 s, the largest 5 s | median 22 ms, the 99th percentile 1.2 s, the largest 7 s |
 
 At the start of the day the same SchemaStore run imported 511. The 736 conditions noted as not carried are §4.4's:
 generic properties re-typed per branch, Variants, lists of objects. Before twins (§4) were one class the same
-documents wrote 102,581 and 58,465 classes, 11,042 and 12,382 enumerations. Times are of one run among others on a
+documents wrote 102,581 and 58,465 classes, 11,042 and 12,382 enumerations; before unions were one class for each set
+of alternatives and a value alternative wrapped (§4.2, 2026-10-21), 65,649 and 48,457 classes, no outcome changing. Times are of one run among others on a
 shared machine: forty typical documents, imported six times over in one process, take the same ~22 ms each before and
 after this round's changes.
 
@@ -437,7 +457,7 @@ runtime part). Where the two agree, lite writes what upstream writes; where they
 | `pattern` | `matches` (the whole text) | `regexpLike` in RE2 (anywhere, as JSON Schema's) |
 | `if`/`then`/`else`, `not`, `dependentRequired`, `dependentSchemas` | ignored | constraints (§4.4) |
 | `additionalProperties` schema, `patternProperties` | not supported | a root's: an entry class (S94); else a `Variant` |
-| `oneOf`/`anyOf` at the root | a Boolean function (`or`, `oneOf` of `instanceOf`s) | inheritance (S91) |
+| `oneOf`/`anyOf` | at the root, a Boolean function (`or`, `oneOf` of `instanceOf`s) | inheritance, a value alternative wrapped (S91) |
 | unknown keywords, `x-` extensions | tags of a generated profile | noted (unknown), ignored (`x-`) |
 
 **Found on the way, for the compiler's owners:** lite's compiler accepts a stereotype or a tag of a profile no model

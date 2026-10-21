@@ -2448,6 +2448,9 @@ making json schema super bulletproof with all the features"; the study's §4, §
   reader's documents and references moved to a new `SchemaDocuments`, its naming to a new `SchemaNames` (the reader's
   output unchanged, byte for byte, over 425 corpus documents); `ImportSchema`'s notes its own `Finding` record (a
   `protocol` record built in `server` would grow `ArchitectureTest`'s protocol-construction ratchet).
+- **Then (2026-10-21, the user's choice):** a union of objects and values is a superclass, each value alternative
+  a class wrapping it (`{value: T[1]}`), and the unions of one set of alternatives one superclass, named after its
+  members (`JsonSchemaReader` only; register S91).
 - **`ModelChanges` (shared with Create a Class's routes):** a new `put(String)` beside `put(Json.Obj)`, which is
   unchanged: an element whose text the printer prints as written is not read back again (the import's speed, the
   study's §4.6).
