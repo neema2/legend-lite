@@ -192,7 +192,17 @@ class ParkedWorkLedgerTest {
             // (an offset, a precision) wraps; the at() read over a spelled collection is the anchor
             Map.entry("PARK-37 a spelled integer at or above 2^63 read as an index, an offset or a precision wraps",
                     new Anchor("k\\.value\\(\\)\\.longValue\\(\\) < coll\\.elements\\(\\)\\.size\\(\\)",
-                            List.of("ExecuteChainAssembly.java")))));
+                            List.of("ExecuteChainAssembly.java"))),
+            // PARK-38 (2026-10-21, the reference checks after leg 8, the user: "we have to do 11 eventually, can put it
+            // on roadmap for later"): the element kinds the door carries by name only, never compiled
+            Map.entry("PARK-38 the element kinds lite carries by name are not compiled",
+                    new Anchor("private static PackageableElement carried\\(String section, String kind, String qualifiedName\\)",
+                            List.of("ModelFromProtocol.java"))),
+            // PARK-39 (the same day): the class mappings the door skips -- merge and unknown Operations, and a
+            // ServiceStore's or MongoDB's -- so the mapping compiles and a query of the class says it is unmapped
+            Map.entry("PARK-39 the class mappings lite skips compile as no mapping",
+                    new Anchor("return null;    // parse-and-skip, as above",
+                            List.of("MappingFromProtocol.java")))));
 
     private record Anchor(String pattern, List<String> files) {
     }

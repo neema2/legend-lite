@@ -405,6 +405,10 @@ public final class Compiler {
                     && com.legend.builtin.Prelude.classFqns().contains(el.qualifiedName()))
                     || (el instanceof com.legend.model.EnumDefinition
                     && com.legend.builtin.Prelude.enumFqns().contains(el.qualifiedName()))
+                    // the platform's PROFILES too (2026-10-21: the prelude declares them, so a graph
+                    // copy -- the platform tree's doc, PCT, ... -- yields to the prelude's, as a class does)
+                    || (el instanceof com.legend.model.ProfileDefinition
+                    && com.legend.builtin.Prelude.profileFqns().contains(el.qualifiedName()))
                     // the platform library's FUNCTIONS too (batch 169): a graph copy
                     // of a legend-pure function (the census's sources, a corpus
                     // tree's twin) yields to the module's — by function id (build

@@ -903,3 +903,36 @@ touches a dozen sites across the compiler and the lowering.
 
 **Anchor.** `k.value().longValue() < coll.elements().size()` in
 `core/src/main/java/com/legend/compiler/spec/ExecuteChainAssembly.java` (ParkedWorkLedgerTest).
+
+## PARK-38 — the element kinds lite carries by name are not compiled
+
+**Parked** 2026-10-21 by the user ("we have to do 11 eventually, can put it on roadmap for later"), after the reference
+probe of that day (64 broken models through both doors; item 11 of its list). **What happens today:** the door
+(`ModelFromProtocol.carried`) makes a named carrier of each of these kinds, which no compiler phase opens: diagrams,
+texts, generation specifications, file generations, Deephaven, Elasticsearch, MongoDB, data-quality validations,
+schema sets and bindings, service stores, relational mappers; and a function activator keeps its fields as text. So
+whatever they hold is accepted: a diagram of a class the model has not, a binding to a missing schema set, an
+activator of a missing function. **What the engine does:** each kind is compiled by its extension
+(`DiagramCompilerExtension`, `BindingCompiler` (`HelperExternalFormat.getSchemaSet`), the data-quality, service-store,
+Elasticsearch and activator extensions), and every reference refused by name. **The cost while parked:** a model the
+engine refuses compiles in lite, and its JSON is accepted for an element nobody checked. **Acceptance:** for each kind,
+every reference it makes is resolved and checked as the engine's extension does (its words), each case a test in
+`ReferenceIntegrityTest`; then the kind's own compile where lite executes it. **Who:** the Studio / SDLC / Depot line
+with the Compiler Rewrite line. **When:** after leg 9.
+
+**Anchor.** The carrier: `private static PackageableElement carried(String section, String kind, String
+qualifiedName)` in `ModelFromProtocol.java`.
+
+## PARK-39 — the class mappings lite skips compile as no mapping
+
+**Parked** 2026-10-21 with PARK-38 (the same item). **What happens today:** the door builds no class mapping for a
+merge Operation, an Operation of a function lite does not model, or a ServiceStore's or MongoDB's class mapping
+(`MappingFromProtocol`, "parse-and-skip"): the mapping compiles, and a query of that class fails later saying the class
+is not mapped -- true, but not why. **What the engine does:** it compiles each (`ClassMappingSecondPassBuilder`, the
+store extensions). **The cost while parked:** a misleading refusal at query time, and a model the engine checks
+whole left unchecked. **Acceptance:** each such class mapping is either carried and compiled (its set ids, its
+store's references) or refused at compile by name ("a merge Operation mapping is not supported"), a test each.
+**Who / When:** with PARK-38.
+
+**Anchor.** The skip: `return null;    // parse-and-skip, as above` in `MappingFromProtocol.java`.
+

@@ -210,6 +210,13 @@ final class ModelPacker {
             }
             CoreInstance el = ps.package_getByUserPath(fqn);
             if (el != null && Instance.instanceOf(el,
+                    "meta::pure::metamodel::type::PrimitiveType", ps)) {
+                // a PRIMITIVE is the platform's, never injected (2026-10-21: a bare 'Integer' root passed the
+                // metamodel prefix and was injected as 'Class Integer extends Number', a user class the
+                // compiler now refuses -- an M3 primitive type is an instance of Class)
+                continue;
+            }
+            if (el != null && Instance.instanceOf(el,
                     "meta::pure::metamodel::type::Enumeration", ps)) {
                 enums.add(fqn);
             } else if (el != null && Instance.instanceOf(el,
@@ -295,10 +302,11 @@ final class ModelPacker {
                 typeRef = "Any";
             } else {
                 String qualifiedTypeName = getQualifiedName(rawType);
-                String primitive = qualifiedTypeName != null
-                        ? primitivePureName(qualifiedTypeName) : null;
-                if (primitive != null) {
-                    typeRef = primitive;
+                // a primitive is judged by its M3 kind (2026-10-21: matched by lite's full names, a primitive's
+                // bare M3 path -- 'Integer' -- missed, and the primitive was injected as a class)
+                if (qualifiedTypeName != null && Instance.instanceOf(rawType,
+                        "meta::pure::metamodel::type::PrimitiveType", ps)) {
+                    typeRef = qualifiedTypeName;
                 } else if (qualifiedTypeName == null) {
                     // B11: no silent shape change — a property whose type
                     // has no packageable path names itself and refuses
@@ -371,16 +379,6 @@ final class ModelPacker {
             return "[" + upper + "]";
         }
         return "[" + lower + ".." + upper + "]";
-    }
-
-    /** The Pure simple name of a primitive FQN, or null if not a primitive. */
-    private static String primitivePureName(String fqn) {
-        for (var p : com.legend.compiler.element.type.Type.Primitive.values()) {
-            if (p.qualifiedName().equals(fqn)) {
-                return p.typeName();
-            }
-        }
-        return null;
     }
 
     private String getQualifiedName(CoreInstance element) {

@@ -583,6 +583,22 @@ not be written back, so it is refused.
    allowance is deleted: the parser depends on the lexer, the protocol, values, the shared errors and the overlay seam
    alone. Leg 8 is done.
 
+   **As built after it, the reference checks (2026-10-21, on `reference-checks`, then `studio-program`; GATES
+   2026-10-21).** With JSON a door into the compiler, what the compiler accepts unchecked is accepted from any author.
+   A probe of 64 broken models through both doors found lite accepting what the engine refuses; each is now refused
+   with the engine's words (legend-pure's where the engine defers to it), one case each in `ReferenceIntegrityTest`,
+   through the text and through its JSON: a supertype that is no class (a primitive included), a generic's wrong type
+   or multiplicity arity (a class's multiplicity parameters are now their own list, not merged into its type
+   parameters), a profile, stereotype or tag that does not exist (on classes, properties, enums, enum values,
+   associations, their ends, derived properties, functions; a profile resolves among profiles, and the platform's are
+   declared in the prelude), a runtime's mapping, a connection's store, a service's and a data space's mapping and
+   runtime, a database's and a mapping's include, an Operation's member set, an optional property with a default.
+   Defaults and a function's pre- and post-conditions (a condition naming `$return` is a post-condition, as in
+   legend-pure) are lifted as synthesized functions and typed, as derived properties are; the conditions now cross the
+   door and are written as the engine's JSON (`preConstraints`, `postConstraints`). An operator run is decided by the
+   resolved declaration (`NativeFn.OperatorRun`), never the name it was written with. Two messages that misled are
+   corrected (a missing database; a mapping's element kind).
+
 9. **Imports and comments through the round trip** (added 2026-10-10, the user: "add a leg to design/implement
    imports and comments too so we don't forget"). Today a model's text keeps both only because lite's own SDLC
    stores the text itself (`docs/STUDIO_DESIGN_2026_10_02.md` S13, S5), and imports are refused at save, as
@@ -599,6 +615,16 @@ not be written back, so it is refused.
      data, so a form edits the text and never reprints it (design §3 piece d).
    - **Done when:** a file with imports and comments saves and reopens on lite's stack unchanged and on a real
      legend-sdlc as the design says, each proven by a test.
+
+10. **Compile the element kinds lite carries by name** (added 2026-10-21, the user: "we have to do 11 eventually, can
+   put it on roadmap for later"; PARK-38 and PARK-39). The door carries diagrams, texts, generation specifications,
+   file generations, schema sets and bindings, service stores, data-quality validations, the Deephaven, Elasticsearch
+   and MongoDB elements and relational mappers by name, and a function activator's fields as text; no phase opens
+   them, so a diagram of a missing class or an activator of a missing function compiles. And a merge Operation, an
+   Operation of a function lite does not model, and a ServiceStore's or MongoDB's class mapping compile as no mapping
+   at all. **Done when:** each kind's references are resolved and refused as the engine's extension refuses them (its
+   words), a case each in `ReferenceIntegrityTest`, and each skipped class mapping is carried and checked or refused at
+   compile by name. After leg 9.
 
 Then the Studio plan's B2 to B4 (real legend-sdlc, Depot and engine) build on it: entities JSON read and printed in the
 tab, text parsed and emitted on save.

@@ -41,8 +41,15 @@ class ChannelBStandardTest {
                         + "/legend-engine-pure-code-functions-standard"
                         + "/legend-engine-pure-functions-standard-pure"
                         + "/src/main/resources/core_functions_standard");
+        // the standard module's own dependency (its pom: legend-engine-pure-functions-relation-pure): its tests
+        // carry the relation module's <<PCTRelationQualifier.relation>>, a profile the compiler now resolves
+        // (2026-10-21, reference checks) instead of accepting any name
+        Path relation = engineRoot().resolve(
+                "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-relation"
+                        + "/legend-engine-pure-functions-relation-pure"
+                        + "/src/main/resources/core_functions_relation");
         return ChannelB.run(
-                List.of(platform, standard), List.of(standard), walls);
+                List.of(platform, relation, standard), List.of(standard), walls);
     }
 
     @Test

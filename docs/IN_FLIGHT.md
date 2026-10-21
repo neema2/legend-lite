@@ -719,6 +719,29 @@ model entry (`builtin/{Pure,Prelude,SystemMetamodel}.java`, `ide/ModelOrchestrat
 generators, parser-equivalence's harness); parser-equivalence's oracle and ratchet. Each judged in GATES before the
 next.
 
+**Then the compiler's missing reference checks (the user, 2026-10-21, after an honest account of what leg 8 had
+shortcut: "def fix arithmetic, def need real tests, definitely need to fix function constraints and fake extends and
+fakes profiles/stereotypes")**, built on `reference-checks` (from `studio-program`'s d170f3eb0) and fast-forwarded onto
+`studio-program` once judged. A probe of 64 broken models through both doors found what lite accepted that the engine
+refuses: a supertype that is no class, a generic's wrong arity, a profile, stereotype or tag that does not exist, a
+runtime's mapping, a connection's store, a service's or data space's mapping and runtime, a database's or mapping's
+include, an Operation's member set, an optional property with a default; and two messages that misled. Each is now
+refused with the engine's (or legend-pure's) words, a case each in `ReferenceIntegrityTest`; defaults and a function's
+pre/post-conditions are compiled (lifted as synthesized functions and typed, as derived properties are); an operator run
+is decided by the resolved declaration (`NativeFn.OperatorRun`), never a spelling. The element kinds lite carries by
+name (diagrams, bindings, activators, ...) are the roadmap's, not this change's: PARK-38 and PARK-39 (the user: "we
+have to do 11 eventually, can put it on roadmap for later"). **Files beyond the line's own** (the Compiler Rewrite
+line's area, judged as its changes are): `compiler/element/{ModelIntegrity,TypeClassifier,TypedClass,ClassCompiler,
+type/PlatformTypes}.java`, `compiler/{NameResolver,ModelBuilder,KnowledgeLayer,DerivedProps,SynthFqn}.java`,
+`compiler/spec/{Typer,Overloads,InferenceKernel,TableReferenceChecker}.java`, `normalizer/{ModelNormalizer,
+MappingClosures,MappingValidation,MappingPrePass}.java`, `builtin/{NativeFn,Prelude,SystemMetamodel}.java` and the
+regenerated `prelude.pure` (its generator in `spec/`: the platform's profiles join it), `Compiler.java`
+(`withoutPreludeShadows`: a platform profile yields to the prelude's), `model/{ClassDefinition,EnumDefinition,
+AssociationDefinition,FunctionDefinition,FromProtocol,SynthHat}.java`; in `pct/`, `ModelPacker` (it injected a
+primitive as a class: `Class Integer extends Number`) and the standard suite's model roots (the module's own
+dependency, the relation functions' qualifier profile); guards `FallbackLedgerTest` (floor 10 -> 6) and
+`IdentityGuardrailTest` (NAME_CUTTING 108 -> 107), each dated.
+
 ## A sixth line, 2026-10-07: DataCube + Python (the user's ask, rule 5)
 
 Worktree `legend-lite-dcsnap`, branch `datacube-chart-spec`, rebased on `main` (`fd3d007e4`) on 2026-10-07. The goal:

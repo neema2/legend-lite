@@ -48,6 +48,8 @@ class ParserBoundaryArchTest {
             // the text's door (leg 8's last step, 2026-10-21): it passes the dialect its caller names to the one
             // parser, and names none itself
             "com/legend/door/ModelFromText.java",
+            // and its test (2026-10-21): the door takes the dialect its caller names, so its test names one
+            "com/legend/door/ModelFromTextTest.java",
             "com/legend/builtin/Pure.java",
             // metamodel-store leg (2026-08-28): the system store/mapping
             // are fixed Pure SOURCE parsed once at class load — the same
