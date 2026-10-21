@@ -169,7 +169,11 @@ final class MappingEmitter {
                     b.append(",\"classSourceInformation\":");
                     srcInfo(b, om.classSourceInformation());
                     // the grammar's extends is the text's alone: the engine's wire carries none
-                    extendsId(b, om.extendsClassMappingId());
+                    // the engine's walker drops an operation's extends and legend-pure refuses one ("Mapping
+                    // Inheritance feature is applicable only for Class Mappings"); lite's dialect keeps it, so it is
+                    // refused by name here rather than written (S89, rule A)
+                    ProtocolEmitter.placeless(om.extendsClassMappingId() == null, "an Operation mapping's extends",
+                            om.className());
                     if (om.id() != null) {
                         b.append(",\"id\":");
                         str(b, om.id());

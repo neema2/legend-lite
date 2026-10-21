@@ -764,8 +764,8 @@ public final class Protocol {
                                          @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
             implements PClassMapping {
         /* its extends id: the engine's grammar drops an operation's {@code extends} (its walker's TODO), so at the
-         * engine's dialect there is none; lite's dialect keeps it, and the engine's JSON carries it
-         * (extendsClassMappingId, which its compiler reads) -- docs/SEMANTICS_REGISTER.md S89, rule A */
+         * engine's dialect there is none; lite's dialect keeps it, and its JSON refuses it by name (legend-pure
+         * refuses inheritance on an operation mapping) -- docs/SEMANTICS_REGISTER.md S89, rule A */
     }
 
     /** {@code _type:"pureInstance"} class mapping (probe pure-m2m):

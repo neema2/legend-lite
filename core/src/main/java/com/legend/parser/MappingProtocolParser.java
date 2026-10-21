@@ -553,8 +553,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             // The engine PARSES but DROPS extends on Operation mappings
             // (OperationClassMappingParseTreeWalker TODO): at its dialect the
             // record has none, so the JSON is the engine's; legend-lite's
-            // dialect has always kept it, and the engine's JSON carries it
-            // (extendsClassMappingId, compiled by the engine) -- S89, rule A.
+            // dialect has always kept it, and writing it as the engine's
+            // JSON is refused by name -- S89, rule A.
             classMappings.add(parseOperationClassMapping(target, memberStart,
                     targetSpan, id, extendsId, root));
             return;
