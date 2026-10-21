@@ -141,7 +141,17 @@ public final class Execution {
     public static com.legend.plan.QueryPlan executeWire(String model,
             com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
             com.legend.exec.Sessions.Source sessions, java.io.Writer out) throws java.io.IOException {
-        Compiler.LoweredQuery l = Compiler.query(Compiler.compileModel(model), query).lower(runtimeFqn, false);
+        return executeWire(Compiler.compileModel(model), query, runtimeFqn, sessions, out);
+    }
+
+    /** {@link #executeWire(String, com.legend.protocol.spec.ValueSpecification, String,
+     *  com.legend.exec.Sessions.Source, java.io.Writer)} over a model already compiled -- a text's or a JSON
+     *  model's, compiled once by the route (docs/PROTOCOL_PROGRAM_2026_10_05.md leg 8 step 3; the seam the execution
+     *  plan's step 4 builds on). */
+    public static com.legend.plan.QueryPlan executeWire(ModelContext model,
+            com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
+            com.legend.exec.Sessions.Source sessions, java.io.Writer out) throws java.io.IOException {
+        Compiler.LoweredQuery l = Compiler.query(model, query).lower(runtimeFqn, false);
         try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(l.ctx(), runtimeFqn), l.ctx())) {
             return wireOn(l, runtimeFqn, session.connection(), out);
         }

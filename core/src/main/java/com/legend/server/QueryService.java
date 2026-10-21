@@ -111,7 +111,7 @@ public class QueryService {
      * already-parsed query run on it ({@code Compiler.executeWire}), the database's JSON rows
      * written to {@code rows}. A database failure is a {@link com.legend.error.DataError}.
      */
-    public com.legend.plan.QueryPlan executeUpstream(String model,
+    public com.legend.plan.QueryPlan executeUpstream(com.legend.compiler.element.ModelContext model,
             com.legend.protocol.spec.ValueSpecification query, String runtimeName, Writer rows) {
         try {
             return com.legend.Execution.executeWire(model, query, runtimeName, ConnectionResolver.SOURCE, rows);

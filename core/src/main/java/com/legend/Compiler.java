@@ -875,9 +875,20 @@ public final class Compiler {
      * listed as one of its errors.
      */
     public static java.util.List<String> compileErrors(String model) {
+        return compileErrorsOf(() -> compileModel(model));
+    }
+
+    /** {@link #compileErrors(String)} for a model given as protocol records ({@link
+     *  #compileModel(com.legend.protocol.Protocol.PureModelContextData)}, leg 8 step 3: a client's
+     *  {@code PureModelContextData}). */
+    public static java.util.List<String> compileErrors(com.legend.protocol.Protocol.PureModelContextData model) {
+        return compileErrorsOf(() -> compileModel(model));
+    }
+
+    private static java.util.List<String> compileErrorsOf(java.util.function.Supplier<ModelContext> model) {
         ModelContext ctx;
         try {
-            ctx = compileModel(model);
+            ctx = model.get();
         } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException e) {
             return java.util.List.of(String.valueOf(e.getMessage()));
         }
