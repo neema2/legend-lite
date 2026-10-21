@@ -78,7 +78,10 @@ class OwnDialectCensusTest {
                     // IQ island, 2026-10-14 (REVIEWED): the #IQ{...}# island
                     // in a model's function, the declared extension
                     // LITE-DESIGN-iq-island (OWN_CORPUS_DECISIONS §14)
-                    "IqIslandRoundTripTest.java");
+                    "IqIslandRoundTripTest.java",
+                    // the reference checks, 2026-10-21 (REVIEWED): the wrong-arity cases' generic class, the
+                    // declared extension LITE-DESIGN-function-types-generics (§11) by purpose
+                    "ReferenceIntegrityTest.java");
 
     /** F3.7 per-host accounting, both directions EXACT: membership alone
      *  gave a 3,483-line file unbounded excuse capacity (audit §7.5). A
@@ -140,7 +143,9 @@ class OwnDialectCensusTest {
                     java.util.Map.entry("VarianceD4Test.java", 2),
                     // IQ island, 2026-10-14 (REVIEWED): one model whose
                     // function is an #IQ{...}# island (LITE-DESIGN-iq-island)
-                    java.util.Map.entry("IqIslandRoundTripTest.java", 1));
+                    java.util.Map.entry("IqIslandRoundTripTest.java", 1),
+                    // the reference checks, 2026-10-21 (REVIEWED): one generic class, the arity cases' subject
+                    java.util.Map.entry("ReferenceIntegrityTest.java", 1));
 
     private static String hostOf(String id) {
         String f = id.substring(id.lastIndexOf('/') + 1);

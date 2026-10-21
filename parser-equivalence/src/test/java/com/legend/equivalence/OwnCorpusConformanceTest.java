@@ -249,7 +249,10 @@ class OwnCorpusConformanceTest {
                 Map.entry("PURE-DIALECT-function-types", 19),
                 // 7 -> 6 (batch 115, 2026-09-06): one generics row rode a
                 // test file deleted with the old corpus harness
-                Map.entry("PURE-DIALECT-generics", 6),
+                // 6 -> 7 (2026-10-21, REVIEWED, the reference checks): ReferenceIntegrityTest's generic class, the
+                // wrong-arity cases' subject -- legend-pure's arity rule, which only lite's dialect (generics, a
+                // declared extension) can reach; the engine's grammar has no class type parameters
+                Map.entry("PURE-DIALECT-generics", 7),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),

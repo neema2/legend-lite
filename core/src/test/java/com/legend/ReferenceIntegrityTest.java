@@ -226,7 +226,9 @@ class ReferenceIntegrityTest {
 
     @Test
     void aDefaultValueIsTypedAsItsProperty() {
-        refused("Class a::B\n{\n  c: a::C[1] = a::Missing.all()->toOne();\n}\n", "'a::Missing' is not a known class");
+        // in a form legend-engine's grammar reads (defaultValueExpression: an enum value, a new instance, a literal)
+        refused("Class a::B\n{\n  e: a::E[1] = a::Missing.A;\n}\n", "unknown enumeration 'a::Missing'");
+        refused("Class a::B\n{\n  c: a::C[1] = ^a::Missing();\n}\n", "unknown class 'a::Missing'");
         refused("Class a::B\n{\n  x: Integer[1] = 'a';\n}\n", "in function 'a::B$default$x': declares return type Integer but body returns String");
         accepted("Class a::B\n{\n  x: Integer[1] = 5;\n  b: Boolean[1] = false;\n  e: a::E[1] = a::E.A;\n}\n");
     }
