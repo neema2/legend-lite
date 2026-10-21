@@ -1,8 +1,8 @@
 """The stress corpus's layout, as ONE list (Bazel workplan P2-02).
 
-STRESS_GENERATED: the ten stress files the corpus generators write, and which generator writes each ("dense":
-dense_build.py's 59, 60, 64; "stress": build.py's 92-98). LINKED_PROJECTS: the projects/ the executable corpus
-links, DEPENDENCIES BEFORE DEPENDENTS (scripts/corpus/model.py says why each is there).
+STRESS_GENERATED: the eleven stress files the corpus generators write, and which generator writes each ("dense":
+dense_build.py's 59, 60, 64; "stress": build.py's 92-98, two of them 94). LINKED_PROJECTS: the projects/ the executable
+corpus links, DEPENDENCIES BEFORE DEPENDENTS (scripts/corpus/model.py says why each is there).
 
 Three readers, one list: core/BUILD.bazel (:stress_sources, :update_stress_corpus) and scripts/corpus/BUILD.bazel
 (the generators' outputs) load it; stress_layout writes it as stress-layout.json, committed in core's test
@@ -15,6 +15,7 @@ STRESS_GENERATED = {
     "64-combinations.pure": "dense",
     "92-services.pure": "stress",
     "93-testdata.pure": "stress",
+    "94-canonical-services.pure": "stress",
     "94-fanout-services.pure": "stress",
     "95-function-tests.pure": "stress",
     "96-external-data.pure": "stress",

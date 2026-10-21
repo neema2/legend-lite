@@ -8,7 +8,7 @@ load("//tools/guards:defs.bzl", "guards_package")
 # THE STRESS-CORPUS GENERATORS (spike S5). Ten committed files in
 # core/src/test/resources/stress are their outputs; //core:update_stress_corpus writes them
 # back and diff-tests them. Every input is declared: the hand-written stress sources
-# (//core:stress_sources -- the generated ten excluded), the linked projects, and the
+# (//core:stress_sources -- the generated eleven excluded), the linked projects, and the
 # hand-written queries 92 is generated from.
 
 # Every corpus module: the gates' library (the generators run on their own closures, below). Stdlib only, except

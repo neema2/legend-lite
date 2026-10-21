@@ -10,7 +10,10 @@ Class surface::NavHost
 }
 
 // The NAVIGATION PATH island: a reference to a property as a value, rather than a call.
-function surface::navPath(): meta::pure::metamodel::path::Path<surface::NavHost, String|1>[1]
+// (2026-10-21: returned as meta::pure::metamodel::path::Path<surface::NavHost, String|1>[1] before -- legend-pure's
+// type, which lite does not declare (SEMANTICS_REGISTER S92) and accepted unchecked until a generic's head had to
+// exist; Any is a supertype of it everywhere)
+function surface::navPath(): Any[1]
 {
    #/surface::NavHost/k#
 }
