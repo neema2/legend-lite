@@ -234,6 +234,14 @@ class ReferenceIntegrityTest {
     }
 
     @Test
+    void aDefaultIsCheckedAsABodyIs() {
+        // legend-pure checks a default's type and multiplicity only (PropertyValidator), so the engine's own
+        // State.debug = ^DebugContext() passes there; lite checks it as any body, legend-pure's NewValidator rule (S90)
+        refused("Class a::B\n{\n  d: meta::pure::tools::DebugContext[1] = ^meta::pure::tools::DebugContext();\n}\n",
+                "Missing value(s) for required property 'debug' which has a multiplicity of [1]");
+    }
+
+    @Test
     void anOptionalPropertyHasNoDefault() {
         refused("Class a::B\n{\n  x: Integer[0..1] = 5;\n}\n",
                 "Default values are supported only for mandatory fields, and property 'x' is optional.");
