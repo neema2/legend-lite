@@ -80,11 +80,19 @@ public final class PureV1Api {
     /**
      * How a host runs an execute: the query planned and run on its runtime's connection, its rows written as
      * the database renders them ({@code [{column: value}, ...]}), and the plan that ran returned. legend-lite's
-     * server hands in its driver ({@code QueryService.executeUpstream}).
+     * server hands in its driver ({@code QueryService.runner()}).
      */
     @FunctionalInterface
     public interface Runner {
         QueryPlan run(String model, LambdaFunction lambda, String runtime, java.io.Writer rows);
+
+        /** The same over {@code model} already compiled ({@code ctx}): a route that compiled the model for its own
+         *  reading (the GraphQL query route: its schema, each root's runtime) runs every root on that one
+         *  compilation. A host that can run on a compiled model overrides this; the default compiles again. */
+        default QueryPlan run(com.legend.compiler.element.ModelContext ctx, String model, LambdaFunction lambda,
+                String runtime, java.io.Writer rows) {
+            return run(model, lambda, runtime, rows);
+        }
     }
 
     /**

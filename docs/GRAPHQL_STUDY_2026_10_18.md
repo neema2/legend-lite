@@ -1505,3 +1505,39 @@ would write, and judges each answer by the service's own expectation.
   variable). The stress gate's own count is unchanged (4,705 of 4,736). The lane is `//core:stress_graphql` in gate
   10 (`//gates:stress`), held by two shrink-proof floors in `StressGraphqlTwinsTest`; it runs in about four and a
   half minutes.
+
+### 13.11 The fuzzer over a real model, 2026-10-21: a reference read from the corpus's text
+
+The twins (§13.10) ask what the stress services ask: flat lists, a `where`, a sort, groups. A client asks more: nested
+lists with their own clauses, aggregates and groups under a parent, fragments, variables, aliases, directives. The
+hardening fuzzer asks all of that, and needs a reference for the model it asks about.
+
+- **The reference** (`StressReference`) is read from the corpus's TEXT, never from lite's compiled mapping: the
+  core domains' mappings (products, reference data, counterparties, the organisation, positions, trading), each
+  class mapping that is a main table and plain columns (an enumeration mapping decoded by its own source-to-value
+  table), each association mapping that is one equality join (NULL equal to nothing, a dangling key reaching
+  nothing), the seed's rows read as `CsvSeed` reads a cell (empty or `---null---` is NULL). Whatever does not fit
+  that algebra (a filter, a join in a property mapping, a derived property, a class in a hierarchy, a temporal
+  class, a composite key) is left out, never guessed: 60 classes and 114 relations read, the two ends of a
+  non-equality join left out. The compiled model is read for the declared types only.
+- **The harness** runs the product's query route over the compiled model (`GraphqlApi.query(ctx, ...)`), each
+  request's schema scoped to the reference's classes closed under the classes they reach, on DuckDB seeded from the
+  corpus's own `###Data` element.
+- **What it found:**
+  - **A required property's NULL.** The translator dropped the presence guard of a comparison over a `[1]`
+    property, since its model says it is never absent; the corpus's seed holds NULL in such columns (its
+    adversarial rows), and `not: { lte: ... }` then dropped the row its complement dropped too. Every comparison is
+    guarded now (register S112 amended): a filter and its negation partition the rows on real data.
+  - **An enumeration key's groups.** `TradeGroups { key { side } }` answered two groups keyed `BUY`: the trading
+    mapping reads BUY from the codes 'B' and 'BOT', and the lowering groups an enumeration key by its stored code,
+    the engine's rule for Pure (C1.4). A GraphQL group is one per key value: the translator keys an enumeration by
+    its value's name (register S120).
+  - **The route's cost.** The query route compiled the model to generate the schema, again per root to find its
+    runtime, and the runner compiled it once more per root: seconds per request on the stress corpus's 7,600
+    elements, and three times the work on any model. It compiles once now: the runtime is read from the scoped
+    compilation and a runner can run on it (`PureV1Api.Runner.run(ctx, ...)`, `QueryService.runner()`,
+    `Execution.executeWire(ModelContext, ...)`), and a host serving one model can hand the compilation in
+    (`GraphqlApi.query(ctx, body, runner)`). The shop's hardening suite fell from 210 s to about 90 s on it.
+- **Measured.** 6,450 documents (seeds 1 to 43) agree with the reference, after the two fixes; the shop's fuzzer
+  4,000 more (seeds 301 to 316) under the same translator. The lane (`StressFuzzTest`, in `//core:stress_graphql`)
+  asks 450 documents (three seeds) on every run, strictly: one disagreement fails it.

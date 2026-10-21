@@ -16,8 +16,11 @@ import java.util.*;
  * <p>Every exclusion is a legend-lite GAP, not a corpus error: legend-engine runs these
  * files. Each carries its reason, {@link LegendLiteGapTest} asserts the gap is still
  * open, and removing one must be a deliberate act.
+ *
+ * <p>Public for the GraphQL hardening suite's stress lane ({@code com.legend.graphql.hardening.StressReference}),
+ * which reads the same files.
  */
-final class StressCorpus {
+public final class StressCorpus {
 
     /** The projects the corpus depends on, DEPENDENCIES BEFORE DEPENDENTS: core/stress.bzl's one list (Bazel
      *  workplan P2-02), read from its committed JSON, stress-layout.json beside this class. */
@@ -47,13 +50,13 @@ final class StressCorpus {
     }
 
     /** One file of the corpus: its name (the file name, as a model source names it) and its text. */
-    record File(String name, String text) {
+    public record File(String name, String text) {
     }
 
     /** Every source file the lite side loads, in load order, read from the classpath (Bazel workplan P3-05, A11:
      *  core_tests_lib carries the stress files, their table of contents stress-index.txt, and the linked projects'
      *  files under projects/), never from a directory. */
-    static List<File> files() throws Exception {
+    public static List<File> files() throws Exception {
         List<File> out = new ArrayList<>();
         for (String project : LINKED_PROJECTS) {
             for (String f : SECTION_ORDER) {
@@ -97,7 +100,7 @@ final class StressCorpus {
      *  the first definition of an element and reports the dropped one, so a
      *  damaged {@code ###Data} element in an override file replaces the seed of
      *  the same name without a corpus file changing (rebuild D23). */
-    static List<com.legend.Compiler.ModelSource> sources(List<Path> overrides) throws Exception {
+    public static List<com.legend.Compiler.ModelSource> sources(List<Path> overrides) throws Exception {
         List<com.legend.Compiler.ModelSource> out = new ArrayList<>();
         for (Path p : overrides) {
             out.add(new com.legend.Compiler.ModelSource(p.toString(), Files.readString(p)));

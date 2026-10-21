@@ -955,6 +955,15 @@ public final class GqlToPure {
             if (truncate != null && !(peek(truncate, at) instanceof Gql.NullValue)) {
                 read = truncated(read, truncate, keyType, gk, at);
             }
+            if (schema.find(GqlSchema.baseName(kd.type())) instanceof EnumType) {
+                // an enumeration key groups by the VALUE (its name), one group per value: the stored code (the
+                // engine's groupBy, C1.4) made two groups of one value its mapping reads from two codes (register
+                // S120; the stress fuzzer, 2026-10-21: `side` BUY from 'B' and 'BOT')
+                read = kd.type().nullable()
+                        ? call("toOne", call("if", call("isEmpty", read), thunk(new PureCollection(List.of())),
+                                thunk(call("toString", call("toOne", read)))))
+                        : call("toString", read);
+            }
             if (g.keys.containsKey(col)) {
                 throw GqlTranslationException.invalid(at, "the key " + key + " is selected twice");
             }
@@ -1532,7 +1541,7 @@ public final class GqlToPure {
             }
             // a NON-NULL property's comparisons need no presence guard (S112 holds by the type): the guard's
             // emptiness test over a derived count was one more subquery per row
-            return scalarFilter(o, in, read, GqlSchema.baseName(eq.type()), path, false, !prop.type().nullable());
+            return scalarFilter(o, in, read, GqlSchema.baseName(eq.type()), path, false);
         }
         if (p.toMany()) {
             return listFilter(o, in, read, target, path);
@@ -1588,13 +1597,13 @@ public final class GqlToPure {
 
     private ValueSpecification scalarFilter(Gql.ObjectValue ops, InputObjectType in, ValueSpecification read,
             String scalar, String path) {
-        return scalarFilter(ops, in, read, scalar, path, false, false);
+        return scalarFilter(ops, in, read, scalar, path, false);
     }
 
     /** {@code mode: insensitive} lower-cases both sides of every string comparison of its object, a nested
      *  {@code not} object included unless it names its own mode (§13.7). */
     private ValueSpecification scalarFilter(Gql.ObjectValue ops, InputObjectType in, ValueSpecification read,
-            String scalar, String path, boolean inheritedInsensitive, boolean required) {
+            String scalar, String path, boolean inheritedInsensitive) {
         boolean insensitive = inheritedInsensitive;
         for (Argument a : ops.fields()) {
             if (a.name().equals("mode")) {
@@ -1618,15 +1627,15 @@ public final class GqlToPure {
             switch (a.name()) {
                 case "mode" -> { }
                 case "equals" -> conds.add(v instanceof Gql.NullValue ? call("isEmpty", read)
-                        : present(required, read, call("equal", side(one(read, insensitive), insensitive),
+                        : present(read, call("equal", side(one(read, insensitive), insensitive),
                                 side(literal(v, scalar, at), insensitive))));
                 case "not" -> {
                     if (v instanceof Gql.NullValue) {
                         conds.add(call("isNotEmpty", read));
                     } else if (v instanceof Gql.ObjectValue nested) {
-                        conds.add(call("not", scalarFilter(nested, in, read, scalar, at, insensitive, required)));
+                        conds.add(call("not", scalarFilter(nested, in, read, scalar, at, insensitive)));
                     } else {
-                        conds.add(call("not", present(required, read, call("equal", side(one(read, insensitive), insensitive),
+                        conds.add(call("not", present(read, call("equal", side(one(read, insensitive), insensitive),
                                 side(literal(v, scalar, at), insensitive)))));
                     }
                 }
@@ -1643,7 +1652,7 @@ public final class GqlToPure {
                         }
                         set = new PureCollection(lowered);
                     }
-                    ValueSpecification isIn = present(required, read, call("in", side(one(read, insensitive), insensitive),
+                    ValueSpecification isIn = present(read, call("in", side(one(read, insensitive), insensitive),
                             set));
                     conds.add(a.name().equals("in") ? isIn : call("not", isIn));
                 }
@@ -1657,14 +1666,14 @@ public final class GqlToPure {
                         case "gt" -> "greaterThan";
                         default -> "greaterThanEqual";
                     };
-                    conds.add(present(required, read, call(fn, side(call("toOne", read), insensitive),
+                    conds.add(present(read, call(fn, side(call("toOne", read), insensitive),
                             side(literal(v, scalar, at), insensitive))));
                 }
                 case "contains", "startsWith", "endsWith" -> {
                     if (v instanceof Gql.NullValue) {
                         continue;
                     }
-                    conds.add(present(required, read, call(a.name(), side(call("toOne", read), insensitive),
+                    conds.add(present(read, call(a.name(), side(call("toOne", read), insensitive),
                             side(literal(v, scalar, at), insensitive))));
                 }
                 default -> throw GqlTranslationException.invalid(at, "no such filter operation: " + a.name());
@@ -1685,7 +1694,9 @@ public final class GqlToPure {
      * {@code not}, {@code notIn} and {@code NOT} are its exact complements whatever the operator's own negation lowers
      * to. {@code $x.p->isNotEmpty() && cmp}: the database's {@code p IS NOT NULL AND cmp} is false, never unknown, of a
      * null. The hardening fuzzer found {@code not: { contains: "x" }, mode: insensitive} dropping null rows its
-     * complement kept (2026-10-20).
+     * complement kept (2026-10-20). A REQUIRED property is guarded too: the model says its value is never absent,
+     * and a database can hold a NULL there anyway (the stress corpus's seed: a [1] column with a NULL cell), where
+     * the bare comparison's {@code NOT} dropped the row its complement also dropped (the stress fuzzer, 2026-10-21).
      */
     /** The read a lower-casing side takes: {@code toOne} under the presence guard, since {@code toLower} takes one
      *  value (an optional string under {@code mode: insensitive} was refused, the fuzzer, 2026-10-20). */
@@ -1695,12 +1706,6 @@ public final class GqlToPure {
 
     private static ValueSpecification present(ValueSpecification read, ValueSpecification comparison) {
         return call("and", call("isNotEmpty", read), comparison);
-    }
-
-    /** {@link #present}, or the comparison alone when the read is never absent. */
-    private static ValueSpecification present(boolean required, ValueSpecification read,
-            ValueSpecification comparison) {
-        return required ? comparison : present(read, comparison);
     }
 
     private static ValueSpecification side(ValueSpecification v, boolean insensitive) {

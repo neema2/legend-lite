@@ -1262,7 +1262,11 @@ junit_test(
     name = "stress_graphql",
     memory_mb = 1024,
     size = "enormous",
-    select = ["--select-class=com.legend.integration.StressGraphqlTwinsTest"],
+    select = [
+        "--select-class=com.legend.integration.StressGraphqlTwinsTest",
+        # the hardening fuzzer over the corpus's core domains, judged by the reference read from its text and seed
+        "--select-class=com.legend.graphql.hardening.StressFuzzTest",
+    ],
     runtime_deps = [
         ":core_tests_lib",
         ":drivers",

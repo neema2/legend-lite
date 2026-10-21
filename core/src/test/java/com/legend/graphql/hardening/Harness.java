@@ -26,15 +26,42 @@ public final class Harness {
     private final String model;
     private final String runtime;
     private final PureV1Api.Runner runner;
+    private final com.legend.compiler.element.@com.legend.base.Nullable ModelContext compiled;
+    private final java.util.@com.legend.base.Nullable List<String> classes;
 
     public Harness(String model, String runtime, Connection connection) {
+        this(null, model, runtime, connection, null);
+    }
+
+    /** Over {@code model} already compiled ({@code compiled}, null to compile it per request as the server
+     *  does): the query route reads the compilation and the request carries no model text (the stress corpus's
+     *  model, 7,600 elements and 14 MB, compiles in seconds); {@code classes}, the schema's scope (the request's
+     *  {@code classes}), or null for every class. */
+    public Harness(com.legend.compiler.element.@com.legend.base.Nullable ModelContext compiled, String model,
+            String runtime, Connection connection, java.util.@com.legend.base.Nullable List<String> classes) {
         this.model = model;
         this.runtime = runtime;
-        this.runner = (m, lambda, rt, rows) -> {
-            try {
-                return com.legend.Execution.executeWire(m, lambda, rt, connection, rows);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+        this.compiled = compiled;
+        this.classes = classes;
+        this.runner = new PureV1Api.Runner() {
+            @Override
+            public com.legend.plan.QueryPlan run(String m, com.legend.protocol.spec.LambdaFunction lambda,
+                    String rt, java.io.Writer rows) {
+                try {
+                    return com.legend.Execution.executeWire(m, lambda, rt, connection, rows);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            @Override
+            public com.legend.plan.QueryPlan run(com.legend.compiler.element.ModelContext ctx, String m,
+                    com.legend.protocol.spec.LambdaFunction lambda, String rt, java.io.Writer rows) {
+                try {
+                    return com.legend.Execution.executeWire(ctx, lambda, rt, connection, rows);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             }
         };
     }
@@ -55,7 +82,7 @@ public final class Harness {
             @com.legend.base.Nullable String operationName, String extra) {
         Json.Obj m = Json.obj();
         m.fields().put("_type", Json.str("text"));
-        m.fields().put("code", Json.str(model));
+        m.fields().put("code", Json.str(compiled != null ? "" : model));
         StringBuilder b = new StringBuilder("{\"model\":").append(Json.toCompact(m))
                 .append(",\"runtime\":{\"runtime\":").append(Json.toCompact(runtime)).append("}")
                 .append(",\"query\":").append(Json.toCompact(document));
@@ -64,6 +91,13 @@ public final class Harness {
         }
         if (operationName != null) {
             b.append(",\"operationName\":").append(Json.toCompact(operationName));
+        }
+        if (classes != null) {
+            b.append(",\"classes\":[");
+            for (int i = 0; i < classes.size(); i++) {
+                b.append(i > 0 ? "," : "").append(Json.toCompact(classes.get(i)));
+            }
+            b.append(']');
         }
         if (!extra.isEmpty()) {
             b.append(',').append(extra);
@@ -86,7 +120,9 @@ public final class Harness {
     }
 
     Json.Obj route(String path, String body) {
-        PureV1Api.Answer a = PureV1Api.route(path, null, body, runner);
+        PureV1Api.Answer a = compiled != null && path.equals("/api/lite/v1/graphql/query")
+                ? com.legend.server.GraphqlApi.query(compiled, body, runner)
+                : PureV1Api.route(path, null, body, runner);
         Json.Obj o = (Json.Obj) Json.parse(a.json(), JSON);
         o.fields().put("_status", Json.num(a.status()));
         return o;

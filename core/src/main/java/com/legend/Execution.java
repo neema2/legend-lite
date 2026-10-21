@@ -137,11 +137,27 @@ public final class Execution {
     }
 
     /** {@link #executeWire(String, com.legend.protocol.spec.ValueSpecification, String, java.sql.Connection,
+     *  java.io.Writer)} over a model already compiled. */
+    public static com.legend.plan.QueryPlan executeWire(com.legend.compiler.element.ModelContext ctx,
+            com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
+            java.sql.Connection connection, java.io.Writer out) throws java.io.IOException {
+        return executeWire(ctx, query, runtimeFqn, com.legend.exec.Sessions.given(connection), out);
+    }
+
+    /** {@link #executeWire(String, com.legend.protocol.spec.ValueSpecification, String, java.sql.Connection,
      *  java.io.Writer)} on the session {@code sessions} opens for the target the query's runtime declares (C3b). */
     public static com.legend.plan.QueryPlan executeWire(String model,
             com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
             com.legend.exec.Sessions.Source sessions, java.io.Writer out) throws java.io.IOException {
-        Compiler.LoweredQuery l = Compiler.query(Compiler.compileModel(model), query).lower(runtimeFqn, false);
+        return executeWire(Compiler.compileModel(model), query, runtimeFqn, sessions, out);
+    }
+
+    /** {@link #executeWire(String, com.legend.protocol.spec.ValueSpecification, String,
+     *  com.legend.exec.Sessions.Source, java.io.Writer)} over a model already compiled. */
+    public static com.legend.plan.QueryPlan executeWire(com.legend.compiler.element.ModelContext ctx,
+            com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
+            com.legend.exec.Sessions.Source sessions, java.io.Writer out) throws java.io.IOException {
+        Compiler.LoweredQuery l = Compiler.query(ctx, query).lower(runtimeFqn, false);
         try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(l.ctx(), runtimeFqn), l.ctx())) {
             return wireOn(l, runtimeFqn, session.connection(), out);
         }

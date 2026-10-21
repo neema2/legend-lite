@@ -140,12 +140,24 @@ public final class GraphqlApi {
      * Pure each root ran, for a reader who wants the query beside its answer.
      */
     public static Answer query(String body, PureV1Api.Runner runner) {
+        return query(null, body, runner);
+    }
+
+    /**
+     * {@link #query(String, PureV1Api.Runner)} over the request's model already compiled ({@code ctx}, null to
+     * compile it here): a host serving one model compiles it once, not once per request. Either way the request's
+     * model is compiled once: its schema, each root's runtime and each root's run read that one compilation
+     * ({@link PureV1Api.Runner#run(ModelContext, String, com.legend.protocol.spec.LambdaFunction, String,
+     * java.io.Writer)}; it compiled once for the schema, once per root for the runtime and once more per root to
+     * run it, 2026-10-21: seconds per request on the stress corpus's 7,600 elements).
+     */
+    public static Answer query(@com.legend.base.Nullable ModelContext ctx, String body, PureV1Api.Runner runner) {
         Json.Obj request;
         Scoped scoped;
         Gql.Document doc;
         try {
             request = PureV1Api.request(body);
-            scoped = scoped(request);
+            scoped = ctx == null ? scoped(request) : scoped(request, ctx);
             doc = GqlParser.parseDocument(request.getString("query"), 1, 1);
         } catch (RuntimeException e) {
             return envelope(400, null, List.of(problem(List.of(), String.valueOf(e.getMessage()), "REQUEST")),
@@ -179,9 +191,9 @@ public final class GraphqlApi {
         for (GqlToPure.Root root : t.roots()) {
             try {
                 String runtime = PureV1Api.runtimeOf(request,
-                        Compiler.query(Compiler.compileModel(model), root.asLambda()).target());
+                        Compiler.query(scoped.ctx(), root.asLambda()).target());
                 java.io.StringWriter rows = new java.io.StringWriter();
-                runner.run(model, root.asLambda(), runtime, rows);
+                runner.run(scoped.ctx(), model, root.asLambda(), runtime, rows);
                 String json = rows.toString();
                 Json.Node value = Json.parse(json.isEmpty() ? "[]" : json);
                 data.put(root.key(), switch (root.shape()) {
@@ -324,8 +336,12 @@ public final class GraphqlApi {
 
     /** The model compiled and its schema over the data space named, the classes listed, or everything. */
     private static Scoped scoped(Json.Obj request) {
+        return scoped(request, Compiler.compileModel(PureV1Api.modelText(request.getObj("model"))));
+    }
+
+    /** The schema over {@code ctx}, the request's model compiled. */
+    private static Scoped scoped(Json.Obj request, ModelContext ctx) {
         String text = PureV1Api.modelText(request.getObj("model"));
-        ModelContext ctx = Compiler.compileModel(text);
         Scope scope;
         String dataSpace = request.getStringOr("dataSpace", null);
         if (dataSpace != null) {

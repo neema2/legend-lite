@@ -12343,6 +12343,29 @@ The same branch (neema2/legend-lite#56), at the seventh line's quiet point after
     - the ban fails when a root it reads yields no source;
     - the records' wording.
 
+## 2026-10-21 — GraphQL: the fuzzer over a real model; the route compiles once (the twelfth line)
+
+Branch `claude/graphql-study-2026-10-18`; the record is the study's §13.11. Register row S120 added, S112 amended.
+
+1. **What lands.** `StressReference` (the hardening reference read from the stress corpus's mapping text, store
+   and seed: 60 classes, 114 relations of the core domains) and `StressFuzzTest` (the hardening fuzzer over it, in
+   `//core:stress_graphql`, strict). Two translator fixes it found: every comparison carries its presence guard,
+   a required property's included, since the seed holds NULL in `[1]` columns (S112 amended); an enumeration group
+   key groups by the value's name, not the stored code (S120: `side` BUY read from 'B' and 'BOT' was two groups).
+   And the query route compiles the model once per request, not once plus twice per root
+   (`PureV1Api.Runner.run(ctx, ...)`, `QueryService.runner()`, `Execution.executeWire(ModelContext, ...)`,
+   `GraphqlApi.query(ctx, body, runner)`); the test `Harness` runs over a compiled model too.
+2. **Judges.** The stress fuzzer: 6,450 documents (seeds 1 to 43) agree; the shop fuzzer 4,000 (seeds 301 to 316).
+   `//core:core_tests_root` (the shop's hardening suite: 210 s before, about 90 s now), `_server`, `_integration`,
+   `//core:guardrails`, `//core:census`, `//tools/deps:core_layering_test`, the generated files,
+   `//core:stress_graphql` (the twins' floors and the fuzzer) and, as an unprivileged user on Postgres 16,
+   `//core:graphql_hardening_postgres_test`: all pass. The relational corpora and the stress suites read no GraphQL
+   and the execution entry only gained an overload: not rerun.
+3. **What the gates taught.** `DialectLeakRatchetTest` refused the fuzz test's `new DuckDb()` and the database's
+   name in its display name: the dialect comes from the test backend, as every test's should.
+4. **Next.** The stress reference's left-outs that GraphQL can express (a hierarchy, a temporal class with its
+   dates, a join through a second table); twins for the 13 untwinned TDS shapes.
+
 ## 2026-10-21 — GraphQL over a real model: the stress corpus's services asked through GraphQL, judged by its oracle (the twelfth line)
 
 Branch `claude/graphql-study-2026-10-18`; the record is the study's §13.10. No register row: the two findings were

@@ -120,6 +120,35 @@ public class QueryService {
         }
     }
 
+    /** {@link #executeUpstream(String, com.legend.protocol.spec.ValueSpecification, String, Writer)} over a model
+     *  already compiled. */
+    public com.legend.plan.QueryPlan executeUpstream(com.legend.compiler.element.ModelContext ctx,
+            com.legend.protocol.spec.ValueSpecification query, String runtimeName, Writer rows) {
+        try {
+            return com.legend.Execution.executeWire(ctx, query, runtimeName, ConnectionResolver.SOURCE, rows);
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    /** This service as the API routes' runner: an execute over its model's text, and a GraphQL root over the model
+     *  its route already compiled (one compilation per request, not three per root). */
+    public PureV1Api.Runner runner() {
+        return new PureV1Api.Runner() {
+            @Override
+            public com.legend.plan.QueryPlan run(String model, com.legend.protocol.spec.LambdaFunction lambda,
+                    String runtime, Writer rows) {
+                return executeUpstream(model, lambda, runtime, rows);
+            }
+
+            @Override
+            public com.legend.plan.QueryPlan run(com.legend.compiler.element.ModelContext ctx, String model,
+                    com.legend.protocol.spec.LambdaFunction lambda, String runtime, Writer rows) {
+                return executeUpstream(ctx, lambda, runtime, rows);
+            }
+        };
+    }
+
     /**
      * Convenience: auto-resolves the JDBC connection from the Runtime,
      * then calls {@link #execute(String, String, String, Connection, OutputStream, OutputFormat)}.

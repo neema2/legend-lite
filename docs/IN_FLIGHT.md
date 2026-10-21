@@ -2534,5 +2534,8 @@ island inside Pure.
   gate 10 (the study's §13.10; the GATES entry of the same day). **Cross-area edits, announced here:** the resolver
   (`StoreResolver.scopeMaterials` and `derivedLeafDemand`, `CorrelatedSubselects.nestedAssocMaterials`,
   `StackBuilder.demandBelow`, `GraphEmission.derivedLeafPaths` and `leafSlotDemand`), `core/BUILD.bazel` (the lane)
-  and `gates/BUILD.bazel` (`//gates:stress` runs it).
+  and `gates/BUILD.bazel` (`//gates:stress` runs it). The same day, the fuzzer over the corpus's core domains
+  (the study's §13.11): the server (`PureV1Api.Runner`'s compiled-model overload, `QueryService.runner()`,
+  `LegendHttpServer`, `GraphqlApi.query(ctx, ...)`), `Execution.executeWire(ModelContext, ...)`, and the test
+  tree's `integration/StressCorpus` made public for the hardening package.
 

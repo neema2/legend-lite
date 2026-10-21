@@ -67,7 +67,7 @@ public class LegendHttpServer {
             java.nio.file.@com.legend.base.Nullable Path queryStore,
             @com.legend.base.Nullable String graphqlModel) throws IOException {
         this.server = HttpServer.create(new InetSocketAddress(bind, port), 0);
-        this.mcp = new GraphqlMcp(new QueryService()::executeUpstream, graphqlModel);
+        this.mcp = new GraphqlMcp(new QueryService().runner(), graphqlModel);
         this.lspServer = new PureLspServer();
         this.origins = origins;
         this.queryStore = queryStore == null ? null
@@ -246,7 +246,7 @@ public class LegendHttpServer {
             }
             // the routes are the API's own (PureV1Api.route, the plan side); execute runs through the driver
             PureV1Api.Answer answer = PureV1Api.route(exchange.getRequestURI().getPath(),
-                    exchange.getRequestURI().getRawQuery(), body, new QueryService()::executeUpstream);
+                    exchange.getRequestURI().getRawQuery(), body, new QueryService().runner());
             sendResponse(exchange, answer.status(), answer.json(), answer.contentType());
         }
     }
