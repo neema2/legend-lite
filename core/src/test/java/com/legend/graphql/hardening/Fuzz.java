@@ -264,7 +264,8 @@ public final class Fuzz {
         for (int i = 0; i < n; i++) {
             String cls = pick(new ArrayList<>(model.classes.keySet()));
             double x = r.nextDouble();
-            GSel root = x < 0.12 ? rootAggregate(cls) : x < 0.24 ? groupsField(cls) : listField(cls, cls, 0);
+            GSel root = x < 0.12 ? rootAggregate(cls) : x < 0.24 ? groupsField(cls + "Groups", cls)
+                    : listField(cls, cls, 0);
             // a second root field is aliased: two roots of one name would merge or conflict
             roots.add(i == 0 ? root : renamed(root, "r" + i + ": " + root.name()));
         }
@@ -322,9 +323,10 @@ public final class Fuzz {
         return new GSel(cls + "Aggregate", nested.args(), nested.sub());
     }
 
-    /** {@code CustomerGroups(where, having, orderBy, limit, offset) { key { ... } count sum { ... } }}: keys over
-     *  the class's scalars and one to-one hop, a date key truncated now and then. */
-    GSel groupsField(String cls) {
+    /** {@code CustomerGroups(where, having, orderBy, limit, offset) { key { ... } count sum { ... } }} at the root,
+     *  or {@code ordersGroups(...)} under a parent (the relation node, register S118): keys over the class's
+     *  scalars and one to-one hop, a date key truncated now and then. */
+    GSel groupsField(String name, String cls) {
         List<GSel> keys = new ArrayList<>();
         List<List<String>> keyPaths = new ArrayList<>();
         List<String> scalars = new ArrayList<>();
@@ -417,7 +419,7 @@ public final class Fuzz {
         if (chance(0.25)) {
             args.add(e("limit", new GLit(Integer.toString(r.nextInt(4)))));
         }
-        return new GSel(cls + "Groups", obj(args), sel);
+        return new GSel(name, obj(args), sel);
     }
 
     /** The (fold, property) pairs a group's {@code having} and {@code orderBy} may name with a literal of the
@@ -501,8 +503,11 @@ public final class Fuzz {
                 }
                 case ToMany t -> {
                     if (depth < 2) {
-                        if (chance(0.3)) {
+                        double y = r.nextDouble();
+                        if (y < 0.25) {
                             out.add(aggregateField(f, t.target()));
+                        } else if (y < 0.4) {
+                            out.add(groupsField(f + "Groups", t.target()));
                         } else {
                             out.add(listField(f, t.target(), depth + 1));
                         }

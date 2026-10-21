@@ -1202,7 +1202,8 @@ groups (below).
   root's rows (+1). 64 GraphQL tests in all. Green: the compiler, parser, protocol, normalizer, resolver, lowering,
   server, root and integration packages; `//core:guardrails`, `//core:census`, `//tools/deps:core_layering_test`;
   the DuckDB corpus; the planner-on-java.base check; the full local gate (the GATES entry).
-- **Not done, on purpose: nested groups.** `employeesGroups` under a parent object (`Meaning.GroupsOf`) is refused
+- **Not done, on purpose: nested groups** (built 2026-10-21, §13.8). `employeesGroups` under a parent object
+  (`Meaning.GroupsOf`) is refused
   by name: a group's rows under a parent need a RELATION-VALUED child in the emitter (a correlated
   `project->groupBy` pipeline serialized into the parent's JSON array, the §6.1 row's "folded into its JSON array
   by the emitter"), a mechanism the tree does not have (its to-many children are navigations with filter and
@@ -1341,15 +1342,59 @@ instruction); each landing is a commit on the branch, its checks named in its me
   - The merge of `origin/main` (`c6c4f496`): the two lines had used register rows S76 to S88 for different rows;
     the GraphQL rows are S89 to S116 since, their citations renumbered.
   - `6b6114e5`: emptiness over three to-one hops (a derived leaf's guard that deep).
-  - The hierarchy (this record's last landing): subtype entries on a nested node (S117: fragments on subtypes under
+  - The hierarchy (`831481c0`): subtype entries on a nested node (S117: fragments on subtypes under
     a nested list keep every element, the engine's view kept only one subtype's; fragments beside other fields were
     refused); a member's keys in its fragments' order (S114); `__typename` on a subclass's own extent (a sibling's
     `instanceOf` is false); a subclass's derived leaf inside a fragment; a subtype test inside a quantifier; an
     inherited association read through `as<Sub>` (the cast folded where the row's own class has the property); a
-    quantifier inside a quantifier over a union; an empty `as<Sub>: {}` filtering nothing (S95).
-- **Measured.** The corpus's 209 cases agree on both lanes; the suite's own fuzz (three seeds of 150) agrees on
+    quantifier inside a quantifier over a union; an empty `as<Sub>: {}` filtering nothing (S95). The full
+    validation of that landing caught two regressions of its own, fixed in it: the nested scope's subtype tables
+    registered strictly, refusing 14 relational corpus tests over the plan-node hierarchy (the rosters stayed as
+    committed); and register row S90's claim that the drop-in parser refuses an inline fragment, which no code kept
+    (`GqlParser` now refuses one on the LEGEND_ENGINE surface; docs/OWN_CORPUS_DECISIONS.md §16).
+  - Nested groups (§13.8).
+- **Measured.** The corpus's 222 cases agree on both lanes; the suite's own fuzz (three seeds of 150) agrees on
   both; the explorer's campaigns agree on every document: 6,000 before the widened generator, 3,000 after it with
-  variables, and 3,000 with the hierarchy (seeds 1 to 10).
-- **Not done, on purpose or still open.** Nested groups under a parent object (a relation-valued tree node, the H5
-  spike); the JSON wire's refusal of a class-level `sortBy` whose key the projection renames (not GraphQL's path);
-  the Pure text parser reading nested subtype entries (S117: the engine's check stands); the Prisma oracle.
+  variables, 3,000 with the hierarchy (seeds 1 to 10), 2,000 after the hierarchy's validation fixes (seeds 31 to
+  35), and 6,000 with nested groups (seeds 41 to 55).
+- **Not done, on purpose or still open.** The JSON wire's refusal of a class-level `sortBy` whose key the projection
+  renames (not GraphQL's path); the Pure text parser reading nested subtype entries (S117: the engine's check
+  stands); the Prisma oracle; the companion's aggregates moved onto the relation node (§13.8).
+
+### 13.8 The relation node, 2026-10-21: groups under a parent object
+
+The H5 spike of the redesign the user approved on 2026-10-20 (a query-time summary is a table the database
+computes; the tree gains a node whose value is one). The kill switch was "three days without a correlated grouped
+subselect on DuckDB"; the first build answered.
+
+- **The node (register S118).** A composed node's body (S96) may be a relation over `$this`. The checker
+  (`GraphFetchChecker.columns`) types the tree under it against the table's columns: a leaf is a column under its
+  response key (`'status': key_status`), a sub-tree an object of the same row's columns (`key { ... }`), and a call,
+  a body or a subtype view under it is refused by name. The resolver (`GraphEmission.relationChild`) peels the
+  relation operators down to the `project` whose source is the class part; the class part (a navigation from
+  `$this`, its filter, its ordering) correlates to the parent row exactly as every composed node's does (the
+  extracted `headedRel`); the projection's columns read the target's row through its bindings, as a filter or a
+  sort key does; every operator above (`groupBy`, `aggregate`, `filter`, `sort`, `drop`, `limit`, `extend`,
+  `select`, a second `project`) is the same operator over that source (each `TypedRelationOp` keeps its source as
+  its first child). The envelope reads columns; a sub-tree is an inline object over the same row. The lowering
+  needed nothing new but one fix: a sorted relation under a renaming projection lost its order's ordinal
+  (`GraphSortOrdinal` now passes it through a plain projection; the fuzzer's first nested-groups campaign found it).
+- **GraphQL.** `pGroups(where, having, orderBy, limit, offset)` under a parent object is the root groups' pipeline
+  (`GqlToPure.groupsPipeline`, shared) over `$this.p` with the parent's `where`, its path-named columns renamed to
+  identifiers by one last `project` (`key.product.category` becomes `key_product_category`), and the tree the
+  selection's shape over them. Its `explain` text parses back and runs. A parent with no elements answers `[]`.
+  `GraphqlReference` (the agent page) says so; the translator's one remaining refusal by name is a clause on a
+  derived collection that takes arguments.
+- **Measured.** `GqlExecutionTest`: the node spelled in Pure (a whole-collection aggregate as a one-row table;
+  groups with a key object, a count, a max under an alias, a sort, a firm with none), its refusals, and nested
+  groups through GraphQL (+4). `GraphqlApiTest`: the route answers nested groups, `explain` shows the node.
+  `GqlIslandsTest`: an island with nested groups types. The corpus's 13 `nested groups:` cases (a filter before and
+  `having` after, a key through a to-one hop, a month key offset and limited, `having` on an unselected fold,
+  aliases and `__typename` throughout, a derived collection, groups two levels down, beside the aggregate and the
+  list of the same collection, a union hierarchy grouped by a derived key, a fragment with a variable, under a
+  to-one hop, an empty collection) agree on DuckDB and Postgres; the fuzzer generates nested groups (15% of to-many
+  selections): 6,000 documents agree.
+- **Next.** The companion's aggregate classes onto the same node (the nested `pAggregate` as a one-row table, the
+  root forms as the node without a parent), which deletes the companion's synthesis, its constructor fusion and
+  the root shapes' Java arrangement; then relation-typed derived properties in the model (the modeler's `payroll()`).
+

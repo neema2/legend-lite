@@ -2503,22 +2503,27 @@ island inside Pure.
   answerer). No file of the resolver's or the lowering's.
 - **The roadmap of §10 is landed (PR1a to PR6, PR1b), 2026-10-19.** Open, by name: the agent run of the forty tasks
   (a model and its key); GraphiQL in a browser; function roots; milestoning arguments on a node; line and column
-  in the island's errors; the composer's rule for the island inside a model; nested groups under a parent object
-  (a relation-valued child in the emitter); a milestoned to-one offered by the schema and refused at execution
+  in the island's errors; the composer's rule for the island inside a model; a milestoned to-one offered by the
+  schema and refused at execution
   (milestoning arguments on nodes); the Prisma oracle and the `lite/*.yaml` cases; the data-space path as a route;
   a `Variant` scalar; a numeric `bucket:`. (Landed since by the hardening line: `orderBy` by a nested aggregate, a
-  string's min and max, a nested aggregate's fold over a derived property, subtype fragments under a nested list.)
+  string's min and max, a nested aggregate's fold over a derived property, subtype fragments under a nested list,
+  nested groups under a parent object through the relation node, S118.)
 - **The hardening line, 2026-10-20** (the user: "make GraphQL amazing and expert and super bulletproof"): a
-  reference evaluator, a seeded fuzzer and a 209-case corpus over a shop fixture with a class hierarchy, on DuckDB
-  and on Postgres; the record is the study's §13.7. **Cross-area edits, announced here:** the resolver
+  reference evaluator, a seeded fuzzer and a 222-case corpus over a shop fixture with a class hierarchy, on DuckDB
+  and on Postgres; the record is the study's §13.7 and §13.8 (the relation node: a tree node whose value is a
+  table, nested groups through it). **Cross-area edits, announced here:** the resolver
   (`StoreResolver`, `CorrelatedSubselects`, `Substitution`, `SyntheticHeads`, `AssociationJoins`, `DottedExists`,
   `GraphEmission`, `NavReducer`, `Pipelines`, `InheritedCasts` new), the lowering (`GraphSortOrdinal`,
   `ExistsJoinForm`, `SubselectPrune`, `Lowerer`'s subtype patch key order), the tree (`protocol/spec/GraphFetchLiteral`
   nodes carry subtype entries; `GraphFetchChecker`, `PureComposer`, `ProtocolEmitter`, `SpecIslandReader`,
-  `IsDistinctChecker`; `compiler/spec/typed/TypedSerializeGraph.SubTypePatch.keyOrder`), the compiler
+  `IsDistinctChecker`; `compiler/spec/typed/TypedSerializeGraph.SubTypePatch.keyOrder`; the relation node's
+  `GraphFetchChecker.columns` and `GraphEmission.relationChild`), the parser (`GqlParser`: the LEGEND_ENGINE
+  surface refuses an inline fragment, S90; the census pins in `parser-equivalence`'s `OwnDialectCensusTest`,
+  `OwnCorpusConformanceTest` and `FixtureAdjudicationTest`, docs/OWN_CORPUS_DECISIONS.md §16), the compiler
   (`SynthFqn`, `FunctionCompiler`, `ResolvedNames`: root-package synthesized names), the normalizer
   (`CompanionSynthesis`: `__typename` on generated types, string folds), `core/BUILD.bazel` (the Postgres
-  hardening lane). The register: the GraphQL line's rows are S89 to S117 (S76 to S103 before the merge of origin/main,
-  2026-10-20, where the Cypher line holds S76 to S88); the hardening line's are S103 to S105 and S112 to S117,
-  S93 and S95 amended.
+  hardening lane). The register: the GraphQL line's rows are S89 to S118 (S76 to S103 before the merge of origin/main,
+  2026-10-20, where the Cypher line holds S76 to S88); the hardening line's are S103 to S105 and S112 to S118,
+  S90, S93 and S95 amended.
 

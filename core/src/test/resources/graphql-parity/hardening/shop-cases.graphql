@@ -627,6 +627,46 @@ fragment Who on Customer { key: id who: handle }
 # inheritance: a subclass's root, its derived and inherited leaves, its type
 { CardPayment(orderBy: [{ id: ASC }]) { __typename id amount large last4 network masked order { id } } }
 
+# nested groups: each customer's orders by status
+{ Customer(orderBy: [{ id: ASC }]) { id ordersGroups(orderBy: [{ key: { status: ASC } }]) { key { status } count } } }
+
+# nested groups: filtered before, having after, sorted by the count
+{ Customer(orderBy: [{ id: ASC }]) { id ordersGroups(where: { status: { not: { equals: CANCELLED } } }, having: { count: { gte: 1 } }, orderBy: [{ count: DESC }, { key: { status: ASC } }]) { count key { status } } } }
+
+# nested groups: a key through a to-one hop, two folds
+{ Order(orderBy: [{ id: ASC }]) { id linesGroups(orderBy: [{ key: { product: { category: ASC } } }]) { key { product { category } } count sum { qty } avg { unitPrice } } } }
+
+# nested groups: a month key, offset and limited
+{ Customer(orderBy: [{ id: ASC }]) { id ordersGroups(orderBy: [{ key: { placed: DESC } }], limit: 1, offset: 1) { key { placed(truncate: MONTH) } count } } }
+
+# nested groups: having on a fold the selection does not carry
+{ Customer(orderBy: [{ id: ASC }]) { id ordersGroups(having: { sum: { discount: { gt: 0.05 } } }, orderBy: [{ key: { status: ASC } }]) { key { status } count } } }
+
+# nested groups: aliases and __typename at every level
+{ Customer(orderBy: [{ id: ASC }]) { id g: ordersGroups(orderBy: [{ key: { status: ASC } }]) { __typename k: key { __typename s: status } n: count f: max { d: discount } } } }
+
+# nested groups: over a derived collection
+{ Customer(orderBy: [{ id: ASC }]) { id liveOrdersGroups(orderBy: [{ key: { status: ASC } }]) { key { status } count } } }
+
+# nested groups: groups of lines under each order under each customer
+{ Customer(orderBy: [{ id: ASC }]) { id orders(orderBy: [{ id: ASC }]) { id linesGroups(orderBy: [{ key: { qty: ASC } }]) { key { qty } count } } } }
+
+# nested groups: beside the aggregate and the list of the same collection
+{ Customer(orderBy: [{ id: ASC }]) { id ordersAggregate { count } ordersGroups(orderBy: [{ key: { status: ASC } }]) { key { status } count } orders(orderBy: [{ id: ASC }]) { id } } }
+
+# nested groups: over a union hierarchy, by a derived key
+{ Order(orderBy: [{ id: ASC }]) { id paymentsGroups(orderBy: [{ key: { large: ASC } }]) { key { large } count sum { amount } } } }
+
+# nested groups: in a fragment, a variable in having
+# variables: {"n": 1}
+query Q($n: BigInt) { Customer(orderBy: [{ id: ASC }]) { ...F } } fragment F on Customer { id ordersGroups(having: { count: { gte: $n } }, orderBy: [{ key: { status: ASC } }]) { key { status } count } }
+
+# nested groups: under a to-one hop
+{ Order(orderBy: [{ id: ASC }]) { id customer { name ordersGroups(orderBy: [{ count: DESC }, { key: { status: ASC } }], limit: 1) { key { status } count } } } }
+
+# nested groups: an empty collection is an empty list
+{ Customer(where: { orders: { none: {} } }, orderBy: [{ id: ASC }]) { id ordersGroups(orderBy: [{ key: { status: ASC } }]) { key { status } count } } }
+
 # errors: an unknown field
 # error: has no field
 { Customer { id nope } }

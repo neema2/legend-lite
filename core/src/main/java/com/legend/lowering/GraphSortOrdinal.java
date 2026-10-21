@@ -33,18 +33,42 @@ final class GraphSortOrdinal {
      *  order then is the aggregate's own keys', or none) or the subselect's rows would change by a new column
      *  ({@code DISTINCT}). */
     static @com.legend.base.Nullable SqlSelect inject(SqlSelect envelope) {
-        SqlSource numbered = numbered(envelope.from());
-        return numbered == null ? null : envelope.withFrom(numbered);
+        Numbered n = numbered(envelope.from());
+        if (n == null) {
+            return null;
+        }
+        SqlSelect out = envelope.withFrom(n.source());
+        if (envelope.projections().isEmpty()
+                || envelope.projections().stream().anyMatch(p -> p.expr() instanceof SqlExpr.Star)) {
+            return out;
+        }
+        // a PLAIN projection over the ordered rows (a relation node's columns renamed, a select: the GraphQL
+        // hardening fuzzer's nested groups, 2026-10-21) is one row per row: the ordinal passes through it. A grouping,
+        // a DISTINCT or a whole-row aggregate makes rows of its own, whose order is not the subselect's.
+        if (envelope.distinct() || !envelope.groupBy().isEmpty() || Fold.aggregatesWithoutKeys(envelope)) {
+            return null;
+        }
+        OutputCol oc = new OutputCol(COLUMN, SqlType.Scalar.BIGINT, false);
+        List<SqlSelect.Projection> ps = new ArrayList<>(envelope.projections());
+        ps.add(new SqlSelect.Projection(SqlExpr.Column.of(n.alias(), oc), COLUMN, oc));
+        List<OutputCol> outs = new ArrayList<>(envelope.outputs());
+        outs.add(oc);
+        return out.withProjections(ps, outs);
+    }
+
+    /** The source with its ordered subselect numbered, and that subselect's alias. */
+    private record Numbered(SqlSource source, String alias) {
     }
 
     /** {@code from} with its ordered subselect numbered: the source itself, or a join's LEFT side when the join keeps
      *  every left row unpadded -- a decorrelated per-object subquery ({@code $this.lines->count()} as a LEFT JOIN to
      *  a keyed group) joins beside the ordered roots, and the roots' order is still theirs (the fuzzer's
      *  {@code Order(orderBy: [{ id: ASC }]) { lineCount }}, 2026-10-20). */
-    private static @com.legend.base.Nullable SqlSource numbered(SqlSource from) {
+    private static @com.legend.base.Nullable Numbered numbered(SqlSource from) {
         if (from instanceof SqlSource.Join j && !j.kind().padsLeft()) {
-            SqlSource left = numbered(j.left());
-            return left == null ? null : new SqlSource.Join(left, j.right(), j.kind(), j.on());
+            Numbered left = numbered(j.left());
+            return left == null ? null
+                    : new Numbered(new SqlSource.Join(left.source(), j.right(), j.kind(), j.on()), left.alias());
         }
         if (!(from instanceof SqlSource.Subselect ss) || !(ss.inner() instanceof SqlSelect inner)
                 || inner.orderBy().isEmpty() || inner.distinct()) {
@@ -81,6 +105,6 @@ final class GraphSortOrdinal {
         outs.add(out);
         SqlSelect numbered = new SqlSelect(ps, false, inner.from(), inner.where(), inner.groupBy(), inner.having(),
                 inner.qualify(), inner.orderBy(), inner.limit(), inner.offset(), outs);
-        return new SqlSource.Subselect(numbered, ss.alias(), ss.frameName());
+        return new Numbered(new SqlSource.Subselect(numbered, ss.alias(), ss.frameName()), ss.alias());
     }
 }

@@ -44,12 +44,12 @@ class GqlIslandsTest {
         assertTrue(walls.isEmpty(), "the island is the Pure query it means, typed once: " + walls);
     }
 
+    /** Groups under a parent object (the relation node, register S118) type as the tree they translate to. */
     @Test
-    void aValidIslandOnAConstructNotBuiltYetIsRefusedByName() {
-        Map<String, String> walls = walls("{ Firm { employeesGroups { key { age } count } } }");
-        String wall = walls.values().stream().findFirst().orElse(null);
-        assertNotNull(wall, "nested groups are a later increment: " + walls);
-        assertTrue(wall.contains("nested groups"), wall);
+    void anIslandWithGroupsUnderAParentCompiles() {
+        Map<String, String> walls = walls("{ Firm { employeesGroups(where: { age: { gt: 30 } }, having: { count: { gt: 1"
+                + " } }, orderBy: [{ count: DESC }], limit: 2) { key { address { country } } count avg { age } } } }");
+        assertTrue(walls.isEmpty(), "the relation node types: " + walls);
     }
 
     @Test

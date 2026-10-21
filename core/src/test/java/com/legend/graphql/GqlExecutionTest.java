@@ -264,6 +264,58 @@ class GqlExecutionTest {
         assertTrue(!json.contains("Bob"), json);
     }
 
+    /** The RELATION NODE (register S118) as Pure text: a node whose body is a table over $this; its tree names the
+     *  table's columns. One row per firm here (the whole-collection aggregate), as a one-element list. */
+    @Test
+    void theRelationNodeSpelledInPure() throws SQLException {
+        String tree = "#{ demo::Firm { legalName, 'payroll': $this.employees->project(~[s: e|$e.salary])"
+                + "->aggregate(~[n: x|1 : y|$y->count(), total: x|$x.s : y|$y->sum()]) { n, total } } }#";
+        String json = pure("demo::Firm.all()->filter(f|$f.legalName == 'Acme')->graphFetch(" + tree + ")->serialize("
+                + tree + ")");
+        assertTrue(json.replace(" ", "").contains("\"payroll\":[{\"n\":4,\"total\":420000.0}]"), json);
+    }
+
+    /** Groups as a relation node: a key, a count, a sort; an object of the row's columns under its own key; a firm
+     *  with no employees answers no groups. */
+    @Test
+    void theRelationNodeGroupsPerParent() throws SQLException {
+        String tree = "#{ demo::Firm { legalName, 'byAge': $this.employees->project(~[old: e|$e.age > 40, s: e|$e.salary])"
+                + "->groupBy(~[old], ~[n: x|1 : y|$y->count(), top: x|$x.s : y|$y->max()])->sort([~old->ascending()])"
+                + " { key { old }, n, 'best': top } } }#";
+        String json = pure("demo::Firm.all()->sortBy(f|$f.legalName)->graphFetch(" + tree + ")->serialize(" + tree
+                + ")").replace(" ", "");
+        assertTrue(json.contains("\"legalName\":\"Acme\",\"byAge\":[{\"key\":{\"old\":false},\"n\":2,"
+                + "\"best\":90000.0},{\"key\":{\"old\":true},\"n\":2,\"best\":150000.0}]"), json);
+        assertTrue(json.contains("\"legalName\":\"Initech\",\"byAge\":[]"), json);
+    }
+
+    /** A relation node's tree names columns, nothing else: an unknown column and a call are refused by name. */
+    @Test
+    void aRelationNodesTreeNamesItsColumns() {
+        String body = "$this.employees->project(~[s: e|$e.salary])->aggregate(~[n: x|1 : y|$y->count()])";
+        for (String[] c : new String[][] {{"{ nope }", "has no column 'nope'"},
+                {"{ n(1) }", "never a call"}}) {
+            String tree = "#{ demo::Firm { legalName, 'p': " + body + " " + c[0] + " } }#";
+            RuntimeException e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                    () -> pure("demo::Firm.all()->graphFetch(" + tree + ")->serialize(" + tree + ")"));
+            assertTrue(String.valueOf(e.getMessage()).contains(c[1]), c[0] + ": " + e.getMessage());
+        }
+    }
+
+    /** Nested groups through GraphQL: each firm's employees grouped by a to-one path, sorted (the absent country
+     *  last: S93), averaged; a firm with none answers []. */
+    @Test
+    void groupsUnderAParentThroughGraphql() throws SQLException {
+        String json = gql("{ Firm(orderBy: [{ legalName: ASC }]) { legalName employeesGroups(orderBy: [{ key: {"
+                + " address: { country: ASC } } }]) { key { address { country } } count avg { salary } } } }")
+                .replace(" ", "");
+        assertTrue(json.contains("\"legalName\":\"Acme\",\"employeesGroups\":["
+                + "{\"key\":{\"address\":{\"country\":\"UK\"}},\"count\":2,\"avg\":{\"salary\":135000.0}},"
+                + "{\"key\":{\"address\":{\"country\":\"US\"}},\"count\":1,\"avg\":{\"salary\":90000.0}},"
+                + "{\"key\":{\"address\":{\"country\":null}},\"count\":1,\"avg\":{\"salary\":60000.0}}]"), json);
+        assertTrue(json.contains("\"legalName\":\"Initech\",\"employeesGroups\":[]"), json);
+    }
+
     /** An enum list in `in` and `notIn` (the trading probe of 2026-10-19 found `in: [A, B]` refused as one value). */
     @Test
     void anEnumListInAndNotIn() throws SQLException {

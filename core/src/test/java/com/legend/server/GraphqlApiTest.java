@@ -218,12 +218,41 @@ class GraphqlApiTest {
         assertTrue(errors.contains("VALIDATION"), errors);
     }
 
+    /** STORE with a derived collection that takes an argument: a clause on it is the translator's one refusal by
+     *  name (a composed body navigates a stored property). */
+    static final String STORE_WITH_ARGUMENTS = STORE.replace("Class demo::Firm { legalName: String[1]; }",
+            "Class demo::Firm { legalName: String[1];\n"
+            + "  olderThan(a: Integer[1]) { $this.employees->filter(e|$e.age > $a) }: demo::Person[*]; }");
+
     @Test
     void theQueryRouteNamesWhatALaterLandingBuilds() {
-        Json.Obj a = query("{ Firm { employeesGroups { key { age } count } } }", "");
-        assertEquals(400, a.getInt("_status"), a.toString());
-        String errors = Json.toCompact(a.get("errors"));
-        assertTrue(errors.contains("nested groups") && errors.contains("UNSUPPORTED"), errors);
+        PureV1Api.Answer ans = PureV1Api.route("/api/lite/v1/graphql/query", null, body(STORE_WITH_ARGUMENTS,
+                "\"runtime\":{\"runtime\":\"demo::Runtime\"},\"query\":"
+                + Json.toCompact("{ Firm { olderThan(a: 40, limit: 1) { fullName } } }")), RUN);
+        assertEquals(400, ans.status(), ans.json());
+        String errors = Json.toCompact(((Json.Obj) Json.parse(ans.json(), PureV1Api.REQUEST)).get("errors"));
+        assertTrue(errors.contains("which takes arguments") && errors.contains("UNSUPPORTED"), errors);
+    }
+
+    /** Groups under a parent object (the relation node, register S118): each firm's employees grouped, filtered
+     *  before and sorted after the grouping, in one statement the database serializes. */
+    @Test
+    void theQueryRouteAnswersGroupsUnderAParent() {
+        Json.Obj a = query("{ Firm(orderBy: [{ legalName: ASC }]) { legalName employeesGroups(where: { age: { gte: 40 } },"
+                + " orderBy: [{ key: { age: DESC } }]) { key { age } count sum { salary } } } }", "");
+        assertEquals(200, a.getInt("_status"), a.toString());
+        Json.Arr firms = (Json.Arr) a.getObj("data").get("Firm");
+        Json.Obj acme = (Json.Obj) firms.items().get(0);
+        assertEquals("Acme", acme.getString("legalName"), a.toString());
+        Json.Arr groups = (Json.Arr) acme.get("employeesGroups");
+        assertEquals(2, groups.items().size(), a.toString());
+        Json.Obj oldest = (Json.Obj) groups.items().get(0);
+        assertEquals(51, oldest.getObj("key").getInt("age"), a.toString());
+        assertEquals(1, oldest.getInt("count"), a.toString());
+        assertEquals(150000.0, oldest.getObj("sum").getDouble("salary"), 0.01, a.toString());
+        assertEquals(45, ((Json.Obj) groups.items().get(1)).getObj("key").getInt("age"), a.toString());
+        Json.Obj globex = (Json.Obj) firms.items().get(1);
+        assertEquals(0, ((Json.Arr) globex.get("employeesGroups")).items().size(), "Eve is 39: " + a);
     }
 
     @Test
@@ -243,10 +272,18 @@ class GraphqlApiTest {
         assertEquals("ROW", agg.getString("shape"));
         assertTrue(agg.getString("sql").toLowerCase(java.util.Locale.ROOT).contains("count"), agg.getString("sql"));
         // a refusal of the translator's is an error of the verdict
+        Json.Obj refused = answer("/api/lite/v1/graphql/explain", body(STORE_WITH_ARGUMENTS,
+                "\"query\":\"{ Firm { olderThan(a: 40, limit: 1) { fullName } } }\""));
+        assertFalse(refused.getBool("valid"), refused.toString());
+        assertTrue(Json.toCompact(refused.get("errors")).contains("which takes arguments"), refused.toString());
+        // nested groups explain as the tree they are: the relation node's body in the Pure, one statement
         Json.Obj nested = answer("/api/lite/v1/graphql/explain", body(STORE,
-                "\"query\":\"{ Firm { employeesGroups { key { age } count } } }\""));
-        assertFalse(nested.getBool("valid"), nested.toString());
-        assertTrue(Json.toCompact(nested.get("errors")).contains("nested groups"), nested.toString());
+                "\"runtime\":{\"runtime\":\"demo::Runtime\"},\"query\":\"{ Firm { employeesGroups { key { age }"
+                + " count } } }\""));
+        assertTrue(nested.getBool("valid"), nested.toString());
+        Json.Obj tree = (Json.Obj) nested.getArr("roots").items().get(0);
+        assertEquals("TREE", tree.getString("shape"));
+        assertTrue(tree.getString("pure").contains("$this.employees->project("), tree.getString("pure"));
     }
 
     @Test

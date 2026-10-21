@@ -158,12 +158,55 @@ final class GraphFetchChecker {
                 : List.of(subTypeView(t, classFqn, n.subType(), n.subTrees(), fn, env));
     }
 
+    /** A relation node's tree: a leaf names one of the table's columns (aliased to its response key), a node with
+     *  a sub-tree is an object of the same row's columns under its own key; nothing else (no arguments, bodies or
+     *  subtype views) has a meaning over a row of a table. */
+    private static List<TypedGraphTree> columns(Type.RelationType table, List<Node> nodes, String owner,
+            String fn) {
+        List<TypedGraphTree> out = new ArrayList<>(nodes.size());
+        for (Node c : nodes) {
+            if (c.body() != null || !c.parameters().isEmpty() || c.subType() != null
+                    || !c.subTypeTrees().isEmpty()) {
+                throw new TypeInferenceException(fn + " tree: '" + c.property() + "' under the relation node '"
+                        + owner + "' is a column or an object of columns, never a call, a body or a subtype view");
+            }
+            if (!c.subTrees().isEmpty()) {
+                out.add(new TypedGraphTree(c.property(), columns(table, c.subTrees(), owner, fn), c.alias()));
+                continue;
+            }
+            boolean known = table.columns().stream().anyMatch(col -> col.name().equals(c.property()));
+            if (!known) {
+                throw new TypeInferenceException(fn + " tree: the relation node '" + owner + "' has no column '"
+                        + c.property() + "' (its columns: "
+                        + table.columns().stream().map(Type.Column::name).toList() + ")");
+            }
+            out.add(new TypedGraphTree(c.property(), List.of(), c.alias()));
+        }
+        return out;
+    }
+
     private static TypedGraphTree property(Typer t, String classFqn, Node n, String fn, Env env) {
         if (n.body() != null) {
             // the COMPOSED BODY (lite, GraphQL PR2c, docs/GRAPHQL_STUDY_2026_10_18.md §6.2): typed with
             // $this the node's object, as a derived property's body is; its value's class is the child's
             TypedSpec body = t.synth(n.body(), env.with("this",
                     ExprType.one(new Type.ClassType(classFqn))));
+            if (Type.isRelation(body.info().type())) {
+                // the RELATION-VALUED node (lite, register S118, docs/GRAPHQL_STUDY_2026_10_18.md §13.8): the body
+                // is a table over $this (a navigation projected, grouped, filtered, sorted, paged); its tree
+                // names the table's columns, a sub-tree being an object made of the same row's columns
+                if (n.subType() != null || !n.subTypeTrees().isEmpty()) {
+                    throw new TypeInferenceException(fn + " tree: the relation node '" + n.alias()
+                            + "' takes no subtype view");
+                }
+                if (n.subTrees().isEmpty()) {
+                    throw new TypeInferenceException(fn + " tree: the relation node '" + n.alias()
+                            + "' names none of its columns");
+                }
+                return new TypedGraphTree(n.property(), columns(Type.requireRelationSchema(body.info().type()),
+                        n.subTrees(), n.alias() == null ? n.property() : n.alias(), fn), n.alias(), List.of(), false,
+                        null, body);
+            }
             if (!(Type.asClassType(body.info().type()) instanceof Type.ClassType bodyClass)) {
                 throw new TypeInferenceException(fn + " tree: the body of '" + n.alias() + "' is "
                         + body.info().type().typeName() + ", not a class: a composed node is a collection"

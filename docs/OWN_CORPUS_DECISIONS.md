@@ -345,6 +345,10 @@ ordinary Relation expression. Upstream has the `#SQL{...}#` island and no other 
 
 ## 15. LITE-DESIGN-graphql-tree — declared 2026-10-19 (the GraphQL line, PR2c) — 0 rows
 
+(Widened 2026-10-21: the body may also be a TABLE over `$this`, the relation node of register S118 -- `'byAge':
+$this.employees->project(~[...])->groupBy(~[...], ~[...]) { key { old }, n }`, its tree naming the table's columns.
+Same surfaces, same decision; `GqlExecutionTest` exercises it in Java, no own-corpus fixture spells it.)
+
 The composed body on a graph-fetch tree node (docs/GRAPHQL_STUDY_2026_10_18.md §6.2, register row S96): `'top3':
 $this.employees->filter(e | $e.age > 30)->sortByReversed(e | $e.salary)->limit(3) { fullName }` -- an expression over
 `$this`, the node's object, keyed by its alias, whose value is the node's collection; the node's property is the

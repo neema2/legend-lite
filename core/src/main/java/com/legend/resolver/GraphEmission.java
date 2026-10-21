@@ -931,6 +931,9 @@ final class GraphEmission {
             // the COMPOSED BODY (lite, GraphQL PR2c): the node's own expression over $this, the shape a
             // derived to-many body has, compiled as one
             TypedSpec bodyHop = unwrapToOneFirst(InheritedCasts.fold(inlineDerivedCalls(node.body(), 0), ctx));
+            if (Type.isRelation(node.body().info().type())) {
+                return relationChild(cs, node, context, parentRowVar, parentRowType, bodyHop, "this");
+            }
             if (bodyHop instanceof TypedNewInstance ni && isCompanionClass(ni.classFqn())) {
                 return companionChild(cs, node, ni, "this", context, parentRowVar, parentRowType, parentPipeline);
             }
@@ -1672,28 +1675,9 @@ final class GraphEmission {
             TypedGraphTree node, StoreResolver.Context context,
             String parentRowVar, Type.RelationType parentRowType, TypedSpec hop0, String thisVar,
             boolean toMany) {
-        TypedSpec hop = hop0;
-        // ORDERING TAIL (GraphQL PR2, docs/GRAPHQL_STUDY_2026_10_18.md §6.2):
-        // a derived to-many body may end in sortBy/sortByReversed/sort,
-        // take/limit, drop, slice over its navigation head — the companion
-        // model's composed clauses are exactly these. Peeled here
-        // (outermost first), re-applied over the child relation below.
-        List<TypedSpec> tail = new ArrayList<>();
-        while (true) {
-            TypedSortBy asSort = ClassSorts.classSortOf(hop);
-            TypedSpec next = switch (hop) {
-                case TypedLimit l -> l.source();
-                case TypedDrop dr -> dr.source();
-                case TypedSlice sl -> sl.source();
-                case TypedSortBy sb -> sb.source();
-                default -> asSort == null ? null : asSort.source();
-            };
-            if (next == null) {
-                break;
-            }
-            tail.add(asSort != null ? asSort : hop);
-            hop = unwrapToOneFirst(next);
-        }
+        Peeled peeled = peelOrderingTail(hop0);
+        TypedSpec hop = peeled.hop();
+        List<TypedSpec> tail = peeled.tail();
         // CHAINED two-hop body ($this.h1[->filter(p)].h2->toOne() — the
         // qualifier-inside-qualifier shape after nested-call inlining)
         if (hop instanceof TypedPropertyAccess hp2
@@ -1718,6 +1702,148 @@ final class GraphEmission {
                 }
             }
         }
+        HeadedRel h = headedRel(cs, node, context, parentRowVar, parentRowType, hop, tail, thisVar);
+        if (h == null) {
+            return null;
+        }
+        return childFromRel(h.target(), h.rel(), h.extraParams(), toMany, node,
+                context, Map.of());
+    }
+
+    /**
+     * The RELATION-VALUED node (lite, register S118, docs/GRAPHQL_STUDY_2026_10_18.md §13.8): a body over
+     * {@code $this} whose value is a table -- {@code $this.orders->filter(o|...)->project(~[...])->groupBy(~[...],
+     * ~[...])->filter(g|...)->sort([...])->drop(m)->limit(n)}. Its class part (the navigation, its filter and its
+     * ordering) is the correlated relation every composed node reads ({@link #headedRel}); the project's columns
+     * read the target's row through its bindings, as a filter or a sort key does; every relation operator above
+     * the project is rebuilt over that source unchanged (its lambdas read the table's own columns). The node's
+     * rows serialize as the database's JSON array of objects, a leaf naming a column, a sub-tree an object of the
+     * same row's columns. Loud when the body has another shape.
+     */
+    private TypedSerializeGraph.Child relationChild(ClassSource cs, TypedGraphTree node,
+            StoreResolver.Context context, String parentRowVar, Type.RelationType parentRowType, TypedSpec body,
+            String thisVar) {
+        List<com.legend.compiler.spec.typed.TypedRelationOp> above = new ArrayList<>();
+        TypedSpec cur = body;
+        while (cur instanceof com.legend.compiler.spec.typed.TypedRelationOp op
+                && Type.isRelation(op.source().info().type())) {
+            above.add(op);
+            cur = op.source();
+        }
+        if (!(cur instanceof com.legend.compiler.spec.typed.TypedProject bridge)) {
+            throw new NotImplementedException("graph node '" + keyOf(node) + "' of class '" + cs.classFqn()
+                    + "': a relation node's body is a navigation from $this, projected, then relation operators"
+                    + " (docs/GRAPHQL_STUDY_2026_10_18.md §13.8); this one starts with "
+                    + cur.getClass().getSimpleName());
+        }
+        Peeled peeled = peelOrderingTail(unwrapToOneFirst(bridge.source()));
+        HeadedRel h = headedRel(cs, node, context, parentRowVar, parentRowType, peeled.hop(), peeled.tail(),
+                thisVar);
+        if (h == null) {
+            throw new NotImplementedException("graph node '" + keyOf(node) + "' of class '" + cs.classFqn()
+                    + "': the projected part of a relation node's body is a navigation from $this with a filter, a"
+                    + " sort, a take or a drop over it (docs/GRAPHQL_STUDY_2026_10_18.md §13.8)");
+        }
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        List<TypedFuncCol> cols = new ArrayList<>(bridge.columns().size());
+        for (TypedFuncCol col : bridge.columns()) {
+            if (col.fn().parameters().size() != 1 || col.fn().body().size() != 1) {
+                throw new NotImplementedException("graph node '" + keyOf(node) + "': the projected column '"
+                        + col.name() + "' is not a one-statement lambda over the element");
+            }
+            TypedSpec read = inlineThis(col.fn().body().get(0), col.fn().parameters().get(0), Map.of(),
+                    h.target().bindings(), h.target().classFqn(), node.property(), h.childEnv());
+            var fnType = new Type.FunctionType(List.of(new Type.Param(h.targetRow(), one)),
+                    new Type.Param(read.info().type(), read.info().multiplicity()));
+            cols.add(new TypedFuncCol(col.name(), new TypedLambda(List.of(h.target().rowVar()), List.of(read),
+                    new ExprType(fnType, one)), col.documentation()));
+        }
+        TypedSpec rel = new com.legend.compiler.spec.typed.TypedProject(h.rel(), cols, bridge.info());
+        for (int i = above.size() - 1; i >= 0; i--) {
+            List<TypedSpec> kids = new ArrayList<>(above.get(i).children());
+            kids.set(0, rel);
+            rel = above.get(i).withChildren(kids);
+        }
+        Set<String> taken = new LinkedHashSet<>(h.extraParams());
+        PipelineWalks.collectLambdaParams(rel, taken);
+        String rowVar;
+        do {
+            rowVar = "_r" + freshVar.getAsInt();
+        } while (taken.contains(rowVar));
+        Type.RelationType table = Type.requireRelationSchema(body.info().type());
+        return new TypedSerializeGraph.Child(keyOf(node),
+                relationEnvelope(rel, rowVar, table, node.children(), false));
+    }
+
+    /** One object per row of {@code table} (a JSON array of them, or, {@code inline}, the object a sub-tree makes of
+     *  the same row): a leaf reads its column, a sub-tree recurses; the keys in the tree's order. */
+    private static TypedSerializeGraph relationEnvelope(TypedSpec rel, String rowVar, Type.RelationType table,
+            List<TypedGraphTree> tree, boolean inline) {
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        ExprType rowInfo = new ExprType(table, one);
+        List<TypedFuncCol> leaves = new ArrayList<>();
+        List<TypedSerializeGraph.Child> nested = new ArrayList<>();
+        for (TypedGraphTree n : tree) {
+            if (!n.children().isEmpty()) {
+                nested.add(new TypedSerializeGraph.Child(keyOf(n),
+                        relationEnvelope(rel, rowVar, table, n.children(), true)));
+                continue;
+            }
+            Type.Column c = table.columns().stream().filter(x -> x.name().equals(n.property())).findFirst()
+                    .orElseThrow(() -> new IllegalStateException("the checker admitted column '" + n.property()
+                            + "', which the relation node's table does not have"));
+            TypedSpec read = new TypedPropertyAccess(new TypedVariable(rowVar, rowInfo), c.name(),
+                    new ExprType(c.type(), c.multiplicity()));
+            var fnType = new Type.FunctionType(List.of(new Type.Param(table, one)),
+                    new Type.Param(c.type(), c.multiplicity()));
+            leaves.add(new TypedFuncCol(keyOf(n), new TypedLambda(List.of(rowVar), List.of(read),
+                    new ExprType(fnType, one))));
+        }
+        return new TypedSerializeGraph(rel, rowVar, leaves, nested, !inline, false, null,
+                new ExprType(table, inline ? one : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
+                inline, List.of()).withKeyOrder(keyOrder(tree));
+    }
+
+    /** A body's navigation head with its ordering tail peeled (outermost first): the tail re-applies over the
+     *  child relation. */
+    private record Peeled(TypedSpec hop, List<TypedSpec> tail) {
+    }
+
+    /** ORDERING TAIL (GraphQL PR2, docs/GRAPHQL_STUDY_2026_10_18.md §6.2): a derived to-many body may end in
+     *  sortBy/sortByReversed/sort, take/limit, drop, slice over its navigation head -- the composed clauses are
+     *  exactly these. Peeled here (outermost first), re-applied over the child relation by {@link #headedRel}. */
+    private Peeled peelOrderingTail(TypedSpec hop0) {
+        TypedSpec hop = hop0;
+        List<TypedSpec> tail = new ArrayList<>();
+        while (true) {
+            TypedSortBy asSort = ClassSorts.classSortOf(hop);
+            TypedSpec next = switch (hop) {
+                case TypedLimit l -> l.source();
+                case TypedDrop dr -> dr.source();
+                case TypedSlice sl -> sl.source();
+                case TypedSortBy sb -> sb.source();
+                default -> asSort == null ? null : asSort.source();
+            };
+            if (next == null) {
+                break;
+            }
+            tail.add(asSort != null ? asSort : hop);
+            hop = unwrapToOneFirst(next);
+        }
+        return new Peeled(hop, tail);
+    }
+
+    /** The correlated relation of a body's class part: its navigation head off the parent row (optionally
+     *  filtered), the ordering tail re-applied over it; the target's row variable and every lambda parameter the
+     *  relation binds ({@code extraParams}), and the frame its reads correlate in ({@code childEnv}). */
+    private record HeadedRel(ClassSource target, TypedSpec rel, Type.RelationType targetRow,
+            Set<String> extraParams, SubqueryEnv childEnv) {
+    }
+
+    private @com.legend.base.Nullable HeadedRel headedRel(ClassSource cs, TypedGraphTree node,
+            StoreResolver.Context context, String parentRowVar, Type.RelationType parentRowType, TypedSpec hop0,
+            List<TypedSpec> tail, String thisVar) {
+        TypedSpec hop = hop0;
         TypedLambda extraPred = null;
         if (hop instanceof TypedFilter hf
                 && hf.predicate().parameters().size() == 1
@@ -1785,8 +1911,7 @@ final class GraphEmission {
                 default -> throw new IllegalStateException("peeled tail op " + op.getClass().getSimpleName());
             };
         }
-        return childFromRel(target, childRel, extraParams, toMany, node,
-                context, Map.of());
+        return new HeadedRel(target, childRel, hr.targetRow(), extraParams, childEnv);
     }
 
     /** β-inline NESTED derived-property calls inside a derived body

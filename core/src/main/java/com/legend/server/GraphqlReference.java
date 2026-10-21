@@ -26,7 +26,8 @@ public final class GraphqlReference {
             SELECTIONS. A class's properties by name. A to-one property is an object (null when absent); a to-many
             property is a list field taking the same `where`, `orderBy`, `limit`, `offset`; a derived property with
             parameters takes them as arguments. Beside every to-many property p: `pAggregate(where: ...) { count
-            sum { x } avg { x } min { x } max { x } }`. `__typename` is the exact class.
+            sum { x } avg { x } min { x } max { x } }` and `pGroups(...)`, the parent's own groups (GROUPS below).
+            `__typename` is the exact class.
 
             WHERE (Prisma's names). `{ field: { op: value } }` with the ops equals, not, in, notIn, lt, lte, gt,
             gte; strings add contains, startsWith, endsWith and `mode: insensitive`; `{ equals: null }` and
@@ -47,7 +48,9 @@ public final class GraphqlReference {
             sum { x } avg { x } }`: the selection under `key` IS the grouping (a to-one property nests its own key
             object; a date key takes `truncate: YEAR | QUARTER | MONTH | WEEK | DAY | HOUR`); `having` filters the
             groups: `{ count: { gte: 2 }, sum: { salary: { gt: 1000 } }, AND, OR, NOT }`; `orderBy: [{ count: DESC },
-            { key: { a: ASC } }, { sum: { x: DESC } }]`, a key named in orderBy is selected under `key`.
+            { key: { a: ASC } }, { sum: { x: DESC } }]`, a key named in orderBy is selected under `key`. Under a
+            parent object, `employeesGroups(...)` takes the same arguments and answers each parent's groups as a list
+            (`[]` for a parent with none).
 
             INHERITANCE. `... on Manager { budget }` adds a subclass's fields where the row is one; spread on the
             INTERFACE's root (`PersonInterface`'s field `Person`) to see every row; `... on Person` alone selects

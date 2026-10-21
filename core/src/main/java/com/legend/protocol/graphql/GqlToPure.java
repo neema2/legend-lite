@@ -680,8 +680,90 @@ public final class GqlToPure {
         Composite type = objectTypeOf(classFqn, path);
         ValueSpecification vs = call("getAll", new PackageableElementPtr(classFqn));
         vs = whereClause(vs, f.arguments(), type, path);
-        Composite groupType = composite(fd);
         Groups g = new Groups();
+        vs = groupsPipeline(f, fd, vs, type, g, path);
+        return inSelectionOrder(vs, g.order, g.constants, new ArrayList<>(g.keys.keySet()),
+                new ArrayList<>(g.aggregates.keySet()));
+    }
+
+    /**
+     * {@code ordersGroups(where: W, having: H, orderBy: [...], limit: n, offset: m) { key { status } count sum {
+     * total } }} under a parent object: the RELATION NODE (register S118, docs/GRAPHQL_STUDY_2026_10_18.md §13.8)
+     * whose body is the root's pipeline over {@code $this.orders} -- {@code $this.orders->filter(W)->project(~[...])
+     * ->groupBy(~[...], ~[...])->filter(H)->sort([...])->drop(m)->limit(n)} -- its columns renamed by one last
+     * {@code project} to identifiers ({@code key_status}), and its tree the selection's shape over them ({@code key
+     * { status: key_status } count sum { total: sum_total }}): the database serializes each parent's groups.
+     */
+    private Node groupsNode(Field f, FieldDef fd, Meaning.GroupsOf gm, Composite type, String key, String path) {
+        FieldDef propField = type.field(gm.property());
+        if (propField == null) {
+            throw GqlTranslationException.invalid(path, type.name() + " has no property " + gm.property());
+        }
+        Composite target = composite(propField);
+        ValueSpecification vs = whereClause(new AppliedProperty(new Variable("this"), gm.property()), f.arguments(),
+                target, path);
+        Groups g = new Groups();
+        vs = groupsPipeline(f, fd, vs, target, g, path);
+        vs = inSelectionOrder(vs, g.order, g.constants, new ArrayList<>(g.keys.keySet()),
+                new ArrayList<>(g.aggregates.keySet()));
+        // the response's columns, each renamed to an identifier (the tree names columns as properties); the tree
+        // nests them by their paths
+        String r = fresh("r");
+        List<ColSpec> renamed = new ArrayList<>();
+        java.util.Set<String> taken = new java.util.HashSet<>();
+        Map<String, Object> trie = new LinkedHashMap<>();
+        for (String column : g.order) {
+            String base = column.replace(PATH_SEPARATOR, "_");
+            String name = base;
+            for (int i = 2; !taken.add(name); i++) {
+                name = base + "_" + i;
+            }
+            renamed.add(new ColSpec(name, lambda(r, new AppliedProperty(new Variable(r), column)), null, null));
+            List<String> segments = new ArrayList<>();
+            for (int from = 0, at; ; from = at + PATH_SEPARATOR.length()) {
+                at = column.indexOf(PATH_SEPARATOR, from);
+                segments.add(at < 0 ? column.substring(from) : column.substring(from, at));
+                if (at < 0) {
+                    break;
+                }
+            }
+            Map<String, Object> level = trie;
+            for (int i = 0; i < segments.size() - 1; i++) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> next = (Map<String, Object>) level.computeIfAbsent(segments.get(i),
+                        k -> new LinkedHashMap<String, Object>());
+                level = next;
+            }
+            level.put(segments.get(segments.size() - 1), name);
+        }
+        vs = call("project", vs, new ColSpecArray(renamed));
+        return new Node(gm.property(), null, List.of(), key, null, columnNodes(trie), vs);
+    }
+
+    /** A relation node's tree from its columns' paths: a leaf names its column under its response key, a path's
+     *  prefix is an object of the same row's columns. */
+    private static List<Node> columnNodes(Map<String, Object> trie) {
+        List<Node> out = new ArrayList<>(trie.size());
+        for (Map.Entry<String, Object> e : trie.entrySet()) {
+            if (e.getValue() instanceof String column) {
+                out.add(new Node(column, null, List.of(), column.equals(e.getKey()) ? null : e.getKey(), null,
+                        List.of()));
+            } else {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> sub = (Map<String, Object>) e.getValue();
+                out.add(new Node(e.getKey(), null, List.of(), null, null, columnNodes(sub)));
+            }
+        }
+        return out;
+    }
+
+    /** The groups pipeline over {@code vs} (a collection of {@code type}'s objects, its {@code where} applied): the
+     *  projection, the grouping, {@code having}, {@code orderBy}, {@code offset} and {@code limit}; {@code g} holds
+     *  the columns. */
+    private ValueSpecification groupsPipeline(Field f, FieldDef fd, ValueSpecification source, Composite type,
+            Groups g, String path) {
+        ValueSpecification vs = source;
+        Composite groupType = composite(fd);
         String x = fresh("x");
         g.projected.put("__one", new ColSpec("__one", lambda(x, new CInteger(1L, null)), null, null));
         for (Field s : flatten(f.selectionSet(), groupType, path)) {
@@ -764,8 +846,7 @@ public final class GqlToPure {
         if (limit != null && !(peek(limit, path) instanceof Gql.NullValue)) {
             vs = call("limit", vs, count(limit, path + "(limit)"));
         }
-        return inSelectionOrder(vs, g.order, g.constants, new ArrayList<>(g.keys.keySet()),
-                new ArrayList<>(g.aggregates.keySet()));
+        return vs;
     }
 
     /** A relation root's columns as the response asks them: each {@code __typename} a constant column the database
@@ -1902,11 +1983,7 @@ public final class GqlToPure {
                         children, null, entries);
             }
             case Meaning.AggregateOf a -> aggregateNode(f, fd, a, type, key, path);
-            case Meaning.GroupsOf g -> throw GqlTranslationException.unsupported(path, f.name()
-                    + ": nested groups (groups under a parent object) are not built: the relation-rows-to-JSON"
-                    + " fold in the emitter is a later increment (docs/GRAPHQL_STUDY_2026_10_18.md §13.5); ask the"
-                    + " root " + f.name().substring(0, 1).toUpperCase(java.util.Locale.ROOT) + f.name().substring(1)
-                    + " with a where on the parent");
+            case Meaning.GroupsOf g -> groupsNode(f, fd, g, type, key, path);
             case Meaning.Typename t -> new Node("__typename", null, List.of(), key, null, List.of());
             default -> throw GqlTranslationException.invalid(path, f.name() + " is not selectable here");
         };
