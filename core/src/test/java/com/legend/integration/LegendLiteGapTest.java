@@ -138,13 +138,36 @@ class LegendLiteGapTest {
     }
 
     @Test
+    @DisplayName("a service naming a mapping the model has not is refused -- 94-canonical-services falls with 55")
+    void aServiceOfAnExcludedMapping() {
+        // not a gap of its own: 94-canonical-services.pure's services run on 55-canonical-store.pure's mappings and
+        // runtimes, so they leave with it (the measure case above); a model naming them without 55 is refused, as
+        // the engine refuses it (2026-10-21, the reference checks)
+        rejectsWith("a service of a missing mapping", "Can't find mapping 'demo::M'", """
+                ###Service
+                Service demo::S
+                {
+                  pattern: '/s';
+                  documentation: '';
+                  execution: Single
+                  {
+                    query: |1;
+                    mapping: demo::M;
+                    runtime: demo::R;
+                  }
+                }
+                """);
+    }
+
+    @Test
     @DisplayName("every corpus exclusion names a gap this test covers")
     void exclusionsAreAccountedFor() {
         // Guards against an exclusion being added with no executable evidence behind it.
         // 70-surface-store2.pure left 2026-09-27: its precise-primitive gap (Varchar(200))
         // closed when legend-lite's lattice gained legend-pure's precise primitives
+        // 94-canonical-services.pure joined 2026-10-21 (aServiceOfAnExcludedMapping): it falls with 55
         Set<String> documented = Set.of("29-money.pure", "55-canonical-store.pure",
-                "71-mapping-surface2.pure", "75-surface-gaps.pure");
+                "71-mapping-surface2.pure", "75-surface-gaps.pure", "94-canonical-services.pure");
         assertEquals(documented, StressExclusions.EXCLUDED.keySet(),
                 "StressExclusions.EXCLUDED changed. Every excluded file must have a case in "
                         + "this test showing WHY legend-lite cannot load it — an exclusion "
