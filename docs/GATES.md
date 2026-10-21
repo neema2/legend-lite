@@ -12343,6 +12343,42 @@ The same branch (neema2/legend-lite#56), at the seventh line's quiet point after
     - the ban fails when a root it reads yields no source;
     - the records' wording.
 
+## 2026-10-21 — GraphQL: the hardening line — an independent reference, a fuzzer, a corpus; the relation node; temporal reads (the twelfth line)
+
+Announced in `docs/IN_FLIGHT.md` ("The hardening line"). Branch `claude/graphql-study-2026-10-18`; the record is the
+study's §13.7 (the method and every finding by landing), §13.8 (the relation node) and §13.9 (temporal classes).
+Register rows S103 to S105 and S112 to S119 added; S90, S93, S95, S102, S114 and S115 amended; S101 and S111 removed
+(the companion's generated classes, and the predicate that hid them, are gone).
+
+1. **What lands.** `core/src/test/java/com/legend/graphql/hardening/`: the shop fixture (every scalar kind, nulls,
+   ties, quotes and wildcards, unicode, a 64-bit integer past 2^53, self-reference, a many-to-many, a union-mapped
+   class hierarchy, a business-temporal class), an independent reference evaluator, a seeded fuzzer with a shrinker,
+   and a corpus of 238 hand-written cases, run on DuckDB (`GraphQLHardeningTest`) and on Postgres 16
+   (`//core:graphql_hardening_postgres_test`). The relation node (S118): a tree node whose value is a table, which
+   nested groups and nested aggregates now translate to; the companion's generated aggregate classes deleted. Temporal
+   classes read as of their dates (S119). The fixes every finding needed, each a commit on the branch.
+2. **Judges.** Every landing's commit names its checks (the core packages, `//core:guardrails`,
+   `//core:census`, the generated files, parser equivalence, both corpus lanes with their rosters unchanged, the
+   Cypher, IQ and SQL parity suites, PCT on DuckDB, and on Postgres the hardening lane, the islands' and parities'
+   lanes and PCT). The corpus's 238 cases agree with the reference on DuckDB and on Postgres; the fuzzer's campaigns
+   agree on every document (28,400 counted in the study's record across the line; the last, 5,200 with the temporal
+   class, 341 of one campaign's 2,000 dated). **The full local gate** (`bazel test --keep_going --lockfile_mode=error //gates:local`, as root,
+   on commit a60a4b04, frozen): 374 of 383 pass, 8 fail, 1 skipped; the eight are exactly the targets that start a
+   Postgres (`initdb refuses root`: seven `//core:*postgres*` targets and `//datacube:verify_app_test`), nothing else
+   red. Those eight rerun under `tools/postgres/as_unprivileged.sh ubuntu`: 8 of 8 pass, so the tree is green on
+   every lane of the local gate.
+3. **What the gates taught.** The full validation of the hierarchy landing caught two regressions the GraphQL suites
+   could not: the nested scope's subtype tables registered strictly, refusing 14 relational corpus tests over the
+   plan-node hierarchy (the rosters, read as `diff generated committed`, named them; fixed, the rosters unchanged),
+   and register row S90's claim that the drop-in parser refuses an inline fragment, which no code kept
+   (`AdversarialParityTest.gqlIslands`; now kept, OWN_CORPUS_DECISIONS §16). The native-claims generator keys a
+   class by its simple name, so a new `Fold` enum hid lowering's `Fold` from a row (renamed `GqlFold`). A Postgres
+   lane that failed for a full disk allowance was a disk failure, not a test failure: the lane passed once sandboxes
+   were cleared.
+4. **Next.** The root aggregate and groups as the relation node without a parent (the island's value for a Pure
+   caller would change); the engine's propagation of a temporal owner's dates and clauses on a dated list; the JSON
+   wire's class-level `sortBy` under a renaming projection; the Prisma oracle.
+
 ## 2026-10-19 — GraphQL: the sixth landing — the agent surface and the graphql-js differential (the twelfth line)
 
 Announced in `docs/IN_FLIGHT.md` ("A twelfth line"). Branch `claude/graphql-study-2026-10-18`; the record is the

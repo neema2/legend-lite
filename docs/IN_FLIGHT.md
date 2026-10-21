@@ -2510,7 +2510,8 @@ island inside Pure.
   S119.)
 - **The hardening line, 2026-10-20** (the user: "make GraphQL amazing and expert and super bulletproof"): a
   reference evaluator, a seeded fuzzer and a 222-case corpus over a shop fixture with a class hierarchy, on DuckDB
-  and on Postgres; the record is the study's §13.7 and §13.8 (the relation node: a tree node whose value is a
+  and on Postgres (the GATES entry of 2026-10-21: the full local gate green at a60a4b04); the record is the study's
+  §13.7 and §13.8 (the relation node: a tree node whose value is a
   table, nested groups and nested aggregates through it; §13.9, temporal classes; the companion's generated
   aggregate classes DELETED, and
   with them `ModelContext.isSynthetic`: `lineage/ScanRelations`, `compiler/spec/CypherIslands` and
