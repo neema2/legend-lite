@@ -58,12 +58,12 @@ One 4-core cloud container; the generator, the subscribers (Python) and one engi
 
 | | Deephaven | Feldera | Proton |
 |---|---|---|---|
-| tick → total, p50 / p95 / p99 | 63 / 116 / 130 ms | **43 / 66 / 83 ms** | 67 / 141 / 210 ms |
-| FX tick → all 48 books, p50 / p95 | **88 / 140 ms** | 99 / 127 ms | 196 / 338 ms |
-| engine CPU | **0.84 cores** | 1.97 cores | 2.56 cores |
-| engine memory | 789 MB | 1,546 MB (container) | 1,033 MB (container) |
-| setup: create or compile | 3.4 s | 21.9 s compile (169 s cold) | 0.1 s |
-| new live grouping: first rows | 19 ms, live | 15 ms, **a snapshot**; live needs a recompile | 245 ms, live |
+| tick → total, p50 / p95 / p99 | 63 / 111 / 115 ms | **43 / 66 / 83 ms** | 67 / 141 / 210 ms |
+| FX tick → all 48 books, p50 / p95 | **74 / 126 ms** | 99 / 127 ms | 196 / 338 ms |
+| engine CPU | **0.71 cores** | 1.97 cores | 2.56 cores |
+| engine memory | 749 MB | 1,546 MB (container; the pipeline process alone is 225 to 360 MB, the rest is the compiler) | 1,033 MB (container) |
+| setup: create or compile | 3.9 s | 21.9 s compile (169 s cold) | 0.1 s |
+| new live grouping: first rows | 18 ms, live | 15 ms, **a snapshot**; live needs a recompile | 245 ms, live |
 | correct (subscriber / snapshot) | yes / yes | yes / yes | yes / yes |
 
 ### About 4,400 distinct price updates a second, 30 s
@@ -72,9 +72,9 @@ One 4-core cloud container; the generator, the subscribers (Python) and one engi
 
 | | Deephaven | Feldera | Proton |
 |---|---|---|---|
-| tick → total, p50 / p95 / p99 | 68 / 118 / 125 ms | 86 / 128 / 148 ms | 71 / 130 / 209 ms |
-| FX tick → all 48 books, p50 / p95 | 82 / 133 ms | 130 / 153 ms | 270 / 449 ms |
-| engine CPU | 0.88 cores | 2.27 cores | 2.96 cores |
+| tick → total, p50 / p95 / p99 | 70 / 111 / 118 ms | 86 / 128 / 148 ms | 71 / 130 / 209 ms |
+| FX tick → all 48 books, p50 / p95 | 80 / 126 ms | 130 / 153 ms | 270 / 449 ms |
+| engine CPU | 0.84 cores | 2.27 cores | 2.96 cores |
 | correct | yes / yes | yes / yes | yes / yes |
 
 ### Proton's join order (`results/2026-10-21/proton-flat-10-200-book.json`)
@@ -122,12 +122,59 @@ one key, and each retraction searches them; Deephaven and Feldera ran the first 
 
 - **Feldera fits the compiler best** (an ANSI dialect, close to what `AnsiSqlRenderer` writes) and
   fits **declared live models**: a risk model deployed as a pipeline, its views DataCube's live
-  levels. It does not fit DataCube's interactive regrouping as live queries: a regrouping would be
-  a snapshot, or a recompile of seconds to minutes.
+  levels. Interactive regrouping as live queries needs the follow-up below: groupings as data in
+  one compiled program, which works but slows past a few live groupings in this shape.
 - **Proton fits interactive live queries** and our ClickHouse dialect, but its target would have
   to own a join planner for streaming (orders, shared materialized views, emit policy), and a
   user-shaped query can fall off a performance cliff the compiler did not foresee.
 - **Deephaven fits both** (ad hoc and cheap) but has the license and patent questions.
+
+## Follow-up: every grouping compiled up front, run only when asked
+
+Can Feldera's compile be paid once, with every dimension in the program, and a grouping run only
+when DataCube asks for it? `dynamic_groupings.py` makes the grouping data: a `subscriptions` table
+whose rows say which of desk, trader, book, sector and currency to group by and what to filter on.
+The view joins every subscription with the risk and groups by the subscription id plus, per
+dimension, the value or NULL. Inserting a row starts a grouping (its first answer comes from the
+state the pipeline already holds), deleting it retracts its rows. Two shapes: **direct** joins the
+19,200 position rows with the subscriptions; **leaf** first aggregates positions to the finest grain
+of all five dimensions (2,363 rows) and joins that, every measure re-aggregating (sums of sums,
+a sum of counts, a max of maxes). `dynamic_deephaven.py` asks Deephaven for the same 16 groupings
+as new aggregations on its live risk table. 1,000 ticks a second; the 16 are DataCube-shaped
+(levels, regroupings, an expanded group as a filter, the full five-dimension grain).
+
+| active groupings | Deephaven: CPU / tick → subscriber p50, p95 | Feldera leaf: CPU / tick → subscriber p50, p95 | Feldera direct: CPU / tick → subscriber p50, p95 |
+|---|---|---|---|
+| 0 | 0.70 cores | 1.85 cores | 1.32 cores |
+| 1 | 0.75 / 56, 117 ms | 1.96 / 41, 54 ms | 1.40 / 32, 40 ms |
+| 4 | 0.86 / 63, 113 ms | 1.90 / 59, 87 ms | 1.60 / 48, 102 ms |
+| 16 | 1.36 / 78, 104 ms | 1.95 / **310, 467 ms** | 1.63 / **1,100, 1,447 ms** |
+| a new grouping: first rows | 10 to 327 ms (most under 50) | 30 to 286 ms | 54 to 1,184 ms |
+| compile, once | none | 51 s | 11 s warm, 301 s cold |
+| correct (16 groupings) | yes, subscriber and snapshot | yes | yes |
+
+(Feldera's CPU and memory here are the pipeline process's own, from its statistics.)
+
+- **Yes, it works:** one compiled program serves any grouping and filter over the declared
+  dimensions, started and stopped by a row, correct, with no recompile.
+- **It holds up to a few groupings and degrades at 16.** Feldera's own view (read directly, not
+  through the subscriber) was 363 ms old at p50 with the leaf shape and 1.1 s with the direct one,
+  with input waiting to be processed, while CPU stayed at about 2 of 4 cores. The working guess:
+  the join with the subscriptions has no key, so one worker does it. Deephaven, attaching each
+  grouping as its own aggregation, stayed at 78 ms p50 with 16 on 1.36 cores.
+- **The leaf matters**: three times less latency at 16 than joining positions directly.
+- Not tried: spreading the subscription join over workers (a bucketed key), a fixed menu of
+  grouping sets, or rolling up the Feldera leaf outside Feldera (DuckDB in the DataCube tab
+  re-running the open levels over the leaf on each tick, which keeps per-grouping work out of the
+  engine entirely).
+
+**The Python ticking client (pydeephaven-ticking 42.7), twice:** rebuilding rows from an update's
+`added()`/`modified()` gave stale values when an update modified only some columns (up to 81 of
+240 rows of a book x currency grouping), while the client's own table (`update.current`) and the
+server's snapshot were right, so the adapter reads the client's table; and once, a 2,363-row
+subscription failed inside the client ("Chunks have inconsistent sizes", `barrage_processor.cc`;
+`results/2026-10-21/deephaven-dynamic-client-error.json`) and the rerun did not repeat it. The
+server's tables were correct throughout. Python is the path DataCube's notebooks would take.
 
 ## Running it
 
@@ -146,6 +193,8 @@ $SP/venv/bin/python run.py --engine feldera --seconds 60 --rate 1000 --out resul
 $SP/venv/bin/python run.py --engine proton --proton-shape fx_first --seconds 60 --rate 1000 --out results/proton.json
 $SP/venv/bin/python run.py --engine deephaven --deephaven-pid <pid> --seconds 60 --rate 1000 --out results/deephaven.json
 $SP/venv/bin/python summarize.py results/*.json
+$SP/venv/bin/python dynamic_groupings.py --shape leaf --out results/feldera-dynamic-leaf.json
+$SP/venv/bin/python dynamic_deephaven.py --pid <pid> --out results/deephaven-dynamic.json
 ```
 
 Feldera's image is 10.9 GB unpacked. The Proton container's data lives on a tmpfs because its disk

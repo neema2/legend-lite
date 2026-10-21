@@ -287,6 +287,7 @@ class Deephaven:
         self.pid = pid
         self.inputs = {}
         self.handles = []
+        self.errors = []
 
     def _schemas(self):
         import pyarrow as pa
@@ -342,12 +343,22 @@ class Deephaven:
             return [dict(zip(names, v)) for v in zip(*values)]
 
         def on_update(update):
+            # The client keeps the subscribed table itself (update.update.current); read it whole. Rebuilding
+            # rows from added()/modified() went wrong in this client version when an update modified only some
+            # columns (18 of 240 rows to 81 of 240 stale in dynamic_deephaven's book x ccy grouping), while the
+            # client's own table, read in the same callback, matched the server's snapshot.
             recv = now_ms()
             if first is not None and not first.is_set():
                 first.set()
-            on_change(view, rows(update.added()) + rows(update.modified()), rows(update.removed()), recv)
+            cur = update.update.current
+            whole = tl._first_or_default(tl._make_generator(cur, cur.get_row_sequence(), None, max(1, cur.num_rows)))
+            on_change(view, rows(whole) if whole else [], rows(update.removed()), recv)
 
-        h = tl.listen(table, on_update)
+        def on_error(e):
+            # the ticking client stops a subscription on an error and, by default, says nothing
+            self.errors.append({"view": view, "error": repr(e)[:500], "at": now_ms()})
+
+        h = tl.listen(table, on_update, on_error)
         h.start()
         self.handles.append(h)
 

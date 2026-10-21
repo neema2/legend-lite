@@ -1,0 +1,413 @@
+{
+  "rate": 1000,
+  "setup": {
+    "createSeconds": 3.2,
+    "loadSeconds": 0.7
+  },
+  "phases": [
+    {
+      "active": 0,
+      "engineCpuCores": 0.7,
+      "engineRssMB": 711
+    },
+    {
+      "active": 1,
+      "activationMillis": {
+        "0": 97.2
+      },
+      "engineCpuCores": 0.75,
+      "engineRssMB": 741,
+      "groupRowsLive": 4,
+      "tickToSubscriberMillis": {
+        "p50": 56.0,
+        "p95": 117.2,
+        "n": 100
+      }
+    },
+    {
+      "active": 4,
+      "activationMillis": {
+        "1": 64.7,
+        "2": 42.6,
+        "3": 18.3
+      },
+      "engineCpuCores": 0.86,
+      "engineRssMB": 759,
+      "groupRowsLive": 31,
+      "tickToSubscriberMillis": {
+        "p50": 63.1,
+        "p95": 113.4,
+        "n": 101
+      }
+    },
+    {
+      "active": 16,
+      "activationMillis": {
+        "4": 85.3,
+        "5": 45.0,
+        "6": 9.7,
+        "7": 26.1,
+        "8": 25.4,
+        "9": 17.3,
+        "10": 21.7,
+        "11": 235.5,
+        "12": 22.6,
+        "13": 20.4,
+        "14": 326.8,
+        "15": 110.6
+      },
+      "engineCpuCores": 1.36,
+      "engineRssMB": 838,
+      "groupRowsLive": 3327,
+      "tickToSubscriberMillis": {
+        "p50": 77.8,
+        "p95": 104.2,
+        "n": 101
+      }
+    }
+  ],
+  "correctness": {
+    "0": {
+      "groupBy": [
+        "desk"
+      ],
+      "filters": {},
+      "subscriber": {
+        "rows": 4,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 4.177433661321039e-15,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 4,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 4.177433661321039e-15,
+        "examples": []
+      }
+    },
+    "1": {
+      "groupBy": [
+        "desk",
+        "trader"
+      ],
+      "filters": {},
+      "subscriber": {
+        "rows": 12,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.3342305537041165e-14,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 12,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.3342305537041165e-14,
+        "examples": []
+      }
+    },
+    "2": {
+      "groupBy": [
+        "sector"
+      ],
+      "filters": {},
+      "subscriber": {
+        "rows": 10,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 6.893561851206258e-14,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 10,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 6.893561851206258e-14,
+        "examples": []
+      }
+    },
+    "3": {
+      "groupBy": [
+        "ccy"
+      ],
+      "filters": {},
+      "subscriber": {
+        "rows": 5,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.0470114292148463e-14,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 5,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.0470114292148463e-14,
+        "examples": []
+      }
+    },
+    "4": {
+      "groupBy": [
+        "desk",
+        "sector"
+      ],
+      "filters": {
+        "f_desk": "Macro"
+      },
+      "subscriber": {
+        "rows": 10,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.0233229628081763e-14,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 10,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.0233229628081763e-14,
+        "examples": []
+      }
+    },
+    "5": {
+      "groupBy": [
+        "book"
+      ],
+      "filters": {},
+      "subscriber": {
+        "rows": 48,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.615158978870701e-14,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 48,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.615158978870701e-14,
+        "examples": []
+      }
+    },
+    "6": {
+      "groupBy": [
+        "desk",
+        "trader",
+        "book"
+      ],
+      "filters": {},
+      "subscriber": {
+        "rows": 48,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.474840370850268e-14,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 48,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.474840370850268e-14,
+        "examples": []
+      }
+    },
+    "7": {
+      "groupBy": [
+        "sector",
+        "ccy"
+      ],
+      "filters": {},
+      "subscriber": {
+        "rows": 50,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 6.736137628733406e-14,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 50,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 6.736137628733406e-14,
+        "examples": []
+      }
+    },
+    "8": {
+      "groupBy": [
+        "desk",
+        "ccy"
+      ],
+      "filters": {},
+      "subscriber": {
+        "rows": 20,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.1396785526464588e-13,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 20,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.1396785526464588e-13,
+        "examples": []
+      }
+    },
+    "9": {
+      "groupBy": [
+        "trader"
+      ],
+      "filters": {},
+      "subscriber": {
+        "rows": 12,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.8682371543716604e-14,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 12,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.8682371543716604e-14,
+        "examples": []
+      }
+    },
+    "10": {
+      "groupBy": [
+        "trader",
+        "sector"
+      ],
+      "filters": {
+        "f_sector": "Tech"
+      },
+      "subscriber": {
+        "rows": 12,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.325137658119232e-15,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 12,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.325137658119232e-15,
+        "examples": []
+      }
+    },
+    "11": {
+      "groupBy": [
+        "desk",
+        "trader",
+        "book",
+        "sector"
+      ],
+      "filters": {
+        "f_desk": "Equities",
+        "f_sector": "Energy"
+      },
+      "subscriber": {
+        "rows": 12,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.7685320514508708e-15,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 12,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.7685320514508708e-15,
+        "examples": []
+      }
+    },
+    "12": {
+      "groupBy": [
+        "book",
+        "ccy"
+      ],
+      "filters": {},
+      "subscriber": {
+        "rows": 240,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 7.190927083976467e-14,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 240,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 7.190927083976467e-14,
+        "examples": []
+      }
+    },
+    "13": {
+      "groupBy": [],
+      "filters": {},
+      "subscriber": {
+        "rows": 1,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 3.8320524359742814e-14,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 1,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 3.8320524359742814e-14,
+        "examples": []
+      }
+    },
+    "14": {
+      "groupBy": [
+        "desk",
+        "trader",
+        "book",
+        "sector",
+        "ccy"
+      ],
+      "filters": {},
+      "subscriber": {
+        "rows": 2363,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 7.734275756359982e-13,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 2363,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 7.734275756359982e-13,
+        "examples": []
+      }
+    },
+    "15": {
+      "groupBy": [
+        "sector",
+        "book"
+      ],
+      "filters": {},
+      "subscriber": {
+        "rows": 480,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.3954271498531993e-12,
+        "examples": []
+      },
+      "snapshot": {
+        "rows": 480,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.3954271498531993e-12,
+        "examples": []
+      }
+    }
+  },
+  "subscriptionErrors": []
+}

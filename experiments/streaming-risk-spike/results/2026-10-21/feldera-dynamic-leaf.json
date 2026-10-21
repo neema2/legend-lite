@@ -1,0 +1,253 @@
+{
+  "shape": "leaf",
+  "program": "\nCREATE TABLE books (book VARCHAR NOT NULL PRIMARY KEY, trader VARCHAR NOT NULL, desk VARCHAR NOT NULL);\nCREATE TABLE instruments (instrument VARCHAR NOT NULL PRIMARY KEY, sector VARCHAR NOT NULL, ccy VARCHAR NOT NULL,\n                          beta DOUBLE NOT NULL, multiplier DOUBLE NOT NULL);\nCREATE TABLE closes (instrument VARCHAR NOT NULL PRIMARY KEY, close_px DOUBLE NOT NULL);\nCREATE TABLE positions (book VARCHAR NOT NULL, instrument VARCHAR NOT NULL, qty DOUBLE NOT NULL,\n                        PRIMARY KEY (book, instrument));\nCREATE TABLE prices (instrument VARCHAR NOT NULL PRIMARY KEY, px DOUBLE NOT NULL, ts BIGINT NOT NULL);\nCREATE TABLE fx (ccy VARCHAR NOT NULL PRIMARY KEY, usd_rate DOUBLE NOT NULL, ts BIGINT NOT NULL);\n\nCREATE TABLE subscriptions (sub_id INT NOT NULL PRIMARY KEY,\n  by_desk BOOLEAN NOT NULL, by_trader BOOLEAN NOT NULL, by_book BOOLEAN NOT NULL,\n  by_sector BOOLEAN NOT NULL, by_ccy BOOLEAN NOT NULL,\n  f_desk VARCHAR, f_sector VARCHAR);\n\nCREATE VIEW position_risk AS SELECT b.desk AS desk, b.trader AS trader, p.book AS book, i.sector AS sector, i.ccy AS ccy,\n  'ROOT' AS root,\n  p.qty * q.px * i.multiplier * f.usd_rate AS mv_usd,\n  p.qty * (q.px - c.close_px) * i.multiplier * f.usd_rate AS pnl_usd,\n  p.qty * q.px * i.multiplier * f.usd_rate * i.beta AS beta_delta_usd,\n  q.ts AS px_ts, f.ts AS fx_ts\nFROM positions AS p\nJOIN instruments AS i ON p.instrument = i.instrument\nJOIN books AS b ON p.book = b.book\nJOIN prices AS q ON p.instrument = q.instrument\nJOIN fx AS f ON i.ccy = f.ccy\nJOIN closes AS c ON p.instrument = c.instrument;\nCREATE VIEW leaf AS SELECT desk, trader, book, sector, ccy, SUM(mv_usd) AS mv_usd, SUM(pnl_usd) AS pnl_usd, SUM(beta_delta_usd) AS beta_delta_usd, COUNT(*) AS n, MAX(px_ts) AS last_px_ts, MAX(fx_ts) AS last_fx_ts\nFROM position_risk GROUP BY desk, trader, book, sector, ccy;\nCREATE MATERIALIZED VIEW live_groups AS\nSELECT s.sub_id, CASE WHEN s.by_desk THEN r.desk END AS desk, CASE WHEN s.by_trader THEN r.trader END AS trader, CASE WHEN s.by_book THEN r.book END AS book, CASE WHEN s.by_sector THEN r.sector END AS sector, CASE WHEN s.by_ccy THEN r.ccy END AS ccy,\n  SUM(r.mv_usd) AS mv_usd, SUM(r.pnl_usd) AS pnl_usd, SUM(r.beta_delta_usd) AS beta_delta_usd,\n  SUM(r.n) AS n, MAX(r.last_px_ts) AS last_px_ts, MAX(r.last_fx_ts) AS last_fx_ts\nFROM leaf r CROSS JOIN subscriptions s WHERE (s.f_desk IS NULL OR r.desk = s.f_desk) AND (s.f_sector IS NULL OR r.sector = s.f_sector) GROUP BY s.sub_id, CASE WHEN s.by_desk THEN r.desk END, CASE WHEN s.by_trader THEN r.trader END, CASE WHEN s.by_book THEN r.book END, CASE WHEN s.by_sector THEN r.sector END, CASE WHEN s.by_ccy THEN r.ccy END;\n",
+  "rate": 1000,
+  "compileSeconds": 51.0,
+  "phases": [
+    {
+      "active": 0,
+      "engineCpuCores": 1.88,
+      "pipelineRssMB": 225,
+      "pipelineCpuCores": 1.85,
+      "internalAgeMillis": {
+        "p50": null,
+        "p95": null
+      },
+      "maxBufferedInput": 69
+    },
+    {
+      "active": 1,
+      "activationMillis": {
+        "0": 38.2
+      },
+      "engineCpuCores": 1.99,
+      "pipelineRssMB": 224,
+      "pipelineCpuCores": 1.96,
+      "internalAgeMillis": {
+        "p50": 103,
+        "p95": 147
+      },
+      "maxBufferedInput": 100,
+      "groupRowsLive": 4,
+      "tickToSubscriberMillis": {
+        "p50": 41.4,
+        "p95": 53.7,
+        "n": 101
+      }
+    },
+    {
+      "active": 4,
+      "activationMillis": {
+        "1": 65.1,
+        "2": 31.0,
+        "3": 109.7
+      },
+      "engineCpuCores": 1.93,
+      "pipelineRssMB": 232,
+      "pipelineCpuCores": 1.9,
+      "internalAgeMillis": {
+        "p50": 115,
+        "p95": 175
+      },
+      "maxBufferedInput": 101,
+      "groupRowsLive": 31,
+      "tickToSubscriberMillis": {
+        "p50": 58.6,
+        "p95": 87.4,
+        "n": 101
+      }
+    },
+    {
+      "active": 16,
+      "activationMillis": {
+        "4": 74.8,
+        "5": 82.0,
+        "6": 55.4,
+        "7": 162.2,
+        "8": 148.3,
+        "9": 30.1,
+        "10": 148.0,
+        "11": 163.3,
+        "12": 100.7,
+        "13": 211.7,
+        "14": 257.4,
+        "15": 285.7
+      },
+      "engineCpuCores": 1.99,
+      "pipelineRssMB": 311,
+      "pipelineCpuCores": 1.95,
+      "internalAgeMillis": {
+        "p50": 363,
+        "p95": 529
+      },
+      "maxBufferedInput": 300,
+      "groupRowsLive": 3327,
+      "tickToSubscriberMillis": {
+        "p50": 310.4,
+        "p95": 466.6,
+        "n": 98
+      }
+    }
+  ],
+  "deleteRetractMillis": 442.4,
+  "correctness": {
+    "0": {
+      "groupBy": [
+        "desk"
+      ],
+      "filters": {},
+      "rows": 4,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "1": {
+      "groupBy": [
+        "desk",
+        "trader"
+      ],
+      "filters": {},
+      "rows": 12,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "2": {
+      "groupBy": [
+        "sector"
+      ],
+      "filters": {},
+      "rows": 10,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "3": {
+      "groupBy": [
+        "ccy"
+      ],
+      "filters": {},
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "4": {
+      "groupBy": [
+        "desk",
+        "sector"
+      ],
+      "filters": {
+        "f_desk": "Macro"
+      },
+      "rows": 10,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "5": {
+      "groupBy": [
+        "book"
+      ],
+      "filters": {},
+      "rows": 48,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "6": {
+      "groupBy": [
+        "desk",
+        "trader",
+        "book"
+      ],
+      "filters": {},
+      "rows": 48,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "7": {
+      "groupBy": [
+        "sector",
+        "ccy"
+      ],
+      "filters": {},
+      "rows": 50,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "8": {
+      "groupBy": [
+        "desk",
+        "ccy"
+      ],
+      "filters": {},
+      "rows": 20,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "9": {
+      "groupBy": [
+        "trader"
+      ],
+      "filters": {},
+      "rows": 12,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "10": {
+      "groupBy": [
+        "trader",
+        "sector"
+      ],
+      "filters": {
+        "f_sector": "Tech"
+      },
+      "rows": 12,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "11": {
+      "groupBy": [
+        "desk",
+        "trader",
+        "book",
+        "sector"
+      ],
+      "filters": {
+        "f_desk": "Equities",
+        "f_sector": "Energy"
+      },
+      "rows": 12,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "12": {
+      "groupBy": [
+        "book",
+        "ccy"
+      ],
+      "filters": {},
+      "rows": 240,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "13": {
+      "groupBy": [],
+      "filters": {},
+      "rows": 1,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "14": {
+      "groupBy": [
+        "desk",
+        "trader",
+        "book",
+        "sector",
+        "ccy"
+      ],
+      "filters": {},
+      "rows": 2363,
+      "mismatches": 0,
+      "extraRows": 0
+    },
+    "15": {
+      "rowsLeft": 0
+    }
+  }
+}
