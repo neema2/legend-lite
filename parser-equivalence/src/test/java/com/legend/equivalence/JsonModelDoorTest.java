@@ -62,15 +62,19 @@ class JsonModelDoorTest {
      *  (compileLegendValueSpecification($treeString)), which the parser folds and a JSON model cannot carry (the fold
      *  belongs after the door, in name resolution: docs/PROTOCOL_PROGRAM_2026_10_05.md leg 8's as-built note), and
      *  two variables typed meta::pure::mapping::Result, which legend-engine's own reader brings up to
-     *  Result<Any|1..*> (ProtocolUpgrade; its print measured in PureV1ApiTest), so its own JSON hop changes them. */
+     *  Result<Any|1..*> (ProtocolUpgrade; its print measured in PureV1ApiTest), so its own JSON hop changes them.
+     *  7099 -> 7085 (2026-10-21, the reference checks): a function's constraints are the compiler's now, and the
+     *  engine's parser drops them (rule A), so the 14 texts holding them (AbstractTestConstraints 5, TestNestedCollection
+     *  2, TestPureRuntimeFunction_Constraint 7, by name in the GATES entry) are rule A's, written whole, below. */
     private static final Map<String, int[]> PINS = Map.of(
-            "engine corpus", new int[]{7099, 4},
+            "engine corpus", new int[]{7085, 4},
             "lite projects", new int[]{167, 0},
             "showcase projects", new int[]{123, 0});
 
     /** Rule A's counts, exact (they move only with a corpus or a rule): the texts lite's dialect keeps and writes whole,
-     *  and those whose JSON it refuses, by construct. Measured 2026-10-21. */
-    private static final Map<String, Integer> RULE_A_WRITTEN = Map.of("engine corpus", 102);
+     *  and those whose JSON it refuses, by construct. Measured 2026-10-21; 102 -> 116 the same day (the 14 texts with
+     *  a function's constraints, from matched above). */
+    private static final Map<String, Integer> RULE_A_WRITTEN = Map.of("engine corpus", 116);
     private static final Map<String, Map<String, Integer>> RULE_A_REFUSED = Map.of("engine corpus", Map.of(
             "a dotted key (the engine keys addr.city = .. by addr)", 1,
             "a supertype's type arguments", 1,
