@@ -12394,3 +12394,59 @@ Mac", "The dropped-text rule, decided", and the three "As built" paragraphs).
      showcase 123 of 123; own corpus 2,892 matched.
    - `//core:guardrails`, `//core:census`, `//tools/deps:core_layering_test` (the door's layer, the parser's without
      `model`) green before the run; ArchitectureTest's 46 rules among them.
+
+## 2026-10-21 — the compiler's missing reference checks, defaults and a function's conditions compiled, an operator run by its declaration (the Studio / SDLC / Depot line)
+
+The user, after an account of what leg 8 had shortcut: "def fix arithmetic, def need real tests, definitely need to fix
+function constraints and fake extends and fakes profiles/stereotypes - what other things like this did we not fix?",
+and of the twelfth item, the element kinds lite carries by name: "we have to do 11 eventually, can put it on roadmap for
+later" (PARK-38, PARK-39; `docs/PROTOCOL_PROGRAM_2026_10_05.md` leg 10). Built on `reference-checks` from
+`studio-program`'s d170f3eb0 (main adcb420b7 throughout), then landed on `studio-program`. The record:
+`docs/PROTOCOL_PROGRAM_2026_10_05.md` leg 8's "As built after it, the reference checks".
+
+1. **What changed.** A probe of 64 broken models through both doors (now `ReferenceIntegrityTest`, through the text and,
+   where the engine's grammar reads it, the JSON) found lite accepting what the engine refuses; each is refused in the
+   engine's words (legend-pure's where the engine defers to it): a supertype that is no class (S91), a generic's wrong
+   type or multiplicity arity (a class's multiplicity parameters their own list), a profile, stereotype or tag that
+   does not exist (every annotated element; a profile resolves among profiles; the platform's 13 in the prelude), a
+   runtime's mapping, a connection's store, a service's and a data space's mapping and runtime, a database's and a
+   mapping's include, an Operation's member set, a default on an optional property (S90). Defaults and a function's
+   pre/post-conditions are lifted and typed as derived properties are; the conditions cross the door and are written as
+   the engine's JSON (S89). An operator run is the resolved declaration's (`NativeFn.OperatorRun`).
+2. **What the stricter compiler found in the repository's own inputs** (each fixed at its source, none by loosening):
+   - PCT's model packer injected primitives as classes (`Class Integer extends Number {}`): a primitive is now judged by
+     its M3 kind (`ModelPacker`; JavaEvalLedger 266 -> 261).
+   - PCT's standard suite lacked its own module dependency, the relation functions (their `PCTRelationQualifier`
+     profile); a graph copy of a platform profile now yields to the prelude's (`Compiler.withoutPreludeShadows`).
+     Channel B standard discovery stays 205.
+   - the stress corpus: a defaulted `[*]` list (now `[1..*]`); a function returning legend-pure's `Path`, a type lite
+     does not declare (S92; now `Any`); and three generated services (M1, M2, MU0) over the excluded
+     `55-canonical-store.pure`'s mappings and runtimes, now generated apart into `94-canonical-services.pure`
+     (`scripts/corpus/build.py`, `core/stress.bzl`), which lite excludes with 55 (`StressExclusions`,
+     `LegendLiteGapTest`) and the engine's run reads.
+   - integration fixtures naming an undeclared `store::TestDb` (`JsonM2M*IntegrationTest`).
+3. **Pins moved, each dated in its file:** FallbackLedgerTest floor 10 -> 6; IdentityGuardrailTest NAME_CUTTING
+   108 -> 107; JavaEvalLedgerTest ModelPacker 266 -> 261; JsonModelDoorTest engine corpus 7,099 -> 7,085 matched and
+   rule A written 102 -> 116 (the 14 texts holding a function's constraints, from matched to rule A: AbstractTestConstraints
+   #5 #8 #12 #16 #98, TestNestedCollection #46 #50, TestPureRuntimeFunction_Constraint #5 #14 #21 #28 #32 #35 #39 --
+   listed against d170f3eb0's run, none left rule A); own corpus 2,892 -> 2,964 (the new tests' models);
+   OwnCorpusConformanceTest PURE-DIALECT-generics 6 -> 7 and OwnDialectCensusTest's host `ReferenceIntegrityTest`
+   (its generic class); FixtureAdjudicationTest's over-strict row `ModelFromTextTest` (S93).
+4. **Measured on 2cfb820bf** against main adcb420b7:
+   - `bazel test //gates:local`: 375 of 385 pass (1 skipped); the eight Postgres targets pass unprivileged (8 of 8);
+     the one other failure, `LegendLiteGapTest` (the new exclusion had no case), fixed in f62752773.
+   - the six corpus passes: no result file differs from main's.
+   - PCT: DuckDB, H2 and channel B (12 of 12), Postgres unprivileged (5 of 5).
+   - the stress suites: 4,705 of 4,733, the pin (4,736 less the three services moved apart, which could not run in
+     lite: their mapping was never in its model).
+   - the reference lane: 9 lines from main's own build, all the lifted defaults of the engine's own classes -- 49 more
+     functions, 50 more bodies typed, and one more failing: `meta::pure::router::preeval::State`'s
+     `debug = ^DebugContext()`, a new instance missing its required properties, which legend-pure refuses in a body
+     and does not check in a default (S90).
+   - `//gates:parser_equivalence`: the JSON door 7,085 matched and the same 4 failed, rule A 116 written and the same
+     10 refused; lite's projects 167 of 167; the showcase 123 of 123; own corpus 2,964 matched.
+5. **On the final commit** (b56d9b04b; after 2cfb820bf only tests and docs changed -- the gap test's case, a default
+   checked as a body, S90's words, the own-corpus ratchet -- so the corpus passes, PCT and the reference lane stand):
+   `bazel test //gates:local //gates:parser_equivalence`: 379 of 388 pass (1 skipped); the eight Postgres targets pass
+   unprivileged (8 of 8); `//core:census`, `//core:guardrails` and parser equivalence (3 of 3, own corpus 2,964) among
+   the passes.

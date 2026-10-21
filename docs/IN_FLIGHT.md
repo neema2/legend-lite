@@ -740,7 +740,13 @@ regenerated `prelude.pure` (its generator in `spec/`: the platform's profiles jo
 AssociationDefinition,FunctionDefinition,FromProtocol,SynthHat}.java`; in `pct/`, `ModelPacker` (it injected a
 primitive as a class: `Class Integer extends Number`) and the standard suite's model roots (the module's own
 dependency, the relation functions' qualifier profile); guards `FallbackLedgerTest` (floor 10 -> 6) and
-`IdentityGuardrailTest` (NAME_CUTTING 108 -> 107), each dated.
+`IdentityGuardrailTest` (NAME_CUTTING 108 -> 107), each dated. And what the stricter compiler found in the
+repository's own inputs: the stress corpus's generator and layout (`scripts/corpus/build.py`, `core/stress.bzl`, three
+comments in `core/BUILD.bazel` and `scripts/corpus/BUILD.bazel` -- the build line's files: the three services over the
+excluded `55-canonical-store.pure` generated apart into `94-canonical-services.pure`, which lite excludes with it),
+two hand-written stress fixtures, `StressExclusions` and `LegendLiteGapTest`; parser-equivalence's pins
+(`JsonModelDoorTest`, `OwnCorpusConformanceTest`, `OwnDialectCensusTest`, `FixtureAdjudicationTest`) and
+`JavaEvalLedgerTest`'s ModelPacker row, each dated.
 
 ## A sixth line, 2026-10-07: DataCube + Python (the user's ask, rule 5)
 
