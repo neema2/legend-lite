@@ -1,0 +1,176 @@
+{
+  "engine": "deephaven",
+  "seconds": 60.0,
+  "rate": 1000,
+  "fxRate": 5,
+  "bookings": 20,
+  "positions": 19200,
+  "instruments": 2000,
+  "books": 48,
+  "views": [
+    "risk_total",
+    "risk_by_desk",
+    "risk_by_book",
+    "pnl_by_desk_ccy"
+  ],
+  "protonShape": null,
+  "protonEmit": null,
+  "setup": {
+    "createSeconds": 3.4,
+    "loadSeconds": 1.0,
+    "firstCompleteTotalSeconds": 4.4
+  },
+  "load": {
+    "batches": 600,
+    "elapsedSeconds": 59.9,
+    "priceTicksSent": 58518,
+    "achievedTicksPerSecond": 976,
+    "sendMillis": {
+      "p50": 29.5,
+      "p95": 72.8,
+      "p99": 109.0,
+      "max": 130.3,
+      "n": 600
+    },
+    "engineCpuCores": 0.84,
+    "engineMemoryMB": 789
+  },
+  "drainMillis": 41,
+  "freshnessMs": {
+    "risk_total": {
+      "p50": 63.3,
+      "p95": 115.0,
+      "p99": 128.6,
+      "max": 140.2,
+      "n": 594
+    },
+    "risk_by_desk": {
+      "p50": 73.8,
+      "p95": 114.8,
+      "p99": 131.7,
+      "max": 149.1,
+      "n": 594
+    },
+    "risk_by_book": {
+      "p50": 64.8,
+      "p95": 115.6,
+      "p99": 131.8,
+      "max": 148.2,
+      "n": 593
+    },
+    "pnl_by_desk_ccy": {
+      "p50": 73.0,
+      "p95": 116.1,
+      "p99": 137.5,
+      "max": 160.3,
+      "n": 594
+    }
+  },
+  "tickToCheckViewMs": {
+    "view": "risk_total",
+    "latency": {
+      "p50": 63.4,
+      "p95": 115.5,
+      "p99": 130.2,
+      "max": 135.4,
+      "n": 600
+    },
+    "neverReflected": 0
+  },
+  "changeSetsPerSecond": {
+    "risk_total": 9.9,
+    "risk_by_desk": 9.9,
+    "risk_by_book": 9.9,
+    "pnl_by_desk_ccy": 9.9
+  },
+  "rowsPerSecond": {
+    "risk_total": 9.9,
+    "risk_by_desk": 39.6,
+    "risk_by_book": 471.9,
+    "pnl_by_desk_ccy": 39.5
+  },
+  "fxFanOutMs": {
+    "ticks": 300,
+    "firstBook": {
+      "p50": 87.5,
+      "p95": 139.9,
+      "p99": 175.4,
+      "max": 191.4,
+      "n": 300
+    },
+    "allBooks": {
+      "p50": 87.5,
+      "p95": 139.9,
+      "p99": 175.4,
+      "max": 191.4,
+      "n": 300
+    },
+    "neverCompleted": 0
+  },
+  "correctness": {
+    "subscriberState": {
+      "risk_total": {
+        "rows": 1,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 3.837035001601095e-14,
+        "examples": []
+      },
+      "risk_by_desk": {
+        "rows": 4,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.8907122988232633e-14,
+        "examples": []
+      },
+      "risk_by_book": {
+        "rows": 48,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.2941021382557324e-13,
+        "examples": []
+      },
+      "pnl_by_desk_ccy": {
+        "rows": 4,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.0262807945594806e-13,
+        "examples": []
+      }
+    },
+    "snapshot": {
+      "risk_total": {
+        "rows": 1,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 3.837035001601095e-14,
+        "examples": []
+      },
+      "risk_by_desk": {
+        "rows": 4,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.8907122988232633e-14,
+        "examples": []
+      },
+      "risk_by_book": {
+        "rows": 48,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.2941021382557324e-13,
+        "examples": []
+      },
+      "pnl_by_desk_ccy": {
+        "rows": 4,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.0262807945594806e-13,
+        "examples": []
+      }
+    }
+  },
+  "adHoc": {
+    "kind": "live (a new table operation)",
+    "firstRowsMillis": 19
+  }
+}

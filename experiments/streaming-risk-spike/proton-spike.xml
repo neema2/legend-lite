@@ -1,0 +1,14 @@
+<!-- The spike runs Proton with its data on a tmpfs (this host's disk allowance reads as nearly full to
+     Proton's disk check). Each stream's native log otherwise preallocates a 2 GB segment, which on a
+     tmpfs is memory: smaller segments, no preallocation. Nothing else is changed from the image. -->
+<proton>
+  <data>
+    <datastore>
+      <log>
+        <segment_size>67108864</segment_size>
+        <min_size_to_keep>67108864</min_size_to_keep>
+        <preallocate>false</preallocate>
+      </log>
+    </datastore>
+  </data>
+</proton>
