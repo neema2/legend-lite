@@ -4,6 +4,7 @@
 package com.legend.graphql.hardening;
 
 import com.legend.graphql.hardening.ReferenceModel.Cls;
+import com.legend.graphql.hardening.ReferenceModel.DatedToOne;
 import com.legend.graphql.hardening.ReferenceModel.Fld;
 import com.legend.graphql.hardening.ReferenceModel.Kind;
 import com.legend.graphql.hardening.ReferenceModel.Obj;
@@ -200,11 +201,36 @@ public final class Fuzz {
     List<String> filterable(String cls) {
         List<String> out = new ArrayList<>();
         for (Map.Entry<String, Fld> f : model.get(cls).fields.entrySet()) {
-            if (f.getValue() instanceof Scalar s && s.params().isEmpty()) {
+            // a temporal object's businessDate is its read's date, an output only (register S119)
+            if (f.getValue() instanceof Scalar s && s.params().isEmpty()
+                    && !(model.get(cls).temporal() && f.getKey().equals("businessDate"))) {
                 out.add(f.getKey());
             }
         }
         return out;
+    }
+
+    /** The business dates a temporal read is asked at: version boundaries (a version holds from its first day, not
+     *  on its last), the leap day's one-day version, gaps, before every version and after. */
+    static final List<String> DATES = List.of("2019-06-01", "2020-06-01", "2023-06-15", "2023-12-31", "2024-01-01",
+            "2024-02-15", "2024-02-29", "2024-03-01", "2025-01-01");
+
+    /** A business date: a literal, now and then through a variable. */
+    GV businessDate() {
+        return maybeVar(new GLit("\"" + pick(DATES) + "\""), "Date!");
+    }
+
+    /** A root over a temporal class takes its business date (register S119). */
+    GSel dated(String cls, GSel root) {
+        if (!model.get(cls).temporal()) {
+            return root;
+        }
+        List<Map.Entry<String, GV>> args = new ArrayList<>();
+        args.add(e("businessDate", businessDate()));
+        if (root.args() != null) {
+            args.addAll(root.args().fields());
+        }
+        return new GSel(root.name(), obj(args), root.sub(), root.suffix());
     }
 
     /** The GraphQL type a position of {@code cls} has: {@code XInterface} where the class has subclasses (G8), so a
@@ -264,8 +290,8 @@ public final class Fuzz {
         for (int i = 0; i < n; i++) {
             String cls = pick(new ArrayList<>(model.classes.keySet()));
             double x = r.nextDouble();
-            GSel root = x < 0.12 ? rootAggregate(cls) : x < 0.24 ? groupsField(cls + "Groups", cls)
-                    : listField(cls, cls, 0);
+            GSel root = dated(cls, x < 0.12 ? rootAggregate(cls) : x < 0.24 ? groupsField(cls + "Groups", cls)
+                    : listField(cls, cls, 0));
             // a second root field is aliased: two roots of one name would merge or conflict
             roots.add(i == 0 ? root : renamed(root, "r" + i + ": " + root.name()));
         }
@@ -499,6 +525,17 @@ public final class Fuzz {
                 case ToOne t -> {
                     if (depth < 2) {
                         out.add(new GSel(f, null, selection(t.target(), depth + 1)));
+                    }
+                }
+                case DatedToOne t -> {
+                    if (depth < 2) {
+                        // a temporal target's version as of a date; now and then the same field twice, at two dates
+                        out.add(new GSel(f, obj(List.of(e("businessDate", businessDate()))),
+                                selection(t.target(), depth + 1)));
+                        if (chance(0.2)) {
+                            out.add(new GSel("d" + aliasCount++ + ": " + f, obj(List.of(e("businessDate",
+                                    businessDate()))), selection(t.target(), depth + 1)));
+                        }
                     }
                 }
                 case ToMany t -> {

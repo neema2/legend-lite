@@ -1411,3 +1411,32 @@ subselect on DuckDB"; the first build answered.
   the table (deleting the endpoint's Java arrangement of their rows); then relation-typed derived properties in the
   model (the modeler's `payroll()` as a table).
 
+### 13.9 Temporal classes, 2026-10-21: every read names its dates
+
+The open gap the trading probe named (§13.6): the schema offered a temporal class's root and every field reaching
+one, and execution refused them for want of a date. Register row S119.
+
+- **The schema.** A root over a temporal class (its list, `CAggregate`, `CGroups`) and a field reaching one take its
+  dates as required arguments (`SchemaGenerator.withDates`): `businessDate: Date!` for a business-temporal class,
+  `processingDate: DateTime!` for a processing-temporal one, both for a bitemporal one, the processing date first
+  (Pure's argument order). A temporal object answers `businessDate` / `processingDate`, the dates it was read as of
+  (Pure's generated members). No input object names a dated navigation (`ProductWhere` has no `listing`): a
+  condition, a sort key or a group key has no place for a date (`reachesTemporal`); nor does a summary of one
+  (`pAggregate`, `pGroups`), and a dated list takes no clause yet. The engine's propagation of a temporal owner's
+  dates to a temporal child is not offered: every read names its dates.
+- **The translation.** A root is `C.all(%bd)` or `C.all(%pd, %bd)` (`GqlToPure.extent`); a field is the tree node
+  `listing(%bd)`, keyed by its response key (it was keyed `listing(2024-02-29)`, Pure's call spelling).
+- **Found and fixed (wrong data, Pure trees too):** one milestoned property at two dates in one tree (`before:
+  listing(businessDate: d1) after: listing(businessDate: d2)`) read the first date's version for both: the tree's
+  scan keyed the dates by property, the first winning. `GraphEmission.graphChild` now windows a node with its own
+  dates (`TemporalFrame.withSpec`).
+- **The fixture.** The shop gains a business-temporal `Listing` (a product's price and channel as of a date: a
+  version boundary on 2024-01-01, a February-only listing, a one-day version on the leap day, a listing ended in
+  2020, a product never listed); the reference reads it as of a date (`ReferenceModel.DatedToOne`,
+  `Cls.datedRoots`), a version holding from its first day up to, not on, its last; the fuzzer asks dated roots and
+  dated navigations at boundary dates, now and then the same field at two dates.
+- **Measured.** 16 corpus cases (`temporal:` and three refusals); 2,000 fuzzer documents, 341 of them dated, and
+  3,200 more (seeds 71 to 78) agree; `GqlTemporalTest` (a bitemporal limit and a processing-temporal list: the
+  schema's arguments and their order, a correction recorded later read at two processing dates, a list as of a
+  processing date, a missing date refused by name).
+

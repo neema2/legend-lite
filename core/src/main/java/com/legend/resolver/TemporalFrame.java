@@ -119,6 +119,16 @@ final class TemporalFrame {
         return new TemporalFrame(ctx, sources, root, byChain, letEnv);
     }
 
+    /** The frame with ONE chain key's spec replaced, the others kept: a tree node's own dates (two nodes of one
+     *  milestoned property at two dates -- GraphQL's `before: listing(businessDate: d1) after: listing(businessDate:
+     *  d2)` -- each read through its own window; the tree's scan keys its specs by property, the first node's date
+     *  winning for both, 2026-10-21). */
+    TemporalFrame withSpec(String chainKey, TemporalSpec spec) {
+        Map<String, TemporalSpec> m = new java.util.LinkedHashMap<>(specs);
+        m.put(chainKey, spec);
+        return withSpecs(m);
+    }
+
     /**
      * ROOT context derivation per the {@code all(...)} arity — the engine's
      * {@code getMilestoningContextForAll} (M:830-844): 0 dates = none

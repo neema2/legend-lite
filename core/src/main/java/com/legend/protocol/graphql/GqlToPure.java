@@ -626,6 +626,27 @@ public final class GqlToPure {
 
     // ---- roots ----
 
+    /** The names of a temporal extent's date arguments (register S119). */
+    private static final java.util.Set<String> DATE_ARGUMENTS = java.util.Set.of("businessDate", "processingDate");
+
+    /** A root's extent: {@code C.all()}, or a TEMPORAL class's as of the field's dates -- {@code C.all(%bd)},
+     *  {@code C.all(%pd, %bd)} in the field's argument order, which is Pure's (register S119). */
+    private ValueSpecification extent(Field f, FieldDef fd, String classFqn, String path) {
+        List<ValueSpecification> args = new ArrayList<>();
+        args.add(new PackageableElementPtr(classFqn));
+        for (InputValueDef a : fd.args()) {
+            if (!DATE_ARGUMENTS.contains(a.name())) {
+                continue;
+            }
+            Value given = argument(f.arguments(), a.name());
+            if (given == null || peek(given, path) instanceof Gql.NullValue) {
+                throw GqlTranslationException.invalid(path, f.name() + " is temporal: it takes " + a.name());
+            }
+            args.add(literal(given, GqlSchema.baseName(a.type()), path + "(" + a.name() + ")"));
+        }
+        return call("getAll", args.toArray(new ValueSpecification[0]));
+    }
+
     private ValueSpecification root(Field f, String path) {
         FieldDef fd = schema.query().field(f.name());
         if (fd == null) {
@@ -634,7 +655,7 @@ public final class GqlToPure {
         return switch (fd.meaning()) {
             case Meaning.Root r -> {
                 Composite type = composite(fd);
-                ValueSpecification vs = call("getAll", new PackageableElementPtr(r.classFqn()));
+                ValueSpecification vs = extent(f, fd, r.classFqn(), path);
                 vs = clauses(vs, f.arguments(), type, path);
                 Level level = level(f.selectionSet(), type, path);
                 GraphFetchLiteral tree = new GraphFetchLiteral(r.classFqn(), nodesOf(level.fields(), type, path),
@@ -678,7 +699,7 @@ public final class GqlToPure {
      */
     private ValueSpecification groupsRoot(Field f, FieldDef fd, String classFqn, String path) {
         Composite type = objectTypeOf(classFqn, path);
-        ValueSpecification vs = call("getAll", new PackageableElementPtr(classFqn));
+        ValueSpecification vs = extent(f, fd, classFqn, path);
         vs = whereClause(vs, f.arguments(), type, path);
         Groups g = new Groups();
         vs = groupsPipeline(f, fd, vs, type, g, path);
@@ -1167,7 +1188,7 @@ public final class GqlToPure {
      */
     private ValueSpecification aggregateRoot(Field f, FieldDef fd, String classFqn, String path) {
         Composite type = objectTypeOf(classFqn, path);
-        ValueSpecification vs = call("getAll", new PackageableElementPtr(classFqn));
+        ValueSpecification vs = extent(f, fd, classFqn, path);
         vs = clauses(vs, f.arguments(), type, path);
         return aggregatePipeline(f, fd, vs, path).vs();
     }
@@ -1940,7 +1961,10 @@ public final class GqlToPure {
                 }
                 // a derived leaf is keyed by its call spelling ("fullName()") unless aliased: the response
                 // key is the field's, so a derived property always carries it
-                yield new Node(p.name(), null, args, f.alias() == null && !p.derived() ? null : key, null,
+                // a node with arguments (a temporal target's dates) is keyed by the response key, never by its
+                // call spelling (`listing(2024-02-29)`)
+                yield new Node(p.name(), null, args, f.alias() == null && !p.derived() && args.isEmpty() ? null : key,
+                        null,
                         children, null, entries);
             }
             case Meaning.AggregateOf a -> aggregateNode(f, fd, a, type, key, path);

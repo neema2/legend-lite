@@ -86,7 +86,8 @@ public final class SchemaGenerator {
 
     /** A class in scope with everything the rules read. */
     record ClassInfo(String fqn, String simple, List<Prop> props, boolean isAbstract, List<String> ancestors,
-            List<String> subclasses, @com.legend.base.Nullable String description) {
+            List<String> subclasses, @com.legend.base.Nullable String description,
+            com.legend.compiler.element.@com.legend.base.Nullable MilestoningStrategy temporal) {
         boolean polymorphic() {
             return isAbstract || !subclasses.isEmpty();
         }
@@ -158,7 +159,8 @@ public final class SchemaGenerator {
                     .filter(tv -> PlatformTypes.isProfile(tv.profileName(), Documentation.PROFILE)
                             && Documentation.TAG.equals(tv.tagName()))
                     .map(com.legend.model.TaggedValue::value).findFirst().orElse(null));
-            classes.put(fqn, new ClassInfo(fqn, simple(fqn), props, isAbstract, ancestors, all, description));
+            classes.put(fqn, new ClassInfo(fqn, simple(fqn), props, isAbstract, ancestors, all, description,
+                    com.legend.compiler.element.Temporal.strategyOf(ctx, fqn)));
         }
     }
 
@@ -438,6 +440,10 @@ public final class SchemaGenerator {
         for (String sub : c.subclasses()) {
             names.add("as" + simple(sub));
         }
+        if (c.temporal() != null) {
+            names.add(BUSINESS_DATE);
+            names.add(PROCESSING_DATE);
+        }
         return names;
     }
 
@@ -451,15 +457,53 @@ public final class SchemaGenerator {
         List<FieldDef> fields = new ArrayList<>();
         for (ClassInfo c : classes.values()) {
             String s = c.simple();
-            fields.add(new FieldDef(s, null, GqlSchema.listOf(c.refName()), collectionArgs(s), null,
+            // a TEMPORAL class's extent is as of its dates (register S119): every root over it takes them
+            fields.add(new FieldDef(s, null, GqlSchema.listOf(c.refName()), withDates(c, collectionArgs(s)), null,
                     new Meaning.Root(c.fqn())));
             fields.add(new FieldDef(s + "Aggregate", null, GqlSchema.named(s + "Aggregate", false),
-                    List.of(new InputValueDef("where", GqlSchema.named(s + "Where", true))), null,
+                    withDates(c, List.of(new InputValueDef("where", GqlSchema.named(s + "Where", true)))), null,
                     new Meaning.AggregateRoot(c.fqn())));
-            fields.add(new FieldDef(s + "Groups", null, GqlSchema.listOf(s + "Group"), groupsArgs(s), null,
-                    new Meaning.GroupsRoot(c.fqn())));
+            fields.add(new FieldDef(s + "Groups", null, GqlSchema.listOf(s + "Group"), withDates(c, groupsArgs(s)),
+                    null, new Meaning.GroupsRoot(c.fqn())));
         }
         return new ObjectType("Query", null, List.of(), fields, null);
+    }
+
+    /**
+     * The DATE ARGUMENTS of a temporal class's extent (register S119), before {@code rest}: a business-temporal class
+     * takes a {@code businessDate: Date!}, a processing-temporal one a {@code processingDate: DateTime!}, a bitemporal
+     * one both, the processing date first (Pure's {@code all(processingDate, businessDate)} and {@code
+     * prop(processingDate, businessDate)}). Required wherever a temporal class is reached -- a root, a field -- so a
+     * query always names the version it reads (the engine's propagation of a temporal owner's dates is not offered
+     * yet); a non-temporal class takes none.
+     */
+    private List<InputValueDef> withDates(ClassInfo target, List<InputValueDef> rest) {
+        if (target.temporal() == null) {
+            return rest;
+        }
+        List<InputValueDef> out = new ArrayList<>();
+        if (target.temporal().has(com.legend.compiler.element.MilestoningStrategy.Dimension.PROCESSING)) {
+            scalarsUsed.add(DATE_TIME);
+            out.add(new InputValueDef(PROCESSING_DATE, GqlSchema.named(DATE_TIME, false),
+                    "The processing date: the version as recorded then."));
+        }
+        if (target.temporal().has(com.legend.compiler.element.MilestoningStrategy.Dimension.BUSINESS)) {
+            scalarsUsed.add(DATE);
+            out.add(new InputValueDef(BUSINESS_DATE, GqlSchema.named(DATE, false),
+                    "The business date: the version holding on it."));
+        }
+        out.addAll(rest);
+        return out;
+    }
+
+    static final String BUSINESS_DATE = "businessDate";
+    static final String PROCESSING_DATE = "processingDate";
+
+    /** Whether a property reaches a temporal class: it takes its dates as a field, so no input object (a
+     *  condition, a sort key, a group key) and no summary of it ({@code pAggregate}, {@code pGroups}) can name it
+     *  (register S119). */
+    private boolean reachesTemporal(Prop p) {
+        return p.kind() == Kind.OBJECT && classOf(p.classFqn()).temporal() != null;
     }
 
     /** {@code where, orderBy, limit, offset} (G3). */
@@ -482,13 +526,26 @@ public final class SchemaGenerator {
         List<FieldDef> fields = new ArrayList<>();
         for (Prop p : c.props()) {
             fields.add(propertyField(c, p));
-            if (p.kind() == Kind.OBJECT && p.toMany()) {
+            if (p.kind() == Kind.OBJECT && p.toMany() && !reachesTemporal(p)) {
                 String t = classOf(p.classFqn()).simple();
                 fields.add(new FieldDef(p.name() + "Aggregate", null, GqlSchema.named(t + "Aggregate", false),
                         List.of(new InputValueDef("where", GqlSchema.named(t + "Where", true))), null,
                         new Meaning.AggregateOf(c.fqn(), p.name())));
                 fields.add(new FieldDef(p.name() + "Groups", null, GqlSchema.listOf(t + "Group"), groupsArgs(t), null,
                         new Meaning.GroupsOf(c.fqn(), p.name())));
+            }
+        }
+        // a temporal object answers the dates it was read as of (Pure's generated members; register S119)
+        if (c.temporal() != null) {
+            if (c.temporal().has(com.legend.compiler.element.MilestoningStrategy.Dimension.PROCESSING)) {
+                fields.add(new FieldDef(PROCESSING_DATE, "The processing date this version was read as of.",
+                        GqlSchema.named(DATE_TIME, false), List.of(), null,
+                        new Meaning.Property(c.fqn(), PROCESSING_DATE, false, false)));
+            }
+            if (c.temporal().has(com.legend.compiler.element.MilestoningStrategy.Dimension.BUSINESS)) {
+                fields.add(new FieldDef(BUSINESS_DATE, "The business date this version was read as of.",
+                        GqlSchema.named(DATE, false), List.of(), null,
+                        new Meaning.Property(c.fqn(), BUSINESS_DATE, false, false)));
             }
         }
         List<String> interfaces = new ArrayList<>();
@@ -530,9 +587,14 @@ public final class SchemaGenerator {
             case ENUM -> type = p.toMany() ? GqlSchema.listOf(enumName(p)) : GqlSchema.named(enumName(p), p.optional());
             case OBJECT -> {
                 ClassInfo t = classOf(p.classFqn());
+                // a temporal target's dates are the field's arguments (register S119); its list takes no clause
+                // yet (a clause over a dated navigation is not built)
+                args.addAll(withDates(t, List.of()));
                 if (p.toMany()) {
                     type = GqlSchema.listOf(t.refName());
-                    args.addAll(collectionArgs(t.simple()));
+                    if (t.temporal() == null) {
+                        args.addAll(collectionArgs(t.simple()));
+                    }
                 } else {
                     type = GqlSchema.named(t.refName(), p.optional());
                 }
@@ -604,6 +666,9 @@ public final class SchemaGenerator {
                     }
                 }
                 case OBJECT -> {
+                    if (reachesTemporal(p)) {
+                        continue;
+                    }
                     String t = classOf(p.classFqn()).simple();
                     if (p.toMany()) {
                         where.add(new InputValueDef(p.name(), GqlSchema.named(t + "ListFilter", true)));
@@ -710,9 +775,13 @@ public final class SchemaGenerator {
                 }
                 case ENUM -> key.add(new FieldDef(p.name(), null, GqlSchema.named(enumName(p), true), List.of(), null,
                         new Meaning.GroupKeyProperty(c.fqn(), p.name(), false)));
-                case OBJECT -> key.add(new FieldDef(p.name(), null,
-                        GqlSchema.named(classOf(p.classFqn()).simple() + "GroupKey", true), List.of(), null,
-                        new Meaning.GroupKeyProperty(c.fqn(), p.name(), true)));
+                case OBJECT -> {
+                    if (!reachesTemporal(p)) {
+                        key.add(new FieldDef(p.name(), null,
+                                GqlSchema.named(classOf(p.classFqn()).simple() + "GroupKey", true), List.of(), null,
+                                new Meaning.GroupKeyProperty(c.fqn(), p.name(), true)));
+                    }
+                }
                 default -> throw new IllegalStateException("kind " + p.kind());
             }
         }

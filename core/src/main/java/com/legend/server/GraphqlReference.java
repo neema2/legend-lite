@@ -52,6 +52,12 @@ public final class GraphqlReference {
             parent object, `employeesGroups(...)` takes the same arguments and answers each parent's groups as a list
             (`[]` for a parent with none).
 
+            TEMPORAL. A class versioned by date is read as of its dates: its roots take `businessDate: Date!`
+            (business-temporal), `processingDate: DateTime!` (processing-temporal) or both (bitemporal), and so does
+            every field reaching it: `listing(businessDate: "2024-01-01") { price }`, `null` where no version holds.
+            A version holds from its first day up to, not on, its last. Each object answers the `businessDate` it was
+            read as of. A dated navigation is not offered in `where`, `orderBy` or a group's `key`.
+
             INHERITANCE. `... on Manager { budget }` adds a subclass's fields where the row is one; spread on the
             INTERFACE's root (`PersonInterface`'s field `Person`) to see every row; `... on Person` alone selects
             exact instances only, which is refused when it would hide rows: ask `__typename` instead.

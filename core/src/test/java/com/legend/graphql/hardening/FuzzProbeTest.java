@@ -37,7 +37,8 @@ class FuzzProbeTest {
             for (String sd : seeds.split(",")) {
             seed = Long.parseLong(sd.trim());
             Fuzz f = new Fuzz(ShopReference.MODEL, seed, Map.of("Customer", "id", "Order", "id", "Line", "id",
-                    "Product", "sku", "Tag", "id", "Payment", "id", "CardPayment", "id", "VoucherPayment", "id"), Map.of("Customer.tier", List.of("GOLD", "SILVER", "BRONZE"),
+                    "Product", "sku", "Tag", "id", "Payment", "id", "CardPayment", "id", "VoucherPayment", "id",
+                    "Listing", "sku"), Map.of("Customer.tier", List.of("GOLD", "SILVER", "BRONZE"),
                     "Order.status", List.of("OPEN", "SHIPPED", "CANCELLED"),
                     "Product.category", List.of("BOOKS", "TOYS", "GARDEN")),
                     Map.of("Customer.tier", "Tier", "Order.status", "Status", "Product.category", "Category"));
@@ -55,7 +56,8 @@ class FuzzProbeTest {
                 } catch (RuntimeException re) {
                     kinds.merge("reference threw: " + re, 1, Integer::sum);
                 }
-                for (String root : List.of("Aggregate", "Groups", "... on", "...F", "@include", "@skip", ": ", "$v")) {
+                for (String root : List.of("Aggregate", "Groups", "... on", "...F", "@include", "@skip", ": ", "$v",
+                        "businessDate")) {
                     if (d.render().contains(root)) {
                         kinds.merge("feature " + root, 1, Integer::sum);
                     }

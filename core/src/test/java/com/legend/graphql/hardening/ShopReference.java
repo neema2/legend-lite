@@ -151,13 +151,52 @@ public final class ShopReference {
                 .toOne("order", "Order", l -> orders.get((Integer) l.get("_order")))
                 .toOne("product", "Product", l -> l.get("_sku") == null ? null : products.get((String) l.get("_sku")))
                 .roots(() -> ls);
+        // the listings (business-temporal): a version as of a date carries the date as its businessDate
+        java.util.function.BiFunction<ShopFixture.Listing, java.time.LocalDate, Obj> listingAsOf = (r, date) -> {
+            Map<String, Object> v = new LinkedHashMap<>();
+            v.put("sku", r.sku());
+            v.put("price", r.price());
+            v.put("channel", r.channel());
+            v.put("onSale", r.onSale());
+            v.put("businessDate", date);
+            return new Obj("Listing", v);
+        };
+        java.util.function.Function<java.time.LocalDate, List<Obj>> listingsOn = date -> {
+            List<Obj> out = new ArrayList<>();
+            for (ShopFixture.Listing r : ShopFixture.LISTINGS) {
+                if (r.holdsOn(date)) {
+                    out.add(listingAsOf.apply(r, date));
+                }
+            }
+            return out;
+        };
         m.cls("Product")
                 .scalar("sku", Kind.STRING).scalar("title", Kind.STRING).scalar("category", Kind.ENUM)
                 .scalar("price", Kind.FLOAT).scalar("weight", Kind.FLOAT)
                 .derived("tagCount", Kind.BIGINT, p -> (long) tagsOf.apply(p).size())
+                .datedToOne("listing", "Listing", (p, date) -> {
+                    for (Obj l : listingsOn.apply(date)) {
+                        if (l.get("sku").equals(p.get("sku"))) {
+                            return l;
+                        }
+                    }
+                    return null;
+                })
                 .toMany("tags", "Tag", tagsOf)
                 .toMany("productLines", "Line", p -> filter(ls, l -> p.get("sku").equals(l.get("_sku"))))
                 .roots(() -> ps);
+        m.cls("Listing")
+                .scalar("sku", Kind.STRING).scalar("price", Kind.FLOAT).scalar("channel", Kind.STRING)
+                .scalar("onSale", Kind.BOOLEAN).scalar("businessDate", Kind.DATE)
+                .toOne("product", "Product", l -> products.get((String) l.get("sku")))
+                .roots(() -> {
+                    List<Obj> every = new ArrayList<>();
+                    for (ShopFixture.Listing r : ShopFixture.LISTINGS) {
+                        every.add(listingAsOf.apply(r, r.from()));
+                    }
+                    return every;
+                })
+                .datedRoots(listingsOn);
         m.cls("Tag")
                 .scalar("id", Kind.BIGINT).scalar("label", Kind.STRING)
                 .toMany("products", "Product", t -> {

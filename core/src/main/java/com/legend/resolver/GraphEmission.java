@@ -927,6 +927,16 @@ final class GraphEmission {
     TypedSerializeGraph.Child graphChild(ClassSource cs, TypedGraphTree node,
             StoreResolver.Context context, String parentRowVar,
             Type.RelationType parentRowType, TypedSpec parentPipeline) {
+        // a MILESTONED node's own dates window its child, whatever another node of the same property asked
+        if (node.body() == null && (!node.args().isEmpty() || node.sweep()) && milestonedTarget(cs, node)) {
+            TemporalFrame.TemporalSpec own = new TemporalFrame.TemporalSpec(
+                    temporal.normalizeContextDates(node.args()), node.sweep());
+            if (!own.equals(temporal.spec(node.property()))) {
+                return new GraphEmission(ctx, sources, assocMaterial, temporal.withSpec(node.property(), own),
+                        dispatch, freshVar, checked).graphChild(cs, node, context, parentRowVar, parentRowType,
+                                parentPipeline);
+            }
+        }
         if (node.body() != null) {
             // the COMPOSED BODY (lite, GraphQL PR2c): the node's own expression over $this, the shape a
             // derived to-many body has, compiled as one
@@ -1763,6 +1773,15 @@ final class GraphEmission {
                 rows.rowVar(), rows.leaves(), rows.nested(), false, false, null,
                 new ExprType(table, com.legend.compiler.element.type.Multiplicity.Bounded.ONE), false, List.of())
                 .withKeyOrder(rows.keyOrder()) : rows);
+    }
+
+    /** Whether a node's property is a stored (never derived) property reaching a temporal class: its arguments
+     *  are dates. */
+    private boolean milestonedTarget(ClassSource cs, TypedGraphTree node) {
+        var p = ctx.findProperty(cs.classFqn(), node.property()).orElse(null);
+        return p != null && !(p instanceof com.legend.compiler.element.Property.Derived)
+                && Type.asClassType(p.type()) instanceof Type.ClassType t
+                && com.legend.compiler.element.Temporal.strategyOf(ctx, t.fqn()) != null;
     }
 
     /** Whether {@code rel} has exactly one row by its operators: a whole-relation {@code aggregate}, under any number

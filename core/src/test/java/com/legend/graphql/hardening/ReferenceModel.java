@@ -33,7 +33,7 @@ public final class ReferenceModel {
     /** A scalar's kind, as the generator maps it. */
     public enum Kind { STRING, BIGINT, FLOAT, DECIMAL, BOOLEAN, DATE, DATETIME, ENUM }
 
-    public sealed interface Fld permits Scalar, ToOne, ToMany {
+    public sealed interface Fld permits Scalar, ToOne, ToMany, DatedToOne {
     }
 
     /** A scalar property, stored or derived; {@code params} the derived property's arguments, by name and kind. */
@@ -54,6 +54,11 @@ public final class ReferenceModel {
     public record ToMany(String target, Function<Obj, List<Obj>> get) implements Fld {
     }
 
+    /** A to-one property reaching a BUSINESS-TEMPORAL class: the version holding on a business date (the field's
+     *  {@code businessDate} argument, else the owner's own when the owner is temporal: the engine's propagation). */
+    public record DatedToOne(String target, BiFunction<Obj, java.time.LocalDate, Obj> get) implements Fld {
+    }
+
     /** A class: its GraphQL name, its superclass's, its fields (inherited ones included), its root set (the rows its
      *  mapping maps: a subclass mapped on its own table answers its own rows only, as legend-engine's do). */
     public static final class Cls {
@@ -61,6 +66,8 @@ public final class ReferenceModel {
         final String parent;
         final Map<String, Fld> fields = new LinkedHashMap<>();
         Supplier<List<Obj>> roots = List::of;
+        /** A business-temporal class's rows as of a date (each carrying it as {@code businessDate}); null otherwise. */
+        Function<java.time.LocalDate, List<Obj>> datedRoots;
 
         Cls(String name, String parent) {
             this.name = name;
@@ -95,6 +102,22 @@ public final class ReferenceModel {
 
         public Cls roots(Supplier<List<Obj>> roots) {
             this.roots = roots;
+            return this;
+        }
+
+        /** A business-temporal class: its rows as of a date; {@link #roots} stays every version (the pool literals
+         *  are drawn from). */
+        public Cls datedRoots(Function<java.time.LocalDate, List<Obj>> asOf) {
+            this.datedRoots = asOf;
+            return this;
+        }
+
+        public boolean temporal() {
+            return datedRoots != null;
+        }
+
+        public Cls datedToOne(String name, String target, BiFunction<Obj, java.time.LocalDate, Obj> get) {
+            fields.put(name, new DatedToOne(target, get));
             return this;
         }
 

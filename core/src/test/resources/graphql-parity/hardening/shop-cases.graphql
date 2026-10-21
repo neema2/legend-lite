@@ -667,6 +667,58 @@ query Q($n: BigInt) { Customer(orderBy: [{ id: ASC }]) { ...F } } fragment F on 
 # nested groups: an empty collection is an empty list
 { Customer(where: { orders: { none: {} } }, orderBy: [{ id: ASC }]) { id ordersGroups(orderBy: [{ key: { status: ASC } }]) { key { status } count } } }
 
+# temporal: the listings on a date, with the date they were read as of
+{ Listing(businessDate: "2024-01-01", orderBy: [{ sku: ASC }]) { sku price channel onSale businessDate } }
+
+# temporal: a version holds from its first day (BK-1's new price starts 2024-01-01), not on its last
+{ Listing(businessDate: "2023-12-31", orderBy: [{ sku: ASC }]) { sku price } }
+
+# temporal: the leap day's one-day version
+{ Listing(businessDate: "2024-02-29", orderBy: [{ sku: ASC }]) { sku price onSale } }
+
+# temporal: a date before every version
+{ Listing(businessDate: "2019-06-01") { sku } }
+
+# temporal: a product's listing on a date, null where none holds
+{ Product(orderBy: [{ sku: ASC }]) { sku listing(businessDate: "2024-02-15") { price channel } } }
+
+# temporal: one field at two dates under two aliases
+{ Product(orderBy: [{ sku: ASC }]) { sku before: listing(businessDate: "2023-12-31") { price } after: listing(businessDate: "2024-01-01") { price onSale } } }
+
+# temporal: a listing's product (a non-temporal target takes no date)
+{ Listing(businessDate: "2024-02-15", orderBy: [{ sku: ASC }]) { sku product { title category } } }
+
+# temporal: filtered by its product, sorted by price
+{ Listing(businessDate: "2024-03-01", where: { product: { category: { in: [BOOKS, TOYS] } } }, orderBy: [{ price: DESC }]) { sku price } }
+
+# temporal: through two hops (a line's product's listing)
+{ Line(orderBy: [{ id: ASC }]) { id product { sku listing(businessDate: "2024-01-01") { price onSale } } } }
+
+# temporal: the aggregate on a date
+{ ListingAggregate(businessDate: "2024-03-01") { count sum { price } min { price channel } max { price } } }
+
+# temporal: groups on a date
+{ ListingGroups(businessDate: "2024-02-15", orderBy: [{ key: { channel: ASC } }]) { key { channel } count avg { price } } }
+
+# temporal: groups by the product's category on a date, with having
+{ ListingGroups(businessDate: "2024-03-01", having: { count: { gte: 1 } }, orderBy: [{ key: { product: { category: ASC } } }]) { key { product { category } } count } }
+
+# temporal: the date from a variable
+# variables: {"d": "2024-02-29"}
+query Q($d: Date!) { Listing(businessDate: $d, orderBy: [{ sku: ASC }]) { sku price } Product(orderBy: [{ sku: ASC }]) { sku listing(businessDate: $d) { price } } }
+
+# errors: a temporal root without its date
+# error: businessDate
+{ Listing { sku } }
+
+# errors: a temporal field without its date
+# error: businessDate
+{ Product { sku listing { price } } }
+
+# errors: a condition through a temporal navigation (it takes a date no input can carry)
+# error: listing
+{ Product(where: { listing: { onSale: { equals: true } } }) { sku } }
+
 # errors: an unknown field
 # error: has no field
 { Customer { id nope } }

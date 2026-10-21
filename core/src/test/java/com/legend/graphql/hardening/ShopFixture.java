@@ -68,6 +68,14 @@ public final class ShopFixture {
     public record Payment(String kind, int id, Integer order, double amount, LocalDateTime paidAt, Object a, Object b) {
     }
 
+    /** A version of a product's listing (business-temporal): it holds from {@code from} (inclusive) to {@code thru}
+     *  (exclusive; 9999-12-31 is open). */
+    public record Listing(String sku, LocalDate from, LocalDate thru, double price, String channel, boolean onSale) {
+        public boolean holdsOn(LocalDate date) {
+            return !from.isAfter(date) && thru.isAfter(date);
+        }
+    }
+
     static LocalDate d(String s) {
         return LocalDate.parse(s);
     }
@@ -145,6 +153,19 @@ public final class ShopFixture {
             new Payment("VoucherPayment", 22, 5, 100.0, t("2024-03-05T10:00:00"), "rush_50%", null),
             new Payment("VoucherPayment", 23, 8, 0.0, null, "O'BRIEN", d("2024-01-01")));
 
+    /** The listings: BK-1 re-priced on 2024-01-01 (a version ends where the next begins: the boundary date reads the
+     *  new one), BK-2 listed for February 2024 only (gaps before and after), TY-1 with a one-day version on the leap
+     *  day, GD-1 open since 2024, XX-9 listed only in 2020, GD-2 never. */
+    public static final List<Listing> LISTINGS = List.of(
+            new Listing("BK-1", d("2023-01-01"), d("2024-01-01"), 9.5, "WEB", false),
+            new Listing("BK-1", d("2024-01-01"), d("9999-12-31"), 10.0, "WEB", true),
+            new Listing("BK-2", d("2024-02-01"), d("2024-03-01"), 0.99, "STORE", true),
+            new Listing("TY-1", d("2023-06-01"), d("2024-02-29"), 24.0, "WEB", false),
+            new Listing("TY-1", d("2024-02-29"), d("2024-03-01"), 25.5, "WEB", true),
+            new Listing("TY-1", d("2024-03-01"), d("9999-12-31"), 26.0, "STORE", false),
+            new Listing("GD-1", d("2024-01-01"), d("9999-12-31"), 7.25, "STORE", false),
+            new Listing("XX-9", d("2020-01-01"), d("2021-01-01"), 99.0, "WEB", false));
+
     /** The tables and the rows, on a fresh connection. */
     public static void seed(Connection c) throws SQLException {
         try (Statement s = c.createStatement()) {
@@ -165,6 +186,8 @@ public final class ShopFixture {
                     + " PAID_AT TIMESTAMP, LAST4 VARCHAR(4), NETWORK VARCHAR(10))");
             s.execute("CREATE TABLE VOUCHER_PAYMENT (ID INTEGER PRIMARY KEY, ORDER_ID INTEGER,"
                     + " AMOUNT DOUBLE PRECISION, PAID_AT TIMESTAMP, CODE VARCHAR(20), EXPIRES DATE)");
+            s.execute("CREATE TABLE LISTING (SKU VARCHAR(10), FROM_Z DATE, THRU_Z DATE, PRICE DOUBLE PRECISION,"
+                    + " CHANNEL VARCHAR(10), ON_SALE BOOLEAN, PRIMARY KEY (SKU, FROM_Z))");
         }
         for (Customer r : CUSTOMERS) {
             insert(c, "CUSTOMER", r.id(), r.name(), r.email(), r.tier(), r.vip(), r.joined(), r.lastSeen(), r.credit(),
@@ -184,6 +207,9 @@ public final class ShopFixture {
         }
         for (Tagging r : TAGGINGS) {
             insert(c, "PRODUCT_TAG", r.sku(), r.tag());
+        }
+        for (Listing r : LISTINGS) {
+            insert(c, "LISTING", r.sku(), r.from(), r.thru(), r.price(), r.channel(), r.onSale());
         }
         for (Payment r : PAYMENTS) {
             switch (r.kind()) {

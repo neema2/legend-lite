@@ -151,7 +151,8 @@ abstract class HardeningSuite {
         int agree = 0;
         for (long seed = 1; seed <= SEEDS; seed++) {
             Fuzz f = new Fuzz(reference(), seed, Map.of("Customer", "id", "Order", "id", "Line", "id",
-                    "Product", "sku", "Tag", "id", "Payment", "id", "CardPayment", "id", "VoucherPayment", "id"), Map.of("Customer.tier", List.of("GOLD", "SILVER", "BRONZE"),
+                    "Product", "sku", "Tag", "id", "Payment", "id", "CardPayment", "id", "VoucherPayment", "id",
+                    "Listing", "sku"), Map.of("Customer.tier", List.of("GOLD", "SILVER", "BRONZE"),
                     "Order.status", List.of("OPEN", "SHIPPED", "CANCELLED"),
                     "Product.category", List.of("BOOKS", "TOYS", "GARDEN")),
                     Map.of("Customer.tier", "Tier", "Order.status", "Status", "Product.category", "Category"));

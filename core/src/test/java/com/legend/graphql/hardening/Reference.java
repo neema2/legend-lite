@@ -4,6 +4,7 @@
 package com.legend.graphql.hardening;
 
 import com.legend.graphql.hardening.ReferenceModel.Cls;
+import com.legend.graphql.hardening.ReferenceModel.DatedToOne;
 import com.legend.graphql.hardening.ReferenceModel.Fld;
 import com.legend.graphql.hardening.ReferenceModel.Kind;
 import com.legend.graphql.hardening.ReferenceModel.Obj;
@@ -228,17 +229,30 @@ public final class Reference {
             return new OVal.Str("Query");
         }
         if (model.classes.containsKey(name)) {
-            return list(model.get(name).roots.get(), name, f.arguments(), sels);
+            return list(rootsOf(name, f), name, f.arguments(), sels);
         }
         if (name.endsWith("Aggregate") && model.classes.containsKey(base(name, "Aggregate"))) {
             String cls = base(name, "Aggregate");
-            return aggregate(where(model.get(cls).roots.get(), cls, arg(f.arguments(), "where")), cls, sels);
+            return aggregate(where(rootsOf(cls, f), cls, arg(f.arguments(), "where")), cls, sels);
         }
         if (name.endsWith("Groups") && model.classes.containsKey(base(name, "Groups"))) {
             String cls = base(name, "Groups");
-            return groups(model.get(cls).roots.get(), cls, f.arguments(), sels);
+            return groups(rootsOf(cls, f), cls, f.arguments(), sels);
         }
         throw new IllegalArgumentException("no root field " + name);
+    }
+
+    /** A root's rows: a business-temporal class's as of the field's {@code businessDate}, which it requires. */
+    List<Obj> rootsOf(String cls, Field f) {
+        Cls c = model.get(cls);
+        if (!c.temporal()) {
+            return c.roots.get();
+        }
+        Value d = arg(f.arguments(), "businessDate");
+        if (d == null || d instanceof Gql.NullValue) {
+            throw new IllegalArgumentException(cls + " is business-temporal: its root takes a businessDate");
+        }
+        return c.datedRoots.apply((LocalDate) literal(d, Kind.DATE));
     }
 
     static String base(String name, String suffix) {
@@ -279,6 +293,17 @@ public final class Reference {
                 yield child == null ? OVal.NULL : object(child, sels);
             }
             case ToMany t -> list(t.get().apply(o), t.target(), f.arguments(), sels);
+            case DatedToOne t -> {
+                // the field's date, else the owner's own (a temporal owner's date propagates)
+                Value d = arg(f.arguments(), "businessDate");
+                LocalDate date = d != null && !(d instanceof Gql.NullValue) ? (LocalDate) literal(d, Kind.DATE)
+                        : (LocalDate) o.get("businessDate");
+                if (date == null) {
+                    throw new IllegalArgumentException(name + " reaches a business-temporal class: it takes a date");
+                }
+                Obj child = t.get().apply(o, date);
+                yield child == null ? OVal.NULL : object(child, sels);
+            }
         };
     }
 
@@ -430,6 +455,8 @@ public final class Reference {
             case Scalar s -> scalar(s.get().apply(o, Map.of()), s.kind(), (Gql.ObjectValue) v, false);
             case ToOne t -> related(t.get().apply(o), t.target(), (Gql.ObjectValue) v);
             case ToMany t -> quantified(t.get().apply(o), t.target(), (Gql.ObjectValue) v);
+            case DatedToOne t -> throw new IllegalArgumentException(cls + "." + name
+                    + " reaches a business-temporal class: no condition names it (it takes a date)");
             case null -> throw new IllegalArgumentException(cls + " has no field " + name);
         };
     }
