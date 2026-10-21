@@ -29,6 +29,7 @@ import urllib.parse
 import engines
 from dynamic_groupings_spec import DIMS, FILTERS, SUBS
 from scenario import reference, schedule
+from probe import PROBE, add_probe, stamp
 from views import TABLES_ANSI, position_risk
 
 parser = argparse.ArgumentParser()
@@ -43,14 +44,17 @@ parser.add_argument("--egress", default="all", choices=["all", "probe"],
 parser.add_argument("--rate", type=int, default=1000)
 parser.add_argument("--fx-rate", type=int, default=5)
 parser.add_argument("--groupings", type=int, default=16, help="the first N of the 16 groupings")
+parser.add_argument("--measures", default="full", choices=["full", "linear"],
+                    help="full: sums, a count and two MAX columns; linear: sums and the count only")
 parser.add_argument("--seconds", type=float, default=30)
 parser.add_argument("--out", required=True)
 args = parser.parse_args()
 
-MEAS = ("SUM(mv_usd) AS mv_usd, SUM(pnl_usd) AS pnl_usd, SUM(beta_delta_usd) AS beta_delta_usd, "
-        "COUNT(*) AS n, MAX(px_ts) AS last_px_ts, MAX(fx_ts) AS last_fx_ts")
-REAGG = ("SUM(mv_usd) AS mv_usd, SUM(pnl_usd) AS pnl_usd, SUM(beta_delta_usd) AS beta_delta_usd, "
-         "SUM(n) AS n, MAX(last_px_ts) AS last_px_ts, MAX(last_fx_ts) AS last_fx_ts")
+MEAS = "SUM(mv_usd) AS mv_usd, SUM(pnl_usd) AS pnl_usd, SUM(beta_delta_usd) AS beta_delta_usd, COUNT(*) AS n"
+REAGG = "SUM(mv_usd) AS mv_usd, SUM(pnl_usd) AS pnl_usd, SUM(beta_delta_usd) AS beta_delta_usd, SUM(n) AS n"
+if args.measures == "full":
+    MEAS += ", MAX(px_ts) AS last_px_ts, MAX(fx_ts) AS last_fx_ts"
+    REAGG += ", MAX(last_px_ts) AS last_px_ts, MAX(last_fx_ts) AS last_fx_ts"
 LEAF = f"CREATE VIEW leaf AS SELECT {', '.join(DIMS)}, {MEAS} FROM position_risk GROUP BY {', '.join(DIMS)};\n"
 
 
@@ -100,14 +104,15 @@ dynamic = args.variant.startswith("dyn")
 
 ref = reference()
 batches = schedule(ref, seconds=args.seconds + 60, ticks_per_s=args.rate, fx_ticks_per_s=args.fx_rate)
-f = engines.Feldera(pipeline=f"tune_{args.variant}_{args.groupings}", workers=args.workers)
+add_probe(ref)
+f = engines.Feldera(pipeline=f"tune_{args.variant}_{args.groupings}_{args.measures}", workers=args.workers)
 runtime = {"workers": args.workers, "cpu_profiler": args.profiler == "on", "min_batch_size_records": args.min_batch}
 if args.storage == "off":
     runtime["storage"] = None
 
 result = {"variant": args.variant, "workers": args.workers, "storage": args.storage, "profiler": args.profiler,
           "minBatch": args.min_batch, "rate": args.rate, "egress": args.egress, "fxRate": args.fx_rate,
-          "groupings": args.groupings}
+          "groupings": args.groupings, "measures": args.measures, "latency": "probe"}
 start = time.time()
 f._teardown()
 f._req("PUT", f"/v0/pipelines/{f.p}", json.dumps({"name": f.p, "program_code": program, "runtime_config": runtime}))
@@ -118,7 +123,7 @@ f._req("POST", f"/v0/pipelines/{f.p}/start")
 f._wait("deployment_status", ("Running",), 300)
 
 lock = threading.Lock()
-probe = {"pending": [], "next": 0, "lat": [], "measuring": False}
+probe = {"lat": [], "measuring": False, "since": float("inf")}
 egress_bytes = [0]
 
 
@@ -135,13 +140,12 @@ def egress(view, is_probe):
             continue
         recv = time.time() * 1000
         data = json.loads(line).get("json_data") or []
-        newest = max((d["insert"]["last_px_ts"] or 0 for d in data if "insert" in d
-                      and (not dynamic or d["insert"]["sub_id"] == 0)), default=None)
-        with lock:
-            p = probe["pending"]
-            while probe["measuring"] and newest and probe["next"] < len(p) and p[probe["next"]] <= newest:
-                probe["lat"].append(recv - p[probe["next"]])
-                probe["next"] += 1
+        for d in data:
+            r = d.get("insert")
+            if r and r.get("desk") == PROBE["desk"] and (not dynamic or r["sub_id"] == 0):
+                with lock:
+                    if probe["measuring"] and r["mv_usd"] >= probe["since"]:
+                        probe["lat"].append(recv - r["mv_usd"])
 
 
 views = ["live_groups"] if dynamic else ([f"g{i}" for i in range(args.groupings)] if args.egress == "all" else ["g0"])
@@ -170,9 +174,7 @@ def sender():
         if delay > 0:
             time.sleep(delay)
         ts = int(time.time() * 1000)
-        with lock:
-            if batch["prices"] and probe["measuring"]:
-                probe["pending"].append(ts)
+        stamp(batch, ts)
         f.send(batch, ts)
         for k in final:
             final[k].update(batch[k])
@@ -182,13 +184,15 @@ th = threading.Thread(target=sender, daemon=True)
 th.start()
 time.sleep(5)  # warm-up
 
-age_sql = urllib.parse.quote("SELECT MAX(last_px_ts) AS t FROM " +
-                             ("live_groups WHERE sub_id = 0" if dynamic else "g0"))
+age_sql = urllib.parse.quote(f"SELECT mv_usd AS t FROM " +
+                             (f"live_groups WHERE sub_id = 0 AND desk = '{PROBE['desk']}'" if dynamic
+                              else f"g0 WHERE desk = '{PROBE['desk']}'"))
 stats = lambda: json.loads(f._req("GET", f"/v0/pipelines/{f.p}/stats"))["global_metrics"]
 s0 = stats()
 b0 = egress_bytes[0]
 with lock:
     probe["measuring"] = True
+    probe["since"] = time.time() * 1000
 ages, backlog = [], []
 end = time.time() + args.seconds
 while time.time() < end:

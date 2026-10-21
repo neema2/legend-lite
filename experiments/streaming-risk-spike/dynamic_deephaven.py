@@ -15,6 +15,7 @@ import time
 import engines
 from dynamic_groupings_spec import DIMS, FILTERS, SUBS
 from scenario import reference, schedule
+from probe import PROBE, add_probe, stamp
 from views import TABLES_ANSI, position_risk
 
 parser = argparse.ArgumentParser()
@@ -22,15 +23,20 @@ parser.add_argument("--pid", type=int, required=True)
 parser.add_argument("--out", required=True)
 parser.add_argument("--rate", type=int, default=1000)
 parser.add_argument("--window", type=float, default=10)
+parser.add_argument("--measures", default="full", choices=["full", "linear"])
+parser.add_argument("--latency", default="max", choices=["max", "probe"],
+                    help="max: the newest last_px_ts in the desk grouping; probe: the Probe desk's mv_usd")
 args = parser.parse_args()
 
 ref = reference()
 batches = schedule(ref, seconds=200, ticks_per_s=args.rate)
+if args.latency == "probe":
+    add_probe(ref)
 dh = engines.Deephaven(pid=args.pid)
 lock = threading.Lock()
 state = {}             # (sub, *group values) -> row
 first_rows = {}
-watch = {"pending": [], "next": 0, "lat": []}
+watch = {"pending": [], "next": 0, "lat": [], "measuring": True}
 
 
 def on_change_for(sub, cols):
@@ -40,8 +46,13 @@ def on_change_for(sub, cols):
                 state.pop((sub, *(r[c] for c in cols)), None)
             newest = None
             for r in inserts:
-                state[(sub, *(r[c] for c in cols))] = r
-                if sub == 0 and r.get("last_px_ts"):
+                key = (sub, *(r[c] for c in cols))
+                if args.latency == "probe" and sub == 0 and r.get("desk") == PROBE["desk"]:
+                    old = state.get(key)
+                    if (old is None or old["mv_usd"] != r["mv_usd"]) and watch["measuring"]:
+                        watch["lat"].append(recv - r["mv_usd"])
+                state[key] = r
+                if args.latency == "max" and sub == 0 and r.get("last_px_ts"):
                     newest = max(newest or 0, r["last_px_ts"])
             if inserts:
                 first_rows.setdefault(sub, recv)
@@ -52,7 +63,7 @@ def on_change_for(sub, cols):
     return on_change
 
 
-result = {"rate": args.rate}
+result = {"rate": args.rate, "measures": args.measures, "latency": args.latency}
 result["setup"] = dh.setup(ref, lambda *a: None, views=())
 final = {"positions": dict(ref.positions), "prices": dict(ref.prices), "fx": dict(ref.fx)}
 sending = threading.Event()
@@ -68,6 +79,8 @@ def sender():
         if delay > 0:
             time.sleep(delay)
         ts = int(time.time() * 1000)
+        if args.latency == "probe":
+            stamp(batch, ts)
         with lock:
             if batch["prices"]:
                 watch["pending"].append(ts)
@@ -82,8 +95,9 @@ time.sleep(5)
 
 from pydeephaven import agg  # noqa: E402
 
-measures = [agg.sum_(["mv_usd", "pnl_usd", "beta_delta_usd"]), agg.count_("n"),
-            agg.max_(["last_px_ts = px_ts", "last_fx_ts = fx_ts"])]
+measures = [agg.sum_(["mv_usd", "pnl_usd", "beta_delta_usd"]), agg.count_("n")]
+if args.measures == "full":
+    measures.append(agg.max_(["last_px_ts = px_ts", "last_fx_ts = fx_ts"]))
 
 
 def grouping(i):
