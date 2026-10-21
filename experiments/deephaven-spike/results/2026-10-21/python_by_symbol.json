@@ -1,0 +1,14 @@
+{
+  "plan": "by_symbol",
+  "sharedTicket": "legend-lite/3b95182b/by_symbol/1",
+  "reused": true,
+  "seconds": 10.0,
+  "updates": 10,
+  "rowsAdded": 1976,
+  "rowsModified": 0,
+  "rowsRemoved": 1476,
+  "freshnessMs": {
+    "p50": 86,
+    "p95": 111
+  }
+}

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The spike's connector: a standalone Maven project, deliberately not part of the Bazel build
+  (as experiments/backend-probes/harness is). It depends on Deephaven's generated protocol classes
+  and gRPC only: no Deephaven Java client, no QST, no engine. The plan it runs is a JSON document
+  (BatchTableRequest in protobuf's JSON form) that a planner can write with no Deephaven library.
+
+  License note: deephaven-proto-backplane-grpc is under the Deephaven Community License (DCL);
+  grpc-java and protobuf are Apache-2.0 / BSD-3.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.legend.experiments</groupId>
+  <artifactId>deephaven-spike-connector</artifactId>
+  <version>0.1</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <deephaven.version>42.7</deephaven.version>
+    <grpc.version>1.76.2</grpc.version>
+    <protobuf.version>4.36.2</protobuf.version>
+    <spike.build>${project.basedir}/target</spike.build>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.deephaven</groupId>
+      <artifactId>deephaven-proto-backplane-grpc</artifactId>
+      <version>${deephaven.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java-util</artifactId>
+      <version>${protobuf.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-netty-shaded</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.code.gson</groupId>
+      <artifactId>gson</artifactId>
+      <version>2.13.2</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <!-- out of the source tree: mvn -Dspike.build=<dir> package -->
+    <directory>${spike.build}</directory>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.8.1</version>
+        <executions>
+          <execution>
+            <id>copy-deps</id>
+            <phase>package</phase>
+            <goals><goal>copy-dependencies</goal></goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/lib</outputDirectory>
+              <includeScope>runtime</includeScope>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

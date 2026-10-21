@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deephaven spike</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header>
+  <h1>Deephaven spike: ticking DataCube levels</h1>
+  <div class="controls">
+    <span id="status">connecting…</span>
+    <label>update interval
+      <select id="interval">
+        <option value="100">100 ms</option>
+        <option value="250" selected>250 ms</option>
+        <option value="1000">1000 ms</option>
+      </select>
+    </label>
+  </div>
+  <p class="note">Each panel is one plan (the Pure it stands for is under "Pure"). The connector ran it once on
+  Deephaven and published the result; this page subscribes to it directly. Only the rows in view are
+  subscribed: scrolling moves the viewport.</p>
+  <nav id="plans"></nav>
+</header>
+<main id="panels"></main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

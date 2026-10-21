@@ -1,0 +1,14 @@
+{
+  "plan": "grand_total",
+  "sharedTicket": "legend-lite/3b95182b/grand_total/5",
+  "reused": false,
+  "seconds": 10.0,
+  "updates": 10,
+  "rowsAdded": 1,
+  "rowsModified": 9,
+  "rowsRemoved": 0,
+  "freshnessMs": {
+    "p50": 82,
+    "p95": 105
+  }
+}

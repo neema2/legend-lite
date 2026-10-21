@@ -1,0 +1,45 @@
+{
+  "name": "sym_venue",
+  "shape": "DataCube level 2: the children of two open groups, grouped by Sym and Venue, filtered to the open parents",
+  "pure": "#>{md::MarketData.trades}#->filter(x | $x.Sym->in(['S001', 'S002']))->extend(~Notional: x | $x.Qty * $x.Price)->groupBy(~[Sym, Venue], ~[Qty: x | $x.Qty : y | $y->sum(), Notional: x | $x.Notional : y | $y->sum(), Trades: x | 1 : y | $y->count(), LastTs: x | $x.Timestamp : y | $y->max()])->sort([~Sym->ascending(), ~Notional->descending()])->limit(1001)",
+  "names": {},
+  "batch": {
+    "ops": [
+      {
+        "unstructuredFilter": {
+          "sourceId": { "ticket": { "ticket": "cy90cmFkZXM=" } },
+          "filters": ["Sym in `S001`, `S002`"]
+        }
+      },
+      {
+        "updateView": {
+          "sourceId": { "batchOffset": 0 },
+          "columnSpecs": ["Notional = Qty * Price"]
+        }
+      },
+      {
+        "aggregate": {
+          "sourceId": { "batchOffset": 1 },
+          "groupByColumns": ["Sym", "Venue"],
+          "aggregations": [
+            { "columns": { "spec": { "sum": {} }, "matchPairs": ["Qty", "Notional"] } },
+            { "count": { "columnName": "Trades" } },
+            { "columns": { "spec": { "max": {} }, "matchPairs": ["LastTs=Timestamp"] } }
+          ]
+        }
+      },
+      {
+        "sort": {
+          "sourceId": { "batchOffset": 2 },
+          "sorts": [
+            { "columnName": "Sym", "direction": "ASCENDING" },
+            { "columnName": "Notional", "direction": "DESCENDING" }
+          ]
+        }
+      },
+      {
+        "head": { "sourceId": { "batchOffset": 3 }, "numRows": "1001" }
+      }
+    ]
+  }
+}

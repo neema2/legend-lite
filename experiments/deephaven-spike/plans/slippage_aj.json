@@ -1,0 +1,45 @@
+{
+  "name": "slippage_aj",
+  "shape": "An as-of join (each trade with the quote in force when it printed), then a grouped measure over it: the finance shape SQL backends emulate and Deephaven runs natively, ticking",
+  "pure": "#>{md::MarketData.trades}#->asOfJoin(#>{md::MarketData.quotes}#->rename(~Sym, ~QSym)->rename(~Timestamp, ~QTimestamp), {t, q | $t.Timestamp >= $q.QTimestamp}, {t, q | $t.Sym == $q.QSym})->extend(~Slip: x | if($x.Side == 'BUY', | $x.Price - $x.Ask, | $x.Bid - $x.Price))->groupBy(~[Sym], ~[AvgSlip: x | $x.Slip : y | $y->average(), Trades: x | 1 : y | $y->count(), LastTs: x | $x.Timestamp : y | $y->max()])->sort(~AvgSlip->descending())->limit(1001)",
+  "names": {},
+  "batch": {
+    "ops": [
+      {
+        "aj": {
+          "leftId": { "ticket": { "ticket": "cy90cmFkZXM=" } },
+          "rightId": { "ticket": { "ticket": "cy9xdW90ZXM=" } },
+          "exactMatchColumns": ["Sym"],
+          "asOfColumn": "Timestamp>=Timestamp",
+          "columnsToAdd": ["Bid", "Ask"]
+        }
+      },
+      {
+        "updateView": {
+          "sourceId": { "batchOffset": 0 },
+          "columnSpecs": ["Slip = Side == `BUY` ? Price - Ask : Bid - Price"]
+        }
+      },
+      {
+        "aggregate": {
+          "sourceId": { "batchOffset": 1 },
+          "groupByColumns": ["Sym"],
+          "aggregations": [
+            { "columns": { "spec": { "avg": {} }, "matchPairs": ["AvgSlip=Slip"] } },
+            { "count": { "columnName": "Trades" } },
+            { "columns": { "spec": { "max": {} }, "matchPairs": ["LastTs=Timestamp"] } }
+          ]
+        }
+      },
+      {
+        "sort": {
+          "sourceId": { "batchOffset": 2 },
+          "sorts": [{ "columnName": "AvgSlip", "direction": "DESCENDING" }]
+        }
+      },
+      {
+        "head": { "sourceId": { "batchOffset": 3 }, "numRows": "1001" }
+      }
+    ]
+  }
+}

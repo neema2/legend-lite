@@ -1,0 +1,232 @@
+{
+  "when": "2026-10-21T13:22:11.294Z",
+  "scenarios": {
+    "open": {
+      "connectMillis": 99,
+      "panels": {
+        "by_symbol": {
+          "publishMillis": 164,
+          "handleMillis": 327,
+          "fetchMillis": 24,
+          "firstDataMillis": 433,
+          "rows": 500
+        },
+        "grand_total": {
+          "publishMillis": 116,
+          "handleMillis": 126,
+          "fetchMillis": 13,
+          "firstDataMillis": 168,
+          "rows": 1
+        },
+        "sym_venue": {
+          "publishMillis": 40,
+          "handleMillis": 91,
+          "fetchMillis": 11,
+          "firstDataMillis": 130,
+          "rows": 8
+        },
+        "slippage_aj": {
+          "publishMillis": 457,
+          "handleMillis": 511,
+          "fetchMillis": 7,
+          "firstDataMillis": 535,
+          "rows": 500
+        }
+      }
+    },
+    "steady": [
+      {
+        "interval": 1000,
+        "seconds": 20,
+        "serverCpuCores": 0.12,
+        "panels": {
+          "by_symbol": {
+            "updatesPerSecond": 1,
+            "changedCellsPerSecond": 89.9,
+            "freshnessMs": {
+              "p50": 94,
+              "p95": 410,
+              "p99": 410,
+              "n": 20
+            }
+          },
+          "grand_total": {
+            "updatesPerSecond": 1,
+            "changedCellsPerSecond": 7,
+            "freshnessMs": {
+              "p50": 80,
+              "p95": 102,
+              "p99": 102,
+              "n": 20
+            }
+          },
+          "sym_venue": {
+            "updatesPerSecond": 0.8,
+            "changedCellsPerSecond": 3.6,
+            "freshnessMs": {
+              "p50": 161,
+              "p95": 935,
+              "p99": 935,
+              "n": 15
+            }
+          },
+          "slippage_aj": {
+            "updatesPerSecond": 1,
+            "changedCellsPerSecond": 37,
+            "freshnessMs": {
+              "p50": 126,
+              "p95": 347,
+              "p99": 347,
+              "n": 20
+            }
+          }
+        }
+      },
+      {
+        "interval": 250,
+        "seconds": 20,
+        "serverCpuCores": 0.1,
+        "panels": {
+          "by_symbol": {
+            "updatesPerSecond": 4,
+            "changedCellsPerSecond": 104,
+            "freshnessMs": {
+              "p50": 107,
+              "p95": 277,
+              "p99": 360,
+              "n": 80
+            }
+          },
+          "grand_total": {
+            "updatesPerSecond": 4,
+            "changedCellsPerSecond": 28,
+            "freshnessMs": {
+              "p50": 57,
+              "p95": 103,
+              "p99": 105,
+              "n": 80
+            }
+          },
+          "sym_venue": {
+            "updatesPerSecond": 0.6,
+            "changedCellsPerSecond": 2.4,
+            "freshnessMs": {
+              "p50": 59,
+              "p95": 174,
+              "p99": 174,
+              "n": 12
+            }
+          },
+          "slippage_aj": {
+            "updatesPerSecond": 4,
+            "changedCellsPerSecond": 47.5,
+            "freshnessMs": {
+              "p50": 98,
+              "p95": 190,
+              "p99": 392,
+              "n": 80
+            }
+          }
+        }
+      },
+      {
+        "interval": 100,
+        "seconds": 20,
+        "serverCpuCores": 0.13,
+        "panels": {
+          "by_symbol": {
+            "updatesPerSecond": 9.9,
+            "changedCellsPerSecond": 108.5,
+            "freshnessMs": {
+              "p50": 82,
+              "p95": 230,
+              "p99": 387,
+              "n": 199
+            }
+          },
+          "grand_total": {
+            "updatesPerSecond": 9.9,
+            "changedCellsPerSecond": 69.7,
+            "freshnessMs": {
+              "p50": 47,
+              "p95": 63,
+              "p99": 69,
+              "n": 199
+            }
+          },
+          "sym_venue": {
+            "updatesPerSecond": 0.8,
+            "changedCellsPerSecond": 3.4,
+            "freshnessMs": {
+              "p50": 63,
+              "p95": 108,
+              "p99": 108,
+              "n": 17
+            }
+          },
+          "slippage_aj": {
+            "updatesPerSecond": 9.9,
+            "changedCellsPerSecond": 43.5,
+            "freshnessMs": {
+              "p50": 107,
+              "p95": 256,
+              "p99": 346,
+              "n": 199
+            }
+          }
+        }
+      }
+    ],
+    "traffic": {
+      "note": "WebSocket bytes per second from Deephaven to a page holding by_symbol alone, at 250 ms",
+      "viewportRows0to37": {
+        "bytesPerSecond": 5042,
+        "framesPerSecond": 27.7
+      },
+      "wholeTableRows0to499": {
+        "bytesPerSecond": 18145,
+        "framesPerSecond": 29.8
+      }
+    },
+    "scroll": {
+      "scrollToDataMillis": 45,
+      "viewport": [
+        290,
+        327
+      ],
+      "firstRowOffset": 290
+    },
+    "secondViewer": {
+      "by_symbol": {
+        "reused": true,
+        "sharedTicket": "legend-lite/3b95182b/by_symbol/1",
+        "events": 13
+      },
+      "grand_total": {
+        "reused": true,
+        "sharedTicket": "legend-lite/3b95182b/grand_total/2",
+        "events": 14
+      },
+      "sym_venue": {
+        "reused": true,
+        "sharedTicket": "legend-lite/3b95182b/sym_venue/3",
+        "events": 3
+      },
+      "slippage_aj": {
+        "reused": true,
+        "sharedTicket": "legend-lite/3b95182b/slippage_aj/4",
+        "events": 12
+      }
+    },
+    "release": {
+      "released": {
+        "released": "legend-lite/3b95182b/grand_total/2"
+      },
+      "existingViewerEventsDuring5sAfterRelease": 20,
+      "newViewerFetchAfterRelease": {
+        "fetched": false,
+        "error": "Error: java.lang.RuntimeException: Error: Export in state DEPENDENCY_FAILED"
+      }
+    }
+  }
+}

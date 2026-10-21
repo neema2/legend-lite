@@ -1,0 +1,36 @@
+{
+  "name": "grand_total",
+  "shape": "DataCube level 0: the grand total row, a groupBy on the constant ROOT column (query.ts levelRelation)",
+  "pure": "#>{md::MarketData.trades}#->extend(~Notional: x | $x.Qty * $x.Price)->extend(~ROOT: x | 'ROOT')->groupBy(~[ROOT], ~['BUY__|__Qty': x | if($x.Side == 'BUY', | $x.Qty, | []) : y | $y->sum(), 'SELL__|__Qty': x | if($x.Side == 'SELL', | $x.Qty, | []) : y | $y->sum(), Qty: x | $x.Qty : y | $y->sum(), Notional: x | $x.Notional : y | $y->sum(), Trades: x | 1 : y | $y->count(), VWAP: x | wavgRowMapper($x.Price, $x.Qty) : y | $y->wavg(), LastTs: x | $x.Timestamp : y | $y->max()])",
+  "names": {
+    "BUY__Qty": "BUY__|__Qty",
+    "SELL__Qty": "SELL__|__Qty"
+  },
+  "batch": {
+    "ops": [
+      {
+        "updateView": {
+          "sourceId": { "ticket": { "ticket": "cy90cmFkZXM=" } },
+          "columnSpecs": [
+            "Notional = Qty * Price",
+            "ROOT = `ROOT`",
+            "BUY__Qty = Side == `BUY` ? Qty : NULL_LONG",
+            "SELL__Qty = Side == `SELL` ? Qty : NULL_LONG"
+          ]
+        }
+      },
+      {
+        "aggregate": {
+          "sourceId": { "batchOffset": 0 },
+          "groupByColumns": ["ROOT"],
+          "aggregations": [
+            { "columns": { "spec": { "sum": {} }, "matchPairs": ["BUY__Qty", "SELL__Qty", "Qty", "Notional"] } },
+            { "count": { "columnName": "Trades" } },
+            { "columns": { "spec": { "weightedAvg": { "weightColumn": "Qty" } }, "matchPairs": ["VWAP=Price"] } },
+            { "columns": { "spec": { "max": {} }, "matchPairs": ["LastTs=Timestamp"] } }
+          ]
+        }
+      }
+    ]
+  }
+}
