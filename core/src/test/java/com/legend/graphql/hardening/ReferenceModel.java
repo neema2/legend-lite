@@ -33,7 +33,7 @@ public final class ReferenceModel {
     /** A scalar's kind, as the generator maps it. */
     public enum Kind { STRING, BIGINT, FLOAT, DECIMAL, BOOLEAN, DATE, DATETIME, ENUM }
 
-    public sealed interface Fld permits Scalar, ToOne, ToMany, DatedToOne {
+    public sealed interface Fld permits Scalar, ToOne, ToMany, DatedToOne, DatedToMany {
     }
 
     /** A scalar property, stored or derived; {@code params} the derived property's arguments, by name and kind. */
@@ -57,6 +57,10 @@ public final class ReferenceModel {
     /** A to-one property reaching a BUSINESS-TEMPORAL class: the version holding on a business date (the field's
      *  {@code businessDate} argument, else the owner's own when the owner is temporal: the engine's propagation). */
     public record DatedToOne(String target, BiFunction<Obj, java.time.LocalDate, Obj> get) implements Fld {
+    }
+
+    /** A to-many property reaching a BUSINESS-TEMPORAL class: the versions holding on the field's business date. */
+    public record DatedToMany(String target, BiFunction<Obj, java.time.LocalDate, List<Obj>> get) implements Fld {
     }
 
     /** A class: its GraphQL name, its superclass's, its fields (inherited ones included), its root set (the rows its
@@ -118,6 +122,11 @@ public final class ReferenceModel {
 
         public Cls datedToOne(String name, String target, BiFunction<Obj, java.time.LocalDate, Obj> get) {
             fields.put(name, new DatedToOne(target, get));
+            return this;
+        }
+
+        public Cls datedToMany(String name, String target, BiFunction<Obj, java.time.LocalDate, List<Obj>> get) {
+            fields.put(name, new DatedToMany(target, get));
             return this;
         }
 

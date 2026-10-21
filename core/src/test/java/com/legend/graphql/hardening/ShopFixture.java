@@ -76,6 +76,13 @@ public final class ShopFixture {
         }
     }
 
+    /** A version of a product's stock in a warehouse (business-temporal, to-many per product). */
+    public record Stock(int bin, String sku, String warehouse, LocalDate from, LocalDate thru, int qty) {
+        public boolean holdsOn(LocalDate date) {
+            return !from.isAfter(date) && thru.isAfter(date);
+        }
+    }
+
     static LocalDate d(String s) {
         return LocalDate.parse(s);
     }
@@ -166,6 +173,18 @@ public final class ShopFixture {
             new Listing("GD-1", d("2024-01-01"), d("9999-12-31"), 7.25, "STORE", false),
             new Listing("XX-9", d("2020-01-01"), d("2021-01-01"), 99.0, "WEB", false));
 
+    /** The stock, one bin per product and warehouse (unique on any date): BK-1 in two warehouses (EAST sold out from 2024-02-01, WEST stocked from 2024-01-01), TY-1 in EAST
+     *  on the leap day only and in WEST since mid-2023, GD-1 in EAST for the first half of 2024, XX-9 held at zero
+     *  since 2020, BK-2 and GD-2 never. */
+    public static final List<Stock> STOCK = List.of(
+            new Stock(1, "BK-1", "EAST", d("2023-01-01"), d("2024-02-01"), 5),
+            new Stock(1, "BK-1", "EAST", d("2024-02-01"), d("9999-12-31"), 0),
+            new Stock(2, "BK-1", "WEST", d("2024-01-01"), d("9999-12-31"), 12),
+            new Stock(3, "TY-1", "EAST", d("2024-02-29"), d("2024-03-01"), 1),
+            new Stock(4, "TY-1", "WEST", d("2023-06-01"), d("9999-12-31"), 7),
+            new Stock(5, "GD-1", "EAST", d("2024-01-01"), d("2024-06-01"), 3),
+            new Stock(6, "XX-9", "WEST", d("2020-01-01"), d("9999-12-31"), 0));
+
     /** The tables and the rows, on a fresh connection. */
     public static void seed(Connection c) throws SQLException {
         try (Statement s = c.createStatement()) {
@@ -188,6 +207,8 @@ public final class ShopFixture {
                     + " AMOUNT DOUBLE PRECISION, PAID_AT TIMESTAMP, CODE VARCHAR(20), EXPIRES DATE)");
             s.execute("CREATE TABLE LISTING (SKU VARCHAR(10), FROM_Z DATE, THRU_Z DATE, PRICE DOUBLE PRECISION,"
                     + " CHANNEL VARCHAR(10), ON_SALE BOOLEAN, PRIMARY KEY (SKU, FROM_Z))");
+            s.execute("CREATE TABLE STOCK (BIN INTEGER, FROM_Z DATE, SKU VARCHAR(10), WAREHOUSE VARCHAR(10), THRU_Z DATE,"
+                    + " QTY INTEGER, PRIMARY KEY (BIN, FROM_Z))");
         }
         for (Customer r : CUSTOMERS) {
             insert(c, "CUSTOMER", r.id(), r.name(), r.email(), r.tier(), r.vip(), r.joined(), r.lastSeen(), r.credit(),
@@ -210,6 +231,9 @@ public final class ShopFixture {
         }
         for (Listing r : LISTINGS) {
             insert(c, "LISTING", r.sku(), r.from(), r.thru(), r.price(), r.channel(), r.onSale());
+        }
+        for (Stock r : STOCK) {
+            insert(c, "STOCK", r.bin(), r.from(), r.sku(), r.warehouse(), r.thru(), r.qty());
         }
         for (Payment r : PAYMENTS) {
             switch (r.kind()) {

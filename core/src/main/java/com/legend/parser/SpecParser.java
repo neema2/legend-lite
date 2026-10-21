@@ -3471,6 +3471,12 @@ public final class SpecParser implements TokenStreamCursor {
                     if (af.parameters().isEmpty()) {
                         return null;
                     }
+                    // a dot-spelled property CALL on $this: a milestoned navigation with its dates
+                    // ($this.stock(%2024-02-15)), the head itself (GraphQL's temporal lists, register S119)
+                    if (af.propertyCall() && af.parameters().get(0) instanceof com.legend.protocol.spec.Variable var
+                            && var.name().equals("this")) {
+                        return af.function();
+                    }
                     v = af.parameters().get(0);
                 }
                 case com.legend.protocol.spec.NewInstance ni -> {

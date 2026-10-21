@@ -707,6 +707,24 @@ query Q($n: BigInt) { Customer(orderBy: [{ id: ASC }]) { ...F } } fragment F on 
 # variables: {"d": "2024-02-29"}
 query Q($d: Date!) { Listing(businessDate: $d, orderBy: [{ sku: ASC }]) { sku price } Product(orderBy: [{ sku: ASC }]) { sku listing(businessDate: $d) { price } } }
 
+# temporal lists: a product's stock on a date, filtered and sorted
+{ Product(orderBy: [{ sku: ASC }]) { sku stock(businessDate: "2024-02-15", where: { qty: { gt: 0 } }, orderBy: [{ warehouse: DESC }]) { warehouse qty businessDate } } }
+
+# temporal lists: the same list at two dates, one paged
+{ Product(orderBy: [{ sku: ASC }]) { sku jan: stock(businessDate: "2024-01-15", orderBy: [{ qty: DESC }, { bin: ASC }], limit: 1) { bin qty } feb: stock(businessDate: "2024-02-15") { bin qty } } }
+
+# temporal lists: the aggregate on a date
+{ Product(orderBy: [{ sku: ASC }]) { sku stockAggregate(businessDate: "2024-02-29") { count sum { qty } min { warehouse } } } }
+
+# temporal lists: the groups on a date, with having
+{ Product(orderBy: [{ sku: ASC }]) { sku stockGroups(businessDate: "2024-02-29", having: { sum: { qty: { gte: 1 } } }, orderBy: [{ key: { warehouse: ASC } }]) { key { warehouse } count sum { qty } } } }
+
+# temporal lists: a temporal root's object reaching another temporal list at another date
+{ Stock(businessDate: "2024-01-01", orderBy: [{ bin: ASC }]) { bin businessDate stocked { sku stock(businessDate: "2024-02-15", orderBy: [{ bin: ASC }]) { bin qty businessDate } } } }
+
+# temporal lists: groups across products by a to-one key
+{ StockGroups(businessDate: "2024-02-29", orderBy: [{ key: { stocked: { category: ASC } } }]) { key { stocked { category } } count sum { qty } } }
+
 # errors: a temporal root without its date
 # error: businessDate
 { Listing { sku } }

@@ -131,9 +131,11 @@ class GqlTemporalTest {
                 sdl);
         assertTrue(sdl.contains("Note(processingDate: DateTime!, where: NoteWhere"), sdl);
         assertTrue(sdl.contains("limit(processingDate: DateTime!, businessDate: Date!): Limit"), sdl);
-        // a dated list takes its date and no clause yet; no summary of it is offered
-        assertTrue(sdl.contains("notes(processingDate: DateTime!): [Note!]!"), sdl);
-        assertFalse(sdl.contains("notesAggregate") || sdl.contains("notesGroups"), sdl);
+        // a dated list takes its date before its clauses, and so do its summaries
+        assertTrue(sdl.contains("notes(processingDate: DateTime!, where: NoteWhere, orderBy: [NoteOrderBy!], limit:"
+                + " Int, offset: Int): [Note!]!"), sdl);
+        assertTrue(sdl.contains("notesAggregate(processingDate: DateTime!, where: NoteWhere): NoteAggregate!"), sdl);
+        assertTrue(sdl.contains("notesGroups(processingDate: DateTime!, where: NoteWhere, having:"), sdl);
         // the dates a temporal object was read as of
         assertTrue(sdl.contains("businessDate: Date!") && sdl.contains("processingDate: DateTime!"), sdl);
         // no input object names a dated navigation
@@ -164,6 +166,16 @@ class GqlTemporalTest {
         assertTrue(json.contains("{\"ticker\":\"AAPL\",\"limit\":{\"maxQty\":8000},\"notes\":["), json);
         assertTrue(json.contains("\"old\"") && json.contains("\"kept\"") && !json.contains("\"new\""), json);
         assertTrue(json.contains("{\"ticker\":\"IBM\",\"limit\":null,\"notes\":[]}"), json);
+    }
+
+    /** A processing-temporal list under clauses and as summaries: each read as of its processing date. */
+    @Test
+    void aDatedListTakesClausesAndSummaries() throws SQLException {
+        String json = gql("{ Instrument(where: { ticker: { equals: \"AAPL\" } }) { ticker notes(processingDate:"
+                + " \"2024-03-01T00:00:00\", orderBy: [{ text: DESC }], limit: 1) { text } notesAggregate(processingDate:"
+                + " \"2024-01-15T00:00:00\") { count max { text } } } }");
+        assertTrue(json.contains("\"notes\":[{\"text\":\"new\"}]"), json);
+        assertTrue(json.contains("\"notesAggregate\":{\"count\":2,\"max\":{\"text\":\"old\"}}"), json);
     }
 
     @Test

@@ -634,6 +634,13 @@ public final class GqlToPure {
     private ValueSpecification extent(Field f, FieldDef fd, String classFqn, String path) {
         List<ValueSpecification> args = new ArrayList<>();
         args.add(new PackageableElementPtr(classFqn));
+        args.addAll(dates(f, fd, path));
+        return call("getAll", args.toArray(new ValueSpecification[0]));
+    }
+
+    /** A field's temporal dates as Pure literals, in the field's (Pure's) order; none for a non-temporal target. */
+    private List<ValueSpecification> dates(Field f, FieldDef fd, String path) {
+        List<ValueSpecification> out = new ArrayList<>();
         for (InputValueDef a : fd.args()) {
             if (!DATE_ARGUMENTS.contains(a.name())) {
                 continue;
@@ -642,9 +649,21 @@ public final class GqlToPure {
             if (given == null || peek(given, path) instanceof Gql.NullValue) {
                 throw GqlTranslationException.invalid(path, f.name() + " is temporal: it takes " + a.name());
             }
-            args.add(literal(given, GqlSchema.baseName(a.type()), path + "(" + a.name() + ")"));
+            out.add(literal(given, GqlSchema.baseName(a.type()), path + "(" + a.name() + ")"));
         }
-        return call("getAll", args.toArray(new ValueSpecification[0]));
+        return out;
+    }
+
+    /** {@code $this.p}, or a navigation to a temporal class with its dates: {@code $this.p(%bd)}, the dot-spelled
+     *  property call Pure parses it to (register S119). */
+    private ValueSpecification navigation(String property, List<ValueSpecification> dates) {
+        if (dates.isEmpty()) {
+            return new AppliedProperty(new Variable("this"), property);
+        }
+        List<ValueSpecification> params = new ArrayList<>(1 + dates.size());
+        params.add(new Variable("this"));
+        params.addAll(dates);
+        return new AppliedFunction(property, params, List.of(), null, true);
     }
 
     private ValueSpecification root(Field f, String path) {
@@ -721,8 +740,8 @@ public final class GqlToPure {
             throw GqlTranslationException.invalid(path, type.name() + " has no property " + gm.property());
         }
         Composite target = composite(propField);
-        ValueSpecification vs = whereClause(new AppliedProperty(new Variable("this"), gm.property()), f.arguments(),
-                target, path);
+        ValueSpecification vs = whereClause(navigation(gm.property(), dates(f, fd, path)), f.arguments(), target,
+                path);
         Groups g = new Groups();
         vs = groupsPipeline(f, fd, vs, target, g, path);
         vs = inSelectionOrder(vs, g.order, g.constants, new ArrayList<>(g.keys.keySet()),
@@ -1174,8 +1193,8 @@ public final class GqlToPure {
             throw GqlTranslationException.invalid(path, type.name() + " has no property " + a.property());
         }
         Composite target = composite(propField);
-        ValueSpecification src = whereClause(new AppliedProperty(new Variable("this"), a.property()), f.arguments(),
-                target, path);
+        ValueSpecification src = whereClause(navigation(a.property(), dates(f, fd, path)), f.arguments(), target,
+                path);
         Columns c = aggregatePipeline(f, fd, src, path);
         return relationNode(a.property(), key, c.vs(), c.order());
     }
@@ -1949,7 +1968,13 @@ public final class GqlToPure {
                     entries = subTypeEntries(f.selectionSet(), level, path);
                 }
                 if (clause) {
-                    // the COMPOSED BODY (§6.2): the clauses over $this.<property>, keyed by the response key
+                    // the COMPOSED BODY (§6.2): the clauses over $this.<property> -- over a temporal target, its
+                    // dated navigation $this.<property>(%bd) (register S119) -- keyed by the response key
+                    if (!args.isEmpty() && !p.derived()) {
+                        ValueSpecification body = clauses(navigation(p.name(), args), f.arguments(), composite(fd),
+                                path);
+                        yield new Node(p.name(), null, List.of(), key, null, children, body, entries);
+                    }
                     if (!args.isEmpty()) {
                         throw GqlTranslationException.unsupported(path, "a clause on the derived collection "
                                 + f.name() + ", which takes arguments: a composed body navigates a stored"

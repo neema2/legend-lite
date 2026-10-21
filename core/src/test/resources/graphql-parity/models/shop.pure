@@ -2,7 +2,8 @@
 // Every scalar kind, nulls in every nullable column, empty lists, sort ties, quotes, `%` and `_` in strings, unicode,
 // case variants, a 64-bit integer past 2^53, a self-reference, a many-to-many through a join table, derived
 // properties of each kind, a class hierarchy (payments: a base and two subtypes, each on its own table, the base's
-// extent their union), and a business-temporal class (a product's listing, versioned by business date). The rows
+// extent their union), and two business-temporal classes (a product's listing, to-one, and its stock per warehouse,
+// to-many, each versioned by business date). The rows
 // are ShopFixture's (one source for the database and the reference evaluator).
 
 ###Pure
@@ -92,7 +93,16 @@ Class <<temporal.businesstemporal>> {meta::pure::profiles::doc.doc = 'A product\
   onSale: Boolean[1];
 }
 
+Class <<temporal.businesstemporal>> {meta::pure::profiles::doc.doc = 'A product\'s stock in a warehouse as it stood on a business date.'} shop::Stock
+{
+  bin: Integer[1];
+  sku: String[1];
+  warehouse: String[1];
+  qty: Integer[1];
+}
+
 Association shop::Referral { referrer: shop::Customer[0..1]; referred: shop::Customer[*]; }
+Association shop::Stocked { stocked: shop::Product[0..1]; stock: shop::Stock[*]; }
 Association shop::Listed { product: shop::Product[0..1]; listing: shop::Listing[0..1]; }
 Association shop::Purchase { customer: shop::Customer[0..1]; orders: shop::Order[*]; }
 Association shop::OrderLines { order: shop::Order[0..1]; lines: shop::Line[*]; }
@@ -121,6 +131,11 @@ Database shop::Db
     milestoning(business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, INFINITY_DATE = %9999-12-31))
     SKU VARCHAR(10) PRIMARY KEY, FROM_Z DATE PRIMARY KEY, THRU_Z DATE, PRICE DOUBLE, CHANNEL VARCHAR(10), ON_SALE BIT
   )
+  Table STOCK
+  (
+    milestoning(business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, INFINITY_DATE = %9999-12-31))
+    BIN INTEGER PRIMARY KEY, FROM_Z DATE PRIMARY KEY, SKU VARCHAR(10), WAREHOUSE VARCHAR(10), THRU_Z DATE, QTY INTEGER
+  )
   Join Referral (CUSTOMER.REFERRER_ID = {target}.ID)
   Join CustomerOrders (CUSTOMER.ID = ORDERS.CUSTOMER_ID)
   Join OrderLines (ORDERS.ID = LINE.ORDER_ID)
@@ -131,6 +146,7 @@ Database shop::Db
   Join OrderCardPayment (ORDERS.ID = CARD_PAYMENT.ORDER_ID)
   Join OrderVoucherPayment (ORDERS.ID = VOUCHER_PAYMENT.ORDER_ID)
   Join ProductListing (PRODUCT.SKU = LISTING.SKU)
+  Join ProductStock (PRODUCT.SKU = STOCK.SKU)
 )
 
 ###Mapping
@@ -192,6 +208,22 @@ Mapping shop::Map
     price: [shop::Db] LISTING.PRICE,
     channel: [shop::Db] LISTING.CHANNEL,
     onSale: [shop::Db] LISTING.ON_SALE
+  }
+  shop::Stock: Relational
+  {
+    ~mainTable [shop::Db] STOCK
+    bin: [shop::Db] STOCK.BIN,
+    sku: [shop::Db] STOCK.SKU,
+    warehouse: [shop::Db] STOCK.WAREHOUSE,
+    qty: [shop::Db] STOCK.QTY
+  }
+  shop::Stocked: Relational
+  {
+    AssociationMapping
+    (
+      stocked: [shop::Db] @ProductStock,
+      stock: [shop::Db] @ProductStock
+    )
   }
   shop::Listed: Relational
   {

@@ -1421,9 +1421,16 @@ one, and execution refused them for want of a date. Register row S119.
   `processingDate: DateTime!` for a processing-temporal one, both for a bitemporal one, the processing date first
   (Pure's argument order). A temporal object answers `businessDate` / `processingDate`, the dates it was read as of
   (Pure's generated members). No input object names a dated navigation (`ProductWhere` has no `listing`): a
-  condition, a sort key or a group key has no place for a date (`reachesTemporal`); nor does a summary of one
-  (`pAggregate`, `pGroups`), and a dated list takes no clause yet. The engine's propagation of a temporal owner's
-  dates to a temporal child is not offered: every read names its dates.
+  condition, a sort key or a group key has no place for a date (`reachesTemporal`). The engine's propagation of a
+  temporal owner's dates to a temporal child is not offered: every read names its dates.
+- **Dated lists (the same day).** A to-many navigation to a temporal class takes its clauses after its dates
+  (`stock(businessDate: d, where: ..., orderBy: ..., limit: n)`), and its summaries take the dates too
+  (`stockAggregate(businessDate: d)`, `stockGroups(businessDate: d, ...)`). The translator heads the composed body
+  and the relation node with the dated navigation (`$this.stock(%d)`, the dot-spelled property call Pure parses it
+  to); the resolver already windowed such a head. Two fixes: the Pure text parser reads a dated head as the
+  composed node's navigation (`SpecParser.navigationHead`), and a composed body's dated head is the node's own
+  temporal spec (`GraphEmission.datedHead`): its child's `businessDate` answered the root's date, or the version's
+  start under a non-temporal root (the fuzzer's first campaign over dated lists, seven documents of 3,200).
 - **The translation.** A root is `C.all(%bd)` or `C.all(%pd, %bd)` (`GqlToPure.extent`); a field is the tree node
   `listing(%bd)`, keyed by its response key (it was keyed `listing(2024-02-29)`, Pure's call spelling).
 - **Found and fixed (wrong data, Pure trees too):** one milestoned property at two dates in one tree (`before:
@@ -1432,11 +1439,13 @@ one, and execution refused them for want of a date. Register row S119.
   dates (`TemporalFrame.withSpec`).
 - **The fixture.** The shop gains a business-temporal `Listing` (a product's price and channel as of a date: a
   version boundary on 2024-01-01, a February-only listing, a one-day version on the leap day, a listing ended in
-  2020, a product never listed); the reference reads it as of a date (`ReferenceModel.DatedToOne`,
+  2020, a product never listed) and a business-temporal `Stock` (a product's stock per warehouse bin, to-many: a
+  sell-out, a one-day leap-day bin, a bin held at zero); the reference reads it as of a date (`ReferenceModel.DatedToOne`,
   `Cls.datedRoots`), a version holding from its first day up to, not on, its last; the fuzzer asks dated roots and
   dated navigations at boundary dates, now and then the same field at two dates.
-- **Measured.** 16 corpus cases (`temporal:` and three refusals); 2,000 fuzzer documents, 341 of them dated, and
-  3,200 more (seeds 71 to 78) agree; `GqlTemporalTest` (a bitemporal limit and a processing-temporal list: the
+- **Measured.** 16 corpus cases (`temporal:` and three refusals) and 6 more (`temporal lists:`); 2,000 fuzzer
+  documents, 341 of them dated, 3,200 more (seeds 71 to 78), and 4,000 with dated lists (seeds 91 to 100, 1,158 of
+  them dated) agree; `GqlTemporalTest` (a bitemporal limit and a processing-temporal list: the
   schema's arguments and their order, a correction recorded later read at two processing dates, a list as of a
   processing date, a missing date refused by name).
 

@@ -170,10 +170,30 @@ public final class ShopReference {
             }
             return out;
         };
+        java.util.function.BiFunction<ShopFixture.Stock, java.time.LocalDate, Obj> stockAsOf = (r, date) -> {
+            Map<String, Object> v = new LinkedHashMap<>();
+            v.put("bin", (long) r.bin());
+            v.put("sku", r.sku());
+            v.put("warehouse", r.warehouse());
+            v.put("qty", (long) r.qty());
+            v.put("businessDate", date);
+            return new Obj("Stock", v);
+        };
+        java.util.function.Function<java.time.LocalDate, List<Obj>> stockOn = date -> {
+            List<Obj> out = new ArrayList<>();
+            for (ShopFixture.Stock r : ShopFixture.STOCK) {
+                if (r.holdsOn(date)) {
+                    out.add(stockAsOf.apply(r, date));
+                }
+            }
+            return out;
+        };
         m.cls("Product")
                 .scalar("sku", Kind.STRING).scalar("title", Kind.STRING).scalar("category", Kind.ENUM)
                 .scalar("price", Kind.FLOAT).scalar("weight", Kind.FLOAT)
                 .derived("tagCount", Kind.BIGINT, p -> (long) tagsOf.apply(p).size())
+                .datedToMany("stock", "Stock", (p, date) -> filter(stockOn.apply(date),
+                        st -> st.get("sku").equals(p.get("sku"))))
                 .datedToOne("listing", "Listing", (p, date) -> {
                     for (Obj l : listingsOn.apply(date)) {
                         if (l.get("sku").equals(p.get("sku"))) {
@@ -197,6 +217,19 @@ public final class ShopReference {
                     return every;
                 })
                 .datedRoots(listingsOn);
+        m.cls("Stock")
+                .scalar("bin", Kind.BIGINT).scalar("sku", Kind.STRING).scalar("warehouse", Kind.STRING)
+                .scalar("qty", Kind.BIGINT)
+                .scalar("businessDate", Kind.DATE)
+                .toOne("stocked", "Product", st -> products.get((String) st.get("sku")))
+                .roots(() -> {
+                    List<Obj> every = new ArrayList<>();
+                    for (ShopFixture.Stock r : ShopFixture.STOCK) {
+                        every.add(stockAsOf.apply(r, r.from()));
+                    }
+                    return every;
+                })
+                .datedRoots(stockOn);
         m.cls("Tag")
                 .scalar("id", Kind.BIGINT).scalar("label", Kind.STRING)
                 .toMany("products", "Product", t -> {

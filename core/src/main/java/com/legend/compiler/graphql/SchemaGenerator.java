@@ -500,8 +500,7 @@ public final class SchemaGenerator {
     static final String PROCESSING_DATE = "processingDate";
 
     /** Whether a property reaches a temporal class: it takes its dates as a field, so no input object (a
-     *  condition, a sort key, a group key) and no summary of it ({@code pAggregate}, {@code pGroups}) can name it
-     *  (register S119). */
+     *  condition, a sort key, a group key) can name it, having no place for a date (register S119). */
     private boolean reachesTemporal(Prop p) {
         return p.kind() == Kind.OBJECT && classOf(p.classFqn()).temporal() != null;
     }
@@ -526,13 +525,15 @@ public final class SchemaGenerator {
         List<FieldDef> fields = new ArrayList<>();
         for (Prop p : c.props()) {
             fields.add(propertyField(c, p));
-            if (p.kind() == Kind.OBJECT && p.toMany() && !reachesTemporal(p)) {
-                String t = classOf(p.classFqn()).simple();
+            if (p.kind() == Kind.OBJECT && p.toMany()) {
+                // the summaries of a list over a temporal class take its dates, as the list does (register S119)
+                ClassInfo target = classOf(p.classFqn());
+                String t = target.simple();
                 fields.add(new FieldDef(p.name() + "Aggregate", null, GqlSchema.named(t + "Aggregate", false),
-                        List.of(new InputValueDef("where", GqlSchema.named(t + "Where", true))), null,
-                        new Meaning.AggregateOf(c.fqn(), p.name())));
-                fields.add(new FieldDef(p.name() + "Groups", null, GqlSchema.listOf(t + "Group"), groupsArgs(t), null,
-                        new Meaning.GroupsOf(c.fqn(), p.name())));
+                        withDates(target, List.of(new InputValueDef("where", GqlSchema.named(t + "Where", true)))),
+                        null, new Meaning.AggregateOf(c.fqn(), p.name())));
+                fields.add(new FieldDef(p.name() + "Groups", null, GqlSchema.listOf(t + "Group"),
+                        withDates(target, groupsArgs(t)), null, new Meaning.GroupsOf(c.fqn(), p.name())));
             }
         }
         // a temporal object answers the dates it was read as of (Pure's generated members; register S119)
@@ -587,14 +588,11 @@ public final class SchemaGenerator {
             case ENUM -> type = p.toMany() ? GqlSchema.listOf(enumName(p)) : GqlSchema.named(enumName(p), p.optional());
             case OBJECT -> {
                 ClassInfo t = classOf(p.classFqn());
-                // a temporal target's dates are the field's arguments (register S119); its list takes no clause
-                // yet (a clause over a dated navigation is not built)
+                // a temporal target's dates are the field's arguments (register S119), before a list's clauses
                 args.addAll(withDates(t, List.of()));
                 if (p.toMany()) {
                     type = GqlSchema.listOf(t.refName());
-                    if (t.temporal() == null) {
-                        args.addAll(collectionArgs(t.simple()));
-                    }
+                    args.addAll(collectionArgs(t.simple()));
                 } else {
                     type = GqlSchema.named(t.refName(), p.optional());
                 }

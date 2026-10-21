@@ -54,7 +54,8 @@ public final class GraphqlReference {
 
             TEMPORAL. A class versioned by date is read as of its dates: its roots take `businessDate: Date!`
             (business-temporal), `processingDate: DateTime!` (processing-temporal) or both (bitemporal), and so does
-            every field reaching it: `listing(businessDate: "2024-01-01") { price }`, `null` where no version holds.
+            every field reaching it: `listing(businessDate: "2024-01-01") { price }`, `null` where no version holds;
+            a dated list takes its clauses after the date, and so do its aggregate and groups.
             A version holds from its first day up to, not on, its last. Each object answers the `businessDate` it was
             read as of. A dated navigation is not offered in `where`, `orderBy` or a group's `key`.
 

@@ -938,6 +938,15 @@ final class GraphEmission {
             }
         }
         if (node.body() != null) {
+            // a composed body over a DATED navigation ($this.stock(%d)->filter(...), GraphQL's clauses on a temporal
+            // list, register S119): its dates are the node's own spec, so the child's frame reads as of them (the
+            // generated businessDate answered the root's date or the version's start, the fuzzer, 2026-10-21)
+            TemporalFrame.TemporalSpec headDates = datedHead(node.body());
+            if (headDates != null && !headDates.equals(temporal.spec(node.property()))) {
+                return new GraphEmission(ctx, sources, assocMaterial, temporal.withSpec(node.property(), headDates),
+                        dispatch, freshVar, checked).graphChild(cs, node, context, parentRowVar, parentRowType,
+                                parentPipeline);
+            }
             // the COMPOSED BODY (lite, GraphQL PR2c): the node's own expression over $this, the shape a
             // derived to-many body has, compiled as one
             TypedSpec bodyHop = unwrapToOneFirst(InheritedCasts.fold(inlineDerivedCalls(node.body(), 0), ctx));
@@ -1773,6 +1782,24 @@ final class GraphEmission {
                 rows.rowVar(), rows.leaves(), rows.nested(), false, false, null,
                 new ExprType(table, com.legend.compiler.element.type.Multiplicity.Bounded.ONE), false, List.of())
                 .withKeyOrder(rows.keyOrder()) : rows);
+    }
+
+    /** The dates of a composed body's navigation head when it is a milestoned access on {@code $this} (down its
+     *  sources: each operator's first child); null otherwise. */
+    private TemporalFrame.@com.legend.base.Nullable TemporalSpec datedHead(TypedSpec body) {
+        TypedSpec cur = body;
+        for (int depth = 0; depth < 64; depth++) {
+            if (cur instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess ma
+                    && ma.source() instanceof TypedVariable v && v.name().equals("this")) {
+                return new TemporalFrame.TemporalSpec(temporal.normalizeContextDates(ma.dates()), ma.sweep());
+            }
+            List<TypedSpec> kids = cur.children();
+            if (kids.isEmpty()) {
+                return null;
+            }
+            cur = kids.get(0);
+        }
+        return null;
     }
 
     /** Whether a node's property is a stored (never derived) property reaching a temporal class: its arguments

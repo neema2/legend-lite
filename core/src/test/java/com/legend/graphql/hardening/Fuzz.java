@@ -4,6 +4,7 @@
 package com.legend.graphql.hardening;
 
 import com.legend.graphql.hardening.ReferenceModel.Cls;
+import com.legend.graphql.hardening.ReferenceModel.DatedToMany;
 import com.legend.graphql.hardening.ReferenceModel.DatedToOne;
 import com.legend.graphql.hardening.ReferenceModel.Fld;
 import com.legend.graphql.hardening.ReferenceModel.Kind;
@@ -222,15 +223,17 @@ public final class Fuzz {
 
     /** A root over a temporal class takes its business date (register S119). */
     GSel dated(String cls, GSel root) {
-        if (!model.get(cls).temporal()) {
-            return root;
-        }
+        return model.get(cls).temporal() ? withDate(root) : root;
+    }
+
+    /** The field with a business date before its other arguments. */
+    GSel withDate(GSel field) {
         List<Map.Entry<String, GV>> args = new ArrayList<>();
         args.add(e("businessDate", businessDate()));
-        if (root.args() != null) {
-            args.addAll(root.args().fields());
+        if (field.args() != null) {
+            args.addAll(field.args().fields());
         }
-        return new GSel(root.name(), obj(args), root.sub(), root.suffix());
+        return new GSel(field.name(), obj(args), field.sub(), field.suffix());
     }
 
     /** The GraphQL type a position of {@code cls} has: {@code XInterface} where the class has subclasses (G8), so a
@@ -525,6 +528,14 @@ public final class Fuzz {
                 case ToOne t -> {
                     if (depth < 2) {
                         out.add(new GSel(f, null, selection(t.target(), depth + 1)));
+                    }
+                }
+                case DatedToMany t -> {
+                    if (depth < 2) {
+                        // a temporal list as of a date: its clauses, its aggregate, its groups
+                        double y = r.nextDouble();
+                        out.add(withDate(y < 0.25 ? aggregateField(f, t.target())
+                                : y < 0.4 ? groupsField(f + "Groups", t.target()) : listField(f, t.target(), depth + 1)));
                     }
                 }
                 case DatedToOne t -> {
