@@ -105,7 +105,9 @@ class JavaEvalLedgerTest {
             // types) — wall growth, zero evaluation
             // 266 -> 261 (2026-10-21, the reference checks): primitivePureName deleted -- a primitive is judged by
             // its M3 kind (the name match missed 'Integer' and injected the primitive as a class)
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 261),
+            // 261 -> 281 (the same day, the independent audit): typeVariableValues -- a precise primitive's values
+            // (Varchar(200)) rendered as written or refused loudly, never dropped: wall growth, zero evaluation
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 281),
             // +2 (B8): the BigDecimal-under-FLOAT arm — the reference's own
             // Float shape (FloatCoreInstance IS BigDecimal-backed)
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 355),

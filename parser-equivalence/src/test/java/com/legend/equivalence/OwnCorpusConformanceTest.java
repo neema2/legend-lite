@@ -252,7 +252,8 @@ class OwnCorpusConformanceTest {
                 // 6 -> 7 (2026-10-21, REVIEWED, the reference checks): ReferenceIntegrityTest's generic class, the
                 // wrong-arity cases' subject -- legend-pure's arity rule, which only lite's dialect (generics, a
                 // declared extension) can reach; the engine's grammar has no class type parameters
-                Map.entry("PURE-DIALECT-generics", 7),
+                // 7 -> 8 (the same day, the independent audit): its `Class a::B<T> extends T`, the crash it guards
+                Map.entry("PURE-DIALECT-generics", 8),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),

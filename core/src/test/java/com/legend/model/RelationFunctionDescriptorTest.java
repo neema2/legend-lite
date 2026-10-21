@@ -68,13 +68,17 @@ class RelationFunctionDescriptorTest {
     }
 
     @Test
-    @DisplayName("the JSON door refuses the same descriptor, through the model door's channel")
+    @DisplayName("the JSON door refuses the same descriptor, as the text door does, at the element its JSON places")
     void jsonDoor() {
-        String json = PmcdParser.parseDocument(model("():meta::pure::metamodel::relation::Relation<Any>[1]"));
-        NotImplementedException e = assertThrows(NotImplementedException.class,
-                () -> Compiler.compileModel(ModelReader.read(json)));
+        // with its record's position, the text door's error at the same place (2026-10-21, the independent audit:
+        // a NotImplementedException without one)
+        String text = model("():meta::pure::metamodel::relation::Relation<Any>[1]");
+        ParseException fromText = assertThrows(ParseException.class, () -> Compiler.compileModel(text));
+        ParseException e = assertThrows(ParseException.class,
+                () -> Compiler.compileModel(ModelReader.read(PmcdParser.parseDocument(text))));
         assertTrue(e.getMessage().contains(
                 "Package path not allowed in types: meta::pure::metamodel::relation::Relation<Any>"), e.getMessage());
+        org.junit.jupiter.api.Assertions.assertEquals(fromText.getMessage(), e.getMessage());
     }
 
     @Test

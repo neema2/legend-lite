@@ -144,8 +144,9 @@ class OwnDialectCensusTest {
                     // IQ island, 2026-10-14 (REVIEWED): one model whose
                     // function is an #IQ{...}# island (LITE-DESIGN-iq-island)
                     java.util.Map.entry("IqIslandRoundTripTest.java", 1),
-                    // the reference checks, 2026-10-21 (REVIEWED): one generic class, the arity cases' subject
-                    java.util.Map.entry("ReferenceIntegrityTest.java", 1));
+                    // the reference checks, 2026-10-21 (REVIEWED): one generic class, the arity cases' subject; 1 -> 2
+                    // the same day (the independent audit): a class extending its own type parameter, a crash's guard
+                    java.util.Map.entry("ReferenceIntegrityTest.java", 2));
 
     private static String hostOf(String id) {
         String f = id.substring(id.lastIndexOf('/') + 1);
