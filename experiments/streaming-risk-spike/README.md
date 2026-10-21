@@ -176,6 +176,66 @@ subscription failed inside the client ("Chunks have inconsistent sizes", `barrag
 `results/2026-10-21/deephaven-dynamic-client-error.json`) and the rerun did not repeat it. The
 server's tables were correct throughout. Python is the path DataCube's notebooks would take.
 
+## Tuning series: what moves Feldera at 16 groupings (`feldera_tuning.py`, `results/2026-10-21/tuning/`)
+
+The question behind it: is 16 groupings slow on Feldera only when they are data (a subscriptions
+table), or also when they are ordinary views compiled into the program? Then: which program shapes
+and runtime settings move it. One variant per run, 1,000 ticks a second, 30 s after a warm-up,
+everything else as above; every run correct against DuckDB. "Feldera lag" is the age of the desk
+grouping's newest data read straight from the view; "subscriber" is tick to the subscriber.
+
+**The first measurements** (latency from the newest `last_px_ts`, so with the MAX columns):
+
+| variant | subscriber p50 / p95 | Feldera lag p50 / p95 | pipeline CPU |
+|---|---|---|---|
+| 4 views compiled in | 40 / 53 ms | 93 / 138 ms | 1.86 cores |
+| 8 views | 80 / 124 ms | 133 / 202 ms | 2.31 cores |
+| 16 views | 257 / 369 ms | 322 / 426 ms | 2.58 cores |
+| 16 views, egress of the probe view only | 234 / 347 ms | 295 / 420 ms | 2.60 cores |
+| 16 views, storage off | 261 / 361 ms | 313 / 431 ms | 2.53 cores |
+| 16 views, CPU profiler off | 241 / 352 ms | 301 / 417 ms | 2.54 cores |
+| 16 views, both off | 249 / 419 ms | 303 / 445 ms | 2.52 cores |
+| 16 views, no FX ticks | 199 / 279 ms | 252 / 339 ms | 2.59 cores |
+| 16 views, 2 workers | 308 / 433 ms | 366 / 508 ms | 1.58 cores |
+| 16 views, 8 workers (4 cores) | 382 / 545 ms | 428 / 597 ms | 3.08 cores |
+| 16 views over the leaf | 230 / 326 ms | 286 / 402 ms | 2.62 cores |
+
+**Then MAX against sums only**, on both engines, latency from a probe (`probe.py`: an instrument
+priced at each batch's send time, so the Probe desk's market value is the timestamp; no MAX needed):
+
+| variant (16 groupings) | with the two MAX columns | sums and count only |
+|---|---|---|
+| Feldera, views over positions | 217 / 277 ms, 2.55 cores | 127 / 170 ms, 2.55 cores |
+| Feldera, views over the leaf | (230 / 326 ms above) | 122 / 161 ms, 2.54 cores |
+| Feldera, groupings as data, leaf | (310 / 467 ms, the follow-up) | 122 / 162 ms, 1.87 cores |
+| Feldera, groupings as data, leaf in one copy per worker | | 133 / 171 ms, 2.04 cores |
+| Feldera, groupings as data, positions joined directly | (1,100 / 1,447 ms, the follow-up) | 257 / 374 ms, 1.69 cores |
+| Deephaven, 16 aggregations attached at runtime | 81 / 107 ms, 1.35 cores | 94 / 112 ms, 0.91 cores |
+
+What it says:
+
+1. **16 groupings is slow on Feldera however they are written**: compiled views (257 ms) cost about
+   what groupings as data over the leaf cost (310 ms). Latency grows with the groupings (40, 80,
+   257 ms for 4, 8, 16) while CPU levels off at about 2.6 of 4 cores.
+2. **MAX is the largest single cost.** Dropping the two MAX columns takes 16 views from 217 to
+   127 ms. Feldera's documentation says why: SUM, COUNT and AVG are linear and keep no input; MIN
+   and MAX must keep the whole input to find the next value when one is retracted (they are cheap
+   only on append-only data). Deephaven kept the same MAX columns for 0.4 of a core and no
+   latency.
+3. **Without MAX, groupings as data cost the same as compiled views** (122 ms either way, on less
+   CPU), so one compiled program can serve any grouping and filter over the declared dimensions,
+   started and stopped by inserting and deleting a row, with no recompile. The leaf is what makes
+   it work: joining positions with the subscriptions directly is twice as slow (257 ms).
+4. **Not the cause:** the JSON output (one view's egress or 16 cost the same), storage, the CPU
+   profiler, the subscription join's lack of a key (spreading it over the workers did not help),
+   and the worker count (4 is best on 4 cores; 2 is slower, 8 slower still).
+5. **Deephaven stays ahead at 16 groupings**: 81 to 94 ms p50 on 0.9 to 1.35 cores, its floor set
+   by the 100 ms update cycle and subscription interval, against Feldera's 122 ms on 1.9 to 2.5
+   cores at best.
+6. **The Python ticking client failed on the largest subscription (2,364 rows) in 2 of 4 runs**
+   ("Chunks have inconsistent sizes" in `barrage_processor.cc`); the server's snapshot was right
+   both times.
+
 ## Running it
 
 ```sh

@@ -1,0 +1,59 @@
+{
+  "variant": "static16",
+  "workers": 4,
+  "storage": "off",
+  "profiler": "on",
+  "minBatch": 0,
+  "rate": 1000,
+  "egress": "all",
+  "compileSeconds": 13.8,
+  "runtimeConfig": {
+    "workers": 4,
+    "hosts": 1,
+    "storage": null,
+    "fault_tolerance": {
+      "model": "none"
+    },
+    "cpu_profiler": true,
+    "tracing": false,
+    "tracing_endpoint_jaeger": "127.0.0.1:6831",
+    "min_batch_size_records": 0,
+    "resources": {
+      "cpu_cores_min": null,
+      "cpu_cores_max": null,
+      "storage_class": null,
+      "service_account_name": null,
+      "namespace": null
+    },
+    "clock_timezone_offset": null,
+    "pin_cpus": [],
+    "max_parallel_connector_init": null,
+    "init_containers": null,
+    "checkpoint_during_suspend": true,
+    "http_workers": null,
+    "io_workers": null,
+    "env": {},
+    "dev_tweaks": {},
+    "logging": null,
+    "pipeline_template_configmap": null
+  },
+  "window": {
+    "internalAgeMillis": {
+      "p50": 312.9,
+      "p95": 430.9,
+      "max": 472.5
+    },
+    "tickToSubscriberMillis": {
+      "p50": 261.3,
+      "p95": 361.3,
+      "n": 297
+    },
+    "pipelineCpuCores": 2.53,
+    "pipelineRssMB": 369,
+    "maxBufferedInput": 202,
+    "egressMBPerSecond": 5.59
+  },
+  "correct": true,
+  "mismatches": 0,
+  "maxRelativeError": 2.1723741981425716e-12
+}
