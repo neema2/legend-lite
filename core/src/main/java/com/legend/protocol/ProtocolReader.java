@@ -395,10 +395,13 @@ public final class ProtocolReader {
                 : new TypeExpression.Generic(path, args, mults, tvv, pos));
     }
 
-    /** {@code Result} with exactly the engine's synthesized {@code <Any|1..*>} (a span-less Any). */
+    /** {@code Result} (or {@code meta::pure::mapping::Result}) with exactly the engine's synthesized
+     *  {@code <Any|1..*>} (a span-less Any). */
     private static boolean isBareResult(String path, List<Json.Node> multArgs, List<Json.Node> typeArgs,
             List<ValueSpecification> tvv) {
-        if (!"Result".equals(path) || multArgs.size() != 1 || typeArgs.size() != 1 || !tvv.isEmpty()) {
+        // either spelling the engine's converter rewrites (ProtocolUpgrade: Result and meta::pure::mapping::Result)
+        if (!("Result".equals(path) || "meta::pure::mapping::Result".equals(path)) || multArgs.size() != 1
+                || typeArgs.size() != 1 || !tvv.isEmpty()) {
             return false;
         }
         Multiplicity m = multiplicity(multArgs.get(0));

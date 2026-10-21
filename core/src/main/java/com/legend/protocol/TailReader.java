@@ -251,7 +251,8 @@ final class TailReader {
 
     static Protocol.Element serviceStore(Wire w) {
         w.emptyArray("includedStores");
-        return new Protocol.PServiceStoreDefinition(w.str("package"), w.str("name"), null,
+        // a description: the engine's parser writes none; lite's dialect does (S89), into the engine's own field
+        return new Protocol.PServiceStoreDefinition(w.str("package"), w.str("name"), w.optStr("description"),
                 w.list("elements", TailReader::serviceStoreElement), w.span());
     }
 

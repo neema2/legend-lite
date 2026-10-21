@@ -3285,7 +3285,8 @@ public final class ProtocolEmitter {
                             .PackageableElementPtr ptr ->
                     enumValueNode(b, ptr.fullPath(), p.property(),
                             joinSpans(ptr.pos(), p.pos()));
-            default -> valueSpec(b, foldNegation(v));
+            // a model store's -1 is one literal already: the parser reads it as the engine's data walker does
+            default -> valueSpec(b, v);
         }
     }
 
@@ -3308,43 +3309,6 @@ public final class ProtocolEmitter {
         b.append(",\"value\":");
         str(b, value);
         b.append('}');
-    }
-
-    /** {@code -1} inside instance data. The ###Pure walker keeps unary minus
-     *  as a one-parameter {@code minus} call; the DATA walker FOLDS it into a
-     *  negative literal whose span covers the operator AND the digits (probe
-     *  neg-literals). Anything else passes through untouched. */
-    private static com.legend.protocol.spec.ValueSpecification foldNegation(
-            com.legend.protocol.spec.ValueSpecification v) {
-        if (!(v instanceof com.legend.protocol.spec.AppliedFunction f)
-                || !"minus".equals(f.function()) || f.parameters().size() != 1
-                || f.pos() == null) {
-            return v;
-        }
-        com.legend.protocol.spec.ValueSpecification operand = f.parameters().get(0);
-        SourceInfo end = switch (operand) {
-            case com.legend.protocol.spec.CInteger c -> c.pos();
-            case com.legend.protocol.spec.CFloat c -> c.pos();
-            case com.legend.protocol.spec.CDecimal c -> c.pos();
-            default -> null;
-        };
-        if (end == null) {
-            return v;
-        }
-        SourceInfo span = new SourceInfo(end.sourceId(), f.pos().startLine(),
-                f.pos().startColumn(), end.endLine(), end.endColumn());
-        return switch (operand) {
-            case com.legend.protocol.spec.CInteger c ->
-                    new com.legend.protocol.spec.CInteger(
-                            -c.value().longValue(), span);
-            case com.legend.protocol.spec.CFloat c ->
-                    new com.legend.protocol.spec.CFloat(-c.value(), span);
-            // a decimal goes on the wire as its value's digits (BigDecimal.toString),
-            // so the sign is the value's
-            case com.legend.protocol.spec.CDecimal c ->
-                    new com.legend.protocol.spec.CDecimal(c.value().negate(), span);
-            default -> v;
-        };
     }
 
     /** One instance inside ModelStore data. The engine's DATA walker builds

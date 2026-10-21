@@ -685,6 +685,15 @@ public final class SpecParser implements TokenStreamCursor {
             if (t == TokenType.MINUS) {
                 int opTok = pos;
                 pos++;
+                if (instanceData && (peek() == TokenType.INTEGER || peek() == TokenType.FLOAT
+                        || peek() == TokenType.DECIMAL)) {
+                    // a model store's -1: legend-engine's model-data walker reads a signed number as ONE literal, its
+                    // span the sign and the digits (ModelStoreDataParseTreeWalker.visitInstanceLiteral; probe
+                    // neg-literals); the ###Pure walker keeps a minus call
+                    ValueSpecification n = peek() == TokenType.INTEGER ? parseInteger()
+                            : peek() == TokenType.FLOAT ? parseFloat() : parseDecimal();
+                    return negativeLiteral(n, spanOf(opTok, pos - 1));
+                }
                 // Engine convention (ProbeWireShapes cNeg): unary minus is a ONE-parameter
                 // func (no collection) spanning just the operator token.
                 // -5 RomanLength~Pes: the sign belongs to the NUMBER of a unit
@@ -707,6 +716,19 @@ public final class SpecParser implements TokenStreamCursor {
             }
         }
         return parsePrimary();
+    }
+
+    /** A number literal negated, as one literal at {@code span} (a model store's {@code -1}). */
+    private static ValueSpecification negativeLiteral(ValueSpecification n,
+            com.legend.protocol.SourceInfo span) {
+        return switch (n) {
+            case com.legend.protocol.spec.CInteger c -> new com.legend.protocol.spec.CInteger(
+                    c.value() instanceof java.math.BigInteger big ? big.negate() : (Number) (-c.value().longValue()),
+                    span);
+            case com.legend.protocol.spec.CFloat c -> new com.legend.protocol.spec.CFloat(-c.value(), span);
+            case com.legend.protocol.spec.CDecimal c -> new com.legend.protocol.spec.CDecimal(c.value().negate(), span);
+            default -> throw new IllegalStateException("a number literal is an integer, a float or a decimal: " + n);
+        };
     }
 
     /**
@@ -2902,6 +2924,16 @@ public final class SpecParser implements TokenStreamCursor {
             boolean isDatedSeg = open > 0 && seg.endsWith(")")
                     && isWord(seg.substring(0, open))
                     && seg.indexOf(')') == seg.length() - 1;
+            if (isDatedSeg && seg.substring(open + 1, seg.length() - 1).isBlank()
+                    && dialect().refusesPlatformDialect()) {
+                // prop(): no argument -- at the engine's and lite's dialects the property itself, as $x.f() is $x.f
+                // (leg 8 step 2); a segment's JSON carries no parentheses (PropertyPathElement's parameters empty)
+                String name = seg.substring(0, open);
+                pieces.add(new com.legend.protocol.spec.PathLiteral.Segment(
+                        name, cursor, cursor + lead + seg.length() - 1, List.of(), false));
+                body = new AppliedProperty(body, name);
+                continue;
+            }
             if (isDatedSeg) {
                 String datedName = seg.substring(0, open);
                 String datedArgs = seg.substring(open + 1, seg.length() - 1);

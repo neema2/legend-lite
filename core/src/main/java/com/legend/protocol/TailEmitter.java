@@ -432,7 +432,14 @@ final class TailEmitter {
 
     static void serviceStore(StringBuilder b,
             Protocol.PServiceStoreDefinition s) {
-        b.append("{\"_type\":\"serviceStore\",\"elements\":[");
+        b.append("{\"_type\":\"serviceStore\"");
+        if (s.description() != null) {
+            // lite's dialect keeps a description (the engine's parser drops it): its JSON field, in the engine's
+            // alphabetical order (S89, rule A)
+            b.append(",\"description\":");
+            ProtocolEmitter.str(b, s.description());
+        }
+        b.append(",\"elements\":[");
         for (int i = 0; i < s.elements().size(); i++) {
             if (i > 0) {
                 b.append(',');

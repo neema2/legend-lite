@@ -13,8 +13,8 @@ import java.util.List;
 
 /**
  * {@code ###ServiceStore} — the service-store DSL (ZTailProbe
- * "svcstore-empty"/"svcstore-rich"): an optional description (parsed,
- * never wired), then services and recursively nested service groups.
+ * "svcstore-empty"/"svcstore-rich"): an optional description (kept at lite's dialect, dropped at the engine's,
+ * as its walker drops it: S89), then services and recursively nested service groups.
  * Parameters carry typed references ({@code String} / {@code [Integer]} /
  * {@code Class <- binding}) and OpenAPI-ish facets whose {@code x = y}
  * texts keep their own spans.
@@ -84,8 +84,11 @@ public final class ServiceStoreSectionGrammar
                     "Service Store Elements should have unique ids."
                     + " Multiple elements found with ids - " + dup);
         }
+        // the engine's walker reads the description and keeps none (its JSON never carries one); lite's dialect keeps it,
+        // and the engine's JSON has its field (ServiceStore.description) -- docs/SEMANTICS_REGISTER.md S89, rule A
         return new Protocol.PServiceStoreDefinition(h.pkg(), h.name(),
-                description, elements, c.spanOf(h.declStart(), c.pos() - 1));
+                c.dialect().refusesLiteExtensions() ? null : description, elements,
+                c.spanOf(h.declStart(), c.pos() - 1));
     }
 
     private static Protocol.PSsServiceGroup parseGroup(TokenStreamCursor c) {
