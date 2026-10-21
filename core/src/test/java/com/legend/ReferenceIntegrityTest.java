@@ -1,9 +1,8 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.compiler;
+package com.legend;
 
-import com.legend.Compiler;
 import com.legend.parser.PmcdParser;
 import com.legend.protocol.ModelReader;
 import com.legend.protocol.ProtocolEmitter;
@@ -197,6 +196,20 @@ class ReferenceIntegrityTest {
         refused("Class {a::P.nope = 'v'} a::B\n{\n}\n", "Can't find tag 'nope' in profile 'a::P'");
         refused("Class a::B\n{\n  {a::P.nope = 'v'} p: String[1];\n}\n", "Can't find tag 'nope' in profile 'a::P'");
         refused("function {a::P.nope = 'v'} a::f(): String[1]\n{\n  'x'\n}\n", "Can't find tag 'nope' in profile 'a::P'");
+    }
+
+    @Test
+    void anAssociationsAndADerivedPropertysAnnotationsAreChecked() {
+        // an association's own annotations were dropped at the door, a derived property's never resolved (2026-10-21)
+        refused("Association <<a::NoProfile.s>> a::AB\n{\n  c: a::C[1];\n  d: a::C[*];\n}\n",
+                "Can't find the profile 'a::NoProfile'");
+        refused("Association {a::P.nope = 'v'} a::AB\n{\n  c: a::C[1];\n  d: a::C[*];\n}\n",
+                "Can't find tag 'nope' in profile 'a::P'");
+        refused("Association a::AB\n{\n  {a::P.nope = 'v'} c: a::C[1];\n  d: a::C[*];\n}\n",
+                "Can't find tag 'nope' in profile 'a::P'");
+        refused("Class a::B\n{\n  <<a::NoProfile.s>> d() {1}: Integer[1];\n}\n", "Can't find the profile 'a::NoProfile'");
+        accepted("Class a::B\n{\n  <<a::P.s>> {a::P.t = 'v'} d() {1}: Integer[1];\n}\n"
+                + "Association <<a::P.s>> a::AB\n{\n  c: a::C[1];\n  d: a::C[*];\n}\n");
     }
 
     @Test

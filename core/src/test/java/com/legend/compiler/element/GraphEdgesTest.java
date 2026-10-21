@@ -272,7 +272,9 @@ class GraphEdgesTest {
                   <<graph.to>> movie: demo::Movie[1];
                 }
                 """);
-        assertTrue(message.contains("the profile graph::graph is not declared"), message);
+        // the integrity pass refuses a stereotype of an undeclared profile before any edge is read (2026-10-21),
+        // in legend-engine's words; the bare name resolves to no profile, so it stays as written
+        assertTrue(message.contains("Can't find the profile 'graph'"), message);
     }
 
     @Test

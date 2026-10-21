@@ -48,7 +48,7 @@ class PctFunctionSuppressionTest {
     void nativeOwnedSuppresses() throws Exception {
         // a DELIBERATELY WRONG reference body: if it joined the overload
         // set and won, or([true]) would be false
-        String model = "function <<PCT.function>>"
+        String model = "function <<meta::pure::test::pct::PCT.function>>"
                 + " meta::pure::functions::collection::or(vals:Boolean[*]):Boolean[1]"
                 + " { $vals->fold({i,a|false}, false) }";
         ExecutionResult r = Execution.execute(StorelessRuntime.with(model, Databases.PLATFORM),
@@ -61,7 +61,7 @@ class PctFunctionSuppressionTest {
     @Test
     @DisplayName("no native at the FQN: the PCT.function body IS the implementation")
     void unownedKeepsBody() throws Exception {
-        String model = "function <<PCT.function>>"
+        String model = "function <<meta::pure::test::pct::PCT.function>>"
                 + " my::pkg::triple(x:Integer[1]):Integer[1] { $x * 3 }";
         ExecutionResult r = Execution.execute(StorelessRuntime.with(model, Databases.PLATFORM),
                 "{|my::pkg::triple(2)}", StorelessRuntime.RUNTIME, conn);

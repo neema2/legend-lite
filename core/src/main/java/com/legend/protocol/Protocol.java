@@ -3368,6 +3368,11 @@ public final class Protocol {
     public record PStereotype(String profile, String value,
                               @com.legend.base.Nullable com.legend.protocol.SourceInfo profileSourceInformation,
                               @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+        /** This stereotype with its profile named {@code resolved} (the name resolver's qualification). */
+        public PStereotype withProfile(String resolved) {
+            return resolved.equals(profile) ? this
+                    : new PStereotype(resolved, value, profileSourceInformation, sourceInformation);
+        }
     }
 
     /**
@@ -3390,6 +3395,12 @@ public final class Protocol {
      *  one stays the bare string it always was. */
     public record PTaggedValue(PTag tag, String value, boolean multiLine,
             @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+        /** This tagged value with its tag's profile named {@code resolved} (the name resolver's qualification). */
+        public PTaggedValue withProfile(String resolved) {
+            return resolved.equals(tag.profile()) ? this
+                    : new PTaggedValue(new PTag(resolved, tag.value(), tag.profileSourceInformation(),
+                            tag.sourceInformation()), value, multiLine, sourceInformation);
+        }
     }
 
     /**

@@ -977,6 +977,46 @@ public final class NativeFn {
         }
     }
 
+    /** The n-ary arithmetic carriers: {@code a + b (+ ...)}, {@code a - b} and {@code a * b} are each ONE call to a
+     *  {@code [*]} overload over a run of operands ({@code plus([a, b, ...])}), as legend-engine's and legend-pure's
+     *  parsers both build them. A call is one when its RESOLVED declaration is one of these (the typer's operator-run
+     *  mark, Typer.withOperatorRun), never by the name it was written with (2026-10-21: a set of spellings decided it
+     *  before resolution, so a user's own {@code plus} over a list would have been read as arithmetic). */
+    public enum OperatorRun implements Member {
+        PLUS("meta::pure::functions::math::plus", Pure.PLUS__INTEGER_MANY, Pure.PLUS__FLOAT_MANY,
+                Pure.PLUS__DECIMAL_MANY, Pure.PLUS__NUMBER_MANY),
+        STRING_PLUS("meta::pure::functions::string::plus", Pure.STRING_PLUS__STRING_MANY),
+        MINUS("meta::pure::functions::math::minus", Pure.MINUS__INTEGER_MANY, Pure.MINUS__FLOAT_MANY,
+                Pure.MINUS__DECIMAL_MANY, Pure.MINUS__NUMBER_MANY),
+        TIMES("meta::pure::functions::math::times", Pure.TIMES__INTEGER_MANY, Pure.TIMES__FLOAT_MANY,
+                Pure.TIMES__DECIMAL_MANY, Pure.TIMES__NUMBER_MANY);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        OperatorRun(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<com.legend.model.FunctionId, OperatorRun> BY_ID = indexById(values());
+
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<OperatorRun> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
+        }
+    }
+
     /** natives BOUND ONCE at type-check to a carrier node that knows its implementation (the raw-grid relation, the test-data generators, the JDBC metadata grids). */
     public enum Carrier implements Member {
         EXECUTE_IN_DB_TO_TDS("meta::relational::metamodel::execute::executeInDbToTDS",

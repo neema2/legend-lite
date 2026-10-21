@@ -855,13 +855,23 @@ public final class NameResolver {
         List<ParameterDefinition> params = resolveParameterList(dp.parameters(), scope);
         Realization realization = resolveRealization(dp.realization(), scope);
         TypeExpression type = resolveType(dp.type(), scope);
-        if (params == dp.parameters() && realization == dp.realization() && type == dp.type()) {
+        // its annotations' profiles resolve as any annotation's (resolveProfile)
+        List<com.legend.protocol.Protocol.PStereotype> stereotypes = new ArrayList<>(dp.stereotypes().size());
+        for (com.legend.protocol.Protocol.PStereotype st : dp.stereotypes()) {
+            stereotypes.add(st.withProfile(resolveProfile(st.profile(), scope)));
+        }
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = new ArrayList<>(dp.taggedValues().size());
+        for (com.legend.protocol.Protocol.PTaggedValue tv : dp.taggedValues()) {
+            taggedValues.add(tv.withProfile(resolveProfile(tv.tag().profile(), scope)));
+        }
+        if (params == dp.parameters() && realization == dp.realization() && type == dp.type()
+                && stereotypes.equals(dp.stereotypes()) && taggedValues.equals(dp.taggedValues())) {
             return dp;
         }
         // (the annotations and the span ride along: a rebuilt derived property used to drop its stereotypes, so a
         // <<graph.type>> whose body names an enumeration lost its marker on resolution; 2026-10-16, the edge class)
         return new DerivedPropertyDefinition(dp.name(), params, realization,
-                nn(type), dp.multiplicity(), dp.stereotypes(), dp.taggedValues(), dp.pos());
+                nn(type), dp.multiplicity(), stereotypes, taggedValues, dp.pos());
     }
 
     private static ParameterDefinition resolveParameter(
@@ -893,20 +903,25 @@ public final class NameResolver {
         AssociationEndDefinition p2 = resolveAssocEnd(ad.property2(), scope);
         List<DerivedPropertyDefinition> derived =
                 resolveDerivedList(ad.derivedProperties(), scope);
+        List<StereotypeApplication> stereotypes = resolveStereotypes(ad.stereotypes(), scope);
+        List<TaggedValue> taggedValues = resolveTaggedValues(ad.taggedValues(), scope);
         if (p1 == ad.property1() && p2 == ad.property2()
-                && derived == ad.derivedProperties()) {
+                && derived == ad.derivedProperties() && stereotypes.equals(ad.stereotypes())
+                && taggedValues.equals(ad.taggedValues())) {
             return ad;
         }
-        return new AssociationDefinition(ad.qualifiedName(), p1, p2, derived);
+        return new AssociationDefinition(ad.qualifiedName(), p1, p2, derived, stereotypes, taggedValues);
     }
 
     private static AssociationEndDefinition resolveAssocEnd(
             AssociationEndDefinition end, Scope scope) {
         TypeExpression target = resolveType(end.targetClass(), scope);
         List<StereotypeApplication> stereotypes = resolveStereotypes(end.stereotypes(), scope);
-        return target == end.targetClass() && stereotypes == end.stereotypes() ? end
+        List<TaggedValue> taggedValues = resolveTaggedValues(end.taggedValues(), scope);
+        return target == end.targetClass() && stereotypes.equals(end.stereotypes())
+                && taggedValues.equals(end.taggedValues()) ? end
                 : new AssociationEndDefinition(end.propertyName(), nn(target),
-                        end.multiplicity(), stereotypes);
+                        end.multiplicity(), stereotypes, taggedValues);
     }
 
     private static FunctionDefinition resolveFunction(

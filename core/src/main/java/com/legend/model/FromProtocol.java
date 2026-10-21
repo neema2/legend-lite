@@ -74,7 +74,7 @@ public final class FromProtocol {
                 new ArrayList<>(a.properties().size());
         for (PProperty p : a.properties()) {
             ends.add(new AssociationDefinition.AssociationEndDefinition(
-                    p.name(), p.type(), p.multiplicity(), stereotypes(p.stereotypes())));
+                    p.name(), p.type(), p.multiplicity(), stereotypes(p.stereotypes()), taggedValues(p.taggedValues())));
         }
         if (ends.size() != 2) {
             // ENGINE-VERBATIM (TestDomainCompilationFromGrammar): the
@@ -87,7 +87,7 @@ public final class FromProtocol {
                             + a.qualifiedName() + "'");
         }
         return new AssociationDefinition(a.qualifiedName(), ends.get(0), ends.get(1),
-                a.derivedProperties());
+                a.derivedProperties(), stereotypes(a.stereotypes()), taggedValues(a.taggedValues()));
     }
 
     /** Protocol profile to the model's — bare names; spans stay protocol-side. */

@@ -341,27 +341,19 @@ final class Typer {
     // =====================================================================
 
 
-    /** The n-ary arithmetic carriers: {@code a + b (+ …)}, {@code a - b} and {@code a * b} are each ONE call over a
-     *  run of operands ({@code plus([a, b, …])}), as legend-engine's and legend-pure's parsers both build them. */
-    private static final java.util.Set<String> OPERATOR_CARRIERS = java.util.Set.of(
-            "plus", "minus", "times",
-            com.legend.compiler.element.type.PlatformTypes.PLUS,
-            com.legend.compiler.element.type.PlatformTypes.STRING_PLUS,
-            com.legend.compiler.element.type.PlatformTypes.MINUS,
-            com.legend.compiler.element.type.PlatformTypes.TIMES);
-
     /** An operator run is decided by its SHAPE -- an arithmetic carrier over a literal list of two or more
      *  operands -- never by how it was spelled: {@code 1 + 2 + 3} and {@code plus([1, 2, 3])} are one call to
      *  legend-engine and legend-pure, and a model given as JSON carries no spelling (leg 8, step 2: the compiler
      *  stops reading the parser's {@code infix} marker). The mark rides the typed run ({@code TypedCollection
-     *  .operatorRun}) — on BOTH typing paths (eager and deferred), the one place an application's typed arguments
-     *  are final. */
-    static void markOperatorRun(String function, List<TypedSpec> args) {
-        if (args.size() == 1 && OPERATOR_CARRIERS.contains(function)
+     *  .operatorRun}) — on BOTH typing paths (eager and deferred), once the overload is CHOSEN: the carrier is the
+     *  resolved declaration ({@code NativeFn.OperatorRun}), never the name the call was written with. */
+    static List<TypedSpec> withOperatorRun(TypedFunction chosen, List<TypedSpec> args) {
+        if (args.size() == 1 && com.legend.builtin.NativeFn.OperatorRun.of(chosen.id()).isPresent()
                 && args.get(0) instanceof com.legend.compiler.spec.typed.TypedCollection run
                 && run.elements().size() >= 2) {
-            args.set(0, run.asOperatorRun());
+            return List.of(run.asOperatorRun());
         }
+        return args;
     }
 
     /**

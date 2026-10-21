@@ -92,10 +92,6 @@ final class Overloads {
         return t.namedType(te);
     }
 
-    private static void markOperatorRun(String function, List<TypedSpec> args) {
-        Typer.markOperatorRun(function, args);
-    }
-
     /**
      * The one generic application rule (engine {@code ScalarChecker}): type the
      * arguments, resolve the overload against the registered signatures, and read
@@ -470,7 +466,6 @@ final class Overloads {
         for (ValueSpecification p : af.parameters()) {
             args.add(synth(p, env));
         }
-        markOperatorRun(af.function(), args);
         return checkGenericTyped(af, args, expected);
     }
 
@@ -503,8 +498,9 @@ final class Overloads {
                     + " or a misspelling)");
         }
         InferenceKernel.Resolution r = kernel.resolveOverload(candidates, argTypes, expected);
-        return new Application(r.chosen(), args, NumberKinds.refine(r.chosen(), args,
-                refineParseDate(r.chosen(), args, refineDecimalCarrier(r.chosen(), r.output()))));
+        List<TypedSpec> typedArgs = Typer.withOperatorRun(r.chosen(), args);
+        return new Application(r.chosen(), typedArgs, NumberKinds.refine(r.chosen(), typedArgs,
+                refineParseDate(r.chosen(), typedArgs, refineDecimalCarrier(r.chosen(), r.output()))));
     }
 
     /** parseDate over a LITERAL refines its abstract Date output to the
@@ -709,8 +705,7 @@ final class Overloads {
 
         ExprType out = kernel.resolveOutput(chosen.returnType(), chosen.returnMultiplicity(), b,
                 java.util.Arrays.stream(typed).map(TypedSpec::info).toList());
-        List<TypedSpec> typedArgs = new ArrayList<>(List.of(typed));
-        markOperatorRun(chosen.qualifiedName(), typedArgs);
+        List<TypedSpec> typedArgs = Typer.withOperatorRun(chosen, List.of(typed));
         return new Application(chosen, typedArgs, NumberKinds.refine(chosen, typedArgs,
                 refineImportDataFlow(chosen, raw, typed, env, refineDecimalCarrier(chosen, out))));
     }

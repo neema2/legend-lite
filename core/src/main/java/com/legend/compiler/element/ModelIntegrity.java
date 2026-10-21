@@ -75,8 +75,12 @@ final class ModelIntegrity {
             classifier.classify(a.property2().targetClass(), List.of());
             classifier.requireArguments(a.property1().targetClass(), List.of());
             classifier.requireArguments(a.property2().targetClass(), List.of());
-            requireAnnotations(a.property1().stereotypes(), List.of(), model);
-            requireAnnotations(a.property2().stereotypes(), List.of(), model);
+            requireAnnotations(a.stereotypes(), a.taggedValues(), model);
+            requireAnnotations(a.property1().stereotypes(), a.property1().taggedValues(), model);
+            requireAnnotations(a.property2().stereotypes(), a.property2().taggedValues(), model);
+            for (DerivedPropertyDefinition dp : a.derivedProperties()) {
+                requireAnnotations(dp, model);
+            }
         }, wallSink));
         // the property-graph profile's rule over the edge classes (docs/CYPHER_STUDY_2026_10_15.md §5.6): a
         // misdeclared edge is its class's error, one wall per class (the error names the class declaring the
@@ -160,6 +164,19 @@ final class ModelIntegrity {
                         "Can't find tag '" + tv.tagName() + "' in profile '" + tv.profileName() + "'");
             }
         }
+    }
+
+    /** A derived property's annotations (carried as their protocol records), checked as any annotation is. */
+    private static void requireAnnotations(DerivedPropertyDefinition dp, ModelBuilder model) {
+        List<com.legend.model.StereotypeApplication> stereotypes = new java.util.ArrayList<>();
+        for (com.legend.protocol.Protocol.PStereotype st : dp.stereotypes()) {
+            stereotypes.add(new com.legend.model.StereotypeApplication(st.profile(), st.value()));
+        }
+        List<com.legend.model.TaggedValue> taggedValues = new java.util.ArrayList<>();
+        for (com.legend.protocol.Protocol.PTaggedValue tv : dp.taggedValues()) {
+            taggedValues.add(new com.legend.model.TaggedValue(tv.tag().profile(), tv.tag().value(), tv.value()));
+        }
+        requireAnnotations(stereotypes, taggedValues, model);
     }
 
     private static com.legend.model.ProfileDefinition profile(String fqn, ModelBuilder model) {
@@ -272,6 +289,7 @@ final class ModelIntegrity {
                     "property '" + pd.name() + "' of " + cd.qualifiedName());
         }
         for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
+            requireAnnotations(dp, model);
             classifier.classify(dp.type(), typeParams);
             classifier.requireArguments(dp.type(), typeParams);
             requireValidBounds(dp.multiplicity(),
