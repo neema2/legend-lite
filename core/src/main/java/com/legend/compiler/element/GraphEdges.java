@@ -122,8 +122,7 @@ public record GraphEdges(List<Edge> edges) {
         return read(new Source() {
             @Override
             public Stream<ClassDefinition> classes() {
-                return new TreeSet<>(ctx.elementFqns()).stream().filter(fqn -> !ctx.isSynthetic(fqn))
-                        .map(this::findClass).flatMap(Optional::stream);
+                return new TreeSet<>(ctx.elementFqns()).stream().map(this::findClass).flatMap(Optional::stream);
             }
 
             @Override

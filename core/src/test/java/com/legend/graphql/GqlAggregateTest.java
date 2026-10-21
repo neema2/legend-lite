@@ -17,9 +17,9 @@ import java.sql.SQLException;
 import org.junit.jupiter.api.Test;
 
 /**
- * Aggregates (docs/GRAPHQL_STUDY_2026_10_18.md G6, §5.5, §5.8; PR4) over {@link GqlExecutionTest}'s rows: the
- * companion's aggregate classes and {@code pAggregate()} members, the nested aggregate with and without a clause,
- * the aggregate root as a relation. Acme: Alice 45/120k, Bob 32/90k, Carol 51/150k, Dan 28/60k; Globex: Eve
+ * Aggregates (docs/GRAPHQL_STUDY_2026_10_18.md G6, §5.5; PR4; the relation node since 2026-10-21, §13.8, register
+ * S118) over {@link GqlExecutionTest}'s rows: the schema's aggregate fields without a model member behind them, the
+ * nested aggregate with and without a clause, the aggregate root as a relation. Acme: Alice 45/120k, Bob 32/90k, Carol 51/150k, Dan 28/60k; Globex: Eve
  * 39/110k, Frank 61/null; Initech: nobody; Grace 24/70k has no firm.
  */
 class GqlAggregateTest {
@@ -35,20 +35,16 @@ class GqlAggregateTest {
         }
     }
 
+    /** The schema offers an aggregate beside every to-many property (an association end's included); the model
+     *  carries no member or class for it: the translator spells the relation node's table. */
     @Test
-    void theCompanionsAggregateClassesAndMembers() {
+    void theAggregateFieldsHaveNoModelMembers() {
         ModelContext ctx = Compiler.compileModel(GqlExecutionTest.MODEL);
-        String agg = com.legend.protocol.graphql.Companion.aggregateClass("demo::Person");
-        assertTrue(ctx.findClass(agg).isPresent(), agg);
-        assertTrue(ctx.findProperty(agg, "count").isPresent());
-        assertTrue(ctx.findProperty(agg, "sum").isPresent());
-        assertTrue(ctx.findProperty(agg, "avg").isPresent());
-        assertTrue(ctx.findProperty(com.legend.protocol.graphql.Companion.foldClass("demo::Person", com.legend.protocol.graphql.Companion.Fold.SUM), "salary")
-                .isPresent());
-        assertTrue(ctx.findProperty("demo::Firm", "employeesAggregate").isPresent(), "the association end's member");
-        assertTrue(ctx.findProperty("demo::Address", "residentsAggregate").isPresent());
-        // the companion's classes are no roots of the schema
+        assertTrue(ctx.findProperty("demo::Firm", "employeesAggregate").isEmpty(), "no generated member");
         String sdl = com.legend.compiler.graphql.SdlPrinter.print(com.legend.compiler.graphql.GqlIslands.schemaOf(ctx));
+        assertTrue(sdl.contains("employeesAggregate(where: PersonWhere): PersonAggregate!"), sdl);
+        assertTrue(sdl.contains("residentsAggregate(where: PersonWhere): PersonAggregate!"), sdl);
+        assertTrue(sdl.contains("type PersonSum {"), sdl);
         assertTrue(!sdl.contains("companion"), sdl.substring(0, 400));
     }
 

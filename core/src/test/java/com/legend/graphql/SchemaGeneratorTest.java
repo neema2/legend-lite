@@ -109,15 +109,17 @@ class SchemaGeneratorTest {
     }
 
     @Test
-    void aPropertyNamedLikeTheCompanionsAggregateMemberIsRefusedByTheModel() {
-        // PR4: employeesAggregate is the companion's member (G11), refused before the generator runs
-        com.legend.error.ModelException e = assertThrows(com.legend.error.ModelException.class,
-                () -> Compiler.compileModel("""
+    void aPropertyNamedLikeTheAggregateFieldIsRefusedByTheSchema() {
+        // the model reserves nothing since 2026-10-21 (no companion member: the relation node, register S118); the
+        // schema refuses the property that would shadow the field it makes, as it does a groups field's
+        ModelContext ctx = Compiler.compileModel("""
                 ###Pure
                 Class demo::Firm { legalName: String[1]; employeesAggregate: Integer[1]; }
                 Class demo::Person { name: String[1]; }
                 Association demo::Employment { firm: demo::Firm[0..1]; employees: demo::Person[*]; }
-                """));
+                """);
+        GqlSchemaException e = assertThrows(GqlSchemaException.class,
+                () -> SchemaGenerator.generate(ctx, Scope.all(ctx)));
         assertTrue(e.getMessage().contains("demo::Firm.employeesAggregate"), e.getMessage());
     }
 

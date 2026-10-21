@@ -11,7 +11,7 @@ import com.legend.compiler.element.TypedParameter;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
-import com.legend.protocol.graphql.Companion;
+import com.legend.protocol.graphql.GqlFold;
 import com.legend.protocol.graphql.GqlSchema;
 import com.legend.protocol.graphql.GqlSchema.EnumType;
 import com.legend.protocol.graphql.GqlSchema.FieldDef;
@@ -417,7 +417,7 @@ public final class SchemaGenerator {
         List<String> names = new ArrayList<>(List.of(s + "Interface", s + "Where", s + "ListFilter", s + "OrderBy",
                 s + "Aggregate", s + "AggregateOrderBy", s + "Group", s + "GroupKey", s + "GroupHaving",
                 s + "GroupOrderBy"));
-        for (Companion.Fold fn : Companion.FOLDS) {
+        for (GqlFold fn : GqlFold.ALL) {
             String f = s + fn.suffix;
             names.add(f);
             names.add(f + "OrderBy");
@@ -663,7 +663,7 @@ public final class SchemaGenerator {
         agg.add(new FieldDef("count", null, GqlSchema.named(BIG_INT, false), List.of(), null, new Meaning.Count()));
         aggOrder.add(new InputValueDef("count", GqlSchema.named(SORT_DIRECTION, true)));
         scalarsUsed.add(BIG_INT);
-        for (Companion.Fold fn : Companion.FOLDS) {
+        for (GqlFold fn : GqlFold.ALL) {
             List<Prop> props = fn.numericOnly ? numericProps(c) : comparableProps(c);
             if (props.isEmpty()) {
                 continue;
@@ -673,7 +673,7 @@ public final class SchemaGenerator {
             List<InputValueDef> order = new ArrayList<>();
             List<InputValueDef> filter = new ArrayList<>();
             for (Prop p : props) {
-                String scalar = fn == Companion.Fold.AVG ? FLOAT : scalarOf(p);
+                String scalar = fn == GqlFold.AVG ? FLOAT : scalarOf(p);
                 scalarsUsed.add(scalar);
                 fields.add(new FieldDef(p.name(), null, GqlSchema.named(scalar, true), List.of(), null,
                         new Meaning.FoldOf(fn, c.fqn(), p.name())));
@@ -726,7 +726,7 @@ public final class SchemaGenerator {
         having.add(new InputValueDef("count", GqlSchema.named(BIG_INT + "Filter", true)));
         order.add(new InputValueDef("count", GqlSchema.named(SORT_DIRECTION, true)));
         order.add(new InputValueDef("key", GqlSchema.named(s + "OrderBy", true)));
-        for (Companion.Fold fn : Companion.FOLDS) {
+        for (GqlFold fn : GqlFold.ALL) {
             String t = s + fn.suffix;
             if (!out.containsKey(t)) {
                 continue;

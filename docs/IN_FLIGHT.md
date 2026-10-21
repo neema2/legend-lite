@@ -2512,7 +2512,9 @@ island inside Pure.
 - **The hardening line, 2026-10-20** (the user: "make GraphQL amazing and expert and super bulletproof"): a
   reference evaluator, a seeded fuzzer and a 222-case corpus over a shop fixture with a class hierarchy, on DuckDB
   and on Postgres; the record is the study's §13.7 and §13.8 (the relation node: a tree node whose value is a
-  table, nested groups through it). **Cross-area edits, announced here:** the resolver
+  table, nested groups and nested aggregates through it; the companion's generated aggregate classes DELETED, and
+  with them `ModelContext.isSynthetic`: `lineage/ScanRelations`, `compiler/spec/CypherIslands` and
+  `compiler/element/GraphEdges` are back to `main`'s text). **Cross-area edits, announced here:** the resolver
   (`StoreResolver`, `CorrelatedSubselects`, `Substitution`, `SyntheticHeads`, `AssociationJoins`, `DottedExists`,
   `GraphEmission`, `NavReducer`, `Pipelines`, `InheritedCasts` new), the lowering (`GraphSortOrdinal`,
   `ExistsJoinForm`, `SubselectPrune`, `Lowerer`'s subtype patch key order), the tree (`protocol/spec/GraphFetchLiteral`

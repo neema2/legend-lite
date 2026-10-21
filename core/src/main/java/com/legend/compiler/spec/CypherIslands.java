@@ -70,8 +70,7 @@ public final class CypherIslands {
             List<String> all = new ArrayList<>();
             java.util.Set<String> anonymous = new java.util.HashSet<>();
             for (String fqn : new java.util.TreeSet<>(model.elementFqns())) {
-                // a synthetic class (the GraphQL companion's) is no label: unmapped, and not the user's
-                if (model.findClass(fqn).isEmpty() || model.isSynthetic(fqn)) {
+                if (model.findClass(fqn).isEmpty()) {
                     continue;
                 }
                 all.add(fqn);

@@ -1359,7 +1359,7 @@ instruction); each landing is a commit on the branch, its checks named in its me
   35), and 6,000 with nested groups (seeds 41 to 55).
 - **Not done, on purpose or still open.** The JSON wire's refusal of a class-level `sortBy` whose key the projection
   renames (not GraphQL's path); the Pure text parser reading nested subtype entries (S117: the engine's check
-  stands); the Prisma oracle; the companion's aggregates moved onto the relation node (§13.8).
+  stands); the Prisma oracle; the root aggregate and groups as the relation node without a parent (§13.8).
 
 ### 13.8 The relation node, 2026-10-21: groups under a parent object
 
@@ -1394,7 +1394,20 @@ subselect on DuckDB"; the first build answered.
   list of the same collection, a union hierarchy grouped by a derived key, a fragment with a variable, under a
   to-one hop, an empty collection) agree on DuckDB and Postgres; the fuzzer generates nested groups (15% of to-many
   selections): 6,000 documents agree.
-- **Next.** The companion's aggregate classes onto the same node (the nested `pAggregate` as a one-row table, the
-  root forms as the node without a parent), which deletes the companion's synthesis, its constructor fusion and
-  the root shapes' Java arrangement; then relation-typed derived properties in the model (the modeler's `payroll()`).
+- **Aggregates onto the node; the generated classes deleted** (the same day). `pAggregate(where)` under a parent is
+  the root aggregate's pipeline over `$this.p` (`GqlToPure.aggregatePipeline`, shared), one object: a table whose
+  operators make one row (a whole-collection `aggregate` under row-keeping operators: `GraphEmission.oneRow`)
+  serializes as that row. With it the companion's generated aggregate and fold classes and the `pAggregate()` members
+  are gone from the model (`CompanionSynthesis` keeps the hierarchy root's `__typename()` and `as<Sub>()`), and so
+  is the predicate that hid them (`ModelContext.isSynthetic`; the Cypher labels, the graph's edges, the GraphQL scope
+  and the lineage scan read the model as on `main` again). Register rows S101 and S111 are removed (their
+  differences are), S102, S114 and S115 rewritten; `Companion.java` became the fold vocabulary (`GqlFold.java`). The
+  constructor fusion stays, its gate widened from "a generated class" to any constructed class, for the shape classes
+  a modeler writes (`payroll() { ^Payroll(headcount = $this.employees->size(), total = ...) }`, with derived members
+  over the fields; `GqlExecutionTest.aConstructedShapeClassFusesWithItsMembers`). A property named like the
+  aggregate field is refused by the schema generator, as a groups field's twin always was.
+  Measured: the corpus agrees on both lanes; 3,200 fuzzer documents agree (seeds 61 to 68).
+- **Next.** The root forms (`PAggregate`, `PGroups`) as the node without a parent, finished with a serialize over
+  the table (deleting the endpoint's Java arrangement of their rows); then relation-typed derived properties in the
+  model (the modeler's `payroll()` as a table).
 

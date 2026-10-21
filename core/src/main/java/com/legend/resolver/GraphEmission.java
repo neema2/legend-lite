@@ -934,8 +934,8 @@ final class GraphEmission {
             if (Type.isRelation(node.body().info().type())) {
                 return relationChild(cs, node, context, parentRowVar, parentRowType, bodyHop, "this");
             }
-            if (bodyHop instanceof TypedNewInstance ni && isCompanionClass(ni.classFqn())) {
-                return companionChild(cs, node, ni, "this", context, parentRowVar, parentRowType, parentPipeline);
+            if (bodyHop instanceof TypedNewInstance ni) {
+                return constructedChild(cs, node, ni, "this", context, parentRowVar, parentRowType, parentPipeline);
             }
             TypedSerializeGraph.Child bch = bodyChild(cs, node, context, parentRowVar, parentRowType,
                     bodyHop, "this",
@@ -1550,10 +1550,10 @@ final class GraphEmission {
         }
         TypedSpec hop = unwrapToOneFirst(inlineDerivedCalls(
                 substVars(cf.body().get(0), argBinds), 0));
-        if (hop instanceof TypedNewInstance ni && isCompanionClass(ni.classFqn())) {
-            // the COMPANION'S AGGREGATE (GraphQL PR4, docs/GRAPHQL_STUDY_2026_10_18.md §5.8, §6.2): a constructor
-            // of a generated class fuses with the reads of its members
-            return companionChild(cs, node, ni, thisVar, context, parentRowVar, parentRowType, parentPipeline);
+        if (hop instanceof TypedNewInstance ni) {
+            // a CONSTRUCTED object (a shape class the modeler wrote: `payroll() { ^Payroll(count = ...) }`): the
+            // constructor fuses with the reads of its members (GraphQL PR4, docs/GRAPHQL_STUDY_2026_10_18.md §6.2)
+            return constructedChild(cs, node, ni, thisVar, context, parentRowVar, parentRowType, parentPipeline);
         }
         boolean toMany = !(d.multiplicity()
                 instanceof com.legend.compiler.element.type
@@ -1562,45 +1562,30 @@ final class GraphEmission {
         return bodyChild(cs, node, context, parentRowVar, parentRowType, hop, thisVar, toMany);
     }
 
-    /** Whether {@code fqn} is a class the companion generated ({@code <<meta::legend::lite::graphql.companion>>}). */
-    private boolean isCompanionClass(String fqn) {
-        var cd = ctx.findClassDefinition(fqn).orElse(null);
-        if (cd == null) {
-            return false;
-        }
-        for (var st : cd.stereotypes()) {
-            if (com.legend.compiler.element.type.PlatformTypes.isProfile(st.profileName(),
-                    com.legend.compiler.element.type.PlatformTypes.GRAPHQL_PROFILE)
-                    && st.stereotypeName().equals(com.legend.compiler.element.type.PlatformTypes.GRAPHQL_COMPANION)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /**
-     * CONSTRUCTOR-NAVIGATE FUSION (GraphQL PR4, docs/GRAPHQL_STUDY_2026_10_18.md §6.2): a node whose body is a
-     * constructor of a companion class ({@code ^PersonAggregate(items = $this.employees->filter(...))}) is the
-     * inline object of the members it selects, each member's body read with the constructor's fields in place of
-     * {@code $this.<field>} -- {@code count()} is {@code items->map(x|1)->count()}, so the leaf is the reducer over
-     * the navigation, which the correlated subquery serves; a member that is itself a constructor ({@code sum()}
-     * is {@code ^PersonSum(salary = $this.items.salary->sum())}) is a nested inline object. The instance is never
-     * built: the database computes each leaf.
+     * CONSTRUCTOR-NAVIGATE FUSION (GraphQL PR4, docs/GRAPHQL_STUDY_2026_10_18.md §6.2 and §13.8): a node whose body
+     * is a constructor ({@code payroll() { ^Payroll(count = $this.employees->size(), total =
+     * $this.employees.salary->sum()) }}, a shape class the modeler wrote) is the inline object of the members it
+     * selects, each member's body read with the constructor's fields in place of {@code $this.<field>}: a field that
+     * reduces a navigation is the reducer the correlated subquery serves; a member that is itself a constructor is
+     * a nested inline object; a derived member of the shape reads the fields it names. The instance is never built:
+     * the database computes each leaf. (Its first user, the GraphQL companion's generated aggregate classes, was
+     * deleted 2026-10-21: the relation node serves the aggregates, register S118.)
      */
-    private TypedSerializeGraph.Child companionChild(ClassSource cs, TypedGraphTree node,
+    private TypedSerializeGraph.Child constructedChild(ClassSource cs, TypedGraphTree node,
             TypedNewInstance ctor, String thisVar, StoreResolver.Context context, String rowVar,
             Type.RelationType rowType, TypedSpec parentPipeline) {
         if (node.children().isEmpty()) {
-            throw new NotImplementedException("graph node '" + keyOf(node) + "' of the companion class "
-                    + ctor.classFqn() + " selects nothing: an aggregate names its members");
+            throw new NotImplementedException("graph node '" + keyOf(node) + "' of the constructed class "
+                    + ctor.classFqn() + " selects nothing: a constructed object names its members");
         }
         List<TypedFuncCol> leaves = new ArrayList<>();
         List<TypedSerializeGraph.Child> nested = new ArrayList<>();
         for (TypedGraphTree c : node.children()) {
-            TypedSpec member = companionMember(ctor, c.property(), keyOf(node));
+            TypedSpec member = constructedMember(ctor, c.property(), keyOf(node));
             TypedSpec m = unwrapToOneFirst(member);
-            if (m instanceof TypedNewInstance sub && isCompanionClass(sub.classFqn())) {
-                nested.add(companionChild(cs, c, sub, thisVar, context, rowVar, rowType, parentPipeline));
+            if (m instanceof TypedNewInstance sub) {
+                nested.add(constructedChild(cs, c, sub, thisVar, context, rowVar, rowType, parentPipeline));
                 continue;
             }
             // the member's derived calls β-inline first (`liveOrders()`, `tagCount()` folded): the inline route
@@ -1619,9 +1604,9 @@ final class GraphEmission {
         return new TypedSerializeGraph.Child(keyOf(node), g);
     }
 
-    /** A member of a companion constructor's class: the field's expression as bound, or the derived member's
+    /** A member of a constructed class: the field's expression as bound, or the derived member's
      *  compiled body with the fields in place of {@code $this.<field>} (an expression over the OUTER object). */
-    private TypedSpec companionMember(TypedNewInstance ctor, String name, String at) {
+    private TypedSpec constructedMember(TypedNewInstance ctor, String name, String at) {
         TypedSpec field = ctor.properties().get(name);
         if (field != null) {
             return field;
@@ -1771,8 +1756,34 @@ final class GraphEmission {
             rowVar = "_r" + freshVar.getAsInt();
         } while (taken.contains(rowVar));
         Type.RelationType table = Type.requireRelationSchema(body.info().type());
-        return new TypedSerializeGraph.Child(keyOf(node),
-                relationEnvelope(rel, rowVar, table, node.children(), false));
+        TypedSerializeGraph rows = relationEnvelope(rel, rowVar, table, node.children(), false);
+        // ONE ROW by its operators (a whole-collection aggregate, under operators that keep the row count): the
+        // node's value is that row, one object (GraphQL's `ordersAggregate { count }`), never a list of one
+        return new TypedSerializeGraph.Child(keyOf(node), oneRow(rel) ? new TypedSerializeGraph(rows.source(),
+                rows.rowVar(), rows.leaves(), rows.nested(), false, false, null,
+                new ExprType(table, com.legend.compiler.element.type.Multiplicity.Bounded.ONE), false, List.of())
+                .withKeyOrder(rows.keyOrder()) : rows);
+    }
+
+    /** Whether {@code rel} has exactly one row by its operators: a whole-relation {@code aggregate}, under any number
+     *  of operators that keep the row count (a projection of its row, an extension, a selection, a renaming). */
+    private static boolean oneRow(TypedSpec rel) {
+        TypedSpec cur = rel;
+        while (true) {
+            switch (cur) {
+                case com.legend.compiler.spec.typed.TypedAggregate a -> {
+                    return true;
+                }
+                case com.legend.compiler.spec.typed.TypedProject p when Type.isRelation(p.source().info().type()) ->
+                        cur = p.source();
+                case com.legend.compiler.spec.typed.TypedExtend e -> cur = e.source();
+                case com.legend.compiler.spec.typed.TypedSelect sl -> cur = sl.source();
+                case com.legend.compiler.spec.typed.TypedRename rn -> cur = rn.source();
+                default -> {
+                    return false;
+                }
+            }
+        }
     }
 
     /** One object per row of {@code table} (a JSON array of them, or, {@code inline}, the object a sub-tree makes of

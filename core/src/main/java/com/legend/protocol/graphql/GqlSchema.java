@@ -221,11 +221,11 @@ public final class GqlSchema {
         }
 
         /** {@code sum}, {@code avg}, {@code min} or {@code max}: the object holding one fold per property. */
-        record Fold(Companion.Fold fn) implements Meaning {
+        record Fold(com.legend.protocol.graphql.GqlFold fn) implements Meaning {
         }
 
         /** One folded property, {@code sum { salary }}. */
-        record FoldOf(Companion.Fold fn, String classFqn, String property) implements Meaning {
+        record FoldOf(com.legend.protocol.graphql.GqlFold fn, String classFqn, String property) implements Meaning {
         }
 
         /** {@code key} of a group: the selection under it is the grouping (G7). */

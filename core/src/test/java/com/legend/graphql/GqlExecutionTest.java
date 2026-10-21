@@ -265,14 +265,14 @@ class GqlExecutionTest {
     }
 
     /** The RELATION NODE (register S118) as Pure text: a node whose body is a table over $this; its tree names the
-     *  table's columns. One row per firm here (the whole-collection aggregate), as a one-element list. */
+     *  table's columns. One row per firm here (a whole-collection aggregate has exactly one), so one object. */
     @Test
     void theRelationNodeSpelledInPure() throws SQLException {
         String tree = "#{ demo::Firm { legalName, 'payroll': $this.employees->project(~[s: e|$e.salary])"
                 + "->aggregate(~[n: x|1 : y|$y->count(), total: x|$x.s : y|$y->sum()]) { n, total } } }#";
         String json = pure("demo::Firm.all()->filter(f|$f.legalName == 'Acme')->graphFetch(" + tree + ")->serialize("
                 + tree + ")");
-        assertTrue(json.replace(" ", "").contains("\"payroll\":[{\"n\":4,\"total\":420000.0}]"), json);
+        assertTrue(json.replace(" ", "").contains("\"payroll\":{\"n\":4,\"total\":420000.0}"), json);
     }
 
     /** Groups as a relation node: a key, a count, a sort; an object of the row's columns under its own key; a firm
@@ -287,6 +287,23 @@ class GqlExecutionTest {
         assertTrue(json.contains("\"legalName\":\"Acme\",\"byAge\":[{\"key\":{\"old\":false},\"n\":2,"
                 + "\"best\":90000.0},{\"key\":{\"old\":true},\"n\":2,\"best\":150000.0}]"), json);
         assertTrue(json.contains("\"legalName\":\"Initech\",\"byAge\":[]"), json);
+    }
+
+    /** A SHAPE CLASS the modeler writes, constructed in a node's body: the constructor fuses with the reads of its
+     *  members (a reducer over the navigation per field, a derived member over the fields); the instance is never
+     *  built. The fusion's gate was the companion's generated classes until 2026-10-21; it is any constructed class. */
+    @Test
+    void aConstructedShapeClassFusesWithItsMembers() throws SQLException {
+        String model = MODEL.replace("  seniors() {", "  payroll() { ^demo::Payroll(headcount ="
+                + " $this.employees->size(), total = $this.employees.salary->sum()) }: demo::Payroll[1];\n  seniors() {")
+                + "\n###Pure\nClass demo::Payroll { headcount: Integer[1]; total: Float[1];"
+                + " average() { $this.total / $this.headcount }: Float[1]; }\n";
+        String tree = "#{ demo::Firm { legalName, payroll { headcount, total, average } } }#";
+        ExecutionResult r = qs.execute(model, "demo::Firm.all()->filter(f|$f.legalName == 'Acme')->graphFetch(" + tree
+                + ")->serialize(" + tree + ")", "demo::Runtime", conn);
+        assertInstanceOf(ExecutionResult.Graph.class, r, r.toString());
+        String json = r.asGraph().json().replace(" ", "");
+        assertTrue(json.contains("\"payroll\":{\"headcount\":4,\"total\":420000.0,\"average\":105000.0}"), json);
     }
 
     /** A relation node's tree names columns, nothing else: an unknown column and a call are refused by name. */

@@ -94,11 +94,10 @@ class PlatformNamesGuardrailTest {
             // generated from the engine alone and names no declaration; a PURE
             // name's FQNs are joined from the engine surface when it loads
             // (DynaFnDecisions), so no file spells them
-            "CoreFn.java",
-            // the GraphQL companion's names (2026-10-19, GraphQL PR4, docs/GRAPHQL_STUDY_2026_10_18.md §5.8):
-            // the reserved package the generated classes live under, `meta::legend::lite::graphql::companion`,
-            // a package spelling the regex reads as a function's; the file names no function
-            "Companion.java");
+            // Companion.java left 2026-10-21 (the GraphQL relation node, register S118): the companion's generated
+            // aggregate classes and the reserved package they lived under were deleted; the fold vocabulary that
+            // remains (protocol/graphql/GqlFold.java) spells no package
+            "CoreFn.java");
 
     /** A function FQN literal: {@code "meta::…::lowerCamel"} (a class or enum
      *  FQN ends in an upper-case segment and is a TYPE spelling, not dispatch). */

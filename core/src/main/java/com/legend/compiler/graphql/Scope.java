@@ -88,8 +88,7 @@ public record Scope(List<String> classFqns) {
         Set<String> out = new TreeSet<>();
         for (String fqn : ctx.elementFqns()) {
             TypedClass c = ctx.findClass(fqn).orElse(null);
-            if (c != null && !c.isNative() && !platform.contains(fqn) && !SYSTEM.contains(fqn)
-                    && !ctx.isSynthetic(fqn)) {
+            if (c != null && !c.isNative() && !platform.contains(fqn) && !SYSTEM.contains(fqn)) {
                 out.add(fqn);
             }
         }

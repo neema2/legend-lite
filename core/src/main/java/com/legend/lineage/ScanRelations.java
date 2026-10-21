@@ -2082,11 +2082,6 @@ public final class ScanRelations {
         // element index
         com.legend.model.ClassDefinition hit = null;
         for (String fqn : ctx.elementFqns()) {
-            // a synthetic class (the GraphQL companion's, named after the user's class under a reserved package)
-            // never answers an as-written short name: `PersonAggregate` is the user's, if one exists
-            if (ctx.isSynthetic(fqn)) {
-                continue;
-            }
             if (typeMatches(written, fqn)) {
                 var cd = ctx.findClassDefinition(fqn);
                 if (cd.isPresent()) {

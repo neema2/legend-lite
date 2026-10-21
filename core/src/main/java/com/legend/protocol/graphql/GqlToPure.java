@@ -706,13 +706,19 @@ public final class GqlToPure {
         vs = groupsPipeline(f, fd, vs, target, g, path);
         vs = inSelectionOrder(vs, g.order, g.constants, new ArrayList<>(g.keys.keySet()),
                 new ArrayList<>(g.aggregates.keySet()));
-        // the response's columns, each renamed to an identifier (the tree names columns as properties); the tree
-        // nests them by their paths
+        return relationNode(gm.property(), key, vs, g.order);
+    }
+
+    /** The relation node over {@code vs} under the response key {@code key} (its navigation head {@code property}):
+     *  the response's columns, each renamed to an identifier by one last {@code project} (the tree names columns as
+     *  properties), and the tree nesting them by their paths. */
+    private Node relationNode(String property, String key, ValueSpecification table, List<String> order) {
+        ValueSpecification vs = table;
         String r = fresh("r");
         List<ColSpec> renamed = new ArrayList<>();
         java.util.Set<String> taken = new java.util.HashSet<>();
         Map<String, Object> trie = new LinkedHashMap<>();
-        for (String column : g.order) {
+        for (String column : order) {
             String base = column.replace(PATH_SEPARATOR, "_");
             String name = base;
             for (int i = 2; !taken.add(name); i++) {
@@ -737,7 +743,7 @@ public final class GqlToPure {
             level.put(segments.get(segments.size() - 1), name);
         }
         vs = call("project", vs, new ColSpecArray(renamed));
-        return new Node(gm.property(), null, List.of(), key, null, columnNodes(trie), vs);
+        return new Node(property, null, List.of(), key, null, columnNodes(trie), vs);
     }
 
     /** A relation node's tree from its columns' paths: a leaf names its column under its response key, a path's
@@ -1023,7 +1029,7 @@ public final class GqlToPure {
                         continue;
                     }
                     // a fold: its properties' filters (PersonSumFilter { salary: FloatFilter })
-                    Companion.Fold fold = Companion.Fold.of(a.name());
+                    GqlFold fold = GqlFold.of(a.name());
                     InputObjectType foldFilter = inputType(filterName);
                     for (Argument pa : ops.fields()) {
                         String pat = at + "." + pa.name();
@@ -1104,7 +1110,7 @@ public final class GqlToPure {
                         + ", which is not selected under key (G7)");
             }
         } else {
-            Companion.Fold fold = Companion.Fold.of(a.name());
+            GqlFold fold = GqlFold.of(a.name());
             if (!(v instanceof Gql.ObjectValue fo)) {
                 throw GqlTranslationException.invalid(at, "a key object is expected under " + a.name());
             }
@@ -1135,10 +1141,10 @@ public final class GqlToPure {
     // ---- aggregates (G6; PR4) ----
 
     /**
-     * {@code pAggregate(where: W) { count sum { salary } }}: without a clause, the companion's {@code pAggregate()}
-     * member as a node; with one, the composed body {@code ^TAggregate(items = $this.p->filter(W))} on the node
-     * (§6.2). The children are the aggregate class's members ({@code count}, a fold's object with one leaf per
-     * property).
+     * {@code pAggregate(where: W) { count sum { salary } }} under a parent object: the RELATION NODE (register S118)
+     * whose body is the root aggregate's pipeline over {@code $this.p} -- {@code $this.p->filter(W)->project(~[...])
+     * ->aggregate(~[...])} -- one row, so one object; its columns renamed and its tree the selection's shape, as
+     * {@link #groupsNode}'s.
      */
     private Node aggregateNode(Field f, FieldDef fd, Meaning.AggregateOf a, Composite type, String key,
             String path) {
@@ -1147,66 +1153,10 @@ public final class GqlToPure {
             throw GqlTranslationException.invalid(path, type.name() + " has no property " + a.property());
         }
         Composite target = composite(propField);
-        String targetFqn = classFqnOf(target, path);
-        List<Node> children = aggregateChildren(f.selectionSet(), composite(fd), path);
-        Value where = argument(f.arguments(), WHERE);
-        // a DERIVED to-many (liveOrders) has no companion member: its aggregate is always the composed body
-        boolean derived = propField.meaning() instanceof Meaning.Property dp && dp.derived();
-        if (derived || (where != null && object(where, path + "(where)") != null)) {
-            ValueSpecification items = clauses(new AppliedProperty(new Variable("this"), a.property()),
-                    f.arguments(), target, path);
-            ValueSpecification body = new NewInstance(Companion.aggregateClass(targetFqn), List.of(),
-                    List.of(new NewInstance.KeyBinding(Companion.ITEMS, new KeyExpression(items, false, false))));
-            return new Node(a.property(), null, List.of(), key, null, children, body);
-        }
-        return new Node(Companion.aggregateProperty(a.property()), null, List.of(), key, null, children);
-    }
-
-    /** The members of an aggregate object: {@code count}, and a fold's object with its properties as leaves; each
-     *  keyed by its response key (the companion's members are derived, so the key is always spelled). */
-    private List<Node> aggregateChildren(List<Selection> selections, Composite aggType, String path) {
-        List<Node> out = new ArrayList<>();
-        for (Field f : flatten(selections, aggType, path)) {
-            String key = key(f);
-            String at = path + "." + key;
-            if (f.name().equals(TYPENAME)) {
-                // the meta-field every object type answers: the generated class's constant member names its type
-                out.add(new Node(TYPENAME, null, List.of(), key, null, List.of()));
-                continue;
-            }
-            FieldDef fd = aggType.field(f.name());
-            if (fd == null) {
-                throw GqlTranslationException.invalid(at, aggType.name() + " has no field " + f.name());
-            }
-            switch (fd.meaning()) {
-                case Meaning.Count c -> out.add(new Node(Companion.COUNT, null, List.of(), key, null, List.of()));
-                case Meaning.Fold fold -> {
-                    Composite foldType = composite(fd);
-                    List<Node> leaves = new ArrayList<>();
-                    for (Field g : flatten(f.selectionSet(), foldType, at)) {
-                        if (g.name().equals(TYPENAME)) {
-                            leaves.add(new Node(TYPENAME, null, List.of(), key(g), null, List.of()));
-                            continue;
-                        }
-                        FieldDef gd = foldType.field(g.name());
-                        if (gd == null || !(gd.meaning() instanceof Meaning.FoldOf fo)) {
-                            throw GqlTranslationException.invalid(at + "." + key(g), foldType.name()
-                                    + " has no field " + g.name());
-                        }
-                        leaves.add(new Node(fo.property(), null, List.of(), key(g), null, List.of()));
-                    }
-                    if (leaves.isEmpty()) {
-                        throw GqlTranslationException.invalid(at, fold.fn().field + " selects nothing");
-                    }
-                    out.add(new Node(fold.fn().field, null, List.of(), key, null, leaves));
-                }
-                default -> throw GqlTranslationException.invalid(at, f.name() + " is not an aggregate member");
-            }
-        }
-        if (out.isEmpty()) {
-            throw GqlTranslationException.invalid(path, "the aggregate selects nothing");
-        }
-        return out;
+        ValueSpecification src = whereClause(new AppliedProperty(new Variable("this"), a.property()), f.arguments(),
+                target, path);
+        Columns c = aggregatePipeline(f, fd, src, path);
+        return relationNode(a.property(), key, c.vs(), c.order());
     }
 
     /**
@@ -1219,6 +1169,17 @@ public final class GqlToPure {
         Composite type = objectTypeOf(classFqn, path);
         ValueSpecification vs = call("getAll", new PackageableElementPtr(classFqn));
         vs = clauses(vs, f.arguments(), type, path);
+        return aggregatePipeline(f, fd, vs, path).vs();
+    }
+
+    /** A relation pipeline and its response columns in selection order (each column's name its response path). */
+    private record Columns(ValueSpecification vs, List<String> order) {
+    }
+
+    /** The aggregate's pipeline over {@code source} (a collection of objects, its {@code where} applied): the
+     *  projection, the one-row {@code aggregate}, the constants, the columns in selection order. */
+    private Columns aggregatePipeline(Field f, FieldDef fd, ValueSpecification source, String path) {
+        ValueSpecification vs = source;
         Composite aggType = composite(fd);
         List<ColSpec> projected = new ArrayList<>();
         List<ColSpec> aggregates = new ArrayList<>();
@@ -1288,7 +1249,7 @@ public final class GqlToPure {
         for (ColSpec a : aggregates) {
             names.add(a.name());
         }
-        return inSelectionOrder(vs, order, constants, List.of(), names);
+        return new Columns(inSelectionOrder(vs, order, constants, List.of(), names), order);
     }
 
     /** The object or interface type a field's type names. */
@@ -1818,7 +1779,7 @@ public final class GqlToPure {
                 return new SortKey(List.of(ag.property()), direction(mv, at + ".count"), null, false,
                         new AggregateKey("count", null));
             }
-            Companion.Fold fold = Companion.Fold.of(m.name());
+            GqlFold fold = GqlFold.of(m.name());
             if (!(mv instanceof Gql.ObjectValue fo)) {
                 throw GqlTranslationException.invalid(at + "." + m.name(), "a key object naming one property");
             }
