@@ -3047,6 +3047,9 @@ public final class Protocol {
                             com.legend.protocol.Multiplicity returnMultiplicity,
                             List<com.legend.protocol.spec.ValueSpecification> body,
                             List<com.legend.protocol.ConstraintDefinition> preConstraints,
+                            /** the constraints that read {@code $return} (legend-pure's split,
+                             * {@code ConstraintDefinition.mentionsReturn}); the rest are {@link #preConstraints} */
+                            List<com.legend.protocol.ConstraintDefinition> postConstraints,
                             List<PTestSuite> testSuites,
                             List<PStereotype> stereotypes,
                             List<PTaggedValue> taggedValues,
@@ -3057,6 +3060,7 @@ public final class Protocol {
             parameters = List.copyOf(parameters);
             body = List.copyOf(body);
             preConstraints = List.copyOf(preConstraints);
+            postConstraints = List.copyOf(postConstraints);
             testSuites = List.copyOf(testSuites);
             stereotypes = List.copyOf(stereotypes);
             taggedValues = List.copyOf(taggedValues);

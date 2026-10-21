@@ -129,6 +129,8 @@ public final class ModelNormalizer {
         List<FunctionDefinition> lifted = new ArrayList<>();
         liftDerivedProperties(parsed, lifted);  // E.2
         liftConstraints(parsed, lifted);        // E.3
+        liftDefaults(parsed, lifted);           // E.3b
+        liftFunctionConstraints(parsed, lifted); // E.3c
         liftServiceQueries(parsed, lifted);     // E.4
         lifted.addAll(views.functions());       // E.5
         List<PackageableElement> elements =
@@ -292,6 +294,80 @@ public final class ModelNormalizer {
                         lifted.add(synthConstraintMsgFunction(cd, c, thisType));
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * E.3b -- for each property with a DEFAULT value, lift {@code <owner>$default$<property>():T[m]} carrying the
+     * default as its body, so the body phase types it as the property: an expression naming nothing the model has, or
+     * of a type that is not the property's, is the model's error (legend-engine compiles a default as a lambda,
+     * HelperModelBuilder; legend-pure checks its type and multiplicity, PropertyValidator). Before 2026-10-21 a default
+     * was never typed until a constructor read it. The class keeps its property as written.
+     */
+    /**
+     * E.3c -- a function's pre- and post-conditions, each lifted to a {@code Boolean[1]} predicate over the
+     * function's own parameters ({@code $return}, typed as the function's result, too for a post-condition), so the
+     * body phase types it: a condition that is not a Boolean, or names a variable the function has not, is the
+     * model's error (legend-engine compiles both lists, HelperModelBuilder.processConstraints; legend-pure validates
+     * them, PackageableFunctionValidator). Before 2026-10-21 the model dropped them at the door. A {@code ~message}
+     * lifts as a class constraint's does. An overload's conditions overload the predicate (their parameters differ).
+     */
+    private static void liftFunctionConstraints(ParsedModel parsed, List<FunctionDefinition> lifted) {
+        for (PackageableElement el : parsed.elements()) {
+            if (!(el instanceof FunctionDefinition fd) || fd.isSynthesized()) {
+                continue;
+            }
+            for (boolean post : new boolean[] {false, true}) {
+                for (ConstraintDefinition c : post ? fd.postConstraints() : fd.preConstraints()) {
+                    if (!(c.realization() instanceof Realization.Inline)) {
+                        continue;
+                    }
+                    List<FunctionDefinition.ParameterDefinition> params = new ArrayList<>(fd.parameters());
+                    if (post) {
+                        params.add(new FunctionDefinition.ParameterDefinition(
+                                ConstraintDefinition.RETURN, fd.returnType(), fd.returnMultiplicity()));
+                    }
+                    String fqn = SynthFqn.condition(fd.qualifiedName(), post, c.name());
+                    lifted.add(new FunctionDefinition(fqn, fd.typeParameters(), fd.multiplicityParameters(), params,
+                            new TypeExpression.NameRef(Pure.BOOLEAN.qualifiedName()), Multiplicity.Concrete.PURE_ONE,
+                            List.of(c.expression()), List.of(), List.of())
+                            .withSynthesizedFrom(new FunctionDefinition.Synthesized(
+                                    post ? SynthHat.POST : SynthHat.PRE, fd.qualifiedName(), c.name())));
+                    if (c.message() != null) {
+                        lifted.add(new FunctionDefinition(SynthFqn.constraintMsg(fd.qualifiedName(), c.name()),
+                                fd.typeParameters(),
+                                fd.multiplicityParameters(), params,
+                                new TypeExpression.NameRef(Pure.STRING.qualifiedName()), Multiplicity.Concrete.PURE_ONE,
+                                List.of(c.message()), List.of(), List.of())
+                                .withSynthesizedFrom(new FunctionDefinition.Synthesized(
+                                        SynthHat.CONSTRAINT_MSG, fd.qualifiedName(), c.name())));
+                    }
+                }
+            }
+        }
+    }
+
+    private static void liftDefaults(ParsedModel parsed, List<FunctionDefinition> lifted) {
+        for (PackageableElement el : parsed.elements()) {
+            if (!(el instanceof ClassDefinition cd)) {
+                continue;
+            }
+            for (ClassDefinition.PropertyDefinition pd : cd.properties()) {
+                if (pd.defaultValue() == null) {
+                    continue;
+                }
+                lifted.add(new FunctionDefinition(
+                        SynthFqn.defaultValue(cd.qualifiedName(), pd.name()),
+                        cd.typeParams(),
+                        cd.multiplicityParams(),
+                        List.of(),
+                        pd.type(),
+                        pd.multiplicity(),
+                        List.of(pd.defaultValue()),
+                        List.of(), List.of())
+                        .withSynthesizedFrom(new FunctionDefinition.Synthesized(
+                                SynthHat.DEFAULT, cd.qualifiedName(), pd.name())));
             }
         }
     }

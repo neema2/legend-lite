@@ -163,10 +163,24 @@ final class DomainComposer {
         for (String statement : PureComposer.statements(f.body(), style, Composing.indented("", 2, style))) {
             body.add("  " + statement);
         }
+        // its constraints, pre-conditions then post-conditions, in Pure's block (legend-engine's composer prints none:
+        // its grammar's walker drops the block, so its JSON from text has none -- a JSON or a lite text that has them
+        // prints them, never drops them)
+        List<ConstraintDefinition> constraints = new ArrayList<>(f.preConstraints());
+        constraints.addAll(f.postConstraints());
+        String block = "";
+        if (!constraints.isEmpty()) {
+            List<String> cs = new ArrayList<>();
+            for (int i = 0; i < constraints.size(); i++) {
+                cs.add(TAB + constraint(constraints.get(i), i, style));
+            }
+            block = "[\n" + String.join(",\n", cs) + "\n]\n";
+        }
         return declarationPrefix("function", "", f.stereotypes(), f.taggedValues())
                 + Composing.convertPath(f.qualifiedName())
                 + "(" + String.join(", ", params) + ")"
                 + ": " + genericType(f.returnType()) + "[" + multiplicity(f.returnMultiplicity()) + "]\n"
+                + block
                 + "{\n" + String.join(";\n", body) + (f.body().size() > 1 ? ";" : "") + "\n}"
                 + FunctionTestComposer.testSuites(f, style);
     }

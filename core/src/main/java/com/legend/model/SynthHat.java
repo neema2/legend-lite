@@ -32,7 +32,13 @@ public enum SynthHat {
     /** A class constraint {@code ~message}: {@code <class>$constraintMsg$<name>}. */
     CONSTRAINT_MSG,
     /** A store VIEW lifted as a zero-arg relation function (E.5): {@code <db>$view$<name>}. */
-    VIEW;
+    VIEW,
+    /** A property's DEFAULT value, typed as the property: {@code <class>$default$<property>} (E.3b, 2026-10-21). */
+    DEFAULT,
+    /** A function's PRE-condition, over its parameters: {@code <function>$pre$<name>} (E.3c, 2026-10-21). */
+    PRE,
+    /** A function's POST-condition, over its parameters and {@code $return}: {@code <function>$post$<name>}. */
+    POST;
 
     /** The lowercase {@code $}-sigil segment for this hat (e.g. {@code CLASS -> "class"}). */
     public String segment() {

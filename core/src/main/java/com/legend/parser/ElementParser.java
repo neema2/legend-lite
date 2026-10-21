@@ -1341,10 +1341,16 @@ public final class ElementParser implements TokenStreamCursor {
             suites = parseFunctionTestBlock(sig);
         }
 
+        // pre- and post-conditions apart, by legend-pure's rule: a constraint reading $return is a post-condition
+        List<ConstraintDefinition> pre = new ArrayList<>();
+        List<ConstraintDefinition> post = new ArrayList<>();
+        for (ConstraintDefinition c : constraints) {
+            (c.mentionsReturn() ? post : pre).add(c);
+        }
         String[] pn = com.legend.protocol.Protocol.splitFqn(sig.qualifiedName());
         return new com.legend.protocol.Protocol.PFunction(pn[0], pn[1],
                 sig.typeParams(), sig.multParams(), sig.params(),
-                sig.returnType(), sig.returnMult(), body, constraints, suites,
+                sig.returnType(), sig.returnMult(), body, pre, post, suites,
                 sig.stereotypes(), sig.taggedValues(),
                 spanOf(sig.declStart(), pos - 1));
     }

@@ -72,7 +72,11 @@ public record FunctionDefinition(
         List<ValueSpecification> body,
         List<StereotypeApplication> stereotypes,
         List<TaggedValue> taggedValues,
-        @com.legend.base.Nullable Synthesized synthesizedFrom) implements PackageableElement, Function {
+        @com.legend.base.Nullable Synthesized synthesizedFrom,
+        /** its constraints block, apart as legend-pure splits it: post-conditions read {@code $return}; each lifted to
+         *  a predicate the body phase types (ModelNormalizer.liftFunctionConstraints) */
+        List<com.legend.protocol.ConstraintDefinition> preConstraints,
+        List<com.legend.protocol.ConstraintDefinition> postConstraints) implements PackageableElement, Function {
 
     public FunctionDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
@@ -86,6 +90,24 @@ public record FunctionDefinition(
         stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
         taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
         // synthesizedFrom intentionally nullable: null == user-written.
+        preConstraints = List.copyOf(preConstraints);
+        postConstraints = List.copyOf(postConstraints);
+    }
+
+    /** A function with no constraints block. */
+    public FunctionDefinition(
+            String qualifiedName,
+            List<String> typeParameters,
+            List<String> multiplicityParameters,
+            List<ParameterDefinition> parameters,
+            TypeExpression returnType,
+            Multiplicity returnMultiplicity,
+            List<ValueSpecification> body,
+            List<StereotypeApplication> stereotypes,
+            List<TaggedValue> taggedValues,
+            @com.legend.base.Nullable Synthesized synthesizedFrom) {
+        this(qualifiedName, typeParameters, multiplicityParameters, parameters, returnType, returnMultiplicity, body,
+                stereotypes, taggedValues, synthesizedFrom, List.of(), List.of());
     }
 
     /**
@@ -117,7 +139,7 @@ public record FunctionDefinition(
     public FunctionDefinition withSynthesizedFrom(Synthesized provenance) {
         return new FunctionDefinition(qualifiedName, typeParameters, multiplicityParameters,
                 parameters, returnType, returnMultiplicity, body, stereotypes, taggedValues,
-                provenance);
+                provenance, preConstraints, postConstraints);
     }
 
     /**
@@ -171,6 +193,9 @@ public record FunctionDefinition(
                 case ASSOC      -> "association mapping '" + memberName + "' of " + ownerFqn;
                 case QUERY      -> "service query of " + ownerFqn;
                 case VIEW       -> "view '" + memberName + "' of " + ownerFqn;
+                case DEFAULT    -> "default value of property '" + memberName + "' of " + ownerFqn;
+                case PRE        -> "pre-condition '" + memberName + "' of " + ownerFqn;
+                case POST       -> "post-condition '" + memberName + "' of " + ownerFqn;
             };
         }
     }

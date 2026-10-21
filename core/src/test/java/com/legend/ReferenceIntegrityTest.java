@@ -221,4 +221,50 @@ class ReferenceIntegrityTest {
         refused("Class <<temporal.nope>> a::B\n{\n}\n",
                 "Can't find stereotype 'nope' in profile 'meta::pure::profiles::temporal'");
     }
+
+    // ---- default values
+
+    @Test
+    void aDefaultValueIsTypedAsItsProperty() {
+        refused("Class a::B\n{\n  c: a::C[1] = a::Missing.all()->toOne();\n}\n", "'a::Missing' is not a known class");
+        refused("Class a::B\n{\n  x: Integer[1] = 'a';\n}\n", "in function 'a::B$default$x': declares return type Integer but body returns String");
+        accepted("Class a::B\n{\n  x: Integer[1] = 5;\n  b: Boolean[1] = false;\n  e: a::E[1] = a::E.A;\n}\n");
+    }
+
+    @Test
+    void anOptionalPropertyHasNoDefault() {
+        refused("Class a::B\n{\n  x: Integer[0..1] = 5;\n}\n",
+                "Default values are supported only for mandatory fields, and property 'x' is optional.");
+    }
+
+    // ---- a function's constraints (lite's dialect: legend-engine's grammar drops the block, rule A)
+
+    @Test
+    void aFunctionsConditionsAreTypedPredicates() {
+        refusedAsText("function a::g(s: String[1]): String[1]\n[\n  1\n]\n{\n  $s\n}\n",
+                "declares return type Boolean but body returns Integer");
+        refusedAsText("function a::g(s: String[1]): String[1]\n[\n  $nope->startsWith('A')\n]\n{\n  $s\n}\n",
+                "nope");
+        // a post-condition reads $return, typed as the function's result
+        refusedAsText("function a::g(s: String[1]): String[1]\n[\n  $return > 2\n]\n{\n  $s\n}\n", "a::g$post$0");
+        accepted("function a::g(s: String[1]): String[1]\n[\n  pre: $s->startsWith('A'),\n"
+                + "  post: $return->endsWith('A')\n]\n{\n  $s\n}\n");
+    }
+
+    // ---- what a refusal says
+
+    @Test
+    void aMissingDatabaseIsSaidToBeMissing() {
+        // was "unknown table 'T' in database 'a::NoDb'"
+        refused("###Mapping\nMapping a::M\n(\n  a::C: Relational\n  {\n    x: [a::NoDb]T.X\n  }\n)\n",
+                "Can't find database 'a::NoDb'");
+    }
+
+    @Test
+    void anUnsupportedExtendsNamesItsMappingsKind() {
+        // was "... on a non-Relational (Pure) mapping" for an Operation mapping too
+        refusedAsText("###Mapping\nMapping a::M\n(\n  *a::C extends [base] : Operation\n  {\n"
+                + "    meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(p1)\n"
+                + "  }\n)\n", "on an Operation (union) class mapping");
+    }
 }

@@ -108,6 +108,11 @@ final class TableReferenceChecker {
                         lifted.get(), List.of(), new ExprType(
                                 lifted.get().returnType(), lifted.get().returnMultiplicity()));
             }
+            if (!t.model().isDatabase(dbRef.fullPath())) {
+                // the database itself is missing: said so, in legend-engine's words
+                // (HelperRelationalBuilder.getDatabase), not as one of its tables
+                throw new TypeInferenceException("Can't find database '" + dbRef.fullPath() + "'");
+            }
             throw new TypeInferenceException(
                     "unknown table '" + resolvedName + "' in database '" + dbRef.fullPath() + "'");
         }

@@ -144,7 +144,7 @@ final class MappingPrePass {
                 // fallbacks).
                 throw new NotImplementedException(
                         "Class mapping for '" + cm.className() + "' uses extends ["
-                      + cm.extendsSetId() + "] on a non-Relational (Pure) mapping; "
+                      + cm.extendsSetId() + "] on " + kindOf(cm) + " class mapping; "
                       + "only Relational extends is supported. Mapping="
                       + md.qualifiedName());
             }
@@ -260,5 +260,16 @@ final class MappingPrePass {
             walkM2MChain(next, pureByTarget, visiting, md);
         }
         visiting.remove(pcm.className());
+    }
+
+    /** A class mapping's kind, as its grammar names it (for a message). */
+    private static String kindOf(ClassMapping cm) {
+        return switch (cm) {
+            case ClassMapping.Relational r -> "a Relational";
+            case ClassMapping.Pure p -> "a Pure (M2M)";
+            case ClassMapping.Union u -> "an Operation (union)";
+            case ClassMapping.Inheritance i -> "an Operation (inheritance)";
+            case ClassMapping.RelationFunction f -> "a Relation";
+        };
     }
 }

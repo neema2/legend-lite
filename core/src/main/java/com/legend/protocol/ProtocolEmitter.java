@@ -1365,11 +1365,15 @@ public final class ProtocolEmitter {
             srcInfo(b, p.pos());
             b.append('}');
         }
-        // a function's constraints block: the engine's grammar reads it and its walker drops it, so the engine's
-        // JSON lists none; its compiler reads pre- and postConstraints, but which of lite's is which is legend-pure's
-        // rule, not yet lite's (S89: refused by name, never dropped)
-        placeless(f.preConstraints().isEmpty(), "a function's constraints", f.qualifiedName());
-        b.append("],\"postConstraints\":[],\"preConstraints\":[],\"returnGenericType\":");
+        // a function's constraints: the engine's grammar reads the block and its walker drops it, so the engine's JSON
+        // from its text lists none; its compiler reads pre- and postConstraints (HelperModelBuilder.processConstraints),
+        // which lite's dialect writes as legend-pure splits them (a constraint reading $return is a post-condition),
+        // each a lambda over the function's own parameters
+        b.append("],\"postConstraints\":[");
+        functionConstraints(b, f.postConstraints());
+        b.append("],\"preConstraints\":[");
+        functionConstraints(b, f.preConstraints());
+        b.append("],\"returnGenericType\":");
         genericType(b, f.returnType());
         b.append(",\"returnMultiplicity\":");
         multiplicity(b, f.returnMultiplicity());
@@ -2004,6 +2008,21 @@ public final class ProtocolEmitter {
      * span covers the whole entry ({@code name: expr} or {@code name ( … )}).
      */
     private static void constraint(StringBuilder b, com.legend.protocol.ConstraintDefinition c) {
+        constraint(b, c, true);
+    }
+
+    /** A function's constraints, comma-separated: each a constraint whose lambda declares no {@code $this}. */
+    private static void functionConstraints(StringBuilder b, List<com.legend.protocol.ConstraintDefinition> cs) {
+        for (int i = 0; i < cs.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            constraint(b, cs.get(i), false);
+        }
+    }
+
+    /** {@code onThis}: a class's constraint, its lambda over {@code $this}; else a function's, over none. */
+    private static void constraint(StringBuilder b, com.legend.protocol.ConstraintDefinition c, boolean onThis) {
         List<com.legend.protocol.spec.ValueSpecification> cbody = realizationBody(
                 c.realization(), "constraint " + c.name());
         b.append('{');
@@ -2019,10 +2038,10 @@ public final class ProtocolEmitter {
             b.append(',');
         }
         b.append("\"functionDefinition\":");
-        thisLambda(b, cbody);
+        constraintLambda(b, cbody, onThis);
         if (c.message() != null) {
             b.append(",\"messageFunction\":");
-            thisLambda(b, List.of(c.message()));
+            constraintLambda(b, List.of(c.message()), onThis);
         }
         b.append(",\"name\":");
         str(b, c.name());
@@ -2095,6 +2114,23 @@ public final class ProtocolEmitter {
     /** The engine's constraint lambda: body statements plus the synthesised {@code $this}
      *  parameter — multiplicity {@code [1..1]}, no span. The lambda node itself carries no
      *  span either. */
+    /** A constraint's lambda: over {@code $this} for a class's, over no parameter for a function's. */
+    private static void constraintLambda(StringBuilder b, List<com.legend.protocol.spec.ValueSpecification> body,
+            boolean onThis) {
+        if (onThis) {
+            thisLambda(b, body);
+            return;
+        }
+        b.append("{\"_type\":\"lambda\",\"body\":[");
+        for (int i = 0; i < body.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            valueSpec(b, body.get(i));
+        }
+        b.append("],\"parameters\":[]}");
+    }
+
     private static void thisLambda(StringBuilder b,
                                    List<com.legend.protocol.spec.ValueSpecification> body) {
         b.append("{\"_type\":\"lambda\",\"body\":[");

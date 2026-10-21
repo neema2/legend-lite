@@ -34,6 +34,16 @@ public final class SynthFqn {
     }
 
     /** {@code <owner>$constraintMsg$<name>} &mdash; an externalized constraint message. */
+    /** {@code <function>$pre$<name>} / {@code <function>$post$<name>}: a function's condition, a predicate. */
+    public static String condition(String functionFqn, boolean post, String constraintName) {
+        return hatFqn(functionFqn, post ? SynthHat.POST : SynthHat.PRE, constraintName);
+    }
+
+    /** {@code <class>$default$<property>}: a property's default value, typed as the property. */
+    public static String defaultValue(String ownerFqn, String propertyName) {
+        return hatFqn(ownerFqn, SynthHat.DEFAULT, propertyName);
+    }
+
     public static String constraintMsg(String ownerFqn, String constraintName) {
         return hatFqn(ownerFqn, SynthHat.CONSTRAINT_MSG, constraintName);
     }

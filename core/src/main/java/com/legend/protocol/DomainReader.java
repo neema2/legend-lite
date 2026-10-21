@@ -145,8 +145,9 @@ final class DomainReader {
         List<ParameterDefinition> params = w.listOrEmpty("parameters", DomainReader::parameter);
         TypeExpression returnType = typeOrName(w, "returnGenericType", "returnType", null);
         Multiplicity returnMult = ProtocolReader.multiplicity(w.take("returnMultiplicity"));
-        w.emptyOrAbsent("preConstraints");
-        w.emptyOrAbsent("postConstraints");
+        // a function's constraints, as legend-engine's compiler reads them (HelperModelBuilder.processConstraints)
+        List<ConstraintDefinition> pre = w.listOrEmpty("preConstraints", DomainReader::constraint);
+        List<ConstraintDefinition> post = w.listOrEmpty("postConstraints", DomainReader::constraint);
         String pkg = w.str("package");
         String wireName = w.str("name");
         List<ValueSpecification> body = w.listOrEmpty("body", ProtocolReader::valueSpec);
@@ -154,14 +155,14 @@ final class DomainReader {
         List<PStereotype> stereotypes = stereotypes(w);
         List<PTaggedValue> taggedValues = taggedValues(w);
         String mangling = new Protocol.PFunction(pkg, "", List.of(), List.of(), params, returnType, returnMult,
-                body, List.of(), tests, stereotypes, taggedValues, null).mangledName();
+                body, List.of(), List.of(), tests, stereotypes, taggedValues, null).mangledName();
         if (wireName.equals(mangling)) {
             throw Wire.refuse("function name '" + wireName + "' is its signature's mangling alone");
         }
         String declared = wireName.endsWith(mangling) ? wireName.substring(0, wireName.length() - mangling.length())
                 : wireName;
         return new Protocol.PFunction(pkg, declared, List.of(),
-                List.of(), params, returnType, returnMult, body, List.of(), tests, stereotypes, taggedValues,
+                List.of(), params, returnType, returnMult, body, pre, post, tests, stereotypes, taggedValues,
                 w.span());
     }
 

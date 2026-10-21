@@ -116,7 +116,8 @@ class ModelReaderRoundTripTest {
         IllegalArgumentException unknown = assertThrows(IllegalArgumentException.class,
                 () -> ModelReader.read("{\"_type\":\"data\",\"elements\":[{\"_type\":\"aNewElement\"}]}"));
         assertTrue(unknown.getMessage().contains("aNewElement"), unknown.getMessage());
-        // a list the emitter writes empty and no record carries: refused, naming it
+        // a function's constraints are carried since 2026-10-21 (pre and post, legend-pure's split): a malformed one
+        // is refused, naming what it lacks
         String fn = "{\"_type\":\"function\",\"body\":[],\"name\":\"f__String_1_\",\"package\":\"p\",\"parameters\":[],"
                 + "\"postConstraints\":[],\"preConstraints\":[{}],\"returnGenericType\":{\"multiplicityArguments\":[],"
                 + "\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"String\"},\"typeArguments\":[],"
@@ -124,7 +125,7 @@ class ModelReaderRoundTripTest {
                 + "\"stereotypes\":[],\"taggedValues\":[],\"tests\":[]}";
         IllegalArgumentException constant = assertThrows(IllegalArgumentException.class,
                 () -> ModelReader.readElement(fn));
-        assertTrue(constant.getMessage().contains("preConstraints"), constant.getMessage());
+        assertTrue(constant.getMessage().contains("functionDefinition"), constant.getMessage());
         // older JSON's milestoned properties written out: kept, and written back (leg 2 step 2)
         String milestoned = cls.replace("\"originalMilestonedProperties\":[]", "\"originalMilestonedProperties\":[{"
                 + "\"genericType\":{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\","

@@ -65,7 +65,8 @@ public final class FromProtocol {
         return new FunctionDefinition(
                 f.qualifiedName(), f.typeParams(), f.multParams(),
                 toFunctionParams(f.parameters()), f.returnType(), f.returnMultiplicity(),
-                f.body(), stereotypes(f.stereotypes()), taggedValues(f.taggedValues()));
+                f.body(), stereotypes(f.stereotypes()), taggedValues(f.taggedValues()), null,
+                f.preConstraints(), f.postConstraints());
     }
 
     /** Protocol association to the model's — two ends plus qualified properties. */

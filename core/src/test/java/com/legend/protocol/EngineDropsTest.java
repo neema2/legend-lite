@@ -78,10 +78,15 @@ class EngineDropsTest {
     }
 
     @Test
-    void aFunctionsConstraintsAreDroppedAtTheEnginesDialect_andRefusedFromLites() {
-        String text = CLASSES + "function a::g(s: String[1]): String[1]\n[\n  $s->startsWith('A')\n]\n{\n  $s\n}\n";
-        assertTrue(engineJson(text).contains("\"preConstraints\":[]"));
-        refusedAtLitesDialect(text, "a function's constraints");
+    void aFunctionsConstraintsAreDroppedAtTheEnginesDialect_andWrittenFromLitesAsPreAndPost() {
+        String text = CLASSES + "function a::g(s: String[1]): String[1]\n[\n  $s->startsWith('A'),\n"
+                + "  $return->endsWith('A')\n]\n{\n  $s\n}\n";
+        assertTrue(engineJson(text).contains("\"postConstraints\":[],\"preConstraints\":[]"));
+        // legend-pure's split: the condition reading $return is a post-condition; written as the engine's compiler
+        // reads them, and read back to the same records
+        String lite = ProtocolEmitter.emit(hopped(text, Dialect.LEGEND_LITE));
+        assertTrue(lite.contains("\"postConstraints\":[{"), lite);
+        assertTrue(lite.contains("\"preConstraints\":[{"), lite);
     }
 
     @Test

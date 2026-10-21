@@ -935,14 +935,18 @@ public final class NameResolver {
         List<ValueSpecification> body = resolveVsList(fd.body(), scope);
         List<StereotypeApplication> stereotypes = resolveStereotypes(fd.stereotypes(), scope);
         List<TaggedValue> taggedValues = resolveTaggedValues(fd.taggedValues(), scope);
+        // its constraints read its parameters (and a post-condition $return): resolved as a class's are
+        List<ConstraintDefinition> pre = resolveList(fd.preConstraints(), NameResolver::resolveConstraint, scope);
+        List<ConstraintDefinition> post = resolveList(fd.postConstraints(), NameResolver::resolveConstraint, scope);
         if (params == fd.parameters() && returnType == fd.returnType() && body == fd.body()
-                && stereotypes == fd.stereotypes() && taggedValues == fd.taggedValues()) {
+                && stereotypes == fd.stereotypes() && taggedValues == fd.taggedValues()
+                && pre == fd.preConstraints() && post == fd.postConstraints()) {
             return fd;
         }
         return new FunctionDefinition(fd.qualifiedName(), fd.typeParameters(),
                 fd.multiplicityParameters(), params, nn(returnType),
                 fd.returnMultiplicity(),
-                body, stereotypes, taggedValues);
+                body, stereotypes, taggedValues, fd.synthesizedFrom(), pre, post);
     }
 
     private static NativeFunctionDefinition resolveNativeFunction(

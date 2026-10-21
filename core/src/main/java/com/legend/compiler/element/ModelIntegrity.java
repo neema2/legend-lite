@@ -287,6 +287,14 @@ final class ModelIntegrity {
             classifier.requireArguments(pd.type(), typeParams);
             requireValidBounds(pd.multiplicity(),
                     "property '" + pd.name() + "' of " + cd.qualifiedName());
+            if (pd.hasDefault() && pd.multiplicity() instanceof com.legend.protocol.Multiplicity.Concrete m
+                    && m.lowerBound() == 0) {
+                // legend-pure's PropertyValidator, in its words (its default value's TYPE is the body phase's: the
+                // lifted <class>$default$<property>, ModelNormalizer.liftDefaults)
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                        "Default values are supported only for mandatory fields, and property '" + pd.name()
+                                + "' is optional.");
+            }
         }
         for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
             requireAnnotations(dp, model);
