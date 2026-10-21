@@ -12343,6 +12343,38 @@ The same branch (neema2/legend-lite#56), at the seventh line's quiet point after
     - the ban fails when a root it reads yields no source;
     - the records' wording.
 
+## 2026-10-21 — GraphQL over a real model: the stress corpus's services asked through GraphQL, judged by its oracle (the twelfth line)
+
+Branch `claude/graphql-study-2026-10-18`; the record is the study's §13.10. No register row: the two findings were
+bugs in lite's resolver, fixed; the differences the twins meet by design are rows already (S112) or the engine's own
+(an otherwise set's graph fetch, the graph channel's DateTime spelling).
+
+1. **What lands.** A new lane in gate 10, `//core:stress_graphql` (`StressGraphqlTwinsTest`, in `//gates:stress`):
+   each stress service asked as the GraphQL a client would write for the same question (`ServiceTwins`: a graph
+   fetch's tree as a selection; a TDS chain as `where`, `orderBy`, `limit`, dated roots, probes and `Groups`), each
+   schema scoped to the twin's classes, each answer judged by the service's own oracle expectation. Two resolver
+   fixes the lane found, each pinned by `RoutedNavigationIntegrationTest` (both tests fail without them): an
+   `exists` under an `exists` over a navigation routed to another mapping's set (the nested scope widens the routed
+   row for its keys: `StoreResolver.scopeMaterials`, `CorrelatedSubselects.nestedAssocMaterials`,
+   `StackBuilder.demandBelow`), and a graph fetch of a derived property over join-mapped scalars
+   (`GraphEmission.derivedLeafPaths`). `StressGraphqlProbeTest`: the developer explorers that reduced each finding.
+2. **Judges.** The lane: 436 graph-fetch twins and 4,261 TDS twins agree with the oracle (the floors); every other
+   twin fails as its service does. On the landing's tree: the core packages `root`, `server`, `integration`,
+   `resolver` and `lowering`, `//core:guardrails`, `//core:census`, the generated files, both corpus lanes with their
+   rosters and registers unchanged, `//core:stress_suites` (4,705, unchanged), PCT on DuckDB, and as an unprivileged
+   user on Postgres 16 the hardening lane, `postgres_arm`, the SQL island and PCT, plus the SQL, IQ and Cypher parity
+   suites: all pass. The packages `compiler`, `exec`, `sql`, `protocol` and `parser` and `//core:stress_suites_h2`
+   passed on the first cut (the narrowing below only removes demand).
+3. **What the gates taught.** The derived-leaf fix's first cut demanded every to-one path a derived body reads; the
+   DuckDB corpus's engine-order registers moved by one test (`testMilestonedClassAtRootQualifierWithBD`: a qualifier
+   navigating a milestoned association was joined at the root, so a statement leaned on the test lane's scan order).
+   The fix was narrowed to the object's own scalars, and the registers came back unchanged. The guardrails held the
+   rest: a catch that returned a value (removed: a body that does not compile walls where it would at emission) and
+   `StoreResolver.resolveObject` past its 250 lines (the demand became a method).
+4. **Next.** Twins for the 13 untwinned TDS shapes that GraphQL can express; hand-written business questions over
+   the stress model for the features the services do not use (nested lists with clauses, nested aggregates,
+   variables, fragments), judged against the same oracle where its algebra reaches.
+
 ## 2026-10-21 — GraphQL: the hardening line — an independent reference, a fuzzer, a corpus; the relation node; temporal reads (the twelfth line)
 
 Announced in `docs/IN_FLIGHT.md` ("The hardening line"). Branch `claude/graphql-study-2026-10-18`; the record is the

@@ -2529,4 +2529,10 @@ island inside Pure.
   hardening lane). The register: the GraphQL line's rows are S89 to S119 (S76 to S103 before the merge of origin/main,
   2026-10-20, where the Cypher line holds S76 to S88); the hardening line's are S103 to S105 and S112 to S119,
   S90, S93 and S95 amended.
+- **GraphQL over a real model, 2026-10-21** (the user: "real/realistic usecases too ... use parts of the Stress
+  Corpus"): the stress services asked through GraphQL and judged by the corpus's oracle, `//core:stress_graphql` in
+  gate 10 (the study's §13.10; the GATES entry of the same day). **Cross-area edits, announced here:** the resolver
+  (`StoreResolver.scopeMaterials` and `derivedLeafDemand`, `CorrelatedSubselects.nestedAssocMaterials`,
+  `StackBuilder.demandBelow`, `GraphEmission.derivedLeafPaths` and `leafSlotDemand`), `core/BUILD.bazel` (the lane)
+  and `gates/BUILD.bazel` (`//gates:stress` runs it).
 

@@ -3493,7 +3493,7 @@ final class GraphEmission {
                 || t == Type.Primitive.STRICT_DATE;
     }
 
-    private static java.util.Set<String> leafSlotDemand(ClassSource child,
+    private java.util.Set<String> leafSlotDemand(ClassSource child,
             TypedGraphTree node) {
         java.util.Set<String> universe =
                 Pipelines.slotAliases(child.pipeline());
@@ -3502,23 +3502,76 @@ final class GraphEmission {
             return out;
         }
         for (TypedGraphTree c : node.children()) {
-            TypedSpec b = child.bindings().get(c.property());
-            if (b == null) {
-                continue;
+            List<String> reads = new ArrayList<>();
+            if (child.bindings().containsKey(c.property())) {
+                reads.add(c.property());
+            } else if (c.children().isEmpty()) {
+                // a DERIVED leaf demands the slots of the properties its body reads
+                for (List<String> path : derivedLeafPaths(child.classFqn(), c)) {
+                    reads.add(path.get(0));
+                }
             }
-            collectAliasReads(b, child.rowVar(), universe, out);
-            // reads WRAPPED in computed expressions (concat over
-            // $row.slot.COL) demand the slot the same way — any reference
-            // shape converts, the direct pattern above is just the fast path
-            for (String a : universe) {
-                if (!out.contains(a)
-                        && Pipelines.referencesAliasOn(b, child.rowVar(),
-                                java.util.Set.of(a))) {
-                    out.add(a);
+            for (String r : reads) {
+                TypedSpec b = child.bindings().get(r);
+                if (b == null) {
+                    continue;
+                }
+                collectAliasReads(b, child.rowVar(), universe, out);
+                // reads WRAPPED in computed expressions (concat over
+                // $row.slot.COL) demand the slot the same way — any reference
+                // shape converts, the direct pattern above is just the fast path
+                for (String a : universe) {
+                    if (!out.contains(a)
+                            && Pipelines.referencesAliasOn(b, child.rowVar(),
+                                    java.util.Set.of(a))) {
+                        out.add(a);
+                    }
                 }
             }
         }
         return out;
+    }
+
+    /**
+     * The object's own SCALAR properties a DERIVED leaf's body reads, its derived callees inlined
+     * ({@code backConverted() { convert($this.notionalConverted, invert($this.fxMid)) }}: notional, fxMid) -- the
+     * slot demand that materializes a scalar mapped through a join ({@code notional: @PricedTrade_Trade |
+     * TRADE.NOTIONAL}) for the leaf (the stress corpus through GraphQL, 2026-10-21: a tree selecting
+     * {@code backConverted} without {@code notional} walled 'references column PricedTrade_Trade_NOTIONAL'). A
+     * navigation the body takes ({@code $this.classification(%d).exchangeName}) keeps its own route: demanding it
+     * joined the navigation at the root (the relational corpus's testMilestonedClassAtRootQualifierWithBD); a leaf
+     * that is no derived property of matching arity reads nothing, and a body that does not compile walls here as it
+     * would where the leaf is emitted.
+     */
+    Set<List<String>> derivedLeafPaths(String classFqn, TypedGraphTree node) {
+        var p = ctx.findProperty(classFqn, node.property()).orElse(null);
+        if (!(p instanceof com.legend.compiler.element.Property.Derived d)
+                || d.parameters().size() != node.args().size()) {
+            return Set.of();
+        }
+        var cf = sources.compileSynthFn(d.bodyFunctionFqn());
+        if (cf.body().size() != 1) {
+            return Set.of();
+        }
+        String thisVar = cf.signature().parameters().get(0).name();
+        Set<List<String>> reads = new LinkedHashSet<>();
+        FlattenOps.consumedPaths(inlineDerivedCalls(cf.body().get(0), 0), thisVar, reads);
+        Set<List<String>> out = new LinkedHashSet<>();
+        for (List<String> path : reads) {
+            if (ownScalar(classFqn, path)) {
+                out.add(path);
+            }
+        }
+        return out;
+    }
+
+    /** A one-step read of a to-one scalar property of {@code classFqn}. */
+    private boolean ownScalar(String classFqn, List<String> path) {
+        if (path.size() != 1) {
+            return false;
+        }
+        var p = ctx.findProperty(classFqn, path.get(0)).orElse(null);
+        return p != null && !p.multiplicity().isMany() && !(p.type() instanceof Type.ClassType);
     }
 
     private static void collectAliasReads(TypedSpec n, String rowVar,

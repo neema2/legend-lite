@@ -1872,6 +1872,8 @@ final class StackBuilder {
         }
         return switch (pipeline) {
             case TypedConcatenate cat -> demandForKeys(cat, cols);
+            // a ONE-thread union (a route to a single set: its lone projected member), as demandForKeys reads it
+            case TypedProject lone -> demandForKeys(lone, cols);
             case TypedFilter f -> {
                 TypedSpec inner = demandBelow(f.source(), cols);
                 yield inner == f.source() ? pipeline

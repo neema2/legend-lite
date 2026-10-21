@@ -1455,6 +1455,10 @@ private static boolean referencesVar(TypedSpec n, String var) {
         this.ownStepSplicer = splicer;
     }
 
+    /** One association hop of a nested scope, joined after the scope row is widened for every hop's keys. */
+    private record NestedHop(String prefix, TypedSpec pipeline, TypedLambda cond, Type.RelationType row) {
+    }
+
     NestedMaterials nestedAssocMaterials(TemporalFrame temporal,
             StoreResolver.Context context, ClassSource t,
             TypedSpec targetPipe,
@@ -1495,6 +1499,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
         }
         TypedSpec pipe = targetPipe;
         var tNavSteps = Pipelines.navSteps(t.pipeline());
+        List<NestedHop> hops = new ArrayList<>();
         for (List<String> path : innerPaths) {
             String h = path.get(0);
             // an exists material and an assoc material COEXIST for one
@@ -1566,18 +1571,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                     ajRow = Type.requireRelationSchema(ajPipe.info().type());
                 }
             }
-            List<Type.Column> cols = new ArrayList<>(
-                    (Type.requireRelationSchema(pipe.info().type())).columns());
-            for (Type.Column c : ajRow.columns()) {
-                cols.add(new Type.Column(aj2.prefix() + c.name(),
-                        c.type(), c.multiplicity()));
-            }
-            Type.RelationType widened = new Type.RelationType(cols);
-            pipe = new TypedJoin(pipe, ajPipe, AssociationJoins.leftKind(),
-                    ajCond, Optional.of(aj2.prefix()), null,
-                    new ExprType(Type.relation(widened),
-                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
-                false /* resolver-synth */);
+            hops.add(new NestedHop(aj2.prefix(), ajPipe, ajCond, ajRow));
             nestedAssocs.put(h, new Substitution.AssocSub(aj2.prefix(),
                     aj2.target().rowVar(), aj2.target().bindings(),
                     aj2.target().classFqn(),
@@ -1586,6 +1580,27 @@ private static boolean referencesVar(TypedSpec n, String var) {
                     /*readVar*/ null, /*readRowType*/ null,
                     Map.of(), aj2.targetSubNavs()));
             nestedByHead.put(h, aj2);
+        }
+        // the joins read the scope row's own key columns: a ROUTED row (a union over the route's sets; one set: a
+        // lone projection) projects them on every thread first, as the root's join-key widening does
+        Set<String> keys = new LinkedHashSet<>();
+        for (NestedHop hop : hops) {
+            collectParamColumnReads(hop.cond(), keys);
+        }
+        pipe = StackBuilder.demandBelow(pipe, keys);
+        for (NestedHop hop : hops) {
+            List<Type.Column> cols = new ArrayList<>(
+                    (Type.requireRelationSchema(pipe.info().type())).columns());
+            for (Type.Column c : hop.row().columns()) {
+                cols.add(new Type.Column(hop.prefix() + c.name(),
+                        c.type(), c.multiplicity()));
+            }
+            Type.RelationType widened = new Type.RelationType(cols);
+            pipe = new TypedJoin(pipe, hop.pipeline(), AssociationJoins.leftKind(),
+                    hop.cond(), Optional.of(hop.prefix()), null,
+                    new ExprType(Type.relation(widened),
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
+                false /* resolver-synth */);
         }
         // deep paths whose mid hop is ITSELF an association (locations.
         // placeOfInterest.name) register CHAIN keys, mirroring the root

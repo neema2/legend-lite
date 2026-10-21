@@ -1255,6 +1255,20 @@ junit_test(
     ],
 )
 
+# Gate 10's GraphQL lane (2026-10-21): the stress services asked as the GraphQL a client would write for the same
+# question -- graph-fetch trees as selections, TDS filter/project/groupBy/sort/limit chains as where/orderBy/limit and
+# Groups roots -- each judged by the service's own oracle expectation, held by StressGraphqlTwinsTest's floors.
+junit_test(
+    name = "stress_graphql",
+    memory_mb = 1024,
+    size = "enormous",
+    select = ["--select-class=com.legend.integration.StressGraphqlTwinsTest"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+)
+
 # The stress corpus's measuring tool (StressTool: data overrides, row dumps, one service, a session policy):
 #   bazel run //core:stress_tool -- [--backend NAME] [--sessions fresh|shared] [--only NAME] [--data F.pure,...]
 #       [--rows DIR] [--out DIR]

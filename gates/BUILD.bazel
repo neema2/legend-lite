@@ -165,6 +165,8 @@ test_suite(
     tests = [
         "//core:stress_suites",
         "//core:stress_suites_h2",
+        # the stress services asked through GraphQL, judged by the same oracle (2026-10-21)
+        "//core:stress_graphql",
     ],
 )
 

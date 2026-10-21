@@ -2354,6 +2354,19 @@ public final class StoreResolver {
         return new JoinedPipe(m, aggAssocJoins, aggReads);
     }
 
+    /** A graph terminal's DERIVED leaves read their body's scalar properties: those paths demand as the leaves' own
+     *  do ({@link GraphEmission#derivedLeafPaths}). */
+    private void derivedLeafDemand(List<TypedGraphTree> tree, ClassSource cs, Set<List<String>> projectionPaths) {
+        GraphEmission ge = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch,
+                () -> freshVarCounter++);
+        for (TypedGraphTree node : tree) {
+            if (node.children().isEmpty() && node.subTypeFqn() == null
+                    && !cs.bindings().containsKey(node.property())) {
+                projectionPaths.addAll(ge.derivedLeafPaths(cs.classFqn(), node));
+            }
+        }
+    }
+
     /** ops + the terminal: value-position filtered navigation lives in
      * the map/project TERMINAL ($f.emps->filter(..).name — the qualifier
      * family), and its inner predicates demand target slots too. */
@@ -3103,6 +3116,7 @@ public final class StoreResolver {
             // GRAPH terminal: LEAF paths feed slot demand; class-typed
             // children correlate — buildGraphNode materializes them
             InnerDemand.treeDemandPaths(tree, cs0, ctx, projectionPaths);
+            derivedLeafDemand(tree, cs0, projectionPaths);
         } else {
             for (TypedLambda fn : terminalLambdas(top)) {
                 for (TypedSpec b : fn.body()) {
@@ -3539,6 +3553,17 @@ public final class StoreResolver {
         // nested EXISTS materials (emptiness consumption)
         Map<String, Substitution.ExistsSub> nested =
                 registerExistsSubs(t, innerPaths, Set.of(), innerOps, context, Map.of());
+        // a ROUTED target (a union over the route's sets; one set: a lone projection) carries the class's properties
+        // and the route's keys only, and the scope's exists correlate on the row's own key columns: every thread
+        // projects them -- the root's join-key widening (Pipelines.widenPipeForJoinKeys) for a nested scope (the
+        // stress corpus through GraphQL, 2026-10-21: $x.book->exists(b | $b.desk->exists(...)), book routed to a set
+        // of another mapping, walled 'UnfoldableRef: DESK_ID'). The association joins below widen for theirs.
+        Set<String> existsKeys = new LinkedHashSet<>();
+        for (Substitution.ExistsSub ex : nested.values()) {
+            CorrelatedSubselects.collectParamColumnReads(ex.orientedCond(), existsKeys);
+        }
+        targetPipe = StackBuilder.demandBelow(targetPipe, existsKeys);
+        row = Type.requireRelationSchema(targetPipe.info().type());
         // nested ASSOC materials (leaf reads) + deep chain keys — built
         // with the correlated-scope machinery (guardrail extraction)
         CorrelatedSubselects.NestedMaterials nm = corrSubs

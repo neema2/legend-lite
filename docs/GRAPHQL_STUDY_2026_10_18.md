@@ -1449,3 +1449,59 @@ one, and execution refused them for want of a date. Register row S119.
   schema's arguments and their order, a correction recorded later read at two processing dates, a list as of a
   processing date, a missing date refused by name).
 
+### 13.10 A real model, 2026-10-21: the stress corpus's services asked through GraphQL
+
+The hardening line's fixture is small by design; the user asked for realistic use cases too. The stress corpus is
+the realistic model the repository has: a 7,600-element financial model (trading, positions, counterparties,
+reference data, risk, settlement and fifty more domains), its mappings (unions, filters, inheritance with filtered
+subclass sets, joins through sets of other mappings, enumeration mappings, embedded and otherwise sets, qualified
+properties, temporal classes), and a seed with the corpus's adversarial rows, every service's answer computed by an
+independent oracle (`scripts/corpus/oracle.py`). The new lane asks those services' questions as the GraphQL a client
+would write, and judges each answer by the service's own expectation.
+
+- **The twins** (`ServiceTwins`). A graph-fetch service (`C.all()->graphFetch(tree)->serialize(tree)`) is the list
+  root `C` with the tree as its selection, a subtype entry an inline fragment; it runs as the service with its query
+  replaced and is judged by the service's suite. A TDS service (`filter -> project -> [filter] -> [groupBy] -> sort
+  -> [limit]` over to-one paths) is the list root with a `where` (comparisons, `AND`/`OR`/`NOT`, `in`, string
+  operators, a Boolean property, presence), an `orderBy` (one key or several), a `limit`, a temporal root's dates,
+  and the columns' paths merged into one selection; a qualified property's arguments are named by its parameters
+  (`netExposureIn(fxRate: 0.79)`); `->count()`, `->isEmpty()` and `->isNotEmpty()` of a path read a collection's
+  `pAggregate { count }` or an object's presence; a `groupBy` is the class's `Groups` root, its keys under `key`,
+  `count` and the folds by name, sorted by key or fold. The answer flattens back to the service's columns by path and
+  is judged by the oracle's rows (unordered, `EqualToJson`) and then by the order of the sort's keys.
+- **The scope.** One schema cannot cover the model (88 simple names repeat across packages; the generator refuses
+  a scope where two classes share a name, rightly): each twin's schema is generated for its classes closed under
+  superclasses and the classes their properties reach (`ServiceTwins.closure`), which is how a real deployment
+  scopes by data space.
+- **What it found, in lite's core (the stress model reached shapes no smaller model had):**
+  - An `exists` under an `exists` over a navigation ROUTED to a set of another mapping
+    (`book[positions_Book]: @AgencylendingBaseBook` in the agencylending mapping, the set in the positions mapping):
+    the routed row carries the class's properties and the route's key only, and the nested scope's association
+    joined, and its inner `exists` correlated, on the row's own `DESK_ID`. 1,415 twins walled `UnfoldableRef:
+    DESK_ID` (GraphQL's `where: { book: { desk: { ... } } }` is exactly that nested `exists`); so did the same Pure.
+    The nested scope now widens a routed row for the keys its exists correlate on and its association joins read,
+    the root's join-key widening applied to a nested scope (`StoreResolver.scopeMaterials`,
+    `CorrelatedSubselects.nestedAssocMaterials`; `StackBuilder.demandBelow` reads a lone projection as the
+    one-thread union `demandForKeys` already did).
+  - A graph fetch of a derived property whose body reads scalars mapped through joins (`backConverted()` over
+    `notional: @PricedTrade_Trade | TRADE.NOTIONAL`) without the scalars selected: the leaf demanded no join slot
+    and walled. A derived leaf now demands the object's own scalars its body reads (`GraphEmission.derivedLeafPaths`);
+    a navigation its body takes keeps its own route (demanding it joined a milestoned navigation at the root and
+    moved the relational corpus's `testMilestonedClassAtRootQualifierWithBD` into the engine-order register: the
+    first cut, narrowed before landing).
+  - Both pinned by `RoutedNavigationIntegrationTest` (each fails without its fix).
+- **What it confirmed by design.** GraphQL's comparisons are two-valued (register S112): `NOT` keeps an absent
+  value, where the engine's SQL `<>` drops it, so the twin of `$x.p != v` asks for the value present as well. A graph
+  fetch of an otherwise-embedded property reads the fallback set (the engine's `testOtherwiseEmbeddedMapping`) where
+  the projection reads the inline columns, so `CB_Otherwise` is not twinned. Graph answers spell a DateTime without
+  the `+0000` the service-test channel appends (`Fold`'s graph leaf), so a tree twin's expectation is read in that
+  spelling.
+- **Measured.** 445 graph-fetch services twinned: 436 agree with the oracle, and the 9 others fail in lite as their
+  services do (provisioning over several stores, the service-test `+0000` channel, external-format data, a
+  JSON-mapped property); `G2` (`all(%latest)`: GraphQL has no latest date literal) and `MU0` (its class is in an
+  excluded file) are not twinned. 4,287 TDS services: 4,274 twinned, 4,261 agree in rows and order, and the 13
+  others fail as their services do (the same causes, and a Float past its sixth digit); 13 are not twinned, each
+  counted by reason in the lane's outputs (a computed column, a second project, `first()`, a dated read through a
+  variable). The stress gate's own count is unchanged (4,705 of 4,736). The lane is `//core:stress_graphql` in gate
+  10 (`//gates:stress`), held by two shrink-proof floors in `StressGraphqlTwinsTest`; it runs in about four and a
+  half minutes.
