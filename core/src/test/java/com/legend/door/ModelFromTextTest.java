@@ -70,5 +70,13 @@ class ModelFromTextTest {
         ParseException alone = assertThrows(ParseException.class, () -> ModelFromText.element(mapping));
         assertEquals(whole.getMessage(), alone.getMessage());
         assertEquals(3, alone.line());
+        // its JSON, which carries the element's position, is refused the same way at the same place (2026-10-21, the
+        // independent audit: the JSON door dropped the position and changed the kind)
+        com.legend.protocol.Protocol.PureModelContextData read = com.legend.protocol.ModelReader.read(
+                com.legend.protocol.ProtocolEmitter.emit(PmcdParser.parse(UNREPRESENTABLE, Dialect.LEGEND_LITE).model()));
+        ParseException json = assertThrows(ParseException.class, () -> com.legend.Compiler.compileModel(read));
+        assertEquals(whole.getMessage(), json.getMessage());
+        assertEquals(3, json.line());
+        assertEquals(1, json.column());
     }
 }

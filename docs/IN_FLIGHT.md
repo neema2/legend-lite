@@ -721,10 +721,10 @@ next.
 
 **Then the compiler's missing reference checks (the user, 2026-10-21, after an honest account of what leg 8 had
 shortcut: "def fix arithmetic, def need real tests, definitely need to fix function constraints and fake extends and
-fakes profiles/stereotypes")**, built on `reference-checks` (from `studio-program`'s d170f3eb0) and fast-forwarded onto
-`studio-program` once judged. A probe of 64 broken models through both doors found what lite accepted that the engine
+fakes profiles/stereotypes")**, built on `reference-checks` (from `studio-program`'s d170f3eb0) and squashed onto
+`studio-program` once judged (two commits; `reference-checks` keeps the working history). A probe of 64 broken models through both doors found what lite accepted that the engine
 refuses: a supertype that is no class, a generic's wrong arity, a profile, stereotype or tag that does not exist, a
-runtime's mapping, a connection's store, a service's or data space's mapping and runtime, a database's or mapping's
+runtime's mapping, a service's or data space's mapping and runtime, a database's or mapping's
 include, an Operation's member set, an optional property with a default; and two messages that misled. Each is now
 refused with the engine's (or legend-pure's) words, a case each in `ReferenceIntegrityTest`; defaults and a function's
 pre/post-conditions are compiled (lifted as synthesized functions and typed, as derived properties are); an operator run
@@ -746,7 +746,14 @@ comments in `core/BUILD.bazel` and `scripts/corpus/BUILD.bazel` -- the build lin
 excluded `55-canonical-store.pure` generated apart into `94-canonical-services.pure`, which lite excludes with it),
 two hand-written stress fixtures, `StressExclusions` and `LegendLiteGapTest`; parser-equivalence's pins
 (`JsonModelDoorTest`, `OwnCorpusConformanceTest`, `OwnDialectCensusTest`, `FixtureAdjudicationTest`) and
-`JavaEvalLedgerTest`'s ModelPacker row, each dated.
+`JavaEvalLedgerTest`'s ModelPacker row, each dated. **Then the independent audit (2026-10-21, three reviewers, GATES
+"the independent audit"),** fixed on `reference-checks` and squashed onto `studio-program` again: files beyond the
+above -- `parser/SpecParser.java` (a binding's first expression; ModelStore data), `server/PureV1Api.java` (the
+request depth), `Compiler.java` (the JSON door's refusal), `compiler/spec/SpecCompiler.java` (a default's new
+instances; a condition's message), `normalizer/ImplicitInheritance.java` (a missing association, FallbackLedger 6 -> 5),
+`protocol/{DomainReader,ProtocolEmitter}.java` (a condition's lambda), the prelude generator (the engine's profiles),
+`pct/.../ModelPacker.java` (a precise primitive's values), the stress corpus (`74-path-surface.pure`, excluded),
+parser-equivalence's `JsonModelDoorTest` (rule A's texts listed, `json-door-rule-a.tsv`).
 
 ## A sixth line, 2026-10-07: DataCube + Python (the user's ask, rule 5)
 

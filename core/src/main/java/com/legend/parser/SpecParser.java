@@ -377,7 +377,7 @@ public final class SpecParser implements TokenStreamCursor {
     /**
      * A model store's instances ({@code ModelStore #{ my::T: [^my::T(...)] }#}): parsed as a code block, but read
      * as legend-engine's model-data walker reads them ({@code ModelStoreDataParseTreeWalker}), not its expression
-     * walker -- a binding's value is never cut to its first expression here ({@link #engineKeyValue}).
+     * walker -- a binding's value is never cut to its first expression here ({@link #parseKeyValue}).
      */
     public static List<ValueSpecification> parseInstanceData(TokenStream tokens,
             String spanSourceId, Dialect dialect) {
@@ -573,7 +573,11 @@ public final class SpecParser implements TokenStreamCursor {
      * {@code and(lessThan(or(1,2), 3), 4)}).
      */
     private ValueSpecification parseCombinedExpression() {
-        ValueSpecification expr = parseExpression();
+        return parseCombinedParts(parseExpression());
+    }
+
+    /** The combined expression's parts after its first {@code expression}, folded as above. */
+    private ValueSpecification parseCombinedParts(ValueSpecification expr) {
         // engine invariant: arth and bool are never both non-empty — one is
         // flushed the moment a part of the other kind arrives
         List<OperatorParts.ArithPart> arth = new ArrayList<>();
@@ -696,7 +700,7 @@ public final class SpecParser implements TokenStreamCursor {
                     // neg-literals); the ###Pure walker keeps a minus call
                     ValueSpecification n = peek() == TokenType.INTEGER ? parseInteger()
                             : peek() == TokenType.FLOAT ? parseFloat() : parseDecimal();
-                    return negativeLiteral(n, spanOf(opTok, pos - 1));
+                    return signedLiteral(n, true, spanOf(opTok, pos - 1));
                 }
                 // Engine convention (ProbeWireShapes cNeg): unary minus is a ONE-parameter
                 // func (no collection) spanning just the operator token.
@@ -715,6 +719,14 @@ public final class SpecParser implements TokenStreamCursor {
             if (t == TokenType.PLUS) {
                 int opTok = pos;
                 pos++;
+                if (instanceData && (peek() == TokenType.INTEGER || peek() == TokenType.FLOAT
+                        || peek() == TokenType.DECIMAL)) {
+                    // a model store's +1, as its -1: one literal (ModelStoreDataParseTreeWalker.visitInstanceLiteral's
+                    // PLUS arms; 2026-10-21, the independent audit)
+                    ValueSpecification n = peek() == TokenType.INTEGER ? parseInteger()
+                            : peek() == TokenType.FLOAT ? parseFloat() : parseDecimal();
+                    return signedLiteral(n, false, spanOf(opTok, pos - 1));
+                }
                 return new AppliedFunction("plus", List.of(parseExpression()),
                         List.of(), spanOf(opTok, opTok), false, false, true);
             }
@@ -723,14 +735,24 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     /** A number literal negated, as one literal at {@code span} (a model store's {@code -1}). */
-    private static ValueSpecification negativeLiteral(ValueSpecification n,
+    /** A signed number literal, its span the sign and the digits: negated when {@code negative}; a float keeps its
+     *  exact digits, and an integer that fits a long is a long (-9223372036854775808 too), as a reader of its JSON
+     *  gives it back (2026-10-21, the independent audit: both were lost). */
+    private static ValueSpecification signedLiteral(ValueSpecification n, boolean negative,
             com.legend.protocol.SourceInfo span) {
         return switch (n) {
-            case com.legend.protocol.spec.CInteger c -> new com.legend.protocol.spec.CInteger(
-                    c.value() instanceof java.math.BigInteger big ? big.negate() : (Number) (-c.value().longValue()),
-                    span);
-            case com.legend.protocol.spec.CFloat c -> new com.legend.protocol.spec.CFloat(-c.value(), span);
-            case com.legend.protocol.spec.CDecimal c -> new com.legend.protocol.spec.CDecimal(c.value().negate(), span);
+            case com.legend.protocol.spec.CInteger c -> {
+                java.math.BigInteger v = c.value() instanceof java.math.BigInteger big ? big
+                        : java.math.BigInteger.valueOf(c.value().longValue());
+                java.math.BigInteger signed = negative ? v.negate() : v;
+                yield new com.legend.protocol.spec.CInteger(
+                        signed.bitLength() < 64 ? (Number) signed.longValue() : signed, span);
+            }
+            case com.legend.protocol.spec.CFloat c -> new com.legend.protocol.spec.CFloat(
+                    negative ? -c.value() : c.value(),
+                    c.exact() == null || !negative ? c.exact() : c.exact().negate(), span);
+            case com.legend.protocol.spec.CDecimal c -> new com.legend.protocol.spec.CDecimal(
+                    negative ? c.value().negate() : c.value(), span);
             default -> throw new IllegalStateException("a number literal is an integer, a float or a decimal: " + n);
         };
     }
@@ -1797,7 +1819,11 @@ public final class SpecParser implements TokenStreamCursor {
                 && tokens.type(pos + 1) == TokenType.EQUAL) {
             String key = text();
             pos += 2;                               // name + '='
-            ValueSpecification value = engineKeyValue(parseCombinedExpression());
+            int valueTok = pos;
+            ValueSpecification value = parseKeyValue();
+            if (instanceData && dialect.refusesLiteExtensions()) {
+                requireDataValue(value, valueTok);
+            }
             properties.add(new com.legend.protocol.spec.NewInstance
                     .KeyBinding(key, new KeyExpression(value, false, false)));
             return;
@@ -1832,7 +1858,20 @@ public final class SpecParser implements TokenStreamCursor {
                 "expected '" + (isAdd ? "+=" : "=")
                 + "' after property name '" + key
                 + "' in ^NewInstance binding");
-        ValueSpecification value = engineKeyValue(parseCombinedExpression());
+        if (instanceData && isAdd) {
+            // the engine's data grammar binds with '=' alone (ModelStoreDataParserGrammar instancePropertyAssignment)
+            // and its data JSON keeps no add: refused at every dialect rather than dropped (2026-10-21, the
+            // independent audit: it was written as an assignment)
+            throw error("'+=' is not model store data's: a data instance binds '" + key + "' with '='");
+        }
+        if (instanceData && dialect.refusesLiteExtensions() && key.indexOf(".") >= 0) {
+            throw error("a dotted key is not model store data's: '" + key + "'");
+        }
+        int valueTok = pos;
+        ValueSpecification value = parseKeyValue();
+        if (instanceData && dialect.refusesLiteExtensions()) {
+            requireDataValue(value, valueTok);
+        }
         if (dialect.refusesLiteExtensions() && !instanceData) {
             // the engine's walker keys a binding by its FIRST identifier (`val.identifier(0)`: addr.city = .. keys
             // addr) and never sets KeyExpression.add (`+=` reads as `=`); lite's dialect keeps both
@@ -1849,31 +1888,49 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     /**
-     * A binding's value as the dialect reads it. The engine's walker keeps only the FIRST expression of an
-     * unparenthesised operator chain ({@code processRightSide}: {@code combinedExpression().expression()}), so at its
-     * dialect {@code s = 'a' + 'b' + $v} binds {@code 'a'} and {@code h = $a || $b} binds {@code $a} (ProbeWireShapes
-     * "burn zoo 2" keyChain); lite's dialect binds what was written (S89, rule A). Only an operator-spelled chain is
-     * cut: a call that merely names an operator ({@code plus(1, 2)}, {@code (1)->plus(2)}) is one expression.
+     * A data binding's value at the engine's dialect: what its data grammar reads (ModelStoreDataParserGrammar
+     * {@code instanceRightSide}) -- a literal (a signed number one literal), an instance, an enumeration value, or a
+     * list of those -- and nothing else (2026-10-21, the independent audit: an operator or a call was accepted there).
      */
-    private ValueSpecification engineKeyValue(ValueSpecification value) {
-        if (!dialect.refusesLiteExtensions() || instanceData) {
-            return value;
-        }
-        ValueSpecification kv = value;
-        // two spellings of a chain: pairwise parameters (divide, comparisons, equal/and/or) cut to the first
-        // parameter; the n-ary carrier (plus/minus/times) to the first element of its run
-        while (kv instanceof AppliedFunction chain && chain.infix() && !chain.grouped()) {
-            if (chain.parameters().size() == 2) {
-                kv = chain.parameters().get(0);
-            } else if (chain.parameters().size() == 1
-                    && chain.parameters().get(0) instanceof PureCollection run
-                    && run.values().size() >= 2) {
-                kv = run.values().get(0);
-            } else {
-                break;
+    private void requireDataValue(ValueSpecification value, int valueTok) {
+        List<ValueSpecification> atoms = value instanceof com.legend.protocol.spec.PureCollection c
+                && tokens.type(valueTok) == TokenType.BRACKET_OPEN ? c.values() : List.of(value);
+        for (ValueSpecification a : atoms) {
+            boolean atomic = switch (a) {
+                case com.legend.protocol.spec.CString x -> true;
+                case com.legend.protocol.spec.CInteger x -> true;
+                case com.legend.protocol.spec.CFloat x -> true;
+                case com.legend.protocol.spec.CDecimal x -> true;
+                case com.legend.protocol.spec.CBoolean x -> true;
+                case com.legend.protocol.spec.CDate x -> true;
+                case com.legend.protocol.spec.CTime x -> true;
+                case com.legend.protocol.spec.EnumValue x -> true;
+                // an enumeration value as written (qualifiedName.identifier) and a ^New(...) instance
+                case AppliedProperty p -> p.receiver() instanceof PackageableElementPtr;
+                case AppliedFunction f -> f.parameters().size() == 2 && f.parameters().get(1) instanceof NewInstance;
+                default -> false;
+            };
+            if (!atomic) {
+                throw new com.legend.parser.ParseException("model store data takes a literal, an instance or an"
+                        + " enumeration value (or a list of them), as legend-engine's data grammar reads it",
+                        tokens.startLine(valueTok), tokens.startColumn(valueTok));
             }
         }
-        return kv;
+    }
+
+    /**
+     * A binding's value as the dialect reads it. The engine's walker keeps only the FIRST {@code expression} of the
+     * right side ({@code processRightSide}: {@code combinedExpression().expression()}) -- an expression with its own
+     * trailing {@code ==} or {@code !=} (the grammar's {@code expression: ... (equalNotEqual)?}, which
+     * {@link #parseExpression} mirrors) -- so at its dialect {@code s = 'a' + 'b' + $v} binds {@code 'a'},
+     * {@code h = $a || $b} binds {@code $a}, and {@code b = $x == 1 && $c} binds {@code $x == 1} (2026-10-21, the
+     * independent audit: a cut of the finished tree took that to {@code $x}); lite's dialect binds what was written
+     * (S89, rule A). The rest is parsed either way, so the text's end is the same.
+     */
+    private ValueSpecification parseKeyValue() {
+        ValueSpecification first = parseExpression();
+        ValueSpecification whole = parseCombinedParts(first);
+        return dialect.refusesLiteExtensions() && !instanceData ? first : whole;
     }
 
     /**

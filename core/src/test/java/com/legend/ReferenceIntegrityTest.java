@@ -41,31 +41,36 @@ class ReferenceIntegrityTest {
 
     private static final String GENERIC = "Class a::G<T>\n{\n  v: T[1];\n}\n";
 
-    /** {@code model} (after the base) compiled from its text; and, when legend-engine's grammar reads it, from its
-     *  JSON too: one error, naming {@code expected}. */
+    /** {@code model} (after the base) compiled from its text and from its JSON (legend-engine's grammar reads it:
+     *  asserted, so the second door is never skipped unseen; 2026-10-21, the independent audit): one error, naming
+     *  {@code expected}. */
     private static void refused(String model, String expected) {
         String text = BASE + model;
+        assertTrue(engineReads(text), "legend-engine's grammar reads it (else refusedAsText): " + model);
         assertOneError(Compiler.compileErrors(text), expected, "the text");
-        if (engineReads(text)) {
-            assertOneError(Compiler.compileErrors(ModelReader.read(ProtocolEmitter.emit(PmcdParser.parseModel(text)))),
-                    expected, "the JSON");
-        }
+        assertOneError(Compiler.compileErrors(ModelReader.read(ProtocolEmitter.emit(PmcdParser.parseModel(text)))),
+                expected, "the JSON");
     }
 
-    /** As {@link #refused}, for a construct legend-engine's grammar reads otherwise (rule A, S89: it drops a
-     *  supertype's arguments), so only the text at lite's dialect carries it. */
+    /** As {@link #refused}, for a construct only lite's dialect reads as written (a generic class, which
+     *  legend-engine's grammar refuses; a function's constraints and a supertype's arguments, which it drops: rule A,
+     *  S89), so only the text carries it. */
     private static void refusedAsText(String model, String expected) {
         assertOneError(Compiler.compileErrors(BASE + model), expected, "the text");
     }
 
+    /** Compiled with no error from its text and from its JSON (asserted readable, as {@link #refused}). */
     private static void accepted(String model) {
         String text = BASE + model;
+        assertTrue(engineReads(text), "legend-engine's grammar reads it (else acceptedAsText): " + model);
         assertEquals(List.of(), Compiler.compileErrors(text), "the text");
-        if (engineReads(text)) {
-            assertEquals(List.of(),
-                    Compiler.compileErrors(ModelReader.read(ProtocolEmitter.emit(PmcdParser.parseModel(text)))),
-                    "the JSON");
-        }
+        assertEquals(List.of(),
+                Compiler.compileErrors(ModelReader.read(ProtocolEmitter.emit(PmcdParser.parseModel(text)))),
+                "the JSON");
+    }
+
+    private static void acceptedAsText(String model) {
+        assertEquals(List.of(), Compiler.compileErrors(BASE + model), "the text");
     }
 
     private static boolean engineReads(String text) {
@@ -91,25 +96,39 @@ class ReferenceIntegrityTest {
 
     @Test
     void aSupertypeThatIsNotAClassIsRefused() {
-        refused("Class a::B extends a::E\n{\n}\n", "Invalid supertype: 'a::B' cannot extend 'a::E' as it is not a class.");
-        refused("Class a::B extends String\n{\n}\n", "Invalid supertype: 'a::B' cannot extend 'meta::pure::metamodel::type::String' as it is not a class.");
+        // the engine's words, the class by its name (ClassCompilerExtension: srcClass.name)
+        refused("Class a::B extends a::E\n{\n}\n", "Invalid supertype: 'B' cannot extend 'a::E' as it is not a class.");
+        refused("Class a::B extends String\n{\n}\n", "Invalid supertype: 'B' cannot extend 'meta::pure::metamodel::type::String' as it is not a class.");
+        // a type parameter is no class either (it was a crash)
+        refusedAsText("Class a::B<T> extends T\n{\n}\n", "Invalid supertype: 'B' cannot extend 'T' as it is not a class.");
     }
 
     @Test
-    void aGenericSupertypesArgumentsAreItsParameters() {
-        refused(GENERIC + "Class a::B extends a::G<String, Integer>\n{\n}\n",
-                "Type argument mismatch for the class a::G<T> (expected 1, got 2)");
-        refused(GENERIC + "Class a::B extends a::G<a::Missing>\n{\n}\n", "Unknown type: 'a::Missing'");
-        refusedAsText("Class a::B extends a::C<String>\n{\n}\n",
-                "Type argument mismatch for the class a::C<> (expected 0, got 1)");
-        accepted(GENERIC + "Class a::B extends a::G<String>\n{\n}\n");
+    void aSupertypesArgumentsAreItsParametersWhereWritten() {
+        // legend-pure counts a supertype's arguments where they are written (lite's dialect); the engine's grammar
+        // drops them and its compiler resolves a supertype by its path alone, so a bare generic supertype -- the
+        // engine dialect's and the engine JSON's every one -- is accepted (2026-10-21, the independent audit)
+        refusedAsText(GENERIC + "Class a::B extends a::G<String, Integer>\n{\n}\n",
+                "Wrong type arguments count (2) for type: G<T>");
+        refusedAsText(GENERIC + "Class a::B extends a::G<a::Missing>\n{\n}\n", "Unknown type: 'a::Missing'");
+        refusedAsText("Class a::B extends a::C<String>\n{\n}\n", "Wrong type arguments count (1) for type: C");
+        acceptedAsText(GENERIC + "Class a::B extends a::G<String>\n{\n}\n");
+        accepted("Class a::B extends Pair<String, Integer>\n{\n}\n");
     }
 
     @Test
     void aGenericClassNamedWithoutItsArgumentsIsRefused() {
-        refused(GENERIC + "Class a::B\n{\n  g: a::G[1];\n}\n", "Type argument mismatch for the class a::G<T> (expected 1, got 0)");
+        // the engine's words (CompileContext.newGenericType)
+        refusedAsText(GENERIC + "Class a::B\n{\n  g: a::G[1];\n}\n", "Wrong type arguments count (0) for type: G<T>");
+        refused("Class a::B\n{\n  p: Pair<String>[1];\n}\n", "Wrong type arguments count (1) for type: Pair<U,V>");
         refused("Class a::B\n{\n  g: a::Missing<String>[1];\n}\n", "Unknown type: 'a::Missing'");
-        accepted(GENERIC + "Class a::B\n{\n  g: a::G<String>[1];\n}\n");
+        acceptedAsText(GENERIC + "Class a::B\n{\n  g: a::G<String>[1];\n}\n");
+    }
+
+    @Test
+    void aBareResultIsTheEnginesResultOfAny() {
+        // the engine's backward compatibility: a written `Result` is Result<Any|1..*> (DomainParseTreeWalker)
+        accepted("###Pure\nimport meta::pure::mapping::*;\nfunction a::f(r: Result[1]): Boolean[1]\n{\n  true\n}\n");
     }
 
     @Test
@@ -128,9 +147,18 @@ class ReferenceIntegrityTest {
     }
 
     @Test
-    void aConnectionsStoreIsAStore() {
-        refused("###Connection\nRelationalDatabaseConnection a::Cn\n{\n  store: a::NoDb;\n  type: H2;\n"
-                + "  specification: LocalH2\n  {\n  };\n  auth: DefaultH2;\n}\n", "The store 'a::NoDb' can't be found.");
+    void aConnectionsStoreNeedNotBeDeclared() {
+        // the engine gives a relational connection naming a database it has not an empty one
+        // (HelperRelationalDatabaseConnectionBuilder.addDatabaseConnectionProperties; 2026-10-21, the independent
+        // audit: lite refused it); a runtime binding a store it has not is refused (theRuntimesStoreIsAStore)
+        accepted("###Connection\nRelationalDatabaseConnection a::Cn\n{\n  store: a::NoDb;\n  type: H2;\n"
+                + "  specification: LocalH2\n  {\n  };\n  auth: DefaultH2;\n}\n");
+    }
+
+    @Test
+    void theRuntimesStoreIsAStore() {
+        refused("###Runtime\nRuntime a::R\n{\n  mappings:\n  [\n  ];\n  connections:\n  [\n"
+                + "    a::NoDb:\n    [\n      c1: a::Cn\n    ]\n  ];\n}\n", "The store 'a::NoDb' can't be found.");
     }
 
     @Test
@@ -157,9 +185,19 @@ class ReferenceIntegrityTest {
     void aMappingsIncludeIsAMappingAndItsSubstitutionsDatabases() {
         // a missing included mapping was an internal IllegalStateException (MappingClosures' never-fired probe)
         refused("###Mapping\nMapping a::M\n(\n  include a::NoMapping\n)\n", "Can't find mapping 'a::NoMapping'");
+        // a substitution names stores, as the engine resolves them (MappingIncludedMappingHandler: resolveStore)
         refused(DB + "###Mapping\nMapping a::Base\n(\n)\nMapping a::M\n(\n  include a::Base[a::NoDb -> a::Db]\n)\n",
-                "Can't find database 'a::NoDb'");
+                "The store 'a::NoDb' can't be found.");
         accepted(DB + "###Mapping\nMapping a::Base\n(\n)\nMapping a::M\n(\n  include a::Base\n)\n");
+    }
+
+    @Test
+    void anAssociationMappingsAssociationExists() {
+        // was an internal IllegalStateException (ImplicitInheritance's never-fired probe; 2026-10-21, the audit)
+        refused(DB.replace("Table T (X INTEGER)", "Table T (X INTEGER)\n  Join J(T.X = T.X)")
+                + "###Mapping\nMapping a::M\n(\n  a::C: Relational\n  {\n    x: [a::Db]T.X\n  }\n"
+                + "  a::NoAssoc: Relational\n  {\n    AssociationMapping\n    (\n      c: [a::Db]@J,\n"
+                + "      d: [a::Db]@J\n    )\n  }\n)\n", "Can't find association 'a::NoAssoc'");
     }
 
     @Test
@@ -229,16 +267,18 @@ class ReferenceIntegrityTest {
         // in a form legend-engine's grammar reads (defaultValueExpression: an enum value, a new instance, a literal)
         refused("Class a::B\n{\n  e: a::E[1] = a::Missing.A;\n}\n", "unknown enumeration 'a::Missing'");
         refused("Class a::B\n{\n  c: a::C[1] = ^a::Missing();\n}\n", "unknown class 'a::Missing'");
-        refused("Class a::B\n{\n  x: Integer[1] = 'a';\n}\n", "in function 'a::B$default$x': declares return type Integer but body returns String");
+        // lite's words, naming what was written (legend-pure: "Default value for property: 'x' / Type Error: ...")
+        refused("Class a::B\n{\n  x: Integer[1] = 'a';\n}\n",
+                "in default value of property 'x' of a::B: declares return type Integer but body returns String");
         accepted("Class a::B\n{\n  x: Integer[1] = 5;\n  b: Boolean[1] = false;\n  e: a::E[1] = a::E.A;\n}\n");
     }
 
     @Test
-    void aDefaultIsCheckedAsABodyIs() {
-        // legend-pure checks a default's type and multiplicity only (PropertyValidator), so the engine's own
-        // State.debug = ^DebugContext() passes there; lite checks it as any body, legend-pure's NewValidator rule (S90)
-        refused("Class a::B\n{\n  d: meta::pure::tools::DebugContext[1] = ^meta::pure::tools::DebugContext();\n}\n",
-                "Missing value(s) for required property 'debug' which has a multiplicity of [1]");
+    void aDefaultsNewInstanceNeedNotNameEveryRequiredProperty() {
+        // legend-pure checks a default's type and multiplicity alone (PropertyValidator), never its new instances'
+        // required properties (NewValidator), and the engine checks none: the engine's own
+        // State.debug = ^DebugContext() compiles in both (2026-10-21, the independent audit: lite refused it)
+        accepted("Class a::B\n{\n  d: meta::pure::tools::DebugContext[1] = ^meta::pure::tools::DebugContext();\n}\n");
     }
 
     @Test
@@ -256,7 +296,8 @@ class ReferenceIntegrityTest {
         refusedAsText("function a::g(s: String[1]): String[1]\n[\n  $nope->startsWith('A')\n]\n{\n  $s\n}\n",
                 "nope");
         // a post-condition reads $return, typed as the function's result
-        refusedAsText("function a::g(s: String[1]): String[1]\n[\n  $return > 2\n]\n{\n  $s\n}\n", "a::g$post$0");
+        refusedAsText("function a::g(s: String[1]): String[1]\n[\n  $return > 2\n]\n{\n  $s\n}\n",
+                "in post-condition '0' of a::g");
         accepted("function a::g(s: String[1]): String[1]\n[\n  pre: $s->startsWith('A'),\n"
                 + "  post: $return->endsWith('A')\n]\n{\n  $s\n}\n");
     }

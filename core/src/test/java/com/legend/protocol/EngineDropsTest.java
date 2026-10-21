@@ -63,6 +63,21 @@ class EngineDropsTest {
     }
 
     @Test
+    void aBindingsFirstExpressionKeepsItsEquality() {
+        // the engine's `expression` carries its own trailing == (expression: ... (equalNotEqual)?), so the walker's
+        // first expression of `$x == 1 && $y` is `$x == 1` (2026-10-21, the independent audit: it was cut to `$x`);
+        // of `'a' + $v == 'b'` it is `'a'`, the == being the second expression's
+        String keep = CLASSES + "function a::f(x: Integer[1], y: Boolean[1]): a::P[1]\n{\n  ^a::P(s = $x == 1 && $y)\n}\n";
+        String json = engineJson(keep);
+        assertTrue(json.contains("\"function\":\"equal\""), json);
+        assertFalse(json.contains("\"function\":\"and\""), json);
+        String cut = CLASSES + "function a::f(v: String[1]): a::P[1]\n{\n  ^a::P(s = 'a' + $v == 'b')\n}\n";
+        String json2 = engineJson(cut);
+        assertFalse(json2.contains("\"function\":\"equal\""), json2);
+        assertFalse(json2.contains("\"function\":\"plus\""), json2);
+    }
+
+    @Test
     void anAddingBindingIsAnAssignmentAtTheEnginesDialect_andAddsAtLites() {
         String text = CLASSES + "function a::f(): a::P[1]\n{\n  ^a::P(s += 'x')\n}\n";
         assertTrue(engineJson(text).contains("\"add\":false"));
@@ -130,5 +145,39 @@ class EngineDropsTest {
         String engine = engineJson(text);
         assertTrue(engine.contains("\"value\":-1"), engine);
         hopped(text, Dialect.LEGEND_LITE);
+    }
+
+    private static String data(String instance) {
+        return CLASSES + "###Data\nData a::D\n{\n  ModelStore #{\n    a::P: [\n      " + instance + "\n    ]\n  }#\n}\n";
+    }
+
+    @Test
+    void aModelStoresSignedNumberKeepsItsValueThroughItsJson() {
+        // +1 is one literal too (the data walker's PLUS arms); a long's least value stays a long, so a JSON hop gives
+        // the same records (2026-10-21, the independent audit)
+        assertTrue(engineJson(data("^a::P(s = 'x', n = +1)")).contains("\"value\":1"));
+        hopped(data("^a::P(s = 'x', n = -9223372036854775808)"), Dialect.LEGEND_LITE);
+        // a float's exact digits stay on the record, negated as written (its JSON, a double as the engine's, has none)
+        assertTrue(PmcdParser.parse(data("^a::P(s = 'x', n = -1.0000000000000000001)"), Dialect.LEGEND_LITE).model()
+                .toString().contains("exact=-1.0000000000000000001"));
+    }
+
+    @Test
+    void aModelStoresBindingIsTheDataGrammarsAlone() {
+        // '+=' has no meaning in data and its JSON keeps none: refused at every dialect, never written as '='; a
+        // dotted key or an operator is refused at the engine's dialect, whose data grammar reads neither
+        // (ModelStoreDataParserGrammar; 2026-10-21, the independent audit)
+        for (Dialect d : new Dialect[] {Dialect.LEGEND_ENGINE, Dialect.LEGEND_LITE}) {
+            com.legend.parser.ParseException add = assertThrows(com.legend.parser.ParseException.class,
+                    () -> PmcdParser.parse(data("^a::P(s += 'x')"), d));
+            assertTrue(add.getMessage().contains("'+=' is not model store data's"), add.getMessage());
+        }
+        com.legend.parser.ParseException op = assertThrows(com.legend.parser.ParseException.class,
+                () -> PmcdParser.parse(data("^a::P(s = 'a' + 'b')"), Dialect.LEGEND_ENGINE));
+        assertTrue(op.getMessage().contains("model store data takes a literal"), op.getMessage());
+        // a list of literals, an enumeration value and a nested instance are the grammar's own
+        PmcdParser.parse(CLASSES + "Enum a::E\n{\n  X\n}\nClass a::R\n{\n  ss: String[*];\n  e: a::E[1];\n"
+                + "  p: a::P[1];\n}\n###Data\nData a::D\n{\n  ModelStore #{\n    a::R: [\n"
+                + "      ^a::R(ss = ['a', 'b'], e = a::E.X, p = ^a::P(s = 'x'))\n    ]\n  }#\n}\n", Dialect.LEGEND_ENGINE);
     }
 }

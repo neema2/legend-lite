@@ -128,8 +128,12 @@ final class ImplicitInheritance {
             if (!(am instanceof com.legend.model.AssociationMapping.Relational rel)) {
                 continue;
             }
+            // a mapping of an association the model has not is that model's error, in legend-engine's words
+            // (2026-10-21, the independent audit: this "never fired" default was reachable from a user's text)
             var ad = AssociationSynthesis.resolveAssociation(model, r, am)
-                    .orElseThrow(() -> MissProbe.neverFired("ImplicitInheritance#1"));
+                    .orElseThrow(() -> new com.legend.error.ModelException(
+                            com.legend.error.LegendCompileException.Phase.MAPPING,
+                            "Can't find association '" + am.associationName() + "'"));
             for (com.legend.model.AssociationPropertyMapping apm
                     : rel.propertyMappings()) {
                 String tgtSet = apm.body() instanceof PropertyMapping.Join j

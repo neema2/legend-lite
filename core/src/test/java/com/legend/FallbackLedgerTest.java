@@ -77,7 +77,10 @@ class FallbackLedgerTest {
      * user's model -- an include of a mapping it has not, an association mapping of an association it has not -- so
      * each is that model's error now, a ModelException in legend-engine's words ("Can't find mapping 'x'", "Can't find
      * association 'x'"): still loud, and the user's, not an internal state. */
-    private static final int NEVER_FIRED_FLOOR = 6;
+    // 6 -> 5 (2026-10-21, the independent audit of the reference checks): ImplicitInheritance#1, an association
+    // mapping of an association the model has not, reached from a user's text (ReferenceIntegrityTest
+    // anAssociationMappingsAssociationExists): "Can't find association 'x'" now
+    private static final int NEVER_FIRED_FLOOR = 5;
 
     @org.junit.jupiter.api.Test
     void noBareEmptyAnswerOutsideTheFunnel() throws IOException {

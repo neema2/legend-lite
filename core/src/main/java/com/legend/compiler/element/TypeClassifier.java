@@ -162,7 +162,12 @@ final class TypeClassifier {
     void requireArguments(TypeExpression te, List<String> typeParams) {
         switch (te) {
             case TypeExpression.NameRef nr -> {
-                if (!typeParams.contains(nr.name()) && isClassFqn(nr.name())) {
+                // a bare Result is the engine's Result<Any|1..*>, its backward compatibility (DomainParseTreeWalker
+                // rewrites a written `Result`; ProtocolReader reads it back bare; 2026-10-21, the independent audit:
+                // lite refused it). Resolved, the written `Result` and a bare full path are one name here, so the
+                // second is accepted too, where the engine counts its arguments (S95)
+                if (!typeParams.contains(nr.name()) && isClassFqn(nr.name())
+                        && !com.legend.compiler.element.type.PlatformTypes.RESULT.equals(nr.name())) {
                     requireArity(nr.name(), 0, 0);
                 }
             }
@@ -196,26 +201,28 @@ final class TypeClassifier {
     }
 
     /** A class named with {@code types} type arguments and {@code multiplicities} multiplicity arguments: as many
-     *  of each as it declares parameters, or refused in legend-pure's words (GenericTypeValidator's for the types;
-     *  for the multiplicities, the same sentence). */
+     *  of each as it declares parameters, or refused in legend-engine's words (CompileContext.newGenericType: "Wrong
+     *  type arguments count (N) for type: C<T|m>", the class printed by legend-pure's _Class.print; 2026-10-21, the
+     *  independent audit: legend-pure's GenericTypeValidator sentence was used, where the engine has its own). */
     private void requireArity(String fqn, int types, int multiplicities) {
         ClassDefinition def = classDef(fqn).orElseThrow(() -> new IllegalStateException(
                 fqn + " classifies as a class but has no definition"));
         if (def.typeParams().size() != types) {
-            throw arityMismatch(def, "", def.typeParams().size(), types);
+            throw arityMismatch(def, "type", types);
         }
         if (def.multiplicityParams().size() != multiplicities) {
-            throw arityMismatch(def, "multiplicity ", def.multiplicityParams().size(), multiplicities);
+            throw arityMismatch(def, "multiplicity", multiplicities);
         }
     }
 
-    private static com.legend.error.ModelException arityMismatch(ClassDefinition def, String kind, int expected,
-            int got) {
-        String params = String.join(", ", def.typeParams())
-                + (def.multiplicityParams().isEmpty() ? "" : "|" + String.join(", ", def.multiplicityParams()));
+    private static com.legend.error.ModelException arityMismatch(ClassDefinition def, String kind, int got) {
+        String params = def.typeParams().isEmpty() && def.multiplicityParams().isEmpty() ? ""
+                : "<" + String.join(",", def.typeParams())
+                        + (def.multiplicityParams().isEmpty() ? "" : "|" + String.join(",", def.multiplicityParams()))
+                        + ">";
         return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                "Type " + kind + "argument mismatch for the class " + def.qualifiedName() + "<" + params
-                        + "> (expected " + expected + ", got " + got + ")");
+                "Wrong " + kind + " arguments count (" + got + ") for type: "
+                        + com.legend.protocol.Protocol.splitFqn(def.qualifiedName())[1] + params);
     }
 
     /** FQN of a superclass / generic head reference. */

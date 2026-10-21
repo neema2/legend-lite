@@ -138,6 +138,15 @@ class LegendLiteGapTest {
     }
 
     @Test
+    @DisplayName("a navigation path's type, Path, is not one lite declares (S92)")
+    void aNavigationPathsType() {
+        rejectsWith("a function returning Path", "Unknown type", """
+                Class demo::H { k: String[1]; }
+                function demo::p(): meta::pure::metamodel::path::Path<demo::H, String|1>[1] { #/demo::H/k# }
+                """);
+    }
+
+    @Test
     @DisplayName("a service naming a mapping the model has not is refused -- 94-canonical-services falls with 55")
     void aServiceOfAnExcludedMapping() {
         // not a gap of its own: 94-canonical-services.pure's services run on 55-canonical-store.pure's mappings and
@@ -165,9 +174,15 @@ class LegendLiteGapTest {
         // Guards against an exclusion being added with no executable evidence behind it.
         // 70-surface-store2.pure left 2026-09-27: its precise-primitive gap (Varchar(200))
         // closed when legend-lite's lattice gained legend-pure's precise primitives
-        // 94-canonical-services.pure joined 2026-10-21 (aServiceOfAnExcludedMapping): it falls with 55
+        // 94-canonical-services.pure joined 2026-10-21 (aServiceOfAnExcludedMapping): it falls with 55, so it is
+        // excluded exactly while 55 is (2026-10-21, the independent audit: nothing tied the two); 74-path-surface.pure
+        // the same day (aNavigationPathsType)
+        assertEquals(StressExclusions.EXCLUDED.containsKey("55-canonical-store.pure"),
+                StressExclusions.EXCLUDED.containsKey("94-canonical-services.pure"),
+                "94-canonical-services.pure's services run on 55-canonical-store.pure's mappings: excluded with it");
         Set<String> documented = Set.of("29-money.pure", "55-canonical-store.pure",
-                "71-mapping-surface2.pure", "75-surface-gaps.pure", "94-canonical-services.pure");
+                "71-mapping-surface2.pure", "75-surface-gaps.pure", "94-canonical-services.pure",
+                "74-path-surface.pure");
         assertEquals(documented, StressExclusions.EXCLUDED.keySet(),
                 "StressExclusions.EXCLUDED changed. Every excluded file must have a case in "
                         + "this test showing WHY legend-lite cannot load it — an exclusion "

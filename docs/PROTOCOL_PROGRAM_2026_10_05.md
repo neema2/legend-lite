@@ -540,14 +540,13 @@ not be written back, so it is refused.
    reads none), an include's several store substitutions, an Operation mapping's `extends`, a generic supertype's type
    arguments, a service store's description. Written whole from lite's dialect: a chain, `"add":true`, an Operation
    mapping's `extendsClassMappingId` (as older JSON writes it), a description. Refused by name: a dotted key, several
-   substitutions, a supertype's arguments, and a function's constraints (the engine's JSON has `preConstraints` and
-   `postConstraints`, which its compiler reads, but which of lite's constraints is which is legend-pure's split, not yet
-   lite's: writing them is open). A model store's instances are the engine's data walker's, which reads its values whole
+   substitutions, a supertype's arguments, and (until 2026-10-21, when the reference checks wrote them by legend-pure's
+   split, below) a function's constraints. A model store's instances are the engine's data walker's, which reads its values whole
    (`SpecParser.parseInstanceData`).
 
    **As built, step 2's rest (2026-10-21, on `studio-program`; GATES 2026-10-21).** Rule A, as above. The compiler no
    longer reads how an operator was spelled: a run is an arithmetic carrier over a literal list of two or more operands
-   (`Typer.markOperatorRun`), so `1 + 2 + 3`, `plus([1, 2, 3])` and `[1, 2, 3]->plus()` are one call, as they are to
+   (`Typer.markOperatorRun`; since the reference checks, the resolved declaration's, `Typer.withOperatorRun`), so `1 + 2 + 3`, `plus([1, 2, 3])` and `[1, 2, 3]->plus()` are one call, as they are to
    the engine. Three readings the oracle found, each the engine's: a model store's `-1` is one literal (its data
    walker's; the emitter's own fold deleted), a path segment `prop()` with no argument is the property at the engine's
    and lite's dialects (as `$x.f()` is `$x.f`), and a keyExpression's `add` is read. The oracle (`JsonModelDoorTest`)
@@ -581,23 +580,35 @@ not be written back, so it is refused.
    aggregation-aware mapping's outer id. One position moved: a shape the model refuses in an element the IDE parses
    alone is placed at the element's start, as it already was for a whole text. ArchitectureTest 7c's `model..`
    allowance is deleted: the parser depends on the lexer, the protocol, values, the shared errors and the overlay seam
-   alone. Leg 8 is done.
+   alone. Leg 8's steps are built. Its oracle is not at zero: 4 texts fail (two quoted trees over a let-bound string,
+   whose fold belongs after the door; two variables typed `Result`, which the engine's own reader upgrades), and rule A's
+   texts differ by design (counted, and since 2026-10-21 listed one by one: `json-door-rule-a.tsv`).
 
    **As built after it, the reference checks (2026-10-21, on `reference-checks`, then `studio-program`; GATES
    2026-10-21).** With JSON a door into the compiler, what the compiler accepts unchecked is accepted from any author.
    A probe of 64 broken models through both doors found lite accepting what the engine refuses; each is now refused
-   with the engine's words (legend-pure's where the engine defers to it), one case each in `ReferenceIntegrityTest`,
-   through the text and through its JSON: a supertype that is no class (a primitive included), a generic's wrong type
-   or multiplicity arity (a class's multiplicity parameters are now their own list, not merged into its type
-   parameters), a profile, stereotype or tag that does not exist (on classes, properties, enums, enum values,
-   associations, their ends, derived properties, functions; a profile resolves among profiles, and the platform's are
-   declared in the prelude), a runtime's mapping, a connection's store, a service's and a data space's mapping and
-   runtime, a database's and a mapping's include, an Operation's member set, an optional property with a default.
-   Defaults and a function's pre- and post-conditions (a condition naming `$return` is a post-condition, as in
-   legend-pure) are lifted as synthesized functions and typed, as derived properties are; the conditions now cross the
-   door and are written as the engine's JSON (`preConstraints`, `postConstraints`). An operator run is decided by the
-   resolved declaration (`NativeFn.OperatorRun`), never the name it was written with. Two messages that misled are
-   corrected (a missing database; a mapping's element kind).
+   with the engine's words (legend-pure's where the engine has none), one case each in `ReferenceIntegrityTest`,
+   through the text and, where the engine's grammar reads it, through its JSON: a supertype that is no class (a
+   primitive, a type parameter), a generic's wrong type or multiplicity arity where its arguments are written (a
+   class's multiplicity parameters are now their own list), a profile, stereotype or tag that does not exist (on every
+   annotated element; a profile resolves among profiles, and the prelude declares legend-pure's and every profile the
+   engine ships), a runtime's mapping and stores, a service's and a data space's mapping and runtime, a database's and a
+   mapping's include (its substitutions' stores), an Operation's member set, an association mapping's association, an
+   optional property with a default. Defaults and a function's pre- and post-conditions (a condition naming `$return`
+   is a post-condition, as in legend-pure) are lifted as synthesized functions and typed, as derived properties are;
+   the conditions cross the door and are written as the engine's JSON, over the function's parameters (and `return`).
+   They are typed, not evaluated when a function runs (S94). An operator run is decided by the resolved declaration
+   (`NativeFn.OperatorRun`), never the name it was written with. Two messages that misled are corrected.
+
+   **Then the independent audit (2026-10-21; GATES "the independent audit").** Three reviewers read the branch cold:
+   leg 8's work, the compiler's checks, and the evidence. Where the checks had gone stricter than the references they
+   now follow them: a connection's database need not be declared (the engine gives it an empty one); a bare generic
+   supertype is the engine's (its grammar drops a supertype's arguments); a bare `Result` is the engine's
+   `Result<Any|1..*>` (S95); a substitution names any store; the engine's own profiles are declared; a default's new
+   instances are not checked for their required properties (S90, as legend-pure). Leg 8's: a binding's first
+   expression at the engine's dialect keeps its own `==` (the walker's rule, read as parsed); ModelStore data takes the
+   engine's data grammar alone at its dialect, `+=` at none; the JSON door's refusal keeps its element's position; a
+   model sent as data nests as deep as its own JSON reads; a signed literal keeps its value.
 
 9. **Imports and comments through the round trip** (added 2026-10-10, the user: "add a leg to design/implement
    imports and comments too so we don't forget"). Today a model's text keeps both only because lite's own SDLC

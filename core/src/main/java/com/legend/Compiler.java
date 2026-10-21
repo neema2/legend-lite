@@ -87,8 +87,12 @@ public final class Compiler {
         try {
             parsed = com.legend.model.ModelFromProtocol.of(Objects.requireNonNull(model, "model"));
         } catch (com.legend.model.ModelFromProtocol.Unrepresentable u) {
-            // a shape the compiler's model cannot represent: a construct legend-lite does not compile (from text, the
-            // parser refuses the same shape at its position)
+            // a shape the compiler's model cannot represent: a construct legend-lite does not compile. With its
+            // record's position it is the text door's error, word for word and at the same place (2026-10-21, the
+            // independent audit: the position was dropped and the kind changed); without one, refused unplaced
+            if (u.at() != null) {
+                throw new com.legend.parser.ParseException(u.reason(), u.at().line(), u.at().column());
+            }
             throw new com.legend.error.NotImplementedException(String.valueOf(u.getMessage()));
         }
         return buildPositioned(parsed);

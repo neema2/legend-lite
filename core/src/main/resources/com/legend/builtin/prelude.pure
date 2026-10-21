@@ -4173,6 +4173,13 @@ Class meta::pure::dataQuality::RelativePathNode
 
 
 ###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/enterprise/enterprise.pure
+Profile meta::pure::profiles::enterprise {
+  tags: [taxonomyNodes];
+}
+
+
+###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlan.pure
 import meta::pure::executionPlan::*;
 import meta::pure::executionPlan::toString::*;
@@ -5287,6 +5294,16 @@ Class meta::pure::tds::schema::SchemaState[
 
 
 ###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/test/testCollection.pure
+import meta::pure::test::*;
+import meta::pure::metamodel::testable::*;
+Profile meta::pure::test::paramTest
+{
+   stereotypes : [ Test, Ignore, BeforePackage, AfterPackage ];
+}
+
+
+###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/store/aggregationAware/aggregationAware.pure
 import meta::pure::executionPlan::*;
 import meta::pure::extension::*;
@@ -5436,6 +5453,14 @@ Class meta::pure::functions::relation::Rows extends Frame
 
 
 ###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-relation/legend-engine-pure-functions-relation-pure/src/main/resources/core_functions_relation/relation/functions/pctQualifiers.pure
+Profile <<meta::pure::test::pct::PCT.testQualifierProfile>> meta::pure::functions::relation::PCTRelationQualifier
+{
+    stereotypes : [relation, aggregation, olap];
+}
+
+
+###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-relation/legend-engine-pure-functions-relation-pure/src/main/resources/core_functions_relation/relation/functions/slice/offset.pure
 import meta::pure::test::pct::*;
 import meta::pure::metamodel::relation::*;
@@ -5483,6 +5508,14 @@ native function meta::pure::functions::cipher::decrypt(value:String[1], key:Stri
 ###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/cipher/encrypt.pure
 native function meta::pure::functions::cipher::encrypt(value:String[1],key:String[1]):String[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/cipher/profile.pure
+Profile meta::pure::profiles::cipher
+{
+    stereotypes: [Cipher, Decipher];
+}
 
 
 ###Pure
@@ -5691,6 +5724,189 @@ native function meta::pure::ide::debug():Nil[0];
 
 
 ###Pure
+// legend-engine/legend-engine-xts-analytics/legend-engine-xts-analytics-quality/legend-engine-xt-analytics-quality-pure/src/main/resources/core_analytics_quality/checksEngine.pure
+import meta::analytics::quality::model::*;
+import meta::analytics::quality::model::domain::*;
+import meta::analytics::quality::profiles::*;
+import meta::pure::runtime::*;
+import meta::relational::tests::*;
+Profile meta::analytics::quality::profiles::rule
+{
+    stereotypes: [skipTests];
+    tags: [rule, severity, category, description, ignore];
+}
+
+
+###Pure
+// legend-engine/legend-engine-xts-avro/legend-engine-xt-avro-pure/src/main/resources/core_external_format_avro/transformation/transformation_avroSchemaGenerator.pure
+import meta::json::*;
+import meta::pure::generation::*;
+import meta::pure::generation::metamodel::*;
+import meta::external::format::avro::generation::*;
+import meta::external::format::avro::metamodel::*;
+import meta::external::format::avro::serialization::*;
+Profile meta::external::format::avro::generation::Avro
+{
+   stereotypes:[
+        ignore
+   ];
+   tags:[
+        default,
+        type
+   ];
+}
+
+
+###Pure
+// legend-engine/legend-engine-xts-data-space/legend-engine-xt-data-space-pure-metamodel/src/main/resources/core_data_space_metamodel/metamodel.pure
+import meta::pure::metamodel::diagram::*;
+import meta::pure::metamodel::dataSpace::*;
+Profile meta::pure::metamodel::dataSpace::profiles::DataSpaceInfo
+{
+    stereotypes: [
+        Verified,
+        InDevelopment,
+        External
+    ];
+    tags: [
+        deprecationNotice,
+        relatedDataSpaces,
+        topics,
+        vendorLicenseStatus,
+        vendorRelationshipOwner,
+        vendorProviderName
+    ];
+}
+
+
+###Pure
+// legend-engine/legend-engine-xts-dataquality/legend-engine-xt-dataquality-pure/src/main/resources/core_dataquality/generation/dataquality_extension.pure
+import meta::external::dataquality::*;
+Profile meta::external::dataquality::dq
+{
+   stereotypes: [Extension];
+}
+
+
+###Pure
+// legend-engine/legend-engine-xts-elasticsearch/legend-engine-xt-elasticsearch-V7-pure-metamodel/src/main/resources/core_elasticsearch_seven_metamodel/specification/specification.pure
+Profile meta::external::store::elasticsearch::v7::metamodel::specification::ESProfile
+{
+  stereotypes: [ContainerProperty, TaggedUnion, ExternalTagged, ContainerVariant, AdditionalProperty, SingleKeyMap];
+  tags: [esQuirk, docURL, specLocation, since, stability, name, internalTag];
+}
+
+
+###Pure
+// legend-engine/legend-engine-xts-generation/legend-engine-language-pure-dsl-generation-pure/src/main/resources/core_generation/generation/generations.pure
+import meta::pure::generation::*;
+import meta::pure::generation::metamodel::*;
+Profile meta::pure::generation::metamodel::Generation
+{
+   stereotypes : [ Transformation, Configuration];
+}
+
+
+###Pure
+// legend-engine/legend-engine-xts-graphQL/legend-engine-xt-graphQL-pure/src/main/resources/core_external_query_graphql/binding/profile.pure
+Profile meta::external::query::graphQL::binding::GraphQL
+{
+  stereotypes : [Query, Mutation, Subscription];
+}
+
+
+###Pure
+// legend-engine/legend-engine-xts-java/legend-engine-xt-javaGeneration-pure/src/main/resources/core_external_language_java/metamodel.pure
+import meta::external::language::java::metamodel::*;
+import meta::external::language::java::metamodel::project::*;
+Profile meta::external::language::java::metamodel::annotations::AnnotationJavaInfo
+{
+  tags : [javaClass];
+}
+
+Profile meta::external::language::java::metamodel::profiles::generation {
+   stereotypes: [opaque, container, reference];
+}
+
+Profile meta::external::language::java::metamodel::profiles::temporalType {
+   stereotypes: [Instant, LocalDate, LocalDateTime, LocalTime, OffsetDateTime, OffsetTime, ZonedDateTime];
+}
+
+Profile meta::external::language::java::metamodel::profiles::collectionType {
+   stereotypes: [List, Set, Map];
+}
+
+Profile meta::external::language::java::metamodel::profiles::integerType {
+   stereotypes: [Integer, Long];
+}
+
+Profile meta::external::language::java::metamodel::profiles::floatType {
+   stereotypes: [Float, BigDecimal, Double];
+}
+
+Profile meta::external::language::java::metamodel::profiles::stringType {
+   stereotypes: [byteArray];
+}
+
+Profile meta::external::language::java::metamodel::profiles::enumValue {
+   stereotypes: [Default];
+   tags:[name];
+}
+
+Profile meta::external::language::java::metamodel::profiles::jsonProperty {
+   stereotypes: [customName, ignoreProperties, ignoreProperty];
+   tags: [value];
+}
+
+Profile meta::external::language::java::metamodel::profiles::immutables {
+   stereotypes: [Auxiliary];
+}
+
+
+###Pure
+// legend-engine/legend-engine-xts-json/legend-engine-xt-json-pure/src/main/resources/core_external_format_json/transformation/toBeRefactored/models.pure
+import meta::external::format::json::schema::*;
+Profile meta::json::schema::JSONSchemaGeneration
+{
+    stereotypes:[noAdditionalProperties,readOnly,writeOnly];
+    tags:[defaultValue,name,example,title];
+}
+
+Profile meta::json::schema::JSONSchemaTypeExtension
+{
+  stereotypes:[int64,int32,byte,double,binary,array,null,object];
+}
+
+Profile meta::json::schema::JSONSchemaJavaExtension
+{
+  tags:[javaType,javaInterface];
+}
+
+Profile meta::json::schema::JSONSchemaOpenAPIExtension
+{
+  stereotypes:[discriminatorProperty];
+  tags:[discriminatorName];
+}
+
+
+###Pure
+// legend-engine/legend-engine-xts-openapi/legend-engine-xt-openapi-pure/src/main/resources/core_external_format_openapi/metamodel/profiles.pure
+Profile meta::external::function::description::openapi::profiles::ServiceSpecGeneration
+{
+  stereotypes: [OpenAPI];
+  tags: [specification, definition];
+}
+
+
+###Pure
+// legend-engine/legend-engine-xts-powerbi/legend-engine-xt-powerbi-pure/src/main/resources/core_external_format_powerbi/metamodel/profiles.pure
+Profile meta::external::powerbi::profiles::PowerBIArtifactGeneration
+{
+  stereotypes: [DirectQuery, Import];
+}
+
+
+###Pure
 // legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-postgresSql/legend-engine-xt-relationalStore-postgresSqlParser-pure/src/main/resources/core_external_store_relational_postgres_sql_parser/parsePostgresDate.pure
 import meta::external::store::relational::postgresSql::parser::*;
 native function meta::external::store::relational::postgresSql::parser::parsePostgresDate(s: String[1]): Date[1];
@@ -5720,6 +5936,11 @@ import meta::pure::extension::*;
 import meta::pure::functions::meta::*;
 import meta::json::*;
 native function meta::external::store::relational::sdt::framework::runSqlDialectTestQuery(dbType: String[1], testQuery: String[1], setupSqls: String[*], teardownSqls: String[*]): meta::relational::metamodel::execute::ResultSet[1];
+
+Profile meta::external::store::relational::sdt::framework::SDT
+{
+  stereotypes : [test];
+}
 
 
 ###Pure
@@ -6645,7 +6866,27 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 485 classes, 23 enums, 13 profiles, 152 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+
+###Pure
+// legend-engine/legend-engine-xts-rosetta/legend-engine-xt-rosetta-pure/src/main/resources/core_external_format_rosetta/transformation/transformation_entry.pure
+import meta::pure::generation::metamodel::*;
+import meta::pure::generation::*;
+import meta::external::format::rosetta::generation::*;
+Profile meta::external::format::rosetta::generation::metadata
+{
+  stereotypes: [key, reference, scheme, id, template];
+}
+
+
+###Pure
+// legend-engine/legend-engine-xts-sql/legend-engine-xt-sql-transformation/legend-engine-xt-sql-pure/src/main/resources/core_external_query_sql/binding/fromPure/extension.pure
+import meta::external::query::sql::*;
+Profile meta::external::query::sql::sql
+{
+   stereotypes: [Extension];
+}
+
+// 485 classes, 23 enums, 43 profiles, 152 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
 // ENGINE LIBRARY FUNCTIONS — 1 bodied declarations outside the platform roots, carried by membership
 // (PreludeGenerator.ENGINE_LIBRARY_FUNCTIONS, each with its reason), verbatim, every overload:
 //   meta::pure::functions::collection::removeAll (2 overloads) — the corpus's tds extensions (columnValueDifference) and the prelude's SchemaState bodies call it; the corpus loader refuses the namespace as runtime (MinimalCorpus.refusePlatformNamespace), so this module is its only home. INTERIM for the namespace rule (charter D7: every bodied function upstream declares under meta::pure::functions:: is library, measured 2026-09-25 at 126 functions / 26 boot-typing failures / the agg form unowned) — one row until that lands

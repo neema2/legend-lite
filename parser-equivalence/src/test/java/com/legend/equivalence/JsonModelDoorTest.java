@@ -91,6 +91,9 @@ class JsonModelDoorTest {
         /** rule A: lite's dialect keeps what the engine's drops, and lite's JSON carries it whole, exactly */
         int liteWritten;
         final List<String> failures = new ArrayList<>();
+        /** rule A's texts by id, each with what differed: the exact set, not a count (2026-10-21, the independent
+         *  audit: a count let one text swap for another unseen) */
+        final List<String> ruleA = new ArrayList<>();
         final Map<String, Integer> categories = new TreeMap<>();
         final List<String> all = new ArrayList<>();
 
@@ -135,6 +138,12 @@ class JsonModelDoorTest {
             every.addAll(t.all);
         }
         Files.write(TestOutputs.file("json-model-door-all.tsv"), every);
+        List<String> ruleA = new ArrayList<>();
+        for (Tally t : List.of(corpus, lite, showcase)) {
+            ruleA.addAll(t.ruleA);
+        }
+        java.util.Collections.sort(ruleA);
+        Files.write(TestOutputs.file(RULE_A_FILE), ruleA);
         System.out.print(out.substring(0, Math.min(out.length(), 20_000)));
         for (Tally t : List.of(corpus, lite, showcase)) {
             int[] pin = PINS.get(t.name);
@@ -144,6 +153,20 @@ class JsonModelDoorTest {
             assertEquals(RULE_A_WRITTEN.getOrDefault(t.name, 0), t.liteWritten, t.name + ": rule A's texts written whole");
             assertEquals(RULE_A_REFUSED.getOrDefault(t.name, Map.of()), t.engineDrops,
                     t.name + ": rule A's texts refused, by construct");
+        }
+        assertEquals(committedRuleA(), ruleA, "rule A's texts, each with what differed, moved: review the test output "
+                + RULE_A_FILE + " and commit it as src/test/resources/com/legend/equivalence/" + RULE_A_FILE);
+    }
+
+    /** Rule A's texts, committed: every one by id, the field its dialects differ at and how its JSON went. */
+    private static final String RULE_A_FILE = "json-door-rule-a.tsv";
+
+    private static List<String> committedRuleA() throws IOException {
+        try (java.io.InputStream in = JsonModelDoorTest.class.getResourceAsStream(RULE_A_FILE)) {
+            if (in == null) {
+                return List.of();
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8).lines().filter(l -> !l.isBlank()).toList();
         }
     }
 
@@ -203,6 +226,7 @@ class JsonModelDoorTest {
                 return;
             }
             t.engineDrops.merge(message.substring(0, at), 1, Integer::sum);
+            t.ruleA.add(t.name + "\t" + id + "\trefused: " + message.substring(0, at) + "\t" + field(differs));
             return;
         }
         com.legend.protocol.Protocol.PureModelContextData liteRead;
@@ -226,6 +250,7 @@ class JsonModelDoorTest {
             return;
         }
         t.liteWritten++;
+        t.ruleA.add(t.name + "\t" + id + "\twritten\t" + field(differs));
     }
 
     /** Where two parsed models first differ -- an element set, an element, or an element's imports -- or null. */

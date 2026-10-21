@@ -196,6 +196,25 @@ public final class PreludeGenerator {
             }
         }
 
+        // 1c. THE ENGINE'S PROFILES (2026-10-21, the independent audit): every profile legend-engine's main sources
+        // declare outside a test package is a name an engine model annotates with (the engine loads them all, and
+        // auto-imports meta::pure::profiles' enterprise and cipher), so the prelude declares them as it declares
+        // legend-pure's -- a profile is names alone. Its whole checkout, not the spec roots: they ship in its
+        // extensions (data space, java generation, ...) too
+        Set<String> engineProfiles = new TreeSet<>();
+        try (Stream<Path> s = Files.walk(engine)) {
+            for (Path f : s.filter(p -> p.toString().endsWith(".pure")
+                    && p.toString().replace('\\', '/').contains("/src/main/resources/")).sorted().toList()) {
+                Matcher m = DECL_HEADER.matcher(Files.readString(f, StandardCharsets.UTF_8));
+                while (m.find()) {
+                    if ("Profile".equals(m.group(1)) && !excluded(m.group(2))) {
+                        index.putIfAbsent(m.group(2), f);
+                        engineProfiles.add(m.group(2));
+                    }
+                }
+            }
+        }
+
         // 1a. m3.pure — the one spec file in the M3 instance syntax — indexes
         // through the reader: its classes and enumerations are spec
         // declarations like any other (T1: legend-pure's platform packages
@@ -396,6 +415,11 @@ public final class PreludeGenerator {
             boolean platform = platformRoots.stream().anyMatch(e.getValue()::startsWith);
             if (platform && !owned.contains(e.getKey()) && !excluded(e.getKey())) {
                 todaySeed.add(e.getKey());
+            }
+        }
+        for (String profile : engineProfiles) {
+            if (!owned.contains(profile)) {
+                todaySeed.add(profile);
             }
         }
         // ENGINE-DECLARED NATIVES demand the types their signatures name

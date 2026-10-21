@@ -34,5 +34,9 @@ final class StressExclusions {
             // 2026-10-21: the battery's services over 55's mappings and runtimes, generated apart so they leave with
             // it -- the model would otherwise name a mapping and a runtime it has not, which the compiler now refuses
             "94-canonical-services.pure",
-            "the services over 55-canonical-store.pure's M2M mappings and runtimes, so they fall with it.");
+            "the services over 55-canonical-store.pure's M2M mappings and runtimes, so they fall with it.",
+            // 2026-10-21: legend-pure's Path type, which lite does not declare (SEMANTICS_REGISTER S92)
+            "74-path-surface.pure",
+            "a function returning a navigation path's type, meta::pure::metamodel::path::Path<U,V|m>: "
+                    + "'Unknown type' -- the prelude does not generate the path classes (a kernel gap).");
 }

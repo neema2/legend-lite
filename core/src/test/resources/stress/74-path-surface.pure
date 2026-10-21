@@ -1,0 +1,9 @@
+// The NAVIGATION PATH island: a reference to a property as a value, rather than a call, returned as legend-pure's own
+// type for it. Apart from 74-surface-last.pure (whose NavHost it navigates) since 2026-10-21: lite does not declare
+// meta::pure::metamodel::path::Path (SEMANTICS_REGISTER S92), so it excludes this file (StressExclusions,
+// LegendLiteGapTest.aNavigationPathsType); the engine's run reads it.
+###Pure
+function surface::navPath(): meta::pure::metamodel::path::Path<surface::NavHost, String|1>[1]
+{
+   #/surface::NavHost/k#
+}

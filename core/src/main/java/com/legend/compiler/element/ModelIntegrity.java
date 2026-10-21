@@ -102,11 +102,11 @@ final class ModelIntegrity {
                 () -> checkMapping(md, model, classifier, functions), wallSink));
         // the elements that only NAME others (2026-10-21, ReferenceIntegrityTest): each name is an element of its
         // kind, as legend-engine's compiler resolves them (PureModel.getMapping / getRuntime / getConnection /
-        // getStore, its own words)
+        // getStore, its own words). Not a connection's store: the engine gives a relational connection naming a
+        // database it has not an empty one (HelperRelationalDatabaseConnectionBuilder.addDatabaseConnectionProperties;
+        // 2026-10-21, the independent audit: lite refused it)
         model.runtimes().filter(fresh).forEach(rt -> withElement(rt.qualifiedName(),
                 () -> checkRuntime(rt, model), wallSink));
-        model.connections().filter(fresh).forEach(c -> withElement(c.qualifiedName(),
-                () -> requireStore(c.storeName(), model), wallSink));
         model.services().filter(fresh).forEach(sv -> withElement(sv.qualifiedName(),
                 () -> checkService(sv, model), wallSink));
         model.dataSpaces().filter(fresh).forEach(ds -> withElement(ds.qualifiedName(), () -> {
@@ -261,17 +261,25 @@ final class ModelIntegrity {
             requireAnnotations(pd.stereotypes(), pd.taggedValues(), model);
         }
         for (com.legend.protocol.TypeExpression sup : cd.superClasses()) {
-            // a supertype is a type that exists (its head, each argument, a generic's arity: classify) and a class:
-            // legend-engine's words (ClassCompilerExtension: "Invalid supertype", the class named by its path), which
-            // legend-pure refuses too (TypeValidator: "Invalid generalization")
+            // a supertype is a type that exists (its head and each argument: classify) and a class, in legend-engine's
+            // words (ClassCompilerExtension: "Invalid supertype", the class by its NAME), which legend-pure refuses too
+            // (TypeValidator: "Invalid generalization"). A bare supertype's arity is not checked: the engine resolves a
+            // supertype by its path alone (CompileContext.resolveGenericType, no count), and its grammar drops a
+            // supertype's arguments (2026-10-21, the independent audit: `extends Pair<String, Integer>` read at its
+            // dialect was refused)
             classifier.classify(sup, typeParams);
-            classifier.requireArguments(sup, typeParams);
+            if (sup instanceof com.legend.protocol.TypeExpression.Generic) {
+                // its arguments where written (lite's dialect), counted as legend-pure counts them
+                classifier.requireArguments(sup, typeParams);
+            }
             String supFqn = TypeClassifier.headFqn(sup);
-            // its kind, not its catalog entry: the native catalog lists the primitives among its classes
-            if (!(classifier.findType(supFqn).orElseThrow() instanceof com.legend.compiler.element.type.Type.ClassType)) {
+            // its kind, not its catalog entry: the native catalog lists the primitives among its classes; a type
+            // parameter is no class either (it was a crash: no type of that name)
+            if (typeParams.contains(supFqn) || !(classifier.findType(supFqn).orElseThrow(() -> new IllegalStateException(
+                    supFqn + " classified as a type but has none")) instanceof com.legend.compiler.element.type.Type.ClassType)) {
                 throw new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.MODEL,
-                        "Invalid supertype: '" + cd.qualifiedName() + "' cannot extend '" + supFqn
+                        "Invalid supertype: '" + com.legend.protocol.Protocol.splitFqn(cd.qualifiedName())[1] + "' cannot extend '" + supFqn
                                 + "' as it is not a class.");
             }
         }
@@ -372,16 +380,13 @@ final class ModelIntegrity {
      */
     private static void checkMapping(MappingDefinition md, ModelBuilder model,
                                      TypeClassifier classifier, FunctionCompiler functions) {
-        // an include's store substitutions name databases (legend-engine resolves both sides,
-        // HelperRelationalBuilder.resolveDatabase); the included mapping itself is the normalizer's to find
+        // an include's store substitutions name stores (legend-engine resolves both sides as stores,
+        // MappingIncludedMappingHandler -> CompileContext.resolveStore; 2026-10-21, the independent audit: lite
+        // required a database); the included mapping itself is the normalizer's to find
         for (com.legend.model.MappingInclude inc : md.includes()) {
             for (com.legend.model.MappingInclude.StoreSubstitution sub : inc.substitutions()) {
-                for (String store : List.of(sub.originalStore(), sub.replacementStore())) {
-                    if (model.findDatabase(store).isEmpty()) {
-                        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MAPPING,
-                                "Can't find database '" + store + "'");
-                    }
-                }
+                requireStore(sub.originalStore(), model);
+                requireStore(sub.replacementStore(), model);
             }
         }
         for (MappingDefinition.ClassBinding cb : md.classBindings()) {

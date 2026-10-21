@@ -306,7 +306,7 @@ final class ModelPacker {
                 // bare M3 path -- 'Integer' -- missed, and the primitive was injected as a class)
                 if (qualifiedTypeName != null && Instance.instanceOf(rawType,
                         "meta::pure::metamodel::type::PrimitiveType", ps)) {
-                    typeRef = qualifiedTypeName;
+                    typeRef = qualifiedTypeName + typeVariableValues(genericType, propName, className);
                 } else if (qualifiedTypeName == null) {
                     // B11: no silent shape change — a property whose type
                     // has no packageable path names itself and refuses
@@ -368,6 +368,29 @@ final class ModelPacker {
         }
         sb.append("}");
         classes.put(fqn, sb.toString());
+    }
+
+    /** A precise primitive's values as written ({@code (200)} of {@code Varchar(200)}), or nothing: an integer each,
+     *  anything else refused loudly (B11; 2026-10-21, the independent audit: the values were dropped). */
+    private static String typeVariableValues(CoreInstance genericType, String propName, String className) {
+        List<String> values = new ArrayList<>();
+        for (CoreInstance v : genericType.getValueForMetaPropertyToMany("typeVariableValues")) {
+            List<String> literal = new ArrayList<>();
+            for (CoreInstance x : v.getValueForMetaPropertyToMany(M3Properties.values)) {
+                String text = x.getName();
+                if (!text.matches("-?[0-9]+")) {
+                    throw new UnsupportedOperationException("property '" + propName + "' of '" + className
+                            + "' has a precise primitive value '" + text + "' -- refusing to silently drop it");
+                }
+                literal.add(text);
+            }
+            if (literal.size() != 1) {
+                throw new UnsupportedOperationException("property '" + propName + "' of '" + className
+                        + "' has a precise primitive value of " + literal.size() + " literals");
+            }
+            values.add(literal.get(0));
+        }
+        return values.isEmpty() ? "" : "(" + String.join(", ", values) + ")";
     }
 
     /** The Pure multiplicity print form: [1], [0..1], [*], [2..*]. */

@@ -9,14 +9,8 @@ Class surface::NavHost
    cols: (name: String, id: Integer[1])[0..1];
 }
 
-// The NAVIGATION PATH island: a reference to a property as a value, rather than a call.
-// (2026-10-21: returned as meta::pure::metamodel::path::Path<surface::NavHost, String|1>[1] before -- legend-pure's
-// type, which lite does not declare (SEMANTICS_REGISTER S92) and accepted unchecked until a generic's head had to
-// exist; Any is a supertype of it everywhere)
-function surface::navPath(): Any[1]
-{
-   #/surface::NavHost/k#
-}
+// (The NAVIGATION PATH island moved to 74-path-surface.pure on 2026-10-21: its return type, legend-pure's Path, is one
+// lite does not declare -- SEMANTICS_REGISTER S92 -- so lite excludes that file and the engine's run keeps it.)
 
 Class surface::MergeTgt { k: String[1]; a: String[0..1]; b: String[0..1]; }
 Class surface::OtwHead { k: String[1]; leg: surface::OtwLeg[0..1]; }

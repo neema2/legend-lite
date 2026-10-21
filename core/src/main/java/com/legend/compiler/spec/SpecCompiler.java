@@ -104,11 +104,26 @@ public final class SpecCompiler {
                 System.err.println("[spec] compile of " + fn.qualifiedName() + " failed: " + e.getMessage());
                 e.printStackTrace(System.err);
             }
-            throw new TypeInferenceException(
-                    "in function '" + fn.qualifiedName() + "': " + e.getMessage(), e);
+            throw new TypeInferenceException("in " + where(fn) + ": " + e.getMessage(), e);
         }
         memo.put(fn, cf);
         return cf;
+    }
+
+    /** Where a body's error is: its function -- or, for a property's default and a function's condition, what was
+     *  written (2026-10-21, the independent audit: their synthesized names leaked into the message). A derived
+     *  property's and a mapping's synthesized functions keep their names, which the corpora's expectations quote. */
+    private static String where(TypedFunction fn) {
+        if (fn.definition() instanceof com.legend.model.FunctionDefinition fd && fd.synthesizedFrom() != null) {
+            switch (fd.synthesizedFrom().hat()) {
+                case DEFAULT, PRE, POST -> {
+                    return fd.synthesizedFrom().describe();
+                }
+                default -> {
+                }
+            }
+        }
+        return "function '" + fn.qualifiedName() + "'";
     }
 
     /**
@@ -181,6 +196,13 @@ public final class SpecCompiler {
         // generated-FQN convention; '$' cannot appear in user pure
         // identifiers) constructs partial instances by design
         if (fn.qualifiedName().contains("$class$")) {
+            scope = scope.withLenientNew();
+        }
+        // a property's default value: legend-pure checks a default's type and multiplicity alone (PropertyValidator),
+        // never its new instances' required properties (NewValidator), and the engine checks none -- the engine's own
+        // State.debug = ^DebugContext() compiles in both (2026-10-21, the independent audit)
+        if (fn.definition() instanceof com.legend.model.FunctionDefinition fd && fd.synthesizedFrom() != null
+                && fd.synthesizedFrom().hat() == com.legend.model.SynthHat.DEFAULT) {
             scope = scope.withLenientNew();
         }
         for (TypedParameter p : fn.parameters()) {

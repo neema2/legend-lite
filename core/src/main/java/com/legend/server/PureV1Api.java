@@ -73,9 +73,11 @@ public final class PureV1Api {
     /**
      * A request body's JSON. A query built as protocol JSON nests a few levels per chained
      * function, so the default limit (64, sized for configuration files) would refuse a long
-     * cube query; 1024 still bounds a hostile body.
+     * cube query; and a request may carry a whole model as data ({@code ModelInput}), which nests as deep as a
+     * model's own JSON -- the bound {@code ModelReader} reads a model's text at (4096; 2026-10-21, the independent
+     * audit: at 1024 a model compiled as text and was refused as data). It still bounds a hostile body.
      */
-    static final Json.Config REQUEST = new Json.Config(1024);
+    static final Json.Config REQUEST = new Json.Config(4096);
 
     /**
      * How a host runs an execute: the query planned and run on its runtime's connection, its rows written as
@@ -771,12 +773,14 @@ public final class PureV1Api {
     // Plumbing
     // ---------------------------------------------------------------------
 
-    /** A {@code PureModelContextText}'s code; any other model context is refused. */
+    /** A {@code PureModelContextText}'s code, for the routes that read a model's text itself (the host and the
+     *  model-change routes); any other model context is refused there. The routes that compile a model read its
+     *  data too ({@code ModelInput}; 2026-10-21, the independent audit: this said no reader was built). */
     static String modelText(Json.Obj model) {
         String type = model.getStringOr("_type", "");
         if (!"text".equals(type)) {
-            throw new IllegalArgumentException("a model of _type '" + type + "': legend-lite reads "
-                    + "PureModelContextText ({\"_type\":\"text\",\"code\":...}); the PMCD reader is not built");
+            throw new IllegalArgumentException("a model of _type '" + type + "': this route reads a model's text "
+                    + "(PureModelContextText, {\"_type\":\"text\",\"code\":...})");
         }
         return model.getString("code");
     }

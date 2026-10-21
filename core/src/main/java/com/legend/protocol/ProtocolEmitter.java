@@ -1368,11 +1368,11 @@ public final class ProtocolEmitter {
         // a function's constraints: the engine's grammar reads the block and its walker drops it, so the engine's JSON
         // from its text lists none; its compiler reads pre- and postConstraints (HelperModelBuilder.processConstraints),
         // which lite's dialect writes as legend-pure splits them (a constraint reading $return is a post-condition),
-        // each a lambda over the function's own parameters
+        // each a lambda over the function's own parameters (a post-condition's over `return` too)
         b.append("],\"postConstraints\":[");
-        functionConstraints(b, f.postConstraints());
+        functionConstraints(b, f, true, f.postConstraints());
         b.append("],\"preConstraints\":[");
-        functionConstraints(b, f.preConstraints());
+        functionConstraints(b, f, false, f.preConstraints());
         b.append("],\"returnGenericType\":");
         genericType(b, f.returnType());
         b.append(",\"returnMultiplicity\":");
@@ -2012,17 +2012,52 @@ public final class ProtocolEmitter {
     }
 
     /** A function's constraints, comma-separated: each a constraint whose lambda declares no {@code $this}. */
-    private static void functionConstraints(StringBuilder b, List<com.legend.protocol.ConstraintDefinition> cs) {
+    /** A function's conditions: each predicate a lambda over the function's parameters, and a post-condition's over
+     *  {@code return} too, typed as the function's result -- legend-pure's own lambda
+     *  (AntlrContextToM3CoreInstance.constraint), which the engine's transfer writes and its compiler declares
+     *  (buildLambdaWithContext; 2026-10-21, the independent audit: written over none, a post-condition's $return was
+     *  undeclared in the engine). A message's lambda has no parameter (the transfer's removeParameters). */
+    private static void functionConstraints(StringBuilder b, Protocol.PFunction f, boolean post,
+            List<com.legend.protocol.ConstraintDefinition> cs) {
+        StringBuilder params = new StringBuilder();
+        for (com.legend.protocol.ParameterDefinition p : f.parameters()) {
+            conditionParameter(params, p.name(), p.type(), p.multiplicity());
+        }
+        if (post) {
+            conditionParameter(params, com.legend.protocol.ConstraintDefinition.RETURN, f.returnType(),
+                    f.returnMultiplicity());
+        }
         for (int i = 0; i < cs.size(); i++) {
             if (i > 0) {
                 b.append(',');
             }
-            constraint(b, cs.get(i), false);
+            constraint(b, cs.get(i), params.toString());
         }
     }
 
-    /** {@code onThis}: a class's constraint, its lambda over {@code $this}; else a function's, over none. */
+    private static void conditionParameter(StringBuilder b, String name, com.legend.protocol.TypeExpression type,
+            com.legend.protocol.Multiplicity m) {
+        if (!b.isEmpty()) {
+            b.append(',');
+        }
+        b.append("{\"_type\":\"var\",\"genericType\":");
+        genericType(b, type);
+        b.append(",\"multiplicity\":");
+        multiplicity(b, m);
+        b.append(",\"name\":");
+        str(b, name);
+        b.append('}');
+    }
+
     private static void constraint(StringBuilder b, com.legend.protocol.ConstraintDefinition c, boolean onThis) {
+        constraint(b, c, onThis ? null : "");
+    }
+
+    /** {@code conditionParameters} {@code null}: a class's constraint, its lambdas over {@code $this}; else a
+     *  function's, its predicate over those parameters (JSON) and its message over none. */
+    private static void constraint(StringBuilder b, com.legend.protocol.ConstraintDefinition c,
+            @com.legend.base.Nullable String conditionParameters) {
+        boolean onThis = conditionParameters == null;
         List<com.legend.protocol.spec.ValueSpecification> cbody = realizationBody(
                 c.realization(), "constraint " + c.name());
         b.append('{');
@@ -2038,10 +2073,10 @@ public final class ProtocolEmitter {
             b.append(',');
         }
         b.append("\"functionDefinition\":");
-        constraintLambda(b, cbody, onThis);
+        constraintLambda(b, cbody, onThis ? null : conditionParameters);
         if (c.message() != null) {
             b.append(",\"messageFunction\":");
-            constraintLambda(b, List.of(c.message()), onThis);
+            constraintLambda(b, List.of(c.message()), onThis ? null : "");
         }
         b.append(",\"name\":");
         str(b, c.name());
@@ -2114,10 +2149,11 @@ public final class ProtocolEmitter {
     /** The engine's constraint lambda: body statements plus the synthesised {@code $this}
      *  parameter — multiplicity {@code [1..1]}, no span. The lambda node itself carries no
      *  span either. */
-    /** A constraint's lambda: over {@code $this} for a class's, over no parameter for a function's. */
+    /** A constraint's lambda: over {@code $this} for a class's ({@code parameters} {@code null}), else over the
+     *  {@code parameters} written (JSON, possibly none). */
     private static void constraintLambda(StringBuilder b, List<com.legend.protocol.spec.ValueSpecification> body,
-            boolean onThis) {
-        if (onThis) {
+            @com.legend.base.Nullable String parameters) {
+        if (parameters == null) {
             thisLambda(b, body);
             return;
         }
@@ -2128,7 +2164,7 @@ public final class ProtocolEmitter {
             }
             valueSpec(b, body.get(i));
         }
-        b.append("],\"parameters\":[]}");
+        b.append("],\"parameters\":[").append(parameters).append("]}");
     }
 
     private static void thisLambda(StringBuilder b,
@@ -3383,6 +3419,8 @@ public final class ProtocolEmitter {
             }
             first = false;
             require(!kb.expression().isLocal(), "local key expression", kb.key());
+            // the data JSON keeps no add (its reader reads none): a '+=' is refused, never written as '='
+            require(!kb.expression().isAdd(), "'+=' in model store data", kb.key());
             b.append("{\"_type\":\"keyExpression\",\"add\":")
                     .append(false).append(",\"expression\":");
             com.legend.protocol.spec.ValueSpecification kv = kb.expression().value();

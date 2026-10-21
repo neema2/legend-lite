@@ -981,8 +981,10 @@ public final class NativeFn {
      *  {@code [*]} overload over a run of operands ({@code plus([a, b, ...])}), as legend-engine's and legend-pure's
      *  parsers both build them. A call is one when its RESOLVED declaration is one of these (the typer's operator-run
      *  mark, Typer.withOperatorRun), never by the name it was written with (2026-10-21: a set of spellings decided it
-     *  before resolution, so a user's own {@code plus} over a list would have been read as arithmetic). */
-    public enum OperatorRun implements Member {
+     *  before resolution, so a user's own {@code plus} over a list would have been read as arithmetic). Not a family
+     *  ({@link #families()} groups natives by their IMPLEMENTER, and these overloads have theirs): a classification
+     *  the typer reads, so it is no {@link Member} (2026-10-21, the independent audit). */
+    public enum OperatorRun {
         PLUS("meta::pure::functions::math::plus", Pure.PLUS__INTEGER_MANY, Pure.PLUS__FLOAT_MANY,
                 Pure.PLUS__DECIMAL_MANY, Pure.PLUS__NUMBER_MANY),
         STRING_PLUS("meta::pure::functions::string::plus", Pure.STRING_PLUS__STRING_MANY),
@@ -999,19 +1001,29 @@ public final class NativeFn {
             this.overloads = List.of(overloads);
         }
 
-        @Override
         public String fqn() {
             return fqn;
         }
 
-        @Override
         public List<NativeFunctionDefinition> overloads() {
             return overloads;
         }
 
-        private static final Map<com.legend.model.FunctionId, OperatorRun> BY_ID = indexById(values());
+        private static final Map<com.legend.model.FunctionId, OperatorRun> BY_ID = byId();
 
-        /** The member whose overloads include the declaration {@code id}, or empty. */
+        private static Map<com.legend.model.FunctionId, OperatorRun> byId() {
+            Map<com.legend.model.FunctionId, OperatorRun> out = new HashMap<>();
+            for (OperatorRun r : values()) {
+                for (NativeFunctionDefinition o : r.overloads) {
+                    if (out.put(com.legend.model.FunctionId.of(o), r) != null) {
+                        throw new IllegalStateException(o.qualifiedName() + " in two operator runs");
+                    }
+                }
+            }
+            return java.util.Collections.unmodifiableMap(out);
+        }
+
+        /** The run whose overloads include the declaration {@code id}, or empty. */
         public static Optional<OperatorRun> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
             return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }

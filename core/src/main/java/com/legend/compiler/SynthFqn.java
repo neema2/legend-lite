@@ -33,10 +33,10 @@ public final class SynthFqn {
         return hatFqn(ownerFqn, SynthHat.CONSTRAINT, constraintName);
     }
 
-    /** {@code <owner>$constraintMsg$<name>} &mdash; an externalized constraint message. */
-    /** {@code <function>$pre$<name>} / {@code <function>$post$<name>}: a function's condition, a predicate. */
-    public static String condition(String functionFqn, boolean post, String constraintName) {
-        return hatFqn(functionFqn, post ? SynthHat.POST : SynthHat.PRE, constraintName);
+    /** {@code <function id>$pre$<i>} / {@code <function id>$post$<i>}: a function's condition, a predicate, by the
+     *  function's id and the condition's place in its list. */
+    public static String condition(String functionId, boolean post, String place) {
+        return hatFqn(functionId, post ? SynthHat.POST : SynthHat.PRE, place);
     }
 
     /** {@code <class>$default$<property>}: a property's default value, typed as the property. */
@@ -44,6 +44,7 @@ public final class SynthFqn {
         return hatFqn(ownerFqn, SynthHat.DEFAULT, propertyName);
     }
 
+    /** {@code <owner>$constraintMsg$<name>} &mdash; an externalized constraint message. */
     public static String constraintMsg(String ownerFqn, String constraintName) {
         return hatFqn(ownerFqn, SynthHat.CONSTRAINT_MSG, constraintName);
     }

@@ -299,13 +299,6 @@ public final class ModelNormalizer {
     }
 
     /**
-     * E.3b -- for each property with a DEFAULT value, lift {@code <owner>$default$<property>():T[m]} carrying the
-     * default as its body, so the body phase types it as the property: an expression naming nothing the model has, or
-     * of a type that is not the property's, is the model's error (legend-engine compiles a default as a lambda,
-     * HelperModelBuilder; legend-pure checks its type and multiplicity, PropertyValidator). Before 2026-10-21 a default
-     * was never typed until a constructor read it. The class keeps its property as written.
-     */
-    /**
      * E.3c -- a function's pre- and post-conditions, each lifted to a {@code Boolean[1]} predicate over the
      * function's own parameters ({@code $return}, typed as the function's result, too for a post-condition), so the
      * body phase types it: a condition that is not a Boolean, or names a variable the function has not, is the
@@ -318,24 +311,33 @@ public final class ModelNormalizer {
             if (!(el instanceof FunctionDefinition fd) || fd.isSynthesized()) {
                 continue;
             }
+            // named by the function's id and the condition's place, so two conditions of one name and two overloads
+            // of one name and parameters lift apart (2026-10-21, the independent audit); described by what was written
+            // (legend-pure's id spells a multiplicity range with the synthesized names' own sigil -- `$0_1$` -- so the
+            // id is written with '%' for it here: one id to one name, and a name no text parses)
+            String owner = com.legend.model.FunctionId.of(fd).qualified().replace('$', '%');
             for (boolean post : new boolean[] {false, true}) {
-                for (ConstraintDefinition c : post ? fd.postConstraints() : fd.preConstraints()) {
+                List<ConstraintDefinition> conditions = post ? fd.postConstraints() : fd.preConstraints();
+                for (int i = 0; i < conditions.size(); i++) {
+                    ConstraintDefinition c = conditions.get(i);
                     if (!(c.realization() instanceof Realization.Inline)) {
-                        continue;
+                        throw new IllegalStateException("a function's condition is written inline: " + c.name()
+                                + " of " + fd.qualifiedName());
                     }
                     List<FunctionDefinition.ParameterDefinition> params = new ArrayList<>(fd.parameters());
                     if (post) {
                         params.add(new FunctionDefinition.ParameterDefinition(
                                 ConstraintDefinition.RETURN, fd.returnType(), fd.returnMultiplicity()));
                     }
-                    String fqn = SynthFqn.condition(fd.qualifiedName(), post, c.name());
+                    String fqn = SynthFqn.condition(owner, post, String.valueOf(i));
                     lifted.add(new FunctionDefinition(fqn, fd.typeParameters(), fd.multiplicityParameters(), params,
                             new TypeExpression.NameRef(Pure.BOOLEAN.qualifiedName()), Multiplicity.Concrete.PURE_ONE,
                             List.of(c.expression()), List.of(), List.of())
                             .withSynthesizedFrom(new FunctionDefinition.Synthesized(
                                     post ? SynthHat.POST : SynthHat.PRE, fd.qualifiedName(), c.name())));
                     if (c.message() != null) {
-                        lifted.add(new FunctionDefinition(SynthFqn.constraintMsg(fd.qualifiedName(), c.name()),
+                        lifted.add(new FunctionDefinition(
+                                SynthFqn.constraintMsg(owner, (post ? "post" : "pre") + i),
                                 fd.typeParameters(),
                                 fd.multiplicityParameters(), params,
                                 new TypeExpression.NameRef(Pure.STRING.qualifiedName()), Multiplicity.Concrete.PURE_ONE,
@@ -348,6 +350,14 @@ public final class ModelNormalizer {
         }
     }
 
+    /**
+     * E.3b -- for each property with a DEFAULT value, lift {@code <owner>$default$<property>():T[m]} carrying the
+     * default as its body, so the body phase types it as the property (its new instances' required
+     * properties unchecked, as legend-pure leaves them: SpecCompiler): an expression naming nothing the model has, or
+     * of a type that is not the property's, is the model's error (legend-engine compiles a default as a lambda,
+     * HelperModelBuilder; legend-pure checks its type and multiplicity, PropertyValidator). Before 2026-10-21 a default
+     * was never typed until a constructor read it. The class keeps its property as written.
+     */
     private static void liftDefaults(ParsedModel parsed, List<FunctionDefinition> lifted) {
         for (PackageableElement el : parsed.elements()) {
             if (!(el instanceof ClassDefinition cd)) {
