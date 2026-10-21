@@ -78,6 +78,15 @@ class OwnCorpusConformanceTest {
             // — an island upstream's grammar has no parser for, by design
             return "LITE-DESIGN-iq-island";
         }
+        if (text.contains("#GQL{")
+                && text.matches("(?s).*#GQL\\{.*\\.\\.\\.\\s*(on\\s|@|\\{).*")) {
+            // GraphQL inline fragment, 2026-10-21 (REVIEWED): `... on Type
+            // { }` in a #GQL{...}# island, lite's own GraphQL node (register
+            // S90, docs/GRAPHQL_STUDY_2026_10_18.md §6.1) — the engine's
+            // GraphQL grammar has no inline fragment (an empty-message
+            // refusal), the LEGEND_ENGINE surface keeps that refusal
+            return "LITE-DESIGN-gql-inline-fragment";
+        }
         if (msg.contains("No parser for AssociationMapping")) {
             // clean-sheet inline association predicate:
             //   Assoc: AssociationMapping { {p, f | ...} }
@@ -253,6 +262,10 @@ class OwnCorpusConformanceTest {
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),
+                // 0 -> 1 (GraphQL line, 2026-10-21, REVIEWED): the fragment
+                // trap's model, an #GQL{...}# island with an inline fragment
+                // (GqlInheritanceTest.theExactTypeTrapIsRefused; register S90)
+                Map.entry("LITE-DESIGN-gql-inline-fragment", 1),
                 // 0 -> 1 (IQ island, 2026-10-14, REVIEWED): the model whose
                 // function is an #IQ{...}# island (IqIslandRoundTripTest)
                 Map.entry("LITE-DESIGN-iq-island", 1),

@@ -3219,7 +3219,8 @@ public final class SpecParser implements TokenStreamCursor {
                                     tokens.end(islandStart),
                                     tokens.start(pos - 1)),
                             tokens.endLine(islandStart),
-                            tokens.endColumn(islandStart) + 1),
+                            tokens.endColumn(islandStart) + 1,
+                            dialect()),
                     spanOf(islandStart, pos - 1));
             default -> {
                 // PLATFORM: legend-pure's LEGACY graph-fetch spelling

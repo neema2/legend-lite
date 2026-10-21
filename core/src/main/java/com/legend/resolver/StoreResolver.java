@@ -2759,6 +2759,7 @@ public final class StoreResolver {
         synthetics.setCanonicalizer(nn -> corrSubs.subTypeNavCastCanon(nn,
                 fqn -> dispatch(canonCtx, fqn),
                 java.util.Objects.requireNonNull(callees.isNotEmpty(), "callees.isNotEmpty()")));
+        top = InheritedCasts.fold(top, ctx);
         top = synthetics.liftFilteredHeads(top);
         // The identity reads (lite's elementId, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W2, 2026-10-17): an
         // elementId($x) anywhere in the chain's lambdas becomes the text of $x's primary-key pseudo-binding, a
@@ -3440,7 +3441,13 @@ public final class StoreResolver {
             }
             innerOps.add(new TypedFilter(targetPipe, lam, targetPipe.info(), TypedFilter.Stamp.NONE /* target predicate */));
         }
-        if (innerPaths.isEmpty()) {
+        // a scope reading no path may still test its row's type (`$p->instanceOf(CardPayment)`: the companion's
+        // `asCardPayment` in a quantifier over a union, 2026-10-20) -- its subtype tables are the factory's
+        Set<String> subtypeTests = new LinkedHashSet<>();
+        for (TypedSpec op : innerOps) {
+            CorrelatedSubselects.collectSubTypeFqns(op, subtypeTests);
+        }
+        if (innerPaths.isEmpty() && subtypeTests.isEmpty()) {
             return new NestedScope(none, targetPipe, row);
         }
         return scopeMaterials(t, innerPaths, innerFullPaths, innerOps,
@@ -3470,7 +3477,7 @@ public final class StoreResolver {
         // inside a below-op ($r.lr.a->exists(...)) registers its chain
         // exactly as the root scope would (depth leg, 2026-09-02)
         NestedScope bs = scopeMaterials(src, bsp.spliceFull(), bsp.spliceFull(),
-                ops, context, targetPipe, List.of(), preJoins);
+                ops, context, targetPipe, List.of(), preJoins, false);
         Pipelines.Materialized base = Pipelines.materialize(
                 src.pipeline(), java.util.Set.of(), src.classFqn());
         Pipelines.Materialized bm = new Pipelines.Materialized(
@@ -3508,14 +3515,15 @@ public final class StoreResolver {
             List<TypedSpec> innerOps, Context context, TypedSpec targetPipe,
             List<String> pathKey) {
         return scopeMaterials(t, innerPaths, innerFullPaths, innerOps, context,
-                targetPipe, pathKey, Map.of());
+                targetPipe, pathKey, Map.of(), true);
     }
 
     private NestedScope scopeMaterials(ClassSource t,
             Set<List<String>> innerPaths, Set<List<String>> innerFullPaths,
             List<TypedSpec> innerOps, Context context, TypedSpec targetPipe,
             List<String> pathKey,
-            Map<String, AssociationJoins.AssocJoin> preJoins) {
+            Map<String, AssociationJoins.AssocJoin> preJoins,
+            boolean ownSubtypeTables) {
         Substitution.Registries none = Substitution.Registries.NONE;
         Type.RelationType row =
                 Type.requireRelationSchema(targetPipe.info().type());
@@ -3538,7 +3546,20 @@ public final class StoreResolver {
                         innerPaths, innerFullPaths,
                         (cls, prop) -> !ctx.findAssociationOf(cls, prop)
                                 .isEmpty(), preJoins);
-        Map<String, Substitution.AssocSub> nestedAssocs = nm.assocs();
+        Map<String, Substitution.AssocSub> nestedAssocs = new LinkedHashMap<>(nm.assocs());
+        // the scope's SUBTYPE tables, as the root's (`instanceOf`, `cast` and the companion's `asX()` over a nested
+        // union's row: `payments: { some: { asCardPayment: { ... } } }`, the GraphQL hardening fixture's hierarchy,
+        // 2026-10-20 -- the predicate tested a subtype the scope had no table for). Only a NESTED scope's: a flatten
+        // splice (belowScope) registers its hop's own tables after, sources-free. Non-strict, under the target's
+        // composed prefix as the root's: a subtype column riding several hops' prefixes (the plan-node hierarchy's
+        // flattened executionNodes, the relational corpus's testSupportStreamFlag* family) registers no table here
+        // -- the scope's prior behaviour -- where strict registration refused the whole query (2026-10-21)
+        if (ownSubtypeTables) {
+            for (TypedSpec op : innerOps) {
+                CorrelatedSubselects.registerSubTypeSubs(t, op, sources, nestedAssocs,
+                        t.composedPrefix(), false);
+            }
+        }
         TypedSpec pipe = nm.pipe();
         // DOTTED emptiness ($x.a.b->exists(...)) inside the nested scope:
         // the same demand-driven registration the root scope runs — a

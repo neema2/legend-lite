@@ -364,3 +364,26 @@ expression in a tree position, so the LEGEND_ENGINE surface refuses it. The cons
 - **DECISION:** DECIDED: **KEEP** (the user's rulings, 2026-10-18: the GraphQL line, §6.2 (ii)). A row is added only
   with a fixture that exercises the node in a model, and pinned in both census tests in the same change.
 
+## 16. LITE-DESIGN-gql-inline-fragment — declared 2026-10-21 (the GraphQL line) — 1 row
+
+The inline fragment in a `#GQL{...}#` island (docs/GRAPHQL_STUDY_2026_10_18.md §6.1, register row S90): `... on
+Employee { salary }` or `... @include(if: $x) { age }`, GraphQL's own idiom for a subclass's fields, which lite reads
+into its `Gql.InlineFragment` node. legend-engine's GraphQL grammar has no inline fragment and refuses one with an
+empty message (probed 2026-08-14). The construct is lite's by design.
+
+| # | row | construct |
+|---|---|---|
+| 1 | graphql/GqlInheritanceTest (`theExactTypeTrapIsRefused`) | a `###Pure` function whose body is `#GQL{ { Person { ... on Person { firstName } } } }#`, the fragment trap the validator refuses |
+
+- **Surfaces:** LEGEND_LITE reads it (the product surface: queries, models, the GraphQL endpoint) and so does
+  LEGEND_PLATFORM. LEGEND_ENGINE keeps the engine's refusal where the fragment stands (`GqlParser` on the dialect's
+  `refusesLiteExtensions`; `GqlInlineFragmentTest.theEngineSurfaceRefusesAnInlineFragment`). Until 2026-10-21 the
+  register row claimed that refusal while the drop-in surface read the node; `AdversarialParityTest.gqlIslands` caught
+  the two rows it pins as engine-refuses, lite-accepts.
+- **The census:** `OwnDialectCensusTest` hosts the row in its marked extension set (`GqlInheritanceTest.java`, pinned at
+  1); `OwnCorpusConformanceTest` classifies the engine's refusal under this family (pinned at 1);
+  `FixtureAdjudicationTest` pins the engine's refusal as a leniency kind (its message is empty, so the kind is the
+  empty string).
+- **DECISION:** DECIDED: **KEEP** (the user's rulings, 2026-10-18: the GraphQL line, G8 and G10). A row is added only
+  with a test that exercises the fragment in a model, and pinned in the three census tests in the same change.
+

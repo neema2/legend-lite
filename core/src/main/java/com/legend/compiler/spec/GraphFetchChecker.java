@@ -145,15 +145,16 @@ final class GraphFetchChecker {
                 null, List.of(), false, subFqn);
     }
 
-    /** Whether a node carries a sub-tree: children, or a subtype view. */
+    /** Whether a node carries a sub-tree: children, a subtype view, or subtype entries. */
     private static boolean hasSubTree(Node n) {
-        return !n.subTrees().isEmpty() || n.subType() != null;
+        return !n.subTrees().isEmpty() || n.subType() != null || !n.subTypeTrees().isEmpty();
     }
 
-    /** A node's sub-tree against {@code classFqn}; {@code prop->subType(@Sub) {...}} is the one subtype view. */
+    /** A node's sub-tree against {@code classFqn}; {@code prop->subType(@Sub) {...}} is the one subtype view; a
+     *  node's own subtype entries (lite's, register S117) validate as the root's do. */
     private static List<TypedGraphTree> subTree(Typer t, String classFqn, Node n, String fn, Env env) {
         return n.subType() == null
-                ? validate(t, classFqn, n.subTrees(), List.of(), fn, env)
+                ? validate(t, classFqn, n.subTrees(), n.subTypeTrees(), fn, env)
                 : List.of(subTypeView(t, classFqn, n.subType(), n.subTrees(), fn, env));
     }
 
@@ -171,8 +172,8 @@ final class GraphFetchChecker {
             if (n.subType() != null) {
                 throw new TypeInferenceException(fn + " tree: a composed node takes no ->subType view");
             }
-            return new TypedGraphTree(n.property(), validate(t, bodyClass.fqn(), n.subTrees(), List.of(), fn, env),
-                    n.alias(), List.of(), false, null, body);
+            return new TypedGraphTree(n.property(), validate(t, bodyClass.fqn(), n.subTrees(), n.subTypeTrees(), fn,
+                    env), n.alias(), List.of(), false, null, body);
         }
         Property prop = t.model().findProperty(classFqn, n.property()).orElse(null);
         String propName = n.property();

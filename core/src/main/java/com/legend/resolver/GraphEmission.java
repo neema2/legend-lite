@@ -271,11 +271,17 @@ final class GraphEmission {
         List<TypedFuncCol> leaves = new ArrayList<>();
         List<TypedSerializeGraph.Child> children = new ArrayList<>();
         List<TypedSerializeGraph.SubTypePatch> subTypePatches = new ArrayList<>();
+        List<TypedGraphTree> baseNodes = new ArrayList<>();
+        for (TypedGraphTree node : tree) {
+            if (node.subTypeFqn() == null) {
+                baseNodes.add(node);
+            }
+        }
         for (TypedGraphTree node : tree) {
             // ->subType(@X){...}: the subtype VIEW — extracted builder
             if (node.subTypeFqn() != null) {
                 subTypePatches.add(subTypePatch(cs, node, context, rowVar,
-                        rowType, toRow));
+                        rowType, toRow, baseNodes, pipeline));
                 continue;
             }
             if (!node.children().isEmpty()
@@ -924,7 +930,7 @@ final class GraphEmission {
         if (node.body() != null) {
             // the COMPOSED BODY (lite, GraphQL PR2c): the node's own expression over $this, the shape a
             // derived to-many body has, compiled as one
-            TypedSpec bodyHop = unwrapToOneFirst(inlineDerivedCalls(node.body(), 0));
+            TypedSpec bodyHop = unwrapToOneFirst(InheritedCasts.fold(inlineDerivedCalls(node.body(), 0), ctx));
             if (bodyHop instanceof TypedNewInstance ni && isCompanionClass(ni.classFqn())) {
                 return companionChild(cs, node, ni, "this", context, parentRowVar, parentRowType, parentPipeline);
             }
@@ -2344,8 +2350,21 @@ final class GraphEmission {
                 }
             }
         }
-        return derivedLeaf(cs.bindings(), cs.classFqn(), node,
-                new SubqueryEnv(cs, context, rowVar, rowType));
+        if (ownerClassFqn.equals(cs.classFqn())) {
+            return derivedLeaf(cs.bindings(), cs.classFqn(), node,
+                    new SubqueryEnv(cs, context, rowVar, rowType));
+        }
+        // a SUBTYPE's derived leaf, inside its member-gated patch (`... on CardPayment { masked }` over a payments
+        // union, the GraphQL hardening fixture, 2026-10-20): the subtype's own properties read the row's subtype
+        // columns, its inherited ones the row's own -- the body inlined against that view, as the subtype's
+        Map<String, TypedSpec> owned = new java.util.LinkedHashMap<>(cs.bindings());
+        String pfx = com.legend.model.ClassMapping.subTypeColumnPrefix(ownerClassFqn);
+        for (Map.Entry<String, TypedSpec> e : cs.bindings().entrySet()) {
+            if (e.getKey().startsWith(pfx)) {
+                owned.put(e.getKey().substring(pfx.length()), e.getValue());
+            }
+        }
+        return derivedLeaf(owned, ownerClassFqn, node, new SubqueryEnv(cs, context, rowVar, rowType));
     }
 
     /** A derived body that AGGREGATES a depth-1 navigation chain —
@@ -2926,8 +2945,8 @@ final class GraphEmission {
     /** {@code $this->instanceOf(T)} over the row of {@code classFqn}: true for the class and its ancestors; the
      *  witness column tested where {@code T}'s membership is partial; true where the row carries {@code T}'s
      *  columns and no witness (total membership); false where the mapping maps no {@code T} on this row (a
-     *  declared subclass with no set here: no row is one -- the mapping's own statement, not a guess); loud
-     *  otherwise. */
+     *  declared subclass with no set here: no row is one -- the mapping's own statement, not a guess), and false
+     *  for a type no class the row can hold conforms to; loud otherwise. */
     private TypedSpec membership(String t, String classFqn, Map<String, TypedSpec> bindings, ExprType info,
             String prop) {
         if (ctx.isSubtype(classFqn, t)) {
@@ -2956,6 +2975,21 @@ final class GraphEmission {
             }
         }
         if (ctx.isSubtype(t, classFqn)) {
+            return new com.legend.compiler.spec.typed.TypedCBoolean(false, info);
+        }
+        // a type BESIDE the row's class (`instanceOf(VoucherPayment)` over a CardPayment row: the companion's
+        // `__typename()`, declared on the hierarchy's root, read on a subclass's own extent; the GraphQL hardening
+        // fixture, 2026-10-20): the row's object is of its class or of a subclass with columns on the row, and
+        // where none of those conforms to T, none is a T -- the mapping's statement, as for a subclass with no set
+        boolean conforms = false;
+        for (String sub : ctx.subtree(classFqn)) {
+            String subPrefix = com.legend.model.ClassMapping.subTypeColumnPrefix(sub);
+            if (ctx.isSubtype(sub, t) && bindings.keySet().stream().anyMatch(k -> k.startsWith(subPrefix))) {
+                conforms = true;
+                break;
+            }
+        }
+        if (!conforms) {
             return new com.legend.compiler.spec.typed.TypedCBoolean(false, info);
         }
         throw new NotImplementedException("derived graph leaf '" + prop + "': instanceOf(" + t + ") over the row"
@@ -3130,8 +3164,10 @@ final class GraphEmission {
                 && unwrapToOneFirst(cpa.source()) instanceof com.legend.compiler.spec.typed.TypedCast tc
                 && tc.source() instanceof TypedVariable cv && cv.name().equals(thisVar)
                 && Type.asClassType(tc.target()) instanceof Type.ClassType ct) {
-            if (ctx.isSubtype(classFqn, ct.fqn())) {
-                // an identity or upcast: the plain read
+            if (ctx.isSubtype(classFqn, ct.fqn()) || ctx.findProperty(classFqn, cpa.property()).isPresent()) {
+                // an identity or upcast, or a property the row's own class has (an inherited one read through a
+                // downcast, `asVoucherPayment: { order: ... }`: Pure redefines no property, so the member's value
+                // is the row's): the plain read
                 return inlineThis(new TypedPropertyAccess(tc.source(), cpa.property(), cpa.info()), thisVar,
                         binds, bindings, classFqn, prop, env);
             }
@@ -3366,10 +3402,29 @@ final class GraphEmission {
     private TypedSerializeGraph.SubTypePatch subTypePatch(ClassSource cs,
             TypedGraphTree node, StoreResolver.Context context, String rowVar,
             Type.RelationType rowType,
-            java.util.function.Function<@com.legend.base.Nullable TypedSpec, TypedSpec> toRow) {
+            java.util.function.Function<@com.legend.base.Nullable TypedSpec, TypedSpec> toRow,
+            List<TypedGraphTree> baseNodes, TypedSpec pipeline) {
         List<TypedFuncCol> patch = new ArrayList<>();
         List<TypedSerializeGraph.Child> patchChildren = new ArrayList<>();
+        // an entry that repeats a base node (the GraphQL translator's: a member's every field, in its order, S114)
+        // takes the base's value -- the entry's node order is the member object's key order
+        List<String> memberOrder = new ArrayList<>();
+        boolean repeatsBase = false;
         for (TypedGraphTree sub : node.children()) {
+            memberOrder.add(keyOf(sub));
+            repeatsBase |= baseNodes.contains(sub);
+        }
+        for (TypedGraphTree sub : node.children()) {
+            if (baseNodes.contains(sub)) {
+                continue;
+            }
+            if (!sub.children().isEmpty() && ctx.findProperty(cs.classFqn(), sub.property()).isPresent()) {
+                // a BASE class-typed property re-selected inside the member's entry (`... on CardPayment {
+                // order { id } }` beside `order { status }`, the GraphQL translator's merged member fields, S114):
+                // the base's own route serves it -- the subtype's set holds no join keys of the union row
+                patchChildren.add(graphChild(cs, sub, context, rowVar, rowType, pipeline));
+                continue;
+            }
             if (!sub.children().isEmpty()) {
                 // CLASS-typed subtype child (coordinate{...}): a correlated
                 // child against the SUBTYPE's own ClassSource (its member
@@ -3465,7 +3520,7 @@ final class GraphEmission {
                                         .Multiplicity.Bounded.ONE)));
         return new TypedSerializeGraph.SubTypePatch(
                 java.util.Objects.requireNonNull(node.subTypeFqn(), "node.subTypeFqn()"),
-                patch, member, patchChildren);
+                patch, member, patchChildren, repeatsBase ? memberOrder : List.of());
     }
 
     /** The supported serialize-config surface: includeType (+ typeKeyName,

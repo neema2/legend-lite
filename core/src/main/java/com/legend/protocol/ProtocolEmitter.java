@@ -3065,8 +3065,11 @@ public final class ProtocolEmitter {
                 b.append(",\"subType\":");
                 str(b, n.subType());
             }
-            // subtype entries live at the root only (the engine's grammar)
-            b.append(",\"subTypeTrees\":[]}");
+            // a node's subtype entries: the engine's text has them at the root only, its wire has the field on
+            // every node; lite's GraphQL translator fills it under a nested selection (register S117)
+            b.append(",\"subTypeTrees\":[");
+            graphSubTypes(b, n.subTypeTrees());
+            b.append("]}");
         }
     }
 

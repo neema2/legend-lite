@@ -2181,6 +2181,19 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
     static void registerSubTypeSubs(ClassSource cs, TypedSpec top,
             @com.legend.base.Nullable ClassSources sources,
             Map<String, Substitution.AssocSub> assocs, String hopPrefix) {
+        registerSubTypeSubs(cs, top, sources, assocs, hopPrefix, true);
+    }
+
+    /** {@code strict}: whether a subtype column riding more than one hop
+     * prefix refuses (the root and a flatten splice, which own the row's
+     * dispatch) or registers no table (a NESTED scope's own tables, which
+     * the scope adds over a row it did not compose: no table there is
+     * the pre-existing behaviour, and a read through the missing table
+     * still goes loud at the substitution's wall, never a guess). */
+    static void registerSubTypeSubs(ClassSource cs, TypedSpec top,
+            @com.legend.base.Nullable ClassSources sources,
+            Map<String, Substitution.AssocSub> assocs, String hopPrefix,
+            boolean strict) {
         Set<String> fqns = new LinkedHashSet<>();
         collectSubTypeFqns(top, fqns);
         for (String fqn : fqns) {
@@ -2202,7 +2215,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             // subtype only under some other slot prefix (an auto-map hop
             // row) keeps the anywhere-scan
             Map<String, TypedSpec> stBindings =
-                    subtypeBindings(cs, fqn, stPrefix, hopPrefix, true);
+                    subtypeBindings(cs, fqn, stPrefix, hopPrefix, strict);
             if (stBindings.isEmpty() && !hopPrefix.isEmpty()) {
                 // lenient: a subtype riding SEVERAL other hops' prefixes is
                 // another scope's dispatch (its own registration served it
@@ -2259,7 +2272,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      * (Substitution.discriminatedMatch / instanceOfHead / castLeafRead).
      * Over-collection is harmless: registration only lands where the row
      * carries the subtype's columns. */
-    private static void collectSubTypeFqns(TypedSpec n, Set<String> out) {
+    static void collectSubTypeFqns(TypedSpec n, Set<String> out) {
         if (n instanceof TypedNativeCall nc
                 && com.legend.builtin.NativeFn.SubtypeForm.of(nc.callee().id()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 && !nc.args().isEmpty()

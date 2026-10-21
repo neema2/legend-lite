@@ -78,7 +78,14 @@ class OwnDialectCensusTest {
                     // IQ island, 2026-10-14 (REVIEWED): the #IQ{...}# island
                     // in a model's function, the declared extension
                     // LITE-DESIGN-iq-island (OWN_CORPUS_DECISIONS §14)
-                    "IqIslandRoundTripTest.java");
+                    "IqIslandRoundTripTest.java",
+                    // GraphQL inline fragment, 2026-10-21 (REVIEWED): the
+                    // fragment trap's model (theExactTypeTrapIsRefused), a
+                    // #GQL{...}# island whose selection is an inline
+                    // fragment, the declared extension
+                    // LITE-DESIGN-gql-inline-fragment (OWN_CORPUS_DECISIONS
+                    // §16, register S90)
+                    "GqlInheritanceTest.java");
 
     /** F3.7 per-host accounting, both directions EXACT: membership alone
      *  gave a 3,483-line file unbounded excuse capacity (audit §7.5). A
@@ -140,7 +147,13 @@ class OwnDialectCensusTest {
                     java.util.Map.entry("VarianceD4Test.java", 2),
                     // IQ island, 2026-10-14 (REVIEWED): one model whose
                     // function is an #IQ{...}# island (LITE-DESIGN-iq-island)
-                    java.util.Map.entry("IqIslandRoundTripTest.java", 1));
+                    java.util.Map.entry("IqIslandRoundTripTest.java", 1),
+                    // 0 -> 1 (2026-10-21, REVIEWED, the GraphQL line): the
+                    // LEGEND_ENGINE surface now keeps the engine's refusal
+                    // of an inline fragment (register S90), so the fragment
+                    // trap's model is extension grammar by definition
+                    // (LITE-DESIGN-gql-inline-fragment)
+                    java.util.Map.entry("GqlInheritanceTest.java", 1));
 
     private static String hostOf(String id) {
         String f = id.substring(id.lastIndexOf('/') + 1);

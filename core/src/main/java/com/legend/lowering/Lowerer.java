@@ -1008,29 +1008,46 @@ public final class Lowerer {
         if (!g.subTypePatches().isEmpty() && !g.bareValue()) {
             List<SqlExpr.Case.When> whens = new ArrayList<>();
             for (var p : g.subTypePatches()) {
+                List<SqlExpr> patchKv = new ArrayList<>();
+                for (TypedFuncCol leaf : p.leaves()) {
+                    patchKv.add(new SqlExpr.StringLit(leaf.name()));
+                    patchKv.add(Fold.jsonDateWrap(
+                            envelopeScalar(leaf, fr[0], "subType patch leaf"),
+                            Fold.leafResultType(leaf)));
+                }
+                for (var child : p.children()) {
+                    patchKv.add(new SqlExpr.StringLit(child.property()));
+                    enclosing.push(own);
+                    try {
+                        patchKv.add(CheckedEnvelope.childTerm(fr, serializeGraph(child.node(), false),
+                                child, hoists, this::nextAlias, List.of()));
+                    } finally {
+                        enclosing.pop();
+                    }
+                }
+                // the base keys, but where the patch answers the key itself (a member's own selection of it); then
+                // the patch's, and the whole in the member's key order when the patch carries one
+                Set<String> patchKeys = new java.util.HashSet<>();
+                for (int i = 0; i + 1 < patchKv.size(); i += 2) {
+                    if (patchKv.get(i) instanceof SqlExpr.StringLit pk) {
+                        patchKeys.add(pk.value());
+                    }
+                }
+                List<SqlExpr> body = new ArrayList<>();
+                for (int i = 0; i + 1 < kv.size(); i += 2) {
+                    if (!(kv.get(i) instanceof SqlExpr.StringLit bk && patchKeys.contains(bk.value()))) {
+                        body.add(kv.get(i));
+                        body.add(kv.get(i + 1));
+                    }
+                }
+                body.addAll(patchKv);
                 List<SqlExpr> pkv = new ArrayList<>();
                 if (g.typeKeyName() != null) {
                     pkv.add(new SqlExpr.StringLit(g.typeKeyName()));
                     pkv.add(new SqlExpr.StringLit(
                             SnapshotEnvelope.typeName(p.subTypeFqn(), g.fqTypePath())));
                 }
-                pkv.addAll(kv);
-                for (TypedFuncCol leaf : p.leaves()) {
-                    pkv.add(new SqlExpr.StringLit(leaf.name()));
-                    pkv.add(Fold.jsonDateWrap(
-                            envelopeScalar(leaf, fr[0], "subType patch leaf"),
-                            Fold.leafResultType(leaf)));
-                }
-                for (var child : p.children()) {
-                    pkv.add(new SqlExpr.StringLit(child.property()));
-                    enclosing.push(own);
-                    try {
-                        pkv.add(CheckedEnvelope.childTerm(fr, serializeGraph(child.node(), false),
-                                child, hoists, this::nextAlias, List.of()));
-                    } finally {
-                        enclosing.pop();
-                    }
-                }
+                pkv.addAll(inKeyOrder(body, p.keyOrder()));
                 SqlExpr member = envelopeScalar(p.member(), fr[0],
                         "subType membership witness");
                 whens.add(new SqlExpr.Case.When(member,

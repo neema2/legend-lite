@@ -150,7 +150,14 @@ class FixtureAdjudicationTest {
                     // IQ island, 2026-10-14 (REVIEWED): the #IQ{...}#
                     // island (1), a declared lite extension upstream has no
                     // parser for (OWN_CORPUS_DECISIONS §14)
-                    "Can'X'IQ' available ones: [GQL,SQL,>,TDS]");
+                    "Can'X'IQ' available ones: [GQL,SQL,>,TDS]",
+                    // GraphQL inline fragment, 2026-10-21 (REVIEWED): the
+                    // engine's GraphQL grammar refuses `... on Type { }` in a
+                    // #GQL{...}# island with an EMPTY message (probed
+                    // 2026-08-14); the one fixture is the fragment trap's
+                    // model (GqlInheritanceTest), lite's declared node
+                    // (register S90, OWN_CORPUS_DECISIONS §16)
+                    "");
 
     /** F3.7: over-strictness rows pinned per HOST FILE (fixture ids are
      *  line-positional, so exact ids would tax unrelated edits). */

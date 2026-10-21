@@ -1295,3 +1295,61 @@ Branch `claude/graphql-study-2026-10-18`; the GATES entry "GraphQL: the sixth la
   an npm package to `MODULE.bazel`; the hand tool and the committed lines are the record); the Prisma oracle
   (`tools/prisma-oracle/`, §9.2) and `lite/*.yaml` cases (the DuckDB tests and the SQL twins judge today); a
   numeric `bucket:` on group keys; nested groups.
+
+### 13.7 The hardening line, 2026-10-20: a reference evaluator, a fuzzer, a corpus, and what they found
+
+Branch `claude/graphql-study-2026-10-18`; the user's ask: "make GraphQL amazing and expert and super bulletproof
+with lot more variety of use cases and test cases that work for real and fix all the bugs". No PR (the user's
+instruction); each landing is a commit on the branch, its checks named in its message.
+
+- **The method.** `core/src/test/java/com/legend/graphql/hardening/`: a shop fixture built to break things
+  (`ShopFixture`: every scalar kind, nulls in every nullable column, empty lists, ties on every sortable column,
+  quotes, `%` and `_`, unicode and case variants, a 64-bit integer past 2^53, a leap day, an orphan order, referral
+  chains three deep, a many-to-many through a join table, derived properties of each kind, and a class hierarchy:
+  `Payment` with `CardPayment` and `VoucherPayment`, each on its own table, the base's extent their union, the
+  association mapped per member set); an INDEPENDENT reference evaluator (`Reference`, `ReferenceModel`,
+  `ShopReference`: the same rows in Java, each derived property in its Java meaning, the contract's rules written
+  once: two-valued comparisons, existential to-one conditions, `mode` inherited, nulls sorting largest, keys in
+  selection order, folds skipping nulls, `count` 0 and every other fold absent over no rows, `avg` a float); a
+  seeded fuzzer (`Fuzz`: roots, nested lists with clauses, aggregates and their sort keys, groups with `having` and
+  fold sorts, aliases on every member, fragments and directives, variables, subtype fragments, `as<Sub>` conditions
+  and sort keys, sort paths three to-one hops deep) with a shrinker that keeps a failure's signature; and a corpus
+  of hand-written cases (`shop-cases.graphql`, 209 cases, errors included). `HardeningSuite` runs both on DuckDB
+  (`GraphQLHardeningTest`, in `core_tests_root`) and on the embedded Postgres 16
+  (`//core:graphql_hardening_postgres_test`, the reference folding case for ASCII only, as the C-locale server does).
+  `FuzzProbeTest`, `ReproProbeTest`, `PureProbeTest` and `ModelProbeTest` are the developer's explorers
+  (`-Dgql.probe=true`).
+- **What it found and what was fixed**, by landing (each commit's message has the full list):
+  - Round one (`cb19b014`): an order lost through `json_group_array` once a nested count decorrelated into a join
+    (wrong data); an alias with `__` split into nested objects (the path separator is now `.`, S103); derived counts
+    over navigations and bridge tables, composed nested lists with navigating filters and sort keys, a collection
+    function over a to-one hop, companion aggregates over derived collections and of derived leaves, `__typename` on
+    the generated types (S115), `mode: insensitive` over an optional string, aggregates and joins inside nested
+    quantifiers (refusals made to answer).
+  - Round two (`257f7bf9`): a presence guard over a derived count read by the exists-to-join rewrite as "a source
+    row exists" (wrong data); a date key truncated to `DAY` answering a date-time; sorts through a to-one hop into a
+    many-to-many count and through two hops into a count.
+  - Postgres (`b9a6e3a0`): a pruned qualified star whose readers kept the star's spelling (`column t3.id does not
+    exist`); a root-package class with a derived property (the companion's `__typename()` made every root-package
+    class fail, the PCT's `Class String {}` among them).
+  - Round four (`932773bf`): sorting by a nested aggregate (S116) and the resolver shapes it needed: `min`/`max`
+    over a to-many behind a to-one hop fanned the rows out and dropped the aggregate (wrong data); chain keys past
+    several to-one mids; computed mappers over chains; filtered derived collections under a graph root; a reducer
+    of a reducer (each aggregate's target a scope of its own, its inner reducers' grouped joins folded onto it); an
+    absent element counted through an inner reducer's empty value.
+  - `599016ba`: a string's `min` and `max` (S104).
+  - The merge of `origin/main` (`c6c4f496`): the two lines had used register rows S76 to S88 for different rows;
+    the GraphQL rows are S89 to S116 since, their citations renumbered.
+  - `6b6114e5`: emptiness over three to-one hops (a derived leaf's guard that deep).
+  - The hierarchy (this record's last landing): subtype entries on a nested node (S117: fragments on subtypes under
+    a nested list keep every element, the engine's view kept only one subtype's; fragments beside other fields were
+    refused); a member's keys in its fragments' order (S114); `__typename` on a subclass's own extent (a sibling's
+    `instanceOf` is false); a subclass's derived leaf inside a fragment; a subtype test inside a quantifier; an
+    inherited association read through `as<Sub>` (the cast folded where the row's own class has the property); a
+    quantifier inside a quantifier over a union; an empty `as<Sub>: {}` filtering nothing (S95).
+- **Measured.** The corpus's 209 cases agree on both lanes; the suite's own fuzz (three seeds of 150) agrees on
+  both; the explorer's campaigns agree on every document: 6,000 before the widened generator, 3,000 after it with
+  variables, and 3,000 with the hierarchy (seeds 1 to 10).
+- **Not done, on purpose or still open.** Nested groups under a parent object (a relation-valued tree node, the H5
+  spike); the JSON wire's refusal of a class-level `sortBy` whose key the projection renames (not GraphQL's path);
+  the Pure text parser reading nested subtype entries (S117: the engine's check stands); the Prisma oracle.

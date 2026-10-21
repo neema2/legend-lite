@@ -2101,6 +2101,10 @@ final class Substitution {
             // ...and a nested scope's GROUPED aggregate material (its keyed subselect, joined beside the target
             // row: the aggregate inside a nested quantifier, 2026-10-20): resolved, passed through as built
             case com.legend.compiler.spec.typed.TypedGroupBy rg when Type.isRelation(rg.info().type()) -> n;
+            // ...and a UNION's extent (a hierarchy's member projects concatenated: the target of a quantifier
+            // inside a quantifier, the GraphQL hardening fixture's `orders: { some: { payments: ... } }`,
+            // 2026-10-20): resolved and uncorrelated -- the correlation is the filter above it -- passed as built
+            case com.legend.compiler.spec.typed.TypedConcatenate rc when Type.isRelation(rc.info().type()) -> n;
             // ...and the [0..1] LIMIT-1 tail of a correlated scalar
             // subquery (parentNavCondReads / navLeafSubquery emissions):
             // its correlation binds a FRESH row var, never this scope's

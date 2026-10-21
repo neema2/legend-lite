@@ -192,10 +192,18 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
     /** A ->subType(@X){...} view: leaves reading the subtype member's
      * carrier columns, rendered as a JSON MERGE PATCH over the envelope —
      * NULL values (non-member rows) drop their keys (RFC 7386). */
+    /** {@code keyOrder}, when given, is a member object's whole key order (the base keys and the patch's, as the
+     *  selection has them for objects of the subtype: GraphQL's field collection, S114); a patch key the base
+     *  also has answers in its place. Empty: the base keys, then the patch's (the engine's patch). */
     public record SubTypePatch(String subTypeFqn, List<TypedFuncCol> leaves,
-            TypedFuncCol member, List<Child> children) {
+            TypedFuncCol member, List<Child> children, List<String> keyOrder) {
         public SubTypePatch {
             children = children == null ? List.of() : List.copyOf(children);
+            keyOrder = keyOrder == null ? List.of() : List.copyOf(keyOrder);
+        }
+
+        public SubTypePatch(String subTypeFqn, List<TypedFuncCol> leaves, TypedFuncCol member, List<Child> children) {
+            this(subTypeFqn, leaves, member, children, List.of());
         }
     }
 

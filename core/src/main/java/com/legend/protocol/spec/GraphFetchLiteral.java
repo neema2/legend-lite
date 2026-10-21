@@ -57,8 +57,11 @@ public record GraphFetchLiteral(
      * One property node: name, its token span, call arguments (none for {@code prop()} as for
      * {@code prop}: the wire cannot tell them apart, and nothing may; leg 8 step 2), optional alias
      * ({@code 'nick' : prop}), optional subtype view ({@code prop->subType(@X)}, whose children read
-     * X's properties), nested nodes. Subtype ENTRIES ({@code ->subType(@X) {...}}) exist only at the
-     * root, as the engine's grammar has it.
+     * X's properties), nested nodes. Subtype ENTRIES ({@code ->subType(@X) {...}}) in Pure TEXT exist only
+     * at the root, as the engine's walker has it ("->subType() is supported only at root level"); a node's
+     * own {@code subTypeTrees} (the field every engine tree node carries on the wire) are lite's, built by
+     * the GraphQL translator for fragments on subtypes under a nested selection (register S117): the
+     * node's elements each answer the entries their class satisfies, as the root's do.
      *
      * <p>A COMPOSED BODY (lite, GraphQL PR2c, docs/GRAPHQL_STUDY_2026_10_18.md §6.2): {@code 'top3':
      * $this.employees->filter(e | $e.age > 30)->sortByReversed(e | $e.salary)->limit(3) { fullName }}
@@ -74,21 +77,34 @@ public record GraphFetchLiteral(
                        @com.legend.base.Nullable String alias,
                        @com.legend.base.Nullable String subType,
                        List<Node> subTrees,
-                       @com.legend.base.Nullable ValueSpecification body) {
+                       @com.legend.base.Nullable ValueSpecification body,
+                       List<SubTypeNode> subTypeTrees) {
         public Node {
             Objects.requireNonNull(property, "property");
             parameters = List.copyOf(parameters);
             subTrees = List.copyOf(subTrees);
+            subTypeTrees = List.copyOf(subTypeTrees);
             if (body != null && alias == null) {
                 throw new IllegalArgumentException("a tree node with a body is keyed by its alias");
             }
+            if (subType != null && !subTypeTrees.isEmpty()) {
+                throw new IllegalArgumentException("a tree node is a subtype view or carries subtype entries, not both");
+            }
+        }
+
+        /** A node without subtype entries. */
+        public Node(String property, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
+                List<ValueSpecification> parameters, @com.legend.base.Nullable String alias,
+                @com.legend.base.Nullable String subType, List<Node> subTrees,
+                @com.legend.base.Nullable ValueSpecification body) {
+            this(property, pos, parameters, alias, subType, subTrees, body, List.of());
         }
 
         /** A node without a body: every spelling the engine's grammar has. */
         public Node(String property, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
                 List<ValueSpecification> parameters, @com.legend.base.Nullable String alias,
                 @com.legend.base.Nullable String subType, List<Node> subTrees) {
-            this(property, pos, parameters, alias, subType, subTrees, null);
+            this(property, pos, parameters, alias, subType, subTrees, null, List.of());
         }
 
         @Override
@@ -97,12 +113,12 @@ public record GraphFetchLiteral(
                     && property.equals(other.property()) && parameters.equals(other.parameters())
                     && Objects.equals(alias, other.alias())
                     && Objects.equals(subType, other.subType()) && subTrees.equals(other.subTrees())
-                    && Objects.equals(body, other.body());
+                    && Objects.equals(body, other.body()) && subTypeTrees.equals(other.subTypeTrees());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(property, parameters, alias, subType, subTrees, body);
+            return Objects.hash(property, parameters, alias, subType, subTrees, body, subTypeTrees);
         }
     }
 
@@ -143,14 +159,19 @@ public record GraphFetchLiteral(
     private static List<Node> renamed(List<Node> nodes, java.util.function.UnaryOperator<String> rename) {
         List<Node> out = new ArrayList<>(nodes.size());
         for (Node n : nodes) {
+            List<SubTypeNode> entries = new ArrayList<>(n.subTypeTrees().size());
+            for (SubTypeNode st : n.subTypeTrees()) {
+                entries.add(new SubTypeNode(rename.apply(st.subTypeClass()), st.pos(), renamed(st.subTrees(), rename)));
+            }
             out.add(new Node(n.property(), n.pos(), n.parameters(), n.alias(),
                     n.subType() == null ? null : rename.apply(n.subType()), renamed(n.subTrees(), rename),
-                    n.body()));
+                    n.body(), entries));
         }
         return out;
     }
 
-    /** The arguments, then the body (a composed body is an argument expression like any), then the children's. */
+    /** The arguments, then the body (a composed body is an argument expression like any), then the children's,
+     *  then the node's subtype entries'. */
     private static void collect(List<Node> nodes, List<ValueSpecification> out) {
         for (Node n : nodes) {
             out.addAll(n.parameters());
@@ -158,6 +179,9 @@ public record GraphFetchLiteral(
                 out.add(n.body());
             }
             collect(n.subTrees(), out);
+            for (SubTypeNode st : n.subTypeTrees()) {
+                collect(st.subTrees(), out);
+            }
         }
     }
 
@@ -171,8 +195,12 @@ public record GraphFetchLiteral(
                 body = args.get(next[0]);
                 next[0]++;
             }
-            out.add(new Node(n.property(), n.pos(), params, n.alias(), n.subType(),
-                    replace(n.subTrees(), args, next), body));
+            List<Node> children = replace(n.subTrees(), args, next);
+            List<SubTypeNode> entries = new ArrayList<>(n.subTypeTrees().size());
+            for (SubTypeNode st : n.subTypeTrees()) {
+                entries.add(new SubTypeNode(st.subTypeClass(), st.pos(), replace(st.subTrees(), args, next)));
+            }
+            out.add(new Node(n.property(), n.pos(), params, n.alias(), n.subType(), children, body, entries));
         }
         return out;
     }

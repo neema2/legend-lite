@@ -207,6 +207,13 @@ public final class Fuzz {
         return out;
     }
 
+    /** The GraphQL type a position of {@code cls} has: {@code XInterface} where the class has subclasses (G8), so a
+     *  fragment on the position names the interface (a fragment on {@code X} itself is the exact-type trap lite
+     *  refuses by name). */
+    String positionType(String cls) {
+        return model.below(cls).isEmpty() ? model.get(cls).name() : model.get(cls).name() + "Interface";
+    }
+
     List<String> toOnes(String cls) {
         List<String> out = new ArrayList<>();
         for (Map.Entry<String, Fld> f : model.get(cls).fields.entrySet()) {
@@ -503,8 +510,26 @@ public final class Fuzz {
                 }
             }
         }
-        if (chance(0.1)) {
+        List<String> subs = model.below(cls);
+        if (chance(subs.isEmpty() ? 0.1 : 0.4)) {
             out.add(new GSel("__typename", null, List.of()));
+        }
+        // SUBTYPE FRAGMENTS: a subclass's own fields under `... on Sub` (a hierarchy's position)
+        if (!subs.isEmpty() && chance(0.5)) {
+            String sub = pick(subs);
+            List<String> own = new ArrayList<>(filterable(sub));
+            own.removeAll(filterable(cls));
+            if (!own.isEmpty()) {
+                List<GSel> fs = new ArrayList<>();
+                fs.add(new GSel(pick(own), null, List.of()));
+                if (own.size() > 1 && chance(0.5)) {
+                    String g = pick(own);
+                    if (!g.equals(fs.get(0).name())) {
+                        fs.add(new GSel(g, null, List.of()));
+                    }
+                }
+                out.add(new GSel("... on " + positionType(sub), null, fs));
+            }
         }
         // ALIASES: a scalar under another key, and a to-many list twice under two keys with its own clauses
         if (chance(0.15)) {
@@ -527,7 +552,7 @@ public final class Fuzz {
             int cut = 1 + r.nextInt(out.size() - 1);
             List<GSel> moved = new ArrayList<>(out.subList(cut, out.size()));
             List<GSel> kept = new ArrayList<>(out.subList(0, cut));
-            String type = model.get(cls).name();
+            String type = positionType(cls);
             if (chance(0.5)) {
                 kept.add(new GSel("... on " + type, null, moved));
             } else {
@@ -627,6 +652,16 @@ public final class Fuzz {
         }
         List<String> ones = toOnes(cls);
         List<String> manys = toManys(cls);
+        List<String> subs = model.below(cls);
+        if (!subs.isEmpty() && chance(0.25)) {
+            // a subclass's condition (`asCardPayment: { last4: ... }`), or membership (`asX: { isNot: null }`)
+            String sub = pick(subs);
+            String f = "as" + model.get(sub).name();
+            if (chance(0.3)) {
+                return e(f, obj(List.of(e(chance(0.5) ? "is" : "isNot", new GLit("null")))));
+            }
+            return e(f, where(sub, Math.max(0, depth - 1)));
+        }
         if (depth > 0 && !ones.isEmpty() && x < 0.38) {
             String f = pick(ones);
             String target = ((ToOne) model.get(cls).fields.get(f)).target();
@@ -804,6 +839,17 @@ public final class Fuzz {
                 return obj(List.of(e(f + "Aggregate", obj(List.of(e("count", dir))))));
             }
             return obj(List.of(e(f + "Aggregate", obj(List.of(e(fold, obj(List.of(e(pick(props), dir)))))))));
+        }
+        List<String> subs = model.below(cls);
+        if (!subs.isEmpty() && chance(0.2)) {
+            // a subclass's key (`{ asCardPayment: { last4: ASC } }`): absent on the other classes' rows
+            String sub = pick(subs);
+            List<String> own = new ArrayList<>(filterable(sub));
+            own.removeAll(filterable(cls));
+            if (!own.isEmpty()) {
+                return obj(List.of(e("as" + model.get(sub).name(),
+                        obj(List.of(e(pick(own), new GLit(chance(0.5) ? "ASC" : "DESC")))))));
+            }
         }
         List<String> ones = toOnes(cls);
         if ((depth < 2 || depth < 3 && chance(0.3)) && !ones.isEmpty() && chance(0.25)) {

@@ -57,7 +57,9 @@ class GqlInlineFragmentTest {
     @Test
     void theIslandRoundTripsThroughTheWire() {
         String text = "|#GQL{ { Person { fullName ... on Employee { salary } ... @skip(if: false) { age } } } }#";
-        LambdaFunction parsed = SpecParser.parseLambda(text);
+        // the product surface (Compiler.parseQuery, LEGEND_LITE) reads lite's node; the drop-in surface refuses it,
+        // below
+        LambdaFunction parsed = (LambdaFunction) com.legend.Compiler.parseQuery(text);
         String once = ProtocolEmitter.emitLambda(parsed);
         assertTrue(once.contains("\"_type\":\"inlineFragment\""), once);
         assertTrue(once.contains("\"typeCondition\":\"Employee\""), once);
@@ -66,5 +68,22 @@ class GqlInlineFragmentTest {
         GqlIsland before = (GqlIsland) parsed.body().get(0);
         GqlIsland after = (GqlIsland) read.body().get(0);
         assertEquals(before.document(), after.document(), "the document read back is the document parsed");
+    }
+
+    /** Register S90: the LEGEND_ENGINE surface (the drop-in parser, {@code SpecParser.parseLambda}, PMCD) keeps
+     *  legend-engine's refusal of an inline fragment in the island, with or without a type condition, where the
+     *  fragment stands; a named fragment spread still parses there. */
+    @Test
+    void theEngineSurfaceRefusesAnInlineFragment() {
+        for (String fragment : List.of("... on Employee { salary }", "...on Employee { salary }",
+                "... @skip(if: false) { age }", "... { age }")) {
+            ParseException e = assertThrows(ParseException.class,
+                    () -> SpecParser.parseLambda("|#GQL{ { Person { fullName " + fragment + " } } }#"), fragment);
+            assertTrue(e.getMessage().contains("inline fragments are not supported"), e.getMessage());
+        }
+        assertTrue(SpecParser.parseLambda("|#GQL{ { Person { ...onboarded } } fragment onboarded on Person"
+                + " { fullName } }#").body().get(0) instanceof GqlIsland, "a spread whose name starts with 'on'");
+        assertTrue(com.legend.Compiler.parseQuery("|#GQL{ { Person { ... on Employee { salary } } } }#")
+                instanceof LambdaFunction, "the product surface reads it");
     }
 }

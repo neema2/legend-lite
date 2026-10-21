@@ -553,6 +553,80 @@ fragment Who on Customer { key: id who: handle }
 # features together: a root aggregate and groups in one document
 { CustomerAggregate(where: { tier: { not: { equals: null } } }) { count min { joined } } CustomerGroups(orderBy: [{ key: { vip: DESC } }]) { key { vip } count avg { score } } }
 
+# inheritance: the base's extent is the union, each object its own type
+{ Payment(orderBy: [{ id: ASC }]) { __typename id amount paidAt } }
+
+# inheritance: a subclass's extent is its own rows
+{ CardPayment(orderBy: [{ id: ASC }]) { __typename id amount last4 network masked } }
+
+# inheritance: subtype fragments at the root
+{ Payment(orderBy: [{ id: ASC }]) { id ... on CardPayment { last4 network } ... on VoucherPayment { code expires } } }
+
+# inheritance: a nested hierarchy under a to-many, with subtype fragments
+{ Order(orderBy: [{ id: ASC }]) { id payments(orderBy: [{ id: ASC }]) { __typename id amount ... on CardPayment { last4 } ... on VoucherPayment { code } } } }
+
+# inheritance: membership in where
+{ Payment(where: { asCardPayment: { isNot: null } }, orderBy: [{ id: ASC }]) { id } }
+
+# inheritance: a subclass's condition in where
+{ Payment(where: { asVoucherPayment: { code: { contains: "_", mode: insensitive } } }, orderBy: [{ id: ASC }]) { id } }
+
+# inheritance: a subclass's key in orderBy, absent on the others
+{ Payment(orderBy: [{ asCardPayment: { last4: DESC } }, { id: ASC }]) { id } }
+
+# inheritance: a quantifier over a nested hierarchy
+{ Order(where: { payments: { some: { asCardPayment: { network: { equals: "VISA", mode: insensitive } } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# inheritance: none of an order's payments large
+{ Order(where: { payments: { none: { large: { equals: true } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# inheritance: an aggregate over a nested hierarchy
+{ Order(orderBy: [{ id: ASC }]) { id paymentsAggregate { count sum { amount } max { paidAt } } } }
+
+# inheritance: the root aggregate over the union
+{ PaymentAggregate { count sum { amount } avg { amount } min { paidAt } max { amount } } }
+
+# inheritance: groups over the union
+{ PaymentGroups(orderBy: [{ key: { large: ASC } }]) { key { large } count sum { amount } } }
+
+# inheritance: the hierarchy's to-one back to its order
+{ Payment(orderBy: [{ id: ASC }]) { id order { id status customer { name } } } }
+
+# inheritance: sort by a nested hierarchy's aggregate
+{ Order(orderBy: [{ paymentsAggregate: { sum: { amount: DESC } } }, { id: ASC }]) { id } }
+
+# inheritance: a subclass's derived leaf in a fragment
+{ Order(orderBy: [{ id: ASC }]) { id payments(where: { asCardPayment: { isNot: null } }) { ... on CardPayment { masked } } } }
+
+
+
+# inheritance: a lone fragment under a nested hierarchy keeps every element
+{ Order(orderBy: [{ id: ASC }]) { id payments(orderBy: [{ id: ASC }]) { ... on CardPayment { last4 } } } }
+
+# inheritance: a member's keys in the order its fragments select them
+{ Order(orderBy: [{ id: ASC }]) { id payments(orderBy: [{ amount: DESC }, { id: ASC }], limit: 2) { __typename ... on VoucherPayment { code expires } ... on PaymentInterface { amount } } } }
+
+# inheritance: a subclass's derived leaf two lists deep
+{ Customer(orderBy: [{ id: ASC }]) { id orders(orderBy: [{ id: ASC }]) { id payments(orderBy: [{ id: ASC }]) { id ... on CardPayment { masked } } } } }
+
+# inheritance: a fragment re-selects a base to-one with other fields
+{ Payment(orderBy: [{ id: ASC }]) { id ... on CardPayment { order { id } } order { status } } }
+
+# inheritance: an inherited association read through a subclass's condition
+{ Payment(where: { asVoucherPayment: { order: { status: { equals: OPEN } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# inheritance: a quantifier inside a quantifier over the hierarchy
+{ Customer(where: { orders: { some: { payments: { some: { asCardPayment: { network: { not: { equals: null } } } } } } } }, orderBy: [{ id: ASC }]) { id } }
+
+# inheritance: a nested list filtered through a subclass's association
+{ Order(orderBy: [{ id: ASC }]) { id payments(where: { asCardPayment: { order: { lineCount: { gt: 1 } } } }) { id } } }
+
+# inheritance: an empty subclass condition filters nothing
+{ Payment(where: { asCardPayment: {} }, orderBy: [{ id: ASC }]) { id } }
+
+# inheritance: a subclass's root, its derived and inherited leaves, its type
+{ CardPayment(orderBy: [{ id: ASC }]) { __typename id amount large last4 network masked order { id } } }
+
 # errors: an unknown field
 # error: has no field
 { Customer { id nope } }
@@ -572,3 +646,7 @@ fragment Who on Customer { key: id who: handle }
 # errors: a missing non-null variable
 # error: k
 query Q($k: Int!) { Customer { idTimes(k: $k) } }
+
+# errors: a fragment on the base's own type at a hierarchy's position
+# error: PaymentInterface
+{ Payment { ... on Payment { id } } }

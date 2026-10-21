@@ -46,7 +46,7 @@ final class IsDistinctChecker {
         Variable e = new Variable("e");
         List<ValueSpecification> reads = new ArrayList<>();
         for (GraphFetchLiteral.Node n : leaves.subTrees()) {
-            if (!n.subTrees().isEmpty() || n.subType() != null) {
+            if (!n.subTrees().isEmpty() || n.subType() != null || !n.subTypeTrees().isEmpty()) {
                 throw new com.legend.error.NotImplementedException(
                         "isDistinct by a tree with a nested sub-tree (" + n.property()
                                 + " {…}) — leaves only");

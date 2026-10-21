@@ -29,17 +29,28 @@ public final class GqlParser {
     private int pos;
     private final int baseLine;
     private final int baseCol;
+    /** The LEGEND_ENGINE surface's refusal of lite's inline fragment (register S90). */
+    private final boolean refusesInlineFragments;
 
-    private GqlParser(String src, int baseLine, int baseCol) {
+    private GqlParser(String src, int baseLine, int baseCol, boolean refusesInlineFragments) {
         this.src = src;
         this.baseLine = baseLine;
         this.baseCol = baseCol;
+        this.refusesInlineFragments = refusesInlineFragments;
     }
 
     /** Parse a whole island content into its typed document. */
     public static Gql.Document parseDocument(String content, int baseLine,
             int baseCol) {
-        GqlParser p = new GqlParser(content, baseLine, baseCol);
+        return parseDocument(content, baseLine, baseCol, Dialect.LEGEND_LITE);
+    }
+
+    /** {@link #parseDocument(String, int, int)} on a parser surface: legend-engine's GraphQL grammar has no inline
+     *  fragment, so the drop-in surface ({@link Dialect#refusesLiteExtensions()}) refuses one where it stands, as the
+     *  engine does (register S90); the product and platform surfaces read lite's node. */
+    public static Gql.Document parseDocument(String content, int baseLine,
+            int baseCol, Dialect dialect) {
+        GqlParser p = new GqlParser(content, baseLine, baseCol, dialect.refusesLiteExtensions());
         List<Gql.Definition> defs = new ArrayList<>();
         p.ws();
         while (!p.atEnd()) {
@@ -386,10 +397,15 @@ public final class GqlParser {
 
     private Gql.Selection selection() {
         if (peekc() == '.') {
+            int spreadAt = pos;
             expect('.');
             expect('.');
             expect('.');
             ws();
+            if (refusesInlineFragments && (peekc() == '@' || peekc() == '{' || startsInlineFragmentOn())) {
+                pos = spreadAt;
+                throw fail("inline fragments are not supported by legend-engine's GraphQL grammar");
+            }
             if (peekc() == '@' || peekc() == '{') {
                 // ... @dirs { sels }: an inline fragment with no type condition (lite's node; the
                 // reference refuses inline fragments — docs/GRAPHQL_STUDY_2026_10_18.md §6.1)
@@ -710,6 +726,13 @@ public final class GqlParser {
 
     private char peekc() {
         return atEnd() ? '\0' : src.charAt(pos);
+    }
+
+    /** At {@code on} as a whole word: the type condition of an inline fragment (a spread's name is never
+     *  {@code on}, which the name rule excludes). */
+    private boolean startsInlineFragmentOn() {
+        return src.startsWith("on", pos)
+                && (pos + 2 >= src.length() || !isNamePart(src.charAt(pos + 2)));
     }
 
     private boolean atEnd() {

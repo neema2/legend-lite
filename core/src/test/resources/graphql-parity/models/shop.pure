@@ -1,7 +1,8 @@
 // The GraphQL hardening fixture (docs/GRAPHQL_STUDY_2026_10_18.md §13.7): a shop built to break things.
 // Every scalar kind, nulls in every nullable column, empty lists, sort ties, quotes, `%` and `_` in strings, unicode,
 // case variants, a 64-bit integer past 2^53, a self-reference, a many-to-many through a join table, derived
-// properties of each kind. The rows are ShopFixture's (one source for the database and the reference evaluator).
+// properties of each kind, and a class hierarchy (payments: a base and two subtypes, each on its own table, the base's
+// extent their union). The rows are ShopFixture's (one source for the database and the reference evaluator).
 
 ###Pure
 Enum shop::Tier { GOLD, SILVER, BRONZE }
@@ -61,11 +62,33 @@ Class shop::Tag
   label: String[1];
 }
 
+Class {meta::pure::profiles::doc.doc = 'A payment against an order.'} shop::Payment
+{
+  id: Integer[1];
+  amount: Float[1];
+  paidAt: DateTime[0..1];
+  large() { $this.amount >= 50.0 }: Boolean[1];
+}
+
+Class shop::CardPayment extends shop::Payment
+{
+  last4: String[1];
+  network: String[0..1];
+  masked() { '**** ' + $this.last4 }: String[1];
+}
+
+Class shop::VoucherPayment extends shop::Payment
+{
+  code: String[1];
+  expires: StrictDate[0..1];
+}
+
 Association shop::Referral { referrer: shop::Customer[0..1]; referred: shop::Customer[*]; }
 Association shop::Purchase { customer: shop::Customer[0..1]; orders: shop::Order[*]; }
 Association shop::OrderLines { order: shop::Order[0..1]; lines: shop::Line[*]; }
 Association shop::LineProduct { product: shop::Product[0..1]; productLines: shop::Line[*]; }
 Association shop::Tagging { products: shop::Product[*]; tags: shop::Tag[*]; }
+Association shop::Settlement { order: shop::Order[0..1]; payments: shop::Payment[*]; }
 
 ###Relational
 Database shop::Db
@@ -78,12 +101,20 @@ Database shop::Db
   Table PRODUCT (SKU VARCHAR(10) PRIMARY KEY, TITLE VARCHAR(200), CATEGORY VARCHAR(10), PRICE DOUBLE, WEIGHT DOUBLE)
   Table TAG (ID INTEGER PRIMARY KEY, LABEL VARCHAR(50))
   Table PRODUCT_TAG (SKU VARCHAR(10), TAG_ID INTEGER)
+  Table PAYMENT (ID INTEGER PRIMARY KEY, ORDER_ID INTEGER, AMOUNT DOUBLE, PAID_AT TIMESTAMP)
+  Table CARD_PAYMENT (ID INTEGER PRIMARY KEY, ORDER_ID INTEGER, AMOUNT DOUBLE, PAID_AT TIMESTAMP, LAST4 VARCHAR(4),
+                      NETWORK VARCHAR(10))
+  Table VOUCHER_PAYMENT (ID INTEGER PRIMARY KEY, ORDER_ID INTEGER, AMOUNT DOUBLE, PAID_AT TIMESTAMP, CODE VARCHAR(20),
+                         EXPIRES DATE)
   Join Referral (CUSTOMER.REFERRER_ID = {target}.ID)
   Join CustomerOrders (CUSTOMER.ID = ORDERS.CUSTOMER_ID)
   Join OrderLines (ORDERS.ID = LINE.ORDER_ID)
   Join LineProduct (LINE.SKU = PRODUCT.SKU)
   Join ProductTagProduct (PRODUCT_TAG.SKU = PRODUCT.SKU)
   Join ProductTagTag (PRODUCT_TAG.TAG_ID = TAG.ID)
+  Join OrderPayment (ORDERS.ID = PAYMENT.ORDER_ID)
+  Join OrderCardPayment (ORDERS.ID = CARD_PAYMENT.ORDER_ID)
+  Join OrderVoucherPayment (ORDERS.ID = VOUCHER_PAYMENT.ORDER_ID)
 )
 
 ###Mapping
@@ -176,6 +207,50 @@ Mapping shop::Map
     (
       products: [shop::Db] @ProductTagTag > @ProductTagProduct,
       tags: [shop::Db] @ProductTagProduct > @ProductTagTag
+    )
+  }
+  *shop::Payment: Operation
+  {
+    meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(pp, pc, pv)
+  }
+  shop::Payment[pp]: Relational
+  {
+    ~primaryKey ([shop::Db] PAYMENT.ID)
+    ~mainTable [shop::Db] PAYMENT
+    id: [shop::Db] PAYMENT.ID,
+    amount: [shop::Db] PAYMENT.AMOUNT,
+    paidAt: [shop::Db] PAYMENT.PAID_AT
+  }
+  shop::CardPayment[pc]: Relational
+  {
+    ~primaryKey ([shop::Db] CARD_PAYMENT.ID)
+    ~mainTable [shop::Db] CARD_PAYMENT
+    id: [shop::Db] CARD_PAYMENT.ID,
+    amount: [shop::Db] CARD_PAYMENT.AMOUNT,
+    paidAt: [shop::Db] CARD_PAYMENT.PAID_AT,
+    last4: [shop::Db] CARD_PAYMENT.LAST4,
+    network: [shop::Db] CARD_PAYMENT.NETWORK
+  }
+  shop::VoucherPayment[pv]: Relational
+  {
+    ~primaryKey ([shop::Db] VOUCHER_PAYMENT.ID)
+    ~mainTable [shop::Db] VOUCHER_PAYMENT
+    id: [shop::Db] VOUCHER_PAYMENT.ID,
+    amount: [shop::Db] VOUCHER_PAYMENT.AMOUNT,
+    paidAt: [shop::Db] VOUCHER_PAYMENT.PAID_AT,
+    code: [shop::Db] VOUCHER_PAYMENT.CODE,
+    expires: [shop::Db] VOUCHER_PAYMENT.EXPIRES
+  }
+  shop::Settlement: Relational
+  {
+    AssociationMapping
+    (
+      order[pp, shop_Order]: [shop::Db] @OrderPayment,
+      order[pc, shop_Order]: [shop::Db] @OrderCardPayment,
+      order[pv, shop_Order]: [shop::Db] @OrderVoucherPayment,
+      payments[shop_Order, pp]: [shop::Db] @OrderPayment,
+      payments[shop_Order, pc]: [shop::Db] @OrderCardPayment,
+      payments[shop_Order, pv]: [shop::Db] @OrderVoucherPayment
     )
   }
   shop::Tier: EnumerationMapping TierMap { GOLD: 'GOLD', SILVER: 'SILVER', BRONZE: 'BRONZE' }

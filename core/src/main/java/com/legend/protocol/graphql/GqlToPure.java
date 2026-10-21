@@ -321,7 +321,8 @@ public final class GqlToPure {
      * selections of every fragment its class satisfies, and the entries stand deepest first, so the first match
      * is the exact class with everything it inherits. A structural rearrangement; nothing is computed.
      */
-    private List<GraphFetchLiteral.SubTypeNode> subTypeEntries(Level level, String path) {
+    private List<GraphFetchLiteral.SubTypeNode> subTypeEntries(List<Selection> selections, Level level,
+            String path) {
         // by class, the object type's name: a fragment on Employee and one on EmployeeInterface are one class's
         Map<String, Composite> objectTypes = new LinkedHashMap<>();
         Map<String, List<Selection>> byClass = new LinkedHashMap<>();
@@ -347,15 +348,51 @@ public final class GqlToPure {
         List<GraphFetchLiteral.SubTypeNode> out = new ArrayList<>();
         for (String fqn : order) {
             Composite own = Objects.requireNonNull(objectTypes.get(fqn));
-            List<Selection> selections = new ArrayList<>();
-            for (Map.Entry<String, List<Selection>> e : byClass.entrySet()) {
-                if (e.getKey().equals(fqn) || isA(objectTypes, fqn, e.getKey())) {
-                    selections.addAll(e.getValue());
-                }
-            }
-            out.add(new GraphFetchLiteral.SubTypeNode(fqn, null, nodes(selections, own, path)));
+            // the member's every field, as GraphQL collects them for an object of its type: the selection walked
+            // in document order, a fragment applying where its type is the class's or one the class implements
+            // (S114: the member object's keys in that order; the emitter keeps the base's value of a base field)
+            Map<String, Field> byKey = new LinkedHashMap<>();
+            collectFor(selections, own, path, byKey);
+            out.add(new GraphFetchLiteral.SubTypeNode(fqn, null, nodesOf(new ArrayList<>(byKey.values()), own, path)));
         }
         return out;
+    }
+
+    /** GraphQL's field collection for an object of type {@code own}: fields merged by response key in document
+     *  order, a fragment's selections where its type condition applies to {@code own} (its own name, or a type
+     *  it implements), every other fragment skipped. */
+    private void collectFor(List<Selection> selections, Composite own, String path, Map<String, Field> byKey) {
+        for (Selection s : selections) {
+            switch (s) {
+                case Field f -> {
+                    if (included(f.directives(), path)) {
+                        merge(byKey, f);
+                    }
+                }
+                case Gql.FragmentSpread fs -> {
+                    if (!included(fs.directives(), path)) {
+                        continue;
+                    }
+                    Gql.Fragment fr = fragments.get(fs.name());
+                    if (fr == null) {
+                        throw GqlTranslationException.invalid(path, "no fragment named " + fs.name());
+                    }
+                    if (appliesTo(fr.typeCondition(), own)) {
+                        collectFor(fr.selectionSet(), own, path, byKey);
+                    }
+                }
+                case Gql.InlineFragment inl -> {
+                    if (included(inl.directives(), path)
+                            && (inl.typeCondition() == null || appliesTo(inl.typeCondition(), own))) {
+                        collectFor(inl.selectionSet(), own, path, byKey);
+                    }
+                }
+            }
+        }
+    }
+
+    private static boolean appliesTo(String condition, Composite own) {
+        return condition.equals(own.name()) || own.implementsList().contains(condition);
     }
 
     /** Whether the class {@code sub} is the class {@code sup} or below it: its type implements {@code sup}'s
@@ -601,7 +638,7 @@ public final class GqlToPure {
                 vs = clauses(vs, f.arguments(), type, path);
                 Level level = level(f.selectionSet(), type, path);
                 GraphFetchLiteral tree = new GraphFetchLiteral(r.classFqn(), nodesOf(level.fields(), type, path),
-                        subTypeEntries(level, path), null);
+                        subTypeEntries(f.selectionSet(), level, path), null);
                 yield call("serialize", call("graphFetch", vs, tree), tree);
             }
             case Meaning.AggregateRoot a -> aggregateRoot(f, fd, a.classFqn(), path);
@@ -1343,7 +1380,9 @@ public final class GqlToPure {
     private ValueSpecification asSubtype(String key, Value v, InputValueDef def, ValueSpecification subject,
             String path) {
         Gql.ObjectValue o = object(v, path);
-        if (o == null) {
+        if (o == null || o.fields().isEmpty()) {
+            // an empty object filters nothing, as `where: {}` and a to-one's `firm: {}` (the GraphQL hardening
+            // fuzzer, 2026-10-20: `asCardPayment: {}` was the membership test); membership is `isNot: null`
             return new CBoolean(true, null);
         }
         InputObjectType subWhere = inputType(GqlSchema.baseName(def.type()));
@@ -1791,10 +1830,6 @@ public final class GqlToPure {
 
     // ---- the tree ----
 
-    private List<Node> nodes(List<Selection> selections, Composite type, String path) {
-        return nodesOf(flatten(selections, type, path), type, path);
-    }
-
     private List<Node> nodesOf(List<Field> fields, Composite type, String path) {
         List<Node> out = new ArrayList<>();
         for (Field f : fields) {
@@ -1838,26 +1873,17 @@ public final class GqlToPure {
                     }
                 }
                 List<Node> children = List.of();
-                String view = null;
+                List<GraphFetchLiteral.SubTypeNode> entries = List.of();
                 if (!f.selectionSet().isEmpty()) {
                     Composite target = composite(fd);
                     Level level = level(f.selectionSet(), target, path);
-                    if (!level.subtypes().isEmpty()) {
-                        // the engine's tree has a subtype VIEW under a node (prop->subType(@Sub) { ... }), every
-                        // child read as the subtype's; a subtype's fields beside the type's own, or two
-                        // subtypes, wait on a nested subtype entry (PR3's not-done list)
-                        if (!level.fields().isEmpty() || level.subtypes().size() != 1) {
-                            throw GqlTranslationException.unsupported(path, "a fragment on a subtype under "
-                                    + f.name() + " beside other fields: a nested selection reads one subtype,"
-                                    + " alone (... on " + level.subtypes().keySet() + ")");
-                        }
-                        Map.Entry<String, List<Selection>> only = level.subtypes().entrySet().iterator().next();
-                        Composite sub = compositeNamed(only.getKey(), path);
-                        view = classFqnOf(sub, path);
-                        children = nodes(only.getValue(), sub, path);
-                    } else {
-                        children = nodesOf(level.fields(), target, path);
-                    }
+                    children = nodesOf(level.fields(), target, path);
+                    // the fragments on subtypes: the node's own subtype ENTRIES, as the root's (register S117) --
+                    // every element answered, each with the fields of the fragments its class satisfies (an
+                    // element of no fragment's class answers the type's own fields, `{}` when none is selected);
+                    // until 2026-10-20 a lone fragment spelled the engine's VIEW (prop->subType(@Sub)), which
+                    // keeps only Sub's elements, and fragments beside other fields were refused
+                    entries = subTypeEntries(f.selectionSet(), level, path);
                 }
                 if (clause) {
                     // the COMPOSED BODY (§6.2): the clauses over $this.<property>, keyed by the response key
@@ -1868,12 +1894,12 @@ public final class GqlToPure {
                     }
                     ValueSpecification body = clauses(new AppliedProperty(new Variable("this"), p.name()),
                             f.arguments(), composite(fd), path);
-                    yield new Node(p.name(), null, List.of(), key, null, children, body);
+                    yield new Node(p.name(), null, List.of(), key, null, children, body, entries);
                 }
                 // a derived leaf is keyed by its call spelling ("fullName()") unless aliased: the response
                 // key is the field's, so a derived property always carries it
-                yield new Node(p.name(), null, args, f.alias() == null && !p.derived() ? null : key, view,
-                        children);
+                yield new Node(p.name(), null, args, f.alias() == null && !p.derived() ? null : key, null,
+                        children, null, entries);
             }
             case Meaning.AggregateOf a -> aggregateNode(f, fd, a, type, key, path);
             case Meaning.GroupsOf g -> throw GqlTranslationException.unsupported(path, f.name()

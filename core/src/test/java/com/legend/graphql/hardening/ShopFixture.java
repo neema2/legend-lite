@@ -62,6 +62,12 @@ public final class ShopFixture {
     public record Tagging(String sku, int tag) {
     }
 
+    /** A payment of the hierarchy: {@code kind} is its class ({@code Payment}, {@code CardPayment},
+     *  {@code VoucherPayment}); {@code a} and {@code b} the subtype's own two columns (last4 and network, code and
+     *  expires), null for the base. */
+    public record Payment(String kind, int id, Integer order, double amount, LocalDateTime paidAt, Object a, Object b) {
+    }
+
     static LocalDate d(String s) {
         return LocalDate.parse(s);
     }
@@ -124,6 +130,21 @@ public final class ShopFixture {
             new Tagging("BK-1", 1), new Tagging("BK-1", 2), new Tagging("TY-1", 2), new Tagging("GD-1", 3),
             new Tagging("GD-2", 3), new Tagging("GD-2", 2));
 
+    /** The hierarchy's rows: base payments (one orphan), card payments (a null network, a lower-case network, a
+     *  shared last4), voucher payments (an apostrophe, `%` and `_` in a code, a null expiry); amounts tie at 0.0 and a
+     *  card and a voucher were paid at the same instant; order 7 has no payment, order 1 one of each kind. */
+    public static final List<Payment> PAYMENTS = List.of(
+            new Payment("Payment", 1, 1, 15.0, t("2024-01-10T12:00:00"), null, null),
+            new Payment("Payment", 2, 3, 0.0, null, null, null),
+            new Payment("Payment", 3, null, 5.5, t("2024-02-01T00:00:00"), null, null),
+            new Payment("CardPayment", 11, 1, 30.5, t("2024-01-10T12:05:00"), "4242", "VISA"),
+            new Payment("CardPayment", 12, 2, 10.0, null, "0005", null),
+            new Payment("CardPayment", 13, 4, 9.9, t("2024-03-05T10:00:00"), "4242", "AMEX"),
+            new Payment("CardPayment", 14, 6, 102.0, t("2023-12-31T23:59:59"), "1111", "visa"),
+            new Payment("VoucherPayment", 21, 1, 5.0, null, "GIFT-1", d("2024-12-31")),
+            new Payment("VoucherPayment", 22, 5, 100.0, t("2024-03-05T10:00:00"), "rush_50%", null),
+            new Payment("VoucherPayment", 23, 8, 0.0, null, "O'BRIEN", d("2024-01-01")));
+
     /** The tables and the rows, on a fresh connection. */
     public static void seed(Connection c) throws SQLException {
         try (Statement s = c.createStatement()) {
@@ -138,6 +159,12 @@ public final class ShopFixture {
                     + " PRICE DOUBLE PRECISION, WEIGHT DOUBLE PRECISION)");
             s.execute("CREATE TABLE TAG (ID INTEGER PRIMARY KEY, LABEL VARCHAR(50))");
             s.execute("CREATE TABLE PRODUCT_TAG (SKU VARCHAR(10), TAG_ID INTEGER)");
+            s.execute("CREATE TABLE PAYMENT (ID INTEGER PRIMARY KEY, ORDER_ID INTEGER, AMOUNT DOUBLE PRECISION,"
+                    + " PAID_AT TIMESTAMP)");
+            s.execute("CREATE TABLE CARD_PAYMENT (ID INTEGER PRIMARY KEY, ORDER_ID INTEGER, AMOUNT DOUBLE PRECISION,"
+                    + " PAID_AT TIMESTAMP, LAST4 VARCHAR(4), NETWORK VARCHAR(10))");
+            s.execute("CREATE TABLE VOUCHER_PAYMENT (ID INTEGER PRIMARY KEY, ORDER_ID INTEGER,"
+                    + " AMOUNT DOUBLE PRECISION, PAID_AT TIMESTAMP, CODE VARCHAR(20), EXPIRES DATE)");
         }
         for (Customer r : CUSTOMERS) {
             insert(c, "CUSTOMER", r.id(), r.name(), r.email(), r.tier(), r.vip(), r.joined(), r.lastSeen(), r.credit(),
@@ -157,6 +184,13 @@ public final class ShopFixture {
         }
         for (Tagging r : TAGGINGS) {
             insert(c, "PRODUCT_TAG", r.sku(), r.tag());
+        }
+        for (Payment r : PAYMENTS) {
+            switch (r.kind()) {
+                case "Payment" -> insert(c, "PAYMENT", r.id(), r.order(), r.amount(), r.paidAt());
+                case "CardPayment" -> insert(c, "CARD_PAYMENT", r.id(), r.order(), r.amount(), r.paidAt(), r.a(), r.b());
+                default -> insert(c, "VOUCHER_PAYMENT", r.id(), r.order(), r.amount(), r.paidAt(), r.a(), r.b());
+            }
         }
     }
 

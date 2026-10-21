@@ -77,6 +77,26 @@ public final class ShopReference {
             v.put("label", r.label());
             tags.put(r.id(), new Obj("Tag", v));
         }
+        List<Obj> payments = new ArrayList<>();
+        for (ShopFixture.Payment r : ShopFixture.PAYMENTS) {
+            Map<String, Object> v = new LinkedHashMap<>();
+            v.put("id", (long) r.id());
+            v.put("amount", r.amount());
+            v.put("paidAt", r.paidAt());
+            v.put("_order", r.order());
+            switch (r.kind()) {
+                case "CardPayment" -> {
+                    v.put("last4", r.a());
+                    v.put("network", r.b());
+                }
+                case "VoucherPayment" -> {
+                    v.put("code", r.a());
+                    v.put("expires", r.b());
+                }
+                default -> { }
+            }
+            payments.add(new Obj(r.kind(), v));
+        }
         List<Obj> cs = List.copyOf(customers.values());
         List<Obj> os = List.copyOf(orders.values());
         List<Obj> ls = List.copyOf(lines.values());
@@ -122,6 +142,8 @@ public final class ShopReference {
                 .toOne("customer", "Customer", o -> o.get("_customer") == null ? null
                         : customers.get((Integer) o.get("_customer")))
                 .toMany("lines", "Line", linesOf)
+                .toMany("payments", "Payment", o -> filter(payments, p -> p.get("_order") != null
+                        && ((Integer) p.get("_order")).longValue() == (long) o.get("id")))
                 .roots(() -> os);
         m.cls("Line")
                 .scalar("id", Kind.BIGINT).scalar("qty", Kind.BIGINT).scalar("unitPrice", Kind.FLOAT)
@@ -148,6 +170,18 @@ public final class ShopReference {
                     return out;
                 })
                 .roots(() -> ts);
+        m.cls("Payment")
+                .scalar("id", Kind.BIGINT).scalar("amount", Kind.FLOAT).scalar("paidAt", Kind.DATETIME)
+                .derived("large", Kind.BOOLEAN, p -> (double) p.get("amount") >= 50.0)
+                .toOne("order", "Order", p -> p.get("_order") == null ? null : orders.get((Integer) p.get("_order")))
+                .roots(() -> List.copyOf(payments));
+        m.cls("CardPayment", "Payment")
+                .scalar("last4", Kind.STRING).scalar("network", Kind.STRING)
+                .derived("masked", Kind.STRING, p -> "**** " + p.get("last4"))
+                .roots(() -> filter(payments, p -> p.type().equals("CardPayment")));
+        m.cls("VoucherPayment", "Payment")
+                .scalar("code", Kind.STRING).scalar("expires", Kind.DATE)
+                .roots(() -> filter(payments, p -> p.type().equals("VoucherPayment")));
         return m;
     }
 

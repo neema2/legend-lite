@@ -1206,6 +1206,9 @@ public final class Pipelines {
                             rewriteRowReads(c.source(), rowVar, prefixes, stripped, varRewrite),
                             c.target(), c.info(), c.wire());
             case TypedTypeRef ignored -> n;
+            // a class named as a value (`instanceOf($p, CardPayment)`: a subtype test re-pointed onto a nested
+            // scope's row, the GraphQL hardening fixture's hierarchy, 2026-10-20): a constant, no row read
+            case com.legend.compiler.spec.typed.TypedPackageableRef ignored -> n;
             // CORRELATED SCALAR SUBQUERY in condition position (the
             // parentNavCondReads emission: LIMIT-1 over project over
             // corr-filter): the correlation lambda reads THIS row var and
@@ -1322,6 +1325,8 @@ public final class Pipelines {
             case TypedCBoolean ignored -> n;
             case TypedCDate ignored -> n;
             case TypedEnumValue ignored -> n;
+            case TypedTypeRef ignored -> n;
+            case com.legend.compiler.spec.typed.TypedPackageableRef ignored -> n;
             default -> throw new IllegalStateException(
                     "resolver bug: association-leaf rewrite hit "
                             + n.getClass().getSimpleName()

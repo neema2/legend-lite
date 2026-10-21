@@ -663,25 +663,35 @@ public final class PureComposer {
     }
 
     private String subTrees(List<GraphFetchLiteral.Node> trees) {
-        if (trees.isEmpty()) {
+        return subTrees(trees, List.of());
+    }
+
+    /** A node's children, then its own subtype entries (lite's, register S117: the engine's text has them at the
+     *  root only, so this spelling is the explain's, never re-read). */
+    private String subTrees(List<GraphFetchLiteral.Node> trees, List<GraphFetchLiteral.SubTypeNode> entries) {
+        if (trees.isEmpty() && entries.isEmpty()) {
             return "";
         }
         String cr = pretty() ? returnChar() : "";
-        return "{" + cr + joinNodes(indented(tabs(1)), trees) + cr + indent(tabs(1)) + "}";
+        PureComposer inner = indented(tabs(1));
+        String nodes = joinNodes(inner, trees);
+        String subTypes = joinSubTypes(inner, entries);
+        return "{" + cr + nodes + (!nodes.isEmpty() && !subTypes.isEmpty() ? "," + cr : "") + subTypes + cr
+                + indent(tabs(1)) + "}";
     }
 
     private String propertyGraphFetchTree(GraphFetchLiteral.Node tree) {
         if (tree.body() != null) {
             // the composed body (lite, GraphQL PR2c): the alias, then the expression over $this
             return indent(tabs(1)) + convertString(java.util.Objects.requireNonNull(tree.alias()), false) + ":"
-                    + visit(tree.body()) + subTrees(tree.subTrees());
+                    + visit(tree.body()) + subTrees(tree.subTrees(), tree.subTypeTrees());
         }
         return indent(tabs(1))
                 + (tree.alias() != null ? convertString(tree.alias(), false) + ":" : "")
                 + tree.property()
                 + (tree.parameters().isEmpty() ? "" : "(" + joinVisit(tree.parameters(), ", ") + ")")
                 + (tree.subType() != null ? "->subType(@" + tree.subType() + ")" : "")
-                + subTrees(tree.subTrees());
+                + subTrees(tree.subTrees(), tree.subTypeTrees());
     }
 
     // ---------------------------------------------------------------------
