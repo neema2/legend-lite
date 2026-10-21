@@ -761,22 +761,11 @@ public final class Protocol {
                                          boolean root,
                                          @com.legend.base.Nullable String operation,
                                          List<String> parameters,
-                                         @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
-                                         /** where the extends id came from: written on the wire (JSON the engine reads
-                                          *  and writes back), or only in the text -- the engine's grammar drops an
-                                          *  operation's {@code extends}, lite's model keeps it, and the wire then
-                                          *  carries none */
-                                         boolean extendsOnWire)
+                                         @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
             implements PClassMapping {
-        /** As the grammar makes it: an extends id, if any, from the text alone. */
-        public PClassMappingOperation(String className,
-                @com.legend.base.Nullable com.legend.protocol.SourceInfo classSourceInformation,
-                @com.legend.base.Nullable String id, @com.legend.base.Nullable String extendsClassMappingId,
-                boolean root, @com.legend.base.Nullable String operation, List<String> parameters,
-                @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
-            this(className, classSourceInformation, id, extendsClassMappingId, root, operation, parameters,
-                    sourceInformation, false);
-        }
+        /* its extends id: the engine's grammar drops an operation's {@code extends} (its walker's TODO), so at the
+         * engine's dialect there is none; lite's dialect keeps it, and the engine's JSON carries it
+         * (extendsClassMappingId, which its compiler reads) -- docs/SEMANTICS_REGISTER.md S89, rule A */
     }
 
     /** {@code _type:"pureInstance"} class mapping (probe pure-m2m):

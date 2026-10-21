@@ -632,14 +632,18 @@ public final class ElementParser implements TokenStreamCursor {
 
         List<com.legend.protocol.Protocol.PSuperType> superClasses = new ArrayList<>();
         if (match(TokenType.EXTENDS)) {
-            int stTok = pos;
-            superClasses.add(new com.legend.protocol.Protocol.PSuperType(
-                    parseType(), spanOf(stTok, pos - 1)));
-            while (match(TokenType.COMMA)) {
-                int nTok = pos;
-                superClasses.add(new com.legend.protocol.Protocol.PSuperType(
-                        parseType(), spanOf(nTok, pos - 1)));
-            }
+            do {
+                int stTok = pos;
+                com.legend.protocol.TypeExpression st = parseType();
+                com.legend.protocol.SourceInfo span = spanOf(stTok, pos - 1);
+                if (dialect.refusesLiteExtensions()
+                        && st instanceof com.legend.protocol.TypeExpression.Generic g) {
+                    // a generic supertype (extends c::D<String>): the engine keeps its base path alone, the span the
+                    // whole expression's (ProbeWireShapes); lite's dialect keeps its arguments (S89, rule A)
+                    st = new com.legend.protocol.TypeExpression.NameRef(g.name(), span);
+                }
+                superClasses.add(new com.legend.protocol.Protocol.PSuperType(st, span));
+            } while (match(TokenType.COMMA));
         }
 
         List<ConstraintDefinition> constraints = peek() == TokenType.BRACKET_OPEN
@@ -1455,14 +1459,18 @@ public final class ElementParser implements TokenStreamCursor {
     }
 
     /** Parses one {@code function} declaration at the cursor into its protocol record —
-     *  the per-element protocol entry point (see {@link #at}). Constraint blocks are
-     *  CAPTURED (the wire carries pre/postConstraints; the emitter walls until probed). */
+     *  the per-element protocol entry point (see {@link #at}). A constraint block is parsed at every dialect and
+     *  kept at lite's; at the engine's it is dropped, as legend-engine's walker drops it ({@code visitFunction} reads
+     *  no constraints), so the engine's JSON lists none (docs/SEMANTICS_REGISTER.md S89, the user's rule A). */
     public com.legend.protocol.Protocol.PFunction parseFunctionProtocol() {
         FunctionSignature sig = parseFunctionSignature();
 
         List<ConstraintDefinition> constraints = peek() == TokenType.BRACKET_OPEN
                 ? parseConstraints()
                 : List.of();
+        if (dialect.refusesLiteExtensions()) {
+            constraints = List.of();
+        }
 
         expect(TokenType.BRACE_OPEN);
         int bodyStart = pos;

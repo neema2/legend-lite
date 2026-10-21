@@ -221,13 +221,14 @@ final class SpecIslandReader {
 
     /**
      * {@code {"_type":"keyExpression","add":false,"expression":v,"key":{"_type":"string","value":k}}};
-     * {@code add} is always false on the engine wire, and an absent expression is {@code package=::}
+     * {@code add} is false on the JSON the engine's parser writes (its walker never sets it) and true for {@code +=}
+     * at lite's dialect (S89), which the engine's compiler reads; an absent expression is {@code package=::}
      * (the root package, which the engine drops whole).
      */
     private static NewInstance.KeyBinding keyBinding(Json.Node node) {
         Wire k = Wire.of(node, "keyExpression");
         k.constant("_type", "keyExpression");
-        k.constant("add", false);
+        boolean add = k.bool("add");
         // older JSON: a [1] multiplicity the engine ignores, and the key written as a literal of any form
         Json.Node m = k.opt("multiplicity");
         if (m != null && !ProtocolReader.multiplicity(m).equals(new Multiplicity.Concrete(1, 1))) {
@@ -239,7 +240,7 @@ final class SpecIslandReader {
         }
         String name = key.value();
         ValueSpecification value = expr == null ? new PackageableElementPtr("::") : ProtocolReader.valueSpec(expr);
-        return k.done(new NewInstance.KeyBinding(name, new KeyExpression(value, false, false)));
+        return k.done(new NewInstance.KeyBinding(name, new KeyExpression(value, add, false)));
     }
 
     // ---------------------------------------------------------------------

@@ -447,10 +447,15 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 if (subs.size() > 1) {
                     // engine records NEITHER path when there is more than one
                     // pair (CorePureGrammarParser:504-516). The emitted keys
-                    // follow it exactly; `subs` keeps what engine throws away
-                    // so the MODEL does not lose the substitution.
+                    // follow it exactly; at lite's dialect `subs` keeps what the
+                    // engine throws away so the MODEL does not lose the
+                    // substitution, and at the engine's it keeps none, as the
+                    // engine (docs/SEMANTICS_REGISTER.md S89, rule A).
                     srcDb = null;
                     tgtDb = null;
+                    if (dialect.refusesLiteExtensions()) {
+                        subs = List.of();
+                    }
                 }
             }
             includes.add(new Protocol.PMappingInclude(inc, srcDb, tgtDb, subs,
@@ -546,11 +551,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         if (peek() == TokenType.VALID_STRING && "Operation".equals(text())) {
             advance();
             // The engine PARSES but DROPS extends on Operation mappings
-            // (OperationClassMappingParseTreeWalker TODO), so it is NOT
-            // emitted — see MappingEmitter's operation arm. legend-lite's
-            // model has always kept it, so it rides the protocol record
-            // WITHOUT going on the wire, exactly like a multi-pair include
-            // substitution. Byte parity untouched, capability kept.
+            // (OperationClassMappingParseTreeWalker TODO): at its dialect the
+            // record has none, so the JSON is the engine's; legend-lite's
+            // dialect has always kept it, and the engine's JSON carries it
+            // (extendsClassMappingId, compiled by the engine) -- S89, rule A.
             classMappings.add(parseOperationClassMapping(target, memberStart,
                     targetSpan, id, extendsId, root));
             return;
@@ -1640,8 +1644,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         match(TokenType.SEMI_COLON);                // trailing ';' legal
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
+        // the engine's walker drops an operation's extends (OperationClassMappingParseTreeWalker's TODO); lite's
+        // dialect keeps it (S89, rule A)
         return new Protocol.PClassMappingOperation(target, targetSpan, id,
-                extendsId, root, operation, params, spanOf(memberStart, close));
+                dialect.refusesLiteExtensions() ? null : extendsId, root, operation, params,
+                spanOf(memberStart, close));
     }
 
     /** A set-implementation id — bare NUMBERS are legal ids (probe
@@ -2651,7 +2658,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             skipBracketBlock();
             int close = pos - 1;
             List<com.legend.protocol.spec.ValueSpecification> vs =
-                    SpecParser.parseCodeBlock(
+                    SpecParser.parseInstanceData(
                             island.tokens().slice(lS, pos), spanSourceId(),
                             dialect);
             if (vs.size() != 1) {

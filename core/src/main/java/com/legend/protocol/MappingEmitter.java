@@ -169,7 +169,7 @@ final class MappingEmitter {
                     b.append(",\"classSourceInformation\":");
                     srcInfo(b, om.classSourceInformation());
                     // the grammar's extends is the text's alone: the engine's wire carries none
-                    extendsId(b, om.extendsOnWire() ? om.extendsClassMappingId() : null);
+                    extendsId(b, om.extendsClassMappingId());
                     if (om.id() != null) {
                         b.append(",\"id\":");
                         str(b, om.id());
@@ -619,6 +619,10 @@ final class MappingEmitter {
                 b.append('}');
                 return;
             }
+            // an include's store substitutions: the engine's JSON carries one pair (sourceDatabasePath,
+            // targetDatabasePath) and its parser keeps neither of several; lite's dialect keeps them all (S89)
+            ProtocolEmitter.placeless(inc.substitutions().size() <= 1,
+                    "an include's several store substitutions", inc.includedMapping());
             b.append("{\"_type\":\"mappingIncludeMapping\","
                     + "\"includedMapping\":");
             str(b, java.util.Objects.requireNonNull(inc.includedMapping()));

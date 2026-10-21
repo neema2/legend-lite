@@ -92,8 +92,8 @@ final class Overloads {
         return t.namedType(te);
     }
 
-    private static void markOperatorRun(boolean infix, List<TypedSpec> args) {
-        Typer.markOperatorRun(infix, args);
+    private static void markOperatorRun(String function, List<TypedSpec> args) {
+        Typer.markOperatorRun(function, args);
     }
 
     /**
@@ -470,7 +470,7 @@ final class Overloads {
         for (ValueSpecification p : af.parameters()) {
             args.add(synth(p, env));
         }
-        markOperatorRun(af.infix(), args);
+        markOperatorRun(af.function(), args);
         return checkGenericTyped(af, args, expected);
     }
 
@@ -584,7 +584,7 @@ final class Overloads {
         TypeInferenceException firstFailure = null;
         for (TypedFunction cand : ranked) {
             try {
-                Application built = bindDeferredAndBuild(cand, raw, typed.clone(), env, af.infix());
+                Application built = bindDeferredAndBuild(cand, raw, typed.clone(), env);
                 com.legend.builtin.DecisionProbe.retryAccept(af.function(), ranked.get(0).id().qualified(), cand.id().qualified(), ranked.indexOf(cand));
                 return built;
             } catch (SchemaInvariantException invariant) {
@@ -604,7 +604,7 @@ final class Overloads {
      *  {@link TypeInferenceException} when the candidate cannot host the
      *  deferred arguments — the caller's retry loop moves on. */
     private Application bindDeferredAndBuild(TypedFunction chosen,
-            List<ValueSpecification> raw, TypedSpec[] typed, Env env, boolean infix) {
+            List<ValueSpecification> raw, TypedSpec[] typed, Env env) {
         Bindings b = new Bindings();
         for (int i = 0; i < raw.size(); i++) {
             if (typed[i] != null) {
@@ -710,7 +710,7 @@ final class Overloads {
         ExprType out = kernel.resolveOutput(chosen.returnType(), chosen.returnMultiplicity(), b,
                 java.util.Arrays.stream(typed).map(TypedSpec::info).toList());
         List<TypedSpec> typedArgs = new ArrayList<>(List.of(typed));
-        markOperatorRun(infix, typedArgs);
+        markOperatorRun(chosen.qualifiedName(), typedArgs);
         return new Application(chosen, typedArgs, NumberKinds.refine(chosen, typedArgs,
                 refineImportDataFlow(chosen, raw, typed, env, refineDecimalCarrier(chosen, out))));
     }

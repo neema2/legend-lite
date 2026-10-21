@@ -139,9 +139,9 @@ final class ClassMappingReader {
     }
 
     private static Protocol.PClassMapping operation(Wire w) {
-        String extendsId = w.optStr("extendsClassMappingId");
         return new Protocol.PClassMappingOperation(w.str("class"), w.span("classSourceInformation"), w.optStr("id"),
-                extendsId, w.bool("root"), w.optStr("operation"), w.strings("parameters"), w.span(), extendsId != null);
+                w.optStr("extendsClassMappingId"), w.bool("root"), w.optStr("operation"), w.strings("parameters"),
+                w.span());
     }
 
     /** {@code merge_...([p1,p2], {lambda})}: operation MERGE and the typed lambda wrapped in a bare one. */

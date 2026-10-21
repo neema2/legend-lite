@@ -486,6 +486,17 @@ class LowerRelationDuckDbTest {
     }
 
     @Test
+    @DisplayName("an operator run is its shape: plus([a, b]) and [a, b]->plus() are a + b, as one call to the engine")
+    void anOperatorRunIsItsShape() throws SQLException {
+        // legend-engine's and legend-pure's parsers build `a + b` as plus([a, b]), and a model given as JSON carries no
+        // spelling, so the compiler reads none (leg 8, step 2): the written call and the arrow over a literal are the
+        // same run, the same SQL
+        String infix = sqlOf("#>{test::DB.T_PERSON}#->extend(~tag : r|$r.FIRM->toOne() + '!')");
+        assertEquals(infix, sqlOf("#>{test::DB.T_PERSON}#->extend(~tag : r|plus([$r.FIRM->toOne(), '!']))"));
+        assertEquals(infix, sqlOf("#>{test::DB.T_PERSON}#->extend(~tag : r|[$r.FIRM->toOne(), '!']->plus())"));
+    }
+
+    @Test
     @DisplayName("an operator run over a possibly-empty value is refused, as legend-engine and legend-pure refuse it")
     void operatorRunOverPossiblyEmptyIsRefused() {
         // plus([[]->first(), 1]): a literal of more than one value takes each element [1]

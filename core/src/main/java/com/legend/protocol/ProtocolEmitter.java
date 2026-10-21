@@ -1365,6 +1365,10 @@ public final class ProtocolEmitter {
             srcInfo(b, p.pos());
             b.append('}');
         }
+        // a function's constraints block: the engine's grammar reads it and its walker drops it, so the engine's
+        // JSON lists none; its compiler reads pre- and postConstraints, but which of lite's is which is legend-pure's
+        // rule, not yet lite's (S89: refused by name, never dropped)
+        placeless(f.preConstraints().isEmpty(), "a function's constraints", f.qualifiedName());
         b.append("],\"postConstraints\":[],\"preConstraints\":[],\"returnGenericType\":");
         genericType(b, f.returnType());
         b.append(",\"returnMultiplicity\":");
@@ -1773,12 +1777,19 @@ public final class ProtocolEmitter {
      * <p>Verified via {@code ProbeWireShapes}: for a GENERIC supertype
      * ({@code extends c::D<String>}) the engine emits only the base path — the type
      * arguments are dropped from the wire — while the span still covers the whole
-     * expression. Deliberate parity, not a shortcut.
+     * expression. At the engine's dialect the parser keeps the base alone; lite's keeps the arguments, refused here
+     * by name (S89).
      */
     private static void superType(StringBuilder b, Protocol.PSuperType st) {
         String path = switch (st.type()) {
             case com.legend.protocol.TypeExpression.NameRef n -> n.name();
-            case com.legend.protocol.TypeExpression.Generic g -> g.name();
+            case com.legend.protocol.TypeExpression.Generic g -> {
+                // at the engine's dialect the parser keeps the base path alone (S89, rule A); lite's dialect keeps
+                // the arguments, which a supertype's pointer has no field for
+                placeless(g.arguments().isEmpty() && g.multiplicityArguments().isEmpty()
+                        && g.typeVariableValues().isEmpty(), "a supertype's type arguments", g.name());
+                yield g.name();
+            }
             default -> throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for a supertype of shape "
                             + st.type().getClass().getSimpleName() + " — add the emit rule.");
@@ -2760,44 +2771,19 @@ public final class ProtocolEmitter {
                 b.append("}}");
                 continue;
             }
-            // add is ALWAYS false on the engine wire: DomainParseTreeWalker
-            // never sets KeyExpression.add, even for `+=` (the lite AST keeps
-            // isAdd semantically; the wire conforms by emission).
+            // the binding as the dialect read it (docs/SEMANTICS_REGISTER.md S89, the user's rule A, 2026-10-21): at
+            // the engine's dialect the parser read it as the engine's walker does -- the FIRST expression of an
+            // unparenthesised chain (ProbeWireShapes "burn zoo 2" keyChain: s='a'+'b'+$v binds 'a'), the first key,
+            // `add` never set -- so this is the engine's JSON byte for byte; at lite's dialect it is what was written,
+            // and a whole chain and `+=` have their place in the engine's JSON (KeyExpression's expression and add,
+            // both compiled by the engine). A dotted key has none: the engine keys addr.city = .. as addr.
+            placeless(kb.key().indexOf('.') < 0 || kb.key().startsWith("'"),
+                    "a dotted key (the engine keys addr.city = .. by addr)", kb.key());
             b.append("{\"_type\":\"keyExpression\",\"add\":")
-                    .append(false).append(",\"expression\":");
-            // ENGINE DATA-LOSS BUG, reproduced for byte parity (ProbeWireShapes "burn
-            // zoo 2" keyChain; harness DIFF on ruleBasedTransformation for the boolean
-            // flavor): a key expression keeps only the FIRST ATOM of an unparenthesised
-            // infix chain — s='a'+'b'+$v emits just 'a', h=$a||$b emits just $a.
-            com.legend.protocol.spec.ValueSpecification kv = kb.expression().value();
-            // Two spellings of an infix chain: pairwise params (divide, comparisons,
-            // equal/and/or) strip to the first parameter; the n-ary collection carrier
-            // (plus/minus/times — parser-shaped like the engine) strips to the first
-            // collection element.
-            // OPERATOR-SPELLED chains only (the parser's infix marker): a
-            // prefix call that merely NAMES an operator — plus(1,2),
-            // (1)->plus(2) — keeps its full wire (deep-audit 1a: the old
-            // name-set test truncated those too, deleting the call).
-            while (kv instanceof com.legend.protocol.spec.AppliedFunction chain
-                    && chain.infix()
-                    && !chain.grouped()) {
-                if (chain.parameters().size() == 2) {
-                    kv = chain.parameters().get(0);
-                } else if (chain.parameters().size() == 1
-                        && chain.parameters().get(0)
-                                instanceof com.legend.protocol.spec.PureCollection run
-                        && run.values().size() >= 2) {
-                    kv = run.values().get(0);
-                } else {
-                    break;
-                }
-            }
-            valueSpec(b, kv);
+                    .append(kb.expression().isAdd()).append(",\"expression\":");
+            valueSpec(b, kb.expression().value());
             b.append(",\"key\":{\"_type\":\"string\",\"value\":");
-            // the KEY keeps only its first atom too — propToA.prop = ... emits "propToA"
-            // (same engine truncation family; inline-snippet corpus TestNewInstance)
-            int dot = kb.key().indexOf('.');
-            str(b, dot < 0 ? kb.key() : kb.key().substring(0, dot));
+            str(b, kb.key());
             b.append("}}");
         }
         b.append("]}]");
@@ -3540,6 +3526,18 @@ public final class ProtocolEmitter {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for " + what + " (at " + where
                             + "). Add the emit rule — do not drop it.");
+        }
+    }
+
+    /**
+     * Text lite's dialect keeps that legend-engine's parser drops and its JSON cannot carry as written
+     * (docs/SEMANTICS_REGISTER.md S89, the user's rule A, 2026-10-21): at the engine's dialect the records never hold
+     * it, so the JSON is the engine's; written from lite's dialect it is refused by name, never dropped.
+     */
+    static void placeless(boolean absent, String what, String where) {
+        if (!absent) {
+            throw new UnsupportedOperationException(what + " is not written as legend-engine's JSON (at " + where
+                    + "): its parser drops it, and lite's dialect keeps it rather than drop it here");
         }
     }
 
