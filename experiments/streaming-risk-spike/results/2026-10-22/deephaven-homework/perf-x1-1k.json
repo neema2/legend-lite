@@ -1,0 +1,70 @@
+{
+  "rate": 1000,
+  "scale": 1,
+  "cycleMs": 100,
+  "viewers": 0,
+  "viewerMode": null,
+  "positions": 19201,
+  "instruments": 2001,
+  "serverStartSeconds": 3.8,
+  "loadSeconds": 0.5,
+  "batchesPerSecond": 10.0,
+  "engineCpuCores": 0.83,
+  "serverRssMB": 793,
+  "tickToSubscriberMillis": {
+    "p50": 78.3,
+    "p95": 109.0,
+    "p99": 114.6,
+    "n": 296
+  },
+  "drainMillis": 87,
+  "groupingFirstRowsMillis": [
+    133.4,
+    99.9,
+    75.8,
+    56.9,
+    7.8,
+    8.3,
+    17.1,
+    10.7,
+    26.3,
+    15.5,
+    7.3,
+    8.4,
+    6.1,
+    5.2,
+    248.1,
+    11.6
+  ],
+  "viewerFirstRowsMillis": [],
+  "clientErrors": 1,
+  "riskRows": {
+    "rows": 19274,
+    "expected": 19274,
+    "stalePrice": 0,
+    "staleFx": 0,
+    "missing": 0,
+    "extra": 0
+  },
+  "correct": false,
+  "badGroupings": {
+    "14": {
+      "subscriber": [
+        0,
+        2364,
+        0
+      ],
+      "snapshot": [
+        0,
+        2364,
+        0
+      ],
+      "clientErrors": [
+        {
+          "at": 1792640221.2461586,
+          "error": "RuntimeError('Chunks have inconsistent sizes: 293 vs 0: std::optional<deephaven::dhcore::ticking::TickingUpdate> deephaven::dhcore::ticking::internal::{anonymous}::AwaitingAdds::ProcessNextChunk(deephaven::dhcore::ticking::internal::BarrageProcessorImpl*, const std::vector<std::shared_ptr<deephaven:"
+        }
+      ]
+    }
+  }
+}

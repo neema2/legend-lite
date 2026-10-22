@@ -1,0 +1,51 @@
+{
+  "rate": 10000,
+  "scale": 1,
+  "cycleMs": 100,
+  "viewers": 0,
+  "viewerMode": null,
+  "positions": 19201,
+  "instruments": 2001,
+  "serverStartSeconds": 3.8,
+  "loadSeconds": 0.5,
+  "batchesPerSecond": 10.0,
+  "engineCpuCores": 1.31,
+  "serverRssMB": 968,
+  "tickToSubscriberMillis": {
+    "p50": 83.5,
+    "p95": 113.6,
+    "p99": 132.9,
+    "n": 298
+  },
+  "drainMillis": 71,
+  "groupingFirstRowsMillis": [
+    106.5,
+    39.1,
+    15.6,
+    12.0,
+    10.0,
+    8.0,
+    23.0,
+    14.2,
+    15.6,
+    14.4,
+    17.8,
+    8.1,
+    19.5,
+    11.6,
+    272.5,
+    17.1
+  ],
+  "viewerFirstRowsMillis": [],
+  "clientErrors": 1,
+  "riskRows": {
+    "rows": 19256,
+    "expected": 19256,
+    "stalePrice": 0,
+    "staleFx": 0,
+    "missing": 0,
+    "extra": 0
+  },
+  "correct": true,
+  "badGroupings": {}
+}

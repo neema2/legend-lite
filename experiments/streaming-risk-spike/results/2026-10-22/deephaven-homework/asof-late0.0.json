@@ -1,0 +1,24 @@
+{
+  "seconds": 30,
+  "trades": 6000,
+  "quotes": 30200,
+  "lateShare": 0.0,
+  "firstRowsMillis": 2064.8,
+  "clientErrors": [],
+  "subscriber": {
+    "rows": 200,
+    "mismatches": 0,
+    "extraRows": 0,
+    "maxRelativeError": 0.0,
+    "examples": [],
+    "ok": true
+  },
+  "snapshot": {
+    "rows": 200,
+    "mismatches": 0,
+    "extraRows": 0,
+    "maxRelativeError": 0.0,
+    "examples": [],
+    "ok": true
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "kill": "hard",
+  "batchesSent": 400,
+  "restart": {
+    "stopSeconds": 0.1,
+    "startSeconds": 3.5,
+    "reloadSeconds": 2.8,
+    "insertsRefusedSeconds": [
+      6.4
+    ],
+    "firstGroupingRowsAfterReloadMillis": 139,
+    "tickToSubscriberAfter": {
+      "p50": 55.7,
+      "p95": 108.0,
+      "n": 182
+    }
+  },
+  "tickToSubscriberBefore": {
+    "p50": 68.9,
+    "p95": 111.5
+  },
+  "checks": {
+    "desk": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 9.48556086757772e-15,
+      "examples": [],
+      "ok": true
+    },
+    "desk_trader": {
+      "rows": 13,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.336295182769002e-14,
+      "examples": [],
+      "ok": true
+    },
+    "book": {
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.2421642727834253e-15,
+      "examples": [],
+      "ok": true
+    },
+    "ccy": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.2469360244327633e-15,
+      "examples": [],
+      "ok": true
+    },
+    "sector": {
+      "rows": 11,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.6880313245595817e-14,
+      "examples": [],
+      "ok": true
+    },
+    "resubscribed_desk": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 9.48556086757772e-15,
+      "examples": [],
+      "ok": true
+    },
+    "riskRows": {
+      "expected": 19278,
+      "got": 19278
+    }
+  },
+  "allCorrect": true
+}

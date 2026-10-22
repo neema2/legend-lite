@@ -1,0 +1,412 @@
+{
+  "seconds": 30,
+  "shapes": {
+    "native:avg_by_desk": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 298,
+      "firstRowsMillis": 84.9,
+      "clientErrors": [],
+      "columns": [
+        "desk",
+        "v"
+      ],
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.0014848757190129e-14,
+      "examples": [],
+      "ok": true
+    },
+    "sql:avg_by_desk": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 298,
+      "firstRowsMillis": 20.2,
+      "clientErrors": [],
+      "columns": [
+        "desk",
+        "v"
+      ],
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.0014848757190129e-14,
+      "examples": [],
+      "ok": true
+    },
+    "native:ratio_measure_by_desk": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 298,
+      "firstRowsMillis": 69.8,
+      "clientErrors": [],
+      "columns": [
+        "desk",
+        "b",
+        "m",
+        "v"
+      ],
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.188656893013352e-14,
+      "examples": [],
+      "ok": true
+    },
+    "sql:ratio_measure_by_desk": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 298,
+      "firstRowsMillis": 11.0,
+      "clientErrors": [],
+      "columns": [
+        "desk",
+        "v"
+      ],
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.188656893013352e-14,
+      "examples": [],
+      "ok": true
+    },
+    "native:count_distinct_by_desk": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 4,
+      "firstRowsMillis": 15.3,
+      "clientErrors": [],
+      "columns": [
+        "desk",
+        "v"
+      ],
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "sql:count_distinct_by_desk": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 4,
+      "firstRowsMillis": 11.0,
+      "clientErrors": [],
+      "columns": [
+        "desk",
+        "v"
+      ],
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "native:max_qty_by_book": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 12,
+      "firstRowsMillis": 15.7,
+      "clientErrors": [],
+      "columns": [
+        "book",
+        "v"
+      ],
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "sql:max_qty_by_book": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 12,
+      "firstRowsMillis": 14.6,
+      "clientErrors": [],
+      "columns": [
+        "book",
+        "v"
+      ],
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "native:min_pnl_by_sector": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 297,
+      "firstRowsMillis": 9.2,
+      "clientErrors": [],
+      "columns": [
+        "sector",
+        "v"
+      ],
+      "rows": 11,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "sql:min_pnl_by_sector": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 297,
+      "firstRowsMillis": 8.3,
+      "clientErrors": [],
+      "columns": [
+        "sector",
+        "v"
+      ],
+      "rows": 11,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "native:in_filter": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 298,
+      "firstRowsMillis": 9.5,
+      "clientErrors": [],
+      "columns": [
+        "desk",
+        "trader",
+        "v"
+      ],
+      "rows": 6,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 4.790861089395261e-15,
+      "examples": [],
+      "ok": true
+    },
+    "sql:in_filter": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 298,
+      "firstRowsMillis": 7.3,
+      "clientErrors": [],
+      "columns": [
+        "desk",
+        "trader",
+        "v"
+      ],
+      "rows": 6,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 4.790861089395261e-15,
+      "examples": [],
+      "ok": true
+    },
+    "native:calculated_columns": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 298,
+      "firstRowsMillis": 10.3,
+      "clientErrors": [],
+      "columns": [
+        "desk",
+        "v",
+        "w"
+      ],
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.4043768833242623e-15,
+      "examples": [],
+      "ok": true
+    },
+    "sql:calculated_columns": {
+      "error": "RuntimeError: java.lang.UnsupportedOperationException: Unsupported operator CASE"
+    },
+    "native:pivot_by_ccy": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 298,
+      "firstRowsMillis": 17.5,
+      "clientErrors": [],
+      "columns": [
+        "desk",
+        "p_usd",
+        "p_eur",
+        "p_gbp",
+        "p_jpy",
+        "p_chf"
+      ],
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.2862425582829416e-14,
+      "examples": [],
+      "ok": true
+    },
+    "sql:pivot_by_ccy": {
+      "error": "RuntimeError: java.lang.UnsupportedOperationException: Unsupported operator CASE"
+    },
+    "native:having": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 297,
+      "firstRowsMillis": 12.4,
+      "clientErrors": [],
+      "columns": [
+        "book",
+        "v"
+      ],
+      "rows": 20,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 8.839153917053232e-15,
+      "examples": [],
+      "ok": true
+    },
+    "sql:having": {
+      "error": "RuntimeError: java.lang.IllegalStateException"
+    },
+    "native:stddev_by_desk": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 298,
+      "firstRowsMillis": 10.9,
+      "clientErrors": [],
+      "columns": [
+        "desk",
+        "v"
+      ],
+      "rows": 4,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 8.731747018662453e-16,
+      "examples": [],
+      "ok": true
+    },
+    "sql:stddev_by_desk": {
+      "error": "RuntimeError: java.lang.UnsupportedOperationException: Unsupported aggregation STDDEV_SAMP"
+    },
+    "native:median_by_desk": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 295,
+      "firstRowsMillis": 6.5,
+      "clientErrors": [],
+      "columns": [
+        "desk",
+        "v"
+      ],
+      "rows": 4,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "sql:median_by_desk": {
+      "error": "RuntimeError: org.apache.calcite.runtime.CalciteContextException: From line 1, column 14 to line 1, column 28: No match found for function signature MEDIAN(<NUMERIC>)"
+    },
+    "native:top10_by_abs_pnl": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 202,
+      "firstRowsMillis": 11.2,
+      "clientErrors": [],
+      "columns": [
+        "instrument",
+        "v",
+        "a"
+      ],
+      "rows": 10,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.721576165448813e-16,
+      "examples": [],
+      "ok": true
+    },
+    "sql:top10_by_abs_pnl": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 202,
+      "firstRowsMillis": 23.5,
+      "clientErrors": [],
+      "columns": [
+        "instrument",
+        "v",
+        "EXPR$2"
+      ],
+      "rows": 10,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.721576165448813e-16,
+      "examples": [],
+      "ok": true
+    },
+    "native:rank_window": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 297,
+      "firstRowsMillis": 11.3,
+      "clientErrors": [],
+      "columns": [
+        "book",
+        "v",
+        "one",
+        "rk"
+      ],
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 6.262178372394512e-14,
+      "examples": [],
+      "ok": true
+    },
+    "sql:rank_window": {
+      "error": "RuntimeError: io.deephaven.sql.UnsupportedSqlOperation: io.deephaven.sql.RexNodeExpressionAdapterImpl: org.apache.calcite.rex.RexOver RANK() OVER (ORDER BY $1 DESC NULLS LAST)"
+    },
+    "native:detail_rows": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 297,
+      "firstRowsMillis": 31.3,
+      "clientErrors": [],
+      "columns": [
+        "book",
+        "instrument",
+        "v"
+      ],
+      "rows": 4812,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "sql:detail_rows": {
+      "error": null,
+      "refreshing": true,
+      "updatesDuringFeed": 297,
+      "firstRowsMillis": 20.8,
+      "clientErrors": [],
+      "columns": [
+        "book",
+        "instrument",
+        "v"
+      ],
+      "rows": 4812,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    }
+  }
+}

@@ -4,7 +4,7 @@
   "quotes": 30200,
   "lateShare": 0.05,
   "keepVersions": 100,
-  "firstRowsMillis": 2105.1,
+  "firstRowsMillis": 2104.0,
   "error": null,
   "check": {
     "rows": 200,
@@ -14,27 +14,27 @@
     "examples": [
       {
         "key": [
-          "A094"
+          "A046"
         ],
         "column": "avg_slip",
-        "expected": -0.015216666666665902,
-        "got": -0.01594666666666645
+        "expected": 0.019338888888886647,
+        "got": 0.019177777777775715
       },
       {
         "key": [
-          "A104"
+          "A065"
         ],
         "column": "avg_slip",
-        "expected": -0.007253124999999194,
-        "got": -0.00819062499999923
+        "expected": -0.0009500000000002729,
+        "got": -0.0011533333333337244
       },
       {
         "key": [
-          "A004"
+          "A139"
         ],
         "column": "avg_slip",
-        "expected": -0.004024137931035272,
-        "got": 0.0009137931034477387
+        "expected": -0.012670588235295517,
+        "got": -0.014676470588236826
       }
     ],
     "ok": false

@@ -20,7 +20,10 @@ They differ in what a legend-lite target would have to carry:
   correct only when the target plans for it: a leaf-cube plan ran 16 live groupings over 96,000
   positions on 0.73 cores, while the obvious plans fail without an error.
 - **Deephaven** does it on under a core with live ad-hoc queries, but carries the license and
-  patent questions in `../deephaven-spike/README.md` and the review of 2026-10-21.
+  patent questions in `../deephaven-spike/README.md` and the review of 2026-10-21. The same
+  homework (below) found it right on every test as written, to 20 times the book, where Proton
+  needed a plan for each; its own questions are reload on restart, a Python client bug, and the
+  license.
 
 ## The scenario (`scenario.py`, `views.py`)
 
@@ -133,7 +136,8 @@ one key, and each retraction searches them; Deephaven and Feldera ran the first 
   user-shaped query can fall off a performance cliff the compiler did not foresee. The homework
   below lists what that target owns; each item has a tested answer, and the risk left is that
   Proton's failures are silent.
-- **Deephaven fits both** (ad hoc and cheap) but has the license and patent questions.
+- **Deephaven fits both** (ad hoc and cheap) but has the license and patent questions. The
+  homework of 2026-10-22 adds that it was right on every test without planning around it.
 
 ## Follow-up: every grouping compiled up front, run only when asked
 
@@ -341,7 +345,8 @@ slippage averaged per instrument live, against DuckDB's `ASOF JOIN` over the sam
 | in order | 200 of 200, exactly (6,000 trades) |
 | 5% of quotes 500 ms late (event time unchanged) | 47 of 200 |
 
-A streaming as-of join matches each trade against the quotes present when the trade arrives and
+(Every quote has a unique time, so the oracle needs no tie-break; a first version shared one
+millisecond per batch and gave the same 47.) A streaming as-of join matches each trade against the quotes present when the trade arrives and
 never revisits it (`ASOF` and `LATEST` joins emit append rows, not a changelog): a late quote is
 never matched. Event-time correctness needs the feed in order per instrument, or a reorder buffer
 the target owns.
@@ -537,9 +542,143 @@ the container restarts. After the feed, everything against DuckDB.
 
 That is a real compiler target, and every item has a tested answer here. What it cannot fix from
 outside is the class of failure: five times Proton gave a wrong answer without an error, and once
-stale data looked fresh. These are
-also tests Deephaven and Feldera have not been put through here (deletes, restarts, as-of joins, 5
-times the book); choosing either needs the same homework.
+stale data looked fresh. Deephaven has been put through the same tests: next section. Feldera has
+not.
+
+## Deephaven homework (2026-10-22, `dh_*.py`, `results/2026-10-22/deephaven-homework/`)
+
+The Proton homework's questions put to Deephaven Community 42.7, with the same scenario, feed,
+probe and DuckDB oracle (`dh_lab.py` is the harness; the server is `dh_server.py`, one process per
+test, started by the test). The join is the obvious one, written as `views.position_risk` writes
+it: positions natural-joined to instruments, books, prices, FX and closes, FX applied per
+position. Nothing was planned around Deephaven.
+
+**The verdict.** Everything Proton needed a plan for, Deephaven did as written, and every result
+was right. Its open questions are elsewhere: it keeps nothing across a restart (the target reloads
+from the sources of record, which took 3 to 7 s here), its SQL front end is too narrow to be the
+target's language (the target sends table operations instead), its Python ticking client has a
+bug, and its license (`../deephaven-spike/README.md`).
+
+| | Proton 3.0.31 | Deephaven 42.7 |
+|---|---|---|
+| positions closed, books moved, instruments corrected (`*_correctness.py`) | right only with a `changelog_kv` derived stream and a feed sending -old/+new; a `versioned_kv` one keeps closed positions | right, as written: a close is a delete of the key |
+| as-of join, 5% of quotes 500 ms late (`*_asof.py`) | 47 of 200 instruments right: a trade is never matched again | 200 of 200 right: trades are matched again when a late quote lands |
+| DataCube's 14 query shapes live (`proton_shapes.py`, `dh_shapes.py`) | 10 right as written, 2 more through rewrites (standard deviation as sums, top-N as `max_k`); median and window rank refused; a nested aggregation over a join silently 16 times too large | 14 of 14 right as table operations, median, standard deviation, a live top 10 and a rank included |
+| 16 groupings, today's book, 1,000 / 20,000 ticks a second | 1.01 / 2.08 cores, probe p50 31 / 57 ms | 0.83 / 1.45 cores, probe p50 78 / 89 ms |
+| the book x5 (96,000 positions), FX applied per position | 380 s behind a 30 s feed, then a third of the rows stale for good | 1.30 cores, 67 / 111 ms, every row right |
+| the book x5, Proton's leaf-cube plan (FX after aggregation) | 0.73 cores, 249 / 275 ms, right | (not needed) |
+| the book x10 / x20 (192,000 / 384,000 positions) | (not run: x5 already failed) | 1.73 / 2.80 cores, every row right |
+| 50 more viewers of the desk grouping | +0.15 cores (one materialized grouping), +0.44 (50 queries) | +0 (50 identical aggregations are one table) |
+| restart in the middle of the feed | graceful: clean; SIGKILL: every derived stream wrong until rebuilt (2.4 s) | either: empty; rebuilt and reloaded in 2.8 s, then right |
+| what it needs on disk | its own disk settings; log and store bounded | none (memory only: 0.6 to 1.5 GB resident here) |
+| license | Apache-2.0 | Deephaven Community License (`../deephaven-spike/README.md`) |
+
+### Correctness (`dh_correctness.py`, `dh_asof.py`)
+
+- **Reference changes and deletes:** proton_correctness.py's feed (a book moved, a multiplier
+  corrected tenfold, an instrument re-currencied, 50 positions closed) at 1,000 ticks a second for
+  40 s. All five groupings right, to 7e-14, both the subscriber's state and a server snapshot; the
+  risk table held exactly the 19,230 live positions. Positions are a keyed input table: an update
+  is an upsert, a close a `delete` of the key. The feed needs no old row.
+- **As-of join:** trades and quotes as append-only input tables, `trades.aj(quotes, on=["instrument",
+  "tts >= qts"])`, slippage averaged live per instrument. In order: 200 of 200 instruments right. With
+  5% of quotes 500 ms late: 200 of 200 right; Proton, the same test, 47. (Both tests give every
+  quote a unique time; with millisecond times shared within a batch, the oracle's tie-break, not
+  the engine, decided some rows.)
+
+### The query shapes (`dh_shapes.py`)
+
+Each shape two ways over the per-position risk table while the feed ran 30 s, then against
+DuckDB: as table operations (what a legend-lite plan would send), and as the ANSI SQL DuckDB ran,
+through Deephaven's SQL (`deephaven.experimental.sql.evaluate`, Calcite-based).
+
+| shape | table operations | SQL |
+|---|---|---|
+| avg; sum/sum ratio; count distinct; max; min; IN filter; top 10 by \|P&L\| (`ORDER BY ... LIMIT 10`); detail rows | right, live | right, live |
+| calculated columns and the currency pivot (conditional sums) | right, live (`update_view` with a ternary, then sums) | refused: `Unsupported operator CASE` |
+| HAVING | right, live (aggregate, then `where`) | refused: `IllegalStateException` |
+| standard deviation | right, live (`agg.std`) | refused: `Unsupported aggregation STDDEV_SAMP` |
+| median | right, live (`agg.median`) | refused: no function `MEDIAN` |
+| rank (`RANK() OVER (ORDER BY v DESC)`) | right, live (sort, then `update_by(cum_sum)`) | refused: window functions unsupported |
+
+First rows in 7 to 85 ms. A live top 10 is a sorted table's head, so it stays right as instruments
+move in and out of it. The SQL front end refuses loudly what it cannot do, but 8 of 14 shapes is
+too few for legend-lite to target it: a Deephaven target sends table operations (the plan route
+of `../deephaven-spike`), not SQL.
+
+### Performance and scale (`dh_perf.py`)
+
+The 16 groupings of dynamic_groupings_spec.py over the per-position risk table, each subscribed, 30 s
+per row; afterwards every grouping (subscriber and snapshot) against DuckDB, and every row of the
+risk table against the final inputs (stale price, stale FX rate, missing or extra position).
+"Ticks" as in Proton's table. Memory is the server process's resident set.
+
+| variant | positions | CPU | memory | probe p50 / p95 | last batch reached the desk grouping in | right |
+|---|---|---|---|---|---|---|
+| 1,000 ticks/s | 19,201 | 0.83 cores | 0.79 GB | 78 / 109 ms | 87 ms | yes |
+| 5,000 ticks/s | 19,201 | 1.15 cores | 0.81 GB | 63 / 118 ms | 0 ms | yes |
+| 10,000 ticks/s | 19,201 | 1.31 cores | 0.97 GB | 84 / 114 ms | 71 ms | yes |
+| 20,000 ticks/s | 19,201 | 1.45 cores | 0.78 GB | 89 / 124 ms | 20 ms | yes |
+| book x5, 1,000 ticks/s | 96,001 | 1.30 cores | 0.83 GB | 67 / 111 ms | 10 ms | yes |
+| book x5, 5,000 ticks/s | 96,001 | 1.54 cores | 0.90 GB | 76 / 116 ms | 65 ms | yes |
+| book x10, 1,000 ticks/s | 192,001 | 1.73 cores | 1.15 GB | 64 / 104 ms | 61 ms | yes |
+| book x20, 1,000 ticks/s | 384,001 | 2.80 cores | 1.50 GB | 61 / 111 ms (195 updates seen, of about 295) | 0 ms | yes |
+| update cycle 1 s instead of 100 ms | 19,201 | 0.77 cores | 0.74 GB | (1 s cycle) | 751 ms | yes |
+| + 50 viewers, each its own desk aggregation | 19,201 | 0.79 cores | 0.77 GB | 68 / 113 ms | 0 ms | yes; first rows 10 to 23 ms |
+| + 50 viewers subscribed to the one desk grouping | 19,201 | 0.78 cores | 0.77 GB | 71 / 114 ms | 0 ms | yes; first rows 85 to 122 ms |
+
+- **The per-position FX fan-out that broke Proton at x5 is routine here**: 20 times today's book, a
+  fifth of it re-priced 5 times a second, every row right, the probe within the 100 ms cycle. At x20
+  the probe saw fewer distinct updates than batches sent: some cycles took longer than 100 ms and
+  merged batches, the first sign of the limit, still without falling behind.
+- **The probe means what it says.** Deephaven computes each update cycle over all inputs at once, so
+  a probe's latency is the whole view's latency (Proton's was one path's).
+- **Viewers are free.** 50 identical desk aggregations of one table are one table (Deephaven reuses
+  an operation it has already built on the same parent), and 50 subscriptions to one table cost
+  nothing measurable.
+- **Its Python ticking client has a bug.** In 6 of these 11 runs a subscription failed with "Chunks
+  have inconsistent sizes" (pydeephaven-ticking 42.7, the C++ core under it), where recorded on the
+  largest grouping (2,364 rows), and each time with the server's table right; the harness
+  resubscribes and counts it. The browser client (`../deephaven-spike`) showed no such error, but a
+  Python consumer of legend-lite would need the fix or a workaround.
+
+### Operations (`dh_ops.py`)
+
+Deephaven Community keeps its tables in memory only: a restarted server is empty. The feed (1,000
+ticks a second) holds each batch and retries it; 15 s in, the server process is stopped and
+started again, and the target does what it would have to: create the inputs and view again, load
+the current state from the sources of record (here the feed's last state), subscribe again.
+
+| restart | stop | start | rebuild and reload | inserts refused | after it |
+|---|---|---|---|---|---|
+| graceful (SIGTERM) | 10.2 s | 3.2 s | 2.8 s | 16.4 s | right: five groupings, the resubscribed desk grouping (first rows 72 ms after the reload), the risk table's 19,278 rows |
+| hard (SIGKILL) | 0.1 s | 3.5 s | 2.8 s | 6.4 s | right (first rows 139 ms after the reload) |
+
+- A restart loses nothing that matters only if the sources of record can be read again: positions
+  from their system, the last price and rate per instrument from the market-data cache. For an
+  append-only input (the as-of test's quote history) that means replaying it, from Kafka or a log.
+  That is the target's job, and it is the same job whether the stop was clean or not. Proton keeps
+  its inputs across a restart, which Deephaven does not, but after a SIGKILL its derived streams had
+  to be rebuilt anyway.
+- The first server start in a fresh container took 18 s; later ones 3 to 4 s.
+- Memory: 640 MB 10 s into the feed, 701 MB after 4 minutes at 1,000 ticks a second, the result still
+  right. Four minutes does not tell a leak from a heap still warming up.
+
+### What it means
+
+On every question the Proton homework asked, Deephaven gave the right answer without a plan around
+it. It used less CPU than Proton's per-position join at every rate; Proton's leaf-cube plan used
+less than Deephaven at x5 (0.73 cores against 1.30) at about three times the latency, and only
+after the planning above. What a Deephaven target in legend-lite owns instead:
+
+1. **Table operations, not SQL:** a plan of natural joins, `agg_by`, `update_view`, `where`, `sort` /
+   `head`, `update_by`, `aj`, sent as `../deephaven-spike` sends them.
+2. **Reload on restart:** the inputs from their sources of record, append-only history from a
+   replayable log; 3 to 7 s at this size, more for history.
+3. **A ticking client that works:** the browser's does; the Python one needs the bug above fixed or
+   worked around.
+4. **The license:** what `../deephaven-spike/README.md` and the review of 2026-10-21 cover. That is
+   now the deciding question, not the engine.
 
 ## Running it
 
@@ -568,7 +707,13 @@ $SP/venv/bin/python proton_perf.py --rate 5000 --out results/x.json             
 $SP/venv/bin/python proton_scale_check.py --scale 5 --target plain --out results/x.json
 $SP/venv/bin/python proton_fx_late.py --scale 5 --shape leaf --all16 --out results/x.json
 $SP/venv/bin/python proton_delivery.py --dialect ../../core/src/main/java/com/legend/sql/dialect/ClickHouse.java --out results/x.json
-# operations: a second container with its data on disk, on other ports
+# the Deephaven homework (each starts and stops its own dh_server.py; nothing else on :10000)
+$SP/venv/bin/python dh_correctness.py --out results/x.json
+$SP/venv/bin/python dh_asof.py --late-share 0.05 --out results/x.json
+$SP/venv/bin/python dh_shapes.py --out results/x.json
+$SP/venv/bin/python dh_perf.py --scale 10 --heap 8g --out results/x.json            # see the table for the variants
+$SP/venv/bin/python dh_ops.py recovery --kill hard --out results/x.json
+# Proton operations: a second container with its data on disk, on other ports
 docker run -d --name proton-disk -v $SP/proton-data:/var/lib/proton \
   -v $PWD/proton-ops.xml:/etc/proton-server/config.d/zz-ops.xml:ro -p 18463:8463 ghcr.io/timeplus-io/proton:latest
 PROTON_PORT=18463 $SP/venv/bin/python proton_ops.py recovery --kill hard --container proton-disk --out results/x.json

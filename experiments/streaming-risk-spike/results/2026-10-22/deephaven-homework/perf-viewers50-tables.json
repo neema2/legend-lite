@@ -1,0 +1,57 @@
+{
+  "rate": 1000,
+  "scale": 1,
+  "cycleMs": 100,
+  "viewers": 50,
+  "viewerMode": "tables",
+  "positions": 19201,
+  "instruments": 2001,
+  "serverStartSeconds": 3.4,
+  "loadSeconds": 0.5,
+  "batchesPerSecond": 10.0,
+  "engineCpuCores": 0.79,
+  "serverRssMB": 768,
+  "tickToSubscriberMillis": {
+    "p50": 68.0,
+    "p95": 113.1,
+    "p99": 125.4,
+    "n": 293
+  },
+  "drainMillis": 0,
+  "groupingFirstRowsMillis": [
+    105.4,
+    84.3,
+    45.4,
+    13.4,
+    6.4,
+    12.5,
+    7.1,
+    9.9,
+    9.3,
+    10.9,
+    7.4,
+    14.9,
+    39.0,
+    11.9,
+    43.2,
+    11.0
+  ],
+  "viewerFirstRowsMillis": [
+    22.5,
+    17.3,
+    9.7,
+    19.3,
+    29.6
+  ],
+  "clientErrors": 0,
+  "riskRows": {
+    "rows": 19274,
+    "expected": 19274,
+    "stalePrice": 0,
+    "staleFx": 0,
+    "missing": 0,
+    "extra": 0
+  },
+  "correct": true,
+  "badGroupings": {}
+}

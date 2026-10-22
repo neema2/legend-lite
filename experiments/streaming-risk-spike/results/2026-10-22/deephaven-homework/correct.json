@@ -1,0 +1,108 @@
+{
+  "seconds": 40,
+  "serverStartSeconds": 17.9,
+  "batchesSent": 400,
+  "deletedPositions": 50,
+  "groupings": {
+    "desk": {
+      "subscriber": {
+        "rows": 5,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 6.840301440479337e-15,
+        "examples": [],
+        "ok": true
+      },
+      "snapshot": {
+        "rows": 5,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 6.840301440479337e-15,
+        "examples": [],
+        "ok": true
+      },
+      "clientErrors": []
+    },
+    "desk_trader": {
+      "subscriber": {
+        "rows": 13,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 3.402730328313358e-14,
+        "examples": [],
+        "ok": true
+      },
+      "snapshot": {
+        "rows": 13,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 3.402730328313358e-14,
+        "examples": [],
+        "ok": true
+      },
+      "clientErrors": []
+    },
+    "book": {
+      "subscriber": {
+        "rows": 49,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 6.895011914381348e-14,
+        "examples": [],
+        "ok": true
+      },
+      "snapshot": {
+        "rows": 49,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 6.895011914381348e-14,
+        "examples": [],
+        "ok": true
+      },
+      "clientErrors": []
+    },
+    "ccy": {
+      "subscriber": {
+        "rows": 5,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.2251134125602717e-14,
+        "examples": [],
+        "ok": true
+      },
+      "snapshot": {
+        "rows": 5,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.2251134125602717e-14,
+        "examples": [],
+        "ok": true
+      },
+      "clientErrors": []
+    },
+    "sector": {
+      "subscriber": {
+        "rows": 11,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 5.962255055060634e-14,
+        "examples": [],
+        "ok": true
+      },
+      "snapshot": {
+        "rows": 11,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 5.962255055060634e-14,
+        "examples": [],
+        "ok": true
+      },
+      "clientErrors": []
+    }
+  },
+  "riskRows": {
+    "expected": 19230,
+    "got": 19230
+  },
+  "allCorrect": true
+}
