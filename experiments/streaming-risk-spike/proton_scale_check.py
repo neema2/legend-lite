@@ -13,13 +13,14 @@ import argparse
 import json
 import time
 
-from proton_lab import JOIN_FLAT, JOIN_FX_FIRST, Feed, Lab, Subscription
+from proton_lab import JOIN_FLAT, JOIN_FX_FIRST, RISK_COLUMNS, Feed, Lab, Subscription
 from probe import add_probe
 from scenario import reference, schedule
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--scale", type=int, default=5)
-parser.add_argument("--target", default="changelog", choices=["changelog", "versioned"])
+parser.add_argument("--target", default="changelog", choices=["changelog", "versioned", "plain"],
+                    help="the shared stream: changelog_kv, versioned_kv, or a plain changelog stream (no key, no collapsing)")
 parser.add_argument("--shape", default="shared", choices=["shared", "perquery"])
 parser.add_argument("--seconds", type=float, default=30)
 parser.add_argument("--rate", type=int, default=1000)
@@ -34,7 +35,14 @@ lab.reset(extra_views=("g_desk_mv",), extra_streams=("g_desk_s",))
 BATCH = JOIN_FLAT
 for s in ("positions", "instruments", "books", "prices", "fx", "closes"):
     BATCH = BATCH.replace(f"{s} AS ", f"table({s}) AS ")
-if args.shape == "shared":
+if args.shape == "shared" and args.target == "plain":
+    lab.create(target="versioned_kv")
+    lab.c.execute("DROP VIEW position_risk_mv")
+    lab.c.execute("DROP STREAM position_risk_s")
+    lab.c.execute(f"CREATE STREAM position_risk_s ({RISK_COLUMNS}) SETTINGS mode='changelog'")
+    sel = JOIN_FX_FIRST.replace("AS fx_ts\nFROM positions", "AS fx_ts, _tp_delta\nFROM positions", 1)
+    lab.c.execute(f"CREATE MATERIALIZED VIEW position_risk_mv INTO position_risk_s AS {sel} EMIT CHANGELOG")
+elif args.shape == "shared":
     lab.create(target="changelog_kv" if args.target == "changelog" else "versioned_kv")
 else:
     lab.create(target="versioned_kv")
@@ -70,7 +78,23 @@ settle_s = round(quiet_since - t_stop, 1)
 
 result = {"scale": args.scale, "target": args.target, "shape": args.shape, "rate": args.rate,
           "positions": len(ref.positions), "feedSeconds": round(feed_s, 1), "lastWriteAfterFeedSeconds": settle_s}
-if args.shape == "shared":
+if args.shape == "shared" and args.target == "plain":
+    # the stream is every -1/+1 the view wrote: the net of each key, and the desks' totals as
+    # sums of value x delta, against the batch join
+    q = lambda sql: lab.query(sql)[0]["n"]  # noqa: E731
+    net = ("SELECT book, instrument, sum(_tp_delta) AS d FROM table(position_risk_s) GROUP BY book, instrument")
+    exp = {r["desk"]: r for r in lab.query(f"SELECT desk, sum(mv_usd) AS mv_usd, count() AS n FROM ({BATCH}) GROUP BY desk")}
+    got = {r["desk"]: r for r in lab.query("SELECT desk, sum(mv_usd * _tp_delta) AS mv_usd, sum(_tp_delta) AS n "
+                                           "FROM table(position_risk_s) GROUP BY desk")}
+    bad = [d for d, e in exp.items() if d not in got or got[d]["n"] != e["n"]
+           or abs(got[d]["mv_usd"] - e["mv_usd"]) > 1e-9 * (1 + abs(e["mv_usd"]))]
+    result.update({"changelogRows": q("SELECT count() AS n FROM table(position_risk_s)"),
+                   "keysNetNotOne": q(f"SELECT count() AS n FROM ({net}) WHERE d != 1"),
+                   "expectedKeys": q(f"SELECT count() AS n FROM ({BATCH})"),
+                   "keys": q(f"SELECT count() AS n FROM ({net})"),
+                   "wrongDesks": len(bad), "examples": [{"desk": d, "expected": exp[d], "got": got.get(d)} for d in bad[:2]]})
+    result["correct"] = not bad and result["keysNetNotOne"] == 0
+elif args.shape == "shared":
     q = lambda sql: lab.query(sql)[0]["n"]  # noqa: E731
     on = (f"FROM table(position_risk_s) AS r JOIN ({BATCH}) AS e ON r.book = e.book AND r.instrument = e.instrument")
     result.update({

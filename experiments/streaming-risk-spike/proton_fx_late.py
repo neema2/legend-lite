@@ -30,6 +30,7 @@ parser.add_argument("--seconds", type=float, default=30)
 parser.add_argument("--rate", type=int, default=1000)
 parser.add_argument("--shape", default="nested", choices=["nested", "leaf"])
 parser.add_argument("--all16", action="store_true", help="the 16 groupings of dynamic_groupings_spec.py (leaf only)")
+parser.add_argument("--leaf-emit", default="PERIODIC 100ms", help="the leaf cube view's emit policy")
 parser.add_argument("--out", required=True)
 args = parser.parse_args()
 
@@ -86,7 +87,7 @@ if args.shape == "leaf":
                   "PRIMARY KEY (desk, trader, book, sector, ccy, root) SETTINGS mode='changelog_kv'")
     lab.c.execute(f"CREATE MATERIALIZED VIEW leaf_local_mv INTO leaf_local_s AS SELECT {LEAF_KEYS}, sum(mv_local) AS mv_l, "
                   f"sum(pnl_local) AS pnl_l, count() AS n, _tp_delta FROM position_local_s GROUP BY {LEAF_KEYS} "
-                  "EMIT CHANGELOG PERIODIC 100ms")
+                  f"EMIT CHANGELOG {args.leaf_emit}")
     lab.c.execute(f"CREATE STREAM leaf_usd_s ({leaf_cols}, mv_usd float64, pnl_usd float64, n uint64) "
                   "PRIMARY KEY (desk, trader, book, sector, ccy, root) SETTINGS mode='changelog_kv'")
     lab.c.execute("CREATE MATERIALIZED VIEW leaf_usd_mv INTO leaf_usd_s AS SELECT "
@@ -137,7 +138,7 @@ for name, cols in GROUPINGS.items():
         got = dict(subs[name].state)
     checks[name] = {**compare([dict(zip(names, r)) for r in exp], got, cols, ["mv_usd", "pnl_usd", "n"]),
                     "error": subs[name].error, "firstRowsMillis": subs[name].first_rows_ms()}
-result = {"scale": args.scale, "shape": args.shape, "groupings": len(GROUPINGS), "rate": args.rate, "positions": len(ref.positions), "feedSeconds": round(feed_s, 1),
+result = {"scale": args.scale, "shape": args.shape, "groupings": len(GROUPINGS), "leafEmit": args.leaf_emit, "rate": args.rate, "positions": len(ref.positions), "feedSeconds": round(feed_s, 1),
           "engineCpuCores": round((c1 - c0) / feed_s, 2), "lastWriteAfterFeedSeconds": round(quiet_since - t_stop, 1),
           "tickToSubscriberMillis": {"p50": pct(lat, 0.5), "p95": pct(lat, 0.95), "n": len(lat)},
           "checks": checks, "correct": all(c["ok"] and not c["error"] for c in checks.values())}
