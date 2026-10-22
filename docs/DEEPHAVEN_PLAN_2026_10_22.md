@@ -2,7 +2,8 @@
 
 **Status: PROPOSED. Nothing here is built.** The architecture follows the MongoDB line's
 (`docs/MONGODB_PLAN_2026_10_16.md`), reviewed and agreed by that line on 2026-10-22 (§7); the model and grammar part
-reviewed and agreed by the Studio line on 2026-10-22 (§2's two dialects, PARK-38). **legend-engine's Deephaven
+reviewed and agreed by the Studio line on 2026-10-22 (§2's two dialects, PARK-38); the DataCube part agreed with the
+DataCube + Python line on 2026-10-22 (§9). **legend-engine's Deephaven
 extension is not the reference** (the user, 2026-10-22: it is half built and does not work): what the store means,
 which types it has, what is checked and how it executes are decided here, on what is right for legend-lite. The model
 part is the Studio line's leg 10, which the Studio line reviews.
@@ -156,7 +157,7 @@ All in lite's own words, each a case in `ReferenceIntegrityTest` (or the model-d
 | L1 | `claude/deephaven-1-model` (on main) | `DatabaseType.Deephaven` and its switch arms (each refusing by name until L2); the grammar's additions (§2: `LONG`, `DATE`, `NOT NULL`, `PRIMARY KEY`, `InputTable`) through the parser, the protocol records, the composer and the JSON; `model/DeephavenDeclarations.java` beside `MongoDeclarations` (the store into `DatabaseDefinition`, the connection into `ConnectionDefinition` with `ServerUrl` and `PreSharedKey`); `ConnectionWire`'s tag and `ConnectorsTest`'s row for `ServerUrl`; the `foreignConnections` gaps closed; §5's model-side cases; register rows; PARK-38's entry rewritten for Deephaven (lite's own checks, in lite's words: its acceptance clause names the engine's extensions) | `//gates:local`, `//gates:parser_equivalence`; the Studio line reviews |
 | L2 | `claude/deephaven-2-target` (on L1) | `sql/dialect/Deephaven.java` (`SqlDialect` whole): the relation shapes DataCube writes first (scan, filter, project, extend, group-by with sums, sort, limit, natural and left joins), every other IR node, function and aggregate refused by name; unit tests on the plan text, as `MongoDbDialectTest` | the dialect's tests; every existing lane's dump unchanged |
 | L3 | `claude/deephaven-3-connector` (on L2, after the Mongo branch merges its seam) | `core/src/main/deephaven`: `rows` over Arrow Flight, `subscribe` with its handle, input tables (DH15), the schema check (DH16); the `@maven_deephaven` pool; the pinned test server and `DeephavenBackend`; the opt-in server target; the guards' additive lines, each dated | lite's own Deephaven cases, each answered on DuckDB and on Deephaven and compared row for row; then the PCT lanes, as every database's |
-| L4 | the DataCube line's (or stacked on theirs) | DataCube's ticking mode over the handle | the DataCube line's |
+| L4 | `claude/deephaven-4-datacube`, stacked on the DataCube line's `claude/datacube-query-base` (da0f5aec1) | DataCube's ticking mode (§9) | the DataCube line reviews |
 | L5 | a demo module | the demo world: reference data in a legend-lite model, a market-data simulator writing Deephaven's source tables, a publisher writing input tables from legend-lite | runs, and its risk agrees with DuckDB's over the same inputs |
 
 ## 7. Agreed with the MongoDB line (2026-10-22)
@@ -184,3 +185,25 @@ All in lite's own words, each a case in `ReferenceIntegrityTest` (or the model-d
    `NOT NULL`, input tables, the connection's key as a vault reference, execution by table operations (this document).
 2. `DatabaseType.Deephaven` is lite's, as S48's types and Mongo's are.
 3. A Deephaven result is typed rows; its served text forms are refused until host renderers exist.
+
+## 9. DataCube's ticking mode (agreed with the DataCube + Python line, 2026-10-22)
+
+The user's shape: built here on a branch stacked on the DataCube line's, reviewed by that line.
+
+- **Where it plugs in.** Every grid's rows go through one `QueryRunner`, fixed when the cube is built (`PlanThenRun`
+  in the tab, `pythonRunner` on a page Python serves). A Deephaven runtime is another runner chosen at cube build, and
+  a `subscribe` beside `QueryEngine.execute` answers the live handle (DH10).
+- **The tick.** A `ticked` event, small and outside the transaction and undo machinery, so it survives the state
+  owner's coming rework (the single writer's client side, after the line's S7): it replaces the grid's derived rows
+  and nothing else. It never writes the cube or page document, never adds a command, never adds a page write: the
+  one-API ledgers (`datacube/test/one-api-ledger.test.ts`, `one-api-gestures.test.ts`, `python/tests/test_one_api.py`)
+  do not grow.
+- **The first slice.** One grouping level, sums, no pivot, no tree expansion; charts out of it (a chart reads its own
+  queries through its grid's runner, and per-view scales would rescale on every tick). Rows are matched by group key,
+  since a sorted live table delivers a changed row as a removal and an addition.
+- **Loading.** The ticking code, and Deephaven's `dh-core.js` (fetched from the Deephaven server at run time), load
+  lazily, as the join and chart chunks do (`test/bundle-budget.test.ts`).
+- **The rules.** The database executes and the client only arranges rows; no DataCube rule in Python (a Python side
+  calls the TypeScript headless).
+- **Stable to build on**: the command API (`grid-commands.ts`, `page-commands.ts`), the cube and page documents, the
+  page keeper's write protocol, `DataGrid`, `treeview`. **Moving**: Python's command layer (S6, little overlap).
