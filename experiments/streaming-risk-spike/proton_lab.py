@@ -3,6 +3,7 @@ proton_ops.py): the risk streams and the shared join, loading and feeding, chang
 the DuckDB oracle, and the container's CPU and memory.
 """
 
+import os
 import threading
 import time
 
@@ -67,7 +68,8 @@ def streams_ddl(positions_mode="versioned_kv", retention=""):
 
 class Lab:
     def __init__(self, container="proton"):
-        self.px = engines.Proton(container=container)
+        # PROTON_PORT: a second server on another native port (proton_ops.py's on-disk container)
+        self.px = engines.Proton(container=container, port=int(os.environ.get("PROTON_PORT", 8463)))
         self.c = self.px.sender
         self.lock = threading.Lock()
         self.errors = []
@@ -78,18 +80,24 @@ class Lab:
         for s in ("position_risk_s", *extra_streams, "books", "instruments", "closes", "positions", "prices", "fx"):
             self.c.execute(f"DROP STREAM IF EXISTS {s}")
 
-    def create(self, join="fx_first", target="versioned_kv", positions_mode="versioned_kv", retention=""):
+    def create(self, join="fx_first", target="versioned_kv", positions_mode="versioned_kv", retention="", mv_settings=""):
         for ddl in streams_ddl(positions_mode, retention):
             self.c.execute(ddl)
+        self.create_join(join, target, retention, mv_settings)
+
+    def create_join(self, join="fx_first", target="versioned_kv", retention="", mv_settings=""):
+        """The shared join: its target stream and the materialized view writing it."""
         sql = JOIN_FX_FIRST if join == "fx_first" else JOIN_FLAT
         s = f" {retention}" if retention else ""
         self.c.execute(f"CREATE STREAM position_risk_s ({RISK_COLUMNS}) PRIMARY KEY (book, instrument) "
                        f"SETTINGS mode='{target}'{s}")
         if target == "versioned_kv":
-            self.c.execute(f"CREATE MATERIALIZED VIEW position_risk_mv INTO position_risk_s AS {sql}")
+            self.c.execute(f"CREATE MATERIALIZED VIEW position_risk_mv INTO position_risk_s AS {sql}"
+                           + (f" SETTINGS {mv_settings}" if mv_settings else ""))
         else:
             sel = sql.replace("AS fx_ts\nFROM positions", "AS fx_ts, _tp_delta\nFROM positions", 1)
-            self.c.execute(f"CREATE MATERIALIZED VIEW position_risk_mv INTO position_risk_s AS {sel} EMIT CHANGELOG")
+            self.c.execute(f"CREATE MATERIALIZED VIEW position_risk_mv INTO position_risk_s AS {sel} EMIT CHANGELOG"
+                           + (f" SETTINGS {mv_settings}" if mv_settings else ""))
 
     def load(self, ref):
         for table, rows in engines.reference_rows(ref).items():

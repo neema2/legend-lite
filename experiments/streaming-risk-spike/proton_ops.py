@@ -5,12 +5,14 @@ growth and retention.
     python proton_ops.py log [--retention-ms 30000] --seconds 240 --container proton-disk --out x.json
 
 recovery: the shared join (fx_first) writes a changelog_kv stream; the feed runs at 1,000 ticks a
-second and, 15 s in, the container is restarted (graceful: SIGTERM, up to 60 s to stop; hard:
+second and, --kill-at batches in (150: 15 s), the container is restarted (graceful: SIGTERM, up to 60 s to stop; hard:
 SIGKILL). The feed holds each insert and retries it until the server answers (an upstream that
 buffers); the desk grouping reconnects when its query dies. Measured: how long inserts were
 refused, how long the reconnected grouping took to show a tick sent after the restart, and then,
 after the feed stops, everything against DuckDB: the inputs, the shared stream (rows, and keys with
-more than one row), the reconnected grouping, five fresh groupings, and a table() aggregate.
+more than one row), the reconnected grouping, five fresh groupings, and a table() aggregate. If any
+of it is wrong, the shared stream and its view are dropped and created again (rebuild), timed, and
+checked again.
 
 log: the same join and feed for --seconds; every 10 s, each stream's native log and historical
 store on disk. With --retention-ms, every stream is created with that logstore_retention_ms (the
@@ -37,6 +39,8 @@ parser.add_argument("--container", default="proton-disk")
 parser.add_argument("--seconds", type=float, default=40)
 parser.add_argument("--rate", type=int, default=1000)
 parser.add_argument("--retention-ms", type=int, default=0)
+parser.add_argument("--kill-at", type=int, default=150, help="the batch after which the container restarts")
+parser.add_argument("--checkpoint-interval", type=int, default=0, help="the MV's checkpoint_interval (s); 0: Proton's")
 parser.add_argument("--out", required=True)
 args = parser.parse_args()
 
@@ -109,7 +113,9 @@ class Reconnecting:
                                 del self.state[key]
                         else:
                             self.state[key] = row
-                            if self.probe and row.get("desk") == PROBE["desk"]:
+                            # the probe desk's mv_usd is the send time of the batch it reflects
+                            # (an initial snapshot row before the feed is not: skipped)
+                            if self.probe and row.get("desk") == PROBE["desk"] and 0 <= recv - row["mv_usd"] < 60000:
                                 self.last_probe = row["mv_usd"]
                                 self.lat.append((recv, recv - row["mv_usd"]))
             except Exception as e:
@@ -186,17 +192,19 @@ def disk(lab):
 
 
 ref = reference()
-add_probe(ref)
+n_batches = int(args.seconds * 10)
+batches = schedule(ref, seconds=args.seconds, ticks_per_s=args.rate)[:n_batches]
+add_probe(ref)   # after the schedule, so no booking touches the probe's book
 lab = Lab(container=args.container)
 lab.reset(extra_views=("djoin_mv", "djoin2_mv", "gagg_mv", "g_desk_mv"),
           extra_streams=("djoin", "djoin2", "gagg", "gsrc", "dpos", "dpx", "g_desk_s", "trades", "quotes"))
 retention = f", logstore_retention_ms={args.retention_ms}" if args.retention_ms else ""
-lab.create(join="fx_first", target="changelog_kv", retention=retention)
+lab.create(join="fx_first", target="changelog_kv", retention=retention,
+           mv_settings=f"checkpoint_interval={args.checkpoint_interval}" if args.checkpoint_interval else "")
 lab.load(ref)
 time.sleep(2)
 
 if args.what == "recovery":
-    batches = schedule(ref, seconds=args.seconds, ticks_per_s=args.rate)
     restart = {}
 
     def do_restart(_client):
@@ -214,7 +222,7 @@ if args.what == "recovery":
 
     desk = Reconnecting(lab, grouping_sql(["desk"]), ["desk"], probe=True)
     time.sleep(3)
-    feed = RetryingFeed(lab, ref, batches, hooks={150: do_restart})
+    feed = RetryingFeed(lab, ref, batches, hooks={args.kill_at: do_restart})
     feed.start()
     feed.thread.join()
     time.sleep(10)
@@ -230,9 +238,27 @@ if args.what == "recovery":
                      "GROUP BY desk").fetchall()
     checks["reconnected_desk"] = compare([{"desk": r[0], "mv_usd": r[1], "pnl_usd": r[2], "n": r[3]} for r in exp], got,
                                          ["desk"], ["mv_usd", "pnl_usd", "n"])
+    rebuild = None
+    if not all(v.get("ok", True) for v in checks.values() if isinstance(v, dict)):
+        # the inputs are intact: drop the derived stream and its view, create them again (the new
+        # view reads the keyed inputs' current state from their historical store), check again
+        t_b = time.time()
+        lab.c.execute("DROP VIEW position_risk_mv")
+        lab.c.execute("DROP STREAM position_risk_s")
+        lab.create_join(target="changelog_kv")
+        expected = checks["sharedStreamRows"]["expected"]
+        while time.time() - t_b < 120:
+            if lab.query("SELECT count() AS n FROM table(position_risk_s)")[0]["n"] == expected:
+                break
+            time.sleep(0.2)
+        rebuild_s = round(time.time() - t_b, 1)
+        again, _ = check_against_oracle(lab, ref, feed.final)
+        rebuild = {"seconds": rebuild_s, "checks": again,
+                   "allCorrect": all(v.get("ok", True) for v in again.values() if isinstance(v, dict))}
     logs = subprocess.run(["docker", "logs", "--since", str(int(t_r)), args.container], capture_output=True, text=True)
     errs = [ln for ln in (logs.stdout + logs.stderr).split("\n") if "<Error>" in ln or "Exception" in ln]
-    result = {"kill": args.kill, "batchesSent": feed.sent,
+    result = {"kill": args.kill, "killAtSecond": args.kill_at / 10, "checkpointInterval": args.checkpoint_interval,
+              "batchesSent": feed.sent,
               "restart": {"containerSeconds": round(restart["containerBack"] - t_r, 1),
                           "serverReadySecondsAfterContainer": restart["serverReadySeconds"],
                           "insertsRefusedSeconds": [round(b - a, 1) for a, b in feed.refused]},
@@ -241,10 +267,8 @@ if args.what == "recovery":
                        "firstProbeAfterReadyMillis": round(after[0][0] - restart["ready"] * 1000) if after else None,
                        "tickToSubscriberAfter": {"p50": pct([l for _, l in after], 0.5), "p95": pct([l for _, l in after], 0.95)}},
               "checks": checks, "allCorrect": all(v.get("ok", True) for v in checks.values() if isinstance(v, dict)),
-              "serverErrorLines": len(errs), "serverErrorSample": errs[:5]}
+              "rebuild": rebuild, "serverErrorLines": len(errs), "serverErrorSample": errs[:5]}
 else:
-    n_batches = int(args.seconds * 10)
-    batches = schedule(ref, seconds=args.seconds, ticks_per_s=args.rate)[:n_batches]
     feed = Feed(lab, ref, batches)
     samples = [{"t": 0, **disk(lab)}]
     feed.start()
