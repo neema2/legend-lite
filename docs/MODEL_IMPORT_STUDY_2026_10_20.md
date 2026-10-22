@@ -188,14 +188,17 @@ association, so a class written in place in many responses has a way back to eac
 | `dependentRequired`; draft 7's `dependencies` naming properties | `$this.a->isEmpty() \|\| ($this.b->isNotEmpty() && ...)` |
 
 A schema's logic over a whole value is a constraint too (§4.4). A default (`default`) and `deprecated` are carried:
-`= 3`, `= pkg::Mode.slow`, `<<doc.deprecated>>`. The documentation is the `description` (VS Code's
+a mandatory property's default its Pure default, `= 3`, `= pkg::Mode.slow`; an optional property's the
+`defaultValue` tag below (legend-pure has a default only on a mandatory property: its `PropertyValidator`, "Default
+values are supported only for mandatory fields", verified 2026-10-22); `<<doc.deprecated>>`. The documentation is the `description` (VS Code's
 `markdownDescription`).
 
 **Annotations, as legend-engine's import writes them** (its profiles `meta::json::schema::JSONSchemaGeneration`,
 `...JSONSchemaTypeExtension`, `...JSONSchemaOpenAPIExtension`; §4.7):
 - a name Pure cannot hold (a class's, a property's, an enumeration value's): the name in the schema,
   `{JSONSchemaGeneration.name = 'trade-id'}`, and `mapClass` reads an enumeration's values by it;
-- `title` (where it is not the name), the first example, a default that is no Pure value: `title`, `example`,
+- `title` (where it is not the name), the first example, a default of an optional property or that is no Pure
+  value: `title`, `example`,
   `defaultValue` tags;
 - `readOnly`, `writeOnly`, `additionalProperties: false`: `<<readOnly>>`, `<<writeOnly>>`, `<<noAdditionalProperties>>`;
 - `format` `int32`, `int64`, `double`, `byte`, `binary`, and nullable: `<<JSONSchemaTypeExtension.int64>>`, `<<...null>>`;

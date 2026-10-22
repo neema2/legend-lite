@@ -924,11 +924,13 @@ public final class JsonSchemaReader {
             boolean mustHave = g.required.contains(e.getKey()) && !g.conditional.contains(e.getKey()) && !r.nullable();
             int lower = r.many() ? (mustHave ? r.minItems() : 0) : (mustHave ? 1 : 0);
             Json.Obj pso = ps instanceof Json.Obj o ? o : Json.obj();
-            Json.Node carried = defaultOf(pso, r, at);
+            // legend-pure has a default only on a mandatory property (PropertyValidator: "Default values are
+            // supported only for mandatory fields"); an optional property's default is a tag, as upstream's import keeps it
+            Json.Node carried = lower == 0 ? null : defaultOf(pso, r, at);
             List<Annotation> annotations = annotations(pso, e.getKey(), pureName);
             Json.Node given = pso.getOr("default", null);
             if (carried == null && given != null && !(given instanceof Json.Null)) {
-                // a default that is no Pure value of the property: kept as the schema says it
+                // a default of an optional property, or that is no Pure value of the property: kept as the schema says it
                 annotations.add(Annotation.tag(GENERATION, "defaultValue", json(given)));
             }
             String format = text(pso, "format");
@@ -2726,7 +2728,8 @@ public final class JsonSchemaReader {
         return types(schema).contains("null") || isTrue(schema, "nullable");
     }
 
-    /** A property's default, when it is one value of the property's type (an enumeration's by its Pure name). */
+    /** A mandatory property's default, when it is one value of the property's type (an enumeration's by its Pure
+     *  name). */
     private Json.@com.legend.base.Nullable Node defaultOf(Json.Obj schema, Resolved r, String loc) {
         Json.Node d = schema.getOr("default", null);
         if (d == null || d instanceof Json.Null || r.many()) {

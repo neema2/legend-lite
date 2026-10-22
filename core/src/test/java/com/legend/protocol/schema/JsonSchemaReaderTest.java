@@ -562,12 +562,14 @@ class JsonSchemaReaderTest {
     void defaultsDeprecationAndDocs() {
         ImportedModel m = read("""
                 {`$defs`: {`Mode`: {`enum`: [`fast`, `slow mode`]},
-                  `T`: {`type`: `object`, `deprecated`: true, `markdownDescription`: `**the** T`, `properties`: {
+                  `T`: {`type`: `object`, `deprecated`: true, `markdownDescription`: `**the** T`,
+                    `required`: [`retries`, `ratio`, `mode`, `on`], `properties`: {
                     `retries`: {`type`: `integer`, `default`: 3},
                     `ratio`: {`type`: `number`, `default`: 1},
                     `mode`: {`$ref`: `#/$defs/Mode`, `default`: `slow mode`},
                     `on`: {`type`: `boolean`, `default`: `yes`},
-                    `old`: {`type`: `string`, `deprecationMessage`: `use mode`}}}}}""");
+                    `old`: {`type`: `string`, `deprecationMessage`: `use mode`},
+                    `size`: {`type`: `integer`, `default`: 10}}}}}""");
         ImportedClass t = m.classes().get(0);
         assertTrue(t.deprecated());
         assertEquals("**the** T", t.doc());
@@ -576,10 +578,13 @@ class JsonSchemaReaderTest {
             props.add(p.name() + (p.deprecated() ? " deprecated" : "") + (p.defaultValue() == null ? ""
                     : " = " + Json.toCompact(p.defaultValue())));
         }
-        assertEquals(List.of("retries = 3", "ratio = 1", "mode = \"slow_mode\"", "on", "old deprecated"), props,
-                "an enumeration's default by its value's Pure name");
+        assertEquals(List.of("retries = 3", "ratio = 1", "mode = \"slow_mode\"", "on", "old deprecated", "size"),
+                props, "a mandatory property's default its own, an enumeration's by its value's Pure name");
         assertEquals(List.of("meta::json::schema::JSONSchemaGeneration.defaultValue=yes"),
                 annotations(t.properties().get(3).annotations()), "a default no Pure value: the schema's, a tag");
+        assertEquals(List.of("meta::json::schema::JSONSchemaGeneration.defaultValue=10"),
+                annotations(t.properties().get(5).annotations()), "an optional property's default a tag: legend-pure "
+                        + "has a default only on a mandatory property");
         assertEquals(List.of(), notes(m));
     }
 
