@@ -9,6 +9,8 @@ keyed by instrument (bid, ask, qts), the join keeping the last versions per key
 quotes is held back and sent 500 ms late (event time unchanged): a streaming as-of join matches
 each trade against the quotes present when the trade arrives, so a late quote is never matched;
 the batch join over the full history does match it. The difference is counted, not hidden.
+Event times are microseconds and unique per quote (a batch's quotes are now*1000 + their
+sequence; its trades now*1000 + 999), so no two quotes of an instrument tie.
 """
 
 import argparse
@@ -42,7 +44,7 @@ insts = [f"A{i:03d}" for i in range(args.instruments)]
 mid = {i: rng.uniform(20, 400) for i in insts}
 all_quotes, all_trades = [], []
 # opening quotes, before any trade
-t0 = int(time.time() * 1000) - 1000
+t0 = (int(time.time() * 1000) - 1000) * 1000
 opening = [(i, round(mid[i] - 0.01, 4), round(mid[i] + 0.01, 4), t0) for i in insts]
 c.execute("INSERT INTO quotes (instrument, bid, ask, qts) VALUES", opening)
 all_quotes.extend(opening)
@@ -65,25 +67,25 @@ for n in range(n_batches):
         time.sleep(delay)
     now = int(time.time() * 1000)
     quotes = []
-    for _ in range(args.quotes_per_s // 10):
+    for seq in range(args.quotes_per_s // 10):
         i = rng.choice(insts)
         mid[i] *= 1 + rng.gauss(0, 0.0005)
         spread = 0.01 + 0.02 * rng.random()
-        q = (i, round(mid[i] - spread / 2, 4), round(mid[i] + spread / 2, 4), now)
+        q = (i, round(mid[i] - spread / 2, 4), round(mid[i] + spread / 2, 4), now * 1000 + seq)
         all_quotes.append(q)
         (late if rng.random() < args.late_share else quotes).append(q)
     if quotes:
         sender.execute("INSERT INTO quotes (instrument, bid, ask, qts) VALUES", quotes)
-    ready = [q for q in late if q[3] <= now - 500]
+    ready = [q for q in late if q[3] <= (now - 500) * 1000]
     if ready:
         sender.execute("INSERT INTO quotes (instrument, bid, ask, qts) VALUES", ready)
-        late = [q for q in late if q[3] > now - 500]
+        late = [q for q in late if q[3] > (now - 500) * 1000]
     trades = []
     for _ in range(args.trades_per_s // 10):
         i = rng.choice(insts)
         side = rng.choice(["BUY", "SELL"])
         tid += 1
-        tr = (tid, i, side, float(rng.randint(1, 10) * 100), round(mid[i] * (1 + rng.gauss(0, 0.0003)), 4), now + 1)
+        tr = (tid, i, side, float(rng.randint(1, 10) * 100), round(mid[i] * (1 + rng.gauss(0, 0.0003)), 4), now * 1000 + 999)
         trades.append(tr)
         all_trades.append(tr)
     sender.execute("INSERT INTO trades (trade_id, instrument, side, qty, px, tts) VALUES", trades)
