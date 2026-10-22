@@ -165,6 +165,8 @@ final class RelationalConnectionComposer {
             case Protocol.PTrinoSpec s -> trino(s, i);
             case Protocol.PSQLiteSpec s -> throw Composing.refused("no composer rule for a datasource specification of"
                     + " _type 'sqlite'");
+            case Protocol.PDeephavenSpec s -> throw Composing.refused("no composer rule for the Deephaven datasource"
+                    + " specification (lite's own)");
         };
     }
 
@@ -196,6 +198,8 @@ final class RelationalConnectionComposer {
                     : block("DelegatedKerberos", i, opt("serverPrincipal", a.serverPrincipal(), Kind.STRING));
             case Protocol.PMiddleTierUserNamePassword a -> a.vaultReference() == null ? "MiddleTierUserNamePassword"
                     : block("MiddleTierUserNamePassword", i, opt("vaultReference", a.vaultReference(), Kind.STRING));
+            case Protocol.PPreSharedKey a -> throw Composing.refused("no composer rule for PreSharedKey"
+                    + " authentication (lite's own)");
         };
     }
 

@@ -22,7 +22,7 @@ package com.legend.parser;
  *   <li>{@link #LEGEND_LITE} — {@link #LEGEND_ENGINE} plus the DECLARED lite
  *       extensions (docs/OWN_CORPUS_DECISIONS.md LITE-DESIGN families:
  *       mapping-as-function, inline-association, sqlite-backend,
- *       function-types-generics). The product surface for lite's users. Its whole
+ *       function-types-generics, deephaven-backend). The product surface for lite's users. Its whole
  *       delta vs LEGEND must classify to a declared family — nothing
  *       undeclared rides along.</li>
  * </ol>

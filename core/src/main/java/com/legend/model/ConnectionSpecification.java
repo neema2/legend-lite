@@ -16,7 +16,8 @@ public sealed interface ConnectionSpecification
                 ConnectionSpecification.Snowflake,
                 ConnectionSpecification.Spanner,
                 ConnectionSpecification.Databricks,
-                ConnectionSpecification.BigQuery {
+                ConnectionSpecification.BigQuery,
+                ConnectionSpecification.Deephaven {
 
     /** The Pure class of the datasource specification that carries a connection's test data ({@link #testData}) where a
      *  Pure body builds the connection ({@code ^RelationalDatabaseConnection(datasourceSpecification = ^...)}):
@@ -122,4 +123,8 @@ public sealed interface ConnectionSpecification
     /** Engine's BigQuery datasource; carried for parse coverage. */
     record BigQuery(String projectId, String defaultDataset)
             implements ConnectionSpecification {}
+
+    /** A Deephaven server (lite's own, docs/DEEPHAVEN_PLAN_2026_10_22.md §4): its host, its gRPC port, and whether the
+     *  channel is TLS. Every field is written; none defaults (AGENTS invariant 4). */
+    record Deephaven(String host, int port, boolean useTls) implements ConnectionSpecification {}
 }

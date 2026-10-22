@@ -49,7 +49,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
 
     /** The database types legend-lite adds to the referee's (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §12-13): declared
      *  lite extensions, refused on the drop-in surface. */
-    private static final java.util.Set<String> LITE_DATABASE_TYPES = java.util.Set.of("SQLite", "MariaDB", "MySQL");
+    private static final java.util.Set<String> LITE_DATABASE_TYPES = java.util.Set.of("SQLite", "MariaDB", "MySQL",
+            "Deephaven");
 
     private ConnectionSectionGrammar() {
     }
@@ -900,6 +901,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             case "SQLite" -> {
                 yield parseSqliteSpec(c, keywordTok);
             }
+            case "Deephaven" -> parseDeephavenSpec(c, keywordTok);
             case "Snowflake" -> parseSnowflakeSpec(c, keywordTok);
             case "Redshift" -> parseRedshiftSpec(c, keywordTok);
             case "Trino" -> parseTrinoSpec(c, keywordTok);
@@ -1124,6 +1126,76 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 c.spanOf(keywordTok, c.pos() - 1));
     }
 
+    /** The Deephaven datasource spec -- a DECLARED lite extension (OWN_CORPUS_DECISIONS
+     *  LITE-DESIGN-deephaven-backend; docs/DEEPHAVEN_PLAN_2026_10_22.md §4):
+     *  {@code Deephaven { host: '...'; port: n; useTls: b; }}, every key
+     *  required (AGENTS invariant 4: no default port, no default TLS). */
+    private static Protocol.PDatasourceSpec parseDeephavenSpec(
+            TokenStreamCursor c, int keywordTok) {
+        if (c.dialect().refusesLiteExtensions()) {
+            // the exact-engine surface refuses it like any unknown spec
+            throw c.error("unsupported datasource specification:"
+                    + " Deephaven");
+        }
+        c.expect(TokenType.BRACE_OPEN);
+        String host = null;
+        Long port = null;
+        Boolean useTls = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c);
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "host" -> host = SectionParse.stringValue(c);
+                case "port" -> port = c.consumeLong();
+                case "useTls" -> useTls = parseBoolean(c);
+                default -> throw c.error("unknown Deephaven key: " + key);
+            }
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON);
+        if (host == null || port == null || useTls == null) {
+            throw TokenStreamCursor.throwAt(c.tokens(), keywordTok,
+                    "Deephaven needs " + (host == null ? "host" : port == null ? "port" : "useTls"));
+        }
+        return new Protocol.PDeephavenSpec(host, port, useTls,
+                c.spanOf(keywordTok, c.pos() - 1));
+    }
+
+    /** {@code PreSharedKey { keyVaultReference: '...'; }} -- a DECLARED lite
+     *  extension (OWN_CORPUS_DECISIONS LITE-DESIGN-deephaven-backend): the
+     *  key's vault reference, never the key (not the engine's
+     *  {@code #PSK{ psk }#} island, which carries it). */
+    private static Protocol.PAuthStrategy parsePreSharedKeyAuth(
+            TokenStreamCursor c, int keywordTok) {
+        if (c.dialect().refusesLiteExtensions()) {
+            throw c.error("unsupported auth strategy: PreSharedKey");
+        }
+        c.expect(TokenType.BRACE_OPEN);
+        String keyVaultReference = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c);
+            c.expect(TokenType.COLON);
+            if (!"keyVaultReference".equals(key)) {
+                throw c.error("unknown PreSharedKey key: " + key);
+            }
+            keyVaultReference = SectionParse.stringValue(c);
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON);
+        if (keyVaultReference == null) {
+            throw TokenStreamCursor.throwAt(c.tokens(), keywordTok,
+                    "PreSharedKey needs keyVaultReference");
+        }
+        return new Protocol.PPreSharedKey(keyVaultReference,
+                c.spanOf(keywordTok, c.pos() - 1));
+    }
+
     private static Protocol.PAuthStrategy parseAuthStrategy(
             TokenStreamCursor c, int keywordTok) {
         String kind = c.parseIdentifier();
@@ -1313,6 +1385,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 yield new Protocol.PMiddleTierUserNamePassword(vaultReference,
                         c.spanOf(keywordTok, c.pos() - 1));
             }
+            case "PreSharedKey" -> parsePreSharedKeyAuth(c, keywordTok);
             case "TrinoDelegatedKerberos" ->
                     parseTrinoKerberosAuth(c, keywordTok);
             case "GCPWorkloadIdentityFederation" ->

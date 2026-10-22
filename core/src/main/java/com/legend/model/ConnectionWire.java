@@ -47,11 +47,11 @@ public final class ConnectionWire {
     /** The {@code _type} tags, one spelling for the writer and the reader: an exhaustive switch over each, an unknown
      *  tag refused by name ({@link #named}). */
     enum SpecificationTag { InMemory, LocalFile, LocalH2, EmbeddedH2, StaticDatasource, Snowflake, Spanner, Databricks,
-        BigQuery }
+        BigQuery, Deephaven }
 
     enum AuthenticationTag { NoAuth, DefaultH2, TestAuth, GCPApplicationDefaultCredentials, UsernamePassword,
         DelegatedKerberos, VaultUserNamePassword, SnowflakePublic, ApiToken, MiddleTierUserNamePassword, OAuth,
-        GcpWorkloadIdentityFederation }
+        GcpWorkloadIdentityFederation, PreSharedKey }
 
     private static <E extends Enum<E>> E named(E[] family, String name, String what) {
         for (E e : family) {
@@ -136,6 +136,12 @@ public final class ConnectionWire {
                 o.put("projectId", x.projectId());
                 o.put("defaultDataset", x.defaultDataset());
             }
+            case ConnectionSpecification.Deephaven x -> {
+                o.put("_type", SpecificationTag.Deephaven.name());
+                o.put("host", x.host());
+                o.put("port", x.port());
+                o.put("useTls", x.useTls());
+            }
         }
         return o;
     }
@@ -191,6 +197,10 @@ public final class ConnectionWire {
                 o.put("serviceAccountEmail", x.serviceAccountEmail());
                 o.put("additionalGcpScopes", x.additionalGcpScopes());
             }
+            case AuthenticationSpec.PreSharedKey x -> {
+                o.put("_type", AuthenticationTag.PreSharedKey.name());
+                o.put("keyVaultReference", x.keyVaultReference());
+            }
         }
         return o;
     }
@@ -235,6 +245,8 @@ public final class ConnectionWire {
                     o.string("protocol"), o.string("httpPath"));
             case BigQuery -> new ConnectionSpecification.BigQuery(o.string("projectId"),
                     o.string("defaultDataset"));
+            case Deephaven -> new ConnectionSpecification.Deephaven(o.string("host"), o.integer("port"),
+                    o.bool("useTls"));
         };
     }
 
@@ -260,6 +272,7 @@ public final class ConnectionWire {
             case OAuth -> new AuthenticationSpec.OAuth(o.string("oauthKey"), o.string("scopeName"));
             case GcpWorkloadIdentityFederation -> new AuthenticationSpec.GcpWorkloadIdentityFederation(
                     o.string("serviceAccountEmail"), o.strings("additionalGcpScopes"));
+            case PreSharedKey -> new AuthenticationSpec.PreSharedKey(o.string("keyVaultReference"));
         };
     }
 }

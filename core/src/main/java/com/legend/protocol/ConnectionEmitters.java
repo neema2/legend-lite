@@ -88,6 +88,11 @@ final class ConnectionEmitters {
                 srcInfo(b, a2.sourceInformation());
                 b.append('}');
             }
+            case Protocol.PPreSharedKey k ->
+                    // lite's own (docs/DEEPHAVEN_PLAN_2026_10_22.md §4); not
+                    // the engine's PSK island, which carries the key
+                    throw new IllegalStateException("PreSharedKey authentication"
+                            + " has no engine wire shape (lite backend)");
             case Protocol.PMiddleTierUserNamePassword m -> {
                 b.append("{\"_type\":\"middleTierUserNamePassword\","
                         + "\"sourceInformation\":");
@@ -194,6 +199,10 @@ final class ConnectionEmitters {
                     // a LITE backend with NO engine wire shape — refusing
                     // loudly beats inventing a _type the engine never reads
                     throw new IllegalStateException("SQLite datasource specs"
+                            + " have no engine wire shape (lite backend)");
+            case Protocol.PDeephavenSpec dh ->
+                    // lite's own, as SQLite (docs/DEEPHAVEN_PLAN_2026_10_22.md §4)
+                    throw new IllegalStateException("Deephaven datasource specs"
                             + " have no engine wire shape (lite backend)");
             case Protocol.PH2EmbeddedSpec eh -> {
                 b.append("{\"_type\":\"h2Embedded\",\"autoServerMode\":")

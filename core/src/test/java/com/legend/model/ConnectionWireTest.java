@@ -34,7 +34,8 @@ class ConnectionWireTest {
             new ConnectionSpecification.Snowflake("DB", "acct", "wh", "us-east-1", null, "aws", true, null, "ROLE"),
             new ConnectionSpecification.Spanner("p", "i", "d"),
             new ConnectionSpecification.Databricks("host", "443", "https", "/sql/1"),
-            new ConnectionSpecification.BigQuery("p", "ds"));
+            new ConnectionSpecification.BigQuery("p", "ds"),
+            new ConnectionSpecification.Deephaven("dh.example", 10000, true));
 
     private static final List<AuthenticationSpec> AUTHENTICATIONS = List.of(
             new AuthenticationSpec.NoAuth(), new AuthenticationSpec.DefaultH2(), new AuthenticationSpec.TestAuth(),
@@ -45,7 +46,8 @@ class ConnectionWireTest {
             new AuthenticationSpec.SnowflakePublic("u", "vault/k", "vault/pp"),
             new AuthenticationSpec.ApiToken("t"), new AuthenticationSpec.MiddleTierUserNamePassword("vault/m"),
             new AuthenticationSpec.OAuth("k", "s"),
-            new AuthenticationSpec.GcpWorkloadIdentityFederation("sa@x", List.of("scope")));
+            new AuthenticationSpec.GcpWorkloadIdentityFederation("sa@x", List.of("scope")),
+            new AuthenticationSpec.PreSharedKey("vault/dh"));
 
     @Test
     void everyConnectionSpecificationAndAuthenticationReadsBack() {

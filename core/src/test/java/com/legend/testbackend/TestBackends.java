@@ -37,7 +37,7 @@ public final class TestBackends {
             case Databricks -> DatabricksBackend.INSTANCE;
             case BigQuery -> BigQueryBackend.INSTANCE;
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto, Redshift, Spanner, Athena, Oracle,
-                 Aurora -> throw new com.legend.error.NotImplementedException(
+                 Aurora, Deephaven -> throw new com.legend.error.NotImplementedException(
                          "no test backend for database type '" + type + "': the platform does not execute on it");
         };
     }

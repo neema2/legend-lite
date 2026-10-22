@@ -2587,7 +2587,7 @@ public final class Protocol {
             permits PH2Local, PStaticSpec, PH2EmbeddedSpec, PDuckDBSpec,
             PSQLiteSpec, PSnowflakeSpec, PSpannerSpec, PDatabricksSpec,
             PBigQuerySpec, PRedshiftSpec, PTrinoSpec, PAthenaSpec, PAuroraSpec,
-            PGlobalAuroraSpec, PMemSqlSpec, POracleSpec {
+            PGlobalAuroraSpec, PMemSqlSpec, POracleSpec, PDeephavenSpec {
     }
 
     /** {@code _type:"athena"} — AthenaParserGrammar: {@code region} required,
@@ -2663,6 +2663,14 @@ public final class Protocol {
      *  the emitter refuses it loudly like the other extension flavors. */
     public record PSQLiteSpec(@com.legend.base.Nullable String path,
                               @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** {@code Deephaven { host: '...'; port: n; useTls: b; }} -- a DECLARED lite extension (OWN_CORPUS_DECISIONS
+     *  LITE-DESIGN-deephaven-backend; docs/DEEPHAVEN_PLAN_2026_10_22.md §4), every key required. No engine wire shape:
+     *  the emitter refuses it by name, as {@link PSQLiteSpec}. */
+    public record PDeephavenSpec(String host, long port, boolean useTls,
+                                 @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
 
@@ -2780,7 +2788,8 @@ public final class Protocol {
             permits PH2Default, PTestAuth, PDelegatedKerberos,
             PUserNamePassword, POAuth,
             PSnowflakePublic, PGCPApplicationDefaultCredentials, PApiToken,
-            PMiddleTierUserNamePassword, PGcpWifAuth, PTrinoKerberosAuth {
+            PMiddleTierUserNamePassword, PGcpWifAuth, PTrinoKerberosAuth,
+            PPreSharedKey {
     }
 
     /** {@code _type:"oauth"} — oauthKey + scopeName, both required
@@ -2814,6 +2823,14 @@ public final class Protocol {
     /** {@code _type:"middleTierUserNamePassword"} (probe ZConnWidenProbe). */
     public record PMiddleTierUserNamePassword(String vaultReference,
                                               @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthStrategy {
+    }
+
+    /** {@code PreSharedKey { keyVaultReference: '...'; }} -- a DECLARED lite extension (OWN_CORPUS_DECISIONS
+     *  LITE-DESIGN-deephaven-backend): the vault reference of a key, never the key. Not {@link PPskAuth}, the engine's
+     *  {@code #PSK{ psk: '...'; }#} island, which carries the key itself. No engine wire shape: refused by name. */
+    public record PPreSharedKey(String keyVaultReference,
+                                @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
             implements PAuthStrategy {
     }
 

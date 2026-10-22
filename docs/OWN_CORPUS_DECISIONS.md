@@ -342,3 +342,23 @@ ordinary Relation expression. Upstream has the `#SQL{...}#` island and no other 
   `FixtureAdjudicationTest` pins the engine's refusal as a leniency kind (no parser for the island type `IQ`).
 - **DECISION:** DECIDED: **KEEP** (the user's ask, 2026-10-13: the island is the tenth line). A row is added only with a
   test that exercises the island in a model, and pinned in both census tests in the same change.
+
+## 15. LITE-DESIGN-deephaven-backend — declared 2026-10-22 (Deephaven)
+
+A Deephaven server as a database of lite's (docs/DEEPHAVEN_PLAN_2026_10_22.md §4): `type: Deephaven` in a
+`RelationalDatabaseConnection`, with two words of its own, the `Deephaven { host; port; useTls; }` specification and
+`PreSharedKey { keyVaultReference; }` authentication. legend-engine's `DatabaseType` has no Deephaven, and its grammar
+has neither word (its Deephaven extension's `DeephavenConnection` and `###Deephaven` store are another construct, carried
+as they are).
+
+| # | row | construct |
+|---|---|---|
+| (per the census) | parser/DeephavenConnectionTest, ReferenceIntegrityTest (`aStoreOnDeephaven...`) | `type: Deephaven` connections, the `Deephaven` specification, `PreSharedKey` authentication |
+
+- **Surfaces:** LEGEND_LITE reads all three (the product surface); LEGEND_ENGINE refuses each by name at its token,
+  `type: Deephaven` in the engine's own words ("Unknown database type 'Deephaven'"), as SQLite's.
+- **JSON:** none, as SQLite's specification: legend-engine's protocol has no field for either word, so the emitter
+  refuses each by name.
+- **DECISION:** DECIDED: **KEEP** (the user, 2026-10-22: Deephaven is just another backend, and its connection is
+  modelled as its own, as Snowflake's is). A row is added only with a test that exercises the construct, and pinned in
+  both census tests in the same change.

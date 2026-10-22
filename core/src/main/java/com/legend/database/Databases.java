@@ -59,7 +59,7 @@ public final class Databases {
             case DuckDB, H2, Postgres, Databricks, Snowflake, BigQuery, SQLite, MariaDB, MySQL, Trino,
                  ClickHouse -> true;
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto, Redshift, Spanner, Athena, Oracle,
-                 Aurora -> false;
+                 Aurora, Deephaven -> false;
         };
     }
 
@@ -87,6 +87,10 @@ public final class Databases {
                  Redshift, Spanner, Athena, Oracle, Aurora ->
                     throw new com.legend.error.NotImplementedException(
                             "SQL dialect for database type '" + type + "' is not implemented yet");
+            // docs/DEEPHAVEN_PLAN_2026_10_22.md: modelled first (L1); its target, which writes table operations
+            // instead of SQL, is L2
+            case Deephaven -> throw new com.legend.error.NotImplementedException(
+                    "the Deephaven target is not built yet (docs/DEEPHAVEN_PLAN_2026_10_22.md, L2)");
         };
     }
 }

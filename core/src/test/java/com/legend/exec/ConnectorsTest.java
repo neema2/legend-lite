@@ -49,7 +49,8 @@ class ConnectorsTest {
                 new ConnectionSpecification.Snowflake("d", "a", "w", "r", null, null, null, null, null),
                 new ConnectionSpecification.Spanner("p", "i", "d"),
                 new ConnectionSpecification.Databricks("h", "443", "https", "/sql"),
-                new ConnectionSpecification.BigQuery("p", "d"))) {
+                new ConnectionSpecification.BigQuery("p", "d"),
+                new ConnectionSpecification.Deephaven("dh.example", 10000, true))) {
             m.put(s.getClass(), s);
         }
         return m;
@@ -72,6 +73,7 @@ class ConnectorsTest {
         m.put(new AuthenticationSpec.MiddleTierUserNamePassword("v"), false);
         m.put(new AuthenticationSpec.OAuth("k", "s"), false);
         m.put(new AuthenticationSpec.GcpWorkloadIdentityFederation("e", List.of()), false);
+        m.put(new AuthenticationSpec.PreSharedKey("vault/dh"), false);
         return m;
     }
 

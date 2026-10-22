@@ -18,7 +18,8 @@ public sealed interface AuthenticationSpec
                 AuthenticationSpec.ApiToken,
                 AuthenticationSpec.MiddleTierUserNamePassword,
         AuthenticationSpec.GcpWorkloadIdentityFederation,
-                AuthenticationSpec.OAuth {
+                AuthenticationSpec.OAuth,
+                AuthenticationSpec.PreSharedKey {
 
     /** Whether opening a session with it needs no credential: no authentication, the engine's test default and the
      *  test harness's. Every other carries one (a password, a token, a key), which no session the platform opens reads
@@ -38,6 +39,7 @@ public sealed interface AuthenticationSpec
             case MiddleTierUserNamePassword a -> false;
             case OAuth a -> false;
             case GcpWorkloadIdentityFederation a -> false;
+            case PreSharedKey a -> false;
         };
     }
 
@@ -98,4 +100,9 @@ public sealed interface AuthenticationSpec
             java.util.List<String> additionalGcpScopes)
             implements AuthenticationSpec {
     }
+
+    /** A pre-shared key, named by its vault reference and never written itself (lite's own, for a Deephaven server:
+     *  docs/DEEPHAVEN_PLAN_2026_10_22.md §4). Not the engine's {@code #PSK{ psk: '...'; }#} island, which carries the
+     *  key. */
+    record PreSharedKey(String keyVaultReference) implements AuthenticationSpec {}
 }

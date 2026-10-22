@@ -77,6 +77,9 @@ public record ConnectionDefinition(
         // not in legend-engine's DatabaseType (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13; as SQLite before
         // them): the open databases the user asked for, each a dialect of its own
         MariaDB,
-        MySQL
+        MySQL,
+        // not in legend-engine's DatabaseType either (2026-10-22, docs/DEEPHAVEN_PLAN_2026_10_22.md): a Deephaven
+        // server, whose tables an ordinary ###Relational store declares; its own specification and authentication
+        Deephaven
     }
 }

@@ -120,9 +120,12 @@ RelationalDatabaseConnection risk::live::Conn
 - **`AuthenticationSpec.PreSharedKey(keyVaultReference)`**: the model names the key in the vault, never the key
   (Charter C3b, as every connection's credentials). A user's own identity (OIDC or a bearer token, so Deephaven sees
   who asks) is the next authentication, when a deployment needs per-user access.
-- Through the parser, the protocol records, the composer and the JSON as every connection; one `EngineDropsTest`-shaped
-  test per construct (the lite dialect reads it and the round trip keeps it; the engine dialect refuses it);
-  `//gates:parser_equivalence` guards that no engine text parses differently.
+- Through the parser and the protocol records as every connection, and the lite plan format (`ConnectionWire`) as
+  every connection the runner opens. **No legend-engine JSON and no composer rule**: legend-engine's protocol has no
+  field for either word, so each is refused by name there, as SQLite's specification is (S89: "refused by name where it
+  has none"; `ProtocolEmitter.liteOnly`). Tests: `parser/DeephavenConnectionTest` (lite's dialect reads it; the
+  engine's refuses each word at its token; every key required, an unknown or repeated key refused; the model door's
+  shape; the JSON refusal); `//gates:parser_equivalence` guards that no engine text parses differently.
 
 **L1's precedents** (the Studio line's review of the revision, 2026-10-22; all in
 `parser/section/ConnectionSectionGrammar.java`):
@@ -139,8 +142,10 @@ RelationalDatabaseConnection risk::live::Conn
    `_type` `PSK`), which carries the key itself: a record of its own, so a reference never reads as a key.
 4. The extension is declared: a `LITE-DESIGN-deephaven-backend` family in `docs/OWN_CORPUS_DECISIONS.md`, modelled on
    §9 `LITE-DESIGN-sqlite-backend`, so `OwnCorpusConformanceTest` classifies own-corpus text that uses it.
-5. The JSON carries both whole (rule A): `_type`s of their own, read back in `protocol/ConnectionReader`; a round-trip
-   test (text to JSON to text) beside the refusal tests.
+5. The JSON (rule A): the Studio line asked for `_type`s of their own read back in `protocol/ConnectionReader`; L1 follows
+   the code's precedent instead (SQLite's specification, `ProtocolEmitter.liteOnly`, S89's "refused by name where it
+   has none"): legend-engine's protocol has no field for either word, so the emitter and the composer refuse each by
+   name. The Studio line is told; a lite JSON of its own, if a consumer needs one, is a decision of its own.
 
 ## 5. Decisions
 
@@ -256,18 +261,26 @@ the model, reads, creating tables and live results land first.
    `DatabaseConnector` gains `ownSessions()` and `open(ConnectionDefinition)`, and the connection codec is
    `model/ConnectionWire`: L3 uses those.
 
-## 9. The landings (stacked branches, no PR until asked)
+## 9. The landings, in the order agreed (the user, 2026-10-22: "do everything, then a fake UI until the DataCube session has cleaned up")
+
+A ticking grid comes early, before writes and cross-store land, so the live experience is judged first; the modelled
+publisher replaces the demo's seeding once they do. Stacked branches, no PR until asked.
 
 | # | branch | content | judge |
 |---|---|---|---|
-| L1 | `claude/deephaven-1-model` (on main) | `DatabaseType.Deephaven` (a lite type) and its switch arms, each refusing by name until L2/L3; `ConnectionSpecification.Deephaven`, `AuthenticationSpec.PreSharedKey`: parser (both dialects), protocol records, composer, JSON, `ConnectionWire`'s tags, `ConnectorsTest`'s rows; the binding check (§3's types, DH18), each refusal a `ReferenceIntegrityTest` case through both doors; register rows | `//gates:local`, `//gates:parser_equivalence`; the Studio line reviews the grammar |
-| L2 | `claude/deephaven-2-target` (on L1) | `sql/dialect/Deephaven.java` (`SqlDialect` whole): reads first, the shapes DataCube writes (scan, filter, project, extend, group-by, sort, limit, joins per DH20), then class queries through mappings; DDL as input tables (DH15); every other IR node, function and aggregate refused by name; unit tests on the plan text, as `MongoDbDialectTest` | the dialect's tests; every existing lane's dump unchanged |
-| L3 | `claude/deephaven-3-connector` (on L2, after the Mongo branch merges its seam) | `core/src/main/deephaven`: `rows` over Arrow Flight, `subscribe` with its handle, creating tables, the schema check (DH16), the missing-table refusal (DH19); the `@maven_deephaven` pool; the pinned test server and `DeephavenBackend`; the opt-in server target; the guards' additive lines, each dated | lite's own Deephaven cases, answered on DuckDB and on Deephaven and compared row for row; then the PCT lanes, as every database's |
-| W | `claude/cypher-writes` reaching `main` (the Cypher writes line's landing, its owner's call) | §6: the four verbs, staging, class writes, write plans | its own gates (`WritePlansTest` and the rest on DuckDB, H2, Postgres) |
-| Wr | (proposed to the Cypher writes line) | a relation-valued parameter: rows from outside a database into a write (§6's gap) | its owner's tests; this line's publisher |
+| L1 | `claude/deephaven-1-model` (on main) | `DatabaseType.Deephaven` (a lite type) and its switch arms, each refusing by name until L2/L3; `ConnectionSpecification.Deephaven`, `AuthenticationSpec.PreSharedKey`: parser (both dialects), protocol records, `ConnectionWire`'s tags, `ConnectorsTest`'s rows; no legend-engine JSON and no composer rule (each refused by name, as SQLite's specification: S89's "refused by name where it has none"); the model door's shape check (all three words or none) and the binding check (§3's types, DH18), each a test; S48 extended; `LITE-DESIGN-deephaven-backend` declared | `//gates:local`, `//gates:parser_equivalence`; the Studio line reviews the grammar |
+| L2 | `claude/deephaven-2-target` (on L1) | `sql/dialect/Deephaven.java` (`SqlDialect` whole), designed against the IR DataCube's 14 query shapes actually lower to, then class queries through mappings; **a parameter as a one-row table joined in** (a formula reads its column; no value is ever written into formula text, DH5); DDL as input tables (DH15); names the server cannot hold refused by name; every other IR node, function and aggregate refused by name; unit tests on the plan text, as `MongoDbDialectTest` | the dialect's tests; every existing lane's dump unchanged |
+| L3 | `claude/deephaven-3-connector` (on L2 merged with the Mongo branch, whose connector seam it uses) | `core/src/main/deephaven`: `rows` over Arrow Flight, `subscribe` with its handle, creating tables, the schema check (DH16), the missing-table refusal (DH19); the `@maven_deephaven` pool; the pinned test server and `DeephavenBackend`; the opt-in server target; the guards' additive lines, each dated | lite's own Deephaven cases, answered on DuckDB and on Deephaven and compared row for row; then the PCT lanes, as every database's |
+| D0 | a demo module (on L3) | **the first demo**: the store, classes and mappings of §7; reference data and ticks loaded the way tests seed data (marked temporary); the simulator; a **restart watcher** that re-seeds after a Deephaven restart and tells subscribers; **a plain live-grid page** (dh-core.js from the server) standing in for DataCube | a ticking grid whose values agree with DuckDB's over the same inputs; a restart survived |
+| W | `claude/cypher-writes` reaching `main` (the Cypher writes line's landing, its owner's call) | §6: the four verbs, staging, class writes, write plans | its own gates |
+| Wr | on main after W (built here, reviewed by the Cypher writes line) | the relation slot: a parameter whose value is typed rows, staged by the runner (§6's gap) | its own tests on DuckDB, H2, Postgres |
+| X | on Wr | **cross-store with explicit boundaries**: each `from(runtime)` a split, the inner part planned on its runtime and its rows carried into the outer part's slot; refused by name inside a live plan and for writes to two databases | a read on DuckDB merged into Deephaven as one program |
 | L3w | on L3, W and Wr | Deephaven's write arms (DH17, §6's table) | the write cases, DuckDB against Deephaven |
-| L4 | `claude/deephaven-4-datacube`, stacked on the DataCube line's `claude/datacube-query-base` (da0f5aec1) | DataCube's ticking mode (§10) | the DataCube line reviews |
-| L5 | a demo module | §7: the store, its classes and mappings, the two runtimes, the publisher, the simulator | runs, and its risk agrees with DuckDB's over the same inputs |
+| L5 | on D0, X and L3w | the modelled publisher (§7) replaces D0's seeding | D0's checks, with no seeding |
+| L4 | `claude/deephaven-4-datacube`, stacked on the DataCube line's branch once it has settled | DataCube's ticking mode (§10) replaces the plain page | the DataCube line reviews |
+
+**Before internal users rely on it:** the firm's counsel reviews the deployment against the Deephaven Community
+License (this line's reading, `experiments/deephaven-spike/README.md`, is not legal advice).
 
 ## 10. DataCube's ticking mode (agreed with the DataCube + Python line, 2026-10-22; unchanged by the revision)
 
@@ -291,7 +304,7 @@ The user's shape: built here on a branch stacked on the DataCube line's, reviewe
 - **Stable to build on**: the command API (`grid-commands.ts`, `page-commands.ts`), the cube and page documents, the
   page keeper's write protocol, `DataGrid`, `treeview`. **Moving**: Python's command layer (S6, little overlap).
 
-## 11. Register rows (`docs/SEMANTICS_REGISTER.md`: the next number free on main when L1 lands; main holds up to S96, the MongoDB branch S97-S104, so the number is checked at landing)
+## 11. Register rows (`docs/SEMANTICS_REGISTER.md`: L1 extends S48, lite's database types; the rows below take the next number free on main when their landing lands, since the MongoDB and Cypher writes branches both claim S97 onward)
 
 1. **Deephaven is lite's own design**, not legend-engine's Deephaven extension: a `###Relational` store, `type:
    Deephaven`, its specification and pre-shared key as lite's, execution by table operations (this document).

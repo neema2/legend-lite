@@ -2497,3 +2497,25 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   literal whose leading field has fewer than three digits as no year (`DATE '5-01-01'` is 2001-05-01, measured): this
   line writes four digits where it builds the literal (`MatchFold`, `Scalars.dateArg`); a TDS cell `%5-01-01` lowered
   by `Scalars`' cell reader would still be written as Pure spells it.
+
+## A twelfth line, 2026-10-22: Deephaven as a database (the user's ask, rule 5)
+
+A Deephaven server as just another backend: its tables an ordinary `###Relational` store's, with mappings and classes
+over them; `RelationalDatabaseConnection { type: Deephaven; specification: Deephaven {...}; auth: PreSharedKey {...} }`;
+a target over the `SqlQuery` IR that writes Deephaven's table operations; a connector (not bundled: the Deephaven
+Community License) with live results beside typed rows; DataCube the first live client.
+- **Plan:** `docs/DEEPHAVEN_PLAN_2026_10_22.md` (decisions DH1-DH20; agreed with the MongoDB line, the Studio line and
+  the DataCube + Python line on 2026-10-22). **Evidence:** `experiments/streaming-risk-spike` and
+  `experiments/deephaven-spike` on `claude/gallant-allen-qydtzt`.
+- **Branches, stacked (no PR until the user asks):** `claude/deephaven-1-model` (L1, on main), then the target (L2), the
+  connector (L3, on the MongoDB branch's connector seam), the first demo with a plain live-grid page (D0); then the
+  writes (after the Cypher writes branch lands), cross-store with explicit `from(runtime)` boundaries, the modelled
+  publisher, and DataCube's ticking mode (once the DataCube line has settled).
+- **L1's files outside its own:** `model/ConnectionDefinition.java` (`DatabaseType.Deephaven`),
+  `ConnectionSpecification.java`, `AuthenticationSpec.java`, `ConnectionWire.java`, the new `model/DeephavenColumns.java`;
+  `parser/section/ConnectionSectionGrammar.java` (`LITE_DATABASE_TYPES`, the two parsers), `parser/Dialect.java`
+  (javadoc); `protocol/Protocol.java`, `ConnectionEmitters.java`, `RelationalConnectionComposer.java` (refusals by
+  name); `model/FromProtocol.java`; `compiler/element/ModelIntegrity.java` (the binding check); the registries'
+  arms (`database/Databases.java`, `exec/Connectors.java`, `EngineText.java`, test `TestBackends.java`); tests
+  `parser/DeephavenConnectionTest`, `ReferenceIntegrityTest`, `ConnectorsTest`, `ConnectionWireTest`; the own-corpus
+  censuses' pins in `parser-equivalence`; `docs/SEMANTICS_REGISTER.md` S48, `docs/OWN_CORPUS_DECISIONS.md` §15.

@@ -34,7 +34,7 @@ public final class Connectors {
             case Trino -> TrinoConnector.INSTANCE;
             case ClickHouse -> ClickHouseConnector.INSTANCE;
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto, Redshift, Spanner, Athena, Oracle,
-                 Aurora -> new Unbuilt(type);
+                 Aurora, Deephaven -> new Unbuilt(type);
         };
     }
 
