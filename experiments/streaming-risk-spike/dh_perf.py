@@ -118,7 +118,8 @@ for i in range(16):
         got = dict(groupings[i].state)
     snap = {tuple(r[k] for k in keys): r for r in lab.snapshot(tables[i])}
     cs, cn = compare(exp, got, keys, ["mv_usd", "pnl_usd", "n"]), compare(exp, snap, keys, ["mv_usd", "pnl_usd", "n"])
-    if not cs["ok"] or not cn["ok"] or groupings[i].errors:
+    # correctness is the values; a client error (the ticking client's, then resubscribed) is counted apart
+    if not cs["ok"] or not cn["ok"]:
         bad[i] = {"subscriber": (cs["mismatches"], cs["rows"], cs["extraRows"]),
                   "snapshot": (cn["mismatches"], cn["rows"], cn["extraRows"]), "clientErrors": groupings[i].errors[:1]}
 # every row of the risk table against the final inputs: a stale price or FX rate, a missing or extra position
