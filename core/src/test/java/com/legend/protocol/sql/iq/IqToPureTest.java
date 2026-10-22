@@ -357,6 +357,15 @@ class IqToPureTest {
         }
         // nothing computed: the limit as written
         assertTrue(numbers("SELECT TOP 2 i FROM " + T + " ORDER BY i DESC").endsWith("->limit(2)"));
+        // the IQ scale program, 2026-10-22 (its fuzzer's crash, "relation has no column '_sql_1'"): an item holding a
+        // scalar subquery, ordered by its position, sorts by a key its value computes, so the subquery's column, computed
+        // once, comes before the sort, and only once
+        for (IqSettings profile : List.of(IqProfile.IQ16_DEFAULT.settings(), IqProfile.IQ17_DEFAULT.settings())) {
+            String p = pure("SELECT TOP 5 CAST((SELECT MAX(u.id) FROM " + T + " u WHERE u.sm = x.id) AS VARCHAR(12)) AS"
+                    + " c3 FROM " + T + " x ORDER BY 1", profile);
+            assertTrue(p.indexOf("->aggregate(") >= 0 && p.indexOf("->aggregate(") < p.indexOf("->sort("), p);
+            assertEquals(p.indexOf("->aggregate("), p.lastIndexOf("->aggregate("), p);
+        }
     }
 
     @Test

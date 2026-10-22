@@ -2167,6 +2167,19 @@ repros will be in the study's §9.
     committed), where the JDK's dispatcher ran them on its default stack. They still run one at a time. The program's
     scale probe overflowed the default stack at a 500-branch UNION ALL, 350 joins, 500 nested parentheses, a CASE of
     1,000 WHENs and an AND of 5,000; the census's sizes had been measured on a 512 MB stack.
+  - **The seventh line's `protocol/sql/SqlToPure.java`, `assemble`:**
+    - A sort key computed from an item's value now carries the item's columns computed once before it (its scalar
+      subqueries'), and each such column is computed once, before the sort if anything there reads it.
+    - Under a row limit, the fuzzer's `TOP 5 CAST((SELECT MAX(...) ...) AS VARCHAR(12)) ... ORDER BY 1` read the
+      subquery's column before the sort and computed it after the limit, a compile error.
+    - Judged by both `sql-parity` lanes and both `iq-parity` lanes.
+  - **The compiler line's `lowering/Lowerer.java` (`filter`) and `lowering/SqlProbes.java`:**
+    - A filter over a grouped select is isolated (filtered from outside), not folded into HAVING, when the fold
+      would carry an aggregate that reads no column (`MIN(-1)`, `COUNT(*)`) into the predicate's subquery.
+    - DuckDB refuses it ("Aggregate with only constant parameters has to be bound in the root subquery"), and
+      Postgres binds it to the subquery's own rows.
+    - The probe is `SqlProbes.aggregatesNoColumn`. Judged by both parity lanes of each island, the lowering and
+      integration suites, and the relational corpus on DuckDB and H2.
   - **This line's own files:**
     - `IqParity.LANES` adds `snowflake` to the IQ ledger's lanes;
     - `IqParitySnowflakeTest` and `//core:iq_parity_snowflake_test` (manual, a real account);

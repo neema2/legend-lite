@@ -1639,6 +1639,13 @@ public final class Lowerer {
             verbatimEquality = prevVerbatim;
         }
         Fold.FilterSlot slot = Fold.filterSlot(src, windowRef);
+        if (slot == Fold.FilterSlot.HAVING && SqlProbes.containsSubquery(predicate)
+                && src.projections().stream().anyMatch(p -> SqlProbes.aggregatesNoColumn(p.expr()))) {
+            // a HAVING would carry an aggregate that reads no column into the predicate's subquery, where no database
+            // can tell whose rows it aggregates: filter the grouped rows from outside (the IQ scale program,
+            // 2026-10-22, its fuzzer: GROUP BY v ... MIN(-1) read by an EXISTS was DuckDB's Binder Error)
+            slot = Fold.FilterSlot.ISOLATE;
+        }
         if (slot == Fold.FilterSlot.ISOLATE) {
             src = isolate(src);
             predicate = predicateOrThrow(src, f.predicate(), "filter");

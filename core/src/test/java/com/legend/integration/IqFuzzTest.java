@@ -79,7 +79,7 @@ class IqFuzzTest {
                 String p = gen.predicate(shape.scope());
                 String complex = gen.complex();
                 List<String> sqls = List.of(shape.sql(), shape.where("(" + p + ")"), shape.where("NOT (" + p + ")"),
-                        shape.where("(" + p + ") IS UNKNOWN"), complex);
+                        shape.where("(" + p + ") IS UNKNOWN"), complex, shape.partitions(p));
                 List<Outcome> outcomes = new ArrayList<>();
                 for (int q = 0; q < sqls.size(); q++) {
                     String sql = sqls.get(q);
@@ -117,6 +117,12 @@ class IqFuzzTest {
                                 .append(p).append(": ").append(whole.size()).append(" rows, the partitions ")
                                 .append(outcomes.get(1).rows().size()).append(" + ").append(outcomes.get(2).rows().size())
                                 .append(" + ").append(outcomes.get(3).rows().size()).append('\n');
+                    } else if (outcomes.get(5).kind().equals("ROWS") && !whole.equals(sorted(outcomes.get(5).rows()))) {
+                        // the same partitions as one query of nested UNION ALLs (Q19)
+                        found++;
+                        findings.append(s).append("\tTLP-UNION\t").append(shape.partitions(p)).append('\t')
+                                .append(whole.size()).append(" rows, the union of the partitions ")
+                                .append(outcomes.get(5).rows().size()).append('\n');
                     }
                 }
             }
@@ -245,21 +251,52 @@ class IqFuzzTest {
         assertTrue(problems.isEmpty(), problems.size() + " problems:\n" + String.join("\n", problems));
     }
 
-    /** The loop's lens: the Pure and the DuckDB and Snowflake SQL of one IQ query ({@code -Diq.show.sql}, default a
-     *  three-way join), printed, under {@code -Diq.fuzz.profile}. */
+    /** The loop's lens: each IQ query of {@code -Diq.show.sql} (several split by {@code ;;}; default a three-way
+     *  join) with its island, its DuckDB and Snowflake SQL ({@code -Diq.show.plans=false} leaves them out) and its
+     *  outcome on DuckDB, under {@code -Diq.fuzz.profile}. */
     @Test
     void showsAQuerysPlans() throws Exception {
-        String sql = System.getProperty("iq.show.sql", "SELECT x0.id, x2.it FROM t x0 JOIN t x1 ON x1.id = x0.id"
-                + " JOIN t x2 ON x2.id = x1.id WHERE x0.id < 3 ORDER BY x0.id");
+        // -Diq.show.file=<a file of them>, as a launcher quotes no SQL (run it with --strategy=TestRunner=standalone)
+        String file = System.getProperty("iq.show.file");
+        String sqls = file != null ? Files.readString(Path.of(file), StandardCharsets.UTF_8) : System.getProperty(
+                "iq.show.sql", "SELECT x0.id, x2.it FROM t x0 JOIN t x1 ON x1.id = x0.id JOIN t x2 ON x2.id = x1.id"
+                + " WHERE x0.id < 3 ORDER BY x0.id");
+        boolean plans = !"false".equals(System.getProperty("iq.show.plans"));
         String profile = System.getProperty("iq.fuzz.profile", "iq17-default");
         List<SqlParity.Table> tables = IqParity.schema(Runfile.property("iq.parity.schema"));
         Set<String> names = IqParity.tableNames(tables);
-        String island = island(sql, profile, tables, names, 0, 0);
-        System.out.println("-- island\n" + island);
-        for (String[] lane : new String[][] {{"duckdb", PLATFORM.connectionBody()}, {"snowflake", SNOWFLAKE}}) {
-            var ctx = com.legend.Compiler.compileModel(IqParity.model(tables, lane[1]));
-            System.out.println("-- " + lane[0] + "\n" + com.legend.Compiler.query(ctx, island).plan(IqParity.RUNTIME)
-                    .sql());
+        String model = IqParity.model(tables, PLATFORM.connectionBody());
+        try (Connection session = PLATFORM.open()) {
+            IqParity.seed(PLATFORM, session, tables);
+            QueryService service = new QueryService();
+            int q = 0;
+            for (String sql : sqls.split(";;")) {
+                String island = island(sql.strip(), profile, tables, names, 0, q);
+                System.out.println("== " + sql.strip() + "\n-- island\n" + island);
+                if (plans) {
+                    // the island's Pure: a case with a setting is translated by the harness (ansinull's own On)
+                    try {
+                        IqParity.Case c = new IqParity.Case("lite/fuzz.yaml", "show" + q, sql.strip(),
+                                List.of(profile), null, null, null, null, null, "query.ansinull=On", null);
+                        System.out.println("-- pure\n" + IqParity.query(IqParity.runs(List.of(c)).get(0), tables,
+                                names));
+                    } catch (Exception | StackOverflowError x) {
+                        System.out.println("-- pure: " + oneLine(x));
+                    }
+                }
+                for (String[] lane : plans ? new String[][] {{"duckdb", PLATFORM.connectionBody()},
+                        {"snowflake", SNOWFLAKE}} : new String[0][]) {
+                    try {
+                        var ctx = com.legend.Compiler.compileModel(IqParity.model(tables, lane[1]));
+                        System.out.println("-- " + lane[0] + "\n" + com.legend.Compiler.query(ctx, island)
+                                .plan(IqParity.RUNTIME).sql());
+                    } catch (Exception | StackOverflowError x) {
+                        System.out.println("-- " + lane[0] + ": " + oneLine(x));
+                    }
+                }
+                Outcome o = run(service, session, model, sql.strip(), profile, tables, names, 0, q++);
+                System.out.println("-- outcome: " + o.kind() + " " + (o.kind().equals("ROWS") ? o.rows() : o.reason()));
+            }
         }
     }
 
@@ -378,6 +415,12 @@ class IqFuzzTest {
             if (t instanceof com.legend.error.NotImplementedException
                     || t instanceof com.legend.sql.dialect.DialectCapability) {
                 return new Outcome("REFUSED", List.of(), oneLine(t));
+            }
+            if (t instanceof com.legend.error.DataError && t.getMessage() != null
+                    && t.getMessage().matches("(?s)(Binder|Parser|Catalog|Not implemented|INTERNAL|Invalid Input)"
+                    + " Error.*")) {
+                // the database refused the SQL the island sent: lite's bug, or a limit of the database's own
+                return new Outcome(t.getMessage().contains("depth") ? "DBLIMIT" : "DBERROR", List.of(), oneLine(t));
             }
             if (t instanceof com.legend.protocol.sql.SqlTranslationException
                     || t instanceof com.legend.error.IslandSyntaxException || t instanceof com.legend.error.DataError

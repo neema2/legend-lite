@@ -3830,7 +3830,7 @@ public final class SqlToPure {
             if (dialect.ordersNothing(item.expr())) {
                 continue;
             }
-            String key = sortKey(item, s, scope, outputs, computed, present, afterDistinct);
+            String key = sortKey(item, s, scope, outputs, computed, present, afterDistinct, preOf);
             sorted.add(key);
             boolean nullsFirst = item.nullsFirst() != null ? java.util.Objects.requireNonNull(item.nullsFirst())
                     : dialect.nullsFirst(item.descending());
@@ -3860,9 +3860,15 @@ public final class SqlToPure {
         }
         List<ColSpec> earlyPre = new ArrayList<>();
         computed.forEach(c -> earlyPre.addAll(preOf.getOrDefault(c.name(), List.of())));
+        // each computed once: an output and the sort key computed from its value read the same ones (the IQ scale
+        // program, 2026-10-22, its fuzzer: TOP 5 CAST((SELECT MAX(...) ...) AS VARCHAR(12)) ... ORDER BY 1 read its
+        // subquery's column before the sort and computed it after the limit)
+        Set<String> preDone = new HashSet<>();
         for (ColSpec c : earlyPre) {
-            // one extend each: a column computed once may read one computed before it
-            relation = call("extend", relation, new ColSpecArray(List.of(c)));
+            if (preDone.add(c.name())) {
+                // one extend each: a column computed once may read one computed before it
+                relation = call("extend", relation, new ColSpecArray(List.of(c)));
+            }
         }
         if (!computed.isEmpty()) {
             relation = call("extend", relation, new ColSpecArray(computed));
@@ -3909,7 +3915,9 @@ public final class SqlToPure {
                 List<ColSpec> latePre = new ArrayList<>();
                 late.forEach(c -> latePre.addAll(preOf.getOrDefault(c.name(), List.of())));
                 for (ColSpec c : latePre) {
-                    relation = call("extend", relation, new ColSpecArray(List.of(c)));
+                    if (preDone.add(c.name())) {
+                        relation = call("extend", relation, new ColSpecArray(List.of(c)));
+                    }
                 }
                 if (!late.isEmpty()) {
                     relation = call("extend", relation, new ColSpecArray(late));
@@ -3960,7 +3968,8 @@ public final class SqlToPure {
     }
 
     private String sortKey(SqlAst.SortItem item, SqlAst.Select s, Scope scope, List<Output> outputs,
-            List<ColSpec> computed, Set<String> present, List<ColSpec> afterDistinct) {
+            List<ColSpec> computed, Set<String> present, List<ColSpec> afterDistinct,
+            Map<String, List<ColSpec>> preOf) {
         SqlAst.Expr e = item.expr();
         if (e instanceof SqlAst.IntegerLit n) {
             // a position counts the select list as expanded: SELECT * ... ORDER BY 2 is the second column
@@ -3969,7 +3978,7 @@ public final class SqlToPure {
                         n.pos());
             }
             notJsonKey(outputs.get(n.value().intValue() - 1).kind(), "ORDER BY", n.pos());
-            return sortedBy(outputs.get(n.value().intValue() - 1), s, n.pos(), computed, present, afterDistinct);
+            return sortedBy(outputs.get(n.value().intValue() - 1), s, n.pos(), computed, present, afterDistinct, preOf);
         }
         if (e instanceof SqlAst.ColumnRef ref && ref.parts().size() == 1) {
             String found = dialect.resolve(ref.parts().get(0), outputs.stream().map(Output::name).toList(),
@@ -3984,7 +3993,7 @@ public final class SqlToPure {
                 for (Output o : outputs) {
                     if (o.name().equals(found)) {
                         notJsonKey(o.kind(), "ORDER BY", e.pos());
-                        return sortedBy(o, s, e.pos(), computed, present, afterDistinct);
+                        return sortedBy(o, s, e.pos(), computed, present, afterDistinct, preOf);
                     }
                 }
             }
@@ -3996,7 +4005,7 @@ public final class SqlToPure {
                 SqlAst.Expr oe = o.expr();
                 if (oe != null && canon(oe, inputScope(inputs)).equals(canon)) {
                     notJsonKey(o.kind(), "ORDER BY", e.pos());
-                    return sortedBy(o, s, e.pos(), computed, present, afterDistinct);
+                    return sortedBy(o, s, e.pos(), computed, present, afterDistinct, preOf);
                 }
             }
             if (e instanceof SqlAst.ColumnRef ref) {
@@ -4009,7 +4018,7 @@ public final class SqlToPure {
                                 : o.value() instanceof AppliedProperty p && p.receiver() instanceof Variable v
                                 && v.name().equals(row) && p.property().equals(source.name()))) {
                             notJsonKey(o.kind(), "ORDER BY", e.pos());
-                            return sortedBy(o, s, e.pos(), computed, present, afterDistinct);
+                            return sortedBy(o, s, e.pos(), computed, present, afterDistinct, preOf);
                         }
                     }
                 }
@@ -4047,7 +4056,7 @@ public final class SqlToPure {
      *  own (a collation's): then a column computed with that key -- before the select list from the output's value,
      *  or after a DISTINCT from its column ({@code afterDistinct}). */
     private String sortedBy(Output o, SqlAst.Select s, SqlAst.Pos pos, List<ColSpec> computed, Set<String> present,
-            List<ColSpec> afterDistinct) {
+            List<ColSpec> afterDistinct, Map<String, List<ColSpec>> preOf) {
         ValueSpecification column = property(row, o.internal());
         ValueSpecification v = o.value();
         java.util.function.UnaryOperator<ValueSpecification> collation = dialect.key("ORDER BY",
@@ -4060,6 +4069,10 @@ public final class SqlToPure {
             afterDistinct.add(new ColSpec(name, lambda(row, collation.apply(column)), null, null));
         } else {
             computed.add(new ColSpec(name, lambda(row, collation.apply(v != null ? v : column)), null, null));
+            if (v != null) {
+                // the key reads the output's value, and so the columns computed once before it
+                preOf.put(name, o.pre());
+            }
         }
         return name;
     }

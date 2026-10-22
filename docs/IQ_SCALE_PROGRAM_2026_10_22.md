@@ -156,8 +156,9 @@ Each iteration is one slice:
    - the top new finding of the last differential or fuzz run.
 3. **Build** the change with its unit test and its parity cases. A case whose answer is not snapped waits for the
    oracle, marked in the queue.
-4. **Judge.** Run `//core:iq_parity_test` (DuckDB), `//core:iq_parity_postgres_test`, `//core:iq_syntax_cases_test`
-   and `//core:core_tests`. Under P1, also run the Snowflake lane, over the touched case files at least. A Lowerer or
+4. **Judge.** Run `//core:iq_parity_test` (DuckDB), `//core:iq_parity_postgres_test`, `//core:iq_syntax_cases_test`,
+   `//core:guardrails` and `//core:core_tests`. A `SqlToPure` edit also runs `//core:sql_parity_test` and
+   `//core:sql_parity_postgres_test`. Under P1, also run the Snowflake lane, over the touched case files at least. A Lowerer or
    dialect edit also runs `//spec:corpus_duckdb` and `//spec:corpus_h2`.
 5. **Record:**
    - the ledger columns;
@@ -185,12 +186,15 @@ says so.
 | Q3b | The Snowflake plan census: every run DuckDB plans is planned for Snowflake, render only | P1.1 | — | done: 6,236 of 6,236 |
 | Q4 | First Snowflake triage: every status that differs from DuckDB's | P1.2 | Q3 | open |
 | Q5 | The DuckDB-against-Snowflake differential runner and TLP/NoREC checks | P2.1, P2.2 | Q3 | TLP done on DuckDB (Q6); the Snowflake half waits for Q3 |
-| Q6 | The generator: `IqFuzz` and `//core:iq_fuzz_test` | P2.3 | — | done; the rounds feed the queue |
+| Q6 | The generator: `IqFuzz` and `//core:iq_fuzz_test` | P2.3 | — | done; the rounds feed the queue (seeds 1-3 clean after slice 3) |
+| Q21 | DATEADD of a computed timestamp of no known year under the iq17 profiles: refused for SQL Anywhere 17's defect past the year 7910 (531 of round 3's refusals); whether IQ 17.1 shares it decides the iq17 reading | P3 | oracle | open |
 | Q14 | A stored REAL or FLOAT column read: compared, computed, shown | P3 | oracle | open. Measured: under IQ 17.1's engine `rl = 0.1` in a WHERE holds for a stored REAL (the constant compared in single precision), while SQL Anywhere 17 compares as doubles, and a computed REAL compares as a double under both (`reals_compared_as_doubles`) |
 | Q15 | The corpus coverage lane rebuilt in the cloud (SEDE, SQLStorm and Public BI fetched; BIRD needs disk) | P3 | the user's approval to run the research repo's scripts | open |
 | Q16 | Very wide joins on DuckDB: per statement, `SET disabled_optimizers = 'join_order'` past ~64 joined relations | P4 | an exec-seam hook (another line's) | proposed. Measured on DuckDB 1.4.4, plain SQL, a chain of self-joins over 11 rows: 100 joins 0.6 s, 200 joins 19 s, 350 joins 181 s. With the join-order optimizer off: 0.15 s, 0.5 s, and 700 joins in 2.8 s |
 | Q17 | DuckDB's own depth limits (`max_expression_depth` 1,000, the planner's tree depth 1,000): UNION ALL past ~1,000 branches, 1,000 nested parentheses or CASEs, 700+ joins. Raising the setting is unsafe on small-stack callers (DuckDB's parser recurses natively); balanced UNION ALL emission is the way | P4 | — | open |
 | Q18 | `SqlToPure` and `IqParser` recursion: stack use per nesting level, for callers other than the server (the browser planner) | P4 | — | open |
+| Q19 | Core's DuckDB 1.4.4 → 1.5.x: 1.4.4 loses rows from a UNION ALL nested in a UNION ALL under parallel execution (slice 3's log). Latent for the islands: lite's lowering writes a nested UNION ALL as one flat union, and the fuzzer's nested-union partition check (3,000 shapes) found no loss. Another shape that nests a union inside a union would meet it | P1 | the build line's DuckDB bump, the user's call | proposed |
+| Q20 | The fuzzer's set operations: nested and parenthesized UNION, UNION ALL, INTERSECT, EXCEPT, so that Q19's class is reached by the generator | P2 | — | partial: each shape's partitions also run as a nested, parenthesized UNION ALL (`Shape.partitions`) |
 | Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | open |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
 | Q9 | Unread derived columns dropped | P3.2 | oracle (some answers are committed) | open |
@@ -232,3 +236,30 @@ says so.
       select items, an AND of 16,000, 200 nested derived tables and a chain of 200 CTEs all plan and run.
     - What fails is DuckDB's own limits (Q17) and its join-order optimizer's time (Q16): 350 joins plan in lite in
       3.2 s, then run in DuckDB in about 170 s.
+- 2026-10-22, slice 3, fuzz round 2 (seed 2, 3,000 shapes, depth 4: 15,000 queries, 2,140 partitioned):
+  - **A crash, fixed in `SqlToPure.assemble`:** `TOP 5 CAST((SELECT MAX(...) ...) AS VARCHAR(12)) AS c3 ... ORDER
+    BY 1` failed to compile ("relation has no column '_sql_1'"). The subquery's column, computed once, came after the
+    limit, while the ORDER BY key computed from the item read it before the sort. A sort key computed from an item's
+    value now carries the item's columns computed once before it, and each is computed once.
+  - **A TLP mismatch that is IQ's own:** a NULL-rejecting predicate outside a derived table makes IQ read the LEFT
+    JOIN inside it as inner before a window there numbers its rows (measured, `IqDialect`). The generator's windows
+    now read inner joins only.
+  - **The fuzzer's classification:** a database's Binder, Parser or Catalog error wrapped as a DataError is now a
+    DBERROR, or a DBLIMIT for a depth limit, not a named refusal. 13 Binder Errors had been counted as refusals; the
+    next round names them.
+  - **The generator** writes fewer shapes IQ rejects: no subquery inside a conditional or an expression (a
+    correlated scalar subquery is a select item of its own), no comma join before an ON, no untyped NULL in
+    arithmetic, DATEADD by days.
+  - **Round 3** (seed 3, 15,000 queries, 2,776 partitioned, refusals 4,001 → 952): 24 DBERRORs, all DuckDB's
+    "Aggregate with only constant parameters has to be bound in the root subquery". Fixed in `Lowerer.filter`: a
+    filter over a grouped select whose HAVING would carry an aggregate that reads no column (`MIN(-1)`, `COUNT(*)`)
+    into a subquery filters the grouped rows from outside. Any Pure `groupBy` then `filter` with a correlated
+    subquery reached it. Postgres would bind such an aggregate to the subquery's own rows.
+  - **Found and fixed:** slice 1's `IqDialect.reading` passed the 250-line method limit (`//core:guardrails`, which
+    the loop had not run). The NATURAL/USING scan is a method of its own, and `//core:guardrails` is now in the
+    loop's judge set.
+  - **Found, another line's (Q19): DuckDB 1.4.4 loses rows from a UNION ALL nested in a UNION ALL under parallel
+    execution.** `SELECT id FROM t WHERE id = 1 UNION ALL (SELECT id FROM t WHERE id = 2 UNION ALL SELECT id FROM t
+    WHERE id = 3)` returns 2 rows with 4 threads, every time, and 3 with 1 thread. Wrapping the inner union in a
+    subquery doesn't help. DuckDB 1.5.2 answers 3, every time. Core pins `duckdb_jdbc` 1.4.4.0, and the warehouse
+    already runs 1.5.5.1.

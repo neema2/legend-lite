@@ -40,8 +40,20 @@ public final class IqFuzz {
 
         /** The same query with {@code more} AND-ed to its WHERE. */
         public String where(String more) {
-            return with + "SELECT " + String.join(", ", items) + " FROM " + from + " WHERE "
+            return with + body(more);
+        }
+
+        /** {@link #where} without the WITH: a branch of a set operation the WITH begins. */
+        private String body(String more) {
+            return "SELECT " + String.join(", ", items) + " FROM " + from + " WHERE "
                     + (where == null ? more : "(" + where + ") AND " + more);
+        }
+
+        /** The three partitions of {@code p} as one query: a UNION ALL nesting a parenthesized UNION ALL (the IQ scale
+         *  program's Q19: DuckDB 1.4.4 loses rows from a nested UNION ALL under parallel execution). */
+        public String partitions(String p) {
+            return with + "(" + body("(" + p + ")") + ") UNION ALL ((" + body("NOT (" + p + ")") + ") UNION ALL ("
+                    + body("(" + p + ") IS UNKNOWN") + "))";
         }
     }
 
@@ -70,11 +82,12 @@ public final class IqFuzz {
             cte = d.cols;
         }
         List<Col> scope = new ArrayList<>();
-        String from = from(depth, scope, cteName, cte);
+        String from = from(depth, scope, cteName, cte, true);
         int n = 1 + rnd.nextInt(4);
         List<String> items = new ArrayList<>();
         for (int i = 0; i < n; i++) {
-            items.add(expr(pick(Kind.values()), scope, depth) + " AS c" + i);
+            items.add((rnd.nextInt(8) == 0 ? scalar(pick(List.of(Kind.INT, Kind.STR, Kind.DATE)), scope, depth)
+                    : expr(pick(Kind.values()), scope, depth)) + " AS c" + i);
         }
         String where = rnd.nextBoolean() ? predicate(scope, depth) : null;
         return new Shape(with, items, from, where, scope);
@@ -116,10 +129,13 @@ public final class IqFuzz {
     /** A derived table's query, its columns named {@code c0..}: plain, grouped or windowed. */
     private Derived derived(int d, String qualifier) {
         List<Col> scope = new ArrayList<>();
-        String from = from(Math.max(d, 0), scope, null, null);
+        int mode = rnd.nextInt(3);
+        // a window's FROM joins inner only: IQ reads an outer join that a NULL-rejecting predicate outside makes inner
+        // before a window there numbers its rows (measured; IqDialect), so a partition's predicate may rightly change
+        // the window's rows
+        String from = from(Math.max(d, 0), scope, null, null, mode != 2);
         List<Col> cols = new ArrayList<>();
         List<String> items = new ArrayList<>();
-        int mode = rnd.nextInt(3);
         if (mode == 1) {
             // grouped: keys first, then aggregates
             Col key = pick(scope);
@@ -165,15 +181,15 @@ public final class IqFuzz {
 
     /** A FROM clause of one to three items, joined; their columns added to {@code scope}. */
     private String from(int d, List<Col> scope, @com.legend.base.Nullable String cteName,
-            @com.legend.base.Nullable List<Col> cte) {
+            @com.legend.base.Nullable List<Col> cte, boolean outer) {
         StringBuilder sb = new StringBuilder(item(d, scope, cteName, cte));
         int joins = d <= 0 ? rnd.nextInt(2) : rnd.nextInt(3);
         for (int i = 0; i < joins; i++) {
             List<Col> right = new ArrayList<>();
             String item = item(d, right, cteName, cte);
-            int kind = rnd.nextInt(6);
+            int kind = outer ? rnd.nextInt(6) : rnd.nextBoolean() ? 0 : 5;
             if (kind == 5) {
-                sb.append(rnd.nextBoolean() ? ", " : " CROSS JOIN ").append(item);
+                sb.append(" CROSS JOIN ").append(item);
             } else {
                 String join = switch (kind) {
                     case 0, 1 -> " JOIN ";
@@ -272,14 +288,14 @@ public final class IqFuzz {
                 case 3 -> "ABS(" + expr(Kind.INT, scope, d1) + ")";
                 case 4 -> "COALESCE(" + expr(Kind.INT, scope, d1) + ", " + literal(Kind.INT) + ")";
                 case 5 -> "ISNULL(" + expr(Kind.INT, scope, d1) + ", " + literal(Kind.INT) + ")";
-                case 6 -> "CASE WHEN " + predicate(scope, d1) + " THEN " + expr(Kind.INT, scope, d1) + " ELSE "
+                case 6 -> "CASE WHEN " + plainPredicate(scope, d1) + " THEN " + expr(Kind.INT, scope, d1) + " ELSE "
                         + expr(Kind.INT, scope, d1) + " END";
                 case 7 -> "LENGTH(" + expr(Kind.STR, scope, d1) + ")";
                 case 8 -> pick(List.of("YEAR(", "MONTH(", "DAY(")) + expr(Kind.DATE, scope, d1) + ")";
                 case 9 -> "DATEDIFF(day, " + expr(Kind.DATE, scope, d1) + ", " + expr(Kind.DATE, scope, d1) + ")";
                 case 10 -> "(" + expr(Kind.INT, scope, d1) + " % " + (2 + rnd.nextInt(5)) + ")";
                 case 11 -> "(" + expr(Kind.INT, scope, d1) + " / " + (2 + rnd.nextInt(5)) + ")";
-                case 12 -> scalar(Kind.INT, scope, d1);
+                case 12 -> "SIGN(" + expr(Kind.INT, scope, d1) + ")";
                 default -> "CAST(" + expr(Kind.DEC, scope, d1) + " AS INTEGER)";
             };
             case DEC -> switch (rnd.nextInt(6)) {
@@ -307,9 +323,9 @@ public final class IqFuzz {
                 case 7 -> "COALESCE(" + expr(Kind.STR, scope, d1) + ", " + literal(Kind.STR) + ")";
                 case 8 -> "REPLACE(" + expr(Kind.STR, scope, d1) + ", 'a', 'q')";
                 case 9 -> "CAST(" + expr(Kind.INT, scope, d1) + " AS VARCHAR(12))";
-                case 10 -> "IF " + predicate(scope, d1) + " THEN " + expr(Kind.STR, scope, d1) + " ELSE "
+                case 10 -> "IF " + plainPredicate(scope, d1) + " THEN " + expr(Kind.STR, scope, d1) + " ELSE "
                         + expr(Kind.STR, scope, d1) + " ENDIF";
-                default -> "CASE WHEN " + predicate(scope, d1) + " THEN " + expr(Kind.STR, scope, d1) + " ELSE "
+                default -> "CASE WHEN " + plainPredicate(scope, d1) + " THEN " + expr(Kind.STR, scope, d1) + " ELSE "
                         + expr(Kind.STR, scope, d1) + " END";
             };
             case DATE -> switch (rnd.nextInt(3)) {
@@ -317,7 +333,7 @@ public final class IqFuzz {
                 case 1 -> "COALESCE(" + expr(Kind.DATE, scope, d1) + ", " + literal(Kind.DATE) + ")";
                 default -> "CAST(" + expr(Kind.TS, scope, d1) + " AS DATE)";
             };
-            case TS -> rnd.nextBoolean() ? "DATEADD(hour, " + (rnd.nextInt(49) - 24) + ", " + expr(Kind.TS, scope, d1)
+            case TS -> rnd.nextBoolean() ? "DATEADD(day, " + (rnd.nextInt(49) - 24) + ", " + expr(Kind.TS, scope, d1)
                     + ")" : "COALESCE(" + expr(Kind.TS, scope, d1) + ", " + literal(Kind.TS) + ")";
         };
     }
@@ -379,6 +395,20 @@ public final class IqFuzz {
         };
     }
 
+    /** A predicate with no subquery: a CASE's or an IF's condition (a subquery inside a conditional is IQ's
+     *  -1001030). */
+    private String plainPredicate(List<Col> scope, int d) {
+        if (d <= 0 || rnd.nextInt(3) == 0) {
+            return simplePredicate(scope);
+        }
+        return switch (rnd.nextInt(4)) {
+            case 0 -> "(" + plainPredicate(scope, d - 1) + " AND " + plainPredicate(scope, d - 1) + ")";
+            case 1 -> "(" + plainPredicate(scope, d - 1) + " OR " + plainPredicate(scope, d - 1) + ")";
+            case 2 -> "NOT (" + plainPredicate(scope, d - 1) + ")";
+            default -> simplePredicate(scope);
+        };
+    }
+
     private String simplePredicate(List<Col> scope) {
         Col c = pick(scope);
         return switch (rnd.nextInt(6)) {
@@ -396,7 +426,7 @@ public final class IqFuzz {
 
     private String literal(Kind k) {
         return switch (k) {
-            case INT -> rnd.nextInt(10) == 0 ? "NULL" : Integer.toString(rnd.nextInt(24) - 4);
+            case INT -> Integer.toString(rnd.nextInt(24) - 4);
             case DEC -> pick(List.of("1.25", "0.50", "-3.75", "99.99", "0.00", "5.5"));
             case DBL -> pick(List.of("0.5e0", "1.5e0", "-2.25e0", "4.0e0"));
             case STR -> pick(List.of("'a'", "'b'", "'x'", "'abc'", "''", "'A'", "'w'"));

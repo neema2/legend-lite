@@ -1091,6 +1091,25 @@ public final class IqDialect implements InputDialect {
     }
 
     /** The joins of a FROM item, outermost first. */
+    /** The places of the FROM items a NATURAL or USING join of {@code statement} joins ({@link #joinedByName}). */
+    private static Set<SqlAst.Pos> joinedByName(SqlAst.Statement statement) {
+        Set<SqlAst.Pos> out = new java.util.HashSet<>();
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.FromItem f : s.from()) {
+                    List<SqlAst.Join> joins = new ArrayList<>();
+                    joins(f, joins);
+                    for (SqlAst.Join j : joins) {
+                        if (j.natural() || !j.using().isEmpty()) {
+                            leaves(j).forEach(leaf -> out.add(leaf.pos()));
+                        }
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
     private static void joins(SqlAst.FromItem item, List<SqlAst.Join> out) {
         if (item instanceof SqlAst.Join j) {
             out.add(j);
@@ -1854,19 +1873,7 @@ public final class IqDialect implements InputDialect {
         read.outerLazy.addAll(outerAggregates(statement));
         read.simpleWhens.addAll(simpleWhens);
         read.innerJoins.addAll(innerHere);
-        for (SqlAst.Statement q : queries(statement)) {
-            if (q instanceof SqlAst.Select s) {
-                for (SqlAst.FromItem f : s.from()) {
-                    List<SqlAst.Join> joins = new ArrayList<>();
-                    joins(f, joins);
-                    for (SqlAst.Join j : joins) {
-                        if (j.natural() || !j.using().isEmpty()) {
-                            leaves(j).forEach(leaf -> read.joinedByName.add(leaf.pos()));
-                        }
-                    }
-                }
-            }
-        }
+        read.joinedByName.addAll(joinedByName(statement));
         read.placeheld.addAll(placeheldHere);
         read.claims(placement, recursives.get(statement));
         read.lateClaimed(lateClaim(statement, chosen));
