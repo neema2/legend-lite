@@ -75,7 +75,11 @@ class Lab:
         self.errors = []
 
     def reset(self, extra_views=(), extra_streams=()):
-        for v in ("position_risk_mv", *extra_views):
+        """Drops every materialized view in the database (one experiment's views can read another's
+        streams), then the risk streams and the extras named."""
+        views = [r["name"] for r in self.query("SELECT name FROM system.tables WHERE database = 'default' "
+                                               "AND engine = 'MaterializedView'")]
+        for v in ("position_risk_mv", *extra_views, *views):
             self.c.execute(f"DROP VIEW IF EXISTS {v}")
         for s in ("position_risk_s", *extra_streams, "books", "instruments", "closes", "positions", "prices", "fx"):
             self.c.execute(f"DROP STREAM IF EXISTS {s}")

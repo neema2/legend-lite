@@ -18,6 +18,7 @@ With the shared join (changelog_kv) live and the feed at 1,000 ticks a second:
 import argparse
 import http.client
 import json
+import os
 import re
 import threading
 import time
@@ -44,6 +45,9 @@ feed = Feed(lab, ref, batches)
 feed.start()
 time.sleep(3)
 result = {}
+# a second server on other ports (proton_ops.py's on-disk container): PROTON_PORT, PROTON_HTTP_PORT, PROTON_CH_PORT
+HTTP_PORT = int(os.environ.get("PROTON_HTTP_PORT", 3218))
+CH_PORT = int(os.environ.get("PROTON_CH_PORT", 8123))
 
 # --- top-N and distinct counts, live while the HTTP test runs
 TOPN = ("SELECT max_k(abs(total), 10, instrument, total) AS top10 FROM "
@@ -111,8 +115,8 @@ def http_stream(port, path, seconds=10, headers=None):
 
 
 result["http"] = {
-    "port3218": http_stream(3218, "/?default_format=JSONEachRow&add_http_cors_header=1"),
-    "port8123": http_stream(8123, "/?default_format=JSONEachRow", seconds=5),
+    "port3218": http_stream(HTTP_PORT, "/?default_format=JSONEachRow&add_http_cors_header=1"),
+    "port8123": http_stream(CH_PORT, "/?default_format=JSONEachRow", seconds=5),
 }
 print("http", json.dumps(result["http"], default=str)[:800])
 
@@ -175,7 +179,7 @@ census["types"] = {t: {"compat": probe(f"SELECT CAST(NULL AS Nullable(String)) A
 census["counts"] = {"candidates": len(candidates), "known": len(census["known"]), "unknown": len(census["unknown"]),
                     "knownOnlyWithCompat": len(census["knownOnlyWithCompat"])}
 # a streaming query written in ClickHouse spelling, on the streaming port
-census["streamingWithCompat"] = http_stream(3218, "/?default_format=JSONEachRow&is_clickhouse_compatible=1", seconds=3)
+census["streamingWithCompat"] = http_stream(HTTP_PORT, "/?default_format=JSONEachRow&is_clickhouse_compatible=1", seconds=3)
 result["dialect"] = census
 
 with open(args.out, "w") as f:
@@ -184,5 +188,4 @@ print("top_n", json.dumps({k: v for k, v in result["top_n"].items() if k != "sql
 print("distinct", json.dumps({k: (v.get("error") or "")[:100] or (v["ok"], v["mismatches"]) for k, v in result["distinct"].items()}))
 print("dialect", json.dumps(census["counts"]), "unknown:", ", ".join(census["unknown"]))
 print("types", json.dumps(census["types"]))
-import os  # noqa: E402
 os._exit(0)
