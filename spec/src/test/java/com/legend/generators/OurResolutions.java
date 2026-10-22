@@ -40,7 +40,7 @@ import java.util.stream.Stream;
 final class OurResolutions {
 
     /** What the dump saw: the sources dropped to make the model build, the bodies it could not type, and why each
-     *  failed (its exception and the message's first line: diagnostic, never pinned -- 2026-10-22, the lane recorded
+     *  failed or was dropped (its exception and the message's first line: diagnostic, never pinned -- 2026-10-22, the lane recorded
      *  the exception's class alone, so a failure's cause took a run of its own to find). */
     record Result(List<String> droppedSources, int functions, List<String> failedFunctions,
                   Map<String, String> failureReasons, long rows) {
@@ -64,6 +64,8 @@ final class OurResolutions {
             }
         }
         List<String> dropped = new ArrayList<>();
+        // why each body failed, and why each dropped source would not build (the element its error names)
+        Map<String, String> reasons = new java.util.TreeMap<>();
         ModelContext ctx = null;
         Map<String, String> elementSources = Map.of();
         for (int round = 0; round < 4000 && ctx == null; round++) {
@@ -88,6 +90,7 @@ final class OurResolutions {
                 }
                 final String drop = src;
                 dropped.add(referenceSourceId(drop));
+                reasons.put("(dropped source) " + referenceSourceId(drop), reason(e) + " [" + el + "]");
                 sources.removeIf(s -> s.name().equals(drop));
             }
         }
@@ -98,7 +101,6 @@ final class OurResolutions {
         long rows = 0;
         int functions = 0;
         List<String> failed = new ArrayList<>();
-        Map<String, String> reasons = new java.util.TreeMap<>();
         w.println("sourceId\tline\tcolumn\tkind\tresolvedFqn\tresolvedId\tenclosingFqn\tenclosingId");
         for (String fqn : new TreeSet<>(ctx.functionFqns())) {
             List<TypedFunction> overloads;
