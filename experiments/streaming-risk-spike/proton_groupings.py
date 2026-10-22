@@ -33,6 +33,7 @@ parser.add_argument("--target", default="versioned", choices=["versioned", "chan
 parser.add_argument("--measures", default="full", choices=["full", "linear"])
 parser.add_argument("--rate", type=int, default=1000)
 parser.add_argument("--window", type=float, default=10)
+parser.add_argument("--drain", type=float, default=5, help="seconds to wait after the feed stops, before the check")
 parser.add_argument("--out", required=True)
 args = parser.parse_args()
 
@@ -74,7 +75,7 @@ add_probe(ref)
 px = engines.Proton()
 c = px.sender
 result = {"mode": args.mode, "target": args.target if args.mode == "shared" else None,
-          "measures": args.measures, "rate": args.rate}
+          "measures": args.measures, "rate": args.rate, "drainSeconds": args.drain}
 for name in ("position_risk_mv",):
     c.execute(f"DROP VIEW IF EXISTS {name}")
 for name in ("position_risk_s", "books", "instruments", "closes", "positions", "prices", "fx"):
@@ -199,7 +200,7 @@ for target in (1, 4, 16):
 result["phases"] = phases
 sending.clear()
 th.join()
-time.sleep(5)
+time.sleep(args.drain)
 
 import duckdb  # noqa: E402
 
