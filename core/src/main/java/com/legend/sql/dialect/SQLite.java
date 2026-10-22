@@ -371,7 +371,11 @@ public final class SQLite extends AnsiSqlRenderer {
             return e;
         }
         if (label instanceof SqlType.Decimal d) {
-            return SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e);
+            // printf reads a NULL as 0 ('0.00': measured, the IQ island's parity cases on SQLite, 2026-10-22), so a
+            // NULL decimal stays NULL; the value is written twice, as the HUGEINT guard below writes it
+            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, e),
+                    new SqlExpr.NullLit())), SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale()
+                    + "f"), e));
         }
         if (label == SqlType.Scalar.DOUBLE) {
             return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE);

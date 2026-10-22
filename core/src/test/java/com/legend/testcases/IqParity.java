@@ -444,6 +444,13 @@ public final class IqParity {
     /** Creates and fills the schema's tables on {@code backend}'s database, each rendered by its dialect: each value
      *  bound by its column's type, a quoted value read by it. */
     public static void seed(TestBackend backend, Connection c, List<SqlParity.Table> tables) throws SQLException {
+        seed(backend, c, tables, false);
+    }
+
+    /** {@link #seed(TestBackend, Connection, List)}, each table a TEMPORARY one when {@code temporary}: ClickHouse
+     *  keeps a table of its own only in an HTTP session, as a temporary (Memory) one (IQ island, landing 6). */
+    public static void seed(TestBackend backend, Connection c, List<SqlParity.Table> tables, boolean temporary)
+            throws SQLException {
         com.legend.sql.dialect.SqlDialect dialect = backend.dialect();
         for (SqlParity.Table t : tables) {
             com.legend.sql.NameQuoting quoting = new com.legend.sql.NameQuoting(false, declaredQuoted(t.name()));
@@ -454,23 +461,57 @@ public final class IqParity {
             }
             try (Statement s = c.createStatement()) {
                 s.execute(dialect.render(new com.legend.sql.SqlDdl.DropTable(null, t.name(), quoting)));
-                s.execute(dialect.render(new com.legend.sql.SqlDdl.CreateTable(null, t.name(), quoting, columns)));
+                s.execute(dialect.render(new com.legend.sql.SqlDdl.CreateTable(null, t.name(), quoting, columns,
+                        temporary)));
             }
             if (t.rows().isEmpty()) {
                 continue;
             }
-            String marks = String.join(", ", java.util.Collections.nCopies(t.columns().size(), "?"));
-            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + quoted(t.name()) + " VALUES (" + marks
-                    + ")")) {
-                for (List<Object> row : t.rows()) {
-                    for (int i = 0; i < row.size(); i++) {
-                        bind(ps, i + 1, row.get(i), relationalType(t.columns().get(i).type()));
+            if (BOUND_SEED.contains(backend.name())) {
+                String marks = String.join(", ", java.util.Collections.nCopies(t.columns().size(), "?"));
+                try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + quoted(t.name()) + " VALUES ("
+                        + marks + ")")) {
+                    for (List<Object> row : t.rows()) {
+                        for (int i = 0; i < row.size(); i++) {
+                            bind(ps, i + 1, row.get(i), relationalType(t.columns().get(i).type()));
+                        }
+                        ps.addBatch();
                     }
-                    ps.addBatch();
+                    ps.executeBatch();
                 }
-                ps.executeBatch();
+                continue;
+            }
+            // IQ island, landing 6 (2026-10-22): on the other backends the rows load as the platform's own test data
+            // does (setup.RowLoad: every cell its text, the database's cast into the column, rendered by the
+            // dialect), so each database holds a value in its own representation: SQLite a date as its ISO text,
+            // where a JDBC-bound java.sql.Date is the driver's epoch milliseconds, which no SQLite database holds
+            List<List<String>> rows = new ArrayList<>();
+            for (List<Object> row : t.rows()) {
+                List<String> cells = new ArrayList<>();
+                for (Object v : row) {
+                    cells.add(v == null ? null : v.toString());
+                }
+                rows.add(cells);
+            }
+            List<String> names = t.columns().stream().map(SqlParity.Column::name).toList();
+            Set<String> quotedNames = new java.util.LinkedHashSet<>();
+            names.stream().filter(IqParity::declaredQuoted).forEach(quotedNames::add);
+            com.legend.setup.RowLoad load = new com.legend.setup.RowLoad(null, t.name(), quoting, names, quotedNames,
+                    names.size(), rows, textCasts(backend, t));
+            try (Statement s = c.createStatement()) {
+                s.execute(dialect.render(load.values()));
             }
         }
+    }
+
+    /** The lanes whose rows are bound by JDBC, as they always were (their snapped answers and ledgers predate the
+     *  text load, and judge the same values). */
+    private static final Set<String> BOUND_SEED = Set.of("duckdb", "postgres");
+
+    /** The casts a text cell takes into its column where the database takes no text there (as setup.RowLoad's
+     *  casts say: MariaDB and MySQL take no {@code '1'} into a BOOLEAN), else none. */
+    private static List<com.legend.sql.SqlType> textCasts(TestBackend backend, SqlParity.Table t) {
+        return List.of();
     }
 
     private static void bind(PreparedStatement ps, int i, @com.legend.base.Nullable Object v, String type)
@@ -1800,6 +1841,15 @@ public final class IqParity {
             return expected instanceof SqlParity.Rejected r ? bothError(e, r)
                     : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
         } catch (Exception | StackOverflowError e) {
+            // IQ island, landing 6 (2026-10-22): a dialect's refusal by name at render (DialectCapability: the
+            // database has no spelling for the construct, e.g. SQLite's regex over a computed pattern) is a refusal,
+            // wherever it sits in the cause chain -- the Cypher harness's rule (CypherParity.failed)
+            for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+                if (t instanceof com.legend.sql.dialect.DialectCapability) {
+                    return expected instanceof SqlParity.Rejected r ? bothError(e, r)
+                            : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
+                }
+            }
             if (!liteError(e)) {
                 return new SqlParity.Outcome(SqlParity.Status.ERROR, "a Java exception in legend-lite: " + oneLine(e));
             }
@@ -2193,6 +2243,39 @@ public final class IqParity {
                 ledger, lane, update);
     }
 
+    /** IQ island, landing 6 (2026-10-22): the lanes of the other backends' ledger ({@code iq-parity/backends.tsv}),
+     *  each the database a {@code TestBackend} names: the island's cases judged on every database the platform runs,
+     *  beside the main ledger's DuckDB and Postgres. */
+    public static final List<String> BACKEND_LANES = List.of("sqlite", "h2", "mariadb", "mysql", "clickhouse", "trino");
+
+    /** Every lane a run may be judged in: the main ledger's and the other backends'. */
+    public static final List<String> ALL_LANES = java.util.stream.Stream.concat(SqlParity.LANES.stream(),
+            BACKEND_LANES.stream()).toList();
+
+    /** The other backends' ledger's header. */
+    private static final String BACKENDS_LEDGER_HEADER = "# the #IQ{...}# island's parity cases on the other backends"
+            + " (IQ island, landing 6): each case's status per profile and\n# lane, held by IqParityBackendTest"
+            + " (-Diq.parity.backend=<lane>); the main ledger (ledger.tsv) holds DuckDB's and Postgres's\n";
+
+    /** {@link #ratchet} for one of {@link #BACKEND_LANES}, held by the other backends' ledger. */
+    public static List<String> backendRatchet(List<Run> runs, Map<String, SqlParity.Outcome> outcomes, Path ledger,
+            String lane, @com.legend.base.Nullable Path update) throws IOException {
+        List<SqlParity.Case> cases = new ArrayList<>();
+        Map<String, SqlParity.Outcome> byKey = new LinkedHashMap<>();
+        for (Run r : runs) {
+            SqlParity.Outcome o = outcomes.get(r.key());
+            if (o != null && (o.status() == SqlParity.Status.FAIL || o.status() == SqlParity.Status.BUG
+                    || o.status() == SqlParity.Status.ERROR || System.getProperty("iq.parity.verbose") != null)) {
+                System.out.println("[iq-parity] " + lane + " " + o.status() + " " + r.key() + ": " + o.detail());
+            }
+            SqlParity.Case c = r.asSqlParityCase();
+            cases.add(c);
+            byKey.put(SqlParity.key(c), outcomes.get(r.key()));
+        }
+        return SqlParity.ratchet("the #IQ{...}# island's parity cases", "iq-parity", BACKENDS_LEDGER_HEADER,
+                BACKEND_LANES, cases, byKey, ledger, lane, update);
+    }
+
     // ------------------------------------------------------------------ the known divergences (IQ island, landing 4)
 
     /** The statuses of a judged run whose answer is not its judge's: a wrong answer, an answer where the judge rejects
@@ -2229,8 +2312,8 @@ public final class IqParity {
                             + "what, above its runs)");
                 }
                 Set<String> lanes = new java.util.LinkedHashSet<>(List.of(f[3].split(",")));
-                if (lanes.isEmpty() || !SqlParity.LANES.containsAll(lanes)) {
-                    throw new IllegalStateException(where + "the lanes are some of " + SqlParity.LANES + ": " + f[3]);
+                if (lanes.isEmpty() || !ALL_LANES.containsAll(lanes)) {
+                    throw new IllegalStateException(where + "the lanes are some of " + ALL_LANES + ": " + f[3]);
                 }
                 if (!f[1].contains("@iq17-")) {
                     throw new IllegalStateException(where + f[1] + " is no iq17-* run: a run SQL Anywhere judges"

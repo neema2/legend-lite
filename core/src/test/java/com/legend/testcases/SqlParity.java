@@ -1042,8 +1042,19 @@ public final class SqlParity {
     public static List<String> ratchet(String corpus, String reportName, String ledgerHeader, List<Case> cases,
             Map<String, Outcome> outcomes, Path ledgerFile, String lane, @com.legend.base.Nullable Path update)
             throws IOException {
-        int column = LANES.indexOf(lane);
-        Map<String, String[]> ledger = readLedger(ledgerFile);
+        return ratchet(corpus, reportName, ledgerHeader, LANES, cases, outcomes, ledgerFile, lane, update);
+    }
+
+    /** {@link #ratchet(String, String, String, List, Map, Path, String, Path)} for a ledger whose columns are
+     *  {@code lanes} (the {@code #IQ{...}#} island's other backends, IQ island landing 6, 2026-10-22). */
+    public static List<String> ratchet(String corpus, String reportName, String ledgerHeader, List<String> lanes,
+            List<Case> cases, Map<String, Outcome> outcomes, Path ledgerFile, String lane,
+            @com.legend.base.Nullable Path update) throws IOException {
+        int column = lanes.indexOf(lane);
+        if (column < 0) {
+            throw new IllegalArgumentException("the ledger " + ledgerFile + " has no lane " + lane + ": " + lanes);
+        }
+        Map<String, String[]> ledger = readLedger(ledgerFile, lanes);
         Map<Status, Integer> counts = new java.util.EnumMap<>(Status.class);
         StringBuilder report = new StringBuilder("case\tstatus\tdetail\n");
         List<String> problems = new ArrayList<>();
@@ -1053,8 +1064,8 @@ public final class SqlParity {
             if (o.status() != Status.PASS) {
                 report.append(key(c)).append('\t').append(o.status()).append('\t').append(o.detail()).append('\n');
             }
-            String[] lanes = ledger.get(key(c));
-            String pinned = lanes == null ? null : lanes[column];
+            String[] row = ledger.get(key(c));
+            String pinned = row == null || column >= row.length ? null : row[column];
             String now = o.status().name();
             if (pinned == null || pinned.isEmpty()) {
                 problems.add("NEW: " + key(c) + " is " + now + " and not in the ledger");
@@ -1080,12 +1091,12 @@ public final class SqlParity {
         }
         if (update != null) {
             // the other lane's column is the one in the file being written, kept as it is
-            Map<String, String[]> written = Files.exists(update) ? readLedger(update) : ledger;
+            Map<String, String[]> written = Files.exists(update) ? readLedger(update, lanes) : ledger;
             for (Case c : cases) {
-                String[] lanes = written.computeIfAbsent(key(c), k -> new String[LANES.size()]);
-                lanes[column] = outcomes.get(key(c)).status().name();
+                String[] row = written.computeIfAbsent(key(c), k -> new String[lanes.size()]);
+                row[column] = outcomes.get(key(c)).status().name();
             }
-            writeLedger(update, ledgerHeader, cases, written);
+            writeLedger(update, ledgerHeader, lanes, cases, written);
             System.out.println("wrote " + update);
             return List.of();
         }
@@ -1100,6 +1111,11 @@ public final class SqlParity {
 
     /** The ledger: each case's status in each lane, {@code key<TAB>duckdb<TAB>postgres}, with a header line. */
     public static Map<String, String[]> readLedger(Path file) throws IOException {
+        return readLedger(file, LANES);
+    }
+
+    /** A ledger whose columns are {@code lanes}: a row with fewer columns reads the missing ones as empty. */
+    public static Map<String, String[]> readLedger(Path file, List<String> lanes) throws IOException {
         Map<String, String[]> ledger = new LinkedHashMap<>();
         if (!Files.exists(file)) {
             return ledger;
@@ -1109,7 +1125,7 @@ public final class SqlParity {
                 continue;
             }
             String[] parts = line.split("\t", -1);
-            ledger.put(parts[0], java.util.Arrays.copyOfRange(parts, 1, 1 + LANES.size()));
+            ledger.put(parts[0], java.util.Arrays.copyOfRange(parts, 1, 1 + lanes.size()));
         }
         return ledger;
     }
@@ -1126,12 +1142,18 @@ public final class SqlParity {
     /** The ledger, its comment lines {@code header} (each line starting with {@code #}). */
     public static void writeLedger(Path file, String header, List<Case> cases, Map<String, String[]> ledger)
             throws IOException {
-        StringBuilder out = new StringBuilder(header + "case\t" + String.join("\t", LANES) + "\n");
+        writeLedger(file, header, LANES, cases, ledger);
+    }
+
+    /** {@link #writeLedger(Path, String, List, Map)} with the columns {@code lanes}. */
+    public static void writeLedger(Path file, String header, List<String> lanes, List<Case> cases,
+            Map<String, String[]> ledger) throws IOException {
+        StringBuilder out = new StringBuilder(header + "case\t" + String.join("\t", lanes) + "\n");
         for (Case c : cases) {
-            String[] lanes = ledger.get(key(c));
+            String[] row = ledger.get(key(c));
             out.append(key(c));
-            for (int i = 0; i < LANES.size(); i++) {
-                out.append('\t').append(lanes == null || lanes[i] == null ? "" : lanes[i]);
+            for (int i = 0; i < lanes.size(); i++) {
+                out.append('\t').append(row == null || i >= row.length || row[i] == null ? "" : row[i]);
             }
             out.append('\n');
         }

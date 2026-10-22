@@ -2776,9 +2776,13 @@ public final class ClickHouse extends AnsiSqlRenderer {
                 case DOUBLE -> "DOUBLE";
                 case REAL -> "REAL";
                 case BIT -> "Bool";
-                case TIMESTAMP -> "TIMESTAMP";
+                // the dialect's own date-times (its casts and literals): Date32 and DateTime64(6, 'UTC') hold 1900 to
+                // 2299 to the microsecond, where DATE and TIMESTAMP are ClickHouse's Date (from 1970) and DateTime (to
+                // the second): a 1900 date stored as 1970-01-01, a microsecond's text NULL (measured on 25.8, the IQ
+                // island's parity cases on ClickHouse, 2026-10-22)
+                case TIMESTAMP -> "DateTime64(6, 'UTC')";
                 case TIMESTAMP_NS -> "DateTime64(9)";
-                case DATE -> "DATE";
+                case DATE -> "Date32";
                 case JSON -> "JSON";
                 case VARCHAR -> "VARCHAR";
                 // a time of day: ClickHouse's Time type is experimental (the TIME scalar's own wall)

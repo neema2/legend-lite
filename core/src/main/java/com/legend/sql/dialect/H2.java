@@ -495,8 +495,8 @@ public class H2 extends AnsiSqlRenderer {
             case FLOOR -> bigintOf(writer, "floor", c.args());
             case SIGN -> bigintOf(writer, "sign", c.args());
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
-            case LPAD -> padWithSpace(writer, "lpad", c.args());
-            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case LPAD -> pad(writer, true, c.args());
+            case RPAD -> pad(writer, false, c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
             // generateGuid's contract is text: the uuid as VARCHAR
@@ -558,7 +558,7 @@ public class H2 extends AnsiSqlRenderer {
             case COSH -> writer.function("cosh", c.args());
             case TANH -> writer.function("tanh", c.args());
             case REGEXP_EXTRACT_ALL -> writer.function("regexp_extract_all", c.args());
-            case REGEXP_REPLACE -> writer.function("regexp_replace", c.args());
+            case REGEXP_REPLACE -> writer.piece(regexpReplace(c.args()));
             case MAP_FROM_LISTS -> writer.function("map", c.args());
             case MAP_FROM_ENTRIES -> writer.function("map_from_entries", c.args());
             case MAP_EXTRACT -> writer.function("map_extract", c.args());
@@ -575,7 +575,9 @@ public class H2 extends AnsiSqlRenderer {
             case REPLACE -> writer.function("replace", c.args());
             case TRANSLATE -> translate(writer, c.args());
             case SPLIT -> writer.function("string_split", c.args());
-            case REVERSE_STRING -> writer.function("reverse", c.args());
+            // H2 has no REVERSE ("Function not found": measured 2.1.214, the IQ island's parity cases on H2,
+            // 2026-10-22): refused by name, never a run-time error
+            case REVERSE_STRING -> throw new DialectCapability("REVERSE_STRING reached H2, which has no REVERSE");
             case ASCII_CODE -> writer.function("ascii", c.args());
             case CHR -> writer.function("chr", c.args());
             case LEVENSHTEIN -> writer.function("levenshtein", c.args());
@@ -950,8 +952,9 @@ public class H2 extends AnsiSqlRenderer {
             case CORR -> h2Aggregate(writer, "CORR", r);
             case COVAR_SAMP -> h2Aggregate(writer, "COVAR_SAMP", r);
             case COVAR_POP -> h2Aggregate(writer, "COVAR_POP", r);
-            case ARG_MAX -> h2Aggregate(writer, "ARG_MAX", r);
-            case ARG_MIN -> h2Aggregate(writer, "ARG_MIN", r);
+            // no ARG_MAX or ARG_MIN in H2 ("Function not found": measured 2.1.214, the IQ island's parity cases on
+            // H2, 2026-10-22): refused by name
+            case ARG_MAX, ARG_MIN -> throw new DialectCapability(r.fn() + " reached H2, which has no such aggregate");
             case BOOL_AND -> h2Aggregate(writer, "BOOL_AND", r);
             case BOOL_OR -> h2Aggregate(writer, "BOOL_OR", r);
             case VARIANCE -> h2Aggregate(writer, "VARIANCE", r);
@@ -1198,5 +1201,79 @@ public class H2 extends AnsiSqlRenderer {
             return "DATE";
         }
         throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached H2");
+    }
+
+    /**
+     * lpad/rpad -- the MIR's contract is DuckDB's: the string cut to n characters when it is longer, else padded with
+     * the pad REPEATED to n. H2's LPAD and RPAD pad with the pad's FIRST character only ({@code LPAD('ab', 6, 'xyz')} is
+     * {@code 'xxxxab'}: measured 2.1.214, the IQ island's parity cases on H2, 2026-10-22), so a pad that is no single
+     * character is written out: the string cut, else {@code left(repeat(pad, n), n - length(s))} beside it.
+     */
+    private SqlWriter pad(SqlWriter writer, boolean left, java.util.List<com.legend.sql.SqlExpr> a) {
+        if (a.size() == 2 || a.get(2) instanceof com.legend.sql.SqlExpr.StringLit p && p.value().length() == 1) {
+            return padWithSpace(writer, left ? "lpad" : "rpad", a);
+        }
+        com.legend.sql.SqlExpr s = a.get(0);
+        com.legend.sql.SqlExpr n = a.get(1);
+        writer.append("(CASE WHEN ").expr(n, 0).append(" <= 0 THEN '' WHEN ").expr(n, 0).append(" <= length(")
+                .expr(s, 0).append(") THEN left(").expr(s, 0).append(", ").expr(n, 0).append(") ELSE ");
+        if (!left) {
+            writer.expr(s, 0).append(" || ");
+        }
+        writer.append("left(repeat(").expr(a.get(2), 0).append(", ").expr(n, 0).append("), ").expr(n, 0)
+                .append(" - length(").expr(s, 0).append("))");
+        if (left) {
+            writer.append(" || ").expr(s, 0);
+        }
+        return writer.append(" END)");
+    }
+
+    /**
+     * DuckDB's regexp_replace(s, p, r[, options]) -- the MIR's contract: the first match unless the options say
+     * {@code 'g'}, the replacement's {@code \N} a group -- in H2's REGEXP_REPLACE, which replaces EVERY match, takes
+     * Java's replacement syntax ({@code $N} a group, a backslash escaping the next character) and refuses any flag but
+     * i, c, n and m (a {@code 'g'} is H2's "Invalid value": measured 2.1.214, the IQ island's parity cases on H2, landing
+     * 6, 2026-10-22). The first match alone is the only match of the pattern anchored after a lazy prefix, its groups
+     * one place on, as MariaDB's arm writes it.
+     */
+    private SqlWriter.Piece regexpReplace(java.util.List<com.legend.sql.SqlExpr> a) {
+        String p = regexLiteral(a.get(1), "a regexp_replace pattern");
+        String r = regexLiteral(a.get(2), "a regexp_replace replacement");
+        String options = a.size() > 3 ? regexLiteral(a.get(3), "regexp_replace options") : "";
+        boolean global = false;
+        String flags = "";
+        for (char o : options.toCharArray()) {
+            switch (o) {
+                case 'g' -> global = true;
+                case 'i' -> flags = "(?i)";
+                case 'c' -> flags = "";
+                default -> throw new DialectCapability("regexp_replace option '" + o + "' reached H2");
+            }
+        }
+        int shift = global ? 0 : 2;
+        StringBuilder java = new StringBuilder(global ? "" : "$1");
+        for (int i = 0; i < r.length(); i++) {
+            char ch = r.charAt(i);
+            if (ch == '\\' && i + 1 < r.length() && Character.isDigit(r.charAt(i + 1))) {
+                int k = r.charAt(++i) - '0';
+                java.append('$').append(k + shift);
+            } else if (ch == '\\' && i + 1 < r.length()) {
+                java.append('\\').append(r.charAt(++i));
+            } else if (ch == '$' || ch == '\\') {
+                java.append('\\').append(ch);
+            } else {
+                java.append(ch);
+            }
+        }
+        String pat = global ? flags + p : flags + "^([\\s\\S]*?)(" + p + ")";
+        return w -> w.append("REGEXP_REPLACE(").expr(a.get(0), 0).append(", " + stringLit(pat) + ", "
+                + stringLit(java.toString()) + ")");
+    }
+
+    private static String regexLiteral(com.legend.sql.SqlExpr e, String what) {
+        if (e instanceof com.legend.sql.SqlExpr.StringLit s) {
+            return s.value();
+        }
+        throw new DialectCapability(what + " that is not a literal reached H2");
     }
 }
