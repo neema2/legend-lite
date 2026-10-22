@@ -124,6 +124,24 @@ RelationalDatabaseConnection risk::live::Conn
   test per construct (the lite dialect reads it and the round trip keeps it; the engine dialect refuses it);
   `//gates:parser_equivalence` guards that no engine text parses differently.
 
+**L1's precedents** (the Studio line's review of the revision, 2026-10-22; all in
+`parser/section/ConnectionSectionGrammar.java`):
+
+1. `type: Deephaven` joins `LITE_DATABASE_TYPES`; the existing gate refuses it at `Dialect.LEGEND_ENGINE` in the
+   engine's own words ("Unknown database type 'Deephaven'"), at the token.
+2. The specification parses as `parseSqliteSpec` does: `refusesLiteExtensions()` first ("unsupported datasource
+   specification: Deephaven"), then the key loop with `TokenStreamCursor.once` (a repeated key refused), an unknown key
+   refused by name, a missing key refused by name. `host` and `port` are the engine's network specs' words; for TLS the
+   engine has no shared word (Trino's `sslSpecification`, Databricks' `protocol`), and `useTls` is chosen because it
+   says what it does.
+3. `PreSharedKey { keyVaultReference }` follows the relational strategies' naming (`passwordVaultReference`,
+   `privateKeyVaultReference`). It is **not** the engine's `#PSK{ psk: '...'; }#` island (`Protocol.PPskAuth`, JSON
+   `_type` `PSK`), which carries the key itself: a record of its own, so a reference never reads as a key.
+4. The extension is declared: a `LITE-DESIGN-deephaven-backend` family in `docs/OWN_CORPUS_DECISIONS.md`, modelled on
+   §9 `LITE-DESIGN-sqlite-backend`, so `OwnCorpusConformanceTest` classifies own-corpus text that uses it.
+5. The JSON carries both whole (rule A): `_type`s of their own, read back in `protocol/ConnectionReader`; a round-trip
+   test (text to JSON to text) beside the refusal tests.
+
 ## 5. Decisions
 
 Alongside the MongoDB line's (the user's rulings of 2026-10-16), so the two non-SQL databases share one shape:
