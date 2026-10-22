@@ -18,8 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * A Deephaven connection (docs/DEEPHAVEN_PLAN_2026_10_22.md §4): {@code type: Deephaven}, the {@code Deephaven}
  * specification and {@code PreSharedKey} authentication, each a DECLARED lite extension
  * (docs/OWN_CORPUS_DECISIONS.md LITE-DESIGN-deephaven-backend). lite's dialect reads them; legend-engine's refuses
- * each by name, at its token; the model door refuses any one of them without the other two; and, as SQLite's, they
- * have no legend-engine JSON.
+ * each by name, at its token; the model holds them as written (D9: the connector decides what opens); and, as
+ * SQLite's, they have no legend-engine JSON.
  */
 class DeephavenConnectionTest {
 
@@ -90,16 +90,16 @@ class DeephavenConnectionTest {
                 "unknown PreSharedKey key: psk");
     }
 
+    /** The model carries a database's words and decides nothing by them (D9, the dialect program's census): a
+     *  Deephaven specification under another type, or another authentication under Deephaven's, is a connection the
+     *  model holds as written; opening it is the connector's to refuse, by name ({@code exec.ConnectorsTest}'s table:
+     *  every type with every specification, every credential refused first). */
     @Test
-    void theModelDoorTakesAllThreeWordsOrNone() {
-        refusedNaming(connection("Deephaven", "Static { host: 'h'; port: 10000; name: 'n'; }", AUTH),
-                Dialect.LEGEND_LITE, "a Deephaven connection's specification is Deephaven { host; port; useTls; }");
-        refusedNaming(connection("Postgres", SPEC, "Test"), Dialect.LEGEND_LITE,
-                "the Deephaven specification is a Deephaven connection's (type: Deephaven), not Postgres's");
-        refusedNaming(connection("Deephaven", SPEC, "Test"), Dialect.LEGEND_LITE,
-                "a Deephaven connection authenticates with PreSharedKey { keyVaultReference; }");
-        refusedNaming(connection("Postgres", "Static { host: 'h'; port: 5432; name: 'n'; }", AUTH),
-                Dialect.LEGEND_LITE, "PreSharedKey is a Deephaven connection's authentication (type: Deephaven)");
+    void theModelHoldsAMismatchAsWritten() {
+        ConnectionDefinition c = (ConnectionDefinition) ModelFromText.parse(connection("Postgres", SPEC, "Test"),
+                Dialect.LEGEND_LITE).elements().get(0);
+        assertEquals(ConnectionDefinition.DatabaseType.Postgres, c.databaseType());
+        assertEquals(new ConnectionSpecification.Deephaven("dh.internal", 10000, true), c.specification());
     }
 
     @Test

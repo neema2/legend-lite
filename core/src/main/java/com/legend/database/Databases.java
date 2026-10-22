@@ -83,14 +83,11 @@ public final class Databases {
             case Trino -> new com.legend.sql.dialect.Trino();
             // docs/CLOUD_BACKENDS_PCT_2026_10_11.md §19
             case ClickHouse -> new com.legend.sql.dialect.ClickHouse();
+            // Deephaven: modelled first, its target (table operations, not SQL) next (docs/DEEPHAVEN_PLAN_2026_10_22.md)
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto,
-                 Redshift, Spanner, Athena, Oracle, Aurora ->
+                 Redshift, Spanner, Athena, Oracle, Aurora, Deephaven ->
                     throw new com.legend.error.NotImplementedException(
                             "SQL dialect for database type '" + type + "' is not implemented yet");
-            // docs/DEEPHAVEN_PLAN_2026_10_22.md: modelled first (L1); its target, which writes table operations
-            // instead of SQL, is L2
-            case Deephaven -> throw new com.legend.error.NotImplementedException(
-                    "the Deephaven target is not built yet (docs/DEEPHAVEN_PLAN_2026_10_22.md, L2)");
         };
     }
 }

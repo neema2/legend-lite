@@ -117,8 +117,10 @@ class DialectBoundaryTest {
             // a connection specification's tag (same names as the types) when a plan's JSON is read: each
             // specification's own fields. PlanJson.java -> ConnectionWire.java (2026-10-16, the dialect program's
             // Phase 5): the codec is the model's, the vocabulary that carries every database's name (D9), and the
-            // plan format names none; the arms are the specification tags, not the declared types
-            "ConnectionWire.java", 4);
+            // plan format names none; the arms are the specification tags, not the declared types. 4 -> 5
+            // (2026-10-22, docs/DEEPHAVEN_PLAN_2026_10_22.md L1): the Deephaven specification's tag, a specification
+            // of its own as Snowflake's is, its fields read back; no decision by the declared type
+            "ConnectionWire.java", 5);
 
     /** Lines deciding by a database's NAME as a string ({@code "DB2".equals(t)}, {@code case "H2" ->}) outside the
      *  dialect package, by file. Added 2026-10-03 (C3a), pinned at what is left; shrink-only. */
@@ -142,9 +144,16 @@ class DialectBoundaryTest {
             // 2 -> 12 (2026-10-13, the dialect program's Phase 0): not new lines -- the census names every database now,
             // and the grammar parses ten more specification keywords by name (DuckDB, SQLite, Snowflake, Redshift, Trino,
             // Athena, Aurora, Oracle, Spanner, Databricks, BigQuery), as upstream's grammar does
-            "ConnectionSectionGrammar.java", 12,
+            // 12 -> 13 (2026-10-22, docs/DEEPHAVEN_PLAN_2026_10_22.md L1): the Deephaven specification keyword, parsed
+            // by name as the other specification keywords are
+            "ConnectionSectionGrammar.java", 13,
             // 0 -> 1 (2026-10-13, Phase 0, the same widening): the PMCD reader's connection kinds by their protocol names
-            "PmcdParser.java", 1);
+            "PmcdParser.java", 1,
+            // 0 -> 1 each (2026-10-22, docs/DEEPHAVEN_PLAN_2026_10_22.md L1): not new lines -- the census names
+            // Deephaven now, a declared type; both read legend-engine's own ###Deephaven section by its keyword (its
+            // store element; an activator's section), carried as written (PARK-38), deciding nothing about a database
+            "DeephavenSectionGrammar.java", 1,
+            "FunctionActivatorSectionGrammar.java", 1);
 
     /** Lines CONSTRUCTING a dialect outside the dialect package, by file: the one owner per side picks it
      *  (C3, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md; the guard at zero, 2026-10-04). */

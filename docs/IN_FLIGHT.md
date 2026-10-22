@@ -2512,10 +2512,9 @@ Community License) with live results beside typed rows; DataCube the first live 
   writes (after the Cypher writes branch lands), cross-store with explicit `from(runtime)` boundaries, the modelled
   publisher, and DataCube's ticking mode (once the DataCube line has settled).
 - **L1's files outside its own:** `model/ConnectionDefinition.java` (`DatabaseType.Deephaven`),
-  `ConnectionSpecification.java`, `AuthenticationSpec.java`, `ConnectionWire.java`, the new `model/DeephavenColumns.java`;
+  `ConnectionSpecification.java`, `AuthenticationSpec.java`, `ConnectionWire.java`;
   `parser/section/ConnectionSectionGrammar.java` (`LITE_DATABASE_TYPES`, the two parsers), `parser/Dialect.java`
   (javadoc); `protocol/Protocol.java`, `ConnectionEmitters.java`, `RelationalConnectionComposer.java` (refusals by
-  name); `model/FromProtocol.java`; `compiler/element/ModelIntegrity.java` (the binding check); the registries'
+  name); `model/FromProtocol.java`; the registries'
   arms (`database/Databases.java`, `exec/Connectors.java`, `EngineText.java`, test `TestBackends.java`); tests
-  `parser/DeephavenConnectionTest`, `ReferenceIntegrityTest`, `ConnectorsTest`, `ConnectionWireTest`; the own-corpus
-  censuses' pins in `parser-equivalence`; `docs/SEMANTICS_REGISTER.md` S48, `docs/OWN_CORPUS_DECISIONS.md` §15.
+  `parser/DeephavenConnectionTest`, `ConnectorsTest`, `ConnectionWireTest`; `docs/SEMANTICS_REGISTER.md` S48, `docs/OWN_CORPUS_DECISIONS.md` §15.

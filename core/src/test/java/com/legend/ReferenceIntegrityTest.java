@@ -215,37 +215,6 @@ class ReferenceIntegrityTest {
                 + "    a::Db:\n    [\n      c1: a::Cn\n    ]\n  ];\n}\n");
     }
 
-    // ---- a store bound to a Deephaven connection (docs/DEEPHAVEN_PLAN_2026_10_22.md §3): only lite's dialect reads
-    // `type: Deephaven`, so only the text carries these
-
-    /** {@code store} bound to a Deephaven connection by a runtime. */
-    private static String onDeephaven(String store) {
-        return "###Connection\nRelationalDatabaseConnection a::Dh\n{\n  store: " + store + ";\n  type: Deephaven;\n"
-                + "  specification: Deephaven { host: 'dh'; port: 10000; useTls: false; };\n"
-                + "  auth: PreSharedKey { keyVaultReference: 'dh.psk'; };\n}\n"
-                + "###Runtime\nRuntime a::R\n{\n  mappings:\n  [\n  ];\n  connections:\n  [\n"
-                + "    " + store + ":\n    [\n      c1: a::Dh\n    ]\n  ];\n}\n";
-    }
-
-    @Test
-    void aStoreOnDeephavenIsOneDeephavenHolds() {
-        acceptedAsText("###Relational\nDatabase a::Ref\n(\n  Table instrument (id VARCHAR(32) PRIMARY KEY,"
-                + " multiplier DOUBLE, qty BIGINT NOT NULL, d DATE, ts TIMESTAMP, live BIT, px DECIMAL(18, 6))\n)\n"
-                + onDeephaven("a::Ref"));
-        refusedAsText("###Relational\nDatabase a::Ref\n(\n  Table blob (id INTEGER PRIMARY KEY, b VARBINARY(16))\n)\n"
-                + onDeephaven("a::Ref"), "column blob.b of 'a::Ref' is VARBINARY(16), which no Deephaven column holds"
-                + " (connection 'a::Dh')");
-        refusedAsText("###Relational\nDatabase a::Ref\n(\n  Schema ref\n  (\n    Table t (id INTEGER)\n  )\n)\n"
-                + onDeephaven("a::Ref"), "schema 'ref' of 'a::Ref' is not on Deephaven");
-    }
-
-    @Test
-    void aStoreOnDeephavenIncludesOnlyStoresDeephavenHolds() {
-        refusedAsText("###Relational\nDatabase a::Base\n(\n  Table j (id INTEGER, doc SEMISTRUCTURED)\n)\n"
-                + "###Relational\nDatabase a::Ref\n(\n  include a::Base\n  Table t (id INTEGER)\n)\n"
-                + onDeephaven("a::Ref"), "column j.doc of 'a::Base' is SEMISTRUCTURED, which no Deephaven column holds");
-    }
-
     // ---- profiles, stereotypes and tags
 
     @Test

@@ -129,53 +129,7 @@ final class ModelIntegrity {
                     throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
                             "Can't find connection '" + connection + "'");
                 }
-                if (model.findConnection(connection).map(c -> c.databaseType()
-                        == com.legend.model.ConnectionDefinition.DatabaseType.Deephaven).orElse(false)) {
-                    deephavenStore(binding.getKey(), connection, model, new java.util.HashSet<>());
-                }
             }
-        }
-    }
-
-    /** A store a runtime binds to a Deephaven connection is one Deephaven can hold (docs/DEEPHAVEN_PLAN_2026_10_22.md
-     *  §3), with the stores it includes: a {@code ###Relational} database, its tables in the default schema (a
-     *  Deephaven server has one namespace of tables: how a named schema is named there waits for a case), no tabular
-     *  function, and every column of a type a Deephaven column holds ({@code model.DeephavenColumns}); each refusal
-     *  names the store, the table and the column. */
-    private static void deephavenStore(String store, String connection, ModelBuilder model,
-            java.util.Set<String> seen) {
-        if (!seen.add(store)) {
-            return;
-        }
-        com.legend.model.DatabaseDefinition db = model.findDatabase(store).orElseThrow(() ->
-                new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                        "the Deephaven connection '" + connection + "' binds a ###Relational database; '" + store
-                                + "' is not one"));
-        for (com.legend.model.DatabaseDefinition.SchemaDefinition schema : db.schemas()) {
-            if (!"default".equals(schema.name())) {
-                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                        "schema '" + schema.name() + "' of '" + store + "' is not on Deephaven: a Deephaven server"
-                                + " has one namespace of tables, and a named schema's naming there is not decided"
-                                + " (connection '" + connection + "')");
-            }
-        }
-        if (!db.tabularFunctions().isEmpty()) {
-            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                    "tabular function '" + db.tabularFunctions().get(0).name() + "' of '" + store
-                            + "' is not on Deephaven, which has none (connection '" + connection + "')");
-        }
-        for (com.legend.model.DatabaseDefinition.TableDefinition table : db.tables()) {
-            for (com.legend.model.DatabaseDefinition.ColumnDefinition column : table.columns()) {
-                if (com.legend.model.DeephavenColumns.column(column.dataType()) == null) {
-                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                            "column " + table.name() + "." + column.name() + " of '" + store + "' is "
-                                    + com.legend.model.DeephavenColumns.spelled(column.dataType())
-                                    + ", which no Deephaven column holds (connection '" + connection + "')");
-                }
-            }
-        }
-        for (String included : db.includes()) {
-            deephavenStore(included, connection, model, seen);
         }
     }
 

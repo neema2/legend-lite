@@ -353,7 +353,7 @@ as they are).
 
 | # | row | construct |
 |---|---|---|
-| (per the census) | parser/DeephavenConnectionTest, ReferenceIntegrityTest (`aStoreOnDeephaven...`) | `type: Deephaven` connections, the `Deephaven` specification, `PreSharedKey` authentication |
+| (per the census) | parser/DeephavenConnectionTest | `type: Deephaven` connections, the `Deephaven` specification, `PreSharedKey` authentication |
 
 - **Surfaces:** LEGEND_LITE reads all three (the product surface); LEGEND_ENGINE refuses each by name at its token,
   `type: Deephaven` in the engine's own words ("Unknown database type 'Deephaven'"), as SQLite's.

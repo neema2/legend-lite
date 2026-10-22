@@ -830,30 +830,11 @@ public final class FromProtocol {
             case Protocol.PPreSharedKey k ->
                     new AuthenticationSpec.PreSharedKey(k.keyVaultReference());
         };
-        deephavenShape(type, spec, auth);
         // quoteIdentifiers rides the PROTOCOL record only (wire parity);
         // lite's SQL renderers decide quoting themselves, so the model
         // deliberately does not carry it
         return new ConnectionDefinition(qualifiedName, r.element(), type, spec,
                 auth);
-    }
-
-    /** A Deephaven connection is all three of lite's Deephaven words or none (docs/DEEPHAVEN_PLAN_2026_10_22.md §4):
-     *  {@code type: Deephaven} with the {@code Deephaven} specification and a {@code PreSharedKey}, the one
-     *  authentication a Deephaven connector is built for; either word under another type is refused by name. */
-    private static void deephavenShape(ConnectionDefinition.DatabaseType type, ConnectionSpecification spec,
-            AuthenticationSpec auth) {
-        boolean deephaven = type == ConnectionDefinition.DatabaseType.Deephaven;
-        if (deephaven != spec instanceof ConnectionSpecification.Deephaven) {
-            throw new UnsupportedConnectionShape(deephaven
-                    ? "a Deephaven connection's specification is Deephaven { host; port; useTls; }"
-                    : "the Deephaven specification is a Deephaven connection's (type: Deephaven), not " + type + "'s");
-        }
-        if (deephaven != auth instanceof AuthenticationSpec.PreSharedKey) {
-            throw new UnsupportedConnectionShape(deephaven
-                    ? "a Deephaven connection authenticates with PreSharedKey { keyVaultReference; }"
-                    : "PreSharedKey is a Deephaven connection's authentication (type: Deephaven), not " + type + "'s");
-        }
     }
 
     /** A Deephaven server's port, which is a TCP port; any other number refused by name. */
