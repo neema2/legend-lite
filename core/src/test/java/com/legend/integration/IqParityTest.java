@@ -149,6 +149,71 @@ class IqParityTest {
                 + " docs/IQ_SQL_SHOWCASE.md):\n" + String.join("\n", problems));
     }
 
+    /**
+     * The IQ scale program (2026-10-22, P1, docs/IQ_SCALE_PROGRAM_2026_10_22.md): every run planned for Snowflake as
+     * for DuckDB, render only -- planning never connects, so no account is reached. A run DuckDB plans is planned for
+     * Snowflake too, or refused there by name (a {@code DialectCapability}: Snowflake cannot spell it exactly); never a
+     * crash of Snowflake's alone. The Snowflake lane ({@code IqParitySnowflakeTest}) judges the answers.
+     */
+    @Test
+    void everyRunPlansForSnowflakeAsForDuckDb() throws Exception {
+        List<SqlParity.Table> tables = IqParity.schema(Runfile.property("iq.parity.schema"));
+        Set<String> names = IqParity.tableNames(tables);
+        List<IqParity.Run> runs = IqParity.runs(IqParity.cases(Runfile.property("iq.parity.lite").getParent()));
+        var duckdb = com.legend.Compiler.compileModel(IqParity.model(tables, SHOWCASE_LANES[1][1]));
+        var snowflake = com.legend.Compiler.compileModel(IqParity.model(tables, SHOWCASE_LANES[0][1]));
+        Map<String, Integer> counts = new java.util.TreeMap<>();
+        List<String> problems = new ArrayList<>();
+        List<String> refusedOnSnowflake = new ArrayList<>();
+        for (IqParity.Run r : runs) {
+            if (r.c().skip() != null) {
+                continue;
+            }
+            String[] duck = planned(duckdb, r, tables, names);
+            String[] snow = planned(snowflake, r, tables, names);
+            counts.merge(duck[0] + " -> " + snow[0], 1, Integer::sum);
+            if (snow[0].equals("CRASH") && !duck[0].equals("CRASH")) {
+                problems.add("SNOWFLAKE CRASH: " + r.key() + " (DuckDB " + duck[0] + "): " + snow[1]);
+            } else if (snow[0].equals("REFUSED") && duck[0].equals("PLANNED")) {
+                refusedOnSnowflake.add(r.key() + ": " + snow[1]);
+            }
+        }
+        System.out.println("iq-parity planned, duckdb -> snowflake: " + counts);
+        refusedOnSnowflake.forEach(s -> System.out.println("[iq-parity] snowflake refuses what DuckDB plans: " + s));
+        assertTrue(problems.isEmpty(), problems.size() + " problems:\n" + String.join("\n", problems));
+    }
+
+    /** A run planned on {@code model}'s connection: {@code PLANNED}; the island's own refusal or IQ's error
+     *  ({@code TRANSLATED}); a refusal by name ({@code REFUSED}); or anything else ({@code CRASH}), with its message. */
+    private static String[] planned(com.legend.compiler.element.ModelContext model, IqParity.Run r,
+            List<SqlParity.Table> tables, Set<String> names) {
+        try {
+            String sql = com.legend.Compiler.query(model, IqParity.query(r, tables, names)).plan(IqParity.RUNTIME)
+                    .sql();
+            return new String[] {"PLANNED", sql};
+        } catch (com.legend.protocol.sql.SqlTranslationException | com.legend.error.IslandSyntaxException e) {
+            return new String[] {"TRANSLATED", String.valueOf(e.getMessage())};
+        } catch (Exception | StackOverflowError e) {
+            for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+                if (t instanceof com.legend.error.NotImplementedException
+                        || t instanceof com.legend.sql.dialect.DialectCapability) {
+                    return new String[] {"REFUSED", oneLine(t)};
+                }
+                if (t instanceof com.legend.error.IslandSyntaxException || t instanceof com.legend.error.DataError
+                        || t.getClass().getSimpleName().equals("TypeInferenceException") && t.getMessage() != null
+                        && t.getMessage().startsWith("#IQ")) {
+                    return new String[] {"TRANSLATED", oneLine(t)};
+                }
+            }
+            return new String[] {"CRASH", oneLine(e)};
+        }
+    }
+
+    private static String oneLine(Throwable e) {
+        String m = (e.getClass().getSimpleName() + ": " + e.getMessage()).replace('\n', ' ');
+        return m.length() > 300 ? m.substring(0, 300) + "..." : m;
+    }
+
     @Test
     void theAnswersCannotFallBehindTheCases() {
         IqParity.Case c = new IqParity.Case("lite/x.yaml", "a", "SELECT 1", List.of("iq16-default", "iq16-tds"), null,

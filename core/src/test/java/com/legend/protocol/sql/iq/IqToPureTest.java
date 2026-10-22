@@ -476,9 +476,17 @@ class IqToPureTest {
         // B6: more digits than a sqla17 database keeps
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 1234567890123456789012345678901 AS v"
                 + " FROM " + T, IqProfile.SQLA17_DEFAULT.settings(), COLUMNS).kind());
-        // B1: a REAL column refuses its table
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T, IqProfile.IQ16_DEFAULT.settings(),
-                List.of(new Col("id", "Integer", false, "INTEGER"), new Col("r", "Float", true, "REAL"))).kind());
+        // B1: a REAL column read refuses its table, by *, and by a NATURAL join that may compare it unnamed; one no
+        // one reads does not (the IQ scale program, 2026-10-22)
+        List<Col> withReal = List.of(new Col("id", "Integer", false, "INTEGER"), new Col("r", "Float", true, "REAL"));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT r FROM " + T,
+                IqProfile.IQ16_DEFAULT.settings(), withReal).kind());
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT * FROM " + T,
+                IqProfile.IQ16_DEFAULT.settings(), withReal).kind());
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT a.id FROM " + T + " a NATURAL JOIN " + T
+                + " b", IqProfile.IQ16_DEFAULT.settings(), withReal).kind());
+        assertEquals("#>{s::DB.T}#->select(~[id])", pure("SELECT id FROM " + T, IqProfile.IQ16_DEFAULT.settings(),
+                withReal));
         // m4: a CHAR of no length read is refused by name, never a crash
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT c FROM " + T, IqProfile.IQ16_DEFAULT.settings(),
                 List.of(new Col("c", "String", true, "CHAR"))).kind());

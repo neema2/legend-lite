@@ -4649,8 +4649,8 @@ lite/m1e/owner_qualified_scalar_subquery@iq16-default	PASS	PASS
 lite/m1e/owner_qualified_scalar_subquery@iq17-default	PASS	PASS
 lite/m1e/owner_qualified_three_tables@iq16-default	PASS	PASS
 lite/m1e/owner_qualified_three_tables@iq17-default	PASS	PASS
-lite/m1e/owner_qualified_real_table_is_refused@iq16-default	REFUSED	REFUSED
-lite/m1e/owner_qualified_real_table_is_refused@iq17-default	REFUSED	REFUSED
+lite/m1e/owner_qualified_real_table_is_refused@iq16-default	PASS	PASS
+lite/m1e/owner_qualified_real_table_is_refused@iq17-default	PASS	PASS
 lite/m1e/owner_dbo_is_refused@iq16-default	BOTH_ERROR	BOTH_ERROR
 lite/m1e/owner_dbo_is_refused@sqla17-default	BOTH_ERROR	BOTH_ERROR
 lite/m1e/owner_dbo_is_refused@iq17-default	BOTH_ERROR	BOTH_ERROR

@@ -2150,6 +2150,26 @@ repros will be in the study's §9.
 
       Left: checked integer chains, which go linear with landing 4's IQ widening.
       These go in landing 4.
+- **Announced 2026-10-22: the IQ scale program** (the user's ask: any Sybase IQ query, any size, on DuckDB and
+  Snowflake, as a loop that keeps going; branch `claude/iq-scale`, landing by PR after review; the plan and its queue
+  are `docs/IQ_SCALE_PROGRAM_2026_10_22.md`). It continues this line. Its first cross-area edits:
+  - **The ninth line's `sql/dialect/Snowflake.java`:**
+    - `INT_DIVIDE` of two integers is exact: `(a - MOD(a, b)) / b`. Snowflake rounds `a / b` to six places before a
+      TRUNC sees it, so `999999999 / 1000000000` came back 1 (landing 5's review).
+    - A literal pattern's non-capturing groups are made plain groups, and the group a replacement or an extraction
+      reads is renumbered to match. They were refused by name. The census below found 27 IQ parity runs refused
+      there: the IQ island's month names.
+  - **The seventh line's `testcases/SqlParity.java`:** `ratchet`, `readLedger` and `writeLedger` take a ledger's own
+    lanes. The defaults are unchanged, so sql-parity's ledger and lanes are untouched.
+  - **The build's `tools/deps/jars_table.bzl`:** the Snowflake driver gains one user, `core:iq_parity_snowflake_test`,
+    with a dated reason.
+  - **This line's own files:**
+    - `IqParity.LANES` adds `snowflake` to the IQ ledger's lanes;
+    - `IqParitySnowflakeTest` and `//core:iq_parity_snowflake_test` (manual, a real account);
+    - `IqParityTest.everyRunPlansForSnowflakeAsForDuckDb`, the Snowflake plan census (render only);
+    - `IqFuzz`, `IqFuzzTest` and `//core:iq_fuzz_test` (manual), the oracle-free fuzzer;
+    - `IqDialect.read`: a REAL or FLOAT column no one reads, and no NATURAL or USING join compares, no longer refuses
+      its table.
 
 ## Rules between sessions
 

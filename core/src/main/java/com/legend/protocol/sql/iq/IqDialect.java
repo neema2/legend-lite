@@ -157,6 +157,9 @@ public final class IqDialect implements InputDialect {
     /** IQ island, 2026-10-17: the outer joins IQ's engine reads as inner ones ({@link #nullRejected}), by identity,
      *  for {@link #joinType}. */
     private final Set<SqlAst.Join> innerJoins = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** The places of the FROM items a NATURAL or USING join joins: their shared columns are compared unnamed, so a
+     *  column no one names may still be read there (the IQ scale program, 2026-10-22: {@link #read}'s unread REAL). */
+    private final Set<SqlAst.Pos> joinedByName = new java.util.HashSet<>();
     /** IQ island, 2026-10-17: the calls of no function of IQ's in columns read nowhere, read as a NULL string
      *  ({@link #unreadUnknownFunctions}). */
     private final Set<SqlAst.FunctionCall> placeheld = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -1851,6 +1854,19 @@ public final class IqDialect implements InputDialect {
         read.outerLazy.addAll(outerAggregates(statement));
         read.simpleWhens.addAll(simpleWhens);
         read.innerJoins.addAll(innerHere);
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.FromItem f : s.from()) {
+                    List<SqlAst.Join> joins = new ArrayList<>();
+                    joins(f, joins);
+                    for (SqlAst.Join j : joins) {
+                        if (j.natural() || !j.using().isEmpty()) {
+                            leaves(j).forEach(leaf -> read.joinedByName.add(leaf.pos()));
+                        }
+                    }
+                }
+            }
+        }
         read.placeheld.addAll(placeheldHere);
         read.claims(placement, recursives.get(statement));
         read.lateClaimed(lateClaim(statement, chosen));
@@ -5285,9 +5301,13 @@ public final class IqDialect implements InputDialect {
         }
         String family = type.family();
         if (referenced != null && !referenced.contains(IqLexer.lower(column)) && !starred.contains(pos)
-                && (family.equals("CHAR") && type.size() >= 0 || family.equals("BIT"))) {
+                && (family.equals("CHAR") && type.size() >= 0 || family.equals("BIT")
+                || (family.equals("REAL") || family.equals("FLOAT")) && !joinedByName.contains(pos))) {
             // never seen: read as stored (the CHAR's pad and the BIT's integer change nothing the query sees; a NATURAL
-            // join's shared columns compare by IQ's =, which ignores the pad)
+            // join's shared columns compare by IQ's =, which ignores the pad). The IQ scale program, 2026-10-22 (its
+            // fuzzer: 611 of 1,500 queries refused for a table's REAL column they never read): a REAL or FLOAT column
+            // no one reads is never read, so its table is no longer refused for it -- unless a NATURAL or USING join
+            // may compare it unnamed (how IQ compares a REAL is measured for a constant in a WHERE only)
             return null;
         }
         if (family.equals("CHAR")) {

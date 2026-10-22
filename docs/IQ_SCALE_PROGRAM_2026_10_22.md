@@ -1,0 +1,218 @@
+# The IQ scale program: any Sybase IQ query, any size, on DuckDB and Snowflake (2026-10-22)
+
+**The user's ask (2026-10-22):** scale the `#IQ{...}#` island with more features, fixes and complex queries, focused
+on DuckDB and Snowflake. The goal is a converter that is "super bulletproof" for any Sybase IQ query of any complexity
+and scale, run as a loop that keeps adding features and finding and fixing bugs until everything that makes sense
+works.
+
+This continues the tenth line (`docs/IN_FLIGHT.md`, "A tenth line"; the study `docs/IQ_SQL_STUDY_2026_10_13.md`; the
+census `docs/IQ_CENSUS_CHECKLIST.md`). Everything those documents rule still holds. This file adds three things: the
+targets the user named, the loop, and the queue the loop works from.
+
+---
+
+## 0. What "bulletproof" means here
+
+For every IQ query handed to the island, on **DuckDB** and on **Snowflake**, exactly one of these holds:
+
+1. **IQ's answer**: the same rows, types and order that SAP IQ 17.1 returns;
+2. **IQ's error**: the error IQ itself raises, by its code;
+3. **a refusal by name**: lite says, with the position, which construct it cannot answer exactly.
+
+A wrong answer, a crash, or a database error that IQ would not raise is a bug. The refusal rate is the backlog, and
+the loop's job is to shrink it. The line's own rule stays: zero FAIL, zero BUG, and Java never computes a value.
+
+"Any scale" means the census's budgets (`IQ_CENSUS_CHECKLIST.md`, "Scale") hold on both targets: hundreds of joins,
+16 MB of SQL text, 16,000 projected expressions, a 20,000-value IN list, 1,000-deep expressions and 1,000-branch
+UNIONs. Where a target cannot hold a shape, lite either reshapes its SQL so the target can, or refuses it by name. It
+never sends SQL that is known to fail.
+
+## 1. Where the line stands (main at bff1c703, 2026-10-22)
+
+- **Five landings merged**, the last being PR #63, landing 5. 32,000 lines of translator: `protocol/sql/iq/` plus the
+  shared `SqlToPure`.
+- **Parity:** 4,100 cases, which are 8,994 runs across the profiles, judged against snapped answers from SQL
+  Anywhere 17 and the live IQ 17.1. On DuckDB: 5,984 PASS, 1,509 BOTH_ERROR, 1,378 REFUSED, 78 SKIP, and 42 runs that
+  are listed iq17 divergences (19 FAIL, 15 ERROR, 8 BUG). Postgres is the same within one run.
+- **Corpora**, judged against the live IQ:
+  - the SE suite: 10,763 PASS, 1,526 PASS_UNORDERED and 366 FAIL, all of them ties, clocks or D-N3;
+  - TPC-H: 9,131 of 9,427;
+  - TPC-DS: 8,403 of 8,647;
+  - JOB: 4,554 of 4,811;
+  - BIRD: 1,047 PASS and 389 matching errors.
+- **Snowflake: rendered, never run.** Only the showcase's SQL is pinned for Snowflake (`showcase/snowflake.sql`, render
+  only). No IQ case has ever executed on a Snowflake. One known wrong answer is already recorded: Snowflake's
+  `INT_DIVIDE` arm rounds `a / b` to six places before it truncates (checklist, landing 5's review).
+
+## 2. The gaps between the line and the ask
+
+| # | Gap | Why it matters |
+|---|---|---|
+| G1 | **No Snowflake execution lane** | Half the targets the user named are untested. Every dialect difference (collation, blank padding, NULL order, decimal scale on division, timestamp precision, integer division, string-to-number reads, identifier case) is unmeasured there. |
+| G2 | **The oracle is only reachable from the user's Mac** | The live IQ's password is in the macOS Keychain, and SQL Anywhere 17 is installed on the Mac. A cloud loop cannot snap a new case's answer, so new IQ semantics cannot be judged from the cloud. |
+| G3 | **The refusals** | 1,378 parity runs and the corpora's refused queries. These are the feature backlog. |
+| G4 | **Scale on Snowflake** | Every scale budget was measured on DuckDB only. Snowflake's limits on statement size, expression depth, IN lists and compile time are unmeasured. |
+| G5 | **Statements** | The island reads one SELECT. Real IQ workloads arrive as scripts: `SELECT ... INTO #t`, `DECLARE`, `IF`, temp tables, batches. The study's M4 left them out by decision. |
+
+## 3. The pillars, in order
+
+### P1. Snowflake as a first-class target (no oracle needed)
+
+Every committed answer was snapped from IQ or SQL Anywhere, so running the existing 8,994 runs on Snowflake judges
+Snowflake against IQ with no new snapping.
+
+- **P1.1 The lane.** Add `//core:iq_parity_snowflake_test`, modeled on `IqParityPostgresTest`:
+  - it runs over `SnowflakeBackend`, seeds into a schema of its own, and runs cases in parallel;
+  - it is manual, since it needs credentials, as the PCT cloud lanes are;
+  - `ledger.tsv` gains a `snowflake` column, and the divergence list and its guards apply as on the other lanes.
+- **P1.2 The triage.** Each run whose status differs from DuckDB's is classified as one of:
+  - a Snowflake dialect bug: fix it in `sql/dialect/Snowflake.java` or a Snowflake rule class;
+  - a semantic difference that needs Snowflake's own spelling of IQ's rule;
+  - a construct Snowflake cannot express exactly: refuse it there by name. Snowflake's per-target refusals are
+    named per target, so DuckDB keeps answering.
+
+  Each fix is pinned by the run that found it.
+- **P1.3 The known bug first:** an exact `INT_DIVIDE` on Snowflake, `(a - MOD(a, b)) / b`. After it, the Postgres front
+  end's estimate can go too (checklist, landing 5's review).
+- **P1.4 Snowflake's scale:** the census budgets measured on Snowflake (§0), with each limit either worked around in
+  the SQL or refused by name.
+- **P1.5 The showcase and the canonical benchmarks** (TPC-H's 22 and TPC-DS's 99, as rewritten for IQ) executed on
+  Snowflake. Snowflake's answers are compared with DuckDB's, which IQ judged (P2).
+
+### P2. Oracle-free bug hunting at scale
+
+The loop needs bugs found faster than a person can snap answers. Three judges need no IQ:
+
+- **P2.1 DuckDB against Snowflake.** The same island runs on both targets. DuckDB's answers are IQ-judged on the
+  parity set and the corpora, so a disagreement is a bug, usually Snowflake's.
+- **P2.2 Metamorphic checks**, as SQLancer runs them, on both targets:
+  - TLP: `WHERE p`, `WHERE NOT p` and `WHERE p IS NULL` partition the rows, and the same holds for HAVING, DISTINCT
+    and aggregates;
+  - NoREC: a filter must count the same rows as the sum of its CASE;
+  - other equivalences: `GROUP BY` against `DISTINCT`, a join against the same join written as a subquery, and a
+    derived table against its CTE.
+
+  These find translator bugs without knowing IQ's answer.
+- **P2.3 A generator in the repository** (`tools/iq-fuzz/`, our own code): random IQ queries over the parity schema,
+  every one ordered by a unique key, with depth and width as knobs so that it also produces scale. The private fuzzer
+  stays private. This one is written fresh from the grammar the island reads.
+
+### P3. Features: refusals turned into answers (oracle needed for new semantics)
+
+These are ranked by the corpora's counts (checklist) and taken top-down:
+
+1. WITH RECURSIVE where IQ answers it, lowered to `meta::legend::lite::recurse`, which is now on main. Checklist 1.8
+   was waiting only for it.
+2. Dropping the derived-table columns no one reads before translating them, as IQ does (FORMAT, STRING_AGG and
+   errors in unread columns). This is the checklist's "open: dropping any unread column".
+3. IQ's error order in general: each held error carries its phase, and the earliest phase's error is raised.
+4. PIVOT: IQ 17.1 reads it in both engines.
+5. A DOUBLE written as text (`%#.18g`): DuckDB's printf, and Snowflake's `TO_CHAR` if a format can spell it,
+   otherwise refused per target.
+6. TPC-H Q8 and Q14: the long division's intermediate values computed once. This needs the Lowerer to keep a SELECT
+   level for a complex column that is read more than once (checklist, "Measured, not built").
+7. The fuzz round 8 findings: cross-kind comparisons beside NULL, the typing of COALESCE with a NUMERIC constant, and
+   date-string codes.
+8. STDDEV and VARIANCE with IQ's own formula, if its arithmetic can be composed exactly; otherwise they stay refused.
+9. Decisions the user owns, which stay refused until decided: ODBC escapes, D-N3's widening past a BIGINT, and the
+   38-digit ceiling (decided: refuse).
+
+### P4. Scale and robustness
+
+- UNION ALL and join chains past 1,000 hit DuckDB's parser depth. Emit balanced trees, or flat lists where the shape
+  allows, so depth grows as log n.
+- Each P1.4 limit gets a regression case that sits at the limit.
+- Plan time, memory and SQL size are budgeted per shape in a harness test, so a slow quadratic path turns a test red
+  rather than a user's query.
+
+### P5. Statements and scripts (the user's decision first)
+
+This would be a statement front end above the island: `SELECT ... INTO #temp` and temp tables, `DECLARE`/`SET`
+variables, `IF`/`BEGIN...END`, batches, `CREATE TABLE AS` and `INSERT ... SELECT`. Each would be translated to a
+sequence of target statements on DuckDB and Snowflake. The study's M4 and the island's "one SELECT" rule put this out
+of scope, so it waits for the user to say yes.
+
+## 4. The oracle (G2): the decision this program needs
+
+New IQ semantics need IQ's answer. There are three ways to get it:
+
+| Option | What it takes | What the loop can do |
+|---|---|---|
+| **A. The Mac relays** (recommended) | The user keeps a Claude Code session open on the Mac, connected by Remote Control. The SAP SQL Anywhere session (`session_01WGRGLrXnieo9JV8Ff8Pacb`) has the tools and the Keychain. The cloud loop pushes cases to the branch, then asks that session to `snap.sh --write` them and push the answers back. | Everything. No credential leaves the Mac. |
+| **B. The oracle in the cloud** | Add the live IQ's host and password as environment secrets, allow the host in the environment's network policy and the data lake's allowlist, and install a Linux SQL Anywhere 17 client (dbcapi). | Everything, unattended. It changes the line's credential posture, which so far has been "never written anywhere". |
+| **C. No oracle** | Nothing. | P1, P2 and P4 in full. P3 only where IQ's answer is already committed, or the construct is refused by name. |
+
+Until the user picks one, the loop runs under C.
+
+## 5. The loop
+
+Each iteration is one slice:
+
+1. **Sync.** Fetch `origin/main` and merge it if it moved. Read `IN_FLIGHT` for new claims on the files the slice
+   will touch.
+2. **Pick.** Choose, in order:
+   - a red lane or a broken guard;
+   - the top open item of §6's queue;
+   - the top new finding of the last differential or fuzz run.
+3. **Build** the change with its unit test and its parity cases. A case whose answer is not snapped waits for the
+   oracle, marked in the queue.
+4. **Judge.** Run `//core:iq_parity_test` (DuckDB), `//core:iq_parity_postgres_test`, `//core:iq_syntax_cases_test`
+   and `//core:core_tests`. Under P1, also run the Snowflake lane, over the touched case files at least. A Lowerer or
+   dialect edit also runs `//spec:corpus_duckdb` and `//spec:corpus_h2`.
+5. **Record:**
+   - the ledger columns;
+   - the checklist's status for the item, or §6 here;
+   - a line in §7's log;
+   - a `SEMANTICS_REGISTER` row for any new deliberate difference.
+6. **Commit and push** to `claude/iq-scale`, one slice per commit, naming its item.
+7. **Land:** every five slices or so, or at the end of a day:
+   - `bazel test //gates:local`;
+   - an independent review by a fresh agent given the diff;
+   - a PR, merged by the user.
+
+   Cross-area edits (`sql/dialect/`, `lowering/`, `compiler/`) are announced in `IN_FLIGHT` before the first edit.
+
+The loop does not stop at an empty queue: the lanes, the differential and the fuzzer refill it. It stops when the user
+says so.
+
+## 6. The queue
+
+| # | Item | Pillar | Needs | Status |
+|---|---|---|---|---|
+| Q1 | Bazel in this container; DuckDB and Postgres IQ lanes green as the baseline | — | — | done |
+| Q2 | Snowflake's exact `INT_DIVIDE` | P1.3 | — | done, measured on an account by Q3 |
+| Q3 | `//core:iq_parity_snowflake_test` and the ledger's `snowflake` column | P1.1 | Snowflake credentials | built; its first run waits for the credentials |
+| Q3b | The Snowflake plan census: every run DuckDB plans is planned for Snowflake, render only | P1.1 | — | done: 6,236 of 6,236 |
+| Q4 | First Snowflake triage: every status that differs from DuckDB's | P1.2 | Q3 | open |
+| Q5 | The DuckDB-against-Snowflake differential runner and TLP/NoREC checks | P2.1, P2.2 | Q3 | TLP done on DuckDB (Q6); the Snowflake half waits for Q3 |
+| Q6 | The generator: `IqFuzz` and `//core:iq_fuzz_test` | P2.3 | — | done; the rounds feed the queue |
+| Q14 | A stored REAL or FLOAT column read: compared, computed, shown | P3 | oracle | open. Measured: under IQ 17.1's engine `rl = 0.1` in a WHERE holds for a stored REAL (the constant compared in single precision), while SQL Anywhere 17 compares as doubles, and a computed REAL compares as a double under both (`reals_compared_as_doubles`) |
+| Q15 | The corpus coverage lane rebuilt in the cloud (SEDE, SQLStorm and Public BI fetched; BIRD needs disk) | P3 | the user's approval to run the research repo's scripts | open |
+| Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | open |
+| Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
+| Q9 | Unread derived columns dropped | P3.2 | oracle (some answers are committed) | open |
+| Q10 | Balanced UNION and join emission past 1,000 | P4 | — | open |
+| Q11 | The error order's general form | P3.3 | oracle | open |
+| Q12 | PIVOT | P3.4 | oracle | open |
+| Q13 | Q8/Q14's division: a SELECT level for a reread complex column | P3.6 | — (judged by committed TPC-H answers off-repo) | open |
+
+## 7. Log
+
+- 2026-10-22: the program written; branch `claude/iq-scale` from main bff1c703.
+- 2026-10-22, slice 1:
+  - **Baseline.** Bazel runs in the cloud container; the DuckDB and Postgres IQ lanes are green (67 s, 55 s).
+  - **Snowflake's `INT_DIVIDE` is exact for two integers:** `(a - MOD(a, b)) / b`.
+  - **The Snowflake lane** (`IqParitySnowflakeTest`, manual) is built, with the ledger's `snowflake` lane. Its first
+    run waits for the account's credentials. Fetching them from AWS Secrets Manager into the session needs the user's
+    approval.
+  - **The plan census:** every IQ parity run is planned for Snowflake, render only. Snowflake refused 27 runs DuckDB
+    plans: the IQ island's month-name pattern, `dec(?:e(?:m...)?)?`, whose replacement reads numbered groups.
+    Snowflake's dialect now makes a literal pattern's non-capturing groups plain and renumbers the groups that a
+    replacement or an extraction reads. A reference past `\9` is refused by name. The census is now 6,236 of 6,236
+    planned.
+  - **The fuzzer** (`IqFuzz`, `//core:iq_fuzz_test`):
+    - Its first round refused 611 of 1,500 queries for a REAL column of table `r` that no query read. Now a REAL or
+      FLOAT column no one reads, and no NATURAL or USING join compares, is never read. This fixed
+      `m1e/owner_qualified_real_table_is_refused` on both profiles (REFUSED → PASS against the committed answers).
+    - Its one TLP finding was IQ's measured self-comparison (`x >= x IS UNKNOWN` is two-valued under its engine),
+      which the generator now avoids.

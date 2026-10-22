@@ -2172,6 +2172,10 @@ public final class IqParity {
             + " status per profile and lane: the ratchet IqParityTest and\n# IqParityPostgresTest hold"
             + " (core/src/test/java/com/legend/testcases/IqParity.java; the statuses are SqlParity's)\n";
 
+    /** The ledger's lanes, in its column order: sql-parity's, and Snowflake's (the IQ scale program, 2026-10-22:
+     *  IqParitySnowflakeTest, manual, on a real account). */
+    public static final List<String> LANES = List.of("duckdb", "postgres", "snowflake");
+
     /** Each run's outcome against the ledger's column for {@code lane} (SqlParity's ratchet: REGRESSION, FIX
      *  DETECTED, STATUS MISMATCH, NEW, GONE); with {@code update}, the ledger's column is written instead. */
     public static List<String> ratchet(List<Run> runs, Map<String, SqlParity.Outcome> outcomes, Path ledger,
@@ -2189,8 +2193,8 @@ public final class IqParity {
             cases.add(c);
             byKey.put(SqlParity.key(c), outcomes.get(r.key()));
         }
-        return SqlParity.ratchet("the #IQ{...}# island's parity cases", "iq-parity", LEDGER_HEADER, cases, byKey,
-                ledger, lane, update);
+        return SqlParity.ratchet("the #IQ{...}# island's parity cases", "iq-parity", LEDGER_HEADER, LANES, cases,
+                byKey, ledger, lane, update);
     }
 
     // ------------------------------------------------------------------ the known divergences (IQ island, landing 4)
@@ -2229,8 +2233,8 @@ public final class IqParity {
                             + "what, above its runs)");
                 }
                 Set<String> lanes = new java.util.LinkedHashSet<>(List.of(f[3].split(",")));
-                if (lanes.isEmpty() || !SqlParity.LANES.containsAll(lanes)) {
-                    throw new IllegalStateException(where + "the lanes are some of " + SqlParity.LANES + ": " + f[3]);
+                if (lanes.isEmpty() || !LANES.containsAll(lanes)) {
+                    throw new IllegalStateException(where + "the lanes are some of " + LANES + ": " + f[3]);
                 }
                 if (!f[1].contains("@iq17-")) {
                     throw new IllegalStateException(where + f[1] + " is no iq17-* run: a run SQL Anywhere judges"

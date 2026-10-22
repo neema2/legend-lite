@@ -597,11 +597,12 @@ The user asked for real queries that push the island hard. Their corpora, data a
       of a DECIMAL is a DOUBLE there; a wide value came back wrong in its last digits).
     - A regression of the `x + 0` fold, fixed: a zero written with a point folds only in a shown item's type
       (`AVG(it + 0.0)` is of scale 21, `(it + 0.0) / (sm + 0.0)` a NUMERIC quotient).
-  - Snowflake's integer division (2026-10-18, landing 5's review; not built, another area's): its INT_DIVIDE arm
-    writes `CAST(TRUNC(a / NULLIF(b, 0)) AS BIGINT)`, and Snowflake rounds `a / b` to six places before it cuts
-    (999999999 / 1000000000 would be 1), so lite's `quotient` is inexact there. The Postgres front end keeps its exact
-    estimate until the arm is exact (`(a - MOD(a, b)) / b`, to be measured on a Snowflake); the IQ island's quotients
-    on a Snowflake runtime share the arm.
+  - Snowflake's integer division (2026-10-18, landing 5's review): its INT_DIVIDE arm wrote
+    `CAST(TRUNC(a / NULLIF(b, 0)) AS BIGINT)`, and Snowflake rounds `a / b` to six places before it cuts
+    (999999999 / 1000000000 would be 1), so lite's `quotient` was inexact there. Built 2026-10-22 (the IQ scale
+    program, `docs/IQ_SCALE_PROGRAM_2026_10_22.md`): two integers divide as `(a - MOD(a, b)) / b`, pinned by
+    `SnowflakeIqScaleTest`. It is measured on a Snowflake by the program's Snowflake lane. The Postgres front end keeps
+    its exact estimate until that measurement.
   - Round 8 (2026-10-18, NULL logic and mixed kinds: 1,311 PASS, 1,571 matching errors, 22 FAIL, 15 BUG of 3,000),
     found, not built yet, for the next landing:
     - A BETWEEN or a comparison across kinds IQ's engine cannot compare, beside a NULL bound or an untyped NULL

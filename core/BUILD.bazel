@@ -401,6 +401,10 @@ legend_java_library(
             # ratchet :iq_syntax_cases_test's
             "src/test/java/com/legend/integration/IqParityTest.java",
             "src/test/java/com/legend/server/IqParityPostgresTest.java",
+            # and :iq_parity_snowflake_test's (manual: a real account; the IQ scale program, 2026-10-22), and the
+            # fuzzer's, :iq_fuzz_test (manual)
+            "src/test/java/com/legend/integration/IqParitySnowflakeTest.java",
+            "src/test/java/com/legend/integration/IqFuzzTest.java",
             # the corpus lane is :iq_corpus_test's alone (manual): it fails without -Diq.corpus.root (2026-10-16)
             "src/test/java/com/legend/integration/IqCorpusTest.java",
             # the regression suite's corpus lane is :pg_regress_corpus_test's alone (manual): it fails without
@@ -872,6 +876,29 @@ junit_test(
     ],
 )
 
+# the #IQ{...}# island's oracle-free fuzzer (the IQ scale program, docs/IQ_SCALE_PROGRAM_2026_10_22.md P2): random
+# islands over the parity schema on DuckDB, planned for Snowflake, judged by no crash, no database error and ternary
+# logic partitioning; manual, a finding replays from its seed:
+#   bazel test //core:iq_fuzz_test --test_output=errors --jvmopt=-Diq.fuzz.seed=1 --jvmopt=-Diq.fuzz.count=2000
+junit_test(
+    name = "iq_fuzz_test",
+    memory_mb = 2048,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/IqFuzzTest.java"],
+    data = ["src/test/resources/iq-parity/schema.yaml"],
+    jvm_flags = ["-Diq.parity.schema=$(rlocationpath src/test/resources/iq-parity/schema.yaml)"],
+    select = ["--select-class=com.legend.integration.IqFuzzTest"],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 # the #IQ{...}# island over real-world SQL corpora (IQ island, 2026-10-15): coverage, run only where
 # -Diq.corpus.root names the corpora (their licences and size keep them out of this repository); manual, not a gate:
 #   bazel test //core:iq_corpus_test --strategy=TestRunner=local --test_output=all \
@@ -908,6 +935,40 @@ junit_test(
     select = ["--select-class=com.legend.server.IqParityPostgresTest"],
     runtime_deps = [":drivers"],
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# :iq_parity_test's cases on a real Snowflake account (the IQ scale program, docs/IQ_SCALE_PROGRAM_2026_10_22.md P1.1),
+# seeded into a schema of the run's own and judged by the same snapped answers. The account's coordinates and
+# credentials come from the properties file LEGENDLITE_PCT_CLOUD_PROPERTIES names (docs/CLOUD_BACKENDS_PCT_2026_10_11.md
+# §4), inherited from the caller's environment as the PCT cloud lanes inherit it; manual (out of //... and the gates: it
+# needs the account, and a run costs warehouse time), external and local (it reaches the network):
+#   bazel test //core:iq_parity_snowflake_test --test_output=errors [--jvmopt=-Diq.parity.only='lite/m1d/**']
+junit_test(
+    name = "iq_parity_snowflake_test",
+    memory_mb = 2048,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/IqParitySnowflakeTest.java"],
+    data = _IQ_PARITY_DATA,
+    env_inherit = ["LEGENDLITE_PCT_CLOUD_PROPERTIES"],
+    jvm_flags = _IQ_PARITY_FLAGS + ["--add-opens=java.base/java.nio=ALL-UNNAMED"],
+    select = ["--select-class=com.legend.integration.IqParitySnowflakeTest"],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    runtime_deps = [
+        ":drivers",
+        "@snowflake_jdbc//jar",
+    ],
     deps = [
         ":core",
         ":test_backends",

@@ -1541,13 +1541,17 @@ public final class Snowflake extends AnsiSqlRenderer {
         return (scale == null ? writer : writer.append(" / ").piece(scale)).append(")");
     }
 
-    /** The {@code INT_DIVIDE} arm of {@link #call}. */
+    /** The {@code INT_DIVIDE} arm of {@link #call}. Snowflake rounds an integer quotient to six places before any
+     *  TRUNC sees it (999999999 / 1000000000 is 1.000000), so two integers divide exactly: the dividend less its
+     *  remainder (MOD keeps the dividend's sign) is a multiple of the divisor, and that quotient is exact (the IQ
+     *  scale program, 2026-10-22: landing 5's review found the rounding). */
     private SqlWriter intDivide(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        boolean integers = isInteger(typeOf(a.get(0))) && isInteger(typeOf(a.get(1)));
-        writer.append(integers ? "CAST(TRUNC(" : "TRUNC(").expr(a.get(0), 6).append(" / NULLIF(")
-                .expr(a.get(1), 0).append(", 0))");
-        return integers ? writer.append(" AS BIGINT)") : writer;
+        if (isInteger(typeOf(a.get(0))) && isInteger(typeOf(a.get(1)))) {
+            return writer.append("CAST((").expr(a.get(0), 5).append(" - MOD(").expr(a.get(0), 0).append(", NULLIF(")
+                    .expr(a.get(1), 0).append(", 0))) / NULLIF(").expr(a.get(1), 0).append(", 0) AS BIGINT)");
+        }
+        return writer.append("TRUNC(").expr(a.get(0), 6).append(" / NULLIF(").expr(a.get(1), 0).append(", 0))");
     }
 
     /** The {@code MAKE_TIMESTAMP} arm of {@link #call}. */
@@ -1851,6 +1855,15 @@ public final class Snowflake extends AnsiSqlRenderer {
         if (before != null) {
             return writer.piece(before);
         }
+        int[] numbers = a.size() > 2 && a.get(2) instanceof SqlExpr.IntLit ? renumbered(a.get(1)) : null;
+        if (numbers != null) {
+            // the IQ scale program, 2026-10-22: the pattern's non-capturing groups made plain, the group read renumbered
+            int read = (int) ((SqlExpr.IntLit) a.get(2)).value();
+            Pattern p = pattern(a.get(1), 0);
+            return writer.append("COALESCE(REGEXP_SUBSTR(").expr(a.get(0), 0).append(", ").piece(p.text())
+                    .append(", 1, 1, ").append(stringLit(p.params() + "e")).append(", ")
+                    .append(Integer.toString(read > 0 && read < numbers.length ? numbers[read] : read)).append("), '')");
+        }
         Pattern p = pattern(a.get(1), groupRead(a));
         writer.append("COALESCE(REGEXP_SUBSTR(").expr(a.get(0), 0).append(", ").piece(p.text())
                 .append(", 1, 1, ").append(stringLit(p.params() + "e")).append(", ");
@@ -1872,11 +1885,73 @@ public final class Snowflake extends AnsiSqlRenderer {
         }
         // a replacement that reads no group reads none of the pattern's numbering
         boolean readsGroups = !(a.get(2) instanceof SqlExpr.StringLit r) || r.value().matches("(?s).*\\\\[0-9].*");
-        Pattern p = pattern(a.get(1), readsGroups ? Integer.MAX_VALUE : 0);
+        int[] numbers = readsGroups && a.get(2) instanceof SqlExpr.StringLit ? renumbered(a.get(1)) : null;
+        Pattern p = pattern(a.get(1), readsGroups && numbers == null ? Integer.MAX_VALUE : 0);
         String params = p.params() + (options.contains("i") ? "i" : "");
-        return writer.append("REGEXP_REPLACE(").expr(a.get(0), 0).append(", ").piece(p.text()).append(", ")
-                .expr(a.get(2), 0).append(", 1, " + (options.contains("g") ? 0 : 1) + ", ")
-                .append(stringLit(params)).append(")");
+        writer.append("REGEXP_REPLACE(").expr(a.get(0), 0).append(", ").piece(p.text()).append(", ");
+        if (numbers != null) {
+            // the IQ scale program, 2026-10-22: the pattern's non-capturing groups made plain (the IQ island's month
+            // names, dec(?:e(?:m...)?)?), and the replacement's group references renumbered to match
+            writer.append(stringLit(renumbered(((SqlExpr.StringLit) a.get(2)).value(), numbers)));
+        } else {
+            writer.expr(a.get(2), 0);
+        }
+        return writer.append(", 1, " + (options.contains("g") ? 0 : 1) + ", ").append(stringLit(params)).append(")");
+    }
+
+    /** For a literal pattern with a non-capturing group, each capturing group's number once every {@code (?:} is a
+     *  plain group (index: the group's number as written; 0 stays 0); null for a pattern with none, or computed. */
+    private static int @com.legend.base.Nullable [] renumbered(SqlExpr pattern) {
+        if (!(pattern instanceof SqlExpr.StringLit lit) || !lit.value().contains("(?:")) {
+            return null;
+        }
+        String s = lit.value();
+        List<Integer> numbers = new java.util.ArrayList<>(List.of(0));
+        int plain = 0;
+        boolean inClass = false;
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if (ch == '\\') {
+                i++;
+            } else if (inClass) {
+                inClass = ch != ']';
+            } else if (ch == '[') {
+                inClass = true;
+            } else if (ch == '(') {
+                if (s.startsWith("(?:", i)) {
+                    plain++;
+                } else if (!s.startsWith("(?", i)) {
+                    numbers.add(++plain);
+                }
+            }
+        }
+        return numbers.stream().mapToInt(Integer::intValue).toArray();
+    }
+
+    /** A replacement's group references ({@code \n}) renumbered by {@code numbers}; one past nine is refused, as
+     *  Snowflake reads {@code \1} to {@code \9} only. */
+    private static String renumbered(String replacement, int[] numbers) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < replacement.length(); i++) {
+            char ch = replacement.charAt(i);
+            if (ch == '\\' && i + 1 < replacement.length()) {
+                char next = replacement.charAt(++i);
+                if (next >= '1' && next <= '9' && next - '0' < numbers.length) {
+                    int n = numbers[next - '0'];
+                    if (n > 9) {
+                        throw new DialectCapability("a replacement reading group " + (next - '0') + ", group " + n
+                                + " once the pattern's non-capturing groups are plain, reached Snowflake, which reads"
+                                + " \\1 to \\9 only: " + replacement);
+                    }
+                    out.append('\\').append(n);
+                } else {
+                    out.append(ch).append(next);
+                }
+            } else {
+                out.append(ch);
+            }
+        }
+        return out.toString();
     }
 
     // ---- regular expressions
