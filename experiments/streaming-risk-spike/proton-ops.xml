@@ -1,0 +1,18 @@
+<!-- proton_ops.py runs Proton with its data on disk. This host's disk allowance reads as nearly full
+     to Proton's disk check (it compares 1 - available/total of the filesystem with
+     max_local_disk_usage_ratio, 0.9 by default), so the ratio is raised. The native log's segments
+     are small and not preallocated (each stream shard otherwise reserves a 2 GB segment on disk),
+     and the retention check runs every 10 s instead of 5 minutes, so a run of minutes shows deletion. -->
+<proton>
+  <max_local_disk_usage_ratio>0.98</max_local_disk_usage_ratio>
+  <data>
+    <datastore>
+      <log>
+        <segment_size>16777216</segment_size>
+        <min_size_to_keep>16777216</min_size_to_keep>
+        <preallocate>false</preallocate>
+        <retention_check_ms>10000</retention_check_ms>
+      </log>
+    </datastore>
+  </data>
+</proton>

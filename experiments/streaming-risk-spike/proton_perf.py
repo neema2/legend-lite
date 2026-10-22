@@ -15,6 +15,7 @@ Measured over the window: the container's CPU and memory, the probe's tick-to-su
 
 import argparse
 import json
+import subprocess
 import time
 
 from dynamic_groupings_spec import FILTERS, SUBS
@@ -91,6 +92,9 @@ with lab.lock:
     probe_sub.measuring = False
     lat = list(probe_sub.lat)
 c1, mem = lab.usage()
+# the container's memory counts its tmpfs (the data); the server process's resident set does not
+rss = subprocess.run(["docker", "exec", lab.px.container, "grep", "VmRSS", "/proc/1/status"], capture_output=True,
+                     text=True).stdout.split()
 batches_in_window = feed.sent - sent0
 feed.on.clear()
 feed.thread.join()
@@ -133,6 +137,7 @@ result = {"join": args.join, "target": args.target, "rate": args.rate, "scale": 
           "achievedTicksPerSecond": round(batches_in_window / args.seconds * args.rate / 10 * 10) if batches_in_window else 0,
           "batchesPerSecond": round(batches_in_window / args.seconds, 1),
           "engineCpuCores": round((c1 - c0) / args.seconds, 2), "engineMemoryMB": round(mem / 2**20),
+          "serverRssMB": round(int(rss[1]) / 1024) if len(rss) > 1 else None,
           "tickToSubscriberMillis": {"p50": pct(lat, 0.5), "p95": pct(lat, 0.95), "p99": pct(lat, 0.99), "n": len(lat)},
           "drainMillis": drain_ms, "groupingFirstRowsMillis": [groupings[i].first_rows_ms() for i in range(16)],
           "viewerFirstRowsMillis": [v.first_rows_ms() for v in viewers][:5],
@@ -140,7 +145,7 @@ result = {"join": args.join, "target": args.target, "rate": args.rate, "scale": 
 with open(args.out, "w") as f:
     json.dump(result, f, indent=2, default=str)
 print(json.dumps({k: result[k] for k in ("join", "target", "rate", "scale", "emit", "viewers", "viewerMode", "batchesPerSecond",
-                                          "engineCpuCores", "engineMemoryMB", "tickToSubscriberMillis", "drainMillis",
+                                          "engineCpuCores", "engineMemoryMB", "serverRssMB", "tickToSubscriberMillis", "drainMillis",
                                           "correct")}, default=str))
 import os  # noqa: E402
 os._exit(0)
