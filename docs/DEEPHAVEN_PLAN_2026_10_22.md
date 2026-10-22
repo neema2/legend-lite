@@ -1,8 +1,8 @@
 # Deephaven as a database of legend-lite: the design (2026-10-22)
 
-**Status: PROPOSED. Nothing here is built. For the user's approval, after review by the MongoDB line (whose
-`docs/MONGODB_PLAN_2026_10_16.md` this design follows decision by decision) and the Studio line (whose leg 10 the
-model part is).**
+**Status: PROPOSED. Nothing here is built. Reviewed by the MongoDB line on 2026-10-22 (whose
+`docs/MONGODB_PLAN_2026_10_16.md` this design follows decision by decision): agreed on every point of §6, with the
+notes recorded there. For the user's approval; the Studio line reviews L1 (its leg 10).**
 
 ## 0. The answer in one paragraph
 
@@ -82,7 +82,7 @@ Each is a case in `ReferenceIntegrityTest` (`refused` through both doors where t
 | L4 | the DataCube line's (or stacked on theirs) | DataCube's ticking mode over the handle | the DataCube line's |
 | L5 | `experiments/` or a demo module | the demo world: a reference model in legend-lite, a market-data simulator, a publisher | runs |
 
-## 5. Register rows (`docs/SEMANTICS_REGISTER.md`, numbered after S96)
+## 5. Register rows (`docs/SEMANTICS_REGISTER.md`, from S105: main holds S76-S96 and the MongoDB branch S97-S104)
 
 1. `DatabaseType.Deephaven` is lite's (the engine has no database type for its Deephaven store), as S48 and Mongo's.
 2. A Deephaven table reference refused in lite's relational words, not the engine's two Deephaven sentences (DH3; or
@@ -90,19 +90,28 @@ Each is a case in `ReferenceIntegrityTest` (`refused` through both doors where t
 3. A `DeephavenConnection`'s `psk` read as a vault reference, not as the key (DH13).
 4. A Deephaven result read as typed rows; its served text forms refused until host renderers exist (DH9).
 
-## 6. Open with the MongoDB line
+## 6. Agreed with the MongoDB line (2026-10-22)
 
-1. **`ConnectionSpecification.ServerUrl`** (DH12): one URL record for the non-SQL stores. Would Mongo's `MongoServers`
-   take a list of them, or keep `StaticDatasource`?
-2. **A store kind on `DatabaseDefinition`**: none (Mongo's choice: the store is a database, its references relational)
-   or one field both lines set (so a store's own refusals can be in its own words, and a relational mapping onto a
-   non-relational store can be refused). Recommended: none, for now; the register row above instead.
-3. **`subscribe` beside `rows`** (DH10): a capability interface a streaming connector implements, or a method on
-   `Statements` the others refuse by name. Recommended: a separate interface (`LiveStatements`), so no JDBC or Mongo
-   code changes.
-4. **The order of the guard and registry edits**: additive lines, dated; whoever lands second re-adds (agreed
-   2026-10-22).
-5. **The `QueryTarget` split** (DH2): taken up together once the Mongo branch is on main.
+1. **`ConnectionSpecification.ServerUrl`** (DH12): agreed as a shared record. It lands in L1 with its `ConnectionWire`
+   tag, a row in `exec/ConnectorsTest`'s specification table (`everySpecificationAndAuthenticationIsInTheTable` fails
+   until every connector says what it does with it), and the grammar's spelling legend-engine's `DeephavenConnection`
+   uses. Mongo is **not** migrated in L1: it moves to `ServerUrl` when it needs a server list, as its own change.
+2. **No store kind on `DatabaseDefinition`**: agreed; the register row for the engine's two sentences instead.
+3. **Typed rows only, text outputs refused by name**: agreed. `docs/RESULTS_AND_RENDERERS_2026_10_22.md` is still
+   proposed and unruled, so nothing is built against its renderer names.
+4. **`LiveStatements` beside `Statements`, no plan node**: agreed. A live result is the plan's one result stream, one
+   that does not end: the handle defines `close` (and cancel), so a sink that stops reading releases the server's
+   subscription.
+5. **The connector absent by default**: agreed; the same arm shape as Mongo's (`Connectors.of(type)` finds it by
+   `ServiceLoader`, an `Unbuilt` refusing by name when none is on the class path), loaded from the opt-in server target
+   instead of `//core:drivers`. Two consequences for L2/L3, from the Mongo merge: `TestBackendsTest` wants a
+   `DeephavenBackend` once the type has a dialect, and the tests iterating `Databases.implemented()` (`SeedSpelling`,
+   `SqlWriter`, `PlanOnJavaBase`, `StoreTypes`) need the non-SQL filter Mongo's merge lands (a dialect fact saying its
+   text is SQL), reused, not re-invented.
+6. **The `QueryTarget` split** (DH2): taken up together once the Mongo branch is on main, from two real targets.
+7. **The order of the guard and registry edits**: additive lines, each dated; whoever lands second re-adds. After the
+   Mongo merge, `DatabaseConnector` gains `ownSessions()` and `open(ConnectionDefinition)` and the connection codec is
+   `model/ConnectionWire`: L3 uses those.
 
 ## 7. Open with the user
 
