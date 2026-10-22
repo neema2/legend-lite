@@ -142,7 +142,24 @@ class IqFuzzTest {
      * reported, as the limit it is. {@code -Diq.scale.factor} (default 1) multiplies every size.
      */
     @Test
-    void theCensusShapesPlanAndRunAtScale() throws Exception {
+    void theCensusShapesPlanAndRunAtScale() throws Throwable {
+        // on the server's request stack (LegendHttpServer.REQUEST_STACK_BYTES), as a query the product runs
+        Throwable[] failed = new Throwable[1];
+        Thread t = new Thread(null, () -> {
+            try {
+                censusShapes();
+            } catch (Throwable x) {
+                failed[0] = x;
+            }
+        }, "iq-scale-probe", com.legend.server.LegendHttpServer.REQUEST_STACK_BYTES);
+        t.start();
+        t.join();
+        if (failed[0] != null) {
+            throw failed[0];
+        }
+    }
+
+    private void censusShapes() throws Exception {
         int f = Integer.getInteger("iq.scale.factor", 1);
         List<SqlParity.Table> tables = IqParity.schema(Runfile.property("iq.parity.schema"));
         Set<String> names = IqParity.tableNames(tables);
@@ -175,6 +192,11 @@ class IqFuzzTest {
             shapes.put("derived tables nested " + n, nestedDerived(n));
             shapes.put("CTE chain " + n, cteChain(n));
         }
+        // -Diq.scale.only=<regex>: the shapes whose names match
+        String only = System.getProperty("iq.scale.only");
+        if (only != null) {
+            shapes.keySet().removeIf(k -> !k.matches(only));
+        }
         StringBuilder report = new StringBuilder("shape\toutcome\tms\tduckdb sql chars\tsnowflake\tdetail\n");
         List<String> problems = new ArrayList<>();
         try (Connection session = PLATFORM.open()) {
@@ -187,9 +209,12 @@ class IqFuzzTest {
                 String sql = "";
                 String snow;
                 Outcome o;
+                long planMs = -1;
                 try {
                     sql = com.legend.Compiler.query(duckdb, island).plan(IqParity.RUNTIME).sql();
+                    planMs = (System.nanoTime() - t0) / 1_000_000;
                     o = run(service, session, model, e.getValue(), "iq17-default", tables, names, 0, q);
+                    o = new Outcome(o.kind(), o.rows(), o.reason() + " (planned in " + planMs + " ms)");
                 } catch (Exception | StackOverflowError x) {
                     o = classify(x);
                     if (x instanceof StackOverflowError) {
@@ -203,7 +228,7 @@ class IqFuzzTest {
                 } catch (Exception | StackOverflowError x) {
                     snow = classify(x).kind() + ": " + classify(x).reason();
                 }
-                String detail = o.kind().equals("ROWS") ? o.rows().size() + " rows" : o.reason();
+                String detail = o.kind().equals("ROWS") ? o.rows().size() + " rows" + o.reason() : o.reason();
                 report.append(e.getKey()).append('\t').append(o.kind()).append('\t').append(ms).append('\t')
                         .append(sql.length()).append('\t').append(snow.length() > 200 ? snow.substring(0, 200) : snow)
                         .append('\t').append(detail.length() > 300 ? detail.substring(0, 300) : detail).append('\n');
@@ -218,6 +243,24 @@ class IqFuzzTest {
             Files.writeString(Path.of(outputs, "iq-scale.tsv"), report.toString(), StandardCharsets.UTF_8);
         }
         assertTrue(problems.isEmpty(), problems.size() + " problems:\n" + String.join("\n", problems));
+    }
+
+    /** The loop's lens: the Pure and the DuckDB and Snowflake SQL of one IQ query ({@code -Diq.show.sql}, default a
+     *  three-way join), printed, under {@code -Diq.fuzz.profile}. */
+    @Test
+    void showsAQuerysPlans() throws Exception {
+        String sql = System.getProperty("iq.show.sql", "SELECT x0.id, x2.it FROM t x0 JOIN t x1 ON x1.id = x0.id"
+                + " JOIN t x2 ON x2.id = x1.id WHERE x0.id < 3 ORDER BY x0.id");
+        String profile = System.getProperty("iq.fuzz.profile", "iq17-default");
+        List<SqlParity.Table> tables = IqParity.schema(Runfile.property("iq.parity.schema"));
+        Set<String> names = IqParity.tableNames(tables);
+        String island = island(sql, profile, tables, names, 0, 0);
+        System.out.println("-- island\n" + island);
+        for (String[] lane : new String[][] {{"duckdb", PLATFORM.connectionBody()}, {"snowflake", SNOWFLAKE}}) {
+            var ctx = com.legend.Compiler.compileModel(IqParity.model(tables, lane[1]));
+            System.out.println("-- " + lane[0] + "\n" + com.legend.Compiler.query(ctx, island).plan(IqParity.RUNTIME)
+                    .sql());
+        }
     }
 
     /** The methods a stack overflow repeats, the most frequent first: which layer recursed. */

@@ -2163,6 +2163,10 @@ repros will be in the study's §9.
     lanes. The defaults are unchanged, so sql-parity's ledger and lanes are untouched.
   - **The build's `tools/deps/jars_table.bzl`:** the Snowflake driver gains one user, `core:iq_parity_snowflake_test`,
     with a dated reason.
+  - **The server's `server/LegendHttpServer.java`:** requests run on one thread with a 512 MB stack (reserved, not
+    committed), where the JDK's dispatcher ran them on its default stack. They still run one at a time. The program's
+    scale probe overflowed the default stack at a 500-branch UNION ALL, 350 joins, 500 nested parentheses, a CASE of
+    1,000 WHENs and an AND of 5,000; the census's sizes had been measured on a 512 MB stack.
   - **This line's own files:**
     - `IqParity.LANES` adds `snowflake` to the IQ ledger's lanes;
     - `IqParitySnowflakeTest` and `//core:iq_parity_snowflake_test` (manual, a real account);

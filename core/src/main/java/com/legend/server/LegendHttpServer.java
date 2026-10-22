@@ -322,14 +322,28 @@ public class LegendHttpServer {
         }
     }
 
+    /**
+     * The stack of the one thread every request runs on (the IQ scale program, 2026-10-22,
+     * docs/IQ_SCALE_PROGRAM_2026_10_22.md P4). A query's compilation recurses as deep as its text nests: the parser, the
+     * SQL islands' translators, the typer and the lowerer each walk it. IqFuzzTest's scale probe overflowed the JDK's
+     * default 1 MB stack at a 500-branch UNION ALL, 350 joins, 500 nested parentheses, a CASE of 1,000 WHENs and an AND
+     * of 5,000 terms. The stack is reserved, not committed: the thread touches only the pages it uses.
+     */
+    public static final long REQUEST_STACK_BYTES = 512L << 20;
+
+    /** The requests' one thread, as the JDK's own dispatcher ran them before (one at a time), on a deep stack. */
+    private final java.util.concurrent.ExecutorService requests = java.util.concurrent.Executors.newSingleThreadExecutor(
+            r -> new Thread(null, r, "legend-http-request", REQUEST_STACK_BYTES));
+
     public void start() {
-        server.setExecutor(null);
+        server.setExecutor(requests);
         server.start();
         System.out.println("Legend HTTP server started on port " + server.getAddress().getPort());
     }
 
     public void stop() {
         server.stop(0);
+        requests.shutdownNow();
     }
 
     public int getPort() {

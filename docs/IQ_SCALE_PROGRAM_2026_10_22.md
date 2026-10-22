@@ -188,6 +188,9 @@ says so.
 | Q6 | The generator: `IqFuzz` and `//core:iq_fuzz_test` | P2.3 | — | done; the rounds feed the queue |
 | Q14 | A stored REAL or FLOAT column read: compared, computed, shown | P3 | oracle | open. Measured: under IQ 17.1's engine `rl = 0.1` in a WHERE holds for a stored REAL (the constant compared in single precision), while SQL Anywhere 17 compares as doubles, and a computed REAL compares as a double under both (`reals_compared_as_doubles`) |
 | Q15 | The corpus coverage lane rebuilt in the cloud (SEDE, SQLStorm and Public BI fetched; BIRD needs disk) | P3 | the user's approval to run the research repo's scripts | open |
+| Q16 | Very wide joins on DuckDB: per statement, `SET disabled_optimizers = 'join_order'` past ~64 joined relations | P4 | an exec-seam hook (another line's) | proposed. Measured on DuckDB 1.4.4, plain SQL, a chain of self-joins over 11 rows: 100 joins 0.6 s, 200 joins 19 s, 350 joins 181 s. With the join-order optimizer off: 0.15 s, 0.5 s, and 700 joins in 2.8 s |
+| Q17 | DuckDB's own depth limits (`max_expression_depth` 1,000, the planner's tree depth 1,000): UNION ALL past ~1,000 branches, 1,000 nested parentheses or CASEs, 700+ joins. Raising the setting is unsafe on small-stack callers (DuckDB's parser recurses natively); balanced UNION ALL emission is the way | P4 | — | open |
+| Q18 | `SqlToPure` and `IqParser` recursion: stack use per nesting level, for callers other than the server (the browser planner) | P4 | — | open |
 | Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | open |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
 | Q9 | Unread derived columns dropped | P3.2 | oracle (some answers are committed) | open |
@@ -216,3 +219,16 @@ says so.
       `m1e/owner_qualified_real_table_is_refused` on both profiles (REFUSED → PASS against the committed answers).
     - Its one TLP finding was IQ's measured self-comparison (`x >= x IS UNKNOWN` is two-valued under its engine),
       which the generator now avoids.
+- 2026-10-22, slice 2, scale:
+  - **The scale probe** (`IqFuzzTest.theCensusShapesPlanAndRunAtScale`) found StackOverflowError at the JDK's
+    default 1 MB stack. The cases: a 500-branch UNION ALL, 350 joins, 500 nested parentheses, 1,000 nested
+    functions or CASEs, an AND of 5,000. Every layer recursed: `IqParser`, `IqAliases`, `IqDialect`, `SqlToPure`,
+    the typer and the lowerer. The census's "done" sizes had been measured on a 512 MB stack (the private measurement
+    runner).
+  - **The server now runs its requests on one thread with a 512 MB stack** (`LegendHttpServer.REQUEST_STACK_BYTES`).
+    Requests are still one at a time, as the JDK's dispatcher ran them, and the stack is reserved, not committed.
+  - **On that stack, the probe has no crash:**
+    - UNION ALL of 500, 350 joins, 1,000 nested functions, a CASE of 1,000 WHENs, an IN list of 60,000, 16,000
+      select items, an AND of 16,000, 200 nested derived tables and a chain of 200 CTEs all plan and run.
+    - What fails is DuckDB's own limits (Q17) and its join-order optimizer's time (Q16): 350 joins plan in lite in
+      3.2 s, then run in DuckDB in about 170 s.
