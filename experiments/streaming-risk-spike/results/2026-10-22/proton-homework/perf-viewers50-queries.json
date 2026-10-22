@@ -1,0 +1,52 @@
+{
+  "join": "fx_first",
+  "target": "changelog",
+  "rate": 1000,
+  "scale": 1,
+  "emit": "PERIODIC 100ms",
+  "viewers": 50,
+  "viewerMode": "queries",
+  "positions": 19201,
+  "instruments": 2001,
+  "loadSeconds": 0.0,
+  "achievedTicksPerSecond": 10067,
+  "batchesPerSecond": 10.1,
+  "engineCpuCores": 1.45,
+  "engineMemoryMB": 3625,
+  "serverRssMB": 1185,
+  "tickToSubscriberMillis": {
+    "p50": 63.9,
+    "p95": 137.7,
+    "p99": 158.7,
+    "n": 146
+  },
+  "drainMillis": 89,
+  "groupingFirstRowsMillis": [
+    222.8,
+    185.3,
+    337.1,
+    331.4,
+    824.6,
+    888.4,
+    437.9,
+    810.9,
+    536.5,
+    688.9,
+    540.3,
+    585.9,
+    447.8,
+    843.8,
+    755.5,
+    300.4
+  ],
+  "viewerFirstRowsMillis": [
+    666.5,
+    392.4,
+    486.3,
+    619.1,
+    727.4
+  ],
+  "correct": true,
+  "badGroupings": {},
+  "viewerErrors": []
+}

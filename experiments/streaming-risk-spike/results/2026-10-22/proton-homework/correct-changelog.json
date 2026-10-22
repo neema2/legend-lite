@@ -1,0 +1,58 @@
+{
+  "target": "changelog",
+  "seconds": 40,
+  "batchesSent": 400,
+  "deletedPositions": 50,
+  "groupings": {
+    "desk": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.595478674126965e-14,
+      "examples": [],
+      "ok": true,
+      "error": null
+    },
+    "desk_trader": {
+      "rows": 13,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.134888984009307e-14,
+      "examples": [],
+      "ok": true,
+      "error": null
+    },
+    "book": {
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 5.953247407945193e-14,
+      "examples": [],
+      "ok": true,
+      "error": null
+    },
+    "ccy": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.1088144461773984e-14,
+      "examples": [],
+      "ok": true,
+      "error": null
+    },
+    "sector": {
+      "rows": 11,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 5.519681051033242e-13,
+      "examples": [],
+      "ok": true,
+      "error": null
+    }
+  },
+  "sharedStreamRows": {
+    "expected": 19230,
+    "got": 19230
+  },
+  "allCorrect": true
+}

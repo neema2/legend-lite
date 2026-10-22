@@ -1,0 +1,186 @@
+{
+  "target": "versioned",
+  "seconds": 40,
+  "batchesSent": 400,
+  "deletedPositions": 50,
+  "groupings": {
+    "desk": {
+      "rows": 5,
+      "mismatches": 4,
+      "extraRows": 0,
+      "maxRelativeError": 0.21594757010933122,
+      "examples": [
+        {
+          "key": [
+            "Credit"
+          ],
+          "column": "mv_usd",
+          "expected": 2056443899.3505025,
+          "got": 1949023424.9388943
+        },
+        {
+          "key": [
+            "Macro"
+          ],
+          "column": "mv_usd",
+          "expected": -4114895478.5232916,
+          "got": -3899657944.843345
+        },
+        {
+          "key": [
+            "Equities"
+          ],
+          "column": "mv_usd",
+          "expected": 1912753747.1912003,
+          "got": 1911378858.6698432
+        }
+      ],
+      "ok": false,
+      "error": null
+    },
+    "desk_trader": {
+      "rows": 13,
+      "mismatches": 12,
+      "extraRows": 0,
+      "maxRelativeError": 0.27146159825008603,
+      "examples": [
+        {
+          "key": [
+            "Equities",
+            "EQU-T3"
+          ],
+          "column": "mv_usd",
+          "expected": -478715206.5438771,
+          "got": -459708669.4407011
+        },
+        {
+          "key": [
+            "Rates",
+            "RAT-T1"
+          ],
+          "column": "mv_usd",
+          "expected": 1245930937.5602,
+          "got": 1462675258.7165647
+        },
+        {
+          "key": [
+            "Credit",
+            "CRE-T1"
+          ],
+          "column": "mv_usd",
+          "expected": -375027825.47005534,
+          "got": -368649854.1216459
+        }
+      ],
+      "ok": false,
+      "error": null
+    },
+    "book": {
+      "rows": 49,
+      "mismatches": 31,
+      "extraRows": 0,
+      "maxRelativeError": 1.228608857713483,
+      "examples": [
+        {
+          "key": [
+            "EQU-T2-B3"
+          ],
+          "column": "mv_usd",
+          "expected": -84602438.60852617,
+          "got": -84586591.2242584
+        },
+        {
+          "key": [
+            "EQU-T3-B2"
+          ],
+          "column": "mv_usd",
+          "expected": -1560555633.7431774,
+          "got": -1560655637.6399877
+        },
+        {
+          "key": [
+            "RAT-T1-B1"
+          ],
+          "column": "mv_usd",
+          "expected": -490280869.5799816,
+          "got": -499116073.579983
+        }
+      ],
+      "ok": false,
+      "error": null
+    },
+    "ccy": {
+      "rows": 5,
+      "mismatches": 5,
+      "extraRows": 0,
+      "maxRelativeError": 0.05848658462401857,
+      "examples": [
+        {
+          "key": [
+            "JPY"
+          ],
+          "column": "mv_usd",
+          "expected": 17604288.984328628,
+          "got": 17593623.58165763
+        },
+        {
+          "key": [
+            "GBP"
+          ],
+          "column": "mv_usd",
+          "expected": -4826312977.3120985,
+          "got": -4588381828.656384
+        },
+        {
+          "key": [
+            "USD"
+          ],
+          "column": "mv_usd",
+          "expected": 1794851542423.431,
+          "got": 1795082932694.1501
+        }
+      ],
+      "ok": false,
+      "error": null
+    },
+    "sector": {
+      "rows": 11,
+      "mismatches": 10,
+      "extraRows": 0,
+      "maxRelativeError": 0.44792307494529204,
+      "examples": [
+        {
+          "key": [
+            "Materials"
+          ],
+          "column": "mv_usd",
+          "expected": -4524508675.001019,
+          "got": -4438188082.249289
+        },
+        {
+          "key": [
+            "Tech"
+          ],
+          "column": "mv_usd",
+          "expected": 6733670885.568812,
+          "got": 6997150830.205533
+        },
+        {
+          "key": [
+            "Consumer"
+          ],
+          "column": "mv_usd",
+          "expected": -4611127871.543292,
+          "got": -4613745786.417845
+        }
+      ],
+      "ok": false,
+      "error": null
+    }
+  },
+  "sharedStreamRows": {
+    "expected": 19230,
+    "got": 19278
+  },
+  "allCorrect": false
+}

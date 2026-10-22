@@ -1,0 +1,14 @@
+{
+  "scale": 5,
+  "target": "changelog",
+  "shape": "perquery",
+  "rate": 1000,
+  "positions": 96001,
+  "feedSeconds": 29.9,
+  "lastWriteAfterFeedSeconds": 255.1,
+  "desks": 5,
+  "wrongDesks": 0,
+  "error": null,
+  "examples": [],
+  "correct": true
+}

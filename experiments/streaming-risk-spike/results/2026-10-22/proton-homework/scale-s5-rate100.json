@@ -1,0 +1,17 @@
+{
+  "scale": 5,
+  "target": "changelog",
+  "shape": "shared",
+  "rate": 100,
+  "positions": 96001,
+  "feedSeconds": 29.9,
+  "lastWriteAfterFeedSeconds": 383.7,
+  "rows": 96062,
+  "expectedRows": 96062,
+  "stalePrice": 19927,
+  "staleFx": 28570,
+  "wrongValue": 41135,
+  "missing": 0,
+  "extra": 0,
+  "correct": false
+}

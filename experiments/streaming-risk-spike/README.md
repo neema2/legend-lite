@@ -15,7 +15,10 @@ They differ in what a legend-lite target would have to carry:
 - **Proton** answers a new live query in about 250 ms and reuses our ClickHouse dialect's
   spelling. But its join performance depends on the join order (the obvious order could not
   keep up with 200 ticks a second; a reordered one handled 4,400), its default emit cadence is
-  2 s, and each live query computes its own join (2.6 to 3.0 cores here).
+  2 s, and each live query computes its own join (2.6 to 3.0 cores here). The homework of
+  2026-10-22 (below: deletes, restarts, 5 times the book, DataCube's query shapes) found it
+  correct only when the target plans for it: a leaf-cube plan ran 16 live groupings over 96,000
+  positions on 0.73 cores, while the obvious plans fail without an error.
 - **Deephaven** does it on under a core with live ad-hoc queries, but carries the license and
   patent questions in `../deephaven-spike/README.md` and the review of 2026-10-21.
 
@@ -102,8 +105,8 @@ one key, and each retraction searches them; Deephaven and Feldera ran the first 
      accepted by the open-source build.
    - Each streaming query computes its own join: four views cost 2.6 cores where one cost 0.6.
      Sharing the join through a materialized view works (the first try lacked `EMIT CHANGELOG`;
-     a `versioned_kv` target needs nothing extra) and changes the picture: see "Proton at 16
-     groupings" below.
+     a `versioned_kv` target needs nothing extra, but cannot carry a deleted position: see the
+     Proton homework) and changes the picture: see "Proton at 16 groupings" below.
    - Like ClickHouse, an alias shadows a source column (`SUM(...pnl_usd...) AS pnl_usd` nests the
      sum in itself).
    - Operationally its defaults assume a dedicated disk: it refuses writes when the filesystem
@@ -127,7 +130,9 @@ one key, and each retraction searches them; Deephaven and Feldera ran the first 
   one compiled program, which works but slows past a few live groupings in this shape.
 - **Proton fits interactive live queries** and our ClickHouse dialect, but its target would have
   to own a join planner for streaming (orders, shared materialized views, emit policy), and a
-  user-shaped query can fall off a performance cliff the compiler did not foresee.
+  user-shaped query can fall off a performance cliff the compiler did not foresee. The homework
+  below lists what that target owns; each item has a tested answer, and the risk left is that
+  Proton's failures are silent.
 - **Deephaven fits both** (ad hoc and cheap) but has the license and patent questions.
 
 ## Follow-up: every grouping compiled up front, run only when asked
@@ -264,11 +269,277 @@ they were not wrong).
 What this makes the Proton target: the model's join, declared once per source, as a materialized
 view (its join order chosen by the target, as `fx_first` was here by hand), and DataCube's levels
 and regroupings as ad-hoc streaming aggregations over it. That is the shape DataCube needs: live,
-ad hoc, no compile, cheap per grouping. Still open: many viewers of one grouping (each a query of
-its own, or a view server fanning one out), the join order (planned by the target, not by hand),
-and the operational defaults above. The 24 ms p50 against Deephaven's 81 ms is configuration
+ad hoc, no compile, cheap per grouping. Still open then: many viewers of one grouping (each a
+query of its own, or a view server fanning one out), the join order (planned by the target, not by
+hand), and the operational defaults above; the Proton homework below answers them, and finds that
+this shape (FX applied per position, a `versioned_kv` target) breaks once positions close or the
+book grows. The 24 ms p50 against Deephaven's 81 ms is configuration
 (Proton emits every 100 ms here; Deephaven's 100 ms update cycle and 100 ms subscription interval
 add up), not a difference between the engines.
+
+## Proton homework (2026-10-22, `proton_*.py`, `results/2026-10-22/proton-homework/`)
+
+Everything we would want to know before making Proton (3.0.31, open source) the engine behind live
+DataCube: correctness under a real feed, the query shapes DataCube asks for, the performance
+envelope, operations, and how results leave it. Each script checks its result against DuckDB (or
+against the same join run as a batch query in Proton) and is in `proton_lab.py`'s harness.
+Statements about Proton's internals were read from its source at the 3.0.31 tag, not run; they say
+so.
+
+**The verdict.**
+
+- **Proton computes the risk correctly when the target plans for it**, and silently wrong when it
+  does not. Five ways to a wrong answer with no error: a `versioned_kv` derived stream when
+  positions close; a `changelog_kv` derived stream behind a large backlog; a server killed with
+  SIGKILL; a nested aggregation over a join to FX; an as-of join with late quotes. And one way to
+  stale data that looks fresh: at 5 times the book a latency probe read 18 ms while the join was
+  minutes behind. Every one has a workaround the target can own.
+- **The plan that works:** the join in local currency as one materialized view into a
+  `changelog_kv` stream; a leaf cube (`desk, trader, book, sector, ccy`) as a second view; FX
+  applied to the leaf cube by a third; DataCube's groupings as ad-hoc streaming sums over it. At 5
+  times the book (96,000 positions) that ran all 16 groupings correct on 0.73 cores, a new grouping
+  live in 115 to 145 ms, ticks reaching a grouping in 147 to 250 ms depending on the emit policy.
+- **Operations need work around it:** a graceful restart is clean; a SIGKILL corrupts every derived
+  stream (rebuild them: 2.4 s here); the disk check and log preallocation need configuring; the log
+  and the historical store stay bounded.
+- **Delivery:** HTTP streaming on 3218 works from a browser; our ClickHouse dialect is a start (127 of
+  its 158 function names parse in Proton's compatibility mode) but a Proton target is a dialect of
+  its own.
+
+### Correctness under a real feed (`proton_correctness.py`)
+
+Positions as a `changelog_kv` stream so a position can close: an update is sent as the old row
+retracted (`_tp_delta` -1) and the new one added; a close is the old row retracted. Five groupings
+live, 1,000 ticks a second for 40 s; mid-run a book moves desk (batch 100), an instrument's
+multiplier is corrected tenfold and another is re-currencied (batch 150), 50 positions close
+(batch 200). After a 10 s drain, every grouping against DuckDB over the final inputs:
+
+| shared join's target | groupings correct | rows in the shared stream (expected 19,230) |
+|---|---|---|
+| `changelog_kv` (view with `EMIT CHANGELOG`) | 5 of 5, to 1e-13 | 19,230 |
+| `versioned_kv` (view, no EMIT) | 0 of 5 (desk off by up to 22%) | 19,278: the closed positions stay |
+
+- A `versioned_kv` stream upserts but cannot delete: the join's retraction of a closed position has
+  nowhere to go, so it stays in the shared stream and in every grouping over it. Reference
+  corrections and the desk move were handled by both (they are upserts). **The shared join must
+  write a `changelog_kv` stream** (but see the backlog result below). The 16-grouping result above
+  used `versioned_kv`; its feed closed no positions.
+- A `changelog_kv` input is a changelog, not a table: a plain insert for a key already there adds a
+  second row, it does not replace the first. A feed into it sends -old/+new (what a CDC source
+  sends), so the source of record, or an adapter in front of Proton, must know the old row. Proton's
+  source documents the changelog as assumed "totally ordered and exactly once"; a wrong old row
+  corrupts every sum over it.
+
+### As-of join (`proton_asof.py`)
+
+Each trade (an append stream, 200 a second) with the quote in force when it printed (a
+`versioned_kv` stream of 1,000 quotes a second over 200 instruments, `keep_versions = 100`),
+slippage averaged per instrument live, against DuckDB's `ASOF JOIN` over the same rows:
+
+| quotes arriving | instruments matching DuckDB |
+|---|---|
+| in order | 200 of 200, exactly (6,000 trades) |
+| 5% of quotes 500 ms late (event time unchanged) | 47 of 200 |
+
+A streaming as-of join matches each trade against the quotes present when the trade arrives and
+never revisits it (`ASOF` and `LATEST` joins emit append rows, not a changelog): a late quote is
+never matched. Event-time correctness needs the feed in order per instrument, or a reorder buffer
+the target owns.
+
+### The query shapes DataCube asks for (`proton_shapes.py`, `proton_delivery.py`)
+
+Each shape live over the shared `changelog_kv` stream (`EMIT CHANGELOG PERIODIC 100ms`) while the
+feed ran, then against DuckDB:
+
+| shape | result |
+|---|---|
+| avg; sum/sum ratio; `count(DISTINCT x)`; max; min; IN filter; calculated columns (`sum(if(...))`); pivot by currency; HAVING; detail rows | correct (first rows 32 to 203 ms) |
+| `unique_exact(x)`, `count_distinct(x)` | correct |
+| stddev written as sums (`sqrt(sum(x*x)/n - (sum(x)/n)^2)`) | correct |
+| top 10 by \|P&L\| as `max_k(abs(total), 10, instrument, total)` over a nested grouping, `EMIT PERIODIC 1s` | correct, in order |
+| `uniq(x)`, `uniq_exact(x)` (the ClickHouse names) | refused: "Method negate is not supported" |
+| `stddev_pop(x)` | refused: negate not supported |
+| `median(x)` | refused: not supported in changelog query processing |
+| `rank() OVER (ORDER BY v)` | refused: window functions do not run in streaming queries |
+| top 10 as `ORDER BY ... LIMIT 10` | ends the query after 10 rows: a streaming `LIMIT` counts rows across the query and stops it |
+
+Over a changelog every aggregate has to retract. Proton rewrites the ones it can (count, sum, avg,
+min, max, arg_min/arg_max, min_k/max_k, unique/unique_exact, group_array, with `_if` and
+`_distinct`) to retracting variants and refuses the rest, which is the right failure. The target
+needs that list (a map in Proton's `SubstituteStreamingFunction.cpp`) and lowers around it:
+variance as sums, top-N as `max_k`, distinct counts in Proton's spelling, median and window ranks
+not live.
+
+### Performance (`proton_perf.py`)
+
+The shared join (into `changelog_kv`) and the 16 groupings over it, 30 s per row, every grouping
+checked against DuckDB after the feed. "Ticks" are draws of a random instrument; a 100 ms batch
+keeps the last price per instrument, so 5,000 ticks a second is about 4,400 distinct updates and
+20,000 about 12,600. RSS is the server process's resident memory (the container's own figure also
+counts the tmpfs the data lives on).
+
+| variant | CPU | probe p50 / p95 | correct after the feed |
+|---|---|---|---|
+| 1,000 ticks/s, joins in the obvious order (`flat`) | 1.25 cores | 18 s / 29 s | no: still behind after 15 s |
+| 1,000 ticks/s, FX joined to instruments first (`fx_first`) | 1.01 cores | 31 / 117 ms | yes |
+| 5,000 ticks/s | 1.37 cores | 29 / 112 ms | yes |
+| 10,000 ticks/s | 1.67 cores | 42 / 128 ms | yes |
+| 20,000 ticks/s | 2.08 cores | 57 / 129 ms | yes |
+| `EMIT ON UPDATE` instead of `PERIODIC 100ms` | 1.12 cores (RSS 0.98 GB) | 27 / 103 ms | yes |
+| `EMIT PERIODIC 1s` | 1.00 cores (RSS 0.85 GB) | (1 s cadence) | yes |
+| + 50 viewers of the desk grouping, each its own query | 1.45 cores (RSS 1.19 GB) | 64 / 138 ms (a viewer) | yes; a viewer's first rows 390 to 730 ms |
+| + 50 viewers tailing one materialized desk grouping | 1.16 cores (RSS 0.91 GB) | 57 / 131 ms (a viewer) | yes; first rows 127 to 131 ms |
+| book x5 (96,000 positions), 1,000 ticks/s | 1.36 cores (RSS 1.05 GB) | 18 / 110 ms | **no** (below) |
+| book x5, 5,000 ticks/s | 1.76 cores (RSS 1.27 GB) | 30 / 52 ms | **no** |
+
+- The emit cadence barely changes the cost (1.00 to 1.12 cores): the join and the aggregations are
+  the work, not the emits.
+- Many viewers of one grouping are cheapest as a materialized grouping (a view into a
+  `changelog_kv` stream) that each viewer tails: a plain streaming `SELECT` of a `changelog_kv`
+  stream returns its current rows, then its -1/+1 changes. 50 viewers cost 0.15 cores that way and
+  0.44 as 50 queries, and a viewer's first rows come 3 to 5 times sooner.
+- **The probe hid the failure at x5.** Its tick reached the desk grouping in 18 ms while the rest of
+  the join was minutes behind: Proton's join takes whichever input has data, with no ordering
+  across inputs (read from source: `JoinTransform.cpp`), so the probe's price path never waited
+  behind the FX fan-out. A latency probe measures one path; only the check against DuckDB caught
+  it. A live view over a lagging join shows current prices with minutes-old FX, and nothing says so.
+
+### Where the per-position join breaks (`proton_scale_check.py`)
+
+After 30 s of feed, once the shared stream had stopped changing, every row of it against the same
+join run as a batch query over the inputs' current state (`table()`):
+
+| book | positions | last write after the feed ended | rows with a stale price / stale FX / wrong value |
+|---|---|---|---|
+| x1 | 19,254 | 2 s | 0 / 0 / 0 |
+| x2 | 38,455 | 37 s | 0 / 0 / 0 |
+| x3 | 57,648 | 128 s | 0 / 0 / 0 |
+| x5 | 96,035 | 380 s | 33,039 / 19,219 / 42,698 |
+| x5, 100 ticks/s (FX unchanged) | 96,062 | 384 s | 19,927 / 28,570 / 41,135 |
+| x5, `versioned_kv` target | 96,035 | 387 s | 0 / 0 / 0 |
+| x5, a plain `changelog` target (no key), summed by `_tp_delta` | 96,035 (4.24 million change rows) | 383 s | every key nets to one row; desk totals exact |
+| x5, no view: a desk grouping straight over the join | | 255 s | desk totals exact |
+
+(From x2 down, these runs shared the machine with tests on a second container; their catch-up
+times are upper bounds. The first x5 row ran alone.)
+
+- **The driver is the FX fan-out, not the price rate.** Each of the 5 FX ticks a second changes a
+  fifth of the instruments, so a fifth of all positions is retracted and re-inserted through every
+  join stage (about 19,000 pairs per tick at x5; 4.24 million change rows for a 30 s feed). Past
+  about 40,000 positions the view cannot keep up with 5 FX ticks a second.
+- **The join is right; the `changelog_kv` stream holding its output is not.** The same changes
+  written to a `versioned_kv` stream, to a plain `changelog` stream, or aggregated directly all
+  end exact; written to a `changelog_kv` stream behind a large backlog, a third of its rows end
+  stale, permanently, with nothing in the server log. Proton's source points at the stream's
+  collapsing merge: a `changelog_kv` stream is a VersionedCollapsingMergeTree whose merge Proton
+  changed to cancel a retraction against the last row of opposite sign for the key, and depending
+  on the merge (horizontal or vertical) the version is or is not compared, so a retraction and
+  its replacement written in the same millisecond can cancel each other (read from source:
+  `VersionedCollapsingAlgorithm.cpp`; that it explains these rows is our inference).
+- So for a large or bursty derived stream the safe sinks are `versioned_kv` (no deletes) or a
+  plain `changelog` (exact, but it grows without compaction and a snapshot is a sum by
+  `_tp_delta`). Keeping the derived streams small, as below, keeps `changelog_kv` out of trouble.
+
+**What fixes the scale problem is a plan, not a setting** (`proton_fx_late.py`). USD values are
+linear in the rate, so FX can be applied after aggregation: one view joins positions to
+instruments, books, prices and closes in local currency; a second sums that by (desk, trader,
+book, sector, ccy) into a `changelog_kv` leaf cube (2,401 rows at x5); a third joins the leaf cube
+to FX. An FX tick then changes 480 leaf rows instead of 19,000 positions. Every one of the 16
+groupings is a sum over the leaf cube.
+
+| x5 book, 1,000 ticks/s | CPU | probe p50 / p95 | last write after the feed | a new grouping: first rows | correct |
+|---|---|---|---|---|---|
+| per-position FX (above) | 1.36 cores | 18 / 110 ms (misleading) | 380 s | 179 to 327 ms | no |
+| FX after aggregation, leaf cube, 16 groupings | **0.73 cores** | 249 / 275 ms | 1 s | 115 to 145 ms | **yes** |
+| the same, the leaf view on `EMIT CHANGELOG ON UPDATE` | 1.19 cores | **147 / 162 ms** | 1 s | | **yes** |
+| the leaf cube at x1 (19,200 positions), 16 groupings | 0.72 cores | 244 / 270 ms | 1 s | 113 to 131 ms | yes |
+| FX after aggregation as one nested query per grouping | | | 3 s | | **no: totals about 16 times too large** |
+
+The nested form (`SELECT k, sum(mv_l * usd_rate) FROM (SELECT k, ccy, sum(...) ... GROUP BY k, ccy)
+JOIN fx ... GROUP BY k`) is accepted and silently wrong: the inner aggregation's retractions do
+not survive the join to `fx`, so the outer sum adds every update. Materializing each step as a
+view into its own stream works. The leaf cube's cost is latency (three views in a row); at x1 it
+costs less CPU than the per-position join (0.72 against 1.01 cores) and adds about 200 ms.
+
+### Operations (`proton_ops.py`, a second container with its data on disk: `proton-ops.xml`)
+
+**Restart in the middle of the feed.** The feed (1,000 ticks a second) holds each insert and
+retries it until the server answers; the desk grouping reconnects when its query dies; 15 s in,
+the container restarts. After the feed, everything against DuckDB.
+
+| restart | inserts refused | after it |
+|---|---|---|
+| graceful (`docker restart`, SIGTERM) | 10 s (the server takes 9 to 10 s to stop) | correct: inputs, shared stream (no duplicate keys), the reconnected grouping (its first tick 0.4 s after the server was up, then 49 / 108 ms), five fresh groupings, a `table()` aggregate; twice |
+| hard (SIGKILL), 15 s in | 1 s | **wrong**: the shared stream holds 38,503 rows for 19,278 positions (every key twice); every grouping wrong; 3 times out of 3 |
+| hard, 80 s in (after the view's first checkpoint) | 1 s | **wrong**: 36 keys twice, 4 of 5 desks wrong |
+| hard, the view with `SETTINGS checkpoint_interval=5`, 15 s in | 1 s | **wrong**: once 949 rows missing, once 1 key twice (the results file is the second run) |
+| any hard case, then the shared stream and its view dropped and created again | | correct, rebuilt in 2.4 s |
+
+- The inputs (`versioned_kv` streams) came through every restart exact. What breaks is the
+  materialized view's output: after a SIGKILL it replays its inputs from its last checkpoint (or,
+  before its first, from the start: the first automatic checkpoint came about 60 s after the view
+  started) and writes the replayed changes again into a stream that is not idempotent, so the
+  derived stream drifts and nothing reports it. A graceful stop takes a final checkpoint and is
+  clean.
+- So the target treats every derived stream as a cache: after any stop that was not a graceful
+  shutdown, it drops and rebuilds the views from the inputs. At this book size that took
+  2.4 s; it grows with the book.
+
+**Disk.**
+
+- Proton refuses inserts when its disk reads over 90% used (`max_local_disk_usage_ratio`, a
+  top-level key read at startup), measured as `1 - available/total` of the whole filesystem. In a
+  container with a disk allowance this fires with the disk nearly empty; `proton-ops.xml` sets 0.98.
+- Each stream shard's log segment is preallocated at 2 GB (`preallocate: true`, `segment_size`
+  2 GB): seven small streams reserve 14 GB before a row arrives. `proton-ops.xml` uses 16 MB
+  segments without preallocation.
+- The log is bounded by default: the server's retention (`retention_size: 1`) deletes closed
+  segments once their rows are in the historical store and the log is over `min_size_to_keep` (2 GB
+  by default, 16 MB here). Over 4 minutes at 1,000 ticks a second the shared stream's log rose to
+  79 MB and fell back to 21 to 33 MB, and every check against DuckDB afterwards passed (a query that
+  starts after deletion reads what it needs from the historical store).
+- The historical store collapses: after those 4 minutes the shared stream's one active part held
+  exactly its 19,582 live rows (1 MB); the other 335 MB on disk were merged-away parts, which the
+  server deletes later (we saw them gone within minutes; not timed). Dropped streams' logs linger
+  until the next retention check (5 minutes by default).
+
+### Delivery and dialect fit (`proton_delivery.py`)
+
+- **HTTP streaming works** on 3218: a changelog grouping posted to `/?default_format=JSONEachRow`
+  answers chunked NDJSON, first bytes in 151 ms, then each emit as it happens (15 reads a second
+  for 70 rows a second here). `add_http_cors_header=1` adds `Access-Control-Allow-Origin: *` when
+  the request carries an `Origin`, as a browser's does. 8123 (the ClickHouse-compatible port) runs
+  queries as snapshots only; the same streaming query fails there.
+- **Our ClickHouse dialect against Proton.** Every function name `ClickHouse.java` writes (158),
+  called under `SET is_clickhouse_compatible=1`: 127 known (105 of them only with the setting:
+  Proton's own names are snake_case), 31 unknown, among them `argMax`/`argMin`, every `*OrNull`
+  aggregate, `ntile`, `printf`, `regexpExtract`, `toDate32`, `toDecimalString`, `mapFromArrays`.
+  ClickHouse type names (`Nullable(String)`, `Float64`, `LowCardinality(String)`, `Array(...)`)
+  are accepted with the setting and refused without it, and the setting works on the streaming
+  port too. So a Proton target is a dialect of its own (snake_case names, the retraction rules,
+  `EMIT`, stream modes), sharing much with `ClickHouse.java` but not a flag on it.
+
+### What a Proton target in legend-lite would have to own
+
+1. **A streaming join planner:** join order (FX to instruments first), FX applied after
+   aggregation through a leaf cube, and each derived step materialized as its own view, never a
+   nested aggregation over a join.
+2. **Stream modes by role:** inputs that can delete as `changelog_kv` fed -old/+new, upsert-only
+   inputs as `versioned_kv`, derived streams sized so a backlog never builds (or a sink that is
+   exact under one).
+3. **The retraction list:** which aggregates retract, the rewrites (variance as sums, top-N as
+   `max_k`, Proton's spelling of distinct counts), and which DataCube features are not live
+   (median, window ranks).
+4. **Freshness it can see:** Proton has no cross-input watermark, so the target stamps its own
+   (a probe per input, compared at the grouping) rather than trusting one path's latency.
+5. **Recovery:** detect an unclean stop and rebuild the derived streams from the inputs.
+6. **Configuration:** the disk ratio, segment size and preallocation, emit policies.
+
+That is a real compiler target, and every item has a tested answer here. What it cannot fix from
+outside is the class of failure: five times Proton gave a wrong answer without an error, and once
+stale data looked fresh. These are
+also tests Deephaven and Feldera have not been put through here (deletes, restarts, as-of joins, 5
+times the book); choosing either needs the same homework.
 
 ## Running it
 
@@ -289,6 +560,19 @@ $SP/venv/bin/python run.py --engine deephaven --deephaven-pid <pid> --seconds 60
 $SP/venv/bin/python summarize.py results/*.json
 $SP/venv/bin/python dynamic_groupings.py --shape leaf --out results/feldera-dynamic-leaf.json
 $SP/venv/bin/python dynamic_deephaven.py --pid <pid> --out results/deephaven-dynamic.json
+# the Proton homework (Proton alone on the machine; -p 3218:3218 for proton_delivery.py)
+$SP/venv/bin/python proton_correctness.py --target changelog --out results/x.json   # and --target versioned
+$SP/venv/bin/python proton_asof.py --late-share 0.05 --out results/x.json
+$SP/venv/bin/python proton_shapes.py --out results/x.json
+$SP/venv/bin/python proton_perf.py --rate 5000 --out results/x.json                 # see the table for the variants
+$SP/venv/bin/python proton_scale_check.py --scale 5 --target plain --out results/x.json
+$SP/venv/bin/python proton_fx_late.py --scale 5 --shape leaf --all16 --out results/x.json
+$SP/venv/bin/python proton_delivery.py --dialect ../../core/src/main/java/com/legend/sql/dialect/ClickHouse.java --out results/x.json
+# operations: a second container with its data on disk, on other ports
+docker run -d --name proton-disk -v $SP/proton-data:/var/lib/proton \
+  -v $PWD/proton-ops.xml:/etc/proton-server/config.d/zz-ops.xml:ro -p 18463:8463 ghcr.io/timeplus-io/proton:latest
+PROTON_PORT=18463 $SP/venv/bin/python proton_ops.py recovery --kill hard --container proton-disk --out results/x.json
+PROTON_PORT=18463 $SP/venv/bin/python proton_ops.py log --seconds 240 --container proton-disk --out results/x.json
 ```
 
 Feldera's image is 10.9 GB unpacked. The Proton container's data lives on a tmpfs because its disk

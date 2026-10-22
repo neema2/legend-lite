@@ -1,0 +1,911 @@
+{
+  "retentionMs": 0,
+  "seconds": 240.0,
+  "rate": 1000,
+  "batchesSent": 2400,
+  "samples": [
+    {
+      "t": 0,
+      "total": 79925136,
+      "books": {
+        "log": 5737,
+        "store": 22318
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51265
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39144
+      },
+      "positions": {
+        "log": 618603,
+        "store": 143514
+      },
+      "prices": {
+        "log": 64202,
+        "store": 41888
+      },
+      "fx": {
+        "log": 4311,
+        "store": 21965
+      },
+      "position_risk_s": {
+        "log": 2326856,
+        "store": 843819
+      }
+    },
+    {
+      "t": 10,
+      "total": 136976857,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 629348,
+        "store": 168919
+      },
+      "prices": {
+        "log": 367534,
+        "store": 187120
+      },
+      "fx": {
+        "log": 7811,
+        "store": 44901
+      },
+      "position_risk_s": {
+        "log": 49580984,
+        "store": 10546316
+      }
+    },
+    {
+      "t": 20,
+      "total": 172774063,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 640262,
+        "store": 332808
+      },
+      "prices": {
+        "log": 673492,
+        "store": 409961
+      },
+      "fx": {
+        "log": 11420,
+        "store": 79251
+      },
+      "position_risk_s": {
+        "log": 69030246,
+        "store": 25279334
+      }
+    },
+    {
+      "t": 30,
+      "total": 187852686,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 651069,
+        "store": 500132
+      },
+      "prices": {
+        "log": 976196,
+        "store": 632409
+      },
+      "fx": {
+        "log": 15041,
+        "store": 113613
+      },
+      "position_risk_s": {
+        "log": 68785291,
+        "store": 39371493
+      }
+    },
+    {
+      "t": 40,
+      "total": 203855533,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 661876,
+        "store": 672137
+      },
+      "prices": {
+        "log": 1278796,
+        "store": 855508
+      },
+      "fx": {
+        "log": 18591,
+        "store": 142230
+      },
+      "position_risk_s": {
+        "log": 69405328,
+        "store": 53478031
+      }
+    },
+    {
+      "t": 50,
+      "total": 222006441,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 672683,
+        "store": 847695
+      },
+      "prices": {
+        "log": 1584694,
+        "store": 1077886
+      },
+      "fx": {
+        "log": 22212,
+        "store": 176614
+      },
+      "position_risk_s": {
+        "log": 72582252,
+        "store": 68085857
+      }
+    },
+    {
+      "t": 61,
+      "total": 244686870,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 683597,
+        "store": 1026651
+      },
+      "prices": {
+        "log": 1888208,
+        "store": 1300923
+      },
+      "fx": {
+        "log": 25833,
+        "store": 210999
+      },
+      "position_risk_s": {
+        "log": 75742473,
+        "store": 82347640
+      }
+    },
+    {
+      "t": 71,
+      "total": 258762811,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 694404,
+        "store": 1208914
+      },
+      "prices": {
+        "log": 2191588,
+        "store": 1486329
+      },
+      "fx": {
+        "log": 29383,
+        "store": 239648
+      },
+      "position_risk_s": {
+        "log": 76735978,
+        "store": 93941045
+      }
+    },
+    {
+      "t": 81,
+      "total": 277894355,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 705211,
+        "store": 1394396
+      },
+      "prices": {
+        "log": 2494802,
+        "store": 1709009
+      },
+      "fx": {
+        "log": 33004,
+        "store": 274058
+      },
+      "position_risk_s": {
+        "log": 79833545,
+        "store": 108651330
+      }
+    },
+    {
+      "t": 91,
+      "total": 294826250,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 716125,
+        "store": 1576814
+      },
+      "prices": {
+        "log": 2800580,
+        "store": 1933440
+      },
+      "fx": {
+        "log": 36625,
+        "store": 308478
+      },
+      "position_risk_s": {
+        "log": 82847811,
+        "store": 123153293
+      }
+    },
+    {
+      "t": 101,
+      "total": 262433436,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 726932,
+        "store": 1768782
+      },
+      "prices": {
+        "log": 3103734,
+        "store": 2157303
+      },
+      "fx": {
+        "log": 40175,
+        "store": 337154
+      },
+      "position_risk_s": {
+        "log": 33532322,
+        "store": 137706510
+      }
+    },
+    {
+      "t": 111,
+      "total": 262887066,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 737739,
+        "store": 1963397
+      },
+      "prices": {
+        "log": 3407114,
+        "store": 2380961
+      },
+      "fx": {
+        "log": 43796,
+        "store": 371517
+      },
+      "position_risk_s": {
+        "log": 18397865,
+        "store": 151947075
+      }
+    },
+    {
+      "t": 121,
+      "total": 281841523,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 748653,
+        "store": 2160943
+      },
+      "prices": {
+        "log": 3713042,
+        "store": 2566815
+      },
+      "fx": {
+        "log": 47417,
+        "store": 405896
+      },
+      "position_risk_s": {
+        "log": 22034852,
+        "store": 166624779
+      }
+    },
+    {
+      "t": 132,
+      "total": 299249175,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 759460,
+        "store": 2360960
+      },
+      "prices": {
+        "log": 4018790,
+        "store": 2788414
+      },
+      "fx": {
+        "log": 51038,
+        "store": 440249
+      },
+      "position_risk_s": {
+        "log": 24337435,
+        "store": 180927089
+      }
+    },
+    {
+      "t": 142,
+      "total": 319395751,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 770374,
+        "store": 2563585
+      },
+      "prices": {
+        "log": 4322230,
+        "store": 3011807
+      },
+      "fx": {
+        "log": 54588,
+        "store": 468908
+      },
+      "position_risk_s": {
+        "log": 28004816,
+        "store": 195577438
+      }
+    },
+    {
+      "t": 152,
+      "total": 338137495,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 781181,
+        "store": 3457878
+      },
+      "prices": {
+        "log": 4625744,
+        "store": 3234300
+      },
+      "fx": {
+        "log": 58209,
+        "store": 503310
+      },
+      "position_risk_s": {
+        "log": 30173798,
+        "store": 210092295
+      }
+    },
+    {
+      "t": 162,
+      "total": 358881072,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 792095,
+        "store": 4365914
+      },
+      "prices": {
+        "log": 4931462,
+        "store": 3456533
+      },
+      "fx": {
+        "log": 61830,
+        "store": 537711
+      },
+      "position_risk_s": {
+        "log": 35364130,
+        "store": 224804204
+      }
+    },
+    {
+      "t": 172,
+      "total": 375349054,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 802902,
+        "store": 5102011
+      },
+      "prices": {
+        "log": 5234946,
+        "store": 3680296
+      },
+      "fx": {
+        "log": 65380,
+        "store": 560685
+      },
+      "position_risk_s": {
+        "log": 38189482,
+        "store": 236365367
+      }
+    },
+    {
+      "t": 182,
+      "total": 378201897,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 813816,
+        "store": 6032956
+      },
+      "prices": {
+        "log": 5540740,
+        "store": 3901855
+      },
+      "fx": {
+        "log": 69001,
+        "store": 595080
+      },
+      "position_risk_s": {
+        "log": 23810925,
+        "store": 250908616
+      }
+    },
+    {
+      "t": 192,
+      "total": 400343201,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 824623,
+        "store": 6975765
+      },
+      "prices": {
+        "log": 5843894,
+        "store": 4087393
+      },
+      "fx": {
+        "log": 72622,
+        "store": 629453
+      },
+      "position_risk_s": {
+        "log": 29326246,
+        "store": 265563317
+      }
+    },
+    {
+      "t": 203,
+      "total": 415594474,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 835537,
+        "store": 7931347
+      },
+      "prices": {
+        "log": 6150032,
+        "store": 4309051
+      },
+      "fx": {
+        "log": 76243,
+        "store": 663847
+      },
+      "position_risk_s": {
+        "log": 29476453,
+        "store": 279938096
+      }
+    },
+    {
+      "t": 213,
+      "total": 438417900,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 846344,
+        "store": 8898860
+      },
+      "prices": {
+        "log": 6453262,
+        "store": 4532302
+      },
+      "fx": {
+        "log": 79793,
+        "store": 692509
+      },
+      "position_risk_s": {
+        "log": 34956359,
+        "store": 294527560
+      }
+    },
+    {
+      "t": 223,
+      "total": 457270943,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 857258,
+        "store": 9878188
+      },
+      "prices": {
+        "log": 6759520,
+        "store": 4754552
+      },
+      "fx": {
+        "log": 83414,
+        "store": 726956
+      },
+      "position_risk_s": {
+        "log": 37223728,
+        "store": 308910286
+      }
+    },
+    {
+      "t": 233,
+      "total": 478646604,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 868065,
+        "store": 10868086
+      },
+      "prices": {
+        "log": 7063304,
+        "store": 4976995
+      },
+      "fx": {
+        "log": 87035,
+        "store": 761403
+      },
+      "position_risk_s": {
+        "log": 41682996,
+        "store": 323521268
+      }
+    },
+    {
+      "t": 243,
+      "total": 476549467,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 875341,
+        "store": 11667355
+      },
+      "prices": {
+        "log": 7266936,
+        "store": 5146101
+      },
+      "fx": {
+        "log": 89449,
+        "store": 789950
+      },
+      "position_risk_s": {
+        "log": 28050690,
+        "store": 334747648
+      }
+    },
+    {
+      "t": 253,
+      "total": 477774828,
+      "books": {
+        "log": 5737,
+        "store": 22321
+      },
+      "instruments": {
+        "log": 90137,
+        "store": 51268
+      },
+      "closes": {
+        "log": 48191,
+        "store": 39147
+      },
+      "positions": {
+        "log": 875341,
+        "store": 11667355
+      },
+      "prices": {
+        "log": 7266936,
+        "store": 5146101
+      },
+      "fx": {
+        "log": 89449,
+        "store": 789950
+      },
+      "position_risk_s": {
+        "log": 28050690,
+        "store": 334747648
+      }
+    }
+  ],
+  "checks": {
+    "fresh_desk": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 5.202534471215367e-15,
+      "examples": [],
+      "ok": true,
+      "firstRowsMillis": 144.0,
+      "errors": []
+    },
+    "fresh_desk_trader": {
+      "rows": 13,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 5.402698877976553e-14,
+      "examples": [],
+      "ok": true,
+      "firstRowsMillis": 146.0,
+      "errors": []
+    },
+    "fresh_book": {
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.788068898592102e-14,
+      "examples": [],
+      "ok": true,
+      "firstRowsMillis": 151.7,
+      "errors": []
+    },
+    "fresh_ccy": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.4546856297451917e-15,
+      "examples": [],
+      "ok": true,
+      "firstRowsMillis": 135.5,
+      "errors": []
+    },
+    "fresh_sector": {
+      "rows": 11,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.2863726170352734e-14,
+      "examples": [],
+      "ok": true,
+      "firstRowsMillis": 155.3,
+      "errors": []
+    },
+    "table_desk": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 5.202534471215367e-15,
+      "examples": [],
+      "ok": true
+    },
+    "sharedStreamRows": {
+      "expected": 19582,
+      "got": 19582,
+      "keysWithMoreThanOneRow": 0
+    },
+    "pricesInput": {
+      "rows": 2001,
+      "expected": 2001,
+      "wrong": 0
+    }
+  },
+  "allCorrect": true
+}

@@ -1,0 +1,42 @@
+{
+  "seconds": 30,
+  "trades": 6000,
+  "quotes": 30200,
+  "lateShare": 0.05,
+  "keepVersions": 100,
+  "firstRowsMillis": 2105.1,
+  "error": null,
+  "check": {
+    "rows": 200,
+    "mismatches": 153,
+    "extraRows": 0,
+    "maxRelativeError": 0.023921428571428902,
+    "examples": [
+      {
+        "key": [
+          "A094"
+        ],
+        "column": "avg_slip",
+        "expected": -0.015216666666665902,
+        "got": -0.01594666666666645
+      },
+      {
+        "key": [
+          "A104"
+        ],
+        "column": "avg_slip",
+        "expected": -0.007253124999999194,
+        "got": -0.00819062499999923
+      },
+      {
+        "key": [
+          "A004"
+        ],
+        "column": "avg_slip",
+        "expected": -0.004024137931035272,
+        "got": 0.0009137931034477387
+      }
+    ],
+    "ok": false
+  }
+}

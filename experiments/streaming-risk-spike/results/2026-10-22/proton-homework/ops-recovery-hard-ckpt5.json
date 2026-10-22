@@ -1,0 +1,274 @@
+{
+  "kill": "hard",
+  "killAtSecond": 15.0,
+  "checkpointInterval": 5,
+  "batchesSent": 400,
+  "restart": {
+    "containerSeconds": 0.6,
+    "serverReadySecondsAfterContainer": 0.4,
+    "insertsRefusedSeconds": [
+      1.0
+    ]
+  },
+  "desk": {
+    "reconnects": 3,
+    "errors": [
+      [
+        1792634965.7763357,
+        "EOFError('Unexpected EOF while reading bytes')"
+      ],
+      [
+        1792634966.2798781,
+        "NetworkError('Connection reset by peer (localhost:18463)')"
+      ],
+      [
+        1792635034.2793872,
+        "ServerException(\"DB::Exception: Stream default.position_risk_s doesn't exist. Stack trace:\\n\\n\")"
+      ]
+    ],
+    "tickToSubscriberBefore": {
+      "p50": 31.6,
+      "p95": 108.4
+    },
+    "firstProbeAfterReadyMillis": 186,
+    "tickToSubscriberAfter": {
+      "p50": 1206.5,
+      "p95": 1206.5
+    }
+  },
+  "checks": {
+    "fresh_desk": {
+      "rows": 5,
+      "mismatches": 1,
+      "extraRows": 0,
+      "maxRelativeError": 2.680236196668807e-05,
+      "examples": [
+        {
+          "key": [
+            "Equities"
+          ],
+          "column": "mv_usd",
+          "expected": 5730756124.3911705,
+          "got": 5730909722.191159
+        }
+      ],
+      "ok": false,
+      "firstRowsMillis": 132.7,
+      "errors": []
+    },
+    "fresh_desk_trader": {
+      "rows": 13,
+      "mismatches": 1,
+      "extraRows": 0,
+      "maxRelativeError": 5.4698871700943955e-05,
+      "examples": [
+        {
+          "key": [
+            "Equities",
+            "EQU-T2"
+          ],
+          "column": "mv_usd",
+          "expected": 2808061578.194147,
+          "got": 2808215175.994141
+        }
+      ],
+      "ok": false,
+      "firstRowsMillis": 139.2,
+      "errors": []
+    },
+    "fresh_book": {
+      "rows": 49,
+      "mismatches": 1,
+      "extraRows": 0,
+      "maxRelativeError": 9.93769373036816e-05,
+      "examples": [
+        {
+          "key": [
+            "EQU-T2-B1"
+          ],
+          "column": "mv_usd",
+          "expected": 1545608107.560929,
+          "got": 1545761705.3609302
+        }
+      ],
+      "ok": false,
+      "firstRowsMillis": 130.8,
+      "errors": []
+    },
+    "fresh_ccy": {
+      "rows": 5,
+      "mismatches": 1,
+      "extraRows": 0,
+      "maxRelativeError": 8.557216122540892e-08,
+      "examples": [
+        {
+          "key": [
+            "USD"
+          ],
+          "column": "mv_usd",
+          "expected": 1794950521415.0007,
+          "got": 1794950675012.7961
+        }
+      ],
+      "ok": false,
+      "firstRowsMillis": 132.3,
+      "errors": []
+    },
+    "fresh_sector": {
+      "rows": 11,
+      "mismatches": 1,
+      "extraRows": 0,
+      "maxRelativeError": 0.0006680264002680046,
+      "examples": [
+        {
+          "key": [
+            "Energy"
+          ],
+          "column": "mv_usd",
+          "expected": -229927739.28437188,
+          "got": -229774141.48437598
+        }
+      ],
+      "ok": false,
+      "firstRowsMillis": 139.3,
+      "errors": []
+    },
+    "table_desk": {
+      "rows": 5,
+      "mismatches": 1,
+      "extraRows": 0,
+      "maxRelativeError": 2.680236196668807e-05,
+      "examples": [
+        {
+          "key": [
+            "Equities"
+          ],
+          "column": "mv_usd",
+          "expected": 5730756124.3911705,
+          "got": 5730909722.191159
+        }
+      ],
+      "ok": false
+    },
+    "sharedStreamRows": {
+      "expected": 19278,
+      "got": 19279,
+      "keysWithMoreThanOneRow": 1
+    },
+    "pricesInput": {
+      "rows": 2001,
+      "expected": 2001,
+      "wrong": 0
+    },
+    "reconnected_desk": {
+      "rows": 5,
+      "mismatches": 4,
+      "extraRows": 0,
+      "maxRelativeError": 0.004183563362026555,
+      "examples": [
+        {
+          "key": [
+            "Credit"
+          ],
+          "column": "mv_usd",
+          "expected": 1946937684.8752844,
+          "got": 1947021144.151762
+        },
+        {
+          "key": [
+            "Macro"
+          ],
+          "column": "mv_usd",
+          "expected": -7806273044.050339,
+          "got": -7796764031.021026
+        },
+        {
+          "key": [
+            "Equities"
+          ],
+          "column": "mv_usd",
+          "expected": 5730756124.3911705,
+          "got": 5706781143.032458
+        }
+      ],
+      "ok": false
+    }
+  },
+  "allCorrect": false,
+  "rebuild": {
+    "seconds": 2.4,
+    "checks": {
+      "fresh_desk": {
+        "rows": 5,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.8305468340939462e-15,
+        "examples": [],
+        "ok": true,
+        "firstRowsMillis": 122.6,
+        "errors": []
+      },
+      "fresh_desk_trader": {
+        "rows": 13,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 2.4576081562694272e-14,
+        "examples": [],
+        "ok": true,
+        "firstRowsMillis": 121.5,
+        "errors": []
+      },
+      "fresh_book": {
+        "rows": 49,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.511891791428823e-14,
+        "examples": [],
+        "ok": true,
+        "firstRowsMillis": 124.5,
+        "errors": []
+      },
+      "fresh_ccy": {
+        "rows": 5,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 3.555832246084961e-15,
+        "examples": [],
+        "ok": true,
+        "firstRowsMillis": 122.6,
+        "errors": []
+      },
+      "fresh_sector": {
+        "rows": 11,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 7.378024553412104e-14,
+        "examples": [],
+        "ok": true,
+        "firstRowsMillis": 125.8,
+        "errors": []
+      },
+      "table_desk": {
+        "rows": 5,
+        "mismatches": 0,
+        "extraRows": 0,
+        "maxRelativeError": 1.8305468340939462e-15,
+        "examples": [],
+        "ok": true
+      },
+      "sharedStreamRows": {
+        "expected": 19278,
+        "got": 19278,
+        "keysWithMoreThanOneRow": 0
+      },
+      "pricesInput": {
+        "rows": 2001,
+        "expected": 2001,
+        "wrong": 0
+      }
+    },
+    "allCorrect": true
+  },
+  "serverErrorLines": 0,
+  "serverErrorSample": []
+}

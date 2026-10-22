@@ -1,0 +1,16 @@
+{
+  "scale": 1,
+  "target": "plain",
+  "shape": "shared",
+  "rate": 1000,
+  "positions": 19201,
+  "feedSeconds": 14.9,
+  "lastWriteAfterFeedSeconds": 2.0,
+  "changelogRows": 619793,
+  "keysNetNotOne": 0,
+  "expectedKeys": 19225,
+  "keys": 19225,
+  "wrongDesks": 0,
+  "examples": [],
+  "correct": true
+}

@@ -1,0 +1,67 @@
+{
+  "scale": 1,
+  "shape": "leaf",
+  "rate": 1000,
+  "positions": 19201,
+  "feedSeconds": 29.9,
+  "engineCpuCores": 1.12,
+  "lastWriteAfterFeedSeconds": 1.1,
+  "tickToSubscriberMillis": {
+    "p50": 235.3,
+    "p95": 261.8,
+    "n": 85
+  },
+  "checks": {
+    "desk": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.1569163256033912e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 130.1
+    },
+    "desk_trader": {
+      "rows": 13,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.164340802249208e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 125.7
+    },
+    "book": {
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.7936402124202645e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 129.7
+    },
+    "sector": {
+      "rows": 11,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.786210251013989e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 126.6
+    },
+    "root": {
+      "rows": 1,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.3095487330433772e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 129.2
+    }
+  },
+  "correct": true
+}

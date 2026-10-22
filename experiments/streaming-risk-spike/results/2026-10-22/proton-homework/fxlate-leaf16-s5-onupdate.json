@@ -1,0 +1,179 @@
+{
+  "scale": 5,
+  "shape": "leaf",
+  "groupings": 16,
+  "leafEmit": "ON UPDATE",
+  "rate": 1000,
+  "positions": 96001,
+  "feedSeconds": 29.9,
+  "engineCpuCores": 1.19,
+  "lastWriteAfterFeedSeconds": 1.1,
+  "tickToSubscriberMillis": {
+    "p50": 146.5,
+    "p95": 161.8,
+    "n": 28
+  },
+  "checks": {
+    "desk": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.0648441921435754e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 114.4
+    },
+    "g1": {
+      "rows": 13,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 7.569310438201672e-13,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 117.8
+    },
+    "g2": {
+      "rows": 11,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.5642274379256115e-13,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 119.1
+    },
+    "g3": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.9293177649666513e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 112.3
+    },
+    "g4": {
+      "rows": 10,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 8.067330190392373e-15,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 125.2
+    },
+    "g5": {
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 4.0651449093894586e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 126.2
+    },
+    "g6": {
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 4.0651449093894586e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 123.4
+    },
+    "g7": {
+      "rows": 51,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 5.023822327113847e-13,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 120.7
+    },
+    "g8": {
+      "rows": 21,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.5765152283988055e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 121.9
+    },
+    "g9": {
+      "rows": 13,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.0784993556297344e-12,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 124.4
+    },
+    "g10": {
+      "rows": 12,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.4095821917123101e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 117.4
+    },
+    "g11": {
+      "rows": 12,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.914766218809159e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 116.4
+    },
+    "g12": {
+      "rows": 241,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.0988076352206174e-13,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 118.6
+    },
+    "g13": {
+      "rows": 1,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.7828157124788842e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 121.3
+    },
+    "g14": {
+      "rows": 2401,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 8.461189527453966e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 124.9
+    },
+    "g15": {
+      "rows": 481,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 6.818644130134174e-13,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 116.7
+    }
+  },
+  "correct": true
+}

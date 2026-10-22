@@ -1,0 +1,178 @@
+{
+  "scale": 5,
+  "shape": "leaf",
+  "groupings": 16,
+  "rate": 1000,
+  "positions": 96001,
+  "feedSeconds": 29.9,
+  "engineCpuCores": 0.73,
+  "lastWriteAfterFeedSeconds": 1.1,
+  "tickToSubscriberMillis": {
+    "p50": 248.7,
+    "p95": 275.2,
+    "n": 80
+  },
+  "checks": {
+    "desk": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.8556355848794127e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 114.6
+    },
+    "g1": {
+      "rows": 13,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 4.0196038976239246e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 139.1
+    },
+    "g2": {
+      "rows": 11,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 9.323936341071317e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 140.1
+    },
+    "g3": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.8128521419433644e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 139.6
+    },
+    "g4": {
+      "rows": 10,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 7.018790442164485e-15,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 145.3
+    },
+    "g5": {
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.4125476835205443e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 143.5
+    },
+    "g6": {
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.4125476835205443e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 138.8
+    },
+    "g7": {
+      "rows": 51,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.7734176261959597e-13,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 132.8
+    },
+    "g8": {
+      "rows": 21,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.285494022912365e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 141.0
+    },
+    "g9": {
+      "rows": 13,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.8137227283358423e-13,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 133.8
+    },
+    "g10": {
+      "rows": 12,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.645380277597075e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 139.2
+    },
+    "g11": {
+      "rows": 12,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.4618422813260616e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 131.3
+    },
+    "g12": {
+      "rows": 241,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 5.360588762759907e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 117.9
+    },
+    "g13": {
+      "rows": 1,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.8239578181562983e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 134.0
+    },
+    "g14": {
+      "rows": 2401,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 8.461189527453966e-14,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 137.7
+    },
+    "g15": {
+      "rows": 481,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 5.229833847384464e-13,
+      "examples": [],
+      "ok": true,
+      "error": null,
+      "firstRowsMillis": 128.2
+    }
+  },
+  "correct": true
+}

@@ -1,0 +1,178 @@
+{
+  "scale": 5,
+  "rate": 1000,
+  "positions": 96001,
+  "feedSeconds": 29.9,
+  "engineCpuCores": 1.12,
+  "lastWriteAfterFeedSeconds": 3.1,
+  "tickToSubscriberMillis": {
+    "p50": -8963180435752.0,
+    "p95": 208.7,
+    "n": 14
+  },
+  "checks": {
+    "desk": {
+      "rows": 5,
+      "mismatches": 5,
+      "extraRows": 0,
+      "maxRelativeError": 15.117489790438285,
+      "examples": [
+        {
+          "key": [
+            "Credit"
+          ],
+          "column": "mv_usd",
+          "expected": -1628065680.7534468,
+          "got": -23508222479.21169
+        },
+        {
+          "key": [
+            "Macro"
+          ],
+          "column": "mv_usd",
+          "expected": -8478518658.149039,
+          "got": -136493977524.1728
+        },
+        {
+          "key": [
+            "Equities"
+          ],
+          "column": "mv_usd",
+          "expected": 7087754423.229424,
+          "got": 113836871315.905
+        }
+      ],
+      "ok": false,
+      "error": null,
+      "firstRowsMillis": 2178.1
+    },
+    "desk_trader": {
+      "rows": 13,
+      "mismatches": 13,
+      "extraRows": 0,
+      "maxRelativeError": 18.05754072791472,
+      "examples": [
+        {
+          "key": [
+            "Equities",
+            "EQU-T1"
+          ],
+          "column": "mv_usd",
+          "expected": -1989598484.211869,
+          "got": -27957628237.913982
+        },
+        {
+          "key": [
+            "Rates",
+            "RAT-T3"
+          ],
+          "column": "mv_usd",
+          "expected": -1263739627.6599681,
+          "got": -19549213800.985424
+        },
+        {
+          "key": [
+            "Macro",
+            "MAC-T1"
+          ],
+          "column": "mv_usd",
+          "expected": -10619777540.77932,
+          "got": -167262165014.49872
+        }
+      ],
+      "ok": false,
+      "error": null,
+      "firstRowsMillis": 2127.5
+    },
+    "book": {
+      "rows": 49,
+      "mismatches": 49,
+      "extraRows": 0,
+      "maxRelativeError": 16.863369576820332,
+      "examples": [
+        {
+          "key": [
+            "EQU-T2-B1"
+          ],
+          "column": "mv_usd",
+          "expected": -2285221258.48325,
+          "got": -36484078732.085686
+        },
+        {
+          "key": [
+            "EQU-T2-B3"
+          ],
+          "column": "mv_usd",
+          "expected": 2272416223.8805475,
+          "got": 37044372290.11841
+        },
+        {
+          "key": [
+            "EQU-T3-B2"
+          ],
+          "column": "mv_usd",
+          "expected": -148374377.54256478,
+          "got": -2650466341.7735057
+        }
+      ],
+      "ok": false,
+      "error": null,
+      "firstRowsMillis": 2144.9
+    },
+    "sector": {
+      "rows": 11,
+      "mismatches": 11,
+      "extraRows": 0,
+      "maxRelativeError": 22.803290492321246,
+      "examples": [
+        {
+          "key": [
+            "Materials"
+          ],
+          "column": "mv_usd",
+          "expected": 13783592352.24386,
+          "got": 217453511425.4885
+        },
+        {
+          "key": [
+            "Health"
+          ],
+          "column": "mv_usd",
+          "expected": -8261181677.42635,
+          "got": -130675022285.15858
+        },
+        {
+          "key": [
+            "Telecom"
+          ],
+          "column": "mv_usd",
+          "expected": -1648778745.3351722,
+          "got": -25053757685.918816
+        }
+      ],
+      "ok": false,
+      "error": null,
+      "firstRowsMillis": 2174.7
+    },
+    "root": {
+      "rows": 1,
+      "mismatches": 1,
+      "extraRows": 0,
+      "maxRelativeError": 8.95792049466905,
+      "examples": [
+        {
+          "key": [
+            "ROOT"
+          ],
+          "column": "mv_usd",
+          "expected": 1780232261995.503,
+          "got": 17727411326996.062
+        }
+      ],
+      "ok": false,
+      "error": null,
+      "firstRowsMillis": 2123.2
+    }
+  },
+  "correct": false
+}

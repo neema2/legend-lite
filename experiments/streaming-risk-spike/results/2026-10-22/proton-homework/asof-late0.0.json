@@ -1,0 +1,17 @@
+{
+  "seconds": 30,
+  "trades": 6000,
+  "quotes": 30200,
+  "lateShare": 0.0,
+  "keepVersions": 100,
+  "firstRowsMillis": 2104.3,
+  "error": null,
+  "check": {
+    "rows": 200,
+    "mismatches": 0,
+    "extraRows": 0,
+    "maxRelativeError": 0.0,
+    "examples": [],
+    "ok": true
+  }
+}

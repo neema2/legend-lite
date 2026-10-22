@@ -1,0 +1,460 @@
+{
+  "http": {
+    "port3218": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/x-ndjson; charset=UTF-8",
+        "transfer-encoding": "chunked",
+        "x-timeplus-query-id": "031731d9-e6e0-4a89-abf8-929ad3a8811b"
+      },
+      "firstBytesMillis": 151,
+      "linesPerSecond": 69.6,
+      "readsPerSecond": 15.4,
+      "sample": [
+        "{\"desk\":\"Rates\",\"mv_usd\":-2271174477.341113,\"n\":4801,\"_tp_delta\":1}",
+        "{\"desk\":\"Probe\",\"mv_usd\":1792636494578,\"n\":1,\"_tp_delta\":1}",
+        "{\"desk\":\"Macro\",\"mv_usd\":-8510866674.488837,\"n\":4801,\"_tp_delta\":1}"
+      ]
+    },
+    "port8123": {
+      "status": 500,
+      "headers": {
+        "content-type": "text/plain; charset=UTF-8",
+        "transfer-encoding": "chunked",
+        "x-timeplus-query-id": "677ba385-4872-4b27-867c-0b95d56fa75f"
+      },
+      "firstBytesMillis": 205,
+      "linesPerSecond": 0.2,
+      "readsPerSecond": 0.2,
+      "sample": [
+        "Code: 215. DB::Exception: Column `_tp_delta` is not under aggregate function and not in GROUP BY. Have columns: ['count()','sum(mv_usd)','desk']. (NOT_AN_AGGREGATE) (version 3.0.31)"
+      ]
+    }
+  },
+  "top_n": {
+    "sql": "SELECT max_k(abs(total), 10, instrument, total) AS top10 FROM (SELECT instrument, sum(pnl_usd) AS total FROM position_risk_s WHERE instrument != 'PROBE' GROUP BY instrument) EMIT PERIODIC 1s",
+    "emits": 19,
+    "error": null,
+    "sameInstrumentsInOrder": true,
+    "maxRelativeError": 2.9218149631980085e-15,
+    "expected": [
+      [
+        "I0808",
+        53369430.937730044
+      ],
+      [
+        "I0686",
+        30328861.306692183
+      ],
+      [
+        "I1687",
+        21659328.00000006
+      ]
+    ],
+    "got": [
+      [
+        "I0808",
+        53369430.93772998
+      ],
+      [
+        "I0686",
+        30328861.30669213
+      ],
+      [
+        "I1687",
+        21659328.000000056
+      ]
+    ]
+  },
+  "distinct": {
+    "unique_exact": {
+      "error": null,
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "count_distinct": {
+      "error": null,
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "uniq": {
+      "error": "ServerException('DB::Exception: Method negate is not supported for unique: While executing ChangelogGlobalAggregatingTransform. Stack trace:\\n\\n')"
+    },
+    "uniq_exact": {
+      "error": "ServerException('DB::Exception: Method negate is not supported for unique_exact: While executing ChangelogGlobalAggregatingTransform. Stack trace:\\n\\n')"
+    },
+    "count_DISTINCT": {
+      "error": null,
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    }
+  },
+  "dialect": {
+    "known": [
+      "CAST",
+      "JSONExtract",
+      "JSONExtractArrayRaw",
+      "JSONLength",
+      "abs",
+      "accurateCast",
+      "addDays",
+      "addHours",
+      "addMicroseconds",
+      "addMilliseconds",
+      "addMinutes",
+      "addMonths",
+      "addSeconds",
+      "addWeeks",
+      "addYears",
+      "arrayAll",
+      "arrayConcat",
+      "arrayDistinct",
+      "arrayElement",
+      "arrayExists",
+      "arrayFilter",
+      "arrayFlatten",
+      "arrayFold",
+      "arrayJoin",
+      "arrayMap",
+      "arrayPopBack",
+      "arrayProduct",
+      "arrayPushBack",
+      "arrayReduce",
+      "arrayResize",
+      "arrayReverse",
+      "arrayReverseSort",
+      "arraySlice",
+      "arraySort",
+      "arrayWithConstant",
+      "arrayZip",
+      "base64Decode",
+      "base64Encode",
+      "bitAnd",
+      "bitNot",
+      "bitOr",
+      "bitShiftLeft",
+      "bitShiftRight",
+      "bitXor",
+      "coalesce",
+      "concat",
+      "count",
+      "currentUser",
+      "dateDiff",
+      "dateName",
+      "endsWith",
+      "extractAll",
+      "floor",
+      "formatDateTime",
+      "formatDateTimeInJodaSyntax",
+      "fromUnixTimestamp64Micro",
+      "fromUnixTimestamp64Milli",
+      "greatest",
+      "groupArray",
+      "has",
+      "if",
+      "ifNull",
+      "isNotNull",
+      "isNull",
+      "lagInFrame",
+      "leadInFrame",
+      "least",
+      "leftUTF8",
+      "length",
+      "lower",
+      "lowerUTF8",
+      "makeDate32",
+      "mapKeys",
+      "mapUpdate",
+      "mapValues",
+      "match",
+      "moduloOrZero",
+      "multiIf",
+      "now64",
+      "nullIf",
+      "parseDateTime64BestEffort",
+      "pi",
+      "pow",
+      "quantileExactInclusive",
+      "randCanonical",
+      "repeat",
+      "replaceAll",
+      "replaceRegexpAll",
+      "replaceRegexpOne",
+      "reverseUTF8",
+      "rightUTF8",
+      "round",
+      "roundBankers",
+      "splitByString",
+      "startsWith",
+      "stddevPopStable",
+      "stddevSampStable",
+      "substring",
+      "substringUTF8",
+      "toDateTime64",
+      "toDayOfMonth",
+      "toDayOfWeek",
+      "toDayOfYear",
+      "toDecimal128",
+      "toFloat64",
+      "toHour",
+      "toISOWeek",
+      "toInt128",
+      "toInt64",
+      "toJSONString",
+      "toMinute",
+      "toMonth",
+      "toQuarter",
+      "toSecond",
+      "toStartOfHour",
+      "toStartOfMinute",
+      "toStartOfSecond",
+      "toString",
+      "toUnixTimestamp64Milli",
+      "toYear",
+      "today",
+      "translateUTF8",
+      "trim",
+      "tupleElement",
+      "upperUTF8",
+      "varPopStable",
+      "varSampStable"
+    ],
+    "unknown": [
+      "Array",
+      "DateTime64",
+      "Map",
+      "Nullable",
+      "Tuple",
+      "Variant",
+      "anyOrNull",
+      "argMax",
+      "argMin",
+      "avgOrNull",
+      "corrOrNull",
+      "covarPopStableOrNull",
+      "covarSampStableOrNull",
+      "jaroWinklerSimilarity",
+      "map",
+      "mapFromArrays",
+      "maxOrNull",
+      "minOrNull",
+      "ntile",
+      "printf",
+      "quantileExactInclusiveOrNull",
+      "regexpExtract",
+      "stddevPopStableOrNull",
+      "stddevSampStableOrNull",
+      "sumOrNull",
+      "toDate32",
+      "toDecimalString",
+      "values",
+      "varPopStableOrNull",
+      "varSampStableOrNull",
+      "variantElement"
+    ],
+    "other": {},
+    "knownOnlyWithCompat": [
+      "JSONExtract",
+      "JSONExtractArrayRaw",
+      "JSONLength",
+      "accurateCast",
+      "addDays",
+      "addHours",
+      "addMicroseconds",
+      "addMilliseconds",
+      "addMinutes",
+      "addMonths",
+      "addSeconds",
+      "addWeeks",
+      "addYears",
+      "arrayAll",
+      "arrayConcat",
+      "arrayDistinct",
+      "arrayElement",
+      "arrayExists",
+      "arrayFilter",
+      "arrayFlatten",
+      "arrayFold",
+      "arrayJoin",
+      "arrayMap",
+      "arrayPopBack",
+      "arrayProduct",
+      "arrayPushBack",
+      "arrayReduce",
+      "arrayResize",
+      "arrayReverse",
+      "arrayReverseSort",
+      "arraySlice",
+      "arraySort",
+      "arrayWithConstant",
+      "arrayZip",
+      "base64Decode",
+      "base64Encode",
+      "bitAnd",
+      "bitNot",
+      "bitOr",
+      "bitShiftLeft",
+      "bitShiftRight",
+      "bitXor",
+      "currentUser",
+      "dateName",
+      "endsWith",
+      "extractAll",
+      "formatDateTime",
+      "formatDateTimeInJodaSyntax",
+      "fromUnixTimestamp64Micro",
+      "fromUnixTimestamp64Milli",
+      "groupArray",
+      "ifNull",
+      "isNotNull",
+      "isNull",
+      "lagInFrame",
+      "leadInFrame",
+      "leftUTF8",
+      "lowerUTF8",
+      "makeDate32",
+      "mapKeys",
+      "mapUpdate",
+      "mapValues",
+      "moduloOrZero",
+      "multiIf",
+      "nullIf",
+      "parseDateTime64BestEffort",
+      "quantileExactInclusive",
+      "randCanonical",
+      "replaceAll",
+      "replaceRegexpAll",
+      "replaceRegexpOne",
+      "reverseUTF8",
+      "rightUTF8",
+      "roundBankers",
+      "splitByString",
+      "startsWith",
+      "stddevPopStable",
+      "stddevSampStable",
+      "substringUTF8",
+      "toDateTime64",
+      "toDayOfMonth",
+      "toDayOfWeek",
+      "toDayOfYear",
+      "toDecimal128",
+      "toFloat64",
+      "toHour",
+      "toISOWeek",
+      "toInt128",
+      "toInt64",
+      "toJSONString",
+      "toMinute",
+      "toMonth",
+      "toQuarter",
+      "toSecond",
+      "toStartOfHour",
+      "toStartOfMinute",
+      "toStartOfSecond",
+      "toString",
+      "toUnixTimestamp64Milli",
+      "toYear",
+      "translateUTF8",
+      "tupleElement",
+      "upperUTF8",
+      "varPopStable",
+      "varSampStable"
+    ],
+    "types": {
+      "Nullable(String)": {
+        "compat": "ok",
+        "plain": 50
+      },
+      "Array(Int64)": {
+        "compat": 53,
+        "plain": 50
+      },
+      "Map(String, Float64)": {
+        "compat": 53,
+        "plain": 50
+      },
+      "DateTime64(3)": {
+        "compat": "ok",
+        "plain": "ok"
+      },
+      "Decimal(18, 4)": {
+        "compat": "ok",
+        "plain": "ok"
+      },
+      "String": {
+        "compat": "ok",
+        "plain": 50
+      },
+      "Float64": {
+        "compat": "ok",
+        "plain": 50
+      },
+      "Int64": {
+        "compat": "ok",
+        "plain": 50
+      },
+      "UInt8": {
+        "compat": "ok",
+        "plain": 50
+      },
+      "Date": {
+        "compat": "ok",
+        "plain": "ok"
+      },
+      "Date32": {
+        "compat": "ok",
+        "plain": "ok"
+      },
+      "LowCardinality(String)": {
+        "compat": "ok",
+        "plain": 50
+      },
+      "Tuple(Int64, String)": {
+        "compat": 53,
+        "plain": 50
+      },
+      "Bool": {
+        "compat": "ok",
+        "plain": 50
+      },
+      "UUID": {
+        "compat": 48,
+        "plain": 50
+      }
+    },
+    "counts": {
+      "candidates": 158,
+      "known": 127,
+      "unknown": 31,
+      "knownOnlyWithCompat": 105
+    },
+    "streamingWithCompat": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/x-ndjson; charset=UTF-8",
+        "transfer-encoding": "chunked",
+        "x-timeplus-query-id": "9fe7deac-2f72-49c7-94db-9e57980cfbbc"
+      },
+      "firstBytesMillis": 137,
+      "linesPerSecond": 1.7,
+      "readsPerSecond": 0.3,
+      "sample": [
+        "{\"desk\":\"Rates\",\"mv_usd\":-2021505201.199401,\"n\":4813,\"_tp_delta\":1}",
+        "{\"desk\":\"Probe\",\"mv_usd\":1792636531379,\"n\":1,\"_tp_delta\":1}",
+        "{\"desk\":\"Macro\",\"mv_usd\":-7806273044.050338,\"n\":4817,\"_tp_delta\":1}"
+      ]
+    }
+  }
+}

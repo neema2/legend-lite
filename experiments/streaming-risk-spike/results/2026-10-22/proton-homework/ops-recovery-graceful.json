@@ -1,0 +1,117 @@
+{
+  "kill": "graceful",
+  "killAtSecond": 15.0,
+  "checkpointInterval": 0,
+  "batchesSent": 400,
+  "restart": {
+    "containerSeconds": 10.1,
+    "serverReadySecondsAfterContainer": 0.4,
+    "insertsRefusedSeconds": [
+      10.5
+    ]
+  },
+  "desk": {
+    "reconnects": 2,
+    "errors": [
+      [
+        1792634762.3154254,
+        "EOFError('Unexpected EOF while reading bytes')"
+      ],
+      [
+        1792634762.8169723,
+        "NetworkError('Connection reset by peer (localhost:18463)')"
+      ]
+    ],
+    "tickToSubscriberBefore": {
+      "p50": 19.6,
+      "p95": 110.6
+    },
+    "firstProbeAfterReadyMillis": 429,
+    "tickToSubscriberAfter": {
+      "p50": 49.1,
+      "p95": 107.9
+    }
+  },
+  "checks": {
+    "fresh_desk": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.8305468340939462e-15,
+      "examples": [],
+      "ok": true,
+      "firstRowsMillis": 132.9,
+      "errors": []
+    },
+    "fresh_desk_trader": {
+      "rows": 13,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.4576081562694272e-14,
+      "examples": [],
+      "ok": true,
+      "firstRowsMillis": 139.2,
+      "errors": []
+    },
+    "fresh_book": {
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.511891791428823e-14,
+      "examples": [],
+      "ok": true,
+      "firstRowsMillis": 137.7,
+      "errors": []
+    },
+    "fresh_ccy": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.555832246084961e-15,
+      "examples": [],
+      "ok": true,
+      "firstRowsMillis": 137.3,
+      "errors": []
+    },
+    "fresh_sector": {
+      "rows": 11,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 7.378024553412104e-14,
+      "examples": [],
+      "ok": true,
+      "firstRowsMillis": 127.2,
+      "errors": []
+    },
+    "table_desk": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.8305468340939462e-15,
+      "examples": [],
+      "ok": true
+    },
+    "sharedStreamRows": {
+      "expected": 19278,
+      "got": 19278,
+      "keysWithMoreThanOneRow": 0
+    },
+    "pricesInput": {
+      "rows": 2001,
+      "expected": 2001,
+      "wrong": 0
+    },
+    "reconnected_desk": {
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.0872924080569596e-14,
+      "examples": [],
+      "ok": true
+    }
+  },
+  "allCorrect": true,
+  "rebuild": null,
+  "serverErrorLines": 0,
+  "serverErrorSample": []
+}

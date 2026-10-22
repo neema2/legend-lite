@@ -1,0 +1,143 @@
+{
+  "join": "fx_first",
+  "target": "changelog",
+  "rate": 1000,
+  "scale": 5,
+  "emit": "PERIODIC 100ms",
+  "viewers": 0,
+  "viewerMode": null,
+  "positions": 96001,
+  "instruments": 10001,
+  "loadSeconds": 0.2,
+  "achievedTicksPerSecond": 10033,
+  "batchesPerSecond": 10.0,
+  "engineCpuCores": 1.36,
+  "engineMemoryMB": 4970,
+  "serverRssMB": 1051,
+  "tickToSubscriberMillis": {
+    "p50": 18.2,
+    "p95": 110.0,
+    "p99": 129.5,
+    "n": 94
+  },
+  "drainMillis": 92,
+  "groupingFirstRowsMillis": [
+    202.4,
+    294.6,
+    282.1,
+    178.8,
+    303.3,
+    255.2,
+    326.7,
+    264.9,
+    293.5,
+    215.7,
+    276.5,
+    270.3,
+    224.4,
+    239.6,
+    302.7,
+    277.4
+  ],
+  "viewerFirstRowsMillis": [],
+  "correct": false,
+  "badGroupings": {
+    "0": {
+      "mismatches": 4,
+      "rows": 5,
+      "extra": 0,
+      "error": null
+    },
+    "1": {
+      "mismatches": 12,
+      "rows": 13,
+      "extra": 0,
+      "error": null
+    },
+    "2": {
+      "mismatches": 10,
+      "rows": 11,
+      "extra": 0,
+      "error": null
+    },
+    "3": {
+      "mismatches": 5,
+      "rows": 5,
+      "extra": 0,
+      "error": null
+    },
+    "4": {
+      "mismatches": 10,
+      "rows": 10,
+      "extra": 0,
+      "error": null
+    },
+    "5": {
+      "mismatches": 48,
+      "rows": 49,
+      "extra": 0,
+      "error": null
+    },
+    "6": {
+      "mismatches": 48,
+      "rows": 49,
+      "extra": 0,
+      "error": null
+    },
+    "7": {
+      "mismatches": 50,
+      "rows": 51,
+      "extra": 0,
+      "error": null
+    },
+    "8": {
+      "mismatches": 20,
+      "rows": 21,
+      "extra": 0,
+      "error": null
+    },
+    "9": {
+      "mismatches": 12,
+      "rows": 13,
+      "extra": 0,
+      "error": null
+    },
+    "10": {
+      "mismatches": 12,
+      "rows": 12,
+      "extra": 0,
+      "error": null
+    },
+    "11": {
+      "mismatches": 12,
+      "rows": 12,
+      "extra": 0,
+      "error": null
+    },
+    "12": {
+      "mismatches": 240,
+      "rows": 241,
+      "extra": 0,
+      "error": null
+    },
+    "13": {
+      "mismatches": 1,
+      "rows": 1,
+      "extra": 0,
+      "error": null
+    },
+    "14": {
+      "mismatches": 2136,
+      "rows": 2401,
+      "extra": 0,
+      "error": null
+    },
+    "15": {
+      "mismatches": 480,
+      "rows": 481,
+      "extra": 0,
+      "error": null
+    }
+  },
+  "viewerErrors": []
+}

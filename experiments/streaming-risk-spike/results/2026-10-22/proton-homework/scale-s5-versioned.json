@@ -1,0 +1,17 @@
+{
+  "scale": 5,
+  "target": "versioned",
+  "shape": "shared",
+  "rate": 1000,
+  "positions": 96001,
+  "feedSeconds": 29.9,
+  "lastWriteAfterFeedSeconds": 387.0,
+  "rows": 96035,
+  "expectedRows": 96035,
+  "stalePrice": 0,
+  "staleFx": 0,
+  "wrongValue": 0,
+  "missing": 0,
+  "extra": 0,
+  "correct": true
+}

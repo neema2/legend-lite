@@ -1,0 +1,218 @@
+{
+  "seconds": 30,
+  "shapes": {
+    "avg_by_desk": {
+      "error": null,
+      "firstRowsMillis": 113.1,
+      "rowsReceived": 1881,
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.393861535445235e-14,
+      "examples": [],
+      "ok": true
+    },
+    "ratio_measure_by_desk": {
+      "error": null,
+      "firstRowsMillis": 107.0,
+      "rowsReceived": 1901,
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 5.2872048539086594e-14,
+      "examples": [],
+      "ok": true
+    },
+    "count_distinct_by_desk": {
+      "error": "ServerException('DB::Exception: Method negate is not supported for unique_exact: While executing ChangelogGlobalAggregatingTransform. Stack trace:\\n\\n')",
+      "firstRowsMillis": null,
+      "rowsReceived": 0
+    },
+    "count_distinct_sql_by_desk": {
+      "error": null,
+      "firstRowsMillis": 106.3,
+      "rowsReceived": 1833,
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "max_qty_by_book": {
+      "error": null,
+      "firstRowsMillis": 117.9,
+      "rowsReceived": 19575,
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "min_pnl_by_sector": {
+      "error": null,
+      "firstRowsMillis": 131.3,
+      "rowsReceived": 4097,
+      "rows": 11,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "in_filter": {
+      "error": null,
+      "firstRowsMillis": 202.3,
+      "rowsReceived": 2348,
+      "rows": 6,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.3455523778617477e-14,
+      "examples": [],
+      "ok": true
+    },
+    "calculated_columns": {
+      "error": null,
+      "firstRowsMillis": 155.0,
+      "rowsReceived": 1737,
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.234122329681547e-14,
+      "examples": [],
+      "ok": true
+    },
+    "pivot_by_ccy": {
+      "error": null,
+      "firstRowsMillis": 203.4,
+      "rowsReceived": 1707,
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.241909537832709e-13,
+      "examples": [],
+      "ok": true
+    },
+    "having": {
+      "error": null,
+      "firstRowsMillis": 110.9,
+      "rowsReceived": 8178,
+      "rows": 20,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 8.386933708750907e-15,
+      "examples": [],
+      "ok": true
+    },
+    "stddev_by_desk": {
+      "error": "ServerException('DB::Exception: Method negate is not supported for stddev_pop: While executing ChangelogGlobalAggregatingTransform. Stack trace:\\n\\n')",
+      "firstRowsMillis": null,
+      "rowsReceived": 0
+    },
+    "median_by_desk": {
+      "error": "ServerException('DB::Exception: median aggregation function is not supported in changelog query processing. Stack trace:\\n\\n')",
+      "firstRowsMillis": null,
+      "rowsReceived": 0
+    },
+    "top10_by_abs_pnl": {
+      "error": null,
+      "firstRowsMillis": 195.0,
+      "rowsReceived": 10,
+      "rows": 10,
+      "mismatches": 10,
+      "extraRows": 0,
+      "maxRelativeError": 0.2732103399033139,
+      "examples": [
+        {
+          "key": [
+            "I0808"
+          ],
+          "column": "v",
+          "expected": 52384236.06431812,
+          "got": 51980167.84985393
+        },
+        {
+          "key": [
+            "I0686"
+          ],
+          "column": "v",
+          "expected": 32083738.81606131,
+          "got": 40849348.00336657
+        },
+        {
+          "key": [
+            "I1753"
+          ],
+          "column": "v",
+          "expected": -22769152.00000003,
+          "got": -23340352.00000002
+        }
+      ],
+      "ok": false
+    },
+    "stddev_as_sums_by_desk": {
+      "error": null,
+      "firstRowsMillis": 198.6,
+      "rowsReceived": 1440,
+      "rows": 4,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.0589572768436015e-15,
+      "examples": [],
+      "ok": true
+    },
+    "rank_window": {
+      "error": "ServerException(\"DB::Exception: Missing columns: '_tp_delta' while processing query: 'SELECT\\n  book, v, rank() OVER (ORDER BY v DESC) AS rk, _tp_delta\\nFROM\\n  (\\n    SELECT\\n      book, sum(pnl_usd) AS v\\n    FROM\\n      position_risk_s\\n    GROUP BY\\n      book\\n  )\\nEMIT CHANGELOG PERIODIC 100ms', required columns: 'book' 'v' '_tp_delta' 'book' 'v' '_tp_delta'. Stack trace:\\n\\n\")",
+      "firstRowsMillis": null,
+      "rowsReceived": 0
+    },
+    "detail_rows": {
+      "error": null,
+      "firstRowsMillis": 32.2,
+      "rowsReceived": 252242,
+      "rows": 4812,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 0.0,
+      "examples": [],
+      "ok": true
+    },
+    "top10_periodic": {
+      "error": null,
+      "firstRowsMillis": 192.8,
+      "rowsReceived": 10,
+      "rows": 10,
+      "mismatches": 10,
+      "extraRows": 0,
+      "maxRelativeError": 0.2732103399033139,
+      "examples": [
+        {
+          "key": [
+            "I0808"
+          ],
+          "column": "v",
+          "expected": 52384236.06431812,
+          "got": 51980167.84985393
+        },
+        {
+          "key": [
+            "I0686"
+          ],
+          "column": "v",
+          "expected": 32083738.81606131,
+          "got": 40849348.00336657
+        },
+        {
+          "key": [
+            "I1753"
+          ],
+          "column": "v",
+          "expected": -22769152.00000003,
+          "got": -23340352.00000002
+        }
+      ],
+      "ok": false
+    }
+  }
+}
