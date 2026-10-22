@@ -614,6 +614,18 @@ public final class InferenceKernel {
                 b.bindType(v.name(), commonSupertype(existing, actual));
                 return;
             }
+            // A PARAMETERIZED class meeting a class of ANOTHER raw (Class<Any> meets Type: the
+            // protocol scans' $classes->concatenate($types), $types->remove(Any)): real pure's
+            // covariance walks both raws to their nearest shared ancestor (Class<T> extends Type, so
+            // Type). The two arms above take class pairs and same-raw pairs only, so this pair was
+            // refused (2026-10-22, the reference lane: some 150 bodies legend-pure types).
+            if ((existing instanceof Type.GenericType || actual instanceof Type.GenericType)
+                    && isNominalClass(existing) && isNominalClass(actual)
+                    && !b.isRigid(v.name()) && !b.contravariant()
+                    && Type.schemaView(existing) == null && Type.schemaView(actual) == null) {
+                b.bindType(v.name(), commonSupertype(existing, actual));
+                return;
+            }
             // A variable already bound to a FUNCTION TYPE meeting another function
             // type UNIFIES structurally instead of demanding equality: the
             // existing binding may carry the ENCLOSING function's own type and
@@ -668,6 +680,11 @@ public final class InferenceKernel {
                 b.markRigid(v.name());
             }
         }
+    }
+
+    /** A class, plain or parameterized, other than Any (Any re-binds anything: {@code compatibleRebind}). */
+    private static boolean isNominalClass(Type t) {
+        return (t instanceof Type.ClassType || t instanceof Type.GenericType) && !isAny(t);
     }
 
     /** A concrete VALUE kind — the types real-pure covariance LUBs to Any. */
