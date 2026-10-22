@@ -164,36 +164,64 @@ Alongside the MongoDB line's (the user's rulings of 2026-10-16), so the two non-
 | DH14 | the metamodel store | D13: refused by name | **refused by name** |
 | DH15 | creating tables | (none) | **the store's DDL**: a table with a primary key becomes a keyed input table (its key the declared key), one without an append-only input table. Internal users only (DH11) |
 | DH16 | a table legend-lite did not create | (none) | **checked when a session first reads it**: the server's columns, types and nullability against the declaration, a mismatch refused by name; a write to it refused by name |
-| DH17 | writes | (Mongo's own) | **the platform's write step (§6)**, rendered as an input table's add (replacing the row of the same key, on a keyed table) and delete by key |
+| DH17 | writes | (none planned: test-data loads only) | **the Cypher writes line's four verbs (§6)**, each a table-operation plan then one input-table add or delete; `write` into a keyed table and every verb but `write` on an append-only one refused by name; one write per program |
 | DH18 | names on the server | (none) | **the default schema's names**; a named schema refused until a case (§3) |
 | DH19 | a restart | (none) | **refused by name**: a table missing from the server is reported as missing, never recreated empty by the connector; the publisher recreates and reloads (§7) |
 | DH20 | joins | (Mongo's own) | **`natural_join` where the right side's key is unique** (its declared key covers the join columns, or it was grouped by them); the general `join` for an inner join otherwise; `asOfJoin` as `aj`; a to-many outer join (Deephaven's outer joins are experimental) and a non-equi join refused by name until measured |
 
-## 6. Writes: one platform step, not Deephaven's
+## 6. Writes: the Cypher line's write design, rendered on Deephaven
 
-Writing a relation into a store table is platform work every database needs, and three lines want it:
+Writing into store tables is platform work, and it exists: the Cypher writes line built it
+(`docs/WRITES_DESIGN_2026_10_18.md`, branch `claude/cypher-writes`, not on `main` yet: eight files conflict, none in
+the write path's core) and wrote a note for this line (`docs/WRITES_FOR_STORE_BACKENDS_2026_10_22.md` on that branch).
+It answers what this section left open:
 
-- **BI/ETL**: F1 of `docs/BI_AND_ETL_PLAN_2026_09_29.md` (write a relation into a table, create from a relation's
-  type, replace, merge by key, in one transaction), designed, not built.
-- **Cypher**: `CREATE`, `MERGE`, `SET`, `DELETE`, `REMOVE`, refused by name today (312 conformance scenarios,
-  `docs/CYPHER_STUDY_2026_10_15.md`). Cypher writes objects (a node is an instance, a relationship an association),
-  which is writing through a mapping. A user modelling Cypher's writes has been asked to push that work to a branch
-  (2026-10-22); the write step's vocabulary waits for it.
-- **Deephaven**: replace by key, delete by key, append.
+- **Four table verbs (L1)**, each answering the rows the database affected: append (`rel->write(#>{db.t}#)`), update
+  (`#>{db.t}#->update(r | pred, ~[c: r | expr])`), delete (`#>{db.t}#->delete(r | pred)`), merge
+  (`rel->merge(#>{db.t}#, ~[keys])`); and `stage()`, rows computed once into a session table a program's later
+  statements read. The MIR is `SqlDml` (`InsertSelect`, `Update`, `DeleteWhere`, `Merge`, `CreateTempTableAs`), pure
+  data: **a new backend is a render arm per record, or a refusal by name.**
+- **Class writes (L2)** over a direct mapping (one table, one-column key) are rewritten by the store resolver into L1
+  (`resolver/ClassWrites`), so a dialect only ever sees table writes, as this section asked. Cypher and `#SQL` DML land
+  on the same verbs.
+- **Typing by name** (S97): each column of the rows names a column of the table; `merge`'s keys are columns of both.
+- **All-or-nothing:** a program that writes is one transaction, on one target; the plan path runs it as a `Sequence`
+  of `Update` and `Check` steps on one session. A write across two databases is not covered.
 
-What this line needs from it, and proposes:
+**On Deephaven** (DH17), a keyed input table takes two operations, an add (replacing the row of the same key) and a
+delete by key, and an append-only input table takes an add. Each verb is a table-operation plan computed on the server,
+then one add or delete of its result:
 
-- **The Pure surface** is Pure's own `write(relation, #>{db.table}#)`, lowered to a store table (the stub at
-  `Lowerer.java:3291` replaced), plus whatever the shared design adds for replace, merge by key and **delete** (F1 has
-  no delete; Cypher's design probably settles it).
-- **Writes address tables.** If the shared design writes objects, an object write becomes table writes before any
-  dialect sees it, so Deephaven's dialect only ever renders table writes.
-- **On Deephaven**: an add to a keyed input table replaces the row of the same key (no duplicate-key error), a delete
-  addresses keys, and there is no transaction across statements; each a register row, and whatever of the shared
-  design Deephaven cannot keep (an atomic replace) refused by name.
+| verb | keyed input table | append-only input table |
+|---|---|---|
+| `write` (append) | **refused by name**: an add would replace a row whose key exists, where SQL's insert fails; `merge` says what Deephaven does | the add of the rows |
+| `merge` | keys exactly the table's declared key, else refused by name. The rows naming every column: their add. Naming fewer: the rows natural-joined to the table for the columns they omit, then the add. Every column a key: the rows the table lacks (`where_not_in`), then the add | refused by name |
+| `update` | the table's rows matching the predicate, the assignments applied (`update_view`), then the add; an assignment to a key column refused by name | refused by name |
+| `delete` | the keys of the matching rows (`where`, then the key columns), then the delete | refused by name |
+| `stage` | a table held by the session (an export), released when the program ends | |
+| a `Check` step; minted ids (D4) | refused by name until a case | |
 
-The write step is its own landing (W, §9), owned by whoever builds F1 with the Cypher work, reviewed by this line.
-Nothing before L3's writes waits on it: the model, reads, creating tables and live results land first.
+The count a verb answers is the size of the table added or deleted, which the server reports with the export, so
+Deephaven counts, not Java.
+
+**What Deephaven cannot keep**, each refused by name or registered, never papered over:
+
+1. **No transaction.** Each add or delete applies on its own (in one update cycle: to measure on L3w). A program with
+   more than one write is refused by name on Deephaven; a caller that wants two writes runs two programs, visibly not
+   atomic. A single verb is the server's compute-then-add, so a partial `merge` or an `update` racing another writer
+   can lose that writer's change: registered, as S100's ids are under concurrent writers.
+2. **No defaults:** a `merge` inserting a row whose omitted column is `NOT NULL` is refused by the server's input
+   table, and the connector names it.
+
+**The gap for this line: rows from outside a database.** The design's parameters are values (a write binds them in
+its statement); a write's rows come from a query of the same target. The publisher (§7) and the simulator write rows
+read elsewhere (from DuckDB, from a feed), so they need a **relation-valued parameter**: a slot whose value is typed
+rows, checked against the plan's columns, carried (never computed) by the connector into the target. For Deephaven
+that is an Arrow upload (`DoPut`), for a SQL database the bulk staging `exec.BulkLoad` already does. To propose to the
+Cypher writes line, since it extends their parameter contract.
+
+The write step's landing is the Cypher writes branch reaching `main` (W, §9). Nothing before L3's writes waits on it:
+the model, reads, creating tables and live results land first.
 
 ## 7. The demo world and the publisher
 
@@ -203,8 +231,10 @@ Nothing before L3's writes waits on it: the model, reads, creating tables and li
   the same store or one including it, so the risk join is declared like any join.
 - **The publisher** is legend-lite queries, no Deephaven code: for each reference table, create it on the Deephaven
   runtime from the store's DDL, read it on the source runtime, write the rows into the same table on the Deephaven
-  runtime (two queries: one query, one database; the rows pass between them as typed values, the compiler checking
-  them against the table). On a Deephaven restart it does the same again (DH19).
+  runtime (two queries: one query, one database; the rows pass between them as typed values through the
+  relation-valued parameter, §6's gap, the compiler checking them against the table). On a Deephaven restart it does
+  the same again (DH19). Kept in step afterwards: a `merge` of the source's rows, then a `delete` of the keys the
+  source no longer holds, as two programs (§6: one write per program on Deephaven).
 - **The market-data simulator** writes `price` and `fx` through the same modelled tables in the demo. In production,
   market data would arrive from Kafka straight into Deephaven: read-only tables, still declared in the store (DH16).
 - **The risk view** is a legend-lite query (the Relation API or a class `project()`), subscribed by DataCube. Deephaven
@@ -233,8 +263,9 @@ Nothing before L3's writes waits on it: the model, reads, creating tables and li
 | L1 | `claude/deephaven-1-model` (on main) | `DatabaseType.Deephaven` (a lite type) and its switch arms, each refusing by name until L2/L3; `ConnectionSpecification.Deephaven`, `AuthenticationSpec.PreSharedKey`: parser (both dialects), protocol records, composer, JSON, `ConnectionWire`'s tags, `ConnectorsTest`'s rows; the binding check (§3's types, DH18), each refusal a `ReferenceIntegrityTest` case through both doors; register rows | `//gates:local`, `//gates:parser_equivalence`; the Studio line reviews the grammar |
 | L2 | `claude/deephaven-2-target` (on L1) | `sql/dialect/Deephaven.java` (`SqlDialect` whole): reads first, the shapes DataCube writes (scan, filter, project, extend, group-by, sort, limit, joins per DH20), then class queries through mappings; DDL as input tables (DH15); every other IR node, function and aggregate refused by name; unit tests on the plan text, as `MongoDbDialectTest` | the dialect's tests; every existing lane's dump unchanged |
 | L3 | `claude/deephaven-3-connector` (on L2, after the Mongo branch merges its seam) | `core/src/main/deephaven`: `rows` over Arrow Flight, `subscribe` with its handle, creating tables, the schema check (DH16), the missing-table refusal (DH19); the `@maven_deephaven` pool; the pinned test server and `DeephavenBackend`; the opt-in server target; the guards' additive lines, each dated | lite's own Deephaven cases, answered on DuckDB and on Deephaven and compared row for row; then the PCT lanes, as every database's |
-| W | (the write step's own branch) | §6: writes to store tables on every database, with the Cypher author's design and F1 | its owner's tests on every dialect; this line reviews |
-| L3w | on L3 and W | Deephaven's write arms (DH17) | the write cases, DuckDB against Deephaven |
+| W | `claude/cypher-writes` reaching `main` (the Cypher writes line's landing, its owner's call) | §6: the four verbs, staging, class writes, write plans | its own gates (`WritePlansTest` and the rest on DuckDB, H2, Postgres) |
+| Wr | (proposed to the Cypher writes line) | a relation-valued parameter: rows from outside a database into a write (§6's gap) | its owner's tests; this line's publisher |
+| L3w | on L3, W and Wr | Deephaven's write arms (DH17, §6's table) | the write cases, DuckDB against Deephaven |
 | L4 | `claude/deephaven-4-datacube`, stacked on the DataCube line's `claude/datacube-query-base` (da0f5aec1) | DataCube's ticking mode (§10) | the DataCube line reviews |
 | L5 | a demo module | §7: the store, its classes and mappings, the two runtimes, the publisher, the simulator | runs, and its risk agrees with DuckDB's over the same inputs |
 
@@ -264,8 +295,8 @@ The user's shape: built here on a branch stacked on the DataCube line's, reviewe
 
 1. **Deephaven is lite's own design**, not legend-engine's Deephaven extension: a `###Relational` store, `type:
    Deephaven`, its specification and pre-shared key as lite's, execution by table operations (this document).
-2. On Deephaven, a write into a keyed table replaces the row of the same key; there is no transaction across
-   statements (with W, L3w).
+2. On Deephaven, a program writes at most once (no transaction), and a partial `merge` or an `update` is a
+   compute-then-add that a concurrent writer can race (L3w).
 3. On Deephaven, a value equal to a primitive column's null sentinel cannot be stored, and is refused (L3).
 4. A Deephaven result is typed rows; its served text forms are refused until host renderers exist.
 5. Formula semantics that differ from SQL's, one row each as the lanes find them (L3).
