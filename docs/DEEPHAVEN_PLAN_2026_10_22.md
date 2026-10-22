@@ -1,7 +1,8 @@
 # Deephaven as a database of legend-lite: the design (2026-10-22)
 
 **Status: PROPOSED. Nothing here is built.** The architecture follows the MongoDB line's
-(`docs/MONGODB_PLAN_2026_10_16.md`), reviewed and agreed by that line on 2026-10-22 (§7). **legend-engine's Deephaven
+(`docs/MONGODB_PLAN_2026_10_16.md`), reviewed and agreed by that line on 2026-10-22 (§7); the model and grammar part
+reviewed and agreed by the Studio line on 2026-10-22 (§2's two dialects, PARK-38). **legend-engine's Deephaven
 extension is not the reference** (the user, 2026-10-22: it is half built and does not work): what the store means,
 which types it has, what is checked and how it executes are decided here, on what is right for legend-lite. The model
 part is the Studio line's leg 10, which the Studio line reviews.
@@ -79,6 +80,14 @@ Deephaven risk::live::Store
 )
 ```
 
+**The grammar's two dialects (rule A, S89; the Studio line's convention, 2026-10-22).** At `Dialect.LEGEND_LITE`
+(the compile paths) the parser reads the additions; at `Dialect.LEGEND_ENGINE` (`grammarToJson`, the SDLC entity
+JSON, `ModelChanges`) it reads exactly what legend-engine's grammar reads, so `LONG`, `DATE`, `NOT NULL`,
+`PRIMARY KEY` and `InputTable` in a `###Deephaven` section are refused there, by name and positioned. lite's JSON
+carries the new fields whole and reads them back. One test per construct, in `EngineDropsTest`'s shape: the lite
+dialect reads it and the round trip keeps it; the engine dialect refuses it. `//gates:parser_equivalence` guards that
+no engine text parses differently.
+
 A table reference `#>{risk::live::Store.prices}#` resolves as any table's does (`TableReferenceChecker`, the records
 `DatabaseDefinition` holds); a Deephaven store has no schemas, so a three-part reference is an unknown table.
 
@@ -144,7 +153,7 @@ All in lite's own words, each a case in `ReferenceIntegrityTest` (or the model-d
 
 | # | branch | content | judge |
 |---|---|---|---|
-| L1 | `claude/deephaven-1-model` (on main) | `DatabaseType.Deephaven` and its switch arms (each refusing by name until L2); the grammar's additions (§2: `LONG`, `DATE`, `NOT NULL`, `PRIMARY KEY`, `InputTable`) through the parser, the protocol records, the composer and the JSON; `model/DeephavenDeclarations.java` beside `MongoDeclarations` (the store into `DatabaseDefinition`, the connection into `ConnectionDefinition` with `ServerUrl` and `PreSharedKey`); `ConnectionWire`'s tag and `ConnectorsTest`'s row for `ServerUrl`; the `foreignConnections` gaps closed; §5's model-side cases; register rows; PARK-38 marked for Deephaven | `//gates:local`, `//gates:parser_equivalence`; the Studio line reviews |
+| L1 | `claude/deephaven-1-model` (on main) | `DatabaseType.Deephaven` and its switch arms (each refusing by name until L2); the grammar's additions (§2: `LONG`, `DATE`, `NOT NULL`, `PRIMARY KEY`, `InputTable`) through the parser, the protocol records, the composer and the JSON; `model/DeephavenDeclarations.java` beside `MongoDeclarations` (the store into `DatabaseDefinition`, the connection into `ConnectionDefinition` with `ServerUrl` and `PreSharedKey`); `ConnectionWire`'s tag and `ConnectorsTest`'s row for `ServerUrl`; the `foreignConnections` gaps closed; §5's model-side cases; register rows; PARK-38's entry rewritten for Deephaven (lite's own checks, in lite's words: its acceptance clause names the engine's extensions) | `//gates:local`, `//gates:parser_equivalence`; the Studio line reviews |
 | L2 | `claude/deephaven-2-target` (on L1) | `sql/dialect/Deephaven.java` (`SqlDialect` whole): the relation shapes DataCube writes first (scan, filter, project, extend, group-by with sums, sort, limit, natural and left joins), every other IR node, function and aggregate refused by name; unit tests on the plan text, as `MongoDbDialectTest` | the dialect's tests; every existing lane's dump unchanged |
 | L3 | `claude/deephaven-3-connector` (on L2, after the Mongo branch merges its seam) | `core/src/main/deephaven`: `rows` over Arrow Flight, `subscribe` with its handle, input tables (DH15), the schema check (DH16); the `@maven_deephaven` pool; the pinned test server and `DeephavenBackend`; the opt-in server target; the guards' additive lines, each dated | lite's own Deephaven cases, each answered on DuckDB and on Deephaven and compared row for row; then the PCT lanes, as every database's |
 | L4 | the DataCube line's (or stacked on theirs) | DataCube's ticking mode over the handle | the DataCube line's |
@@ -169,9 +178,9 @@ All in lite's own words, each a case in `ReferenceIntegrityTest` (or the model-d
    `DatabaseConnector` gains `ownSessions()` and `open(ConnectionDefinition)`, and the connection codec is
    `model/ConnectionWire`: L3 uses those.
 
-## 8. Register rows (`docs/SEMANTICS_REGISTER.md`, from S105: main holds S76-S96, the MongoDB branch S97-S104)
+## 8. Register rows (`docs/SEMANTICS_REGISTER.md`: the next number free on main when L1 lands; main holds up to S96, the MongoDB branch S97-S104, and the imports branch may renumber around S89-S96, so the number is checked at landing)
 
-1. **Deephaven is lite's own design**, not legend-engine's Deephaven extension: types, nullability, input tables, the
-   connection's key as a vault reference, execution by table operations (this document).
+1. **Deephaven is lite's own design**, not legend-engine's Deephaven extension: types, columns `[0..1]` unless
+   `NOT NULL`, input tables, the connection's key as a vault reference, execution by table operations (this document).
 2. `DatabaseType.Deephaven` is lite's, as S48's types and Mongo's are.
 3. A Deephaven result is typed rows; its served text forms are refused until host renderers exist.
