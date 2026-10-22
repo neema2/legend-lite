@@ -101,6 +101,7 @@ final class FoldToListReduce extends SqlRewriter {
             case SqlExpr.Group g ->
                     new SqlExpr.Group(unwrapElemRefs(g.inner(), elem));
             case SqlExpr.PlanParam v -> v;
+            case SqlExpr.KeyCell v -> v;
             case SqlExpr.StringLit v -> v;
             case SqlExpr.IntLit v -> v;
             case SqlExpr.FloatLit v -> v;

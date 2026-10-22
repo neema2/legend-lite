@@ -134,6 +134,17 @@ public final class BigQuery extends AnsiSqlRenderer {
 
     /** No native pivot is used: a static pivot is emulated by the carrier strategies (GROUP BY with one filtered
      *  aggregate per value), so a dynamic pivot is discovered first. */
+    // the probe plan's facts (2026-10-20): BigQuery: a transaction needs a session script; 10,000 columns in a query result (its documented quota)
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.NONE;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return 10000;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;
@@ -151,6 +162,14 @@ public final class BigQuery extends AnsiSqlRenderer {
      *  mixed list's sort was 436 KB, measured 2026-10-11). */
     @Override
     protected boolean bindsFloatText() {
+        return true;
+    }
+
+    /** A Float's print forms over the value and its text bound once: the portable spellings read the text nine times
+     *  (Pure's) and over a thousand (legend-engine's), each read this dialect's text of a double, its own subquery (the
+     *  served statement for {@code 1.5 + 2.25} was 321 KB, measured 2026-10-22). */
+    @Override
+    protected boolean bindsFloatPrint() {
         return true;
     }
 
@@ -794,6 +813,29 @@ public final class BigQuery extends AnsiSqlRenderer {
         return out != null ? aliasIdent(out.name()) : super.implicitLabel(p);
     }
 
+    /** A NULL of {@code type}, or a bare one where the type is not known. */
+    private String nullOf(@com.legend.base.Nullable SqlType type) {
+        return type == null ? "NULL" : "CAST(NULL AS " + bqType(type) + ")";
+    }
+
+    /** A projection that IS error() is raised in its column's type: a bare ERROR is typed INT64 here, and a read of
+     *  the column as its type is refused before the statement runs (testNewDateError's date(2016, 13), "Invalid cast
+     *  from INT64 to DATETIME", on the lane 2026-10-21, where every other lane raised the test's own message). A
+     *  DATETIME is the raise typed as text and cast: an IF or a CASE of a DATETIME with an ERROR branch fails before it
+     *  raises ("Function is not implemented. id: cast_datetime_to_datetime", with or without a cast around it), where
+     *  one of a STRING, a DATE or a TIMESTAMP raises the message (measured on the lane the same day). */
+    @Override
+    protected SqlWriter projectionValue(SqlWriter writer, SqlSelect.Projection p) {
+        if (p.out() != null && p.expr() instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR) {
+            String type = bqType(p.out().type());
+            boolean datetime = type.equals("DATETIME");
+            writer.append(datetime ? "CAST(IF(TRUE, " : "IF(TRUE, ");
+            raiseEnvelope(writer, call.args(), "ERROR");
+            return writer.append(datetime ? ", CAST(NULL AS STRING)) AS DATETIME)" : ", CAST(NULL AS " + type + "))");
+        }
+        return super.projectionValue(writer, p);
+    }
+
     /** A NULL under a list, struct or decimal slot is typed as the slot (a bare NULL is an INT64). */
     @Override
     protected SqlWriter projection(SqlWriter writer, SqlSelect.Projection p) {
@@ -1291,6 +1333,14 @@ public final class BigQuery extends AnsiSqlRenderer {
 
     /** {@code value} (of type {@code from}, when known) cast to {@code to}. */
     private SqlWriter.Piece castTo(SqlWriter.Piece value, @com.legend.base.Nullable SqlType from, SqlType to) {
+        // BigQuery's DATETIME and TIMESTAMP hold microseconds and refuse a text with more fraction digits ("Invalid
+        // datetime string \"2026-01-08T00:00:00.000000000\"": the judges' grid decode writes nine, channel B's
+        // lead-adjust tests on the lane, 2026-10-21); the fraction is cut to six, as DuckDB's cast reads such a text
+        if (from == SqlType.Scalar.VARCHAR && (to == SqlType.Scalar.TIMESTAMP || to == SqlType.Scalar.TIMESTAMPTZ)) {
+            return w -> w.append("CAST(REGEXP_REPLACE(").piece(value).append(", ")
+                    .append(stringLit("(\\.[0-9]{6})[0-9]+")).append(", ").append(stringLit("\\1")).append(") AS ")
+                    .append(bqType(to)).append(")");
+        }
         if (to instanceof SqlType.Decimal d) {
             return w -> w.append("ROUND(CAST(").piece(value).append(" AS BIGNUMERIC), " + d.scale() + ")");
         }
@@ -1321,11 +1371,48 @@ public final class BigQuery extends AnsiSqlRenderer {
     /** DuckDB's text of a value of {@code type}: a whole Float keeps its {@code .0} (CAST(1.0 AS STRING) is '1' here,
      *  '1.0' on DuckDB, measured); a date-time trims trailing fraction zeros and its point ({@code %E*S}, measured
      *  equal to DuckDB's); a nested value is its JSON text; anything else its CAST. */
+    /**
+     * A Float's text as DuckDB's cast writes it: the shortest digits that read back as the same double (Java's rule),
+     * plain where the exponent is from -4 to 15 with an integral value's {@code .0}, else with its exponent. BigQuery's
+     * own cast writes seventeen significant digits (pi() '3.1415926535897931', 1.1 / 2.1 '0.52380952380952384': three
+     * PCT tests passing at the merge-base failed on the plan route, which has the database print a Float), and FORMAT's
+     * %.16g and %.17g are not correctly rounded (185.46332835263038 as '185.46332835263039'; 630 of 1,837 doubles wrong,
+     * measured on the lane 2026-10-21). The plain range's digits come from the double's exact decimal instead: its
+     * BIGNUMERIC (38 decimals), rounded to 15, 16 and 17 significant digits, the first whose text reads back as the value
+     * taken (a double's shortest digits are at most 17, and at 15 or fewer they are its 15-digit rounding); a tie is
+     * rounded to the even digit, as Java breaks one (-754686444319231.25 is -754686444319231.2; ROUND's own half away
+     * from zero wrote .3 for six of 1,171 plain-range doubles, measured on the lane against 441f207a). Elsewhere
+     * the text is the cast's, which reads back as the value. The value is bound once, in a one-row derived table under a
+     * scalar subquery (the form the Float canon's binding takes here, {@link #bindsFloatText}).
+     */
+    private SqlWriter.Piece floatText(SqlWriter.Piece x) {
+        String v = param("__fv");
+        String n = param("__fn");
+        String e = param("__fe");
+        String r = param("__fr");
+        SqlWriter.Piece rounded = w -> {
+            w.append("CASE");
+            for (int digits = 15; digits <= 16; digits++) {
+                String round = "ROUND(" + n + ", " + (digits - 1) + " - " + e + ", 'ROUND_HALF_EVEN')";
+                w.append(" WHEN SAFE_CAST(CAST(" + round + " AS STRING) AS FLOAT64) = " + v + " THEN " + round);
+            }
+            w.append(" ELSE ROUND(" + n + ", 16 - " + e + ", 'ROUND_HALF_EVEN') END");
+        };
+        return w -> w.append("(SELECT CASE WHEN IS_NAN(" + v + ") OR IS_INF(" + v + ") THEN CAST(" + v + " AS STRING)"
+                + " WHEN " + v + " = 0 OR (ABS(" + v + ") >= 1e-4 AND ABS(" + v + ") < 1e16) THEN (CASE WHEN STRPOS(" + r
+                + ", '.') = 0 THEN CONCAT(" + r + ", '.0') ELSE " + r + " END) ELSE CAST(" + v + " AS STRING) END"
+                + " FROM (SELECT " + v + ", CAST(").piece(rounded).append(" AS STRING) AS " + r
+                + " FROM (SELECT " + v + ", " + n + ", CASE WHEN " + n + " IS NULL OR " + n + " = 0 THEN 0"
+                + " WHEN ABS(" + n + ") >= 1 THEN LENGTH(CAST(TRUNC(ABS(" + n + ")) AS STRING)) - 1"
+                + " ELSE -1 - LENGTH(REGEXP_EXTRACT(CAST(ABS(" + n + ") AS STRING), ")
+                .append(stringLit("^0\\.(0*)")).append(")) END AS " + e
+                + " FROM (SELECT " + v + ", SAFE_CAST(" + v + " AS BIGNUMERIC) AS " + n + " FROM (SELECT ").piece(x)
+                .append(" AS " + v + ")))))");
+    }
+
     private SqlWriter.Piece textOf(SqlWriter.Piece value, @com.legend.base.Nullable SqlType type) {
         if (type == SqlType.Scalar.DOUBLE) {
-            SqlWriter.Piece s = w -> w.append("CAST(").piece(value).append(" AS STRING)");
-            return w -> w.append("(CASE WHEN REGEXP_CONTAINS(").piece(s).append(", ").append(stringLit("^-?[0-9]+$"))
-                    .append(") THEN CONCAT(").piece(s).append(", '.0') ELSE ").piece(s).append(" END)");
+            return floatText(value);
         }
         if (type == SqlType.Scalar.TIMESTAMP) {
             return w -> w.append("FORMAT_DATETIME('%Y-%m-%d %H:%M:%E*S', ").piece(value).append(")");
@@ -1370,6 +1457,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
             case ROUND -> roundHalfEven(writer, c.args());
@@ -1391,7 +1479,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case ATAN2 -> writer.function("ATAN2", c.args());
             case CBRT -> writer.function("CBRT", c.args());
             case CHR -> writer.function("CHR", c.args());
-            case COALESCE -> writer.function("COALESCE", c.args());
+            case COALESCE -> coalesceArm(writer, c);
             case COS -> writer.function("COS", c.args());
             case COSH -> writer.function("COSH", c.args());
             case COT -> writer.function("COT", c.args());
@@ -1535,10 +1623,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             // NULL ++ xs is xs, as DuckDB's list_concat (measured)
             case LIST_CONCAT -> writer.append("ARRAY_CONCAT(").join(a, ", ", (w, x) -> w.append("IFNULL(").expr(x, 0)
                     .append(", ").append(emptyList(listElement(x) != null ? x : c)).append(")")).append(")");
-            // 1-based, negative from the end, 0 and out of range NULL (DuckDB's list_extract, measured)
-            case LIST_GET -> writer.append("(").expr(a.get(0), 0).append(")[SAFE_OFFSET(CASE WHEN ").expr(a.get(1), 4)
-                    .append(" < 0 THEN ARRAY_LENGTH(").expr(a.get(0), 0).append(") + CAST(").expr(a.get(1), 0)
-                    .append(" AS INT64) ELSE CAST(").expr(a.get(1), 0).append(" AS INT64) - 1 END)]");
+            case LIST_GET -> listGet(writer, c);
             // DuckDB's list_position: 1-based, NULL when absent, a NULL needle found by IS NOT DISTINCT FROM
             // (measured)
             case LIST_POSITION -> writer.append("(SELECT MIN(" + param("__o") + ") + 1 FROM ")
@@ -1584,17 +1669,54 @@ public final class BigQuery extends AnsiSqlRenderer {
                     maps(writer, c);
 
             // ---- variant
-            // in DuckDB's json_type vocabulary, which the lowering compares against: a whole number is a BIGINT,
-            // any other a DOUBLE (JSON_TYPE answers lowercase names, 'number' for both, measured)
-            case JSON_TYPE -> writer.append("(CASE JSON_TYPE(").expr(a.get(0), 0)
-                    .append(") WHEN 'null' THEN 'NULL' WHEN 'string' THEN 'VARCHAR' WHEN 'boolean' THEN 'BOOLEAN'")
-                    .append(" WHEN 'array' THEN 'ARRAY' WHEN 'object' THEN 'OBJECT' WHEN 'number' THEN CASE WHEN")
-                    .append(" REGEXP_CONTAINS(TO_JSON_STRING(").expr(a.get(0), 0)
-                    .append("), " + stringLit("^-?[0-9]+$") + ") THEN 'BIGINT' ELSE 'DOUBLE' END END)");
+            case JSON_TYPE -> jsonType(writer, c);
             case JSON_ARRAY_LENGTH -> writer.append("ARRAY_LENGTH(JSON_QUERY_ARRAY(").expr(a.get(0), 0).append("))");
             case JSON_PRETTY -> throw wall(c.fn(), "BigQuery has no JSON pretty-printer");
             case JSON_MERGE_PATCH -> throw wall(c.fn(), "BigQuery has no JSON merge patch");
         };
+    }
+
+    /** COALESCE: a text operand beside a JSON one is parsed, as Trino's json_parse (BigQuery's COALESCE takes one type:
+     *  "No matching signature for function COALESCE | Argument types: JSON, STRING", an instance canon's empty key
+     *  '[]' beside a nested instance's canon object; the zips of Pairs of Pairs, measured on the lane 2026-10-21). Out
+     *  of {@link #call} since 2026-10-22, its length. */
+    private SqlWriter coalesceArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.stream().anyMatch(BigQuery::isJson) && a.stream().anyMatch(BigQuery::isText))) {
+            return writer.function("COALESCE", c.args());
+        }
+        return writer.append("COALESCE(").join(a, ", ", (w, e) -> {
+            if (isText(e)) {
+                w.append("PARSE_JSON(").expr(e, 0).append(")");
+            } else {
+                w.expr(e, 0);
+            }
+        }).append(")");
+    }
+
+    /** LIST_GET: 1-based, negative from the end, 0 and out of range NULL (DuckDB's list_extract, measured); a NULL
+     *  list's element is its type's NULL: a bare NULL is an INT64 here, which takes no subscript ([]->head():
+     *  "Subscript access using [SAFE_OFFSET()] is not supported on values of type INT64", testHeadOnEmptySet on the
+     *  lane, 2026-10-21). */
+    private SqlWriter listGet(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (nullList(a.get(0))) {
+            return writer.append(nullOf(typeOf(c)));
+        }
+        return writer.append("(").expr(a.get(0), 0).append(")[SAFE_OFFSET(CASE WHEN ").expr(a.get(1), 4)
+                .append(" < 0 THEN ARRAY_LENGTH(").expr(a.get(0), 0).append(") + CAST(").expr(a.get(1), 0)
+                .append(" AS INT64) ELSE CAST(").expr(a.get(1), 0).append(" AS INT64) - 1 END)]");
+    }
+
+    /** JSON_TYPE, in DuckDB's json_type vocabulary, which the lowering compares against: a whole number is a BIGINT,
+     *  any other a DOUBLE (JSON_TYPE answers lowercase names, 'number' for both, measured). */
+    private SqlWriter jsonType(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        return writer.append("(CASE JSON_TYPE(").expr(a.get(0), 0)
+                .append(") WHEN 'null' THEN 'NULL' WHEN 'string' THEN 'VARCHAR' WHEN 'boolean' THEN 'BOOLEAN'")
+                .append(" WHEN 'array' THEN 'ARRAY' WHEN 'object' THEN 'OBJECT' WHEN 'number' THEN CASE WHEN")
+                .append(" REGEXP_CONTAINS(TO_JSON_STRING(").expr(a.get(0), 0)
+                .append("), " + stringLit("^-?[0-9]+$") + ") THEN 'BIGINT' ELSE 'DOUBLE' END END)");
     }
 
     /** The {@code EQUAL}, {@code NOT_EQUAL} arm of {@link #call}. */

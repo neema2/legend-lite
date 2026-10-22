@@ -32,14 +32,13 @@ public class Test_LegendLite_SQLite_UnclassifiedFunctions_PCT extends PCTReportC
     // row is the platform's own (pinned on the DuckDB lane too), or a measured limit of SQLite.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
             // SQLITE'S OWN LIMIT: no users (an embedded database has no session user)
-            one("meta::pure::functions::runtime::currentUserId::testCurrentUserId_Function_1__Boolean_1_", "\"CURRENT_USER_FN reached SQLite: SQLite has no users\""),
-            // SQLITE'S OWN LIMIT: no digest function (MD5, SHA-1, SHA-256) in the driver's build
-            one("meta::pure::functions::hash::tests::testMD5Hash_Function_1__Boolean_1_", "\"MD5 reached SQLite: SQLite has no digest function\""),
-            one("meta::pure::functions::hash::tests::testSHA1Hash_Function_1__Boolean_1_", "\"SHA1 reached SQLite: SQLite has no digest function\""),
-            one("meta::pure::functions::hash::tests::testSHA256Hash_Function_1__Boolean_1_", "\"SHA256 reached SQLite: SQLite has no digest function\""),
-            // SQLITE'S OWN LIMIT: no Jaro-Winkler similarity function (as on Postgres and the clouds)
-            one("meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityEqual_Function_1__Boolean_1_", "\"JARO_WINKLER reached SQLite: SQLite has no string-distance function\""),
-            one("meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityNotEqual_Function_1__Boolean_1_", "\"JARO_WINKLER reached SQLite: SQLite has no string-distance function\"")
+            one("meta::pure::functions::runtime::currentUserId::testCurrentUserId_Function_1__Boolean_1_", "\"CURRENT_USER_FN reached SQLite: SQLite has no users\"")
+            // NOTE 2026-10-20 (the parity phase, second batch): testMD5Hash, testSHA1Hash and testSHA256Hash unpinned
+            // -- each digest is written in SQLite's own SQL, recursive walks over the text's UTF-8 bytes, measured
+            // bit-equal to the JDK's (SqliteDigests)
+            // NOTE 2026-10-20 (the parity phase, second batch): testJaroWinklerSimilarityEqual and
+            // testJaroWinklerSimilarityNotEqual unpinned -- the similarity is a recursive walk over the texts'
+            // characters, measured bit-equal to DuckDB's jaro_winkler_similarity (SQLite.jaroWinkler)
     );
 
     public static Test suite() {

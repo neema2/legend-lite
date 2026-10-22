@@ -168,7 +168,32 @@ public final class Snowflake extends AnsiSqlRenderer {
                 + " MULTI_STATEMENT_COUNT = 0, JSON_INDENT = 0, STRICT_JSON_OUTPUT = TRUE");
     }
 
+    /** {@inheritDoc} Spelled here ({@link #floatCanon}): the portable spelling reads this dialect's long double text some
+     *  fifty times. */
+    @Override
+    protected boolean spellsFloatCanon() {
+        return true;
+    }
+
+    /** {@inheritDoc} Spelled here ({@link #floatPrint}, {@link #floatPrintEngine}): the portable spellings read this
+     *  dialect's long double text some nine times (Pure's print form) and over a thousand (legend-engine's text). */
+    @Override
+    protected boolean spellsFloatPrint() {
+        return true;
+    }
+
     /** A dynamic pivot is discovered first: the static form is emulated (PivotAsGroupBy). */
+    // the probe plan's facts (2026-10-20): Snowflake: READ COMMITTED only, each statement its own snapshot; no result column limit documented
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.NONE;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return null;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;
@@ -232,6 +257,14 @@ public final class Snowflake extends AnsiSqlRenderer {
             return name;
         }
         return delimited(name);
+    }
+
+    /** A CTE's name quoted as every identifier is: written bare it folds to upper case, and a reference written as a
+     *  table is quoted -- the database judge's verdict read its CTEs so and was refused "Object '"__se"' does not
+     *  exist" on every channel B test (measured on the lane, 2026-10-21). */
+    @Override
+    protected String cteName(String name) {
+        return ident(name);
     }
 
     /** Alias-less projections label EXPLICITLY from the declared output: Snowflake labels an expression by its
@@ -405,6 +438,11 @@ public final class Snowflake extends AnsiSqlRenderer {
     @Override
     protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
         return switch (e) {
+            // a dynamic pivot's per-key column is the base's per-key name, its key written in by the runner: read as a
+            // plain column it named no column ("invalid identifier '"_pct0"."_u0"'", the ten dynamic pivots on the
+            // lane at 9dfb0ae1, 2026-10-21)
+            case SqlExpr.Column c when c.origin() == com.legend.sql.OutputCol.Origin.PER_KEY ->
+                    super.expr(writer, e, parentPrec);
             case SqlExpr.Column c -> column(writer, c);
             case SqlExpr.OrderedListAgg ola -> writer.append("ARRAY_AGG(").piece(keepNull(ola.value()))
                     .append(") WITHIN GROUP (ORDER BY ").expr(ola.orderBy(), 0).append(")");
@@ -862,7 +900,12 @@ public final class Snowflake extends AnsiSqlRenderer {
                                 new Param(l.params().get(1), t)), Map.of(),
                                 w -> w.append("CAST(").expr(l.body(), 0).append(" AS " + t + ")"))).append(")");
             }
-            case TYPEOF -> throw wall(fn, "TYPEOF names Snowflake's variant types, not DuckDB's");
+            // the value's type, compared only with typeofName's: the judges' grid sides read a declared timestamp's
+            // DATE cells by it (channel B's testExtendLeadAdjustDerivedOffset and testProjectExtendNestedIfLeadAdjust)
+            // TYPEOF of the value as a VARIANT ('DATE', 'TIMESTAMP_NTZ'): SYSTEM$TYPEOF in the judges' grid decode
+            // aborted the statement with an internal error ("Processing aborted due to error 300010:558931247", on
+            // the lane at a76cffee, 2026-10-21)
+            case TYPEOF -> writer.append("TYPEOF(TO_VARIANT(").expr(a.get(0), 0).append("))");
             default -> throw new IllegalStateException("not a list call: " + fn);
         };
     }
@@ -1279,11 +1322,8 @@ public final class Snowflake extends AnsiSqlRenderer {
             return writer.append("CAST(REGEXP_REPLACE(").expr(v, 0)
                     .append(", '([+-][0-9]{2})([0-9]{2})$', '\\\\1:\\\\2') AS TIMESTAMP_LTZ)");
         }
-        // DuckDB's Float text keeps an integral value's '.0' (-1.0, where Snowflake writes -1, measured)
         if (target == SqlType.Scalar.VARCHAR && isDouble(v)) {
-            writer.append("REGEXP_REPLACE(");
-            super.variantAwareCast(writer, c);
-            return writer.append(", '^(-?[0-9]+)$', '\\\\1.0')");
+            return floatText(writer, v);
         }
         // DuckDB's timestamp text: the seconds' fraction to its last nonzero digit, none when zero (measured form)
         if (target == SqlType.Scalar.VARCHAR && isTimestamp(v)) {
@@ -1329,7 +1369,12 @@ public final class Snowflake extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case MOD -> modFloored(writer, c.args());
             case REM -> modTruncated(writer, c.args());
-            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case FLOAT_CANON -> floatCanon(writer, a.get(0));
+            // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
+            // it, which is exact, as the portable spelling read it
+            case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT_ENGINE -> isDouble(a.get(0)) ? floatPrintEngine(writer, a.get(0))
+                    : floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1350,7 +1395,21 @@ public final class Snowflake extends AnsiSqlRenderer {
             case ATAN2 -> writer.function("atan2", c.args());
             case CBRT -> writer.function("cbrt", c.args());
             case CHR -> writer.function("chr", c.args());
-            case COALESCE -> writer.function("coalesce", c.args());
+            // a text operand beside a JSON one is parsed, and each JSON one read as a VARIANT: Snowflake coerces to
+            // the first operand's type ("Can not convert parameter ''[]'' of type [VARCHAR(2)] into expected type
+            // [OBJECT]": an instance canon's empty key '[]' beside a nested instance's canon object, the zips of Pairs
+            // of Pairs, measured on the lane 2026-10-21; Trino's json_parse and BigQuery's PARSE_JSON likewise)
+            case COALESCE -> a.stream().anyMatch(Snowflake::isJson) && a.stream().anyMatch(Snowflake::isText)
+                    ? writer.append("coalesce(").join(a, ", ", (w, e) -> {
+                        if (isText(e)) {
+                            w.append("PARSE_JSON(").expr(e, 0).append(")");
+                        } else if (isJson(e)) {
+                            w.append("TO_VARIANT(").expr(e, 0).append(")");
+                        } else {
+                            w.expr(e, 0);
+                        }
+                    }).append(")")
+                    : writer.function("coalesce", c.args());
             case COS -> writer.function("cos", c.args());
             case COSH -> writer.function("cosh", c.args());
             case COT -> writer.function("cot", c.args());
@@ -1734,6 +1793,184 @@ public final class Snowflake extends AnsiSqlRenderer {
             case SqlType.Map m -> w -> w.append("OBJECT_CONSTRUCT('error', ").piece(number).append(")");
             case SqlType.Struct st -> w -> w.append("OBJECT_CONSTRUCT('error', ").piece(number).append(")");
         };
+    }
+
+    /**
+     * A Float's text as DuckDB's cast writes it: the shortest digits that read back as the same double (Java's rule),
+     * plain where the exponent is from -4 to 15 with an integral value's {@code .0}, else with its exponent. Snowflake's
+     * own cast writes ten significant digits ({@code EXP(1)} '2.718281828'; 22 PCT tests passing at the merge-base
+     * failed on the plan route, which has the database print a Float). Measured on the lane, 2026-10-21: the formatter
+     * caps a double at sixteen digits and is not correctly rounded at seventeen even from an exact decimal
+     * (1948878528.8944077 as ...078, a tie half up; 29 of 1,837 doubles wrong); its {@code =} and TO_DOUBLE are exact.
+     * So the digits come from the double's exact decimal ({@link #shortestDigits}), and the text is those digits placed
+     * by their exponent. NaN and the infinities are Snowflake's own. A subnormal double's digits are its 15-digit
+     * rounding where Java's are fewer (4.94065645841247e-324 for 4.9E-324): the same value, spelled longer.
+     */
+    private SqlWriter floatText(SqlWriter writer, SqlExpr v) {
+        return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN CAST(" + d.value()
+                + " AS VARCHAR) WHEN " + d.value() + " = 0 THEN '0.0' WHEN " + d.exponent() + " BETWEEN -4 AND 15 THEN "
+                + d.sign() + " || " + d.unfolded() + " ELSE " + d.sign() + " || LEFT(" + d.digits() + ", 1) || IFF(LENGTH("
+                + d.digits() + ") > 1, '.' || SUBSTR(" + d.digits() + ", 2), '') || 'e' || TO_VARCHAR(" + d.exponent()
+                + ") END"));
+    }
+
+    /**
+     * Pure's literal spelling of a Float ({@link SqlFn#FLOAT_CANON}), spelled here: {@link #floatText}'s digits, every
+     * zero {@code 0.0}, placed by their exponent at every magnitude; NaN and the infinities the database's text with
+     * {@code .0}, as the portable spelling ({@link FloatCanonText}) writes them. The portable spelling reads the
+     * double's text some fifty times, and this dialect's text is an expression of its own: channel B's standard suite
+     * took 57 minutes on the lane at a76cffee (2026-10-21).
+     */
+    private SqlWriter floatCanon(SqlWriter writer, SqlExpr v) {
+        return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN CAST(" + d.value()
+                + " AS VARCHAR) || '.0' WHEN " + d.value() + " = 0 THEN '0.0' ELSE " + d.sign() + " || " + d.unfolded()
+                + " END"));
+    }
+
+    /**
+     * Pure's print form of a Float ({@link SqlFn#FLOAT_PRINT}), spelled here from {@link #floatText}'s digits, the value
+     * read once: what the portable spelling (dialect/FloatPrintText) makes of {@link #floatText}'s text, which it read
+     * nine times (Snowflake's PCT statement for {@code 1.5 + 2.25} was 48 KB, 46 KB of it the text nine times, measured
+     * 2026-10-22). The text where it is plain (an exponent from -4 to 15); past it, a whole value's exact digits under
+     * 10^38 with {@code .0}; a value from 10^-17 below 10^-4 at eighteen places with its trailing zeros trimmed; else
+     * the text with its exponent. NaN and the infinities are Pure's names, which are Java's.
+     */
+    private SqlWriter floatPrint(SqlWriter writer, SqlExpr v) {
+        return writer.piece(shortestDigits(v, d -> {
+            String x = d.value();
+            String fractionFree = x + " = FLOOR(" + x + ") AND ABS(" + x + ") < 1e38";
+            String inRange = "ABS(" + x + ") >= 1e-17 AND ABS(" + x + ") < 9.007199254740992e15";
+            String fixed = "RTRIM(CAST(CAST(IFF(" + inRange + ", " + x + ", NULL) AS NUMBER(38, 18)) AS VARCHAR), '0')";
+            return "CASE WHEN " + nonFinite(x) + " THEN " + javaNonFinite(x) + " WHEN " + x + " = 0 THEN '0.0' WHEN "
+                    + d.exponent() + " BETWEEN -4 AND 15 THEN " + d.sign() + " || " + d.unfolded() + " WHEN "
+                    + fractionFree + " THEN CAST(CAST(IFF(" + fractionFree + ", " + x + ", NULL) AS NUMBER(38, 0)) AS"
+                    + " VARCHAR) || '.0' WHEN " + inRange + " THEN IFF(ENDSWITH(" + fixed + ", '.'), " + fixed + " || '0', "
+                    + fixed + ") ELSE " + d.sign() + " || LEFT(" + d.digits() + ", 1) || IFF(LENGTH(" + d.digits()
+                    + ") > 1, '.' || SUBSTR(" + d.digits() + ", 2), '') || 'e' || TO_VARCHAR(" + d.exponent() + ") END";
+        }));
+    }
+
+    /**
+     * legend-engine's text of a Float ({@link SqlFn#FLOAT_PRINT_ENGINE}), spelled here from {@link #floatText}'s digits,
+     * the value read once: Java's {@code Double.toString} layout, plain where the exponent is from -3 to 6 with at least
+     * one fraction digit, else one digit, a point, the rest (or {@code 0}) and {@code E} with the exponent. The portable
+     * spelling took {@link #floatText}'s text apart over a thousand times (Snowflake's served statement for
+     * {@code 1.5 + 2.25} was 6 MB, measured 2026-10-22).
+     */
+    private SqlWriter floatPrintEngine(SqlWriter writer, SqlExpr v) {
+        return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN "
+                + javaNonFinite(d.value()) + " WHEN " + d.value() + " = 0 THEN '0.0' WHEN " + d.exponent()
+                + " BETWEEN -3 AND 6 THEN " + d.sign() + " || " + d.unfolded() + " ELSE " + d.sign() + " || LEFT("
+                + d.digits() + ", 1) || '.' || IFF(LENGTH(" + d.digits() + ") > 1, SUBSTR(" + d.digits() + ", 2), '0')"
+                + " || 'E' || TO_VARCHAR(" + d.exponent() + ") END"));
+    }
+
+    /** Java's name of the non-finite double {@code x}: Snowflake's NaN equals itself and exceeds every number. */
+    private static String javaNonFinite(String x) {
+        return "CASE WHEN " + x + " = 'NaN'::FLOAT THEN 'NaN' WHEN " + x + " > 0 THEN 'Infinity' ELSE '-Infinity' END";
+    }
+
+    /** A Float's shortest digits as {@link #shortestDigits} reads them: the value (for NaN and the infinities), its
+     *  sign ({@code '-'} or empty), its significant digits (no sign, no point, no trailing zero; empty for a zero) and
+     *  the exponent of the first. */
+    private record Digits(String value, String sign, String digits, String exponent) {
+        /** The digits placed by their exponent, unsigned: {@code 123.456}, {@code 1500.0}, {@code 0.00025} (each count
+         *  kept from going negative, since a CASE's branches may all be evaluated). */
+        String unfolded() {
+            return "CASE WHEN " + exponent + " >= 0 THEN RPAD(" + digits + ", " + exponent + " + 1, '0') || '.' || IFF(LENGTH("
+                    + digits + ") > " + exponent + " + 1, SUBSTR(" + digits + ", GREATEST(" + exponent + " + 2, 1)), '0')"
+                    + " ELSE '0.' || REPEAT('0', GREATEST(-" + exponent + " - 1, 0)) || " + digits + " END";
+        }
+    }
+
+    /**
+     * {@code result} over a Float's shortest digits, the value written once. Each step is a one-element TRANSFORM whose
+     * OBJECT carries what the next reads (a lambda reads no enclosing lambda's parameter, and Snowflake refuses a
+     * correlated subquery). First the double's exact decimal, as text ({@code 'd'}): a double's cast to a DECFLOAT is
+     * exact only where a constant folds, and at run time an 18-digit rounding (1948878528.89440775 for
+     * 1948878528.894407749176025390625), and its cast to a NUMBER is exact at the NUMBER's scale (measured on the lane
+     * 2026-10-21). So the double is scaled by a power of two (exact) into [2^29, 2^30), where its binary fraction has
+     * at most 25 places, read as an exact NUMBER(38, 28), and multiplied back by that power as a DECFLOAT: exact
+     * wherever the digits can sit on a tie (2^-k has at most 38 digits for k up to 54), correctly rounded to 38 digits
+     * elsewhere. NaN, the infinities and zero are decided on the value (a stand-in of 1 is scaled for them). Then that
+     * decimal's exponent, read off its text, and its mantissa, the decimal times a power of ten, as an exact
+     * {@code NUMBER(38, 37)}'s text; the shortest of that mantissa's 15-, 16- and 17-digit roundings that TRY_TO_DOUBLE
+     * reads back as the decimal does (a double's shortest digits are at most 17, and at 15 or fewer they are its
+     * 15-digit rounding, for every normal double; a tie rounds to the even digit, as Java breaks one); then its digits,
+     * and their exponent, one more where the rounding carried to ten.
+     */
+    private SqlWriter.Piece shortestDigits(SqlExpr v, java.util.function.Function<Digits, String> result) {
+        String z = delimited(freshName("f"));
+        String a = delimited(freshName("f"));
+        String b = delimited(freshName("f"));
+        String c = delimited(freshName("f"));
+        String d = delimited(freshName("f"));
+        String value = fieldOf(z, "v", "DOUBLE");
+        String stand = "IFF(ABS(" + value + ") >= 'inf'::FLOAT OR " + value + " = 0, CAST(1 AS DOUBLE), " + value + ")";
+        String k = "(29 - FLOOR(LOG(2, ABS(" + stand + "))))";
+        String scaled = stand + " * POWER(CAST(2 AS DOUBLE), FLOOR(" + k + " / 2)) * POWER(CAST(2 AS DOUBLE), " + k
+                + " - FLOOR(" + k + " / 2))";
+        String decimal = "TO_VARCHAR(CAST(CAST(" + scaled + " AS NUMBER(38, 28)) AS DECFLOAT) * POWER(CAST(2 AS DECFLOAT), -"
+                + k + "))";
+        String exact = fieldOf(a, "d", "VARCHAR");
+        String exponent = "CASE WHEN CAST(" + exact + " AS DECFLOAT) = 0 THEN 0 ELSE " + exponentOf("LTRIM(" + exact + ", '-')")
+                + " END";
+        String mantissa = "TO_VARCHAR(CAST(CAST(" + exact + " AS DECFLOAT) * CAST('1e' || TO_VARCHAR(-(" + exponent
+                + ")) AS DECFLOAT) AS NUMBER(38, 37)))";
+        StringBuilder rounded = new StringBuilder("CASE");
+        for (int places = 14; places <= 15; places++) {
+            String round = "ROUND(CAST(" + fieldOf(b, "m", "VARCHAR") + " AS NUMBER(38, 37)), " + places + ", 'HALF_TO_EVEN')";
+            rounded.append(" WHEN TRY_TO_DOUBLE(TO_VARCHAR(").append(round).append(") || 'e' || TO_VARCHAR(")
+                    .append(fieldOf(b, "e", "INTEGER")).append(")) = TRY_TO_DOUBLE(").append(fieldOf(b, "d", "VARCHAR"))
+                    .append(") THEN ").append(round);
+        }
+        rounded.append(" ELSE ROUND(CAST(").append(fieldOf(b, "m", "VARCHAR")).append(" AS NUMBER(38, 37)), 16, 'HALF_TO_EVEN')")
+                .append(" END");
+        String shortest = fieldOf(c, "t", "VARCHAR");
+        String last = step(d, "'v', " + fieldOf(c, "v", "DOUBLE") + ", 's', " + fieldOf(c, "s", "VARCHAR") + ", 'g', RTRIM("
+                + "REPLACE(" + shortest + ", '.', ''), '0'), 'x', " + fieldOf(c, "e", "INTEGER") + " + LENGTH(SPLIT_PART("
+                + shortest + ", '.', 1)) - 1", result.apply(new Digits(fieldOf(d, "v", "DOUBLE"), fieldOf(d, "s", "VARCHAR"),
+                fieldOf(d, "g", "VARCHAR"), fieldOf(d, "x", "INTEGER"))));
+        String second = step(c, "'v', " + fieldOf(b, "v", "DOUBLE") + ", 's', IFF(LEFT(" + fieldOf(b, "d", "VARCHAR")
+                + ", 1) = '-', '-', ''), 'e', " + fieldOf(b, "e", "INTEGER") + ", 't', LTRIM(TO_VARCHAR(" + rounded + "), '-')",
+                last);
+        String first = step(b, "'v', " + fieldOf(a, "v", "DOUBLE") + ", 'd', " + exact + ", 'e', " + exponent + ", 'm', "
+                + mantissa, second);
+        String bound = step(a, "'v', " + value + ", 'd', " + decimal, first);
+        return w -> w.append("CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('v', ").expr(v, 0)
+                .append(")), " + z + " OBJECT -> " + bound + "), 0) AS VARCHAR)");
+    }
+
+    /** One step of {@link #shortestDigits}: {@code body} over the OBJECT of {@code fields}, bound as {@code param}. */
+    private static String step(String param, String fields, String body) {
+        return "GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL(" + fields + ")), " + param + " OBJECT -> " + body
+                + "), 0)";
+    }
+
+    /** The decimal exponent of the first digit of a positive DECFLOAT's text: with an exponent
+     *  ({@code '3.0000000000000004440892098500626161695e-1'}), plain ({@code '2786082219775324.5'}), or plain below one
+     *  ({@code '0.5'}). */
+    private static String exponentOf(String text) {
+        return "CASE WHEN CONTAINS(" + text + ", 'e') THEN TO_NUMBER(SPLIT_PART(" + text + ", 'e', 2)) + LENGTH(SPLIT_PART("
+                + "SPLIT_PART(" + text + ", 'e', 1), '.', 1)) - 1 WHEN SPLIT_PART(" + text + ", '.', 1) <> '0' THEN LENGTH("
+                + "SPLIT_PART(" + text + ", '.', 1)) - 1 ELSE -1 - LENGTH(REGEXP_SUBSTR(SPLIT_PART(" + text
+                + ", '.', 2), '^0*')) END";
+    }
+
+    private static String nonFinite(String x) {
+        return x + " IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT)";
+    }
+
+    /** A projection that IS error() raised in its column's type, as a CASE branch is: a bare raise is text, and a
+     *  read of the column as its type is refused before the statement runs (the TDS text's date print, TO_CHAR with
+     *  a format, takes no text: testNewDateError's "too many arguments for function [TO_CHAR(...)]", measured on the
+     *  lane 2026-10-21, where every other lane raised the test's own message). */
+    @Override
+    protected SqlWriter projectionValue(SqlWriter writer, SqlSelect.Projection p) {
+        if (p.out() != null && p.expr() instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR) {
+            return writer.piece(raise(call.args(), p.out().type()));
+        }
+        return super.projectionValue(writer, p);
     }
 
     /** The base CASE, with a branch that IS error() raised in the CASE's own type. */
@@ -2440,6 +2677,17 @@ public final class Snowflake extends AnsiSqlRenderer {
             // a ranking function takes no frame (ANSI ignores one; Snowflake refuses it, measured)
             case SqlAgg.RankingFn r -> {
                 writer.append(aggregateName(r.fn())).append("(").list(r.args()).append(")");
+                if (win.orderBy().isEmpty()) {
+                    // Snowflake refuses a ranking window with no order ("Window function type [ROW_NUMBER] requires
+                    // ORDER BY in window specification"): a constant order numbers the rows as they come, as
+                    // Databricks' ORDER BY 1 does. The judges' verdict numbers a side so (VerdictSql, SideOrdinal);
+                    // 261 channel B tests were refused it on the lane at 08ac296d, 2026-10-21
+                    writer.append(" OVER (");
+                    if (!win.partitionBy().isEmpty()) {
+                        writer.append("PARTITION BY ").list(win.partitionBy()).append(" ");
+                    }
+                    return writer.append("ORDER BY NULL)");
+                }
                 return over(writer, win.withFrame(null));
             }
             case SqlAgg.ValueFn v -> {
@@ -2527,6 +2775,9 @@ public final class Snowflake extends AnsiSqlRenderer {
         if (UNORDERED_ONLY.contains(r.fn()) && (ordered || win.frame() != null)) {
             throw new DialectCapability(r.fn() + " over an ordered or framed window reached Snowflake");
         }
+        if (r.fn() == SqlAgg.Fn.QUANTILE_CONT) {
+            return writer.piece(windowQuantile(r, win));
+        }
         if ((r.fn() == SqlAgg.Fn.STRING_AGG || r.fn() == SqlAgg.Fn.LIST) && ordered) {
             if (!r.orderBy().isEmpty() && !r.orderBy().equals(win.orderBy())) {
                 throw new DialectCapability("an ordered " + r.fn() + " over a window of another order reached"
@@ -2566,6 +2817,35 @@ public final class Snowflake extends AnsiSqlRenderer {
         }
         reducer(writer, r);
         return over(writer, win);
+    }
+
+    /**
+     * A continuous quantile over a window's partition, as DuckDB and the engine interpolate it: the partition's
+     * non-NULL values sorted in the quantile's order, {@code rn = (n - 1) * q}, {@code lo + (hi - lo) * (rn -
+     * floor(rn))}; NULL over none. Snowflake's own window PERCENTILE_CONT interpolates as {@code (1 - f) * lo + f *
+     * hi}, another last bit: 0.6 of (1, 2, 3) descending is 1.7999999999999998 there, 1.8 in its aggregate form and in
+     * the reference (testPercentile_Relation_Window, measured on the lane 2026-10-21; the merge-base passed it by
+     * printing ten digits). The values and q are bound once, in a one-element TRANSFORM.
+     */
+    private SqlWriter.Piece windowQuantile(SqlAgg.Reducer r, Window win) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
+        }
+        boolean ascending = r.orderBy().isEmpty() || r.orderBy().get(0).ascending();
+        String o = delimited(freshName("q"));
+        String sorted = "CAST(GET(" + o + ", 's') AS ARRAY)";
+        String n = "ARRAY_SIZE(" + sorted + ")";
+        String rn = "(CAST(" + n + " - 1 AS DOUBLE) * " + fieldOf(o, "q", "DOUBLE") + ")";
+        String lo = "CAST(GET(" + sorted + ", CAST(FLOOR(" + rn + ") AS INTEGER)) AS DOUBLE)";
+        String hi = "CAST(GET(" + sorted + ", CAST(CEIL(" + rn + ") AS INTEGER)) AS DOUBLE)";
+        return w -> {
+            w.append("CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('s', ARRAY_SORT(ARRAY_COMPACT("
+                    + "ARRAY_AGG(").expr(r.args().get(0), 0).append(")");
+            over(w, win);
+            w.append("), " + (ascending ? "TRUE" : "FALSE") + "), 'q', CAST(").expr(r.args().get(1), 0)
+                    .append(" AS DOUBLE))), " + o + " OBJECT -> CASE WHEN " + n + " = 0 THEN NULL ELSE " + lo + " + ("
+                            + hi + " - " + lo + ") * (" + rn + " - FLOOR(" + rn + ")) END), 0) AS DOUBLE)");
+        };
     }
 
     /**
@@ -2689,23 +2969,21 @@ public final class Snowflake extends AnsiSqlRenderer {
                 List<com.legend.sql.OutputCol> labels = depth == 0 && rootLabels().size() == s.projections().size()
                         ? rootLabels() : s.outputs();
                 boolean aligned = labels.size() == s.projections().size();
-                for (int i = 0; i < s.projections().size(); i++) {
+                // through the base's projections, so a dynamic pivot's per-key run is one region (2026-10-21)
+                projections(writer, s.projections(), (w, i) -> {
                     SqlSelect.Projection p = s.projections().get(i);
-                    if (i > 0) {
-                        writer.append(", ");
-                    }
                     if (p.expr() instanceof SqlExpr.Star st && !scope.isEmpty()) {
                         // a star beside other columns, over a FROM holding a marker's FLATTEN: spelled out as well
                         List<SqlWriter.Piece> star = new ArrayList<>();
                         star(st.table() == null ? s.from() : sourceNamed(s.from(), st.table()), star);
-                        writer.join(star, ", ", SqlWriter::piece);
+                        w.join(star, ", ", SqlWriter::piece);
                     } else if (aligned && nullOverNullList(p.expr())) {
-                        writer.append("CAST(NULL AS " + castTypeName(labels.get(i).type()) + ")");
-                        writer.append(" AS ").append(aliasIdent(markerColumn(p)));
+                        w.append("CAST(NULL AS " + castTypeName(labels.get(i).type()) + ")");
+                        w.append(" AS ").append(aliasIdent(markerColumn(p)));
                     } else {
-                        projection(writer, p);
+                        projection(w, p);
                     }
-                }
+                });
             }
             if (!(s.from() instanceof SqlSource.Dual)) {
                 nl(writer, depth).append("FROM ");
@@ -2973,7 +3251,8 @@ public final class Snowflake extends AnsiSqlRenderer {
     static final class PivotAsGroupBy extends com.legend.sql.SqlRewriter {
         @Override
         protected SqlSource source(SqlSource s) {
-            if (!(s instanceof SqlSource.Pivot p) || p.in().isEmpty() || p.on().size() != 1) {
+            // a dynamic pivot a cast names pivots on the named values (SqlSource.Pivot.values, step 9, 2026-10-19)
+            if (!(s instanceof SqlSource.Pivot p) || p.values().isEmpty() || p.on().size() != 1) {
                 return s;
             }
             List<SqlSelect.Projection> ps = new ArrayList<>();
@@ -2985,7 +3264,7 @@ public final class Snowflake extends AnsiSqlRenderer {
                     ps.add(new SqlSelect.Projection(g, oc.name(), oc));
                 }
             }
-            for (SqlExpr v : p.in()) {
+            for (SqlExpr v : p.values()) {
                 for (SqlSource.Pivot.Using u : p.usings()) {
                     SqlAgg.Reducer agg = u.agg();
                     List<SqlExpr> args = new ArrayList<>(agg.args());
@@ -2995,10 +3274,8 @@ public final class Snowflake extends AnsiSqlRenderer {
                     args.set(0, new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.EQUAL, p.on().get(0), v), args.get(0))), null));
                     String name = valueText(v) + "__|__" + u.alias();
-                    com.legend.sql.OutputCol slot = p.outputs().stream().filter(o -> o.name().equals(name))
-                            .findFirst().orElse(null);
                     ps.add(new SqlSelect.Projection(new SqlAgg.Reducer(agg.fn(), args, agg.distinct(), agg.orderBy()),
-                            name, slot));
+                            name, CarrierStrategies.generatedSlot(p, u, name)));
                 }
             }
             SqlSelect sel = SqlSelect.starOf(p.source()).withProjections(ps).withGroupBy(group);
@@ -3031,10 +3308,13 @@ public final class Snowflake extends AnsiSqlRenderer {
         };
     }
 
-    /** {@inheritDoc} Refused, as TYPEOF is here (TYPEOF names Snowflake's variant types, not DuckDB's). */
+    /** {@inheritDoc} A DATE is {@code DATE} (TYPEOF of its VARIANT); no other type's name is compared here. */
     @Override
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
-        throw new DialectCapability("typeof reached Snowflake: TYPEOF names Snowflake's variant types, not DuckDB's");
+        if (type == com.legend.sql.SqlType.Scalar.DATE) {
+            return "DATE";
+        }
+        throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached Snowflake");
     }
 
     /** {@inheritDoc} Its driver names every fixed-point number NUMBER, its precision and scale the column's. */

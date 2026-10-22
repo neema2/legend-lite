@@ -126,27 +126,24 @@ class AssertVerdictsTest {
                 e.getMessage());
     }
 
+    /** Under the agreement gate (both judges; the plan path program's step 6, 2026-10-18). */
+    private static ExecutionResult runBoth(String query) throws SQLException {
+        return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, null,
+                StorelessRuntime.RUNTIME, conn, ExecuteOptions.NONE.withJudgeMode(ExecuteOptions.JudgeMode.BOTH));
+    }
+
     @Test
-    @DisplayName("enum under an Any stamp DECLINES the byte verdict (literal channel"
-            + " cannot spell enum kind) — the host lattice judges, never a fabricated"
-            + " inequality")
+    @DisplayName("enum under an Any stamp: both judges agree (the database judge frames the untyped side by the"
+            + " pair's one enumeration) — never a fabricated inequality")
     void enumUnderAnyDeclinesToHost() throws Exception {
-        long disagreeBefore =
-                com.legend.exec.CanonicalDivergence.sqlDisagreeCount();
-        long declinedBefore =
-                com.legend.exec.CanonicalDivergence.sqlDeclinedCount();
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        // 2026-10-18 (step 6): the byte channel that rode the side query is retired; the agreement gate judges
+        // the pair twice and the two verdicts must agree
+        long judged = com.legend.exec.CanonicalDivergence.sqlJudgedInDatabaseCount();
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) runBoth(
                 "{|assertEquals(t::Kind.CITY, t::Kind.CITY->cast(@Any))}"))
                 .value());
-        assertEquals(disagreeBefore,
-                com.legend.exec.CanonicalDivergence.sqlDisagreeCount(),
-                "enum-under-Any pair must DECLINE, never disagree — the"
-                        + " Any wire spells the enum as a string and a byte"
-                        + " compare against the enum canon fabricates: "
-                        + com.legend.exec.CanonicalDivergence.summary());
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount()
-                > declinedBefore,
-                "the decline must be COUNTED (never a silent skip): "
+        assertEquals(judged + 1, com.legend.exec.CanonicalDivergence.sqlJudgedInDatabaseCount(),
+                "enum-under-Any pair must be JUDGED by the database judge, in agreement with the host: "
                         + com.legend.exec.CanonicalDivergence.summary());
     }
 

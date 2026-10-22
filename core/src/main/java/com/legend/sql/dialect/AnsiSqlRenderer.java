@@ -118,6 +118,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  dialect's pass list can leave the reads out. */
     protected final java.util.List<com.legend.sql.SqlRewriter> renderPasses() {
         java.util.List<com.legend.sql.SqlRewriter> ps = new java.util.ArrayList<>();
+        // a Float's print forms, expanded before every other pass unless this dialect spells them itself
+        if (!spellsFloatPrint()) {
+            ps.add(new FloatPrintText.Expansion(bindsFloatPrint()));
+        }
         // a Float's literal spelling, expanded before every other pass unless this dialect spells it itself
         if (!spellsFloatCanon()) {
             ps.add(new FloatCanonText.Expansion(bindsFloatText()));
@@ -135,6 +139,19 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_CANON} itself; else it is expanded before every
      *  other pass ({@link FloatCanonText.Expansion}) to the portable spelling over the double's text. */
     protected boolean spellsFloatCanon() {
+        return false;
+    }
+
+    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_PRINT} and
+     *  {@link com.legend.sql.SqlFn#FLOAT_PRINT_ENGINE} itself; else they are expanded before every other pass
+     *  ({@link FloatPrintText.Expansion}) to the portable spellings over the double's text. */
+    protected boolean spellsFloatPrint() {
+        return false;
+    }
+
+    /** Whether the print forms' expansion reads the value and its text from a one-row derived table, each written once
+     *  (a dialect whose double text is a long expression and whose derived tables read the row around them). */
+    protected boolean bindsFloatPrint() {
         return false;
     }
 
@@ -189,7 +206,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     if (i > 0) {
                         writer.append(", ");
                     }
-                    writer.append(w.ctes().get(i).name()).append(cteAs(w.ctes().get(i)));
+                    writer.append(cteName(w.ctes().get(i).name())).append(cteAs(w.ctes().get(i)));
                     query(writer, w.ctes().get(i).query(), depth + 1);
                     writer.append(')');
                 }
@@ -228,7 +245,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // each projection CARRIES its declared output (outputs-from-
             // projections, SQL-IR slice 2) — the old positional
             // projection↔outputs pairing and its star guard are gone
-            writer.join(s.projections(), ", ", this::projection);
+            projections(writer, s.projections());
         }
         if (!(s.from() instanceof SqlSource.Dual)) {
             nl(writer, depth).append("FROM ");
@@ -295,20 +312,79 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         // the synthetic scalar-map marker (PlatformTypes.SYNTH_MAP_COL)
         // stays IN the execution alias — downstream references are built
         // from the (prefixed) row type; engine-TEXT renderers drop it
-        if (p.expr() instanceof SqlExpr.NullLit && p.out() != null && typedNullSlot(p.out().type())) {
-            // THE SLOT IS THE WIRE: a NULL projected under a typed slot
-            // spells its type — a bare NULL is typed by its use when the
-            // select is inlined and INTEGER by default when it is
-            // materialized (leg 3.4 step 2: a frame CTE's NULL column)
-            writer.append("CAST(NULL AS ").append(castTypeName(p.out().type())).append(")");
-        } else {
-            writer.expr(p.expr(), 0);
+        projectionValue(writer, p);
+        if (p.out() != null && p.out().origin() == com.legend.sql.OutputCol.Origin.PER_KEY) {
+            return perKeyName(writer.append(" AS "), p.out().name());
         }
         if (p.alias() != null) {
             return writer.append(" AS ").append(aliasIdent(p.alias()));
         }
         String label = implicitLabel(p);
         return label == null ? writer : writer.append(" AS ").append(label);
+    }
+
+    /** A projection's value, before its label. */
+    protected SqlWriter projectionValue(SqlWriter writer, SqlSelect.Projection p) {
+        if (p.expr() instanceof SqlExpr.NullLit && p.out() != null && typedNullSlot(p.out().type())) {
+            // THE SLOT IS THE WIRE: a NULL projected under a typed slot
+            // spells its type — a bare NULL is typed by its use when the
+            // select is inlined and INTEGER by default when it is
+            // materialized (leg 3.4 step 2: a frame CTE's NULL column)
+            return writer.append("CAST(NULL AS ").append(castTypeName(p.out().type())).append(")");
+        }
+        return writer.expr(p.expr(), 0);
+    }
+
+    /**
+     * A select's projections, comma-separated; a run of PER-KEY projections ({@link com.legend.sql.OutputCol.Origin#PER_KEY},
+     * a dynamic pivot's generated columns on its probe plan, 2026-10-20) is one per-key region the runner writes once
+     * per key, after the select's other projections: led by a comma when one precedes it, and with no key nothing in
+     * its place (a select with no other projection has no column without a key, which the runner refuses by name).
+     */
+    protected SqlWriter projections(SqlWriter writer, List<SqlSelect.Projection> ps) {
+        return projections(writer, ps, (w, i) -> projection(w, ps.get(i)));
+    }
+
+    /** {@link #projections(SqlWriter, List)}, each projection written by {@code each} from its position: a dialect
+     *  that writes some projections its own way writes them here, so its per-key run is still one region (Snowflake's
+     *  select wrote its projections one by one, and its dynamic pivots were refused a per-key name outside a region,
+     *  measured on its lane 2026-10-21). */
+    protected SqlWriter projections(SqlWriter writer, List<SqlSelect.Projection> ps,
+            java.util.function.BiConsumer<SqlWriter, Integer> each) {
+        int run = -1;
+        for (int i = 0; i < ps.size(); i++) {
+            if (perKey(ps.get(i))) {
+                run = i;
+                break;
+            }
+        }
+        List<Integer> at = java.util.stream.IntStream.range(0, ps.size()).boxed().toList();
+        if (run < 0) {
+            return writer.join(at, ", ", each);
+        }
+        for (int i = run; i < ps.size(); i++) {
+            if (!perKey(ps.get(i))) {
+                throw new IllegalStateException("a per-key projection run is followed by '" + ps.get(i).alias()
+                        + "': the run is written last, after the select's other projections");
+            }
+        }
+        List<Integer> fixed = at.subList(0, run);
+        List<Integer> perKey = at.subList(run, ps.size());
+        writer.join(fixed, ", ", each);
+        return writer.region(fixed.isEmpty() ? "" : ", ", ", ", fixed.isEmpty() ? null : "",
+                w -> w.join(perKey, ", ", each));
+    }
+
+    private static boolean perKey(SqlSelect.Projection p) {
+        return p.out() != null && p.out().origin() == com.legend.sql.OutputCol.Origin.PER_KEY;
+    }
+
+    /** A per-key name ({@link com.legend.sql.OutputCol.Origin#PER_KEY}): delimited, the key's position written into it by
+     *  the runner after its {@code _pk} ({@code "_pk3__u0"} for {@code _u0}); the dialect's quote
+     *  doubled inside. Refused outside a per-key region. */
+    protected SqlWriter perKeyName(SqlWriter writer, String stem) {
+        String q = String.valueOf(quoteChar());
+        return writer.append(q + "_pk").counter().append(("_" + stem).replace(q, q + q) + q);
     }
 
     /** The label an alias-less projection spells, or null for none. Base: a STORED READ keeps
@@ -370,7 +446,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 }
                 yield writer;
             }
-            case SqlSource.Cte c -> writer.append(c.name()).append(" AS ").append(aliasIdent(c.alias()));
+            case SqlSource.Cte c -> writer.append(cteName(c.name())).append(" AS ").append(aliasIdent(c.alias()));
             case SqlSource.Subselect sub -> subselectSource(writer, sub, depth);
             // cross-store plan variable: freemarker splice at execution
             // (engine VarSetPlaceHolder — plan text only; a DuckDB
@@ -403,6 +479,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 yield writer;
             }
         };
+    }
+
+    /** A CTE's name, at its head and wherever a {@link SqlSource.Cte} reads it: as written. A dialect whose unquoted
+     *  names fold spells it as it spells a table's, so a reference written as a table ({@code VerdictSql}'s) is the
+     *  same name (Snowflake, 2026-10-21). */
+    protected String cteName(String name) {
+        return name;
     }
 
     /** A join's ON as the dialect writes it: as it is; a dialect whose planner a form of it defeats writes an
@@ -554,11 +637,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a plan parameter is BOUND where it is written: a statement (renderStatement) lists it; text
             // (render) refuses it
             case SqlExpr.PlanParam p -> placeholder(writer, oneValue(p));
+            case SqlExpr.KeyCell k -> writer.bindKey(k.cell());
             case SqlExpr.RowOrder r -> writer.append((r.table() == null ? ""
                     : aliasIdent(r.table()) + ".") + rowOrderColumn());
             // the QUALIFIER is structurally always a source ALIAS (the
             // lowerer aliases every FROM source) — it spells with the
             // alias rule; the NAME spells by its ORIGIN (columnName)
+            case SqlExpr.Column c when c.origin() == com.legend.sql.OutputCol.Origin.PER_KEY ->
+                    perKeyName(c.table() == null ? writer : writer.append(aliasIdent(c.table()) + "."), c.name());
             case SqlExpr.Column c -> writer.append(columnRef(c));
             case SqlExpr.StoredRead r -> storedRead(writer, r);
             case SqlExpr.Star s -> writer.append(s.table() == null ? "*" : aliasIdent(s.table()) + ".*");
@@ -963,6 +1049,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  long spells it once, its own way). */
     protected final SqlWriter floatCanonByText(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
         return writer.expr(FloatCanonText.of(a.get(0)), parentPrec);
+    }
+
+    /** A Float's print form ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_PRINT} or
+     *  {@link com.legend.sql.SqlFn#FLOAT_PRINT_ENGINE} call): the portable decomposition over the double's text (a
+     *  dialect whose double text is long spells it once, its own way). */
+    protected final SqlWriter floatPrintByText(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        return writer.expr(FloatPrintText.of(c.fn(), c.args().get(0)), parentPrec);
     }
 
     // ---- idiom extension points (base = capability statement, loud) ----

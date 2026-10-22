@@ -96,6 +96,10 @@ class CodeShapeGuardrailTest {
             // JSON writer's field/value alternation cursor — same
             // lifecycle as a parser cursor, scoped to one document write
             "Json.awaitingFieldValue",
+            // a keyed plan's text sink's first-row cursor (2026-10-20, the dynamic pivot's probe plan): the JSON
+            // array's comma before every row but the first -- the Json.awaitingFieldValue shape, scoped to one
+            // result write (PlanRunner.TextSink)
+            "PlanRunner.first",
             // parser cursors + scope state
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
             "Lexer.ends", "Lexer.count",
@@ -185,6 +189,11 @@ class CodeShapeGuardrailTest {
             // builder-flag, same lifecycle as engineExistsJoinForm: set
             // once by the driver before lower(), read during the lowering
             "Lowerer.streamingGraphRoot",
+            // object identity (2026-10-20, docs/OBJECT_IDENTITY_2026_10_20.md §3.1, §3.4; allowlisted at main's merge,
+            // 2026-10-22, the first run of this guard on the branch): builder flags, same lifecycle as
+            // streamingGraphRoot -- whether every object carries its identity, and whether a scalar root shows its
+            // objects' declared properties alone; set once before lower()
+            "Lowerer.objectIdentity", "Lowerer.declaredEgress",
             // JSON source frames (XStore §1): the execution context's
             // JsonModelConnection map, set per from()-scope — same
             // per-resolution frame lifecycle as `temporal`
@@ -203,6 +212,11 @@ class CodeShapeGuardrailTest {
             // property user calls stand for structural extraction —
             // same lifecycle as a parser cursor, scoped to one rewrite
             "UserCallInliner.configMode",
+            // object identity step 2 (2026-10-20, docs/OBJECT_IDENTITY_2026_10_20.md §3.2; allowlisted at main's merge,
+            // 2026-10-22, the first run of this guard on the branch): the walk's instantiation counter, its lambda depth
+            // and the frame of its point -- the same lifecycle as a parser cursor, scoped to one rewrite (the path of
+            // instantiations around the point is a final list, saved and restored around each lambda)
+            "UserCallInliner.instantiations", "UserCallInliner.lambdaDepth", "UserCallInliner.frame",
             // §4AD slice 1: filter-predicate nesting depth during the
             // one liftFilteredHeads walk (value-position scope gate) —
             // same lifecycle as a parser cursor
@@ -221,6 +235,10 @@ class CodeShapeGuardrailTest {
             "Snowflake.fresh", "ExplosionMarkers.next",
             // render mode toggle + import memo
             "AnsiSqlRenderer.inlineMode", "ModelOrchestrator.cachedImports",
+            // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md §5.1): the MongoDb pipeline writer's stage counter -- Stages
+            // IS the frame object, one per pipeline level, scoped to one render() as the renderer's cursor is: it
+            // puts the comma before every stage but the first
+            "MongoDbPipeline.written",
             // normalizer emission frame: Pipeline IS the frame object; expr
             // is the accumulating pipeline AST
             "Pipeline.expr",
@@ -564,7 +582,9 @@ class CodeShapeGuardrailTest {
      * fixtures and the of(outs,name) unclaimed-name fallback — a
      * production null-origin reaching the strict H2 renderer WALLS
      * (slice 3), so any residue surfaces as a counted decline, never
-     * a guessed spelling. Count only SHRINKS. */
+     * a guessed spelling. Count only SHRINKS. 7 -> 8 on 2026-10-18, the plan path program's step 1b (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3):
+     * MirJson.readExpr rebuilds a Column from the plan's JSON with the origin it was written with -- an
+     * origin-preserving rebuild, the typed tree read back. */
     @Test
     void unstampedColumnConstructionOnlyShrinks() throws IOException {
         int count = 0;
@@ -579,8 +599,8 @@ class CodeShapeGuardrailTest {
                 i++;
             }
         }
-        assertTrue(count <= 7, "raw SqlExpr.Column construction sites"
-                + " grew: " + count + " > 7 — new references go through"
+        assertTrue(count <= 8, "raw SqlExpr.Column construction sites"
+                + " grew: " + count + " > 8 — new references go through"
                 + " the stamped doors (Column.of over an OutputCol /"
                 + " derived / physical); raw construction is for"
                 + " origin-preserving rebuilds only");

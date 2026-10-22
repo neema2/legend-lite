@@ -155,11 +155,14 @@ class StructValueTest {
     }
 
     @Test
-    @DisplayName("contains: an instance IS found in a heterogeneous (Any) list")
+    @DisplayName("contains: an instance IS found in a heterogeneous (Any) list; another alike is not it")
     void containsInstanceInMixedList() throws SQLException {
-        var r = run("|[1, 'a', ^m::Addr(val='x')]->contains(^m::Addr(val='x'))");
+        var r = run("|let a = ^m::Addr(val='x'); [1, 'a', $a]->contains($a);");
         assertEquals(true, ((ExecutionResult.Scalar) r).value(),
                 "audit: cross-kind FALSE must not fire before the Any-variant branch");
+        // m::Addr declares no key: equal() is identity (docs/OBJECT_IDENTITY_2026_10_20.md §1)
+        var other = run("|[1, 'a', ^m::Addr(val='x')]->contains(^m::Addr(val='x'))");
+        assertEquals(false, ((ExecutionResult.Scalar) other).value());
     }
 
     @Test
@@ -177,10 +180,12 @@ class StructValueTest {
     }
 
     @Test
-    @DisplayName("instance equality is structural (SQL struct equality)")
+    @DisplayName("two constructions of a keyless class are two objects, however alike (Pure's equal: identity)")
     void instanceEquality() throws SQLException {
         var r = run("|^m::Person(firstName='A', lastName='B') =="
                 + " ^m::Person(firstName='A', lastName='B')");
-        assertEquals(true, ((ExecutionResult.Scalar) r).value());
+        assertEquals(false, ((ExecutionResult.Scalar) r).value());
+        var same = run("|let p = ^m::Person(firstName='A', lastName='B'); $p == $p;");
+        assertEquals(true, ((ExecutionResult.Scalar) same).value());
     }
 }

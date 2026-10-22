@@ -248,20 +248,32 @@ class InstanceIdentityTest {
     @DisplayName("Pair-of-Pairs: substitution-aware key trees — a nested"
             + " Pair key leaf renders, never declines")
     void pairOfPairsKeys() throws Exception {
-        long before = CanonicalDivergence.sqlDeclinedCount();
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        // 2026-10-18 (step 6): the byte channel that rode the side query is retired; under the agreement gate the
+        // database judge JUDGES the nested Pair pair (its key tree renders), never names it unjudged
+        long judged = CanonicalDivergence.sqlJudgedInDatabaseCount();
+        long unjudged = CanonicalDivergence.sqlUnjudgedCount();
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) runBoth(
                 "{|assert(equal(pair(pair(1, 'a'), 2),"
                         + " pair(pair(1, 'a'), 2)));}")).value());
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) runBoth(
                 "{|assert(!equal(pair(pair(1, 'a'), 2),"
                         + " pair(pair(1, 'b'), 2)));}")).value());
         // and through the VERDICT wrap (the zip family's shape):
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) runBoth(
                 "{|assertEquals(pair(pair(1, 'a'), 2),"
                         + " pair(pair(1, 'a'), 2))}")).value());
-        assertEquals(before, CanonicalDivergence.sqlDeclinedCount(),
+        assertEquals(judged + 3, CanonicalDivergence.sqlJudgedInDatabaseCount(),
+                "Pair-of-Pairs must be JUDGED by the database judge: " + CanonicalDivergence.summary());
+        assertEquals(unjudged, CanonicalDivergence.sqlUnjudgedCount(),
                 "Pair-of-Pairs must CLAIM, not decline: "
                         + CanonicalDivergence.summary());
+    }
+
+    /** Under the agreement gate (both judges; the plan path program's step 6, 2026-10-18). */
+    private static ExecutionResult runBoth(String query) throws SQLException {
+        return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, null,
+                StorelessRuntime.RUNTIME, conn, com.legend.ExecuteOptions.NONE.withJudgeMode(
+                        com.legend.ExecuteOptions.JudgeMode.BOTH));
     }
 
     @Test

@@ -178,7 +178,18 @@ class   CarrierPurityRatchetTest {
             // (SqlExpr.CheckedDefects / CheckedChildValue) spelled by the
             // DuckDB strategy CheckedDefectsToLists — and the envelope's
             // own-defects list emission folded one direct site away
-            "SqlFn\\.LIST_", 141,
+            // 141→144 (2026-10-18, the plan path program's step 3, the text carrier): a List's elements and a Map's
+            // keys are spelled one by one in Pure's grammar (LIST_TRANSFORM with the element's text as the lambda,
+            // twice), a Map's value read as the existing idiom (LIST_GET over MAP_EXTRACT); the forms are the
+            // carrier's own shapes, no new encoding
+            // 144->149 (2026-10-22, main's merge into the plan path branch, measured; object identity, steps 2 and 3,
+            // 2026-10-20, docs/OBJECT_IDENTITY_2026_10_20.md §3.3): InstanceEquality, the one owner of every
+            // operation built on equal() over objects, reads a collection's elements by their identity or key canon
+            // (LIST_TRANSFORM to the canons, LIST_FILTER with LIST_POSITION for removeDuplicates' first occurrence,
+            // LIST_POSITION for indexOf) and MixedEncoding strips a declared-only object's identity element-wise
+            // (LIST_TRANSFORM): the owner's semantic forms over the existing list idioms, no new encoding; they
+            // absorb with the family when the owner lowers to its own semantic node
+            "SqlFn\\.LIST_", 149,
             // 12→13 (disagree-9 burn 2026-08-31): staticTemporalText
             // SEE-THROUGH pattern-MATCHES the existing literal-list
             // egress (UNNEST/LIST_FILTER wrappers) to restore written

@@ -915,6 +915,8 @@ final class Overloads {
     TypedSpec typeLambda(LambdaFunction lam, Type functionParamType, Bindings b, Env env) {
         Type.FunctionType ftype = extractFunctionType(functionParamType);
         boolean multiStatement = false;
+        // the objects a let splice evaluates apart (docs/OBJECT_IDENTITY_2026_10_20.md §4.4)
+        java.util.Set<Object> untracked = java.util.Set.of();
         if (ftype.params().size() != lam.parameters().size()) {
             throw new TypeInferenceException("lambda has " + lam.parameters().size()
                     + " parameter(s) but the function type expects " + ftype.params().size());
@@ -928,6 +930,7 @@ final class Overloads {
             if (folded == null) {
                 multiStatement = true;   // the shared body rule, once params are in scope
             } else {
+                untracked = SourceSubst.untrackedLetNodes(lam);
                 lam = folded;
             }
         }
@@ -990,6 +993,9 @@ final class Overloads {
         }
         TypedSpec body = multiStatement ? synthBody(lam, lambdaScope)
                 : synth(lam.body().get(lam.body().size() - 1), lambdaScope);
+        if (!untracked.isEmpty()) {
+            body = com.legend.compiler.spec.typed.Evaluation.untrack(body, untracked);
+        }
 
         // An unbound return variable (map's V) is inferred from the body. A
         // solved return is resolved then CHECKED (subtype-friendly, bindings

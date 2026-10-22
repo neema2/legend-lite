@@ -56,7 +56,7 @@ class DialectLeakRatchetTest {
             "testing/src/main/java");
 
     private static final String DIALECTS = "AnsiSqlRenderer|DuckDb|H2Modern|H2|Postgres|Snowflake|Databricks|BigQuery"
-            + "|SQLite|MariaDb|MySql|Trino|ClickHouse|EngineStyleH2|EngineStyleDB2|EngineStyleComposite";
+            + "|SQLite|MariaDb|MySql|Trino|ClickHouse|MongoDb|EngineStyleH2|EngineStyleDB2|EngineStyleComposite";
 
     /** H2 and DB2 as a word or an identifier's word ({@code h2}, {@code isH2}, {@code LocalH2}, {@code ENGINE_H2},
      *  {@code h2Mode}, {@code isDb2}): after a lower-case letter or digit only in upper case, a camel-case word's start,
@@ -81,7 +81,7 @@ class DialectLeakRatchetTest {
                     + ")\\b"),
             "driver", Pattern.compile("\\b(org\\.duckdb|org\\.h2\\.|org\\.postgresql|net\\.snowflake|com\\.databricks"
                     + "|com\\.simba|com\\.google\\.cloud\\.bigquery|org\\.sqlite|org\\.mariadb|com\\.mysql|io\\.trino"
-                    + "|com\\.clickhouse)"),
+                    + "|com\\.clickhouse|com\\.mongodb|org\\.bson)"),
             "product-name", Pattern.compile("(?i)\\b\\w*(" + PRODUCTS + ")\\w*"),
             "product-call", Pattern.compile("\\bgetDatabaseProductName\\b"));
 

@@ -2356,6 +2356,12 @@ public final class Protocol {
         public PMongoDbConnection {
             serverUrls = List.copyOf(serverUrls);
         }
+
+        /** The database kind this connection declares, as the model's {@code DatabaseType} names it (2026-10-16,
+         *  docs/MONGODB_PLAN_2026_10_16.md D4): the vocabulary carries the name; the model reads it. */
+        public String databaseType() {
+            return "MongoDB";
+        }
     }
 
     /** One {@code host:port} server URL. */

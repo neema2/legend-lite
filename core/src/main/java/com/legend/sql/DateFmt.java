@@ -55,14 +55,6 @@ public sealed interface DateFmt {
             new Text("-"), Part.DAY2, new Text("T"), Part.HOUR2,
             new Text(":"), Part.MIN2, new Text(":"), Part.SEC2);
 
-    /** The engine CSV datetime spelling (helperFunctions.pure
-     *  SimpleDateTimeFormat(): {@code yyyy-MM-dd HH:mm:ss} — space
-     *  separator, no subseconds) — the RENDER phase's toCSV cells. */
-    static final List<DateFmt> CSV_DATETIME = List.of(Part.YEAR4,
-            new Text("-"), Part.MONTH2, new Text("-"), Part.DAY2,
-            new Text(" "), Part.HOUR2, new Text(":"), Part.MIN2,
-            new Text(":"), Part.SEC2);
-
     /** Time-of-day only ({@code HH:mm:ss}) — the RENDER phase's
      *  abstract-Date hasHour test rides it. */
     static final List<DateFmt> TIME_ONLY = List.of(Part.HOUR2,
@@ -79,10 +71,6 @@ public sealed interface DateFmt {
     static final List<DateFmt> ISO_NANO = concat(ISO_LOCAL, new Text("."), Part.SUBSEC_NANO);
     /** ISO_NANO + the engine's GMT {@code +0000} suffix — its JSON spelling of a DateTime. */
     public static final List<DateFmt> JSON_DATETIME = concat(ISO_NANO, new Text("+0000"));
-
-    /** Pure's DateTime print form: minimal subseconds, fixed +0000. */
-    static final List<DateFmt> ISO_PURE_UTC = concat(ISO_LOCAL, new Text("."),
-            Part.SUBSEC_MIN, new Text("+0000"));
 
     private static List<DateFmt> concat(List<DateFmt> head, DateFmt... tail) {
         java.util.List<DateFmt> out = new java.util.ArrayList<>(head);

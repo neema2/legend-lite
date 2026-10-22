@@ -65,7 +65,32 @@ class PctDisciplineTest {
      * capture-safety proof gained its EXECUTABLE WALL (assertClosed —
      * the free-variable postcondition checked on every test). Wall
      * growth; the proof stopped being testimony. */
-    private static final int ADAPTER_MAX_LINES = 485;
+    // 485 -> 490 (2026-10-17, the MongoDB line's lane, docs/MONGODB_PLAN_2026_10_16.md §6): a lane whose results all
+    // cross as Pure's TDS text carries a value as the one-column relation `value`; the adapter unwraps it by the
+    // function's own return type (one `if`, five lines). ANTI-compensation: one representation crosses the wire for
+    // every shape, and the Java bridge's typed value conversions are not needed on that route.
+    // 490 -> 500 (2026-10-17, the lane's first run): a Date or Decimal value read from the text's lines by Pure's own
+    // parsers, since the TDS reader builds neither from a cell (seven lines)
+    // 2026-10-17, the MongoDB lane's burn-down (docs/MONGODB_PLAN_2026_10_16.md §11.4): the value relation's
+    // Number and String cells read by the function's return type (the reader types a cell by its text), the
+    // quoted String cells read whole across line breaks (quotedCells, closesCell, unquoted); 500 -> 540.
+    // 2026-10-18, the text carrier (docs/PLAN_PATH_PROGRAM_2026_10_17.md §4, step 3): the TDS reader reads a relation
+    // alone; an enumeration's values by extractEnumValue; every other value read by compileValueSpecification and
+    // reactivate (readPureLiteral, seven lines, with its reason) -- Pure reads what the database spelled, no
+    // comparison, no Java; 540 -> 557.
+    // 2026-10-18, the DuckDB lane on the plan route (the plan path program's step 9): a Number-typed function's
+    // value read by the wire header's type (value:Decimal[1]), where the text alone read a Decimal as a Float; the
+    // Decimal arm reads a D the Number root spells (four lines); 557 -> 561.
+    // 2026-10-20, the user's rule (as many tests as possible without hacks): legend-engine's grammar printer prints a
+    // copy with updated properties without the values (^$p(k = v) as copy('', k)), so the adapter prints it itself
+    // (the CopyWithUpdate marker, its print handler, its arms in the substitution, the roots walk and the
+    // closedness wall), and the substitution runs when nothing was captured too; testFold, testFoldFiltering,
+    // testFoldToMany; 561 -> 586.
+    // 2026-10-20, object identity (docs/OBJECT_IDENTITY_2026_10_20.md): the product compares objects by identity, so
+    // the adapter binds each captured object ONCE by a let at the front of the text (capturedObjects,
+    // isCapturedObject, objectLets; the substitution keeps those names as variables) instead of printing each use as
+    // its own ^C(...), which built a new object per use; testEqVarIdentity, testEqNonPrimitive; 586 -> 626.
+    private static final int ADAPTER_MAX_LINES = 626;
 
     @Test
     void noJavaSideComparisonInPct() throws IOException {

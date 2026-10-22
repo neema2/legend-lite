@@ -13,6 +13,7 @@ public sealed interface ConnectionSpecification
                 ConnectionSpecification.LocalH2,
                 ConnectionSpecification.EmbeddedH2,
                 ConnectionSpecification.StaticDatasource,
+                ConnectionSpecification.Trino,
                 ConnectionSpecification.Snowflake,
                 ConnectionSpecification.Spanner,
                 ConnectionSpecification.Databricks,
@@ -101,6 +102,16 @@ public sealed interface ConnectionSpecification
      * Pure: {@code specification: Static { host: '...'; port: 5432; database: '...'; };}.
      */
     record StaticDatasource(String host, int port, String database) implements ConnectionSpecification {}
+
+    /**
+     * Engine's Trino datasource: a coordinator at host/port, its session's catalog and schema (legend-engine's
+     * {@code TrinoManager.buildURL}: {@code jdbc:trino://host:port/catalog/schema}), and whether its clients connect
+     * over TLS and tag their queries. Its own shape, not folded into {@link StaticDatasource}: the schema is part of
+     * the session (step 9, 2026-10-19: the plan route opens it).
+     */
+    record Trino(String host, int port, @com.legend.base.Nullable String catalog,
+            @com.legend.base.Nullable String schema, @com.legend.base.Nullable String clientTags, boolean ssl)
+            implements ConnectionSpecification {}
 
     /** Engine's Snowflake datasource; carried for parse coverage — dialect
      *  selection refuses Snowflake execution loudly. */

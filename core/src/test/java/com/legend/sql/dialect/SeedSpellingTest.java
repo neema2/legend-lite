@@ -93,7 +93,7 @@ class SeedSpellingTest {
     @Test
     void theSeedAndTheQueryNameOneTableAndOneColumn() {
         String csv = String.join("\n", "default", "Orders", "id,Amt,name", "1,10,a");
-        for (DatabaseType type : Databases.implemented()) {
+        for (DatabaseType type : Databases.relational()) {
             ModelContext ctx = Compiler.compileModel(MODEL.replace("TYPE", type.name()));
             SqlDialect d = Databases.dialect(type);
             String table = d.storedName("Orders", true);

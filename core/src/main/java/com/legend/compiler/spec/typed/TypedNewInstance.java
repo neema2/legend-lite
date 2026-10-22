@@ -12,7 +12,12 @@ import java.util.Map;
  * class's declared property; the result is {@code Class[1]}.
  */
 public record TypedNewInstance(String classFqn, Map<String, TypedSpec> properties,
-                               ExprType info) implements TypedSpec {
+                               ExprType info, Evaluation evaluation) implements TypedSpec {
+    /** A construction the compiler builds, its own evaluation. */
+    public TypedNewInstance(String classFqn, Map<String, TypedSpec> properties, ExprType info) {
+        this(classFqn, properties, info, Evaluation.synthesized());
+    }
+
     public TypedNewInstance {
         // ORDER-PRESERVING copy: Map.copyOf randomizes iteration order per
         // JVM run, which would make children() — and any lowering emitted
@@ -35,10 +40,19 @@ public record TypedNewInstance(String classFqn, Map<String, TypedSpec> propertie
         for (String k : properties.keySet()) {
             ps.put(k, kids.get(i++));
         }
-        return new TypedNewInstance(classFqn, ps, info);
+        return new TypedNewInstance(classFqn, ps, info, evaluation);
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedNewInstance(classFqn, properties, info);
+        return new TypedNewInstance(classFqn, properties, info, evaluation);
+    }
+
+    /** The same construction (its evaluation kept) with {@code ps} as its property values. */
+    public TypedNewInstance withProperties(Map<String, TypedSpec> ps) {
+        return new TypedNewInstance(classFqn, ps, info, evaluation);
+    }
+
+    public TypedNewInstance withEvaluation(Evaluation e) {
+        return new TypedNewInstance(classFqn, properties, info, e);
     }
 }

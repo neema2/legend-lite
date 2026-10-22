@@ -215,9 +215,10 @@ final class DatabaseJudge {
             batch.defer(name, wantEqual, vq, runOn.connection());   // leg 3.4: judged at the flush
             return AssertVerdicts.ok();
         }
+        // the verdict statement is a plan whose one row is the verdict (JudgePlans, step 6)
         return verdictOf(name, wantEqual, com.legend.exec.VerdictBatch.executeOne(
                 name, batch == null ? vq : com.legend.sql.FrameCtes.attach(vq, batch.frames()),
-                AssertVerdicts.ONE_ROW, runOn.connection(), runOn.dialect(), runOn.trace()));
+                runOn.connection(), JudgePlans.runner(runOn)));
     }
 
     /** The verdict of one row ({@code verdict, expected, actual, unjudged,

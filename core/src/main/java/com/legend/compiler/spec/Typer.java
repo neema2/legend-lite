@@ -225,7 +225,12 @@ final class Typer {
                                     + " (tree/colspec bindings resolve at"
                                     + " their call sites)"
                             : "unbound variable '$" + v.name() + "'")));
-            case AppliedFunction af -> applyFunction(af, env);
+            case AppliedFunction af -> {
+                // a user call keeps the node it was read from: the copies of a lambda body's let are one
+                // evaluation (docs/OBJECT_IDENTITY_2026_10_20.md §3.2)
+                TypedSpec call = applyFunction(af, env);
+                yield call instanceof TypedUserCall uc && uc.origin() == null ? uc.withOrigin(af) : call;
+            }
             case AppliedProperty ap -> accessProperty(ap, env);
             case PureCollection coll -> collection(coll, env);
             // a BARE TDSNull reference ($v != TDSNull, tds.pure

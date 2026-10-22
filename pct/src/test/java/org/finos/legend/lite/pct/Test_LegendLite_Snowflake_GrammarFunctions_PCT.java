@@ -35,17 +35,16 @@ public class Test_LegendLite_Snowflake_GrammarFunctions_PCT extends PCTReportCon
             // INSTANCE IDENTITY (as on DuckDB): eq/== on class instances is REFERENCE equality in real pure;
             // the harness inlines captured instances BY VALUE, so eq($x,$x) and eq($x,$y) arrive as identical
             // text -- identity is erased before the wire
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             // the asserts require the interpreter's ORIGINAL instances back: reference identity cannot cross the wire
             one("meta::pure::functions::collection::tests::filter::testFilterInstance_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             // HARNESS SERIALIZATION LOSS (as on DuckDB): the captured $address never reaches the serialized text
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\"")
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
+            // NOTE 2026-10-21 (the plan route on Snowflake, measured by the Snowflake lane session at 6c8de4e against
+            // the merge-base 59b547a5e): eq's and equal's testEqNonPrimitive and testEqPrimitiveExtension pass (object
+            // identity), their pins removed; testMapRelationshipFromOneToOne pins the class, as on every lane
     );
 
     public static Test suite() {

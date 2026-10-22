@@ -483,6 +483,27 @@ public final class CanonicalDivergence {
         return Census.count(Census.Key.SQL_DISAGREE);
     }
 
+    /** The asserts the database judge decided (its verdict row read; {@link #sqlJudgedInDatabase}). The agreement
+     *  gate's pins read it beside {@link #sqlUnjudgedCount} (the plan path program's step 6, 2026-10-18). */
+    public static long sqlJudgedInDatabaseCount() {
+        return sumOf("judged-in-database ");
+    }
+
+    /** The asserts the database judge named UNJUDGED ({@link #sqlUnjudged}). */
+    public static long sqlUnjudgedCount() {
+        return sumOf("unjudged ");
+    }
+
+    private static long sumOf(String prefix) {
+        long n = 0;
+        for (var e : SQL_CENSUS.entrySet()) {
+            if (e.getKey().startsWith(prefix)) {
+                n += e.getValue();
+            }
+        }
+        return n;
+    }
+
     public static long sqlDeclinedCount() {
         return Census.count(Census.Key.SQL_DECLINED);
     }

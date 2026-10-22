@@ -63,16 +63,27 @@ class LiteralChannelTest {
         return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
     }
 
+    /** Under the agreement gate (both judges; the plan path program's step 6, 2026-10-18). */
+    private static ExecutionResult runBoth(String query) throws SQLException {
+        return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, null,
+                StorelessRuntime.RUNTIME, conn, com.legend.ExecuteOptions.NONE.withJudgeMode(
+                        com.legend.ExecuteOptions.JudgeMode.BOTH));
+    }
+
     @Test
-    @DisplayName("mixed Any collections byte-decide — no decline")
+    @DisplayName("mixed Any collections are judged by both judges, in agreement — the database judge never declines")
     void mixedClaims() throws Exception {
-        long before = CanonicalDivergence.sqlDeclinedCount();
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        // 2026-10-18 (step 6): the byte channel that rode the side query is retired; the database judge is the
+        // referee, and this pair is one it JUDGES (the literal channel's claim), never names unjudged
+        long judged = CanonicalDivergence.sqlJudgedInDatabaseCount();
+        long unjudged = CanonicalDivergence.sqlUnjudgedCount();
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) runBoth(
                 "{|assertEquals([1, 'a', true, 2.5], [1, 'a', true, 2.5])}"))
                 .value());
-        assertEquals(before, CanonicalDivergence.sqlDeclinedCount(),
-                "mixed Any pair must CLAIM: "
-                        + CanonicalDivergence.summary());
+        assertEquals(judged + 1, CanonicalDivergence.sqlJudgedInDatabaseCount(),
+                "mixed Any pair must be JUDGED by the database judge: " + CanonicalDivergence.summary());
+        assertEquals(unjudged, CanonicalDivergence.sqlUnjudgedCount(),
+                "mixed Any pair must CLAIM: " + CanonicalDivergence.summary());
     }
 
     @Test

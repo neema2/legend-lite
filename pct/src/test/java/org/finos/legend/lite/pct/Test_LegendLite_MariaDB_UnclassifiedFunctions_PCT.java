@@ -29,11 +29,11 @@ public class Test_LegendLite_MariaDB_UnclassifiedFunctions_PCT extends PCTReport
 
     // Pinned by a STABLE part of the message (the runner matches by containment): no per-run id.
     // First measured 2026-10-11 (MariaDB 11.4.13, the pinned server).
-    private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            // MARIADB'S OWN LIMIT: no Jaro-Winkler similarity function (as on SQLite, Postgres and the clouds)
-            one("meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityEqual_Function_1__Boolean_1_", "\"JARO_WINKLER reached MariaDB: MariaDB has no string-distance function\""),
-            one("meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityNotEqual_Function_1__Boolean_1_", "\"JARO_WINKLER reached MariaDB: MariaDB has no string-distance function\"")
-    );
+    // NOTE 2026-10-20 (the parity phase, second batch): testJaroWinklerSimilarityEqual and
+    // testJaroWinklerSimilarityNotEqual unpinned -- the similarity is a recursive walk over the texts' characters,
+    // measured bit-equal to DuckDB's jaro_winkler_similarity (MariaDb.jaroWinkler). The ledger is empty: MariaDB
+    // answers every Unclassified test.
+    private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with();
 
     public static Test suite() {
         return PctCensusGate.wrap("Unclassified", wrapSuite(

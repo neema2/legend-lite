@@ -114,7 +114,7 @@ with the compiler's plan/execution split**, in this order:
    run 38070603189): `exec.PlanRunner` runs a lite plan with no model, its values typed and checked in its own words,
    each placeholder bound as the plan says (type holes where the type is the value's: H2's, and a date-time's on every
    database; PARK-19 fixed), sessions shared by the target's content; measured against legend-engine 4.145.0 and Pure
-   itself (`probes/engine-reference/`). **Now: PARK-24, the output layer** (`docs/OUTPUT_LAYER_DESIGN_2026_10_10.md`; the user's ruling 2026-10-10: an answer
+   itself (`probes/engine-reference/`). **PARK-24, the output layer, closed 2026-10-18 by the thirteenth line** (the plan path program's step 2, GATES "step 2, `pure/v1`'s text"; what follows was this line's plan: `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md`; the user's ruling 2026-10-10: an answer
    is interpreted Pure's value, its text the served API's — a whole Float's `.0`, an extreme Float's plain digits, a
    decimal result's scale, a DateTime's text), then step 4 (the callers switch, the old paths deleted), both on branch
    `dbowner/output-layer`, landed together. Files: in `core/src/main/java/com/legend/` `lowering/` `Render.java`,
@@ -2453,6 +2453,242 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   against its profile (`<<graph.Edgee>>`, undeclared, compiles with zero errors; legend-engine refuses it: "Can't
   find stereotype 'Edgee' in profile 'graph'"), and `docs/LENIENCY_CATALOG.md` does not list the leniency. The
   compiler line's; this line validates the graph profile's own references in its reader (PR3).
+
+## A twelfth line, 2026-10-16: MongoDB as a first-class database (the user's ask, rule 5)
+
+- **The plan**: `docs/MONGODB_PLAN_2026_10_16.md` (the study, the fourteen decisions the user ruled on 2026-10-16, the
+  design, the landings); its §11.1 is the record of what landed. Built to the ninth line's end state (one class per
+  database in `sql/dialect/`, a connector beside the drivers, an embedded server for the lane), so Mongo lands in the
+  program's shape and moves with it.
+- **Files this line owns**: `sql/dialect/MongoDb.java`, `MongoDbPipeline.java`, `MongoJson.java`;
+  `core/src/main/mongodb/` (the connector; `//core:mongodb_connector`); `model/MongoDeclarations.java`;
+  `tools/mongodb/`; `testing/EmbeddedMongoDb.java`; `core/src/test/.../exec/MongoDbPlanTest.java`
+  (`//core:mongodb_plan_test`) and `sql/dialect/MongoDbDialectTest.java`.
+- **Landed on the branch, 2026-10-17 (v0, the plan's §11.1)**: the vocabulary (`DatabaseType.MongoDB`, the engine's
+  `MongoDBConnection` and `###MongoDB` store read into the model), the target, the connector, the embedded server, the
+  seam, and the end-to-end proof on MongoDB 8.0.17; every guard green with dated pins; the capability matrix
+  regenerated with the MongoDb column.
+- **The homework before the PCT lane, 2026-10-17 (the user: "do it"; the plan's §11.2)**: the shape census of
+  channel A on DuckDB (`-Dlegend.diagnostics=pct-shapes`, `PctCaseRecorder`), the differential in miniature
+  (`MongoDbDifferentialTest`, in `//core:mongodb_plan_test`: the same Pure expressions planned and run on DuckDB and
+  on MongoDB, the CSV and JSON texts compared), the 16 MB bound of the whole-text wires, channel B's statement count.
+  What the differential exposed is fixed in the target (the register's S72 to S74 were defects, not decisions, and are
+  gone); what it exposed on the DuckDB side is recorded for the platform (§11.2).
+- **The burn-down, 2026-10-17 (the user: "burn down pct to as close to zero as possible"; the plan's §11.4)**: in the
+  order the first measurement's pins said -- windows (`$setWindowFields`), quantified comparisons, the Variant's JSON
+  text, lateral and as-of joins, the statistics, then the long tail (two-parameter lambdas, maps from entries, time
+  zones, `format` directives, `timeBucket`, `ascii`/`char`, bit shifts, the composed date formats) -- each with its
+  differential cases, and the adapter reading the value relation's cells by the function's own return type. The lane
+  stands at 1,145 of 1,249 (104 pinned after the second, third and cross-lane passes -- joins, regex, range, arg-max, the static pivot, the regular-expression replace, generateGuid, hashCode, base64, the string distances, a value root's date precision and the day truncation's DATE type -- most of them named refusals, the server's own errors or the route's). What
+  is left is MongoDB's own by name (§11.4's last paragraph), the pivot (the plan path has no probe), and the route's
+  (a List, a Map or an instance as text).
+- **Homework 2, 2026-10-17 (the plan's §11.2 item 2)**: the harness-named product code renamed for what it is --
+  `lowering/TdsTextWrap` (was `PctTdsWrap`), `Render.tdsText` (was `pctTds`), `exec/ColumnProbe` (was `PctProbe`),
+  `ExecuteOptions.TDS_TEXT` (was `PCT_RENDER`); the plan path gains `TypedQuery.Output.TDS_TEXT`
+  (`ExecutionPlan.Format.TDS_TEXT`: Pure's TDS text, a value's as the `value` relation, a pivot refused by name) and
+  `executionPlan(runtime, output, features)` for the engine's feature flags; the shadow run
+  (`-Dlegend.diagnostics=pct-shadow-plan`, `PctShadowPlan`) plans every PCT case the same way beside the legacy
+  route and records whether the two agree. A plan is never named for a harness: the plan's forms are Pure's.
+- **The PCT lane, 2026-10-17 (the plan's §11.3)**: `LEGENDLITE_PCT_BACKEND=mongodb`, channel A through the plan path
+  (`PctPlanRoute`), the five suites pinned at their first measurement -- 1,249 tests, 678 pass, 571 pinned, 320 of
+  the relation suite's 326 being the named refusals of the plan's PR4 (windows, quantified subqueries, pivots,
+  lateral and as-of joins, the Variant text). `//pct:pct_mongodb` in `//gates:heavy`.
+- **Files this line owns, added**: `pct/.../extension/PctPlanRoute.java`, `PctShadowPlan.java`,
+  `pct/.../Test_LegendLite_MongoDB_*Functions_PCT.java`; shared with the harness: `PctBackend.java`,
+  `PctExecuteNative.java`, `pct_adapter.pure`.
+- **Announced to the ninth line (the dialect program), 2026-10-17 -- its Phase 5's shape, landed for one database
+  first:** `exec/Statements` (what a session does with a plan's text), `exec/JdbcStatements` (the runner's JDBC, moved
+  whole), `exec/DatabaseConnector` and `exec/Connectors` (a connector beside the drivers, found by `ServiceLoader`),
+  `Sessions.Session.statements()`, `PlanRunner` through the session's statements, `PlanSessions.openShared` asking the
+  connectors first. The JDBC databases' sessions are unchanged (their statements are `JdbcStatements` by default); when
+  Phase 5 moves each database's opening into its connector, `Sessions.openingFor`'s switches shrink into
+  `DatabaseConnector` implementations behind the same seam. `DatabaseOwners` counts `core/src/main/mongodb/` as an
+  owner, as it counts `core/src/main/duckdb/`; the leak ledger, `DialectBoundaryTest`, `JdbcSurfaceCensusTest`,
+  `JavaEvalLedgerTest`, `TenetRatchetTest`, `ArchitectureTest` and `CoreClosureTest` carry the dated pins.
+- **Next**: the PCT lane through the plan route (the plan's §6: `PCT_TDS` as a plan output, the bridge through
+  `PlanRunner`; the harness's channel A hands a `java.sql.Connection` today, so no lane is scaffolded that could not
+  run), then the measurements of joins, unions and the ordered aggregates on the server, then the function table's
+  burn-down (the plan's §7 PR3 and PR4).
+
+## A thirteenth line, 2026-10-17: everything executes through a plan (the user's ask, rule 5)
+
+- **The plan**: `docs/PLAN_PATH_PROGRAM_2026_10_17.md` (the rulings R1 to R6 of 2026-10-17, the state measured, the
+  representation decided -- JSON stays -- the eleven steps in order, the status log). It continues
+  `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §8's program from its step 4: the callers switch to plans, the legacy
+  executor is deleted; both judges stay (the charter's Clause 2c); the plan carries every type; a non-primitive value
+  crosses a text wire as Pure's own literal grammar, spelled by the database and parsed by Pure.
+- **Files this line owns**: `executionplan/ExecutionPlan.java`, `PlanJson.java`, `PlanMaker.java`, `exec/PlanRunner.java`,
+  `plan/UpstreamRelationType.java`, `lowering/Render.java`'s TDS text writer and `TdsTextWrap.java`, the verdict arms
+  (`AssertVerdicts`, `DatabaseJudge`, `HostJudge`, `SqlTextVerdicts`), `test/PureTestRunner.java`,
+  `test/ServiceTestRunner.java`, `server/QueryService.java`, the PCT extension (`pct/src/test/.../extension/`), the
+  adapter `pct_adapter.pure`; cross-area edits (the lowering's type facts, the dialects' holes) announced here first.
+- **Step 1 announced 2026-10-17: types in the plan** (the program's §3): the three facts per result column, the engine
+  renderer reading the store's declared type, the typed SQL tree written into the lite JSON (format 5), the round-trip
+  gate. **Step 1 landed 2026-10-18** (GATES "The plan path program, step 1"): `ExecutionPlan.Column`'s three facts,
+  `ColumnFacts` (new), `PlanColumns` (new), `PlanJson` format 5 with the typed SQL tree (`MirJson`, new),
+  `QueryPlan`'s columns, `PureV1Api`'s `resultColumns.dataType` from the store type (the parity test's recorded
+  difference 2 closed), the round-trip gate (`testcases/PlanRoundTrip`, new) on every plan the plan maker's and the
+  MongoDB tests make. Files touched beyond the announced list: `AGENTS.md` (the MIR table recounted),
+  `server/PostgresArmTest.java` (a graph query's TDS text output skipped as its CSV is), `core/BUILD.bazel` (the
+  `plan` library depends on `execution_plan`; the MongoDB plan test on the shared test cases). **Step 2 announced
+  2026-10-18: the printed values** (PARK-24; `docs/OUTPUT_LAYER_DESIGN_2026_10_10.md`'s five steps): the output
+  matrix measured first (`OutputMatrixTest`, new, in `core/src/test/java/com/legend/`), then one text owner per kind
+  per API in `lowering/LiteralSpelling.java` and the wires (`lowering/Render.java`, `WireRender.java`), the `pure/v1`
+  text in `server/PureV1Api.java`; each landing judged by the matrix's pins it removes. **The matrix landed
+  2026-10-18** (GATES "The plan path program, step 2 begins"): 192 cells, 76 pinned. **The Float's text and the JSON
+  wires from their cells landed 2026-10-18** (`8672529`; GATES "step 2, the Float's text"): 32 pins deleted. **The
+  DateTime's text landed 2026-10-18** (GATES "step 2, the DateTime's text"): one owner in `LiteralSpelling`, the last
+  44 pins deleted, the matrix all Pure's text; `DateFmt.CSV_DATETIME` and `ISO_PURE_UTC` deleted. **`pure/v1`'s text landed 2026-10-18**
+  (GATES "step 2, `pure/v1`'s text"): `WireRender.Spelling` at the two engine-API seams, `floatPrintJava` and
+  `dateTimeTextEngine`, register S97 and S98; step 2 complete, PARK-24 closed. **Step 3 announced 2026-10-18: the
+  text carrier** (the program's §4; its §9 names the files): `lowering/LiteralSpelling.java` (`pureValueText`),
+  `lowering/Render.java` (the cell arm; `timed` moved to the owner), `lowering/TdsTextWrap.java` (the layouts),
+  `PlanMaker.java`, `StatementExecutor.java` (handing them), the PCT adapter `pct_adapter.pure` and its module
+  definition (`core_legend_lite_pct.definition.json`: `core_functions_unclassified`), `MongoDbDifferentialTest`,
+  `TextCarrierTest` (new), the MongoDB lane's pins. **Step 3 landed 2026-10-18** (GATES "step 3, the text carrier"):
+  files touched beyond the announced list: `executionplan/PlanJson.java` (the reader's depth, 4096), the MongoDB
+  lane's two pin classes' headers. **Step 4 landed 2026-10-18** (GATES "step 4, dynamic pivots"): no probe plan, no
+  hole -- the database names its own pivot's columns (`SqlExpr.RowJson`, new; `Render.tdsTextOfDynamicPivot`,
+  `jsonWireOfRows`; `TdsTextWrap`, `WireRender`, `PlanMaker`; the rewriters' and renderers' arms; `MirJson`;
+  `AGENTS.md`'s MIR table). **Step 5 landed 2026-10-18** (GATES "step 5, the lets"): the dissolution measured as
+  the rule in force (`compiler/spec/UserCallInliner.java`: `refuseUndissolvable`, the one `generateGuid` case),
+  `LetsTest` (new), the dialect-leak ledger's row. **Step 6 announced 2026-10-18: both judges on plans, the agreement
+  gate** (the program's §6): `executionplan/ExecutionPlan.java` (`TdsResult` on the three-fact `Column`),
+  `executionplan/PlanJson.java` (format 6), `exec/RowDecode.java` (new: the typed-row decode by the plan's columns),
+  `exec/PlanRunner.java` (`rows`), `exec/VerdictBatch.java` (its statements through a `Runner`), `JudgePlans.java`
+  (new: the judges' plans and the host judge's side results), `AgreementArm.java` (new: `JudgeMode.BOTH`),
+  `StatementExecutor.java` (`planHostSide`), `HostJudge.java`, `AssertVerdicts.java`, `SqlTextVerdicts.java`,
+  `DatabaseJudge.java`, `BodyCompiler.java`, `PlanMaker.java`, `ExecuteOptions.java`; `RowDecodeTest`,
+  `AgreementArmTest`, `JudgesOnPlansTest` (new); the corpus lane's `both` mode (`MinimalCorpus`). **Step 6 landed
+  2026-10-18** (GATES "step 6, both judges on plans"): files touched beyond the announced list:
+  `lowering/LiteralSpelling.java` (`dateTimeTextTds`: a TDS cell's three digits at least; `floatPrint`: a Float the
+  store holds as an integer prints the integer), `lowering/Render.java`
+  (the relation toString's cell, the JSON rows wire's hidden order column), `lowering/WireRender.java`
+  (`hasDynamicPivot`; a statement's CTEs at its head, a UNION ALL wrapped branch by branch), `sql/ScanOrder.java` and
+  `sql/dialect/StableScanOrder.java` (a table naming a frame is no scan), `WireRowsTest` (new),
+  **The plan and the result ratified 2026-10-18** (`docs/PLAN_AND_RESULT_MODEL_2026_10_18.md`): governs step 7 on; the corpus rosters named in GATES (the H2 fail roster and database-gained register -1 each, the DuckDB
+  host-mode engine-order register -13), `rcorpus/MinimalCorpusTest.java` (the gate pins no engine-order register), `exec/CanonicalDivergence.java` (the judged and unjudged counts), `exec/PrepTrace.java`,
+  the guard pins named in GATES, channel B's five suites (the agreement gate, the unjudged ceilings),
+  `rcorpus/CorpusOne.java` (`both`), `OutputMatrixTest` (the TDS-text reference). **The §8 measurement taken
+  2026-10-18** (GATES "The plan and the result, the §8 measurement"; the design note's §8.1): `exec/SeamBenchmarkTest`
+  (new; the manual targets `//core:seam_benchmark` and `//core:seam_benchmark_small_heap`, the `benchmark` tag
+  excluded from the core suite), `diagnostics/Diagnostics.java` (the `plan-sizes` switch),
+  `testcases/PlanRoundTrip.java` (the sizes recorded under it). **Step 7 announced and its first landing cut
+  2026-10-18** (GATES "step 7, first landing"): `exec/Statements.java` (the typed method), `exec/JdbcDecode.java`
+  (new), `exec/JdbcStatements.java`, `exec/RowDecode.java` (the structured slots' spelling, shared),
+  `exec/DriverCells.java`, `exec/PlanRunner.java`, `executionplan/ExecutionPlan.java` (the TdsResult contract),
+  `values/PureDateLiteral.java` (`fromDatabaseTimestamp`, `trimmed`), `JudgePlans.java` (the statement itself,
+  the value lane), `lowering/WireRender.java` and `lowering/Render.java` (the carrier spellings deleted, the
+  lifting factored, `typedRows`), `lowering/LiteralSpelling.java` (`nonFinite`), `compiler/spec/PivotChecker.java`
+  (every column a map reads), `lowering/Lowerer.java` (`castOverDynamicPivot`), `lowering/TdsTextWrap.java`,
+  `src/main/mongodb/.../MongoDbStatements.java` and `MongoDbDecode.java` (new), the DuckDB host engine-order
+  register (-6, re-pinned with the reason), the guards' registers (`JdbcDecode.java`). Next in step 7: the query
+  service's switch and the deletions (the program's §7), the whole-text wires retired, the H2 session's lazy
+  execution (D2), the streaming gate. **The pivot homework landed 2026-10-18** (GATES "The pivot homework";
+  `docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md`): `lowering/Render.java` (the wires' names as the engine labels them,
+  the dynamic pivot's JSON wire from its cells, `PivotKeys`), `lowering/WireRender.java`, `PlanMakerTest`, register
+  S99 to S101. **Step 9 announced and begun 2026-10-18: the DuckDB PCT lane on the plan route** (the user's
+  "flip and let's fix everything"): `pct/.../extension/PctBackend.java` (`throughThePlan`), then whatever the
+  first run's failures name in the plan path (`lowering/`, `exec/`, the adapter `pct_adapter.pure`); the five
+  DuckDB suites' pins move only with a named residue, shrink-only.  **First landing 2026-10-18** (GATES "step 9, first landing"): `lowering/LiteralSpelling.java`
+  (the `Class<T>` arm), `lowering/Lowerer.java` (the Number root's label), `lowering/Render.java` (a Number-typed Decimal cell's D),
+  `PlanMaker.java` (`metamodelSteps`), `core/BUILD.bazel` (`MetamodelSeeds`, `OpSeeds` into the planner), the adapter
+  (the header's type; `PctDisciplineTest`'s ceiling), the essential and grammar suites' pins, registers S81 and S82.
+  **Every lane flipped 2026-10-19** (`83f2810`; `throughThePlan` true for all), a plan written for the session's
+  server version (`2b7bad3`: `PlanMaker.plan`'s last argument, `TypedQuery.executionPlan`, `PctBackend.serverVersion`,
+  `PctPlanRoute`). **Six sibling sessions started 2026-10-19 from `385ef14`** (the user: "spin up separate compute
+  sessions ... bin pack optimally"; the brief `docs/STEP9_LANE_BRIEF_2026_10_19.md`), each on its own branch, none
+  pushing here: `claude/step9-snowflake`, `claude/step9-bigquery`, `claude/step9-databricks`, `claude/step9-trino-h2`,
+  `claude/step9-postgres-sqlite-mongodb`, `claude/step9-mariadb-mysql-clickhouse`; each fixes its lanes' failures at
+  the root or pins by name, runs channel B as the regression, reports to this session, which merges them and runs the
+  corpus lanes and the core gate. **This session's shared item meanwhile: the cast over a dynamic pivot on a dialect
+  without a dynamic PIVOT** (the PCT's four composition cases, refused on every lane but DuckDB): `sql/SqlSource.java`
+  (`Pivot.named`, `values`), every pivot construction site (`SqlRewriter`, `AliasPrefix`, `UnqualifyPivotArgs`,
+  `SqlPostProcessors`, `SubselectPrune`, `DynamicPivot`, `MirJson`), `executionplan/PlanJson.java` (format 7),
+  `lowering/Lowerer.java` (`castOverDynamicPivot` names the keys), `lowering/Pivots.java`, the emulations
+  (`CarrierStrategies`, `PivotAsGroupBy`, `Snowflake.PivotAsGroupBy`, `Databricks`, `MongoDbPipeline`), `PlanMakerTest`,
+  register S102. The siblings pin pivots by name; the merge removes the four cast cases' pins. **The second shared
+  item, 2026-10-19: the system metamodel store on a server engine** (`Class.all()`, pinned on every server lane):
+  `database/Databases.java` (`inProcess`, from `exec/Sessions.java`), `PlanMaker.java` (`Metamodel`: the session's
+  temporary tables and the query's renames on a server), `PlanMakerTest`; the merge removes the `testBasic` pins.
+  **The harness's one rule for the plan's session, 2026-10-19** (the server lanes found the platform opens no
+  session with credentials): `pct/.../extension/PctBackend.java` (`planSessions`: a server lane's plan on the
+  harness's own session, a new one per plan from `Lane.openSystem`; an in-process lane's and MongoDB's on the plan's
+  own), `PctPlanRoute.java`; the siblings merge it and drop their lane-local forms. The platform's item is §7's
+  residue (a declared server connection opened with its credentials through a vault). **Step 9's merge completed 2026-10-19** (GATES "step 9's merge completed"): the trino-h2 branch in (`1616963`:
+  `model/ConnectionSpecification.java`'s `Trino`, `model/FromProtocol.java`, `exec/Sessions.java`'s Trino opening,
+  `executionplan/PlanJson.java`'s `Trino` tag, `sql/dialect/Trino.java`, the H2 and Trino lanes' pins), the guard
+  lanes reconciled with dated reasons (`4e35539`: the registers under `core/src/test`, the dialect-leaks ledger, the
+  regenerated claims, ladder and ratchets); on the final head `//gates:core` 45 of 45 (the six Postgres lanes under the
+  unprivileged wrapper), the PCT lanes this container runs 23 of 23, both corpus lanes exact. Open after step 9: the Snowflake and
+  BigQuery lanes (their containers refused the credential read), the pivot's one-query form (the user's decision),
+  steps 8, 10 and 11. **Withdrawn 2026-10-20, nothing landed** (the cross join gives no relation, the main consumer; the program's §9):
+  what was announced, the dynamic pivot's outputs by the cross join: `lowering/Render.java` (the three dynamic-pivot builders over the pivot's source as cells, keys and
+  groups; the row-as-JSON builder deleted), `lowering/TdsTextWrap.java`, `lowering/WireRender.java`,
+  `sql/SqlExpr.java` (`RowJson` deleted) and its arms (`sql/SqlRewriter.java`, `sql/dialect/AnsiSqlRenderer.java`,
+  `DuckDb.java`, `MongoDb.java`, `UnqualifyPivotArgs.java`, `FoldToListReduce.java`, `lowering/Windows.java`,
+  `SubselectPrune.java`, `executionplan/MirJson.java`, `PlanJson.java`'s format), `PlanMakerTest`, the PCT lanes'
+  ten uncast-pivot pins each.
+ **The probe plan landed 2026-10-20** (GATES "a dynamic pivot's probe plan"): `lowering/KeyedPivot.java` (new),
+  `PlanMaker.java` (`keyed`, `keyedWire`), `executionplan/ExecutionPlan.java` (`Keyed`, `Region`, `Binding.Key`),
+  `PlanJson.java` (format 8), `MirJson.java`, `exec/PlanRunner.java` (`keyed`, the expansion, the sinks),
+  `exec/Statements.java` and its two sessions (`inSnapshot`), `sql/SqlExpr.java` (`KeyCell`; `RowJson` deleted),
+  `sql/OutputCol.java` (`PER_KEY`), `sql/SqlSelect.java`, `sql/dialect/SqlWriter.java` and `RenderedStatement.java`
+  (regions), `AnsiSqlRenderer.java` and each dialect (`keysSnapshot`, `resultColumnLimit`), `Execution.java` (the
+  legacy wire's bridge), `lowering/Render.java`, `TdsTextWrap.java`, `WireRender.java`, the PCT lanes' pivot pins.
+  **Next, the user's order (2026-10-20): PCT parity on every backend, then the SQL optimization passes, then step 7.**
+ **The parity phase's first batch landed 2026-10-20** (GATES "the parity phase, first batch"): `lowering/Lowerer.java`
+  (`format`'s list), `LiteralSpelling.java` (`exactFloatConstant`), `MixedEncoding.java` (`dayNumberOrNull`),
+  `Scalars.java` (the compare rule), `sql/dialect/CarrierStrategies.java` (`filteredLiteralLength`),
+  `ConstantLateralsAsRows.java`, `WindowAggregatesAsCorrelated.java` and `WindowsComputedBelow.java` (new), `H2.java`,
+  `MariaDb.java`, `MySql.java`, `Postgres.java`, `Trino.java`, `MongoDb.java`, `testing/.../EmbeddedPostgres.java`
+  (pgcrypto at init), the PCT ledgers, `channelb/ChannelBLane.java` (H2 Relation's pins, dated).
+  **Announced 2026-10-20, the second batch:** `sql/dialect/MariaDb.java` and `SQLite.java` (Jaro-Winkler),
+  `MongoDb.java`, `MongoDbPipeline.java`, `SqlWriter.java`, `exec/PlanRunner.java`,
+  `core/src/main/mongodb/com/legend/exec/MongoDbStatements.java` (the dynamic pivot's probe plan on MongoDB, its
+  markers positional), `PlanMaker.java` and `sql/dialect/SqlDialect.java` (the metamodel's tables inline where a
+  database has no temporary table), the PCT ledgers.
+  **The second batch landed 2026-10-20** (GATES "the parity phase, second batch"): as announced, and
+  `sql/dialect/SqliteDigests.java` and `OuterJoinResidualsAsMatches.java` (new), `ClickHouse.java` (the join's keys,
+  the date range raised), `executionplan/ExecutionPlan.java` and `PlanJson.java` (the keyed result's field names, plan
+  JSON v9), `Trino.java`, `PlanMakerTest`, `PlanJsonTest`, `MongoDbDialectTest`, `channelb/ChannelBLane.java` (floors
+  raised as measured, Trino Grammar's one wire bug, each dated).
+ **Object identity, steps 1 and 2, landed 2026-10-20** (GATES "object identity, steps 1 and 2";
+  `docs/OBJECT_IDENTITY_2026_10_20.md`): `compiler/spec/typed/Evaluation.java` (new), `TypedNewInstance.java`,
+  `TypedCopyInstance.java`, `NewChecker.java`, `UserCallInliner.java`, `LiteralUnroll.java`, `lowering/Lowerer.java`,
+  `ObjectSites.java` (new), `InstanceEquality.java`, `ListEncodings.java`, `LambdaBinding.java`, `MixedEncoding.java`,
+  `Render.java`, `Scalars.java`, `compiler/element/ClassLayouts.java`, `sql/SqlTyping.java`, `exec/InstanceIds.java`,
+  `resolver/SyntheticHeads.java`, `TypedQuery.java`, `Compiler.java`, `pct_adapter.pure`, the DuckDB ledgers.
+  **Step 3 landed 2026-10-20** (GATES "object identity, step 3"): `lowering/InstanceEquality.java`, `Lowerer.java`,
+  `MixedEncoding.java`, `StatementExecutor.java`, `compiler/element/type/PlatformTypes.java`, `TypedQuery.java`,
+  `Compiler.java`, the identity and integration tests. **Every lane's ledgers at the identity head landed 2026-10-20**
+  (968c8b99, 94a55a24, 31196a87; GATES "object identity: every lane at the identity head").
+  **The audit's fixes, in flight 2026-10-20** (the user: "fix all those"; GATES "object identity: the audit's fixes"):
+  `sql/SqlExpr.java` (`StructGet`/`ArrayLit` keep a given type where their parts prove none), `sql/dialect/MariaDb.java`
+  (its one-field-struct workaround deleted); `compiler/spec/typed/Evaluation.java` (`tracked`, `untrack`),
+  `TypedUserCall.java` (`origin`, `untracked`), `Typer.java`, `SourceSubst.java`, `Overloads.java`,
+  `LambdaBodies.java`, `UserCallInliner.java`, `lowering/Lowerer.java`, `CanonicalRenderSql.java`,
+  `InstanceEquality.java`, `Scalars.java` (an untracked object's identity is refused by name, §4); the register
+  (S81, S82 removed; S104). **Merge gate (the user, 2026-10-20):** channel B green on every lane; the lane sessions
+  measure it test by test against the merge-base. **Met at b37af2b9, landed 2026-10-21** (GATES "channel B against
+  the merge-base on every lane"): 0 lost on every lane measured, channel A exact on each; Snowflake and BigQuery
+  unmeasured (the environment has no credentials). Its files: `sql/dialect/{ClickHouse,Databricks,Trino,MySql}.java`,
+  `lowering/{SideOrdinal (new),VerdictSql,CanonicalRenderSql,LiteralSpelling}.java`,
+  `exec/{JdbcDecode,CanonRider,JdbcStatements,PlanRunner}.java`, `SideOrdinalTest` (new), the Databricks ledgers.
+  **Announced 2026-10-22 — Snowflake and BigQuery, the Float's print forms read once** (GATES "the Float's print
+  forms read once"): `sql/SqlFn` (`FLOAT_PRINT`, `FLOAT_PRINT_ENGINE`), `sql/SqlTyping`, `sql/dialect/FloatPrintText`
+  (new: the portable spellings moved unchanged from `lowering/LiteralSpelling`), `AnsiSqlRenderer` (the expansion and
+  its two hooks), every dialect's arm, `Snowflake` and `BigQuery` (their own forms), `docs/dialect-capability/`
+  (regenerated). Every other database's SQL is byte-identical. **Proposed, not ratified:**
+  `docs/RESULTS_AND_RENDERERS_2026_10_22.md` (one plan, one result, output formats as host renderers; awaiting the
+  user). Nothing in it is built.
+  **Landed 2026-10-22 — main (bff1c703f) merged into this branch** (GATES "main (bff1c703f ...) merged into the plan
+  path branch"): MongoDB and Trino onto main's connectors (`exec/{Connectors,DatabaseConnector,TrinoConnector}`,
+  `core/src/main/mongodb/.../MongoDbConnector`), the plan facts on the dialect (`SqlDialect.inProcess`, `relational`),
+  the PCT harness onto main's test backends (`PctBackend`, `testbackend/{CloudBackend,MongoDbBackend}`), the branch's
+  tests under the database-name ban (per-database tests split out), register rows S76-S80 and S83-S85 renumbered
+  S97-S104. Local gate green; the lanes re-measure on the merged head.
+
 - **Announced here as landed, 2026-10-17 and 2026-10-18 (the TCK-to-zero program, `docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md`;
   each landing's record is its GATES entry, the forty-second to the eighty-ninth): the other lines' files this line touched** — the
   dialects: `sql/dialect/Postgres.java` (the orderability key, the list encodings, the W7 casts, a `concat` of more than

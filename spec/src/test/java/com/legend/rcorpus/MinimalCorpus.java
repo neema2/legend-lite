@@ -338,8 +338,9 @@ public final class MinimalCorpus {
                 System.getProperty("legend.judge.mode", "host").toLowerCase(java.util.Locale.ROOT)) {
             case "host" -> com.legend.ExecuteOptions.JudgeMode.HOST;
             case "database" -> com.legend.ExecuteOptions.JudgeMode.DATABASE;
+            case "both" -> com.legend.ExecuteOptions.JudgeMode.BOTH;   // the agreement gate (step 6, 2026-10-18)
             default -> throw new IllegalArgumentException("legend.judge.mode='"
-                    + System.getProperty("legend.judge.mode") + "': 'host' or 'database'");
+                    + System.getProperty("legend.judge.mode") + "': 'host', 'database' or 'both'");
         };
         runner = new PureTestRunner(ctx, RUNTIME, BACKEND::openWorkspace, sharedSetups,
                 discovery.setupsByPackage(), new CorpusObserver(), judgeMode);

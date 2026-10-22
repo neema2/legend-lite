@@ -190,7 +190,7 @@ public abstract class AbstractDatabaseTest {
 
             Class meta::pure::functions::collection::tests::model::CO_Firm
             {
-                legalName: String[1];
+                <<equality.Key>> legalName: String[1];
                 employees: meta::pure::functions::collection::tests::model::CO_Person[*];
             }
 

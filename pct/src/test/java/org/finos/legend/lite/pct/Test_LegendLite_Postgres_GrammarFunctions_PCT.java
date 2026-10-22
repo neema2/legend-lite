@@ -37,16 +37,21 @@ public class Test_LegendLite_Postgres_GrammarFunctions_PCT extends PCTReportConf
             // INSTANCE IDENTITY (as on DuckDB): eq/== on class instances is REFERENCE equality in real pure;
             // the harness inlines captured instances BY VALUE, so eq($x,$x) and eq($x,$y) arrive as identical
             // text -- identity is erased before the wire
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "Assert failed"),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "Assert failed"),
+            // 2026-10-20, object identity (docs/OBJECT_IDENTITY_2026_10_20.md): eq is identity and equal a keyed
+            // class's keys, its key fields read typed (a key collection's element, the empty one typed) --
+            // testEqNonPrimitive, testEqualNonPrimitive and the two primitive-extension tests pass
             one("meta::pure::functions::collection::tests::filter::testFilterInstance_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             // refused by name: a construct the Postgres dialect does not spell yet
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger"),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger"),
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "unbound variable '$address'")
+            // OneToOne: the captured $address reaches the text since 2026-10-20 (the adapter binds captured objects by
+            // lets, object identity); its assertIs then needs the interpreter's own object back (the ids it prints vary
+            // per run, so the pin is the class), as on the DuckDB lane
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
+            // NOTE 2026-10-20 (plan-route parity, a type value as its path): testLetChainedWithAnotherFunction passes again: a type
+            // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
+            // whatever its namesakes; a printer takes the name.
     );
 
     public static Test suite() {

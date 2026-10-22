@@ -71,7 +71,7 @@ final class NewChecker {
             overrides.put(name, value);
         });
         return new com.legend.compiler.spec.typed.TypedCopyInstance(source, classFqn, overrides,
-                new ExprType(st, Multiplicity.Bounded.ONE));
+                new ExprType(st, Multiplicity.Bounded.ONE), com.legend.compiler.spec.typed.Evaluation.of(ni));
     }
 
     /** Every STORED required property of the class hierarchy must be
@@ -230,7 +230,7 @@ final class NewChecker {
                 return new TypedNewInstance(ni.className(), properties,
                         new ExprType(new Type.GenericType(ni.className(),
                                 java.util.List.of(first.info().type(), second.info().type())),
-                                Multiplicity.Bounded.ONE));
+                                Multiplicity.Bounded.ONE), com.legend.compiler.spec.typed.Evaluation.of(ni));
             }
         }
         // ^List(values=...) types as List<t(values)> — same principle: the
@@ -246,7 +246,7 @@ final class NewChecker {
                     : new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY);
             return new TypedNewInstance(ni.className(), properties,
                     new ExprType(new Type.GenericType(ni.className(), java.util.List.of(elem)),
-                            Multiplicity.Bounded.ONE));
+                            Multiplicity.Bounded.ONE), com.legend.compiler.spec.typed.Evaluation.of(ni));
         }
         // EXPLICIT generic instantiation (^Result<SelectSQLQuery>(...)):
         // the spelled type arguments RIDE the instance type — dropping
@@ -257,10 +257,10 @@ final class NewChecker {
                     .map(t::namedType).toList();
             return new TypedNewInstance(ni.className(), properties,
                     new ExprType(new Type.GenericType(ni.className(), args),
-                            Multiplicity.Bounded.ONE));
+                            Multiplicity.Bounded.ONE), com.legend.compiler.spec.typed.Evaluation.of(ni));
         }
         return new TypedNewInstance(ni.className(), properties,
-                new ExprType(new Type.ClassType(ni.className()), Multiplicity.Bounded.ONE));
+                new ExprType(new Type.ClassType(ni.className()), Multiplicity.Bounded.ONE), com.legend.compiler.spec.typed.Evaluation.of(ni));
     }
 
     /** The property a copy key names — a DOTTED key walks the navigation

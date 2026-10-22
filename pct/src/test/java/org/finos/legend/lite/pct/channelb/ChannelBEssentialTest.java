@@ -253,9 +253,20 @@ class ChannelBEssentialTest {
         // decline (e.g. a COMPUTED mixed collection, which the
         // mixed-kind gate still guards) fails here and becomes a named
         // work item, never a silent count.
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 0,
-                "byte-verdict declines grew past the declared residue: "
-                        + com.legend.exec.CanonicalDivergence.summary());
+        // 2026-10-18 (the plan path program's step 6): the byte channel that rode the side query is retired --
+        // every host side now declines it by name -- and the agreement gate judges each assert twice; the residue
+        // this pin guards is the asserts the DATABASE judge names UNJUDGED, printed here and pinned by the lane
+        // (ChannelBLane) once measured
+        System.out.println("[chB essential] database judge: judged="
+                + com.legend.exec.CanonicalDivergence.sqlJudgedInDatabaseCount() + " unjudged="
+                + com.legend.exec.CanonicalDivergence.sqlUnjudgedCount() + " "
+                + com.legend.exec.CanonicalDivergence.sqlCensus().entrySet().stream()
+                        .filter(e -> e.getKey().startsWith("unjudged ")).toList() + " | "
+                + com.legend.exec.CanonicalDivergence.summary());
+        // the UNJUDGED ceiling, shrink-only (measured 2026-10-18 under the agreement gate: 0)
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlUnjudgedCount() <= 0,
+                "the database judge's UNJUDGED asserts grew past the measured residue (0): "
+                        + com.legend.exec.CanonicalDivergence.sqlCensus());
         // CONTRACT PROGRAM wire ratchets (adjudicated 2026-08-23,
         // shrink-only): DIVERGE = the true residue (hash UBIGINT,
         // percentile input-type, Number-erasure decimal delivery —

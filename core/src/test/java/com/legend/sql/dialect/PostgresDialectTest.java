@@ -228,8 +228,10 @@ class PostgresDialectTest {
                         + " / power(CAST(10 AS DOUBLE PRECISION), CAST(2 AS INTEGER)))"));
         // a dynamic pivot needs a key-discovery round trip a planner cannot make
         assertThrows(DialectCapability.class, () -> plan("->pivot(~[ok], ~[t: r|$r.qty : y|$y->sum()])"));
-        // DuckDB's %g is the milliseconds, three digits (the part's engine convention, Snowflake's FF3): to_char's MS
-        assertTrue(plan("->extend(~[s: r|$r.ts->toOne()->toString()])->select(~[id, s])").contains("SS\".\"MS"));
+        // a DateTime's text (the one owner, 2026-10-18): the fraction read at nine digits -- to_char's US, six, and
+        // three written zeros -- and trimmed of its trailing zeros by the database
+        String toString = plan("->extend(~[s: r|$r.ts->toOne()->toString()])->select(~[id, s])");
+        assertTrue(toString.contains("rtrim(to_char(") && toString.contains("'US\"000\"'), '0')"), toString);
     }
 
     @Test
@@ -252,17 +254,11 @@ class PostgresDialectTest {
         // up, so the argument holds by then the expression of every column it reads; a scalar
         // subquery reaches the estimate as a parameter it does not open (measured on 16.15,
         // 2026-10-17: the Cypher island's UNWIND of a CASE whose guard raises)
-        String sql = plan("->extend(~n: r | [1, 2, 3]->filter(e | $e > $r.qty)->size())->select(~[id, n])");
-        assertEquals("""
-                SELECT "t0".id AS "id", coalesce(cardinality((CASE WHEN (CASE WHEN CAST(ARRAY[1, 2, 3] AS BIGINT[]) \
-                IS NULL THEN NULL ELSE ARRAY(SELECT "e" FROM unnest((SELECT CAST(ARRAY[1, 2, 3] AS BIGINT[]))) \
-                WITH ORDINALITY AS __u("e", __o) WHERE ("t0".qty IS NOT NULL AND "e" > "t0".qty) ORDER BY __o) END) \
-                IS NULL THEN NULL ELSE ARRAY(SELECT "x" FROM unnest((SELECT (CASE WHEN CAST(ARRAY[1, 2, 3] AS BIGINT[]) \
-                IS NULL THEN NULL ELSE ARRAY(SELECT "e" FROM unnest((SELECT CAST(ARRAY[1, 2, 3] AS BIGINT[]))) \
-                WITH ORDINALITY AS __u("e", __o) WHERE ("t0".qty IS NOT NULL AND "e" > "t0".qty) ORDER BY __o) END))) \
-                WITH ORDINALITY AS __u("x", __o) WHERE "x" IS NOT NULL ORDER BY __o) END)), 0) AS "n"
-                FROM trades AS "t0"\
-                """, sql);
+        // a list the database computes (a literal list's filter and size unroll to one CASE per element since the
+        // plan path branch's merge, 2026-10-22, and reach no unnest): the column's text split, then filtered
+        String sql = plan("->extend(~n: r | $r.sym->toOne()->split(',')->filter(e | $e != 'a')->size())"
+                + "->select(~[id, n])");
+        assertTrue(sql.contains("unnest((SELECT "), sql);
         assertFalse(sql.matches("(?s).*unnest\\((?!\\(SELECT ).*"), "an unnest whose argument is not held: " + sql);
     }
 

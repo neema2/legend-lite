@@ -17,6 +17,7 @@ What each dialect does with each aggregate of the SQL IR. The legend, the method
 - [SQLite](#sqlite)
 - [MariaDb](#mariadb)
 - [MySql](#mysql)
+- [MongoDb](#mongodb)
 - [EngineStyleH2](#enginestyleh2)
 - [EngineStyleDB2](#enginestyledb2)
 - [EngineStyleComposite](#enginestylecomposite)
@@ -584,6 +585,53 @@ Database types planned with it: MySQL.
 | `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` | `as MariaDb` | 0 |
 | `LAST_VALUE` | not_here | `is a window function: windowCall writes it` | `as MariaDb` | 0 |
 | `NTH_VALUE` | not_here | `is a window function: windowCall writes it` | `as MariaDb` | 0 |
+
+## MongoDb
+
+Database types planned with it: MongoDB.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | emulated | `accumulate: $sum` |  | 0 |
+| `COUNT` | emulated | `countAccumulator` |  | 0 |
+| `AVG` | emulated | `accumulate: $avg` |  | 0 |
+| `MIN` | emulated | `accumulate: $min` |  | 0 |
+| `MAX` | emulated | `accumulate: $max` |  | 0 |
+| `ANY_VALUE` | emulated | `accumulate: $first` |  | 0 |
+| `STDDEV_SAMP` | emulated | `accumulate: $stdDevSamp` |  | 0 |
+| `STDDEV_POP` | emulated | `accumulate: $stdDevPop` |  | 0 |
+| `VAR_SAMP` | emulated | `pushed` |  | 0 |
+| `VAR_POP` | emulated | `pushed` |  | 0 |
+| `MEDIAN` | emulated | `pushed` |  | 0 |
+| `MODE` | emulated | `pushed` |  | 0 |
+| `STRING_AGG` | emulated | `pushed` |  | 0 |
+| `LIST` | emulated | `accumulate: $push` |  | 0 |
+| `QUANTILE_CONT` | emulated | `pushed` |  | 0 |
+| `QUANTILE_DISC` | emulated | `pushed` |  | 0 |
+| `CORR` | emulated | `pushed` |  | 0 |
+| `COVAR_SAMP` | emulated | `pushed` |  | 0 |
+| `COVAR_POP` | emulated | `pushed` |  | 0 |
+| `ARG_MAX` | emulated | `pushed` |  | 0 |
+| `ARG_MIN` | emulated | `pushed` |  | 0 |
+| `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `BOOL_AND` | emulated | `accumulate: $min` |  | 0 |
+| `BOOL_OR` | emulated | `accumulate: $max` |  | 0 |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `VARIANCE` | emulated | `pushed` |  | 0 |
+| `STDDEV` | emulated | `accumulate: $stdDevSamp` |  | 0 |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTILE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAG` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LEAD` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
 
 ## EngineStyleH2
 

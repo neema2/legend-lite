@@ -2247,13 +2247,13 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testInstanceEquality() throws SQLException {
-                // ^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='a', intId=1)->eq(^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='a', intId=1)) =
-                // true
+                // eq is identity: two constructions are two objects, however alike
+                // (legend-pure eq.pure, testEqNonPrimitive: assertFalse(eq($side1, $side2)))
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1)->meta::pure::functions::boolean::eq(^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1))",
                                 "test::TestRuntime", connection);
-                assertEquals(true, result.rows().get(0).get(0));
+                assertEquals(false, result.rows().get(0).get(0));
         }
 
         @Test
@@ -2269,7 +2269,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testContainsStructReturnsTrue() throws SQLException {
-                // [^Firm(legalName='f1'), ^Firm(legalName='f2')]->contains(^Firm(legalName='f1')) = true
+                // [^Firm(legalName='f1'), ^Firm(legalName='f2')]->contains(^Firm(legalName='f1')) = true:
+                // CO_Firm's key is its legalName (legend-pure's collection testModel.pure)
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|[^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f1'), ^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f2')]->meta::pure::functions::collection::contains(^meta::pure::functions::collection::tests::model::CO_Firm(legalName='f1'))",

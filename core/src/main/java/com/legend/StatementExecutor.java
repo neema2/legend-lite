@@ -280,14 +280,11 @@ final class StatementExecutor {
         return BodyCompiler.execute(stmts, letPrefix, specs, env0);
     }
 
-    /** The body's verdict batch: the fusion (flat WITH + UNION ALL), its shape, the
-     * one-row verdict shape, the judge. */
-    static com.legend.exec.VerdictBatch newVerdictBatch() {
-        return new com.legend.exec.VerdictBatch(com.legend.lowering.VerdictSql::batch,
-                new com.legend.compiler.element.type.ExprType(
-                        com.legend.lowering.VerdictSql.batchSchema(),
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
-                AssertVerdicts.ONE_ROW, DatabaseJudge::verdictOf);
+    /** The body's verdict batch: the fusion (flat WITH + UNION ALL), the judge, and the runner that sends each
+     * statement as a plan (JudgePlans, step 6). */
+    static com.legend.exec.VerdictBatch newVerdictBatch(ExecEnv env) {
+        return new com.legend.exec.VerdictBatch(com.legend.lowering.VerdictSql::batch, DatabaseJudge::verdictOf,
+                JudgePlans.runner(env));
     }
 
     /** A statement at VALUE position, PREPARED — the compile phases only (helper
@@ -2056,13 +2053,13 @@ final class StatementExecutor {
             java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection, boolean identity) {
-        // F13: identity-bearing layouts (keyless classes gain the __id
-        // field, minted per construction site) ride ONLY the verdict-
-        // side lane (canon rider) — golden-SQL text lanes and corpus
-        // value lanes keep the plain layout, unperturbed.
+        // F13: the verdict-side lane's layouts carry the canon rider too;
+        // the value lane's are the object layout (docs/OBJECT_IDENTITY_2026_10_20.md
+        // §3.1): every object its __id and __type, so equal() compares a
+        // keyless class's objects by identity, never as structs.
         com.legend.lowering.Lowerer lowerer = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t,
-                        identity),
+                t -> identity ? com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t, true)
+                        : com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations()).withEngineExistsJoinForm()
                 .withDbTimeZone(env.timeZone());
         // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
@@ -2071,9 +2068,8 @@ final class StatementExecutor {
         // non-key fields). Identity minting stays verdict-lane-only.
         lowerer = lowerer.withInstanceKeys(t2 -> com.legend.compiler
                 .element.EqualityKeys.resolve(ctx, t2));
-        if (identity) {
-            lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf);
-        }
+        lowerer = identity ? lowerer.withInstanceIds(env.instanceIds()::idOf)
+                : lowerer.withObjectIdentity(env.instanceIds()::idOf).withDeclaredEgress();
         // the query's feature flags: a LOWERING concern (Lowerer.withFeatures)
         lowerer = lowerer.withFeatures(featuresOf(env, body));
         com.legend.sql.SqlQuery plan =
@@ -2097,11 +2093,11 @@ final class StatementExecutor {
             class ProbeFailed extends RuntimeException {
                 ProbeFailed(java.sql.SQLException c) { super(c); }
             }
-            // the seam: PctProbe raises DataError (unchecked) itself —
+            // the seam: ColumnProbe raises DataError (unchecked) itself —
             // the ProbeFailed checked-exception tunnel is gone
             plan = com.legend.lowering.Render.resolveAllDeferredTds(
                     plan, lowerer.deferredTds(),
-                    inner -> com.legend.exec.PctProbe.probe(
+                    inner -> com.legend.exec.ColumnProbe.probe(
                             inner, fDialect, fConn),
                     com.legend.exec.Executor::pureOfSqlType);
         }
@@ -2456,11 +2452,11 @@ final class StatementExecutor {
             System.err.println("[exec-sql] " + renderFor(env, plan));
         }
         // E1 (JAVA_EVICTION_PLAN): post-staticize wrap — the plan
-        // emits the PCT wire text as one Scalar String
-        if (env.options().pctRender()
+        // emits Pure's TDS text as one Scalar String
+        if (env.options().tdsText()
                 && com.legend.compiler.element.type.Type
                         .isRelation(root.info().type())) {
-            return executePctTds(plan, root, env);
+            return executeTdsText(plan, root, env);
         }
         ExecutionResult res = executePlan(plan, root,
                 collectionDeclared ? declaredInfo : null, rider, folded, env);
@@ -2538,7 +2534,9 @@ final class StatementExecutor {
      * pipeline ANSWERED without a plan (a host constant — database mode
      * binds a primitive one as a literal side). */
     record PlannedValue(@com.legend.base.Nullable WrappedSide side,
-            @com.legend.base.Nullable ExecutionResult answered) {
+            @com.legend.base.Nullable ExecutionResult answered,
+            @com.legend.base.Nullable TypedSpec root) {
+        /** The planned root, for a planned side (the to-one reader's check reads it). */
     }
 
     /** Plan a VALUE the way {@link #evalValue} would execute it, stopping
@@ -2548,16 +2546,51 @@ final class StatementExecutor {
     static PlannedValue planValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.exec.CanonRider rider,
+            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
-        BarePlan b = planBare(value, letPrefix, specs, env, rider, hook);
+        return planned(planBare(value, letPrefix, specs, env, rider, hook), rider);
+    }
+
+    /** The host judge's side on the plan path (the plan path program's step 6, 2026-10-18): planned exactly as
+     *  {@link #executeTyped} prepared it for the legacy host route -- no canon rider, the identity lane when
+     *  {@code identity} asks, the plan's slots the typer's own (no wire reconciliation: the literal channel's label
+     *  survives to the decode) -- and, when {@code fold} (the sites the legacy folded: a rider-less evaluation), a
+     *  literal-only side folded to its constant with nothing sent. The sites that rode a canon rider never folded: a
+     *  literal there evaluates in the database, exactly as before (a DateTime golden's written precision meets the
+     *  read value's as the database holds both). The plan JudgePlans runs. */
+    static PlannedValue planHostSide(TypedSpec value,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env, boolean identity, boolean fold,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> hook) {
+        java.util.List<TypedSpec> inlined = inlinedSide(value, letPrefix, specs, env, hook);
+        ExecutionResult constant = fold ? foldedSide(inlined.get(inlined.size() - 1),
+                inlined.subList(0, inlined.size() - 1)) : null;
+        if (constant != null) {
+            return new PlannedValue(null, constant, null);
+        }
+        BarePlan b;
+        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
+            b = planStaged(stagedSide(inlined, specs, env), value, env, null, identity, true);
+        }
+        if (fold && b.answered() == null) {
+            // the planned root's own fold (executeTyped's second fold: a literal the staging exposed)
+            ExecutionResult folded = LiteralFold.fold(b.root());
+            if (folded != null) {
+                return new PlannedValue(null, folded, null);
+            }
+        }
+        return planned(b, null);
+    }
+
+    private static PlannedValue planned(BarePlan b, com.legend.exec.@com.legend.base.Nullable CanonRider rider) {
         if (b.answered() != null) {
-            return new PlannedValue(null, b.answered());
+            return new PlannedValue(null, b.answered(), null);
         }
         WrappedSide ws = wrapSide(b.plan(), b.root(), b.declaredInfo(), rider, b.env());
         return new PlannedValue(new WrappedSide(ws.plan(), ws.shapeInfo(), ws.shape(),
-                ws.connection(), b.storeFree()), null);
+                ws.connection(), b.storeFree()), null, b.root());
     }
 
     /** A value's plan before the canon wrap: the plan, its root, the
@@ -2602,12 +2635,20 @@ final class StatementExecutor {
             com.legend.exec.@com.legend.base.Nullable CanonRider rider,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
-        java.util.List<TypedSpec> body = sideBody(value, letPrefix, specs, env, hook);
+        return planStaged(sideBody(value, letPrefix, specs, env, hook), value, env, rider, false, false);
+    }
+
+    /** {@link #planBare} over a side already inlined, staged and resolved ({@code body}); {@code identityLane} the
+     *  identity lane without a rider (a rider implies it); {@code hostSide} the legacy host route's preparation
+     *  ({@link #executeTyped}'s: the identity lane's flag alone, no wire reconciliation) where the database judge's
+     *  side takes the verdict lane's. */
+    private static BarePlan planStaged(java.util.List<TypedSpec> body, TypedSpec value, ExecEnv env,
+            com.legend.exec.@com.legend.base.Nullable CanonRider rider, boolean identityLane, boolean hostSide) {
         java.util.Set<String> stores = new java.util.TreeSet<>();
         for (TypedSpec n : body) {
             collectStores(n, stores);
         }
-        Prelude p = prelude(body, env, rider, false);
+        Prelude p = prelude(body, env, rider, identityLane);
         if (p.answered() != null) {
             return new BarePlan(p.answered(), com.legend.sql.SqlSelect.starOf(
                     new com.legend.sql.SqlSource.Dual()), value, null, env, true);
@@ -2615,7 +2656,7 @@ final class StatementExecutor {
         ExecEnv penv = p.plannedEnv();
         TypedSpec root = p.plannedRoot();
         com.legend.sql.SqlQuery plan = lowerAndPrepare(p.body(), penv, penv.ctx(),
-                penv.dialect(), penv.connection(), true);
+                penv.dialect(), penv.connection(), hostSide ? identityLane : true);
         if (rider != null && rider.canonicalJsonKeys()) {
             // the verdict plan's JSON objects with keys SORTED — one IR
             // pass over the plan, the builders untouched
@@ -2628,7 +2669,7 @@ final class StatementExecutor {
                         .requireBounded("result shape").isMany()
                 && com.legend.compiler.element.type.Type
                         .isRelation(root.info().type());
-        if (!stores.isEmpty()) {
+        if (!stores.isEmpty() && !hostSide) {
             // leg 3.3: a store-reading side's wire-decided kinds are the
             // database's (a store declaration is not a cast); a store-free
             // side's stamp is the compiler's own fact
@@ -2786,25 +2827,28 @@ final class StatementExecutor {
     }
 
     /** E1: probe (pivot plans only) → lowering-side wrap → SCALAR
-     * String execution — the wire text is the plan's projection. */
-    private static ExecutionResult executePctTds(com.legend.sql.SqlQuery plan,
+     * String execution — the TDS text is the plan's projection. */
+    private static ExecutionResult executeTdsText(com.legend.sql.SqlQuery plan,
             TypedSpec root, ExecEnv env) {
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         java.sql.Connection connection = env.connection();
         com.legend.sql.PlanProbe probe =
-                com.legend.lowering.PctTdsWrap.pivots(plan).isEmpty() ? null
-                        : com.legend.exec.PctProbe.probe(plan, dialect,
+                com.legend.lowering.TdsTextWrap.pivots(plan).isEmpty() ? null
+                        : com.legend.exec.ColumnProbe.probe(plan, dialect,
                                 connection);
         com.legend.sql.SqlQuery rendered =
-                com.legend.lowering.PctTdsWrap.wrap(plan,
+                com.legend.lowering.TdsTextWrap.wrap(plan,
                         com.legend.compiler.element.type.Type
                                 .requireRelationSchema(root.info().type()),
-                        probe, com.legend.exec.Executor::pureOfSqlType);
+                        probe, com.legend.exec.Executor::pureOfSqlType, false,
+                        com.legend.lowering.LiteralSpelling.Layouts.of(
+                                t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
+                                env.ctx()::subtree));
         ExecutionResult text = Executor.execute(renderFor(env, rendered), rendered,
                 com.legend.compiler.element.type.ExprType.one(
                         com.legend.compiler.element.type.Type.Primitive
                                 .STRING),
-                com.legend.plan.ResultShape.SCALAR, connection, dialect, null);   // PCT wire render: no activity reads its trace
+                com.legend.plan.ResultShape.SCALAR, connection, dialect, null);   // the TDS text: no activity reads its trace
         return new ExecutionResult.TdsText(
                 String.valueOf(((ExecutionResult.Scalar) text).value()),
                 com.legend.compiler.element.type.Type.Primitive.STRING);

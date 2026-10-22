@@ -51,7 +51,7 @@ public final class DynamicPivot {
                         return s;
                     }
                     return new SqlSource.Pivot(p.source(), p.on(),
-                            discover(p, dialect, connection), p.usings(),
+                            discover(p, dialect, connection), p.named(), p.usings(),
                             p.alias(), p.outputs());
                 }
         }.rewrite(plan);

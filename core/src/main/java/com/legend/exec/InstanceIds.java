@@ -6,13 +6,11 @@ package com.legend.exec;
 /**
  * F13 — SYNTHETIC INSTANCE IDENTITY as DATA: each keyless-class
  * construction SITE (a {@code TypedNewInstance}/{@code TypedCopyInstance}
- * node) mints ONE deterministic id, carried in the instance struct's
- * {@code __id} field. Identity is a property of the BINDING SITE, never
- * of an evaluation ({@code uuid()} per evaluation would make a let-bound
- * instance unequal to itself); the inliner's verbatim let splicing and
- * "untouched subtrees keep identity" contract make node identity the
- * site key — the same let-bound constructor reaches both assert sides
- * as the SAME node, two textually distinct constructors are two nodes.
+ * evaluation, docs/OBJECT_IDENTITY_2026_10_20.md §3.2) mints ONE
+ * deterministic id, carried in the instance struct's {@code __id} field
+ * ({@code uuid()} per evaluation would make a let-bound instance unequal
+ * to itself): the same let-bound constructor reaches both assert sides
+ * as the same site, two textually distinct constructors are two.
  *
  * <p>Scoped to ONE {@link com.legend.StatementExecutor.ExecEnv} (both
  * sides of every verdict in a test share the env, so ids agree across
@@ -20,13 +18,23 @@ package com.legend.exec;
  */
 public final class InstanceIds {
 
-    private final java.util.IdentityHashMap<Object, String> ids =
+    private final java.util.Map<Object, String> sites = new java.util.HashMap<>();
+    private final java.util.IdentityHashMap<Object, String> nodes =
             new java.util.IdentityHashMap<>();
 
-    /** The site id of {@code node}, minted on first sight — the map's
-     * pre-insert size numbers the sites (entries are never removed, so
-     * ids stay unique and stable; no mutable counter field). */
-    public String idOf(Object node) {
-        return ids.computeIfAbsent(node, k -> "i" + (ids.size() + 1));
+    /** The id of {@code key}, minted on first sight: a construction's site
+     * ({@link com.legend.compiler.spec.typed.Evaluation.Site}, a value: each
+     * statement's inliner run gives a let's construction the same site), or
+     * the node of one the compiler builds after the inliner. The maps'
+     * pre-insert size numbers the ids (entries are never removed, so ids
+     * stay unique and stable; no mutable counter field). */
+    public String idOf(Object key) {
+        var ids = key instanceof com.legend.compiler.spec.typed.Evaluation.Site ? sites : nodes;
+        String id = ids.get(key);
+        if (id == null) {
+            id = "i" + (sites.size() + nodes.size() + 1);
+            ids.put(key, id);
+        }
+        return id;
     }
 }

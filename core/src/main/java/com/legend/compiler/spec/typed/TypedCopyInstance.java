@@ -13,7 +13,13 @@ public record TypedCopyInstance(
         TypedSpec source,
         String classFqn,
         Map<String, TypedSpec> overrides,
-        ExprType info) implements TypedSpec {
+        ExprType info,
+        Evaluation evaluation) implements TypedSpec {
+
+    /** A copy the compiler builds, its own evaluation. */
+    public TypedCopyInstance(TypedSpec source, String classFqn, Map<String, TypedSpec> overrides, ExprType info) {
+        this(source, classFqn, overrides, info, Evaluation.synthesized());
+    }
 
     public TypedCopyInstance {
         // deterministic child order (the TypedNewInstance audit finding)
@@ -37,10 +43,14 @@ public record TypedCopyInstance(
         for (String k : overrides.keySet()) {
             os.put(k, kids.get(i++));
         }
-        return new TypedCopyInstance(kids.get(0), classFqn, os, info);
+        return new TypedCopyInstance(kids.get(0), classFqn, os, info, evaluation);
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedCopyInstance(source, classFqn, overrides, info);
+        return new TypedCopyInstance(source, classFqn, overrides, info, evaluation);
+    }
+
+    public TypedCopyInstance withEvaluation(Evaluation e) {
+        return new TypedCopyInstance(source, classFqn, overrides, info, e);
     }
 }

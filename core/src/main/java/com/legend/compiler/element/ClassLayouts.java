@@ -84,6 +84,8 @@ public final class ClassLayouts {
                 new java.util.concurrent.ConcurrentHashMap<>();
         final java.util.Map<Type, Optional<List<Type.Column>>> identity =
                 new java.util.concurrent.ConcurrentHashMap<>();
+        final java.util.Map<Type, Optional<List<Type.Column>>> object =
+                new java.util.concurrent.ConcurrentHashMap<>();
     }
 
     public static Optional<List<Type.Column>> layoutOf(ModelContext ctx, Type t,
@@ -122,6 +124,31 @@ public final class ClassLayouts {
         out.add(new Type.Column(SYNTHETIC_TYPE, Type.Primitive.STRING, opt));
         out.add(new Type.Column(SYNTHETIC_CANON, new Type.ClassType(PlatformTypes.VARIANT), opt));
         return Optional.of(List.copyOf(out));
+    }
+
+    /** THE OBJECT LAYOUT (docs/OBJECT_IDENTITY_2026_10_20.md §3.1): a model class's declared properties plus its
+     *  identity, {@code __id}, and its own class, {@code __type} -- every object carries both on every lane, so
+     *  {@code eq} and a keyless class's {@code equal} compare identity, never the properties. No {@code __canon}:
+     *  that is the verdict lanes' byte judge's ({@link #layoutOf(ModelContext, Type, boolean)}). Platform carriers
+     *  keep their own shapes; empty for a type that is no layoutable class. */
+    public static Optional<List<Type.Column>> objectLayoutOf(ModelContext ctx, Type t) {
+        LayoutMemo memo = ctx.derived(LayoutMemo.class, c -> new LayoutMemo());
+        Optional<List<Type.Column>> hit = memo.object.get(t);
+        if (hit != null) {
+            return hit;
+        }
+        Optional<List<Type.Column>> computed = layoutOf(ctx, t, true).map(cols -> List.copyOf(
+                cols.stream().filter(c -> !SYNTHETIC_CANON.equals(c.name())).toList()));
+        memo.object.putIfAbsent(t, computed);
+        return computed;
+    }
+
+    /** {@link #syntheticOnlyLayout(boolean)} for the object layout: a property-less class's object is its identity and
+     *  its class. */
+    public static List<Type.Column> objectSyntheticOnlyLayout() {
+        var opt = new com.legend.compiler.element.type.Multiplicity.Bounded(0, 1);
+        return List.of(new Type.Column(SYNTHETIC_ID, Type.Primitive.STRING, opt),
+                new Type.Column(SYNTHETIC_TYPE, Type.Primitive.STRING, opt));
     }
 
     /** The layout of a constructed value of a class with NO stored

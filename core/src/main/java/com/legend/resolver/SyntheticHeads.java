@@ -879,7 +879,7 @@ final class SyntheticHeads {
                 java.util.Map<String, TypedSpec> ps = new java.util.LinkedHashMap<>();
                 ni.properties().forEach((k, v) ->
                         ps.put(k, liftFilteredHeads(v, enabled, fc)));
-                yield new com.legend.compiler.spec.typed.TypedNewInstance(ni.classFqn(), ps, ni.info());
+                yield ni.withProperties(ps);
             }
             case TypedGroupBy gb ->
                     new TypedGroupBy(

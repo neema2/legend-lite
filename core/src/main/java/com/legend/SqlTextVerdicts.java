@@ -131,10 +131,10 @@ final class SqlTextVerdicts {
         String golden;
         String ours;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-            golden = scalarString(StatementExecutor.evalValue(
-                    goldenSide, letPrefix, specs, env, null, false, hook));
-            ours = scalarString(StatementExecutor.evalValue(
-                    producerSide, letPrefix, specs, env, null, false, hook));
+            golden = scalarString(JudgePlans.evalSide(
+                    goldenSide, letPrefix, specs, env, false, true, hook));
+            ours = scalarString(JudgePlans.evalSide(
+                    producerSide, letPrefix, specs, env, false, true, hook));
         }
         if (golden == null || ours == null) {
             return null;
@@ -268,10 +268,10 @@ final class SqlTextVerdicts {
                     "sql-text assertSameSQL: Result actual is not a"
                             + " mintable frame read");
         }
-        String golden = scalarString(StatementExecutor.evalValue(
-                goldenSide, letPrefix, specs, env, null, false, hook));
-        String ours = scalarString(StatementExecutor.evalValue(
-                strip, letPrefix, specs, env, null, false, hook));
+        String golden = scalarString(JudgePlans.evalSide(
+                goldenSide, letPrefix, specs, env, false, true, hook));
+        String ours = scalarString(JudgePlans.evalSide(
+                strip, letPrefix, specs, env, false, true, hook));
         if (golden == null || ours == null) {
             throw new com.legend.error.NotImplementedException(
                     "sql-text assertSameSQL: " + (golden == null
@@ -332,10 +332,10 @@ final class SqlTextVerdicts {
                 oursExpr = com.legend.compiler.spec.VerdictQueries
                         .firstStatementRead(read);
                 resultArg = read.args().get(0);
-                String goldenN = scalarString(StatementExecutor.evalValue(
-                        goldenSide, letPrefix, specs, env, null, false, hook));
-                String oursN = scalarString(StatementExecutor.evalValue(
-                        oursExpr, letPrefix, specs, env, null, false, hook));
+                String goldenN = scalarString(JudgePlans.evalSide(
+                        goldenSide, letPrefix, specs, env, false, true, hook));
+                String oursN = scalarString(JudgePlans.evalSide(
+                        oursExpr, letPrefix, specs, env, false, true, hook));
                 if (goldenN == null || oursN == null) {
                     return null;
                 }
@@ -376,10 +376,10 @@ final class SqlTextVerdicts {
             oursExpr = strip;
             resultArg = actualSide;
         }
-        String golden = scalarString(StatementExecutor.evalValue(
-                goldenSide, letPrefix, specs, env, null, false, hook));
-        String ours = scalarString(StatementExecutor.evalValue(
-                oursExpr, letPrefix, specs, env, null, false, hook));
+        String golden = scalarString(JudgePlans.evalSide(
+                goldenSide, letPrefix, specs, env, false, true, hook));
+        String ours = scalarString(JudgePlans.evalSide(
+                oursExpr, letPrefix, specs, env, false, true, hook));
         if (golden == null || ours == null) {
             throw new com.legend.error.NotImplementedException(
                     "sql-text assertEqualsH2Compatible: " + (golden == null
@@ -502,8 +502,8 @@ final class SqlTextVerdicts {
         com.legend.compiler.spec.typed.TypedUserCall read =
                 r0 != null ? r0 : r1;
         TypedSpec resultArg = read.args().get(0);
-        String golden = scalarString(StatementExecutor.evalValue(
-                goldenSide, letPrefix, specs, env, null, false, hook));
+        String golden = scalarString(JudgePlans.evalSide(
+                goldenSide, letPrefix, specs, env, false, true, hook));
         // THE ENGINE'S PLAN IS ONE STATEMENT PER STORE-BACKED LET of the
         // query lambda, in order, then the main statement (batch 69a,
         // 2026-09-05 — the datePeriods shape `let reportEndDate =
@@ -526,8 +526,8 @@ final class SqlTextVerdicts {
                     .firstStatementRead(read);
         }
         com.legend.compiler.spec.typed.TypedLet letStatement = route.let();
-        String ours = scalarString(StatementExecutor.evalValue(
-                producerSide, letPrefix, specs, env, null, false, hook));
+        String ours = scalarString(JudgePlans.evalSide(
+                producerSide, letPrefix, specs, env, false, true, hook));
         if (golden == null || ours == null) {
             return null;
         }
@@ -808,10 +808,10 @@ final class SqlTextVerdicts {
         String golden;
         String ours;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-            golden = scalarString(StatementExecutor.evalValue(
-                    goldenSide, letPrefix, specs, env, null, false, hook));
-            ours = scalarString(StatementExecutor.evalValue(
-                    actualSide, letPrefix, specs, env, null, false, hook));
+            golden = scalarString(JudgePlans.evalSide(
+                    goldenSide, letPrefix, specs, env, false, true, hook));
+            ours = scalarString(JudgePlans.evalSide(
+                    actualSide, letPrefix, specs, env, false, true, hook));
         }
         if (golden == null || ours == null) {
             return null;
@@ -991,10 +991,10 @@ final class SqlTextVerdicts {
         if (!hasTdgProducer(actualSide, letPrefix)) {
             return null;
         }
-        String golden = scalarString(StatementExecutor.evalValue(
-                goldenSide, letPrefix, specs, env, null, false, hook));
-        String ours = scalarString(StatementExecutor.evalValue(
-                actualSide, letPrefix, specs, env, null, false, hook));
+        String golden = scalarString(JudgePlans.evalSide(
+                goldenSide, letPrefix, specs, env, false, true, hook));
+        String ours = scalarString(JudgePlans.evalSide(
+                actualSide, letPrefix, specs, env, false, true, hook));
         if (golden == null || ours == null) {
             return null;
         }
@@ -1408,8 +1408,8 @@ final class SqlTextVerdicts {
         try {
             com.legend.exec.SqlTypeCensus.probeSuspend(true);
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-            rows = StatementExecutor.evalValue(rowsRead,
-                    letPrefix, specs, env, null, false, hook);
+            rows = JudgePlans.evalSide(rowsRead,
+                    letPrefix, specs, env, false, true, hook);
             }
         } catch (RuntimeException e) {
             // the rows leg is underivable — counted, text stays the
@@ -1429,8 +1429,8 @@ final class SqlTextVerdicts {
             // fails the test loudly — never a decline that rescues the text
             com.legend.exec.SqlTypeCensus.probeSuspend(true);
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-                ExecutionResult population = StatementExecutor.evalValue(populationRead,
-                        letPrefix, specs, env, null, false, hook);
+                ExecutionResult population = JudgePlans.evalSide(populationRead,
+                        letPrefix, specs, env, false, true, hook);
                 if (population != null) {
                     facts = facts.withPopulation(population);
                 }

@@ -39,19 +39,23 @@ public class Test_LegendLite_SQLite_GrammarFunctions_PCT extends PCTReportConfig
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): name resolution, lowering
             // and harness limits, the 0-based indexOf, error positions and messages
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
-            // SQLITE'S OWN LIMIT: its dates are texts of the years 0000-9999 (a date function answers NULL past them,
-            // raised here; a five-digit year compares as text)
-            one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"Assert failed\""),
+            // 2026-10-20, object identity (docs/OBJECT_IDENTITY_2026_10_20.md, b0d5e435, measured by the step-9 lane
+            // session): eq is identity and equal a keyed class's keys, and the adapter binds each captured object once
+            // by a let -- testEqNonPrimitive, testEqualNonPrimitive and the two primitive-extension tests pass
+            // OneToOne: the captured $address reaches the text since 2026-10-20 (the adapter binds captured objects by
+            // lets, object identity); its assertIs then needs the interpreter's own object back (the ids it prints vary
+            // per run, so the pin is the class), as on the DuckDB lane
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
+            // NOTE 2026-10-20 (the parity phase): testDateCompare unpinned -- two dates without a time compare on their
+            // day numbers, year*10000 + month*100 + day, in any year (MixedEncoding.dayNumberOrNull)
             // SQLITE'S OWN LIMIT: an integer past 64 bits has no value (its arithmetic overflows to a REAL silently;
             // raised here)
             one("meta::pure::functions::math::tests::minus::testLargeMinus_Function_1__Boolean_1_", "\"an integer past 64 bits has no SQLite value\""),
             one("meta::pure::functions::math::tests::plus::testLargePlus_Function_1__Boolean_1_", "\"an integer past 64 bits has no SQLite value\""),
             one("meta::pure::functions::math::tests::times::testLargeTimes_Function_1__Boolean_1_", "\"an integer past 64 bits has no SQLite value\"")
+            // NOTE 2026-10-20 (plan-route parity, a type value as its path): testLetChainedWithAnotherFunction passes again: a type
+            // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
+            // whatever its namesakes; a printer takes the name.
     );
 
     public static Test suite() {

@@ -104,6 +104,17 @@ public final class Trino extends AnsiSqlRenderer {
     }
 
     /** No native PIVOT: a static pivot is a grouped CASE aggregation, its values discovered first. */
+    // the probe plan's facts (2026-10-20): Trino: no transaction across a session's statements for its connectors; no column limit documented
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.NONE;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return null;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;
@@ -447,6 +458,11 @@ public final class Trino extends AnsiSqlRenderer {
         return writer.join(st.fields(), ", ", (w, f) -> {
             SqlType t = typeOf(f.value());
             if (t == null) {
+                // an absent optional property: the slot its builder declared (as ClickHouse and DuckDB read it;
+                // 2026-10-20, the parity phase: five Grammar and Essential tests constructing an instance)
+                t = f.declared();
+            }
+            if (t == null) {
                 t = siblings.get(f.name());
             }
             if (t == null) {
@@ -454,6 +470,11 @@ public final class Trino extends AnsiSqlRenderer {
             }
             w.append(ident(f.name())).append(" ").append(castTypeName(t));
         }).append("))");
+    }
+
+    /** Whether both operands are ROWs (structs). */
+    private static boolean rows(List<SqlExpr> a) {
+        return a.size() == 2 && typeOf(a.get(0)) instanceof SqlType.Struct && typeOf(a.get(1)) instanceof SqlType.Struct;
     }
 
     /** A field by name; a field NUMBER (a zip's pair, read by position) a row subscript ({@code r[1]}). */
@@ -593,7 +614,9 @@ public final class Trino extends AnsiSqlRenderer {
             case LIST_REDUCE -> writer.append("reduce(slice(").piece(list(xs)).append(", 2, greatest(cardinality(")
                     .piece(list(xs)).append(") - 1, 0)), element_at(").piece(list(xs)).append(", 1), ")
                     .expr(args.get(1), 0).append(", \"__s\" -> \"__s\")");
-            case TYPEOF -> throw new DialectCapability("typeof reached Trino: its type names are Trino's");
+            // Trino's own name of the value's type, compared only with typeofName's (the judges' grid sides read a
+            // declared timestamp's DATE cells by it since the plan path program's step 6, 2026-10-20)
+            case TYPEOF -> writer.function("typeof", args);
             case RANGE_FN, REPEAT_VALUE -> throw new IllegalStateException(fnName + " is rendered by call");
             default -> throw new IllegalStateException("not a list call: " + fnName);
         };
@@ -754,6 +777,13 @@ public final class Trino extends AnsiSqlRenderer {
         if (c.target() == SqlType.Scalar.TIMESTAMPTZ && isText(c.value())) {
             return writer.append("from_iso8601_timestamp(").expr(c.value(), 0).append(")");
         }
+        // a timestamp from text: DuckDB's cast takes ISO 8601's T between the date and the time (Pure's DateTime text,
+        // LiteralSpelling.dateTimeText), Trino's only a space ('Value cannot be cast to timestamp:
+        // 2026-01-07T00:00:01.000000000', the database judge's tolerance cells, measured); as MariaDB's cast
+        if (c.target() == SqlType.Scalar.TIMESTAMP && isText(c.value())) {
+            return writer.append("CAST(replace(").expr(c.value(), 0).append(", 'T', ' ') AS ")
+                    .append(castTypeName(c.target())).append(")");
+        }
         if (c.target() == SqlType.Scalar.JSON) {
             return isText(c.value()) ? writer.append("json_parse(").expr(c.value(), 0).append(")")
                     : writer.piece(toVariant(c.value()));
@@ -811,7 +841,12 @@ public final class Trino extends AnsiSqlRenderer {
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
-            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+            // two ROWs compare field by field, and a NULL field makes Trino's `=` NULL (measured): an instance's
+            // absent property is a NULL field, and Pure's equality of two instances holds it equal (2026-10-20, the
+            // parity phase: testEqualNonPrimitive and the identity tests), so ROWs compare null-safe
+            case EQUAL -> rows(a) ? notDistinctFrom(writer, a) : infix(writer, c, parentPrec);
+            case NOT_EQUAL -> rows(a) ? distinctFrom(writer, a) : infix(writer, c, parentPrec);
+            case AND, OR, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
                     infix(writer, c, parentPrec);
             // the shared spellings (the base's named helpers)
             case NOT -> notPrefix(writer, c.args(), parentPrec);
@@ -836,6 +871,7 @@ public final class Trino extends AnsiSqlRenderer {
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -861,7 +897,19 @@ public final class Trino extends AnsiSqlRenderer {
             case ATAN2 -> writer.function("atan2", c.args());
             case CBRT -> writer.function("cbrt", c.args());
             case CHR -> writer.function("chr", c.args());
-            case COALESCE -> writer.function("coalesce", c.args());
+            // DuckDB's coalesce casts a text operand beside a JSON one to JSON (an instance canon's empty key '[]'
+            // beside a nested instance's canon object); Trino unifies no JSON with a varchar ('All COALESCE operands
+            // must be the same type or coercible to a common type ... json and varchar(2)', channel B's zips of Pairs
+            // of Pairs, measured 2026-10-20)
+            case COALESCE -> a.stream().anyMatch(Trino::isJson) && a.stream().anyMatch(Trino::isText)
+                    ? writer.append("coalesce(").join(a, ", ", (w, e) -> {
+                        if (isText(e)) {
+                            w.append("json_parse(").expr(e, 0).append(")");
+                        } else {
+                            w.expr(e, 0);
+                        }
+                    }).append(")")
+                    : writer.function("coalesce", c.args());
             case COS -> writer.function("cos", c.args());
             case COSH -> writer.function("cosh", c.args());
             case DEGREES -> writer.function("degrees", c.args());
@@ -1096,13 +1144,45 @@ public final class Trino extends AnsiSqlRenderer {
         return writer.append(", ").piece(zone(a.get(0))).append(") AS TIMESTAMP(6))");
     }
 
-    /** The {@code STRFTIME} arm of {@link #call}. */
+    /** The {@code STRFTIME} arm of {@link #call}: {@code format_datetime}, whose Joda letters carry no digit finer
+     *  than a millisecond (measured 2026-10-19, Trino 483: {@code 'SSSSSS'} of {@code 13:11:11.338001} is
+     *  {@code 338000}), so a microsecond or nanosecond part is the value's own six digits, the tail of its
+     *  {@code TIMESTAMP(6)} text (a nanosecond part padded with {@code 000}, as the Joda form was), the parts around
+     *  it {@code format_datetime}'s. */
     private SqlWriter strftime(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
+        if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
             throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
         }
-        return writer.append("format_datetime(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
+        List<SqlWriter.Piece> pieces = new ArrayList<>();
+        List<com.legend.sql.DateFmt> run = new ArrayList<>();
+        for (com.legend.sql.DateFmt p : fl.parts()) {
+            if (p == com.legend.sql.DateFmt.Part.SUBSEC_MICRO || p == com.legend.sql.DateFmt.Part.SUBSEC_NANO) {
+                if (!run.isEmpty()) {
+                    pieces.add(formatDatetime(a.get(0), new SqlExpr.FormatLit(run)));
+                    run = new ArrayList<>();
+                }
+                pieces.add(w -> w.append("substr(CAST(CAST(").expr(a.get(0), 0)
+                        .append(" AS TIMESTAMP(6)) AS VARCHAR), -6)"));
+                if (p == com.legend.sql.DateFmt.Part.SUBSEC_NANO) {
+                    pieces.add(w -> w.append("'000'"));
+                }
+            } else {
+                run.add(p);
+            }
+        }
+        if (!run.isEmpty() || pieces.isEmpty()) {
+            pieces.add(formatDatetime(a.get(0), new SqlExpr.FormatLit(run)));
+        }
+        if (pieces.size() == 1) {
+            return writer.piece(pieces.get(0));
+        }
+        return writer.append("concat(").join(pieces, ", ", SqlWriter::piece).append(")");
+    }
+
+    /** {@code format_datetime(x, format)}. */
+    private static SqlWriter.Piece formatDatetime(SqlExpr x, SqlExpr.FormatLit format) {
+        return w -> w.append("format_datetime(").expr(x, 0).append(", ").expr(format, 0).append(")");
     }
 
     /** The {@code STRPTIME} arm of {@link #call}. */
@@ -1517,18 +1597,21 @@ public final class Trino extends AnsiSqlRenderer {
         return writer;
     }
 
-    /** The {@code STRING_AGG} arm of {@link #reducer}: {@code listagg(...) WITHIN GROUP (ORDER BY ...)}. */
+    /** The {@code STRING_AGG} arm of {@link #reducer}: {@code listagg(...) WITHIN GROUP (ORDER BY ...)}; one of no order
+     *  {@code array_join(array_agg(...), sep)}, the values in the order they come, as DuckDB's {@code string_agg} and
+     *  H2's {@code listagg} read them (step 9, 2026-10-19: listagg needs an order, and the values' own sorted a
+     *  collection's TDS text lines -- {@code reverse}, {@code sort} by a key, {@code [10, 2]} as text -- where the rows
+     *  come in the collection's order). Both skip a null value and answer null over no rows. */
     private SqlWriter listagg(SqlWriter writer, SqlAgg.Reducer r) {
         if (r.args().size() != 2) {
             throw new DialectCapability("a STRING_AGG of " + r.args().size() + " arguments reached Trino");
         }
-        writer.append("listagg(").append(r.distinct() ? "DISTINCT " : "").list(r.args())
-                .append(") WITHIN GROUP (ORDER BY ");
         if (r.orderBy().isEmpty()) {
-            // no order: the values' own (listagg needs one); the platform's comparison is unordered
-            return writer.expr(r.args().get(0), 0).append(")");
+            return writer.append("array_join(array_agg(").append(r.distinct() ? "DISTINCT " : "")
+                    .expr(r.args().get(0), 0).append("), ").expr(r.args().get(1), 0).append(")");
         }
-        return writer.join(r.orderBy(), ", ", this::aggregateOrderKey).append(")");
+        return writer.append("listagg(").append(r.distinct() ? "DISTINCT " : "").list(r.args())
+                .append(") WITHIN GROUP (ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey).append(")");
     }
 
     /** The {@code LIST} arm of {@link #reducer}. */
@@ -1690,6 +1773,15 @@ public final class Trino extends AnsiSqlRenderer {
             case SqlAgg.Reducer r when r.fn() == SqlAgg.Fn.STRING_AGG && r.orderBy().isEmpty()
                     && !w.orderBy().isEmpty() ->
                     reducer(writer, new SqlAgg.Reducer(r.fn(), r.args(), r.distinct(), w.orderBy(), r.type()));
+            // a windowed listagg of no order at all: the values' own (listagg needs one, and an array_join cannot
+            // wrap a window function); the platform's comparison is unordered
+            case SqlAgg.Reducer r when r.fn() == SqlAgg.Fn.STRING_AGG && r.orderBy().isEmpty() -> {
+                if (r.args().size() != 2) {
+                    throw new DialectCapability("a STRING_AGG of " + r.args().size() + " arguments reached Trino");
+                }
+                writer.append("listagg(").append(r.distinct() ? "DISTINCT " : "").list(r.args())
+                        .append(") WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0).append(")");
+            }
             case SqlAgg.Reducer r -> reducer(writer, r);
             case SqlAgg.RankingFn r -> writer.append(aggregateName(r.fn())).append("(").list(r.args()).append(")");
             case SqlAgg.ValueFn v -> writer.append(aggregateName(v.fn())).append("(").list(v.args()).append(")");
@@ -1791,6 +1883,12 @@ public final class Trino extends AnsiSqlRenderer {
     // Session tables and DDL
     // ==================================================================
 
+    /** Trino has no temporary table: a plan's metamodel tables are its query's own rows. */
+    @Override
+    public boolean temporaryTables() {
+        return false;
+    }
+
     /** Trino has no temporary table, so no table only one session sees: the server engine's system database is
      *  refused by name here. */
     @Override
@@ -1860,10 +1958,13 @@ public final class Trino extends AnsiSqlRenderer {
         };
     }
 
-    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are Trino's). */
+    /** {@inheritDoc} A DATE is {@code date} (Trino's typeof); no other type's name is compared here. */
     @Override
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
-        throw new DialectCapability("typeof reached Trino: its type names are Trino's");
+        if (type == com.legend.sql.SqlType.Scalar.DATE) {
+            return "date";
+        }
+        throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached Trino");
     }
 
     /** {@inheritDoc} A statement's ROW column is delivered as its JSON text (the driver's own Row class is read

@@ -4,6 +4,8 @@
     "dependencies": [
         "platform",
         "platform_dsl_tds",
-        "core"
+        "core",
+        "core_functions_relation",
+        "core_functions_unclassified"
     ]
 }

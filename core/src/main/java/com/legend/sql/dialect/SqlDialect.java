@@ -33,6 +33,13 @@ public interface SqlDialect {
         return java.util.List.of();
     }
 
+    /** Whether this database has a table only one session sees (a TEMPORARY table, {@link #sessionTable}): where it
+     *  has none, the system metamodel store's tables a plan reads are the query's own rows, inline
+     *  ({@code PlanMaker.metamodel}). Default: it has. */
+    default boolean temporaryTables() {
+        return true;
+    }
+
     /** The statements that make {@code table} (TEMPORARY) a table only this session sees, holding {@code rows} (null:
      *  none) and only read after (a server engine's system database, exec.SystemDatabase). Default: the table, then
      *  one INSERT of its rows -- this interface's own DDL and DML renders. */
@@ -71,6 +78,25 @@ public interface SqlDialect {
      *  (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, "setup at plan time, one form per database"; the dialect
      *  program's Phase 5, 2026-10-16: until then {@code Databases.loadsRowsInBulk} listed each database). */
     default boolean loadsRowsInBulk() {
+        return false;
+    }
+
+    /** Whether a {@code RelationalDatabaseConnection} declares this database: its text is SQL over relational tables.
+     *  Every dialect's but MongoDB's, whose text is an aggregation pipeline its {@code MongoDBConnection} runs
+     *  (docs/MONGODB_PLAN_2026_10_16.md D1, D4; the grammar's relational types do not list it). A test or tool that
+     *  declares a relational connection on every database iterates these ({@code Databases.relational}; main's merge,
+     *  2026-10-22, when MongoDB joined the implemented databases). Default: relational. */
+    default boolean relational() {
+        return true;
+    }
+
+    /** Whether this database runs IN THIS PROCESS (an embedded engine, a private instance of which the platform opens:
+     *  H2, DuckDB, SQLite) or on a SERVER: a plan writes the system metamodel store's tables as its target's setup on
+     *  the one and as its sessions' own TEMPORARY tables on the other (the plan path program's step 9, 2026-10-19; until
+     *  main's dialect program Phase 5 merged in, 2026-10-22, {@code Databases.inProcess} listed each database). The
+     *  execution side's connector answers the same of its sessions ({@code exec.DatabaseConnector#inProcess}), and
+     *  {@code ConnectorsTest} holds the two together. Default: a server. */
+    default boolean inProcess() {
         return false;
     }
 
@@ -117,6 +143,34 @@ public interface SqlDialect {
      *  none, its error surfacing on the first read: a result with no columns is then no claim to check. */
     default boolean opensFailedResultsWithoutColumns() {
         return false;
+    }
+
+    /** How a dynamic pivot's probe plan's two statements (the keys probe and the body written for its keys) see one
+     *  state of the data (the plan path program's probe plan, 2026-10-20). */
+    enum KeysSnapshot {
+        /** a transaction, the database's own isolation kept: every transaction there is one snapshot */
+        TRANSACTION,
+        /** a transaction at REPEATABLE READ, the isolation that makes its reads one snapshot there */
+        REPEATABLE_READ,
+        /** a transaction at SERIALIZABLE */
+        SERIALIZABLE,
+        /** no transaction across statements: a key written between the two is not the body's (register S103) */
+        NONE
+    }
+
+    /** This database's {@link KeysSnapshot}, said by each dialect that runs a dynamic pivot's probe plan; a dialect
+     *  that says none has no probe plan, refused by name. */
+    default KeysSnapshot keysSnapshot() {
+        throw new DialectCapability("a dynamic pivot's probe plan reached " + getClass().getSimpleName()
+                + ", which says no snapshot for it");
+    }
+
+    /** The most columns one result answers on this database (measured on the in-process ones, the database's own
+     *  documented limit on the servers), a probe plan asked for more refused by name; null where the database has
+     *  none (DuckDB answered 70,000) or none is known. Said by each dialect that runs a probe plan. */
+    default @com.legend.base.Nullable Integer resultColumnLimit() {
+        throw new DialectCapability("a dynamic pivot's probe plan reached " + getClass().getSimpleName()
+                + ", which says no column limit for it");
     }
 
     /** Whether dynamic PIVOT needs the two-phase staticization

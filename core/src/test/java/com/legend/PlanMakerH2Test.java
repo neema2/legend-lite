@@ -24,6 +24,13 @@ class PlanMakerH2Test {
 
     private static final DatabaseType H2 = DatabaseType.H2;
 
+    /** H2 writes no NaN of its own text either ({@link PlanMakerTest#aDoubleThatIsNoNumberPrintsAsPurePrintsIt}'s case
+     *  on H2, moved here at main's merge, 2026-10-22). */
+    @Test
+    void aDoubleThatIsNoNumberPrintsAsPurePrintsIt() throws Exception {
+        PlanMakerTest.assertNoNumberPrintsAsPure(H2);
+    }
+
     @Test
     void theTargetIsWhole_itsDatabaseVersionsSessionAndSetup() {
         ExecutionPlan.Target h2 = target(plan(H2, "|#>{s::DB.T}#->select(~[ID, NAME, PRICE])->sort(~ID->ascending())",

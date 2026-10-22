@@ -490,20 +490,22 @@ public final class VerdictSql {
             cells.add(gridCell(grid, i));
             Type k = i < kinds.size() ? kinds.get(i) : null;
             String alias = i < values.size() ? values.get(i).alias() : null;
-            SqlExpr raw = alias != null
-                    ? SqlExpr.Column.of("w", alias, SqlType.Scalar.VARCHAR, true,
-                            OutputCol.Origin.DERIVED)
-                    : null;
             boolean numeric = k == Type.Primitive.INTEGER || k == Type.Primitive.FLOAT
                     || k == Type.Primitive.DECIMAL || k == Type.Primitive.NUMBER
                     || k instanceof Type.PrecisionDecimal;
             boolean temporal = k == Type.Primitive.DATE_TIME || k == Type.Primitive.STRICT_DATE
                     || k == Type.Primitive.DATE;
+            // a cell the side carries as a temporal value is read as one (a literal grid's timestamp: a text cast of
+            // it is no timestamp's on Trino), any other as the text it arrives as
+            SqlExpr raw = alias == null ? null
+                    : temporal && carriedTemporal(grid.wrapped().outputs(), alias)
+                            ? SqlExpr.Column.of("w", grid.wrapped().outputs(), alias)
+                            : SqlExpr.Column.of("w", alias, SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED);
             ns.add(raw != null && numeric ? new SqlExpr.Cast(raw, SqlType.Scalar.DOUBLE)
                     : new SqlExpr.NullLit());
-            // the grid's cells arrive DECODED as text (the fetch conformance:
-            // nine-digit temporals) — a temporal cell casts back to a
-            // timestamp for its epoch
+            // a temporal cell casts to a timestamp for its epoch: a computed
+            // one arrives DECODED as text (the fetch conformance: nine-digit
+            // temporals)
             secs.add(raw != null && temporal
                     ? new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.EPOCH_SECONDS,
                             new SqlExpr.Cast(raw, SqlType.Scalar.TIMESTAMP)), SqlType.Scalar.DOUBLE)
@@ -516,6 +518,13 @@ public final class VerdictSql {
                         new SqlSelect.Projection(pick(secs), "__s", sOut)),
                 false, unpivot(grid, named), null,
                 List.of(), null, null, List.of(), null, null, List.of(cOut, rnOut, nOut, sOut));
+    }
+
+    /** Whether {@code name} among {@code outs} is a date or a timestamp value (not its text). */
+    private static boolean carriedTemporal(List<OutputCol> outs, String name) {
+        return outs.stream().anyMatch(o -> o.name().equals(name)
+                && (o.type() == SqlType.Scalar.TIMESTAMP || o.type() == SqlType.Scalar.TIMESTAMPTZ
+                        || o.type() == SqlType.Scalar.DATE));
     }
 
     /** The JSON verdict (bucket 3): the document the database built (its
@@ -1288,6 +1297,17 @@ public final class VerdictSql {
         // a canon-ordered side re-orders by __c in the aggregate; the wrap's
         // own ORDER BY is the row number's window otherwise
         List<SqlSelect.SortKey> order = s.byCanonText() ? List.of() : ws.orderBy();
+        SqlSource from = ws.from();
+        if (!s.byCanonText() && order.isEmpty() && from instanceof SqlSource.Subselect sub
+                && SideOrdinal.defined(sub.inner()) instanceof SqlQuery ordered) {
+            // the order the side's own plan defines (its sort, a literal's rows), numbered inside it (SideOrdinal),
+            // never its rows' arrival through the derived table, which a database need not keep: Snowflake numbered
+            // sort's testSimpleSortShared [2, 3, 1, 1, 5, 4, 2] by ORDER BY NULL at 81960bf7 (and Trino, the residue
+            // GATES records), where 9dfb0ae1 had fixed a layered side only (2026-10-22)
+            from = new SqlSource.Subselect(ordered, sub.alias(), sub.frameName());
+            order = List.of(new SqlSelect.SortKey(SqlExpr.Column.of(sub.alias(), ordered.outputs(), SideOrdinal.ORD),
+                    true, null, null));
+        }
         SqlExpr rn = new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
                 List.of(), order, null);
         OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
@@ -1301,7 +1321,7 @@ public final class VerdictSql {
             ps.add(new SqlSelect.Projection(valueColumn(valueRef, s.isFloat()), V, vOut));
             outs.add(vOut);
         }
-        return new SqlSelect(ps, false, ws.from(), where, List.of(), null, null, List.of(),
+        return new SqlSelect(ps, false, from, where, List.of(), null, null, List.of(),
                 null, null, List.copyOf(outs));
     }
 
@@ -1327,10 +1347,15 @@ public final class VerdictSql {
         List<SqlSelect.SortKey> order = s.byCanonText() ? List.of() : ws.orderBy();
         SqlSelect trimmed = new SqlSelect(kept, ws.distinct(), ws.from(), ws.where(), ws.groupBy(),
                 ws.having(), ws.qualify(), order, ws.limit(), ws.offset(), keptOuts);
-        SqlExpr canon = asText(SqlExpr.Column.of("w", keptOuts, s.canonColumn()));
-        SqlExpr valueRef = SqlExpr.Column.of("w", keptOuts, java.util.Objects.requireNonNull(value.alias()));
-        SqlExpr rn = new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
-                List.of(), List.of(), null);
+        // an ordered side's rows numbered by its own order, inside it (SideOrdinal), never by their arrival through
+        // the derived table: a database need not keep a derived table's order (Snowflake's numbering of the arrival,
+        // ORDER BY NULL, and Trino's lost sort's testSimpleSortShared and testSimpleSort_MultipleExpressions, measured
+        // 2026-10-21; the grid sides' own fix of 2026-10-20)
+        SqlQuery read = order.isEmpty() ? trimmed : SideOrdinal.withOrdinal(trimmed);
+        List<OutputCol> readOuts = read.outputs();
+        SqlExpr canon = asText(SqlExpr.Column.of("w", readOuts, s.canonColumn()));
+        SqlExpr valueRef = SqlExpr.Column.of("w", readOuts, java.util.Objects.requireNonNull(value.alias()));
+        SqlExpr rn = rowNumber(readOuts);
         OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
         List<SqlSelect.Projection> ps = new ArrayList<>();
@@ -1342,7 +1367,7 @@ public final class VerdictSql {
             ps.add(new SqlSelect.Projection(valueColumn(valueRef, s.isFloat()), V, vOut));
             outs.add(vOut);
         }
-        return new SqlSelect(ps, false, new SqlSource.Subselect(trimmed, "w", null),
+        return new SqlSelect(ps, false, new SqlSource.Subselect(read, "w", null),
                 SqlExpr.Call.of(SqlFn.IS_NOT_NULL, valueRef), List.of(), null, null, List.of(),
                 null, null, List.copyOf(outs));
     }
@@ -1478,9 +1503,7 @@ public final class VerdictSql {
 
     private static SqlQuery rowsOf(SqlExpr canon, SqlExpr value, SqlSource source,
             @com.legend.base.Nullable SqlExpr where) {
-        SqlExpr rn = new SqlExpr.WindowCall(
-                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
-                List.of(), List.of(), null);
+        SqlExpr rn = rowNumber(source.outputs());
         OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
         OutputCol vOut = new OutputCol(V, SqlType.Scalar.DOUBLE, true);
@@ -1491,6 +1514,16 @@ public final class VerdictSql {
                 false, source, where,
                 List.of(), null, null, List.of(), null, null,
                 List.of(cOut, rnOut, vOut));
+    }
+
+    /** The rows of a source read as {@code w}, numbered: a grid side's by its ordinal (SideOrdinal: the order its plan
+     *  defines, never its rows' arrival through the verdict's selects, which a database need not keep: MariaDB and
+     *  Trino did not, 2026-10-20); any other source's by arrival. */
+    private static SqlExpr rowNumber(List<OutputCol> outs) {
+        List<SqlSelect.SortKey> by = outs.stream().anyMatch(o -> o.name().equals(SideOrdinal.ORD))
+                ? List.of(new SqlSelect.SortKey(SqlExpr.Column.of("w", outs, SideOrdinal.ORD), true, null, null))
+                : List.of();
+        return new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), by, null);
     }
 
     /** The DOUBLE value of a projection when its type fact says DOUBLE,
@@ -1550,9 +1583,7 @@ public final class VerdictSql {
                     SqlExpr.Column.of("w", grid.wrapped().outputs(), o.name()), o.name(), o));
         }
         OutputCol r = new OutputCol(ROW, SqlType.Scalar.BIGINT, false);
-        ps.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
-                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
-                List.of(), List.of(), null), ROW, r));
+        ps.add(new SqlSelect.Projection(rowNumber(grid.wrapped().outputs()), ROW, r));
         outs.add(r);
         SqlSource rows = new SqlSource.Subselect(new SqlSelect(ps, false, over(grid, named), null,
                 List.of(), null, null, List.of(), null, null, List.copyOf(outs)), "w", null);
@@ -1609,16 +1640,20 @@ public final class VerdictSql {
                         new SqlExpr.FloatLit(Double.MAX_VALUE)),
                 SqlExpr.Call.of(SqlFn.LESS_EQUAL, SqlExpr.Call.of(SqlFn.ABS, va),
                         new SqlExpr.FloatLit(Double.MAX_VALUE)));
+        // the leniency's constants are DOUBLES, said so: a dialect whose numeric charter spells a Float literal as
+        // an exact Decimal (ClickHouse) refused the arithmetic over Float64 cells, "no supertype for Decimal(2, 1),
+        // Float64" (channel B on ClickHouse, step 9, 2026-10-19)
+        SqlExpr zero = new SqlExpr.Cast(new SqlExpr.FloatLit(0.0), SqlType.Scalar.DOUBLE);
+        SqlExpr two = new SqlExpr.Cast(new SqlExpr.FloatLit(2.0), SqlType.Scalar.DOUBLE);
         SqlExpr twoUlp = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.EQUAL, big, new SqlExpr.FloatLit(0.0)),
-                new SqlExpr.FloatLit(0.0))),
-                SqlExpr.Call.of(SqlFn.TIMES, new SqlExpr.FloatLit(2.0),
-                        SqlExpr.Call.of(SqlFn.POW, new SqlExpr.FloatLit(2.0),
+                SqlExpr.Call.of(SqlFn.EQUAL, big, zero), zero)),
+                SqlExpr.Call.of(SqlFn.TIMES, two,
+                        SqlExpr.Call.of(SqlFn.POW, two,
                                 SqlExpr.Call.of(SqlFn.MINUS,
                                         SqlExpr.Call.of(SqlFn.FLOOR,
                                                 SqlExpr.Call.of(SqlFn.DIVIDE,
                                                         SqlExpr.Call.of(SqlFn.LN, big),
-                                                        SqlExpr.Call.of(SqlFn.LN, new SqlExpr.FloatLit(2.0)))),
+                                                        SqlExpr.Call.of(SqlFn.LN, two))),
                                         new SqlExpr.IntLit(52)))));
         SqlExpr pairOk = SqlExpr.Call.of(SqlFn.OR,
                 SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col(ec, C), col(ac, C)),

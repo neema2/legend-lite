@@ -45,15 +45,18 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // compile. The ^$var(...) copy-with-update feature itself works
             // (TypedCopyInstance; probed); these tests are unrunnable from the
             // serialized form.
-            // NUMERIC CHARTER Rule 2 (docs/NUMERIC_CHARTER_2026_09_17.md): the
-            // Float kind is a DOUBLE at the boundary — the COMPILED reference's
-            // own answer (a Pure Float IS java.lang.Double there; the engine's
-            // DuckDB/H2 PCT suites run compiled). This lane is the INTERPRETED
-            // builder, whose Float is BigDecimal-backed and keeps the digits.
-            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
-            one("meta::pure::functions::collection::tests::fold::testFold_Function_1__Boolean_1_", "\"'lastName' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
-            one("meta::pure::functions::collection::tests::fold::testFoldFiltering_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
-            one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
+            // 2026-10-20, pinned again (the user's rule: as many tests as possible without hacks): a Float is a double
+            // on the database, which holds no 20 digits; the batch-1 rule that kept a Float computed from literals
+            // alone as a DECIMAL (LiteralSpelling.exactFloatConstant) was a special case -- the same expression over a
+            // column was a double -- and is removed
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456784.0\""),
+            // NOTE 2026-10-20 (plan-route parity, the instance carrier): testConcatenateTypeInference passes again: an instance
+            // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
+            // MixedEncoding.withClass), and the text carrier spells the subclass it names
+            // (LiteralSpelling.jsonInstanceText).
+            // NOTE 2026-10-20 (the user's rule: as many tests as possible without hacks): testFold, testFoldFiltering
+            // and testFoldToMany pass -- the grammar printer printed a copy with updated properties without the values
+            // (copy('', lastName)); the adapter prints it itself (CopyWithUpdate, pct_adapter.pure).
 
             // RELATIONAL substring is the engine's VERBATIM 1-based SQL
             // passthrough (testFilterUsingParseIntegerFunction golden +
@@ -73,7 +76,10 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // lane's adapter-composed model drops the qualifier AND the
             // __id slot, so the default-id arm fails honestly on the
             // missing struct key (was the loud not-modeled wall)
-            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "Could not find key \"__id\" in struct"),
+            // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the class's
+            // own toString() qualifier is still not in the model the adapter hands over (ModelPacker rebuilds classes
+            // property by property)
+            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),
             // C1.5c extends the SAME divergence to indexOf: the engine's
             // relational runtime translates indexOf to 1-BASED locate()
             // verbatim (testSqlFunctionsInMapping golden + rows [12,12]);
@@ -148,9 +154,11 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // engine relational PCT adapter ledgers these two tests as
             // expected failures (relational-h2 EssentialFunctions_manifest:
             // "No error was thrown"; duckdb/postgres: the database's own
-            // error). Ours: the NaN cell cannot be read back as a Float.
-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Infinite or NaN\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Infinite or NaN\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""));
+            // error). Ours: the NaN cell cannot be read back as a Float -- on the plan route (step 9, 2026-10-18)
+            // the text carrier spells it NaN and Pure's parseFloat refuses the character (the legacy route's Java
+            // BigDecimal said "Infinite or NaN").
+            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""));
 
     public static Test suite() {
         // M4 §3.4: the census gate pins this JVM's SqlTypeCensus

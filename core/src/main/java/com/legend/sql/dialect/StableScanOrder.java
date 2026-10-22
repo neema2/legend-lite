@@ -42,11 +42,19 @@ public final class StableScanOrder extends SqlRewriter {
     private final java.util.Map<String, java.util.List<String>> cteOrds =
             new java.util.HashMap<>();
 
+    /** The statement's own CTE names: a table source naming one is that frame, never a scan to key
+     *  ({@link ScanOrder#stabilize(SqlQuery, java.util.Set)}). Per statement, filled at {@link #rewriteRoot}. */
+    private final java.util.Set<String> frames = new java.util.HashSet<>();
+
     @Override
     public SqlQuery rewriteRoot(SqlQuery q) {
         SqlQuery in = q;
         cteOrds.clear();
+        frames.clear();
         if (q instanceof com.legend.sql.SqlWith w) {
+            for (com.legend.sql.SqlWith.Cte c : w.ctes()) {
+                frames.add(c.name());
+            }
             // ONLY WHEN A READER NEEDS ORDER (user ruling 2026-09-20): a
             // frame CTE threads its scan ordinals only if some select of the
             // statement reads it by position (a LIMIT/OFFSET cap over it) or
@@ -73,7 +81,7 @@ public final class StableScanOrder extends SqlRewriter {
         }
         // deep walk FIRST (fires the select hook on every nested
         // select), then the root-shape special cases (cap wrappers)
-        SqlQuery out = ScanOrder.stabilize(rewrite(q));
+        SqlQuery out = ScanOrder.stabilize(rewrite(q), frames);
         if (!out.equals(in)) {
             FIRINGS.incrementAndGet();
         }
@@ -574,7 +582,7 @@ public final class StableScanOrder extends SqlRewriter {
     protected com.legend.sql.SqlSource source(com.legend.sql.SqlSource s) {
         if (s instanceof com.legend.sql.SqlSource.Subselect sub
                 && sub.inner() instanceof com.legend.sql.SqlSelect inner) {
-            SqlQuery st = ScanOrder.stabilize(inner);
+            SqlQuery st = ScanOrder.stabilize(inner, frames);
             if (st == inner) {
                 st = stabilizeOverFrame(inner);
             }

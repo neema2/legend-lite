@@ -352,7 +352,6 @@ meta::relational::tests::tds::groupBy::simpleGroupCount
 meta::relational::tests::tds::groupBy::testTDSGroupByPercentile
 meta::relational::tests::tds::sort::testSortQuotes
 meta::relational::tests::tds::tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries
-meta::relational::tests::tds::tdsJoin::testFullOuterJoinSimple
 meta::relational::tests::tds::tdsWindow::testPercentileWindowFunction
 meta::relational::tests::tds::window::routing::testExecutionPlanGeneration
 meta::relational::tests::typeInference::testTranslateDbType

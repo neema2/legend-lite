@@ -111,6 +111,13 @@ public enum SqlFn {
      *  least one fraction digit -- the kind-faithful carrier's text of a double (lowering/LiteralSpelling). One call
      *  per value, which each dialect spells (dialect/FloatCanonText the portable decomposition). */
     FLOAT_CANON,
+    /** A Float's text as Pure's {@code toString} prints it (2026-10-22): the shortest digits, plain within the
+     *  database's plain range and fixed point past it where exact, at least one fraction digit (lowering/LiteralSpelling).
+     *  One call per value, which each dialect spells (dialect/FloatPrintText the portable decomposition). */
+    FLOAT_PRINT,
+    /** A Float's text as legend-engine's {@code pure/v1} execute writes it (2026-10-22): Java's
+     *  {@code Double.toString} layout over the shortest digits. One call per value, as {@link #FLOAT_PRINT}. */
+    FLOAT_PRINT_ENGINE,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
     VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE,
     /** json_array_length(doc): the element count of a JSON array (the size of a serialized class collection — database-mode assertSize). */

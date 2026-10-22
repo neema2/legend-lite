@@ -34,7 +34,7 @@ final class EngineText {
             case DB2 -> new com.legend.sql.dialect.EngineStyleDB2();
             case Composite -> new com.legend.sql.dialect.EngineStyleComposite();
             case DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
-                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL, Deephaven ->
+                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL, MongoDB, Deephaven ->
                     throw new com.legend.error.NotImplementedException("toSQLString for DatabaseType." + type
                             + " — only the H2, DB2 and Composite engine-style renderers are built");
         };
@@ -52,7 +52,8 @@ final class EngineText {
         return switch (type) {
             case DB2 -> new InListTempTables("SESSION.tempTableForIn_", 32767);
             case H2, DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto,
-                 Trino, BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL, Deephaven ->
+                 Trino, BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL,
+                 MongoDB, Deephaven ->
                     new InListTempTables("tempTableForIn_", null);
         };
     }
@@ -65,7 +66,7 @@ final class EngineText {
             case H2 -> new EngineStyleH2(quoteIdentifiers, timeZone);
             case DB2, Composite -> new com.legend.sql.dialect.EngineStyleDB2(quoteIdentifiers, timeZone);
             case DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
-                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL, Deephaven ->
+                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL, MongoDB, Deephaven ->
                     throw new com.legend.error.NotImplementedException("plan text for DatabaseType." + type
                             + " — only the H2 and DB2-family engine-style renderers are built");
         };

@@ -38,6 +38,18 @@ public interface TestBackend {
      *  has none: the platform opens its own private instance. */
     Connection openSystem() throws SQLException;
 
+    /** The suite's one held session ({@link #open}'s: closing it is a no-op, the JVM's exit closes it), where a login is
+     *  dear (a cloud), or null where a new session per use costs nothing worth holding (the servers in this process's
+     *  reach; an in-process backend opens its own). The PCT harness runs channel A's plans on it where they make no
+     *  table of the session's own, as the merge-base's route ran every case on it. 2026-10-21: a login per plan cost
+     *  every test on the Snowflake lane a second or more, its suites two to three times the merge-base's. 2026-10-22:
+     *  the held SYSTEM session that replaced it was BigQuery's with {@code EnableSession}, which doubles each query's
+     *  latency (216 ms against 421 ms for {@code SELECT 1}): BigQuery's channel A was 1.8 to 2.4 times the
+     *  merge-base's, all of it inside BigQuery (measured on the lane at 78bd5da3). */
+    default @com.legend.base.Nullable Connection held() throws SQLException {
+        return null;
+    }
+
     /** The specification and authentication a connection declares for the session {@link #open} opens (a
      *  {@code RelationalDatabaseConnection}'s body after its {@code type}): an in-process database's in-memory
      *  specification, a server's coordinates, a cloud's coordinates with its credential by reference. */

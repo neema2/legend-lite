@@ -30,11 +30,10 @@ public class Test_LegendLite_SQLite_StandardFunctions_PCT extends PCTReportConfi
     // Pinned by a STABLE part of the message (the runner matches by containment): no per-run id.
     // First measured 2026-10-11 (SQLite 3.47.1, the driver's own build; 205 tests); burned down the same day: every
     // row is the platform's own (pinned on the DuckDB lane too), or a measured limit of SQLite.
-    private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            // SQLITE'S OWN LIMIT: no hash function (as on Postgres)
-            one("meta::pure::functions::hashCode::tests::testHashCode_Function_1__Boolean_1_", "\"hashCode reached SQLite, which has no hash function\""),
-            one("meta::pure::functions::math::hashCode::tests::testHashCodeAggregate_Function_1__Boolean_1_", "\"hashCode reached SQLite, which has no hash function\"")
-    );
+    // NOTE 2026-10-20 (the parity phase, second batch): testHashCode and testHashCodeAggregate unpinned -- hashCode is
+    // the first 64 bits of the MD5 of the values' text as a JSON array, read signed, MariaDB's and Postgres's
+    // construction (SQLite.hashSigned). The ledger is empty: SQLite answers every Standard test.
+    private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with();
 
     public static Test suite() {
         return PctCensusGate.wrap("Standard", wrapSuite(

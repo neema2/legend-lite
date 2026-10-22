@@ -320,6 +320,41 @@ final class MixedEncoding {
                         SqlType.Scalar.VARCHAR)));
     }
 
+    /** A date WITHOUT a time as its day number, {@code year * 10000 + month * 100 + day} in SQL (a partial date's
+     *  missing parts 1, as {@link #partialComparable} pads them): a partial date's parts split from its text, a strict
+     *  date's extracted; null for any other operand. Two such operands compare on it in any year (2026-10-20, the
+     *  parity phase: {@code compare(%2001, %10999)} composed year 10999 as a timestamp, which MySQL, MariaDB and SQLite
+     *  have none of -- a NULL compared, a wrong answer). */
+    static @com.legend.base.Nullable SqlExpr dayNumberOrNull(TypedSpec e, SqlExpr x) {
+        Type t = e.info().type();
+        List<SqlExpr> parts;
+        if (t == Type.Primitive.DATE) {
+            PureDateLiteral.Precision prec = Scalars.datePrecision(e);
+            if (prec.atLeast(PureDateLiteral.Precision.HOUR)) {
+                return null;
+            }
+            parts = new ArrayList<>();
+            for (int i = 1; i <= 3; i++) {
+                boolean present = i == 1 || prec.atLeast(i == 2 ? PureDateLiteral.Precision.MONTH
+                        : PureDateLiteral.Precision.DAY);
+                parts.add(present ? new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"),
+                        new SqlExpr.IntLit(i)), SqlType.Scalar.BIGINT) : new SqlExpr.IntLit(1));
+            }
+        } else if (t == Type.Primitive.STRICT_DATE) {
+            parts = new ArrayList<>();
+            for (com.legend.sql.DatePart p : List.of(com.legend.sql.DatePart.YEAR, com.legend.sql.DatePart.MONTH,
+                    com.legend.sql.DatePart.DAY)) {
+                parts.add(new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.EXTRACT, new SqlExpr.DatePartLit(p), x),
+                        SqlType.Scalar.BIGINT));
+            }
+        } else {
+            return null;
+        }
+        return SqlExpr.Call.of(SqlFn.PLUS, SqlExpr.Call.of(SqlFn.PLUS,
+                SqlExpr.Call.of(SqlFn.TIMES, parts.get(0), new SqlExpr.IntLit(10000)),
+                SqlExpr.Call.of(SqlFn.TIMES, parts.get(1), new SqlExpr.IntLit(100))), parts.get(2));
+    }
+
     /** A date operand's chronological comparable (strptime-padded partials); non-dates pass through. */
     static SqlExpr dateComparableOrSelf(TypedSpec e,
                                         SqlExpr x) {
@@ -463,6 +498,94 @@ final class MixedEncoding {
                     java.util.List.of(wrapped, jsonNull));
         }
         return wrapped;
+    }
+
+    /** An object as a reader sees it (a variant, a JSON document): its declared properties alone, each nested object
+     *  the same, recursively -- its identity and its class ({@code __id}, {@code __type}) are the lowering's own,
+     *  never data (docs/OBJECT_IDENTITY_2026_10_20.md §3.4). An object of a class with no properties keeps its class
+     *  alone, its only data ({@code ClassLayouts.syntheticOnlyLayout}: an empty struct is no SQL value). A value that is
+     *  no struct with synthetic fields is unchanged. */
+    static SqlExpr declaredOnly(SqlExpr v) {
+        if (!(v.type() instanceof com.legend.sql.TypeFact.Typed t)) {
+            return v;
+        }
+        return declaredOnly(v, t.type());
+    }
+
+    private static SqlExpr declaredOnly(SqlExpr v, SqlType type) {
+        return declaredOnly(v, type, true);
+    }
+
+    /** {@code mayBeAbsent}: whether {@code v} may be no object at all (a property's or a root's value); an element of
+     *  a collection never is (Pure's collections hold no nulls), so it is rebuilt with no null guard, which a database
+     *  without a null struct cannot type (ClickHouse: no supertype of Nothing and a Tuple, channel B's
+     *  testExistsInSelect, 2026-10-20). */
+    private static SqlExpr declaredOnly(SqlExpr v, SqlType type, boolean mayBeAbsent) {
+        if (type instanceof SqlType.Array a && carriesSynthetic(a.element())) {
+            return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, v, new SqlExpr.Lambda(List.of("__d"),
+                    declaredOnly(SqlExpr.Column.of(null, "__d", a.element(), true,
+                            com.legend.sql.OutputCol.Origin.DERIVED), a.element(), false)));
+        }
+        if (!(type instanceof SqlType.Struct s) || !carriesSynthetic(s)) {
+            return v;
+        }
+        List<SqlExpr.StructLit.Field> fields = new ArrayList<>();
+        for (SqlType.Struct.Field f : kept(s)) {
+            SqlExpr get = SqlExpr.StructGet.of(v, f.name());
+            fields.add(new SqlExpr.StructLit.Field(f.name(), declaredOnly(get, f.type(), true), f.type()));
+        }
+        SqlExpr object = new SqlExpr.StructLit(fields);
+        // an absent object stays absent, not a struct of NULLs
+        return mayBeAbsent ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v),
+                new SqlExpr.NullLit())), object) : object;
+    }
+
+    /** {@code t} without its objects' synthetic fields, at any depth (the type {@link #declaredOnly} answers). */
+    static SqlType declaredType(SqlType t) {
+        if (t instanceof SqlType.Array a) {
+            return new SqlType.Array(declaredType(a.element()));
+        }
+        if (t instanceof SqlType.Struct s && carriesSynthetic(s)) {
+            return new SqlType.Struct(kept(s).stream()
+                    .map(f -> new SqlType.Struct.Field(f.name(), declaredType(f.type()))).toList());
+        }
+        return t;
+    }
+
+    /** The fields of {@code s} a reader sees: the declared ones, or the class alone where there are none. */
+    private static List<SqlType.Struct.Field> kept(SqlType.Struct s) {
+        List<SqlType.Struct.Field> declared = s.fields().stream().filter(f -> !synthetic(f.name())).toList();
+        return declared.isEmpty() ? s.fields().stream()
+                .filter(f -> com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE.equals(f.name())).toList()
+                : declared;
+    }
+
+    private static boolean carriesSynthetic(SqlType t) {
+        if (t instanceof SqlType.Struct s) {
+            return s.fields().stream().anyMatch(f -> synthetic(f.name()) || carriesSynthetic(f.type()));
+        }
+        return t instanceof SqlType.Array a && carriesSynthetic(a.element());
+    }
+
+    private static boolean synthetic(String name) {
+        return com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID.equals(name)
+                || com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE.equals(name)
+                || com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON.equals(name);
+    }
+
+    /** An instance entering the JSON slot of a class with no layout of its own (instances of several classes meeting
+     *  at an abstract ancestor): its struct carries its own class as {@code __type} (2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9), the
+     *  class the text carrier spells it as ({@code LiteralSpelling.jsonInstanceText}); any other value unchanged. */
+    static SqlExpr withClass(com.legend.compiler.spec.typed.TypedSpec e, SqlExpr lowered) {
+        if (e.info().type() instanceof Type.ClassType own && lowered instanceof SqlExpr.StructLit s
+                && s.fields().stream().noneMatch(f ->
+                        com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE.equals(f.name()))) {
+            java.util.List<SqlExpr.StructLit.Field> fields = new java.util.ArrayList<>(s.fields());
+            fields.add(new SqlExpr.StructLit.Field(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE,
+                    new SqlExpr.StringLit(own.fqn())));
+            return new SqlExpr.StructLit(fields);
+        }
+        return lowered;
     }
 
     private static boolean staticallyNonNull(SqlExpr e) {
@@ -684,15 +807,23 @@ final class MixedEncoding {
      * a model field. */
     static SqlExpr.StructLit.@com.legend.base.Nullable Field syntheticField(
             Type.Column c, @com.legend.base.Nullable String siteId, String classFqn) {
+        return syntheticField(c, siteId == null ? null : new SqlExpr.StringLit(siteId), classFqn);
+    }
+
+    /** {@link #syntheticField(Type.Column, String, String)} with the object's id an expression: its site's id and the
+     *  positions of the iterations around it (docs/OBJECT_IDENTITY_2026_10_20.md §3.2). */
+    static SqlExpr.StructLit.@com.legend.base.Nullable Field syntheticField(
+            Type.Column c, @com.legend.base.Nullable SqlExpr id, String classFqn) {
         if (com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID.equals(c.name())
-                && siteId != null) {
-            return new SqlExpr.StructLit.Field(c.name(), new SqlExpr.StringLit(siteId));
+                && id != null) {
+            return new SqlExpr.StructLit.Field(c.name(), id, SqlType.Scalar.VARCHAR);
         }
         if (com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE.equals(c.name())) {
             return new SqlExpr.StructLit.Field(c.name(), new SqlExpr.StringLit(classFqn));
         }
         return null;
     }
+
 
     static String simpleName(String qn) {
         int cut = qn.lastIndexOf("::");

@@ -124,6 +124,17 @@ public final class ClickHouse extends AnsiSqlRenderer {
     }
 
     /** No native PIVOT: a static pivot is a grouped CASE aggregation, its values discovered first. */
+    // the probe plan's facts (2026-10-20): ClickHouse: no transactions across statements; no column limit documented
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.NONE;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return null;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;
@@ -135,7 +146,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  exclusion and the as-of join are native. */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(),
+        return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new OuterJoinResidualsAsMatches(),
                 new ExplosionMarkers.LateralUnnestAsMarker(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new ArrayJoinColumnsNamed(), new CheckedDefectsToLists(), new SubstringClamp(),
                 new AggregatesDeliverDouble(java.util.Set.of(SqlAgg.Fn.AVG)), new ConstantKeysAsExpressions(),
@@ -276,6 +287,32 @@ public final class ClickHouse extends AnsiSqlRenderer {
                         depth);
                 return writer.append(" ON ").expr(on.size() == 1 ? on.get(0) : new SqlExpr.Call(SqlFn.AND, on), 0);
             }
+        }
+        // a null-safe equality between a join's two sides (OuterJoinResidualsAsMatches' re-join) is a join key only as
+        // isNotDistinctFrom, which ClickHouse takes in a JOIN's ON alone (its coalesce spelling is a residual filter,
+        // and an outer join needs a key: measured 25.8)
+        if (src instanceof com.legend.sql.SqlSource.Join j && j.on() != null
+                && (j.kind() == com.legend.sql.SqlSource.Join.Kind.INNER
+                        || j.kind() == com.legend.sql.SqlSource.Join.Kind.LEFT)
+                && conjuncts(j.on()).stream().allMatch(c -> c instanceof SqlExpr.Call call
+                        && (call.fn() == SqlFn.NULL_SAFE_EQUAL || call.fn() == SqlFn.EQUAL))
+                && conjuncts(j.on()).stream().anyMatch(c -> ((SqlExpr.Call) c).fn() == SqlFn.NULL_SAFE_EQUAL)) {
+            source(writer, j.left(), depth);
+            nl(writer, depth).append(joinKeyword(j.kind())).append(" ");
+            source(writer, j.right(), depth);
+            writer.append(" ON ");
+            List<SqlExpr> keys = conjuncts(j.on());
+            for (int i = 0; i < keys.size(); i++) {
+                SqlExpr.Call key = (SqlExpr.Call) keys.get(i);
+                writer.append(i > 0 ? " AND " : "");
+                if (key.fn() == SqlFn.NULL_SAFE_EQUAL) {
+                    writer.append("isNotDistinctFrom(").expr(key.args().get(0), 0).append(", ")
+                            .expr(key.args().get(1), 0).append(")");
+                } else {
+                    writer.append("(").expr(key, 0).append(")");
+                }
+            }
+            return writer;
         }
         if (src instanceof com.legend.sql.SqlSource.Join j && (j.kind() == com.legend.sql.SqlSource.Join.Kind.CROSS_LATERAL
                 || j.kind() == com.legend.sql.SqlSource.Join.Kind.LEFT_LATERAL)) {
@@ -1102,7 +1139,11 @@ public final class ClickHouse extends AnsiSqlRenderer {
                 }
                 yield writer.append("CAST(arrayElement(").piece(list(xs)).append(", 1) AS " + castTypeName(element) + "))");
             }
-            case TYPEOF -> throw new DialectCapability("typeof reached ClickHouse: its type names are ClickHouse's");
+            // the value's type name, its Nullable wrapper dropped (every scalar is Nullable(T) here), compared only
+            // with typeofName's (the judges' grid sides read a declared timestamp's DATE cells by it since the plan
+            // path program's step 6: channel B's testExtendLeadAdjustDerivedOffset, 2026-10-20)
+            case TYPEOF -> writer.append("replaceRegexpOne(toTypeName(").expr(args.get(0), 0)
+                    .append("), '^Nullable\\((.*)\\)$', '\\1')");
             case RANGE_FN, REPEAT_VALUE -> throw new IllegalStateException(fnName + " is rendered by call");
             default -> throw new IllegalStateException("not a list call: " + fnName);
         };
@@ -1547,6 +1588,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1747,6 +1789,43 @@ public final class ClickHouse extends AnsiSqlRenderer {
         // the server's error text quotes the message as a string literal, a quote in it escaped (\', measured):
         // each quote travels as the envelope's quote mark (RaisedErrors.QUOTE_MARK), as SQLite's
         return writer.append("replaceAll(toString(").expr(a.get(0), 0).append("), '\\'', char(29)), char(31))))");
+    }
+
+    /** The message a date past ClickHouse's years raises. */
+    private static final String DATE_RANGE = "a date outside the years 1900 to 2299 has no ClickHouse value (it clamps"
+            + " one to the end it passed)";
+
+    private static SqlExpr.Call raised(String message) {
+        return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(message));
+    }
+
+    /** Whether {@code date} moved by {@code n} of {@code unit} leaves ClickHouse's dates, 1900-01-01 to the last
+     *  microsecond of 2299-12-31: a calendar unit by the year it reaches, any other by the microseconds since the
+     *  epoch it reaches, each in Int128 (a large count overflows Int64). NULL where either is. */
+    private SqlWriter.Piece outsideDates(com.legend.sql.DatePart unit, SqlExpr date, SqlExpr n) {
+        long micros = switch (unit) {
+            case YEAR, MONTH -> 0;
+            case WEEK -> 604_800_000_000L;
+            case DAY -> 86_400_000_000L;
+            case HOUR -> 3_600_000_000L;
+            case MINUTE -> 60_000_000L;
+            case SECOND -> 1_000_000L;
+            case MILLISECOND -> 1_000L;
+            case MICROSECOND -> 1L;
+            case QUARTER, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new IllegalStateException("the unit " + unit
+                    + " reached the date range check: refused before it");
+        };
+        if (unit == com.legend.sql.DatePart.YEAR) {
+            return w -> w.append("(toInt128(toYear(").expr(date, 0).append(")) + toInt128(").expr(n, 0)
+                    .append(")) NOT BETWEEN 1900 AND 2299");
+        }
+        if (unit == com.legend.sql.DatePart.MONTH) {
+            return w -> w.append("intDiv(toInt128(toYear(").expr(date, 0).append(")) * 12 + toMonth(").expr(date, 0)
+                    .append(") - 1 + toInt128(").expr(n, 0).append("), 12) NOT BETWEEN 1900 AND 2299");
+        }
+        return w -> w.append("(toInt128(toUnixTimestamp64Micro(toDateTime64(").expr(date, 0).append(", 6, 'UTC'))) +"
+                + " toInt128(").expr(n, 0).append(") * " + micros + ") NOT BETWEEN -2208988800000000 AND"
+                + " 10413791999999999");
     }
 
     /** The {@code ROUND_HALF_UP} arm of {@link #call}. */
@@ -1972,7 +2051,15 @@ public final class ClickHouse extends AnsiSqlRenderer {
                     case MICROSECOND -> "addMicroseconds";
                     case QUARTER, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw wall(c.fn(), "the unit " + unit);
                 };
-                yield writer.append(fn + "(").expr(a.get(2), 0).append(", ").expr(a.get(1), 0).append(")");
+                // ClickHouse clamps a date past its years 1900 to 2299 to the end it passed (measured: 2407 answered
+                // as 2299-12-31), a wrong value: the date the arithmetic reaches, in a wider integer, is checked
+                // first and raised outside them (2026-10-20, the parity phase)
+                SqlType slot = typeOf(c);
+                yield writer.append("CASE WHEN ").piece(outsideDates(unit, a.get(2), a.get(1))).append(" THEN ")
+                        .piece(slot == null ? x -> error(x, raised(DATE_RANGE)) : x -> x.append("CAST(")
+                                .piece(y -> error(y, raised(DATE_RANGE))).append(" AS " + castTypeName(slot) + ")"))
+                        .append(" ELSE " + fn + "(").expr(a.get(2), 0).append(", ").expr(a.get(1), 0)
+                        .append(") END");
             }
             // DuckDB's date_diff counts boundaries crossed, as ClickHouse's dateDiff does
             // the platform's week index counts days from an ancient Sunday (0001-01-07, Scalars.sundayIndex), before
@@ -2837,10 +2924,13 @@ public final class ClickHouse extends AnsiSqlRenderer {
         };
     }
 
-    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are ClickHouse's). */
+    /** {@inheritDoc} A DATE is {@code Date32} (its castTypeName's); no other type's name is compared here. */
     @Override
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
-        throw new DialectCapability("typeof reached ClickHouse: its type names are ClickHouse's");
+        if (type == SqlType.Scalar.DATE) {
+            return "Date32";
+        }
+        throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached ClickHouse");
     }
 
     /** {@inheritDoc} Every scalar is Nullable(T); its own names for the same types, a date-time's precision and zone in

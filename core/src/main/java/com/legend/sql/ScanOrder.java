@@ -37,21 +37,29 @@ public final class ScanOrder {
     /** The query with the deterministic scan-order key applied where
      * the shape needs and permits it; identity otherwise. */
     public static SqlQuery stabilize(SqlQuery q) {
+        return stabilize(q, java.util.Set.of());
+    }
+
+    /** {@link #stabilize(SqlQuery)} inside a statement whose CTEs are named by {@code frames}: a table source that
+     *  names one of them is that frame, not a base-table scan -- it has no rowid (the plan path program's step 6,
+     *  2026-10-18: a verdict statement's one-row sides, and the referee's parsed CTE text, reference their CTEs as
+     *  table sources, and the key over them failed on DuckDB once the statements' CTEs stood at the head). */
+    public static SqlQuery stabilize(SqlQuery q, java.util.Set<String> frames) {
         if (!(q instanceof SqlSelect s)) {
             return q;
         }
-        SqlSource.Table base = orderableBase(s);
+        SqlSource.Table base = orderableBase(s, frames);
         if (base != null) {
-            return ordered(s, base);
+            return ordered(s, base, frames);
         }
         // a rows->at(N)-style cap whose inner carries the relation
         if (s.from() instanceof SqlSource.Subselect sub
                 && sub.inner() instanceof SqlSelect inner
                 && (inner.limit() != null || inner.offset() != null)) {
-            SqlSource.Table innerBase = orderableBase(inner);
+            SqlSource.Table innerBase = orderableBase(inner, frames);
             if (innerBase != null) {
                 return s.withFrom(new SqlSource.Subselect(
-                        ordered(inner, innerBase), sub.alias(),
+                        ordered(inner, innerBase, frames), sub.alias(),
                         sub.frameName()));
             }
         }
@@ -65,9 +73,9 @@ public final class ScanOrder {
      * Product_Synonym with synonyms 11→P1, 12→P2, 13→P1 reads (P1,11),
      * (P1,13), (P2,12) — the enum projection tests' rows->at(i)). Frames
      * (subselects) contribute no key. */
-    private static SqlSelect ordered(SqlSelect s, SqlSource.Table base) {
+    private static SqlSelect ordered(SqlSelect s, SqlSource.Table base, java.util.Set<String> frames) {
         List<SqlSelect.SortKey> keys = new java.util.ArrayList<>();
-        for (SqlSource.Table t : scanTables(s.from())) {
+        for (SqlSource.Table t : scanTables(s.from(), frames)) {
             keys.add(new SqlSelect.SortKey(
                     new SqlExpr.RowOrder(t.alias()), true, null, null));
         }
@@ -79,23 +87,29 @@ public final class ScanOrder {
     }
 
     /** Base-table scans of a join tree in join order (leftmost first). */
-    private static List<SqlSource.Table> scanTables(SqlSource from) {
+    private static List<SqlSource.Table> scanTables(SqlSource from, java.util.Set<String> frames) {
         List<SqlSource.Table> out = new java.util.ArrayList<>();
         if (from instanceof SqlSource.Join j) {
-            out.addAll(scanTables(j.left()));
-            if (j.right() instanceof SqlSource.Table t && !t.call()) {
+            out.addAll(scanTables(j.left(), frames));
+            if (j.right() instanceof SqlSource.Table t && isScan(t, frames)) {
                 out.add(t);
             }
-        } else if (from instanceof SqlSource.Table t && !t.call()) {
+        } else if (from instanceof SqlSource.Table t && isScan(t, frames)) {
             out.add(t);   // a tabular function's rows have no rowid
         }
         return out;
     }
 
+    /** A base-table scan: not a tabular function's rows, not a frame of the statement named as a table. */
+    private static boolean isScan(SqlSource.Table t, java.util.Set<String> frames) {
+        return !t.call() && !frames.contains(t.name());
+    }
+
 
     /** The driving base-table scan IF the select is order-stabilizable
      * (see class doc); null otherwise. */
-    private static SqlSource.@com.legend.base.Nullable Table orderableBase(SqlSelect s) {
+    private static SqlSource.@com.legend.base.Nullable Table orderableBase(SqlSelect s,
+            java.util.Set<String> frames) {
         if (!s.orderBy().isEmpty()
                 || s.distinct()
                 || !s.groupBy().isEmpty()
@@ -112,7 +126,7 @@ public final class ScanOrder {
         while (leftmost instanceof SqlSource.Join j) {
             leftmost = j.left();
         }
-        return leftmost instanceof SqlSource.Table t && !t.call() ? t : null;
+        return leftmost instanceof SqlSource.Table t && isScan(t, frames) ? t : null;
     }
 
     /** A top-level aggregate anywhere in the expression — Reducer,

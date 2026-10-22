@@ -21,7 +21,7 @@ public sealed interface SqlExpr
                 SqlExpr.CompactList,
                 SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
-                SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group,
+                SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlExpr.KeyCell,
                 SqlExpr.RowOrder, SqlExpr.ReduceCollection, SqlExpr.Membership,
                 SqlExpr.TempTableInSplice, SqlExpr.StoredRead,
                 SqlAgg.Reducer {
@@ -72,6 +72,7 @@ public sealed interface SqlExpr
             case JsonKindLit ignored -> List.of();
             case TypeNameLit ignored -> List.of();
             case PlanParam ignored -> List.of();
+            case KeyCell ignored -> List.of();
             case TempTableInSplice ignored -> List.of();
             case Group g -> List.of(g.inner());
             case ArrayLit a -> a.elements();
@@ -169,6 +170,7 @@ public sealed interface SqlExpr
             case JsonKindLit ignored -> this;
             case TypeNameLit ignored -> this;
             case PlanParam ignored -> this;
+            case KeyCell ignored -> this;
             case TempTableInSplice ignored -> this;
             case Exists ignored -> this;
             case ScalarSubquery ignored -> this;
@@ -181,7 +183,7 @@ public sealed interface SqlExpr
             case CompactList ignored -> new CompactList(cs.get(0));
             case DeferredTdsString ignored -> this;
             case Group ignored -> new Group(cs.get(0));
-            case ArrayLit ignored -> new ArrayLit(cs);
+            case ArrayLit a -> new ArrayLit(cs, a.type());
             case OrderedListAgg ignored ->
                     new OrderedListAgg(cs.get(0), cs.get(1));
             case StructLit s -> {
@@ -192,7 +194,7 @@ public sealed interface SqlExpr
                 }
                 yield new StructLit(fs);
             }
-            case StructGet g -> new StructGet(cs.get(0), g.field());
+            case StructGet g -> new StructGet(cs.get(0), g.field(), g.type());
             case Call c -> new Call(c.fn(), cs);
             case Case old -> {
                 java.util.List<Case.When> ws = new java.util.ArrayList<>();
@@ -590,6 +592,20 @@ public sealed interface SqlExpr
         }
     }
 
+    /** A key's cell, where a statement is written once per key of its plan's keys probe (a dynamic pivot's, on every
+     *  database: the plan path program's probe plan, 2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9): the
+     *  probe row's {@code cell} (0: the key's text, as the database writes it) of the key a repetition is of, a value
+     *  the statement binds. It is written only inside a per-key region (a run of {@link OutputCol.Origin#PER_KEY}
+     *  projections), which the runner repeats once per key; anywhere else it is refused by name. */
+    record KeyCell(int cell, TypeFact type) implements SqlExpr {
+        public KeyCell {
+            if (cell < 0) {
+                throw new IllegalArgumentException("a key's cell " + cell);
+            }
+            java.util.Objects.requireNonNull(type, "type");
+        }
+    }
+
     /** A query's parameter, where it is used: in a statement that executes, a value the statement binds (a dialect
      * writes it as a placeholder, typed by {@code type}: what a literal of the parameter's declared type carries,
      * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2); in the legacy engine-text printer, the
@@ -732,9 +748,10 @@ public sealed interface SqlExpr
     record ArrayLit(List<SqlExpr> elements, TypeFact type)
             implements SqlExpr {
         public ArrayLit {
-            // the elements' common type; an EMPTY literal keeps the type it is given (what it stands in for: the
-            // empty side of a one-element concatenation, 2026-10-17), since its elements say nothing
-            type = elements.isEmpty() && type instanceof TypeFact.Typed ? type : SqlTyping.arrayLitType(elements);
+            // the type its elements prove; where they prove none (an empty list -- the empty side of a one-element
+            // concatenation, 2026-10-17 -- or untyped elements), the type it is given
+            TypeFact proven = SqlTyping.arrayLitType(elements);
+            type = proven instanceof TypeFact.Unknown && type != null ? type : proven;
         }
 
         public ArrayLit(List<SqlExpr> elements) {
@@ -794,7 +811,10 @@ public sealed interface SqlExpr
             return new StructGet(source, field);
         }
         public StructGet {
-            type = SqlTyping.structGetType(source, field);
+            // the type its source's struct proves; where it proves none (a lambda parameter of an unknown struct), the
+            // builder's: the type of the column the field read replaces
+            TypeFact proven = SqlTyping.structGetType(source, field);
+            type = proven instanceof TypeFact.Unknown && type != null ? type : proven;
         }
 
         public StructGet(SqlExpr source, String field) {

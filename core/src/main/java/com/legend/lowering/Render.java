@@ -270,10 +270,12 @@ public final class Render {
                 new OutputCol("_csv_line", SqlType.Scalar.VARCHAR, false)));
         List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, cols,
                 rowAlias, aggAlias, rowProjs);
-        SqlExpr header = escapeCsv(new SqlExpr.StringLit(cols.get(0).name()));
+        // a pivot's generated column named as the engine labels it, quoted (Type.RelationType.presentPivotName: the
+        // TDS text's rule; the pivot homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md)
+        SqlExpr header = escapeCsv(new SqlExpr.StringLit(Type.RelationType.presentPivotName(cols.get(0).name())));
         for (int i = 1; i < cols.size(); i++) {
             header = cat(header, new SqlExpr.StringLit(","),
-                    escapeCsv(new SqlExpr.StringLit(cols.get(i).name())));
+                    escapeCsv(new SqlExpr.StringLit(Type.RelationType.presentPivotName(cols.get(i).name()))));
         }
         SqlExpr crlf = new SqlExpr.StringLit("\r\n");
         SqlExpr agg = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
@@ -298,17 +300,114 @@ public final class Render {
      *  escaped by the DB). One VARCHAR {@code _wire_row} column; the
      *  plan's ORDER BY lifts onto the wrapper (output-column keys only,
      *  loud otherwise). */
-    static SqlSelect jsonWireRows(SqlSelect inner, String rowAlias) {
-        List<OutputCol> cols = inner.outputs();
-        inner = withSortOutputs(inner);
-        List<SqlExpr> kv = new ArrayList<>(cols.size() * 2);
-        for (OutputCol oc : cols) {
-            kv.add(new SqlExpr.StringLit(oc.name()));
-            kv.add(SqlExpr.Column.of(rowAlias, oc));
+    /**
+     * One row as a JSON object ASSEMBLED FROM ITS CELLS' TEXTS (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4, decision
+     * 3, 2026-10-18: no database's native JSON number decides a token): a Float's token is Pure's Float text, a
+     * Decimal's the value's own scale, and every other kind's the database's own JSON writer's token (a string
+     * escaped, a boolean, an integer, a date as the database writes it today, nested JSON kept) read off a
+     * one-element JSON array's text; a null cell is {@code null}. The keys are JSON strings the same way, each the
+     * column's name as the engine labels it (a pivot's generated column quoted, {@link Type.RelationType#presentPivotName}:
+     * the TDS text's rule; the pivot homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md). A column the typed
+     * schema does not name (a pivot's generated column) takes the database's token.
+     */
+    private static SqlExpr jsonRow(String rowAlias, List<OutputCol> cols, List<Type.@com.legend.base.Nullable Column> relCols,
+            WireRender.Spelling spelling) {
+        List<SqlExpr> cells = new ArrayList<>(cols.size());
+        for (OutputCol col : cols) {
+            cells.add(SqlExpr.Column.of(rowAlias, col));
         }
-        SqlExpr obj = new SqlExpr.Cast(new SqlExpr.JsonObject(kv),
+        return jsonRowOf(cells, cols, relCols, spelling);
+    }
+
+    /** {@link #jsonRow} over the cells' own expressions ({@code cells.get(i)} the value of {@code cols.get(i)}). */
+    private static SqlExpr jsonRowOf(List<SqlExpr> cells, List<OutputCol> cols,
+            List<Type.@com.legend.base.Nullable Column> relCols, WireRender.Spelling spelling) {
+        return cat(new SqlExpr.StringLit("{"), jsonMembers(cells, cols, relCols, spelling), new SqlExpr.StringLit("}"));
+    }
+
+    /** {@link #jsonRowOf}'s members, comma-joined (the empty text for no column): each key its column's name as the
+     *  engine labels it, each value its cell's token. */
+    private static SqlExpr jsonMembers(List<SqlExpr> cells, List<OutputCol> cols,
+            List<Type.@com.legend.base.Nullable Column> relCols, WireRender.Spelling spelling) {
+        List<SqlExpr> parts = new ArrayList<>();
+        for (int i = 0; i < cols.size(); i++) {
+            if (i > 0) {
+                parts.add(new SqlExpr.StringLit(","));
+            }
+            parts.add(jsonToken(new SqlExpr.StringLit(Type.RelationType.presentPivotName(cols.get(i).name()))));
+            parts.add(new SqlExpr.StringLit(":"));
+            Type.Column typed = relCols.get(i);
+            parts.add(jsonCell(cells.get(i), typed == null ? null : typed.type(), cols.get(i).type(), spelling));
+        }
+        return parts.isEmpty() ? new SqlExpr.StringLit("") : cat(parts.toArray(new SqlExpr[0]));
+    }
+
+    /** A cell's JSON token by its Pure type: a Float's text (Pure's, or Java's on the engine's wire), its own scale
+     *  for a Decimal (on both: the value is Pure's, register S97), a date kind's text as a JSON string (a StrictDate's
+     *  day, a DateTime's {@link #dateTimeText} or the engine's nine digits, a text-carried value's own text; the one
+     *  owner, 2026-10-18), the database's token otherwise; null as {@code null}. */
+    static SqlExpr jsonCell(SqlExpr c, @com.legend.base.Nullable Type t, SqlType slot,
+            WireRender.Spelling spelling) {
+        boolean engine = spelling == WireRender.Spelling.ENGINE;
+        SqlExpr token;
+        if (t == Type.Primitive.FLOAT) {
+            token = engine ? LiteralSpelling.floatPrintJava(c) : Scalars.pureToString(t, c);
+        } else if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
+            token = new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
+        } else if (t != null && dateKind(t)) {
+            token = jsonToken(engine ? engineDateText(c, t, slot) : dateText(c, t, slot));
+        } else {
+            // an object is its declared properties: its identity and its class are the lowering's own
+            // (docs/OBJECT_IDENTITY_2026_10_20.md §3.4)
+            token = jsonToken(MixedEncoding.declaredOnly(c));
+        }
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, c), new SqlExpr.StringLit("null"))), token);
+    }
+
+    /** {@code x}'s JSON token as the database's JSON writer spells it: a one-element JSON array's text without its
+     *  brackets (the escaping, the quoting and the spelling the database's own). */
+    static SqlExpr jsonToken(SqlExpr x) {
+        SqlExpr arr = new SqlExpr.Cast(new SqlExpr.JsonArray(List.of(x), com.legend.sql.SqlTyping.UNKNOWN),
                 SqlType.Scalar.VARCHAR);
+        return SqlExpr.Call.of(SqlFn.SUBSTRING, arr, new SqlExpr.IntLit(2),
+                SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.LENGTH, arr), new SqlExpr.IntLit(2)));
+    }
+
+    static SqlSelect jsonWireRows(SqlSelect inner, List<Type.@com.legend.base.Nullable Column> relCols, String rowAlias) {
+        return jsonWireRows(inner, relCols, rowAlias, WireRender.Spelling.PURE);
+    }
+
+    static SqlSelect jsonWireRows(SqlSelect inner, List<Type.@com.legend.base.Nullable Column> relCols, String rowAlias,
+            WireRender.Spelling spelling) {
+        List<OutputCol> cols = inner.outputs();
+        SqlExpr obj = jsonRow(rowAlias, cols, relCols, spelling);
+        Lifted l = liftOrder(inner, rowAlias, "json wire");
+        if (l == null) {
+            throw new com.legend.error.NotImplementedException("json wire over an ordered relation whose sort key is"
+                    + " not an output column, under a " + (inner.distinct() ? "DISTINCT" : "star")
+                    + " select: a hidden order column would change its rows");
+        }
+        return SqlSelect.starOf(new SqlSource.Subselect(l.source(), rowAlias, null))
+                .withProjections(List.of(new SqlSelect.Projection(obj, "_wire_row",
+                        new OutputCol("_wire_row", SqlType.Scalar.VARCHAR, false))))
+                .withOrderBy(l.keys());
+    }
+
+    /** A select's order carried outside it: {@code source} the select with its hidden order columns, {@code keys}
+     *  the sort keys over {@code rowAlias}, each addressing an output of the source. */
+    record Lifted(SqlSelect source, List<SqlSelect.SortKey> keys) {
+    }
+
+    /** {@code inner}'s order lifted over the alias {@code rowAlias}: a sort key that is no output (a sort by an
+     *  expression, or by a column the select drops; the plan path program's step 6, 2026-10-18) is carried as a
+     *  hidden column of the inner select and ordered by outside, never written into the row. Null where a hidden
+     *  column would change the rows (a star or a DISTINCT select) -- the caller says what it does then. */
+    static @com.legend.base.Nullable Lifted liftOrder(SqlSelect inner, String rowAlias, String what) {
+        List<OutputCol> cols = inner.outputs();
         List<SqlSelect.SortKey> lifted = new ArrayList<>();
+        List<SqlSelect.Projection> hidden = new ArrayList<>();
+        List<OutputCol> hiddenOut = new ArrayList<>();
         for (SqlSelect.SortKey k : inner.orderBy()) {
             String out = k.outputName() != null ? k.outputName()
                     : k.expr() instanceof SqlExpr.Column c ? c.name() : null;
@@ -317,35 +416,63 @@ public final class Render {
                     .filter(oc -> oc.name().equals(out)).findFirst()
                     .orElse(null);
             if (outCol == null) {
-                throw new com.legend.error.NotImplementedException(
-                        "json wire over an ordered relation whose sort key"
-                        + " is not an output column");
+                if (!(k.expr().type() instanceof com.legend.sql.TypeFact.Typed typed)) {
+                    throw new com.legend.error.NotImplementedException(what + " over an ordered relation whose sort"
+                            + " key is not an output column and carries no typed slot");
+                }
+                if (inner.projections().isEmpty() || inner.distinct()) {
+                    return null;
+                }
+                String oname = "_ord" + hidden.size();
+                outCol = new OutputCol(oname, typed.type(), true);
+                hidden.add(new SqlSelect.Projection(k.expr(), oname, outCol));
+                hiddenOut.add(outCol);
             }
             lifted.add(new SqlSelect.SortKey(
                     SqlExpr.Column.of(rowAlias, outCol), k.ascending(),
                     k.nullOrder(), null));
         }
-        return SqlSelect.starOf(new SqlSource.Subselect(inner, rowAlias, null))
-                .withProjections(List.of(new SqlSelect.Projection(obj, "_wire_row",
-                        new OutputCol("_wire_row", SqlType.Scalar.VARCHAR, false))))
-                .withOrderBy(lifted);
+        SqlSelect source = inner;
+        if (!hidden.isEmpty()) {
+            List<SqlSelect.Projection> ps = new ArrayList<>(inner.projections());
+            ps.addAll(hidden);
+            List<OutputCol> outs = new ArrayList<>(inner.outputs());
+            outs.addAll(hiddenOut);
+            source = inner.withProjections(ps, outs);
+        }
+        return new Lifted(source, lifted);
+    }
+
+    /** {@code inner} as a typed-rows statement (the plan path program's step 7, 2026-10-18): itself, unless a sort
+     *  key is no output -- then the select with that key hidden, wrapped once over {@code rowAlias} projecting the
+     *  select's own outputs and ordered by the hidden key, as the JSON rows wire carried it (a dialect that emulates
+     *  a join by a union, H2's FULL OUTER JOIN, addresses a sort key among the outputs only). Where a hidden column
+     *  would change the rows the statement stays as it is. */
+    static SqlSelect typedRows(SqlSelect inner, String rowAlias) {
+        Lifted l = liftOrder(inner, rowAlias, "typed rows");
+        if (l == null || l.source() == inner) {
+            return inner;
+        }
+        List<OutputCol> cols = inner.outputs();
+        List<SqlSelect.Projection> projs = new ArrayList<>(cols.size());
+        for (OutputCol oc : cols) {
+            projs.add(new SqlSelect.Projection(SqlExpr.Column.of(rowAlias, oc), oc.name(), oc));
+        }
+        return SqlSelect.starOf(new SqlSource.Subselect(l.source(), rowAlias, null))
+                .withProjections(projs, cols)
+                .withOrderBy(l.keys());
     }
 
     /** The SNAPSHOT product JSON wire: the whole result as one
      *  {@code [row,row,…]} text — {@code string_agg} over the per-row
      *  objects with hoisted order; ZERO rows are the empty array (the
      *  pinned {@code []} wire). */
-    static SqlSelect jsonWire(SqlSelect inner, String rowAlias) {
+    static SqlSelect jsonWire(SqlSelect inner, List<Type.@com.legend.base.Nullable Column> relCols, String rowAlias,
+            WireRender.Spelling spelling) {
         List<OutputCol> cols = inner.outputs();
         inner = withSortOutputs(inner);
         String aggAlias = rowAlias + "_a";
-        List<SqlExpr> kv = new ArrayList<>(cols.size() * 2);
-        for (OutputCol oc : cols) {
-            kv.add(new SqlExpr.StringLit(oc.name()));
-            kv.add(SqlExpr.Column.of(rowAlias, oc));
-        }
-        SqlExpr obj = new SqlExpr.Cast(new SqlExpr.JsonObject(kv),
-                SqlType.Scalar.VARCHAR);
+        SqlExpr obj = jsonRow(rowAlias, cols, relCols, spelling);
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
         rowProjs.add(new SqlSelect.Projection(obj, "_wire_row",
                 new OutputCol("_wire_row", SqlType.Scalar.VARCHAR, false)));
@@ -467,7 +594,7 @@ public final class Render {
                     Type t = schema.pivotColumnType(name);
                     // downstream-rebuilt schemas drop the pivot
                     // templates (filter/select over the pivot) — the
-                    // probe's SQL type decodes, the PctTdsWrap pattern
+                    // probe's SQL type decodes, the TdsTextWrap pattern
                     return t != null ? t
                             : sqlTypeToPure.apply(p.typeName(name));
                 });
@@ -597,24 +724,72 @@ public final class Render {
      * in miniature). Channel-specific QUOTING/ESCAPING stays with each
      * renderer; the SPELLING of a value lives here once. */
     private static SqlExpr dateTimeText(SqlExpr c) {
-        // fixed THREE millisecond digits + '+0000' — the engine's own
-        // DateTime wire spelling (measured in the F4.4 attempt)
-        return cat(
-                SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                        new SqlExpr.FormatLit(
-                                com.legend.sql.DateFmt.ISO_DOT)),
-                SqlExpr.Call.of(SqlFn.SUBSTRING,
-                        SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                                new SqlExpr.FormatLit(List.of(
-                                        com.legend.sql.DateFmt.Part
-                                                .SUBSEC_MICRO))),
-                        new SqlExpr.IntLit(1), new SqlExpr.IntLit(3)),
-                new SqlExpr.StringLit("+0000"));
+        // the one owner (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4, 2026-10-18): Pure's text of a DateTime read
+        // from a database -- 'T', the fraction's digits with trailing zeros trimmed, '+0000' -- on every output
+        // (the fixed three millisecond digits, "the engine's own wire spelling", and the value root's own
+        // whole-second case are both gone into it)
+        return LiteralSpelling.dateTimeText(c);
+    }
+
+    /** A date kind's Pure text over its slot: a text-carried value's own text (timed: {@code +0000}); a DATE slot's
+     *  or a StrictDate's day; an abstract Date over a timestamp slot by the value's time of day ({@link #timed}: a
+     *  parameter bound to a day prints its day, as Pure prints the StrictDate it holds); a timestamp's
+     *  {@link #dateTimeText}. */
+    private static SqlExpr dateText(SqlExpr c, Type t, SqlType slot) {
+        if (textSlot(slot)) {
+            return LiteralSpelling.dateTimeTextOfText(c);
+        }
+        if (dateOnly(t, slot)) {
+            return strictDateText(c);
+        }
+        if (t == Type.Primitive.DATE) {
+            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(timed(c), dateTimeText(c))), strictDateText(c));
+        }
+        return dateTimeText(c);
+    }
+
+    /** A date kind's text as legend-engine's {@code pure/v1} execute writes it: a day for a DATE slot or a
+     *  StrictDate, nine fraction digits and {@code +0000} for a timestamp ({@link LiteralSpelling#dateTimeTextEngine}),
+     *  an abstract Date by its time of day as {@link #dateText}. A date carried as its own text is a value root's,
+     *  which the engine's API does not answer ({@code Execution.executeWire} refuses the shape): reaching here is a
+     *  planner defect, refused by name. */
+    private static SqlExpr engineDateText(SqlExpr c, Type t, SqlType slot) {
+        if (textSlot(slot)) {
+            throw new IllegalStateException("a date carried as its own text reached the engine's wire, which answers"
+                    + " no value root: the lowering's slot for a relation column is a DATE or a timestamp");
+        }
+        if (dateOnly(t, slot)) {
+            return strictDateText(c);
+        }
+        SqlExpr nine = LiteralSpelling.dateTimeTextEngine(c);
+        return t == Type.Primitive.DATE
+                ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(timed(c), nine)), strictDateText(c))
+                : nine;
+    }
+
+    /** Whether a timestamp's time of day is not midnight: the engine's {@code formatDateTime} rule for an ABSTRACT
+     *  Date, defined over the value (hasHour) -- a timed value is a DateTime, a date-only one (a parameter bound to a
+     *  day; a DATE read into a timestamp) its day. The one residue, a true midnight DateTime under an abstract Date
+     *  printing date-only, is F5.4's slot erasure, identical on the engine's own relational read-back. */
+    private static SqlExpr timed(SqlExpr c) {
+        return LiteralSpelling.timed(c);
     }
 
     private static SqlExpr strictDateText(SqlExpr c) {
         return SqlExpr.Call.of(SqlFn.STRFTIME, c,
                 new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
+    }
+
+    /** The DATE family: StrictDate, Date, DateTime, LatestDate. */
+    private static boolean dateKind(Type t) {
+        return t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE || t == Type.Primitive.DATE_TIME
+                || t == Type.Primitive.LATEST_DATE;
+    }
+
+    /** A slot that carries text: VARCHAR, a literal's spelling, a temporal's text. */
+    private static boolean textSlot(@com.legend.base.Nullable SqlType slot) {
+        return slot == SqlType.Scalar.VARCHAR || slot == SqlType.Scalar.LITERAL
+                || slot == SqlType.Scalar.TEMPORAL_TEXT;
     }
 
     /** Whether the DATE-family value prints date-only (a DATE slot) or
@@ -659,8 +834,9 @@ public final class Render {
                 || t == Type.Primitive.DATE) {
             // the missing arm the drift hid (witness testExtendMax/
             // MinDate: raw '2026-01-07 00:00:00' where pure prints the
-            // ISO+ms+0000 form)
-            rendered = dateTimeText(c);
+            // ISO+ms+0000 form): a TDS cell's DateTime text has at least
+            // three fraction digits (LiteralSpelling.dateTimeTextTds)
+            rendered = LiteralSpelling.dateTimeTextTds(c);
         } else if ((t == Type.Primitive.NUMBER
                         && (slot == null
                                 || slot instanceof SqlType.Decimal
@@ -790,11 +966,15 @@ public final class Render {
      *  appears it gets a SEMANTIC node with dialect strategies, per
      *  CARRIER_REDESIGN.md tenet #1. The named residue is
      *  docs/CSV_DIFFERENTIAL.md mechanism 3.) */
-    private static SqlExpr cell(SqlExpr c, Type.Column col,
+    static SqlExpr cell(SqlExpr c, Type.Column col,
             SqlType slot, boolean renderTdsNull) {
         Type t = col.type();
         SqlExpr rendered;
-        if (t == Type.Primitive.STRICT_DATE
+        if (dateKind(t) && textSlot(slot)) {
+            // a date carried as its own text (a value root spelled at the precision it has): the text is the cell,
+            // a timed one with Pure's '+0000' (the one owner's rule, 2026-10-18)
+            rendered = LiteralSpelling.dateTimeTextOfText(c);
+        } else if (t == Type.Primitive.STRICT_DATE
                 || (t == Type.Primitive.DATE
                         && slot == SqlType.Scalar.DATE)) {
             // date-only branch: format WITHOUT escape (engine
@@ -805,28 +985,15 @@ public final class Render {
             rendered = SqlExpr.Call.of(SqlFn.STRFTIME, c,
                     new SqlExpr.FormatLit(DateFmt.DATE));
         } else if (t == Type.Primitive.DATE) {
-            // ABSTRACT Date over a TIMESTAMP slot: the engine's
-            // formatDateTime rule is DEFINED OVER THE VALUE (hasHour) —
-            // date-only values print yyyy-MM-dd, timed values print the
-            // datetime form. The SQL spells the engine's own rule; the
-            // one residue (a TRUE midnight DateTime under an abstract
-            // Date slot prints date-only) is the F5.4 slot-erasure,
-            // identical on the engine's own relational read-back of a
-            // DATE-precision-less TIMESTAMP.
-            SqlExpr timed = SqlExpr.Call.of(SqlFn.NOT_EQUAL,
-                    SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                            new SqlExpr.FormatLit(DateFmt.TIME_ONLY)),
-                    new SqlExpr.StringLit("00:00:00"));
-            rendered = new SqlExpr.Case(List.of(new SqlExpr.Case.When(timed,
-                    escapeCsv(SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                            new SqlExpr.FormatLit(DateFmt.CSV_DATETIME))))),
-                    SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                            new SqlExpr.FormatLit(DateFmt.DATE)));
+            // ABSTRACT Date over a TIMESTAMP slot: the engine's formatDateTime rule, defined over the value
+            // (timed); the JSON wires spell the same (dateText)
+            rendered = new SqlExpr.Case(List.of(new SqlExpr.Case.When(timed(c), dateTimeText(c))),
+                    strictDateText(c));
         } else if (t == Type.Primitive.DATE_TIME
                 || t == Type.Primitive.LATEST_DATE) {
-            // the DateTime kinds: datetime spelling
-            rendered = escapeCsv(SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                    new SqlExpr.FormatLit(DateFmt.CSV_DATETIME)));
+            // the DateTime kinds: Pure's DateTime text (the one owner, 2026-10-18; the engine's own CSV wrote
+            // 'yyyy-MM-dd HH:mm:ss', the fraction dropped: docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §3, gap 4)
+            rendered = dateTimeText(c);
         } else {
             rendered = escapeCsv(Scalars.pureToString(t, c));
         }
@@ -839,19 +1006,33 @@ public final class Render {
     /** THE RFC4180 escape rule ({@code escapeCSVString}), spelled once:
      *  quote when the text contains comma, quote, LF or CR; embedded
      *  quotes double. */
-    /** E1: the PCT wire TDS text (the deleted
-     *  the PCT bridge's deleted formatAsTds, spelled by the DATABASE).
+    /** Pure's TDS text (E1: the PCT bridge's deleted formatAsTds, spelled by the DATABASE; the form legend-pure's
+     *  {@code stringToTDS} reads -- named for what it is, 2026-10-17).
      *  Header = a compile-time constant from the TYPED schema (name
      *  quoting incl. pivot identities, pure type names — Variant FQN —
      *  and data-independent multiplicity); rows '\n'-PREFIXED (no
      *  trailing newline), cells comma-joined with the pure print forms:
-     *  DateTime = fixed-3-millis '+0000', StrictDate = yyyy-MM-dd,
+     *  DateTime = Pure's text (the fraction trimmed, '+0000'), StrictDate = yyyy-MM-dd,
      *  Float = the pure minimal-decimal repr (Scalars.floatRepr),
      *  Variant = always-quoted JSON with doubled quotes, SQL NULL =
      *  bare {@code null}, strings quote only when they carry
      *  comma/quote/newline. */
-    public static SqlSelect pctTds(SqlSelect inner, List<Type.Column> typedCols,
+    public static SqlSelect tdsText(SqlSelect inner, List<Type.Column> typedCols,
             String rowAlias) {
+        return tdsText(inner, typedCols, rowAlias, false);
+    }
+
+    /** {@link #tdsText(SqlSelect, List, String)}; {@code quoteStrings} quotes every String cell whole (a value's
+     *  relation, TdsTextWrap). */
+    public static SqlSelect tdsText(SqlSelect inner, List<Type.Column> typedCols,
+            String rowAlias, boolean quoteStrings) {
+        return tdsText(inner, typedCols, rowAlias, quoteStrings, LiteralSpelling.Layouts.NONE);
+    }
+
+    /** {@link #tdsText(SqlSelect, List, String, boolean)} with {@code layouts}, the classes' canonical layouts a
+     *  class instance's text is spelled over (the text carrier, docs/PLAN_PATH_PROGRAM_2026_10_17.md §4). */
+    public static SqlSelect tdsText(SqlSelect inner, List<Type.Column> typedCols,
+            String rowAlias, boolean quoteStrings, LiteralSpelling.Layouts layouts) {
         List<OutputCol> cols = inner.outputs();
         inner = withSortOutputs(inner);
         java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
@@ -866,21 +1047,21 @@ public final class Render {
         List<Type.Column> relCols = cols.stream().map(oc -> {
             Type.Column t = byName.get(oc.name());
             if (t == null) {
-                throw new IllegalStateException("pctTds: output column '"
+                throw new IllegalStateException("tdsText: output column '"
                         + oc.name() + "' has no typed relation column");
             }
             return t;
         }).toList();
         if (cols.isEmpty()) {
-            throw new IllegalStateException("pctTds over a zero-column relation");
+            throw new IllegalStateException("tdsText over a zero-column relation");
         }
         String aggAlias = rowAlias + "_a";
-        SqlExpr line = pctCell(SqlExpr.Column.of(rowAlias, cols.get(0)),
-                relCols.get(0), cols.get(0).type());
+        SqlExpr line = tdsTextCell(SqlExpr.Column.of(rowAlias, cols.get(0)),
+                relCols.get(0), cols.get(0).type(), quoteStrings, layouts);
         for (int i = 1; i < cols.size(); i++) {
             line = cat(line, new SqlExpr.StringLit(","),
-                    pctCell(SqlExpr.Column.of(rowAlias, cols.get(i)),
-                            relCols.get(i), cols.get(i).type()));
+                    tdsTextCell(SqlExpr.Column.of(rowAlias, cols.get(i)),
+                            relCols.get(i), cols.get(i).type(), quoteStrings, layouts));
         }
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
         rowProjs.add(new SqlSelect.Projection(line, "_pct_line",
@@ -893,7 +1074,7 @@ public final class Render {
                         List.of(SqlExpr.Column.of(aggAlias, "_pct_line", SqlType.Scalar.VARCHAR, false, com.legend.sql.OutputCol.Origin.DERIVED), nl),
                         false, aggOrder)),
                 new SqlExpr.StringLit(""));
-        SqlExpr text = cat(new SqlExpr.StringLit(pctHeader(relCols)),
+        SqlExpr text = cat(new SqlExpr.StringLit(tdsHeader(relCols)),
                 rowsJoined);
         SqlSelect rows = SqlSelect.starOf(
                         new SqlSource.Subselect(inner, rowAlias, null))
@@ -903,10 +1084,19 @@ public final class Render {
                         new OutputCol("pctTds", SqlType.Scalar.VARCHAR, false))));
     }
 
+    /** A generated column's name as the engine labels it: the key's text, the separator and the USING's alias
+     *  ({@code tail}) between literal single quotes -- the quotes are part of the name on legend-engine's DuckDB SQL
+     *  ({@code concat('''', <key>, '''')}), in its interpreter and in the PCT's expected text; lite's physical column
+     *  is bare and every carrier presents it this way ({@link Type.RelationType#presentPivotName}; the pivot
+     *  homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md). */
+    static SqlExpr generatedName(SqlExpr keyText, String tail) {
+        return cat(new SqlExpr.StringLit("'"), keyText, new SqlExpr.StringLit(tail + "'"));
+    }
+
     /** The header line — a COMPILE-TIME constant from the typed schema
      *  (Java building a SQL literal is orchestration; every printed
      *  fact is a typed plan fact). */
-    static String pctHeader(List<Type.Column> relCols) {
+    static String tdsHeader(List<Type.Column> relCols) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < relCols.size(); i++) {
             if (i > 0) {
@@ -924,25 +1114,37 @@ public final class Render {
             var m = col.multiplicity();
             boolean optional = m instanceof com.legend.compiler.element
                     .type.Multiplicity.Bounded b && b.lower() == 0;
-            sb.append(colName).append(':').append(pctTypeName(col.type()))
+            sb.append(colName).append(':').append(tdsTypeName(col.type()))
                     .append(optional ? "[0..1]" : "[1]");
         }
         return sb.toString();
     }
 
-    private static String pctTypeName(Type t) {
+    static String tdsTypeName(Type t) {
         if (t instanceof Type.Primitive p) {
             return p.typeName();
+        }
+        if (t instanceof Type.PrecisionDecimal) {
+            // the TDS header's grammar has no type variables (the reader: "Type variable mismatch for Decimal"), so a
+            // precision decimal is a Decimal there (the MongoDB lane's first run, 2026-10-17)
+            return Type.Primitive.DECIMAL.typeName();
         }
         if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
             // the 5.88 TDS header parser resolves names as pure paths
             // without import scanning — Variant must be fully qualified
             return "meta::pure::metamodel::variant::Variant";
         }
-        return t.typeName();
+        // the same for every class: a path, never a simple name (the reader: "Pair not found! (imports are not scan
+        // for TDS column type resolution)", the MongoDB lane's first run, 2026-10-17)
+        return switch (t) {
+            case Type.ClassType c -> c.fqn();
+            case Type.EnumType e -> e.fqn();
+            case Type.GenericType g -> g.rawFqn();
+            default -> t.typeName();
+        };
     }
 
-    /** One PCT cell: typed print form, SQL NULL = bare 'null'.
+    /** One TDS text cell: typed print form, SQL NULL = bare 'null'.
      *
      *  <p>QUOTING is the reader's rule, and the reader is upstream's
      *  {@code stringToTDS} (legend-pure m2-dsl-tds {@code TDSExtension
@@ -955,22 +1157,46 @@ public final class Render {
      *  their commas under the 5.92.0 reader ("Row 2 has too many
      *  columns" — 28 variant tests, batch 1 of the upstream boundary
      *  program, 2026-09-10). */
-    private static SqlExpr pctCell(SqlExpr c, Type.Column col, SqlType slot) {
+    static SqlExpr tdsTextCell(SqlExpr c, Type.Column col, SqlType slot, boolean quoteStrings,
+            LiteralSpelling.Layouts layouts) {
         Type t = col.type();
         SqlExpr rendered;
         if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
             // pure prints VARIANT cells ALWAYS quoted
             rendered = pureQuoted(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
+        } else if (t instanceof Type.GenericType
+                || (t instanceof Type.ClassType && !com.legend.compiler.element.type.PlatformTypes.isAny(t))) {
+            // the text carrier (docs/PLAN_PATH_PROGRAM_2026_10_17.md §4, 2026-10-18): a class instance, a Pair, a
+            // List, a Map, a Type, in Pure's own literal grammar, which the reader compiles and reactivates
+            rendered = LiteralSpelling.pureValueText(c, t, slot, layouts);
+        } else if (dateKind(t) && textSlot(slot)) {
+            // a date carried as its own text (a value root: the lowering spells a date value in Pure's literal form,
+            // with the precision the value has -- a year, a month, a microsecond -- which no DATE or TIMESTAMP slot
+            // holds): the text is the cell, as the legacy route reads it (the MongoDB line's homework 2, 2026-10-17:
+            // the shadow run's 114 strftime errors and 69 precision differences over date values); a timed one
+            // takes Pure's '+0000' (the one owner's rule, 2026-10-18)
+            rendered = LiteralSpelling.dateTimeTextOfText(c);
         } else if (dateOnly(t, slot)) {
             rendered = strictDateText(c);
         } else if (t == Type.Primitive.DATE_TIME
                 || t == Type.Primitive.DATE) {
-            rendered = dateTimeText(c);
+            // a VALUE root's one cell (quoteStrings: the reader reads it as the value) is the value's own text; a
+            // relation's cell has at least three fraction digits, as Pure prints a relation
+            // (LiteralSpelling.dateTimeTextTds; measured 2026-10-18 both ways: the MongoDB lane's greatest/least of
+            // DateTimes read as values, channel B's relation texts)
+            rendered = quoteStrings ? dateTimeText(c) : LiteralSpelling.dateTimeTextTds(c);
         } else if (t == Type.Primitive.FLOAT) {
             rendered = Scalars.pureToString(Type.Primitive.FLOAT, c);
+        } else if (quoteStrings && t == Type.Primitive.NUMBER && slot instanceof SqlType.Decimal) {
+            // a VALUE root typed Number whose cell is a Decimal (the slot the lowering labels it with) spells
+            // Pure's literal with its D, the kind the Number's text alone cannot say -- as a Number-LUB mix and a
+            // store-read Decimal already cross; a Decimal-typed root stays bare, as Pure prints it (the output
+            // matrix); the DuckDB PCT lane on the plan route, step 9, 2026-10-18
+            rendered = LiteralSpelling.decimalPrintD(c);
         } else if (t == Type.Primitive.STRING
                 || t instanceof Type.EnumType) {
-            rendered = pctEscape(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
+            rendered = quoteStrings && t == Type.Primitive.STRING ? pureQuoted(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR))
+                    : tdsTextEscape(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
         } else {
             // Integer/Boolean/Decimal/Number print via the DB's plain
             // VARCHAR cast (NUMBER columns carry mixed-identity print
@@ -986,13 +1212,16 @@ public final class Render {
                 new SqlExpr.StringLit("null"))), rendered);
     }
 
-    /** PCT string cell quoting: only when the value carries a comma, a
+    /** TDS text string cell quoting: only when the value carries a comma, a
      *  single quote, a backslash, or a line break — the characters the
      *  5.92.0 reader ({@code quote('\'')}, {@code escape('\\')}) would
      *  otherwise read as structure. */
-    private static SqlExpr pctEscape(SqlExpr s) {
+    private static SqlExpr tdsTextEscape(SqlExpr s) {
         SqlExpr needs = or(or(contains(s, ","), contains(s, "'")),
                 or(contains(s, "\\"), or(contains(s, "\n"), contains(s, "\r"))));
+        // the empty string quoted, since an empty cell is the reader's null (the MongoDB lane's first run,
+        // 2026-10-17: left('', n), reverse('') read back as no value)
+        needs = or(needs, SqlExpr.Call.of(SqlFn.EQUAL, s, new SqlExpr.StringLit("")));
         return new SqlExpr.Case(
                 List.of(new SqlExpr.Case.When(needs, pureQuoted(s))), s);
     }
@@ -1011,7 +1240,41 @@ public final class Render {
                 new SqlExpr.StringLit("'"));
     }
 
-    private static SqlExpr escapeCsv(SqlExpr s) {
+    /** A name's CSV header field as {@link #escapeCsv} writes it, spelled when the plan is made: a fixed column's name
+     *  is a plan fact, so its field is the plan's constant (the keyed result's fixed names, 2026-10-20). */
+    static String csvName(String name) {
+        boolean needs = name.contains(",") || name.contains("\"") || name.contains("\n") || name.contains("\r");
+        return needs ? "\"" + name.replace("\"", "\"\"") + "\"" : name;
+    }
+
+    /** A name's JSON member token as the databases' JSON writers spell a plain text (a quoted string, the quote, the
+     *  backslash and every control character escaped; nothing else), spelled when the plan is made: a fixed column's
+     *  name is a plan fact (the keyed result's fixed names, 2026-10-20). */
+    static String jsonName(String name) {
+        StringBuilder sb = new StringBuilder(name.length() + 2).append('"');
+        for (int i = 0; i < name.length(); i++) {
+            char ch = name.charAt(i);
+            switch (ch) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                case '\b' -> sb.append("\\b");
+                case '\f' -> sb.append("\\f");
+                default -> {
+                    if (ch < 0x20) {
+                        sb.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) ch));
+                    } else {
+                        sb.append(ch);
+                    }
+                }
+            }
+        }
+        return sb.append('"').toString();
+    }
+
+    static SqlExpr escapeCsv(SqlExpr s) {
         SqlExpr needs = or(contains(s, ","), or(contains(s, "\""),
                 or(contains(s, "\n"), contains(s, "\r"))));
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(needs,
@@ -1034,7 +1297,7 @@ public final class Render {
         return SqlExpr.Call.of(SqlFn.OR, a, b);
     }
 
-    private static SqlExpr cat(SqlExpr... parts) {
+    static SqlExpr cat(SqlExpr... parts) {
         SqlExpr out = parts[0];
         for (int i = 1; i < parts.length; i++) {
             out = SqlExpr.Call.of(SqlFn.CONCAT, out, parts[i]);

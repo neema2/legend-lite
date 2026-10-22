@@ -17,7 +17,14 @@ legend_java_library(
     testonly = True,
     srcs = glob(["src/main/java/**/*.java"]),
     visibility = ["//visibility:public"],
-    deps = ["@rules_java//java/runfiles"],
+    deps = [
+        "@rules_java//java/runfiles",
+        # EmbeddedMongoDb makes the lanes' user through the driver (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md §5.3)
+        "@bson//jar",
+        "@mongodb_driver_core//jar",
+        "@mongodb_driver_sync//jar",
+    ],
+    runtime_deps = ["@bson_record_codec//jar"],
 )
 
 guards_package()

@@ -61,8 +61,10 @@ class ParkedWorkLedgerTest {
             // copy-on-write rebuilds a WITH through SqlWith.with, which carries
             // its new recursive flag — the construction moved into SqlWith.java,
             // still no common-subexpression pass; PARK-2 stays parked
+            // 2026-10-18, the plan path program's step 1b (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): MirJson.readQuery rebuilds a WITH from the plan's JSON (the typed tree read
+            // back), no common-subexpression pass; PARK-2 stays parked
             Map.entry("PARK-2 union common-subexpression pass (construction)",
-                    new Anchor("new SqlWith\\(", List.of("SqlWith.java", "VerdictSql.java"))),
+                    new Anchor("new SqlWith\\(", List.of("MirJson.java", "SqlWith.java", "VerdictSql.java"))),
             // PARK-3: the relational toString renders as the DATABASE's cast
             // in the engine; ours passes through to pure's ISO form. The
             // obvious arm collapses multiplicity (it LOST a corpus row), so
@@ -153,10 +155,8 @@ class ParkedWorkLedgerTest {
             Map.entry("PARK-21 a Byte, LatestDate or StrictTime value is not bound",
                     new Anchor("a Byte, LatestDate or StrictTime value is not bound", List.of("QueryParameters.java"))),
             // (2026-10-09, step 3's audit): the runner refuses the same, should a plan carry a Byte or a Variant
-            // PARK-24 (2026-10-10, measured against Pure and legend-engine): lite's answers differ from Pure's values
-            // in four places, Float arithmetic in decimal the first (the numeric charter's Rule 1: a literal bare)
-            Map.entry("PARK-24 lite's answers differ from Pure's values in four measured places",
-                    new Anchor("static String plainFloat\\(", List.of("AnsiSqlRenderer.java"))),
+            // PARK-24 closed 2026-10-18 (the output layer's five steps, the plan path program's step 2): every
+            // answer Pure's value in the API's text, the matrix all Pure's, the Number case projected again
             Map.entry("PARK-21 the runner binds no Byte or Variant value",
                     new Anchor("is not bound by a plan \\(PARK-21\\)", List.of("PlanParameters.java"))),
             // PARK-22 (2026-10-09, the protocol program's leg 5): engine JSON with spans for a path literal across

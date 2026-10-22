@@ -32,6 +32,21 @@ public final class CarrierStrategies extends SqlRewriter {
     /** The declared slot for {@code name} in a source's output list,
      * or null when the list makes no claim (outputs-from-projections:
      * the rewritten projection carries the slot it preserves). */
+    /** A generated column's slot: the pivot's own output of that name (a static pivot's, typed by the typer), else
+     *  the USING's typed result, nullable (a named value no row has: a group's cell is null). */
+    static com.legend.sql.OutputCol generatedSlot(com.legend.sql.SqlSource.Pivot p,
+            com.legend.sql.SqlSource.Pivot.Using u, String name) {
+        com.legend.sql.OutputCol own = slot(p.outputs(), name);
+        if (own != null) {
+            return own;
+        }
+        if (u.type() == null) {
+            throw new IllegalStateException("the pivot's USING '" + u.alias() + "' carries no typed slot, so its"
+                    + " generated column '" + name + "' has none");
+        }
+        return new com.legend.sql.OutputCol(name, u.type(), true);
+    }
+
     private static com.legend.sql.@com.legend.base.Nullable OutputCol slot(
             List<com.legend.sql.OutputCol> outs, String name) {
         for (com.legend.sql.OutputCol c : outs) {
@@ -347,8 +362,9 @@ public final class CarrierStrategies extends SqlRewriter {
                 return em;
             }
         }
+        // a dynamic pivot a cast names pivots on the named values (SqlSource.Pivot.values, step 9, 2026-10-19)
         if (!(s instanceof com.legend.sql.SqlSource.Pivot p)
-                || p.in().isEmpty() || p.on().size() != 1) {
+                || p.values().isEmpty() || p.on().size() != 1) {
             return s;
         }
         List<SqlSelect.Projection> ps = new ArrayList<>();
@@ -360,7 +376,7 @@ public final class CarrierStrategies extends SqlRewriter {
                 ps.add(new SqlSelect.Projection(g, oc.name(), oc));
             }
         }
-        for (SqlExpr v : p.in()) {
+        for (SqlExpr v : p.values()) {
             for (com.legend.sql.SqlSource.Pivot.Using u : p.usings()) {
                 SqlAgg.Reducer agg = u.agg();
                 List<SqlExpr> args = new ArrayList<>(agg.args());
@@ -375,7 +391,7 @@ public final class CarrierStrategies extends SqlRewriter {
                 ps.add(new SqlSelect.Projection(
                         new SqlAgg.Reducer(agg.fn(), args, agg.distinct(),
                                 agg.orderBy()),
-                        pname, slot(p.outputs(), pname)));
+                        pname, generatedSlot(p, u, pname)));
             }
         }
         SqlSelect sel = SqlSelect.starOf(p.source())
@@ -828,6 +844,10 @@ public final class CarrierStrategies extends SqlRewriter {
                 && ll.args().size() == 1) {
             if (ll.args().get(0) instanceof SqlExpr.ArrayLit la) {
                 return new SqlExpr.IntLit(la.elements().size());
+            }
+            SqlExpr counted = filteredLiteralLength(ll.args().get(0));
+            if (counted != null) {
+                return counted;
             }
             // token count over a split (witnessed: the at() guard over
             // split tokens): separator occurrences + 1 — single-char
@@ -1585,6 +1605,67 @@ public final class CarrierStrategies extends SqlRewriter {
      * is a literal struct. Left as it was, the qualified read named a table
      * no FROM declares ("Unrecognized name: p" on BigQuery, "missing
      * FROM-clause entry" on Postgres, measured 2026-10-11). */
+    /** A literal list's FILTERED length (2026-10-20, the parity phase: H2's testCoalesceInPreFilter, which the engine
+     *  passes there): {@code len(list_filter(...list_filter([e1, ..., en], p1)..., pk))} as the sum over the elements
+     *  of {@code CASE WHEN p1(ei) AND ... AND pk(ei) THEN 1 ELSE 0 END} -- each element substituted into the lambdas (a
+     *  shape: a struct literal's field read is the field, and a struct literal is never null), the database deciding
+     *  each predicate; a filter keeps an element where its predicate is TRUE, as the CASE counts it. Null when the
+     *  argument is no such chain. */
+    private static @com.legend.base.Nullable SqlExpr filteredLiteralLength(SqlExpr arg) {
+        List<SqlExpr.Lambda> filters = new ArrayList<>();
+        SqlExpr x = arg;
+        // a compacted list (CompactList) drops its NULL elements: counted, an element must be non-null too
+        boolean compacted = false;
+        while (true) {
+            if (x instanceof SqlExpr.CompactList cl) {
+                compacted = true;
+                x = cl.list();
+            } else if (x instanceof SqlExpr.Call lf && lf.fn() == com.legend.sql.SqlFn.LIST_FILTER
+                    && lf.args().size() == 2 && lf.args().get(1) instanceof SqlExpr.Lambda lam
+                    && lam.params().size() == 1) {
+                filters.add(0, lam);
+                x = lf.args().get(0);
+            } else {
+                break;
+            }
+        }
+        if (filters.isEmpty() || !(x instanceof SqlExpr.ArrayLit la)) {
+            return null;
+        }
+        SqlExpr sum = null;
+        for (SqlExpr el : la.elements()) {
+            SqlExpr cond = compacted ? literalNullTests(SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL, el)) : null;
+            for (SqlExpr.Lambda lam : filters) {
+                SqlExpr p = literalNullTests(substParam(lam.body(), lam.params().get(0), el));
+                cond = cond == null ? p : SqlExpr.Call.of(com.legend.sql.SqlFn.AND, cond, p);
+            }
+            SqlExpr one = new SqlExpr.Case(List.of(new SqlExpr.Case.When(java.util.Objects.requireNonNull(cond),
+                    new SqlExpr.IntLit(1))), new SqlExpr.IntLit(0));
+            sum = sum == null ? one : SqlExpr.Call.of(com.legend.sql.SqlFn.PLUS, sum, one);
+        }
+        return sum == null ? new SqlExpr.IntLit(0) : sum;
+    }
+
+    /** A struct literal's null tests as their answers (a literal struct is a value, never null). */
+    private static SqlExpr literalNullTests(SqlExpr e) {
+        if (e instanceof SqlExpr.Call c && c.args().size() == 1 && c.args().get(0) instanceof SqlExpr.StructLit
+                && (c.fn() == com.legend.sql.SqlFn.IS_NULL || c.fn() == com.legend.sql.SqlFn.IS_NOT_NULL)) {
+            return new SqlExpr.BoolLit(c.fn() == com.legend.sql.SqlFn.IS_NOT_NULL);
+        }
+        List<SqlExpr> kids = e.children();
+        if (kids.isEmpty()) {
+            return e;
+        }
+        List<SqlExpr> mapped = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (SqlExpr k : kids) {
+            SqlExpr m = literalNullTests(k);
+            changed |= m != k;
+            mapped.add(m);
+        }
+        return changed ? e.withChildren(mapped) : e;
+    }
+
     private static SqlExpr substParam(SqlExpr body, String param,
             SqlExpr value) {
         if (body instanceof SqlExpr.Column c && c.table() == null

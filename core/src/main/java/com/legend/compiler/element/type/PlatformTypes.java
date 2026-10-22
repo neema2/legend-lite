@@ -22,13 +22,13 @@ public final class PlatformTypes {
      */
     public static final String ROWS_MARKER = "rows";
     /** The Class metaclass FQN — type VALUES at the lowering boundary
-     * travel as canonical simple-name strings (task #78). */
+     * travel as their paths (docs/PLAN_PATH_PROGRAM_2026_10_17.md §9). */
     public static final String CLASS_METACLASS =
             "meta::pure::metamodel::type::Class";
 
     /** The metamodel TYPE classifiers — a value of one of these is a TYPE
      * value ({@code String}, {@code Car}, {@code $col.type}); it travels
-     * as its bare simple name and compares by that name. */
+     * as its path ({@link #typeValuePath}, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9) and compares by it. */
     public static boolean isTypeClassifier(String fqn) {
         return fqn.equals(CLASS_METACLASS)
                 || fqn.equals("meta::pure::metamodel::type::Type")
@@ -708,6 +708,24 @@ public final class PlatformTypes {
     /** The top type. */
     public static boolean isAny(Type t) {
         return t instanceof Type.ClassType c && c.fqn().equals(ANY);
+    }
+
+    /** Whether {@code g} is the metaclass {@code Class<...>} (a class referenced as a value). */
+    public static boolean isClassMetaclass(Type.GenericType g) {
+        return g.rawFqn().equals(CLASS_METACLASS);
+    }
+
+    /** A type VALUE's wire form (2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9): its path as Pure's {@code elementToPath} spells it -- a base
+     *  primitive's is its name ({@code String}, {@code Integer}: top-level elements of the metamodel), every other
+     *  element's its package-qualified path, so the reader resolves it whatever its namesakes. */
+    public static String typeValuePath(String fqn) {
+        return Type.Primitive.findByFqn(fqn).filter(p -> p.qualifiedName().equals(fqn))
+                .map(Type.Primitive::typeName).orElse(fqn);
+    }
+
+    /** {@link #typeValuePath(String)} of {@code t}. */
+    public static String typeValuePath(Type t) {
+        return t instanceof Type.Primitive p ? p.typeName() : typeValuePath(t.typeName());
     }
 
     /** The bottom type (the []-born element type). */

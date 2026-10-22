@@ -102,25 +102,31 @@ class DialectBoundaryTest {
     /** Lines with a switch arm on a declared database type ({@code case Snowflake ->}) outside the dialect package, by
      *  file (added 2026-10-13, the dialect program's Phase 0: the type census saw {@code DatabaseType.X} only, so a
      *  switch over the type was invisible). Pinned at what is there; shrink-only. */
+    // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D4, D12): MongoDB is a declared type -- Databases' dialect arm
+    // (20 -> 21); Sessions' two refusals by name, no JDBC product and no JDBC opening (24 -> 26); the storeless
+    // runtime's refusal of the relational form, its runtime being the engine's MongoDBConnection (5 -> 6)
     private static final Map<String, Integer> DATABASE_TYPE_CASES = Map.of(
             // 20 -> 12 (2026-10-16, the dialect program's Phase 5): a database's server versions and how its rows load
             // are its dialect's (SqlDialect.serverVersions, loadsRowsInBulk); the IN-list facts, legend-engine's, are
             // EngineText's (7 -> 9)
             // 12 -> 14 (2026-10-16, the dialect program's Phase 6): which types the platform executes on
             // (Databases.implemented, which tests and tools iterate instead of listing databases), one arm each way
-            "Databases.java", 14,           // the owner: a declared type's dialect
+            // 14 -> 15 (2026-10-22, main's merge): MongoDB executes (the branch's MongoDB line, 2026-10-17), one arm
+            "Databases.java", 15,           // the owner: a declared type's dialect
             // Sessions.java 24 -> 0, row deleted, and StorelessRuntime.java 5 -> 0, row deleted (2026-10-16, the
             // dialect program's Phase 5): each type's product name, URL, opening and storeless declaration are its
             // connector's; Connectors is the registry, one arm per type, as Databases is the dialects'
-            "Connectors.java", 12,
+            // 12 -> 13 (2026-10-22, main's merge): MongoDB's arm, its connector found beside the drivers
+            "Connectors.java", 13,
             "EngineText.java", 9,           // legend-engine's text and IN-list facts per database, root layer only
             // a connection specification's tag (same names as the types) when a plan's JSON is read: each
             // specification's own fields. PlanJson.java -> ConnectionWire.java (2026-10-16, the dialect program's
             // Phase 5): the codec is the model's, the vocabulary that carries every database's name (D9), and the
-            // plan format names none; the arms are the specification tags, not the declared types. 4 -> 5
-            // (2026-10-22, docs/DEEPHAVEN_PLAN_2026_10_22.md L1): the Deephaven specification's tag, a specification
-            // of its own as Snowflake's is, its fields read back; no decision by the declared type
-            "ConnectionWire.java", 5);
+            // plan format names none; the arms are the specification tags, not the declared types
+            // 4 -> 5 (2026-10-22, main's merge): the Trino specification's tag (the branch's step 9, 2026-10-19)
+            // 5 -> 6 (2026-10-22, docs/DEEPHAVEN_PLAN_2026_10_22.md L1): the Deephaven specification's tag, a
+            // specification of its own as Snowflake's is, its fields read back; no decision by the declared type
+            "ConnectionWire.java", 6);
 
     /** Lines deciding by a database's NAME as a string ({@code "DB2".equals(t)}, {@code case "H2" ->}) outside the
      *  dialect package, by file. Added 2026-10-03 (C3a), pinned at what is left; shrink-only. */
@@ -149,6 +155,10 @@ class DialectBoundaryTest {
             "ConnectionSectionGrammar.java", 13,
             // 0 -> 1 (2026-10-13, Phase 0, the same widening): the PMCD reader's connection kinds by their protocol names
             "PmcdParser.java", 1,
+            // 0 -> 1 (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D4): not a new line -- the class mapping's wire
+            // discriminator "MongoDB" (legend-engine's own, read since the mapping grammar landed) counts since MongoDB
+            // is a declared type; the mapping is carried, decided by nothing (D3: the Relation surface first)
+            "MappingProtocolParser.java", 1,
             // 0 -> 1 each (2026-10-22, docs/DEEPHAVEN_PLAN_2026_10_22.md L1): not new lines -- the census names
             // Deephaven now, a declared type; both read legend-engine's own ###Deephaven section by its keyword (its
             // store element; an activator's section), carried as written (PARK-38), deciding nothing about a database
@@ -164,7 +174,9 @@ class DialectBoundaryTest {
             // 7 -> 11 (2026-10-12, the independent review of neema2/legend-lite#30): MariaDb, MySql, Trino and
             // ClickHouse were constructed there since 2026-10-11/12 but the census below did not name them, so it
             // counted 7; it names all eleven now
-            "Databases.java", 11,
+            // 11 -> 12 (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D2 and D4): the MongoDb target, a dialect class
+            // like the others, constructed by the owner for the MongoDB type
+            "Databases.java", 12,
             "EngineText.java", 5);          // legend-engine's text printers, root layer only (invariant 4d)
 
     /** Lines spelling a JDBC URL, by file: only a database's connector opens it (C3b; connectors since 2026-10-16). */
@@ -179,7 +191,7 @@ class DialectBoundaryTest {
     void eachDatabaseDecisionHasOneOwner() throws IOException {
         assertEquals(new TreeMap<>(DIALECT_CONSTRUCTIONS),
                 census(Pattern.compile("\\bnew\\s+(com\\.legend\\.sql\\.dialect\\.)?(H2|H2Modern|DuckDb|Postgres"
-                        + "|SQLite|Databricks|Snowflake|BigQuery|MariaDb|MySql|Trino|ClickHouse"
+                        + "|SQLite|Databricks|Snowflake|BigQuery|MariaDb|MySql|Trino|ClickHouse|MongoDb"
                         + "|AnsiSqlRenderer|EngineStyleH2|EngineStyleDB2|EngineStyleComposite)\\s*\\(")),
                 "a dialect constructed outside its owner — ask com.legend.database.Databases (the SQL a"
                         + " query runs) or com.legend.EngineText (legend-engine's golden text)");
@@ -188,8 +200,8 @@ class DialectBoundaryTest {
                         + " sessions");
         // the connectors too (2026-10-16, the dialect program's Phase 5, the audit of the branch): a connector opens
         // its database by URL through DriverManager, and names no driver class
-        assertEquals(new TreeMap<>(), census(Pattern.compile("\"(org\\.(duckdb|h2|postgresql|sqlite|mariadb)|com\\.(clickhouse|databricks|mysql"
-                        + "|google\\.cloud\\.bigquery)|io\\.trino|net\\.snowflake)\\."), true),
+        assertEquals(new TreeMap<>(), census(Pattern.compile("\"(org\\.(duckdb|h2|postgresql|sqlite|mariadb|bson)|com\\.(clickhouse|databricks|mysql"
+                        + "|google\\.cloud\\.bigquery|mongodb)|io\\.trino|net\\.snowflake)\\."), true),
                 "a driver class named in core — a driver's own types live beside it (exec.DriverCells, :duckdb_load)");
     }
 

@@ -59,6 +59,9 @@ class TestLaneOrderGuardrailTest {
                 // AliasPrefix re-spells an EXISTING key under the frame's alias prefix
                 // (never adds one); UnqualifyPivotArgs likewise re-spells
                 "com/legend/sql/AliasPrefix.java",
+                // 2026-10-18, the plan path program's step 1b (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): MirJson.readExpr rebuilds a RowOrder the planner wrote into the plan's typed
+                // tree (read back exactly); it adds no scan order of its own
+                "com/legend/executionplan/MirJson.java",
                 "com/legend/sql/ScanOrder.java",
                 "com/legend/sql/dialect/LateralExplodeToUnion.java",
                 "com/legend/sql/dialect/StableScanOrder.java",
@@ -91,6 +94,9 @@ class TestLaneOrderGuardrailTest {
     @Test
     void assertBoundaryOrderAppliedOnlyFromTheTestSurfaces() throws IOException {
         assertEquals(new TreeSet<>(List.of(
+                // 2026-10-18 (the plan path program's step 6, both judges on plans): the judges' canon-ordered side,
+                // the assert's own wrap over a plan -- a judge's path, no product render
+                "com/legend/JudgePlans.java",
                 "com/legend/lowering/CanonicalRenderSql.java",
                 "com/legend/sql/dialect/StableScanOrder.java")),
                 filesMatching(STABILIZE),

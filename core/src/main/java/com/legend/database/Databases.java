@@ -53,11 +53,17 @@ public final class Databases {
         return java.util.Collections.unmodifiableList(out);
     }
 
+    /** Every database a {@code RelationalDatabaseConnection} declares: those {@link #implemented} whose dialect is
+     *  relational ({@link SqlDialect#relational}: all but MongoDB's, 2026-10-22), in the declared type's order. */
+    public static java.util.List<DatabaseType> relational() {
+        return implemented().stream().filter(t -> dialect(t).relational()).toList();
+    }
+
     /** Whether the platform executes on {@code type}: {@link #dialect} gives it one (a test holds the two together). */
     private static boolean executes(DatabaseType type) {
         return switch (type) {
             case DuckDB, H2, Postgres, Databricks, Snowflake, BigQuery, SQLite, MariaDB, MySQL, Trino,
-                 ClickHouse -> true;
+                 ClickHouse, MongoDB -> true;
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto, Redshift, Spanner, Athena, Oracle,
                  Aurora, Deephaven -> false;
         };
@@ -83,11 +89,21 @@ public final class Databases {
             case Trino -> new com.legend.sql.dialect.Trino();
             // docs/CLOUD_BACKENDS_PCT_2026_10_11.md §19
             case ClickHouse -> new com.legend.sql.dialect.ClickHouse();
+            // docs/MONGODB_PLAN_2026_10_16.md (D1, D2): the aggregation pipeline as the one compiler's target
+            case MongoDB -> new com.legend.sql.dialect.MongoDb();
             // Deephaven: modelled first, its target (table operations, not SQL) next (docs/DEEPHAVEN_PLAN_2026_10_22.md)
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto,
                  Redshift, Spanner, Athena, Oracle, Aurora, Deephaven ->
                     throw new com.legend.error.NotImplementedException(
                             "SQL dialect for database type '" + type + "' is not implemented yet");
         };
+    }
+
+    /** A server version's {@code major.minor} ({@code 2.4.240} is {@code 2.4}): the prefix a plan's versions name and
+     *  its runner checks the session's version against. A version with no dot is itself. */
+    public static String majorMinor(String version) {
+        int first = version.indexOf('.');
+        int second = first < 0 ? -1 : version.indexOf('.', first + 1);
+        return second < 0 ? version : version.substring(0, second);
     }
 }

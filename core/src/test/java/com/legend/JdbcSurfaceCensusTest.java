@@ -67,6 +67,8 @@ class JdbcSurfaceCensusTest {
             // every driver's packages (2026-10-13, the dialect program's Phase 0: DuckDB, H2 and SQLite only before)
             "java\\.sql|javax\\.sql|org\\.duckdb|org\\.h2\\.|org\\.sqlite|org\\.postgresql|org\\.mariadb|com\\.mysql"
             + "|com\\.clickhouse|io\\.trino|net\\.snowflake|com\\.databricks|com\\.simba|com\\.google\\.cloud\\.bigquery"
+            // MongoDB's driver (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): a client library, counted as a driver
+            + "|com\\.mongodb|org\\.bson"
             + "|prepareStatement|createStatement|executeQuery");
 
     /** Every module source root the census walks (repo-relative). A
@@ -97,6 +99,12 @@ class JdbcSurfaceCensusTest {
             // C3c (2026-10-04): DuckDB's own JSON cell type, recognised beside its driver (DriverCells) — it
             // moved out of Executor, which matched the class by name; carriage only (the node's text)
             "core/src/main/duckdb/com/legend/exec/DuckDbCells.java",
+            // 2026-10-19 (the plan path program's step 9): Postgres's json and jsonb cells, a PGobject's text,
+            // recognised beside its driver as DuckDB's are (DriverCells); carriage only (the cell's text)
+            "core/src/main/postgres/com/legend/exec/PostgresCells.java",
+            // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12): the MongoDB connector's decode of a document's
+            // cells by the plan's slots, beside its driver; carriage only (the connector's own result in)
+            "core/src/main/mongodb/com/legend/exec/MongoDbDecode.java",
             "core/src/main/java/com/legend/exec/BulkLoad.java",   // the seam it joins: a Connection in, no SQL of its own
             // 2026-09-27: CsvSeed.run establishes a connection -- its declared setup
             // statements and rows, through Executor.executeRaw / Executor.load under the SEED
@@ -105,6 +113,19 @@ class JdbcSurfaceCensusTest {
             // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: run() is exec.SetupRunner's; CsvSeed (now setup/)
             // holds no JDBC
             "core/src/main/java/com/legend/exec/SetupRunner.java",
+            // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12, the Statements seam): the plan runner's JDBC moved
+            // here whole -- prepare, bind, execute, the one getString of the plan path (carriage, C1.2) -- so the
+            // runner holds a plan and a session's Statements, never a connection; a connector's session gives its own
+            "core/src/main/java/com/legend/exec/JdbcStatements.java",
+            // 2026-10-18 (the plan path program's step 7, docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3): the typed
+            // seam's decode -- a row's cells read from the driver's ResultSet by the plan's columns, one carrier
+            // conversion each; carriage, nothing computed
+            "core/src/main/java/com/legend/exec/JdbcDecode.java",
+            // 2026-10-17 (D12): MongoDB's connector answers Session.connection() with a refusal (it names the JDBC
+            // type to refuse it: a MongoDB session has none); its statements run the pipeline through the driver's
+            // cursor and carry each row's one text, as the JDBC statements carry getString's
+            "core/src/main/mongodb/com/legend/exec/MongoDbConnector.java",
+            "core/src/main/mongodb/com/legend/exec/MongoDbStatements.java",
             // the execution side's ONE session owner (C3b, 2026-10-04; it absorbed JdbcMetadata, the
             // driver's one metadata read kept out of Compiler so the plan surface needs no java.sql):
             // the product/version read a handed session is checked by, and opening a declared
@@ -166,7 +187,7 @@ class JdbcSurfaceCensusTest {
             // the wire's self-description, zero queries, zero decode;
             // the CanonicalDivergence pattern with a java.sql import
             "core/src/main/java/com/legend/exec/SqlTypeCensus.java",
-            "core/src/main/java/com/legend/exec/PctProbe.java",
+            "core/src/main/java/com/legend/exec/ColumnProbe.java",   // PctProbe, renamed for what it does (2026-10-17)
             // leg 3.3: the wire-decided kinds read from the prepared statement's metadata
             "core/src/main/java/com/legend/exec/WireTypes.java",
             // SQLTEXT charter §2: the replay-oracle SPI — a pure

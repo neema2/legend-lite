@@ -76,7 +76,15 @@ public final class PlanSessions {
             return switch (target.database()) {
                 case ExecutionPlan.Database.Platform p -> borrowed(SHARED.getOrOpenSlowly(key, PlanSessions::dead,
                         () -> setUpOpened(Sessions.openPrivate(p.type()), target)));
-                case ExecutionPlan.Database.Declared d -> switch (Sessions.openingFor(d.connection())) {
+                case ExecutionPlan.Database.Declared d -> {
+                    // a database with a connector (MongoDB's; docs/MONGODB_PLAN_2026_10_16.md D12, 2026-10-17) is
+                    // opened by it, for the run: it is the user's, so a plan sets none up
+                    DatabaseConnector connector = Connectors.of(d.connection().databaseType());
+                    if (connector.ownSessions()) {
+                        refuseSetup(target, d, "a database its connector opens");
+                        yield connector.open(d.connection());
+                    }
+                    yield switch (Sessions.openingFor(d.connection())) {
                     case Sessions.Opening.Held h -> borrowed(SHARED.getOrOpenSlowly(key, PlanSessions::dead,
                             () -> setUpOpened(Sessions.openHeld(h), target)));
                     case Sessions.Opening.Named n -> {
@@ -103,6 +111,7 @@ public final class PlanSessions {
                         yield owned(Sessions.open(u));
                     }
                 };
+                }
             };
         } catch (SQLException e) {
             throw dataError(e);
@@ -204,6 +213,14 @@ public final class PlanSessions {
 
     static com.legend.error.DataError dataError(SQLException e) {
         SQLException un = RaisedErrors.unwrapped(e);
+        return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
+    }
+
+    /** {@link #dataError(SQLException)} for a statement that failed on {@code session}: a raise the session holds is
+     *  read back ({@link RaisedErrors#unwrapped(SQLException, Connection)}: MariaDB and MySQL keep a raise's text in
+     *  the session, their errors cannot carry it), as the legacy executor read it (step 9, 2026-10-19). */
+    static com.legend.error.DataError dataError(SQLException e, Connection session) {
+        SQLException un = RaisedErrors.unwrapped(e, session);
         return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
     }
 }

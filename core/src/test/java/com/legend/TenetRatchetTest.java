@@ -72,11 +72,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("guardrail")
 class TenetRatchetTest {
 
-    private static final int RESULT_SET_ACCESSOR_SITES = 15;
+    // 15 -> 20 (2026-10-18/19, the plan path program's step 6, typed rows: JdbcDecode reads a driver's typed
+    // cells by the plan's slots, six sites of carriage -- a Map, an Array, a Struct, a Struct's attributes --
+    // beside Executor's nine, which step 11 deletes with the legacy executor; the number then goes down)
+    // 20 -> 21 (2026-10-22, main's merge): main's Executor holds ten, its DATE cell re-read as java.time (2026-10-17, the
+    // corpus program's step 1) one more, under main's own pin of 15 (it counted 14); the two sides' sites add
+    private static final int RESULT_SET_ACCESSOR_SITES = 21;
 
     private static final List<String> DRIVERS = List.of("org.duckdb", "org.h2.", "org.sqlite", "org.postgresql",
             "org.mariadb", "com.mysql", "com.clickhouse", "io.trino", "net.snowflake", "com.databricks", "com.simba",
-            "com.google.cloud.bigquery");
+            "com.google.cloud.bigquery",
+            // MongoDB's driver (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): its connector's source set is walked
+            "com.mongodb", "org.bson");
 
     private static final Pattern ACCESSOR = Pattern.compile(
             "\\.get(String|Object|Int|Long|Double|Boolean|BigDecimal"
@@ -91,7 +98,7 @@ class TenetRatchetTest {
         int scanned = 0;
         // core's main sources: src/main/java and the DuckDB-only src/main/duckdb (Bazel workplan P3-27, CT-N10)
         String root = "core/src/main/java";
-        try (Stream<Path> files = SourceFiles.under(root, "core/src/main/duckdb").stream()) {
+        try (Stream<Path> files = SourceFiles.under(root, "core/src/main/duckdb", "core/src/main/mongodb").stream()) {
             for (Path f : files.filter(p -> p.toString().endsWith(".java"))
                     .toList()) {
                 scanned++;

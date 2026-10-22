@@ -32,6 +32,13 @@ public final class Sessions {
     public interface Session extends AutoCloseable {
         Connection connection();
 
+        /** The statements this session runs for the plan runner ({@link Statements}): JDBC's, over
+         *  {@link #connection()}, unless the session's database speaks none -- a connector's session gives its own
+         *  (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12). */
+        default Statements statements() {
+            return new JdbcStatements(connection());
+        }
+
         @Override
         void close();
     }

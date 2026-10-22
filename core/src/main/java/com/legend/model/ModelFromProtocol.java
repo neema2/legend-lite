@@ -203,7 +203,9 @@ public final class ModelFromProtocol {
             case Protocol.PDeephavenDatabase d -> carried("Deephaven", "Deephaven", d.qualifiedName());
             case Protocol.PElasticsearch7Cluster s ->
                     carried("Elasticsearch", "Elasticsearch7Cluster", s.qualifiedName());
-            case Protocol.PMongoDatabase m -> carried("MongoDB", "Database", m.qualifiedName());
+            // 2026-10-16 (docs/MONGODB_PLAN_2026_10_16.md, D3 and D6): a store whose collections are tables, their
+            // columns the declared JSON schema's (until then carried opaque)
+            case Protocol.PMongoDatabase m -> MongoDeclarations.toDatabaseDefinition(m);
             case Protocol.PDataQualityValidation v ->
                     carried("DataQualityValidation", "DataQualityValidation", v.qualifiedName());
             case Protocol.PDataQualityRelationValidation v ->

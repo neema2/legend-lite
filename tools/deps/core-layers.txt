@@ -39,6 +39,11 @@
 # answer with the server's rules); server_lib reaches it.
 # 2026-10-16, the dialect program's Phase 3 (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md): testdatagen reaches `sql`
 # (its fetches, temp tables, read-backs and plan are SqlQuery/SqlDml IR its session's or the engine-text dialect writes).
+# 2026-10-19, the plan path program (docs/PLAN_PATH_PROGRAM_2026_10_17.md; the edges found at step 9's merge, the first
+# run of //gates:checks on its branch): plan reaches `execution_plan` (step 1a: PlanColumns joins the typer's columns with
+# the lowered query's column facts into ExecutionPlan.Column); driver reaches `execution_plan` (step 7: JudgePlans plans the
+# judges' two sides as execution plans); exec reaches `json` (steps 6 and 9: JdbcDecode and RowDecode read a cell delivered
+# as JSON text -- a map, a JSON wire's row, a jsonb -- into its typed value; carriage, the JDBC surface register's).
 # 2026-10-16, the dialect program's Phase 5: `database` no longer reaches `execution_plan` (a database's server versions
 # are its dialect's, SqlDialect.serverVersions; PlanMaker writes them into the plan) and `plan` no longer reaches
 # `database` (the IN-list facts are legend-engine's, EngineText.inListTempTables, which PlanEnvelope passes in).
@@ -69,16 +74,16 @@ normalizer	base builtin compiler compiler_element_type error model platform prot
 lineage	base builtin compiler compiler_element_type error model platform protocol sql
 validation	base builtin compiler compiler_element_type error model protocol
 lowering	base builtin compiler compiler_element_type error model platform protocol sql values
-plan	base builtin compiler compiler_element_type error lineage model sql
+plan	base builtin compiler compiler_element_type error execution_plan lineage model sql
 resolver	base builtin compiler compiler_element_type error lowering model plan platform sql values
 setup	base cache compiler execution_plan model protocol sql sql_dialect
-exec	base cache compiler compiler_element_type database diagnostics error execution_plan lowering model plan platform setup sql sql_dialect values
+exec	base cache compiler compiler_element_type database diagnostics error execution_plan json lowering model plan platform setup sql sql_dialect values
 probe	base builtin lowering model platform
 testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver setup sql sql_dialect values
 execution_plan	base json model sql
 planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
 pure_v1	base compiler compiler_element_type database error json parser plan planner protocol sql_dialect
-driver	base builtin cache compiler compiler_element_type database diagnostics error exec lineage lowering model normalizer parser plan planner platform protocol resolver setup sql sql_dialect testdatagen validation values
+driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan lineage lowering model normalizer parser plan planner platform protocol resolver setup sql sql_dialect testdatagen validation values
 ide	base door lexer model parser
 test	base compiler driver error exec model planner protocol sql values
 saved_queries	base json

@@ -41,7 +41,11 @@ public class Test_LegendLite_Postgres_EssentialFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::collection::tests::head::testHeadComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             // Float is a double (numeric charter Rule 2) -- deliberate, on every dialect
             one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "expected: 0\nactual:   1"),
-            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "expected: 123456789123456789.99\nactual:   123456789123456780.0"),
+            // 2026-10-20, pinned again (the user's rule: as many tests as possible without hacks): a Float is a double
+            // on the database, which holds no 20 digits; the batch-1 rule that kept a Float computed from literals
+            // alone as a DECIMAL (LiteralSpelling.exactFloatConstant) was a special case -- the same expression over a
+            // column was a double -- and is removed
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "expected: 123456789123456789.99\nactual:   123456789123457000.0"),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "expected: 1\nactual:   2"),
             one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "expected: 4\nactual:   5"),
             // Postgres raises differently (its own error, or a different position or wording)
@@ -56,22 +60,28 @@ public class Test_LegendLite_Postgres_EssentialFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::date::tests::testMinuteError_Function_1__Boolean_1_", "Execution error column mismatch. Actual: 23 where expected: 36"),
             one("meta::pure::functions::date::tests::testNewDateError_Function_1__Boolean_1_", "Execution error column mismatch. Actual: 23 where expected: 29"),
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "Execution error column mismatch. Actual: 23 where expected: 36"),
-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"Infinite or NaN"),
-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"Infinite or NaN"),
+            // step 9, 2026-10-19, the plan route: the NaN cell spelled NaN by the text carrier, refused by Pure's
+            // parseFloat (the legacy route's Java BigDecimal said "Infinite or NaN"; the DuckDB lane's pin, the same cause)
+            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute acos of 2.0\""),
+            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.\"\nwhere the expected message was:\"Unable to compute asin of 2.0\""),
             // a comparator dedup's CASE: its list branch loses the LITERAL label in the shared carrier pass, its
             // reduction keeps it (Unknown); the fix is a semantic dedup node (CARRIER_REDESIGN tenet #1), not a dialect's
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction_Function_1__Boolean_1_", "UNNEST over Unknown[] reached Postgres: a list of unknown element type"),
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit_Function_1__Boolean_1_", "UNNEST over Unknown[] reached Postgres: a list of unknown element type"),
-            // a Variant cell (instances of two subclasses) reaches the bridge as pgjdbc's PGobject: no DriverCells reads
-            // it, as DuckDbCells reads DuckDB's node (2026-10-12: delivering it as text in normalize broke main's
-            // Postgres parity, which reads the PGobject); a Postgres DriverCells is the fix, the plan's P5 connector
-            one("meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference_Function_1__Boolean_1_", "no typed conversion for org.postgresql.util.PGobject (type=ClassType[fqn=meta::pure::functions::collection::tests::model::CO_GeographicEntity])"),
+            // NOTE 2026-10-20 (plan-route parity, the instance carrier): testConcatenateTypeInference passes again: an instance
+            // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
+            // MixedEncoding.withClass), and the text carrier spells the subclass it names
+            // (LiteralSpelling.jsonInstanceText).
             // refused by name: a construct the Postgres dialect does not spell yet
-            one("meta::pure::functions::collection::tests::fold::testFoldFiltering_Function_1__Boolean_1_", "'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name"),
-            one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name"),
-            one("meta::pure::functions::collection::tests::fold::testFold_Function_1__Boolean_1_", "'lastName' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name"),
+            // 2026-10-20: the folds' copies print their values now (the adapter's CopyWithUpdate); their accumulator, a
+            // list of objects, has no form on Postgres (a list accumulator of anything but scalars is the jsonb carrier)
+            one("meta::pure::functions::collection::tests::fold::testFoldFiltering_Function_1__Boolean_1_", "a list accumulator of anything but scalars is the jsonb carrier"),
+            one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "a list accumulator of anything but scalars is the jsonb carrier"),
+            one("meta::pure::functions::collection::tests::fold::testFold_Function_1__Boolean_1_", "a list accumulator of anything but scalars is the jsonb carrier"),
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "scalar lowering not yet implemented for TypedDeactivate"),
-            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "a field '__id' of unknown type reached Postgres")
+            // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the
+            // class's own toString() qualifier is still not in the model the adapter hands over, as on the DuckDB lane
+            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'")
     );
 
     public static Test suite() {

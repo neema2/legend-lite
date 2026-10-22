@@ -46,8 +46,8 @@ public final class ConnectionWire {
 
     /** The {@code _type} tags, one spelling for the writer and the reader: an exhaustive switch over each, an unknown
      *  tag refused by name ({@link #named}). */
-    enum SpecificationTag { InMemory, LocalFile, LocalH2, EmbeddedH2, StaticDatasource, Snowflake, Spanner, Databricks,
-        BigQuery, Deephaven }
+    enum SpecificationTag { InMemory, LocalFile, LocalH2, EmbeddedH2, StaticDatasource, Trino, Snowflake, Spanner,
+        Databricks, BigQuery, Deephaven }
 
     enum AuthenticationTag { NoAuth, DefaultH2, TestAuth, GCPApplicationDefaultCredentials, UsernamePassword,
         DelegatedKerberos, VaultUserNamePassword, SnowflakePublic, ApiToken, MiddleTierUserNamePassword, OAuth,
@@ -103,6 +103,15 @@ public final class ConnectionWire {
                 o.put("host", x.host());
                 o.put("port", x.port());
                 o.put("database", x.database());
+            }
+            case ConnectionSpecification.Trino x -> {
+                o.put("_type", SpecificationTag.Trino.name());
+                o.put("host", x.host());
+                o.put("port", x.port());
+                putIfSet(o, "catalog", x.catalog());
+                putIfSet(o, "schema", x.schema());
+                putIfSet(o, "clientTags", x.clientTags());
+                o.put("ssl", x.ssl());
             }
             case ConnectionSpecification.Snowflake x -> {
                 o.put("_type", SpecificationTag.Snowflake.name());
@@ -234,6 +243,9 @@ public final class ConnectionWire {
                     o.string("directory"), o.bool("autoServerMode"));
             case StaticDatasource -> new ConnectionSpecification.StaticDatasource(o.string("host"),
                     o.integer("port"), o.string("database"));
+            case Trino -> new ConnectionSpecification.Trino(o.string("host"), o.integer("port"),
+                    o.optionalString("catalog"), o.optionalString("schema"), o.optionalString("clientTags"),
+                    o.bool("ssl"));
             case Snowflake -> new ConnectionSpecification.Snowflake(o.string("databaseName"),
                     o.string("accountName"), o.string("warehouseName"), o.string("region"),
                     o.optionalString("accountType"), o.optionalString("cloudType"),

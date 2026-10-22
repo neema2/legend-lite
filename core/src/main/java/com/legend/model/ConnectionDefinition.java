@@ -78,6 +78,10 @@ public record ConnectionDefinition(
         // them): the open databases the user asked for, each a dialect of its own
         MariaDB,
         MySQL,
+        // 2026-10-16 (docs/MONGODB_PLAN_2026_10_16.md, D4): lite's own, as SQLite, MariaDB and MySQL are -- the
+        // database a MongoDBConnection (legend-engine's non-relational store connection) declares, never
+        // writable in a RelationalDatabaseConnection (the grammar's lite types do not list it)
+        MongoDB,
         // not in legend-engine's DatabaseType either (2026-10-22, docs/DEEPHAVEN_PLAN_2026_10_22.md): a Deephaven
         // server, whose tables an ordinary ###Relational store declares; its own specification and authentication
         Deephaven

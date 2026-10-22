@@ -432,11 +432,9 @@ public final class FromProtocol {
                     new GenericSectionElementDefinition("Connection",
                             "DeephavenConnection", c.qualifiedName(),
                             java.util.Map.of("serverUrl", dc.serverUrl()), null);
-            case Protocol.PMongoDbConnection mgc ->
-                    new GenericSectionElementDefinition("Connection",
-                            "MongoDBConnection", c.qualifiedName(),
-                            java.util.Map.of("database", mgc.databaseName()),
-                            null);
+            // 2026-10-16 (docs/MONGODB_PLAN_2026_10_16.md, D4): a MongoDBConnection declares DatabaseType.MongoDB,
+            // the connection a runtime binds a ###MongoDB store to (until then it was carried opaque)
+            case Protocol.PMongoDbConnection mgc -> MongoDeclarations.toConnection(c.qualifiedName(), mgc);
             case Protocol.PElasticsearchConnection esc ->
                     new GenericSectionElementDefinition("Connection",
                             "Elasticsearch7ClusterConnection",
@@ -530,10 +528,7 @@ public final class FromProtocol {
                     }
                     case Protocol.PMongoDbConnection mcv -> {
                         String synth = qn + "$" + store + "$" + ic.id();
-                        inline.add(new GenericSectionElementDefinition(
-                                "Connection", "MongoDBConnection", synth,
-                                java.util.Map.of("database",
-                                        mcv.databaseName()), null));
+                        inline.add(MongoDeclarations.toConnection(synth, mcv));
                         bindings.computeIfAbsent(store, k -> new ArrayList<>())
                                 .add(synth);
                     }
@@ -770,10 +765,12 @@ public final class FromProtocol {
                     .StaticDatasource(s.host(), (int) s.port(),
                             s.databaseName());
             case Protocol.PTrinoSpec s -> new ConnectionSpecification
-                    .StaticDatasource(s.host(), (int) s.port(),
-                            s.catalog() == null ? "" : s.catalog());
+                    .Trino(s.host(), (int) s.port(), s.catalog(), s.schema(),
+                            s.clientTags(),
+                            s.sslSpecification() != null
+                                    && s.sslSpecification().ssl());
             // the db-extension specs fold to the static host/port/name
-            // shape as Redshift and Trino do — DECLARED connections; an
+            // shape as Redshift does — DECLARED connections; an
             // execution leg for any of them widens the model shape then
             case Protocol.PAuroraSpec s -> new ConnectionSpecification
                     .StaticDatasource(s.host(), (int) s.port(), s.name());

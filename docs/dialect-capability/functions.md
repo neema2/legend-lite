@@ -17,6 +17,7 @@ What each dialect does with each function of the SQL IR. The legend, the method 
 - [SQLite](#sqlite)
 - [MariaDb](#mariadb)
 - [MySql](#mysql)
+- [MongoDb](#mongodb)
 - [EngineStyleH2](#enginestyleh2)
 - [EngineStyleDB2](#enginestyledb2)
 - [EngineStyleComposite](#enginestylecomposite)
@@ -202,6 +203,8 @@ Database types planned with it: H2.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | 2 |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantGet` | 14 |
 | `JSON_TYPE` | spelled | `json_type` |  | 1 |
@@ -389,6 +392,8 @@ Database types planned with it: no database type's own (it extends `H2`). No PCT
 | `TO_VARIANT` | emulated | `variantConstruct` | `as H2` | — |
 | `BOOL_TO_TEXT` | emulated | `CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END` | `as H2` | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` | `as H2` | — |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as H2` | — |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` | `as H2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as H2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | emulated | `variantGet` | `as H2` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as H2` | — |
@@ -421,7 +426,7 @@ Database types planned with it: Postgres.
 | `IS_NULL` | spelled | `an operator (isNullTest)` |  | 522 |
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inList` |  | 6 |
-| `COALESCE` | spelled | `coalesce` |  | 552 |
+| `COALESCE` | emulated | `coalesceArm` |  | 552 |
 | `PARSE_INT` | emulated | `castAs: BIGINT` |  | 11 |
 | `CONCAT` | emulated | `concatFlat` |  | 756 |
 | `LENGTH` | emulated | `by its operands: length(…) / length(CAST(… AS VARCHAR))` |  | 73 |
@@ -437,7 +442,7 @@ Database types planned with it: Postgres.
 | `LIST_POSITION` | spelled | `array_position` | `via Postgres.listCall` | 39 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
-| `STRUCT_INSERT` | emulated | `(… \|\| jsonb_build_object(…, …))` |  | 0 |
+| `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
 | `UNNEST` | emulated | `unnestProjection` |  | 83 |
 | `LIST_FLATTEN` | refused | `collections over the jsonb carrier are leg P4 reached Postgres:` |  | 0 |
 | `JSON_MERGE_PATCH` | refused | `variant over jsonb is leg P4 reached Postgres:` |  | 0 |
@@ -493,7 +498,7 @@ Database types planned with it: Postgres.
 | `LTRIM` | spelled | `ltrim` |  | 3 |
 | `RTRIM` | spelled | `rtrim` |  | 60 |
 | `REPLACE` | spelled | `replace` |  | 313 |
-| `SPLIT` | emulated | `(CASE WHEN … = '' THEN ARRAY[''] ELSE string_to_array(…, …) END)` |  | 2 |
+| `SPLIT` | emulated | `split` |  | 2 |
 | `SPLIT_PART` | spelled | `split_part` |  | 19 |
 | `TRANSLATE` | spelled | `translate` |  | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
@@ -508,7 +513,7 @@ Database types planned with it: Postgres.
 | `FORMAT` | emulated | `format` |  | 42 |
 | `HASH` | emulated | `hashSigned` |  | 5 |
 | `MD5` | spelled | `md5` |  | 1 |
-| `SHA1` | refused | `an extension function (pgcrypto) reached Postgres:` |  | 1 |
+| `SHA1` | emulated | `encode(digest(convert_to(…, 'UTF8'), 'sha1'), 'hex')` |  | 1 |
 | `SHA256` | emulated | `encode(sha256(convert_to(…, 'UTF8')), 'hex')` |  | 1 |
 | `RANDOM` | spelled | `random` |  | 0 |
 | `EXTRACT` | emulated | `extractArm` |  | 24 |
@@ -576,6 +581,8 @@ Database types planned with it: Postgres.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `by its operands: composed / composed` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -608,7 +615,7 @@ Database types planned with it: Snowflake.
 | `IS_NULL` | spelled | `an operator (isNullTest)` |  | 519 |
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inArm` |  | 6 |
-| `COALESCE` | spelled | `coalesce` |  | 552 |
+| `COALESCE` | emulated | `by its operands: coalesce(, PARSE_JSON(…)TO_VARIANT(…)…) / …coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `stringLit: CAST(CASE WHEN REGEXP_LIKE(…, \s*[-+]?[0-9]+\s*) THEN … ELSE … \|\| ' is not an...` |  | 11 |
 | `CONCAT` | emulated | `concat, flattenConcat` |  | 755 |
 | `LENGTH` | spelled | `length` |  | 73 |
@@ -756,13 +763,15 @@ Database types planned with it: Snowflake.
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(…)) AS TIMESTAMP_NTZ)` |  | 4 |
 | `LIST_REVERSE` | spelled | `array_reverse` |  | 4 |
-| `TYPEOF` | refused | `TYPEOF names Snowflake's variant types, not DuckDB's reached Snowflake:` | `via Snowflake.list` | 0 |
+| `TYPEOF` | emulated | `TYPEOF(TO_VARIANT(…))` | `via Snowflake.list` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
 | `ERROR` | emulated | `raise` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
-| `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_CANON` | emulated | `floatCanon` |  | 0 |
+| `FLOAT_PRINT` | emulated | `by its operands: composed / composed` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `by its operands: composed / composed` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `(CASE WHEN … IS NULL THEN NULL ELSE DECODE(TYPEOF(TO_VARIANT(…)), 'NULL_VALUE...` |  | 1 |
@@ -778,8 +787,8 @@ Database types planned with it: Trino.
 | `AND` | spelled | `an operator (infix)` |  | 204 |
 | `OR` | spelled | `an operator (infix)` |  | 270 |
 | `NOT` | spelled | `an operator (notPrefix)` |  | 61 |
-| `EQUAL` | spelled | `an operator (infix)` |  | 250 |
-| `NOT_EQUAL` | spelled | `an operator (infix)` |  | 16 |
+| `EQUAL` | emulated | `by its operands: composed / composed` |  | 250 |
+| `NOT_EQUAL` | emulated | `by its operands: composed / composed` |  | 16 |
 | `LESS` | spelled | `an operator (infix)` |  | 125 |
 | `LESS_EQUAL` | spelled | `an operator (infix)` |  | 125 |
 | `GREATER` | spelled | `an operator (infix)` |  | 378 |
@@ -795,7 +804,7 @@ Database types planned with it: Trino.
 | `IS_NULL` | spelled | `an operator (isNullTest)` |  | 519 |
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inList` |  | 6 |
-| `COALESCE` | spelled | `coalesce` |  | 552 |
+| `COALESCE` | emulated | `by its operands: coalesce(, json_parse(…)…) / …coalesce` |  | 552 |
 | `PARSE_INT` | emulated | `castAs: BIGINT` |  | 11 |
 | `CONCAT` | emulated | `flattenConcat: concat_ws('', , )` |  | 755 |
 | `LENGTH` | spelled | `length` |  | 73 |
@@ -943,13 +952,15 @@ Database types planned with it: Trino.
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `CAST(… AS TIMESTAMP(6))` |  | 4 |
 | `LIST_REVERSE` | spelled | `reverse` |  | 4 |
-| `TYPEOF` | refused | `typeof reached Trino: its type names are Trino's` | `via Trino.listCall` | 0 |
+| `TYPEOF` | spelled | `typeof` | `via Trino.listCall` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
 | `ERROR` | emulated | `error` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS VARCHAR)` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -982,7 +993,7 @@ Database types planned with it: BigQuery.
 | `IS_NULL` | spelled | `an operator (isNullTest)` |  | 522 |
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `in` |  | 6 |
-| `COALESCE` | spelled | `COALESCE` |  | 552 |
+| `COALESCE` | emulated | `coalesceArm` |  | 552 |
 | `PARSE_INT` | emulated | `CAST(… AS INT64)` |  | 11 |
 | `CONCAT` | emulated | `flattenConcat, asText: CONCAT(, IFNULL(…, ''))` |  | 756 |
 | `LENGTH` | emulated | `asText: LENGTH(…)` |  | 73 |
@@ -994,7 +1005,7 @@ Database types planned with it: BigQuery.
 | `LIST_FILTER` | emulated | `listFilter` |  | 23 |
 | `LIST_TRANSFORM` | emulated | `listTransform` |  | 31 |
 | `LIST_CONCAT` | emulated | `emptyList, listElement: ARRAY_CONCAT(, IFNULL(…, ))` |  | 2 |
-| `LIST_GET` | emulated | `(…)[SAFE_OFFSET(CASE WHEN … < 0 THEN ARRAY_LENGTH(…) + CAST(… AS INT64) ELSE ...` |  | 79 |
+| `LIST_GET` | emulated | `listGet` |  | 79 |
 | `LIST_POSITION` | emulated | `param, elements: (SELECT MIN(__o) + 1 FROM …__e__o WHERE __e IS NOT DISTINCT FROM …)` |  | 39 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
@@ -1137,9 +1148,11 @@ Database types planned with it: BigQuery.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
-| `JSON_TYPE` | emulated | `stringLit: (CASE JSON_TYPE(…) WHEN 'null' THEN 'NULL' WHEN 'string' THEN 'VARCHAR' WHEN ...` |  | 1 |
+| `JSON_TYPE` | emulated | `jsonType` |  | 1 |
 | `JSON_ARRAY_LENGTH` | emulated | `ARRAY_LENGTH(JSON_QUERY_ARRAY(…))` |  | 0 |
 | `JSON_PRETTY` | refused | `BigQuery has no JSON pretty-printer reached BigQuery:` |  | 0 |
 
@@ -1253,7 +1266,7 @@ Database types planned with it: Databricks.
 | `ENCODE_BASE64` | emulated | `replace(replace(base64(CAST(… AS BINARY)), chr(13), ''), chr(10), '')` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | 2 |
 | `GUID` | spelled | `uuid` |  | 2 |
-| `FORMAT` | spelled | `format_string` |  | 42 |
+| `FORMAT` | emulated | `format_string(, CAST(… AS DOUBLE)…)` |  | 42 |
 | `HASH` | emulated | `hashSigned` |  | 5 |
 | `MD5` | spelled | `md5` |  | 1 |
 | `SHA1` | spelled | `sha1` |  | 1 |
@@ -1317,13 +1330,15 @@ Database types planned with it: Databricks.
 | `STRPTIME` | emulated | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `castAs: TIMESTAMP` |  | 4 |
 | `LIST_REVERSE` | spelled | `reverse` |  | 4 |
-| `TYPEOF` | refused | `typeof reached Databricks: its type names are Spark's` | `via Databricks.listCall` | 0 |
+| `TYPEOF` | spelled | `typeof` | `via Databricks.listCall` | 0 |
 | `ROUND_HALF_UP` | spelled | `ROUND` |  | 1 |
 | `ERROR` | emulated | `raiseEnvelope: raise_error` |  | 70 |
 | `FLOOR_RAW` | emulated | `(CASE WHEN abs(…) >= 4503599627370496 THEN … ELSE CAST(floor(…) AS DOUBLE) END)` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -1511,6 +1526,8 @@ Database types planned with it: DuckDB.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | spelled | `json_type` |  | 1 |
@@ -1691,13 +1708,15 @@ Database types planned with it: ClickHouse.
 | `STRPTIME` | emulated | `composed in a block` | `via ClickHouse.temporal` | 0 |
 | `PARSE_DATE` | emulated | `parseDateTime64BestEffort(…, 6, 'UTC')` | `via ClickHouse.temporal` | 4 |
 | `LIST_REVERSE` | spelled | `arrayReverse` |  | 4 |
-| `TYPEOF` | refused | `typeof reached ClickHouse: its type names are ClickHouse's` | `via ClickHouse.listCall` | 0 |
+| `TYPEOF` | emulated | `replaceRegexpOne(toTypeName(…), '^Nullable\((.*)\)$', '\1')` | `via ClickHouse.listCall` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
 | `ERROR` | emulated | `error` |  | 70 |
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | spelled | `toString` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `multiIf(isNull(…), NULL, JSONType(…) = 'Null', 'NULL', JSONType(…) = 'String'...` |  | 1 |
@@ -1815,10 +1834,10 @@ Database types planned with it: SQLite.
 | `LEVENSHTEIN` | emulated | `levenshtein` |  | 2 |
 | `GUID` | emulated | `lower(hex(randomblob(4)) \|\| '-' \|\| hex(randomblob(2)) \|\| '-4' \|\| substr(hex(r...` |  | 2 |
 | `FORMAT` | emulated | `format` |  | 42 |
-| `HASH` | refused | `hashCode reached SQLite, which has no hash function` | `via SQLite.hashSigned` | 5 |
-| `MD5` | refused | `SQLite has no digest function reached SQLite:` |  | 1 |
-| `SHA1` | refused | `SQLite has no digest function reached SQLite:` |  | 1 |
-| `SHA256` | refused | `SQLite has no digest function reached SQLite:` |  | 1 |
+| `HASH` | emulated | `hashSigned` |  | 5 |
+| `MD5` | emulated | `md5` |  | 1 |
+| `SHA1` | emulated | `sha1` |  | 1 |
+| `SHA256` | emulated | `sha256` |  | 1 |
 | `RANDOM` | emulated | `((random() & 9007199254740991) / 9007199254740992.0)` |  | 0 |
 | `EXTRACT` | emulated | `extract` |  | 24 |
 | `TODAY` | emulated | `date('now')` |  | 0 |
@@ -1846,7 +1865,7 @@ Database types planned with it: SQLite.
 | `DEGREES` | spelled | `degrees` |  | 1 |
 | `INT_DIVIDE` | emulated | `intDivide` |  | 40 |
 | `REPEAT_STR` | emulated | `replace(hex(zeroblob(max(…, 0))), '00', …)` |  | 4 |
-| `JARO_WINKLER` | refused | `SQLite has no string-distance function reached SQLite:` |  | 2 |
+| `JARO_WINKLER` | emulated | `jaroWinkler` |  | 2 |
 | `DECODE_BASE64` | emulated | `base64Decoded` |  | 4 |
 | `CURRENT_USER_FN` | refused | `SQLite has no users reached SQLite:` |  | 2 |
 | `LIST_LENGTH` | spelled | `json_array_length` |  | 27 |
@@ -1885,6 +1904,8 @@ Database types planned with it: SQLite.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `(CASE json_type(…) WHEN 'null' THEN 'NULL' WHEN 'text' THEN 'VARCHAR' WHEN 't...` |  | 1 |
@@ -2033,7 +2054,7 @@ Database types planned with it: MariaDB.
 | `DEGREES` | spelled | `degrees` |  | 1 |
 | `INT_DIVIDE` | emulated | `intDivide` |  | 40 |
 | `REPEAT_STR` | emulated | `…REPEAT(CAST(… AS CHAR), REPEAT(…, …)` |  | 4 |
-| `JARO_WINKLER` | refused | `has no string-distance function reached :` |  | 2 |
+| `JARO_WINKLER` | emulated | `jaroWinkler` |  | 2 |
 | `DECODE_BASE64` | emulated | `CONVERT(FROM_BASE64(CONCAT(…, REPEAT('=', MOD(4 - MOD(CHAR_LENGTH(…), 4), 4))...` |  | 4 |
 | `CURRENT_USER_FN` | emulated | `SUBSTRING_INDEX(CURRENT_USER(), '@', 1)` |  | 2 |
 | `LIST_LENGTH` | spelled | `JSON_LENGTH` |  | 27 |
@@ -2072,6 +2093,8 @@ Database types planned with it: MariaDB.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
 | `FLOAT_CANON` | emulated | `floatLayout` |  | 40 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...` |  | 1 |
@@ -2220,7 +2243,7 @@ Database types planned with it: MySQL.
 | `DEGREES` | spelled | `degrees` | `as MariaDb` | 1 |
 | `INT_DIVIDE` | emulated | `intDivide` | `as MariaDb` | 40 |
 | `REPEAT_STR` | emulated | `…REPEAT(CAST(… AS CHAR), REPEAT(…, …)` | `as MariaDb` | 4 |
-| `JARO_WINKLER` | refused | `has no string-distance function reached :` | `as MariaDb` | 2 |
+| `JARO_WINKLER` | emulated | `jaroWinkler` | `as MariaDb` | 2 |
 | `DECODE_BASE64` | emulated | `CONVERT(FROM_BASE64(CONCAT(…, REPEAT('=', MOD(4 - MOD(CHAR_LENGTH(…), 4), 4))...` | `as MariaDb` | 4 |
 | `CURRENT_USER_FN` | emulated | `SUBSTRING_INDEX(CURRENT_USER(), '@', 1)` | `as MariaDb` | 2 |
 | `LIST_LENGTH` | spelled | `JSON_LENGTH` | `as MariaDb` | 27 |
@@ -2259,11 +2282,202 @@ Database types planned with it: MySQL.
 | `TO_VARIANT` | emulated | `variantConstruct` | `as MariaDb` | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` | `as MariaDb` | 2 |
 | `FLOAT_CANON` | emulated | `floatLayout` | `as MariaDb` | 40 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as MariaDb` | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` | `as MariaDb` | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` | `as MariaDb` | 2 |
 | `VARIANT_GET` | emulated | `variantGet` | `as MariaDb` | 14 |
 | `JSON_TYPE` | emulated | `(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...` | `as MariaDb` | 1 |
 | `JSON_ARRAY_LENGTH` | spelled | `JSON_LENGTH` | `as MariaDb` | 0 |
 | `JSON_PRETTY` | spelled | `JSON_DETAILED` | `as MariaDb` | 0 |
+
+## MongoDb
+
+Database types planned with it: MongoDB.
+
+| function | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `AND` | emulated | `$and` |  | 0 |
+| `OR` | emulated | `$or` |  | 0 |
+| `NOT` | emulated | `guardedOp: $not` |  | 0 |
+| `EQUAL` | emulated | `guardedOp: $eq` |  | 0 |
+| `NOT_EQUAL` | emulated | `guardedOp: $ne` |  | 0 |
+| `LESS` | emulated | `guardedOp: $lt` |  | 0 |
+| `LESS_EQUAL` | emulated | `guardedOp: $lte` |  | 0 |
+| `GREATER` | emulated | `guardedOp: $gt` |  | 0 |
+| `GREATER_EQUAL` | emulated | `guardedOp: $gte` |  | 0 |
+| `PLUS` | emulated | `$add` |  | 0 |
+| `MINUS` | emulated | `$subtract` |  | 0 |
+| `TIMES` | emulated | `$multiply` |  | 0 |
+| `DIVIDE` | emulated | `{"$divide": [{"$toDouble": …}, {"$toDouble": …}]}` |  | 0 |
+| `MOD` | emulated | `flooredMod` |  | 0 |
+| `REM` | emulated | `unfolded: {"$mod": […, …]}` |  | 0 |
+| `NEGATE` | emulated | `negated` |  | 0 |
+| `ABS` | emulated | `op1: $abs` |  | 0 |
+| `IS_NULL` | emulated | `nullTest` |  | 0 |
+| `IS_NOT_NULL` | emulated | `nullTest` |  | 0 |
+| `IN` | emulated | `inList` |  | 0 |
+| `COALESCE` | emulated | `coalesce` |  | 0 |
+| `PARSE_INT` | emulated | `op1: $toLong` |  | 0 |
+| `CONCAT` | emulated | `concatSkippingNull` |  | 0 |
+| `LENGTH` | emulated | `length` |  | 0 |
+| `UPPER` | emulated | `guardedOp: $toUpper` |  | 0 |
+| `LOWER` | emulated | `guardedOp: $toLower` |  | 0 |
+| `GREATEST` | emulated | `$max` |  | 0 |
+| `LEAST` | emulated | `$min` |  | 0 |
+| `CONCAT_JOIN` | emulated | `$concat` |  | 0 |
+| `LIST_FILTER` | emulated | `listFilter` |  | 0 |
+| `LIST_TRANSFORM` | emulated | `listMap` |  | 0 |
+| `LIST_CONCAT` | emulated | `listConcat` |  | 0 |
+| `LIST_GET` | emulated | `{"$ifNull": [{"$arrayElemAt": […, {"$subtract": […, 1]}]}, null]}` |  | 0 |
+| `LIST_POSITION` | emulated | `listPosition` |  | 0 |
+| `LIST_EXISTS` | emulated | `listExists` |  | 0 |
+| `LIST_FOR_ALL` | emulated | `listForAll` |  | 0 |
+| `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
+| `UNNEST` | refused | `an unnest reached MongoDb in expression position: an $unwind stage is not placed yet` | `via MongoDb.unnestProjection` | 0 |
+| `LIST_FLATTEN` | emulated | `{"$reduce": {"input": …, "initialValue": [], "in": {"$concatArrays": [, ]}}}` |  | 0 |
+| `JSON_MERGE_PATCH` | emulated | `mergePatch` |  | 0 |
+| `SQRT` | emulated | `unfolded: {"$sqrt": …}` |  | 0 |
+| `CBRT` | emulated | `cubeRoot` |  | 0 |
+| `EXP` | emulated | `op1: $exp` |  | 0 |
+| `LN` | emulated | `op1: $ln` |  | 0 |
+| `LOG10` | emulated | `op1: $log10` |  | 0 |
+| `POW` | emulated | `guarded: {"$pow": [{"$toDouble": , }, , ]}` |  | 0 |
+| `PI` | emulated | `{"$numberDouble": "3.141592653589793"}` |  | 0 |
+| `SIN` | emulated | `op1: $sin` |  | 0 |
+| `COS` | emulated | `op1: $cos` |  | 0 |
+| `TAN` | emulated | `op1: $tan` |  | 0 |
+| `ASIN` | emulated | `domainGuarded: $asin` |  | 0 |
+| `ACOS` | emulated | `domainGuarded: $acos` |  | 0 |
+| `ATAN` | emulated | `op1: $atan` |  | 0 |
+| `ATAN2` | emulated | `$atan2` |  | 0 |
+| `SINH` | emulated | `op1: $sinh` |  | 0 |
+| `COSH` | emulated | `op1: $cosh` |  | 0 |
+| `TANH` | emulated | `op1: $tanh` |  | 0 |
+| `CEILING` | emulated | `longOf: $ceil` |  | 0 |
+| `FLOOR` | emulated | `longOf: $floor` |  | 0 |
+| `ROUND` | emulated | `roundHalfEven` |  | 0 |
+| `SIGN` | emulated | `sign` |  | 0 |
+| `XOR` | emulated | `guardedOp: $ne` |  | 0 |
+| `BIT_AND` | emulated | `$bitAnd` | `via MongoDb.bitOp` | 0 |
+| `BIT_OR` | emulated | `$bitOr` | `via MongoDb.bitOp` | 0 |
+| `BIT_XOR` | emulated | `$bitXor` | `via MongoDb.bitOp` | 0 |
+| `BIT_SHIFT_LEFT` | emulated | `guarded: {"$toLong": {"$multiply": [{"$toDecimal": , }, {"$pow": [{"$toDecimal": 2}, , ]}]}}` | `via MongoDb.bitOp` | 0 |
+| `BIT_SHIFT_RIGHT` | emulated | `guarded: {"$toLong": {"$floor":,  {"$divide": [{"$toDecimal": , }, {"$pow": [{"$toDecimal": 2}, , ]}]}}}` | `via MongoDb.bitOp` | 0 |
+| `BIT_NOT` | emulated | `op1: $bitNot` |  | 0 |
+| `REGEXP_EXTRACT` | emulated | `regexExtract` |  | 0 |
+| `REGEXP_EXTRACT_ALL` | emulated | `regexExtractAll` |  | 0 |
+| `REGEXP_REPLACE` | emulated | `regexReplace` |  | 0 |
+| `REGEXP_FULL_MATCH` | emulated | `regexMatch` |  | 0 |
+| `MAP_FROM_LISTS` | emulated | `{"$arrayToObject": {"$zip": {"inputs": […]}}}` |  | 0 |
+| `MAP_FROM_ENTRIES` | emulated | `{"$arrayToObject": {"$map": {"input": {"$ifNull": […, []]}, "in": {"k": "$$th...` |  | 0 |
+| `MAP_EMPTY` | emulated | `{"$literal": {}}` |  | 0 |
+| `MAP_EXTRACT` | emulated | `mapExtract` |  | 0 |
+| `MAP_KEYS` | emulated | `mapSide: k` |  | 0 |
+| `MAP_VALUES` | emulated | `mapSide: v` |  | 0 |
+| `MAP_CONCAT` | emulated | `$mergeObjects` |  | 0 |
+| `SUBSTRING` | emulated | `substring` |  | 0 |
+| `STRPOS` | emulated | `guarded: {"$add": [{"$indexOfCP": [, , , ]}, 1]}` |  | 0 |
+| `STARTS_WITH` | emulated | `guarded: {"$eq": [{"$indexOfCP": [, , , ]}, 0]}` |  | 0 |
+| `ENDS_WITH` | emulated | `endsWith` |  | 0 |
+| `MATCHES` | emulated | `regexMatch` |  | 0 |
+| `LEFT` | emulated | `guarded: {"$substrCP": [, , 0, {"$max":,  [0, {"$min": [, , {"$strLenCP": , }]}]}]}` |  | 0 |
+| `RIGHT` | emulated | `rightChars` |  | 0 |
+| `LPAD` | emulated | `pad` |  | 0 |
+| `RPAD` | emulated | `pad` |  | 0 |
+| `TRIM` | emulated | `trim: $trim` |  | 0 |
+| `LTRIM` | emulated | `trim: $ltrim` |  | 0 |
+| `RTRIM` | emulated | `trim: $rtrim` |  | 0 |
+| `REPLACE` | emulated | `replace` |  | 0 |
+| `SPLIT` | emulated | `$split` |  | 0 |
+| `SPLIT_PART` | emulated | `splitPart` |  | 0 |
+| `TRANSLATE` | refused | `translate reached MongoDb, which has no character-map operator` |  | 0 |
+| `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 0 |
+| `REVERSE_STRING` | emulated | `guarded: {"$reduce": {"input":,  {"$range": [0, {"$strLenCP": , }]}, "initialValue": "", "in":,  {"$concat": [{"$substrCP": [, , , , 1]}, , ]}}}` |  | 0 |
+| `ASCII_CODE` | emulated | `guarded: {"$let": {"vars": {"c":,  {"$indexOfCP": [, , {"$substrCP": [, , 0, 1]}]}}, "in": {"$cond":,  [{"$lt": ["$$c", 0]}, , a character beyond ASCII reached ascii on MongoDb,,  which has no character-code operator, , "$$c"]}}}` |  | 0 |
+| `CHR` | emulated | `guarded: {"$cond": [{"$or": [{"$lt": [, , 0]}, {"$gte": [, , 128]}]}, , a code beyond ASCII reached char on,  MongoDb, which has no code-to-character operator, , {"$substrCP": [, , , , 1]}]}` |  | 0 |
+| `UC_FIRST` | emulated | `firstCased: $toUpper` |  | 0 |
+| `LC_FIRST` | emulated | `firstCased: $toLower` |  | 0 |
+| `ENCODE_BASE64` | emulated | `guarded: {"$convert": {"input":,  {"$convert": {"input": , , "to": "binData", "format": "utf8"}},,  "to": "string", "format": "base64"}}` |  | 0 |
+| `LEVENSHTEIN` | emulated | `guarded` |  | 0 |
+| `GUID` | emulated | `{"$let": {"vars": {"h": {"$reduce": {"input": {"$range": [0, 32]}, "initialVa...` |  | 0 |
+| `FORMAT` | emulated | `format` |  | 0 |
+| `HASH` | emulated | `hashSigned` |  | 0 |
+| `MD5` | refused | `reached MongoDb, which has no digest operator` |  | 0 |
+| `SHA1` | refused | `reached MongoDb, which has no digest operator` |  | 0 |
+| `SHA256` | refused | `reached MongoDb, which has no digest operator` |  | 0 |
+| `RANDOM` | emulated | `{"$rand": {}}` |  | 0 |
+| `EXTRACT` | emulated | `extract` |  | 0 |
+| `TODAY` | emulated | `{"$dateTrunc": {"date": "$$NOW", "unit": "day"}}` |  | 0 |
+| `NOW` | emulated | `"$$NOW"` |  | 0 |
+| `DATE_TRUNC_DAY` | emulated | `dateTrunc` |  | 0 |
+| `MAKE_DATE` | emulated | `dateFromParts` |  | 0 |
+| `MAKE_TIMESTAMP` | emulated | `dateFromParts` |  | 0 |
+| `DATE_TRUNC` | emulated | `dateTrunc` |  | 0 |
+| `ADD_INTERVAL` | emulated | `dateAdd` |  | 0 |
+| `DATE_DIFF` | emulated | `dateDiff` |  | 0 |
+| `TIME_BUCKET` | emulated | `timeBucket` |  | 0 |
+| `TIMEZONE` | emulated | `timezone` |  | 0 |
+| `DATE_AT_TIME` | refused | `a date at a time of day reached MongoDb, which has no time type` |  | 0 |
+| `EPOCH_NS` | refused | `reached MongoDb, whose date holds milliseconds` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `reached MongoDb, whose date holds milliseconds` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `dateAdd` |  | 0 |
+| `EPOCH_SECONDS` | emulated | `{"$divide": [{"$toLong": …}, 1000]}` |  | 0 |
+| `EPOCH_MS` | emulated | `op1: $toLong` |  | 0 |
+| `FROM_EPOCH_SECONDS` | emulated | `{"$toDate": {"$multiply": […, 1000]}}` |  | 0 |
+| `FROM_EPOCH_MS` | emulated | `op1: $toDate` |  | 0 |
+| `DAYNAME` | emulated | `calendarName: $dayOfWeek` |  | 0 |
+| `MONTHNAME` | emulated | `calendarName: $month` |  | 0 |
+| `COT` | emulated | `cotangent` |  | 0 |
+| `RADIANS` | emulated | `op1: $degreesToRadians` |  | 0 |
+| `DEGREES` | emulated | `op1: $radiansToDegrees` |  | 0 |
+| `INT_DIVIDE` | emulated | `intDivide` |  | 0 |
+| `REPEAT_STR` | emulated | `guarded: {"$reduce": {"input": {"$range":,  [0, {"$max": [0, , ]}]}, "initialValue": "", "in": {"$concat": [, , , ]}}}` |  | 0 |
+| `JARO_WINKLER` | emulated | `guarded` |  | 0 |
+| `DECODE_BASE64` | emulated | `guarded: {"$convert": {"input":,  {"$convert": {"input": {"$concat": [, , {"$substrCP": ["==", 0, {"$mod":,  [{"$subtract": [4, {"$mod": [{"$strLenCP": , }, 4]}]}, 4]}]}]}, "to":,  "binData", "format": "base64"}}, "to": "string", "format": "utf8"}}` |  | 0 |
+| `CURRENT_USER_FN` | refused | `currentUserId reached MongoDb, whose pipeline names no user` |  | 0 |
+| `LIST_LENGTH` | emulated | `guardedOp: $size` |  | 0 |
+| `LIST_ZIP` | emulated | `{"$zip": {"inputs": […]}}` | `via MongoDb.listCall` | 0 |
+| `LIST_DISTINCT` | emulated | `{"$setUnion": […]}` | `via MongoDb.listCall` | 0 |
+| `LIST_APPEND` | emulated | `{"$concatArrays": […, […]]}` | `via MongoDb.listCall` | 0 |
+| `LIST_SUM` | emulated | `op1: $sum` | `via MongoDb.listCall` | 0 |
+| `LIST_MIN` | emulated | `op1: $min` | `via MongoDb.listCall` | 0 |
+| `LIST_MAX` | emulated | `op1: $max` | `via MongoDb.listCall` | 0 |
+| `LIST_AVG` | emulated | `op1: $avg` | `via MongoDb.listCall` | 0 |
+| `LIST_MEDIAN` | emulated | `arrayReduction` | `via MongoDb.listCall` | 0 |
+| `LIST_MODE` | emulated | `arrayReduction` | `via MongoDb.listCall` | 0 |
+| `LIST_SORT` | emulated | `{"$sortArray": {"input": …, "sortBy": 1}}` | `via MongoDb.listCall` | 0 |
+| `LIST_SORT_DESC` | emulated | `{"$sortArray": {"input": …, "sortBy": -1}}` | `via MongoDb.listCall` | 0 |
+| `LIST_TAIL` | emulated | `guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 1, {"$subtract": [{"$size": , }, 1]}]}, []]}` | `via MongoDb.listCall` | 0 |
+| `LIST_INIT` | emulated | `guarded: {"$cond": [{"$gt":,  [{"$size": , }, 1]}, {"$slice": [, , 0, {"$subtract": [{"$size": , }, 1]}]}, []]}` | `via MongoDb.listCall` | 0 |
+| `RANGE_FN` | emulated | `by its operands: {"$range": [0, …]} / {"$range": […, …, …]} / $range` | `via MongoDb.listCall` | 0 |
+| `LIST_PRODUCT` | emulated | `{"$reduce": {"input": …, "initialValue": 1, "in": {"$multiply": [, ]}}}` | `via MongoDb.listCall` | 0 |
+| `LIST_REDUCE` | emulated | `listReduce` | `via MongoDb.listCall` | 0 |
+| `LIST_SLICE` | emulated | `listSlice` | `via MongoDb.listCall` | 0 |
+| `REPEAT_VALUE` | emulated | `{"$map": {"input": {"$range": [0, …]}, "in": …}}` | `via MongoDb.listCall` | 0 |
+| `LIST_BOOL_AND` | emulated | `{"$allElementsTrue": […]}` | `via MongoDb.listCall` | 0 |
+| `LIST_BOOL_OR` | emulated | `{"$anyElementTrue": […]}` | `via MongoDb.listCall` | 0 |
+| `IS_DISTINCT_FROM` | emulated | `$ne` |  | 0 |
+| `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
+| `NULL_SAFE_EQUAL` | emulated | `$eq` |  | 0 |
+| `NULL_SAFE_NOT_EQUAL` | emulated | `$ne` |  | 0 |
+| `STRFTIME` | emulated | `strftime` |  | 0 |
+| `STRPTIME` | emulated | `{"$dateFromString": {"dateString": …, "format": …}}` |  | 0 |
+| `PARSE_DATE` | emulated | `{"$dateFromString": {"dateString": …}}` |  | 0 |
+| `LIST_REVERSE` | emulated | `op1: $reverseArray` | `via MongoDb.listCall` | 0 |
+| `TYPEOF` | emulated | `op1: $type` | `via MongoDb.listCall` | 0 |
+| `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 0 |
+| `ERROR` | emulated | `raise` |  | 0 |
+| `FLOOR_RAW` | emulated | `op1: $floor` |  | 0 |
+| `TO_VARIANT` | emulated | `variantConstruct` |  | 0 |
+| `BOOL_TO_TEXT` | emulated | `op1: $toString` |  | 0 |
+| `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
+| `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 0 |
+| `VARIANT_GET` | emulated | `variantGet` |  | 0 |
+| `JSON_TYPE` | emulated | `jsonType` |  | 0 |
+| `JSON_ARRAY_LENGTH` | emulated | `guardedOp: $size` |  | 0 |
+| `JSON_PRETTY` | refused | `a pretty-printed JSON text reached MongoDb, which has no JSON text operator` |  | 0 |
 
 ## EngineStyleH2
 
@@ -2446,6 +2660,8 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` |  | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | — |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | — |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` |  | — |
@@ -2633,6 +2849,8 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleH2` | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` | `as EngineStyleH2` | — |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleH2` | — |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` | `as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as EngineStyleH2` | — |
@@ -2820,6 +3038,8 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as EngineStyleDB2, as EngineStyleH2` | — |

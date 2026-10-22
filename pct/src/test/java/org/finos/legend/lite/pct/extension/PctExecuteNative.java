@@ -111,7 +111,7 @@ public class PctExecuteNative extends NativeFunction {
         System.out.println("[LegendLite PCT] Executing: " + pureExpression);
 
         // LEGENDLITE_PCT_BACKEND chooses the database the SAME suite runs on (PctBackend)
-        try (Connection connection = PctBackend.connect()) {
+        try {
             // B6: session settings are DIALECT-OWNED — the platform
             // applies them at its connection-dialect seam
             // (SqlDialect.sessionSetup, executed at Compiler.dialectOf's seam); the
@@ -130,8 +130,8 @@ public class PctExecuteNative extends NativeFunction {
             java.util.TreeMap<String, String> injection =
                     packer.injectionFromRoots(semanticRoots, processorSupport);
             StringBuilder defs = new StringBuilder();
-            // grouped enums → classes → functions (the E:/C:/F: keys)
-            for (String prefix : List.of("E:", "C:", "F:")) {
+            // grouped primitives → enums → classes → functions (the P:/E:/C:/F: keys)
+            for (String prefix : List.of("P:", "E:", "C:", "F:")) {
                 for (var en : injection.entrySet()) {
                     if (en.getKey().startsWith(prefix)) {
                         defs.append(en.getValue()).append("\n");
@@ -159,11 +159,12 @@ public class PctExecuteNative extends NativeFunction {
             // one flag selects between them.
             // a storeless expression executes on the lane's declared runtime, as the engine's PCT
             // adapter gives it one (StorelessRuntime)
-            ExecutionResult result = new QueryService().execute(PctBackend.withStorelessRuntime(model), pureExpression, com.legend.test.StorelessRuntime.RUNTIME, connection, com.legend.ExecuteOptions.PCT_RENDER.withFeatures(
-                            java.util.Set.of(com.legend.platform.Feature
-                                    .CORRECT_SQL_SUBSTRING_INDEXING))
-                    // a server lane's system connection: where a metamodel-reading query runs (PctBackend)
-                    .withSystemConnections(PctBackend.systemConnections()));
+            // a lane with no JDBC session runs through the plan (PctPlanRoute); the others through the legacy
+            // executor on the session PctBackend opens (docs/MONGODB_PLAN_2026_10_16.md §6)
+            ExecutionResult result = PctBackend.throughThePlan() ? PctPlanRoute.execute(model, pureExpression)
+                    : legacyRoute(model, pureExpression);
+            PctCaseRecorder.recordShape(pureExpression, result);   // the shape census: -Dlegend.diagnostics=pct-shapes
+            PctShadowPlan.record(model, pureExpression, result);   // the plan path beside it: -Dlegend.diagnostics=pct-shadow-plan
             return switch (result) {
                 case ExecutionResult.TdsText t -> {
                     System.out.println("[LegendLite PCT] TDS: "
@@ -178,6 +179,7 @@ public class PctExecuteNative extends NativeFunction {
                 case Graph g -> bridge.graphString(g.json(), processorSupport);
             };
         } catch (Exception e) {
+            PctCaseRecorder.recordShapeError(pureExpression, e);
             // the error's SOURCE INFO must point at the TEST's own call
             // site (assertError checks line/column). B5 (truthfulness
             // burn): the criterion is POSITIVE — the adapter's own
@@ -202,6 +204,18 @@ public class PctExecuteNative extends NativeFunction {
             // remapErrorMessage — the last adapter arm that ever touched
             // a message — is DELETED; native errors cross whole.
             throw new PureExecutionException(src, e.getMessage(), e);
+        }
+    }
+
+    /** The legacy route: the query service on the lane's JDBC session, under the PCT's feature flags and a server
+     *  lane's system connection (where a metamodel-reading query runs, PctBackend). */
+    private static ExecutionResult legacyRoute(String model, String pureExpression) throws Exception {
+        try (Connection connection = PctBackend.connect()) {
+            return new QueryService().execute(PctBackend.withStorelessRuntime(model), pureExpression,
+                    com.legend.test.StorelessRuntime.RUNTIME, connection, com.legend.ExecuteOptions.TDS_TEXT
+                            .withFeatures(java.util.Set.of(com.legend.platform.Feature
+                                    .CORRECT_SQL_SUBSTRING_INDEXING))
+                            .withSystemConnections(PctBackend.systemConnections()));
         }
     }
 }

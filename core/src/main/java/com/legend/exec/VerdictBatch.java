@@ -2,11 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 package com.legend.exec;
-import com.legend.plan.ResultShape;
 
-import com.legend.compiler.element.type.ExprType;
 import com.legend.sql.SqlQuery;
-import com.legend.sql.dialect.SqlDialect;
 
 import java.sql.Connection;
 import java.util.ArrayList;
@@ -30,8 +27,11 @@ import java.util.Map;
  * statement itself errors (a side the database rejects), the batch is
  * judged statement by statement — today's path, so the error lands on the
  * assert that owns it — counted, never a verdict change. This class sends
- * and orders; the SQL shape is the lowering's and the judgment of a row is
- * the verdict arm's ({@link Judge}). */
+ * and orders; the SQL shape is the lowering's, the judgment of a row is
+ * the verdict arm's ({@link Judge}), and each statement is sent as a PLAN
+ * by the {@link Runner} (the plan path program's step 6, 2026-10-18: a
+ * verdict statement is a typed-rows plan whose rows the runner decodes;
+ * this class holds no dialect, no shape and no executor). */
 public final class VerdictBatch {
 
     /** The lowering's fused statement over the deferred statements, with
@@ -47,6 +47,16 @@ public final class VerdictBatch {
     @FunctionalInterface
     public interface Judge {
         void judge(String name, boolean wantEqual, List<Object> row);
+    }
+
+    /** The plan side's runner for a verdict statement: {@code statement} sent on a session of {@code on} as a
+     *  typed-rows plan, its rows decoded by the verdict schema ({@code fused}: the batch schema, an index column
+     *  first). */
+    public interface Runner {
+        List<List<Object>> rows(SqlQuery statement, PlanSessions.Source on, boolean fused);
+
+        /** The statement's rendered length (the prepare trace's census). */
+        int chars(SqlQuery statement);
     }
 
     /** A deferred verdict statement, or an outcome the arm decided
@@ -106,20 +116,18 @@ public final class VerdictBatch {
     }
 
     private final Fusion fusion;
-    private final ExprType fusedShape;
-    private final ExprType oneRow;
     private final Judge judge;
+    private final Runner runner;
     private final List<Root> roots = new ArrayList<>();
     private @com.legend.base.Nullable Root current;
     /** The frames the body's asserts read by reference: name → the frame's
      * plan (leg 3.4 step 2), defined once per body. */
     private final Map<String, SqlQuery> frames = new LinkedHashMap<>();
 
-    public VerdictBatch(Fusion fusion, ExprType fusedShape, ExprType oneRow, Judge judge) {
+    public VerdictBatch(Fusion fusion, Judge judge, Runner runner) {
         this.fusion = fusion;
-        this.fusedShape = fusedShape;
-        this.oneRow = oneRow;
         this.judge = judge;
+        this.runner = runner;
     }
 
     /** A statement-root assert begins: its steps accrue until {@link #close}. */
@@ -224,8 +232,7 @@ public final class VerdictBatch {
 
     /** Send the deferred statements (one fused statement per session), then
      * report every root in body order; the first failure raises. */
-    public void flush(SqlDialect dialect, ExecutionTrace trace,
-            @com.legend.base.Nullable AssertListener l) {
+    public void flush(@com.legend.base.Nullable AssertListener l) {
         if (!roots.isEmpty()) {
             Census.inc(Census.Key.VERDICT_FLUSHES);
         }
@@ -247,13 +254,14 @@ public final class VerdictBatch {
         for (var g : groups.entrySet()) {
             List<Pending> ps = g.getValue();
             try {
-                for (Pending p : ps) {
-                    PrepTrace.branch(p.name(), dialect.render(p.query()).length());
+                if (PrepTrace.on()) {
+                    for (Pending p : ps) {
+                        PrepTrace.branch(p.name(), runner.chars(p.query()));
+                    }
                 }
-                for (Row row : executeFused(ps.stream().map(Pending::query).toList(),
-                        g.getKey(), dialect, trace)) {
-                    int local = ((Number) row.values().get(0)).intValue();
-                    rows.put(ps.get(local).ix(), row.values().subList(1, row.values().size()));
+                for (List<Object> row : executeFused(ps.stream().map(Pending::query).toList(), g.getKey())) {
+                    int local = ((Number) row.get(0)).intValue();
+                    rows.put(ps.get(local).ix(), row.subList(1, row.size()));
                 }
                 Census.inc(Census.Key.VERDICT_FUSED);
             } catch (com.legend.error.DataError | com.legend.sql.dialect.DialectCapability e) {
@@ -277,7 +285,7 @@ public final class VerdictBatch {
                         List<Object> row = rows.get(p.ix());
                         if (row == null) {
                             row = executeOne(p.name(), com.legend.sql.FrameCtes.attach(p.query(), frames),
-                                    oneRow, p.on(), dialect, trace);
+                                    p.on(), runner);
                         }
                         try {
                             judge.judge(p.name(), p.wantEqual(), row);
@@ -314,33 +322,28 @@ public final class VerdictBatch {
         }
     }
 
-    private List<Row> executeFused(List<SqlQuery> statements, Connection on,
-            SqlDialect dialect, ExecutionTrace trace) {
+    private List<List<Object>> executeFused(List<SqlQuery> statements, Connection on) {
         SqlQuery b = fusion.fuse(statements, frames);
-        ExecutionResult r;
+        List<List<Object>> rows;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
-            r = Executor.execute(dialect.render(b), b, fusedShape,
-                ResultShape.TABULAR, on, dialect, trace);
+            rows = runner.rows(b, PlanSessions.given(on), true);
         }
-        if (!(r instanceof ExecutionResult.Tabular t) || t.rows().size() != statements.size()) {
-            throw new IllegalStateException("the batch verdict statement returned "
-                    + (r instanceof ExecutionResult.Tabular t2 ? t2.rows().size() + " rows" : "no grid")
-                    + " for " + statements.size() + " asserts");
+        if (rows.size() != statements.size()) {
+            throw new IllegalStateException("the batch verdict statement returned " + rows.size() + " rows for "
+                    + statements.size() + " asserts");
         }
-        return t.rows();
+        return rows;
     }
 
-    /** Execute ONE verdict statement on {@code on} and return its one row;
+    /** Execute ONE verdict statement on {@code on}, as a plan, and return its one row;
      * a statement the database rejects, or a canon the dialect cannot spell,
      * is counted UNJUDGED with the database's own words and surfaces as
      * itself — never a bare re-run, never a host rescue. */
-    public static List<Object> executeOne(String name, SqlQuery vq, ExprType oneRow,
-            Connection on, SqlDialect dialect, ExecutionTrace trace) {
-        ExecutionResult r;
+    public static List<Object> executeOne(String name, SqlQuery vq, Connection on, Runner runner) {
+        List<List<Object>> rows;
         try {
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.FALLBACK)) {
-            r = Executor.execute(dialect.render(vq), vq, oneRow, ResultShape.TABULAR, on,
-                    dialect, trace);
+                rows = runner.rows(vq, PlanSessions.given(on), false);
             }
         } catch (com.legend.error.DataError e) {
             CanonicalDivergence.sqlUnjudged(name, "statement-error: "
@@ -351,10 +354,9 @@ public final class VerdictBatch {
                     + String.valueOf(e.getMessage()).split("\n")[0]);
             throw e;
         }
-        if (!(r instanceof ExecutionResult.Tabular t) || t.rows().size() != 1) {
-            throw new IllegalStateException(name + ": the verdict statement returned "
-                    + (r instanceof ExecutionResult.Tabular t2 ? t2.rows().size() + " rows" : "no grid"));
+        if (rows.size() != 1) {
+            throw new IllegalStateException(name + ": the verdict statement returned " + rows.size() + " rows");
         }
-        return t.rows().get(0).values();
+        return rows.get(0);
     }
 }

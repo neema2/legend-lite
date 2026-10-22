@@ -56,7 +56,9 @@ import java.util.function.Supplier;
  * <p>The model travels as {@code PureModelContextText}; any other model context is refused
  * in upstream's error shape until the PMCD reader exists (recorded). Recorded differences
  * from legend-engine, each named in the parity test: lite's type names (no precise
- * primitives), and a plan's {@code resultColumns} carry no physical type.
+ * primitives). A plan's {@code resultColumns} carry the store's declared type where a column reads one through,
+ * as the engine's do (the plan's own fact, docs/PLAN_PATH_PROGRAM_2026_10_17.md §3; the recorded difference
+ * closed 2026-10-17).
  */
 public final class PureV1Api {
 
@@ -638,17 +640,22 @@ public final class PureV1Api {
     static Map<String, Object> executionPlan(QueryPlan plan, Map<String, Object> connection) {
         List<Map<String, Object>> tdsColumns = new ArrayList<>();
         List<Map<String, Object>> resultColumns = new ArrayList<>();
-        for (var c : UpstreamRelationType.columns(plan.rootType())) {
+        List<com.legend.compiler.element.type.Type.Column> typed = UpstreamRelationType.columns(plan.rootType());
+        for (int i = 0; i < typed.size(); i++) {
+            var c = typed.get(i);
             Map<String, Object> col = new LinkedHashMap<>();
             col.put("enumMapping", Map.of());
             col.put("name", c.name());
+            // the builder's relational type is the engine's spelling of the PURE type (measured, 4.145.0: a
+            // VARCHAR(32) store column's is VARCHAR(1024)); the physical type rides resultColumns below
             col.put("relationalType", UpstreamRelationType.relationalSpelling(c.type()));
             col.put("type", UpstreamRelationType.tdsTypePath(c.type()));
             tdsColumns.add(col);
             Map<String, Object> rc = new LinkedHashMap<>();
-            // the engine spells a PASS-THROUGH column's physical type here, a computed
-            // one's as "" -- lite's typer has no physical provenance (recorded)
-            rc.put("dataType", "");
+            // the engine spells a PASS-THROUGH column's physical type here, a computed one's as "": the plan's
+            // store fact (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3), by provenance over the lowered query
+            String store = i < plan.columns().size() ? plan.columns().get(i).store() : null;
+            rc.put("dataType", store == null ? "" : store);
             rc.put("label", "\"" + c.name() + "\"");
             resultColumns.add(rc);
         }

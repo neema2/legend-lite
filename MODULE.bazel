@@ -115,7 +115,7 @@ maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 # http_jar fetches each, pinned by sha256, with no Maven resolution (tools/deps/jars_table.bzl, the one table;
 # docs/BUILD_REBUILD_DESIGN_2026_10_05.md, section 5b).
 product_jars = use_extension("//tools/deps:jars.bzl", "product_jars")
-use_repo(product_jars, "bigquery_jdbc", "clickhouse_jdbc", "databricks_jdbc", "duckdb_jdbc", "duckdb_jdbc_warehouse", "h2", "h2_modern", "mariadb_jdbc", "postgresql", "snowflake_jdbc", "sqlite_jdbc", "trino_jdbc")
+use_repo(product_jars, "bigquery_jdbc", "bson", "bson_record_codec", "clickhouse_jdbc", "databricks_jdbc", "duckdb_jdbc", "duckdb_jdbc_warehouse", "h2", "h2_modern", "mariadb_jdbc", "mongodb_driver_core", "mongodb_driver_sync", "postgresql", "snowflake_jdbc", "sqlite_jdbc", "trino_jdbc")
 
 # THE POSTGRES the Postgres lanes run on (tools/postgres/postgres.bzl): pinned Postgres 16 binaries, one
 # repository per platform, unpacked by Bazel -- no Docker, no jar on a classpath -- and the hub
@@ -142,6 +142,12 @@ use_repo(embedded_trino, "embedded_trino")
 # binary kept -- no Docker -- in @embedded_clickhouse (Linux x86_64 only: the build pinned).
 embedded_clickhouse = use_extension("//tools/clickhouse:extensions.bzl", "embedded_clickhouse")
 use_repo(embedded_clickhouse, "embedded_clickhouse")
+
+# THE MONGODB the MongoDB lanes run on (tools/mongodb/mongodb.bzl; docs/MONGODB_PLAN_2026_10_16.md D8): MongoDB's pinned
+# Community Server tarball, its server binary kept -- no Docker, test input only -- in @embedded_mongodb (Linux x86_64
+# only: the build pinned).
+embedded_mongodb = use_extension("//tools/mongodb:extensions.bzl", "embedded_mongodb")
+use_repo(embedded_mongodb, "embedded_mongodb")
 
 # test tooling, at legend-lite's own versions (root pom <junit.version>). JUnit's
 # BOM keeps the Jupiter and Platform jars in step. tools/junit/JUnitMain drives the

@@ -5,6 +5,7 @@ package com.legend.resolver;
 
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedIf;
@@ -103,17 +104,17 @@ final class GenericTypeReflection {
             }
             TypedSpec read = new TypedPropertyAccess(rowVar, c.name(),
                     new ExprType(c.type(), c.multiplicity()));
-            TypedSpec name = new TypedCString(simpleName(fqn), str1);
+            TypedSpec name = new TypedCString(PlatformTypes.typeValuePath(fqn), str1);
             body = body == null
                     ? new TypedIf(read, name, Optional.empty(), str1)
                     : new TypedIf(read, name, Optional.of(body), str1);
         }
         if (body == null) {
-            body = new TypedCString(simpleName(baseClassFqn), str1);
+            body = new TypedCString(PlatformTypes.typeValuePath(baseClassFqn), str1);
         }
         // the column IS a type value (M3: GenericType.rawType : Type) — its
-        // cell holds the class's simple name (the type-value wire convention)
-        // and judges as a type, never as a string
+        // cell holds the class's path (the type-value wire convention,
+        // docs/PLAN_PATH_PROGRAM_2026_10_17.md §9) and judges as a type, never as a string
         Type typeValue = new Type.ClassType("meta::pure::metamodel::type::Type");
         TypedLambda lam = new TypedLambda(List.of(v), List.of(body),
                 new ExprType(new Type.FunctionType(
@@ -123,10 +124,5 @@ final class GenericTypeReflection {
                 List.of(new Type.Column("rawType", typeValue, one)), List.of());
         return new TypedProject(rel, List.of(new TypedFuncCol("rawType", lam)),
                 new ExprType(Type.relation(out), one));
-    }
-
-    private static String simpleName(String fqn) {
-        int cut = fqn.lastIndexOf("::");
-        return cut < 0 ? fqn : fqn.substring(cut + 2);
     }
 }

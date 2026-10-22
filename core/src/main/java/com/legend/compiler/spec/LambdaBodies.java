@@ -47,7 +47,10 @@ final class LambdaBodies {
         }
         LambdaFunction folded = SourceSubst.inlineLets(lam);
         if (folded != null) {
-            return t.synth(folded.body().get(0), scope);
+            // the objects the splice evaluates apart are untracked (docs/OBJECT_IDENTITY_2026_10_20.md §4.4)
+            java.util.Set<Object> untracked = SourceSubst.untrackedLetNodes(lam);
+            TypedSpec body = t.synth(folded.body().get(0), scope);
+            return untracked.isEmpty() ? body : com.legend.compiler.spec.typed.Evaluation.untrack(body, untracked);
         }
         // a LEADING let before a non-let statement (let c = …; assert(..); …):
         // substitute it forward and take the rest through the same rule

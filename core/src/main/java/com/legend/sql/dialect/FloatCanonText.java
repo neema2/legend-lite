@@ -32,6 +32,7 @@ final class FloatCanonText {
 
         private final boolean bindText;
         private final int[] fresh = {0};
+        private final java.util.Map<SqlExpr, SqlExpr> spelledCalls = new java.util.HashMap<>();
 
         /** {@code bindText}: the double's text is a column of a one-row derived table, written once, under a scalar
          *  subquery ({@code (SELECT <spelling over t> FROM (SELECT CAST(v AS VARCHAR) AS t) AS __fcN)}, the shape a
@@ -45,6 +46,13 @@ final class FloatCanonText {
             if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.FLOAT_CANON) {
                 if (!bindText) {
                     return of(c.args().get(0));
+                }
+                // an equal call is the same node, its alias too: a repeated canon is then one subtree a common-
+                // subexpression binding writes once (step 9, 2026-10-19: a mixed list's float decoded in each branch
+                // of format was 1.29 MB on SQLite, each copy under its own alias, so never equal)
+                SqlExpr known = spelledCalls.get(c);
+                if (known != null) {
+                    return known;
                 }
                 String alias = "__fc" + fresh[0]++;
                 SqlExpr text = new SqlExpr.Cast(c.args().get(0), SqlType.Scalar.VARCHAR);
@@ -61,7 +69,9 @@ final class FloatCanonText {
                                 new com.legend.sql.OutputCol("v", SqlType.Scalar.VARCHAR, true))), false,
                         new com.legend.sql.SqlSource.Subselect(bind, alias, null), null, List.of(), null, null, List.of(),
                         null, null, List.of());
-                return new SqlExpr.ScalarSubquery(use);
+                SqlExpr spelledCall = new SqlExpr.ScalarSubquery(use);
+                spelledCalls.put(c, spelledCall);
+                return spelledCall;
             }
             return super.expr(e);
         }
@@ -69,7 +79,21 @@ final class FloatCanonText {
 
     /** Pure's literal spelling of the double {@code v}, as SQL over its text. */
     static SqlExpr of(SqlExpr v) {
-        SqlExpr base = new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
+        return ofText(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR));
+    }
+
+    /** The exponent unfolded to fixed point where the text {@code base} carries one, else the text as it is: a
+     *  database whose text of a number is scientific past some magnitude (MongoDB's {@code $toString} of a double, a
+     *  Decimal128's own form) reads its number through this (the MongoDB line's homework 3, 2026-10-17). */
+    static SqlExpr fixedPoint(SqlExpr base) {
+        return new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.OR, has(base, "e"), has(base, "E")),
+                        exponentUnfold(base))),
+                base);
+    }
+
+    /** Pure's literal spelling of a double over {@code base}, the database's text of it. */
+    static SqlExpr ofText(SqlExpr base) {
         SqlExpr unfolded = exponentUnfold(base);
         return new SqlExpr.Case(List.of(
                 // ZEROS UNIFY (spec §3, witness parseFloat('-000.000')):

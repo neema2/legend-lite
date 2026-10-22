@@ -33,9 +33,30 @@ public final class Connectors {
             case BigQuery -> BigQueryConnector.INSTANCE;
             case Trino -> TrinoConnector.INSTANCE;
             case ClickHouse -> ClickHouseConnector.INSTANCE;
+            // built beside the JDBC drivers, not in core (docs/MONGODB_PLAN_2026_10_16.md D12): its client library is
+            // no dependency of core's
+            case MongoDB -> LOADED.stream().filter(c -> c.type() == type).findFirst()
+                    .orElseGet(() -> new Unbuilt(type, true, "its connector rides with the drivers (core/src/main/mongodb),"
+                            + " and none is on the class path"));
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto, Redshift, Spanner, Athena, Oracle,
-                 Aurora, Deephaven -> new Unbuilt(type);
+                 Aurora, Deephaven -> new Unbuilt(type, false, null);
         };
+    }
+
+    /** The connectors built beside the JDBC drivers, found as they are, by {@link java.util.ServiceLoader} (the bulk
+     *  loaders' way); two for one type is a packaging mistake, said at once. */
+    private static final java.util.List<DatabaseConnector> LOADED = loaded();
+
+    private static java.util.List<DatabaseConnector> loaded() {
+        java.util.List<DatabaseConnector> found = java.util.ServiceLoader.load(DatabaseConnector.class).stream()
+                .map(java.util.ServiceLoader.Provider::get).toList();
+        java.util.Set<DatabaseType> types = java.util.EnumSet.noneOf(DatabaseType.class);
+        for (DatabaseConnector c : found) {
+            if (!types.add(c.type())) {
+                throw new IllegalStateException("two connectors for " + c.type() + " on the class path");
+            }
+        }
+        return found;
     }
 
     /** The product name {@code session}'s JDBC driver reports ({@code DatabaseMetaData.getDatabaseProductName}): the
@@ -51,16 +72,25 @@ public final class Connectors {
         String product = product(session);
         for (DatabaseType t : DatabaseType.values()) {
             DatabaseConnector c = of(t);
-            if (!(c instanceof Unbuilt) && c.jdbcProduct().equals(product)) {
+            if (!(c instanceof Unbuilt) && !c.ownSessions() && c.jdbcProduct().equals(product)) {
                 return c;
             }
         }
         return null;
     }
 
-    /** A type no connector is built for: its sessions refused by name (no product name, no declared connection
-     *  opened, no private instance, no storeless runtime); it has no in-process instance, as a server has none. */
-    private record Unbuilt(DatabaseType type) implements DatabaseConnector {
+    /** A type no connector is built for, or none is on the class path (then {@code why} says so): its sessions refused
+     *  by name (no
+     *  product name, no declared connection opened, no private instance, no storeless runtime); it has no in-process
+     *  instance, as a server has none. {@code ownSessions}: whether its sessions would be the connector's own, so a
+     *  declared connection is refused for the missing connector, not for the credential it carries. */
+    private record Unbuilt(DatabaseType type, boolean ownSessions, @com.legend.base.Nullable String why)
+            implements DatabaseConnector {
+
+        @Override
+        public Sessions.Session open(ConnectionDefinition def) {
+            throw unbuilt();
+        }
 
         @Override
         public String jdbcProduct() {
@@ -84,7 +114,7 @@ public final class Connectors {
 
         private com.legend.error.NotImplementedException unbuilt() {
             return new com.legend.error.NotImplementedException(
-                    "sessions on database type '" + type + "' are not implemented");
+                    "sessions on database type '" + type + "' are not implemented" + (why == null ? "" : ": " + why));
         }
     }
 }

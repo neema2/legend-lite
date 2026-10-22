@@ -221,7 +221,10 @@ public final class PctCensusGate {
             Map.entry("clickhouse", ALL_ZERO),
             Map.entry("snowflake", ALL_ZERO),
             Map.entry("databricks", ALL_ZERO),
-            Map.entry("bigquery", ALL_ZERO));
+            Map.entry("bigquery", ALL_ZERO),
+            // measured 2026-10-22 on the merged head (78bd5da3, main's merge into the plan path branch, the first run
+            // of this gate on the branch's MongoDB lane): every count zero on every suite
+            Map.entry("mongodb", ALL_ZERO));
 
     /** This lane's ceilings for {@code suite}, or the run is refused: a lane is measured before it is judged. */
     private static Ceilings ceilings(String suite) {

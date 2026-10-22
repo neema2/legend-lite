@@ -14,7 +14,6 @@ import com.legend.executionplan.ExecutionPlan.SetupStep;
 import com.legend.executionplan.ExecutionPlan.Slot;
 import com.legend.executionplan.ExecutionPlan.Sql;
 import com.legend.executionplan.ExecutionPlan.Target;
-import com.legend.executionplan.ExecutionPlan.TdsColumn;
 import com.legend.executionplan.ExecutionPlan.TdsResult;
 import com.legend.executionplan.ExecutionPlan.TextResult;
 import com.legend.executionplan.ExecutionPlan.Value;
@@ -29,7 +28,7 @@ import java.util.Map;
 /**
  * THE LITE PLAN FORMAT: an {@link ExecutionPlan} as JSON and back. Lite's own, clean shape — legend-engine's protocol is a
  * separate, later serialisation of the same plan (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8). Every {@code _type} is an
- * enum constant shared by the writer and the reader, read by an exhaustive switch; an unknown tag is refused by name. The typed SQL tree is not written yet: a plan read back has none.
+ * enum constant shared by the writer and the reader, read by an exhaustive switch; an unknown tag is refused by name. The typed SQL tree is written too ({@link MirJson}, 2026-10-18): a plan read back is as typed as the planner's.
  */
 public final class PlanJson {
 
@@ -39,21 +38,33 @@ public final class PlanJson {
      *  2026-10-09: the planner's plans (step 2's landing 2) — a target's database (declared or the platform's), its
      *  server versions and session statements, and a text result's columns without a SQL type; 4 since 2026-10-09: the
      *  runner's plans (step 3) — each slot's binding (one value with its null's type and, where the statement names the
-     *  value's type, its type hole; or a list as one array). */
-    public static final int VERSION = 4;
+     *  value's type, its type hole; or a list as one array); 5 since 2026-10-17: a text result's column's three type
+     *  facts -- its multiplicity, the SQL type of its slot, its store's declared type or null -- and the typed SQL
+     *  tree, every MIR variant its own tag ({@link MirJson}; docs/PLAN_PATH_PROGRAM_2026_10_17.md §3); 6 since
+     *  2026-10-18: a tabular result's columns carry the same three type facts (the plan path program's step 6: the
+     *  runner decodes typed rows by them), where they carried a name, a type and a SQL type; 7 since 2026-10-19: a
+     *  pivot carries the values a cast over it names ({@code named}, the plan path program's step 9) beside its IN; 8
+     *  since 2026-10-20: the keyed result (a dynamic pivot's probe plan: a keys probe, a body with per-key regions, its
+     *  fixed and per-key outputs, its snapshot), a statement's per-key regions, a key's cell as a slot's binding and a
+     *  MIR leaf, a per-key name as an output origin; the row-as-JSON leaf gone; 9 since 2026-10-20: the keyed result's
+     *  cells named as its statements write them (the probe's {@code keyFields}, each output's {@code field}: a session
+     *  reading a cell by name, MongoDB's, reads it so). */
+    public static final int VERSION = 9;
 
     private PlanJson() {
     }
 
     /** The {@code _type} tags of the lite format, one spelling for the writer and the reader: an exhaustive switch over
      *  each family, an unknown tag refused by name ({@link #tag}). */
-    enum NodeTag { sequence, tdsResult, textResult }
+    enum NodeTag { sequence, tdsResult, textResult, keyed }
+
+    enum OutputTag { fixed, perKey }
 
     enum ResultTypeTag { relation, value }
 
     enum SetupTag { statement, rows }
 
-    enum BindingTag { one, array }
+    enum BindingTag { one, array, key }
 
     enum DatabaseTag { declared, platform }
 
@@ -119,17 +130,47 @@ public final class PlanJson {
                 o.put("type", resultType(x.type()));
                 o.put("sql", sql(x.sql()));
             }
+            case ExecutionPlan.Keyed k -> {
+                o.put("_type", NodeTag.keyed.name());
+                o.put("keys", sql(k.keys()));
+                o.put("keyFields", new ArrayList<Object>(k.keyFields()));
+                o.put("format", k.format() == null ? null : k.format().name());
+                List<Object> outputs = new ArrayList<>();
+                for (ExecutionPlan.Keyed.Output out : k.outputs()) {
+                    Map<String, Object> oo = new LinkedHashMap<>();
+                    switch (out) {
+                        case ExecutionPlan.Keyed.Fixed f -> {
+                            oo.put("_type", OutputTag.fixed.name());
+                            oo.put("name", f.name());
+                        }
+                        case ExecutionPlan.Keyed.PerKey p -> {
+                            oo.put("_type", OutputTag.perKey.name());
+                            oo.put("name", p.name());
+                        }
+                    }
+                    oo.put("field", out.field());
+                    oo.put("column", columns(List.of(out.column())).get(0));
+                    outputs.add(oo);
+                }
+                o.put("outputs", outputs);
+                o.put("body", sql(k.body()));
+                o.put("snapshot", k.snapshot().name());
+                o.put("maxColumns", k.maxColumns());
+            }
         }
         return o;
     }
 
-    private static List<Object> columns(List<TdsColumn> columns) {
+    /** The columns with their three type facts (format 5's relation columns; a tabular result's since format 6). */
+    private static List<Object> columns(List<ExecutionPlan.Column> columns) {
         List<Object> cols = new ArrayList<>();
-        for (TdsColumn c : columns) {
+        for (ExecutionPlan.Column c : columns) {
             Map<String, Object> co = new LinkedHashMap<>();
             co.put("name", c.name());
             co.put("type", c.type());
-            co.put("sqlType", c.sqlType());
+            co.put("multiplicity", multiplicity(c.multiplicity()));
+            co.put("slot", c.slot());
+            co.put("store", c.store());   // null: computed, no declared type
             cols.add(co);
         }
         return cols;
@@ -140,14 +181,7 @@ public final class PlanJson {
         switch (type) {
             case Relation r -> {
                 o.put("_type", ResultTypeTag.relation.name());
-                List<Object> cols = new ArrayList<>();
-                for (ExecutionPlan.Column c : r.columns()) {
-                    Map<String, Object> co = new LinkedHashMap<>();
-                    co.put("name", c.name());
-                    co.put("type", c.type());
-                    cols.add(co);
-                }
-                o.put("columns", cols);
+                o.put("columns", columns(r.columns()));
             }
             case Value v -> {
                 o.put("_type", ResultTypeTag.value.name());
@@ -169,7 +203,25 @@ public final class PlanJson {
             slots.add(so);
         }
         o.put("slots", slots);
+        if (!s.regions().isEmpty()) {
+            List<Object> regions = new ArrayList<>();
+            for (ExecutionPlan.Region r : s.regions()) {
+                Map<String, Object> ro = new LinkedHashMap<>();
+                ro.put("start", r.start());
+                ro.put("end", r.end());
+                ro.put("lead", r.lead());
+                ro.put("separator", r.separator());
+                ro.put("empty", r.empty());
+                ro.put("firstSlot", r.firstSlot());
+                ro.put("slotCount", r.slotCount());
+                ro.put("counters", r.counters());
+                regions.add(ro);
+            }
+            o.put("regions", regions);
+        }
         o.put("target", target(s.target()));
+        // the typed SQL tree (MirJson; the plan path program's step 1b): a plan read back is as typed as the planner's
+        o.put("tree", s.tree() == null ? null : MirJson.query(s.tree()));
         return o;
     }
 
@@ -204,6 +256,10 @@ public final class PlanJson {
             case ExecutionPlan.Binding.Array array -> {
                 o.put("_type", BindingTag.array.name());
                 o.put("elementSqlType", array.elementSqlType());
+            }
+            case ExecutionPlan.Binding.Key key -> {
+                o.put("_type", BindingTag.key.name());
+                o.put("cell", key.cell());
             }
         }
         return o;
@@ -272,8 +328,15 @@ public final class PlanJson {
 
     // ---- read -------------------------------------------------------------------------------------------------------
 
+    /** How deep a plan's JSON may nest: its typed SQL tree nests as the query does (a class instance's text, spelled
+     *  over its layout, nests a CASE and a CONCAT per property per level), far past the reader's default of 64, which
+     *  guards a server against hostile input; a plan is the planner's own text. */
+    static final int MAX_DEPTH = 4096;
+
     public static ExecutionPlan read(String json) {
-        Json.Obj o = Json.parseObject(json);
+        if (!(Json.parse(json, new Json.Config(MAX_DEPTH)) instanceof Json.Obj o)) {
+            throw new IllegalArgumentException("a plan's JSON is an object");
+        }
         String format = o.getStringOr("format", null);
         if (!FORMAT.equals(format) || o.getIntOr("version", -1) != VERSION) {
             throw new IllegalArgumentException("not a " + FORMAT + " v" + VERSION + " plan (format " + format
@@ -304,9 +367,31 @@ public final class PlanJson {
                 }
                 yield new Sequence(steps);
             }
-            case tdsResult -> new TdsResult(readColumns(o.getArr("columns")), readSql(o.getObj("sql")));
+            case tdsResult -> new TdsResult(readRelationColumns(o.getArr("columns")), readSql(o.getObj("sql")));
             case textResult -> new TextResult(named(Format.class, o.getString("format"), "text result format"),
                     readResultType(o.getObj("type")), readSql(o.getObj("sql")));
+            case keyed -> {
+                List<ExecutionPlan.Keyed.Output> outputs = new ArrayList<>();
+                for (Json.Node n : o.getArr("outputs").items()) {
+                    Json.Obj oo = (Json.Obj) n;
+                    ExecutionPlan.Column column = readRelationColumns(new Json.Arr(List.of(oo.getObj("column")))).get(0);
+                    outputs.add(switch (tag(OutputTag.class, oo, "keyed output")) {
+                        case fixed -> new ExecutionPlan.Keyed.Fixed(column, oo.getString("name"),
+                                oo.getString("field"));
+                        case perKey -> new ExecutionPlan.Keyed.PerKey(column, oo.getInt("name"), oo.getString("field"));
+                    });
+                }
+                List<String> keyFields = new ArrayList<>();
+                for (Json.Node n : o.getArr("keyFields").items()) {
+                    keyFields.add(((Json.Str) n).value());
+                }
+                String format = o.getStringOr("format", null);
+                yield new ExecutionPlan.Keyed(readSql(o.getObj("keys")), keyFields,
+                        format == null ? null : named(Format.class, format, "keyed result format"), outputs,
+                        readSql(o.getObj("body")),
+                        named(ExecutionPlan.Keyed.Snapshot.class, o.getString("snapshot"), "keyed snapshot"),
+                        o.getOr("maxColumns", null) == null ? null : o.getInt("maxColumns"));
+            }
         };
     }
 
@@ -314,16 +399,8 @@ public final class PlanJson {
         List<ExecutionPlan.Column> cols = new ArrayList<>();
         for (Json.Node n : columns.items()) {
             Json.Obj c = (Json.Obj) n;
-            cols.add(new ExecutionPlan.Column(c.getString("name"), c.getString("type")));
-        }
-        return cols;
-    }
-
-    private static List<TdsColumn> readColumns(Json.Arr columns) {
-        List<TdsColumn> cols = new ArrayList<>();
-        for (Json.Node n : columns.items()) {
-            Json.Obj c = (Json.Obj) n;
-            cols.add(new TdsColumn(c.getString("name"), c.getString("type"), c.getString("sqlType")));
+            cols.add(new ExecutionPlan.Column(c.getString("name"), c.getString("type"),
+                    readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null), c.getStringOr("store", null)));
         }
         return cols;
     }
@@ -356,6 +433,7 @@ public final class PlanJson {
                 yield new ExecutionPlan.Binding.One(o.getString("nullType"), hole);
             }
             case array -> new ExecutionPlan.Binding.Array(o.getString("elementSqlType"));
+            case key -> new ExecutionPlan.Binding.Key(o.getInt("cell"));
         };
     }
 
@@ -370,8 +448,24 @@ public final class PlanJson {
         for (Json.Node n : t.getArr("setup").items()) {
             setup.add(readSetupStep((Json.Obj) n));
         }
+        Json.Node tree = o.getOr("tree", null);
+        List<ExecutionPlan.Region> regions = new ArrayList<>();
+        Json.Node rs = o.getOr("regions", null);
+        if (rs != null) {
+            for (Json.Node n : ((Json.Arr) rs).items()) {
+                Json.Obj r = (Json.Obj) n;
+                List<Integer> counters = new ArrayList<>();
+                for (Json.Node c : r.getArr("counters").items()) {
+                    counters.add(Math.toIntExact(((Json.Num) c).longValue()));
+                }
+                regions.add(new ExecutionPlan.Region(r.getInt("start"), r.getInt("end"), r.getString("lead"),
+                        r.getString("separator"), r.getStringOr("empty", null), r.getInt("firstSlot"),
+                        r.getInt("slotCount"), counters));
+            }
+        }
         return new Sql(o.getString("statement"), slots, new Target(readDatabase(t.getObj("database")),
-                readServers(t.getObj("servers")), t.getStringArray("session"), setup), null);
+                readServers(t.getObj("servers")), t.getStringArray("session"), setup),
+                tree == null ? null : MirJson.readQuery((Json.Obj) tree), regions);
     }
 
     private static ExecutionPlan.Database readDatabase(Json.Obj o) {

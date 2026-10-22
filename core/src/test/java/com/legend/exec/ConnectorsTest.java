@@ -46,6 +46,7 @@ class ConnectorsTest {
                 new ConnectionSpecification.LocalFile("/tmp/x.db"), new ConnectionSpecification.LocalH2(null),
                 new ConnectionSpecification.EmbeddedH2("shared", "/tmp/dir", false),
                 new ConnectionSpecification.StaticDatasource("db.example", 5432, "app"),
+                new ConnectionSpecification.Trino("trino.example", 8080, "memory", "default", null, false),
                 new ConnectionSpecification.Snowflake("d", "a", "w", "r", null, null, null, null, null),
                 new ConnectionSpecification.Spanner("p", "i", "d"),
                 new ConnectionSpecification.Databricks("h", "443", "https", "/sql"),
@@ -135,6 +136,16 @@ class ConnectorsTest {
             };
             case Postgres -> server.apply("jdbc:postgresql://");
             case MariaDB, MySQL -> server.apply("jdbc:mariadb://");
+            // since 59b547a (the plan path program's step 9, 2026-10-19): a Trino specification opens by its URL, and a
+            // session names a user, which a connection of no authentication names none
+            case Trino -> spec instanceof ConnectionSpecification.Trino
+                    ? "refused: a Trino session names a user, and a connection of no authentication names none"
+                            + " (connection '" + Q + "')"
+                    : refused;
+            // since 59b547a (docs/MONGODB_PLAN_2026_10_16.md D12, 2026-10-17): its connector opens its own sessions,
+            // and no JDBC opening reaches it
+            case MongoDB -> "refused: connection '" + Q + "' declares MongoDB, which no JDBC opening reaches: its"
+                    + " connector opens it, through the plan runner";
             default -> "refused: connections to database type '" + type + "' are not implemented (connection '" + Q
                     + "')";
         };
@@ -148,6 +159,33 @@ class ConnectorsTest {
                         new AuthenticationSpec.NoAuth());
                 assertEquals(expected(type, spec), opening(def), type + " " + spec);
             }
+        }
+    }
+
+    /** A Trino connection opens at legend-engine's URL (TrinoManager.buildURL: the catalog, then the schema), as the
+     *  user the test authentications name, its prepared statements sent as one (the plan path program's step 9,
+     *  2026-10-19; moved into the connector at main's merge, 2026-10-22). */
+    @Test
+    void aTrinoConnectionOpensAtTheEnginesUrl() {
+        ConnectionDefinition def = new ConnectionDefinition(Q, null, DatabaseType.Trino,
+                new ConnectionSpecification.Trino("trino.example", 8080, "memory", "default", null, false),
+                new AuthenticationSpec.TestAuth());
+        assertEquals("url jdbc:trino://trino.example:8080/memory/default?user=sa&explicitPrepare=false", opening(def));
+        ConnectionDefinition tls = new ConnectionDefinition(Q, null, DatabaseType.Trino,
+                new ConnectionSpecification.Trino("trino.example", 443, null, null, null, true),
+                new AuthenticationSpec.TestAuth());
+        assertEquals("refused: a Trino connection over TLS is not implemented (connection '" + Q + "')", opening(tls));
+    }
+
+    /** Whether a database runs in this process is one fact on both sides: the plan side's (its dialect's, which a plan
+     *  writes the system metamodel store's tables by) and the execution side's (its connector's, which opens its
+     *  private instance) -- the merge of main, 2026-10-22: the branch's {@code Databases.inProcess} became the
+     *  dialect's, as main's Phase 5 made every plan fact. */
+    @Test
+    void aDatabaseRunsInProcessOnBothSidesAlike() {
+        for (DatabaseType type : com.legend.database.Databases.implemented()) {
+            assertEquals(Connectors.of(type).inProcess(), com.legend.database.Databases.dialect(type).inProcess(),
+                    type.toString());
         }
     }
 
@@ -186,7 +224,13 @@ class ConnectorsTest {
         Set<DatabaseType> inProcess = Set.of(DatabaseType.H2, DatabaseType.DuckDB, DatabaseType.SQLite);
         for (DatabaseType type : DatabaseType.values()) {
             String product = products.get(type);
-            if (product == null) {
+            if (Connectors.of(type).ownSessions()) {
+                // MongoDB (since 59b547a, D12 and D14): no JDBC product; a JDBC session handed for it is refused
+                NotImplementedException refused = assertThrows(NotImplementedException.class,
+                        () -> Sessions.jdbcProduct(type));
+                assertEquals("sessions on MongoDB are not JDBC: its connector opens them, through the plan runner",
+                        refused.getMessage());
+            } else if (product == null) {
                 NotImplementedException refused = assertThrows(NotImplementedException.class,
                         () -> Sessions.jdbcProduct(type));
                 assertEquals("sessions on database type '" + type + "' are not implemented", refused.getMessage());
@@ -224,6 +268,9 @@ class ConnectorsTest {
                     () -> Connectors.of(type).storelessDeclaration());
             assertEquals(servers.contains(type)
                     ? type + " is a server: its storeless runtime declares the session's coordinates (onServer)"
+                    // MongoDB (since 59b547a): a server whose connection is the engine's MongoDBConnection
+                    : Connectors.of(type).ownSessions() ? type + " is a server, and its connection is the engine's"
+                            + " MongoDBConnection: its storeless runtime declares the session's coordinates (onMongo)"
                     : "no storeless runtime on " + type + ": the platform does not execute on it", refused.getMessage());
         }
     }

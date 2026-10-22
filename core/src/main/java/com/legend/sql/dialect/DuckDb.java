@@ -109,6 +109,12 @@ public final class DuckDb extends AnsiSqlRenderer {
         return true;
     }
 
+    /** {@inheritDoc} Yes: an embedded engine. */
+    @Override
+    public boolean inProcess() {
+        return true;
+    }
+
     /** {@inheritDoc} Written beside this dialect ({@code DuckDbHostOperations}). */
     @Override
     public HostOperations hostOperations() {
@@ -506,6 +512,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "error");
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
@@ -1132,5 +1139,16 @@ public final class DuckDb extends AnsiSqlRenderer {
             return "DATE";
         }
         throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached DuckDB");
+    }
+
+    // the probe plan's facts (2026-10-20): measured 2026-10-20: 70,000 columns answered, no limit met; setTransactionIsolation refused, every transaction a snapshot
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.TRANSACTION;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return null;
     }
 }

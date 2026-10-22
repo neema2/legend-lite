@@ -35,9 +35,9 @@ public class Test_LegendLite_Postgres_UnclassifiedFunctions_PCT extends PCTRepor
     // Pinned by a STABLE part of the message (the runner matches by containment): no per-run id.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
             // Postgres raises differently (its own error, or a different position or wording)
-            one("meta::pure::functions::string::tests::char::testEmptyChar_Function_1__Boolean_1_", "ERROR: null character not permitted"),
-            // refused by name: no Postgres release has a core sha1 (18.6 and devel, 2026-10-12); pgcrypto's digest() does
-            one("meta::pure::functions::hash::tests::testSHA1Hash_Function_1__Boolean_1_", "SHA1 reached Postgres: an extension function (pgcrypto)")
+            // NOTE 2026-10-20 (the parity phase): testSHA1Hash unpinned -- SHA-1 is pgcrypto's digest(), as the
+            // engine's Postgres spells it; the embedded server installs pgcrypto, as the engine's test databases have it
+            one("meta::pure::functions::string::tests::char::testEmptyChar_Function_1__Boolean_1_", "ERROR: null character not permitted")
     );
 
     public static Test suite() {

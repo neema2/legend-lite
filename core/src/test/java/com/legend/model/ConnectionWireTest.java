@@ -31,6 +31,8 @@ class ConnectionWireTest {
             new ConnectionSpecification.LocalH2("jdbc:h2:mem:x", "default\nT\nID\n1", List.of("create table T(ID INT)")),
             new ConnectionSpecification.EmbeddedH2("db", "/tmp", true),
             new ConnectionSpecification.StaticDatasource("127.0.0.1", 5432, "postgres"),
+            new ConnectionSpecification.Trino("127.0.0.1", 8080, "memory", "default", null, false),
+            new ConnectionSpecification.Trino("h", 443, null, null, "tag", true),
             new ConnectionSpecification.Snowflake("DB", "acct", "wh", "us-east-1", null, "aws", true, null, "ROLE"),
             new ConnectionSpecification.Spanner("p", "i", "d"),
             new ConnectionSpecification.Databricks("host", "443", "https", "/sql/1"),

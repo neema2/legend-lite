@@ -33,22 +33,15 @@ public class Test_LegendLite_MariaDB_RelationFunctions_PCT extends PCTReportConf
             // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): name resolution, lowering
             // and harness limits, the 0-based indexOf, error positions and messages
             one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\""),
-            // MARIADB'S OWN LIMIT: GROUP_CONCAT, JSON_ARRAYAGG and a mode are no window functions (measured), so a
-            // windowed string aggregate or mode has no spelling
-            one("meta::pure::functions::relation::tests::composition::testExtendJoinStringOnNull_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MariaDB, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderASCUnboundedWindow_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MariaDB, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderUnboundedWindow_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MariaDB, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderUnboundedWindow_MultipleExpressions_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MariaDB, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderWindow_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MariaDB, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderWindow_MultipleExpressions_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MariaDB, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MariaDB, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MariaDB, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns_MultipleExpressions_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MariaDB, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderWindowMultipleColumns_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MariaDB, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderWindowMultipleColumns_MultipleExpressions_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MariaDB, where it is no window function\""),
+            // NOTE 2026-10-20 (the parity phase): the eleven windowed string aggregations unpinned -- the dialect
+            // writes a window call of an aggregate it has no window form of as that aggregate over the frame's rows,
+            // a correlated subquery over the FROM numbered (WindowAggregatesAsCorrelated)
             // MARIADB'S OWN LIMIT: a recursive CTE takes no outer reference (measured), so a fold over a row's list
             // is no walk
             one("meta::pure::functions::relation::tests::extend::testVariantColumn_fold_Function_1__Boolean_1_", "\"a fold that reads a row reached MariaDB, whose recursive CTE cannot read an outer column (measured: Unknown column)\"")
+            // the ten uncast dynamic pivots answer since the probe plan (2026-10-20, KeyedPivot: the keys read
+            // first, the body written for them on every database); their pins of step 9 (2026-10-19) removed
+            // with the run that passed them
     );
 
     public static Test suite() {

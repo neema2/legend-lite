@@ -114,6 +114,11 @@ final class ListEncodings {
         // requireBounded: a VAR stamp surviving to lowering stays LOUD
         // (the Lowerer.isMany contract this call replaced)
         boolean mToOne = !mult.requireBounded("lowering").isMany();
+        // pure's map concatenates the per-element results: a mapper whose value is many (a spelled collection, a
+        // many-valued property, an inner map or filter) flattens -- by the body's multiplicity, which a List<T>[1]
+        // value (one object, an array in SQL) does not have
+        List<com.legend.compiler.spec.typed.TypedSpec> body = m.mapper().body();
+        boolean manyValued = body.get(body.size() - 1).info().multiplicity().requireBounded("lowering").isMany();
         return map(mSrc,
                 LambdaBinding.mapMapper(lw, m, mSrc, mToOne, columns),
                 mToOne,
@@ -122,7 +127,7 @@ final class ListEncodings {
                 m.info().multiplicity() instanceof com.legend.compiler
                         .element.type.Multiplicity.Bounded rb
                         && rb.upper() != null && rb.upper() == 1,
-                ValueCollections.isCollectionMapper(m.mapper()));
+                ValueCollections.isCollectionMapper(m.mapper()) || manyValued);
     }
 
     static SqlExpr map(SqlExpr src, SqlExpr lam, boolean srcOne,

@@ -31,8 +31,8 @@ final class HostJudge {
     static List<Object> sideCells(TypedSpec arm, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        ExecutionResult r = StatementExecutor.evalValue(arm, letPrefix,
-                specs, env, null, false, hook);
+        ExecutionResult r = JudgePlans.evalSide(arm, letPrefix,
+                specs, env, false, true, hook);
         return r instanceof ExecutionResult.Tabular t ? AssertVerdicts.cells(t) : AssertVerdicts.decodeSide(r);
     }
 
@@ -593,9 +593,15 @@ final class HostJudge {
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env, boolean canonicalOrder,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        // step 6 (2026-10-18, the plan path program): the side is a plan's result, decoded by its declared types;
+        // the byte channel that rode the side query declines here by name -- the database judge is the referee
+        // (the agreement gate, AgreementArm) -- and the rider's wrap machinery is dead by construction until the
+        // deletions (step 11)
         var rider = new com.legend.exec.CanonRider(canonicalOrder);
-        ExecutionResult r = StatementExecutor.evalValue(arg, letPrefix,
-                specs, env, rider, false, hook);
+        rider.decline("plan path: the database judge is the referee");
+        // a side the rider rode was never folded (a literal evaluates in the database here too) and rode the
+        // identity lane (a keyless instance's identity, minted per construction site, is the rider's layout)
+        ExecutionResult r = JudgePlans.evalSide(arg, letPrefix, specs, env, true, false, hook);
         if (r instanceof ExecutionResult.Tabular t) {
             List<Object> cells = AssertVerdicts.cells(t);
             com.legend.exec.CanonicalDivergence.v7SideRows(cells.size());
@@ -620,8 +626,8 @@ final class HostJudge {
     static List<Object> identitySide(TypedSpec arg,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        return AssertVerdicts.decodeSide(StatementExecutor.evalValue(arg, letPrefix,
-                specs, env, null, true, hook));
+        return AssertVerdicts.decodeSide(JudgePlans.evalSide(arg, letPrefix,
+                specs, env, true, true, hook));
     }
 
     /** Failure-message sketch of a frame (columns + row count — the
@@ -677,9 +683,8 @@ final class HostJudge {
         // execute holds one TDS) is the MODEL's
         // (ExecutionResult.envelopeCarriers), keyed by the READ
         // SHAPE exactly as the harness's cluster-34 arm.
-        ExecutionResult r0 = StatementExecutor.evalValue(
-                args.get(0), letPrefix, specs, env, null, false,
-                hook);
+        ExecutionResult r0 = JudgePlans.evalSide(
+                args.get(0), letPrefix, specs, env, false, true, hook);
         long actual = switch (r0) {
             case null -> 0L;
             case ExecutionResult.Tabular t ->
@@ -777,9 +782,8 @@ final class HostJudge {
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         // §8 leg 1: a TABULAR side's emptiness is its ROW count
         // (engine relation semantics) — no canon involved
-        ExecutionResult er = StatementExecutor.evalValue(
-                arg, letPrefix, specs, env, null, false,
-                hook);
+        ExecutionResult er = JudgePlans.evalSide(
+                arg, letPrefix, specs, env, false, true, hook);
         boolean empty = er instanceof ExecutionResult.Tabular te3
                 ? te3.rows().isEmpty()
                 : AssertVerdicts.decodeSide(er).isEmpty();

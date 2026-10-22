@@ -339,7 +339,8 @@ final class LiteralUnroll {
             case TypedCopyInstance cp when cp.source() instanceof TypedNewInstance src -> {
                 java.util.Map<String, TypedSpec> props = new java.util.LinkedHashMap<>(src.properties());
                 props.putAll(cp.overrides());
-                yield new TypedNewInstance(cp.classFqn(), props, cp.info());
+                // the copy's evaluation: the object is the one the copy builds
+                yield new TypedNewInstance(cp.classFqn(), props, cp.info(), cp.evaluation());
             }
             // a WELL-FORMED spelled slice only: an inverted range is the
             // engine's error, raised by the lowering (PCT testSliceError)

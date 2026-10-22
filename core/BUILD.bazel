@@ -9,6 +9,7 @@ load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("//tools/mongodb:defs.bzl", "EMBEDDED_MONGODB_COMPATIBLE")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/jars:defs.bzl", "file_list", "java_jars")
 load("//tools/guards:defs.bzl", "guards_package")
@@ -174,7 +175,7 @@ legend_java_library(
     name = "plan",
     visibility = ["//datacube:__pkg__"],
     srcs = glob(["src/main/java/com/legend/plan/*.java"]),
-    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lineage", ":model", ":sql"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":execution_plan", ":lineage", ":model", ":sql"],
 )
 legend_java_library(
     name = "resolver",
@@ -192,7 +193,7 @@ legend_java_library(
 legend_java_library(
     name = "exec",
     srcs = glob(["src/main/java/com/legend/exec/*.java"]),
-    deps = ["//base", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":execution_plan", ":lowering", ":model", ":plan", ":platform", ":setup", ":sql", ":sql_dialect", ":values"],
+    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":execution_plan", ":lowering", ":model", ":plan", ":platform", ":setup", ":sql", ":sql_dialect", ":values"],
 )
 legend_java_library(
     name = "probe",
@@ -213,6 +214,10 @@ _PLANNER_SRCS = [
     "src/main/java/com/legend/CrossStoreGuard.java",
     # the models a host holds, compiled once and planned against many times (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9)
     "src/main/java/com/legend/HeldModels.java",
+    # the system metamodel store's rows, written into a plan's setup by the plan maker (the plan path program's
+    # step 9, 2026-10-18); until then the legacy executor's seed of the graph's system database
+    "src/main/java/com/legend/MetamodelSeeds.java",
+    "src/main/java/com/legend/OpSeeds.java",
     "src/main/java/com/legend/PlanMaker.java",
     "src/main/java/com/legend/ProgramFacts.java",
     "src/main/java/com/legend/QueryParameters.java",
@@ -236,7 +241,7 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/*.java"], exclude = _PLANNER_SRCS),
     deps = [
         "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
-        ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner", ":platform",
+        ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner", ":platform",
         ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
 )
@@ -322,12 +327,54 @@ legend_java_library(
     name = "drivers",
     runtime_deps = [
         ":duckdb_load",
+        # MongoDB's connector rides with the drivers (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): a running core
+        # is given its connectors as it is given its drivers, by ServiceLoader
+        ":mongodb_connector",
+        # Postgres's JSON cells (jsonb as JSON text) behind the DriverCells seam, as DuckDB's (step 9, 2026-10-19)
+        ":postgres_cells",
         "@duckdb_jdbc//jar",
         "@h2//jar",
         "@postgresql//jar",
         "@sqlite_jdbc//jar",
     ],
     visibility = ["//datacube:__pkg__", "//pct:__pkg__", "//spec:__pkg__"],
+)
+
+# Postgres's JSON cells (a json or jsonb PGobject as its JSON text) behind core's DriverCells seam, found by
+# ServiceLoader: it rides with the drivers, so core still compiles against none (step 9, 2026-10-19).
+legend_java_library(
+    name = "postgres_cells",
+    srcs = glob(["src/main/postgres/**/*.java"]),
+    resources = glob(["src/main/postgres/META-INF/**"]),
+    resource_strip_prefix = "core/src/main/postgres",
+    deps = [
+        ":core",
+        "@postgresql//jar",
+    ],
+)
+
+# MONGODB'S CONNECTOR (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): a session on a MongoDBConnection, and
+# the statements that run the pipelines the MongoDb dialect writes, behind core's DatabaseConnector seam, found by
+# ServiceLoader as the bulk loader is. The one source set that compiles against the MongoDB driver: core compiles
+# against no client library.
+legend_java_library(
+    name = "mongodb_connector",
+    srcs = glob(["src/main/mongodb/**/*.java"]),
+    resources = glob(["src/main/mongodb/META-INF/**"]),
+    resource_strip_prefix = "core/src/main/mongodb",
+    deps = [
+        "//base",
+        "//json",
+        ":error",
+        ":exec",
+        ":execution_plan",
+        ":model",
+        ":values",
+        "@bson//jar",
+        "@mongodb_driver_core//jar",
+        "@mongodb_driver_sync//jar",
+    ],
+    runtime_deps = ["@bson_record_codec//jar"],
 )
 
 # DuckDB's bulk load (its Appender) behind core's BulkLoad seam, found by
@@ -395,6 +442,10 @@ legend_java_library(
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
             "src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java",
+            # MongoDbPlanTest and MongoDbDifferentialTest are :mongodb_plan_test's alone: the embedded MongoDB and
+            # its driver (2026-10-17)
+            "src/test/java/com/legend/exec/MongoDbPlanTest.java",
+            "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
             "src/test/java/com/legend/FixtureAsidePostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
@@ -543,6 +594,7 @@ _CORE_TEST_MEMORY_MB = 512
 _CORE_TEST_LARGE = ["integration"]
 
 _CORE_TEST_EXCLUDED_TAGS = [
+    "benchmark",   # the seam measurement (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8, 2026-10-18): its own manual targets below
     "census",
     "differential",
     "guardrail",
@@ -650,6 +702,96 @@ junit_test(
         ":test_backends",
         ":test_cases",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE SEAM MEASUREMENT (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8, 2026-10-18): one generated relation drained
+# through a counting sink by each way a result can cross the session seam (typed columns, the JSON rows wire, a CSV
+# line per row, the whole CSV text), on DuckDB and H2; wall time, the heap's peak, the characters that crossed. Manual:
+# a measurement recorded in GATES, never a gate. The small-heap variant shows which paths drain under 256 MB.
+junit_test(
+    name = "seam_benchmark",
+    memory_mb = 2048,
+    size = "enormous",
+    srcs = [
+        "src/test/java/com/legend/exec/SeamBenchmark.java",
+        "src/test/java/com/legend/exec/SeamBenchmarkDuckDbTest.java",
+        "src/test/java/com/legend/exec/SeamBenchmarkH2Test.java",
+    ],
+    jvm_flags = ["-Duser.timezone=GMT"],
+    select = [
+        "--select-class=com.legend.exec.SeamBenchmarkDuckDbTest",
+        "--select-class=com.legend.exec.SeamBenchmarkH2Test",
+    ],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+junit_test(
+    name = "seam_benchmark_small_heap",
+    memory_mb = 256,
+    size = "enormous",
+    srcs = [
+        "src/test/java/com/legend/exec/SeamBenchmark.java",
+        "src/test/java/com/legend/exec/SeamBenchmarkDuckDbTest.java",
+        "src/test/java/com/legend/exec/SeamBenchmarkH2Test.java",
+    ],
+    jvm_flags = [
+        "-Duser.timezone=GMT",
+        "-Dseam.heap=small",
+    ],
+    select = [
+        "--select-class=com.legend.exec.SeamBenchmarkDuckDbTest",
+        "--select-class=com.legend.exec.SeamBenchmarkH2Test",
+    ],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# THE MONGODB END-TO-END (docs/MONGODB_PLAN_2026_10_16.md §11, 2026-10-17): a model with a ###MongoDB store and a
+# MongoDBConnection planned by the one compiler and run by the plan runner on a real MongoDB 8.0 this JVM starts from
+# the pinned server Bazel unpacked (@embedded_mongodb, //testing EmbeddedMongoDb). Manual, in //gates:heavy, until a
+# per-push lane for it is the user's call (Linux x86_64 only: the build pinned).
+junit_test(
+    name = "mongodb_plan_test",
+    memory_mb = 1024,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
+        "src/test/java/com/legend/exec/MongoDbPlanTest.java",
+    ],
+    data = [
+        "@embedded_mongodb//:mongodb",
+        "@embedded_mongodb//:mongodb/MONGODB_ROOT",
+    ],
+    jvm_flags = ["-Dembedded.mongodb.root=$(rlocationpath @embedded_mongodb//:mongodb/MONGODB_ROOT)"],
+    select = [
+        "--select-class=com.legend.exec.MongoDbPlanTest",
+        # the differential in miniature (the MongoDB line's homework 3): a measurement, written to the outputs
+        "--select-class=com.legend.exec.MongoDbDifferentialTest",
+    ],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_MONGODB_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_cases",   # PlanRoundTrip: the plan path program's round-trip gate (step 1b)
+        # the reference's and MongoDB's storeless runtimes are their test backends' (main's merge, 2026-10-22)
+        ":test_backends",
+        "//testing",
+        "@bson//jar",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@mongodb_driver_core//jar",
+        "@mongodb_driver_sync//jar",
     ],
     visibility = ["//gates:__pkg__"],
 )
@@ -1123,6 +1265,7 @@ junit_test(
     runtime_deps = [
         ":core_tests_lib",
         ":duckdb_load",
+        ":mongodb_connector",
     ],
     visibility = ["//gates:__pkg__"],
 )
@@ -1134,7 +1277,7 @@ java_jars(
     testonly = True,
     rlocation_paths = True,
     transitive = False,
-    deps = _CORE_TARGETS + [":duckdb_load"],
+    deps = _CORE_TARGETS + [":duckdb_load", ":mongodb_connector"],
 )
 
 # core's test classes, for the one rule that checks them too (ArchitectureTest.upstreamJavaNeverEntersCore)
@@ -1508,7 +1651,9 @@ core_layer_queries(not_layers = {
     "core_tests_lib": "the tests' library, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
     "duckdb_load": "the drivers' bulk loader, beside the layers",
+    "mongodb_connector": "MongoDB's connector, beside the drivers (docs/MONGODB_PLAN_2026_10_16.md D12)",
     "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
+    "postgres_cells": "Postgres's JSON cells behind the DriverCells seam, beside the drivers (the plan path program's step 9, 2026-10-19)",
     "scale_lib": "the scale benchmark's launcher (//core:scale), not product code",
     "shadow_binding": "a test-lane ServiceLoader resource",
     "test_backends": "each database as the tests run on it (pct and spec share it), not product code",

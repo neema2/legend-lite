@@ -111,6 +111,17 @@ public final class Databricks extends AnsiSqlRenderer {
     }
 
     /** Native PIVOT takes its values from the query: a dynamic pivot is discovered first. */
+    // the probe plan's facts (2026-10-20): Databricks: no multi-statement transaction; no result column limit documented
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.NONE;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return null;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;
@@ -257,7 +268,9 @@ public final class Databricks extends AnsiSqlRenderer {
      *  Spark joins the value's alias and the aggregate's with {@code _}, so the aggregate's carries the tail. */
     @Override
     protected SqlWriter pivotSource(SqlWriter writer, SqlSource.Pivot p, int depth) {
-        if (p.in().isEmpty()) {
+        // a dynamic pivot a cast names pivots on the named values (SqlSource.Pivot.values, step 9, 2026-10-19)
+        List<SqlExpr> values = p.values();
+        if (values.isEmpty()) {
             throw new IllegalStateException("a dynamic pivot reached Databricks: needsStaticPivot discovers its values");
         }
         if (p.on().size() != 1) {
@@ -275,7 +288,7 @@ public final class Databricks extends AnsiSqlRenderer {
         } else {
             writer.expr(on, 0);
         }
-        writer.append(" IN (").join(p.in(), ", ", (w, v) -> w.expr(v, 0).append(" AS ")
+        writer.append(" IN (").join(values, ", ", (w, v) -> w.expr(v, 0).append(" AS ")
                 .append(ident(one ? pivotValueText(v) + "__|__" + p.usings().get(0).alias() : pivotValueText(v))));
         return writer.append("))) AS ").append(ident(p.alias()));
     }
@@ -469,8 +482,19 @@ public final class Databricks extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter structLit(SqlWriter writer, SqlExpr.StructLit st) {
+        // a NULL member is VOID to Spark, which a list function over it refuses (`transform` of an instance's absent
+        // to-many property, and of a to-many property read off an absent to-one instance, measured 2026-10-19; step 9,
+        // the Databricks lane's testAssignNewInstance): a composite member's NULL is written in its declared type
         return writer.append("named_struct(")
-                .join(st.fields(), ", ", (w, f) -> w.append(stringLit(f.name())).append(", ").expr(f.value(), 0))
+                .join(st.fields(), ", ", (w, f) -> {
+                    w.append(stringLit(f.name())).append(", ");
+                    if (f.value() instanceof SqlExpr.NullLit && (f.declared() instanceof SqlType.Array
+                            || f.declared() instanceof SqlType.Struct || f.declared() instanceof SqlType.Map)) {
+                        w.append("CAST(NULL AS ").append(castTypeName(f.declared())).append(")");
+                    } else {
+                        w.expr(f.value(), 0);
+                    }
+                })
                 .append(")");
     }
 
@@ -584,7 +608,9 @@ public final class Databricks extends AnsiSqlRenderer {
             // DuckDB's list_reduce: the first element is the accumulator's start, the lambda (acc, x) over the rest
             case LIST_REDUCE -> writer.append("aggregate(filter(").piece(list(xs)).append(", (`__x`, `__i`) -> `__i` > 0), ")
                     .append("element_at(").piece(list(xs)).append(", 1), ").expr(args.get(1), 0).append(")");
-            case TYPEOF -> throw new DialectCapability("typeof reached Databricks: its type names are Spark's");
+            // Spark's own name of the value's type, compared only with typeofName's (the judges' grid sides read a
+            // declared timestamp's DATE cells by it since the plan path program's step 6, 2026-10-20)
+            case TYPEOF -> writer.function("typeof", args);
             case RANGE_FN, REPEAT_VALUE -> throw new IllegalStateException(fnName + " is rendered by call");
             default -> throw new IllegalStateException("not a list call: " + fnName);
         };
@@ -996,6 +1022,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "raise_error");
             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1098,7 +1125,16 @@ public final class Databricks extends AnsiSqlRenderer {
             case SHA256 -> writer.append("sha2(").expr(a.get(0), 0).append(", 256)");
             case GUID -> writer.append("uuid()");
             case RANDOM -> writer.append("rand()");
-            case FORMAT -> writer.append("format_string(").list(a).append(")");
+            // format_string is Java's formatter over Spark's values, and its %f takes no Spark Decimal: a Float
+            // literal, written as its decimal digits (NUMERIC CHARTER Rule 1), is handed over as the double it is
+            // (channel B's testFormatFloatWithRounding and its siblings, 2026-10-20)
+            case FORMAT -> writer.append("format_string(").join(a, ", ", (w, x) -> {
+                if (x instanceof SqlExpr.FloatLit) {
+                    w.append("CAST(").expr(x, 0).append(" AS DOUBLE)");
+                } else {
+                    w.expr(x, 0);
+                }
+            }).append(")");
             case JARO_WINKLER -> writer.piece(jaroWinkler(a.get(0), a.get(1)));
             case CURRENT_USER_FN -> writer.append("current_user()");
 
@@ -1206,7 +1242,41 @@ public final class Databricks extends AnsiSqlRenderer {
         if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
             throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
         }
-        return writer.append("date_format(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
+        List<com.legend.sql.DateFmt> parts = ((SqlExpr.FormatLit) a.get(1)).parts();
+        if (!parts.contains(com.legend.sql.DateFmt.Part.YEAR4)) {
+            return writer.append("date_format(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
+        }
+        // 'yyyy' pads to four digits and signs a year past 9999 ('+25489', measured 2026-10-19; step 9, the
+        // Databricks lane's testAdjustByMinutesBigNumber), where DuckDB's %Y and Pure write 25489: the year is
+        // formatted alone with that sign removed, each other run of the format as it is, in order (concat: NULL
+        // when the date-time is NULL, as date_format is). A BC year keeps its '-' (measured: -21457).
+        writer.append("concat(");
+        List<com.legend.sql.DateFmt> run = new java.util.ArrayList<>();
+        boolean first = true;
+        for (com.legend.sql.DateFmt p : parts) {
+            if (p != com.legend.sql.DateFmt.Part.YEAR4) {
+                run.add(p);
+                continue;
+            }
+            if (!run.isEmpty()) {
+                formatRun(writer.append(first ? "" : ", "), a.get(0), run);
+                run = new java.util.ArrayList<>();
+                first = false;
+            }
+            writer.append(first ? "" : ", ").append("regexp_replace(");
+            formatRun(writer, a.get(0), List.of(p)).append(", '^[+]', '')");
+            first = false;
+        }
+        if (!run.isEmpty()) {
+            formatRun(writer.append(", "), a.get(0), run);
+        }
+        return writer.append(")");
+    }
+
+    /** {@code date_format} of {@code value} by the format {@code parts}. */
+    private static SqlWriter formatRun(SqlWriter writer, SqlExpr value, List<com.legend.sql.DateFmt> parts) {
+        return writer.append("date_format(").expr(value, 0).append(", ").expr(new SqlExpr.FormatLit(parts), 0)
+                .append(")");
     }
 
     /** The {@code STRPTIME} arm of {@link #call}. */
@@ -1635,6 +1705,13 @@ public final class Databricks extends AnsiSqlRenderer {
         }
         if (!w.orderBy().isEmpty()) {
             writer.append(w.partitionBy().isEmpty() ? "" : " ").append("ORDER BY ").join(w.orderBy(), ", ", this::sortKey);
+        } else if (w.fn() instanceof SqlAgg.RankingFn) {
+            // Spark refuses a ranking window with no order ("[WINDOW_FUNCTION_FRAME_NOT_ORDERED] Window function
+            // row_number requires the window to be ordered"); a constant order is accepted and numbers the rows as
+            // they come (measured on the warehouse 2026-10-19: OVER (ORDER BY 1) gives 1, 2). The judges' verdict
+            // statement numbers a canon-ordered side this way (VerdictSql); channel B on Databricks refused every
+            // such case before (step 9).
+            writer.append(w.partitionBy().isEmpty() ? "" : " ").append("ORDER BY 1");
         }
         SqlExpr.WindowCall.Frame f = w.frame();
         if (f != null) {
@@ -1788,9 +1865,12 @@ public final class Databricks extends AnsiSqlRenderer {
         };
     }
 
-    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are Spark's). */
+    /** {@inheritDoc} A DATE is {@code date} (Spark's typeof); no other type's name is compared here. */
     @Override
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
-        throw new DialectCapability("typeof reached Databricks: its type names are Spark's");
+        if (type == com.legend.sql.SqlType.Scalar.DATE) {
+            return "date";
+        }
+        throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached Databricks");
     }
 }

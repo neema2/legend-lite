@@ -244,8 +244,8 @@ final class LambdaBinding {
             boolean mToOne, ColumnResolver columns) {
         if (m.mapper() instanceof TypedLambda mml
                 && mml.parameters().size() == 1) {
-            return new SqlExpr.Lambda(mml.parameters(),
-                    lw.scalar(LambdaBinding.last(mml),
+            return lw.iterating(mml.parameters().get(0),
+                    () -> lw.scalar(LambdaBinding.last(mml),
                             mapElemResolver(mml.parameters().get(0),
                                     mSrc, mToOne,
                                     lambdaResolver(mml.parameters(),

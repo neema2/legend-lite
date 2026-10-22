@@ -48,7 +48,8 @@ public class Test_LegendLite_H2_RelationFunctions_PCT extends PCTReportConfigura
             one("meta::pure::functions::relation::tests::extend::testVariantColumn_filter_Function_1__Boolean_1_", "LIST_FILTER reached a dialect without a list encoding"),
             one("meta::pure::functions::relation::tests::filter::testVariantColumn_filterOutputFromLambda_Function_1__Boolean_1_", "LIST_FILTER reached a dialect without a list encoding"),
             one("meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition_Function_1__Boolean_1_", "LIST_FILTER reached a dialect without a list encoding"),
-            one("meta::pure::functions::relation::tests::composition::testCoalesceInPreFilter_Function_1__Boolean_1_", "LIST_FILTER reached a dialect without a list encoding"),   // lite only: the engine passes it on H2
+            // NOTE 2026-10-20 (the parity phase): testCoalesceInPreFilter unpinned -- a literal list's filtered length
+            // is the sum of each element's predicate as a count (CarrierStrategies.filteredLiteralLength)
             one("meta::pure::functions::relation::tests::composition::testVariantColumn_distinct_removeDuplicates_Function_1__Boolean_1_", "LIST_SORT reached a dialect without a list encoding"),
             one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_sort_Function_1__Boolean_1_", "LIST_SORT reached a dialect without a list encoding"),
             one("meta::pure::functions::relation::tests::composition::testVariantColumn_slice_Function_1__Boolean_1_", "LIST_SLICE reached a dialect without a list encoding"),
@@ -63,15 +64,17 @@ public class Test_LegendLite_H2_RelationFunctions_PCT extends PCTReportConfigura
             one("meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
             one("meta::pure::functions::relation::tests::composition::testVariantMapColumn_keys_LateralFlatten_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
             one("meta::pure::functions::relation::tests::composition::testVariantMapColumn_values_LateralFlatten_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),
-            one("meta::pure::functions::relation::tests::project::testSimpleProjectWithEmpty_Function_1__Boolean_1_", "UNNEST reached a dialect without an unnest placement"),   // lite only: the engine passes it on H2
+            // NOTE 2026-10-20 (the parity phase): testSimpleProject, testSimpleProjectList, testSimpleProjectWithEmpty
+            // and testFilterPostProject unpinned -- a lateral over a constant list is that list's rows, each struct
+            // field a column (ConstantLateralsAsRows)
             // H2 has no LATERAL: the SQL lite renders is refused by the database
             one("meta::pure::functions::relation::tests::lateral::testLateralJoin_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),
             one("meta::pure::functions::relation::tests::lateral::testLateralJoin_Chained_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),
             one("meta::pure::functions::relation::tests::lateral::testLateralJoinAreInnerJoins_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),
-            one("meta::pure::functions::relation::tests::lateral::testLateralJoin_CorrelatedColumnNameAlsoOnInner_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),
-            one("meta::pure::functions::relation::tests::project::testSimpleProject_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),   // lite only: the engine passes it on H2
-            one("meta::pure::functions::relation::tests::project::testSimpleProjectList_Function_1__Boolean_1_", "Function \"LATERAL\" not found"),   // lite only: the engine passes it on H2
-            one("meta::pure::functions::relation::tests::composition::testFilterPostProject_Function_1__Boolean_1_", "Function \"LATERAL\" not found")   // lite only: the engine passes it on H2
+            one("meta::pure::functions::relation::tests::lateral::testLateralJoin_CorrelatedColumnNameAlsoOnInner_Function_1__Boolean_1_", "Function \"LATERAL\" not found")
+            // the ten uncast dynamic pivots answer since the probe plan (2026-10-20, KeyedPivot: the keys read
+            // first, the body written for them on every database); their pins of step 9 (2026-10-19) removed
+            // with the run that passed them
     );
 
     public static Test suite() {

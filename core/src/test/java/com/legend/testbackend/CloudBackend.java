@@ -101,19 +101,29 @@ abstract class CloudBackend implements TestBackend {
                 session = opened;
                 SESSIONS.put(name(), opened);
             }
-            Connection held = session;
-            return (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(),
-                    new Class<?>[] {Connection.class}, (proxy, method, args) -> {
-                        if (method.getName().equals("close") && method.getParameterCount() == 0) {
-                            return null;
-                        }
-                        try {
-                            return method.invoke(held, args);
-                        } catch (java.lang.reflect.InvocationTargetException e) {
-                            throw e.getCause();
-                        }
-                    });
+            return unclosable(session);
         }
+    }
+
+    /** {@inheritDoc} {@link #open}'s: the suite's one session. */
+    @Override
+    public final Connection held() throws SQLException {
+        return open();
+    }
+
+    /** {@code held}, its {@code close()} a no-op. */
+    private static Connection unclosable(Connection held) {
+        return (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(),
+                new Class<?>[] {Connection.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("close") && method.getParameterCount() == 0) {
+                        return null;
+                    }
+                    try {
+                        return method.invoke(held, args);
+                    } catch (java.lang.reflect.InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                });
     }
 
     /**

@@ -62,6 +62,77 @@ public final class SourceSubst {
                 List.of(substitute(lam.body().get(lam.body().size() - 1), env)));
     }
 
+    /** The source nodes whose objects the let splice gives more than one evaluation where Pure's let names one
+     *  (docs/OBJECT_IDENTITY_2026_10_20.md §4.4), by identity: the constructions and calls in the value of a let of
+     *  {@code lam}'s body read inside a nested lambda (a use there is evaluated once per the inner lambda's elements),
+     *  or read more than once where its value holds a lambda (each copy applies it anew). A call's copies read at one
+     *  level are one evaluation already (the inliner instantiates a call once per source node and frame). */
+    static java.util.Set<Object> untrackedLetNodes(LambdaFunction lam) {
+        java.util.Set<Object> out = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        List<ValueSpecification> body = lam.body();
+        Map<String, ValueSpecification> env = new LinkedHashMap<>();
+        for (int i = 0; i < body.size() - 1; i++) {
+            CString name = letName(body.get(i));
+            if (name == null) {
+                return out;
+            }
+            ValueSpecification value = substitute(((AppliedFunction) body.get(i)).parameters().get(1), env);
+            env.put(name.value(), value);
+            int[] uses = {0, 0};
+            usesOf(name.value(), body.subList(i + 1, body.size()), 0, uses);
+            if (uses[1] > 0 || uses[0] > 1 && holdsLambda(value)) {
+                constructionsAndCalls(value, out);
+            }
+        }
+        return out;
+    }
+
+    /** Counts the reads of {@code name} in {@code statements} ({@code uses[0]}) and those inside a lambda
+     *  ({@code uses[1]}), until a let rebinds it. */
+    private static void usesOf(String name, List<ValueSpecification> statements, int depth, int[] uses) {
+        for (ValueSpecification st : statements) {
+            CString ln = letName(st);
+            usesOf(name, ln != null ? ((AppliedFunction) st).parameters().get(1) : st, depth, uses);
+            if (ln != null && ln.value().equals(name)) {
+                return;
+            }
+        }
+    }
+
+    private static void usesOf(String name, ValueSpecification v, int depth, int[] uses) {
+        if (v instanceof Variable var) {
+            if (var.name().equals(name)) {
+                uses[0]++;
+                if (depth > 0) {
+                    uses[1]++;
+                }
+            }
+            return;
+        }
+        if (v instanceof LambdaFunction lf) {
+            if (lf.parameters().stream().noneMatch(p -> p.name().equals(name))) {
+                usesOf(name, lf.body(), depth + 1, uses);
+            }
+            return;
+        }
+        for (ValueSpecification c : v.children()) {
+            usesOf(name, c, depth, uses);
+        }
+    }
+
+    private static boolean holdsLambda(ValueSpecification v) {
+        return v instanceof LambdaFunction || v.children().stream().anyMatch(SourceSubst::holdsLambda);
+    }
+
+    private static void constructionsAndCalls(ValueSpecification v, java.util.Set<Object> out) {
+        if (v instanceof NewInstance || v instanceof AppliedFunction) {
+            out.add(v);
+        }
+        for (ValueSpecification c : v.children()) {
+            constructionsAndCalls(c, out);
+        }
+    }
+
     /** bind-once (family E): the view an INLINE call site would present,
      * for checkers that consume their arguments STRUCTURALLY (the
      * test-data-generation and CSV-census folds): each argument resolves

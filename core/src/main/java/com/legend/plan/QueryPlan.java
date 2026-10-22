@@ -13,12 +13,15 @@ import java.util.Objects;
  * @param sql      rendered SQL in the runtime's dialect
  * @param rootType the query root's {@link ExprType} (schema + multiplicity)
  * @param shape    how a result of {@code rootType} is consumed
+ * @param columns  the result's columns with their three type facts ({@link PlanColumns}: the Pure type and
+ *                 multiplicity, the slot's SQL type, the store's declared type or none); none for a graph
  */
-public record QueryPlan(String sql, ExprType rootType, ResultShape shape) {
-
+public record QueryPlan(String sql, ExprType rootType, ResultShape shape,
+        java.util.List<com.legend.executionplan.ExecutionPlan.Column> columns) {
     public QueryPlan {
         Objects.requireNonNull(sql, "sql");
         Objects.requireNonNull(rootType, "rootType");
         Objects.requireNonNull(shape, "shape");
+        columns = java.util.List.copyOf(columns);
     }
 }

@@ -276,9 +276,12 @@ public final class ChannelB {
             // with CORRECT_SQL_SUBSTRING_INDEXING on, as the engine's own
             // testable runner does — the flag is the lowering's, so channel
             // B's identity adapter carries it the same way
+            // the agreement gate (the plan path program's step 6, 2026-10-18): both judges on plans, a disagreement
+            // a failure naming both -- the lane's PASS floor carries it
             Execution.executeResolved(resolved, ctx, com.legend.test.StorelessRuntime.RUNTIME, conn, null, null,
                     com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
                             com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
+                            .withJudgeMode(com.legend.ExecuteOptions.JudgeMode.BOTH)
                             // a server lane's system connection, as channel A's (PctBackend)
                             .withSystemConnections(org.finos.legend.lite.pct.extension.PctBackend.systemConnections()));
             return new Outcome(fqn, Status.PASS, "");

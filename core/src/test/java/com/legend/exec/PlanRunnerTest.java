@@ -185,7 +185,7 @@ class PlanRunnerTest {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(Databases.PLATFORM),
                 new ExecutionPlan.Servers.Every(), List.of(), List.of());
         ExecutionPlan bad = new ExecutionPlan(List.of(declared("n", "Integer", 0, 1)), new ExecutionPlan.TextResult(
-                ExecutionPlan.Format.JSON, new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "Integer"))),
+                ExecutionPlan.Format.JSON, new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null))),
                 new ExecutionPlan.Sql("SELECT CAST(? AS VARCHAR)", List.of(new ExecutionPlan.Slot("n",
                         new ExecutionPlan.Binding.One("NOT_A_TYPE", null))), target, null)));
         var refused = assertThrows(IllegalStateException.class, () -> PlanRunner.run(bad, Map.of(), t -> {
@@ -201,7 +201,7 @@ class PlanRunnerTest {
                 List.of(), List.of(new ExecutionPlan.SetupStep.Statement("CREATE TABLE " + table + " (ID INTEGER)"),
                         new ExecutionPlan.SetupStep.Statement("INSERT INTO " + table + " VALUES (1)")));
         return new ExecutionPlan(List.of(), new ExecutionPlan.TextResult(ExecutionPlan.Format.JSON,
-                new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "String"))),
+                new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "String", new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null))),
                 new ExecutionPlan.Sql("SELECT CAST(COUNT(*) AS VARCHAR) FROM " + table, List.of(), target, null)));
     }
 
@@ -251,7 +251,7 @@ class PlanRunnerTest {
 
     static ExecutionPlan plan(ExecutionPlan.Format format, String statement, ExecutionPlan.Target target) {
         return new ExecutionPlan(List.of(), new ExecutionPlan.TextResult(format,
-                new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "String"))),
+                new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "String", new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null))),
                 new ExecutionPlan.Sql(statement, List.of(), target, null)));
     }
 

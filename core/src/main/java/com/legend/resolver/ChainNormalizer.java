@@ -126,7 +126,7 @@ public final class ChainNormalizer {
         // a CLASS reference is typed Class<X> (Typer.classReference); its
         // element is a Class row when the Class metaclass is seeded
         if (refCls == null && pr.info().type() instanceof Type.GenericType g
-                && g.rawFqn().equals(com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)
+                && com.legend.compiler.element.type.PlatformTypes.isClassMetaclass(g)
                 && ctx.tracksClassifier(com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)) {
             refCls = com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS;
         }

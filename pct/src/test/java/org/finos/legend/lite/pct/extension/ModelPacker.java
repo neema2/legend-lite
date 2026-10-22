@@ -182,10 +182,12 @@ final class ModelPacker {
      * produced it: {@code E:fqn} / {@code C:fqn} / {@code F:pkg::id}
      * → definition text. */
     private static java.util.TreeMap<String, String> canonicalInjection(
+            java.util.Map<String, String> primitives,
             java.util.Map<String, String> enums,
             java.util.Map<String, String> classes,
             java.util.Map<String, String> fns) {
         var out = new java.util.TreeMap<String, String>();
+        primitives.forEach((k, v) -> out.put("P:" + k, v));
         enums.forEach((k, v) -> out.put("E:" + k, v));
         classes.forEach((k, v) -> out.put("C:" + k, v));
         fns.forEach((k, v) -> out.put("F:" + k, v));
@@ -203,6 +205,7 @@ final class ModelPacker {
         java.util.Set<String> enums = new java.util.LinkedHashSet<>();
         var enumDefs = new java.util.LinkedHashMap<String, String>();
         var fnDefs = new java.util.LinkedHashMap<String, String>();
+        var primitiveDefs = new java.util.LinkedHashMap<String, String>();
         for (String fqn : roots) {
             if (fqn.startsWith("meta::pure::metamodel")
                     || fqn.startsWith("meta::pure::precisePrimitives")) {
@@ -211,9 +214,15 @@ final class ModelPacker {
             CoreInstance el = ps.package_getByUserPath(fqn);
             if (el != null && Instance.instanceOf(el,
                     "meta::pure::metamodel::type::PrimitiveType", ps)) {
-                // a PRIMITIVE is the platform's, never injected (2026-10-21: a bare 'Integer' root passed the
-                // metamodel prefix and was injected as 'Class Integer extends Number', a user class the
-                // compiler now refuses -- an M3 primitive type is an instance of Class)
+                // a PRIMITIVE of the platform's (the lite catalog's, Type.Primitive: a bare M3 path, 'Integer', and
+                // the precise primitives) is never injected (2026-10-21: a bare 'Integer' root passed the metamodel
+                // prefix and was injected as 'Class Integer extends Number', a user class the compiler now refuses --
+                // an M3 primitive type is an instance of Class, so this is asked first); a test's own (Primitive
+                // ExtendedInteger extends Integer, 2026-10-20: never injected before, so a cast to it was an unknown
+                // type) is declared, as a test's own class is (the merge of main, 2026-10-22: one rule for both)
+                if (com.legend.compiler.element.type.Type.Primitive.findByFqn(fqn).isEmpty()) {
+                    renderPrimitiveDef(fqn, el, primitiveDefs, ps);
+                }
                 continue;
             }
             if (el != null && Instance.instanceOf(el,
@@ -235,7 +244,7 @@ final class ModelPacker {
         for (String fqn : enums) {
             renderEnumDef(fqn, enumDefs, ps);
         }
-        return canonicalInjection(enumDefs, classes, fnDefs);
+        return canonicalInjection(primitiveDefs, enumDefs, classes, fnDefs);
     }
 
     // (extractClassMetadata — the regex-driven root discovery — is
@@ -332,7 +341,10 @@ final class ModelPacker {
                     typeRef = qualifiedTypeName;
                 }
             }
-            propertyLines.add(propName + ": " + typeRef + multiplicity);
+            // a key of the class's equality (<<equality.Key>>): its equal() compares its keys alone (2026-10-20:
+            // dropped before, so a keyed class compared every field)
+            propertyLines.add((equalityKey(prop, ps) ? "<<equality.Key>> " : "") + propName + ": " + typeRef
+                    + multiplicity);
         }
 
         // SUPERCLASSES ride along (concatenate's LUB is the common
@@ -368,6 +380,42 @@ final class ModelPacker {
         }
         sb.append("}");
         classes.put(fqn, sb.toString());
+    }
+
+    /** Whether {@code prop} carries the platform's {@code <<equality.Key>>} stereotype. */
+    private boolean equalityKey(CoreInstance prop, ProcessorSupport ps) {
+        for (CoreInstance st : Instance.getValueForMetaPropertyToManyResolved(prop, M3Properties.stereotypes, ps)) {
+            CoreInstance profile = Instance.getValueForMetaPropertyToOneResolved(st, M3Properties.profile, ps);
+            CoreInstance value = st.getValueForMetaPropertyToOne(M3Properties.value);
+            if (profile != null && "meta::pure::profiles::equality".equals(getQualifiedName(profile))
+                    && value != null && "Key".equals(PrimitiveUtilities.getStringValue(value))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A test's own primitive: {@code Primitive my::P extends Integer}. A parameterised one (a precise
+     *  primitive's {@code Varchar(x)} form) has no declaration here yet and is refused by name. */
+    private void renderPrimitiveDef(String fqn, CoreInstance el, Map<String, String> out, ProcessorSupport ps) {
+        if (!el.getValueForMetaPropertyToMany("typeVariables").isEmpty()) {
+            throw new UnsupportedOperationException("parameterised primitive '" + fqn + "' in test-model extraction");
+        }
+        List<String> supers = new ArrayList<>();
+        for (CoreInstance gen : Instance.getValueForMetaPropertyToManyResolved(el, M3Properties.generalizations, ps)) {
+            CoreInstance general = gen.getValueForMetaPropertyToOne(M3Properties.general);
+            CoreInstance raw = general == null ? null : general.getValueForMetaPropertyToOne(M3Properties.rawType);
+            if (raw != null) {
+                raw = org.finos.legend.pure.m3.navigation.importstub.ImportStub.withImportStubByPass(raw, ps);
+            }
+            String superFqn = raw == null ? null : getQualifiedName(raw);
+            if (superFqn == null) {
+                throw new UnsupportedOperationException("primitive '" + fqn + "' extends a type with no path");
+            }
+            // its M3 path, as a property's type prints (a platform primitive's bare 'Integer')
+            supers.add(superFqn);
+        }
+        out.put(fqn, "Primitive " + fqn + (supers.isEmpty() ? "" : " extends " + String.join(", ", supers)));
     }
 
     /** A precise primitive's values as written ({@code (200)} of {@code Varchar(200)}), or nothing: an integer each,

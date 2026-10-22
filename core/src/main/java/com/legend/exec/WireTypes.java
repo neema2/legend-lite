@@ -58,7 +58,7 @@ public final class WireTypes {
     /** A plan the compiler could not type (a raw {@code executeInDb} grid: no
      * outputs) framed as {@code SELECT * FROM (plan)} with the database's
      * reported columns as its outputs — the LIMIT-0 probe's own pattern
-     * (PctProbe) for a staticized pivot; a column outside the vocabulary
+     * (ColumnProbe) for a staticized pivot; a column outside the vocabulary
      * carries VARCHAR (its kind is the golden's to infer). {@code plan}
      * itself when the database reports nothing. */
     public static SqlQuery staticized(SqlQuery plan, com.legend.sql.dialect.SqlDialect dialect,

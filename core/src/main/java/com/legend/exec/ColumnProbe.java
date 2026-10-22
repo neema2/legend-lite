@@ -18,13 +18,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** E1: the LIMIT-0 metadata probe — a staticized plan's CONCRETE
+/** The LIMIT-0 metadata probe (E1; named for what it does, not for the harness, 2026-10-17): a plan's CONCRETE columns asked of the database -- — a staticized plan's CONCRETE
  * output columns (pivot-generated names included). A SCHEMA read at
  * the execution seam (DynamicPivot's own two-phase discipline), never
  * value sniffing. */
-public final class PctProbe {
+public final class ColumnProbe {
 
-    private PctProbe() {
+    private ColumnProbe() {
     }
 
     public static PlanProbe probe(SqlQuery plan,

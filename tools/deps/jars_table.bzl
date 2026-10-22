@@ -99,6 +99,31 @@ JARS = {
         sha256 = "4164d95347aeab42b754cabb7945b93e54f29ddb2eded967dbe979b4045cb685",
         users = ["core"],
     ),
+    # MongoDB's Java driver (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): the MongoDB connector's client
+    # (//core:mongodb_connector, which rides with //core:drivers), and the embedded server's user setup (//testing
+    # EmbeddedMongoDb). Four jars, the driver's required closure (sync, core, bson, and bson-record-codec, core's one
+    # non-optional runtime dependency); everything else its POM declares is optional. Apache-2.0. Each checked
+    # against Maven Central's download on 2026-10-17.
+    "mongodb_driver_sync": struct(
+        coordinate = "org.mongodb:mongodb-driver-sync:5.13.0",
+        sha256 = "b1042221132552cdf56f95bcd61d524b745923d7bc3ace1aaa882a7fd51fb94e",
+        users = ["core", "testing"],
+    ),
+    "mongodb_driver_core": struct(
+        coordinate = "org.mongodb:mongodb-driver-core:5.13.0",
+        sha256 = "44f0bc54cba2ef1cbfff8ad5f84e0f1bfccf4886661a93b0e4882ed9c4fdb81d",
+        users = ["core", "testing"],
+    ),
+    "bson": struct(
+        coordinate = "org.mongodb:bson:5.13.0",
+        sha256 = "51f583ee96fda9bc0897e73321c5ae1485102bfd8f95d0d34d7d57919cbc650a",
+        users = ["core", "testing"],
+    ),
+    "bson_record_codec": struct(
+        coordinate = "org.mongodb:bson-record-codec:5.13.0",
+        sha256 = "0f6aca2c3c4b3c63e0c1fea65147c51af02be5d8d940f298abb3dc0906ca1ba0",
+        users = ["core", "testing"],
+    ),
 }
 
 # The canonical repository name's marker: +product_jars+<name> (the extension's repositories).

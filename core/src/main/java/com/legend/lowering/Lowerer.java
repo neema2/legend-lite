@@ -264,6 +264,94 @@ public final class Lowerer {
         return this;
     }
 
+    /** Whether every object carries its identity and its class (the object layout,
+     *  docs/OBJECT_IDENTITY_2026_10_20.md §3.1): its ids minted at {@code sites}. */
+    private boolean objectIdentity;
+
+    /** Whether a scalar root shows its objects' declared properties alone: the statement executor's value lane reads
+     *  the struct whole into its result, where no synthetic field may show (§3.4); the plan path's writers strip them. */
+    private boolean declaredEgress;
+
+    public Lowerer withDeclaredEgress() {
+        this.declaredEgress = true;
+        return this;
+    }
+
+    /** The maps around the lowering's current point that lower to a list lambda, outermost first: each one's element
+     *  parameter and the variable its position is read from (§3.2). */
+    private final java.util.ArrayList<String[]> iterationPositions = new java.util.ArrayList<>();
+
+    /** The position variables an object's id read: their lambdas take the position as a second parameter. */
+    private final java.util.Set<String> positionsRead = new java.util.HashSet<>();
+
+    /** The id of the objects {@code node} builds: its evaluation's site, then the position of the element of each map it
+     *  is evaluated in (docs/OBJECT_IDENTITY_2026_10_20.md §3.2). Where the product does not track the evaluations
+     *  (§4), none: a construction the compiler builds after the inliner (a store row's object, the resolver's, the same
+     *  node for every row) and one in a fold's reducer (once for every iteration); reading the identity of such an
+     *  object raises by name ({@link CanonicalRenderSql#trackedId}). The statement executor's verdict lane (the legacy
+     *  judge, deleted by the plan path program's last step) keeps its id per node there, and reads the positions too. */
+    private @com.legend.base.Nullable SqlExpr objectId(TypedSpec node,
+            com.legend.compiler.spec.typed.Evaluation evaluation) {
+        if (instanceIdOf == null) {
+            return null;
+        }
+        if (objectIdentity && (!evaluation.complete() || !evaluation.tracked())) {
+            return new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR);
+        }
+        String id = instanceIdOf.apply(evaluation.complete() ? evaluation.site() : node);
+        if (evaluation.iterations().isEmpty()) {
+            return new SqlExpr.StringLit(id);
+        }
+        List<SqlExpr> parts = new java.util.ArrayList<>();
+        parts.add(new SqlExpr.StringLit(id + "#"));
+        int from = 0;
+        for (String element : evaluation.iterations()) {
+            int k = from;
+            while (k < iterationPositions.size() && !iterationPositions.get(k)[0].equals(element)) {
+                k++;
+            }
+            if (k == iterationPositions.size()) {
+                throw new com.legend.error.NotImplementedException("an object built for each element of a map over $"
+                        + element + " that does not lower to a list (a relation's rows, a store's) has no identity"
+                        + " of its own yet (docs/OBJECT_IDENTITY_2026_10_20.md §4.1)");
+            }
+            if (parts.size() > 1) {
+                parts.add(new SqlExpr.StringLit("."));
+            }
+            String position = iterationPositions.get(k)[1];
+            positionsRead.add(position);
+            parts.add(new SqlExpr.Cast(SqlExpr.Column.derived(null, position), SqlType.Scalar.VARCHAR));
+            from = k + 1;
+        }
+        return new SqlExpr.Call(SqlFn.CONCAT, parts);
+    }
+
+    /** A map's mapper over {@code element}, a list lambda: an object its body builds is built once per element, so its
+     *  id reads the element's position, which the lambda then takes as its second parameter
+     *  (docs/OBJECT_IDENTITY_2026_10_20.md §3.2; every dialect's list_transform takes it). */
+    SqlExpr.Lambda iterating(String element, java.util.function.Supplier<SqlExpr> body) {
+        if (instanceIdOf == null) {
+            return new SqlExpr.Lambda(List.of(element), body.get());
+        }
+        String position = "_ix" + aliasCounter++;
+        iterationPositions.add(new String[] {element, position});
+        SqlExpr b;
+        try {
+            b = body.get();
+        } finally {
+            iterationPositions.remove(iterationPositions.size() - 1);
+        }
+        return new SqlExpr.Lambda(positionsRead.remove(position) ? List.of(element, position) : List.of(element), b);
+    }
+
+    /** Every object carries its identity: its id, minted by {@code ids} from its site (docs/OBJECT_IDENTITY_2026_10_20.md
+     *  §3.2): one query's {@link ObjectSites}, or the statement executor's ids shared by every statement of a body. */
+    public Lowerer withObjectIdentity(Function<Object, String> ids) {
+        this.instanceIdOf = ids;
+        this.objectIdentity = true;
+        return this;
+    }
+
     public Lowerer withInstanceKeys(
             Function<Type, com.legend.compiler.element
                     .@com.legend.base.Nullable EqualityKeys> keys) {
@@ -415,6 +503,11 @@ public final class Lowerer {
         // below both read it (it unfolded a class root's whole nested
         // struct twice, once only to compare it with JSON)
         SqlType rootType = sqlTypeOf(spec.info().type());
+        if (declaredEgress && e.type() instanceof com.legend.sql.TypeFact.Typed full
+                && !full.type().equals(MixedEncoding.declaredType(full.type()))) {
+            e = MixedEncoding.declaredOnly(e);
+            rootType = MixedEncoding.declaredType(rootType);
+        }
         boolean anyStamp = rootType == SqlType.Scalar.JSON;
         // read unconditionally: a LITERAL-carried product under ANY
         // stamp (generic/TypeVar dedup results included) must label
@@ -452,6 +545,17 @@ public final class Lowerer {
                         || (jt.type() instanceof com.legend.sql.SqlType.Array ja
                                 && ja.element() == SqlType.Scalar.LITERAL))) {
             label = SqlType.Scalar.LITERAL;
+        } else if (spec.info().type() == Type.Primitive.NUMBER
+                && e.type() instanceof com.legend.sql.TypeFact.Typed nt
+                && (nt.type() instanceof com.legend.sql.SqlType.Decimal || nt.type() == SqlType.Scalar.DOUBLE
+                        || nt.type() == SqlType.Scalar.BIGINT || nt.type() == SqlType.Scalar.INTEGER
+                        || nt.type() == SqlType.Scalar.HUGEINT)) {
+            // an unrefined NUMBER root labelled by its cell's own numeric slot, the kind the database answers
+            // (the engine reads a Number by its result-set type; the judges refine a Number side by the slot): a
+            // Decimal cell is a Decimal to every reader, and the value lane's text spells its D
+            // (Render.tdsTextCell; min([1.0d]) is 1.0D -- the DuckDB PCT lane on the plan route, step 9,
+            // 2026-10-18); until then the Number's DOUBLE, which read the cell as a Float
+            label = nt.type();
         }
         // COLLECTION roots explode to N rows (the result-shape contract:
         // Executor reads a collection as N rows x 1 column); the carrier
@@ -2753,16 +2857,21 @@ public final class Lowerer {
                                                 SqlType.Scalar.LITERAL));
                     }
                 }
+                // instances meeting at a model class with no layout carry
+                // their own class (the instance carrier, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9; an Any collection's do not)
+                boolean classed = !PlatformTypes.isAny(ct);
+                java.util.function.Function<TypedSpec, SqlExpr> element = e -> classed
+                        ? MixedEncoding.withClass(e, scalar(e, columns)) : scalar(e, columns);
                 // C1 collapse (ValueCollections.c1Singleton — witness
                 // in::H2Test); the VARIANT carrier stays, the box goes.
                 if (ValueCollections.c1Singleton(c)) {
                     var e0 = c.elements().get(0);
                     yield MixedEncoding.variantElement(e0,
-                            scalar(e0, columns), cellSlots);
+                            element.apply(e0), cellSlots);
                 }
                 SqlExpr varr = new SqlExpr.ArrayLit(c.elements().stream()
                         .map(e -> MixedEncoding.variantElement(
-                                e, scalar(e, columns), cellSlots))
+                                e, element.apply(e), cellSlots))
                         .toList());
                 // the plain arm's literal FLATTENING (a conditional-membership residual)
                 yield !cellSlots && MixedEncoding.compacts(c) ? new SqlExpr.CompactList(varr) : varr;
@@ -2948,8 +3057,7 @@ public final class Lowerer {
                 SqlExpr src = scalar(cp.source(), columns);
                 yield ConstructionCanon.bind(instanceKeysOf, () -> aliasCounter++, cp.info().type(), cp.classFqn(), layout.stream().map(c -> {
                     // F13: a copy is a NEW instance — mint at the COPY site
-                    var sf = MixedEncoding.syntheticField(c,
-                            instanceIdOf == null ? null : instanceIdOf.apply(cp), cp.classFqn());
+                    var sf = MixedEncoding.syntheticField(c, objectId(cp, cp.evaluation()), cp.classFqn());
                     if (sf != null) {
                         return sf;
                     }
@@ -2999,15 +3107,15 @@ public final class Lowerer {
                 }
                 // a property-less class's constructor: the synthetic fields alone
                 var layout = classLayout.apply(n.info().type()).or(() -> n.properties().isEmpty()
-                        ? Optional.of(com.legend.compiler.element.ClassLayouts.syntheticOnlyLayout(instanceIdOf != null))
+                        ? Optional.of(objectIdentity ? com.legend.compiler.element.ClassLayouts.objectSyntheticOnlyLayout()
+                                : com.legend.compiler.element.ClassLayouts.syntheticOnlyLayout(instanceIdOf != null))
                         : Optional.empty()).orElseThrow(() ->
                         new IllegalStateException("class value ^" + n.classFqn()
                                 + "(…) has no canonical layout — the class declares no"
                                 + " stored properties (or no model rides this lowering)"));
                 yield ConstructionCanon.bind(instanceKeysOf, () -> aliasCounter++, n.info().type(), n.classFqn(), layout.stream().map(c -> {
                     // F13: one deterministic id per construction SITE (node)
-                    var sf = MixedEncoding.syntheticField(c,
-                            instanceIdOf == null ? null : instanceIdOf.apply(n), n.classFqn());
+                    var sf = MixedEncoding.syntheticField(c, objectId(n, n.evaluation()), n.classFqn());
                     if (sf != null) {
                         return sf;
                     }
@@ -3126,17 +3234,22 @@ public final class Lowerer {
                     scalarStructural(pa.source(), columns);
 
             // a TYPE written as a value ([String, Integer] vs columns.type;
-            // Car): type VALUES travel as canonical simple names
+            // Car): type VALUES travel as their PATHS (docs/PLAN_PATH_PROGRAM_2026_10_17.md §9,
+            // 2026-10-20; a base primitive's is its name), as do a TDS's
+            // column types and an instance's rawType, so equality compares
+            // paths and the text carrier's reader resolves a namesake; a
+            // printer takes the name (Scalars.pureToString)
             case com.legend.compiler.spec.typed.TypedTypeRef tr ->
-                    new SqlExpr.StringLit(MixedEncoding.simpleName(tr.target().typeName()));
+                    new SqlExpr.StringLit(com.legend.compiler.element.type.PlatformTypes
+                            .typeValuePath(tr.target()));
             case com.legend.compiler.spec.typed.TypedPackageableRef pr
                     when pr.info().type() instanceof
                             com.legend.compiler.element.type.Type.GenericType g
                     && g.rawFqn().equals(
                             com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)
                     && g.arguments().size() == 1 ->
-                    new SqlExpr.StringLit(MixedEncoding.simpleName(
-                            g.arguments().get(0).typeName()));
+                    new SqlExpr.StringLit(com.legend.compiler.element.type.PlatformTypes
+                            .typeValuePath(g.arguments().get(0)));
 
             default -> scalarRelationalArms(spec, columns);
         };
@@ -3206,6 +3319,56 @@ public final class Lowerer {
 
     /** Scalar lowering, tail arm group (same chain — see
      * {@link #scalarRelationalArms}; sequential order preserved). */
+    /** {@code relation->map(row|scalar)} consumed as a VALUE COLLECTION (makeString/joinStrings tails): the projected
+     *  column aggregated to a LIST value by a scalar subquery ({@link #scalarValueTailArms}' arm, its own method since
+     *  2026-10-22: the arm grew the method past the shape limit). */
+    private SqlExpr mapAsValueCollection(TypedMap m2, TypedLambda ml2, ColumnResolver columns) {
+        Multiplicity colMult2 = ml2.functionType().result().multiplicity();
+        // the source correlates with the row in hand, as the
+        // relation-valued arm below and the EXISTS family do
+        enclosing.push(enclosingOf(columns));
+        SqlSelect proj;
+        try {
+            proj = relation(ValueCollections.valueColumnProject(
+                    m2.source(), ml2, m2.info().type(), colMult2));
+        } finally {
+            enclosing.pop();
+        }
+        // pure map FLATTENS collection-valued mappers ($r.values):
+        // the list-of-cell-arrays flattens one level
+        boolean collMapper = ValueCollections.isCollectionMapper(ml2);
+        // C2-i (STAMP_DISCIPLINE_PROGRAM): a PROVABLY single-row
+        // source (a LIMIT<=1 chain or Dual) with a scalar mapper
+        // reads its cell as a PLAIN scalar subquery — the LIST
+        // collect was the census's shape lie; zero rows stay SQL
+        // NULL in both forms, and the scalar form carries the
+        // DB-native single-row semantics.
+        // ALSO requires the node's OWN stamp scalar: many-stamps
+        // keep the LIST-box carrier (loose [*] over one value).
+        if (!collMapper && Fold.provablySingleRow(proj)
+                && m2.info().multiplicity()
+                        instanceof Multiplicity.Bounded mb2
+                && mb2.upper() != null && mb2.upper() <= 1) {
+            return new SqlExpr.ScalarSubquery(proj);
+        }
+        // COLLECTION-MAPPER cells with scalar per-cell STAMPS lower
+        // as true scalars (C1); the flatten contract needs list-of-
+        // lists, so the collect re-boxes each cell BY STAMP.
+        boolean scalarCells = collMapper
+                && ml2.body().get(ml2.body().size() - 1).info()
+                        .multiplicity()
+                        instanceof Multiplicity.Bounded cellB
+                && cellB.upper() != null && cellB.upper() <= 1;
+        SqlExpr collected = ValueCollections.collectAsList(proj,
+                collMapper, scalarCells, nextAlias());
+        // NULL-DROP (audit §5): LIST() keeps NULL cells, so an
+        // optional-cell collect COMPACTS (order untouched).
+        return m2.info().multiplicity().isMany() && !collMapper
+                && Fold.optionalScalarCell(colMult2)
+                ? new SqlExpr.CompactList(collected)
+                : collected;
+    }
+
     private SqlExpr scalarValueTailArms(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
             // makeString/joinStrings over the $r.values TDSRow-cells
@@ -3264,20 +3427,24 @@ public final class Lowerer {
                             .equals(tc.callee().qualifiedName()) ->
                 Render.lowerToString(tc, this::relation, nextAlias(),
                         deferredTds);
-            // F13c — eq/equal over INSTANCE operands (identity lane):
-            // ONE owner of the equality relation — the same canon the
-            // verdict layer byte-judges with. eq = identity (__id
-            // compare); equal = key-tree canon (keyed) or identity
-            // canon (keyless). An unclaimed shape falls to the generic
-            // rule (the candidate check is type-only, side-effect-free).
+            // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
+            // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
+            // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is
+            // refused by name, never compared as a struct (AGENTS.md invariant 4); the claim is type-only.
             case TypedNativeCall n when instanceKeysOf != null
                     && InstanceEquality.claims(n) -> {
                 SqlExpr ie = InstanceEquality.lower(n, instanceKeysOf,
                         this::sqlTypeOf, s -> scalar(s, columns),
                         () -> "_iq" + aliasCounter++);
-                yield ie != null ? ie : NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
-                        n.args().stream().map(a -> scalar(a, columns)).toList(), features, implementations));
+                if (ie == null) {
+                    throw new com.legend.error.NotImplementedException(n.callee().qualifiedName() + " over objects of "
+                            + n.args().stream().map(a -> a.info().type().typeName()).toList()
+                            + " that carry no identity here: they are compared by their keys or their identity,"
+                            + " never as structs (docs/OBJECT_IDENTITY_2026_10_20.md §3.3)");
+                }
+                yield ie;
             }
+            case TypedNativeCall n when formatOverSlots(n) -> formatted(n, columns);
             // arg lowering rides the unary-lambda binding convention
             // (LambdaBinding — M4's replacement for the parked branch's
             // LambdaWire ThreadLocal): a unary lambda param carries the
@@ -3313,52 +3480,7 @@ public final class Lowerer {
             case TypedMap m2
                     when CollectionRelations.rowSource(m2.source())
                     && m2.mapper() instanceof TypedLambda ml2
-                    && !Type.isRelation(ml2.functionType().result().type()) -> {
-                Multiplicity colMult2 = ml2.functionType().result().multiplicity();
-                // the source correlates with the row in hand, as the
-                // relation-valued arm below and the EXISTS family do
-                enclosing.push(enclosingOf(columns));
-                SqlSelect proj;
-                try {
-                    proj = relation(ValueCollections.valueColumnProject(
-                            m2.source(), ml2, m2.info().type(), colMult2));
-                } finally {
-                    enclosing.pop();
-                }
-                // pure map FLATTENS collection-valued mappers ($r.values):
-                // the list-of-cell-arrays flattens one level
-                boolean collMapper = ValueCollections.isCollectionMapper(ml2);
-                // C2-i (STAMP_DISCIPLINE_PROGRAM): a PROVABLY single-row
-                // source (a LIMIT<=1 chain or Dual) with a scalar mapper
-                // reads its cell as a PLAIN scalar subquery — the LIST
-                // collect was the census's shape lie; zero rows stay SQL
-                // NULL in both forms, and the scalar form carries the
-                // DB-native single-row semantics.
-                // ALSO requires the node's OWN stamp scalar: many-stamps
-                // keep the LIST-box carrier (loose [*] over one value).
-                if (!collMapper && Fold.provablySingleRow(proj)
-                        && m2.info().multiplicity()
-                                instanceof Multiplicity.Bounded mb2
-                        && mb2.upper() != null && mb2.upper() <= 1) {
-                    yield new SqlExpr.ScalarSubquery(proj);
-                }
-                // COLLECTION-MAPPER cells with scalar per-cell STAMPS lower
-                // as true scalars (C1); the flatten contract needs list-of-
-                // lists, so the collect re-boxes each cell BY STAMP.
-                boolean scalarCells = collMapper
-                        && ml2.body().get(ml2.body().size() - 1).info()
-                                .multiplicity()
-                                instanceof Multiplicity.Bounded cellB
-                        && cellB.upper() != null && cellB.upper() <= 1;
-                SqlExpr collected = ValueCollections.collectAsList(proj,
-                        collMapper, scalarCells, nextAlias());
-                // NULL-DROP (audit §5): LIST() keeps NULL cells, so an
-                // optional-cell collect COMPACTS (order untouched).
-                yield m2.info().multiplicity().isMany() && !collMapper
-                        && Fold.optionalScalarCell(colMult2)
-                        ? new SqlExpr.CompactList(collected)
-                        : collected;
-            }
+                    && !Type.isRelation(ml2.functionType().result().type()) -> mapAsValueCollection(m2, ml2, columns);
             // A COLUMN READ over a relation chain in scalar position
             // ($tds.rows.id — the TDS getter desugar): narrow to the one
             // column and take the single-column relation route below.
@@ -3454,6 +3576,24 @@ public final class Lowerer {
         };
     }
 
+    /** {@code format} over a literal argument list: printf's slots, each of its OWN static kind, never a collection
+     *  value. */
+    private static boolean formatOverSlots(TypedNativeCall n) {
+        return Pure.AT_STRING_FORMAT.contains(n.callee().id()) && n.args().get(1) instanceof TypedCollection slots
+                && !slots.elements().isEmpty();
+    }
+
+    /** {@code format}'s slots lowered each by its own type, the rule spreading them. The hetero literal claim spelled
+     *  each slot into the LITERAL carrier and the rule decoded it back -- decode(spell(x)) is x written out, and a
+     *  Float slot read through its spelling, its print and %f's repr was 658 KB of SQL on DuckDB, past Trino's 1 MB
+     *  statement limit and MongoDB's 16 MB document (testFormatFloat, 2026-10-20). */
+    private SqlExpr formatted(TypedNativeCall n, ColumnResolver columns) {
+        TypedCollection slots = (TypedCollection) n.args().get(1);
+        return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
+                List.of(scalar(n.args().get(0), columns), listLiteral(slots, e -> scalar(e, columns))),
+                features, implementations));
+    }
+
     /** A resolver for positions where no row scope exists (literal evaluation). */
     ColumnResolver noScope() {
         return (var, name) -> {
@@ -3526,17 +3666,147 @@ public final class Lowerer {
         return CastPolicy.lower(c, value, Stamps.isMany(c), engineText);
     }
 
-    /** A Pure type with a direct scalar SQL carrier (primitives and sized decimals). */
+    /**
+     * A cast naming a dynamic pivot's generated columns -- the pivot idiom,
+     * {@code ->cast(@Relation<(city:String, '2000__|__sum':Integer, ...)>)} -- PROJECTS them (the plan path program's
+     * step 7, 2026-10-18; until then the cast was type-only, and every consumer of the plan -- the TDS text, the CSV
+     * and JSON wires, the judges' typed rows -- met a pivot with no outputs and took the dynamic road, which wants
+     * the typer's templates a cast no longer carries). Each target column is read from the pivot's output by its
+     * PHYSICAL name (a generated name bare, as the database spells it; a static column as it is) and labelled as the
+     * cast spells it (a generated name presented quoted, {@link Type.RelationType#presentPivotName}); its slot is
+     * the pivot's USING's for a generated column (nullable: a group may have no row for a key) and the source's for
+     * a static one. A name that is neither is refused.
+     *
+     * <p>The keys the cast names are the pivot's NAMED values ({@link SqlSource.Pivot#named}, the plan path program's
+     * step 9, 2026-10-19), each the ON key's typed literal: a dialect without a native dynamic PIVOT (H2, Postgres,
+     * SQLite, MariaDB, Trino, ClickHouse, Snowflake, Databricks, BigQuery, MongoDB) pivots on them as on a static
+     * IN, with no row pinned; DuckDB runs the dynamic form. A key whose slot has no literal spelling here is refused
+     * by name.
+     */
+    private SqlSelect castOverDynamicPivot(SqlSelect base, Map<String, Type.Column> src, Type.RelationType tgtRow) {
+        List<SqlSource.Pivot> dynamic = TdsTextWrap.pivots(base).stream().filter(p -> p.in().isEmpty()).toList();
+        if (dynamic.size() != 1) {
+            throw new NotImplementedException("cast(@Relation<...>) over " + dynamic.size()
+                    + " dynamic pivots: the generated columns' pivot is ambiguous");
+        }
+        SqlSource.Pivot pivot = dynamic.get(0);
+        String sep = Type.RelationType.PIVOT_SEPARATOR;
+        List<SqlExpr> named = new ArrayList<>();
+        for (Type.Column tc : tgtRow.columns()) {
+            if (src.containsKey(tc.name())) {
+                continue;
+            }
+            String physical = physicalPivotName(tc.name());
+            int at = physical.lastIndexOf(sep);
+            if (at >= 0) {
+                SqlExpr key = pivotKeyLiteral(pivot, physical.substring(0, at), tc.name());
+                if (named.stream().noneMatch(key::equals)) {
+                    named.add(key);
+                }
+            }
+        }
+        SqlSource.Pivot withNamed = new SqlSource.Pivot(pivot.source(), pivot.on(), pivot.in(), List.copyOf(named),
+                pivot.usings(), pivot.alias(), pivot.outputs());
+        SqlSelect renamed = (SqlSelect) new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlSource source(SqlSource s) {
+                return s == pivot ? withNamed : s;
+            }
+        }.rewrite(base);
+        SqlSelect isolated = isolate(renamed);
+        String alias = ((SqlSource.Subselect) isolated.from()).alias();
+        List<SqlSelect.Projection> projs = new ArrayList<>();
+        for (Type.Column tc : tgtRow.columns()) {
+            Type.Column known = src.get(tc.name());
+            SqlExpr.Column read;
+            OutputCol out;
+            if (known != null) {
+                SqlExpr.Column sc = Fold.sourceColumn(pivot.source(), known.name());
+                if (sc == null || !(sc.type() instanceof com.legend.sql.TypeFact.Typed typed)) {
+                    throw new IllegalStateException("cast(@Relation<...>): the pivot's static column '"
+                            + known.name() + "' has no typed slot in the pivot's source");
+                }
+                OutputCol.Origin origin = sc.origin();
+                if (origin == null) {
+                    throw new IllegalStateException("cast(@Relation<...>): the pivot's static column '"
+                            + known.name() + "' carries no origin in the pivot's source");
+                }
+                read = SqlExpr.Column.of(alias, known.name(), typed.type(), typed.nullable(), origin);
+                out = new OutputCol(tc.name(), typed.type(), typed.nullable());
+            } else {
+                String physical = physicalPivotName(tc.name());
+                int at = physical.lastIndexOf(sep);
+                String tail = at < 0 ? "" : physical.substring(at + sep.length());
+                SqlSource.Pivot.Using using = pivot.usings().stream().filter(u -> u.alias().equals(tail)).findFirst()
+                        .orElseThrow(() -> new NotImplementedException("cast(@Relation<...>) names '" + tc.name()
+                                + "', which is no column of the pivot's source and no generated column of its"
+                                + " aggregates " + pivot.usings().stream().map(SqlSource.Pivot.Using::alias).toList()));
+                if (using.type() == null) {
+                    throw new IllegalStateException("the pivot's USING '" + using.alias() + "' carries no typed slot");
+                }
+                read = SqlExpr.Column.of(alias, physical, using.type(), true, OutputCol.Origin.DERIVED);
+                out = new OutputCol(tc.name(), using.type(), true);
+            }
+            projs.add(new SqlSelect.Projection(read, tc.name(), out));
+        }
+        return isolated.withProjections(projs);
+    }
+
+    /** A generated column's PHYSICAL name from the one a cast spells (the engine's label carries the quotes). */
+    private static String physicalPivotName(String name) {
+        return name.length() >= 2 && name.startsWith("'") && name.endsWith("'")
+                ? name.substring(1, name.length() - 1) : name;
+    }
+
+    /**
+     * The key a cast's generated column names, as the pivot's ON key spells it: an integer slot's text as an
+     * integer literal, a text slot's as a string (a composite key, the lowering's own concatenation, is text).
+     * Another slot (a boolean key is unwitnessed), or a text the slot cannot read, is refused by name (invariant 4).
+     */
+    private static SqlExpr pivotKeyLiteral(SqlSource.Pivot pivot, String text, String column) {
+        if (pivot.on().size() != 1) {
+            throw new NotImplementedException("cast(@Relation<...>) over a pivot on " + pivot.on().size()
+                    + " keys: the named value '" + column + "' belongs to no one key");
+        }
+        if (!(pivot.on().get(0).type() instanceof com.legend.sql.TypeFact.Typed typed)) {
+            throw new IllegalStateException("cast(@Relation<...>): the pivot's key carries no typed slot, so the named"
+                    + " value '" + column + "' has no literal");
+        }
+        if (!(typed.type() instanceof SqlType.Scalar scalar)) {
+            throw new NotImplementedException("cast(@Relation<...>) names '" + column + "' over a pivot key of type "
+                    + typed.type() + ": no literal spelling");
+        }
+        return switch (scalar) {
+            case INTEGER, BIGINT, HUGEINT -> {
+                try {
+                    yield new SqlExpr.IntLit(Long.parseLong(text));
+                } catch (NumberFormatException e) {
+                    throw new NotImplementedException("cast(@Relation<...>) names '" + column + "' over an integer"
+                            + " pivot key, but '" + text + "' is no integer");
+                }
+            }
+            case VARCHAR -> new SqlExpr.StringLit(text);
+            default -> throw new NotImplementedException("cast(@Relation<...>) names '" + column + "' over a pivot"
+                    + " key of type " + scalar + ": no literal spelling");
+        };
+    }
+
     /**
      * A relation cast whose target columns ALL exist in the source projects
      * them (SQL-CAST where the type changed); any absent name means the
-     * pivot idiom's dynamic columns — type-only pass-through.
+     * pivot idiom's dynamic columns, which {@link #castOverDynamicPivot} projects.
      */
     private SqlSelect relationCast(TypedCast c,
                                    Type.RelationType srcRow, Type.RelationType tgtRow) {
         Map<String, Type.Column> src = new LinkedHashMap<>();
         for (Type.Column col : srcRow.columns()) {
             src.put(col.name(), col);
+            // a static pivot's column is named bare (its physical spelling); a cast names it as the engine
+            // presents it (quoted): the presented name finds the same column
+            String presented = Type.RelationType.presentPivotName(col.name());
+            if (!presented.equals(col.name())) {
+                src.put(presented, col);
+            }
         }
         boolean allKnown = tgtRow.columns().stream()
                 .allMatch(tc -> src.containsKey(tc.name()));
@@ -3556,7 +3826,7 @@ public final class Lowerer {
                         + " — only a dynamic-column (pivot) source admits"
                         + " unknown cast columns");
             }
-            return base;   // dynamic (pivot) columns: re-type only
+            return castOverDynamicPivot(base, src, tgtRow);
         }
         // Identity is POSITIONAL: a cast that merely REORDERS columns must
         // project (the executor matches result columns to the schema by

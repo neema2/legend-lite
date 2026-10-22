@@ -101,7 +101,7 @@ public final class CapabilityReach {
     /**
      * The case planned as its lane plans it, up to the dialect: on the storeless runtime ({@code StorelessRuntime},
      * the PCT adapter's), through the plan-only seam ({@code TypedQuery.lower}: G½, H, the runtime's checks, I), a
-     * relation result wrapped in the PCT wire text ({@code PctTdsWrap}) as the lane wraps it. Not applied: the lane's
+     * relation result wrapped in the PCT wire text ({@code TdsTextWrap}) as the lane wraps it. Not applied: the lane's
      * feature flags and its database-side probes (a dynamic pivot's wrap needs the database's answer, so a pivoting
      * relation stays unwrapped).
      */
@@ -120,8 +120,8 @@ public final class CapabilityReach {
                 .lower(com.legend.test.StorelessRuntime.RUNTIME, false);
         var type = l.root().info().type();
         if (com.legend.compiler.element.type.Type.isRelation(type)
-                && com.legend.lowering.PctTdsWrap.pivots(l.plan()).isEmpty()) {
-            return com.legend.lowering.PctTdsWrap.wrap(l.plan(),
+                && com.legend.lowering.TdsTextWrap.pivots(l.plan()).isEmpty()) {
+            return com.legend.lowering.TdsTextWrap.wrap(l.plan(),
                     com.legend.compiler.element.type.Type.requireRelationSchema(type), null,
                     com.legend.exec.Executor::pureOfSqlType);
         }

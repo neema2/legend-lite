@@ -109,7 +109,8 @@ final class Pivots {
         }
         // Fully-qualified refs; a dialect whose PIVOT forbids qualifiers in
         // USING (DuckDB) strips them AT RENDER TIME.
-        return SqlSelect.starOf(new SqlSource.Pivot(inner, on, in, usings, lw.nextAlias(),
+        // a cast over the pivot names its values later (Lowerer.castOverDynamicPivot)
+        return SqlSelect.starOf(new SqlSource.Pivot(inner, on, in, List.of(), usings, lw.nextAlias(),
                 lw.outputsOf(pv.info())));
     }
 }

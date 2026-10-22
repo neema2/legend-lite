@@ -51,17 +51,35 @@ final class InstanceEquality {
     private InstanceEquality() {
     }
 
-    /** Type-only claim gate over the four owned natives. */
+    private static final String REMOVE_DUPLICATES = "meta::pure::functions::collection::removeDuplicates";
+    private static final String DISTINCT = "meta::pure::functions::collection::distinct";
+    private static final String IS_DISTINCT = "meta::pure::functions::collection::isDistinct";
+    private static final String INDEX_OF = "meta::pure::functions::collection::indexOf";
+    private static final String EQUAL = "meta::pure::functions::boolean::equal";
+
+    /** Type-only claim gate over the owned natives: every operation built on equal() over objects
+     *  (docs/OBJECT_IDENTITY_2026_10_20.md §3.3; the engine's distinct, isDistinct and union are removeDuplicates'). */
     static boolean claims(TypedNativeCall n) {
+        String callee = n.callee().qualifiedName();
+        if (n.args().size() == 1 && (REMOVE_DUPLICATES.equals(callee) || DISTINCT.equals(callee)
+                || IS_DISTINCT.equals(callee))) {
+            // each element whose equal() value is new: a keyed class's keys, a keyless class's identity
+            return isMany(n.args().get(0)) && classInstanceFqn(n.args().get(0).info().type()) != null;
+        }
         if (n.args().size() != 2) {
             return false;
         }
-        String callee = n.callee().qualifiedName();
         return switch (callee) {
-            case "meta::pure::functions::boolean::eq",
-                    "meta::pure::functions::boolean::equal" ->
+            // equal over collections: the same size, each pair equal(), in order
+            case EQUAL -> instanceFqn(n.args().get(0)) != null && instanceFqn(n.args().get(1)) != null
+                    || (isMany(n.args().get(0)) || isMany(n.args().get(1)))
+                            && classInstanceFqn(n.args().get(0).info().type()) != null
+                            && classInstanceFqn(n.args().get(1).info().type()) != null;
+            case "meta::pure::functions::boolean::eq" ->
                     instanceFqn(n.args().get(0)) != null
                             && instanceFqn(n.args().get(1)) != null;
+            case INDEX_OF -> isMany(n.args().get(0)) && instanceFqn(n.args().get(1)) != null
+                    && classInstanceFqn(n.args().get(0).info().type()) != null;
             case "meta::pure::functions::collection::contains" ->
                     instanceFqn(n.args().get(1)) != null
                             && classInstanceFqn(
@@ -82,9 +100,15 @@ final class InstanceEquality {
             Function<TypedSpec, SqlExpr> scalar,
             Supplier<String> freshVar) {
         String callee = n.callee().qualifiedName();
+        if (EQUAL.equals(callee) && (instanceFqn(n.args().get(0)) == null || instanceFqn(n.args().get(1)) == null)) {
+            return collectionsEqual(n, keysOf, sqlTypeOf, scalar, freshVar);
+        }
         return switch (callee) {
+            case REMOVE_DUPLICATES, DISTINCT -> removeDuplicates(n, keysOf, sqlTypeOf, scalar, freshVar);
+            case IS_DISTINCT -> isDistinct(n, keysOf, sqlTypeOf, scalar, freshVar);
+            case INDEX_OF -> indexOf(n, keysOf, sqlTypeOf, scalar, freshVar);
             case "meta::pure::functions::boolean::eq",
-                    "meta::pure::functions::boolean::equal" ->
+                    EQUAL ->
                     equality(n, "meta::pure::functions::boolean::eq"
                             .equals(callee), keysOf, sqlTypeOf, scalar);
             default -> contains(n,
@@ -115,10 +139,8 @@ final class InstanceEquality {
                 return null;
             }
             return SqlExpr.Call.of(SqlFn.EQUAL,
-                    new SqlExpr.StructGet(scalar.apply(l),
-                            ClassLayouts.SYNTHETIC_ID),
-                    new SqlExpr.StructGet(scalar.apply(r),
-                            ClassLayouts.SYNTHETIC_ID));
+                    CanonicalRenderSql.trackedId(scalar.apply(l)),
+                    CanonicalRenderSql.trackedId(scalar.apply(r)));
         }
         if (!lf.equals(rf)) {
             // the engine's exact-classifier FALSE fold — witnessed
@@ -173,8 +195,10 @@ final class InstanceEquality {
             return null;
         }
         String elemVar = freshVar.get();
+        // the element typed as the collection's (a dialect carrying a struct as JSON reads its fields by their types)
+        SqlType et = sqlTypeOf.apply(coll.info().type());
         SqlExpr elemCanon = CanonicalRenderSql.instanceEqualityCanon(
-                SqlExpr.Column.derived(null, elemVar), keys, cf, lt);
+                SqlExpr.Column.of(null, elemVar, et, true, com.legend.sql.OutputCol.Origin.DERIVED), keys, cf, et);
         SqlExpr needleCanon = CanonicalRenderSql.instanceEqualityCanon(
                 scalar.apply(needle), keys, cf, lt);
         if (elemCanon == null || needleCanon == null) {
@@ -189,6 +213,135 @@ final class InstanceEquality {
                         new SqlExpr.Cast(needleCanon, SqlType.Scalar.VARCHAR),
                         mapped),
                 new SqlExpr.BoolLit(false));
+    }
+
+    /** An object's equal() value, as text: a keyed class's key canon, a keyless class's {@code __id}; null where the
+     *  struct carries no identity field (a lane whose objects carry none keeps the generic rule). */
+    private static @com.legend.base.Nullable Function<SqlExpr, SqlExpr> equalValue(String cf, Type t, SqlType et,
+            Function<Type, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys> keysOf,
+            String operation) {
+        if (!hasIdentityField(et)) {
+            return null;
+        }
+        EqualityKeys keys = keysOf.apply(t);
+        return ref -> {
+            if (keys == null) {
+                return CanonicalRenderSql.trackedId(ref);
+            }
+            SqlExpr canon = CanonicalRenderSql.instanceEqualityCanon(ref, keys, cf, et);
+            if (canon == null) {
+                throw new com.legend.error.NotImplementedException(operation + " over " + cf
+                        + ": its key has no canonical form here");
+            }
+            return new SqlExpr.Cast(canon, SqlType.Scalar.VARCHAR);
+        };
+    }
+
+    /** The collection's elements' equal() values, in order. */
+    private static SqlExpr equalValues(SqlExpr xs, SqlType et, Function<SqlExpr, SqlExpr> valueOf,
+            Supplier<String> freshVar) {
+        String y = freshVar.get();
+        return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, xs, new SqlExpr.Lambda(List.of(y),
+                valueOf.apply(SqlExpr.Column.of(null, y, et, true, com.legend.sql.OutputCol.Origin.DERIVED))));
+    }
+
+    /** {@code removeDuplicates} (and {@code distinct}, the engine's synonym) over objects: an element is kept where the
+     *  first element with its equal() value is itself ({@code removeDuplicatesBy}'s form). */
+    private static @com.legend.base.Nullable SqlExpr removeDuplicates(TypedNativeCall n,
+            Function<Type, com.legend.compiler.element
+                    .@com.legend.base.Nullable EqualityKeys> keysOf,
+            Function<Type, SqlType> sqlTypeOf,
+            Function<TypedSpec, SqlExpr> scalar,
+            Supplier<String> freshVar) {
+        TypedSpec coll = n.args().get(0);
+        String cf = Objects.requireNonNull(classInstanceFqn(coll.info().type()));
+        SqlType et = sqlTypeOf.apply(coll.info().type());
+        Function<SqlExpr, SqlExpr> valueOf = equalValue(cf, coll.info().type(), et, keysOf, "removeDuplicates");
+        if (valueOf == null) {
+            return null;
+        }
+        String x = freshVar.get();
+        String i = freshVar.get();
+        SqlExpr xs = PureSql.asList(scalar.apply(coll), true);
+        SqlExpr values = equalValues(xs, et, valueOf, freshVar);
+        return SqlExpr.Call.of(SqlFn.LIST_FILTER, xs, new SqlExpr.Lambda(List.of(x, i),
+                SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.LIST_POSITION, values,
+                        valueOf.apply(SqlExpr.Column.of(null, x, et, true, com.legend.sql.OutputCol.Origin.DERIVED))),
+                        SqlExpr.Column.derived(null, i))));
+    }
+
+    /** {@code isDistinct} over objects: no two elements equal() (the engine's: removeDuplicates' size is the size). */
+    private static @com.legend.base.Nullable SqlExpr isDistinct(TypedNativeCall n,
+            Function<Type, com.legend.compiler.element
+                    .@com.legend.base.Nullable EqualityKeys> keysOf,
+            Function<Type, SqlType> sqlTypeOf,
+            Function<TypedSpec, SqlExpr> scalar,
+            Supplier<String> freshVar) {
+        TypedSpec coll = n.args().get(0);
+        String cf = Objects.requireNonNull(classInstanceFqn(coll.info().type()));
+        SqlType et = sqlTypeOf.apply(coll.info().type());
+        Function<SqlExpr, SqlExpr> valueOf = equalValue(cf, coll.info().type(), et, keysOf, "isDistinct");
+        if (valueOf == null) {
+            return null;
+        }
+        return SqlExpr.Call.of(SqlFn.ALL_DISTINCT,
+                equalValues(PureSql.asList(scalar.apply(coll), true), et, valueOf, freshVar));
+    }
+
+    /** {@code indexOf} over objects: the 0-based place of the first element equal() to the value, -1 where none is. */
+    private static @com.legend.base.Nullable SqlExpr indexOf(TypedNativeCall n,
+            Function<Type, com.legend.compiler.element
+                    .@com.legend.base.Nullable EqualityKeys> keysOf,
+            Function<Type, SqlType> sqlTypeOf,
+            Function<TypedSpec, SqlExpr> scalar,
+            Supplier<String> freshVar) {
+        TypedSpec coll = n.args().get(0);
+        TypedSpec value = n.args().get(1);
+        String cf = Objects.requireNonNull(classInstanceFqn(coll.info().type()));
+        String vf = Objects.requireNonNull(instanceFqn(value));
+        SqlType et = sqlTypeOf.apply(coll.info().type());
+        SqlType vt = sqlTypeOf.apply(value.info().type());
+        Function<SqlExpr, SqlExpr> valueOf = equalValue(cf, coll.info().type(), et, keysOf, "indexOf");
+        Function<SqlExpr, SqlExpr> needleOf = equalValue(vf, value.info().type(), vt, keysOf, "indexOf");
+        if (valueOf == null || needleOf == null) {
+            return null;
+        }
+        if (!cf.equals(vf)) {
+            // equal(): classifiers must match, so no element is the value
+            return new SqlExpr.IntLit(-1);
+        }
+        return SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.COALESCE,
+                SqlExpr.Call.of(SqlFn.LIST_POSITION,
+                        equalValues(PureSql.asList(scalar.apply(coll), true), et, valueOf, freshVar),
+                        needleOf.apply(scalar.apply(value))),
+                new SqlExpr.IntLit(0)), new SqlExpr.IntLit(1));
+    }
+
+    /** {@code equal} over collections of objects: the same size and each pair equal(), in order (a null operand the
+     *  empty collection). */
+    private static @com.legend.base.Nullable SqlExpr collectionsEqual(TypedNativeCall n,
+            Function<Type, com.legend.compiler.element
+                    .@com.legend.base.Nullable EqualityKeys> keysOf,
+            Function<Type, SqlType> sqlTypeOf,
+            Function<TypedSpec, SqlExpr> scalar,
+            Supplier<String> freshVar) {
+        TypedSpec l = n.args().get(0);
+        TypedSpec r = n.args().get(1);
+        String lf = Objects.requireNonNull(classInstanceFqn(l.info().type()));
+        String rf = Objects.requireNonNull(classInstanceFqn(r.info().type()));
+        SqlType lt = sqlTypeOf.apply(l.info().type());
+        SqlType rt = sqlTypeOf.apply(r.info().type());
+        Function<SqlExpr, SqlExpr> lv = equalValue(lf, l.info().type(), lt, keysOf, "equal");
+        Function<SqlExpr, SqlExpr> rv = equalValue(rf, r.info().type(), rt, keysOf, "equal");
+        if (lv == null || rv == null || !lf.equals(rf)) {
+            return null;
+        }
+        SqlExpr empty = new SqlExpr.Cast(CanonicalRenderSql.emptyArray(), new SqlType.Array(SqlType.Scalar.VARCHAR));
+        return SqlExpr.Call.of(SqlFn.EQUAL,
+                SqlExpr.Call.of(SqlFn.COALESCE, equalValues(PureSql.asList(scalar.apply(l), isMany(l)), lt, lv,
+                        freshVar), empty),
+                SqlExpr.Call.of(SqlFn.COALESCE, equalValues(PureSql.asList(scalar.apply(r), isMany(r)), rt, rv,
+                        freshVar), empty));
     }
 
     private static boolean hasIdentityField(SqlType t) {
@@ -213,10 +366,16 @@ final class InstanceEquality {
     }
 
     /** The MODEL-class fqn of an instance TYPE (any multiplicity), or
-     * null (platform carriers, Any/variant/Nil). */
+     * null (platform carriers, relations and TDSs, Any/variant/Nil, and a
+     * type value: a model element, which travels as its path and compares
+     * by it, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9). */
     private static @com.legend.base.Nullable String classInstanceFqn(Type t) {
+        String fqn = EqualityKeys.fqnOf(t);
+        if (fqn != null && PlatformTypes.isTypeClassifier(fqn)) {
+            return null;
+        }
         if (PlatformTypes.isPairCarrier(t) || PlatformTypes.isListCarrier(t)
-                || PlatformTypes.isMapCarrier(t)
+                || PlatformTypes.isMapCarrier(t) || PlatformTypes.isTdsShaped(t)
                 || (t instanceof Type.ClassType ct
                         && (PlatformTypes.isVariant(ct)
                                 || PlatformTypes.isAny(ct)

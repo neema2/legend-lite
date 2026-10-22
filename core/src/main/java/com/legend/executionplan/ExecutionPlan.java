@@ -55,7 +55,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /** A node of the plan. */
-    public sealed interface Node permits Sequence, TdsResult, TextResult {
+    public sealed interface Node permits Sequence, TdsResult, TextResult, Keyed {
     }
 
     /** Runs its steps in order; the plan's answer is the last step's. */
@@ -68,16 +68,20 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         }
     }
 
-    /** A tabular result: the statement's rows, with these columns (legend-engine's {@code relationalTdsInstantiation}). */
-    public record TdsResult(List<TdsColumn> columns, Sql sql) implements Node {
+    /**
+     * A result the runner answers as TYPED ROWS (the plan path program's step 6, docs/PLAN_PATH_PROGRAM_2026_10_17.md
+     * §6; its seam the typed method of docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3, step 7): {@code columns} the
+     * relation's columns with their three type facts, and {@code sql} a statement that answers those columns in
+     * their order. The session reads each row's cells from its driver by the plan's columns -- the slot first, the
+     * Pure type where the slot is none -- and the runner holds the plan's facts, no model and no dialect. (Until
+     * step 7 the statement wrote each row as one JSON object the runner parsed back; a document's row still reads
+     * that way, {@code exec.RowDecode}.)
+     */
+    public record TdsResult(List<Column> columns, Sql sql) implements Node {
         public TdsResult {
             columns = List.copyOf(columns);
             Objects.requireNonNull(sql, "sql");
         }
-    }
-
-    /** A column of a tabular result: its Pure type and the SQL type the database answers with. */
-    public record TdsColumn(String name, String type, String sqlType) {
     }
 
     /** A result the DATABASE writes as finished text; the runner passes it on (lite's own node — legend-engine builds
@@ -90,6 +94,97 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         }
     }
 
+    /**
+     * A result whose columns are partly NAMED BY THE DATA: a dynamic pivot's (the plan path program's probe plan,
+     * 2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9). {@code keys} runs first and answers one row per key, in the
+     * order the key's columns take, every cell a text the database writes: cell 0 the key, which the body's per-key
+     * placeholders bind ({@link Binding.Key}), and then each per-key output's name for a key ({@link PerKey#name}),
+     * written under {@code keyFields} (2026-10-20: a session reading a cell by name reads it so).
+     * {@code body} is written once, with per-key regions ({@link Sql#regions}) the runner repeats once per key; its
+     * rows' cells are {@code outputs} in order, a per-key output once per key, key by key. Both statements run on one
+     * session, inside one {@code snapshot}, so the keys are the body's. {@code format} null: the cells are typed by their
+     * columns' facts and answered as typed rows; else each cell is the format's text of its value, written by the
+     * database, and the runner writes the format's punctuation (the header from the outputs' names, a row's separators,
+     * the brackets: docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §5, F1). {@code maxColumns}: the most columns the database
+     * answers, a body asked for more refused by name before it is sent; null where the database has no limit said.
+     */
+    public record Keyed(Sql keys, List<String> keyFields, @com.legend.base.Nullable Format format, List<Output> outputs,
+            Sql body, Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
+        public Keyed {
+            Objects.requireNonNull(keys, "keys");
+            keyFields = List.copyOf(keyFields);
+            outputs = List.copyOf(outputs);
+            Objects.requireNonNull(body, "body");
+            Objects.requireNonNull(snapshot, "snapshot");
+            if (!keys.regions().isEmpty()) {
+                throw new IllegalArgumentException("a keys probe is written once: it has no per-key region");
+            }
+            if (body.regions().isEmpty()) {
+                throw new IllegalArgumentException("a keyed body with no per-key region: it is a plain result");
+            }
+            if (!keys.target().equals(body.target())) {
+                throw new IllegalArgumentException("a keys probe and its body run on one session: one target");
+            }
+            boolean perKey = false;
+            for (Output o : outputs) {
+                if (o instanceof PerKey) {
+                    perKey = true;
+                } else if (perKey) {
+                    throw new IllegalArgumentException("a fixed output after the per-key ones: the body answers its"
+                            + " fixed columns first");
+                }
+            }
+            if (!perKey) {
+                throw new IllegalArgumentException("a keyed result with no per-key output");
+            }
+            long perKeyOutputs = outputs.stream().filter(o -> o instanceof PerKey).count();
+            if (keyFields.size() != perKeyOutputs + 1) {
+                throw new IllegalArgumentException("a keys probe answers the key's text and each per-key output's name:"
+                        + " " + keyFields.size() + " fields for " + perKeyOutputs + " per-key outputs");
+            }
+            if (format == Format.JSON_PER_ROW) {
+                throw new IllegalArgumentException("a keyed text is written row by row in every format: its JSON is"
+                        + " JSON, the runner writing the brackets either way");
+            }
+        }
+
+        /** One output column of the body; {@code field}, the name the body's statement writes its cells under (a
+         *  session reading a cell by name reads it so; JDBC reads by place). */
+        public sealed interface Output permits Fixed, PerKey {
+            Column column();
+
+            String field();
+        }
+
+        /** A column answered once: its facts, and {@code name}, the format's spelling of its name (a TDS header
+         *  entry, a CSV header field, a JSON member's name token; the column's own name for typed rows). */
+        public record Fixed(Column column, String name, String field) implements Output {
+            public Fixed {
+                Objects.requireNonNull(column, "column");
+                Objects.requireNonNull(name, "name");
+                Objects.requireNonNull(field, "field");
+            }
+        }
+
+        /** A column answered once per key, its facts {@code column}'s for every key (its name the template's stem),
+         *  each key's name the keys row's cell {@code name}; the body writes the key at position {@code k}'s cells
+         *  under {@code "_pk" + k + "_" + field} (the per-key name every dialect writes). */
+        public record PerKey(Column column, int name, String field) implements Output {
+            public PerKey {
+                Objects.requireNonNull(column, "column");
+                Objects.requireNonNull(field, "field");
+                if (name < 1) {
+                    throw new IllegalArgumentException("a per-key name is a keys row's cell after the key: " + name);
+                }
+            }
+        }
+
+        /** How the two statements see one state of the data: a transaction at the isolation that makes its reads one
+         *  snapshot ({@code TRANSACTION} where every transaction is one, the database's own isolation kept), or
+         *  {@code NONE} where the database has no transaction across statements, a difference the register names. */
+        public enum Snapshot { TRANSACTION, REPEATABLE_READ, SERIALIZABLE, NONE }
+    }
+
     /** How the database writes a {@link TextResult}. */
     public enum Format {
         /** the whole result as one CSV text */
@@ -97,7 +192,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         /** the whole result as one JSON text */
         JSON,
         /** one JSON object per row; the runner writes the array's brackets and commas */
-        JSON_PER_ROW
+        JSON_PER_ROW,
+        /** the whole result as Pure's TDS text: a header of {@code name:Type[multiplicity]}, each row on its own
+         *  line, cells in Pure's print forms (the form legend-pure's {@code stringToTDS} reads; 2026-10-17) */
+        TDS_TEXT
     }
 
     /** What a {@link TextResult} is of: a relation's columns, or a value's type and multiplicity. */
@@ -111,13 +209,20 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         }
     }
 
-    /** A column of a relation the database writes as text: its name and its Pure type as the typer names it (a
-     *  primitive's name, {@code Decimal(10,2)}, an enumeration's path) — the database answers with the text, so no
-     *  column has a SQL type of its own. */
-    public record Column(String name, String type) {
+    /** A column of a relation the database writes as text, with its three type facts
+     *  (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): {@code type}, its Pure type as the typer names it (a primitive's
+     *  name, {@code Decimal(10,2)}, an enumeration's path), and its {@code multiplicity}; {@code slot}, the SQL type
+     *  the database answers with (the lowering's typed slot: {@code VARCHAR}, {@code DECIMAL(10,2)},
+     *  {@code TIMESTAMP}) -- null when the column has no one slot (a nested column the query flattens into prefixed
+     *  outputs; a pivot's generated column whose template carries no type); and {@code store}, the column's declared
+     *  type in its store when the value is a store column read through ({@code VARCHAR(20)}, as the relational
+     *  grammar spells it) -- null when the column is computed. Each null is said, never guessed. */
+    public record Column(String name, String type, Multiplicity multiplicity, @com.legend.base.Nullable String slot,
+            @com.legend.base.Nullable String store) {
         public Column {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
+            Objects.requireNonNull(multiplicity, "multiplicity");
         }
     }
 
@@ -137,11 +242,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * executor; it is not written to the lite JSON yet (a later step), so a plan read back from JSON has none.
      */
     public record Sql(String statement, List<Slot> slots, Target target,
-            com.legend.sql.@com.legend.base.Nullable SqlQuery tree) {
+            com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions) {
         public Sql {
             Objects.requireNonNull(statement, "statement");
             slots = List.copyOf(slots);
             Objects.requireNonNull(target, "target");
+            regions = List.copyOf(regions);
+            Region.check(statement.length(), slots, regions, s -> s.binding() instanceof Binding.Key);
             int previous = -1;
             for (Slot slot : slots) {
                 if (slot.binding() instanceof Binding.One one && one.hole() != null) {
@@ -152,6 +259,67 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
                                 + statement.length() + ")");
                     }
                     previous = at;
+                }
+            }
+        }
+
+        /** A statement with no per-key region. */
+        public Sql(String statement, List<Slot> slots, Target target,
+                com.legend.sql.@com.legend.base.Nullable SqlQuery tree) {
+            this(statement, slots, target, tree, List.of());
+        }
+    }
+
+    /**
+     * A run of a statement written ONCE PER KEY of its plan's keys probe ({@link Keyed}): the text
+     * {@code [start, end)}, written once for each key in the probe's order, {@code lead} before the first copy and
+     * {@code separator} between copies, the key's position in the probe written at each of {@code counters} (positions
+     * in the statement), and the {@code slotCount} slots from {@code firstSlot} bound again in each copy. With no key
+     * the run is not written, {@code lead} with it, and {@code empty} stands in its place; a null {@code empty}: the
+     * statement has no form without a key, refused by name. The dialect wrote every character when the plan was made.
+     */
+    public record Region(int start, int end, String lead, String separator, @com.legend.base.Nullable String empty,
+            int firstSlot, int slotCount, List<Integer> counters) {
+        public Region {
+            Objects.requireNonNull(lead, "lead");
+            Objects.requireNonNull(separator, "separator");
+            counters = List.copyOf(counters);
+            if (start < 0 || end < start || firstSlot < 0 || slotCount < 0) {
+                throw new IllegalArgumentException("a per-key region [" + start + ", " + end + "), slots from "
+                        + firstSlot + ", " + slotCount + " of them");
+            }
+            for (int at : counters) {
+                if (at < start || at > end) {
+                    throw new IllegalArgumentException("a key's position at " + at + " outside its region [" + start
+                            + ", " + end + ")");
+                }
+            }
+        }
+
+        /** {@code regions} in order within a statement of {@code length}, each one's slots among {@code slots}, and
+         *  every slot {@code keyed} says binds a key's cell inside one (outside one there is no key to bind). */
+        static <S> void check(int length, List<S> slots, List<Region> regions, java.util.function.Predicate<S> keyed) {
+            int previousEnd = 0;
+            int previousSlots = 0;
+            java.util.BitSet inRegion = new java.util.BitSet(slots.size());
+            for (Region r : regions) {
+                if (r.start() < previousEnd || r.end() > length) {
+                    throw new IllegalArgumentException("per-key region [" + r.start() + ", " + r.end() + ") is not"
+                            + " after the previous one (" + previousEnd + ") within the statement (" + length + ")");
+                }
+                if (r.firstSlot() < previousSlots || r.firstSlot() + r.slotCount() > slots.size()) {
+                    throw new IllegalArgumentException("per-key region's slots " + r.firstSlot() + ".."
+                            + (r.firstSlot() + r.slotCount()) + " are not after the previous region's ("
+                            + previousSlots + ") among the statement's " + slots.size());
+                }
+                inRegion.set(r.firstSlot(), r.firstSlot() + r.slotCount());
+                previousEnd = r.end();
+                previousSlots = r.firstSlot() + r.slotCount();
+            }
+            for (int i = 0; i < slots.size(); i++) {
+                if (keyed.test(slots.get(i)) && !inRegion.get(i)) {
+                    throw new IllegalArgumentException("slot " + (i + 1) + " binds a key's cell outside a per-key"
+                            + " region: no key to bind");
                 }
             }
         }
@@ -167,7 +335,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /** How a placeholder is bound. */
-    public sealed interface Binding permits Binding.One, Binding.Array {
+    public sealed interface Binding permits Binding.One, Binding.Array, Binding.Key {
 
         /** One value, as the caller's checked value is; an absent one a null of {@code nullType} (a
          *  {@code java.sql.JDBCType}'s name). {@code hole}: set where the statement must name the value's type (H2 types
@@ -183,6 +351,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         record Array(String elementSqlType) implements Binding {
             public Array {
                 Objects.requireNonNull(elementSqlType, "elementSqlType");
+            }
+        }
+
+        /** A key's cell, in a per-key region ({@link Region}): the keys row's {@code cell} of the key the region's copy
+         *  is of, bound as its text; the slot names no declared parameter. */
+        record Key(int cell) implements Binding {
+            public Key {
+                if (cell < 0) {
+                    throw new IllegalArgumentException("a key's cell " + cell);
+                }
             }
         }
     }

@@ -26,9 +26,22 @@ public sealed interface SqlSource {
      * value), so {@code outputs} carries only what Phase G could type
      * statically. A non-empty {@code in} pins the pivoted columns to exactly
      * those values (the static {@code pivot(~col, [v…], ~agg)} form).
+     *
+     * <p>{@code named} (the plan path program's step 9, 2026-10-19): the values a cast over a DYNAMIC pivot names
+     * (each generated column's key, {@code '2011__|__newCol'} naming 2011), each the ON key's typed literal, in the
+     * cast's order; empty when {@code in} is given or no cast names them. They pin no row: a dialect without a native
+     * dynamic PIVOT pivots on them as it does a static {@code in} (a group whose key none of them is keeps its row,
+     * every named column null), and one with it runs the dynamic form and reads the columns by name (the engine's
+     * DuckDB: a named key no row has is the database's error there, a null column elsewhere -- register S102).
      */
-    record Pivot(SqlSource source, List<SqlExpr> on, List<SqlExpr> in, List<Using> usings,
+    record Pivot(SqlSource source, List<SqlExpr> on, List<SqlExpr> in, List<SqlExpr> named, List<Using> usings,
                  String alias, List<OutputCol> outputs) implements SqlSource {
+        /** The values whose columns a dialect without a dynamic PIVOT writes: {@code in}'s, else the named ones;
+         *  empty for a dynamic pivot nothing names (its columns exist only once the database is asked). */
+        public List<SqlExpr> values() {
+            return in.isEmpty() ? named : in;
+        }
+
         /** {@code type}: the aggregate's LOWERING-typed result slot —
          * the typed fact pivot-generated columns inherit (E1: recovered
          * from backend metadata before, which typed SUM columns Decimal

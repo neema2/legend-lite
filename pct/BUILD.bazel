@@ -9,6 +9,7 @@ load("//tools/mariadb:defs.bzl", "EMBEDDED_MARIADB_COMPATIBLE")
 load("//tools/mysql:defs.bzl", "EMBEDDED_MYSQL_COMPATIBLE")
 load("//tools/clickhouse:defs.bzl", "EMBEDDED_CLICKHOUSE_COMPATIBLE")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("//tools/mongodb:defs.bzl", "EMBEDDED_MONGODB_COMPATIBLE")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
 load("//tools/java_run:defs.bzl", "java_run")
@@ -269,6 +270,36 @@ test_suite(
     name = "pct_mariadb",
     tags = ["manual"],
     tests = [":pct_mariadb_" + s.lower() for s in _SUITES],
+)
+
+# THE MONGODB LANES — the five suites on MongoDB 8.0 (LEGENDLITE_PCT_BACKEND=mongodb), on a real server this JVM starts
+# from the pinned server Bazel unpacked (@embedded_mongodb, //testing EmbeddedMongoDb): no Docker. The lane has no JDBC
+# session: channel A runs through the plan path (PctPlanRoute -- the expression planned to Pure's TDS text and run by
+# the plan runner on the session the connector opens; docs/MONGODB_PLAN_2026_10_16.md §6, 2026-10-17). Each suite
+# carries MongoDB's OWN expected failures (Test_LegendLite_MongoDB_*Functions_PCT). Manual; its driver rides with the
+# connector in //core:drivers.
+[junit_test(
+    name = "pct_mongodb_" + s.lower(),
+    memory_mb = 4096,
+    data = [
+        "@embedded_mongodb//:mongodb",
+        "@embedded_mongodb//:mongodb/MONGODB_ROOT",
+    ],
+    env = {"LEGENDLITE_PCT_BACKEND": "mongodb"},
+    jvm_flags = ["-Dembedded.mongodb.root=$(rlocationpath @embedded_mongodb//:mongodb/MONGODB_ROOT)"],
+    select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_MongoDB_%sFunctions_PCT" % s],
+    tags = ["manual"],
+    target_compatible_with = EMBEDDED_MONGODB_COMPATIBLE,
+    runtime_deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+    ],
+) for s in _SUITES]
+
+test_suite(
+    name = "pct_mongodb",
+    tags = ["manual"],
+    tests = [":pct_mongodb_" + s.lower() for s in _SUITES],
 )
 
 # THE MYSQL LANES — the five suites on MySQL 8.4 (LEGENDLITE_PCT_BACKEND=mysql), on a real server this JVM starts from

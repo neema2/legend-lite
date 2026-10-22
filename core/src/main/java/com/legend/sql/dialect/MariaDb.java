@@ -150,6 +150,14 @@ public class MariaDb extends AnsiSqlRenderer {
         return w -> w.append("JSON_VALUE(").piece(json).append(", ").piece(path).append(")");
     }
 
+    /** A list, struct or map at {@code path}, as its JSON, a JSON null NULL: {@code JSON_EXTRACT} answers a JSON
+     *  null as the text {@code null}, which no {@code IS NULL} sees (measured on MariaDB 11.4: an absent [0..1]
+     *  struct member was spelled as an instance of no properties on the plan route; step 9, 2026-10-19). A JSON
+     *  string is quoted there, so no string is that text. */
+    protected SqlWriter.Piece jsonMember(SqlWriter.Piece json, SqlWriter.Piece path) {
+        return w -> w.append("NULLIF(JSON_EXTRACT(").piece(json).append(", ").piece(path).append("), 'null')");
+    }
+
     /** {@link #jsonText(SqlWriter.Piece, SqlWriter.Piece)} of SQL text: a column's JSON at a path's text. */
     protected String jsonText(String json, String path) {
         return "JSON_VALUE(" + json + ", " + path + ")";
@@ -233,6 +241,17 @@ public class MariaDb extends AnsiSqlRenderer {
     }
 
     /** No native pivot: a static pivot is emulated by the carrier strategies, so a dynamic one is discovered first. */
+    // the probe plan's facts (2026-10-20): MariaDB and MySQL: 4,096 columns (the documented column limit); InnoDB REPEATABLE READ reads one snapshot
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.REPEATABLE_READ;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return 4096;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;
@@ -248,7 +267,8 @@ public class MariaDb extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
-                new QualifyToSubselect(true), new ConstantKeysAsExpressions());
+                new QualifyToSubselect(true), new WindowAggregatesAsCorrelated(Set.of(SqlAgg.Fn.STRING_AGG)),
+                new ConstantKeysAsExpressions());
     }
 
     @Override
@@ -365,6 +385,18 @@ public class MariaDb extends AnsiSqlRenderer {
             roots.pop();
             rootSelects.pop();
         }
+    }
+
+    /** An ordered derived table takes a LIMIT: MariaDB and MySQL drop a derived table's ORDER BY without one, and its
+     *  reader then scans the rows in any order (measured 2026-10-20 on 11.4 and 8.4: a list's rows, ordered by their
+     *  position below a joined text, came out '1' '3' 1 2 3 where the list is 1 2 '1' '3' 3; with the LIMIT, in order). */
+    @Override
+    protected SqlWriter subselectSource(SqlWriter writer, SqlSource.Subselect sub, int depth) {
+        if (sub.inner() instanceof SqlSelect s && !s.orderBy().isEmpty() && s.limit() == null) {
+            return super.subselectSource(writer, new SqlSource.Subselect(s.withLimit(Long.MAX_VALUE), sub.alias(),
+                    sub.frameName()), depth);
+        }
+        return super.subselectSource(writer, sub, depth);
     }
 
     /**
@@ -1031,7 +1063,10 @@ public class MariaDb extends AnsiSqlRenderer {
 
     /** A JSON value as its text, compact as Pure and DuckDB print JSON: a JSON value is text here, already so. */
     protected SqlWriter.Piece jsonAsText(SqlWriter.Piece json) {
-        return json;
+        // the text, cast so it is no longer JSON to MariaDB: a JSON container (JSON_ARRAYAGG, JSON_OBJECT) holds it as
+        // a string, never as the object it spells (2026-10-20: a list of an equality's key texts held objects, and its
+        // membership read each as text, NULL -- testContainsNonPrimitive, testInNonPrimitive)
+        return w -> w.append("CAST(").piece(json).append(" AS CHAR)");
     }
 
     /** A value as a JSON container holds it ({@link #jsonOf}). */
@@ -1086,6 +1121,9 @@ public class MariaDb extends AnsiSqlRenderer {
     /** A JSON text's value at {@code path} as a value of type {@code t}: a nested value or a Variant its JSON
      *  ({@code JSON_EXTRACT}), a scalar its SQL value ({@code JSON_VALUE}, a string unquoted) cast to its type. */
     private SqlWriter.Piece valueAt(SqlWriter.Piece json, SqlWriter.Piece path, @com.legend.base.Nullable SqlType t) {
+        if (t instanceof SqlType.Array || t instanceof SqlType.Struct || t instanceof SqlType.Map) {
+            return jsonMember(json, path);
+        }
         if (nested(t)) {
             return w -> w.append("JSON_EXTRACT(").piece(json).append(", ").piece(path).append(")");
         }
@@ -1176,6 +1214,9 @@ public class MariaDb extends AnsiSqlRenderer {
 
     private static SqlExpr structFields(SqlExpr body, String param, @com.legend.base.Nullable SqlType struct) {
         if (body instanceof SqlExpr.Column c && param.equals(c.table())) {
+            // the field read typed as the column it replaces where the parameter's struct is not known here (a fold's
+            // accumulator): a list field read as a scalar is NULL (JSON_VALUE; 2026-10-20, testFoldToMany kept its
+            // last name)
             SqlExpr source = struct instanceof SqlType.Struct ? SqlExpr.Column.of(null, param, struct, true,
                     com.legend.sql.OutputCol.Origin.DERIVED) : SqlExpr.Column.derived(null, param);
             return new SqlExpr.StructGet(source, c.name(), c.type());
@@ -1461,6 +1502,54 @@ public class MariaDb extends AnsiSqlRenderer {
                         + " FROM __lv WHERE NOT (__lv.\"j\" = CHAR_LENGTH(__lv.\"b\") AND __lv.\"i\" ="
                         + " CHAR_LENGTH(__lv.\"a\"))) SELECT CAST(" + jsonText("\"c\"", "CONCAT('$[', \"j\", ']')") + " AS SIGNED)"
                         + " FROM __lv WHERE \"i\" = CHAR_LENGTH(\"a\") AND \"j\" = CHAR_LENGTH(\"b\"))");
+    }
+
+    /** The Jaro-Winkler similarity of two texts, by characters (DuckDB's {@code jaro_winkler_similarity}, measured
+     *  bit-equal): one recursive walk over the second text, each of its characters matched to the first unmatched
+     *  equal character of the first text inside the match window (the first text's flags a string of 0s and 1s, the
+     *  matched characters kept in the second text's order); a second walk over the first text counting the matched
+     *  characters out of that order; the similarity, and past 0.7 the common prefix's boost (up to four characters),
+     *  in DOUBLE arithmetic. A recursive CTE takes no outer reference on MariaDB, so two texts that read a row are a
+     *  wall there; the anchor's texts are typed through a {@code JSON_TABLE}, as the edit distance's. */
+    private SqlWriter.Piece jaroWinkler(SqlExpr x, SqlExpr y) {
+        if (!correlatesDerived() && (!closed(x, Set.of()) || !closed(y, Set.of()))) {
+            throw wall(SqlFn.JARO_WINKLER, "a Jaro-Winkler similarity of texts that read a row needs a recursive CTE"
+                    + " over an outer column (measured: Unknown column)");
+        }
+        String text = columnType(SqlType.Scalar.VARCHAR);
+        String hit = "SUBSTRING(__jw.\"f\", __jw.\"i\", 1) = '0' AND SUBSTRING(__jw.\"p\", __jw.\"i\", 1) ="
+                + " SUBSTRING(__jw.\"t\", __jw.\"j\", 1)";
+        String next = "__jw.\"i\" > __jw.\"j\" + __jw.\"b\" OR __jw.\"i\" > CHAR_LENGTH(__jw.\"p\") OR (" + hit + ")";
+        String taken = "__jw.\"i\" <= __jw.\"j\" + __jw.\"b\" AND " + hit;
+        String m = "CAST(CHAR_LENGTH(__jx.\"m\") AS DOUBLE)";
+        String jaro = "(" + m + " / CAST(CHAR_LENGTH(__jx.\"p\") AS DOUBLE) + " + m + " / CAST(CHAR_LENGTH(__jx.\"t\") AS"
+                + " DOUBLE) + (" + m + " - CAST(FLOOR(__jx.\"n\" / 2) AS DOUBLE)) / " + m + ") / CAST(3 AS DOUBLE)";
+        StringBuilder prefix = new StringBuilder();
+        for (int k = 1; k <= 4; k++) {
+            prefix.append(k == 1 ? "" : " + ").append("CASE WHEN ").append(k).append(" <= LEAST(CHAR_LENGTH(__jx.\"p\"),"
+                    + " CHAR_LENGTH(__jx.\"t\")) AND LEFT(__jx.\"p\", ").append(k).append(") = LEFT(__jx.\"t\", ")
+                    .append(k).append(") THEN 1 ELSE 0 END");
+        }
+        String window = "GREATEST(0, FLOOR(GREATEST(CHAR_LENGTH(__s.\"p\"), CHAR_LENGTH(__s.\"t\")) / 2) - 1)";
+        return w -> w.append("(WITH RECURSIVE __jw(\"p\", \"t\", \"b\", \"j\", \"i\", \"f\", \"m\") AS (SELECT __s.\"p\","
+                + " __s.\"t\", " + window + ", 1, GREATEST(1, 1 - " + window + "), CONCAT(__s.\"m\", REPEAT('0',"
+                + " CHAR_LENGTH(__s.\"p\"))), __s.\"m\" FROM JSON_TABLE(JSON_ARRAY(").expr(x, 0).append(", ").expr(y, 0)
+                .append(", ''), '$' COLUMNS (\"p\" " + text + " PATH '$[0]', \"t\" " + text + " PATH '$[1]', \"m\" "
+                        + text + " PATH '$[2]')) AS __s UNION ALL SELECT __jw.\"p\", __jw.\"t\", __jw.\"b\", CASE WHEN "
+                        + next + " THEN __jw.\"j\" + 1 ELSE __jw.\"j\" END, CASE WHEN " + next + " THEN GREATEST(1,"
+                        + " __jw.\"j\" + 1 - __jw.\"b\") ELSE __jw.\"i\" + 1 END, CASE WHEN " + taken + " THEN"
+                        + " INSERT(__jw.\"f\", __jw.\"i\", 1, '1') ELSE __jw.\"f\" END, CASE WHEN " + taken + " THEN"
+                        + " CONCAT(__jw.\"m\", SUBSTRING(__jw.\"t\", __jw.\"j\", 1)) ELSE __jw.\"m\" END FROM __jw WHERE"
+                        + " __jw.\"j\" <= CHAR_LENGTH(__jw.\"t\")), __jx(\"p\", \"t\", \"f\", \"m\", \"k\", \"q\", \"n\")"
+                        + " AS (SELECT __jw.\"p\", __jw.\"t\", __jw.\"f\", __jw.\"m\", 1, 0, 0 FROM __jw WHERE __jw.\"j\" >"
+                        + " CHAR_LENGTH(__jw.\"t\") UNION ALL SELECT __jx.\"p\", __jx.\"t\", __jx.\"f\", __jx.\"m\","
+                        + " __jx.\"k\" + 1, CASE WHEN SUBSTRING(__jx.\"f\", __jx.\"k\", 1) = '1' THEN __jx.\"q\" + 1 ELSE"
+                        + " __jx.\"q\" END, CASE WHEN SUBSTRING(__jx.\"f\", __jx.\"k\", 1) = '1' AND SUBSTRING(__jx.\"p\","
+                        + " __jx.\"k\", 1) <> SUBSTRING(__jx.\"m\", __jx.\"q\" + 1, 1) THEN __jx.\"n\" + 1 ELSE __jx.\"n\""
+                        + " END FROM __jx WHERE __jx.\"k\" <= CHAR_LENGTH(__jx.\"p\")) SELECT CASE WHEN"
+                        + " CHAR_LENGTH(__jx.\"m\") = 0 THEN CAST(0 AS DOUBLE) WHEN " + jaro + " > CAST(0.7 AS DOUBLE)"
+                        + " THEN " + jaro + " + (" + prefix + ") * CAST(0.1 AS DOUBLE) * (CAST(1 AS DOUBLE) - " + jaro
+                        + ") ELSE " + jaro + " END FROM __jx WHERE __jx.\"k\" > CHAR_LENGTH(__jx.\"p\"))");
     }
 
     /** {@code JSON_TABLE} over {@code n} rows ({@code n} at least one), its ordinal {@code alias."__n"}: a correlated
@@ -1832,6 +1921,7 @@ public class MariaDb extends AnsiSqlRenderer {
             // the text some fifty times, each read this dialect's long text of a double (545 KB for a five-element
             // mixed list, measured 2026-10-11)
             case FLOAT_CANON -> writer.piece(floatLayout(w -> w.expr(a.get(0), 0), true));
+            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
             // NULL-skipping, as DuckDB's (MariaDB's GREATEST/LEAST are NULL for any NULL argument)
             case GREATEST -> writer.piece(nullSkipping("GREATEST", a));
             case LEAST -> writer.piece(nullSkipping("LEAST", a));
@@ -1882,7 +1972,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case SHA1 -> writer.append("SHA1(").expr(a.get(0), 0).append(")");
             case SHA256 -> writer.append("SHA2(").expr(a.get(0), 0).append(", 256)");
             case LEVENSHTEIN -> writer.piece(levenshtein(a.get(0), a.get(1)));
-            case JARO_WINKLER -> throw wall(c.fn(), product() + " has no string-distance function");
+            case JARO_WINKLER -> writer.piece(jaroWinkler(a.get(0), a.get(1)));
             // UUID() is of the UUID type (11.x): its text
             case GUID -> writer.append("CAST(UUID() AS CHAR)");
             case RANDOM -> writer.append("RAND()");

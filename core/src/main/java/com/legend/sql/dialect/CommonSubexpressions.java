@@ -38,8 +38,23 @@ final class CommonSubexpressions extends com.legend.sql.SqlRewriter {
 
     private final int[] fresh = {0};
 
+    /** The selects already rewritten, by content: an equal select is rewritten as it was, so equal copies of one
+     *  value (a float's bound text in each branch) stay equal, their binds' names too, and are bound as one above
+     *  them (step 9, 2026-10-19: each copy's fresh names had made 108 equal canons distinct, 1.29 MB on SQLite). */
+    private final Map<SqlSelect, SqlQuery> rewritten = new java.util.HashMap<>();
+
     @Override
     protected SqlQuery select(SqlSelect s) {
+        SqlQuery known = rewritten.get(s);
+        if (known != null) {
+            return known;
+        }
+        SqlQuery out = selectOnce(s);
+        rewritten.put(s, out);
+        return out;
+    }
+
+    private SqlQuery selectOnce(SqlSelect s) {
         if (ExplosionMarkers.isMarker(s)) {
             return s;
         }
@@ -207,6 +222,16 @@ final class CommonSubexpressions extends com.legend.sql.SqlRewriter {
         }
         long n = !(e instanceof SqlExpr.Call c) ? 1
                 : WALKS.contains(c.fn()) ? 200 : SUBQUERIES.contains(c.fn()) ? 20 : 1;
+        // a bind's expressions are no child of its node: its size is theirs
+        if (e instanceof SqlExpr.ScalarSubquery q && q.subquery() instanceof SqlSelect use
+                && use.from() instanceof SqlSource.Subselect sub && sub.inner() instanceof SqlSelect bind) {
+            for (SqlSelect.Projection p : use.projections()) {
+                n = Math.min(Long.MAX_VALUE / 2, n + size(p.expr(), sizes));
+            }
+            for (SqlSelect.Projection p : bind.projections()) {
+                n = Math.min(Long.MAX_VALUE / 2, n + size(p.expr(), sizes));
+            }
+        }
         for (SqlExpr k : e.children()) {
             n = Math.min(Long.MAX_VALUE / 2, n + size(k, sizes));
         }
@@ -253,7 +278,7 @@ final class CommonSubexpressions extends com.legend.sql.SqlRewriter {
             case SqlExpr.CheckedDefects c -> false;
             case SqlExpr.CheckedChildValue c -> false;
             case SqlExpr.WindowCall w -> false;
-            case SqlExpr.ScalarSubquery q -> false;
+            case SqlExpr.ScalarSubquery q -> isBind(q, memo);
             case SqlExpr.Exists q -> false;
             case SqlExpr.InSubquery q -> false;
             case SqlExpr.Quantified q -> false;
@@ -273,6 +298,30 @@ final class CommonSubexpressions extends com.legend.sql.SqlRewriter {
         }
         memo.put(e, ok);
         return ok;
+    }
+
+    /** A one-row bind ({@code (SELECT e FROM (SELECT x AS v) AS a)}, the shape this pass and a float's bound text
+     *  write) of movable expressions: its value is its operands' alone (step 9, 2026-10-19). */
+    private static boolean isBind(SqlExpr.ScalarSubquery q, Map<SqlExpr, Boolean> memo) {
+        if (!(q.subquery() instanceof SqlSelect use) || !plain(use) || use.projections().size() != 1
+                || !(use.from() instanceof SqlSource.Subselect sub) || !(sub.inner() instanceof SqlSelect bind)
+                || !plain(bind) || !(bind.from() instanceof SqlSource.Dual)) {
+            return false;
+        }
+        // its expressions are no child of the subquery's node, so a lambda parameter read inside it is refused here
+        // (an unqualified column is one), never bound above the lambda
+        for (SqlSelect.Projection p : bind.projections()) {
+            if (!movable(p.expr(), memo) || grouped(p.expr()) || !names(p.expr(), new IdentityHashMap<>()).isEmpty()) {
+                return false;
+            }
+        }
+        SqlExpr spelled = use.projections().get(0).expr();
+        return movable(spelled, memo) && !grouped(spelled) && names(spelled, new IdentityHashMap<>()).isEmpty();
+    }
+
+    private static boolean plain(SqlSelect s) {
+        return !s.distinct() && s.where() == null && s.groupBy().isEmpty() && s.having() == null
+                && s.qualify() == null && s.orderBy().isEmpty() && s.limit() == null && s.offset() == null;
     }
 
     /** An aggregate or a window anywhere: the select's own grouping reads it. */

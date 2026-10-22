@@ -141,7 +141,10 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
                             + " bug");
                 }
             } else if (out != null
-                    && out.origin() != OutputCol.Origin.DERIVED) {
+                    && out.origin() != OutputCol.Origin.DERIVED
+                    // a per-key name is the projection's own too, born once per key (the probe plan, 2026-10-20):
+                    // the mark is what makes its run a region
+                    && out.origin() != OutputCol.Origin.PER_KEY) {
                 out = new OutputCol(out.name(), out.type(), out.nullable());
             }
         }

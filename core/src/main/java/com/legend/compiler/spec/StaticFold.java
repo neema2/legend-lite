@@ -73,8 +73,12 @@ final class StaticFold {
     record Pair(Object first, Object second) {
     }
 
-    /** A bare type reference in expression position ({@code $col.type == Integer}). */
-    record TypeToken(String simpleName) {
+    /** A bare type reference in expression position ({@code $col.type == Integer}): its path (docs/PLAN_PATH_PROGRAM_2026_10_17.md §9,
+     *  2026-10-20; {@code PlatformTypes.typeValuePath}), so two namesakes are two types; it prints its name. */
+    record TypeToken(String path) {
+        String simpleName() {
+            return simple(path);
+        }
     }
 
     // =====================================================================
@@ -327,7 +331,8 @@ final class StaticFold {
                 }
                 yield out;
             }
-            case PackageableElementPtr p -> new TypeToken(simple(p.fullPath()));
+            case PackageableElementPtr p -> new TypeToken(
+                    com.legend.compiler.element.type.PlatformTypes.typeValuePath(p.fullPath()));
             case AppliedProperty ap -> evalProperty(ap, scope);
             case AppliedFunction af -> evalCall(af, scope);
             default -> null;
@@ -385,7 +390,8 @@ final class StaticFold {
             if (Type.schemaView(typed.info().type()) instanceof Type.RelationType rt) {
                 List<Object> cols = new ArrayList<>(rt.columns().size());
                 for (Type.RelationType.Column c : rt.columns()) {
-                    cols.add(new Col(c.name(), simple(c.type().typeName())));
+                    cols.add(new Col(c.name(),
+                            com.legend.compiler.element.type.PlatformTypes.typeValuePath(c.type())));
                 }
                 return cols;
             }
@@ -692,8 +698,8 @@ final class StaticFold {
             }
             case ELEMENT_TO_PATH -> {
                 Object a = ps.size() == 1 ? eval(ps.get(0), scope) : null;
-                // primitives' path IS the simple name (Integer, String…)
-                return a instanceof TypeToken t ? t.simpleName() : null;
+                // a type's path (a primitive's IS its name: Integer, String…)
+                return a instanceof TypeToken t ? t.path() : null;
             }
             case TO_ONE, AT -> {
                 // toOne unwraps only a statically singular value; any other
@@ -787,6 +793,9 @@ final class StaticFold {
     }
 
     private static Boolean staticEquals(Object a, Object b) {
+        if (a instanceof TypeToken ta && b instanceof TypeToken tb) {
+            return ta.path().equals(tb.path());
+        }
         if (a instanceof TypeToken || b instanceof TypeToken) {
             String an = a instanceof TypeToken t ? t.simpleName() : String.valueOf(a);
             String bn = b instanceof TypeToken t ? t.simpleName() : String.valueOf(b);

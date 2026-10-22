@@ -183,8 +183,9 @@ class StoreTypesTest {
     @Test
     void anOtherColumnIsReadAsTextOnEveryDialect() {
         // every database the platform executes on (the dialect program's Phase 6, 2026-10-17: it was DuckDB, H2 and
-        // Postgres), each read as its dialect spells text
-        for (var type : com.legend.database.Databases.implemented()) {
+        // Postgres) that a relational connection declares (2026-10-22: not MongoDB), each read as its dialect spells
+        // text
+        for (var type : com.legend.database.Databases.relational()) {
             String q = sql(on(type), "#>{s::DB.HOSTS}#->select(~[ID, ADDR])");
             String text = textType(com.legend.database.Databases.dialect(type));
             assertTrue(java.util.regex.Pattern.compile(textRead("ADDR", text)).matcher(q).find(), type + ": " + q);

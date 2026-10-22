@@ -36,23 +36,22 @@ public class Test_LegendLite_Trino_GrammarFunctions_PCT extends PCTReportConfigu
             one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
+            // 2026-10-20, object identity (docs/OBJECT_IDENTITY_2026_10_20.md, b0d5e435, measured by the step-9 lane
+            // session): eq is identity and equal a keyed class's keys, and the adapter binds each captured object once
+            // by a let -- testEqNonPrimitive, testEqualNonPrimitive and the two primitive-extension tests pass
             // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): name resolution, lowering
             // and harness limits, the 0-based indexOf, error positions and messages
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"a struct field of unknown type reached Trino: a ROW's fields are typed\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
-            // TRINO'S OWN LIMIT: a ROW's fields are typed, and an unset property is a NULL of no type (no sibling
-            // types it); were it typed, a ROW holding a NULL compares NULL and contains refuses one (measured), where
-            // Pure's equality of two such instances is true
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqVarIdentity_Function_1__Boolean_1_", "\"a struct field of unknown type reached Trino: a ROW's fields are typed\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualVarIdentity_Function_1__Boolean_1_", "\"a struct field of unknown type reached Trino: a ROW's fields are typed\""),
-            one("meta::pure::functions::collection::tests::map::testMapInstance_Function_1__Boolean_1_", "\"a struct field of unknown type reached Trino: a ROW's fields are typed\""),
-            one("meta::pure::functions::lang::tests::letFn::testAssignNewInstance_Function_1__Boolean_1_", "\"a struct field of unknown type reached Trino: a ROW's fields are typed\""),
-            // TRINO'S OWN LIMIT: no temporary table, so no table only one session sees: the server engine's system
-            // database (the metamodel's tables) has nowhere to live
-            one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"a session's own table reached Trino, which has no temporary tables: metamodel_classes\"")
+            // OneToOne: the captured $address reaches the text since 2026-10-20 (the adapter binds captured objects by
+            // lets, object identity); its assertIs then needs the interpreter's own object back (the ids it prints vary
+            // per run, so the pin is the class), as on the DuckDB lane
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
+            // NOTE 2026-10-20 (the parity phase): the instance tests whose unset property was a NULL of no type
+            // unpinned -- the field takes the slot its builder declared (Trino.structLit)
+            // NOTE 2026-10-20 (the parity phase, second batch): testBasic unpinned -- on a database with no temporary
+            // table the system metamodel store's tables are the query's own rows, inline (PlanMaker.inlineRows)
+            // NOTE 2026-10-20 (plan-route parity, a type value as its path): testLetChainedWithAnotherFunction passes again: a type
+            // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
+            // whatever its namesakes; a printer takes the name.
     );
 
     public static Test suite() {

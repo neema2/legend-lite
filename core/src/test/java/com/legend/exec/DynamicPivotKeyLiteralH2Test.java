@@ -60,7 +60,7 @@ class DynamicPivotKeyLiteralH2Test {
                 new SqlSource.Table("T", "t", List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE),
                 List.of(SqlExpr.Column.physical("t", col)),
                 List.of(),          // empty IN = dynamic — triggers discovery
-                List.of(), "p", List.of());
+                List.of(), List.of(), "p", List.of());
         SqlQuery out = DynamicPivot.staticize(
                 SqlSelect.starOf(pivot), new H2(), conn);
         try (Statement st = conn.createStatement()) {

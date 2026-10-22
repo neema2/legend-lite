@@ -18,25 +18,45 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * E1 (JAVA_EVICTION_PLAN): compose the PCT wire-render wrapper around an
- * already-staticized plan — the PLAN emits the wire TDS text
- * ({@link Render#pctTds}). Pure SQL composition (no connection): the
- * caller passes the LIMIT-0 metadata probe's result for pivot plans,
- * whose concrete output columns only exist post-staticize.
+ * Pure's TDS text as a plan projection (E1, JAVA_EVICTION_PLAN; named for what it is, not for the harness that reads
+ * it, 2026-10-17): the wrapper composed around an already-staticized plan, so the PLAN emits the TDS text
+ * ({@link Render#tdsText}) -- the form legend-pure's own {@code stringToTDS} reads, which is why the PCT harness
+ * reads it. Pure SQL composition (no connection): the caller passes the LIMIT-0 metadata probe's result for pivot
+ * plans, whose concrete output columns only exist post-staticize.
  *
  * <p>Pivot column TYPES come from the plan's own TEMPLATE outputs
  * (typed at lowering — backend-independent), never from the probe's
  * aggregate type: the G7 H2 ledger caught the fallback typing SUM
  * columns Decimal on H2 and Integer on DuckDB.
  */
-public final class PctTdsWrap {
+public final class TdsTextWrap {
 
-    private PctTdsWrap() {
+    private TdsTextWrap() {
     }
 
     public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema,
             com.legend.sql.@com.legend.base.Nullable PlanProbe probe,
             java.util.function.Function<String, Type> sqlTypeToPure) {
+        return wrap(plan, schema, probe, sqlTypeToPure, false);
+    }
+
+    /** {@link #wrap(SqlQuery, Type.RelationType, PlanProbe, Function)} with every String cell quoted whole when
+     *  {@code quoteStrings}: a value's one-column relation, which the reader never prints and whose cells it would
+     *  otherwise type by their text ({@code '345'} read as a number, {@code 'true'} as a boolean; the MongoDB lane's
+     *  first run, 2026-10-17). */
+    public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema,
+            com.legend.sql.@com.legend.base.Nullable PlanProbe probe,
+            java.util.function.Function<String, Type> sqlTypeToPure, boolean quoteStrings) {
+        return wrap(plan, schema, probe, sqlTypeToPure, quoteStrings, LiteralSpelling.Layouts.NONE);
+    }
+
+    /** {@link #wrap(SqlQuery, Type.RelationType, PlanProbe, Function, boolean)} with {@code layouts}, the classes'
+     *  canonical layouts a class instance's cell is spelled over (the text carrier,
+     *  docs/PLAN_PATH_PROGRAM_2026_10_17.md §4, 2026-10-18); without them an instance's cell is refused by name. */
+    public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema,
+            com.legend.sql.@com.legend.base.Nullable PlanProbe probe,
+            java.util.function.Function<String, Type> sqlTypeToPure, boolean quoteStrings,
+            LiteralSpelling.Layouts layouts) {
         List<SqlSelect.SortKey> lifted = List.of();
         SqlQuery inner0 = plan;
         if (plan instanceof SqlSelect ps && !ps.orderBy().isEmpty()) {
@@ -45,8 +65,13 @@ public final class PctTdsWrap {
         }
         List<OutputCol> outs = probe != null ? probe.outs()
                 : inner0.outputs();
-        List<Type.Column> typedCols = typedColumns(outs, schema, plan,
-                probe, sqlTypeToPure);
+        // the dynamic road only where nothing names the pivot's columns (the typed schema still carries the
+        // pivot's templates): a cast over the pivot names them and the lowering projects them (step 7,
+        // 2026-10-18), and the text is then an ordinary relation's
+        SqlSource.Pivot dynamic = probe == null && !schema.dynamicColumns().isEmpty()
+                ? pivots(plan).stream().filter(p -> p.in().isEmpty()).findFirst().orElse(null) : null;
+        List<Type.Column> typedCols = dynamic != null ? staticColumns(outs, schema)
+                : typedColumns(outs, schema, plan, probe, sqlTypeToPure);
         String alias = "_pct0";
         Lift lift = liftOrder(lifted, outs, inner0, alias);
         inner0 = lift.inner0();
@@ -55,7 +80,37 @@ public final class PctTdsWrap {
                         new SqlSource.Subselect(inner0, alias, null))
                 .withOutputs(outs)
                 .withOrderBy(lift.remapped());
-        return Render.pctTds(inner, typedCols, "_pct1");
+        if (dynamic != null) {
+            // the plan path (no probe): a dynamic pivot's text is its keyed plan's (KeyedPivot, 2026-10-20), made
+            // before any wrapper; one reaching here is the planner's bug
+            throw new IllegalStateException("TDS text over a dynamic pivot nothing names: its text is the keyed plan's"
+                    + " (KeyedPivot), not a wrapper's");
+        }
+        return Render.tdsText(inner, typedCols, "_pct1", quoteStrings, layouts);
+    }
+
+    /** A dynamic pivot's static columns (its group keys), each the typed schema's by name; any other output is a
+     *  defect, refused by name. */
+    static List<Type.Column> staticColumns(List<OutputCol> outs, Type.RelationType schema) {
+        List<Type.Column> typed = new ArrayList<>(outs.size());
+        for (OutputCol oc : outs) {
+            typed.add(schema.columns().stream().filter(c -> c.name().equals(oc.name())).findFirst()
+                    .orElseThrow(() -> new IllegalStateException("TDS text: a dynamic pivot's output '" + oc.name()
+                            + "' is none of the typed schema's static columns " + schema.columns())));
+        }
+        return typed;
+    }
+
+    /** The typer's template column for each USING of {@code pivot}, by the USING's alias (the aggregate's name). */
+    static List<Type.Column> templates(SqlSource.Pivot pivot, Type.RelationType schema) {
+        List<Type.Column> out = new ArrayList<>(pivot.usings().size());
+        for (SqlSource.Pivot.Using u : pivot.usings()) {
+            out.add(schema.dynamicColumns().stream().filter(c -> c.name().equals(u.alias())).findFirst()
+                    .orElseThrow(() -> new IllegalStateException("TDS text: the pivot's USING '" + u.alias()
+                            + "' has no template among the typed schema's dynamic columns "
+                            + schema.dynamicColumns().stream().map(Type.Column::name).toList())));
+        }
+        return out;
     }
 
     /** Per-output pure types: static schema by name → the plan's pivot
@@ -99,7 +154,7 @@ public final class PctTdsWrap {
                 continue;
             }
             if (!templates.isEmpty()) {
-                throw new IllegalStateException("PCT render: pivot column '"
+                throw new IllegalStateException("TDS text: pivot column '"
                         + oc.name() + "' matches " + hits.size()
                         + " using aliases " + templates.stream()
                                 .map(SqlSource.Pivot.Using::alias).toList()
@@ -122,7 +177,7 @@ public final class PctTdsWrap {
                 ? name.substring(1, name.length() - 1) : name;
     }
 
-    private record Lift(SqlQuery inner0, List<OutputCol> outs,
+    record Lift(SqlQuery inner0, List<OutputCol> outs,
             List<SqlSelect.SortKey> remapped) {
     }
 
@@ -130,7 +185,7 @@ public final class PctTdsWrap {
      * remap; a key the projection dropped (extend→sort→project) or an
      * expression key carries out as a HIDDEN {@code _pct_ord}
      * projection — it still scopes inside the plan's own select. */
-    private static Lift liftOrder(List<SqlSelect.SortKey> lifted,
+    static Lift liftOrder(List<SqlSelect.SortKey> lifted,
             List<OutputCol> outs, SqlQuery inner0, String alias) {
         java.util.Set<String> outNames = new java.util.LinkedHashSet<>();
         outs.forEach(o -> outNames.add(o.name()));
@@ -149,7 +204,7 @@ public final class PctTdsWrap {
             if (!(inner0 instanceof SqlSelect ps2)
                     || ps2.projections().isEmpty()) {
                 throw new com.legend.error.NotImplementedException(
-                        "PCT render: a non-output sort key over a"
+                        "TDS text: a non-output sort key over a"
                         + " star-projected plan cannot hoist");
             }
             String hn = "_pct_ord" + ord++;
@@ -205,7 +260,7 @@ public final class PctTdsWrap {
         // `: "VARCHAR"` — the banned default->"String" shape respelled
         // as a ternary, invisible to the fallback guard. An untyped
         // slot is an upstream typed-slot gap and WALLS
-        throw new IllegalStateException("PCT render: output column"
+        throw new IllegalStateException("TDS text: output column"
                 + " carries no scalar SqlType (" + t + ") — fix the"
                 + " typed slot upstream; never a silent VARCHAR");
     }

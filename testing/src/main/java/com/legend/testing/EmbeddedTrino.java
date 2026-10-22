@@ -73,9 +73,13 @@ public final class EmbeddedTrino {
         return shared;
     }
 
-    /** {@code jdbc:trino://127.0.0.1:<port>/memory/<schema>?user=legend&timezone=UTC}: the session zone UTC. */
+    /** {@code jdbc:trino://127.0.0.1:<port>/memory/<schema>?user=legend&timezone=UTC&explicitPrepare=false}: the
+     *  session zone UTC, and a prepared statement sent as one EXECUTE IMMEDIATE (step 9, 2026-10-19, as the platform's
+     *  own Trino opening does: through PREPARE the 689 KB statement of format('%s %f', ['fox', 1.5]) filled this
+     *  coordinator's 2 GB heap until it died, measured; as EXECUTE IMMEDIATE it answers in 3 to 14 s). */
     public String jdbcUrl(String schema) {
-        return "jdbc:trino://127.0.0.1:" + port + "/memory/" + schema + "?user=" + USER + "&timezone=UTC";
+        return "jdbc:trino://127.0.0.1:" + port + "/memory/" + schema + "?user=" + USER
+                + "&timezone=UTC&explicitPrepare=false";
     }
 
     public int port() {

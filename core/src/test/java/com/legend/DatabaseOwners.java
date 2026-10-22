@@ -182,7 +182,12 @@ final class DatabaseOwners {
         if (EVERY.stream().anyMatch(rel::startsWith)) {
             return new Owner(Kind.EVERY, DATABASES.keySet());
         }
-        if (rel.startsWith(MAIN + "sql/dialect/") || rel.startsWith("core/src/main/duckdb/")) {
+        // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12): the MongoDB connector's source set, beside the drivers as
+        // the DuckDB-only sources are, owns its database as its dialect does; so does Postgres's (PostgresCells, its
+        // jsonb cells behind the DriverCells seam, the plan path program's step 9, 2026-10-19; registered at main's
+        // merge, 2026-10-22, when the absolute ban first read it)
+        if (rel.startsWith(MAIN + "sql/dialect/") || rel.startsWith("core/src/main/duckdb/")
+                || rel.startsWith("core/src/main/mongodb/") || rel.startsWith("core/src/main/postgres/")) {
             Set<String> own = ownAndParent(rel, source);
             own.addAll(NAMED_BY_ROLE.getOrDefault(rel, Set.of()));
             return new Owner(Kind.DIALECT, own);

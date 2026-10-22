@@ -20,8 +20,12 @@ public record OutputCol(String name, SqlType type, boolean nullable,
      * PHYSICAL_QUOTED: a physical name the DDL declared QUOTED — the name is
      * bare (quotes are a spelling, not identity) and it spells delimited
      * wherever it is referenced, keeping its case on a case-folding database
-     * ({@code "firstName"} is not {@code firstName} on H2). */
-    public enum Origin { PHYSICAL, PHYSICAL_QUOTED, DERIVED }
+     * ({@code "firstName"} is not {@code firstName} on H2).
+     * PER_KEY: a name born once per key of the plan's keys probe (a dynamic pivot's generated columns, the plan path
+     * program's probe plan, 2026-10-20): the name is the stem the key's columns share (the aggregate's place, {@code _u0}),
+     * and the dialect spells it delimited with the key's position in the probe written into it by the runner, inside
+     * the per-key region the runner repeats ({@code "_pk3__u0"}); outside one it is refused by name. */
+    public enum Origin { PHYSICAL, PHYSICAL_QUOTED, DERIVED, PER_KEY }
 
     /** A store table's {@code outputs}, with the columns its DDL declared
      *  QUOTED ({@code quoted}, by bare name) as {@link Origin#PHYSICAL_QUOTED}

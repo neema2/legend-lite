@@ -125,7 +125,10 @@ class RawSqlLedgerTest {
             // database its text is written for, and the renderer translates it in place (SqlDialect.raw)
             // leg 3.4 step 2 (2026-09-20): AliasPrefix REWRAPS an existing RawSql
             // under the frame body's alias prefix — the authored text verbatim
-            "AliasPrefix.java", 1);
+            "AliasPrefix.java", 1,
+            // 2026-10-18, the plan path program's step 1b (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): MirJson.readSource rebuilds a RawSql from the plan's JSON exactly as the planner wrote
+            // it (the typed tree read back); it composes no text -- the plan's statement is executable anyway
+            "MirJson.java", 1);
 
     @Test
     void rawSqlSourceConstructionIsQuarantined() throws IOException {

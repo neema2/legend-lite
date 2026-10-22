@@ -93,10 +93,9 @@ public final class PlanCases {
             new Parameterised("n: Number[1]", "let n = 1;",
                     "#>{s::DB." + table + "}#->filter(r|$r.ID > $n)->select(~[ID])->sort(~ID->ascending())",
                     java.util.Map.of("n", 1L)),
-            // (compared, not projected: projected, the plan's Number column answers 3.0, Pure's text, and the let's
-            // Float column 3 on Postgres -- today's whole-Float text, PARK-24)
+            // projected again (PARK-24 closed 2026-10-18: a whole Float's text has its .0 on every database)
             new Parameterised("n: Number[1]", "let n = 1.5;",
-                    "#>{s::DB." + table + "}#->filter(r|$r.ID * $n > 2)->select(~[ID])->sort(~ID->ascending())",
+                    "#>{s::DB." + table + "}#->extend(~x: r|$r.ID * $n)->select(~[ID, x])->sort(~ID->ascending())",
                     java.util.Map.of("n", 1.5d)),
             // two parameters
             new Parameterised("lo: Integer[1], hi: Integer[1]", "let lo = 1; let hi = 3;",
@@ -216,8 +215,97 @@ public final class PlanCases {
     public static String run(ExecutionPlan plan, Connection c, java.util.Map<String, ?> values)
             throws java.io.IOException {
         java.io.StringWriter out = new java.io.StringWriter();
-        ExecutionPlan.Target target = ((ExecutionPlan.TextResult) plan.root()).sql().target();
+        ExecutionPlan.Target target = switch (plan.root()) {
+            case ExecutionPlan.TextResult text -> text.sql().target();
+            case ExecutionPlan.Keyed keyed -> keyed.keys().target();
+            case ExecutionPlan.TdsResult tds -> tds.sql().target();
+            case ExecutionPlan.Sequence s -> throw new IllegalArgumentException("a plan of several steps");
+        };
         com.legend.exec.PlanRunner.run(plan, values, com.legend.exec.PlanSessions.setUp(c, target), out);
         return out.toString();
+    }
+
+    /**
+     * Today's path for {@code TypedQuery.Output.TDS_TEXT} (2026-10-17): the legacy route under
+     * {@code ExecuteOptions.TDS_TEXT} answers a relation as its TDS text and a value as the value itself, so a
+     * value's expected text is spelled here as the one-column relation {@code value} -- the header from the result's
+     * type, each value's own text a row (loosely: {@code String.valueOf}; the plan path's TDS text is the judge of
+     * record on the PCT lane, where every print form is pinned).
+     */
+    public static String todayTdsText(String model, String query, String runtime, Connection c) {
+        com.legend.exec.ExecutionResult r = java.util.Objects.requireNonNull(com.legend.Execution.execute(model, query,
+                (com.legend.model.ImportScope) null, runtime, c, com.legend.ExecuteOptions.TDS_TEXT));
+        return switch (r) {
+            case com.legend.exec.ExecutionResult.TdsText t -> t.text();
+            case com.legend.exec.ExecutionResult.Scalar s -> "value:" + s.returnType().typeName() + "[1]\n"
+                    + (s.value() == null ? "null" : String.valueOf(s.value()));
+            case com.legend.exec.ExecutionResult.Collection col -> {
+                StringBuilder sb = new StringBuilder("value:" + col.returnType().typeName() + "[1]");
+                for (Object v : col.values()) {
+                    sb.append('\n').append(v == null ? "null" : String.valueOf(v));
+                }
+                yield sb.toString();
+            }
+            case com.legend.exec.ExecutionResult.Tabular t -> throw new IllegalStateException(
+                    "a tabular result under the TDS text option: the wrap missed a relation root");
+            case com.legend.exec.ExecutionResult.Graph g -> throw new IllegalStateException(
+                    "graph results have no TDS text");
+        };
+    }
+
+    /**
+     * The TDS text plan ({@code TypedQuery.Output.TDS_TEXT}) answers as today's path: its rows are today's rows, and
+     * its header is the plan's own typed relation. The header is judged against the plan's relation and not the
+     * let-query's text because a let-bound literal's type carries its digits ({@code Decimal(38,2)}) where a declared
+     * parameter's does not ({@code Decimal}): each query's header is its own typed relation, and the rows are the
+     * judge of the answer.
+     */
+    public static void assertTdsTextAnswersAsToday(String model, String query, String runtime, Connection today,
+            ExecutionPlan plan, Connection planned, java.util.Map<String, ?> values, String what)
+            throws java.io.IOException {
+        String actual = run(plan, planned, values);
+        if (plan.root() instanceof ExecutionPlan.Keyed) {
+            // a dynamic pivot's probe plan (2026-10-20): its columns are its keys', named by the database, so the text
+            // is judged whole against today's
+            String expected = todayTdsText(model, query, runtime, today);
+            if (!expected.equals(actual)) {
+                throw new AssertionError(what + ": the TDS text\nexpected: " + expected + "\nactual: " + actual);
+            }
+            return;
+        }
+        ExecutionPlan.Relation relation = (ExecutionPlan.Relation) ((ExecutionPlan.TextResult) plan.root()).type();
+        ExecutionPlan.Relation lets = (ExecutionPlan.Relation) ((ExecutionPlan.TextResult) com.legend.Compiler.query(
+                com.legend.Compiler.compileModel(model), query)
+                .executionPlan(runtime, com.legend.TypedQuery.Output.TDS_TEXT).root()).type();
+        if (relation.equals(lets)) {
+            String expected = todayTdsText(model, query, runtime, today);
+            if (!expected.equals(actual)) {
+                throw new AssertionError(what + ": the TDS text\nexpected: " + expected + "\nactual: " + actual);
+            }
+            return;
+        }
+        // the let-bound literal types its column more precisely than the declared parameter (Decimal(38,2) against
+        // Decimal; StrictDate against Date), and the TDS text prints by the column's type: the two queries' texts
+        // differ by design, so the plan's is judged by its header alone, the rows being the declared type's print
+        // that no path with lets spells
+        int nl = actual.indexOf('\n');
+        String[] header = (nl < 0 ? actual : actual.substring(0, nl)).split(",");
+        if (header.length != relation.columns().size()) {
+            throw new AssertionError(what + ": the TDS header " + java.util.Arrays.toString(header) + " is not the"
+                    + " plan's relation " + relation.columns());
+        }
+        for (int i = 0; i < header.length; i++) {
+            ExecutionPlan.Column c = relation.columns().get(i);
+            if (!header[i].endsWith(":" + c.type() + "[1]") && !header[i].endsWith(":" + c.type() + "[0..1]")) {
+                throw new AssertionError(what + ": the TDS header column '" + header[i] + "' is not the plan's "
+                        + c.name() + ":" + c.type());
+            }
+        }
+    }
+
+    /** A TDS text's rows: the lines after the header. */
+    private static List<String> tdsRows(String tds) {
+        int nl = tds.indexOf('\n');
+        return nl < 0 ? List.of() : List.of(tds.substring(nl + 1).split("\n", -1));
     }
 }

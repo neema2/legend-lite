@@ -223,6 +223,17 @@ public final class Postgres extends AnsiSqlRenderer {
 
     /** No native PIVOT: static pivots are emulated by the carrier pass; a dynamic
      * pivot needs a key-discovery round trip the browser planner cannot make. */
+    // the probe plan's facts (2026-10-20): Postgres: "target lists can have at most 1664 entries" (MaxTupleAttributeNumber); REPEATABLE READ is its snapshot
+    @Override
+    public KeysSnapshot keysSnapshot() {
+        return KeysSnapshot.REPEATABLE_READ;
+    }
+
+    @Override
+    public @com.legend.base.Nullable Integer resultColumnLimit() {
+        return 1664;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;
@@ -411,6 +422,12 @@ public final class Postgres extends AnsiSqlRenderer {
 
     /** The empty collection where a list goes: a NULL of no type (the IR's Bottom), compacted or not, or one of the
      *  calls above over it, which the IR types Bottom too. */
+    /** The empty list literal, typed or not. */
+    private static boolean emptyListLiteral(SqlExpr e) {
+        SqlExpr v = e instanceof SqlExpr.Cast c && c.target() instanceof SqlType.Array ? c.value() : e;
+        return v instanceof SqlExpr.ArrayLit a && a.elements().isEmpty();
+    }
+
     private static boolean emptyCollection(SqlExpr e) {
         if (e instanceof SqlExpr.CompactList k) {
             return emptyCollection(k.list());
@@ -453,6 +470,11 @@ public final class Postgres extends AnsiSqlRenderer {
                     .piece(held(v -> v.append(e), a.element(), depth + 1)).append(" FROM jsonb_array_elements(")
                     .piece(json).append(") WITH ORDINALITY AS __j" + depth + "(" + e + ", " + o + ") ORDER BY " + o)
                     .append(") END)");
+        }
+        // an instance: NULL for jsonb's null too, as a list's is (an absent property crossed as JSON's null, and a
+        // field read of it was a present, empty instance; step 9, 2026-10-19)
+        if (t instanceof SqlType.Struct) {
+            return w -> w.append("NULLIF(").piece(json).append(", 'null'::jsonb)");
         }
         return json;
     }
@@ -711,6 +733,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
             case CURRENT_USER_FN -> writer.append("current_user");
             // the hooks: this dialect's own (or the base's refusal)
             case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
@@ -724,7 +747,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case CBRT -> writer.function("cbrt", c.args());
             // chr takes a 32-bit code; a computed Integer is a BIGINT here (IQ island, 2026-10-17: CHAR(65 + MOD(id, 26)))
             case CHR -> writer.append("chr(CAST(").expr(c.args().get(0), 0).append(" AS INTEGER))");
-            case COALESCE -> writer.function("coalesce", c.args());
+            case COALESCE -> coalesceArm(writer, c);
             case COS -> writer.function("cos", c.args());
             case COSH -> writer.function("cosh", c.args());
             case COT -> writer.function("cot", c.args());
@@ -860,8 +883,10 @@ public final class Postgres extends AnsiSqlRenderer {
             case STRPTIME -> throw wall(c.fn(), "to_timestamp(text, fmt) is lenient and"
                     + " zone-bound; not yet probed against the reference");
             case FORMAT -> writer.piece(format(a));
-            // SHA-1 is pgcrypto's digest(): no release has a core sha1 (through 18 and devel, 2026-10-12)
-            case SHA1 -> throw wall(c.fn(), "an extension function (pgcrypto)");
+            // SHA-1 is pgcrypto's digest(): no release has a core sha1 (through 18 and devel, 2026-10-12). The
+            // engine's Postgres spells it so (its PCT passes testSHA1Hash there); a database without pgcrypto
+            // answers its own "function digest(bytea, unknown) does not exist" (2026-10-20, the parity phase)
+            case SHA1 -> writer.append("encode(digest(convert_to(").expr(a.get(0), 0).append(", 'UTF8'), 'sha1'), 'hex')");
             case LEVENSHTEIN -> writer.piece(levenshtein(a.get(0), a.get(1)));
             case JARO_WINKLER -> writer.piece(jaroWinkler(a.get(0), a.get(1)));
             // ---- variant (jsonb)
@@ -896,10 +921,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case UNNEST -> unnestProjection(writer, c.args());
             case ALL_DISTINCT -> allDistinct(writer, c.args());
             case LIST_LENGTH -> writer.append("cardinality(").piece(listOf(a.get(0), c.fn())).append(")");
-            // DuckDB's string_split('', d) is [''], Postgres's string_to_array is {}
-            case SPLIT -> writer.append("(CASE WHEN ").expr(a.get(0), 0)
-                    .append(" = '' THEN ARRAY[''] ELSE string_to_array(").expr(a.get(0), 0).append(", ")
-                    .expr(a.get(1), 0).append(") END)");
+            case SPLIT -> split(writer, c);
             // DuckDB's regexp_extract_all(s, p[, g]): group g (0, the whole match, by default) of every
             // match -- the n-th match's group by regexp_substr, as REGEXP_EXTRACT reads one (regexp_matches
             // answers the capture groups alone once a pattern has any: its m[1] is group 1)
@@ -908,13 +930,43 @@ public final class Postgres extends AnsiSqlRenderer {
                     maps(writer, c);
             // the jsonb carrier for nested lists, structs and mixed lists is the next step
             // a struct with one field set (struct_insert): the jsonb object, the field replaced or added
-            case STRUCT_INSERT -> writer.append("(").expr(a.get(0), 0).append(" || jsonb_build_object(")
-                    .expr(a.get(1), 0).append(", ").expr(a.get(2), 0).append("))");
+            case STRUCT_INSERT -> structInsert(writer, c);
             case PURE_SPLIT_PART -> splitPartCall(writer, a);
             case LIST_REDUCE -> listReduce(writer, c);
             case LIST_FLATTEN, LIST_ZIP, LIST_PRODUCT, TYPEOF ->
                     throw wall(c.fn(), "collections over the jsonb carrier are leg P4");
         };
+    }
+
+    /** COALESCE: an empty list arm takes another arm's type ('{}', which Postgres resolves against them): a list's type
+     *  is no SQL type alone here, json[] and jsonb[] both a list of JSON (an equality canon's key texts are json, a list
+     *  of JSON values jsonb: 2026-10-20, testEqualNonPrimitive). Out of {@link #call} since 2026-10-22, its length. */
+    private SqlWriter coalesceArm(SqlWriter writer, SqlExpr.Call c) {
+        if (c.args().stream().noneMatch(x -> !emptyListLiteral(x))) {
+            return writer.function("coalesce", c.args());
+        }
+        return writer.append("coalesce(").join(c.args(), ", ", (w, x) -> {
+            if (emptyListLiteral(x)) {
+                w.append("'{}'");
+            } else {
+                w.expr(x, 0);
+            }
+        }).append(")");
+    }
+
+    /** SPLIT: DuckDB's string_split('', d) is [''], Postgres's string_to_array is {}. */
+    private SqlWriter split(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        return writer.append("(CASE WHEN ").expr(a.get(0), 0)
+                .append(" = '' THEN ARRAY[''] ELSE string_to_array(").expr(a.get(0), 0).append(", ")
+                .expr(a.get(1), 0).append(") END)");
+    }
+
+    /** STRUCT_INSERT: a struct with one field set, the jsonb object with the field replaced or added. */
+    private SqlWriter structInsert(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        return writer.append("(").expr(a.get(0), 0).append(" || jsonb_build_object(")
+                .expr(a.get(1), 0).append(", ").expr(a.get(2), 0).append("))");
     }
 
     /** The {@code LIST_CONCAT} arm of {@link #call}: a concatenation with the empty collection is its other lists. */
@@ -1214,11 +1266,22 @@ public final class Postgres extends AnsiSqlRenderer {
             String label = p.alias() != null ? aliasIdent(p.alias()) : implicitLabel(p);
             return label == null ? writer : writer.append(" AS ").append(label);
         }
+        // error() projected under a slot is typed as the slot, as a CASE branch that raises is: text there met the
+        // slot's readers (to_char of a Date slot: "function to_char(character varying, unknown) does not exist",
+        // the planner refusing before the raise could; step 9, 2026-10-19)
+        if (p.out() != null && p.expr() instanceof SqlExpr.Call c && c.fn() == SqlFn.ERROR) {
+            writer.piece(raise(c.args(), p.out().type()));
+            String label = p.alias() != null ? aliasIdent(p.alias()) : implicitLabel(p);
+            return label == null ? writer : writer.append(" AS ").append(label);
+        }
         // the empty collection in a scalar slot is written as an untyped NULL, which Postgres types as text: the
-        // slot's own type, so the column is what the plan declares
+        // slot's own type, so the column is what the plan declares; a struct slot's is its carrier, jsonb (a field
+        // read off a text NULL was "operator does not exist: text -> unknown", zip of empty lists; step 9, 2026-10-19)
         if (p.out() != null && p.expr().type() instanceof com.legend.sql.TypeFact.Bottom
-                && (p.out().type() instanceof SqlType.Scalar || p.out().type() instanceof SqlType.Decimal)) {
-            writer.append("CAST(").expr(p.expr(), 0).append(" AS " + castTypeName(p.out().type()) + ")");
+                && (p.out().type() instanceof SqlType.Scalar || p.out().type() instanceof SqlType.Decimal
+                    || p.out().type() instanceof SqlType.Struct)) {
+            writer.append("CAST(").expr(p.expr(), 0).append(" AS " + (p.out().type() instanceof SqlType.Struct
+                    ? carrier(p.out().type()) : castTypeName(p.out().type())) + ")");
             String label = p.alias() != null ? aliasIdent(p.alias()) : implicitLabel(p);
             return label == null ? writer : writer.append(" AS ").append(label);
         }
@@ -1452,6 +1515,10 @@ public final class Postgres extends AnsiSqlRenderer {
     private SqlWriter listCast(SqlWriter writer, SqlExpr.Cast c, SqlType.Array target) {
         if (emptyCollection(c.value())) {
             return writer.append("CAST(NULL AS " + carrier(target.element()) + "[])");
+        }
+        // the empty list literal typed: a list of no elements, never NULL (an equality canon's empty key collection)
+        if (c.value() instanceof SqlExpr.ArrayLit a && a.elements().isEmpty()) {
+            return writer.append("CAST(ARRAY[] AS " + carrier(target.element()) + "[])");
         }
         if (isJson(c.value())) {
             // a Variant array: its elements held as the list holds them

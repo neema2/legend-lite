@@ -462,8 +462,20 @@ public class MinimalCorpusTest {
         }
         boolean databaseMode = "database".equalsIgnoreCase(
                 System.getProperty("legend.judge.mode", "host"));
-        pinRoster(only, ranTaggedEngineOrder, engineOrder, ENGINE_ORDER,
-                laneFile(databaseMode ? "database-engine-order-register" : "engine-order-register"), false);
+        boolean bothMode = "both".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"));
+        if (bothMode) {
+            // THE AGREEMENT GATE (the plan path program's step 6, 2026-10-18) judges verdicts: both arms over every
+            // side. The engine-order register is per CI pass (host, database), and the gate's statements are both
+            // arms' (the database arm's verdict statement over a grid the host arm ordered at the assert boundary
+            // is changed by the test-lane pass on its own: measured 992 = the host pass's 986 + 6 inheritance
+            // bodies), so the gate prints the count and pins no register; the corpus's own switch (step 10) pins
+            // the gate's register when the lane runs under it.
+            System.out.println("[corpus2] engine-order register: not pinned under the agreement gate (the register"
+                    + " is per CI pass: host, database); measured " + engineOrder.size());
+        } else {
+            pinRoster(only, ranTaggedEngineOrder, engineOrder, ENGINE_ORDER,
+                    laneFile(databaseMode ? "database-engine-order-register" : "engine-order-register"), false);
+        }
         if (databaseMode) {
             Files.write(com.legend.testing.TestOutputs.file("corpus2-outside-body.txt"), artifactRows);
             pinArtifactRegister(only, ran, artifactRows,

@@ -134,14 +134,8 @@ final class AssertVerdicts {
     }
 
     static void flush(com.legend.exec.VerdictBatch batch, StatementExecutor.ExecEnv env) {
-        batch.flush(env.dialect(), env.trace(), env.assertListener());
+        batch.flush(env.assertListener());
     }
-
-    /** The one-row shape a verdict statement returns. */
-    static final com.legend.compiler.element.type.ExprType ONE_ROW =
-            new com.legend.compiler.element.type.ExprType(
-                    com.legend.lowering.VerdictSql.schema(),
-                    com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
 
     private static String listenerName(TypedSpec bare) {
         String fqn = calleeFqn(bare);
@@ -210,8 +204,8 @@ final class AssertVerdicts {
                 && ti.elseBranch().isPresent()
                 && calleeFqn(branchStatement(ti.thenBranch())) != null
                 && calleeFqn(branchStatement(ti.elseBranch().get())) != null) {
-            ExecutionResult c = StatementExecutor.evalValue(
-                    ti.condition(), letPrefix, specs, env);
+            ExecutionResult c = JudgePlans.evalSide(
+                    ti.condition(), letPrefix, specs, env, false, true, null);
             if (c instanceof ExecutionResult.Scalar sc
                     && sc.value() instanceof Boolean taken) {
                 return adjudicate(branchStatement(taken
@@ -812,7 +806,11 @@ final class AssertVerdicts {
     /** THE ONE DISPATCH (cleanup move 2b, 2026-09-21): the run's judge mode names the
      * arm; the router classifies and hands the sides over, nowhere else forks. */
     static VerdictArm arm(StatementExecutor.ExecEnv env) {
-        return databaseMode(env) ? DatabaseJudge.ARM : HostJudge.ARM;
+        return switch (env.options().judgeMode()) {
+            case HOST -> HostJudge.ARM;
+            case DATABASE -> DatabaseJudge.ARM;
+            case BOTH -> AgreementArm.ARM;
+        };
     }
 
     /** DATABASE mode (leg 3.1, docs/DATABASE_MODE_HOMEWORK §4b): both
@@ -1583,8 +1581,8 @@ final class AssertVerdicts {
     static List<Object> side(TypedSpec arg, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env,
             @com.legend.base.Nullable SpliceHook hook) {
-        return decodeSide(StatementExecutor.evalValue(arg, letPrefix,
-                specs, env, null, false, hook));
+        return decodeSide(JudgePlans.evalSide(arg, letPrefix,
+                specs, env, false, true, hook));
     }
 
     /** A JSON assert side's ONE document text: a GRAPH result's JSON
@@ -1596,8 +1594,8 @@ final class AssertVerdicts {
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
             @com.legend.base.Nullable SpliceHook hook) {
-        ExecutionResult r = StatementExecutor.evalValue(arg, letPrefix,
-                specs, env, null, false, hook);
+        ExecutionResult r = JudgePlans.evalSide(arg, letPrefix,
+                specs, env, false, true, hook);
         if (r instanceof ExecutionResult.Graph g) {
             return g.json();
         }
@@ -1672,8 +1670,8 @@ final class AssertVerdicts {
     static ExecutionResult.@com.legend.base.Nullable Tabular tabular(
             TypedSpec arg, List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env, @com.legend.base.Nullable SpliceHook hook) {
-        ExecutionResult r = StatementExecutor.evalValue(arg,
-                letPrefix, specs, env, null, false, hook);
+        ExecutionResult r = JudgePlans.evalSide(arg,
+                letPrefix, specs, env, false, true, hook);
         return r instanceof ExecutionResult.Tabular t ? t : null;
     }
 

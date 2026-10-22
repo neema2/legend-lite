@@ -27,8 +27,14 @@ class CoreClosureTest {
     /** The drivers a running core is given — the product's whole external
      *  surface, and none of it needed to compile or to plan. */
     private static final List<String> DRIVER_JARS = List.of(
+            // MongoDB's driver (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): the connector that rides with the
+            // drivers compiles against it; four jars, the driver's required closure (tools/deps/jars_table.bzl)
+            "bson",
+            "bson_record_codec",
             "duckdb_jdbc",
             "h2",
+            "mongodb_driver_core",
+            "mongodb_driver_sync",
             // 2026-10-03 (Bazel workplan P0-08): the server's Postgres arm (ConnectionResolver opens
             // jdbc:postgresql://) had no driver, so it failed with "No suitable driver" in the server and
             // its deploy jar. 2026-10-05 (docs/BUILD_REBUILD_DESIGN_2026_10_05.md, 5b): the driver alone, without

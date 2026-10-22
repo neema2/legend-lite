@@ -178,6 +178,7 @@ final class Windows {
                     windowize(g.inner(), partitionBy, orderBy, frame));
             // Leaves: no reducer can hide below.
             case SqlExpr.PlanParam ignored -> e;
+            case SqlExpr.KeyCell ignored -> e;
             case SqlExpr.Column ignored -> e;
             case SqlExpr.StoredRead ignored -> e;   // a column read: no reducer inside
             case SqlExpr.RowOrder ignored -> e;

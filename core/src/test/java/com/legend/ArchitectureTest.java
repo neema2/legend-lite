@@ -91,7 +91,9 @@ final class ArchitectureTest {
             java.util.Map.entry("ide", "com.legend.ide.ModelIndex"),
             java.util.Map.entry("test", "com.legend.test.PureTestRunner"),
             java.util.Map.entry("server_lib", "com.legend.server.QueryService"),
-            java.util.Map.entry("duckdb_load", "com.legend.exec.DuckDbAppenderLoad"));
+            java.util.Map.entry("duckdb_load", "com.legend.exec.DuckDbAppenderLoad"),
+            // MongoDB's connector, beside the drivers (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12)
+            java.util.Map.entry("mongodb_connector", "com.legend.exec.MongoDbConnector"));
 
     /**
      * Every rule here judges {@link #CORE_PROD_CLASSES}; a product library missing from it is a library
@@ -652,7 +654,9 @@ final class ArchitectureTest {
      *  H2's only, blind to the nine drivers added since; docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md). */
     private static final String[] JDBC_AND_DRIVERS = {"java.sql..", "javax.sql..", "org.duckdb..", "org.h2..",
             "org.postgresql..", "org.sqlite..", "org.mariadb..", "com.mysql..", "com.clickhouse..", "io.trino..",
-            "net.snowflake..", "com.databricks..", "com.simba..", "com.google.cloud.bigquery.."};
+            "net.snowflake..", "com.databricks..", "com.simba..", "com.google.cloud.bigquery..",
+            // MongoDB's driver (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): a client library, funnelled as a driver
+            "com.mongodb..", "org.bson.."};
 
     @Test
     void javaSqlIsFunnelledToTheCharteredSeam() {
@@ -714,7 +718,8 @@ final class ArchitectureTest {
      */
     @Test
     void theRunnerIsModelFree() {
-        String runner = "com\\.legend\\.exec\\.(PlanRunner|PlanParameters|PlanSessions|BulkLoads?)(\\$.*)?";
+        // RowDecode (2026-10-18, the plan path program's step 6): the runner's typed-row decode, by the plan's columns
+        String runner = "com\\.legend\\.exec\\.(PlanRunner|PlanParameters|PlanSessions|RowDecode|BulkLoads?)(\\$.*)?";
         noClasses()
             .that().haveNameMatching(runner)
             .should().dependOnClassesThat(com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage(
@@ -762,13 +767,27 @@ final class ArchitectureTest {
             java.util.Map.entry("ExecutionResult", 2),
             java.util.Map.entry("Executor", 7),
             java.util.Map.entry("GridProbe", 3),
-            java.util.Map.entry("PctProbe", 1),
+            // 0 -> 1 (2026-10-20, object identity step 2, found at main's merge 2026-10-22, the first run of this guard
+            // on the branch): an object's id per evaluation is keyed by the typed tree's Evaluation.Site, a value the
+            // lowering stamps; read as a map key, nothing planned here
+            java.util.Map.entry("InstanceIds", 1),
+            // 0 -> 2 (2026-10-18, the plan path program's step 7, found at main's merge 2026-10-22): the typed seam reads
+            // whether its driver re-reads a timestamp as java.time, the dialect's fact (refetchesTimestampAsJavaTime),
+            // as Executor does among its 7; the fact belongs with the connector, a later move
+            java.util.Map.entry("JdbcStatements", 2),
+            java.util.Map.entry("ColumnProbe", 1),   // PctProbe, renamed for what it does (2026-10-17)
             java.util.Map.entry("PureAsserts", 1),
+            // 2 -> 3 (2026-10-19, the plan path program's step 9): whether a database type runs in this process is
+            // the plan side's fact (Databases.inProcess), read by the session owner; 3 -> 2 (2026-10-22, main's merge):
+            // the connector answers it (main's Phase 5), and the plan side's is the dialect's
             java.util.Map.entry("Sessions", 2),
             java.util.Map.entry("SetupRunner", 3),
             java.util.Map.entry("SqlReplayReferee", 1),
             java.util.Map.entry("SystemDatabase", 3),
-            java.util.Map.entry("VerdictBatch", 4),
+            // 4 -> 1 (2026-10-18, the plan path program's step 6): the batch sends its statements as plans through
+            // a Runner the plan side gives it (JudgePlans) -- no dialect, no shape, no executor; the one reference
+            // left is the dialect's refusal it counts as UNJUDGED
+            java.util.Map.entry("VerdictBatch", 1),
             java.util.Map.entry("WireTypes", 3));
 
     /** {@code c}'s top-level class's name: a nested class's is its top-level class's, an array's its element's. */
@@ -905,8 +924,10 @@ final class ArchitectureTest {
             .that().haveNameNotMatching(
                     // sql.AliasPrefix (leg 3.4 step 2): re-aliases an EXISTING RawSql
                     // node — the authored text rides through verbatim (RawSqlAdapt is gone, 2026-10-13: the
-                    // renderer translates the text in place, SqlDialect.raw)
-                    "com\\.legend\\.(exec\\.GridProbe|lowering\\.Lowerer|sql\\.AliasPrefix)(\\$.*)?")
+                    // renderer translates the text in place, SqlDialect.raw); executionplan.MirJson
+                    // (2026-10-18, the plan path program's step 1b (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3)): the plan's typed tree read back from its JSON, exactly as the planner
+                    // wrote it -- no text composed
+                    "com\\.legend\\.(exec\\.GridProbe|lowering\\.Lowerer|sql\\.AliasPrefix|executionplan\\.MirJson)(\\$.*)?")
             .should().callConstructorWhere(
                     com.tngtech.archunit.core.domain.JavaCall.Predicates
                             .target(com.tngtech.archunit.core.domain
@@ -1083,12 +1104,21 @@ final class ArchitectureTest {
     void spellingDecodeIsLabelDriven() {
         noClasses()
             .that().doNotHaveFullyQualifiedName("com.legend.exec.Executor")
+            // 2026-10-18 (the plan path program's step 6): the runner's typed-row decode has the same arm -- a cell
+            // whose plan column's SLOT is labelled LITERAL parses as its spelling; the label is the plan's own fact
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.RowDecode")
+            // 2026-10-18 (step 6, the typed rows): the plan runner's decode of a driver's cell by the plan column's
+            // slot has the same LITERAL arm, over the cell's text; 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12):
+            // the MongoDB connector's decode of a document's cell by the same slot label. Registered 2026-10-19 at
+            // step 9's merge, where the guard lanes outside the core suite first ran on the program's branch.
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.JdbcDecode")
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.MongoDbDecode")
             .and().doNotHaveFullyQualifiedName("com.legend.values.LiteralText")
             .should().dependOnClassesThat().haveFullyQualifiedName(
                 "com.legend.values.LiteralText")
             .as("SNIFF-STOP: LiteralText.parse is reachable only from the"
-                    + " Executor's label-dispatch funnel (unwrap's LITERAL"
-                    + " arm) — decode by declared label, never by value"
+                    + " label-dispatch funnels (Executor.unwrap's LITERAL"
+                    + " arm, RowDecode's LITERAL slot arm) — decode by declared label, never by value"
                     + " shape")
             .check(CORE_PROD_CLASSES);
     }

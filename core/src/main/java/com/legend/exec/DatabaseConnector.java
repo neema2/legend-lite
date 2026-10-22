@@ -48,6 +48,20 @@ public interface DatabaseConnector {
      *  default would lose a new database's held message without a word. */
     @com.legend.base.Nullable String raisedMessage(Connection session) throws SQLException;
 
+    /** Whether its sessions are its own and not JDBC's (MongoDB's, docs/MONGODB_PLAN_2026_10_16.md D12, 2026-10-17):
+     *  {@link #open} opens one on a declared connection, its credential read by the connector and carried no further,
+     *  and nothing reads a JDBC product, an opening or a held raise from it. */
+    default boolean ownSessions() {
+        return false;
+    }
+
+    /** A session of its own on {@code def} ({@link #ownSessions}), owned by the caller: closing it releases it. A
+     *  specification or an authentication the connector does not open is refused by name. */
+    default Sessions.Session open(ConnectionDefinition def) {
+        throw new IllegalStateException(type() + "'s sessions are JDBC's, opened by Sessions.openingFor (connection '"
+                + def.qualifiedName() + "')");
+    }
+
     /** The specification and authentication a storeless runtime declares for this database's in-process session
      *  ({@code test.StorelessRuntime}), in the model's connection grammar. */
     default String storelessDeclaration() {

@@ -208,6 +208,8 @@ final class SubselectPrune {
             }
             case SqlExpr.PlanParam v -> {
             }
+            case SqlExpr.KeyCell v -> {
+            }
             case SqlExpr.Group g -> collectExpr(g.inner(), r);
             case SqlExpr.StringLit v -> {
             }
@@ -359,7 +361,7 @@ final class SubselectPrune {
             case SqlSource.Pivot p -> {
                 SqlSource inner = rewriteSource(p.source(), r);
                 yield inner == p.source() ? p
-                        : new SqlSource.Pivot(inner, p.on(), p.in(), p.usings(),
+                        : new SqlSource.Pivot(inner, p.on(), p.in(), p.named(), p.usings(),
                                 p.alias(), p.outputs());
             }
             case SqlSource.Values v -> v;

@@ -185,7 +185,7 @@ public final class BodyCompiler {
         Segments(StatementExecutor.ExecEnv env0, SpecCompiler specs) {
             this.env0 = env0;
             this.specs = specs;
-            this.batch = AssertVerdicts.databaseMode(env0) ? StatementExecutor.newVerdictBatch() : null;
+            this.batch = AssertVerdicts.databaseMode(env0) ? StatementExecutor.newVerdictBatch(env0) : null;
         }
 
         StatementExecutor.ExecEnv env() {
@@ -277,7 +277,7 @@ public final class BodyCompiler {
             }
             pendingVerdict = null;
             if (batch != null) {
-                batch = StatementExecutor.newVerdictBatch();
+                batch = StatementExecutor.newVerdictBatch(env0);
             }
         }
     }

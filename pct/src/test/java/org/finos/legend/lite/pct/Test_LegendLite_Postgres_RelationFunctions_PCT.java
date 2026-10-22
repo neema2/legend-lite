@@ -42,6 +42,9 @@ public class Test_LegendLite_Postgres_RelationFunctions_PCT extends PCTReportCon
             // a HARNESS limit, as on DuckDB (its pin, verbatim): the result wire cannot represent an EMPTY
             // STRING cell; joinStrings over the empty collection is '' -- right in SQL, null on the wire
             one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\"")
+            // the ten uncast dynamic pivots answer since the probe plan (2026-10-20, KeyedPivot: the keys read
+            // first, the body written for them on every database); their pins of step 9 (2026-10-19) removed
+            // with the run that passed them
     );
 
     public static Test suite() {

@@ -240,7 +240,8 @@ legend-engine's own: a rendered column quoted into a FreeMarker template argumen
 > in core. `WindowAggregate` exists in neither tree.
 
 Dialects: `AnsiSqlRenderer` → `DuckDb`, `Postgres`, `SQLite`, `MariaDb` (→ `MySql`), `Trino`,
-`ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`; `H2` → `H2Modern`; `EngineStyleH2` →
+`ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`, `MongoDb` (whose text is an aggregation pipeline, not SQL:
+docs/MONGODB_PLAN_2026_10_16.md); `H2` → `H2Modern`; `EngineStyleH2` →
 `EngineStyleDB2` → `EngineStyleComposite`. `com.legend.database.Databases` constructs the
 one a declared database type runs on.
 
@@ -255,9 +256,9 @@ Sealed roots in `com.legend.sql` (15 files, ~1,743 LOC):
 
 | Root | Variants |
 |---|---|
-| `SqlQuery` | `permits SqlSelect, SqlUnion` |
-| `SqlSource` | 8 — `Pivot, SourceUrl, Table, VarSetPlaceholder, Dual, Subselect, Values, Join` |
-| `SqlExpr` | 32 — incl. `Lambda` (**not** `LambdaExpr`), `Call`, `Cast`, `WindowCall`, `SqlAgg.Reducer` |
+| `SqlQuery` | `permits SqlSelect, SqlUnion, SqlWith` |
+| `SqlSource` | 11 — `Pivot, SourceUrl, Table, Cte, VarSetPlaceholder, Dual, Subselect, Values, RawSql, Catalog, Join` (counted 2026-10-17) |
+| `SqlExpr` | 33 — incl. `Lambda` (**not** `LambdaExpr`), `Call`, `Cast`, `WindowCall`, `SqlAgg.Reducer`, `RowJson` (2026-10-18) |
 | `SqlAgg` | carries `enum Fn` (~35) + `Reducer` |
 | `SqlType` | `Scalar` enum, `Decimal(p,s)`, `Array`, `Map` |
 | `DateFmt` | — |
@@ -365,6 +366,8 @@ otherwise, which is how it drifted:
 | Doc | What it is |
 |---|---|
 | `docs/build-inventory/program/START_HERE.md` | **Start here**: the build rebuild and the self-contained bump (the plan: `docs/REBUILD_PROGRAM_2026_10_06.md`) |
+| `docs/PLAN_PATH_PROGRAM_2026_10_17.md` | **The plan path program** (the user, 2026-10-17): everything executes through a plan -- the types in the plan, the text carrier, both judges, the callers switched, the legacy executor deleted; its §0 the rulings, §7 the order, §9 the status |
+| `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` | **The plan and the result** (ratified 2026-10-18): one plan record with three renderers, one result model that is a stream with sinks, per-row formatting, the typed session seam, the fast path's invariants; governs the program from step 7 |
 | `docs/EXECUTION_PLAN_2026_09_26.md` | The compiler rebuild's plan (rev H4): **parked since 2026-10-04**, reference until the user resumes it |
 | `docs/SEMANTICS_REGISTER.md` | Every deliberate difference from the reference, with evidence |
 | `docs/GATES.md` | The gate chain. **Read before claiming anything is green.** |

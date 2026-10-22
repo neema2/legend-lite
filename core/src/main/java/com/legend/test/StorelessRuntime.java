@@ -49,6 +49,22 @@ public final class StorelessRuntime {
         return runtime(type, specificationAndAuth(type));
     }
 
+    /** {@code model} with the storeless runtime over an empty store of the section {@code storeSection}, its connection
+     *  {@code connection}'s declaration (a store and a connection that are not relational: a MongoDB's, whose test
+     *  backend owns their text since main's merge, 2026-10-22, docs/MONGODB_PLAN_2026_10_16.md D4). The connection is
+     *  named {@code storeless::Connection} and reads {@code storeless::Store}. */
+    public static String declaringConnection(String model, String storeSection, String connection) {
+        return model + "\n###" + storeSection + "\nDatabase storeless::Store ( )\n###Connection\n" + connection + """
+
+                ###Runtime
+                Runtime storeless::Runtime
+                {
+                  mappings: [];
+                  connections: [ storeless::Store: [ session: storeless::Connection ] ];
+                }
+                """;
+    }
+
     private static String runtime(DatabaseType type, String specificationAndAuth) {
         return """
                 ###Relational

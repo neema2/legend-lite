@@ -31,6 +31,16 @@ public final class MySql extends MariaDb {
         super(MariaDb.LEXICON);
     }
 
+    /** MariaDB's passes, then each window call inside an expression computed in a select below
+     *  ({@link WindowsComputedBelow}: MySQL evaluates a subquery of an expression over a window call on every row,
+     *  measured, so a guard's raise fired where its CASE did not reach it). */
+    @Override
+    protected List<com.legend.sql.SqlRewriter> passes() {
+        List<com.legend.sql.SqlRewriter> ps = new java.util.ArrayList<>(super.passes());
+        ps.add(new WindowsComputedBelow());
+        return List.copyOf(ps);
+    }
+
     /** Every scalar type's name: MariaDB's (the dialect program's Phase 1, 2026-10-13: an exhaustive
      *  switch, so a new scalar type asks this dialect too). */
     @Override
@@ -86,7 +96,7 @@ public final class MySql extends MariaDb {
                  LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE,
                  LIST_SLICE, REPEAT_VALUE, LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT,
                  NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
-                 ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, FLOAT_CANON, VARIANT_ELEMENTS,
+                 ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, FLOAT_PRINT_ENGINE, VARIANT_ELEMENTS,
                  VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY -> super.call(writer, c, parentPrec);
         };
     }
@@ -94,6 +104,37 @@ public final class MySql extends MariaDb {
     @Override
     protected String product() {
         return "MySQL";
+    }
+
+    /** No quote and no backslash inside a literal: MySQL re-serializes a CTE that another CTE reads, writing its
+     *  literals with backslash escapes ({@code '\''}, a backslash doubled), and re-parses that text under the session's
+     *  NO_BACKSLASH_ESCAPES -- a syntax error at a quote, a doubled backslash silently (measured on 8.4 by the lane
+     *  session, the judges' verdict statement: channel B's testConcatenateMixedType and three removeDuplicates tests,
+     *  2026-10-20). Each is its own character, {@code CHAR(39 USING utf8mb4)} and {@code CHAR(92 USING utf8mb4)},
+     *  between literal pieces; a text with neither is its plain literal (a JSON path of a name with neither). */
+    @Override
+    protected String stringLit(String value) {
+        if (value.indexOf('\'') < 0 && value.indexOf('\\') < 0) {
+            return "'" + value + "'";
+        }
+        StringBuilder sb = new StringBuilder("CONCAT(''");
+        StringBuilder piece = new StringBuilder();
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch == '\'' || ch == '\\') {
+                if (piece.length() > 0) {
+                    sb.append(", '").append(piece).append('\'');
+                    piece.setLength(0);
+                }
+                sb.append(ch == '\'' ? ", CHAR(39 USING utf8mb4)" : ", CHAR(92 USING utf8mb4)");
+            } else {
+                piece.append(ch);
+            }
+        }
+        if (piece.length() > 0) {
+            sb.append(", '").append(piece).append('\'');
+        }
+        return sb.append(')').toString();
     }
 
     @Override
@@ -143,6 +184,15 @@ public final class MySql extends MariaDb {
         return w -> w.append("(CASE WHEN JSON_TYPE(JSON_EXTRACT(").piece(json).append(", ").piece(path)
                 .append(")) = 'NULL' THEN NULL ELSE JSON_UNQUOTE(JSON_EXTRACT(").piece(json).append(", ").piece(path)
                 .append(")) END)");
+    }
+
+    /** A JSON null is JSON here, which a string compares unequal to: the null is read by its type, as
+     *  {@link #jsonText(SqlWriter.Piece, SqlWriter.Piece)} reads it. */
+    @Override
+    protected SqlWriter.Piece jsonMember(SqlWriter.Piece json, SqlWriter.Piece path) {
+        return w -> w.append("(CASE WHEN JSON_TYPE(JSON_EXTRACT(").piece(json).append(", ").piece(path)
+                .append(")) = 'NULL' THEN NULL ELSE JSON_EXTRACT(").piece(json).append(", ").piece(path)
+                .append(") END)");
     }
 
     @Override

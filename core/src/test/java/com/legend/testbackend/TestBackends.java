@@ -36,6 +36,7 @@ public final class TestBackends {
             case Snowflake -> SnowflakeBackend.INSTANCE;
             case Databricks -> DatabricksBackend.INSTANCE;
             case BigQuery -> BigQueryBackend.INSTANCE;
+            case MongoDB -> MongoDbBackend.INSTANCE;
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto, Redshift, Spanner, Athena, Oracle,
                  Aurora, Deephaven -> throw new com.legend.error.NotImplementedException(
                          "no test backend for database type '" + type + "': the platform does not execute on it");

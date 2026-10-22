@@ -35,9 +35,9 @@ public final class PlanOnJavaBase {
         System.out.println(sql);
         check(sql.contains("SELECT") && sql.contains("GROUP BY"), "no SQL planned: " + sql);
         // every dialect plans on java.base too (2026-10-01 W5.5/P1, the Postgres dialect, the browser planner's path;
-        // every database the platform executes on since the dialect program's Phase 6, 2026-10-16): a runtime
-        // declaring each database, the same query
-        for (com.legend.model.ConnectionDefinition.DatabaseType type : com.legend.database.Databases.implemented()) {
+        // every database the platform executes on since the dialect program's Phase 6, 2026-10-16, a relational
+        // connection declares since main's merge, 2026-10-22): a runtime declaring each database, the same query
+        for (com.legend.model.ConnectionDefinition.DatabaseType type : com.legend.database.Databases.relational()) {
             String declared = """
                     ###Relational
                     Database x::DB ( Table FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(32), SIZE INTEGER) )

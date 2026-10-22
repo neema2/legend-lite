@@ -1115,7 +1115,7 @@ public final class Executor {
     }
 
     /** Expand row-struct columns (navigate slots) to their prefixed flat set. */
-    private static Type.RelationType flattenStructColumns(Type.RelationType schema) {
+    public static Type.RelationType flattenStructColumns(Type.RelationType schema) {
         if (schema.columns().stream().noneMatch(c ->
                 c.type() instanceof Type.RelationType)) {
             return schema;

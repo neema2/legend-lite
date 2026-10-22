@@ -38,15 +38,13 @@ public class Test_LegendLite_BigQuery_GrammarFunctions_PCT extends PCTReportConf
             one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
-            // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): name resolution, lowering
-            // and harness limits, the 0-based indexOf, error positions and messages
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive_Function_1__Boolean_1_", "\"Assert failed\""),
-            one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""),
-            // BIGQUERY'S OWN LIMIT: a date-time past BigQuery's range (years 1 to 9999) is refused
-            one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"BigQueryException during runQuery\nInput calculates to invalid datetime: 10999-01-01 0000:00:00\"")
+            // HARNESS SERIALIZATION LOSS (as on DuckDB): the captured $address never reaches the serialized text
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
+            // NOTE 2026-10-21 (the plan route on BigQuery, measured by the BigQuery lane session at 6c8de4e and
+            // edb7e12b against the merge-base 59b547a5e, where every pin here held): eq's and equal's
+            // testEqNonPrimitive and testEqPrimitiveExtension pass (object identity), and testDateCompare (the plan
+            // compares in the database, whose 10999 is no date-time it builds), their pins removed;
+            // testMapRelationshipFromOneToOne pins the class, as on every lane
     );
 
     public static Test suite() {

@@ -33,27 +33,20 @@ public class Test_LegendLite_MySQL_RelationFunctions_PCT extends PCTReportConfig
             // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): name resolution, lowering
             // and harness limits, the 0-based indexOf, error positions and messages
             one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\""),
-            // MYSQL'S OWN LIMIT: a DATE or DATETIME is of the years 1000-9999 (a five-digit year has no value; raised
-            // where an interval is added, a wrong comparison where a literal is one)
-            one("meta::pure::functions::relation::tests::composition::testExtendLeadAdjustDerivedOffset_Function_1__Boolean_1_", "\"a date past the year 9999 has no MySQL value\""),
-            // MYSQL'S OWN LIMIT: GROUP_CONCAT and an ordered JSON_ARRAYAGG are no window functions (measured), so a
-            // windowed string aggregate has no spelling
-            one("meta::pure::functions::relation::tests::composition::testExtendJoinStringOnNull_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MySQL, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderASCUnboundedWindow_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MySQL, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderUnboundedWindow_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MySQL, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderUnboundedWindow_MultipleExpressions_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MySQL, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderWindow_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MySQL, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderWindow_MultipleExpressions_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MySQL, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MySQL, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MySQL, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns_MultipleExpressions_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MySQL, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderWindowMultipleColumns_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MySQL, where it is no window function\""),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderWindowMultipleColumns_MultipleExpressions_Function_1__Boolean_1_", "\"a windowed STRING_AGG reached MySQL, where it is no window function\""),
+            // NOTE 2026-10-20 (the parity phase): testExtendLeadAdjustDerivedOffset unpinned -- its dates are all 2026;
+            // MySQL evaluated the interval guard's raise on every row of an expression over a window call, and the
+            // dialect now computes the window below the expression (WindowsComputedBelow)
+            // NOTE 2026-10-20 (the parity phase): the eleven windowed string aggregations unpinned -- the dialect
+            // writes a window call of an aggregate it has no window form of as that aggregate over the frame's rows,
+            // a correlated subquery over the FROM numbered (WindowAggregatesAsCorrelated)
             // MYSQL'S OWN LIMIT: a JSON value is stored parsed, an object's keys sorted (by length, then bytes): the
             // values are right, the printed key order is not the document's
             one("meta::pure::functions::relation::tests::composition::testVariantMapColumn_values_LateralFlatten_Function_1__Boolean_1_", "\"#TDS\n   id:Integer[0..1],payload:meta::pure::metamodel::variant::Variant[0..1],firstName:String[0..1]\n   1,'{\"a\":{\"firstName\":\"John\",\"lastName\":\"Smith\"},\"b\":{\"firstName\":\"Jane\",\"lastName\":\"Smith\"}}',Jane\n   1,'{\"a\":{\"firstName\":\"John\",\"lastName\":\"Smith\"},\"b\":{\"firstName\":\"Jane\",\"lastName\":\"Smith\"}}',John\n   2,'{\"c\":{\"firstName\":\"Juan\",\"lastName\":\"Del Pueblo\"}}',Juan\n#\n is not equivalent to:\n#TDS\n   id:Integer[0..1],payload:meta::pure::metamodel::variant::Variant[0..1],firstName:String[0..1]\n   1,'{\"a\":{\"lastName\":\"Smith\",\"firstName\":\"John\"},\"b\":{\"lastName\":\"Smith\",\"firstName\":\"Jane\"}}',Jane\n   1,'{\"a\":{\"lastName\":\"Smith\",\"firstName\":\"John\"},\"b\":{\"lastName\":\"Smith\",\"firstName\":\"Jane\"}}',John\n   2,'{\"c\":{\"lastName\":\"Del Pueblo\",\"firstName\":\"Juan\"}}',Juan\n#\""),
             one("meta::pure::functions::relation::tests::extend::testVariantColumn_keyExtraction_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,booleanKey,integerKey,stringKey\n   1,\\'{\"boolean\":true,\"integer\":1,\"string\":\"hello\"}\\',\\'true\\',\\'1\\',\\'\"hello\"\\'\n   2,\\'{\"boolean\":false,\"integer\":2,\"string\":\"world\"}\\',\\'false\\',\\'2\\',\\'\"world\"\\'\n   3,\\'{\"boolean\":true,\"integer\":3,\"string\":\"world\"}\\',\\'true\\',\\'3\\',\\'\"world\"\\'\n#'\nactual:   '#TDS\n   id,payload,booleanKey,integerKey,stringKey\n   1,\\'{\"string\":\"hello\",\"boolean\":true,\"integer\":1}\\',\\'true\\',\\'1\\',\\'\"hello\"\\'\n   2,\\'{\"string\":\"world\",\"boolean\":false,\"integer\":2}\\',\\'false\\',\\'2\\',\\'\"world\"\\'\n   3,\\'{\"string\":\"world\",\"boolean\":true,\"integer\":3}\\',\\'true\\',\\'3\\',\\'\"world\"\\'\n#'\""),
             one("meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnKeyExtractionValue_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload\n   1,\\'{\"boolean\":true,\"integer\":1,\"string\":\"hello\"}\\'\n#'\nactual:   '#TDS\n   id,payload\n   1,\\'{\"string\":\"hello\",\"boolean\":true,\"integer\":1}\\'\n#'\"")
+            // the ten uncast dynamic pivots answer since the probe plan (2026-10-20, KeyedPivot: the keys read
+            // first, the body written for them on every database); their pins of step 9 (2026-10-19) removed
+            // with the run that passed them
     );
 
     public static Test suite() {

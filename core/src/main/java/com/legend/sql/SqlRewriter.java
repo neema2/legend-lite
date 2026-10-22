@@ -119,14 +119,15 @@ public abstract class SqlRewriter {
                 SqlSource src = rewriteSource(p.source());
                 List<SqlExpr> on = mapList(p.on(), this::rewriteExpr);
                 List<SqlExpr> in = mapList(p.in(), this::rewriteExpr);
+                List<SqlExpr> named = mapList(p.named(), this::rewriteExpr);
                 List<SqlSource.Pivot.Using> us = mapList(p.usings(), u -> {
                     SqlAgg.Reducer r2 = (SqlAgg.Reducer) rewriteExpr(u.agg());
                     return r2 == u.agg() ? u
                             : new SqlSource.Pivot.Using(r2, u.alias(), u.type());
                 });
-                yield src == p.source() && on == p.on() && in == p.in()
+                yield src == p.source() && on == p.on() && in == p.in() && named == p.named()
                         && us == p.usings() ? p
-                        : new SqlSource.Pivot(src, on, in, us, p.alias(), p.outputs());
+                        : new SqlSource.Pivot(src, on, in, named, us, p.alias(), p.outputs());
             }
         };
         return source(out);
@@ -179,6 +180,7 @@ public abstract class SqlRewriter {
             case SqlExpr.JsonKindLit l -> l;
             case SqlExpr.TypeNameLit l -> l;
             case SqlExpr.PlanParam p -> p;
+            case SqlExpr.KeyCell k -> k;
             case SqlExpr.Group g -> {
                 SqlExpr i = rewriteExpr(g.inner());
                 yield i == g.inner() ? g : new SqlExpr.Group(i);

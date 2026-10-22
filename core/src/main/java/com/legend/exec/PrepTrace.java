@@ -46,6 +46,11 @@ public final class PrepTrace {
         append(FILE, sql.length() + "\t" + prepareNanos + "\t" + executeNanos + "\t" + kind + "\n");
     }
 
+    /** Is the trace on (a file named)? A caller measures a branch only then. */
+    public static boolean on() {
+        return FILE != null;
+    }
+
     /** One fused statement's branch sizes: {@code family, chars} per pending verdict. */
     public static void branch(String family, int chars) {
         if (FILE == null) {

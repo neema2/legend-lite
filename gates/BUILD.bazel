@@ -339,6 +339,12 @@ test_suite(
         "//pct:pct_mysql",
         "//pct:pct_trino",
         "//pct:pct_clickhouse",
+        # the MongoDB v0 end to end on the embedded MongoDB 8.0 (docs/MONGODB_PLAN_2026_10_16.md §11, 2026-10-17):
+        # manual until a per-push lane for it is the user's call
+        "//core:mongodb_plan_test",
+        # the five PCT suites on the embedded MongoDB 8.0, channel A through the plan path (docs/MONGODB_PLAN_2026_10_16.md
+        # §6, 2026-10-17)
+        "//pct:pct_mongodb",
         # channel B on each of those databases and on H2 and Postgres (2026-10-11, the user's ask): the same runner,
         # diffed against each lane's own channel A ledger (//pct:BUILD.bazel, CHANNEL B ON EVERY LANE)
         "//pct:pct_channel_b_h2",

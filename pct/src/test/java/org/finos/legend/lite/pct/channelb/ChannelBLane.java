@@ -42,8 +42,11 @@ final class ChannelBLane {
      *  relation's rows. */
     private static final Map<String, Map<String, Pins>> PINS = Map.of(
             // the relation suite only, as channel A's H2 lane: 14 tests sort or join a group's values as a list in
-            // their own check (12 not the engine's frontier)
-            "h2", Map.of("Relation", new Pins(429, 14, 12)),
+            // their own check (12 not the engine's frontier). 429 -> 431, 14 -> 17 and 12 -> 17 (2026-10-20, the parity
+            // phase): channel A now passes the five literal-instance projects and filters (ConstantLateralsAsRows,
+            // CarrierStrategies.filteredLiteralLength), which channel B's body holds as a let's frame with a struct
+            // column H2 has no value for (the judges on plans, the program's step 10, the home of that form)
+            "h2", Map.of("Relation", new Pins(431, 17, 17)),
             // Postgres 16: 35 -> 1 (Standard) and 7 -> 3 (Relation) when a Float's text kept its '.0' (Postgres.java,
             // the same day); every Essential and Grammar wire bug is the engine's own frontier on Postgres
             // 285 -> 315, 128 -> 132, 186 -> 203 and 83 -> 87 (2026-10-12, Postgres's own pins burned down,
@@ -54,12 +57,20 @@ final class ChannelBLane {
             // and 87 -> 91 (2026-10-12, the user's ask): a quoted literal typed for to_jsonb, Levenshtein and
             // Jaro-Winkler as recursive walks (no extension). 327 -> 329, its wire bugs 2 -> 1 (2026-10-12, the user's
             // ask): the ordered list aggregate typed as a list (array_agg here)
+            // 2026-10-20, as measured at the branch head (object identity and the plan-route parity work: the
+            // canon's key fields typed, an empty list arm of a coalesce typed by its siblings, the zip/put decodes):
+            // Essential 329 -> 330, Relation 465 -> 467, Standard 204 -> 205, Unclassified 91 -> 92
             "postgres", Map.of(
-                    "Essential", new Pins(329, 1, 0),
-                    "Grammar", new Pins(132, 3, 0),
-                    "Relation", new Pins(465, 2, 0),
-                    "Standard", new Pins(204, 1, 0),
-                    "Unclassified", new Pins(91, 0, 0)),
+                    "Essential", new Pins(330, 1, 0),
+                    // wire bugs 3 -> 5 (2026-10-20, object identity, docs/OBJECT_IDENTITY_2026_10_20.md, measured at
+                    // the branch head): channel A now passes eq's and equal's testEqVarIdentity and testEqNonPrimitive
+                    // pairs, which channel B's legacy route still refuses on Postgres ("a list transform of unknown
+                    // result type": its verdict lane's canon rider) -- they failed on both before, so the pass floor
+                    // holds; the judges move to plans in the plan path program's step 10, the home of that route
+                    "Grammar", new Pins(132, 5, 0),
+                    "Relation", new Pins(467, 2, 0),
+                    "Standard", new Pins(205, 1, 0),
+                    "Unclassified", new Pins(92, 0, 0)),
             // no engine manifest for SQLite: every wire bug is a true one (10 of Relation's 12 a regular expression
             // with a non-literal pattern, 2 a pivot's column order)
             "sqlite", Map.of(
@@ -67,8 +78,12 @@ final class ChannelBLane {
                     "Essential", new Pins(333, 1, 1),
                     "Grammar", new Pins(133, 0, 0),
                     "Relation", new Pins(456, 12, 12),
-                    "Standard", new Pins(203, 0, 0),
-                    "Unclassified", new Pins(87, 0, 0)),
+                    // 203 -> 205 (2026-10-20, the parity phase): hashCode is the MD5 of the values' text written in
+                    // SQLite's SQL (SqliteDigests), testHashCode and testHashCodeAggregate
+                    "Standard", new Pins(205, 0, 0),
+                    // 87 -> 92 (2026-10-20, the parity phase): the digests written in SQLite's SQL (SqliteDigests)
+                    // and Jaro-Winkler's walk
+                    "Unclassified", new Pins(92, 0, 0)),
             // no engine manifest for MariaDB. 325 -> 330 and 201 -> 204 (2026-10-11): a Float's text written once (the
             // mixed sort no longer takes the server past 12 GB), and a windowed mode counted per value
             "mariadb", Map.of(
@@ -76,7 +91,8 @@ final class ChannelBLane {
                     "Grammar", new Pins(135, 0, 0),
                     "Relation", new Pins(440, 17, 17),
                     "Standard", new Pins(204, 1, 1),
-                    "Unclassified", new Pins(91, 0, 0)),
+                    // 91 -> 93 (2026-10-20, the parity phase): Jaro-Winkler's walk (MariaDb.jaroWinkler)
+                    "Unclassified", new Pins(93, 0, 0)),
             // no engine manifest for MySQL. Relation's 32: 21 window tests whose rows come back in another order (no
             // ORDER BY: SQL promises none; channel A's comparison is unordered), 9 regular expressions with a
             // non-literal pattern, 2 pivots' column order
@@ -85,7 +101,8 @@ final class ChannelBLane {
                     "Grammar", new Pins(136, 0, 0),
                     "Relation", new Pins(422, 32, 32),
                     "Standard", new Pins(204, 1, 1),
-                    "Unclassified", new Pins(91, 0, 0)),
+                    // 91 -> 93 (2026-10-20, the parity phase): Jaro-Winkler's walk (MariaDb.jaroWinkler)
+                    "Unclassified", new Pins(93, 0, 0)),
             // the clouds, on the accounts (§4): Databricks' 10 Relation wire bugs fail with no detail from the
             // server; BigQuery's 13 are 10 regular expressions with a non-literal pattern, 2 pivots' column order and
             // an ORDER BY past a DISTINCT; Snowflake's 2 the pivots
@@ -97,7 +114,13 @@ final class ChannelBLane {
                     "Unclassified", new Pins(93, 0, 0)),
             "snowflake", Map.of(
                     "Essential", new Pins(334, 1, 0),
-                    "Grammar", new Pins(133, 2, 0),
+                    // wire bugs 2 -> 4 (2026-10-22, measured by the Snowflake lane at 81960bf7 against the merge-base
+                    // 59b547a5e): channel A now passes eq's and equal's testEqNonPrimitive pair (the ledger REMOVEs),
+                    // which channel B still refuses here as at the merge-base, "a field '__canon' of unknown type
+                    // reached Snowflake", the same four tests with the same message; they failed on both before, so
+                    // the pass floor holds -- Postgres's move of 2026-10-20, the same pairs; the judges move to plans
+                    // in the plan path program's step 10
+                    "Grammar", new Pins(133, 4, 0),
                     "Relation", new Pins(467, 2, 2),
                     "Standard", new Pins(204, 1, 0),
                     "Unclassified", new Pins(93, 0, 0)),
@@ -113,7 +136,10 @@ final class ChannelBLane {
             // planner refusing an arithmetic chain ("SignatureBinder.iterativeSolve does not converge")
             "trino", Map.of(
                     "Essential", new Pins(331, 1, 0),
-                    "Grammar", new Pins(131, 0, 0),
+                    // 131 -> 136 as measured, wire bugs 0 -> 1 (2026-10-20, the parity phase): channel A reads the
+                    // metamodel's tables inline where Trino has no temporary table (testBasic), and channel B's legacy
+                    // route still makes them the session's own (the judges on plans, the program's step 10, its home)
+                    "Grammar", new Pins(136, 1, 0),
                     "Relation", new Pins(463, 6, 5),
                     "Standard", new Pins(205, 0, 0),
                     "Unclassified", new Pins(93, 0, 0)),
@@ -125,11 +151,13 @@ final class ChannelBLane {
             // docs/PCT_PIN_WORKAROUNDS_2026_10_12.md): as-of and one-sided joins, correlated IN and LATERAL
             // decorrelated, Float RANGE offsets, a column's quantile level, the connection's query size, a session for
             // the system database, typed empty lists and struct fields. 136 -> 137 and 459 -> 461 (2026-10-12, the
-            // user's ask): an absent instance as a struct field's Variant, a JSON null kept null through a list
+            // user's ask): an absent instance as a struct field's Variant, a JSON null kept null through a list.
+            // 461 -> 462 (2026-10-20, the parity phase): a LEFT join's condition both sides read is its matches first
+            // (OuterJoinResidualsAsMatches), testNestedJoinArithmeticComparisonExpression
             "clickhouse", Map.of(
                     "Essential", new Pins(333, 3, 1),
                     "Grammar", new Pins(137, 0, 0),
-                    "Relation", new Pins(461, 7, 0),
+                    "Relation", new Pins(462, 7, 0),
                     "Standard", new Pins(202, 0, 0),
                     "Unclassified", new Pins(93, 0, 0)));
 
