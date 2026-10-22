@@ -1,0 +1,231 @@
+{
+  "mode": "shared",
+  "target": "versioned",
+  "measures": "linear",
+  "rate": 1000,
+  "loadSeconds": 0.1,
+  "phases": [
+    {
+      "active": 0,
+      "engineCpuCores": 0.66,
+      "engineMemoryMB": 1302
+    },
+    {
+      "active": 1,
+      "activationMillis": {
+        "0": 152.1
+      },
+      "engineCpuCores": 0.67,
+      "engineMemoryMB": 1360,
+      "groupRowsLive": 5,
+      "tickToSubscriberMillis": {
+        "p50": 9.2,
+        "p95": 108.3,
+        "n": 55
+      }
+    },
+    {
+      "active": 4,
+      "activationMillis": {
+        "1": 151.2,
+        "2": 203.7,
+        "3": 195.7
+      },
+      "engineCpuCores": 0.74,
+      "engineMemoryMB": 1455,
+      "groupRowsLive": 34,
+      "tickToSubscriberMillis": {
+        "p50": 11.3,
+        "p95": 108.5,
+        "n": 63
+      }
+    },
+    {
+      "active": 16,
+      "activationMillis": {
+        "4": 150.2,
+        "5": 201.6,
+        "6": 196.7,
+        "7": 108.9,
+        "8": 186.8,
+        "9": 114.3,
+        "10": 195.6,
+        "11": 192.0,
+        "12": 196.7,
+        "13": 201.6,
+        "14": 112.9,
+        "15": 126.1
+      },
+      "engineCpuCores": 1.17,
+      "engineMemoryMB": 1749,
+      "groupRowsLive": 3338,
+      "tickToSubscriberMillis": {
+        "p50": 24.4,
+        "p95": 121.4,
+        "n": 61
+      }
+    }
+  ],
+  "correctness": {
+    "0": {
+      "groupBy": [
+        "desk"
+      ],
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.9398416007040495e-14
+    },
+    "1": {
+      "groupBy": [
+        "desk",
+        "trader"
+      ],
+      "rows": 13,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 6.919138778323831e-14
+    },
+    "2": {
+      "groupBy": [
+        "sector"
+      ],
+      "rows": 11,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 8.098243584558133e-14
+    },
+    "3": {
+      "groupBy": [
+        "ccy"
+      ],
+      "rows": 5,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.0401943132275206e-14
+    },
+    "4": {
+      "groupBy": [
+        "desk",
+        "sector"
+      ],
+      "rows": 10,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.0270703359184302e-14
+    },
+    "5": {
+      "groupBy": [
+        "book"
+      ],
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.683907369648461e-14
+    },
+    "6": {
+      "groupBy": [
+        "desk",
+        "trader",
+        "book"
+      ],
+      "rows": 49,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.683907369648461e-14
+    },
+    "7": {
+      "groupBy": [
+        "sector",
+        "ccy"
+      ],
+      "rows": 51,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 4.71427077576004e-14
+    },
+    "8": {
+      "groupBy": [
+        "desk",
+        "ccy"
+      ],
+      "rows": 21,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 1.3037079784817967e-13
+    },
+    "9": {
+      "groupBy": [
+        "trader"
+      ],
+      "rows": 13,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 8.584542949030374e-14
+    },
+    "10": {
+      "groupBy": [
+        "trader",
+        "sector"
+      ],
+      "rows": 12,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.1664867934961886e-15
+    },
+    "11": {
+      "groupBy": [
+        "desk",
+        "trader",
+        "book",
+        "sector"
+      ],
+      "rows": 12,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.261301084483222e-15
+    },
+    "12": {
+      "groupBy": [
+        "book",
+        "ccy"
+      ],
+      "rows": 241,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 7.485601680744856e-14
+    },
+    "13": {
+      "groupBy": [],
+      "rows": 1,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 2.8630594851950223e-15
+    },
+    "14": {
+      "groupBy": [
+        "desk",
+        "trader",
+        "book",
+        "sector",
+        "ccy"
+      ],
+      "rows": 2364,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 4.704437546732644e-13
+    },
+    "15": {
+      "groupBy": [
+        "sector",
+        "book"
+      ],
+      "rows": 481,
+      "mismatches": 0,
+      "extraRows": 0,
+      "maxRelativeError": 3.285601854855173e-13
+    }
+  },
+  "allCorrect": true,
+  "errors": []
+}

@@ -101,8 +101,9 @@ one key, and each retraction searches them; Deephaven and Feldera ran the first 
    - Without `PERIODIC`, `EMIT CHANGELOG` emits every 2 s; `EMIT CHANGELOG PERIODIC 100ms` is
      accepted by the open-source build.
    - Each streaming query computes its own join: four views cost 2.6 cores where one cost 0.6.
-     Sharing the join through a materialized view into a `changelog_kv` stream failed on the first
-     try (`_tp_delta` is not visible through the join subquery) and was not pursued.
+     Sharing the join through a materialized view works (the first try lacked `EMIT CHANGELOG`;
+     a `versioned_kv` target needs nothing extra) and changes the picture: see "Proton at 16
+     groupings" below.
    - Like ClickHouse, an alias shadows a source column (`SUM(...pnl_usd...) AS pnl_usd` nests the
      sum in itself).
    - Operationally its defaults assume a dedicated disk: it refuses writes when the filesystem
@@ -235,6 +236,39 @@ What it says:
 6. **The Python ticking client failed on the largest subscription (2,364 rows) in 2 of 4 runs**
    ("Chunks have inconsistent sizes" in `barrage_processor.cc`); the server's snapshot was right
    both times.
+
+## Proton at 16 groupings (`proton_groupings.py`, `results/2026-10-22/proton-groupings/`)
+
+The same 16 groupings, probe and phases as the Feldera and Deephaven tests above, 1,000 ticks a
+second, in two modes. **perquery**: each grouping is its own streaming query over the whole join
+(instruments to FX first). **shared**: one materialized view runs the join once and writes each
+position's risk into a `versioned_kv` stream keyed by book and instrument
+(`CREATE MATERIALIZED VIEW ... INTO position_risk_s AS <join>`); each grouping is a streaming
+aggregation over that stream with `EMIT CHANGELOG PERIODIC 100ms`.
+
+| 16 groupings live | CPU | tick → subscriber p50 / p95 | a new grouping: first rows | correct |
+|---|---|---|---|---|
+| Proton, shared join, with MAX | 1.26 cores | 24 / 121 ms | 113 to 192 ms | yes |
+| Proton, shared join, sums only | 1.17 cores | 24 / 121 ms | 109 to 202 ms | yes |
+| Proton, a join per grouping, with MAX | 3.70 cores (saturated) | 62 / 108 ms (the probe's grouping) | 304 to 1,586 ms | after a 60 s drain (5 groupings still behind after 5 s) |
+| Proton, a join per grouping, sums only | 3.69 cores (saturated) | 73 / 119 ms | 260 to 1,111 ms | yes |
+| Deephaven, with MAX (above) | 1.35 cores | 81 / 107 ms | 14 to 372 ms | yes |
+| Feldera, groupings as data over the leaf, sums only (above) | 1.87 cores | 122 / 162 ms | 30 to 290 ms | yes |
+
+With the join shared, each extra grouping costs Proton little (0.69, 0.79, 1.26 cores for 1, 4,
+16 live), MAX costs it almost nothing, and a new grouping is live in about 0.2 s with no compile.
+Run as a join per grouping it saturates four cores at 16 and some groupings fall behind (the
+check with a 5 s drain failed for 5 of them; with 60 s every grouping matched, so they lagged,
+they were not wrong).
+
+What this makes the Proton target: the model's join, declared once per source, as a materialized
+view (its join order chosen by the target, as `fx_first` was here by hand), and DataCube's levels
+and regroupings as ad-hoc streaming aggregations over it. That is the shape DataCube needs: live,
+ad hoc, no compile, cheap per grouping. Still open: many viewers of one grouping (each a query of
+its own, or a view server fanning one out), the join order (planned by the target, not by hand),
+and the operational defaults above. The 24 ms p50 against Deephaven's 81 ms is configuration
+(Proton emits every 100 ms here; Deephaven's 100 ms update cycle and 100 ms subscription interval
+add up), not a difference between the engines.
 
 ## Running it
 

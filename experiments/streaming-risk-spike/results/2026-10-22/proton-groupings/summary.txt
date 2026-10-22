@@ -1,0 +1,21 @@
+shared-full            active  0 | cpu 0.69 | mem 940 | sub None / None | first rows - | none: 0
+shared-full            active  1 | cpu 0.69 | mem 985 | sub 10.8 / 108.5 | first rows (149.8, 149.8) | none: 0
+shared-full            active  4 | cpu 0.79 | mem 1107 | sub 36.4 / 115.0 | first rows (113.6, 182.2) | none: 0
+shared-full            active 16 | cpu 1.26 | mem 1499 | sub 24.2 / 120.9 | first rows (113.4, 192.3) | none: 0
+shared-full            correct True errors 0 []
+shared-linear          active  0 | cpu 0.66 | mem 1302 | sub None / None | first rows - | none: 0
+shared-linear          active  1 | cpu 0.67 | mem 1360 | sub 9.2 / 108.3 | first rows (152.1, 152.1) | none: 0
+shared-linear          active  4 | cpu 0.74 | mem 1455 | sub 11.3 / 108.5 | first rows (151.2, 203.7) | none: 0
+shared-linear          active 16 | cpu 1.17 | mem 1749 | sub 24.4 / 121.4 | first rows (108.9, 201.6) | none: 0
+shared-linear          correct True errors 0 []
+perquery-full          active  0 | cpu 0.1 | mem 1441 | sub None / None | first rows - | none: 0
+perquery-full          active  1 | cpu 0.49 | mem 1469 | sub 19.9 / 104.0 | first rows (255.7, 255.7) | none: 0
+perquery-full          active  4 | cpu 1.92 | mem 1588 | sub 71.4 / 94.5 | first rows (258.5, 294.0) | none: 0
+perquery-full          active 16 | cpu 3.7 | mem 2117 | sub 62.0 / 107.7 | first rows (303.7, 1586.2) | none: 0
+perquery-full          correct False errors 0 []
+perquery-linear        active  0 | cpu 0.1 | mem 1721 | sub None / None | first rows - | none: 0
+perquery-linear        active  1 | cpu 0.48 | mem 1744 | sub 26.0 / 39.6 | first rows (258.5, 258.5) | none: 0
+perquery-linear        active  4 | cpu 1.85 | mem 1833 | sub 79.3 / 105.6 | first rows (248.6, 260.9) | none: 0
+perquery-linear        active 16 | cpu 3.69 | mem 2242 | sub 72.6 / 118.5 | first rows (260.0, 1110.5) | none: 0
+perquery-linear        correct True errors 0 []
+DONE
