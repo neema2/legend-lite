@@ -1,34 +1,28 @@
 # Deephaven as a database of legend-lite: the design (2026-10-22)
 
-**Status: PROPOSED. Nothing here is built. Reviewed by the MongoDB line on 2026-10-22 (whose
-`docs/MONGODB_PLAN_2026_10_16.md` this design follows decision by decision): agreed on every point of §6, with the
-notes recorded there. For the user's approval; the Studio line reviews L1 (its leg 10).**
+**Status: PROPOSED. Nothing here is built.** The architecture follows the MongoDB line's
+(`docs/MONGODB_PLAN_2026_10_16.md`), reviewed and agreed by that line on 2026-10-22 (§7). **legend-engine's Deephaven
+extension is not the reference** (the user, 2026-10-22: it is half built and does not work): what the store means,
+which types it has, what is checked and how it executes are decided here, on what is right for legend-lite. The model
+part is the Studio line's leg 10, which the Studio line reviews.
 
 ## 0. The answer in one paragraph
 
-Deephaven becomes a database of legend-lite **the way MongoDB is becoming one**, not by a road of its own. The
-`###Deephaven` store and `DeephavenConnection`, which lite parses today and drops at the model door, compile into the
-records every database uses (`DatabaseDefinition`, `ConnectionDefinition`), keyed by a lite extension
-`DatabaseType.Deephaven`. A query on a Deephaven runtime is planned by **a render target over the same `SqlQuery`
-IR**, `sql/dialect/Deephaven.java`, implementing `SqlDialect` whole as `MongoDb` does, which writes Deephaven's
-table-operation plan (its `BatchTableRequest`, as protobuf JSON) instead of SQL text. A **connector in
-`core/src/main/deephaven`**, found through `ServiceLoader` as Mongo's is, runs that plan with Deephaven's Java client
-and answers through the same `Statements` seam Mongo's branch introduces: **typed rows** for a snapshot, and, as the
-one thing Deephaven adds, **a live handle** (server, ticket, column names) for a caller that subscribes. The same plan
-serves both: live or snapshot is how a caller executes it, not what was planned. DataCube is the first live caller.
+Deephaven becomes a database of legend-lite the way MongoDB is becoming one. The `###Deephaven` store and
+`DeephavenConnection`, which lite parses today and drops at the model door, compile into the records every database
+uses (`DatabaseDefinition`, `ConnectionDefinition`), keyed by a lite extension `DatabaseType.Deephaven`. A query on a
+Deephaven runtime is planned by **a render target over the same `SqlQuery` IR**, `sql/dialect/Deephaven.java`,
+implementing `SqlDialect` whole as `MongoDb` does, which writes Deephaven's table-operation plan (its
+`BatchTableRequest`, as protobuf JSON) instead of SQL text. A **connector in `core/src/main/deephaven`**, found through
+`ServiceLoader` as Mongo's is, runs that plan with Deephaven's Java client: **typed rows** for a snapshot, and, as the
+one thing Deephaven adds, **a live handle** (server, ticket, column names, `close`) for a caller that subscribes. The
+same plan serves both: live or snapshot is how a caller executes it, not what was planned. DataCube is the first live
+caller.
 
 ## 1. What exists
 
-- **legend-engine's own Deephaven extension** (pinned 4.145.0, `legend-engine-xts-deephaven`): the store, the
-  connection, the `DeephavenApp` activator, a compiler extension (`DeephavenCompilerExtension`,
-  `HelperDeephavenStoreBuilder`), a Pure translation of the Relation surface to a Deephaven query
-  (`pure_to_deephaven.pure`), an execution node (`DeephavenExecutionNode`) whose executor builds a Deephaven table
-  specification and streams the rows back over Arrow Flight (`DeephavenExecutionNodeExecutor`), and a PCT suite
-  (`legend-engine-xt-deephaven-PCT`). **It is the spec** (the reference-checkout tenet): its words for refusals, its
-  type mapping, its PCT expectations. Its Pure translation is not ported (D1 below, as Mongo's D1 rejected porting
-  `pureToMongoQuery`).
 - **lite today**: the grammar, protocol records (`PDeephavenDatabase`, `PDeephavenConnection`, `PPskAuth`) and the
-  composer round-trip byte for byte (leg 8). At the door, the store becomes a named carrier with no tables
+  composer round-trip (leg 8). At the door, the store becomes a named carrier with no tables
   (`ModelFromProtocol.java:203`) and the connection a generic element keeping `serverUrl` only
   (`FromProtocol.java:431`, `:522`). So an inline `DeephavenConnection` lands in `foreignConnections`, counts as model
   data, and the query runs on DuckDB; a standalone one is not indexed as a connection. PARK-38 records the carrier.
@@ -36,85 +30,148 @@ serves both: live or snapshot is how a caller executes it, not what was planned.
   `BatchTableRequest` JSON with no Deephaven library, run by a 200-line connector, subscribed from a browser through
   `dh-core.js`; and the homework that found Deephaven right on every test (deletes, as-of joins with late data, all 14
   DataCube query shapes as table operations, to 384,000 positions) where Deephaven's SQL front end refused 6 of 14.
+  Those findings are this design's evidence: table operations, not Deephaven's SQL; typed rows over Arrow Flight; a
+  live table per subscription.
+- **legend-engine's Deephaven extension** (pinned 4.145.0) exists and is not followed: its columns are all declared
+  non-null, its types stop at eight, its execution generates Java at plan time. lite's grammar keeps reading its
+  syntax, which is adequate as a start (§2); nothing else of it is taken.
 
-## 2. Decisions, against Mongo's
+## 2. The store: what a Deephaven table is to the model
 
-Each row says what Mongo decided (the user's rulings of 2026-10-16), what Deephaven does, and why where it differs.
+A Deephaven server holds named tables. legend-lite meets two kinds, and the store says which each is:
 
-| # | question | Mongo (decided) | Deephaven (proposed) |
+| kind | what it is | who defines its columns | example |
 |---|---|---|---|
-| DH1 | the compiler's shape | D1: a target over the `SqlQuery` IR | **the same.** The engine's own route is a Pure translation; lite's is the IR target, for D1's reasons |
-| DH2 | the seam's type | D2: `MongoDb implements SqlDialect` whole; the `QueryTarget` split if the refusal list grows | **the same** (`Deephaven implements SqlDialect`, SQL-only members refused by name). A second non-SQL target is D2's recorded trigger: noted, and taken up with the Mongo line after its branch merges, from two real targets |
-| DH3 | the surface | D3: the Relation surface first; `#>{db.Coll}#` a lite extension | **the Relation surface only**, and here it is the engine's own (`#>{store.table}#` is how the engine reaches a Deephaven store; it has no class mapping for one). The reference resolves as a relational one does (`TableReferenceChecker`), exactly as Mongo's (§5.4 there) |
-| DH4 | the registry key | D4: `DatabaseType.MongoDB`, a lite extension; refused in a `RelationalDatabaseConnection` | **`DatabaseType.Deephaven`**, the same way: every exhaustive switch gains an arm; `RelationalDatabaseConnection { type: Deephaven }` refused with a test; a register row |
-| DH5 | parameters | D5: placeholders, typed slots, the driver binds | **the same contract.** The writer writes a slot where a value goes; the connector binds the slot as the request's own structured literal (`FilterTableRequest`'s `Literal`), never spliced into formula text |
-| DH6 | typing | D6: the declared schema only | **the store's declared columns only**, by the engine's mapping (`DeephavenCompilerExtension.convertTypes`): `STRING` text, `INT` Int, `FLOAT` Float4, `DOUBLE` Float, `BOOLEAN` Boolean, `DATETIME` and `TIMESTAMP` DateTime, `DECIMAL(p,s)` Numeric; every column `[1]` as the engine declares (its TODO says so) |
+| **source table** | a table someone else publishes on the server (a market-data feed, an application's output) | its publisher; the store **declares** them, and the connector checks the declaration against the server's table before it runs anything (a mismatch is refused by name, never coerced) | `prices`, `fx`, `fills` from the simulator |
+| **input table** | a table legend-lite creates and owns, whose rows legend-lite's users write (keyed: an upsert and a delete by key; or append-only) | the model | reference data published from legend-lite; positions a user edits |
+
+What every table declares:
+
+- **Columns, typed by what Deephaven holds**, each mapped to the Pure type that holds its every value:
+
+  | store type | Deephaven column | Pure type (precise) |
+  |---|---|---|
+  | `BOOLEAN` | `Boolean` | Boolean |
+  | `INT` | `int` | Integer (Int) |
+  | `LONG` | `long` | Integer (BigInt) |
+  | `FLOAT` | `float` | Float (Float4) |
+  | `DOUBLE` | `double` | Float (Double) |
+  | `DECIMAL(p, s)` | `BigDecimal` | Decimal (Numeric(p, s)) |
+  | `STRING` | `String` | String |
+  | `DATE` | `LocalDate` | StrictDate |
+  | `DATETIME` (`TIMESTAMP` the same) | `Instant` | DateTime |
+
+  `INT`, `FLOAT`, `DOUBLE`, `DECIMAL`, `STRING`, `BOOLEAN`, `DATETIME` and `TIMESTAMP` parse today; `LONG` and `DATE`
+  are lite's additions (`LONG` is Deephaven's usual integer: a quantity, an id, an epoch count).
+- **Nullability.** Every Deephaven column can hold null (a primitive column through its null sentinel), so a column
+  is `[0..1]` unless declared `NOT NULL`, which the connector then holds the server's data to.
+- **A key**, for a keyed input table (`PRIMARY KEY`, as a `###Relational` table spells it), which is also what an
+  upsert, a delete and a DataCube edit address.
+
+The grammar grows by those words, in the `###Relational` spelling a lite user already knows:
+
+```
+###Deephaven
+Deephaven risk::live::Store
+(
+  Table prices ( instrument: STRING NOT NULL, px: DOUBLE, ts: DATETIME )
+  InputTable positions ( book: STRING PRIMARY KEY, instrument: STRING PRIMARY KEY, qty: LONG NOT NULL )
+)
+```
+
+A table reference `#>{risk::live::Store.prices}#` resolves as any table's does (`TableReferenceChecker`, the records
+`DatabaseDefinition` holds); a Deephaven store has no schemas, so a three-part reference is an unknown table.
+
+## 3. The connection
+
+```
+###Connection
+DeephavenConnection risk::live::Conn
+{
+  store: risk::live::Store;
+  serverUrl: 'https://deephaven.internal:10000';
+  authentication: # PSK { psk: 'vault:deephaven.psk'; }#;
+}
+```
+
+- **`serverUrl`** becomes `ConnectionSpecification.ServerUrl(scheme, host, port, path)`, a record the non-SQL stores
+  share (agreed with the MongoDB line, §7): `http` or `https` (the scheme decides TLS), a host, and a port, each
+  required; anything else is refused at the model door, naming the URL.
+- **Authentication** becomes `AuthenticationSpec.PreSharedKey(vaultReference)`: the text after `psk:` names the key
+  in the vault, never the key itself, so no secret sits in a model and the platform holds none (Charter C3b, as every
+  connection's credentials). A user's own identity (OIDC or a bearer token, so Deephaven sees who asks) is the next
+  authentication to add, when a deployment needs per-user access.
+
+## 4. Decisions
+
+The architecture, alongside the MongoDB line's decisions (the user's rulings of 2026-10-16) so the two non-SQL
+databases share one shape:
+
+| # | question | Mongo (decided) | Deephaven |
+|---|---|---|---|
+| DH1 | the compiler's shape | D1: a target over the `SqlQuery` IR | **the same** |
+| DH2 | the seam's type | D2: `implements SqlDialect` whole; the `QueryTarget` split if the refusal list grows | **the same**, SQL-only members refused by name. A second non-SQL target is D2's recorded trigger: taken up with the Mongo line after its branch merges, from two real targets |
+| DH3 | the surface | D3: the Relation surface first | **the Relation surface** (`#>{store.table}#`, `filter`, `extend`, `groupBy`, `join`, `sort`, `limit`, windows), which is what DataCube writes. A class mapping onto a Deephaven store waits for a case |
+| DH4 | the registry key | D4: `DatabaseType.MongoDB`, a lite extension | **`DatabaseType.Deephaven`**, the same way: every exhaustive switch gains an arm; `RelationalDatabaseConnection { type: Deephaven }` refused with a test |
+| DH5 | parameters | D5: placeholders, typed slots, the driver binds | **the same contract**: a slot where a value goes; the connector binds it as the request's own structured literal (`FilterTableRequest`'s `Literal`), never spliced into formula text |
+| DH6 | typing | D6: the declared schema only | **the store's declared columns only** (§2), checked against the server's table at run time, never inferred from it |
 | DH7 | nulls | D7: SQL's semantics, emulated | **SQL's semantics.** Deephaven's nulls are sentinel values with their own comparison rules: measured on the first lane, emulated where an operand may be null |
-| DH8 | the test server | D8: a pinned `mongod`, Bazel-downloaded | **a pinned Deephaven server**, Bazel-downloaded from Maven Central, started by the test (no Docker; the engine's own tests use Docker). Test-only: never on a product classpath (DH11) |
-| DH9 | what a result is | D10: database-written text, per row for large results | **typed rows** (the cells Arrow Flight carries, read by the plan's columns: `Statements.rows`), because Deephaven writes no CSV or JSON text a SQL engine would. The served text forms then need the host renderers of `docs/RESULTS_AND_RENDERERS_2026_10_22.md` (proposed); until those are ratified, a text output on Deephaven is refused by name |
-| DH10 | live results | (none) | **an execution mode, not a plan node.** The plan is the base query, as the results proposal's D1 says; a connector that can stream offers `subscribe(plan) → LiveHandle` beside `rows`, and the server a route that answers the handle. No `ExecutionPlan` node is added |
-| DH11 | where the connector lives | D12: `core/src/main/mongodb`, `ServiceLoader`, bundled with `//core:drivers` | **`core/src/main/deephaven`, `ServiceLoader`, the same shape; not bundled with `//core:drivers`.** Deephaven's client is under the Deephaven Community License, so the shipped server never carries it: an opt-in server target adds it for a deployment that fetches Deephaven itself. Its jars (gRPC, Netty, Arrow) come from a `maven.install` pool of their own |
-| DH12 | the connection's address | D4 named one new specification variant (`MongoServers`); the branch reused `StaticDatasource` | **a new `ConnectionSpecification.ServerUrl(scheme, host, port, path)`**: Deephaven's `serverUrl` is a URL whose scheme decides TLS, which `StaticDatasource` cannot hold. Proposed as the one URL record the non-SQL stores share (Mongo's server list and Elasticsearch's URL are URLs too) |
-| DH13 | authentication | the vault reference the model names; a pre-shared key refused | **a new `AuthenticationSpec.PreSharedKey(vaultReference)`**: the grammar's `psk: '...'` is read as the vault reference that names the key, so no secret sits in model text and the platform holds none (C3b, as Mongo reads its password). The engine reads the key itself: a register row |
+| DH8 | the test server | D8: a pinned `mongod`, Bazel-downloaded | **a pinned Deephaven server**, Bazel-downloaded from Maven Central and started by the test (no Docker); test-only, never on a product classpath |
+| DH9 | what a result is | D10: database-written text, per row for large results | **typed rows**: the cells Arrow Flight carries, read by the plan's columns (`Statements.rows`). Deephaven writes no CSV or JSON text a SQL engine would, so a text output on Deephaven is refused by name until host renderers exist (`docs/RESULTS_AND_RENDERERS_2026_10_22.md`, proposed) |
+| DH10 | live results | (none) | **an execution mode, not a plan node**: a streaming connector implements `LiveStatements.subscribe(statement, slots, values, columns) → LiveHandle` beside `Statements`; the handle carries the server, the ticket, the column names, and `close`/cancel, so a sink that stops reading releases the server's table; the server gains a route answering it |
+| DH11 | where the connector lives | D12: `core/src/main/mongodb`, `ServiceLoader`, bundled with `//core:drivers` | **`core/src/main/deephaven`, `ServiceLoader`, the same shape, not bundled.** Deephaven's client is under the Deephaven Community License, so the shipped product never carries it: an opt-in server target adds it, for a deployment that fetches Deephaven itself. Its jars (gRPC, Netty, Arrow) come from a `maven.install` pool of their own |
+| DH12 | the connection's address | D4 named a new specification variant | **`ConnectionSpecification.ServerUrl`**, shared (§3) |
+| DH13 | authentication | a vault reference the model names | **a pre-shared key's vault reference** (§3) |
 | DH14 | the metamodel store | D13: refused by name first | **refused by name** |
+| DH15 | input tables | (none) | **created by the connector from the store's declaration**, keyed or append-only, before the first write; rows written through the same connector (an upsert, a delete by key, an append); internal users only (the Deephaven Community License's §4: no third party defines an input table's schema) |
+| DH16 | a source table's schema | (none) | **checked when a session first reads it**: the server's columns, types and nullability against the declaration, a mismatch refused by name |
 
-## 3. The engine's checks, in its words (PARK-38's acceptance)
+## 5. What is checked, and where
 
-Each is a case in `ReferenceIntegrityTest` (`refused` through both doors where the engine's grammar reads the text):
+All in lite's own words, each a case in `ReferenceIntegrityTest` (or the model-door tests) through both doors:
 
-| check | the engine's words | where lite makes it |
-|---|---|---|
-| a table the store lacks | `The table X can't be found in the store Y` | **lite's relational words** (`unknown table ...`), as Mongo's reference gives: one register row for the wording (DH3). The alternative, a store kind on `DatabaseDefinition` so the checker can say Deephaven's words, is open with the Mongo line (§6) |
-| a reference with three parts (`#>{s.schema.t}#`) | `Deephaven accessor requires 2 params (Store and Table) ...` | refused by the same register row's rule (a Deephaven store has no schemas, so the third part is an unknown table) |
-| a URL with no port | `Deephaven URL is missing port: <url>` | the model door, from `PDeephavenConnection` |
-| a URL whose scheme is not `http` or `https` | the engine's unknown-enumeration-value error for `meta::pure::functions::io::http::URLScheme` | the model door |
-| a URL that does not parse | `URL format is not valid` (a parser error in the engine) | the model door (lite's parser keeps the text) |
-| a column type the engine cannot compile | `CustomType is not yet supported in Deephaven store compilation` | unreachable from the grammar; refused at the door if the JSON carries it |
-| the activator's function | resolved by its descriptor, as every activator's | already the activators' path, if it checks one; else parked with PARK-38's remainder |
+| check | where |
+|---|---|
+| a table the store lacks; a three-part reference | the table reference, as any store's |
+| two tables, or two columns of one table, of one name | the model door |
+| an unknown column type; `DECIMAL` without its precision and scale | the parser and the model door |
+| a key column declared on a `Table` (keys are an input table's) | the model door |
+| a `serverUrl` that does not parse, has no port, or whose scheme is not `http` or `https` | the model door |
+| a connection whose `store` is not a Deephaven store; a runtime binding a Deephaven store to another kind of connection | the model door and the runtime check |
+| a declared source table that differs from the server's | the connector, at a session's first read (DH16) |
 
-## 4. The landings (stacked branches, no PR until asked)
+## 6. The landings (stacked branches, no PR until asked)
 
 | # | branch | content | judge |
 |---|---|---|---|
-| L1 | `claude/deephaven-1-model` (on main) | `DatabaseType.Deephaven` and its switch arms (each refusing by name until L2); `model/DeephavenDeclarations.java` beside `MongoDeclarations` (store, connection, `ServerUrl`, `PreSharedKey`); the door's three call sites; the `foreignConnections` gaps closed by the connection becoming a `ConnectionDefinition`; the §3 cases; register rows; PARK-38 marked | `//gates:local`, `//gates:parser_equivalence`; Studio reviews |
-| L2 | `claude/deephaven-2-target` (on L1) | `sql/dialect/Deephaven.java` (`SqlDialect` whole): the relation shapes DataCube uses first (scan, filter, project, extend, group-by with sums, sort, limit, natural and left joins), every other IR node, function and aggregate refused by name; unit tests on the plan text, as `MongoDbDialectTest` | the dialect's tests; every existing lane's dump unchanged |
-| L3 | `claude/deephaven-3-connector` (on L2, after the Mongo branch merges the `Statements` seam) | `core/src/main/deephaven` (`rows` over Arrow Flight; `subscribe` answering the handle); the `@maven_deephaven` pool; the pinned test server; the opt-in server target; the guards' additive lines (`JDBC_AND_DRIVERS`, `PRODUCT_LIBRARIES`, `DialectLeakRatchetTest.PRODUCTS`, `DatabaseOwners.DATABASES`), each dated | a Deephaven lane of lite's own cases, rows compared with DuckDB's; then the engine's Deephaven PCT as test input |
+| L1 | `claude/deephaven-1-model` (on main) | `DatabaseType.Deephaven` and its switch arms (each refusing by name until L2); the grammar's additions (§2: `LONG`, `DATE`, `NOT NULL`, `PRIMARY KEY`, `InputTable`) through the parser, the protocol records, the composer and the JSON; `model/DeephavenDeclarations.java` beside `MongoDeclarations` (the store into `DatabaseDefinition`, the connection into `ConnectionDefinition` with `ServerUrl` and `PreSharedKey`); `ConnectionWire`'s tag and `ConnectorsTest`'s row for `ServerUrl`; the `foreignConnections` gaps closed; §5's model-side cases; register rows; PARK-38 marked for Deephaven | `//gates:local`, `//gates:parser_equivalence`; the Studio line reviews |
+| L2 | `claude/deephaven-2-target` (on L1) | `sql/dialect/Deephaven.java` (`SqlDialect` whole): the relation shapes DataCube writes first (scan, filter, project, extend, group-by with sums, sort, limit, natural and left joins), every other IR node, function and aggregate refused by name; unit tests on the plan text, as `MongoDbDialectTest` | the dialect's tests; every existing lane's dump unchanged |
+| L3 | `claude/deephaven-3-connector` (on L2, after the Mongo branch merges its seam) | `core/src/main/deephaven`: `rows` over Arrow Flight, `subscribe` with its handle, input tables (DH15), the schema check (DH16); the `@maven_deephaven` pool; the pinned test server and `DeephavenBackend`; the opt-in server target; the guards' additive lines, each dated | lite's own Deephaven cases, each answered on DuckDB and on Deephaven and compared row for row; then the PCT lanes, as every database's |
 | L4 | the DataCube line's (or stacked on theirs) | DataCube's ticking mode over the handle | the DataCube line's |
-| L5 | `experiments/` or a demo module | the demo world: a reference model in legend-lite, a market-data simulator, a publisher | runs |
+| L5 | a demo module | the demo world: reference data in a legend-lite model, a market-data simulator writing Deephaven's source tables, a publisher writing input tables from legend-lite | runs, and its risk agrees with DuckDB's over the same inputs |
 
-## 5. Register rows (`docs/SEMANTICS_REGISTER.md`, from S105: main holds S76-S96 and the MongoDB branch S97-S104)
+## 7. Agreed with the MongoDB line (2026-10-22)
 
-1. `DatabaseType.Deephaven` is lite's (the engine has no database type for its Deephaven store), as S48 and Mongo's.
-2. A Deephaven table reference refused in lite's relational words, not the engine's two Deephaven sentences (DH3; or
-   no row, if §6.2 decides a store kind).
-3. A `DeephavenConnection`'s `psk` read as a vault reference, not as the key (DH13).
-4. A Deephaven result read as typed rows; its served text forms refused until host renderers exist (DH9).
-
-## 6. Agreed with the MongoDB line (2026-10-22)
-
-1. **`ConnectionSpecification.ServerUrl`** (DH12): agreed as a shared record. It lands in L1 with its `ConnectionWire`
-   tag, a row in `exec/ConnectorsTest`'s specification table (`everySpecificationAndAuthenticationIsInTheTable` fails
-   until every connector says what it does with it), and the grammar's spelling legend-engine's `DeephavenConnection`
-   uses. Mongo is **not** migrated in L1: it moves to `ServerUrl` when it needs a server list, as its own change.
-2. **No store kind on `DatabaseDefinition`**: agreed; the register row for the engine's two sentences instead.
-3. **Typed rows only, text outputs refused by name**: agreed. `docs/RESULTS_AND_RENDERERS_2026_10_22.md` is still
-   proposed and unruled, so nothing is built against its renderer names.
-4. **`LiveStatements` beside `Statements`, no plan node**: agreed. A live result is the plan's one result stream, one
-   that does not end: the handle defines `close` (and cancel), so a sink that stops reading releases the server's
-   subscription.
-5. **The connector absent by default**: agreed; the same arm shape as Mongo's (`Connectors.of(type)` finds it by
-   `ServiceLoader`, an `Unbuilt` refusing by name when none is on the class path), loaded from the opt-in server target
-   instead of `//core:drivers`. Two consequences for L2/L3, from the Mongo merge: `TestBackendsTest` wants a
-   `DeephavenBackend` once the type has a dialect, and the tests iterating `Databases.implemented()` (`SeedSpelling`,
-   `SqlWriter`, `PlanOnJavaBase`, `StoreTypes`) need the non-SQL filter Mongo's merge lands (a dialect fact saying its
-   text is SQL), reused, not re-invented.
-6. **The `QueryTarget` split** (DH2): taken up together once the Mongo branch is on main, from two real targets.
-7. **The order of the guard and registry edits**: additive lines, each dated; whoever lands second re-adds. After the
-   Mongo merge, `DatabaseConnector` gains `ownSessions()` and `open(ConnectionDefinition)` and the connection codec is
+1. **`ConnectionSpecification.ServerUrl`** as a shared record, landed in L1 with its `ConnectionWire` tag and a row in
+   `exec/ConnectorsTest`'s specification table (`everySpecificationAndAuthenticationIsInTheTable` fails until every
+   connector says what it does with it). Mongo is not migrated in L1: it moves to `ServerUrl` when it needs a server
+   list, as its own change.
+2. **No store kind on `DatabaseDefinition`**: a Deephaven store is a database to the model; its tables resolve as any.
+3. **Typed rows only, text outputs refused by name.** `RESULTS_AND_RENDERERS_2026_10_22` is proposed and unruled, so
+   nothing is built against its renderer names.
+4. **`LiveStatements` beside `Statements`, no plan node**; the handle defines `close` and cancel.
+5. **The connector absent by default**, found as Mongo's is (`Connectors.of(type)` by `ServiceLoader`, an `Unbuilt`
+   refusing by name when none is on the class path), loaded from the opt-in server target. From the Mongo merge:
+   `TestBackendsTest` wants a `DeephavenBackend` once the type has a dialect, and the tests iterating
+   `Databases.implemented()` need the non-SQL filter Mongo's merge lands, reused.
+6. **The `QueryTarget` split** taken up together once the Mongo branch is on main.
+7. **Guard and registry edits additive**, each dated; whoever lands second re-adds. After the Mongo merge,
+   `DatabaseConnector` gains `ownSessions()` and `open(ConnectionDefinition)`, and the connection codec is
    `model/ConnectionWire`: L3 uses those.
 
-## 7. Open with the user
+## 8. Register rows (`docs/SEMANTICS_REGISTER.md`, from S105: main holds S76-S96, the MongoDB branch S97-S104)
 
-1. Approve the design, or name what to change.
-2. DH13: the key as a vault reference (recommended), or as written, as the engine reads it.
-3. DH11: the opt-in server target, so the shipped product carries no Deephaven code (recommended), or bundled.
+1. **Deephaven is lite's own design**, not legend-engine's Deephaven extension: types, nullability, input tables, the
+   connection's key as a vault reference, execution by table operations (this document).
+2. `DatabaseType.Deephaven` is lite's, as S48's types and Mongo's are.
+3. A Deephaven result is typed rows; its served text forms are refused until host renderers exist.
