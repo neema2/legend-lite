@@ -186,8 +186,9 @@ async function main(): Promise<void> {
       }
     }
     shown.reconnects++;
-    shown.status = 'live';
+    // the cube run again before the page says it is live: a tick meanwhile waits, as the person does
     await app.refresh();
+    shown.status = 'live';
     said('live');
   };
   engine.onLive((e) => {

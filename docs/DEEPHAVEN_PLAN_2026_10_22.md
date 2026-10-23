@@ -2,8 +2,9 @@
 
 **Status: L1, L2, L3b, D0, J1 (DataCube's own app on Deephaven, DH23), T1 (real ticking, DH24), F1 (filters the
 server reads without compiling, DH25), B1, G1, and V1-V3 (a flat grid of any size, a page of several grids, charts
-that tick: DH27), P1 (pivots the server compiles nothing for), O1 and N1 (a gesture's time, and over a network)
-built (their branches, §9); the rest PROPOSED.** Revised the same day on the user's ruling:
+that tick: DH27), P1 (pivots the server compiles nothing for), O1 and N1 (a gesture's time, and over a network),
+B2 (the page saved, opened and restarted) and C2 (a chart's scale held while it ticks) built (their branches, §9);
+the rest PROPOSED.** Revised the same day on the user's ruling:
 **Deephaven is just another backend.** A user builds a `###Relational` store, mappings and classes, and everything
 works: the Relation API straight on the store's tables, `project()` over class navigation. No store of its own, no
 table kinds. The first version of this document (a `###Deephaven` store with source and input tables,
@@ -316,8 +317,8 @@ publisher replaces the demo's seeding once they do. Stacked branches, no PR unti
 | V2 | on V1 (the same ask: "few grids in same datacube with different pivots"), **built 2026-10-23** | **several grids on one page, one session**: each grid its own follower over the engine's one session, live reader and bases (a grid following its view lets go of nothing another grid reads); grids over the same source read one base; each grid's pivot ticks; a tick re-runs only the grids whose results changed; P1's live pivot values here: a value appearing on the server is a change (DH27) | the page test: three grids, two pivots, every grid's tick on screen |
 | O1 | on P1 (the user, 2026-10-23: the roadmap's #1), **measured 2026-10-23** | **a gesture's time, where it goes**: each step on the browser's timeline, the server's operation log beside it; what is ours cut | the cube test's per-gesture lines |
 | N1 | on O1 (the same ask), **built 2026-10-23** | **over a real network**: the cube page behind a link of its own round trip (a delaying proxy), each gesture's time to the view and to the view live, its requests, a tick's; the round trips a gesture waits on cut to what its reads need | `//datacube:deephaven_network_bench` (manual) |
-| B2 | on V2 (the same ask) | **the page of grids, whole**: a server restart recovered by every grid and chart; the page saved and opened again over Deephaven, each grid's source written down | the page test: a restart, a save and an open, every grid and chart ticking after each |
-| C2 | on V3 (the same ask) | **a chart's scale held while it ticks**: its value axes as the view drew them, widened only where a tick's values leave them, drawn afresh at the next view | the chart's tests (the rule, drawn by ECharts); the page test: the axes during six seconds of ticks |
+| B2 | on V2 (the same ask), **built 2026-10-23** | **the page of grids, whole**: a server restart recovered by every grid and chart; the page saved and opened again over Deephaven, each grid's source written down | the page test: a restart, a save and an open, every grid and chart ticking after each |
+| C2 | on V3 (the same ask), **built 2026-10-23** | **a chart's scale held while it ticks**: its value axes as the view drew them, widened only where a tick's values leave them, drawn afresh at the next view | the chart's tests (the rule, drawn by ECharts); the page test: the axes during six seconds of ticks |
 
 **L2, measured (2026-10-23):** the target's batches for 18 query shapes (DataCube's pivot as conditional sums, its
 grand total over a literal key and over no rows, distinct, top-N, nested groupBy-extend, avg, count distinct, std,
@@ -483,7 +484,7 @@ it; at the grid's tick the page draws each chart that follows the grid again at 
 answered from the live rows, no debounce -- an edit's 150 ms debounce had starved a chart under ten ticks a second --
 and no animation left running behind the next tick). On the page above: 69-70 draws in six seconds each, on screen
 7.3-7.8 ms after the tick's rows, its values moving with the prices. A chart's scale follows its data at each tick
-(ECharts' own); a scale held between ticks is the DataCube line's call.
+(ECharts' own); held between ticks since C2 (below).
 
 **P1, built (2026-10-23): pivots the server compiles nothing for.** Measured first with the server's own query
 operation log (`demo/deephaven/server-log.ts`, read by the cube test after each gesture: its operations' time and its
@@ -543,6 +544,31 @@ The residue, Deephaven's JS library's own: a view goes live four of its sequenti
 ticket into its session, its schema, its preview columns, the subscription) and its first snapshot at the server's
 next cycle, 0.3-0.6 s over 20-80 ms (0.1 s over none); until then the view on screen is the one read, and its first rows tick it. The
 page's start (3.0-3.7 s) is the planner's start and the 8 MB library over the link.
+
+**C2, built (2026-10-23): a chart's scale held while it ticks.** ECharts fits a value axis to its data at every
+draw, so under ticks the scale breathed: a sum crossing a round number moved the axis's top, and every bar with it.
+Now a drawing says what its values reach on each value axis -- from zero, a stack's sums each sign apart
+(chart-option.ts `hold`) -- and a TICK draws with the axes as the chart drew them last (chart-render.ts `heldOption`,
+the extent read from ECharts' own model, `drawnExtents`): a side the tick's values stay inside is held, a side they
+leave let go for ECharts to widen, so the scale only ever widens while it ticks; a landed VIEW draws afresh. Not held:
+a percent stack, a log axis, a rank's, one with breaks. Checked by ECharts itself in node (`chart_echarts_test`: a
+tick inside keeps the axis, one past it widens that side only, a stack's sums) and on the page: each chart's axis
+through 60-75 draws in six seconds of ticks, never narrowed (`deephaven_board_test`). The chart's first chunk 67
+bytes over its budget: raised, dated (`bundle-budget.test.ts`).
+
+**B2, built (2026-10-23): the page of grids, whole.** SAVED AND OPENED AGAIN: each grid writes its source down as the
+risk query it is -- a saved query of the demo's project by its text and runtime, its columns, never its rows
+(`risk.ts riskSource`) -- and the page's menu has Save and Open (this browser's storage); Open makes each grid of the
+risk source again over the source as it is now (`openCube`: a column gone or new said), under its saved id and title,
+its charts and layout as saved, and a grid of another source is left out and said. RESTARTED: Deephaven keeps no
+session across a restart; every grid's reader hears the live side end, the page signs in again once the server
+answers, runs every grid again (its base made again: `ServerBases.current`) and only then says it is live. A grid
+that goes -- its tile taken off, or its page replaced by an open -- lets its reader and its base go with it
+(`CubeAppOptions.onDispose`, `ServerBaseRunner.close`). The page test over 100,000 positions in a storm: saved (three
+grids, two charts, 7 KB), opened again in 1.2-1.3 s with the same grids, columns, charts and one base; restarted,
+back in 5.6 s (the server's own start included); after each, three seconds of ticks run every grid and draw every
+chart, nothing sent or fetched. Found on the way: the reconnect count "0" the cube test printed was a snapshot read
+before the page refreshed its counts -- the engine counts the sign-in (1).
 
 **Before internal users rely on it:** the firm's counsel reviews the deployment against the Deephaven Community
 License (this line's reading, `experiments/deephaven-spike/README.md`, is not legal advice).

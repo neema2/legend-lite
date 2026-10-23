@@ -28,7 +28,7 @@ import {
 import { chartCsv, chartOption, kpiDrawing, MAX_SERIES, periodText, treemapOfGrid, type GridShown, type LabelOf } from '../src/chart-option.ts';
 import * as echarts from 'echarts/core';
 import { SVGRenderer } from 'echarts/renderers';
-import '../src/chart-render.ts';   // registers the charts and components the page uses
+import { drawnExtents, heldOption } from '../src/chart-render.ts';   // registers the charts and components the page uses
 import type { EChartsOption } from 'echarts';
 import type { ChartDrawing } from '../src/chart-option.ts';
 
@@ -1054,5 +1054,60 @@ describe('the audit\'s cases (batch 2): a brush by value, the last bin, refusals
   it('a newer DataCube\'s option word is refused by name', async () => {
     const { specProblem } = await import('../src/chart-spec.ts');
     assert.match(specProblem({ ...BAR, options: { ...BAR.options, stack: 'stream' } }, ['bar']) ?? '', /stack "stream"/);
+  });
+});
+
+describe('a ticking chart\'s scale (docs/DEEPHAVEN_PLAN_2026_10_22.md C2)', () => {
+  /** `drawing` drawn by ECharts in node, as the page draws it; the extent of each held axis as drawn. */
+  const drawn = (drawing: ChartDrawing, held?: readonly (readonly [number, number] | null)[]) => {
+    const chart = echarts.init(null, null, { renderer: 'svg', ssr: true, width: 640, height: 400 });
+    try {
+      const option = held && drawing.hold ? heldOption(drawing.option, drawing.hold, held) : drawing.option;
+      chart.setOption({ ...(option as EChartsOption), animation: false });
+      return drawnExtents(chart, drawing.hold!);
+    } finally {
+      chart.dispose();
+    }
+  };
+  const regions = (values: number[]) => table([
+    { name: 'region', type: 'String', values: ['EMEA', 'AMER', 'APAC'] },
+    { name: 'sum_notional', type: 'Float', values },
+  ]);
+
+  it('says what its values reach on its value axis, from zero', () => {
+    assert.deepEqual(chartOption(BAR, regions([300, 200, 100])).hold, { key: 'yAxis', extents: [[0, 300]] });
+    assert.deepEqual(chartOption(BAR, regions([-40, 200, 100])).hold?.extents, [[-40, 200]]);
+    const across = chartOption({ ...BAR, options: { ...BAR.options, orientation: 'horizontal' } }, regions([300, 200, 100]));
+    assert.equal(across.hold?.key, 'xAxis');
+  });
+
+  it('reaches a stack\'s sums, each sign apart', () => {
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'EMEA', 'AMER', 'AMER'] },
+      { name: 'desk', type: 'String', values: ['FX', 'Rates', 'FX', 'Rates'] },
+      { name: 'sum_notional', type: 'Float', values: [300, 200, -50, -70] },
+    ]);
+    const d = chartOption({ ...BAR, split: 'desk', options: { ...BAR.options, stack: 'stacked' } }, rows);
+    assert.deepEqual(d.hold?.extents, [[-120, 500]]);
+  });
+
+  it('holds nothing a percent, a log axis or a rank draws', () => {
+    assert.equal(chartOption({ ...BAR, options: { ...BAR.options, stack: 'percent' } }, regions([300, 200, 100])).hold, undefined);
+    assert.equal(chartOption({ ...BAR, options: { ...BAR.options, logAxis: true } }, regions([300, 200, 100])).hold, undefined);
+  });
+
+  it('a tick inside the scale keeps it; one past it widens that side only', () => {
+    const [view] = drawn(chartOption(BAR, regions([300, 200, 100])));
+    assert.ok(view, 'the view drew a value axis');
+    const [lo, hi] = view;
+    assert.ok(lo <= 0 && hi >= 300, `the view's axis ${view}`);
+    // its values fall: the axis as the view drew it, not shrunk to them
+    assert.deepEqual(drawn(chartOption(BAR, regions([120, 80, 40])), [view]), [view]);
+    // ECharts alone shrinks it: what the hold is for
+    const [fresh] = drawn(chartOption(BAR, regions([120, 80, 40])));
+    assert.ok(fresh![1] < hi, `unheld, ECharts draws ${fresh}`);
+    // a value past the top: the top let go and widened, the bottom kept
+    const [wider] = drawn(chartOption(BAR, regions([hi * 2, 200, 100])), [view]);
+    assert.ok(wider![1] >= hi * 2 && wider![0] === lo, `widened to ${wider}`);
   });
 });

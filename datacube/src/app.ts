@@ -293,6 +293,11 @@ export interface CubeAppBaseOptions {
   readonly onNewSource?: (make: (host: HTMLElement, options: SpawnOptions) => SpawnedGrid) => void;
   /** A grid on a page of its own: its menu's Remove from Page, the page taking its tile off. */
   readonly onRemove?: () => void;
+  /**
+   * The grid let go (`dispose`: its page took its tile off, or put another page in its place): what its host made for
+   * it alone -- a reader of its engine, a table on a server (docs/DEEPHAVEN_PLAN_2026_10_22.md B2) -- let go with it.
+   */
+  readonly onDispose?: () => void;
   /** A grid on a page of its own: the page around it for its export (its charts, this grid as the table). */
   readonly exportPage?: () => ExportPage | undefined;
   /** A grid made on a page whose bar is folded: its title bar setting starts hidden, as the page's other grids say. */
@@ -3203,6 +3208,7 @@ export class CubeApp {
     this.#grid.destroy();
     // a copy its host keeps is let go with the grid that snapped it, one being made too (the tab's goes with the tab)
     void this.#controller.close().catch(() => undefined);
+    this.#options.onDispose?.();
   }
 
   // -- Ad Hoc Analysis mode -------------------------------------------------

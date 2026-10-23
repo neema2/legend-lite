@@ -370,8 +370,11 @@ const ENGINE_BUDGET = 312_000;
  *  301,000 -> 303,000 (2026-10-18, chart batch 5, the roadmap run's phase 6): the ECharts code a first chart shares with
  *  the maps' chunk is a file of its own (three files compress less well than two), and the drawing grew with batches 4
  *  and 5's words; the measure counts only the chunks a first chart fetches (one only batch 3's kinds and the maps share
- *  is theirs). Measured 302,497. */
-const CHART_BUDGET = 303_000;
+ *  is theirs). Measured 302,497.
+ *  303,000 -> 304,000 (2026-10-23, docs/DEEPHAVEN_PLAN_2026_10_22.md C2, the user's "a chart's scale held while it
+ *  ticks"): the drawing says each value axis's extent (chart-option.ts `hold`) and the renderer holds it on a tick
+ *  (chart-render.ts `heldOption`, `drawnExtents`). Measured 303,067. */
+const CHART_BUDGET = 304_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

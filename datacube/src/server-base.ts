@@ -187,6 +187,7 @@ export class ServerBaseRunner implements QueryRunner {
   readonly #inner: PlanThenRun;
   #base: Base | null = null;
   #making: { readonly key: string; readonly base: Promise<Base> } | null = null;
+  #closed = false;
   #counts = { based: 0, asWritten: 0, made: 0 };
   /** A window of a query's result (V1), read from the base as the query's rows are. */
   readonly window: RunWindow;
@@ -265,9 +266,21 @@ export class ServerBaseRunner implements QueryRunner {
     return base.runner;
   }
 
+  /** The grid is gone (B2): the base it reads let go, and one it is moving to let go once it is held. */
+  close(): void {
+    this.#closed = true;
+    const base = this.#base;
+    this.#base = null;
+    if (base !== null) this.#bases.release(base.key);
+  }
+
   /** This grid moved to the base `key`: held for it, and the one it read before let go. */
   async #moveTo(key: string, live: ValueSpecification, snapshot: CubeSnapshot): Promise<Base> {
     const made = await this.#bases.hold(key, snapshot);
+    if (this.#closed) {
+      this.#bases.release(key);
+      throw new Error('the grid is closed: it reads no base');
+    }
     const old = this.#base;
     const base = this.#runnerOver(key, live, made);
     this.#base = base;

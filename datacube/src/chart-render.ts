@@ -43,7 +43,7 @@ import 'echarts/lib/component/dataZoom.js';
 import { AxisBreak } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsOption } from 'echarts';
-import type { BrushArea, Brushed, ChartDrawing, MarkKey } from './chart-option.ts';
+import type { AxisHold, BrushArea, Brushed, ChartDrawing, MarkKey } from './chart-option.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 
 // a value axis's breaks, and the canvas the page draws on
@@ -77,6 +77,46 @@ export interface MountedChart {
   /** The chart as drawn now, as a picture; null before it has drawn or where there is no canvas. */
   picture(ratio?: number): ChartPicture | null;
   dispose(): void;
+}
+
+/** A value axis's extent as drawn: its least and its greatest value. */
+type Extent = readonly [number, number];
+
+/**
+ * A TICK'S DRAWING WITH ITS SCALE HELD (docs/DEEPHAVEN_PLAN_2026_10_22.md C2): each value axis `hold` names kept to the
+ * extent the chart drew it at (`held`), so a tick moves the marks, never the scale under them -- but for a side the
+ * tick's values leave, which is let go for ECharts to widen. An axis held at nothing (none drawn yet, or one no tick
+ * holds) is drawn as the option says.
+ */
+export function heldOption(option: EChartsOption, hold: AxisHold, held: readonly (Extent | null)[]): EChartsOption {
+  const axes = (option as Record<string, unknown>)[hold.key];
+  const list: unknown[] = Array.isArray(axes) ? axes : [axes];
+  if (list.length !== hold.extents.length || list.length !== held.length) return option;
+  const kept = list.map((axis, i) => {
+    const values = hold.extents[i];
+    const drawn = held[i];
+    if (!values || !drawn || typeof axis !== 'object' || axis === null) return axis;
+    return {
+      ...axis,
+      ...(values[0] >= drawn[0] ? { min: drawn[0] } : {}),
+      ...(values[1] <= drawn[1] ? { max: drawn[1] } : {}),
+    };
+  });
+  return { ...option, [hold.key]: Array.isArray(axes) ? kept : kept[0] } as EChartsOption;
+}
+
+/** The extent ECharts drew each of `hold`'s axes at (its model's scale: what the axis shows), null where none. */
+export function drawnExtents(chart: echarts.ECharts, hold: AxisHold): (Extent | null)[] {
+  // ECharts' model, which its public API has no other way to read: an axis's scale, as `getExtent` gives it
+  const model = (chart as unknown as {
+    getModel?: () => { getComponent(type: string, index: number): { axis?: { scale?: { getExtent?: () => number[] } } } | undefined };
+  }).getModel?.();
+  return hold.extents.map((values, i) => {
+    if (values === null) return null;
+    const e = model?.getComponent(hold.key, i)?.axis?.scale?.getExtent?.();
+    const [lo, hi] = e ?? [];
+    return lo !== undefined && hi !== undefined && Number.isFinite(lo) && Number.isFinite(hi) ? [lo, hi] : null;
+  });
 }
 
 /** A chart in a crosshair group: shows the category another chart points at, or hides its tooltip. */
@@ -117,6 +157,8 @@ export function mountChart(
 ): MountedChart {
   const chart = echarts.init(el, null, { renderer: 'canvas' });
   let drawing: ChartDrawing | null = null;
+  /** The extent its value axes were drawn at (C2): held by a tick, drawn afresh by a view. */
+  let held: (Extent | null)[] | null = null;
   const markOf = (params: unknown): { key: MarkKey; dataIndex: number; datum: unknown } | null => {
     const p = params as { seriesIndex?: number; dataIndex?: number; data?: unknown };
     if (!drawing || p.seriesIndex === undefined || p.dataIndex === undefined) return null;
@@ -201,7 +243,12 @@ export function mountChart(
     show(d, how = {}) {
       drawing = d;
       if (el.getAttribute('aria-label') !== d.description) el.setAttribute('aria-label', d.description);
-      chart.setOption((how.ticked === true ? { ...d.option, animation: false } : d.option) as EChartsOption, { notMerge: true });
+      // a tick's scale the one drawn before it (widened where its values leave it); a view's, its own
+      const option = how.ticked === true
+        ? { ...(d.hold && held ? heldOption(d.option, d.hold, held) : d.option), animation: false }
+        : d.option;
+      chart.setOption(option as EChartsOption, { notMerge: true });
+      held = d.hold ? drawnExtents(chart, d.hold) : null;
       // a chart that brushes starts brushing on a drag, without its button pressed first
       const brush = (d.option as { brush?: { brushType?: string } }).brush;
       if (brush?.brushType) {

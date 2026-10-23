@@ -147,6 +147,19 @@ export interface ChartDrawing {
   readonly notes: readonly string[];
   /** The chart in words, for a screen reader (the container's aria-label). */
   readonly description: string;
+  /** Its value axes a tick may hold (chart-render.ts `heldOption`); absent, a chart of no value axis a tick holds. */
+  readonly hold?: AxisHold;
+}
+
+/**
+ * THE VALUE AXES A TICK HOLDS (docs/DEEPHAVEN_PLAN_2026_10_22.md C2): the option's key that holds them (`yAxis`, or
+ * `xAxis` when the bars lie across) and, for each axis in its order, the extent its values reach -- a stack's sums, as
+ * ECharts stacks them, each sign apart -- or null for one no tick holds (a log axis, a percent's, a rank's, one with
+ * breaks, one with no value).
+ */
+export interface AxisHold {
+  readonly key: 'xAxis' | 'yAxis';
+  readonly extents: readonly (readonly [number, number] | null)[];
 }
 
 /** One column of the result, with its type. */
@@ -533,6 +546,37 @@ export function chartOption(
     };
   };
   const valueAxes = twoAxes ? [valueAxis(0), valueAxis(1)] : valueAxis(0);
+  // what each value axis's values reach, for a tick to hold the axis the view drew while they stay inside it (C2)
+  const extentOf = (index: 0 | 1): readonly [number, number] | null => {
+    const on = series.filter((s) => axisOf(s.measure) === index);
+    if (on.length === 0 || percent || spec.options.logAxis || on.every((s) => s.measure.showAs?.kind === 'rank')) return null;
+    if (index === 0 && spec.options.breaks && spec.options.breaks.length > 0) return null;
+    // from zero: a value axis here keeps its baseline in view (ECharts' own, unscaled)
+    let lo = 0;
+    let hi = 0;
+    let any = false;
+    const up = categories.map(() => 0);
+    const down = categories.map(() => 0);
+    for (const s of on) {
+      const stacks = stacked && (s.mark !== 'line' || chartMark === 'line');
+      s.values.forEach((v, i) => {
+        if (v === null || !Number.isFinite(v)) return;
+        any = true;
+        if (!stacks) {
+          lo = Math.min(lo, v);
+          hi = Math.max(hi, v);
+        } else if (v >= 0) {
+          up[i] = (up[i] ?? 0) + v;
+          hi = Math.max(hi, up[i]!);
+        } else {
+          down[i] = (down[i] ?? 0) + v;
+          lo = Math.min(lo, down[i]!);
+        }
+      });
+    }
+    return any ? [lo, hi] : null;
+  };
+  const extents = twoAxes ? [extentOf(0), extentOf(1)] : [extentOf(0)];
   const labelMeasure = spec.label;
   const labelCol = labelMeasure ? measure(labelMeasure) : undefined;
   const dim = spec.options.dim !== false;
@@ -685,6 +729,7 @@ export function chartOption(
     } } : {}),
     notes,
     description: describe(spec, rows),
+    ...(extents.some((e) => e !== null) ? { hold: { key: horizontal ? 'xAxis' as const : 'yAxis' as const, extents } } : {}),
   };
 }
 
