@@ -185,7 +185,7 @@ says so.
 | Q3 | `//core:iq_parity_snowflake_test` and the ledger's `snowflake` column | P1.1 | Snowflake credentials | built; run by the Snowflake sibling session (2026-10-23: 8,991 runs in 330 s at 8 threads). The column waits for Q4's fixes |
 | Q3b | The Snowflake plan census: every run DuckDB plans is planned for Snowflake, render only | P1.1 | — | done: 6,236 of 6,236 |
 | Q4 | First Snowflake triage: every status that differs from DuckDB's | P1.2 | Q3 | in progress: 282 runs differ (slice 4's log); the seed's zone, ASCII, oversized literals and percentile levels fixed; Q24-Q26 open |
-| Q5 | The DuckDB-against-Snowflake differential runner and TLP/NoREC checks | P2.1, P2.2 | Q3 | TLP done on DuckDB (Q6); the Snowflake half waits for Q3 |
+| Q5 | The DuckDB-against-Snowflake differential runner and TLP/NoREC checks | P2.1, P2.2 | Q3 | TLP done on DuckDB (Q6); the differential built (`//core:iq_fuzz_snowflake_test`, 2026-10-23), its first run with the sibling |
 | Q6 | The generator: `IqFuzz` and `//core:iq_fuzz_test` | P2.3 | — | done; the rounds feed the queue (seeds 1-3 clean after slice 3) |
 | Q21 | DATEADD of a computed timestamp of no known year under the iq17 profiles: refused for SQL Anywhere 17's defect past the year 7910 (531 of round 3's refusals); whether IQ 17.1 shares it decides the iq17 reading | P3 | oracle | open |
 | Q14 | A stored REAL or FLOAT column read: compared, computed, shown | P3 | oracle | open. Measured: under IQ 17.1's engine `rl = 0.1` in a WHERE holds for a stored REAL (the constant compared in single precision), while SQL Anywhere 17 compares as doubles, and a computed REAL compares as a double under both (`reals_compared_as_doubles`) |
@@ -196,7 +196,7 @@ says so.
 | Q19 | Core's DuckDB 1.4.4 → 1.5.x: 1.4.4 loses rows from a UNION ALL nested in a UNION ALL under parallel execution (slice 3's log). Latent for the islands: lite's lowering writes a nested UNION ALL as one flat union, and the fuzzer's nested-union partition check (3,000 shapes) found no loss. Another shape that nests a union inside a union would meet it | P1 | the build line's DuckDB bump, the user's call | proposed |
 | Q20 | The fuzzer's set operations: nested and parenthesized UNION, UNION ALL, INTERSECT, EXCEPT, so that Q19's class is reached by the generator | P2 | — | done: nested set operations of every kind, and the set identities (DISTINCT, UNION, INTERSECT/EXCEPT [ALL]) over every shape |
 | Q24 | Snowflake's correlated subqueries: a correlation two derived tables down, a scalar subquery of no aggregate, and lite's NOT EXISTS forms of NOT IN and ALL are "Unsupported subquery type" there (59 runs), and a COUNT read through the nesting is NULL for no row | P1.2 | the sibling's measurements | open |
-| Q25 | IQ 16's BIGINT overflow (-158) on Snowflake, whose NUMBER(38) does not overflow (5 runs BUG). The island checks no BIGINT arithmetic itself; under iq17, where IQ answers past 64 bits, DuckDB's overflow is the lane's ERROR and Snowflake passes | P1.2, P3 | — | open |
+| Q25 | IQ 16's BIGINT overflow (-158) on Snowflake, whose NUMBER(38) does not overflow (5 runs BUG). The island checks no BIGINT arithmetic itself; under iq17, where IQ answers past 64 bits, DuckDB's overflow is the lane's ERROR and Snowflake passes | P1.2, P3 | a decision: checks on every BIGINT operation for Snowflake's sake | open; the iq17 half stays as it is (slice 4's log) |
 | Q26 | TOP and START AT compute the items of rows they skip (IQ raises for them); Snowflake evaluates the select list after the limit (3 runs BUG) | P1.2 | the sibling's measurements | open |
 | Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | open |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
@@ -301,3 +301,21 @@ says so.
   - **The flattening pass** (`ScalarSubqueriesFlattened`, Snowflake): a scalar subquery's chain of one-column derived
     tables is its innermost select, so `(SELECT COUNT(*) ... WHERE u.t_id = t.id)` reaches Snowflake as written.
   - **Fuzz round 4, rerun** with the checker's fixes: 26,000 queries, 1,846 partitioned, no finding.
+  - **More of Q24 and Q4, built and held by the Snowflake plan census:**
+    - `ScalarSubqueriesAggregated`: a correlated scalar subquery of no aggregate is `CASE WHEN COUNT(*) > 1 THEN
+      error ELSE ANY_VALUE(x) END`, its rows' one value, NULL over none and raised over more, as DuckDB raises.
+    - `OuterJoinSubqueryFilters(true)`: a LEFT JOIN conjunct holding a subquery of any kind that reads only the
+      null-supplying side filters that side, as Snowflake evaluates a subquery predicate in a WHERE alone.
+    - A ranking window with no order is `ORDER BY NULL` (NUMBER(*)).
+  - **Fuzz round 5** (seed 5, `sqla17-default`, 1,500 shapes: 19,500 queries, 1,042 partitioned): no finding after one
+    fix to the checker. A sqla17 profile's database keeps trailing blanks and folds case; the checker's key had dropped
+    the blanks for every profile.
+  - **The differential** (`IqFuzzSnowflakeTest`, P2.2): the fuzzer's queries answered by DuckDB in process and by the
+    account, compared as multisets; a DIFF, a Snowflake error where DuckDB answers, or a raise in DuckDB alone is a
+    finding.
+  - **Q25's iq17 half is right as it is.** IQ types an integer operation by its operands' data: `id + 1` over ids 1 to
+    7 is a SMALLINT, and `bg + 1` is a NUMERIC(20,0) only where `bg` holds a value near 2^63. Lite types it by the
+    operands' types, as a BIGINT. That matches IQ over everyday data, where IQ's NUMERIC(20,0) would turn `(bg + 1) / 2`
+    into a NUMERIC quotient. Only at 64 bits' edge does DuckDB raise its own overflow where IQ answers, the known
+    D-N3. The iq16 half (SQL Anywhere's -158) is a question of Snowflake's NUMBER(38): a range check on every BIGINT
+    operation there, or the divergence named.
