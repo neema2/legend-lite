@@ -27,6 +27,7 @@ import {
   type CubeView,
   type Planner,
 } from './cube.ts';
+import { takeRows } from './treeview.ts';
 import {
   applyToSnapshot,
   columnConfig,
@@ -51,7 +52,7 @@ import {
   gridGesture, gridGestureGiven, type GestureArgs, type GestureGrid, type GridGestureArgs, type GridGestureName,
 } from './grid-gestures.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
-import type { QueryEngine } from '../../engine-client/src/engine.ts';
+import type { QueryEngine, ResultWindow } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
 import type { HostSnap, SnapTarget } from './cube.ts';
 import { exportFileName, toCsv, toEml } from './export.ts';
@@ -205,6 +206,8 @@ export interface CubeAppBaseOptions {
   readonly onStatus?: (text: string, kind: 'ok' | 'warn' | 'error') => void;
   /** Every view that lands, for a host's own chrome. */
   readonly onView?: (view: CubeView) => void;
+  /** Every tick's view (`tick`: the same query run again, its rows changed), for a host's own chrome. */
+  readonly onTicked?: (view: CubeView) => void;
   /**
    * The cube's state changed: a view landed, or a presentation change (a
    * colour, a width) that runs no query. What "changed since saved" listens to.
@@ -385,6 +388,10 @@ export type CubeAppOptions = CubeAppBaseOptions & CubeAppQuerySource;
 /** DataCube's --ag-row-height. Kept beside the CSS token in theme.css. */
 const DATACUBE_ROW_HEIGHT = 20;
 
+/** A flat cube read by a window (V1) holds this many rows each side of those on screen at least (twice a screen's
+ *  otherwise): a scroll within them is drawn from the rows held, with nothing asked of the server. */
+const WINDOW_MARGIN = 50;
+
 /**
  * What the result is and what it cost, in one line.
  *
@@ -393,7 +400,7 @@ const DATACUBE_ROW_HEIGHT = 20;
  */
 function timingText(view: CubeView, cols: number): string {
   return (
-    `${view.rows.rowCount.toLocaleString(UI_LOCALE)} rows × ` +
+    `${(view.window?.total ?? view.rows.rowCount).toLocaleString(UI_LOCALE)} rows × ` +
     `${cols} cols in ${view.rows.elapsedMs.toFixed(0)}ms`
   );
 }
@@ -405,6 +412,8 @@ function timingText(view: CubeView, cols: number): string {
 export interface CubeEvents {
   /** A view landed (after the cube took it in). */
   readonly view: readonly [view: CubeView];
+  /** A tick's view painted (`tick`): the same queries, their rows changed -- what follows the grid draws again. */
+  readonly ticked: readonly [view: CubeView];
   /** The cube's state changed: a view landed, or a presentation change that runs no query. */
   readonly change: readonly [];
   /** A status line. */
@@ -758,6 +767,9 @@ export class CubeApp {
       },
       cellBackground: (leaf, row, value) => this.#heatFor(leaf, row, value),
       rowMeta: (abs) => this.#rowMeta(abs),
+      onRowsMoved: () => this.#rowsMoved(),
+      // a selection past the rows a window holds (V1): copied from the view read whole
+      onCopyUnheld: () => this.#copyWhole((view) => this.#selectionCsv(view)),
       // SET, never toggled: the grid says which way the person asked, and
       // asking for what already is changes nothing (P2-127).
       onToggleExpand: (key, expanded) => {
@@ -787,6 +799,7 @@ export class CubeApp {
       ...(options.runner !== undefined && options.hostSnap ? { hostSnap: options.hostSnap } : {}),
       ...(options.runner === undefined && options.live ? { live: options.live } : {}),
       onQueryFailure: (error) => this.#offerSignIn(error),
+      window: () => this.#wanted(),
     };
     // NARROWED BY THE UNION, spelled out so the reader sees the two
     // forms as the type does: a runner, or a planner with a local
@@ -854,8 +867,68 @@ export class CubeApp {
    * shown busy -- and only its cells repainted when its columns are those on screen. A change in flight, or made while
    * it runs, wins; a refusal is returned (the view on screen stays).
    */
-  async tick(): Promise<Outcome> {
-    return this.#owner.rerun();
+  tick(): Promise<Outcome> {
+    // ONE AT A TIME, the last asked run after the one running (a tick and a scroll's window alike): a run started
+    // earlier never lands after a later one, so the rows painted are always the newest asked
+    const running = this.#ticking;
+    if (running !== null) {
+      const again = (): Promise<Outcome> => {
+        this.#tickAgain = null;
+        return this.tick();
+      };
+      this.#tickAgain ??= running.then(again, again);
+      return this.#tickAgain;
+    }
+    const run: Promise<Outcome> = this.#owner.rerun().finally(() => {
+      if (this.#ticking === run) this.#ticking = null;
+    });
+    this.#ticking = run;
+    return run;
+  }
+
+  /** The tick running now, and the one asked for while it runs. */
+  #ticking: Promise<Outcome> | null = null;
+  #tickAgain: Promise<Outcome> | null = null;
+
+  /** The window of a flat cube's result its view reads (V1): set when the rows on screen move past those held. */
+  #windowAt: ResultWindow | null = null;
+
+  /** The window a flat cube's next run asks for: the one asked last, or the rows on screen and a margin. */
+  #wanted(): ResultWindow {
+    this.#windowAt ??= this.#windowAround(this.#grid.onScreen);
+    return this.#windowAt;
+  }
+
+  #windowAround(on: { readonly first: number; readonly count: number }): ResultWindow {
+    const margin = Math.max(WINDOW_MARGIN, 2 * on.count);
+    const offset = Math.max(0, on.first - margin);
+    return { offset, count: on.first - offset + on.count + margin };
+  }
+
+  /**
+   * THE ROWS ON SCREEN MOVED (a scroll, a taller grid): a flat cube read by a window (V1) whose rows the grid does not
+   * hold reads the window around them, run as a tick is -- no change, no step, nothing sent but the window's move.
+   */
+  #rowsMoved(): void {
+    if (this.#view?.window === undefined) return;
+    const on = this.#grid.onScreen;
+    const block = this.#grid.block;
+    const last = Math.min(on.first + on.count, block.total);
+    if (on.first >= block.offset && last <= block.offset + block.rows) return;
+    this.#windowAt = this.#windowAround(on);
+    void this.tick();
+  }
+
+  /**
+   * The view with every row of its result, for what reads them all (an export, a copy): a flat cube read by a window
+   * (V1) read whole, once -- a gesture, which may take its time (DH27); any other view as it is.
+   */
+  async #whole(view: CubeView): Promise<CubeView> {
+    if (view.window === undefined) return view;
+    const { rows } = await this.#controller.runQuery(view.query, view.snapshot);
+    const max = view.snapshot.maxRows;
+    const { window: _window, ...whole } = view;
+    return { ...whole, rows: max !== undefined && rows.rowCount > max ? takeRows(rows, max) : rows };
   }
 
   /** A query as the compiler prints it (the debug window's): reads, changes nothing. */
@@ -1356,7 +1429,8 @@ export class CubeApp {
   /**
    * A TICK'S VIEW (`tick`): the same query run again, its rows changed. When its columns are those on screen, only the
    * cells are repainted -- the rows, and the heatmaps that colour them -- not the headers, zones, panels and status a
-   * landed view repaints; else it is painted as one. Its host is told, as of any view.
+   * landed view repaints; else it is painted as one. Its host and its page are told it ticked (`ticked`), not that a
+   * view landed: what follows the grid -- its charts -- draws again from live rows, and nothing is followed anew.
    */
   #onTicked(view: CubeView): void {
     const model = shownColumns(view, this.#config);
@@ -1366,9 +1440,13 @@ export class CubeApp {
       this.#paintView(view);
     } else {
       this.#refreshHeatmaps(view);
-      this.#grid.setRows(view.rows, 0, view.rows.rowCount);
+      // only the cells whose value changed drawn again; every cell when a heatmap's scale reads them all
+      this.#grid.tickRows(view.rows, view.window?.offset ?? 0, view.window?.total ?? view.rows.rowCount,
+        this.#heatmaps.size > 0);
     }
-    this.#emit('view', view);
+    // a tick is no view landing: its charts -- on its own board, or on its page's -- drawn again from their live rows
+    this.#page?.page.tick();
+    this.#emit('ticked', view);
   }
 
   /**
@@ -1385,7 +1463,7 @@ export class CubeApp {
     this.#refreshHeatmaps(view);
     this.#grid.setColumns(model);
     this.#grid.setSorts(headerSorts(view.snapshot, model.leaves.map((l) => l.name), TREE_COLUMN));
-    this.#grid.setRows(view.rows, 0, view.rows.rowCount);
+    this.#grid.setRows(view.rows, view.window?.offset ?? 0, view.window?.total ?? view.rows.rowCount);
 
     // The panel is refreshed from the view, not only from a
     // configuration change: a pivot's own column names are only
@@ -1982,7 +2060,7 @@ export class CubeApp {
           const raw =
             leaf === undefined
               ? null
-              : (this.#view.rows.columns[leaf.index]?.values[abs] ?? null);
+              : (this.#view.rows.columns[leaf.index]?.values[abs - (this.#view.window?.offset ?? 0)] ?? null);
           // a big integer as its digits: a filter value is saved as JSON, which has no
           // bigint; `literal` spells the digits by the column's type
           value = (typeof raw === 'bigint' ? raw.toString() : raw) as FilterValue | null;
@@ -2100,10 +2178,10 @@ export class CubeApp {
         this.#autoSize(null);
         return;
       case 'copy.selection':
-        this.#copy(this.#selectionCsv());
+        this.#copyWhole((view) => this.#selectionCsv(view));
         return;
       case 'copy.column':
-        if (column) this.#copy(this.#columnCsv(column));
+        if (column) this.#copyWhole((view) => this.#columnCsv(view, column));
         return;
       case 'view.properties':
         this.openEditor(item.column);
@@ -2112,7 +2190,7 @@ export class CubeApp {
         this.setControlsHidden(!this.#controlsHidden);
         return;
       case 'copy.rows':
-        this.#copy(this.#rowsCsv());
+        this.#copyWhole((view) => this.#rowsCsv(view));
         return;
       case 'grid.sizeToFit':
         this.#sizeToFit();
@@ -2385,15 +2463,26 @@ export class CubeApp {
           (s.blank > 0 ? ` · ${s.blank} blank` : '');
   }
 
-  #selectionCsv(): string {
-    const table = this.#view?.rows;
-    if (!table || !this.#selection) return '';
+  /** A copy made from the view's every row: at once, or, a view read by a window (V1), once it is read whole. */
+  #copyWhole(text: (view: CubeView) => string): void {
+    const view = this.#view;
+    if (!view) return;
+    if (view.window === undefined) {
+      this.#copy(text(view));
+      return;
+    }
+    this.#whole(view).then((whole) => this.#copy(text(whole)), (e: unknown) => {
+      this.#status(`could not read the rows to copy: ${e instanceof Error ? e.message : String(e)}`, 'error');
+    });
+  }
+
+  #selectionCsv(view: CubeView): string {
+    const table = view.rows;
+    if (!this.#selection) return '';
     return toCsv(selectionTable(table, this.#grid.columns?.leaves ?? [], this.#selection));
   }
 
-  #columnCsv(column: string): string {
-    const view = this.#view;
-    if (!view) return '';
+  #columnCsv(view: CubeView, column: string): string {
     const leaf = view.columns.leaves.find((l) => l.name === column);
     if (!leaf) return '';
     const src = view.rows.columns[leaf.index];
@@ -2411,10 +2500,9 @@ export class CubeApp {
    * Rows as Plain Text". Through the column model, so hidden columns
    * and the tree's machinery stay out.
    */
-  #rowsCsv(): string {
-    const view = this.#view;
+  #rowsCsv(view: CubeView): string {
     const sel = this.#selection;
-    if (!view || !sel) return '';
+    if (!sel) return '';
     const top = Math.min(sel.anchor.row, sel.focus.row);
     const bottom = Math.max(sel.anchor.row, sel.focus.row);
     const columns = view.columns.leaves.flatMap((l) => {
@@ -2850,10 +2938,9 @@ export class CubeApp {
    * names an export: the title and the moment
    * (`exportFileName`), so a second export never overwrites the first.
    */
-  #render(kind: ExportKind): ExportedFile | null {
-    const view = this.#view;
+  #render(kind: ExportKind, view: CubeView): ExportedFile | null {
     const model = this.#grid.columns;
-    if (!view || !model) return null;
+    if (!model) return null;
     // THE WHOLE PAGE: with charts on the board, each format carries them where the board puts
     // them, and the whole grid (the user: "it just always exports whole page by default")
     const page = this.#exportPage();
@@ -2897,7 +2984,10 @@ export class CubeApp {
    * draft, downloaded, that opens in the user's own mail client.
    */
   async #email(kind: ExportKind): Promise<void> {
-    const rendered = this.#render(kind);
+    const view = this.#view;
+    if (!view) return;
+    // every row of the view: a flat cube read by a window is read whole first (V1)
+    const rendered = this.#render(kind, await this.#whole(view));
     if (!rendered) return;
     const send = this.#options.email;
     const download = this.#options.download;
@@ -2964,9 +3054,19 @@ export class CubeApp {
       this.#status('no download handler', 'error');
       return;
     }
-    if (kind !== 'specification') {
-      const rendered = this.#render(kind);
+    if (kind !== 'specification' && view.window === undefined) {
+      const rendered = this.#render(kind, view);
       if (rendered) download(rendered.name, rendered.mime, rendered.content);
+      return;
+    }
+    if (kind !== 'specification') {
+      // every row of the view: a flat cube read by a window is read whole first (V1)
+      void this.#whole(view).then((whole) => {
+        const rendered = this.#render(kind, whole);
+        if (rendered) download(rendered.name, rendered.mime, rendered.content);
+      }, (e: unknown) => {
+        this.#status(`could not read the rows to export: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      });
       return;
     }
     const title = this.#config.reportTitle ?? 'cube';
@@ -4230,6 +4330,7 @@ export class CubeApp {
     const o = this.#options;
     switch (event) {
       case 'view': o.onView?.(...(args as CubeEvents['view'])); break;
+      case 'ticked': o.onTicked?.(...(args as CubeEvents['ticked'])); break;
       case 'change': o.onChange?.(); break;
       case 'status': o.onStatus?.(...(args as CubeEvents['status'])); break;
       case 'plane': o.onPlane?.(); break;

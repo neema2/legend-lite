@@ -66,8 +66,9 @@ export interface ChartPicture {
 
 /** A chart mounted in an element. */
 export interface MountedChart {
-  /** Draw (or redraw) a drawing. */
-  show(drawing: ChartDrawing): void;
+  /** Draw (or redraw) a drawing; `ticked`, a tick's (its values changed, nothing else): drawn at once, no animation
+   *  left running behind the next tick (docs/DEEPHAVEN_PLAN_2026_10_22.md V3). */
+  show(drawing: ChartDrawing, how?: { readonly ticked?: boolean }): void;
   /**
    * A crosshair shared with the other charts of `group` (batch 2 item 12): hovering one points at the same place on
    * each -- the page's charts with the same column across. Undefined: its own alone.
@@ -197,10 +198,10 @@ export function mountChart(
         return null;
       }
     },
-    show(d) {
+    show(d, how = {}) {
       drawing = d;
-      el.setAttribute('aria-label', d.description);
-      chart.setOption(d.option as EChartsOption, { notMerge: true });
+      if (el.getAttribute('aria-label') !== d.description) el.setAttribute('aria-label', d.description);
+      chart.setOption((how.ticked === true ? { ...d.option, animation: false } : d.option) as EChartsOption, { notMerge: true });
       // a chart that brushes starts brushing on a drag, without its button pressed first
       const brush = (d.option as { brush?: { brushType?: string } }).brush;
       if (brush?.brushType) {

@@ -12,30 +12,13 @@
 
 import { CubeApp } from '../../src/app.ts';
 import type { CubeView } from '../../src/cube.ts';
-import { LitePlanner } from '../../src/lite-planner.ts';
-import { ServerBaseRunner } from '../../src/server-base.ts';
+import { ServerBases } from '../../src/server-base.ts';
 import type { GridCommand } from '../../src/grid-commands.ts';
-import type { ColumnSpec, CubeSnapshot } from '../../src/snapshot.ts';
-import { DeephavenEngine, type DeephavenCounts } from '../../../engine-client/src/deephaven-engine.ts';
-import { MODEL } from './model.ts';
+import type { DeephavenCounts } from '../../../engine-client/src/deephaven-engine.ts';
+import { CONNECTION, STORES, openRisk, type RiskConfig } from './risk.ts';
 
-const RUNTIME = 'risk::LiveRuntime';
-/** The grid's connection to the server, and the store it binds: the base's table is bound to the same (B1). */
-const CONNECTION = 'risk::Live';
-const STORES = ['risk::Store'];
-const JOIN = 'meta::pure::functions::relation::JoinKind.LEFT';
-/** The cube's source: every position, with its book, instrument, live price and fx rate, valued in dollars. */
-const SOURCE = `#>{risk::Store.position}#`
-  + `->join(#>{risk::Store.book}#, ${JOIN}, {p, b | $p.book_id == $b.bid})`
-  + `->join(#>{risk::Store.instrument}#, ${JOIN}, {p, i | $p.inst_id == $i.iid})`
-  + `->join(#>{risk::Store.price}#, ${JOIN}, {p, q | $p.inst_id == $q.px_iid})`
-  + `->join(#>{risk::Store.fx}#, ${JOIN}, {p, f | $p.ccy == $f.fx_ccy})`
-  + `->extend(~[mv:x|$x.qty * $x.px * $x.rate])`;
-
-/** The columns the cube shows, and how each aggregates. */
-const SHOWN: Readonly<Record<string, ColumnSpec['aggregate'] | null>> = {
-  desk: null, sector: null, region: null, ccy: null, inst_id: null, pid: 'count', qty: 'sum', px: 'average', mv: 'sum',
-};
+/** DataCube's row height (app.ts DATACUBE_ROW_HEIGHT): a row's place times it is where the grid scrolls to show it. */
+const ROW_HEIGHT = 20;
 
 /** What the page shows, for a person and for its test. */
 interface Shown {
@@ -49,21 +32,27 @@ interface Shown {
   /** Each tick's time from its rows arriving to the grid painted, and the cube's run in it, ms (the last 200). */
   tickToPaint: number[];
   runMs: number[];
+  /** Each tick's time in parts, ms: waiting for the run before it, the run, and the frame after it (the last 200). */
+  tickParts: [number, number, number][];
   counts: DeephavenCounts | null;
   /** The view on screen: its epoch, its columns, and its rows' values. */
   epoch: number;
   columns: readonly string[];
   rows: readonly (readonly unknown[])[];
+  /** A flat view read by a window (V1): where its rows are in the result, and how many the result has; else null. */
+  window: { offset: number; total: number } | null;
   /** The grid's base on the server (B1): its table, and the queries read from it, read as written, and bases made. */
   base: { table: string | null; based: number; asWritten: number; made: number } | null;
   /** Set, a tick runs nothing: a test measures a change's own queries. */
   paused: boolean;
   /** The gestures the test makes, as the app's own changes (the zones' and the filter editor's). */
   change?: (what: string) => Promise<string>;
+  /** Scrolls the grid to show row `row` at its top, as a person does: ms until the grid holds that row's values. */
+  scroll?: (row: number) => Promise<number>;
 }
 const shown: Shown = {
-  status: 'starting', error: '', views: 0, reconnects: 0, ticks: 0, refreshes: 0, tickToPaint: [], runMs: [], counts: null,
-  epoch: 0, columns: [], rows: [], base: null, paused: false,
+  status: 'starting', error: '', views: 0, reconnects: 0, ticks: 0, refreshes: 0, tickToPaint: [], runMs: [], tickParts: [], counts: null,
+  epoch: 0, columns: [], rows: [], window: null, base: null, paused: false,
 };
 (window as unknown as { __cube: Shown }).__cube = shown;
 
@@ -83,45 +72,39 @@ const frame = (): Promise<void> => new Promise((r) => { requestAnimationFrame(()
 const median = (xs: readonly number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? NaN;
 
 async function main(): Promise<void> {
-  const config = await (await fetch('config.json')).json() as { url: string; psk: string };
-  const at = new URL(config.url);
-  const model = MODEL(at.hostname, Number(at.port));
-  const planner = new LitePlanner({ model, runtime: RUNTIME, assetBaseUrl: './' });
-  await planner.warmUp();
-  const engine = await DeephavenEngine.open({
-    url: config.url,
-    signIn: { type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token: config.psk },
-  }, (op, args) => planner.deephaven(op, args));
-  const source = await planner.parse(SOURCE);
-  const query = source.body[0];
-  if (query === undefined) throw new Error('the risk source parsed to no expression');
-  const types = new Map((await planner.relationType(source)).map((c) => [c.name, c.type]));
-  const columns: ColumnSpec[] = Object.entries(SHOWN).map(([name, aggregate]) => {
-    const type = types.get(name);
-    if (type === undefined) throw new Error(`the risk source has no column '${name}'`);
-    return aggregate ? { name, type, aggregate } : { name, type };
-  });
-  const snapshot: CubeSnapshot = {
-    source: { query },
-    columns,
-    derived: [],
-    rows: ['desk', 'sector'],
-    pivotOn: [],
-    sorts: [],
-    epoch: 1,
-  };
+  const config = await (await fetch('config.json')).json() as RiskConfig;
+  const { model, planner, engine, cube } = await openRisk(config);
+  const snapshot = cube(['desk', 'sector']);
 
   // every query the grid sends reads its base from one table the server keeps (B1)
-  const runner = new ServerBaseRunner(planner, engine, { model, connection: CONNECTION, stores: STORES });
-  const counted = (): void => {
+  const runner = new ServerBases(planner, engine, { model, connection: CONNECTION, stores: STORES }).runner();
+  // the counts kept at once (the test reads them); said in the header at most twice a second -- the header's text laid
+  // out again at every tick laid the grid out with it
+  let saidAt = 0;
+  let sayLater: ReturnType<typeof setTimeout> | undefined;
+  const say = (): void => {
+    sayLater = undefined;
+    saidAt = performance.now();
     const c = engine.counts;
-    shown.counts = c;
-    shown.base = { table: runner.baseTable, ...runner.counts };
     const paint = shown.tickToPaint.length > 0
       ? `; a tick on screen ${median(shown.tickToPaint).toFixed(1)} ms after its rows arrived`
       : '';
     byId('counts').textContent = `${c.following} results live, ${c.fetched} fetched, ${c.live} answered live; `
       + `${c.planned} operations planned, ${c.sent} sent${paint}`;
+  };
+  const countedSoon = (): void => {
+    shown.counts = engine.counts;
+    shown.base = { table: runner.baseTable, ...runner.counts };
+    sayLater ??= setTimeout(say, Math.max(0, 500 - (performance.now() - saidAt)));
+  };
+  const showRows = (view: CubeView): void => {
+    shown.epoch = view.snapshot.epoch;
+    shown.columns = view.rows.columns.map((c) => c.name);
+    shown.rows = Array.from({ length: view.rows.rowCount }, (_, r) => view.rows.columns.map((c) => {
+      const v = c.values[r];
+      return typeof v === 'bigint' ? v.toString() : v;
+    }));
+    shown.window = view.window ? { ...view.window } : null;
   };
   const app = new CubeApp(byId('cube'), snapshot, {
     runner,
@@ -129,18 +112,18 @@ async function main(): Promise<void> {
     onStatus: (text, kind) => { if (kind !== 'ok') said(text, kind); },
     onView: (view: CubeView) => {
       shown.views++;
-      shown.epoch = view.snapshot.epoch;
-      shown.columns = view.rows.columns.map((c) => c.name);
-      shown.rows = Array.from({ length: view.rows.rowCount }, (_, r) => view.rows.columns.map((c) => {
-        const v = c.values[r];
-        return typeof v === 'bigint' ? v.toString() : v;
-      }));
+      showRows(view);
       // the view on screen followed: its results kept live, the ones no view reads let go
-      engine.follow(view.snapshot.epoch).then(counted, (e: unknown) => {
+      engine.follow(view.snapshot.epoch).then(countedSoon, (e: unknown) => {
         shown.error = String(e instanceof Error ? e.message : e);
         said(`could not follow the view: ${shown.error}`, 'error');
       });
-      counted();
+      countedSoon();
+    },
+    // a tick's view: shown, nothing followed anew (what the view reads, and what it reads since, is followed already)
+    onTicked: (view: CubeView) => {
+      showRows(view);
+      countedSoon();
     },
   });
   await app.open();
@@ -159,13 +142,16 @@ async function main(): Promise<void> {
     shown.refreshes++;
     const started = performance.now();
     await app.tick();
-    shown.runMs.push(performance.now() - started);
+    const ran = performance.now();
+    shown.runMs.push(ran - started);
     await frame();
     shown.tickToPaint.push(performance.now() - since);
+    shown.tickParts.push([started - since, ran - started, performance.now() - ran]);
+    if (shown.tickParts.length > 200) shown.tickParts.shift();
     if (shown.tickToPaint.length > 200) shown.tickToPaint.shift();
     if (shown.runMs.length > 200) shown.runMs.shift();
     running = false;
-    counted();
+    countedSoon();
     if (pending !== null && !shown.paused) {
       const next = pending;
       pending = null;
@@ -196,6 +182,11 @@ async function main(): Promise<void> {
       if (shown.status !== 'reconnecting') void reconnect(e.ended);
       return;
     }
+    if (e.failed !== undefined) {
+      shown.error = e.failed;
+      said(`a result will not tick: ${e.failed}`, 'error');
+      return;
+    }
     shown.ticks++;
     void tick(e.since);
   });
@@ -207,12 +198,26 @@ async function main(): Promise<void> {
     pivot: [{ kind: 'group', rows: ['desk'] }, { kind: 'pivot', columns: ['region'] }],
     regroup: [{ kind: 'group', rows: ['region', 'ccy'] }, { kind: 'pivot', columns: [] }],
     filter: [{ kind: 'filter', filter: { kind: 'condition', column: 'desk', operator: 'equal', value: 'FX' } }],
+    // every position, grouped by nothing, the largest market value first: a flat grid of the whole book (V1)
+    flat: [{ kind: 'group', rows: [] }, { kind: 'pivot', columns: [] }, { kind: 'sorts', sorts: [{ column: 'mv', direction: 'desc' }] }],
   };
   // a leaf-level calculated column, as the column editor adds one: the person's expression, parsed
   const calc = async (): Promise<readonly GridCommand[]> => [{
     kind: 'calculate', level: 'row',
     column: { name: 'mvk', lambda: await planner.parse('x|$x.mv / 1000.0'), kind: 'measure', aggregate: 'sum' },
   }];
+  shown.scroll = async (row: number): Promise<number> => {
+    const scroller = document.querySelector<HTMLElement>('#cube .dc-scroller');
+    if (!scroller) throw new Error('the grid has no scroller');
+    const started = performance.now();
+    scroller.scrollTop = row * ROW_HEIGHT;
+    for (;;) {
+      await frame();
+      const w = shown.window;
+      if (w !== null && row >= w.offset && row < w.offset + shown.rows.length) return performance.now() - started;
+      if (performance.now() - started > 10_000) throw new Error(`row ${row} not shown in 10 s: ${JSON.stringify(w)}`);
+    }
+  };
   shown.change = async (what: string): Promise<string> => {
     const commands = what === 'calc' ? await calc() : gestures[what];
     if (commands === undefined) return `no gesture '${what}'`;

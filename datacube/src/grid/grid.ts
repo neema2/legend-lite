@@ -54,6 +54,7 @@ import {
   highlightBand,
   isAlternateRow,
   mergeAppearance,
+  valueState,
   type CellAppearance,
   type GridAppearance,
 } from '../style.ts';
@@ -152,6 +153,13 @@ export interface GridOptions {
   /** A column's right edge was dragged to a new width. */
   readonly onResizeColumn?: (column: string, width: number) => void;
   /**
+   * The rows on screen moved (a scroll, a resize): a host that gave the grid a BLOCK of a larger result
+   * (`setRows`'s `blockOffset`) reads `onScreen` and supplies the rows it now shows (docs/DEEPHAVEN_PLAN_2026_10_22.md V1).
+   */
+  readonly onRowsMoved?: () => void;
+  /** A copy of a selection whose rows the grid's block does not hold (a scroll past them): its host reads and copies them. */
+  readonly onCopyUnheld?: (range: CellRange) => void;
+  /**
    * The tooltip of a header cell, from the header path above and
    * including it; `leaf` names the column when the cell is one.
    */
@@ -235,6 +243,14 @@ export class DataGrid {
   #blockOffset = 0;
   #totalRows = 0;
   #rendered: RowWindow | null = null;
+  /**
+   * Where each drawn row's values came from: the block, and its offset, it was drawn from. A tick draws the rows ON
+   * SCREEN from the newer block; a row drawn beyond them keeps its source until a scroll brings it on (`tickRows`).
+   */
+  #drawnFrom: { readonly table: ResultTable; readonly offset: number }[] = [];
+  /** The scroll's place and the grid's height as the last render read them: what a tick reads instead of the layout. */
+  #scrollTop = 0;
+  #viewHeight = 0;
   #focus: Focus = { row: 0, col: 0 };
   #selection: CellRange | null = null;
   #frame = 0;
@@ -346,7 +362,14 @@ export class DataGrid {
       // for a grid that never settled. The vertical axis cannot
       // affect a horizontal offset, so height changes are ignored.
       let seen = -1;
+      let tall = -1;
       this.#resize = new Observer(() => {
+        // a taller grid shows more rows: its host may have them to supply
+        const height = Math.round(this.#scroller.clientHeight);
+        if (height !== tall) {
+          tall = height;
+          this.#options.onRowsMoved?.();
+        }
         const width = Math.round(this.#scroller.clientWidth);
         if (width === seen) return;
         seen = width;
@@ -417,6 +440,110 @@ export class DataGrid {
       this.#fittedEpoch = table.epoch;
       requestAnimationFrame(() => this.#fit());
     }
+  }
+
+  /**
+   * A TICK'S ROWS (docs/DEEPHAVEN_PLAN_2026_10_22.md DH27): the same columns over the same rows, their values changed.
+   * Only the rows ON SCREEN are drawn again, and of them only the cells whose value changed, in place (`#redrawn`);
+   * a row drawn beyond them, in the row buffer, is drawn when a scroll brings it on. Nothing else is touched -- no row
+   * rebuilt, no layout read, the columns' widths fitted once a view (`setRows`), never a tick. Measured over a flat
+   * grid of 100,000 positions: the browser's layout was the tick's cost, and it grows with the cells changed. Drawn
+   * whole, as `setRows` draws, when the rows moved under the grid (another count, another row's key in a place) or
+   * `whole` says a cell's colour reads every row (a heatmap's scale).
+   */
+  tickRows(table: ResultTable, blockOffset: number, totalRows: number, whole = false): void {
+    const rendered = this.#rendered;
+    this.#table = table;
+    this.#blockOffset = blockOffset;
+    if (whole || totalRows !== this.#totalRows || !rendered || !this.#model
+      || this.#body.children.length !== rendered.end - rendered.start || !this.#redrawn(this.#onScreenNow())) {
+      this.#totalRows = totalRows;
+      this.#announceRowCount();
+      this.#rendered = null;
+      this.#render();
+      this.#paintOverlay();
+    }
+  }
+
+  /** The rows on screen by the scroll and height the last render read: no layout read. */
+  #onScreenNow(): { readonly first: number; readonly end: number } {
+    const rowHeight = Math.max(1, this.#options.rowHeight ?? DEFAULT_ROW_HEIGHT);
+    const first = Math.floor(this.#scrollTop / rowHeight);
+    return { first, end: first + Math.ceil(this.#viewHeight / rowHeight) + 1 };
+  }
+
+  /**
+   * The drawn rows in `range` whose source is not the block now, drawn again from it: only the cells whose value
+   * changed, in place -- a cell of text alone takes its new text, title and colours (what `#cell` draws, written over
+   * the cell drawn); any other is drawn anew. False, nothing more drawn, when a row moved under the grid (its key in
+   * that place is another), so the caller draws the grid whole.
+   */
+  #redrawn(range: { readonly first: number; readonly end: number }): boolean {
+    const rendered = this.#rendered;
+    const model = this.#model;
+    const table = this.#table;
+    if (!rendered || !model || !table) return false;
+    const rows = this.#body.children;
+    const doc = this.#root.ownerDocument;
+    const focused = focusedElement(doc);
+    let refocus = false;
+    // each column's appearance, once a draw
+    const appearances = new Map<string, CellAppearance>();
+    const appearanceOf = (leaf: LeafColumn): CellAppearance => {
+      let a = appearances.get(leaf.name);
+      if (a === undefined) {
+        a = mergeAppearance(this.#options.appearance ?? {}, this.#options.columnAppearance?.[leaf.name]);
+        appearances.set(leaf.name, a);
+      }
+      return a;
+    };
+    const from = Math.max(rendered.start, range.first);
+    const to = Math.min(rendered.end, range.end);
+    for (let abs = from; abs < to; abs++) {
+      const i = abs - rendered.start;
+      const source = this.#drawnFrom[i];
+      if (source === undefined) return false;
+      if (source.table === table && source.offset === this.#blockOffset) continue;
+      const row = rows[i] as HTMLElement | undefined;
+      const meta = this.#options.rowMeta?.(abs);
+      if (row === undefined || meta?.key !== row.dataset['key'] || row.children.length !== model.leaves.length) return false;
+      const cells = row.children;
+      const before = source.table;
+      const local = abs - this.#blockOffset;
+      const was = abs - source.offset;
+      const loaded = local >= 0 && local < table.rowCount;
+      const wasLoaded = was >= 0 && was < before.rowCount;
+      this.#drawnFrom[i] = { table, offset: this.#blockOffset };
+      if (!loaded && !wasLoaded) continue;
+      for (let c = 0; c < model.leaves.length; c++) {
+        const leaf = model.leaves[c]!;
+        const column = table.columns[leaf.index];
+        const value = column?.values[local] ?? null;
+        const old = cells[c] as HTMLElement;
+        if (loaded && wasLoaded) {
+          const previous = before.columns[leaf.index]?.values[was] ?? null;
+          if (value === previous) continue;
+          if (leaf.name !== TREE_COLUMN && leaf.linkLabelParameter === undefined
+            && old.childNodes.length <= 1 && (old.firstChild === null || old.firstChild.nodeType === 3)) {
+            const type = column?.type;
+            const text = this.#formatters.format(value, this.#options.formats?.[leaf.name] ?? DEFAULT_FORMAT, type);
+            if (old.firstChild === null) old.textContent = text;
+            else if ((old.firstChild as Text).data !== text) (old.firstChild as Text).data = text;
+            old.title = valueTitle(value);
+            if (valueState(value, type) !== valueState(previous, type)) {
+              const appearance = appearanceOf(leaf);
+              for (const k of Object.keys(onScreen(cellStyle(appearance, previous, type)))) old.style.removeProperty(k);
+              for (const [k, v] of Object.entries(onScreen(cellStyle(appearance, value, type)))) old.style.setProperty(k, v);
+            }
+            continue;
+          }
+        }
+        if (focused !== null && old.contains(focused)) refocus = true;
+        old.replaceWith(this.#cell(doc, leaf, c, abs, local, table, meta, loaded));
+      }
+    }
+    if (refocus) this.#focusCell();
+    return true;
   }
 
   /** Fit the columns that have no width of their own to what is on screen. */
@@ -541,6 +668,23 @@ export class DataGrid {
       totalRows: this.#totalRows,
       ...(this.#overscan !== undefined ? { overscan: this.#overscan } : {}),
     });
+  }
+
+  /**
+   * The rows on screen, by the scroll and the grid's height alone (not by how many rows it has): the first one's place
+   * in the whole result, and how many fit. What a host supplying a block asks its rows by (`onRowsMoved`).
+   */
+  get onScreen(): { readonly first: number; readonly count: number } {
+    const rowHeight = Math.max(1, this.#options.rowHeight ?? DEFAULT_ROW_HEIGHT);
+    return {
+      first: Math.max(0, Math.floor(this.#scroller.scrollTop / rowHeight)),
+      count: Math.max(1, Math.ceil(this.#scroller.clientHeight / rowHeight) + 1),
+    };
+  }
+
+  /** The rows the grid holds now: the block's first row's place in the whole result, and how many it has. */
+  get block(): { readonly offset: number; readonly rows: number; readonly total: number } {
+    return { offset: this.#blockOffset, rows: this.#table?.rowCount ?? 0, total: this.#totalRows };
   }
 
   /** Settings > Row Buffer: rows drawn beyond the visible ones. */
@@ -1108,6 +1252,7 @@ export class DataGrid {
       // purely horizontal scroll does.
       this.#syncHeaderOffset();
       this.#render();
+      this.#options.onRowsMoved?.();
     });
   };
 
@@ -1133,8 +1278,11 @@ export class DataGrid {
     const table = this.#table;
     if (!model || !table) return;
 
+    this.#scrollTop = this.#scroller.scrollTop;
+    this.#viewHeight = this.#scroller.clientHeight;
     const wanted = this.window;
-    if (this.#rendered && isCovered(this.#rendered, wanted)) return;
+    // the rows drawn cover those wanted: the ones a scroll brings on, drawn from an older block, drawn again from this
+    if (this.#rendered && isCovered(this.#rendered, wanted) && this.#redrawn(this.#onScreenNow())) return;
 
     const doc = this.#root.ownerDocument;
     const rowHeight = this.#options.rowHeight ?? DEFAULT_ROW_HEIGHT;
@@ -1176,115 +1324,7 @@ export class DataGrid {
 
       const loaded = local >= 0 && local < table.rowCount;
       for (let c = 0; c < model.leaves.length; c++) {
-        const leaf = model.leaves[c]!;
-        const cell = doc.createElement('div');
-        cell.setAttribute('role', 'gridcell');
-        const classes = ['dc-cell'];
-        if (leaf.isDimension) classes.push('dc-dim');
-        if (leaf.pinned) classes.push(`dc-pin-${leaf.pinned}`);
-        // Obscured until hovered, for a figure that should not be
-        // readable over a shoulder or in a screen share.
-        if (leaf.blurred) classes.push('dc-blur');
-        cell.className = classes.join(' ');
-        cell.setAttribute('aria-colindex', String(c + 1));
-        // The context menu reads this. Without it a right-click on a
-        // CELL produced a menu with every column-specific entry
-        // missing, which is most of the menu.
-        cell.dataset['column'] = leaf.name;
-
-        if (loaded) {
-          const value: Scalar =
-            table.columns[leaf.index]?.values[local] ?? null;
-          const type = table.columns[leaf.index]?.type;
-          const text = this.#formatters.format(
-            value,
-            this.#options.formats?.[leaf.name] ?? DEFAULT_FORMAT,
-            type,
-          );
-
-          // Colour follows the VALUE, not the column: a scale across
-          // a nested pivot compares a subtotal against a leaf and
-          // puts the strongest colour on whatever aggregates most.
-          const appearance = mergeAppearance(
-            this.#options.appearance ?? {},
-            this.#options.columnAppearance?.[leaf.name],
-          );
-          for (const [k, v] of Object.entries(onScreen(cellStyle(appearance, value, type)))) {
-            cell.style.setProperty(k, v);
-          }
-
-          // After the value colours, so a heatmap wins over the
-          // normal/negative background it would otherwise fight.
-          const heat = this.#options.cellBackground?.(leaf, abs, value);
-          if (heat) cell.style.backgroundColor = heat;
-
-          cell.title = leaf.name === TREE_COLUMN
-            ? (this.#options.treeTitle?.(abs, text) ?? '')
-            : valueTitle(value);
-          if (leaf.name === TREE_COLUMN) {
-            // Depth is shown by indentation rather than by a column
-            // per dimension, so the grid stays one width however deep
-            // the cube goes. Level 1 sits flush; each level indents.
-            cell.classList.add('dc-tree');
-            cell.style.setProperty(
-              '--dc-indent',
-              String(Math.max(0, (meta?.level ?? 1) - 1)),
-            );
-            if (meta?.expanded !== undefined) {
-              const chevron = doc.createElement('span');
-              chevron.className = 'dc-chevron';
-              // The row already carries aria-expanded, so the glyph is
-              // decoration; announcing it again would say "collapsed"
-              // twice.
-              chevron.setAttribute('aria-hidden', 'true');
-              chevron.textContent = meta.expanded ? '\u25be' : '\u25b8';
-              cell.appendChild(chevron);
-            } else {
-              // A leaf still needs the chevron's width, or its label
-              // fails to line up under its siblings' labels.
-              const spacer = doc.createElement('span');
-              spacer.className = 'dc-chevron dc-chevron-empty';
-              spacer.setAttribute('aria-hidden', 'true');
-              cell.appendChild(spacer);
-            }
-            const label = doc.createElement('span');
-            label.className = 'dc-tree-label';
-            label.textContent = text;
-            cell.appendChild(label);
-          } else {
-            const link = leaf.linkLabelParameter === undefined
-              ? null
-              : linkFor(value, leaf.linkLabelParameter);
-            if (link) {
-              const a = doc.createElement('a');
-              a.className = 'dc-link';
-              a.href = link.href;
-              a.target = '_blank';
-              a.rel = 'noreferrer noopener';
-              a.textContent = link.label;
-              cell.appendChild(a);
-            } else {
-              cell.textContent = text;
-            }
-          }
-        } else {
-          // Not fetched yet. Rendered as a placeholder rather than
-          // blocking the scroll, and marked busy so a screen reader
-          // says so instead of reading an empty cell as an empty value.
-          cell.classList.add('dc-pending');
-          cell.setAttribute('aria-busy', 'true');
-        }
-
-        if (this.#selection && contains(this.#selection, abs, c)) {
-          cell.classList.add('dc-selected');
-        }
-        if (abs === this.#focus.row && c === this.#focus.col) {
-          cell.tabIndex = 0;
-          cell.classList.add('dc-focus');
-        } else {
-          cell.tabIndex = -1;
-        }
-        row.appendChild(cell);
+        row.appendChild(this.#cell(doc, model.leaves[c]!, c, abs, local, table, meta, loaded));
       }
       frag.appendChild(row);
     }
@@ -1298,7 +1338,122 @@ export class DataGrid {
     const hadFocus = focused !== null && this.#root.contains(focused);
     this.#body.replaceChildren(frag);
     this.#rendered = wanted;
+    const source = { table, offset: this.#blockOffset };
+    this.#drawnFrom = Array.from({ length: wanted.end - wanted.start }, () => source);
     if (hadFocus) this.#focusCell();
+  }
+
+  /** One cell of row `abs` (row `local` of the block `table`), as the grid draws it: its value written, coloured, titled. */
+  #cell(doc: Document, leaf: LeafColumn, c: number, abs: number, local: number, table: ResultTable,
+    meta: GridRowMeta | undefined, loaded: boolean): HTMLElement {
+    const cell = doc.createElement('div');
+    cell.setAttribute('role', 'gridcell');
+    const classes = ['dc-cell'];
+    if (leaf.isDimension) classes.push('dc-dim');
+    if (leaf.pinned) classes.push(`dc-pin-${leaf.pinned}`);
+    // Obscured until hovered, for a figure that should not be
+    // readable over a shoulder or in a screen share.
+    if (leaf.blurred) classes.push('dc-blur');
+    cell.className = classes.join(' ');
+    cell.setAttribute('aria-colindex', String(c + 1));
+    // The context menu reads this. Without it a right-click on a
+    // CELL produced a menu with every column-specific entry
+    // missing, which is most of the menu.
+    cell.dataset['column'] = leaf.name;
+
+    if (loaded) {
+      const value: Scalar =
+        table.columns[leaf.index]?.values[local] ?? null;
+      const type = table.columns[leaf.index]?.type;
+      const text = this.#formatters.format(
+        value,
+        this.#options.formats?.[leaf.name] ?? DEFAULT_FORMAT,
+        type,
+      );
+
+      // Colour follows the VALUE, not the column: a scale across
+      // a nested pivot compares a subtotal against a leaf and
+      // puts the strongest colour on whatever aggregates most.
+      const appearance = mergeAppearance(
+        this.#options.appearance ?? {},
+        this.#options.columnAppearance?.[leaf.name],
+      );
+      for (const [k, v] of Object.entries(onScreen(cellStyle(appearance, value, type)))) {
+        cell.style.setProperty(k, v);
+      }
+
+      // After the value colours, so a heatmap wins over the
+      // normal/negative background it would otherwise fight.
+      const heat = this.#options.cellBackground?.(leaf, abs, value);
+      if (heat) cell.style.backgroundColor = heat;
+
+      cell.title = leaf.name === TREE_COLUMN
+        ? (this.#options.treeTitle?.(abs, text) ?? '')
+        : valueTitle(value);
+      if (leaf.name === TREE_COLUMN) {
+        // Depth is shown by indentation rather than by a column
+        // per dimension, so the grid stays one width however deep
+        // the cube goes. Level 1 sits flush; each level indents.
+        cell.classList.add('dc-tree');
+        cell.style.setProperty(
+          '--dc-indent',
+          String(Math.max(0, (meta?.level ?? 1) - 1)),
+        );
+        if (meta?.expanded !== undefined) {
+          const chevron = doc.createElement('span');
+          chevron.className = 'dc-chevron';
+          // The row already carries aria-expanded, so the glyph is
+          // decoration; announcing it again would say "collapsed"
+          // twice.
+          chevron.setAttribute('aria-hidden', 'true');
+          chevron.textContent = meta.expanded ? '\u25be' : '\u25b8';
+          cell.appendChild(chevron);
+        } else {
+          // A leaf still needs the chevron's width, or its label
+          // fails to line up under its siblings' labels.
+          const spacer = doc.createElement('span');
+          spacer.className = 'dc-chevron dc-chevron-empty';
+          spacer.setAttribute('aria-hidden', 'true');
+          cell.appendChild(spacer);
+        }
+        const label = doc.createElement('span');
+        label.className = 'dc-tree-label';
+        label.textContent = text;
+        cell.appendChild(label);
+      } else {
+        const link = leaf.linkLabelParameter === undefined
+          ? null
+          : linkFor(value, leaf.linkLabelParameter);
+        if (link) {
+          const a = doc.createElement('a');
+          a.className = 'dc-link';
+          a.href = link.href;
+          a.target = '_blank';
+          a.rel = 'noreferrer noopener';
+          a.textContent = link.label;
+          cell.appendChild(a);
+        } else {
+          cell.textContent = text;
+        }
+      }
+    } else {
+      // Not fetched yet. Rendered as a placeholder rather than
+      // blocking the scroll, and marked busy so a screen reader
+      // says so instead of reading an empty cell as an empty value.
+      cell.classList.add('dc-pending');
+      cell.setAttribute('aria-busy', 'true');
+    }
+
+    if (this.#selection && contains(this.#selection, abs, c)) {
+      cell.classList.add('dc-selected');
+    }
+    if (abs === this.#focus.row && c === this.#focus.col) {
+      cell.tabIndex = 0;
+      cell.classList.add('dc-focus');
+    } else {
+      cell.tabIndex = -1;
+    }
+    return cell;
   }
 
   // -- keyboard ----------------------------------------------------
@@ -1437,7 +1592,19 @@ export class DataGrid {
     const range = this.#selection;
     const model = this.#model;
     if (!table || !range || !model) return null;
-    const text = toClipboard(selectionTable(table, model.leaves, range));
+    // the selection's rows are the whole result's; the rows held a block of it (`setRows`): copied when it holds them,
+    // else its host reads them (`onCopyUnheld`)
+    const b = bounds(range);
+    const offset = this.#blockOffset;
+    if (b.top < offset || b.bottom >= offset + table.rowCount) {
+      this.#options.onCopyUnheld?.(range);
+      return null;
+    }
+    const held = {
+      anchor: { ...range.anchor, row: range.anchor.row - offset },
+      focus: { ...range.focus, row: range.focus.row - offset },
+    };
+    const text = toClipboard(selectionTable(table, model.leaves, held));
     void this.#options.writeClipboard?.(text);
     return text;
   }

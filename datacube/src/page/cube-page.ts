@@ -135,9 +135,10 @@ export interface SpawnedGrid {
   dispose(): void;
   /** What its charts need from it. */
   chartSource(): ChartSource;
-  /** Told each time a view lands ('view'), each time its state changes, a view or a width ('change'), each time where
-   *  its rows are changes, a snap or going live ('plane'), and -- before that -- when it moved them itself ('moved'). */
-  on(event: 'view' | 'change' | 'plane' | 'moved', fn: () => void): () => void;
+  /** Told each time a view lands ('view'), each time a live source ticked its rows ('ticked'), each time its state
+   *  changes, a view or a width ('change'), each time where its rows are changes, a snap or going live ('plane'), and --
+   *  before that -- when it moved them itself ('moved'). */
+  on(event: 'view' | 'ticked' | 'change' | 'plane' | 'moved', fn: () => void): () => void;
   /** The copy it reads (a snap), as its page writes it down; undefined: it reads its rows live. */
   readonly copy?: GridCopy | undefined;
   /** Its part of its tile's header: its source, its Live/Snapped pill, its menu. */
@@ -1013,6 +1014,8 @@ export class CubePage {
         this.#refreshGrid(id);
         this.#reconcileGrid(id, cube.snapshot.filter);
       }),
+      // a tick: its charts drawn again at once from their live rows, nothing else (V3)
+      cube.on('ticked', () => this.#tickGrid(id)),
       // its own changes are the page's: "changed since saved" re-reads the page
       cube.on('change', () => this.#options.onChange()),
       // where its rows are is the page's too: its copies (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8)
@@ -1302,6 +1305,16 @@ export class CubePage {
 
   #refreshGrid(grid: string): void {
     for (const chart of this.#charts.values()) if (chart.link.grid === grid) chart.panel.refresh();
+  }
+
+  /** `grid` ticked: each chart that follows it drawn again at once (ChartPanel.tick). */
+  #tickGrid(grid: string): void {
+    for (const chart of this.#charts.values()) if (chart.link.grid === grid) chart.panel.tick();
+  }
+
+  /** Every grid ticked (a cube's own board, its one grid's tick): each chart that follows a grid drawn again at once. */
+  tick(): void {
+    for (const chart of this.#charts.values()) if (chart.link.grid !== null) chart.panel.tick();
   }
 
   #reconcileGrid(grid: string, filter: FilterNode | undefined): void {

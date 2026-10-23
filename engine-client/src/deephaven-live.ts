@@ -5,11 +5,17 @@
 // credential, and opens what the sender's session published.
 
 import type { DeephavenServer } from './deephaven.ts';
+import type { ResultWindow } from './engine.ts';
 
 /** The part of Deephaven's JS library the live reader uses, as its own API names it. */
 export interface DhModule {
   readonly CoreClient: new (url: string) => DhClient;
   readonly Table: { readonly EVENT_UPDATED: string };
+  readonly RangeSet: { ofRange(first: number, last: number): DhRangeSet };
+}
+
+interface DhRangeSet {
+  readonly size: number;
 }
 
 interface DhClient {
@@ -33,6 +39,17 @@ export interface Followed {
   close(): void;
 }
 
+/** A followed window's rows, as one update left them, where the first of them is in the table, and the table's size. */
+export interface WindowRows extends FollowedRows {
+  readonly offset: number;
+  readonly total: number;
+}
+
+/** A followed window of a table: moved, the next update carries the rows the new window shows. */
+export interface FollowedWindow extends Followed {
+  move(window: ResultWindow): void;
+}
+
 interface DhIde {
   getSharedObject(name: string, type: 'Table'): Promise<DhTable>;
   addEventListener(name: string, listener: (e: unknown) => void): () => void;
@@ -40,12 +57,27 @@ interface DhIde {
 
 interface DhTable {
   readonly columns: readonly DhColumn[];
+  /** How many rows the table has now: kept current while a subscription follows it. */
+  readonly size: number;
   createSubscription(options: { readonly columns: readonly DhColumn[]; readonly updateIntervalMs: number }): DhSubscription;
+  createViewportSubscription(options: {
+    readonly columns: readonly DhColumn[];
+    readonly rows: DhRangeSet;
+    readonly updateIntervalMs: number;
+  }): DhViewportSubscription;
   close(): void;
 }
 
 interface DhSubscription {
   addEventListener(name: string, listener: (e: { readonly detail: { readonly rows: readonly DhRow[] } }) => void): () => void;
+  close(): void;
+}
+
+/** The library's viewport subscription: an update's rows are the window's, `offset` the first one's place. */
+interface DhViewportSubscription {
+  addEventListener(name: string,
+    listener: (e: { readonly detail: { readonly offset: number; readonly rows: readonly DhRow[] } }) => void): () => void;
+  update(options: { readonly rows: DhRangeSet; readonly columns: readonly DhColumn[] }): void;
   close(): void;
 }
 
@@ -103,6 +135,38 @@ export class LiveClient {
       onRows({ columns: names, values: columns.map((c) => rows.map((r) => r.get(c))) });
     });
     return {
+      close: () => {
+        subscription.close();
+        table.close();
+      },
+    };
+  }
+
+  /**
+   * Follows a WINDOW of the published table `name` (a viewport, docs/DEEPHAVEN_PLAN_2026_10_22.md V1): `onRows` with the
+   * window's rows at each update, where the first of them is in the table and how many rows the table has -- the
+   * server sends the window's rows only, so an update costs what a grid shows, whatever the table's size. `move`
+   * changes the window; the next update carries the new one's rows. An update the library sends without its place or
+   * the table's size is `onFailed`, never read as a window it is not.
+   */
+  async followWindow(name: string, window: ResultWindow, onRows: (rows: WindowRows) => void,
+    onFailed: (error: Error) => void, intervalMs = 10): Promise<FollowedWindow> {
+    const table = await this.#ide.getSharedObject(name, 'Table');
+    const columns = table.columns;
+    const names = columns.map((c) => c.name);
+    const range = (w: ResultWindow): DhRangeSet => this.#dh.RangeSet.ofRange(w.offset, w.offset + Math.max(1, w.count) - 1);
+    const subscription = table.createViewportSubscription({ columns, rows: range(window), updateIntervalMs: intervalMs });
+    subscription.addEventListener(this.#dh.Table.EVENT_UPDATED, (e) => {
+      const { offset, rows } = e.detail;
+      const total = table.size;
+      if (typeof offset !== 'number' || typeof total !== 'number') {
+        onFailed(new Error(`Deephaven's viewport update said no place (${String(offset)}) or no size (${String(total)})`));
+        return;
+      }
+      onRows({ columns: names, values: columns.map((c) => rows.map((r) => r.get(c))), offset, total });
+    });
+    return {
+      move: (w) => { subscription.update({ rows: range(w), columns }); },
       close: () => {
         subscription.close();
         table.close();

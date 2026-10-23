@@ -11,7 +11,7 @@
 import type { HostOperationsSource } from '../../engine-client/src/host-operations.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
-import type { QueryEngine } from '../../engine-client/src/engine.ts';
+import type { QueryEngine, ResultWindow } from '../../engine-client/src/engine.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { EpochGuard, type Stale } from './epoch.ts';
 import {
@@ -54,6 +54,7 @@ import {
   type QueryLens,
   type QueryRunner,
   type RunOutcome,
+  type RunWindow,
 } from './runner.ts';
 import { requestKey } from './tree.ts';
 import type { LevelRequest, TreeRow, TreeState } from './tree.ts';
@@ -153,6 +154,11 @@ export interface CubeView {
   /** A flat cube the row cap cut: how many rows it has in all (one count, asked only then). */
   readonly totalRows?: number;
   /**
+   * A flat cube read by a WINDOW (docs/DEEPHAVEN_PLAN_2026_10_22.md V1): `rows` are its result's rows from `offset`,
+   * of `total` in all (the row limit applied). Absent, `rows` are every row.
+   */
+  readonly window?: { readonly offset: number; readonly total: number };
+  /**
    * The query, for the "show me the query" panel.
    *
    * BOTH, because they answer different questions: the query is what
@@ -245,6 +251,12 @@ export interface CubeControllerOptions {
    * say, for example, that the warehouse wants a new sign-in.
    */
   readonly onQueryFailure?: (error: unknown) => void;
+  /**
+   * The rows of a FLAT cube's result the grid shows now, with a margin (docs/DEEPHAVEN_PLAN_2026_10_22.md V1): asked of
+   * a runner with windows (`QueryRunner.window`), so a flat cube of any size reads those rows only. Absent, or with a
+   * runner without windows, a flat cube reads its rows whole.
+   */
+  readonly window?: () => ResultWindow;
 }
 
 /**
@@ -268,9 +280,15 @@ function recording(runner: QueryRunner, into: Receipt[], plane: PlaneState): Que
     }
     return out;
   };
+  const window = runner.window;
   return {
     name: runner.name,
     run: async (query, snapshot, scope, signal) => note(await runner.run(query, snapshot, scope, signal)),
+    ...(window ? { window: (async (query, snapshot, w, signal) => {
+      const out = await window(query, snapshot, w, signal);
+      note(out);
+      return out;
+    }) satisfies RunWindow } : {}),
     stream: (query, snapshot, onChunk, signal) => runner.stream(query, snapshot, onChunk, signal),
     compile: (query, snapshot, signal) => runner.compile(query, snapshot, signal),
     relationType: (query, signal) => runner.relationType(query, signal),
@@ -653,14 +671,33 @@ export class CubeController {
         ? undefined
         : ({ level: 1, parent: [], limit: maxRows + 1 } as const);
       const query = levelLambda(withEpoch, scope, pivot?.facts);
-      const { rows: full, sql } = await runner.run(
-        query,
-        withEpoch,
-        scope,
-        signal,
-      );
-      const cut = maxRows !== undefined && full.rowCount > maxRows;
-      const rows = cut ? takeRows(full, maxRows) : full;
+      // read by a window where the grid asks for one and the runner has them (V1): the rows on screen, not every row
+      const read = runner.window;
+      const wanted = this.#options.window?.();
+      let rows: ResultTable;
+      let sql: string;
+      let cut: boolean;
+      let window: { readonly offset: number; readonly total: number } | undefined;
+      if (read !== undefined && wanted !== undefined) {
+        const out = await read(query, withEpoch, wanted, signal);
+        // the row limit cuts the result where a whole read cuts it: the one row past it says there is more
+        cut = maxRows !== undefined && out.total > maxRows;
+        const total = maxRows !== undefined && cut ? maxRows : out.total;
+        const past = out.offset + out.rows.rowCount - total;
+        rows = past > 0 ? takeRows(out.rows, Math.max(0, out.rows.rowCount - past)) : out.rows;
+        sql = out.sql;
+        window = { offset: out.offset, total };
+      } else {
+        const full = await runner.run(
+          query,
+          withEpoch,
+          scope,
+          signal,
+        );
+        sql = full.sql;
+        cut = maxRows !== undefined && full.rows.rowCount > maxRows;
+        rows = maxRows !== undefined && cut ? takeRows(full.rows, maxRows) : full.rows;
+      }
       // cut: how many there are in all, so the status can say "the first 1,000 of 48,213"
       const totalRows = cut ? await this.#countRows(withEpoch, runner, signal) : undefined;
       const columns = buildColumnModel(
@@ -678,6 +715,7 @@ export class CubeController {
         treeRows: [],
         truncated: cut ? [{ level: 1, parent: [] }] : [],
         ...(totalRows !== undefined ? { totalRows } : {}),
+        ...(window !== undefined ? { window } : {}),
         query,
         sql,
         receipts,

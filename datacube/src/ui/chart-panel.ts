@@ -158,8 +158,36 @@ export class ChartPanel {
       }
     }
     clearTimeout(this.#timer);
-    this.#timer = setTimeout(() => void this.#draw(), delay);
+    this.#timer = setTimeout(() => {
+      this.#timer = undefined;
+      void this.#draw();
+    }, delay);
   }
+
+  /**
+   * A TICK (docs/DEEPHAVEN_PLAN_2026_10_22.md V3, DH27): its grid's rows changed, nothing the chart asks did -- drawn
+   * again now, its query read again (answered from the rows its grid's engine follows live), with no debounce and no
+   * animation. A tick while it draws draws once more after; one while an edit's redraw is pending is that redraw's.
+   */
+  tick(): void {
+    if (this.#disposed || !this.#spec || this.#timer !== undefined) return;
+    if (this.#ticking) {
+      this.#tickAgain = true;
+      return;
+    }
+    this.#ticking = true;
+    void this.#draw(true).finally(() => {
+      this.#ticking = false;
+      if (this.#tickAgain) {
+        this.#tickAgain = false;
+        this.tick();
+      }
+    });
+  }
+
+  /** Whether a tick's draw runs, and whether another tick came meanwhile. */
+  #ticking = false;
+  #tickAgain = false;
 
   /** Show or hide the options; answers whether they are now shown. */
   toggleForm(): boolean {
@@ -248,7 +276,7 @@ export class ChartPanel {
     return this.#chart?.picture() ?? null;
   }
 
-    async #draw(): Promise<void> {
+  async #draw(ticked = false): Promise<void> {
     if (this.#disposed) return;
     const spec = this.#spec;
     const cube = this.#options.snapshot();
@@ -289,7 +317,7 @@ export class ChartPanel {
       } else {
         drawing = treemapOfGrid(now, themeOf(this.#canvas), this.#options.label);
       }
-      chart.show(drawing);
+      chart.show(drawing, { ticked });
       this.#say(drawing.notes.join(' '));
       return;
     }
@@ -301,8 +329,8 @@ export class ChartPanel {
     this.#inflight?.abort();
     const abort = new AbortController();
     this.#inflight = abort;
-    // busy, not a "Loading" line: a line that comes and goes resizes the chart twice
-    this.#canvas.setAttribute('aria-busy', 'true');
+    // busy, not a "Loading" line: a line that comes and goes resizes the chart twice; a tick is not busy
+    if (!ticked) this.#canvas.setAttribute('aria-busy', 'true');
     try {
       const { query, snapshot } = chartQuery(cube, spec);
       const rows = await this.#options.run(query, snapshot, abort.signal);
@@ -329,7 +357,7 @@ export class ChartPanel {
       } else {
         drawing = chartOption(spec, rows, themeOf(this.#canvas), this.#options.label, this.#options.unit);
       }
-      chart.show(drawing);
+      chart.show(drawing, { ticked });
       // the page's charts with the same column across (at the same grain) share a crosshair: those with an axis of
       // categories or time
       const across = axisName(drilledView(spec).spec);
@@ -547,9 +575,10 @@ export class ChartPanel {
   }
 
   #say(text: string, bad = false): void {
-    // said only when there is something to say: a small chart needs its height
+    // said only when there is something to say: a small chart needs its height; written only when it changed -- a
+    // tick says what it said, and its text laid out again would cost the tick
     this.#status.hidden = text === '';
-    this.#status.textContent = text;
+    if (this.#status.textContent !== text) this.#status.textContent = text;
     this.#status.classList.toggle('dc-chartpanel-bad', bad);
   }
 }

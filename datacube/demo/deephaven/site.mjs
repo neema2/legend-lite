@@ -54,6 +54,9 @@ export async function serveDemo(config, port = 0) {
   const files = {
     '/': ['text/html', readFileSync(runfileFromEnv('CUBE_PAGE'))],
     '/cube.js': ['text/javascript', readFileSync(runfileFromEnv('CUBE_BUNDLE'))],
+    // the page of several grids and charts (V2, V3)
+    '/board.html': ['text/html', readFileSync(runfileFromEnv('BOARD_PAGE'))],
+    '/board.js': ['text/javascript', readFileSync(runfileFromEnv('BOARD_BUNDLE'))],
     '/app.css': style('app.css'),
     '/grid.css': style('grid.css'),
     '/theme.css': style('theme.css'),

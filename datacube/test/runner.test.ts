@@ -3,7 +3,8 @@ import { describe, it } from 'node:test';
 
 import { CubeController, type Planner } from '../src/cube.ts';
 import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
-import { PlanThenRun, RemoteRun } from '../src/runner.ts';
+import { PlanThenRun, RemoteRun, lensed, rebased } from '../src/runner.ts';
+import type { ResultWindow, WindowedResult } from '../../engine-client/src/engine.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
@@ -228,5 +229,108 @@ describe('Row Limit on a FLAT cube', () => {
     if (isStale(v)) throw new Error('stale');
     assert.equal(v.rows.rowCount, 5);
     assert.equal(v.truncated.length, 0);
+  });
+});
+
+/**
+ * A FLAT CUBE READ BY A WINDOW (docs/DEEPHAVEN_PLAN_2026_10_22.md V1): an engine that keeps a result and follows part
+ * of it is asked for the rows the grid shows, never for every row; the view says where they are and how many there are.
+ */
+describe('a flat cube read by a window', () => {
+  /** An engine of 1,000 rows, each `region` its place: a window answered from its place, a count as one row. */
+  class Windowed extends FakeEngine {
+    readonly name = 'windowed';
+    readonly windows: ResultWindow[] = [];
+    readonly whole: string[] = [];
+    async answer(sql: string, epoch: number): Promise<ResultTable> {
+      this.whole.push(sql);
+      if (sql === 'COUNT') {
+        return { columns: [{ name: TOTAL_ROWS_COLUMN, type: 'Integer', values: [1000] }], rowCount: 1, epoch, elapsedMs: 0 };
+      }
+      throw new Error(`asked for every row: ${sql}`);
+    }
+    async executeWindow(_plan: Plan, epoch: number, window: ResultWindow): Promise<WindowedResult> {
+      this.windows.push(window);
+      const n = Math.max(0, Math.min(window.count, 1000 - window.offset));
+      const region = Array.from({ length: n }, (_, i) => `R${window.offset + i}`);
+      return {
+        rows: {
+          columns: [
+            { name: 'region', type: 'String', values: region },
+            { name: 'notional', type: 'Float', values: region.map(() => 1) },
+          ],
+          rowCount: n,
+          epoch,
+          elapsedMs: 0,
+        },
+        offset: window.offset,
+        total: 1000,
+      };
+    }
+  }
+  /** Plans a count as COUNT and any other query as ROWS. */
+  class CountingPlanner extends StubPlanner {
+    override async plan(query: Lambda): Promise<Plan> {
+      this.queries.push(query);
+      return { sql: JSON.stringify(query).includes(TOTAL_ROWS_COLUMN) ? 'COUNT' : 'ROWS', columns: [] };
+    }
+  }
+
+  it('asks the engine for the grid\'s window, not every row, and says where its rows are', async () => {
+    const engine = new Windowed();
+    const controller = new CubeController(new PlanThenRun(new CountingPlanner(), engine),
+      { window: () => ({ offset: 100, count: 20 }) });
+    const v = await controller.run(at(SNAPSHOT));
+    if (isStale(v)) throw new Error('stale');
+    assert.deepEqual(engine.windows, [{ offset: 100, count: 20 }]);
+    assert.deepEqual(engine.whole, []);
+    assert.deepEqual(v.window, { offset: 100, total: 1000 });
+    assert.equal(v.rows.rowCount, 20);
+    assert.equal(v.rows.columns[0]?.values[0], 'R100');
+    assert.equal(v.truncated.length, 0);
+  });
+
+  it('cuts the result at the row limit: the window past it is shorter, and the count says how many in all', async () => {
+    const engine = new Windowed();
+    const controller = new CubeController(new PlanThenRun(new CountingPlanner(), engine),
+      { window: () => ({ offset: 490, count: 20 }) });
+    const v = await controller.run(at({ ...SNAPSHOT, maxRows: 500 }));
+    if (isStale(v)) throw new Error('stale');
+    assert.deepEqual(v.window, { offset: 490, total: 500 });
+    assert.equal(v.rows.rowCount, 10);
+    assert.equal(v.rows.columns[0]?.values[9], 'R499');
+    assert.equal(v.truncated.length, 1);
+    assert.equal(v.totalRows, 1000);
+    assert.deepEqual(engine.whole, ['COUNT']);
+  });
+
+  it('reads every row where the grid asks for no window, or the runner has none', async () => {
+    const remote = new CubeController(new RemoteRun(new StubExecutor()), { window: () => ({ offset: 0, count: 5 }) });
+    const r = await remote.run(at(SNAPSHOT));
+    if (isStale(r)) throw new Error('stale');
+    assert.equal(r.window, undefined);
+    const engine = new LocalEngine();
+    const planned = new CubeController(new PlanThenRun(new StubPlanner(), engine));
+    const p = await planned.run(at(SNAPSHOT));
+    if (isStale(p)) throw new Error('stale');
+    assert.equal(p.window, undefined);
+    assert.equal(new PlanThenRun(new StubPlanner(), engine).window, undefined);
+  });
+
+  it('keeps the window through a lens and a rebase, each rewriting the query it asks', async () => {
+    const engine = new Windowed();
+    const planner = new CountingPlanner();
+    const runner = new PlanThenRun(planner, engine);
+    const lens = (_q: Lambda): Lambda => fromElement('demo::Lensed').select(['region']).lambda();
+    const viaLens = lensed(runner, lens).window;
+    assert.ok(viaLens);
+    await viaLens(Q, SNAPSHOT, { offset: 0, count: 3 });
+    assert.match(toJson(planner.queries.at(-1)!), /demo::Lensed/);
+    const copy = variable('copy');
+    const viaRebase = rebased(runner, variable('trades'), copy).window;
+    assert.ok(viaRebase);
+    await viaRebase(fromElement('demo::T').select(['region']).lambda(), SNAPSHOT, { offset: 0, count: 3 });
+    assert.equal(engine.windows.length, 2);
+    assert.equal(lensed(new RemoteRun(new StubExecutor()), lens).window, undefined);
   });
 });

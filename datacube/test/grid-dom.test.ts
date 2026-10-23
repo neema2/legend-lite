@@ -835,3 +835,70 @@ describe('appearance set AFTER the grid is built', () => {
     assert.notEqual(cell().style.getPropertyValue('font-weight'), '700');
   });
 });
+
+/**
+ * A TICK (docs/DEEPHAVEN_PLAN_2026_10_22.md DH27, V1): the same rows, values changed -- drawn in place, the rows on
+ * screen only; and a BLOCK of a larger result, whose rows outside it wait.
+ */
+describe('a tick, and a block of a larger result', () => {
+  /** `table` with row `row`'s 2023 figure set to `value`. */
+  const changed = (table: ResultTable, row: number, value: number): ResultTable => ({
+    ...table,
+    columns: table.columns.map((c) => (c.name === '2023__|__total'
+      ? { ...c, values: c.values.map((v, i) => (i === row ? value : v)) } : c)),
+  });
+  const cell = (row: number, column: number): Element | undefined =>
+    container.querySelectorAll('.dc-row')[row]?.querySelectorAll('.dc-cell')[column];
+
+  it('draws only the cells whose value changed, in place', () => {
+    const { table } = build(50);
+    const kept = cell(3, 0);
+    const before = cell(3, 1);
+    assert.equal(before?.textContent, '4.5');
+    grid.tickRows(changed(table, 3, 1234.5), 0, 50);
+    assert.equal(cell(3, 1), before, 'the same element, its text written over');
+    assert.equal(cell(3, 1)?.textContent, '1,234.5');
+    assert.equal(cell(3, 1)?.getAttribute('title'), 'Value = 1234.5');
+    assert.equal(cell(3, 0), kept, 'a cell whose value did not change is untouched');
+  });
+
+  it('leaves a row past the screen as it was until a scroll brings it on, then draws it from the newest rows', () => {
+    const { table, scroller } = build(50);
+    // 200 px of 20 px rows: rows 0 to 10 on screen, the overscan of 2 drawn below them
+    const past = 12;
+    assert.equal(cell(past, 1)?.textContent, '18');
+    grid.tickRows(changed(table, past, 999), 0, 50);
+    assert.equal(cell(past, 1)?.textContent, '18', 'off screen: not drawn at the tick');
+    scroller.scrollTop = 2 * ROW_HEIGHT;
+    scroller.dispatchEvent(new dom.window.Event('scroll'));
+    const row = [...container.querySelectorAll('.dc-row')].find((r) => r.getAttribute('aria-rowindex') === String(2 + past + 1));
+    assert.equal(row?.querySelectorAll('.dc-cell')[1]?.textContent, '999', 'scrolled on: drawn from the newest rows');
+  });
+
+  it('draws the grid whole when the rows moved under it or the count changed', () => {
+    const { table } = build(50);
+    const before = cell(0, 0);
+    grid.tickRows(table, 0, 60);
+    assert.notEqual(cell(0, 0), before, 'another count: drawn whole');
+    assert.equal(container.getAttribute('aria-rowcount'), '62');
+  });
+
+  it('holds a block of a larger result: its rows from their place, the rest waiting; says where it is', () => {
+    const table = makeTable(20);
+    let moved = 0;
+    grid = new DataGrid(container, new FormatterCache(), { rowHeight: ROW_HEIGHT, overscan: 2, onRowsMoved: () => { moved++; } });
+    const scroller = container.querySelector('.dc-scroller') as HTMLElement;
+    stubLayout(scroller, VIEW_HEIGHT);
+    grid.setColumns(buildColumnModel(table, ['region']));
+    // rows 100 to 119 of 1,000
+    grid.setRows(table, 100, 1000);
+    assert.deepEqual(grid.block, { offset: 100, rows: 20, total: 1000 });
+    assert.equal(container.querySelector('.dc-row .dc-cell')?.classList.contains('dc-pending'), true, 'row 0 is not held');
+    scroller.scrollTop = 100 * ROW_HEIGHT;
+    scroller.dispatchEvent(new dom.window.Event('scroll'));
+    assert.ok(moved > 0, 'the host is told the rows on screen moved');
+    assert.deepEqual(grid.onScreen, { first: 100, count: 11 });
+    const first = [...container.querySelectorAll('.dc-row')].find((r) => r.getAttribute('aria-rowindex') === String(2 + 100 + 1));
+    assert.equal(first?.querySelector('.dc-cell')?.textContent, 'R0', 'row 100 is the block\'s first');
+  });
+});

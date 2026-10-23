@@ -2110,6 +2110,25 @@ esbuild_bundle(
     ],
 )
 
+# the page of several grids and charts over the same server (V2, V3): DataCube's own page, each grid its own reader
+esbuild_bundle(
+    name = "deephaven_board_bundle",
+    testonly = True,
+    srcs = glob(["demo/deephaven/*.ts"]) + [
+        ":node_modules/echarts",
+        ":src",
+    ],
+    outs = ["demo/deephaven/board.js"],
+    args = [
+        "demo/deephaven/board.ts",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--log-level=warning",
+        "--outfile=demo/deephaven/board.js",
+    ],
+)
+
 # DataCube's styles, as its pages load them (demo/engine.html)
 filegroup(
     name = "deephaven_cube_styles",
@@ -2122,9 +2141,11 @@ filegroup(
 )
 
 _DEEPHAVEN_DEMO_DATA = [
+    "demo/deephaven/board.html",
     "demo/deephaven/cube.html",
     "demo/deephaven/site.mjs",
     # the binary for its runfiles (the server's jars and Java, the application), its executable to start it by
+    ":deephaven_board_bundle",
     ":deephaven_cube_bundle",
     ":deephaven_cube_styles",
     ":deephaven_demo_fixture",
@@ -2134,6 +2155,8 @@ _DEEPHAVEN_DEMO_DATA = [
 
 _DEEPHAVEN_DEMO_ENV = {
     "DEEPHAVEN_FIXTURE": "$(rlocationpath :deephaven_demo_fixture_executable)",
+    "BOARD_BUNDLE": "$(rlocationpath :deephaven_board_bundle)",
+    "BOARD_PAGE": "$(rlocationpath demo/deephaven/board.html)",
     "CUBE_BUNDLE": "$(rlocationpath :deephaven_cube_bundle)",
     "CUBE_PAGE": "$(rlocationpath demo/deephaven/cube.html)",
     "CUBE_STYLES": "$(rlocationpaths :deephaven_cube_styles)",
@@ -2285,5 +2308,37 @@ browser_test(
         ":node_modules/playwright",
     ],
     entry_point = "test/deephaven/cube.mjs",
+    env = _DEEPHAVEN_DEMO_ENV,
+)
+
+# A FLAT GRID OF A BIG BOOK, TICKING (docs/DEEPHAVEN_PLAN_2026_10_22.md V1, DH27): the cube page over 100,000 positions,
+# every price re-quoted ten times a second, turned into a flat grid of every position read by a window -- the rows on
+# screen, followed by a viewport. Checks the book's size, the rows' order, a tick re-run with nothing sent and its time
+# on screen, and a scroll half way down; says each one's time. Manual, beside the cube's test.
+browser_test(
+    name = "deephaven_flat_test",
+    size = "medium",
+    tags = ["manual"],
+    data = _DEEPHAVEN_DEMO_DATA + [
+        "test/deephaven/flat.mjs",
+        ":node_modules/playwright",
+    ],
+    entry_point = "test/deephaven/flat.mjs",
+    env = _DEEPHAVEN_DEMO_ENV,
+)
+
+# A DATACUBE PAGE OF SEVERAL GRIDS AND CHARTS, TICKING (docs/DEEPHAVEN_PLAN_2026_10_22.md V2, V3, DH27): DataCube's own
+# page over 100,000 positions in a storm -- the book flat, the desks and the sectors pivoted, a chart on each pivoted
+# grid, every grid its own reader over one engine. Checks one base for the three grids, the pivots' columns, and every
+# grid and chart drawn again at each tick with nothing sent; says each one's time. Manual, beside the cube's test.
+browser_test(
+    name = "deephaven_board_test",
+    size = "medium",
+    tags = ["manual"],
+    data = _DEEPHAVEN_DEMO_DATA + [
+        "test/deephaven/board.mjs",
+        ":node_modules/playwright",
+    ],
+    entry_point = "test/deephaven/board.mjs",
     env = _DEEPHAVEN_DEMO_ENV,
 )

@@ -22,6 +22,19 @@ export interface RawColumn {
   readonly values: readonly Scalar[];
 }
 
+/** Rows `offset` to `offset + count` of a result, in its order: the part of it a grid shows (a viewport). */
+export interface ResultWindow {
+  readonly offset: number;
+  readonly count: number;
+}
+
+/** A window of a result: its rows, where the first of them is in the result, and how many rows the result has. */
+export interface WindowedResult {
+  readonly rows: ResultTable;
+  readonly offset: number;
+  readonly total: number;
+}
+
 /** What raw SQL returns: DDL, a DESCRIBE, a count -- SQL no planner wrote. */
 export interface RawTable {
   readonly columns: readonly RawColumn[];
@@ -50,6 +63,12 @@ export interface QueryEngine {
    * check the signal before starting, and say so in its own doc.
    */
   execute(plan: Plan, epoch: number, signal?: AbortSignal): Promise<ResultTable>;
+  /**
+   * A WINDOW of a planned query's result, and the result's size: what a grid of more rows than a page holds asks for
+   * (docs/DEEPHAVEN_PLAN_2026_10_22.md V1). An engine that keeps a result where it ran and follows part of it (a
+   * Deephaven server's viewport) has it; one without it is asked for the whole result (`execute`).
+   */
+  executeWindow?(plan: Plan, epoch: number, window: ResultWindow, signal?: AbortSignal): Promise<WindowedResult>;
   /**
    * Run a PLANNED query and hand its rows over a chunk at a time, as the engine produces
    * them, each typed by the plan like `execute`'s; none is kept, so a whole table can pass

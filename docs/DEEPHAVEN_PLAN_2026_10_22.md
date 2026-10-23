@@ -1,7 +1,8 @@
 # Deephaven as a database of legend-lite: the design (2026-10-22, revised)
 
-**Status: L1, L2, L3b, D0, J1 (DataCube's own app on Deephaven, DH23), T1 (real ticking, DH24) and F1 (filters the
-server reads without compiling, DH25) built (their branches, §9); the rest PROPOSED.** Revised the same day on the user's ruling:
+**Status: L1, L2, L3b, D0, J1 (DataCube's own app on Deephaven, DH23), T1 (real ticking, DH24), F1 (filters the
+server reads without compiling, DH25), B1, G1, and V1-V3 (a flat grid of any size, a page of several grids, charts
+that tick: DH27) built (their branches, §9); the rest PROPOSED.** Revised the same day on the user's ruling:
 **Deephaven is just another backend.** A user builds a `###Relational` store, mappings and classes, and everything
 works: the Relation API straight on the store's tables, `project()` over class navigation. No store of its own, no
 table kinds. The first version of this document (a `###Deephaven` store with source and input tables,
@@ -190,6 +191,7 @@ Alongside the MongoDB line's (the user's rulings of 2026-10-16), so the two non-
 | DH24 | how a tick reaches the grid | (none) | **every result on screen followed live in the tab** (the user, 2026-10-23: "focus on making real ticking work and making it super super super super fast"; measured, §9 T1, `datacube/bench/deephaven/README.md`): once a view is painted, `DeephavenEngine.follow` publishes each result it read and subscribes to it with Deephaven's own JS library (`dh-core.js`, loaded from the server at run time, never bundled), asking for updates every 10 ms -- a cycle's change reaches the page 7 to 23 ms after the cycle that made it, where asking at the cycle waits up to a cycle more -- and lets go of every result no view reads. At a change the cube runs again (`CubeApp.tick`, the state owner's `rerun`: no transaction, no history, nothing written) and every query is answered from the live rows: nothing sent, nothing fetched. A view's FIRST rows are read by `DoGet` (35 to 40 ms sooner than a subscription's first update, measured); a result is never subscribed whole past a grid's bound (a full subscription of 100,000 rows in a storm fell 15 s behind and took the server down) |
 | DH25 | a filter's form | (DH5: no value in formula text) | **what the server reads without compiling**: a filter is the list of filters Deephaven ANDs, its conjunction split, each comparison of a column with a literal written as the server's filter parser reads it -- a match (`x == v`, `x != v`, `x in v1, v2`) or a range filter (`x < v` ...), no compile -- its null guard an entry of its own that names only its column; anything else a formula. Measured on 42.7: a formula with a new literal cost a filter 240 ms of compiling (each value a person filters on, each group a tree opens), written bare none. Pure's `!=` (null-safe) is the inverted match, which keeps the nulls Pure keeps |
 | DH26 | a query's shape, for the server's cost per request | (none) | **as little for the server to parse and make as the answer allows** (G1, measured 2026-10-23: the eight operations of a level query cost the server about 15 ms in its console and 100-125 through the protocol -- a cost per request, per formula and per aggregation): DataCube's unique column (the lowering's `COUNT(DISTINCT v) = 1 ? MAX(v) : null`) is the server's one `unique` aggregation; an average reads its column as it is (Deephaven's average is a fraction of any number, so the lowering's `1.0 *` promotion is the server's own); a key or an argument that is a column as it is is read by its name, with no operation before the group; a grid's base declares `NOT NULL` what the lowering never leaves null (the planner's `nullable`: the relation type keeps a LEFT-joined column's own multiplicity, the lowered outputs do not), so no null flag or guard is written for it; and a result's rows are asked for as soon as its export is named, the server answering once it has made it |
+| DH27 | what may be slow, and what may not | (none) | **a change may take time; a tick may not** (the user, 2026-10-23: "changes can take 'longer' but after that ticks should be super fast"; scope: one person, the browser straight to Deephaven, DH21): a gesture -- a filter, a grouping, a pivot, a calculated column, a scroll past the rows the page follows -- may make tables, compile formulas and fetch, once. Once a view is painted, a change on the server reaches the screen with no request: every grid, pivot and chart on the page follows what it shows, and a tick's work in the page is bounded by what is on screen, never by the size of the result (a flat grid follows its visible rows, a viewport: V1). A tick that would need a request -- a pivot value appearing, a group's new child -- is a change, made as one, and never holds the page's other ticks |
 | DH20 | joins | (Mongo's own) | **`natural_join` where the right side's key is unique** (its declared key covers the join columns, or it was grouped by them); the general `join` for an inner join otherwise; `asOfJoin` as `aj`; a to-many outer join (Deephaven's outer joins are experimental) and a non-equi join refused by name until measured |
 
 ## 6. Writes: the Cypher line's write design, rendered on Deephaven
@@ -307,8 +309,10 @@ publisher replaces the demo's seeding once they do. Stacked branches, no PR unti
 | G1 | on B1, **built 2026-10-23** | **a gesture's time, broken down, and budgets the tests hold**: planning, making, reading, painting, per gesture; the cube test fails past a budget (a tick on screen 10 ms after its rows; a repeated filter or regroup, its formulas compiled, 100 ms to the view; a group opened 50 ms once R1 lands). Something new -- a calculated column, a pivot value, a formula's first appearance on a server -- costs once (a compile, about 240 ms a formula) and is not held to them | the cube test |
 | R1 | on G1 (agreed with the user 2026-10-23: try it, views not shared; **spiked and measured 2026-10-23**, below) | **DataCube's tree as Deephaven's rollup** (`HierarchicalTableService.Rollup`, in 42.7's protocol): the deepest level's grouping planned from Pure as today and written as a rollup over its key prefix -- one server object holding every level, kept current incrementally, each level re-aggregated from the one below; a group opened or closed is a viewport change (`View`), no query, no compile; one subscription for the grid, only the rows on screen sent. A spike first: which of DataCube's aggregates a rollup re-aggregates (an aggregate it cannot stays on per-level queries, chosen per aggregate and said); group-level calculated columns per level (node operations, through the protocol or the JS library); the grid's windowed rows over the rollup's viewport | each level's answers equal to DuckDB's per-level queries over the same seeded rows, nulls included; the cube test's gestures; the tick benchmark with every level of a tree open |
 | P1 | on R1 | **pivots**: each pivot value's conditional sum a formula of its own text (a new value compiles once, the server keeping the rest); the pivot's values followed live, so a value appearing on the server becomes a column; on the rollup, each value's conditional column a calculation of the base, summed at every level | DuckDB's pivot answers; a value appearing live |
-| C1 | on B1 | **charts tick**: a chart's queries followed as a grid's are; its scale's rule on a tick decided with the DataCube line | the chart's test in the pinned Chromium |
+| C1 | V3, on V2, **built 2026-10-23** | **charts tick**: a chart's queries followed as a grid's are; its scale's rule on a tick decided with the DataCube line | the chart's test in the pinned Chromium |
 | S1 | after L5 and L3s | **views shared between viewers**: a base and a rollup per saved grid, owned on the server (the modelled publisher's side, not a browser), each viewer its own expansion; who may read one, and when it is let go, decided then | two viewers of one grid: one base on the server |
+| V1 | on G1 (the user, 2026-10-23: "flat grid with lot of rows"; DH27), **built 2026-10-23** | **a flat grid of any size**: a flat view's result made once on the server, sorted and filtered there, and followed by a VIEWPORT -- the rows on screen and a margin -- so a tick carries those rows only and the page's work does not grow with the result; a scroll past the margin moves the viewport (no table made, no formula compiled); the grid paints a block of the whole (`DataGrid.setRows(block, offset, total)`); a person's row limit still applies | the cube test over 100,000 positions: a tick's time on screen, a scroll's, the server's update graph busy |
+| V2 | on V1 (the same ask: "few grids in same datacube with different pivots"), **built 2026-10-23** | **several grids on one page, one session**: each grid its own follower over the engine's one session, live reader and bases (a grid following its view lets go of nothing another grid reads); grids over the same source read one base; each grid's pivot ticks; a tick re-runs only the grids whose results changed; P1's live pivot values here: a value appearing on the server is a change (DH27) | the page test: three grids, two pivots, every grid's tick on screen |
 
 **L2, measured (2026-10-23):** the target's batches for 18 query shapes (DataCube's pivot as conditional sums, its
 grand total over a literal key and over no rows, distinct, top-N, nested groupBy-extend, avg, count distinct, std,
@@ -442,6 +446,40 @@ calculated column (not through the protocol, not through the JS library), a filt
 new rollup (180 to 245 ms), and DataCube's tree driven by the server's viewport. A regroup made warm in 62 to 281 ms.
 Whether to build it is the user's call, on these numbers; G1 first would say how near a level's query can come.
 
+**V1, built (2026-10-23): a flat grid of any size.** A flat view is read by a WINDOW (`QueryEngine.executeWindow`,
+`QueryRunner.window`, `CubeControllerOptions.window`): the result made once on the server, sorted and filtered there,
+and followed by a viewport (`LiveClient.followWindow`, `createViewportSubscription`, moved by `update`) -- the rows on
+screen and a margin of twice a screen; the view carries where they are (`CubeView.window`) and the grid paints a block
+of the whole (`DataGrid.setRows(block, offset, total)`); a scroll past the margin moves the viewport, as a tick runs
+(`CubeApp.tick`, one run at a time); an export or a copy reads the whole result once. The tick's own path was then cut
+by measuring it (`//datacube:deephaven_flat_test`, PROFILE=1): a tick re-drew every row's DOM and re-fitted every
+column (66-80% of the page's thread); now `DataGrid.tickRows` writes only the changed cells of the rows on screen, in
+place (a row in the buffer is drawn when a scroll brings it on), and the columns are fitted once a view. Over 100,000
+positions in a storm, sorted by the market value every price moves: the book made in about 1 s (a gesture: DH27), a
+tick 111-185 rows, the cube's run 2.2-2.5 ms, on screen 8.7-9.9 ms after its rows alone (p50; 10-14 beside another
+browser test), a scroll to row 50,000 shown in 100-157 ms with nothing made, a scroll within the margin nothing asked.
+What is left of a tick is the browser's own layout and paint of the cells that changed.
+
+**V2, built (2026-10-23): a page of several grids.** One engine, one session, one live reader (`DeephavenEngine`); a
+reader per grid (`DeephavenEngine.reader()`): it follows what its grid read since its view LANDED -- the view's
+queries, its charts', a tick's re-reads, each followed as it is read -- and lets go of the rest when the next view
+lands, never another grid's; a whole result two grids read is one subscription. The page's bases are one set
+(`ServerBases`): grids over the same base read one table, made once and let go when no grid reads it, and one model
+fragment declares them all (a grid's new base no longer takes another's from the planner). A tick is its own event
+(`ticked`, `CubeAppBaseOptions.onTicked`), no longer a view landing. `//datacube:deephaven_board_test`: DataCube's own
+page over 100,000 positions in a storm -- the book flat, the desks pivoted by region, the sectors by currency, a chart
+on each pivoted grid -- live in 7.4 s; the three grids one base on the server; six seconds of ticks, nothing sent or
+fetched, 7 results followed; each tick on screen (p50) the book 4.7 ms, the pivoted grids 10.9-12.6, each grid's run
+1.2-2 ms of it. A pivot value appearing on the server is still a change (DH27), made by the next gesture: its
+following is P1's.
+
+**V3 (C1), built (2026-10-23): charts tick.** A chart reads through its grid's runner, so its grid's reader follows
+it; at the grid's tick the page draws each chart that follows the grid again at once (`ChartPanel.tick`: its query
+answered from the live rows, no debounce -- an edit's 150 ms debounce had starved a chart under ten ticks a second --
+and no animation left running behind the next tick). On the page above: 69-70 draws in six seconds each, on screen
+7.3-7.8 ms after the tick's rows, its values moving with the prices. A chart's scale follows its data at each tick
+(ECharts' own); a scale held between ticks is the DataCube line's call.
+
 **Before internal users rely on it:** the firm's counsel reviews the deployment against the Deephaven Community
 License (this line's reading, `experiments/deephaven-spike/README.md`, is not legal advice).
 
@@ -461,8 +499,8 @@ The user's shape: built here on a branch stacked on the DataCube line's, reviewe
   one-API ledgers (`datacube/test/one-api-ledger.test.ts`, `one-api-gestures.test.ts`, `python/tests/test_one_api.py`)
   do not grow.
 - **What ticks (T1, 2026-10-23).** Every grid level, the tree opened or not, and the pivot: the whole cube re-runs
-  from the live rows (1.5 to 2.2 ms), so no row is matched by key. Charts do not tick yet (C1: a chart reads its own
-  queries through its grid's runner, and per-view scales would rescale on every tick). The order from here is §9's
+  from the live rows (1.5 to 2.2 ms), so no row is matched by key. Charts tick (V3, 2026-10-23: drawn again at their
+  grid's tick from the live rows, `ChartPanel.tick`); a flat grid ticks by its window (V1). The order from here is §9's
   B1, G1, R1, P1, C1, S1.
 - **Loading.** The ticking code loads lazily, as the join and chart chunks do (`test/bundle-budget.test.ts`). The
   engine fetches `dh-core.js` from the Deephaven server at run time to follow a view (DH24), never bundled (DH11).

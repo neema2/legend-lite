@@ -23,7 +23,7 @@
 
 import { ExactNumber, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
-import type { QueryEngine } from '../../engine-client/src/engine.ts';
+import type { QueryEngine, ResultWindow, WindowedResult } from '../../engine-client/src/engine.ts';
 import type { Planner } from './cube.ts';
 import type { RemoteExecutor } from '../../engine-client/src/engine-remote.ts';
 import type { CubeSnapshot } from './snapshot.ts';
@@ -42,6 +42,17 @@ export interface RunOutcome {
    */
   readonly sql: string;
 }
+
+/** A window of a query's result (docs/DEEPHAVEN_PLAN_2026_10_22.md V1): its rows and SQL, where the first row is in
+ *  the result, and how many rows the result has. */
+export interface WindowOutcome extends RunOutcome {
+  readonly offset: number;
+  readonly total: number;
+}
+
+/** A runner's window of a query's result, for a runner whose engine has windows (`QueryEngine.executeWindow`). */
+export type RunWindow = (query: Lambda, snapshot: CubeSnapshot, window: ResultWindow, signal?: AbortSignal)
+  => Promise<WindowOutcome>;
 
 /**
  * A query that failed, with what was sent: upstream's
@@ -74,6 +85,11 @@ export interface QueryRunner {
   /** For diagnostics: which arrangement answered. */
   readonly name: string;
   run(query: Lambda, snapshot: CubeSnapshot, scope?: LevelScope, signal?: AbortSignal): Promise<RunOutcome>;
+  /**
+   * A WINDOW of a query's result and the result's size, where the engine keeps a result and follows part of it (a
+   * Deephaven server's viewport: docs/DEEPHAVEN_PLAN_2026_10_22.md V1); absent, a runner whose results are read whole.
+   */
+  readonly window?: RunWindow | undefined;
   /**
    * Run a query and hand its rows over a chunk at a time, none kept: reading every row of
    * a column in flat memory (`JsonColumnReader.all`). A plane that returns whole results
@@ -108,9 +124,11 @@ export type QueryLens = (query: Lambda) => Lambda;
  * pivot's values, its charts', its exports' and its drills' queries alike. A parse and a print are the person's own.
  */
 export function lensed(runner: QueryRunner, lens: QueryLens): QueryRunner {
+  const window = runner.window;
   return {
     name: runner.name,
     run: (query, snapshot, scope, signal) => runner.run(lens(query), snapshot, scope, signal),
+    ...(window ? { window: ((query, snapshot, w, signal) => window(lens(query), snapshot, w, signal)) satisfies RunWindow } : {}),
     stream: (query, snapshot, onChunk, signal) => runner.stream(lens(query), snapshot, onChunk, signal),
     compile: (query, snapshot, signal) => runner.compile(lens(query), snapshot, signal),
     relationType: (query, signal) => runner.relationType(lens(query), signal),
@@ -154,9 +172,12 @@ function rebase<T>(node: T, live: ValueSpecification, copy: ValueSpecification):
  */
 export function rebased(runner: QueryRunner, live: ValueSpecification, copy: ValueSpecification): QueryRunner {
   const onCopy = (snapshot: CubeSnapshot): CubeSnapshot => rebase(snapshot, live, copy);
+  const window = runner.window;
   return {
     name: runner.name,
     run: (query, snapshot, scope, signal) => runner.run(rebase(query, live, copy), onCopy(snapshot), scope, signal),
+    ...(window ? { window: ((query, snapshot, w, signal) =>
+      window(rebase(query, live, copy), onCopy(snapshot), w, signal)) satisfies RunWindow } : {}),
     stream: (query, snapshot, onChunk, signal) =>
       runner.stream(rebase(query, live, copy), onCopy(snapshot), onChunk, signal),
     compile: (query, snapshot, signal) => runner.compile(rebase(query, live, copy), onCopy(snapshot), signal),
@@ -183,6 +204,9 @@ export interface PlanAndRunHost {
    * the plan, without SQL; after it, with the SQL that was run.
    */
   planAndRun(query: Lambda, epoch: number, signal?: AbortSignal): Promise<{ readonly plan: Plan; readonly rows: ResultTable }>;
+  /** The same for a window of the result, where the engine has windows (`QueryEngine.executeWindow`). */
+  readonly planAndWindow?: ((query: Lambda, epoch: number, window: ResultWindow, signal?: AbortSignal)
+    => Promise<{ readonly plan: Plan; readonly rows: WindowedResult }>) | undefined;
   /** The same, its rows handed over a chunk at a time (`QueryRunner.stream`). */
   stream(query: Lambda, epoch: number, onChunk: (chunk: ResultTable) => void, signal?: AbortSignal): Promise<void>;
 }
@@ -191,10 +215,16 @@ export interface PlanAndRunHost {
 export class PlanAndRun implements QueryRunner {
   readonly name: string;
   readonly host: PlanAndRunHost;
+  readonly window: RunWindow | undefined;
 
   constructor(host: PlanAndRunHost) {
     this.host = host;
     this.name = host.name;
+    const planAndWindow = host.planAndWindow;
+    this.window = planAndWindow === undefined ? undefined : async (query, snapshot, window, signal) => {
+      const { plan, rows } = await planAndWindow(query, snapshot.epoch, window, signal);
+      return { rows: rows.rows, sql: plan.sql, offset: rows.offset, total: rows.total };
+    };
   }
 
   async run(query: Lambda, snapshot: CubeSnapshot, _scope?: LevelScope, signal?: AbortSignal): Promise<RunOutcome> {
@@ -241,9 +271,14 @@ async function step<T>(query: Lambda, sql: string | undefined, signal: AbortSign
 
 /** THE TAB'S HOST: its planner plans in the page (its module, or a server it asks), its engine runs the SQL here. */
 export function localHost(planner: Planner, engine: QueryEngine): PlanAndRunHost {
+  const executeWindow = engine.executeWindow?.bind(engine);
   return {
     name: `plan+${engine.name}`,
     planner,
+    planAndWindow: executeWindow === undefined ? undefined : async (query, epoch, window, signal) => {
+      const plan = await step(query, undefined, signal, () => planner.plan(query, signal));
+      return { plan, rows: await step(query, plan.sql, signal, () => executeWindow(plan, epoch, window, signal)) };
+    },
     async planAndRun(query, epoch, signal) {
       const plan = await step(query, undefined, signal, () => planner.plan(query, signal));
       // the engine types every column by the plan (engine.ts typedByPlan)
