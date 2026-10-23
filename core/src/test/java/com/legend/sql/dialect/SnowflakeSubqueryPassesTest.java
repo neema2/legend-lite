@@ -127,6 +127,28 @@ class SnowflakeSubqueryPassesTest {
     }
 
     /** SQL Anywhere's correlated {@code (SELECT TOP 1 label FROM u WHERE u.t_id = t.id ORDER BY u.id DESC)}. */
+    /** A correlated read of one group of a grouped derived table: its value, with no count, which Snowflake's
+     *  internal error 370001 met over a grouped derived table (the IQ scale program's Q24, measured 2026-10-23). A
+     *  WHERE that fixes no key keeps the count. */
+    @Test
+    void aCorrelatedReadOfOneGroupIsItsValue() {
+        SqlSelect grouped = new SqlSelect(List.of(item(col("t1", "t_id"), "t_id"),
+                item(SqlAgg.Reducer.of(SqlAgg.Fn.COUNT), "n")), false, table("u", "t1", "t_id"), null,
+                List.of(col("t1", "t_id")), null, null, List.of(), null, null, List.of());
+        SqlSource q = new SqlSource.Subselect(grouped, "t2", null);
+        SqlSelect byKey = select(List.of(item(col("t2", "n"), "value")), q,
+                and(notNull(col("t2", "t_id")), notNull(col("t0", "id")),
+                        SqlExpr.Call.of(SqlFn.EQUAL, col("t2", "t_id"), col("t0", "id"))));
+        String sql = render(select(List.of(item(col("t0", "id"), "id"), item(new SqlExpr.ScalarSubquery(byKey), "n")),
+                table("t", "t0", "id"), null));
+        assertTrue(sql.contains("ANY_VALUE(\"t2\".\"n\")") && !sql.contains("COUNT(*) > 1"), sql);
+        SqlSelect byCount = select(List.of(item(col("t2", "t_id"), "value")), q,
+                SqlExpr.Call.of(SqlFn.EQUAL, col("t2", "n"), col("t0", "id")));
+        String counted = render(select(List.of(item(col("t0", "id"), "id"),
+                item(new SqlExpr.ScalarSubquery(byCount), "k")), table("t", "t0", "id"), null));
+        assertTrue(counted.contains("CASE WHEN COUNT(*) > 1 THEN"), counted);
+    }
+
     @Test
     void aCorrelatedScalarSubqueryOfARowLimitIsRefused() {
         SqlSelect top = new SqlSelect(List.of(item(col("t1", "label"), "label")), false,

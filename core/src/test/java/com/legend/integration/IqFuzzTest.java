@@ -57,6 +57,11 @@ class IqFuzzTest {
     private static final String SERVER_TARGET = "type: Postgres;\n    specification: Static { host: '127.0.0.1';"
             + " port: 5432; name: 'postgres'; };\n    auth: Test;";
 
+    /** A call of GREATER or LESSER, which runs a statement over IQ's tables in SQL Anywhere's front end
+     *  ({@code IqDialect.engineOf}). */
+    private static final java.util.regex.Pattern FRONT_END_FUNCTION =
+            java.util.regex.Pattern.compile("(?i)\\b(GREATER|LESSER)\\s*\\(");
+
     /** One query's outcome: its kind, and its rows (ROWS) or its reason. */
     record Outcome(String kind, List<String> rows, String reason) {
     }
@@ -128,7 +133,12 @@ class IqFuzzTest {
                             .append(outcomes.get(13).rows()).append(", the CASE ").append(outcomes.get(14).rows())
                             .append('\n');
                 }
-                if (outcomes.subList(0, 4).stream().allMatch(o -> o.kind().equals("ROWS"))) {
+                // a predicate reading GREATER or LESSER runs its partitions in SQL Anywhere's front end where the
+                // shape alone runs in IQ's engine (measured on IQ 17.1): their values may rightly differ (fuzz round
+                // 12, 2026-10-23: a DATEADD of a DATE, a DATE under IQ's engine and a TIMESTAMP in the front end)
+                boolean oneEngine = !FRONT_END_FUNCTION.matcher(p).find()
+                        || FRONT_END_FUNCTION.matcher(shape.sql()).find();
+                if (oneEngine && outcomes.subList(0, 4).stream().allMatch(o -> o.kind().equals("ROWS"))) {
                     partitioned++;
                     List<String> whole = sorted(outcomes.get(0).rows());
                     List<String> parts = new ArrayList<>();

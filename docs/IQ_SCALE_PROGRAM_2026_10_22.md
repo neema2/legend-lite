@@ -495,3 +495,14 @@ says so.
   the outer column (`t0.id IS NOT NULL`): `RedundantNullGuards` reads a subquery's top select, and runs before
   `ScalarSubqueriesFlattened` brings the guarded WHERE up to it. Four read-only variants asked of the sibling, to
   tell the guard from the raise.
+  - **Measured** (the sibling, VALUES-based CTEs, nothing created): the internal error is the `CASE WHEN COUNT(*) > 1
+    ... ELSE ANY_VALUE(n) END` wrapper over a correlated grouped derived table; the guards make no difference, and
+    `ANY_VALUE(n)` alone answers rightly. `ScalarSubqueriesAggregated` now writes `ANY_VALUE` alone where the WHERE
+    equates each of a grouped derived table's keys to a value of no column of its own (a correlation or a constant):
+    one group at the most, so the count never fires (`SnowflakeSubqueryPassesTest`; a WHERE fixing no key keeps it).
+    The lane's next run will show the run's status.
+- 2026-10-23, **fuzz round 12** (seed 12, 1,000 shapes, depth 5): 15,000 queries, 808 partitioned, one TLP finding,
+  the fuzzer's own: the predicate read LESSER, which runs a statement over IQ's tables in SQL Anywhere's front end
+  (measured on IQ 17.1), so its partitions ran in the front end and the shape alone in IQ's engine, where a DATEADD
+  of a DATE is a DATE (the front end's a TIMESTAMP). The TLP check now skips a predicate that reads GREATER or LESSER
+  where the shape does not.
