@@ -340,14 +340,12 @@ def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
             # chosen to exclude nothing, which exercises the predicate path but asserts
             # nothing about what a predicate does.
             #
-            # And it agrees with the engine on NULLs, where `!=` does not. F28 makes `!=`
-            # keep a row whose operand is NULL while `==` and `>` exclude it; once the
-            # seeder nulled every nullable column, thirty of these services diverged at once
-            # for that one reason. F28 is pinned deliberately by CB_NotEqualsNull and its
-            # two passing companions, and by repro/not-equals-null/ -- so this is the same
-            # split aggregates.py makes around F6, not a defect being routed around:
-            # tangled together one defect blocks all the coverage, separated it blocks only
-            # the part it actually affects.
+            # And it drops the NULL rows, where `!=` would keep them: Pure compares an
+            # absent value as false and `!=` as true (oracle._cmp). Once the seeder nulled
+            # every nullable column, thirty of these services diverged at once on that rule
+            # while the oracle read `!=` as SQL does (F28, withdrawn 2026-10-23). The rule is
+            # pinned by CB_NotEqualsNull and its two companions and by the typed services
+            # (literals.py); these keep to `>`, the split aggregates.py makes around F6.
             spec.filters = [Pred([scalar], ">", " ")]
             features.add("queryFilter")
         query.apply_temporal(c, spec)

@@ -30,6 +30,7 @@ resolved that reference, so it survived. It becomes `stress::AllMapping`.
 """
 from __future__ import annotations
 
+import decimal
 import re
 
 import json
@@ -113,6 +114,8 @@ def _csv_cell(v) -> str:
         return "true" if v else "false"
     if isinstance(v, float):
         return repr(v)
+    if isinstance(v, decimal.Decimal):
+        return format(v, "f")         # never exponent notation: 1E-18 is not a CSV decimal
     s = str(v)
     # RFC4180 quoting. Verified against the engine before relying on it: a field wrapped in
     # double quotes carries an embedded comma correctly. Without this a JSON payload -- which
@@ -146,25 +149,47 @@ def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
     return "\n".join(out)
 
 
-def _tests(spec: Spec, payload: str) -> str:
-    """One test per execution key, or a single unkeyed test."""
+def _tests(spec: Spec, payload) -> str:
+    """One test per execution key, one per parameter case, or a single unkeyed test.
+
+    `payload` is the expected JSON as Pure string text, or for a spec with parameter cases a
+    list of (test id, {parameter: value}, payload). A parameter a case leaves out is absent:
+    the test binds nothing for it, which is how an optional parameter is given no value.
+    """
     fmt = "" if spec.graph else "          serializationFormat: PURE_TDSOBJECT;\n"
+    if spec.cases:
+        tests = []
+        for test_id, params, case_payload in payload:
+            given = [f"            {n} = {_literal(params[n])}" for n, _t, _m in spec.params
+                     if n in params]
+            # NO trailing semicolon after the parameters' bracket, unlike serializationFormat:
+            # `serviceTestParameters: PARAMETERS COLON BRACKET_OPEN ... BRACKET_CLOSE`
+            # (73-service-surface.pure, where it was established).
+            plines = ("          parameters:\n          [\n" + ",\n".join(given)
+                      + "\n          ]\n") if given else ""
+            tests.append(_one_test(test_id, plines + fmt, case_payload))
+        return ",\n".join(tests)
     keys = [k for k, _, _ in spec.multi] or [None]
     out = []
     for k in keys:
         keyline = f"          keys:\n          [\n            '{k}'\n          ];\n" if k else ""
-        out.append(f"        {('expected_rows_' + k) if k else 'expected_rows'}:\n"
-                   f"        {{\n{fmt}{keyline}          asserts:\n          [\n"
-                   f"            matchesOracle:\n              EqualToJson\n"
-                   f"              #{{\n                expected:\n"
-                   f"                  ExternalFormat\n                  #{{\n"
-                   f"                    contentType: 'application/json';\n"
-                   f"                    data: '{payload}';\n                  }}#;\n"
-                   f"              }}#\n          ]\n        }}")
+        out.append(_one_test(('expected_rows_' + k) if k else 'expected_rows', fmt + keyline,
+                             payload))
     # Test elements are COMMA-separated. Without the comma the parser reports the
     # failure at `asserts` inside the FIRST test -- "Valid alternatives: [',', ']']" --
     # which points nowhere near the missing separator.
     return ",\n".join(out)
+
+
+def _one_test(test_id: str, head: str, payload: str) -> str:
+    return (f"        {test_id}:\n"
+            f"        {{\n{head}          asserts:\n          [\n"
+            f"            matchesOracle:\n              EqualToJson\n"
+            f"              #{{\n                expected:\n"
+            f"                  ExternalFormat\n                  #{{\n"
+            f"                    contentType: 'application/json';\n"
+            f"                    data: '{payload}';\n                  }}#;\n"
+            f"              }}#\n          ]\n        }}")
 
 
 def store_data_element(c: Corpus, tables: dict[str, list[dict]],
@@ -234,7 +259,32 @@ def _shorten(v):
     return v
 
 
-def test_suite(spec: Spec, expected: list[dict], note: str) -> str:
+# A Decimal in the payload travels as this marker and is written back as its digits: json writes
+# a float through float.__repr__, which cannot carry 1.0000000000000001, and the engine's
+# assertion compares numbers by value (1.0 is not 1.0000000000000001; 0.1 is 0.100000).
+_DECIMAL = "\u0000decimal:"
+
+
+def _decimal_text(d: decimal.Decimal) -> str:
+    s = format(d, "f")
+    # A fraction always, so the JSON number is a decimal like the engine's and never an integer.
+    return s if "." in s else s + ".0"
+
+
+def _payload(spec: Spec, rows: list[dict]) -> str:
+    payload = rows if spec.graph is None else {"builder": {"_type": "json"}, "values": rows}
+    text = json.dumps(_shorten(payload), separators=(",", ":"),
+                      default=lambda o: _DECIMAL + _decimal_text(o)
+                      if isinstance(o, decimal.Decimal) else _unserializable(o))
+    text = re.sub(r'"\\u0000decimal:(-?[0-9.]+)"', r"\1", text)
+    return _pure_str(text)
+
+
+def _unserializable(o):
+    raise TypeError(f"{type(o).__name__} {o!r} has no JSON form in an expected result")
+
+
+def test_suite(spec: Spec, expected, note: str) -> str:
     """The testSuites block.
 
     A graph-fetch result is not a bare array: `serialize()` wraps it as
@@ -242,9 +292,10 @@ def test_suite(spec: Spec, expected: list[dict], note: str) -> str:
     the actual, not assumed — an expectation written as a bare array fails with the two
     sides looking identical for the first 300 characters.
     """
-    payload = expected if spec.graph is None else {
-        "builder": {"_type": "json"}, "values": expected}
-    payload = _pure_str(json.dumps(_shorten(payload), separators=(",", ":")))
+    if spec.cases:
+        payload = [(test_id, params, _payload(spec, rows)) for test_id, params, rows in expected]
+    else:
+        payload = _payload(spec, expected)
     return f"""  testSuites:
   [
     {spec.short}_suite:
@@ -286,12 +337,56 @@ def _literal(v) -> str:
     if isinstance(v, bool):
         return "true" if v else "false"
     # Before the plain-string branch: DateArg IS a str, and quoting it would produce
-    # `'2024-02-01'` where Pure wants `%2024-02-01`.
+    # `'2024-02-01'` where Pure wants `%2024-02-01`. The same for the other typed literals.
     if isinstance(v, query.DateArg):
         return f"%{v}"
+    if isinstance(v, query.DateTimeArg):
+        return f"%{v.replace(' ', 'T')}"
+    if isinstance(v, query.StrictTimeArg):
+        return f"%{v}"
+    if isinstance(v, query.EnumArg):
+        return f"{v.enum}.{v}"
     if isinstance(v, str):
         return f"'{_pure_str(v)}'"
+    if isinstance(v, decimal.Decimal):
+        return format(v, "f") + "D"
+    if isinstance(v, query.Param):
+        return f"${v.name}->toOne()" if v.to_one else f"${v.name}"
+    if isinstance(v, list):
+        return "[" + ", ".join(_literal(x) for x in v) + "]"
     return repr(v)
+
+
+def _condition(f) -> str:
+    """One filter conjunct as Pure text: a comparison, a bare boolean, a membership or absence
+    test, or a tree of them (query.And, Or, Not, ParamEmpty)."""
+    import query
+
+    if isinstance(f, query.And):
+        return "(" + " && ".join(_condition(x) for x in f.items) + ")"
+    if isinstance(f, query.Or):
+        return "(" + " || ".join(_condition(x) for x in f.items) + ")"
+    if isinstance(f, query.Not):
+        inner = _condition(f.item)
+        return "!" + (inner if inner.startswith("(") else f"({inner})")
+    if isinstance(f, query.ParamEmpty):
+        return f"${f.name}->isEmpty()"
+    path = f"${VAR}.{'.'.join(f.path)}"
+    # `is`/`not` are the BARE boolean forms -- `$x.flag` and `!$x.flag` -- with no
+    # comparison. They exist because comparing a boolean to a boolean literal with `==`
+    # is the one filter shape the engine cannot lower: `$x.isFinal == false` over a
+    # derived Boolean reaches the database as SQL it rejects with "Parser Error: syntax
+    # error at or near =", while the identical `!$x.isFinal` runs. See F50 and
+    # scripts/corpus/probe_derived_filter.py.
+    if f.op == "is":
+        return path
+    if f.op == "not":
+        return f"!{path}"
+    if f.op in ("isEmpty", "isNotEmpty"):
+        return f"{path}->{f.op}()"
+    if f.op == "in":
+        return f"{path}->in({_literal(f.value)})"
+    return f"({path} {f.op} {_literal(f.value)})"
 
 
 def _as_of(spec: Spec) -> str:
@@ -338,19 +433,11 @@ def query_text(spec: Spec) -> str:
     bare names always meant here. Column aliases are unchanged, so the expectation JSON
     keys are identical.
     """
-    lines = [f"    query: |{spec.root}.all({_as_of(spec)})"]
+    params = ", ".join(f"{n}: {t}[{m}]" for n, t, m in spec.params)
+    lines = [f"    query: {{{params}|{spec.root}.all({_as_of(spec)})" if spec.params
+             else f"    query: |{spec.root}.all({_as_of(spec)})"]
     if spec.filters:
-        # `is`/`not` are the BARE boolean forms -- `$x.flag` and `!$x.flag` -- with no
-        # comparison. They exist because comparing a boolean to a boolean literal with `==`
-        # is the one filter shape the engine cannot lower: `$x.isFinal == false` over a
-        # derived Boolean reaches the database as SQL it rejects with "Parser Error: syntax
-        # error at or near =", while the identical `!$x.isFinal` runs. See F50 and
-        # scripts/corpus/probe_derived_filter.py.
-        conds = " && ".join(
-            (f"${VAR}.{'.'.join(f.path)}" if f.op == "is"
-             else f"!${VAR}.{'.'.join(f.path)}" if f.op == "not"
-             else f"(${VAR}.{'.'.join(f.path)} {f.op} {_literal(f.value)})")
-            for f in spec.filters)
+        conds = " && ".join(_condition(f) for f in spec.filters)
         lines.append(f"        ->filter({{{VAR}|{conds}}})")
     def expr(p):
         if p.func:
@@ -411,7 +498,7 @@ def query_text(spec: Spec) -> str:
                      else f"        ->sort([{rendered}])")
     if spec.limit is not None:
         lines.append(f"        ->limit({spec.limit})")
-    return "\n".join(lines) + ";"
+    return "\n".join(lines) + ("};" if spec.params else ";")
 
 
 def _multi_execution(spec: Spec) -> str:
@@ -429,7 +516,9 @@ def _multi_execution(spec: Spec) -> str:
     return "\n".join(body)
 
 
-def service(spec: Spec, expected: list[dict], note: str) -> str:
+def service(spec: Spec, expected, note: str) -> str:
+    """`expected` is the rows, or for a spec with parameter cases (test id, params, rows) per
+    case."""
     if spec.multi:
         exec_block = f"    execution: Multi\n    {{\n{_multi_execution(spec)}\n    }}"
     else:

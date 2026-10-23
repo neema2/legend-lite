@@ -3243,3 +3243,7 @@ Status lives in the plan's Progress table (rule 0b.16).
   - `gates/BUILD.bazel` and `docs/GATES.md` (the Bazel program's): `//scripts/corpus:engine_stress` in `heavy`,
     `:changed_test` and `:run_test` in `checks`, `:tools_build_test` in `core`.
   - `docs/build-inventory/program/PHASE_8.md`: Exec-2's row, taken over.
+- **Cross-area, Phase 1 (announced 2026-10-23, before it lands):**
+  - `tools/engine-runner/` (the Bazel program's): an ERROR line from `TestableMain` carries the exception's causes
+    (`<- caused by: ...`), because a suite that fails to start ("Error initializing test suite session") names its
+    reason only in a cause, and a quarantine entry needs the reason. Only `run.py` reads the detail, and it echoes it.

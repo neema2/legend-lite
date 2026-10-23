@@ -20910,6 +20910,121 @@ PROJECTLINK_TRADE_FX = [
 ]
 
 
+# ---- typed values (8112-typedvalues.pure; docs/STRESS_CORPUS_PLAN_2026_10_19.md, Phase 1) ----
+#
+# Written by COLUMN rather than by row, because what matters is each type's spread: every
+# comparison literals.py writes must keep some rows and drop others, and every optional column
+# must meet a NULL. Each list is the fifteen rows TV-01..TV-15 in order. The comparands
+# literals.py uses are marked; literals.check() asserts that each one discriminates under every
+# operator it is used with. TV-02 is absent in every optional column; otherwise each optional
+# column has NULLs of its own, so a predicate over two of them meets one absent side as well as
+# both (docs/UPSTREAM_FINDINGS.md, F64, turns on the difference).
+#
+#   * a tie on the comparand, and its neighbours either side (42 with 41 and 43; noon with a
+#     second before and after; 2024-02-29 with the days around it)
+#   * negatives, zero and the column's extremes (INTEGER's two, TINYINT's two)
+#   * strings differing only by case, carrying an apostrophe, or a trailing space
+#   * Decimals a double cannot tell apart: 1.0000000000000000 and 1.0000000000000001 are the
+#     same double, and 1.000000000000000001 needs 18 fractional digits, past the scale 16 the
+#     engine casts a Decimal literal to (docs/UPSTREAM_FINDINGS.md, F61)
+#   * grade codes, one with no EnumerationMapping entry ('Z'), which reads as absent
+#
+# TV-14 has no trade and TV-15 names one that does not exist, so they are visible only from the
+# typed-value root; seven trades (TRD-0013, TRD-0015..0020) have no typed value, so a navigation
+# from them lands on nothing.
+def _typed_values() -> list[dict]:
+    from decimal import Decimal as D
+
+    n = None
+    cols = {
+        "TRADE_ID": [f"TRD-{i:04d}" for i in range(1, 13)] + ["TRD-0014", n, "TRD-9999"],
+        # comparand 'alpha'
+        "NAME": ["alpha", "Alpha", "ALPHA", "alpha ", "alphabet", "beta", "beta", "O'Neil",
+                 "gamma", "Zeta", "alpha", "delta", "aleph", "omega", "kappa"],
+        "NAME_OPT": ["alpha", n, "ALPHA", "alpha ", n, "beta", "Alpha", "O'Neil", "gamma", "zeta",
+                     "alpha", "alphabet", n, "mu", "aleph"],
+        # comparand true
+        "ACTIVE": [True, False, True, False, True, True, False, True, False, True, False, True,
+                   True, False, True],
+        "ACTIVE_OPT": [True, n, False, False, True, n, True, False, True, n, False, True, True,
+                       False, True],
+        # comparand 42
+        "QUANTITY": [42, 41, 43, 42, 0, -1, -5, 1, 100, 2147483647, -2147483648, 7, 42, 13, 99],
+        "QUANTITY_OPT": [42, n, 43, 41, 0, -5, n, 42, 100, 2147483647, n, 7, -2147483648, 13, 99],
+        # comparand 2.25; every value exact in binary
+        "RATE": [2.25, 2.125, 2.375, 2.25, 0.0, -1.5, 0.5, 1.0e10, -0.25, 3.75, 10.5, 100.0,
+                 7.75, 1.25, 2.5],
+        "RATE_OPT": [2.25, n, 2.375, 2.125, 0.0, -1.5, 0.5, n, 1.0e10, -0.25, 2.25, 100.0, 7.75,
+                     n, 2.5],
+        # comparand 1.0000000000000001
+        "AMOUNT": [D("1.0000000000000001"), D("1.0000000000000000"), D("1.0000000000000002"),
+                   D("1.0000000000000001"), D("0"), D("-2.5"), D("1.000000000000000001"),
+                   D("12345678.123456789012345678"), D("-0.000000000000000001"), D("0.1"),
+                   D("1.00000000000000009"), D("99.99"), D("1.0000000000000001"),
+                   D("1000000"), D("0.3")],
+        "AMOUNT_OPT": [D("1.0000000000000001"), n, D("1.0000000000000002"), n, D("0"),
+                       D("-2.5"), D("1.0000000000000000"), D("1.000000000000000001"), n, D("0.1"),
+                       D("1.0000000000000001"), D("12345678.123456789012345678"),
+                       D("1.00000000000000009"), D("99.99"), D("0.3")],
+        # comparands 2 (ordered) and 2.5 (equality): a Number compared across Integer and Float
+        "METRIC": [2.0, 2.5, -1.0, 0.0, 7.0, 2.0, 3.0, 1.5, 4.25, 10.0, 2.5, -3.5, 2.75, 100.0,
+                   1.0],
+        "METRIC_OPT": [D("2.0000"), n, D("-1.0000"), D("2.5000"), D("7.0000"), n, D("3.0000"),
+                       D("1.5000"), D("4.2500"), D("10.0000"), D("2.5000"), n, D("2.7500"),
+                       D("100.0000"), D("1.0000")],
+        # comparand 2024-06-03
+        "VALUE_DATE": [_iso(2024, 6, 3), _iso(2024, 6, 2), _iso(2024, 6, 4), _iso(2024, 6, 3),
+                       _iso(1999, 12, 31), _iso(2000, 1, 1), _iso(2024, 2, 29),
+                       _iso(2024, 12, 31), _iso(2025, 1, 1), _iso(1970, 1, 1), _iso(2024, 6, 1),
+                       _iso(2024, 7, 3), _iso(2023, 6, 3), _iso(2024, 6, 30), _iso(2024, 6, 5)],
+        "VALUE_DATE_OPT": [_iso(2024, 6, 3), n, _iso(2024, 6, 4), _iso(2024, 6, 2),
+                           _iso(1999, 12, 31), _iso(2000, 1, 1), _iso(2024, 2, 29), _iso(2024, 6, 3), n,
+                           _iso(1970, 1, 1), _iso(2024, 6, 1), _iso(2024, 7, 3), n,
+                           _iso(2024, 6, 30), _iso(2025, 1, 1)],
+        # comparand 2024-02-29, a leap day between month ends
+        "TRADE_DATE": [_iso(2024, 2, 29), _iso(2024, 2, 28), _iso(2024, 3, 1), _iso(2024, 2, 29),
+                       _iso(2023, 12, 31), _iso(2024, 1, 1), _iso(2023, 2, 28), _iso(2023, 3, 1),
+                       _iso(2024, 12, 31), _iso(2025, 2, 28), _iso(2024, 2, 1), _iso(2024, 3, 31),
+                       _iso(2024, 2, 29), _iso(2020, 2, 29), _iso(2024, 4, 30)],
+        "TRADE_DATE_OPT": [_iso(2024, 2, 29), n, _iso(2024, 3, 1), _iso(2024, 2, 28),
+                           _iso(2023, 12, 31), _iso(2024, 1, 1), n, _iso(2023, 3, 1),
+                           _iso(2024, 12, 31), _iso(2025, 2, 28), _iso(2024, 2, 29), _iso(2024, 3, 31),
+                           _iso(2024, 2, 1), _iso(2020, 2, 29), n],
+        # comparand 2024-06-03T12:00:00; midnight and the last second of the day are both here
+        "STAMPED_AT": ["2024-06-03 12:00:00", "2024-06-03 11:59:59", "2024-06-03 12:00:01",
+                       "2024-06-03 12:00:00", "2024-06-03 00:00:00", "2024-06-03 23:59:59",
+                       "2024-06-04 00:00:00", "2024-06-02 23:59:59", "1999-12-31 23:59:59",
+                       "2000-01-01 00:00:00", "2024-02-29 12:00:00", "2024-06-03 12:30:00",
+                       "2024-06-03 12:00:00", "2025-01-01 00:00:00", "2024-06-03 06:00:00"],
+        "STAMPED_AT_OPT": ["2024-06-03 12:00:00", n, "2024-06-03 12:00:01",
+                           "2024-06-03 11:59:59", n, "2024-06-03 00:00:00", "2024-06-04 00:00:00",
+                           "2024-06-03 12:00:00", "1999-12-31 23:59:59", "2000-01-01 00:00:00", n,
+                           "2024-06-02 23:59:59", "2024-06-03 23:59:59", "2025-01-01 00:00:00",
+                           "2024-06-03 06:00:00"],
+        # comparand 17:30:00 (StrictTime has no ordering in legend-pure: == and != only)
+        "CUTOFF": ["17:30:00", "17:29:59", "17:30:01", "00:00:00", "23:59:59", "12:00:00",
+                   "17:30:00", "09:00:00", "17:30:00", "08:30:00", "16:00:00", "18:00:00",
+                   "06:00:00", "17:00:00", "20:00:00"],
+        "CUTOFF_OPT": ["17:30:00", n, "17:30:01", "00:00:00", "23:59:59", "12:00:00", "17:30:00",
+                       n, "09:00:00", "08:30:00", "17:29:59", "18:00:00", n, "17:00:00", "20:00:00"],
+        # projected only: Byte has no literal and no comparison
+        "OCTET": [-128, 0, 127, 1, -1, 64, 7, 0, 100, -100, 12, 13, 99, 42, 5],
+        "OCTET_OPT": [-128, n, 127, 1, 0, 64, 7, 0, 100, n, 12, 13, 99, n, 5],
+        # comparand STANDARD ('S'); 'Z' has no mapping entry
+        "GRADE": ["P", "S", "W", "D", "S", "P", "W", "S", "D", "P", "S", "W", "P", "D", "S"],
+        "GRADE_OPT": ["P", n, "W", "Z", "S", "P", n, "S", "D", "Z", "S", "W", n, "D", "S"],
+    }
+    rows = [dict(VALUE_ID=f"TV-{i + 1:02d}") for i in range(15)]
+    for col, values in cols.items():
+        assert len(values) == len(rows), f"TYPED_VALUE.{col} has {len(values)} values"
+        for r, v in zip(rows, values):
+            r[col] = v
+    return rows
+
+
+TYPED_VALUE = _typed_values()
+
+
 # The books the ~100 TAXONOMY tables reference. Every taxonomy row carries a BOOK_ID, and
 # until now not one of those ids existed in BOOK -- the two sets were disjoint, so the
 # taxonomies were 1811 classes joined to nothing. That is what made 88% of the corpus's
@@ -20944,6 +21059,7 @@ BOOK += [
 
 TABLES: dict[str, list[dict]] = {
     "PROJECTLINK_TRADE_FX": PROJECTLINK_TRADE_FX,
+    "TYPED_VALUE": TYPED_VALUE,
     "CFX_CURRENCY_PAIR": CFX_CURRENCY_PAIR,
     "CFX_FIXING_SOURCE": CFX_FIXING_SOURCE,
     "CFX_RATE": CFX_RATE,

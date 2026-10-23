@@ -26,12 +26,14 @@ engines share is invisible to it.
 """
 from __future__ import annotations
 
+import decimal
 import json
 import sys
 from pathlib import Path
 
 import battery
 import flat
+import literals
 import model
 import stacks
 from quarantine import LITE_QUARANTINE
@@ -63,6 +65,8 @@ def _cell(v, kind: str):
         return None
     if kind == "bool":
         return "true" if v else "false"
+    if isinstance(v, decimal.Decimal):
+        return format(v, "f")         # a DECIMAL column's seed value, digit for digit (never `Decimal('...')`)
     if kind in ("int", "float"):
         return repr(v)
     return str(v)
@@ -144,7 +148,9 @@ def main() -> None:
     # Also out of scope: any spec whose expectation is MIRRORED. Those roots have no
     # table — an M2M target is not read from a store — so there is nothing for the oracle
     # to evaluate and nothing for legend-lite to generate SQL against.
-    generated = stacks.build(c, {k for k, v in TABLES.items() if v})
+    # The walking generators' view of the seed, as build.py hands it them (literals.FIXTURE_TABLES): with every
+    # seeded table these specs would reach the typed-values pack and no longer be the services emitted.
+    generated = stacks.build(c, literals.walked(TABLES))
     # Services legend-lite cannot even load the model for (Measure) are out of scope on
     # this side; run.py still asserts them against legend-engine.
     lite_blind = {

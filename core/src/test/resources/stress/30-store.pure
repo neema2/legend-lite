@@ -39,6 +39,9 @@ Database store::DB
     // TWO already-executable parents: it joins into core-instrument and core-geo from the
     // same class, and one of its ~groupBy views groups on the key into core-geo.
     include index_core::Store
+    // Not a linked project: the typed-values pack's own store (8112-typedvalues.pure), included the same
+    // way so this connection seeds it and the join from TRADE below sees both tables.
+    include typedvalues::TypedStore
 
     // ---- taxonomy edges, added by scripts/corpus/add_taxonomy_edges.py ----
     // Every taxonomy table carries BOOK_ID and joined to nothing; these are
@@ -1845,6 +1848,9 @@ Database store::DB
     Join Trade_FxRate(PROJECTLINK_TRADE_FX.PAIR_CODE = CFX_RATE.PAIR_CODE and PROJECTLINK_TRADE_FX.COB_DATE = CFX_RATE.COB_DATE and PROJECTLINK_TRADE_FX.RATE_TYPE = CFX_RATE.RATE_TYPE)
 
     Join Pillar_TenorBucket(RATE_CURVE_POINT.TENOR_DAYS >= CTN_BUCKET.MIN_DAYS and RATE_CURVE_POINT.TENOR_DAYS < CTN_BUCKET.MAX_DAYS)
+
+    // A trade's typed value (8112-typedvalues.pure): one or none, so the navigation is to-one.
+    Join Trade_TypedValue(TRADE.TRADE_ID = TYPED_VALUE.TRADE_ID)
 
     Filter QuotedPillarRows(RATE_CURVE_POINT.IS_INTERPOLATED = 0)
 

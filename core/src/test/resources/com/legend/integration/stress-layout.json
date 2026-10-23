@@ -10,7 +10,8 @@
     "95-function-tests.pure": "stress",
     "96-external-data.pure": "stress",
     "97-hier-execution.pure": "stress",
-    "98-combination-execution.pure": "stress"
+    "98-combination-execution.pure": "stress",
+    "99-typed-services.pure": "stress"
   },
   "linked_projects": [
     "core-types",

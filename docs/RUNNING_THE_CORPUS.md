@@ -37,12 +37,15 @@ or a class can change any service's answer. `run` writes `engine-pass.txt` (lite
 form), `engine-verdicts.tsv`, `engine-report.tsv` and each JVM's log into `--out`, or into a
 temporary directory it names.
 
-The generators are the part that matters. Four files under `stress/` are **generated wholesale**
-and must never be hand-edited, because the next build overwrites them:
+The generators are the part that matters. Twelve files under `stress/` are **generated wholesale**
+and must never be hand-edited, because the next build overwrites them (`core/stress.bzl`'s
+`STRESS_GENERATED` lists them all); the main ones:
 
 - `94-fanout-services.pure` — every generated service and its expectation (134k lines)
 - `93-testdata.pure` — the `###Data` element, i.e. all seeded rows
 - `98-combination-execution.pure` — the combination matrix's services
+- `99-typed-services.pure` — typed constants, predicate trees and parameters (`literals.py`, the
+  improvement plan's Phase 1)
 - `92-services.pure` — the hand-written battery, rendered
 
 Everything else under `stress/` is hand-written and safe to edit. If you want to change what

@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class StressServiceSuitesTest {
 
     /** Tests judged equal to the referee (first full run 2026-09-16: 2,702 of 4,736). Shrink-proof. */
-    static final int MIN_PASS = 4705;   // 4700 -> 4705 (2026-10-05: the referee's dateDiff follows legend-pure's elapsed time, F58; five services agree) 2702 -> 2765 -> 4203 -> 4564 -> 4626 -> 4654 -> 4672 -> 4679 -> 4689 (2-ULP judge policy F-AE; 2026-09-16/17: double division; pins; association anchors; F-M; F-O; orElse → coalesce; OR/range navigation aggregates; timestamp JSON spelling; isAlphaNumeric + firstHourOfDay on DuckDB + splitPart index base; view column kinds + grouped-predicate scoping + routed sub-join key demand)
+    static final int MIN_PASS = 4839;   // 4705 -> 4839 (2026-10-23, docs/STRESS_CORPUS_PLAN_2026_10_19.md Phase 1: the typed-value services, 133 of them passing, and CB_NotEqualsNull, whose expectation now reads `!=` over an absent value as legend-pure does; F28 withdrawn) 4700 -> 4705 (2026-10-05: the referee's dateDiff follows legend-pure's elapsed time, F58; five services agree) 2702 -> 2765 -> 4203 -> 4564 -> 4626 -> 4654 -> 4672 -> 4679 -> 4689 (2-ULP judge policy F-AE; 2026-09-16/17: double division; pins; association anchors; F-M; F-O; orElse → coalesce; OR/range navigation aggregates; timestamp JSON spelling; isAlphaNumeric + firstHourOfDay on DuckDB + splitPart index base; view column kinds + grouped-predicate scoping + routed sub-join key demand)
 
 
     @Test

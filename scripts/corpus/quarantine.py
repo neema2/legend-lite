@@ -170,33 +170,53 @@ ENGINE_QUARANTINE.update({
     )
 })
 
-# F28 -- `!=` is the ONLY comparison that keeps a row whose operand is NULL.
-#
-# Against a NULL column the engine excludes the row for `==` and for `>`, and KEEPS it for
-# `!=`. Those cannot both be right:
-#
-#   SQL three-valued logic     NULL <> 'x' is UNKNOWN, so `!=` must EXCLUDE  -- it does not
-#   Pure collection semantics  [] == 'x' is false, so `!=` is true and keeps -- but then the
-#                              ordered comparisons should not be excluding either
-#
-# So this is an internal inconsistency in the engine's filter lowering rather than a
-# disagreement about which model to prefer, and it holds whichever model Legend intends.
-# The oracle stays on three-valued logic: it is self-consistent, and it is what `==` and `>`
-# already do.
-#
-# Minimized in repro/not-equals-null/, which pins all three operators side by side -- the
-# `==` and `>` cases PASS there, which is the evidence that the `!=` case is the odd one.
-#
-# Found by the seed change that put a NULL in EVERY nullable column rather than only the
-# first. Until then no `!=` predicate in the corpus had ever met a NULL, so four generated
-# services diverged at once the moment one could.
+# F28 is WITHDRAWN (2026-10-23): `!=` keeping a row whose operand is NULL, while `==` and `>`
+# drop it, is legend-pure's definition of a comparison over an absent value, not an engine
+# defect; the oracle had followed SQL's three-valued logic and now follows Pure (oracle._cmp).
+# CB_NotEqualsNull passes on the engine and is no longer quarantined. See
+# docs/UPSTREAM_FINDINGS.md.
+
+# F61 -- a Decimal LITERAL is cast to DECIMAL(32,16) in the SQL, so a literal with 18 fractional
+# digits is rounded before it is compared: TL_AmountScale18_Eq_Root matches TV-07's 1.0 rather
+# than TV-08's 1.000000000000000001. Its parameter twin, bound exactly, passes beside it.
+# Minimized in repro/decimal-literal-scale/.
 ENGINE_QUARANTINE.update({
-    f"stress::{name}": ("F28", "`!=` keeps a row whose operand is NULL; `==` and `>` do not")
-    for name in (
-        # The trio lives in combos.predicate_specs; only the `!=` member diverges, and its
-        # two passing companions are what identify it as the odd one.
-        "CB_NotEqualsNull",
-    )
+    "stress::TL_AmountScale18_Eq_Root": ("F61", "a Decimal literal is rounded to scale 16 in the SQL"),
+})
+
+# F62 -- a service parameter typed Number fails with a NullPointerException in the engine's
+# parameter validation (Number is not an external parameter type, and the fall-through reads a
+# validation context the test runner never sets). The matrix's Number parameter twins; their
+# literal twins pass. Minimized in repro/number-parameter/.
+ENGINE_QUARANTINE.update({
+    f"stress::TP_Metric_{op}_{site}": ("F62", "a Number parameter fails with a NullPointerException")
+    for op in ("Eq", "Ne", "Lt", "Le", "Gt", "Ge") for site in ("Root", "Hop")
+})
+
+# F63 -- a StrictTime literal or parameter in a relational query fails plan generation (the
+# engine's type maps leave StrictTime "not supported yet"). Projecting one works:
+# TV_TimeAndOctet_Root and TV_TimeAndOctet_Hop pass. Minimized in repro/stricttime-relational/.
+ENGINE_QUARANTINE.update({
+    f"stress::T{form}_Cutoff_{op}_{site}": ("F63", "a StrictTime literal or parameter fails plan generation")
+    for form in ("L", "P") for op in ("Eq", "Ne") for site in ("Root", "Hop")
+})
+
+# F64 -- inside `!(a || b)` or `!(a && b)`, an `==` or `in` over an absent value reaches SQL bare
+# and reads as UNKNOWN, so the row is dropped where Pure's `!(false || false)` keeps it. A `!`
+# applied directly to an equality is rewritten correctly (TQ_NotEq_* pass), and an ordered
+# comparison is guarded. One absent equality is enough: TQ_AndNotOr_Root loses TV-07, whose
+# grade alone is absent. Minimized in repro/negated-composite-equality/.
+ENGINE_QUARANTINE.update({
+    f"stress::{name}": ("F64", "an equality under a negated || or && reads an absent value as UNKNOWN")
+    for name in ("TQ_NotOr_Root", "TQ_NotOr_Hop", "TQ_AndNotOr_Root")
+})
+
+# F65 -- an enumeration PARAMETER under `!=` or `!in` drops the rows whose value is absent; the
+# same query with the value as a literal keeps them (TL_Grade_Ne_* pass), and so does a String or
+# Integer parameter. Minimized in repro/enum-parameter-negation/.
+ENGINE_QUARANTINE.update({
+    f"stress::{name}": ("F65", "an enumeration parameter under != or !in drops the absent rows")
+    for name in ("TP_Grade_Ne_Root", "TP_Grade_Ne_Hop", "TM_Grade_NotIn_Hop")
 })
 
 # F29 -- a graph fetch returning exactly ONE row serializes `values` as a bare OBJECT
@@ -294,10 +314,11 @@ def check_f24(c, tables) -> list[str]:
     """
     import json
     import graphs
+    import literals
     import oracle
 
-    seeded = {k for k, v in tables.items() if v}
-    by_name = {s.name: s for s in graphs.build(c, seeded, tables)}
+    # the generators' view of the seed, as build.py hands it them (literals.FIXTURE_TABLES)
+    by_name = {s.name: s for s in graphs.build(c, literals.walked(tables), tables)}
     bad = []
     for fqn, (fid, _why) in ENGINE_QUARANTINE.items():
         if fid != "F24":

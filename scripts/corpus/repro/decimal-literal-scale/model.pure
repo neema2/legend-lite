@@ -1,0 +1,81 @@
+// F61: a Decimal LITERAL is cast to DECIMAL(32,16) in the SQL, so its 17th and later fractional digits are lost.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/decimal-literal-scale/model.pure \
+//       --testable=demo::LiteralScale18 --testable=demo::ParamScale18 --testable=demo::LiteralScale16
+//
+// D2 holds 1.000000000000000001 and is the only row equal to that literal. legend-engine 4.145.0 returns D1
+// (1.000000000000000000) for LiteralScale18: core_relational's pureToSQLQuery writes a Decimal literal as
+// `cast(<literal> as <type>)` with the type genericTypeToDataType gives Decimal, DECIMAL(32,16), which rounds the
+// literal to 1.0000000000000000. ParamScale18 asks the same with the value as a parameter, which is bound exactly
+// and returns D2. LiteralScale16 shows a literal within scale 16 is kept: it returns D3. All three PASS on a
+// correct engine; LiteralScale18 fails.
+Class demo::Amount
+{
+  id: String[1];
+  amount: Decimal[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table AMOUNT (ID VARCHAR(4) PRIMARY KEY, AMOUNT DECIMAL(38, 18))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Amount: Relational
+  {
+    ~primaryKey ( [demo::DB]AMOUNT.ID )
+    ~mainTable [demo::DB]AMOUNT
+    id: [demo::DB]AMOUNT.ID,
+    amount: [demo::DB]AMOUNT.AMOUNT
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.AMOUNT:
+      'ID,AMOUNT\n' +
+      'D1,1.000000000000000000\n' +
+      'D2,1.000000000000000001\n' +
+      'D3,1.0000000000000001\n';
+  }#
+}
+
+###Service
+Service demo::LiteralScale18
+{
+  pattern: '/demo/literal18';
+  documentation: '';
+  execution: Single { query: |demo::Amount.all()->filter(x|$x.amount == 1.000000000000000001D)->project(~[id:x|$x.id]); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ LiteralScale18_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"D2"}]'; }#; }# ] } ] } ]
+}
+
+Service demo::ParamScale18
+{
+  pattern: '/demo/param18';
+  documentation: '';
+  execution: Single { query: {p: Decimal[1]|demo::Amount.all()->filter(x|$x.amount == $p)->project(~[id:x|$x.id])}; mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ ParamScale18_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { parameters: [ p = 1.000000000000000001D ] serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"D2"}]'; }#; }# ] } ] } ]
+}
+
+Service demo::LiteralScale16
+{
+  pattern: '/demo/literal16';
+  documentation: '';
+  execution: Single { query: |demo::Amount.all()->filter(x|$x.amount == 1.0000000000000001D)->project(~[id:x|$x.id]); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ LiteralScale16_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"D3"}]'; }#; }# ] } ] } ]
+}

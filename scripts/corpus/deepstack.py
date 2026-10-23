@@ -14,7 +14,7 @@ subtype is the only thing that makes a wrong `~filter` visible -- a wrong filter
 WHOLE table rather than erroring -- and a stacked query over the same rows is only
 interpretable if a simple one over them passes. Same models, same seed, new services, and the
 pair is a differential rather than a replacement. That split has already paid twice:
-aggregates.py against tomany.py around F6, and CB_NotEqualsNull around F28.
+aggregates.py against tomany.py around F6, and CB_NotEqualsNull around `!=` over NULL.
 
 Five variants per root, each a different way to be complex, so the output does not collapse
 into one shape the way stacks.py does (it dedupes by tree signature and saturates at ~45):
@@ -48,7 +48,6 @@ reason nobody has to look for and masks the interaction it exists to find:
   F6   aggregates over a to-many end where some parent has no children. Avoided by
        construction: GROUP aggregates over PROJECTED ROWS, not over a to-many navigation.
   F14  groupBy over a many-to-one enum mapping -- enum-typed columns are never group keys.
-  F28  `!=`, which keeps a row whose operand is NULL where `==` and `>` drop it.
   F55  a graphFetch edge leaving a mapping for one that mapping includes.
   F49  an end inherited from a supertype, navigated from a subtype set.
 """

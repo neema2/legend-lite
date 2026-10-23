@@ -34,11 +34,78 @@ class DateArg(str):
     """
 
 
+class DateTimeArg(str):
+    """A Pure DATETIME literal, held as the seed writes a TIMESTAMP ("2024-06-03 12:00:00") so it
+    compares with seeded values, and written as Pure spells it: `%2024-06-03T12:00:00`."""
+
+
+class StrictTimeArg(str):
+    """A Pure STRICTTIME literal, `%17:30:00`; held as "17:30:00"."""
+
+
+class EnumArg(str):
+    """An enumeration value, `typedvalues::Grade.STANDARD`. Held as the value's NAME, which is
+    what the oracle reads an enum-mapped property as, and carrying its enumeration for the text."""
+
+    def __new__(cls, enum: str, value: str):
+        s = super().__new__(cls, value)
+        s.enum = enum
+        return s
+
+
+@dataclass(frozen=True)
+class Param:
+    """A service parameter in a predicate: `$p`, or `$p->toOne()` for an optional one. Its value
+    comes from the test being evaluated (oracle.evaluate's `params`)."""
+    name: str
+    to_one: bool = False
+
+
 @dataclass
 class Pred:
     path: list[str]
     op: str
-    value: object
+    # A literal; a list of literals or a Param for 'in'; nothing for 'isEmpty' / 'isNotEmpty'.
+    value: object = None
+
+
+# A predicate TREE (the improvement plan's Phase 1). A spec's `filters` is still a list of
+# conjuncts, as every generator before writes it; a conjunct may now be one of these. Each atom
+# is two-valued, as legend-pure defines a comparison over an absent value (oracle._pred), so
+# the combinators are plain boolean ones.
+@dataclass
+class And:
+    items: list
+
+
+@dataclass
+class Or:
+    items: list
+
+
+@dataclass
+class Not:
+    item: object
+
+
+@dataclass(frozen=True)
+class ParamEmpty:
+    """`$p->isEmpty()`: true when the test supplies no value for an optional parameter."""
+    name: str
+
+
+def atoms(filters) -> list[Pred]:
+    """The comparisons in a filter list, trees flattened: what a reader of the paths a spec
+    filters on wants, whatever combines them."""
+    out = []
+    for f in filters:
+        if isinstance(f, (And, Or)):
+            out += atoms(f.items)
+        elif isinstance(f, Not):
+            out += atoms([f.item])
+        elif isinstance(f, Pred):
+            out.append(f)
+    return out
 
 
 @dataclass
@@ -122,6 +189,12 @@ class Spec:
     # and the predicate is over the result, so the engine must decide whether it can be
     # pushed back down. Nothing in the corpus had ever asked it to.
     post_filters: list = field(default_factory=list)
+    # Service parameters, (name, Pure type, multiplicity: '1' | '0..1' | '*'), and the tests that
+    # bind them: (test id, {name: value}), each with its own expected result. A parameter a test
+    # leaves out is absent, which only an optional one may be. No cases: one unnamed test, as
+    # every service before Phase 1 has.
+    params: list = field(default_factory=list)
+    cases: list = field(default_factory=list)
 
     @property
     def short(self) -> str:

@@ -972,7 +972,18 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   pinned defect. Both are kept apart from `stress::H_Issuer` so the embedded-property
   coverage on the same class stays green.
 
-- **`!=` is the only comparison that keeps a row whose operand is NULL.** Filtering
+- **WITHDRAWN 2026-10-23 (F28): not a defect.** legend-pure defines a comparison over an absent value as false --
+  `greaterThan(left:Number[0..1], right:Number[1])` is `$left->isNotEmpty() && ...`, documented "a missing value
+  never satisfies the comparison" -- and `==` as collection equality, so `[] == 'x'` is false and `[] != 'x'`, its
+  negation, is true. Keeping the NULL row for `!=` and dropping it for `==` and `>` is therefore exactly Pure's rule,
+  and the "but then `>` should not be excluding it either" below is where the reasoning went wrong. The improvement
+  plan's Phase 1 probed `!`, `||`, `in` and `!=` over NULLs on 4.145.0 before writing predicate trees, and every
+  answer followed Pure's definition; legend-lite lowers it the same way (`NullSemantics`, after the engine's
+  `processNotEqual`). The oracle followed SQL's three-valued logic and was the side that was wrong: it now compares as
+  Pure does (`oracle._cmp`; a store's join conditions and Filters, which are SQL, keep SQL's rule), `CB_NotEqualsNull`
+  is out of quarantine, and `repro/not-equals-null/` shows the rule rather than a defect. The original entry follows.
+
+  **`!=` is the only comparison that keeps a row whose operand is NULL.** Filtering
   `demo::Thing.all()->filter(t | $t.name != 'none')` over a table where one row has a NULL
   `NAME` returns that row. The same query with `==` excludes it, and so does an ordered
   comparison (`>`). Those three cannot all be right:
@@ -1955,3 +1966,71 @@ two doubles.)
 ulp must return. The roots are now whole numbers, and the three pass on Windows. They still test `cbrt`, though not
 its last bit. The upstream fact stands: a platform's `cbrt` may miss the last bit. Repro: `SELECT cbrt(CAST(325.0 AS
 DOUBLE))` in DuckDB on Windows x64 gives `6.8753443353707056`.
+
+## F61 — A Decimal literal is rounded to 16 fractional digits in the SQL
+
+**A wrong answer, silently.** Found 2026-10-23 by the improvement plan's Phase 1 (typed constants), which seeds
+Decimals a double cannot tell apart. legend-engine 4.145.0 writes a Decimal literal into SQL as `cast(<literal> as
+<type>)` with the type `genericTypeToDataType` gives Decimal (`core_relational`'s `pureToSQLQuery.pure`), which is
+`DECIMAL(32,16)`. A literal with more fractional digits is rounded to 16 before it is compared:
+`$x.amount == 1.000000000000000001D` over a `DECIMAL(38,18)` column matches the row holding `1.000000000000000000`
+and not the one holding `1.000000000000000001`, and `$x.amount > 1.000000000000000001D` keeps the row equal to the
+literal. The same comparison with the value as a `Decimal` parameter is bound exactly and is right, and a literal
+within scale 16 (`1.0000000000000001D`) is kept exactly. A literal with more than 16 integer digits would not fit
+the cast either. Pinned by `stress::TL_AmountScale18_Eq_Root` (quarantined) beside its parameter twin
+`TP_AmountScale18_Eq_Root` (passes). The matrix's Decimal services compare against `1.0000000000000001D`, within
+scale 16, so they test the comparison and not this. Repro: `scripts/corpus/repro/decimal-literal-scale/`.
+
+## F62 — A `Number` service parameter fails with a NullPointerException
+
+Found 2026-10-23 by the improvement plan's Phase 1. A service whose parameter is typed `Number` errors in every
+test on legend-engine 4.145.0: `NullPointerException: Cannot invoke "java.util.List.stream()" because
+"parameterValidationContext" is null`, at `FunctionParametersParametersValidation.validate`. Number is not one of
+the engine's external parameter types (`FunctionParameterTypeValidator`: String, Boolean, Integer, Float, Decimal,
+Date, StrictDate, DateTime, Byte, and enumerations through a validation context), so the type validator is null
+and the code falls through to a context list the service test runner never supplies; given one, it would answer
+"Unknown external parameter type: Number". So it is a refusal reached by a crash rather than by its message.
+legend-pure has no Number literal, but a Number parameter is how a query takes "an Integer or a Float". Pinned by
+the matrix's twelve Number parameter twins, `stress::TP_Metric_{Eq,Ne,Lt,Le,Gt,Ge}_{Root,Hop}` (quarantined); their
+literal twins `TL_Metric_*` pass. Repro: `scripts/corpus/repro/number-parameter/` (a Float parameter beside it
+passes).
+
+## F63 — A StrictTime literal or parameter in a relational query fails plan generation
+
+Found 2026-10-23 by the improvement plan's Phase 1. The relational grammar has no TIME column type, so a StrictTime
+property reads a VARCHAR, and projecting it works. Comparing it does not, on legend-engine 4.145.0: a literal
+(`$x.cutoff == %17:30:00`) fails with `Match failure: ClassInstanceHolderObject instanceOf ClassInstanceHolder` at
+`pureToSQLQuery.pure` line 8856, and a parameter (`{p: StrictTime[1]|...}`) with `Cannot cast a collection of size
+0 to multiplicity [1]` at `duckdbExtension.pure` line 24. The engine's sources say as much: `core_relational`'s and
+`core_relational_duckdb`'s Pure-type-to-SQL-type maps carry `// pair(|$path == 'StrictTime', |fail('not supported
+yet!'))` commented out, and StrictTime is not an external parameter type. legend-pure gives StrictTime only `==` and
+`!=` (no `greaterThan` or `lessThan` takes one), so that is the whole comparison surface. Pinned by
+`stress::TL_Cutoff_{Eq,Ne}_{Root,Hop}` and `TP_Cutoff_{Eq,Ne}_{Root,Hop}` (quarantined); the controls
+`TV_TimeAndOctet_Root` and `TV_TimeAndOctet_Hop` project the StrictTime properties and pass. Repro:
+`scripts/corpus/repro/stricttime-relational/`.
+
+## F64 — Inside a negated `||` or `&&`, an equality over an absent value is read as SQL's UNKNOWN
+
+**A wrong answer, silently.** Found 2026-10-23 by the improvement plan's Phase 1 (predicate trees). legend-pure
+compares an absent value as false -- `[] == 0` and `[]->in([0, 7])` are false -- so for a row whose `n` and `f` are
+NULL, `!(($x.n == 0) || ($x.f > 100.0))` is `!(false || false)`, true, and the row is kept. legend-engine 4.145.0
+drops it. It guards an ordered comparison over a nullable column (`N is not null and N > 100`), and it rewrites a
+`!` applied directly to an equality into `<> ... or ... is null`, so `!($x.n == 0)` keeps the row; but an equality
+or an `in` inside a negated `||` or `&&` reaches SQL bare, `NOT (N = 0 OR ...)`, which is UNKNOWN for the row and
+filters it out. One absent equality is enough: `stress::TQ_AndNotOr_Root`, `$x.rateOpt > 0.0 && !(($x.nameOpt ==
+'alpha') || ($x.gradeOpt == WATCH))`, loses TV-07, whose name is present and grade absent. The same query asked
+one way keeps the row and asked another way drops it, so the engine is inconsistent with itself as well as with
+Pure. Pinned by `stress::TQ_NotOr_Root`, `TQ_NotOr_Hop` and `TQ_AndNotOr_Root` (quarantined); the trees that negate
+an equality directly, or negate only `!=` and ordered comparisons, pass (`TQ_NotEq_*`, `TQ_NotOrNe_*`,
+`TQ_NotAnd_*`). Repro: `scripts/corpus/repro/negated-composite-equality/` (its `NotEq`, the direct form, passes).
+
+## F65 — An enumeration parameter under `!=` or `!in` drops the rows whose value is absent
+
+**A wrong answer, silently.** Found 2026-10-23 by the improvement plan's Phase 1 (parameter twins). `$x.gradeOpt !=
+typedvalues::Grade.STANDARD` keeps the rows whose grade is absent, as legend-pure defines `!=` (`TL_Grade_Ne_Root`
+passes). The same query with the value as a parameter, `{p: typedvalues::Grade[1]|... $x.gradeOpt != $p ...}`, drops
+them on legend-engine 4.145.0, and so does `!$x.grade->in($p)` with an enumeration list parameter and `!($x.grade
+== $p)`. A String or an Integer parameter under `!=` keeps the absent rows, so the loss is the enumeration
+parameter's: whatever maps it to its codes loses the `or ... is null` arm the literal gets. A row whose code has no
+mapping entry is kept either way. Pinned by `stress::TP_Grade_Ne_Root`, `TP_Grade_Ne_Hop` and `TM_Grade_NotIn_Hop`
+(quarantined) beside their literal twins, which pass. Repro: `scripts/corpus/repro/enum-parameter-negation/`.

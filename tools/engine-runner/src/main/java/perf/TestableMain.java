@@ -156,9 +156,9 @@ public class TestableMain
             {
                 counts[2]++;
                 counts[3]++;
-                System.out.println("ERROR " + t + "\n      " + oneLine(String.valueOf(e), 400));
+                System.out.println("ERROR " + t + "\n      " + oneLine(withCauses(e), 1200));
                 write(out, "ERROR\t" + t + "\t\t\t" + (System.nanoTime() - started) / 1_000_000 + "\t"
-                        + oneLine(String.valueOf(e), 300).replace('\t', ' '));
+                        + oneLine(withCauses(e), 900).replace('\t', ' '));
                 continue;
             }
             finally
@@ -394,6 +394,20 @@ public class TestableMain
         }
         System.out.println("rows mode: " + n + " expectation(s) replaced");
         return pmcd;
+    }
+
+    // A throwable and its causes, outermost first. The framework wraps a suite's failure to start ("Error initializing
+    // test suite session for 'X_suite'") around the reason it failed, so the outer message alone names no cause
+    // (docs/STRESS_CORPUS_PLAN_2026_10_19.md, Phase 1: a quarantine entry needs the reason).
+    static String withCauses(Throwable e)
+    {
+        StringBuilder b = new StringBuilder(String.valueOf(e));
+        int depth = 0;
+        for (Throwable c = e.getCause(); c != null && depth < 10; c = c.getCause(), depth++)
+        {
+            b.append(" <- caused by: ").append(c);
+        }
+        return b.toString();
     }
 
     static String oneLine(String s, int max)

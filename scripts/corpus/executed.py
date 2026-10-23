@@ -33,6 +33,7 @@ import sys
 import re
 
 import model
+import query
 
 # The mapping a service runs against when its spec names none.
 DEFAULT_MAPPING = "stress::AllMapping"
@@ -206,7 +207,7 @@ def _spec_touches(c: model.Corpus, spec) -> tuple[set[str], set[tuple[str, str]]
                     classes.add(nxt)
                     if isinstance(sub, dict):
                         stack.append((nxt, sub))
-    for pred in getattr(spec, "filters", []):
+    for pred in query.atoms(getattr(spec, "filters", [])):
         props.add((spec.root, pred.path[-1]))
     for key in getattr(spec, "group_by", []):
         props.add((spec.root, key))
@@ -347,7 +348,44 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
     add("D11 MultiGrainFilter",
         [n for k in c.class_filter if k in ks
          for n in [c.class_filter[k]] if n in c.multigrain])
+    _query_features(specs, quarantined, add)
     return out
+
+
+def _query_features(specs, quarantined: set[str], add) -> None:
+    """A query's typed constants, predicate trees and parameters (the improvement plan's Phase 1,
+    literals.py), executed when a passing service carries them -- held here so a change that
+    stops executing one fails the build (the plan's rule 6)."""
+    import decimal
+
+    live = [s for s in specs if s.name not in quarantined]
+
+    def lit(test):
+        def hit(s):
+            for a in query.atoms(getattr(s, "filters", [])):
+                vals = a.value if isinstance(a.value, list) else [a.value]
+                if any(test(v) for v in vals):
+                    return True
+            return False
+        return [s.short for s in live if hit(s)]
+
+    def tree(kind):
+        def has(fs):
+            return any(isinstance(f, kind) or has(getattr(f, "items", None)
+                                                  or ([f.item] if isinstance(f, query.Not) else []))
+                       for f in fs or [])
+        return [s.short for s in live if has(getattr(s, "filters", []))]
+
+    for mult in ("1", "0..1", "*"):
+        add(f"Q1  parameter [{mult}]",
+            [s.short for s in live if any(m == mult for _n, _t, m in getattr(s, "params", []))])
+    add("Q1  Decimal literal", lit(lambda v: isinstance(v, decimal.Decimal)))
+    add("Q1  DateTime literal", lit(lambda v: isinstance(v, query.DateTimeArg)))
+    add("Q1  enumeration literal", lit(lambda v: isinstance(v, query.EnumArg)))
+    add("Q1  filter or", tree(query.Or))
+    add("Q1  filter not", tree(query.Not))
+    add("Q1  filter in", [s.short for s in live
+                          if any(a.op == "in" for a in query.atoms(getattr(s, "filters", [])))])
 
 
 def _has_chain(dyn) -> bool:
@@ -396,6 +434,7 @@ def base_specs(c: model.Corpus):
     import combos
     import graphs
     import hier
+    import literals
     import query
     import stacks
     import taxonomy
@@ -404,7 +443,7 @@ def base_specs(c: model.Corpus):
     if id(c) in _BASE_SPECS:
         return _BASE_SPECS[id(c)]
     tables = flat.all_tables(c)
-    seeded = {k for k, v in tables.items() if v}
+    seeded = literals.walked(tables)
     _BASE_SPECS[id(c)] = (query.load() + list(battery.SPECS) + stacks.build(c, seeded)
             + graphs.build(c, seeded, tables) + aggregates.build(c, seeded, tables)
             + hier.specs(c) + combos.specs(c)
@@ -416,12 +455,15 @@ def base_specs(c: model.Corpus):
 def all_specs(c: model.Corpus):
     """Every spec the corpus emits, from every generator."""
     import flat
+    import literals
     import spread
 
     base = base_specs(c)
     tables = flat.all_tables(c)
-    seeded = {k for k, v in tables.items() if v}
-    return base + spread.build(c, seeded, base)
+    seeded = literals.walked(tables)
+    # The typed services after spread's, which must not see them: spread measures what the
+    # walking generators leave uncovered (literals.FIXTURE_TABLES says why the pack is apart).
+    return base + spread.build(c, seeded, base) + literals.build()
 
 
 # Every taxonomy feature that a service can execute, all of them with a passing one today.
@@ -441,6 +483,11 @@ BASELINE = {
     "D3  multi-column join", "D4  join w/ dynafunction", "D5  self-join {target}",
     "D6  Filter", "D7  View", "D8  Schema", "E2  Pure/M2M ~src", "E3  XStore",
     "E4  AggregationAware", "E5  Relation ~func", "E6  Operation union",
+    # 2026-10-23, the improvement plan's Phase 1 (literals.py): typed constants, predicate trees
+    # and parameters, each executed by passing services on legend-engine 4.145.0.
+    "Q1  parameter [1]", "Q1  parameter [0..1]", "Q1  parameter [*]", "Q1  Decimal literal",
+    "Q1  DateTime literal", "Q1  enumeration literal", "Q1  filter or", "Q1  filter not",
+    "Q1  filter in",
 }
 
 

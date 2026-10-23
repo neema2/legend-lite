@@ -15,8 +15,10 @@ queries use, and refuses anything else:
                    columns. An engine that emitted an inner join would silently drop
                    rows, and the row counts here are what catch it.
   projection       column value, or NULL if any hop on the path failed
-  filter           three-valued: NULL compared to anything is UNKNOWN, and UNKNOWN rows
-                   are excluded. `status == 'EXECUTED'` must not match a NULL status.
+  filter           as legend-pure compares an absent value: false for every operator but
+                   `!=`, which is true (_cmp). `status == 'EXECUTED'` must not match a NULL
+                   status, and `status != 'EXECUTED'` must. A store's join conditions and
+                   Filters are SQL and keep SQL's three-valued rule (_sql_cmp).
   sort / limit     ordering is computed but see `ordered` below
 
 Where it refuses:
@@ -41,7 +43,7 @@ from datetime import datetime as _datetime
 import re
 
 from model import Corpus
-from query import Pred, Spec
+from query import And, Not, Or, Param, ParamEmpty, Pred, Spec
 
 def _timestamp(v: str) -> str:
     """Legend renders a DateTime column as ISO-8601 with nanoseconds and a numeric UTC
@@ -101,7 +103,7 @@ def _condition(c: Corpus, node, binding: dict) -> bool:
     tag, body = node
     if tag == "pred":
         # A boolean-valued call standing alone as the predicate. NULL is not true: the same
-        # three-valued rule the comparisons use, so a join keeps only pairs it is TRUE for.
+        # three-valued rule a join's comparisons use, so a join keeps only pairs it is TRUE for.
         v = _operand(c, body, binding)
         return v is True
     if tag == "and":
@@ -115,10 +117,10 @@ def _condition(c: Corpus, node, binding: dict) -> bool:
     if tag == "cmp":
         left, op, right = body
         # Three-valued: a NULL operand makes the comparison UNKNOWN, and a join keeps only
-        # pairs for which the condition is TRUE. Same rule the query predicates use, and the
-        # same one F28 shows `!=` breaking on the query side.
-        return _cmp({"=": "==", "<>": "!="}.get(op, op),
-                    _operand(c, left, binding), _operand(c, right, binding))
+        # pairs for which the condition is TRUE. A join condition is SQL, written in the store,
+        # so SQL's rule -- not Pure's, which the query predicates follow (_cmp).
+        return _sql_cmp({"=": "==", "<>": "!="}.get(op, op),
+                        _operand(c, left, binding), _operand(c, right, binding))
     raise Unsupported(f"join condition node {tag!r} has no evaluation rule")
 
 
@@ -209,10 +211,34 @@ def walk_many(c: Corpus, data: dict[str, list[dict]], row: dict,
     return cur
 
 
-def _cmp(op: str, left, right) -> bool:
-    """Three-valued: a NULL operand yields UNKNOWN, which is not true."""
+def _sql_cmp(op: str, left, right) -> bool:
+    """SQL's three-valued comparison, for conditions written in the STORE (a join's, a Filter's):
+    a NULL operand makes it UNKNOWN, which is not true, whatever the operator."""
     if left is None or right is None:
         return False
+    return _cmp(op, left, right)
+
+
+def _cmp(op: str, left, right) -> bool:
+    """Two-valued, as legend-pure defines a comparison over an absent value: false, whatever the
+    operator, except `!=`, which is true.
+
+    legend-pure's `greaterThan(left:Number[0..1], right:Number[1])` is `$left->isNotEmpty() &&
+    ...` and documents it -- "a missing value never satisfies the comparison" -- and the other
+    ordered comparisons are written the same way; `==` is collection equality (`equal(Any[*],
+    Any[*])`), so `[] == 'x'` is false and `[] != 'x'`, its negation, is true. legend-engine and
+    legend-lite both lower it so (lite's NullSemantics, after the engine's processNotEqual).
+
+    This was SQL's three-valued logic until 2026-10-23, which agreed everywhere but on `!=`, and
+    the disagreement was recorded as an engine defect (F28, now withdrawn): an absent operand
+    excluded the row for `==` and `>` and kept it for `!=`, which reads as inconsistent under
+    SQL's rules and is exactly Pure's. The improvement plan's Phase 1 probed `!`, `||` and `in`
+    over NULLs on the pinned engine before writing a predicate tree, and every answer followed
+    Pure's definition but two, which are engine defects with services pinning them: an equality
+    under a negated `||` or `&&` (F64) and an enumeration parameter under `!=` (F65).
+    """
+    if left is None or right is None:
+        return op == "!="
     if op == "==":
         return left == right
     if op == "!=":
@@ -2312,7 +2338,8 @@ def _filter_holds(c: Corpus, name: str, row: dict | None) -> bool:
         return row.get(col) is None
     if op == "isnotnull":
         return row.get(col) is not None
-    return _cmp({"=": "==", "<>": "!="}.get(op, op), row.get(col), val)
+    # A store Filter is SQL, like a join condition: SQL's three-valued `<>`.
+    return _sql_cmp({"=": "==", "<>": "!="}.get(op, op), row.get(col), val)
 
 
 def _mapping_filtered(c: Corpus, root: str, rows: list[dict],
@@ -2511,14 +2538,39 @@ def _group(spec: Spec, rows: list[dict]) -> list[dict]:
     return out
 
 
-def _pred(c: Corpus, data, row, root: str, f) -> bool:
-    """One query predicate. `is`/`not` are the bare boolean forms; everything else compares.
+def _bound(value, params: dict | None):
+    """A predicate's comparand: a literal as written, or a parameter's value in this test."""
+    if not isinstance(value, Param):
+        return value
+    if params is None or value.name not in params:
+        if value.to_one:
+            # `$p->toOne()` over an absent parameter raises in Pure; the optional-filter form
+            # guards it with `$p->isEmpty() ||` and never reaches here when it is absent.
+            raise Unsupported(f"${value.name}->toOne() evaluated with no value for {value.name}")
+        return None
+    return params[value.name]
+
+
+def _pred(c: Corpus, data, row, root: str, f, params: dict | None = None) -> bool:
+    """One query predicate, or a tree of them. `is`/`not` are the bare boolean forms; `in`,
+    `isEmpty` and `isNotEmpty` test membership and absence; everything else compares, as
+    legend-pure defines a comparison over an absent value (_cmp). So `!` is plain negation:
+    `!($x.v > 0)` keeps a row whose v is absent, which the probe of the pinned engine confirmed
+    before any tree was written (docs/STRESS_CORPUS_PLAN_2026_10_19.md, Phase 1).
 
     The bare forms exist because `$x.flag == false` is the one filter the engine cannot
     lower (F50). Treating them here as `== True` / `== False` would be wrong for a NULL:
     Pure's `!$x.flag` over an absent value is not `$x.flag == false`, so a bare form on an
     optional boolean is refused rather than guessed at.
     """
+    if isinstance(f, And):
+        return all(_pred(c, data, row, root, x, params) for x in f.items)
+    if isinstance(f, Or):
+        return any(_pred(c, data, row, root, x, params) for x in f.items)
+    if isinstance(f, Not):
+        return not _pred(c, data, row, root, f.item, params)
+    if isinstance(f, ParamEmpty):
+        return params is None or params.get(f.name) is None
     v = _value(c, data, row, root, f.path)
     if f.op in ("is", "not"):
         if v is None:
@@ -2527,10 +2579,19 @@ def _pred(c: Corpus, data, row, root: str, f) -> bool:
                 f"for an absent boolean is not something this oracle should guess; filter on "
                 f"a required property, or compare explicitly.")
         return bool(v) if f.op == "is" else not v
-    return _cmp(f.op, v, f.value)
+    if f.op == "isEmpty":
+        return v is None
+    if f.op == "isNotEmpty":
+        return v is not None
+    if f.op == "in":
+        # Membership is collection membership: an absent value is a member of nothing.
+        members = _bound(f.value, params)
+        return v is not None and any(_cmp("==", v, m) for m in (members or []))
+    return _cmp(f.op, v, _bound(f.value, params))
 
 
-def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
+def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]],
+             params: dict | None = None) -> list[dict]:
     if spec.graph is not None:
         return evaluate_graph(c, spec, data)
     """Returns the rows the service must produce, as alias -> python value."""
@@ -2543,7 +2604,7 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
     base = _mapping_filtered(c, spec.root, _rows_for(c, spec.root, data), data)
     base = _milestoned(c, spec, base)
     kept = [r for r in base
-            if all(_pred(c, data, r, spec.root, f) for f in spec.filters)]
+            if all(_pred(c, data, r, spec.root, f, params) for f in spec.filters)]
 
     out = [{p.alias: (_agg(c, data, r, spec.root, p) if p.agg
                       else _value(c, data, r, spec.root, p.path, p.args, p.func))
@@ -2569,8 +2630,8 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
         out = _group(spec, out)
     for f in getattr(spec, "post_filters", ()):
         # After grouping, on the projected alias. A row whose value is NULL is dropped,
-        # which is what `>` does and what F28 says `!=` does not -- so post filters use the
-        # same comparison discipline as the pre-project ones.
+        # which is what `>` does. Not what `!=` does over an absent value (_cmp), so a post
+        # filter with `!=` over a nullable alias would need _cmp's rule; none is written.
         out = [r for r in out
                if r.get(f.path[0]) is not None and _cmp(f.op, r[f.path[0]], f.value)]
     keys = ([] if not spec.sort
@@ -2617,8 +2678,12 @@ def render(value, kind: str):
         # narrowed value of a 4-byte column. The engine prints such a column as 16.1 and
         # computes with 16.100000381469727; dropping the tag here rendered the second,
         # against an engine printing the first, on a row whose every other column agreed.
+        import decimal
         import flat
-        return value if isinstance(value, flat.F32) else float(value)
+        # A Decimal stays one: the engine prints a DECIMAL column's value exactly and its JSON
+        # assertion compares numbers by value, so 1.0000000000000001 rendered through a double
+        # would be 1.0 and wrong. emit.py writes it digit for digit.
+        return value if isinstance(value, (flat.F32, decimal.Decimal)) else float(value)
     if kind == "timestamp":
         return _timestamp(value)
     if kind in ("string", "date"):
