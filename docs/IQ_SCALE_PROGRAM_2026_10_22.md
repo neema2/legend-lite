@@ -488,3 +488,10 @@ says so.
   it reads the select's own row alone (no aggregate, window, or other scope's variable). It changes the shared
   translator's Pure for both SQL islands, so it waits for a slice of its own; dropping the dividend from `quotient`'s
   message alone would take the base from 3 to 2.
+- 2026-10-23, **fuzz round 11** (seed 11, 2,000 shapes, `iq17-tds`, ansinull Off): 30,000 queries, 1,807 partitioned,
+  no finding.
+- 2026-10-23, **Q24's residual** (`cte/a_cte_in_a_scalar_subquery`, Snowflake's internal error 370001): lite sends a
+  correlated aggregate subquery (`CASE WHEN COUNT(*) > 1 THEN <raise> ELSE ANY_VALUE(n) END`) whose WHERE still guards
+  the outer column (`t0.id IS NOT NULL`): `RedundantNullGuards` reads a subquery's top select, and runs before
+  `ScalarSubqueriesFlattened` brings the guarded WHERE up to it. Four read-only variants asked of the sibling, to
+  tell the guard from the raise.
