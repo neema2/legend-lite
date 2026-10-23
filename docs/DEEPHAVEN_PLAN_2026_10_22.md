@@ -1,27 +1,31 @@
 # Deephaven as a database of legend-lite: the design (2026-10-22, revised)
 
-**Status: PROPOSED. Nothing here is built.** Revised the same day on the user's ruling: **Deephaven is just another
-backend.** A user builds a `###Relational` store, mappings and classes, and everything works: the Relation API
-straight on the store's tables, `project()` over class navigation. No store of its own, no table kinds. The first
-version of this document (a `###Deephaven` store with source and input tables, `LONG`/`DATE`/`InputTable` grammar
-additions, a shared `ServerUrl`) is superseded; git history keeps it (`26e37fc3`). What carries over unchanged: the
-architecture agreed with the MongoDB line (§8), and DataCube's ticking mode agreed with the DataCube + Python line
-(§10). **legend-engine's Deephaven extension is not the reference** (the user, 2026-10-22: half built, does not work);
-its `###Deephaven` section and `DeephavenConnection` stay carried as today (PARK-38), unused.
+**Status: L1 and L2 built (their branches, §9); the rest PROPOSED.** Revised the same day on the user's ruling:
+**Deephaven is just another backend.** A user builds a `###Relational` store, mappings and classes, and everything
+works: the Relation API straight on the store's tables, `project()` over class navigation. No store of its own, no
+table kinds. The first version of this document (a `###Deephaven` store with source and input tables,
+`LONG`/`DATE`/`InputTable` grammar additions, a shared `ServerUrl`) is superseded; git history keeps it (`26e37fc3`).
+What carries over unchanged: the architecture agreed with the MongoDB line (§8), and DataCube's ticking mode agreed
+with the DataCube + Python line (§10). **legend-engine's Deephaven extension is not the reference** (the user,
+2026-10-22: half built, does not work); its `###Deephaven` section and `DeephavenConnection` stay carried as today
+(PARK-38), unused.
 
 ## 0. The answer in one paragraph
 
 A Deephaven server is a database of legend-lite. Its tables are declared in an ordinary `###Relational` store, with
 the types, `PRIMARY KEY` and `NOT NULL` that store already has, and the same store can be bound to DuckDB in one
-runtime and to Deephaven in another. The connection is `RelationalDatabaseConnection { type: Deephaven; ... }`, with
-a connection specification and an authentication of its own, as Snowflake has its own. A query on a Deephaven
-runtime is planned by **a render target over the same `SqlQuery` IR**, `sql/dialect/Deephaven.java`, implementing
-`SqlDialect` whole as `MongoDb` does, which writes Deephaven's table operations (its `BatchTableRequest`) instead of
-SQL text: Deephaven's own SQL front end handled 8 of DataCube's 14 query shapes, its table operations all 14. A
-**connector in `core/src/main/deephaven`**, found through `ServiceLoader`, runs the plan: **typed rows** for a
-snapshot, and, the one thing Deephaven adds, **a live handle** for a caller that subscribes. Live or snapshot is how a
-caller executes a plan, not what was planned. Reference data gets into Deephaven the platform's own way: read from its
-source of record on one runtime, **written through the same modelled table** on the Deephaven runtime.
+runtime and to Deephaven in another. The connection is `RelationalDatabaseConnection { type: Deephaven; ... }`, with a
+connection specification and an authentication of its own, as Snowflake has its own. A query on a Deephaven runtime is
+planned by **a render target over the same `SqlQuery` IR**, `sql/dialect/Deephaven.java`, implementing `SqlDialect`
+whole as `MongoDb` does, which writes Deephaven's table operations (its `BatchTableRequest`) instead of SQL text:
+Deephaven's own SQL front end handled 8 of DataCube's 14 query shapes, its table operations all 14. **DataCube reaches
+Deephaven from the browser, with no server in the middle** (the user, 2026-10-23; DH21): the planner DataCube already
+runs in the tab (WebAssembly) plans the query, lite's own encoder turns the plan into Deephaven's messages, the tab
+sends them and subscribes to the result with the JS library the Deephaven server serves. A server-side sender (typed
+rows for the server's API, Python and the tests; writes) speaks the same protocol from the JDK's own HTTP client,
+later. Live or snapshot is how a caller executes a plan, not what was planned. Reference data gets into Deephaven the
+platform's own way: read from its source of record on one runtime, **written through the same modelled table** on the
+Deephaven runtime.
 
 ## 1. Where Deephaven is not like the other databases
 
@@ -43,9 +47,10 @@ None of these touches the model. Each is decided below, where it lands.
    division, strings, dates, NaN); decimals are `BigDecimal` with fewer operations. As every dialect: measured on
    lanes, refused by name, a register row each (DH7).
 7. **Results are typed rows only** until host renderers exist (DH9).
-8. **The license shapes deployment** (Deephaven Community License): the connector never ships in `//core:drivers`;
-   and since creating a table creates an input table, only internal users may run DDL against Deephaven (§3a, §4 of
-   the license; DH11, DH15).
+8. **The license shapes deployment** (Deephaven Community License): no Deephaven code enters lite's build (DH11:
+   every Deephaven jar on Maven Central, its protocol stubs included, is under that license); the JS library is
+   fetched from the user's own Deephaven server; and since creating a table creates an input table, only internal
+   users may run DDL against Deephaven (§3a, §4 of the license; DH11, DH15).
 
 ## 2. What exists
 
@@ -96,8 +101,8 @@ a mismatched connection is the connector's to refuse when a session opens. The t
 | `TIMESTAMP` | `Instant` | DateTime |
 | every other (`BINARY`, `VARBINARY`, `ARRAY`, semi-structured, `OTHER`, `DISTINCT`, `TIMESTAMP_NS`) | refused until a case | |
 
-The table is proposed; L3's lanes measure it. Nullability is the store's: a column is nullable unless `NOT NULL`, as
-a Deephaven column is.
+The table is proposed; the lanes measure it (L3b, L3s). Nullability is the store's: a column is nullable unless `NOT
+NULL`, as a Deephaven column is.
 
 **Names on the server.** Deephaven has one namespace of tables. A table in a store's default schema is that name on
 the server. A named schema is refused by the target until a case decides it (candidates: a Deephaven application per
@@ -166,7 +171,7 @@ Alongside the MongoDB line's (the user's rulings of 2026-10-16), so the two non-
 | DH8 | the test server | D8: a pinned `mongod`, Bazel-downloaded | **a pinned Deephaven server**, Bazel-downloaded from Maven Central, started by the test (no Docker); test-only, never on a product classpath |
 | DH9 | what a result is | D10: database-written text | **typed rows** (Arrow Flight's cells, `Statements.rows`); a text output refused by name until host renderers exist (`docs/RESULTS_AND_RENDERERS_2026_10_22.md`, proposed) |
 | DH10 | live results | (none) | **an execution mode, not a plan node**: `LiveStatements.subscribe(statement, slots, values, columns) → LiveHandle` beside `Statements`; the handle carries the server, the ticket, the column names, and `close`/cancel |
-| DH11 | where the connector lives | D12: `core/src/main/mongodb`, bundled | **`core/src/main/deephaven`, `ServiceLoader`, not bundled**: Deephaven's client is under the Deephaven Community License, so the shipped product never carries it; an opt-in server target adds it for a deployment that fetches Deephaven itself; its jars from a `maven.install` pool of their own |
+| DH11 | the client | D12: `core/src/main/mongodb`, bundled | **lite's own, no Deephaven code in the build** (revised 2026-10-23; the first answer, a `@maven_deephaven` pool of Deephaven's stubs with gRPC, was pinned and reverted the same day): every Deephaven jar on Maven Central is under the Deephaven Community License, so lite speaks Deephaven's browser protocol (gRPC-web: each message a 5-byte frame, the status in a trailer frame, over HTTP/2) with an encoder of its own, from the plan's JSON to Deephaven's binary messages, each field's number and wire type checked against Deephaven's published message definitions (one is a zigzag `sint32`: the measured check, §9). One encoder, in Java beside the target, so the WebAssembly planner carries it to the tab and the server-side sender reuses it |
 | DH12 | the connection's address | D4: a specification variant | **`ConnectionSpecification.Deephaven(host, port, useTls)`** (§4). Supersedes the shared `ServerUrl` agreed in §8's first version: Deephaven no longer needs it |
 | DH13 | authentication | a vault reference | **`PreSharedKey(keyVaultReference)`** (§4) |
 | DH14 | the metamodel store | D13: refused by name | **refused by name** |
@@ -175,6 +180,8 @@ Alongside the MongoDB line's (the user's rulings of 2026-10-16), so the two non-
 | DH17 | writes | (none planned: test-data loads only) | **the Cypher writes line's four verbs (§6)**, each a table-operation plan then one input-table add or delete; `write` into a keyed table and every verb but `write` on an append-only one refused by name; one write per program |
 | DH18 | names on the server | (none) | **the default schema's names**; a named schema refused until a case (§3) |
 | DH19 | a restart | (none) | **refused by name**: a table missing from the server is reported as missing, never recreated empty by the connector; the publisher recreates and reloads (§7) |
+| DH21 | DataCube's route | (none) | **the browser, straight to Deephaven** (the user, 2026-10-23: "we definitely have to find path for browser direct to DeepHaven without server in the middle"; measured, §9): the tab plans (the WebAssembly planner), asks the same module for the plan's bytes, posts them to Deephaven over HTTPS (Deephaven refuses its browser protocol without HTTP/2, which browsers speak only over TLS), publishes the result under a shared name, opens it with `dh-core.js` (`getSharedObject`) and subscribes to the visible rows. The tab's session owns the shared table: it refreshes its token while the grid is open and releases the table on close. Each tab builds its own table; identical ones are one table on the server (measured in the spike). **Who signs in:** the user, from the browser, to Deephaven; the connection's pre-shared key is a server secret and is never sent to a browser (a test key in the demo; Deephaven's per-user login, its code console off, for real users) |
+| DH22 | the plan's form | D10: database-written text | **text: the plan stays Deephaven's own JSON form** of its batch message (shown in DataCube's query pane, compared in tests, quotable); the bytes are the sending step's, which fills what exists only at run time (this session's result ticket, an uploaded parameters table) and encodes |
 | DH20 | joins | (Mongo's own) | **`natural_join` where the right side's key is unique** (its declared key covers the join columns, or it was grouped by them); the general `join` for an inner join otherwise; `asOfJoin` as `aj`; a to-many outer join (Deephaven's outer joins are experimental) and a non-equi join refused by name until measured |
 
 ## 6. Writes: the Cypher line's write design, rendered on Deephaven
@@ -228,7 +235,7 @@ rows, checked against the plan's columns, carried (never computed) by the connec
 that is an Arrow upload (`DoPut`), for a SQL database the bulk staging `exec.BulkLoad` already does. To propose to the
 Cypher writes line, since it extends their parameter contract.
 
-The write step's landing is the Cypher writes branch reaching `main` (W, §9). Nothing before L3's writes waits on it:
+The write step's landing is the Cypher writes branch reaching `main` (W, §9). Nothing before L3w waits on it:
 the model, reads, creating tables and live results land first.
 
 ## 7. The demo world and the publisher
@@ -256,13 +263,15 @@ the model, reads, creating tables and live results land first.
 3. **Typed rows only, text outputs refused by name.** `RESULTS_AND_RENDERERS_2026_10_22` is proposed and unruled.
 4. **`LiveStatements` beside `Statements`, no plan node**; the handle defines `close` and cancel.
 5. **The connector absent by default**, found as Mongo's is (`Connectors.of(type)` by `ServiceLoader`, an `Unbuilt`
-   refusing by name when none is on the class path), loaded from the opt-in server target. From the Mongo merge:
+   refusing by name when none is on the class path), loaded from the opt-in server target (2026-10-23: with no
+   Deephaven code in the build, DH11, the license no longer asks for the opt-in target; whether the server-side
+   sender is bundled is L3s's to decide). From the Mongo merge:
    `TestBackendsTest` wants a `DeephavenBackend` once the type has a dialect, and the tests iterating
    `Databases.implemented()` need the non-SQL filter Mongo's merge lands, reused.
 6. **The `QueryTarget` split** taken up together once the Mongo branch is on main.
 7. **Guard and registry edits additive**, each dated; whoever lands second re-adds. After the Mongo merge,
    `DatabaseConnector` gains `ownSessions()` and `open(ConnectionDefinition)`, and the connection codec is
-   `model/ConnectionWire`: L3 uses those.
+   `model/ConnectionWire`: L3s uses those.
 
 ## 9. The landings, in the order agreed (the user, 2026-10-22: "do everything, then a fake UI until the DataCube session has cleaned up")
 
@@ -273,12 +282,14 @@ publisher replaces the demo's seeding once they do. Stacked branches, no PR unti
 |---|---|---|---|
 | L1 | `claude/deephaven-1-model` (on main) | `DatabaseType.Deephaven` (a lite type) and its switch arms, each refusing by name until L2/L3; `ConnectionSpecification.Deephaven`, `AuthenticationSpec.PreSharedKey`: parser (both dialects), protocol records, `ConnectionWire`'s tags, `ConnectorsTest`'s rows; no legend-engine JSON and no composer rule (each refused by name, as SQLite's specification: S89's "refused by name where it has none"); no decision at the model door (D9: the connector refuses a mismatch, the target a store it cannot hold, L2); S48 extended; `LITE-DESIGN-deephaven-backend` declared | `//gates:local`, `//gates:parser_equivalence`; the Studio line reviews the grammar |
 | L2 | `claude/deephaven-2-target` (on L1 merged with the MongoDB branch, whose dialect hooks a non-SQL target uses) | `sql/dialect/Deephaven.java` (`SqlDialect` whole), designed against the IR DataCube's 14 query shapes actually lower to, then class queries through mappings; **a parameter as a one-row table joined in** (a formula reads its column; no value is ever written into formula text, DH5); DDL as input tables (DH15); a column type (§3), a schema or a name the server cannot hold refused by name; every other IR node, function and aggregate refused by name; unit tests on the plan text, as `MongoDbDialectTest` | the dialect's tests; every existing lane's dump unchanged |
-| L3 | `claude/deephaven-3-connector` (on L2 merged with the Mongo branch, whose connector seam it uses) | `core/src/main/deephaven`: `rows` over Arrow Flight, `subscribe` with its handle, creating tables, the schema check (DH16), the missing-table refusal (DH19); the `@maven_deephaven` pool; the pinned test server and `DeephavenBackend`; the opt-in server target; the guards' additive lines, each dated | lite's own Deephaven cases, answered on DuckDB and on Deephaven and compared row for row; then the PCT lanes, as every database's |
-| D0 | a demo module (on L3) | **the first demo**: the store, classes and mappings of §7; reference data and ticks loaded the way tests seed data (marked temporary); the simulator; a **restart watcher** that re-seeds after a Deephaven restart and tells subscribers; **a plain live-grid page** (dh-core.js from the server) standing in for DataCube | a ticking grid whose values agree with DuckDB's over the same inputs; a restart survived |
+| B0 | scratch (measured 2026-10-23, below) | **the browser check**: a page served by another site posts a plan to Deephaven over HTTPS, publishes it, opens it with `dh-core.js` and watches it tick | done |
+| L3b | `claude/deephaven-3-browser` (on L2) | **the browser route (DH21)**: the encoder (DH11, DH22) beside the target, its field table checked against Deephaven's message definitions; the target and the encoder in the WebAssembly planner; the tab's sender (post the bytes, publish, refresh the session, release on close) and the subscription through `dh-core.js`; the pinned test server (HTTPS, a test certificate) | the encoder's tests against Deephaven's own definitions; the browser cases in headless Chromium against the pinned server: L2's 18 shapes give DuckDB's rows, and a live one ticks |
+| D0 | a demo module (on L3b) | **the first demo**: the store, classes and mappings of §7; reference data and the simulator as a **Deephaven startup script** (marked temporary: lite's modelled publisher replaces it, L5); a **restart watcher** that re-seeds after a Deephaven restart and tells subscribers; **a plain live-grid page** in the browser (the planner, the sender, `dh-core.js`; no server in the middle) standing in for DataCube | a ticking grid whose values agree with DuckDB's over the same inputs; a restart survived |
+| L3s | `claude/deephaven-3-server` (on L3b, merged with the Mongo branch, whose connector seam it uses) | **the server-side sender**: the same encoder over the JDK's HTTP client (no jar), found through `ServiceLoader`; `rows` over Arrow Flight with lite's own Arrow reader, `subscribe` with its handle, creating tables, the schema check (DH16), the missing-table refusal (DH19); `DeephavenBackend`; the guards' additive lines, each dated | lite's own Deephaven cases, answered on DuckDB and on Deephaven and compared row for row; then the PCT lanes, as every database's |
 | W | `claude/cypher-writes` reaching `main` (the Cypher writes line's landing, its owner's call) | §6: the four verbs, staging, class writes, write plans | its own gates |
 | Wr | on main after W (built here, reviewed by the Cypher writes line) | the relation slot: a parameter whose value is typed rows, staged by the runner (§6's gap) | its own tests on DuckDB, H2, Postgres |
 | X | on Wr | **cross-store with explicit boundaries**: each `from(runtime)` a split, the inner part planned on its runtime and its rows carried into the outer part's slot; refused by name inside a live plan and for writes to two databases | a read on DuckDB merged into Deephaven as one program |
-| L3w | on L3, W and Wr | Deephaven's write arms (DH17, §6's table) | the write cases, DuckDB against Deephaven |
+| L3w | on L3s, W and Wr | Deephaven's write arms (DH17, §6's table) | the write cases, DuckDB against Deephaven |
 | L5 | on D0, X and L3w | the modelled publisher (§7) replaces D0's seeding | D0's checks, with no seeding |
 | L4 | `claude/deephaven-4-datacube`, stacked on the DataCube line's branch once it has settled | DataCube's ticking mode (§10) replaces the plain page | the DataCube line reviews |
 
@@ -286,8 +297,19 @@ publisher replaces the demo's seeding once they do. Stacked branches, no PR unti
 grand total over a literal key and over no rows, distinct, top-N, nested groupBy-extend, avg, count distinct, std,
 median, left and inner joins with null keys, three-valued NOT and OR, a boolean column, IN, IS NULL, a HAVING-style
 filter), run on a Deephaven 42.7 server (its release tarball, Java 21) over 200 rows with about 12% nulls in every
-column, gave DuckDB's rows on all 18 (the harness: a scratch check through the protocol's own stubs, which L3's
-differential test replaces). Two shapes were the compiler's refusals, not the target's.
+column, gave DuckDB's rows on all 18 (the harness: a scratch check through the protocol's own stubs, which L3b's
+browser cases and L3s's differential test replace). Two shapes were the compiler's refusals, not the target's.
+
+**The browser route, measured (2026-10-23, B0):** a page served from `http://127.0.0.1:8081`, Deephaven 42.7 at
+`https://localhost:8443` (a self-signed certificate; headless Chromium told to accept it). The page signed in with the
+key and read back the session token across sites (Deephaven's CORS handler allows any origin and exposes
+`Authorization` and `grpc-status`); sent one batch it encoded itself (a 0.2 s time table, derived columns, a sum by
+key, a sort), all four steps created; published the result under a shared name; and `dh-core.js`, loaded from the
+Deephaven server, opened it and ticked: every 200 ms with the server's update cycle at 100 ms (24 grid updates in 5
+s), once a second at Deephaven's default 1 s cycle (so the demo sets the cycle). Over plain HTTP/1.1 Deephaven refuses
+its browser protocol ("not using http2"), so HTTPS is required. The first attempt failed on the encoding (a table
+reference's offset is a zigzag `sint32`), which is why the encoder's field table is checked against Deephaven's own
+definitions (DH11).
 
 **Before internal users rely on it:** the firm's counsel reviews the deployment against the Deephaven Community
 License (this line's reading, `experiments/deephaven-spike/README.md`, is not legal advice).
@@ -298,7 +320,8 @@ The user's shape: built here on a branch stacked on the DataCube line's, reviewe
 
 - **Where it plugs in.** Every grid's rows go through one `QueryRunner`, fixed when the cube is built (`PlanThenRun`
   in the tab, `pythonRunner` on a page Python serves). A Deephaven runtime is another runner chosen at cube build, and
-  a `subscribe` beside `QueryEngine.execute` answers the live handle (DH10).
+  a `subscribe` beside `QueryEngine.execute` answers the live handle (DH10). That runner runs in the tab, with no
+  server in the middle (DH21): the WebAssembly planner plans and encodes, the tab sends and subscribes.
 - **The tick.** A `ticked` event, small and outside the transaction and undo machinery, so it survives the state
   owner's coming rework (the single writer's client side, after the line's S7): it replaces the grid's derived rows
   and nothing else. It never writes the cube or page document, never adds a command, never adds a page write: the
@@ -320,6 +343,6 @@ The user's shape: built here on a branch stacked on the DataCube line's, reviewe
    Deephaven`, its specification and pre-shared key as lite's, execution by table operations (this document).
 2. On Deephaven, a program writes at most once (no transaction), and a partial `merge` or an `update` is a
    compute-then-add that a concurrent writer can race (L3w).
-3. On Deephaven, a value equal to a primitive column's null sentinel cannot be stored, and is refused (L3).
+3. On Deephaven, a value equal to a primitive column's null sentinel cannot be stored, and is refused (L3w).
 4. A Deephaven result is typed rows; its served text forms are refused until host renderers exist.
-5. Formula semantics that differ from SQL's, one row each as the lanes find them (L3).
+5. Formula semantics that differ from SQL's, one row each as the lanes find them (L3b, L3s).
