@@ -239,6 +239,10 @@ class CodeShapeGuardrailTest {
             // IS the frame object, one per pipeline level, scoped to one render() as the renderer's cursor is: it
             // puts the comma before every stage but the first
             "MongoDbPipeline.written",
+            // 2026-10-23 (docs/DEEPHAVEN_PLAN_2026_10_22.md L2): the Deephaven batch writer's operation counter --
+            // DeephavenBatch IS the frame object, one per batch, scoped to one render() as the renderer's cursor is:
+            // each operation's place in the batch, which the operations after it read it by
+            "DeephavenBatch.ops",
             // normalizer emission frame: Pipeline IS the frame object; expr
             // is the accumulating pipeline AST
             "Pipeline.expr",
