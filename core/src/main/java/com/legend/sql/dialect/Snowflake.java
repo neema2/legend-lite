@@ -179,7 +179,8 @@ public final class Snowflake extends AnsiSqlRenderer {
      * aggregate and names its columns {@code 'a'}, quotes included); the checked-defect envelopes as list lambdas
      * (a to-many hoist nests lambdas and walls here); the substring start clamp (a negative start counts from the
      * end here); a select-list UNNEST as a lateral FLATTEN; a constant GROUP BY or ORDER BY key as a typed
-     * expression (Snowflake reads an integer one as a position); a LEFT JOIN condition's conjunct that holds a
+     * expression (Snowflake reads an integer one as a position); an EXISTS one row decides, without its subquery
+     * (ExistsOverOneRow); a LEFT JOIN condition's conjunct that holds a
      * subquery and reads only the null-supplying side, as that side's filter (OuterJoinSubqueryFilters: Snowflake
      * evaluates a subquery predicate in a WHERE alone); a scalar subquery's chain of derived tables that
      * only pass one column up, collapsed, so its correlation is its own WHERE's (ScalarSubqueriesFlattened); a
@@ -191,7 +192,8 @@ public final class Snowflake extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
-                new ConstantKeysAsExpressions(), new OuterJoinSubqueryFilters(true), new ScalarSubqueriesFlattened(),
+                new ConstantKeysAsExpressions(), new ExistsOverOneRow(), new OuterJoinSubqueryFilters(true),
+                new ScalarSubqueriesFlattened(),
                 new ScalarSubqueriesAggregated(), new RootNumericTypes());
     }
 
@@ -420,7 +422,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             // a decimal literal no NUMBER holds (more than 38 digits, or a scale past 37: the IQ island's single
             // precision bounds, 3.4028234663852886E38 and 1.1754943508222875E-38) is DuckDB's DOUBLE reading of its
             // digits; Snowflake's reading of them is an error ("Integer literal is out of representable range")
-            case SqlExpr.DecimalLit d when d.value().precision() > 38 || d.value().scale() > 37 ->
+            case SqlExpr.DecimalLit d when numberDigits(d.value()) > 38 || d.value().scale() > 37 ->
                     writer.append("CAST('" + d.value().doubleValue() + "' AS DOUBLE)");
             case SqlExpr.DecimalLit d when d.value().scale() > 0
                     && d.value().stripTrailingZeros().scale() < d.value().scale() -> writer.append("CAST("
@@ -430,6 +432,12 @@ public final class Snowflake extends AnsiSqlRenderer {
                                     + d.value().scale() + ")") + ")");
             default -> super.expr(writer, e, parentPrec);
         };
+    }
+
+    /** The digits a NUMBER needs for {@code v}: its precision, or past its last digit to the point (a negative
+     *  scale: 3.4028234663852886E38 is 17 digits of scale -22, 39 digits written out). */
+    private static int numberDigits(java.math.BigDecimal v) {
+        return v.scale() < 0 ? v.precision() - v.scale() : Math.max(v.precision(), v.scale());
     }
 
     /** A column: a lambda parameter (or its emulated piece), a field of a struct parameter ({@code x.f}, DuckDB's
