@@ -62,6 +62,7 @@ public sealed interface AuthenticationSpec
             case MiddleTierUserNamePassword a -> null;
             case OAuth a -> null;
             case GcpWorkloadIdentityFederation a -> null;
+            case PreSharedKey a -> null;
         };
     }
 
