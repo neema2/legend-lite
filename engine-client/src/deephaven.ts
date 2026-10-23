@@ -129,9 +129,12 @@ export class DeephavenSession {
    * that makes what the session does not keep alive already -- each table it makes exported, to be read again -- and
    * the server's answer for each is checked; a table another send is making now is waited for, not made twice.
    * `supplied`: the tables the session supplies itself, a name to the export that is it (a grid's base, B1): a plan
-   * reading one by that name reads the export.
+   * reading one by that name reads the export. `onSent` is told the result's export as soon as the request is written,
+   * before the server has made it: a read of it then waits for it on the server, so a reader asks while it is made
+   * (G1).
    */
-  async keepAlive(plan: string, supplied: Readonly<Record<string, number>> = {}): Promise<KeptResult> {
+  async keepAlive(plan: string, supplied: Readonly<Record<string, number>> = {},
+    onSent?: (exportId: number) => void): Promise<KeptResult> {
     this.open();
     const { keys } = JSON.parse(await this.ask('keys', { plan })) as { readonly keys: readonly string[] };
     const resultKey = keys[keys.length - 1];
@@ -160,6 +163,7 @@ export class DeephavenSession {
         readonly exports: readonly { readonly key: string; readonly exportId: number }[];
         readonly result: number;
       };
+      onSent?.(send.result);
       if (send.exports.length > 0) await this.make(send.request, send.exports);
       const result = this.tables.get(resultKey);
       if (result === undefined || result.exportId !== send.result) {

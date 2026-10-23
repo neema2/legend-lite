@@ -207,6 +207,12 @@ public final class Deephaven extends AnsiSqlRenderer {
         };
     }
 
+    /** {@code e}'s Deephaven name when it is a column the select reads as it is, nothing computed in its place; else
+     *  null. */
+    @com.legend.base.Nullable String plainColumn(SqlExpr e) {
+        return e instanceof SqlExpr.Column c && scope().computed.get(e) == null ? column(c) : null;
+    }
+
     /** A column's Deephaven name in the current select: a source column by its alias (or by its name, when one source
      *  has it), an output by its name. */
     private String column(SqlExpr.Column c) {

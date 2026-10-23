@@ -346,7 +346,8 @@ final class DeephavenBatch {
     /** The keys and the aggregates' arguments computed, then one aggregate; its columns then read the select's keys and
      *  aggregates. With no key, the one group of SQL's answer is kept even over no rows ({@code preserveEmpty}). */
     private int group(SqlSelect s, int cur, Deephaven.Scope scope) {
-        List<SqlAgg.Reducer> reducers = new ArrayList<>();
+        // each SQL aggregate, or a whole expression the server holds as one aggregation (a unique value)
+        List<SqlExpr> reducers = new ArrayList<>();
         for (SqlSelect.Projection p : s.projections()) {
             collect(p.expr(), reducers);
         }
@@ -356,22 +357,41 @@ final class DeephavenBatch {
         for (SqlSelect.SortKey key : s.orderBy()) {
             collect(key.expr(), reducers);
         }
+        // a key or an argument that is a column as it is read by its own name (G1: every operation is one more table
+        // for the server to make and keep current); anything computed, into a column of its own first
         List<Spec> pre = new ArrayList<>();
         List<String> keys = new ArrayList<>();
         for (int i = 0; i < s.groupBy().size(); i++) {
-            keys.add("__g" + i);
-            pre.add(new Spec("__g" + i, s.groupBy().get(i)));
+            String named = dialect.plainColumn(s.groupBy().get(i));
+            if (named != null && !keys.contains(named)) {
+                keys.add(named);
+            } else {
+                keys.add("__g" + i);
+                pre.add(new Spec("__g" + i, s.groupBy().get(i)));
+            }
         }
+        List<String> inputs = new ArrayList<>();
         for (int j = 0; j < reducers.size(); j++) {
-            SqlAgg.Reducer r = reducers.get(j);
-            if (r.args().size() > 1) {
-                throw new DialectCapability("aggregate " + r.fn() + " over " + r.args().size()
-                        + " arguments reached Deephaven: no shape yet");
+            SqlExpr arg;
+            if (reducers.get(j) instanceof SqlAgg.Reducer r) {
+                if (r.args().size() > 1) {
+                    throw new DialectCapability("aggregate " + r.fn() + " over " + r.args().size()
+                            + " arguments reached Deephaven: no shape yet");
+                }
+                arg = r.args().isEmpty() ? null : averaged(r);
+            } else {
+                arg = uniqueValueOf(reducers.get(j));
             }
-            if (!r.args().isEmpty()) {
-                pre.add(new Spec("__a" + j, r.args().get(0)));
+            String named = arg == null ? null : dialect.plainColumn(arg);
+            // a key is read back as a key, never aggregated: an argument that is one is copied first
+            String input = named != null && !keys.contains(named) ? named : "__a" + j;
+            if (arg != null && !input.equals(named)) {
+                pre.add(new Spec(input, arg));
             }
-            scope.aggregates.put(r, new String[] {"__r" + j, "__a" + j});
+            inputs.add(input);
+            if (reducers.get(j) instanceof SqlAgg.Reducer r) {
+                scope.aggregates.put(r, new String[] {"__r" + j, input});
+            }
         }
         if (!pre.isEmpty()) {
             cur = view("updateView", cur, pre);
@@ -383,7 +403,13 @@ final class DeephavenBatch {
             if (j > 0) {
                 w.append(", ");
             }
-            dialect.reducer(w, reducers.get(j));
+            if (reducers.get(j) instanceof SqlAgg.Reducer r) {
+                dialect.reducer(w, r);
+            } else {
+                w.append("{\"columns\": {\"spec\": {\"unique\": {\"nonUniqueSentinel\": {\"nullValue\": \"NULL_VALUE\"}}},"
+                        + " \"matchPairs\": "
+                        + DeephavenJson.strings(List.of("__r" + j + "=" + inputs.get(j))) + "}}");
+            }
         }
         w.append("]");
         if (keys.isEmpty()) {
@@ -391,7 +417,7 @@ final class DeephavenBatch {
         }
         int grouped = close();
         for (int i = 0; i < s.groupBy().size(); i++) {
-            scope.computed.put(s.groupBy().get(i), "__g" + i);
+            scope.computed.put(s.groupBy().get(i), keys.get(i));
         }
         for (int j = 0; j < reducers.size(); j++) {
             scope.computed.put(reducers.get(j), "__r" + j);
@@ -400,11 +426,12 @@ final class DeephavenBatch {
         return grouped;
     }
 
-    /** Every aggregate of {@code e}, once each, in order; a window's or a lambda's are its own. */
-    private static void collect(SqlExpr e, List<SqlAgg.Reducer> into) {
-        if (e instanceof SqlAgg.Reducer r) {
-            if (!into.contains(r)) {
-                into.add(r);
+    /** Every aggregate of {@code e}, once each, in order; a window's or a lambda's are its own. A unique value is one
+     *  aggregate, not its parts. */
+    private static void collect(SqlExpr e, List<SqlExpr> into) {
+        if (e instanceof SqlAgg.Reducer || uniqueValueOf(e) != null) {
+            if (!into.contains(e)) {
+                into.add(e);
             }
             return;
         }
@@ -414,6 +441,48 @@ final class DeephavenBatch {
         for (SqlExpr c : e.children()) {
             collect(c, into);
         }
+    }
+
+    /**
+     * An average's argument as Deephaven averages it: its own average is a fraction of any primitive number, so the
+     * lowering's promotion -- {@code avg(1.0 * x)}, the engine's on every database, whose own avg of an integer column
+     * is an integer on some (H2) -- is the server's already, and the column is read as it is (G1: one formula fewer for
+     * the server to parse). Any other argument as the lowering wrote it.
+     */
+    private static SqlExpr averaged(SqlAgg.Reducer r) {
+        SqlExpr arg = r.args().get(0);
+        if (r.fn() == SqlAgg.Fn.AVG && arg instanceof SqlExpr.Call times && times.fn() == com.legend.sql.SqlFn.TIMES
+                && times.args().size() == 2 && times.args().get(0) instanceof SqlExpr.FloatLit one && one.value() == 1.0
+                && times.args().get(1).type() instanceof com.legend.sql.TypeFact.Typed t
+                && (t.type() == com.legend.sql.SqlType.Scalar.INTEGER || t.type() == com.legend.sql.SqlType.Scalar.BIGINT
+                        || t.type() == com.legend.sql.SqlType.Scalar.DOUBLE)) {
+            return times.args().get(1);
+        }
+        return arg;
+    }
+
+    /**
+     * The value {@code e} reads when it is the lowering's UNIQUE VALUE of a group with no default --
+     * {@code CASE WHEN COUNT(DISTINCT v) = 1 THEN MAX(v) ELSE NULL END}, DataCube's aggregate of a column a level does not
+     * group by -- which is Deephaven's own {@code unique} aggregation over {@code v}: the one value its rows hold, nulls
+     * aside, else null (docs/DEEPHAVEN_PLAN_2026_10_22.md G1: measured, the two aggregations and the formula reading
+     * them were most of a level's making). Null when {@code e} is any other expression; a default other than null is
+     * not the server's (a group of no values answers it), so it is written as it was lowered.
+     */
+    static @com.legend.base.Nullable SqlExpr uniqueValueOf(SqlExpr e) {
+        if (!(e instanceof SqlExpr.Case c) || c.whens().size() != 1 || !(c.otherwise() instanceof SqlExpr.NullLit)) {
+            return null;
+        }
+        SqlExpr.Case.When when = c.whens().get(0);
+        if (!(when.condition() instanceof SqlExpr.Call eq) || eq.fn() != com.legend.sql.SqlFn.EQUAL
+                || !(eq.args().get(0) instanceof SqlAgg.Reducer count) || count.fn() != SqlAgg.Fn.COUNT
+                || !count.distinct() || !count.orderBy().isEmpty() || count.args().size() != 1
+                || !(eq.args().get(1) instanceof SqlExpr.IntLit one) || one.value() != 1
+                || !(when.then() instanceof SqlAgg.Reducer max) || max.fn() != SqlAgg.Fn.MAX || max.distinct()
+                || !max.orderBy().isEmpty() || !max.args().equals(count.args())) {
+            return null;
+        }
+        return max.args().get(0);
     }
 
     // ==================================================================

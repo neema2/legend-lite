@@ -130,10 +130,13 @@ export class ServerBaseRunner implements QueryRunner {
 
   /** `live` made on the server, stored, and declared as a table of the bases' model; its queries rebased onto it. */
   async #make(key: string, live: ValueSpecification, snapshot: CubeSnapshot): Promise<Base> {
-    const plan = await this.#planner.plan(sourceWithDerived(snapshot).lambda());
+    const lambda = sourceWithDerived(snapshot).lambda();
+    const plan = await this.#planner.plan(lambda);
+    // a column the lowering never leaves null is declared so: no null guard, no null flag on a sort by it (G1)
+    const nullable = await this.#planner.nullable(lambda);
     const kept = await this.#engine.keepBase(plan.sql);
     const types = plan.columns.map(columnType);
-    const declared = kept.columns.length === plan.columns.length
+    const declared = kept.columns.length === plan.columns.length && nullable.length === plan.columns.length
       && kept.columns.every((c, i) => c === plan.columns[i]?.name) && types.every((t) => t !== null);
     const old = this.#base;
     let base: Base;
@@ -141,7 +144,7 @@ export class ServerBaseRunner implements QueryRunner {
       this.#engine.letBaseGo(kept.name);
       base = { key, name: null, runner: this.#inner };
     } else {
-      const columns = plan.columns.map((c, i) => `${c.name} ${types[i]}`).join(', ');
+      const columns = plan.columns.map((c, i) => `${c.name} ${types[i]}${nullable[i] ? '' : ' NOT NULL'}`).join(', ');
       const bound = [...this.#options.stores, BASES].map((s) => `${s}: [ c: ${this.#options.connection} ]`).join(', ');
       this.#planner.useModel(`${this.#options.model}
 ###Relational

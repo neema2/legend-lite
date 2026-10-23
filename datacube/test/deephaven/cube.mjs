@@ -88,6 +88,12 @@ try {
     const made = after.base.made - before.base.made;
     return { after, queries, planned, sent, ms, based, made };
   };
+  /** A gesture's time to the view within its budget (docs/DEEPHAVEN_PLAN_2026_10_22.md G1): measured, a regroup or a
+   *  filter typically 100-115 ms in the pinned Chromium, 190 on a busy machine; the budget holds the gains, not a
+   *  fast machine's numbers. Something new -- a formula's first appearance on the server, a calculated column -- has
+   *  none: its one-time compile is the server's. */
+  const within = (c, what, budgetMs) => (c.ms <= budgetMs ? ok(`${what}: ${c.ms} ms to the view, within its ${budgetMs} ms`)
+    : fail(`${what}: ${c.ms} ms to the view, past its ${budgetMs} ms budget`));
   /** Each query of a change read the grid's base from the one table the server keeps (B1): none of the source's
    *  operations in it, and no base made again. */
   const reused = (c, what) => (c.queries > 0 && c.based >= c.queries && c.made === 0
@@ -119,6 +125,7 @@ try {
   const closed = await change('collapse');
   if (closed.sent === 0) ok(`the FX desk closed: ${closed.queries} queries, nothing sent; ${closed.ms} ms to the view`);
   else fail(`closing the FX desk sent ${closed.sent} operations`);
+  within(closed, 'the FX desk closed', 150);
 
   // a pivot on region: two queries (its values, then the level), each over the source kept alive
   const pivot = await change('pivot');
@@ -136,11 +143,13 @@ try {
 
   const regroup = await change('regroup');
   reused(regroup, 'regrouped by region and currency');
+  within(regroup, 'the regroup', 250);
   check(against(regroup.after, 'pid', positions((p) => p.region)), 'the tree by region: the seeding\'s positions');
   await page.screenshot({ path: join(outputs, '3-regroup.png') });
 
   const filter = await change('filter');
   reused(filter, 'filtered to the FX desk');
+  within(filter, 'the filter', 250);
   check(against(filter.after, 'pid', positions((p) => p.region, (p) => p.desk === 'FX')), 'the FX desk by region: the seeding\'s positions');
   await page.screenshot({ path: join(outputs, '4-filter.png') });
 
@@ -193,6 +202,7 @@ try {
   else if (t1.counts.sent !== t0.counts.sent) fail(`ticking sent ${t1.counts.sent - t0.counts.sent} operations`);
   else if (fetched !== 0) fail(`ticking fetched ${fetched} results, answered ${live} live`);
   else if (mv(t1) === mv(t0)) fail('the market values did not change');
+  else if (!(Number(p(0.5)) <= 10)) fail(`a tick on screen ${p(0.5)} ms after its rows arrived, past its 10 ms budget (G1)`);
   else ok(`it ticks: ${refreshes} runs in 5 s, ${live} results answered live, nothing sent or fetched; on screen `
     + `${p(0.5)} ms (p95 ${p(0.95)}) after a tick's rows arrived, the cube's run ${median(t1.runMs)} ms of it; `
     + `${t1.counts.following} results followed`);

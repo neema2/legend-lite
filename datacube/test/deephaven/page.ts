@@ -110,6 +110,10 @@ const KNOWN: readonly { readonly query: string; readonly rows: readonly (readonl
     query: `${T}->filter(x|${condition})->select(~[id])->sort(~id->ascending())`,
     rows: ids.map((id) => [id]),
   })),
+  // a group's unique value (the server's own unique aggregation): EMEA's desks are Rates and FX (and a null, never a
+  // value), so none; each other region's one desk
+  { query: `${T}->groupBy(~[region], ~[d:x|$x.desk:y|$y->uniqueValueOnly()])->sort(~region->ascending())`,
+    rows: [['AMER', 'Credit'], ['APAC', 'Rates'], ['EMEA', null], [null, 'FX']] },
   // the null-safe != as a value, not a filter: a formula, its null half the desk's (a null desk differs from 'FX')
   { query: `${T}->extend(~[d:x|$x.desk != 'FX'])->select(~[id, d])->sort(~id->ascending())`,
     rows: [[1, true], [2, true], [3, false], [4, false], [5, true], [6, true]] },

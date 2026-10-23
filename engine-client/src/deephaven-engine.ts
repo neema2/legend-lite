@@ -108,14 +108,20 @@ export class DeephavenEngine implements QueryEngine {
     const started = performance.now();
     const session = this.#session;
     let kept: KeptResult;
+    // the rows asked for as soon as the result's export is named: the server answers once it has made it (G1)
+    let reading: Promise<Uint8Array> | null = null;
     try {
-      kept = await session.keepAlive(plan.sql, this.#supplied());
+      kept = await session.keepAlive(plan.sql, this.#supplied(), (exportId) => {
+        if (signal?.aborted) return;
+        reading = session.rows(exportId);
+        reading.catch(() => { /* a refused batch is said by keepAlive */ });
+      });
     } catch (e) {
       throw new QueryError(e instanceof Error ? e.message : String(e), plan.sql, { cause: e });
     }
     try {
       if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-      const stream = await session.rows(kept.exportId);
+      const stream = await (reading ?? session.rows(kept.exportId));
       this.#counts.queries++;
       this.#counts.planned += kept.ops;
       this.#counts.sent += kept.sent;

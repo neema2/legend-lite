@@ -141,17 +141,21 @@ class DeephavenDialectTest {
 
     @Test
     void aGroupIsOneAggregateOverItsComputedKeysAndArguments() {
+        // keys and arguments that are columns as they are, read by their own names: no operation before the group
+        // (G1), and the average its column, Deephaven's own average a fraction of any number
         String b = batch("#>{risk::Ref.trades}#->groupBy(~[desk], ~[a: x | $x.pnl : y | $y->average(),"
                 + " n: x | $x.instrument : y | $y->distinct()->count(), mx: x | $x.pnl : y | $y->max()])");
-        assertTrue(b.contains("{\"updateView\": {"), b);
-        assertTrue(b.contains("\"__g0 = "), b);
-        assertTrue(b.contains("{\"aggregate\": {"), b);
-        assertTrue(b.contains("\"groupByColumns\": [\"__g0\"]"), b);
-        assertTrue(b.contains("{\"spec\": {\"avg\": {}}"), b);
-        assertTrue(b.contains("{\"spec\": {\"countDistinct\": {\"countNulls\": false}}"), b);
+        assertTrue(!b.contains("{\"updateView\": {") && !b.contains("1.0 *"), b);
+        assertTrue(b.contains("{\"aggregate\": {\"sourceId\": {\"batchOffset\": 0}, \"groupByColumns\": [\"t0__desk\"]"), b);
+        assertTrue(b.contains("{\"columns\": {\"spec\": {\"avg\": {}}, \"matchPairs\": [\"__r0=t0__pnl\"]}}"), b);
+        assertTrue(b.contains("{\"spec\": {\"countDistinct\": {\"countNulls\": false}}, \"matchPairs\": [\"__r1=t0__instrument\"]"), b);
         assertTrue(b.contains("{\"spec\": {\"max\": {}}"), b);
         // the outputs read the group's columns back
-        assertTrue(b.contains("\"desk = __g0\""), b);
+        assertTrue(b.contains("\"desk = t0__desk\""), b);
+        // a computed key and a computed argument, each into a column of its own first
+        String computed = batch("#>{risk::Ref.trades}#->extend(~[twice:x|$x.id * 2])->groupBy(~[twice], ~[s: x | $x.id + 3 :"
+                + " y | $y->sum()])");
+        assertTrue(computed.contains("{\"updateView\": {") && computed.contains("\"__a0 = "), computed);
     }
 
     @Test
@@ -165,6 +169,21 @@ class DeephavenDialectTest {
         // a name Deephaven cannot hold is the output's place; the plan reads its columns by position
         assertTrue(b.contains("\"__c2 = __r0\""), b);
         assertTrue(b.contains("\"total = __r1\""), b);
+    }
+
+    /** A group's unique value (DataCube's aggregate of a column a level does not group by), lowered as COUNT(DISTINCT)
+     *  and MAX and a CASE reading them, is Deephaven's one {@code unique} aggregation: no count, no max, no formula. A
+     *  unique value with a default of its own is written as lowered (a group of no values answers the default). */
+    @Test
+    void aUniqueValueIsTheServersOneAggregation() {
+        String b = batch("#>{risk::Ref.trades}#->groupBy(~[region], ~[d: x | $x.desk : y | $y->uniqueValueOnly()])");
+        assertTrue(b.contains("{\"columns\": {\"spec\": {\"unique\": {\"nonUniqueSentinel\": {\"nullValue\": \"NULL_VALUE\"}}},"
+                + " \"matchPairs\": [\"__r0=t0__desk\"]}}"), b);
+        assertTrue(!b.contains("countDistinct") && !b.contains("== 1L"), b);
+        assertTrue(b.contains("\"d = __r0\""), b);
+        String withDefault = batch("#>{risk::Ref.trades}#->groupBy(~[region], ~[d: x | $x.desk : y |"
+                + " $y->uniqueValueOnly('many')])");
+        assertTrue(withDefault.contains("countDistinct") && !withDefault.contains("\"unique\""), withDefault);
     }
 
     @Test

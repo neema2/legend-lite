@@ -145,6 +145,7 @@ public final class DeephavenMessages {
                     f("min", 13, Kind.MESSAGE, "AggSpec.AggSpecMin", Card.PRESENT),
                     f("std", 17, Kind.MESSAGE, "AggSpec.AggSpecStd", Card.PRESENT),
                     f("sum", 18, Kind.MESSAGE, "AggSpec.AggSpecSum", Card.PRESENT),
+                    f("unique", 20, Kind.MESSAGE, "AggSpec.AggSpecUnique", Card.PRESENT),
                     f("var", 23, Kind.MESSAGE, "AggSpec.AggSpecVar", Card.PRESENT)),
             m("AggSpec.AggSpecAvg"),
             m("AggSpec.AggSpecCountDistinct",
@@ -156,6 +157,13 @@ public final class DeephavenMessages {
             m("AggSpec.AggSpecMin"),
             m("AggSpec.AggSpecStd"),
             m("AggSpec.AggSpecSum"),
+            // a group's one value, or null when it has more than one (G1: DataCube's unique column); its nulls are
+            // never a value, and the server asks the sentinel for more than one of every request
+            m("AggSpec.AggSpecUnique",
+                    f("includeNulls", 1, Kind.BOOL, null, Card.SINGLE),
+                    f("nonUniqueSentinel", 2, Kind.MESSAGE, "AggSpec.AggSpecNonUniqueSentinel", Card.SINGLE)),
+            m("AggSpec.AggSpecNonUniqueSentinel",
+                    f("nullValue", 1, Kind.ENUM, "NullValue", Card.PRESENT)),
             m("AggSpec.AggSpecVar"),
             m("Aggregation.AggregationCount",
                     f("columnName", 1, Kind.STRING, null, Card.SINGLE)),
@@ -181,6 +189,7 @@ public final class DeephavenMessages {
 
     private static final Map<String, Map<String, Integer>> ENUMS = enumIndex(
             e("SortDescriptor.SortDirection", "UNKNOWN", 0, "DESCENDING", -1, "ASCENDING", 1, "REVERSE", 2),
+            e("NullValue", "NULL_VALUE", 0),
             e("NaturalJoinTablesRequest.JoinType", "JOIN_TYPE_NOT_SPECIFIED", 0, "ERROR_ON_DUPLICATE", 1,
                     "FIRST_MATCH", 2, "LAST_MATCH", 3, "EXACTLY_ONE_MATCH", 4));
 

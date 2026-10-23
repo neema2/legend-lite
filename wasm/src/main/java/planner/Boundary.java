@@ -418,7 +418,9 @@ public final class Boundary {
      * {@code send} ({@code plan}, {@code alive}: the session's tables, key to export id, {@code supplied}?: the tables
      * the session supplies itself, name to export id, {@code nextExportId}), answered {@code {"request", "exports":
      * [{"key", "exportId"}], "result"}}; and {@code stored} ({@code plan}), answered {@code {"plan", "columns"}}, the
-     * plan with its result stored. The host carries the bytes; it builds
+     * plan with its result stored; {@code nullable} ({@code handle}, {@code lambda}, {@code runtime}), answered
+     * {@code {"nullable"}}: which of the query's result columns may be null, as the planner lowers it -- sound across
+     * an outer join, where the relation type keeps a joined column's own multiplicity (a grid's base, B1). The host carries the bytes; it builds
      * none and reads none itself. An operation not listed is refused by name.
      */
     public static String deephaven(String op, String argsJson) {
@@ -458,6 +460,15 @@ public final class Boundary {
                 out.put("result", sent.result());
                 yield com.legend.json.Json.toCompact(out);
             }
+            case "nullable" -> MODELS.with(a.getInt("handle"), ctx -> {
+                java.util.List<Boolean> nullable = new java.util.ArrayList<>();
+                for (com.legend.sql.OutputCol c : com.legend.Compiler.query(ctx,
+                        com.legend.protocol.ProtocolReader.lambda(a.getString("lambda")))
+                        .lower(a.getString("runtime"), false).plan().outputs()) {
+                    nullable.add(c.nullable());
+                }
+                return com.legend.json.Json.toCompact(java.util.Map.of("nullable", nullable));
+            });
             case "stored" -> {
                 com.legend.deephaven.DeephavenWire.Stored st = com.legend.deephaven.DeephavenWire.stored(
                         a.getString("plan"));
@@ -475,7 +486,7 @@ public final class Boundary {
                 yield com.legend.json.Json.toCompact(out);
             }
             default -> throw new IllegalArgumentException("no Deephaven operation '" + op
-                    + "': batch, keys, send, stored, publish, releaseExport, doGet, created");
+                    + "': batch, keys, send, stored, nullable, publish, releaseExport, doGet, created");
         };
     }
 

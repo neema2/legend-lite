@@ -529,6 +529,18 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    * module tags it: what a Deephaven engine in the tab sends and reads (engine-client's deephaven.ts
    * `DeephavenPlanner`), so the tab's grid and its Deephaven engine share the one module.
    */
+  /**
+   * Which of `query`'s result columns may be null, as the planner lowers it against this planner's model and runtime:
+   * sound across an outer join, where the relation type (`relationType`) keeps a joined column's own multiplicity. A
+   * Deephaven grid's base declares its columns by it (server-base.ts, docs/DEEPHAVEN_PLAN_2026_10_22.md B1, G1).
+   */
+  async nullable(query: Lambda): Promise<boolean[]> {
+    const { lambda, runtime } = this.planRequest(query);
+    const handle = await this.#handle();
+    const answer = await this.#call({ kind: 'deephaven', op: 'nullable', args: JSON.stringify({ handle, lambda, runtime }) });
+    return (JSON.parse(decode(answer, query)) as { readonly nullable: boolean[] }).nullable;
+  }
+
   deephaven(op: string, args: Readonly<Record<string, unknown>>): Promise<string> {
     return this.#call({ kind: 'deephaven', op, args: JSON.stringify(args) });
   }
