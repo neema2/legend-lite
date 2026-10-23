@@ -104,17 +104,18 @@ Taken by the user on 2026-10-21. Each entry states the question as it was put, t
 - **D5, the `> ' '` guards.** Phase 2 rewrites the 2,166 `> ' '` filters that `deepstack.py`, `stacks.py` and
   `spread.py` write, so that they compare against a seeded value. The guard also tests NULL handling through outer
   joins. **Decided: rewrite them, keeping about a tenth as they are.**
-- **D6, a platform's last-ulp `cbrt` (open, raised 2026-10-21 by Phase 0).** On Windows, legend-engine's DuckDB
-  returns a cube root one ulp from the correctly rounded one the oracle expects, and three combination cells fail
-  (`docs/UPSTREAM_FINDINGS.md`, F60). The earlier engine runs were on macOS. glibc's `cbrt` isn't correctly rounded
-  either, so Linux may fail them too; that hasn't been measured. The options:
+- **D6, a platform's last-ulp `cbrt` (raised 2026-10-21 by Phase 0).** On Windows, legend-engine's DuckDB returns
+  `cbrt(325.0)` as the double next above the correctly rounded root the oracle expects (0.56 ulp from the true root),
+  and three combination cells fail (`docs/UPSTREAM_FINDINGS.md`, F60). The earlier engine runs were on macOS. glibc's
+  `cbrt` isn't correctly rounded either, so Linux may fail them too; that hasn't been measured. The options:
   - (a) change the seed or the generator so `cbrt` cells take inputs with exact cube roots. Every platform then
     agrees, and the cells still test `cbrt`, though not its last bit.
   - (b) give `quarantine.py` per-platform entries.
   - (c) accept three unexpected verdicts on Windows.
 
-  **Recommended: (a).** The corpus is for catching wrong answers, and a C library's last ulp isn't one. `exactmath`
-  exists to make expected results platform-independent, and that works only when the engine's result is too.
+  The corpus is for catching wrong answers, and a C library's last ulp isn't one. `exactmath` exists to make expected
+  results platform-independent, and that works only when the engine's result is too. **Decided (2026-10-23): (a).**
+  Done on `stress_test/corpus`: the twelve `cbrt` cells read perfect cubes, and their roots are whole numbers.
 
 ## Phases
 
@@ -161,10 +162,11 @@ corpus ran in 88 minutes with `--jobs 4`. Of 4,736 testables:
 | KNOWN-FAIL | 32 | every quarantined service still fails as recorded. F58's five, quarantined on 2026-10-05 "to be confirmed by `run.py`", are confirmed |
 | NOT RUN | 1 | `X1_ExternalEntityProjection`, F15's hang |
 | FIXED | 1 | `H_IssuerBinding`: F27 is fixed upstream by 4.145.0, so its quarantine entry is removed. Regenerating the corpus after the removal changed no file |
-| REGRESSION | 3 | `CB_C0`, `CB_C2`, `CB_C4`: F60, the platform's `cbrt` (D6) |
+| REGRESSION | 3 | `CB_C0`, `CB_C2`, `CB_C4`: F60, the platform's `cbrt` (D6). Since D6 (a) they pass |
 
 That makes 4,700 testables passing on the engine, against lite's 4,705 passing tests on DuckDB (15 fail, 16 skipped,
-the same as the report). 14 more first came back DIED: JVMs that crashed on starting while a concurrent `bazel test`
+the same as the report). After D6 (a), the 26 testables that use the combination model were run again on Windows:
+25 pass, 1 is known to fail (F28), and none is unexpected. Lite's pass list didn't change. 14 more first came back DIED: JVMs that crashed on starting while a concurrent `bazel test`
 rewrote the JDK under them. Alone, all 14 passed. `run.py` now counts a JVM's death only when it happens twice.
 
 At the pin the report's tools give:
@@ -426,7 +428,7 @@ to gate 10's time and about 10 minutes to a full engine run.
 
 | Phase | Started | Landed | Services added | Quarantined on the engine | New lite failure buckets | Measures after |
 |---|---|---|---|---|---|---|
-| 0 | 2026-10-21 | — | 0 | none added; F27's entry removed (fixed upstream); 3 unexpected left open (F60, D6) | none | EMIT 43 of 109 on the engine, 37 in lite; PCT 64 of 321 |
+| 0 | 2026-10-21 | — | 0 | none added; F27's entry removed (fixed upstream); F60's 3 unexpected settled by D6 (a) | none | EMIT 43 of 109 on the engine, 37 in lite; PCT 64 of 321 |
 | 1 | — | — | — | — | — | — |
 | 2 | — | — | — | — | — | — |
 | 3 | — | — | — | — | — | — |
