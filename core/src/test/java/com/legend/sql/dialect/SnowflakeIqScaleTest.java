@@ -28,14 +28,14 @@ class SnowflakeIqScaleTest {
     }
 
     /** Snowflake rounds an integer quotient to six places before a TRUNC sees it (999999999 / 1000000000 is
-     *  1.000000), so two integers divide as the dividend less its remainder over the divisor. */
+     *  1.000000), so two integers divide at the dividend's scale of 19, each operand written once. */
     @Test
-    void twoIntegersDivideByTheirRemainderNotARoundedQuotient() {
+    void twoIntegersDivideAtScaleNineteenNotARoundedQuotient() {
         String sql = rendered(SqlExpr.Call.of(SqlFn.INT_DIVIDE, new SqlExpr.IntLit(999999999),
                 new SqlExpr.IntLit(1000000000)));
-        assertTrue(sql.contains("CAST((999999999 - MOD(999999999, NULLIF(1000000000, 0))) / NULLIF(1000000000, 0)"
-                + " AS BIGINT)"), sql);
-        assertFalse(sql.contains("TRUNC("), sql);
+        assertTrue(sql.contains("CAST(TRUNC(CAST(999999999 AS NUMBER(38, 19)) / NULLIF(1000000000, 0)) AS BIGINT)"),
+                sql);
+        assertFalse(sql.contains("MOD("), sql);
     }
 
     /** Over a literal of at most a million, a quotient's fraction (at most 0.999999) survives the six places: TRUNC
@@ -50,7 +50,7 @@ class SnowflakeIqScaleTest {
         }
         for (long d : new long[] {1_000_001, -1_000_001, 0, Long.MIN_VALUE}) {
             String sql = rendered(SqlExpr.Call.of(SqlFn.INT_DIVIDE, x, new SqlExpr.IntLit(d)));
-            assertTrue(sql.contains("MOD(999999, NULLIF("), sql);
+            assertTrue(sql.contains("CAST(999999 AS NUMBER(38, 19)) / NULLIF("), sql);
         }
         SqlExpr nested = new SqlExpr.IntLit(7);
         for (int i = 0; i < 12; i++) {
@@ -58,6 +58,13 @@ class SnowflakeIqScaleTest {
         }
         String sql = rendered(nested);
         assertTrue(sql.length() < 1_000, sql.length() + " characters");
+        // over a divisor past a million too (the scale-19 form): each operand once
+        SqlExpr wide = new SqlExpr.IntLit(7);
+        for (int i = 0; i < 12; i++) {
+            wide = SqlExpr.Call.of(SqlFn.INT_DIVIDE, wide, new SqlExpr.IntLit(3_000_000));
+        }
+        String wideSql = rendered(wide);
+        assertTrue(wideSql.length() < 2_000, wideSql.length() + " characters");
     }
 
     @Test
@@ -65,12 +72,12 @@ class SnowflakeIqScaleTest {
         SqlExpr sum = SqlExpr.Call.of(SqlFn.PLUS, new SqlExpr.IntLit(7), new SqlExpr.IntLit(8));
         SqlExpr times = SqlExpr.Call.of(SqlFn.TIMES, new SqlExpr.IntLit(7), new SqlExpr.IntLit(8));
         String overSum = rendered(SqlExpr.Call.of(SqlFn.INT_DIVIDE, sum, new SqlExpr.IntLit(2_000_000)));
-        assertTrue(overSum.contains("CAST((7 + 8 - MOD(7 + 8, NULLIF(2000000, 0))) / NULLIF(2000000, 0) AS BIGINT)"),
+        assertTrue(overSum.contains("CAST(TRUNC(CAST(7 + 8 AS NUMBER(38, 19)) / NULLIF(2000000, 0)) AS BIGINT)"),
                 overSum);
         String overSumByTwo = rendered(SqlExpr.Call.of(SqlFn.INT_DIVIDE, sum, new SqlExpr.IntLit(2)));
         assertTrue(overSumByTwo.contains("CAST(TRUNC((7 + 8) / 2) AS BIGINT)"), overSumByTwo);
         String overProduct = rendered(SqlExpr.Call.of(SqlFn.INT_DIVIDE, times, sum));
-        assertTrue(overProduct.contains("CAST((7 * 8 - MOD(7 * 8, NULLIF(7 + 8, 0))) / NULLIF(7 + 8, 0) AS BIGINT)"),
+        assertTrue(overProduct.contains("CAST(TRUNC(CAST(7 * 8 AS NUMBER(38, 19)) / NULLIF(7 + 8, 0)) AS BIGINT)"),
                 overProduct);
     }
 

@@ -1577,22 +1577,25 @@ public final class Snowflake extends AnsiSqlRenderer {
     }
 
     /** The {@code INT_DIVIDE} arm of {@link #call}. Snowflake rounds an integer quotient to six places before any
-     *  TRUNC sees it (999999999 / 1000000000 is 1.000000), so two integers divide exactly: the dividend less its
-     *  remainder (MOD keeps the dividend's sign) is a multiple of the divisor, and that quotient is exact (the IQ
-     *  scale program, 2026-10-22: landing 5's review found the rounding). */
+     *  TRUNC sees it (999999999 / 1000000000 is 1.000000: the IQ scale program, 2026-10-22, landing 5's review), so
+     *  two integers divide at the dividend's scale, 19: a quotient of NUMBER(38, 19) keeps that scale, rounded, and a
+     *  BIGINT quotient that is not an integer is at least 1/|b|, 1.08e-19, from one, which rounding at 19 places
+     *  (0.5e-19) never reaches; its 19 integer digits hold any BIGINT's. Each operand is written once (an independent
+     *  review, 2026-10-23: the remainder form, (a - MOD(a, b)) / b, wrote each twice, nested divisions growing three
+     *  times a level). Measured on an account (the sibling, 2026-10-23): the BIGINT extremes, the signs, a divisor of
+     *  3e18, a zero divisor's NULL. */
     private SqlWriter intDivide(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
         if (isInteger(typeOf(a.get(0))) && isInteger(typeOf(a.get(1)))) {
             // over a literal of at most a million, a quotient's fraction is at most 1 - 1/|b|, 0.999999 at the most,
-            // which six places do not round up: TRUNC is exact, and the dividend is written once (an independent
-            // review, 2026-10-23: the remainder form writes each operand twice, nested divisions grew x3 a level)
+            // which six places do not round up: TRUNC is exact, with no cast
             if (a.get(1) instanceof SqlExpr.IntLit d && d.value() != 0 && d.value() >= -1_000_000
                     && d.value() <= 1_000_000) {
                 return writer.append("CAST(TRUNC(").expr(a.get(0), 6).append(" / ").expr(a.get(1), 6)
                         .append(") AS BIGINT)");
             }
-            return writer.append("CAST((").expr(a.get(0), 5).append(" - MOD(").expr(a.get(0), 0).append(", NULLIF(")
-                    .expr(a.get(1), 0).append(", 0))) / NULLIF(").expr(a.get(1), 0).append(", 0) AS BIGINT)");
+            return writer.append("CAST(TRUNC(CAST(").expr(a.get(0), 0).append(" AS NUMBER(38, 19)) / NULLIF(")
+                    .expr(a.get(1), 0).append(", 0)) AS BIGINT)");
         }
         return writer.append("TRUNC(").expr(a.get(0), 6).append(" / NULLIF(").expr(a.get(1), 0).append(", 0))");
     }

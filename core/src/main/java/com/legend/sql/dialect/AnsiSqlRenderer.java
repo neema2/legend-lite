@@ -124,6 +124,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             ps.add(new FloatCanonText.Expansion(bindsFloatText()));
         }
         ps.addAll(passes());
+        // a string or list aggregate's constant ORDER BY key, which orders nothing (fuzz round 8, 2026-10-23)
+        ps.add(new ConstantAggregateOrder());
         // a long union as nested groups, which every dialect parses shallow (the IQ scale program's Q10, 2026-10-23)
         ps.add(new BalancedUnions());
         ps.add(new StoredReads(this::readsStored));

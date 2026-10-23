@@ -198,7 +198,7 @@ says so.
 | Q24 | Snowflake's correlated subqueries: a correlation two derived tables down, a scalar subquery of no aggregate, and lite's NOT EXISTS forms of NOT IN and ALL are "Unsupported subquery type" there (59 runs), and a COUNT read through the nesting is NULL for no row | P1.2 | the sibling's measurements | open |
 | Q25 | IQ 16's BIGINT overflow (-158) on Snowflake, whose NUMBER(38) does not overflow (5 runs BUG). The island checks no BIGINT arithmetic itself; under iq17, where IQ answers past 64 bits, DuckDB's overflow is the lane's ERROR and Snowflake passes | P1.2, P3 | a decision (with Q26's): a run SQL Anywhere judges whose only difference is an error Snowflake does not raise | open: the check of 38df46ba reverted (2f40358c), its 3^n growth timed out on Snowflake |
 | Q26 | TOP and START AT compute the items of rows they skip (IQ raises for them); Snowflake evaluates the select list after the limit (3 runs BUG) | P1.2 | the sibling's measurements | open |
-| Q27 | Nested integer division by a column grows exponentially: `it / sm / sm` doubles a level twice on DuckDB (the translator's NULL guard repeats the inner quotient, unmerged where IQ raises for a zero divisor; the zero guard's message copies the dividend) and six times on Snowflake (its exact quotient writes the dividend twice). Needs a common-subexpression hoist (the operand as a computed column) or a single-copy exact quotient for Snowflake (`TRUNC(CAST(a AS NUMBER(38, 19)) / b)`, by its division scale rule, to be measured) | P4, P1.3 | the sibling's measurement for the Snowflake half | open |
+| Q27 | Nested integer division by a column grows exponentially: `it / sm / sm` doubles a level twice on DuckDB (the translator's NULL guard repeats the inner quotient, unmerged where IQ raises for a zero divisor; the zero guard's message copies the dividend) and six times on Snowflake (its exact quotient writes the dividend twice). Needs a common-subexpression hoist (the operand as a computed column) or a single-copy exact quotient for Snowflake (`TRUNC(CAST(a AS NUMBER(38, 19)) / b)`, by its division scale rule, to be measured) | P4, P1.3 | the sibling's measurement for the Snowflake half | the Snowflake half done (2026-10-23, the scale-19 quotient, measured); DuckDB's open |
 | Q28 | Planning a long UNION ALL grows faster than linearly: 1.9 s at 1,000 branches, 4.0 s at 2,000, 16.6 s at 4,000 (the scale probe at twice its sizes, 2026-10-23) | P4 | a profile | open |
 | Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | open |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
@@ -412,3 +412,18 @@ says so.
   - `BalancedUnionsTest`: 5,000 branches of UNION ALL and of UNION, their rows, on every in-process database.
   - The scale probe at twice its sizes: UNION ALL of 1,000, 2,000 and 4,000 run (637, 1,274 and 2,548 rows).
   - Lite's own planning grows faster than the union: 1.9 s, 4.0 s and 16.6 s (Q28).
+- 2026-10-23, **Q27's Snowflake half: integer division writes each operand once.** By a literal of at most a
+  million, `CAST(TRUNC(a / b) AS BIGINT)`; by anything else, `CAST(TRUNC(CAST(a AS NUMBER(38, 19)) / NULLIF(b, 0)) AS
+  BIGINT)`. The sibling measured the second on an account: the BIGINT extremes, both signs, divisors of 3e18 and a
+  zero divisor (NULL), every row exact, typed `NUMBER(38,19)`. Snowflake rounds the quotient to 19 places, and a
+  BIGINT quotient that is not an integer is at least 1/|b| (1.08e-19) from one, more than the rounding's 0.5e-19;
+  scale 18 would not be safe. DuckDB's half stays open: the translator's NULL guard repeats a nested operand where
+  IQ's divide-by-zero error must not be lost, which needs the operand computed once (a common-subexpression hoist).
+  - The sibling's lane run at cd3d257f: unchanged from b26592b3 (0 new; the 7 runs SQL Anywhere judges still wait on
+    the user's decision).
+- 2026-10-23, **fuzz round 8** (seed 8, 2,000 shapes, depth 3, NoREC's two queries per shape included): 30,000
+  queries, 1,807 partitioned, no NoREC or TLP finding. One DBERROR, fixed:
+  - `LIST(x0.c2, ',' ORDER BY x0.c2)` over a derived table's `UCASE('')` folded the key to `''`, and DuckDB refuses a
+    non-integer literal in an ORDER BY ("has no effect"). `ConstantAggregateOrder`, a render pass every dialect runs,
+    drops a constant key from a string or list aggregate (a percentile's key is its value, and stays).
+    `ConstantAggregateOrderTest` on every in-process database.
