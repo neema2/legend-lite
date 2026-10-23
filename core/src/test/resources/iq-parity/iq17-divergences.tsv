@@ -23,6 +23,8 @@ cause	D-S5	blank padding with a tab: IQ's engine pads the shorter string with bl
 cause	exp-underflow	EXP's underflow is NULL in IQ 17.1's front end, 0 in SQL Anywhere 17's (WP2 item 10)
 cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is false where no row matches; the internal error -1006000 for ISNULL(LEFT(...)) beside a CASE of SUBSTRING; (IQ island, 2026-10-16) a filter of the null-supplying side of a LEFT JOIN inside a windowed derived table, or an outer join's condition on it, applied below its window functions (a RANK or a COUNT(*) OVER () of the filtered rows)
 cause	pg-double-overflow	a DOUBLE beyond the largest is NULL under IQ's engine, which the island answers; Postgres raises its own float8 overflow before the island's test can read the infinity
+cause	sf-lazy	Snowflake computes a select list's items for the rows TOP, START AT or a DISTINCT TOP keeps only, so IQ's error in a row they drop (a zero divisor) is not raised there, where IQ, SQL Anywhere and DuckDB compute every row's (the IQ scale program, 2026-10-23: the Snowflake lane)
+cause	sf-internal	Snowflake's own internal error 370001 for a correlated scalar subquery over a grouped derived table (a common table expression read in one); its other spellings are to be measured (the IQ scale program, 2026-10-23: the Snowflake lane)
 
 # IQ island, landing 4 (WP1), 2026-10-14: the first snap of the iq17-* runs from the live IQ (161 runs)
 run	lite/m0/bigint_minimum_divided_by_minus_one@iq17-default	D-N3	duckdb,postgres
@@ -30,46 +32,53 @@ run	lite/m0/bigint_plus_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/m0/bigint_times_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/m0/integer_plus_bigint_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/m0/negation_of_the_bigint_minimum@iq17-default	D-N3	duckdb,postgres
-run	lite/review5/b1_bigint_column_plus_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/review5/b1_bigint_variable_in_a_counted_where_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/review5/b1_bigint_variable_minus_a_column_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/review5/b1_bigint_variable_times_two_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/review5/b1_column_plus_a_bigint_variable_in_where_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/review5/b1_column_plus_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/review5/b1_column_times_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/review5/b1_negated_smallest_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/review5/b1_smallint_plus_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/m1b/name_keeps_written_parentheses@iq17-default	names	duckdb,postgres
-run	lite/m1b/name_of_a_delimited_column@iq17-default	names	duckdb,postgres
-run	lite/m1c/name_of_a_parenthesized_key_column@iq17-default	names	duckdb,postgres
-run	lite/m1gaps/unaliased_sum_of_alias_and_constant@iq17-default	names	duckdb,postgres
-run	lite/m1review/m1_constant_chains_over_one_table_keep_their_parentheses@iq17-default	names	duckdb,postgres
-run	lite/review4/m1_chain_names_over_a_table_keep_their_parentheses@iq17-default	names	duckdb,postgres
-run	lite/review4/m1_chain_names_over_a_table_keep_their_parentheses@iq17-tds	names	duckdb,postgres
-run	lite/review4/m1_chain_names_over_a_table_under_top_keep_their_parentheses@iq17-default	names	duckdb,postgres
-run	lite/review4/m1_chain_names_over_a_table_under_top_keep_their_parentheses@iq17-tds	names	duckdb,postgres
-run	lite/review7/b2_later_union_branch_needs_no_name@iq17-default	D-R1	duckdb,postgres
-run	lite/m0/start_at_an_expression_of_zero@iq17-default	top-expr	duckdb,postgres
-run	lite/m0/top_all_start_at@iq17-default	top-expr	duckdb,postgres
-run	lite/m0/top_and_start_at_expressions@iq17-default	top-expr	duckdb,postgres
-run	lite/m0/top_expression@iq17-default	top-expr	duckdb,postgres
-run	lite/m0/top_expression_negative@iq17-default	top-expr	duckdb,postgres
-run	lite/m0/top_expression_of_zero@iq17-default	top-expr	duckdb,postgres
-run	lite/m0/top_expression_overflow@iq17-default	top-expr	duckdb,postgres
-run	lite/m0/top_expression_precedence@iq17-default	top-expr	duckdb,postgres
-run	lite/m1c/two_lists_ordered_differently@iq17-default	D-A1	duckdb,postgres
-run	lite/m1d/locate_from_column_starts@iq17-default	non-string-input	duckdb,postgres
+run	lite/review5/b1_bigint_column_plus_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres,snowflake
+run	lite/review5/b1_bigint_variable_in_a_counted_where_overflow@iq17-default	D-N3	duckdb,postgres,snowflake
+run	lite/review5/b1_bigint_variable_minus_a_column_overflow@iq17-default	D-N3	duckdb,postgres,snowflake
+run	lite/review5/b1_bigint_variable_times_two_overflow@iq17-default	D-N3	duckdb,postgres,snowflake
+run	lite/review5/b1_column_plus_a_bigint_variable_in_where_overflow@iq17-default	D-N3	duckdb,postgres,snowflake
+run	lite/review5/b1_column_plus_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres,snowflake
+run	lite/review5/b1_column_times_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres,snowflake
+run	lite/review5/b1_negated_smallest_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres,snowflake
+run	lite/review5/b1_smallint_plus_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres,snowflake
+run	lite/m1b/name_keeps_written_parentheses@iq17-default	names	duckdb,postgres,snowflake
+run	lite/m1b/name_of_a_delimited_column@iq17-default	names	duckdb,postgres,snowflake
+run	lite/m1c/name_of_a_parenthesized_key_column@iq17-default	names	duckdb,postgres,snowflake
+run	lite/m1gaps/unaliased_sum_of_alias_and_constant@iq17-default	names	duckdb,postgres,snowflake
+run	lite/m1review/m1_constant_chains_over_one_table_keep_their_parentheses@iq17-default	names	duckdb,postgres,snowflake
+run	lite/review4/m1_chain_names_over_a_table_keep_their_parentheses@iq17-default	names	duckdb,postgres,snowflake
+run	lite/review4/m1_chain_names_over_a_table_keep_their_parentheses@iq17-tds	names	duckdb,postgres,snowflake
+run	lite/review4/m1_chain_names_over_a_table_under_top_keep_their_parentheses@iq17-default	names	duckdb,postgres,snowflake
+run	lite/review4/m1_chain_names_over_a_table_under_top_keep_their_parentheses@iq17-tds	names	duckdb,postgres,snowflake
+run	lite/review7/b2_later_union_branch_needs_no_name@iq17-default	D-R1	duckdb,postgres,snowflake
+run	lite/m0/start_at_an_expression_of_zero@iq17-default	top-expr	duckdb,postgres,snowflake
+run	lite/m0/top_all_start_at@iq17-default	top-expr	duckdb,postgres,snowflake
+run	lite/m0/top_and_start_at_expressions@iq17-default	top-expr	duckdb,postgres,snowflake
+run	lite/m0/top_expression@iq17-default	top-expr	duckdb,postgres,snowflake
+run	lite/m0/top_expression_negative@iq17-default	top-expr	duckdb,postgres,snowflake
+run	lite/m0/top_expression_of_zero@iq17-default	top-expr	duckdb,postgres,snowflake
+run	lite/m0/top_expression_overflow@iq17-default	top-expr	duckdb,postgres,snowflake
+run	lite/m0/top_expression_precedence@iq17-default	top-expr	duckdb,postgres,snowflake
+run	lite/m1c/two_lists_ordered_differently@iq17-default	D-A1	duckdb,postgres,snowflake
+run	lite/m1d/locate_from_column_starts@iq17-default	non-string-input	duckdb,postgres,snowflake
 run	lite/m1b/in_subquery_unknown_counted@iq17-default	not-in-unknown	duckdb,postgres
-run	lite/m1review/m2_median_of_smallint_extremes@iq17-default	D-F17	duckdb,postgres
-run	lite/natives/between_with_a_tab_and_blanks@iq17-default	D-S5	duckdb,postgres
-run	lite/m1d/exp_at_the_largest_and_the_smallest_doubles@iq17-default	exp-underflow	duckdb,postgres
-run	lite/m1d/exp_of_constants@iq17-default	exp-underflow	duckdb,postgres
-run	lite/m1d/functions_in_case_and_isnull@iq17-default	iq-defect	duckdb,postgres
-run	lite/m1gaps/duplicate_aggregate_names_in_exists@iq17-default	iq-defect	duckdb,postgres
+run	lite/m1review/m2_median_of_smallint_extremes@iq17-default	D-F17	duckdb,postgres,snowflake
+run	lite/natives/between_with_a_tab_and_blanks@iq17-default	D-S5	duckdb,postgres,snowflake
+run	lite/m1d/exp_at_the_largest_and_the_smallest_doubles@iq17-default	exp-underflow	duckdb,postgres,snowflake
+run	lite/m1d/exp_of_constants@iq17-default	exp-underflow	duckdb,postgres,snowflake
+run	lite/m1d/functions_in_case_and_isnull@iq17-default	iq-defect	duckdb,postgres,snowflake
+run	lite/m1gaps/duplicate_aggregate_names_in_exists@iq17-default	iq-defect	duckdb,postgres,snowflake
 # IQ island, 2026-10-15 (landing 4: the window cases, lite/windows.yaml, snapped from the live IQ): IQ's engine types k * 2
 # by the data's range (a SMALLINT here), so SUM over its window is a BIGINT where lite's INTEGER product sums to a
 # NUMERIC(20,0).
-run	lite/windows/window_of_an_alias@iq17-default	D-N3	duckdb,postgres
+run	lite/windows/window_of_an_alias@iq17-default	D-N3	duckdb,postgres,snowflake
 # IQ island, 2026-10-15 (landing 4: the census's scale suite, DOUBLE arithmetic linear in size): IQ's engine answers a
 # DOUBLE overflow NULL (measured on IQ 17.1), which the DuckDB lane now answers; Postgres raises on float8 overflow.
 run	lite/m1a/double_overflow@iq17-default	pg-double-overflow	postgres
+
+# the IQ scale program, 2026-10-23 (docs/IQ_SCALE_PROGRAM_2026_10_22.md Q3/Q4): the Snowflake lane's own, on the
+# account the sibling session runs (claude/iq-scale at b26592b3); the iq17 runs the duckdb lane lists that diverge
+# alike on Snowflake gained its lane above
+run	lite/corpus_gaps/start_at_skipping_a_raising_row_is_iqs_error@iq17-default	sf-lazy	snowflake
+run	lite/corpus_gaps/top_computes_a_distincts_items_for_every_row@iq17-default	sf-lazy	snowflake
+run	lite/cte/a_cte_in_a_scalar_subquery@iq17-default	sf-internal	snowflake
