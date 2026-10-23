@@ -179,15 +179,16 @@ public final class Snowflake extends AnsiSqlRenderer {
      * aggregate and names its columns {@code 'a'}, quotes included); the checked-defect envelopes as list lambdas
      * (a to-many hoist nests lambdas and walls here); the substring start clamp (a negative start counts from the
      * end here); a select-list UNNEST as a lateral FLATTEN; a constant GROUP BY or ORDER BY key as a typed
-     * expression (Snowflake reads an integer one as a position); and the root's DECIMAL(p,s) and HUGEINT columns
-     * cast to their declared types. QUALIFY and star exclusion are native.
+     * expression (Snowflake reads an integer one as a position); a scalar subquery's chain of derived tables that
+     * only pass one column up, collapsed, so its correlation is its own WHERE's (ScalarSubqueriesFlattened); and the
+     * root's DECIMAL(p,s) and HUGEINT columns cast to their declared types. QUALIFY and star exclusion are native.
      */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
-                new ConstantKeysAsExpressions(), new RootNumericTypes());
+                new ConstantKeysAsExpressions(), new ScalarSubqueriesFlattened(), new RootNumericTypes());
     }
 
     @Override
