@@ -67,6 +67,16 @@ class SnowflakeIqScaleTest {
         assertTrue(wideSql.length() < 2_000, wideSql.length() + " characters");
     }
 
+    /** A HUGEINT operand may pass the 19 integer digits NUMBER(38, 19) holds (a SUM of BIGINTs): the remainder form
+     *  (an independent review, 2026-10-23). */
+    @Test
+    void aHugeintDividendDividesByItsRemainder() {
+        SqlExpr huge = new SqlExpr.DecimalLit(new java.math.BigDecimal("20000000000000000000"));
+        String sql = rendered(SqlExpr.Call.of(SqlFn.INT_DIVIDE, huge, new SqlExpr.IntLit(3_000_000)));
+        assertTrue(sql.contains("MOD(20000000000000000000, NULLIF(3000000, 0))") && !sql.contains("NUMBER(38, 19)"),
+                sql);
+    }
+
     @Test
     void aDividendOfLowerPrecedenceKeepsItsParentheses() {
         SqlExpr sum = SqlExpr.Call.of(SqlFn.PLUS, new SqlExpr.IntLit(7), new SqlExpr.IntLit(8));

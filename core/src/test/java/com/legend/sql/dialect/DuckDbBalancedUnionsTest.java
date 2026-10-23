@@ -9,8 +9,8 @@ import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlUnion;
 import com.legend.testbackend.TestBackend;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import com.legend.testbackend.TestBackends;
+import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -24,10 +24,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A union of thousands of branches runs, its rows the same, on every in-process database ({@link BalancedUnions}: the
- * IQ scale program's Q10, 2026-10-23; a UNION ALL of 2,000 branches was past DuckDB's depth of 1,000).
+ * A union of thousands of branches runs on DuckDB, its rows the same ({@link BalancedUnions}: the IQ scale program's
+ * Q10, 2026-10-23; a UNION ALL of 2,000 branches was past DuckDB's depth of 1,000).
  */
-class BalancedUnionsTest {
+class DuckDbBalancedUnionsTest {
 
     private static SqlQuery branch(long v) {
         return SqlSelect.starOf(new SqlSource.Dual()).withProjections(List.of(
@@ -44,9 +44,9 @@ class BalancedUnionsTest {
         return out;
     }
 
-    @ParameterizedTest(name = "{0}: a union of 5,000 branches keeps its rows")
-    @MethodSource("com.legend.testbackend.TestBackends#inProcess")
-    void aLongUnionKeepsItsRows(TestBackend backend) throws Exception {
+    @Test
+    void aLongUnionKeepsItsRows() throws Exception {
+        TestBackend backend = TestBackends.platform();
         int n = 5_000;
         List<SqlQuery> all = new ArrayList<>();
         List<SqlQuery> repeating = new ArrayList<>();

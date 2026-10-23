@@ -665,6 +665,9 @@ public final class DuckDb extends AnsiSqlRenderer {
         // column leaving through a star is read as JSON (docs/VARIANT_STORAGE_CENSUS_2026_09_27.md, the 2026-10-12
         // addendum)
         ps.add(new VariantEgress());
+        // a long union as nested groups, past DuckDB's depth of 1,000 (the IQ scale program's Q10, 2026-10-23); after
+        // the root's own conversions, which read the root's branches
+        ps.add(new BalancedUnions());
         return java.util.List.copyOf(ps);
     }
 

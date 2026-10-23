@@ -1583,7 +1583,7 @@ public final class Snowflake extends AnsiSqlRenderer {
      *  (0.5e-19) never reaches; its 19 integer digits hold any BIGINT's. Each operand is written once (an independent
      *  review, 2026-10-23: the remainder form, (a - MOD(a, b)) / b, wrote each twice, nested divisions growing three
      *  times a level). Measured on an account (the sibling, 2026-10-23): the BIGINT extremes, the signs, a divisor of
-     *  3e18, a zero divisor's NULL. */
+     *  3e18, a zero divisor's NULL. A HUGEINT operand keeps the remainder form. */
     private SqlWriter intDivide(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
         if (isInteger(typeOf(a.get(0))) && isInteger(typeOf(a.get(1)))) {
@@ -1594,8 +1594,15 @@ public final class Snowflake extends AnsiSqlRenderer {
                 return writer.append("CAST(TRUNC(").expr(a.get(0), 6).append(" / ").expr(a.get(1), 6)
                         .append(") AS BIGINT)");
             }
-            return writer.append("CAST(TRUNC(CAST(").expr(a.get(0), 0).append(" AS NUMBER(38, 19)) / NULLIF(")
-                    .expr(a.get(1), 0).append(", 0)) AS BIGINT)");
+            if (typeOf(a.get(0)) != SqlType.Scalar.HUGEINT && typeOf(a.get(1)) != SqlType.Scalar.HUGEINT) {
+                return writer.append("CAST(TRUNC(CAST(").expr(a.get(0), 0).append(" AS NUMBER(38, 19)) / NULLIF(")
+                        .expr(a.get(1), 0).append(", 0)) AS BIGINT)");
+            }
+            // a HUGEINT operand (a SUM of BIGINTs) may pass the 19 integer digits NUMBER(38, 19) holds, or divide by
+            // more than 2e19, where 19 places round up (an independent review, 2026-10-23): the remainder form, each
+            // operand twice
+            return writer.append("CAST((").expr(a.get(0), 5).append(" - MOD(").expr(a.get(0), 0).append(", NULLIF(")
+                    .expr(a.get(1), 0).append(", 0))) / NULLIF(").expr(a.get(1), 0).append(", 0) AS BIGINT)");
         }
         return writer.append("TRUNC(").expr(a.get(0), 6).append(" / NULLIF(").expr(a.get(1), 0).append(", 0))");
     }

@@ -14,12 +14,15 @@ import java.util.List;
 
 /**
  * A union of more than {@link #FAN_OUT} branches as a union of groups, each group's branches read through a derived
- * table ({@code SELECT * FROM (b1 UNION ALL ... b64) AS u1 UNION ALL SELECT * FROM (...) AS u2}), recursively. A
- * database parses {@code b1 UNION ALL b2 UNION ALL ...} as a tree as deep as it has branches, and DuckDB refuses one
- * past its depth of 1,000 (the IQ scale program's Q10 and Q17, 2026-10-23: its scale probe's UNION ALL of 2,000);
- * grouped, the tree is {@link #FAN_OUT} deep per level and a level per {@link #FAN_OUT}-fold. A union, deduplicating
- * or not, is associative, so the grouping keeps its rows; the union's columns are its first branch's in both forms,
- * and a derived table, unlike a parenthesized set operation, every dialect reads (SQLite has none of the latter).
+ * table ({@code SELECT * FROM (b1 UNION ALL ... b64) AS u1 UNION ALL SELECT * FROM (...) AS u2}), recursively. DuckDB
+ * parses {@code b1 UNION ALL b2 UNION ALL ...} as a tree as deep as it has branches and refuses one past its depth of
+ * 1,000 (the IQ scale program's Q10 and Q17, 2026-10-23: its scale probe's UNION ALL of 2,000); grouped, the tree is
+ * {@link #FAN_OUT} deep per level and a level per {@link #FAN_OUT}-fold. A union, deduplicating or not, is
+ * associative, so the grouping keeps its rows, and its columns are its first branch's either way.
+ *
+ * <p>DuckDB's pass, after its root conversions: a root union's branches leave the root here, and a dialect that
+ * converts the root's values as it writes them (SQLite's decimals, MariaDB's floats, BigQuery's NULLs, Trino's rows)
+ * would write them unconverted (an independent review, 2026-10-23, measured on SQLite at 65 branches).
  */
 final class BalancedUnions extends SqlRewriter {
 

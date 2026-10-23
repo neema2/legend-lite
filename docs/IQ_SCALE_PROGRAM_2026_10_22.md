@@ -190,7 +190,7 @@ says so.
 | Q21 | DATEADD of a computed timestamp of no known year under the iq17 profiles: refused for SQL Anywhere 17's defect past the year 7910 (531 of round 3's refusals); whether IQ 17.1 shares it decides the iq17 reading | P3 | oracle | open |
 | Q14 | A stored REAL or FLOAT column read: compared, computed, shown | P3 | oracle | open. Measured: under IQ 17.1's engine `rl = 0.1` in a WHERE holds for a stored REAL (the constant compared in single precision), while SQL Anywhere 17 compares as doubles, and a computed REAL compares as a double under both (`reals_compared_as_doubles`) |
 | Q15 | The corpus coverage lane rebuilt in the cloud (SEDE, SQLStorm and Public BI fetched; BIRD needs disk) | P3 | the user's approval to run the research repo's scripts | open |
-| Q16 | Very wide joins on DuckDB: per statement, `SET disabled_optimizers = 'join_order'` past ~64 joined relations | P4 | an exec-seam hook (another line's) | done in the lowering (2026-10-23): a chain past 32 relations read in groups, 350 joins in 12.6 s (were 210 s). Measured on DuckDB 1.4.4, plain SQL, a chain of self-joins over 11 rows: 100 joins 0.6 s, 200 joins 19 s, 350 joins 181 s. With the join-order optimizer off: 0.15 s, 0.5 s, and 700 joins in 2.8 s |
+| Q16 | Very wide joins on DuckDB: per statement, `SET disabled_optimizers = 'join_order'` past ~64 joined relations | P4 | an exec-seam hook (another line's) | open: a grouping in the lowering (2026-10-23) ran 350 joins in 12.6 s (were 210 s) and was reverted on an independent review's findings (its SELECT * read the tables' undeclared columns; see the log). Measured on DuckDB 1.4.4, plain SQL, a chain of self-joins over 11 rows: 100 joins 0.6 s, 200 joins 19 s, 350 joins 181 s; with the join-order optimizer off 0.15 s, 0.5 s, and 700 joins in 2.8 s; in groups of 32 reading only the columns used past them, 200 joins in 0.12 s |
 | Q17 | DuckDB's own depth limits (`max_expression_depth` 1,000, the planner's tree depth 1,000): UNION ALL past ~1,000 branches, 1,000 nested parentheses or CASEs, 700+ joins. Raising the setting is unsafe on small-stack callers (DuckDB's parser recurses natively); balanced UNION ALL emission is the way | P4 | — | open |
 | Q18 | `SqlToPure` and `IqParser` recursion: stack use per nesting level, for callers other than the server (the browser planner) | P4 | — | measured (slice 4's log, `IqFuzzTest.theDefaultStacksReach`); making the layers iterative is open, below the correctness items |
 | Q19 | Core's DuckDB 1.4.4 → 1.5.x: 1.4.4 loses rows from a UNION ALL nested in a UNION ALL under parallel execution (slice 3's log). Latent for the islands: lite's lowering writes a nested UNION ALL as one flat union, and the fuzzer's nested-union partition check (3,000 shapes) found no loss. Another shape that nests a union inside a union would meet it | P1 | the build line's DuckDB bump, the user's call | proposed |
@@ -457,3 +457,17 @@ says so.
   in-process database.
 - 2026-10-23, **fuzz round 9** (seed 9, 2,000 shapes, depth 4, `iq16-default`): 30,000 queries, 1,718 partitioned, no
   finding.
+- 2026-10-23, **a third independent review** (a fresh agent, given the code of cd3d257f..298b6bd5) confirmed three
+  regressions, each fixed, and one suspected, fixed too:
+  1. **BalancedUnions moved a root union's branches off the root**, where a dialect converting the root's values as it
+     writes them no longer did: on SQLite, a DECIMAL(10,2) of a 65-branch root union came back as 1.5, a Double
+     (MariaDB's floats, BigQuery's NULLs and Trino's rows by the same mechanism). The grouping is DuckDB's own pass
+     now, after its root conversions. `LongUnionRootValuesTest` (every in-process database) fails on the old
+     placement; `DuckDbBalancedUnionsTest` keeps the 5,000 branches.
+  2. **The join chain's `SELECT *` group read every physical column**: a declared column of one table named like an
+     undeclared one of another read the wrong one (DuckDB and SQLite answered A's undeclared Z for B's), names
+     differing in case collided, and a prefixed join after the chain listed `t92.*` in the physical order. Reverted:
+     Q16 is open again. `LongJoinChainTest` holds any later grouping to those rows.
+  3. **Snowflake's scale-19 quotient of a HUGEINT operand** (a SUM of BIGINTs) can pass the 19 integer digits
+     NUMBER(38, 19) holds: such an operand keeps the remainder form (`SnowflakeIqScaleTest`).
+  - Checked and found sound: `IqDialect.checked`'s engine and branches, `Fold.sourceColumn`, `ConstantAggregateOrder`.
