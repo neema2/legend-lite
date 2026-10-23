@@ -37,6 +37,7 @@ import {
 import type { ColumnFormat, FormatterCache } from '../format.ts';
 import { DEFAULT_FORMAT } from '../format.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
+import { numberOf } from '../../../engine-client/src/values.ts';
 import {
   bounds,
   contains,
@@ -449,14 +450,16 @@ export class DataGrid {
    * rebuilt, no layout read, the columns' widths fitted once a view (`setRows`), never a tick. Measured over a flat
    * grid of 100,000 positions: the browser's layout was the tick's cost, and it grows with the cells changed. Drawn
    * whole, as `setRows` draws, when the rows moved under the grid (another count, another row's key in a place) or
-   * `whole` says a cell's colour reads every row (a heatmap's scale).
+   * `whole` says a cell's colour reads every row (a heatmap's scale). `flashes`: a changed number flashes (`flash`) --
+   * only where a row is the same row from tick to tick (a group's, by its key; a flat view's in the source's order),
+   * never where a row sorted by a ticking value may hold another one now.
    */
-  tickRows(table: ResultTable, blockOffset: number, totalRows: number, whole = false): void {
+  tickRows(table: ResultTable, blockOffset: number, totalRows: number, whole = false, flashes = false): void {
     const rendered = this.#rendered;
     this.#table = table;
     this.#blockOffset = blockOffset;
     if (whole || totalRows !== this.#totalRows || !rendered || !this.#model
-      || this.#body.children.length !== rendered.end - rendered.start || !this.#redrawn(this.#onScreenNow())) {
+      || this.#body.children.length !== rendered.end - rendered.start || !this.#redrawn(this.#onScreenNow(), flashes)) {
       this.#totalRows = totalRows;
       this.#announceRowCount();
       this.#rendered = null;
@@ -478,7 +481,7 @@ export class DataGrid {
    * the cell drawn); any other is drawn anew. False, nothing more drawn, when a row moved under the grid (its key in
    * that place is another), so the caller draws the grid whole.
    */
-  #redrawn(range: { readonly first: number; readonly end: number }): boolean {
+  #redrawn(range: { readonly first: number; readonly end: number }, flashes: boolean): boolean {
     const rendered = this.#rendered;
     const model = this.#model;
     const table = this.#table;
@@ -535,11 +538,17 @@ export class DataGrid {
               for (const k of Object.keys(onScreen(cellStyle(appearance, previous, type)))) old.style.removeProperty(k);
               for (const [k, v] of Object.entries(onScreen(cellStyle(appearance, value, type)))) old.style.setProperty(k, v);
             }
+            if (flashes) flash(old, numberOf(value, type), numberOf(previous, type));
             continue;
           }
         }
         if (focused !== null && old.contains(focused)) refocus = true;
-        old.replaceWith(this.#cell(doc, leaf, c, abs, local, table, meta, loaded));
+        const drawn = this.#cell(doc, leaf, c, abs, local, table, meta, loaded);
+        old.replaceWith(drawn);
+        if (flashes && loaded && wasLoaded) {
+          const type = column?.type;
+          flash(drawn, numberOf(value, type), numberOf(before.columns[leaf.index]?.values[was] ?? null, type));
+        }
       }
     }
     if (refocus) this.#focusCell();
@@ -1282,7 +1291,8 @@ export class DataGrid {
     this.#viewHeight = this.#scroller.clientHeight;
     const wanted = this.window;
     // the rows drawn cover those wanted: the ones a scroll brings on, drawn from an older block, drawn again from this
-    if (this.#rendered && isCovered(this.#rendered, wanted) && this.#redrawn(this.#onScreenNow())) return;
+    // (no flash: the person did not see them change)
+    if (this.#rendered && isCovered(this.#rendered, wanted) && this.#redrawn(this.#onScreenNow(), false)) return;
 
     const doc = this.#root.ownerDocument;
     const rowHeight = this.#options.rowHeight ?? DEFAULT_ROW_HEIGHT;
@@ -1608,4 +1618,21 @@ export class DataGrid {
     void this.#options.writeClipboard?.(text);
     return text;
   }
+}
+
+/** The animations a cell's tick flash is named by, each direction two: naming it afresh restarts it with no layout read. */
+const FLASHES = ['dc-tick-up', 'dc-tick-up2', 'dc-tick-down', 'dc-tick-down2'] as const;
+
+/**
+ * A TICK'S CHANGE SHOWN (docs/DEEPHAVEN_PLAN_2026_10_22.md A1): a number that rose flashes green, one that fell red,
+ * fading back to the cell's own colour (grid.css) -- its animation named afresh each time, so a cell that changes at
+ * every tick flashes at every tick. A cell that holds no number, or one that did not move, does not flash; the sign of
+ * a change is presentation (values.ts `numberOf`), never a value shown.
+ */
+function flash(cell: HTMLElement, now: number | null, was: number | null): void {
+  if (now === null || was === null || now === was) return;
+  const [first, second] = now > was ? ['dc-tick-up', 'dc-tick-up2'] as const : ['dc-tick-down', 'dc-tick-down2'] as const;
+  const name = cell.classList.contains(first) ? second : first;
+  cell.classList.remove(...FLASHES);
+  cell.classList.add(name);
 }

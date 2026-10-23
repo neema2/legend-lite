@@ -460,6 +460,12 @@ function loadPage(): Promise<typeof import('./page/cube-page.ts')> {
   return pageModule;
 }
 
+
+/** What a view's status bar counts: its rows, the result's (a window's), the truncation -- a tick redraws the bar
+ *  when it changed (A1). */
+function statusCount(view: CubeView): string {
+  return `${view.rows.rowCount} ${view.window?.total ?? ''} ${view.totalRows ?? ''} ${view.truncated.length}`;
+}
 export class CubeApp {
   readonly #doc: Document;
   readonly #options: CubeAppOptions;
@@ -885,7 +891,10 @@ export class CubeApp {
       this.#tickAgain ??= running.then(again, again);
       return this.#tickAgain;
     }
-    const run: Promise<Outcome> = this.#owner.rerun().finally(() => {
+    const run: Promise<Outcome> = this.#owner.rerun().then((outcome) => {
+      this.#sayTick(outcome);
+      return outcome;
+    }).finally(() => {
       if (this.#ticking === run) this.#ticking = null;
     });
     this.#ticking = run;
@@ -895,6 +904,19 @@ export class CubeApp {
   /** The tick running now, and the one asked for while it runs. */
   #ticking: Promise<Outcome> | null = null;
   #tickAgain: Promise<Outcome> | null = null;
+  /** Why the last tick was refused, until one lands again: said once (docs/DEEPHAVEN_PLAN_2026_10_22.md A1). */
+  #tickRefused: string | null = null;
+
+  /** A refused tick said -- in the status, never an alert over the grid: a tick is no gesture of the person's -- once
+   *  for as long as ticks are refused for the same reason; a tick that lands clears it. */
+  #sayTick(outcome: Outcome): void {
+    if (outcome.kind === 'applied') this.#tickRefused = null;
+    if (outcome.kind !== 'refused') return;
+    const why = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
+    if (why === this.#tickRefused) return;
+    this.#tickRefused = why;
+    this.#status(`The live rows could not be read: ${why}`, 'error');
+  }
 
   /** The window of a flat cube's result its view reads (V1): set when the rows on screen move past those held. */
   #windowAt: ResultWindow | null = null;
@@ -1044,6 +1066,8 @@ export class CubeApp {
   /** The view on screen, and its rows. */
   /** The headers on screen, as #paintView painted them: what a header click sorts by (header-sort.ts). */
   #headers: readonly LeafColumn[] = [];
+  /** The rows the status bar counts, as it last drew them (`statusCount`). */
+  #statusCounted = '';
 
   get #view(): CubeView | null {
     return this.#owner.view;
@@ -1449,9 +1473,12 @@ export class CubeApp {
       this.#paintView(view);
     } else {
       this.#refreshHeatmaps(view);
-      // only the cells whose value changed drawn again; every cell when a heatmap's scale reads them all
+      // only the cells whose value changed drawn again; every cell when a heatmap's scale reads them all; a changed
+      // number flashes where a row is the same row each tick: a group's, or a flat view's in the source's order
       this.#grid.tickRows(view.rows, view.window?.offset ?? 0, view.window?.total ?? view.rows.rowCount,
-        this.#heatmaps.size > 0);
+        this.#heatmaps.size > 0, view.snapshot.rows.length > 0 || view.snapshot.sorts.length === 0);
+      // the status bar's count drawn again when the tick brought or took rows: a tick that moved values leaves it
+      if (statusCount(view) !== this.#statusCounted) this.#renderStatusBar(view, model.leaves.length);
     }
     // a tick is no view landing: its charts -- on its own board, or on its page's -- drawn again from their live rows
     this.#page?.page.tick();
@@ -1510,6 +1537,7 @@ export class CubeApp {
     // Ad Hoc owns the bar while it is on (`#renderAdHocStatus`)
     if (this.#adhoc) return;
     const doc = this.#doc;
+    this.#statusCounted = statusCount(view);
 
 // WHAT YOU CAN DO ON THE LEFT, WHAT IS TRUE ON THE RIGHT.
     //

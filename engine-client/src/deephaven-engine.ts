@@ -221,17 +221,40 @@ export class DeephavenEngine implements QueryEngine {
   }
 
   /** Resolved once the result's first rows are in the page (N1: a read the moment it resolves is answered live), or
-   *  once it is let go before they came. */
+   *  once it is let go before they came; refused when it could not be followed or its rows could not be read. */
   async #startWhole(plan: Plan, f: SharedFollowing): Promise<void> {
     const session = this.#session;
-    const kept = await session.keepAlive(plan.sql, this.#supplied());
+    let kept: KeptResult;
+    try {
+      kept = await session.keepAlive(plan.sql, this.#supplied());
+    } catch (e) {
+      // never a following left behind that no one makes: the next read follows it again
+      if (this.#whole.get(plan.sql) === f) this.#whole.delete(plan.sql);
+      throw e;
+    }
     let arrived!: () => void;
-    const first = new Promise<void>((done) => { arrived = done; });
+    let unread!: (error: unknown) => void;
+    const first = new Promise<void>((done, refuse) => { arrived = done; unread = refuse; });
+    let firstSeen = false;
     try {
       const name = await session.publishKept(kept.exportId);
       const followed: Followed = await (await this.#liveClient()).follow(name, (rows) => {
         if (f.stopped) return;
-        f.table = followedTable(rows, plan, 0, 0);
+        let table: ResultTable;
+        try {
+          table = followedTable(rows, plan, 0, 0);
+        } catch (error) {
+          // rows the tab does not read (deephaven-rows.ts refuses them by name): said, and the result let go -- never a
+          // following that stopped ticking unsaid, nor a view waiting on rows that will not come
+          if (this.#whole.get(plan.sql) === f) this.#whole.delete(plan.sql);
+          unread(error);
+          const why = error instanceof Error ? error.message : String(error);
+          if (firstSeen) for (const r of f.readers) r.unfollowed(why);
+          stopFollowing(f);
+          return;
+        }
+        f.table = table;
+        firstSeen = true;
         arrived();
         for (const r of f.readers) r.changed();
       });
@@ -569,6 +592,12 @@ export class DeephavenReader implements QueryEngine {
     for (const l of this.#listeners) l({ since: performance.now(), ended: why });
   }
 
+  /** A result it follows could no longer be followed (the engine's word: its rows could not be read): said to its
+   *  listeners, as one that could not be followed at its read is (`failed`). */
+  unfollowed(why: string): void {
+    for (const l of this.#listeners) l({ since: performance.now(), ended: null, failed: why });
+  }
+
   /** Everything it followed let go, as of a session gone (the engine's reconnect): nothing until its next `follow`. */
   reset(): void {
     for (const f of this.#windows.values()) stopFollowing(f);
@@ -615,7 +644,19 @@ export class DeephavenReader implements QueryEngine {
       const name = await session.publishKept(kept.exportId);
       const followed = await (await this.#core.liveClient()).followWindow(name, window, (rows) => {
         if (f.stopped) return;
-        f.table = followedTable(rows, plan, 0, 0);
+        let table: ResultTable;
+        try {
+          table = followedTable(rows, plan, 0, 0);
+        } catch (error) {
+          // rows the tab does not read: the runs waiting for them refused, else said; the window let go
+          if (this.#windows.get(plan.sql) === f) this.#windows.delete(plan.sql);
+          const waiting = w.waiting.splice(0);
+          for (const r of waiting) r.reject(error);
+          if (waiting.length === 0) this.unfollowed(error instanceof Error ? error.message : String(error));
+          stopFollowing(f);
+          return;
+        }
+        f.table = table;
         w.offset = rows.offset;
         w.total = rows.total;
         // an update a run waits for is that run's to read; any other is a tick
@@ -625,7 +666,10 @@ export class DeephavenReader implements QueryEngine {
           this.changed();
         }
       }, (error) => {
-        for (const r of w.waiting.splice(0)) r.reject(error);
+        const waiting = w.waiting.splice(0);
+        for (const r of waiting) r.reject(error);
+        // a tick's update the library could not place: said, never a window that stopped moving unsaid
+        if (waiting.length === 0) this.unfollowed(error.message);
       });
       w.move = (moved) => { followed.move(moved); };
       f.stop = () => {

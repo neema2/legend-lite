@@ -862,6 +862,22 @@ describe('a tick, and a block of a larger result', () => {
     assert.equal(cell(3, 0), kept, 'a cell whose value did not change is untouched');
   });
 
+  it('flashes a changed number green when it rose and red when it fell, again at the next change; only when asked', () => {
+    const { table } = build(50);
+    grid.tickRows(changed(table, 3, 1234.5), 0, 50, false, true);
+    assert.ok(cell(3, 1)?.classList.contains('dc-tick-up'), 'rose: green');
+    assert.ok(!cell(3, 0)?.className.includes('dc-tick'), 'an unchanged cell: no flash');
+    const risen = changed(table, 3, 2000);
+    grid.tickRows(risen, 0, 50, false, true);
+    assert.ok(cell(3, 1)?.classList.contains('dc-tick-up2'), 'rose again: the flash named afresh, so it runs again');
+    assert.ok(!cell(3, 1)?.classList.contains('dc-tick-up'));
+    grid.tickRows(changed(risen, 3, 1), 0, 50, false, true);
+    assert.ok(cell(3, 1)?.classList.contains('dc-tick-down') && !cell(3, 1)?.classList.contains('dc-tick-up2'), 'fell: red');
+    // a view whose rows may move under it (sorted by a ticking value) asks no flash
+    grid.tickRows(changed(risen, 4, 777), 0, 50);
+    assert.ok(!cell(4, 1)?.className.includes('dc-tick'), 'not asked: no flash');
+  });
+
   it('leaves a row past the screen as it was until a scroll brings it on, then draws it from the newest rows', () => {
     const { table, scroller } = build(50);
     // 200 px of 20 px rows: rows 0 to 10 on screen, the overscan of 2 drawn below them

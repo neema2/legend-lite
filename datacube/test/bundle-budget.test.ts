@@ -260,8 +260,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  take time; a tick may not": a flat cube read by a window -- the controller's, the runners' and the app's part, the
  *  grid painting a block of the whole and saying the rows on screen -- a tick drawn in place, the changed cells of the
  *  rows on screen only (DataGrid.tickRows), and a grid's charts drawn again at its tick; about 2 KB gzipped, in the
- *  grid's own paths, which every tick and every scroll run). Measured 320,660. */
-const BUDGET = 321_000;
+ *  grid's own paths, which every tick and every scroll run). Measured 320,660.
+ *  321,000 -> 322,000 (2026-10-23, the Deephaven line's A1, the user's "a visual of the cell color changing": a ticked
+ *  number flashes green or red where its row is the same row (DataGrid.tickRows `flash`), a refused tick said once, the
+ *  status bar's count drawn again when a tick brings or takes rows). Measured 321,067. */
+const BUDGET = 322_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

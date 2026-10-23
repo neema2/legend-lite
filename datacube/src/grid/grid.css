@@ -253,10 +253,24 @@
   outline-offset: -2px;
 }
 
+/* A TICK'S CHANGE (grid.ts `flash`): a number that rose flashes green, one that fell red, and fades back to the cell's
+   own colour -- each keyframe set only its start, so it ends on whatever the cell is (its stripe, its heat). Two names
+   a direction: a cell that changes at every tick is named afresh, so it flashes again. */
+@keyframes dc-tick-up { from { background-color: var(--dc-tick-up, rgb(34 197 94 / 0.4)); } }
+@keyframes dc-tick-up2 { from { background-color: var(--dc-tick-up, rgb(34 197 94 / 0.4)); } }
+@keyframes dc-tick-down { from { background-color: var(--dc-tick-down, rgb(239 68 68 / 0.4)); } }
+@keyframes dc-tick-down2 { from { background-color: var(--dc-tick-down, rgb(239 68 68 / 0.4)); } }
+.dc-cell.dc-tick-up { animation: dc-tick-up 0.8s ease-out; }
+.dc-cell.dc-tick-up2 { animation: dc-tick-up2 0.8s ease-out; }
+.dc-cell.dc-tick-down { animation: dc-tick-down 0.8s ease-out; }
+.dc-cell.dc-tick-down2 { animation: dc-tick-down2 0.8s ease-out; }
+
 @media (prefers-reduced-motion: reduce) {
   .dc-body {
     will-change: auto;
   }
+  /* no flash: the value's own change is the news */
+  .dc-cell.dc-tick-up, .dc-cell.dc-tick-up2, .dc-cell.dc-tick-down, .dc-cell.dc-tick-down2 { animation: none; }
 }
 
 
