@@ -1,6 +1,7 @@
 # Deephaven as a database of legend-lite: the design (2026-10-22, revised)
 
-**Status: L1, L2, L3b and D0 built (their branches, §9); the rest PROPOSED.** Revised the same day on the user's ruling:
+**Status: L1, L2, L3b, D0 and J1 (DataCube's own app on Deephaven, DH23) built (their branches, §9); the rest
+PROPOSED.** Revised the same day on the user's ruling:
 **Deephaven is just another backend.** A user builds a `###Relational` store, mappings and classes, and everything
 works: the Relation API straight on the store's tables, `project()` over class navigation. No store of its own, no
 table kinds. The first version of this document (a `###Deephaven` store with source and input tables,
@@ -21,7 +22,9 @@ whole as `MongoDb` does, which writes Deephaven's table operations (its `BatchTa
 Deephaven's own SQL front end handled 8 of DataCube's 14 query shapes, its table operations all 14. **DataCube reaches
 Deephaven from the browser, with no server in the middle** (the user, 2026-10-23; DH21): the planner DataCube already
 runs in the tab (WebAssembly) plans the query, lite's own encoder turns the plan into Deephaven's messages, the tab
-sends them and subscribes to the result with the JS library the Deephaven server serves. A server-side sender (typed
+sends them and reads the rows back as Arrow. DataCube's own app runs on it unchanged (DH23): its engine is a Deephaven
+session that holds the tables each query made, so a regroup, a repivot or a filter sends only what differs, and the
+server says when a result on screen has changed. A server-side sender (typed
 rows for the server's API, Python and the tests; writes) speaks the same protocol from the JDK's own HTTP client,
 later. Live or snapshot is how a caller executes a plan, not what was planned. Reference data gets into Deephaven the
 platform's own way: read from its source of record on one runtime, **written through the same modelled table** on the
@@ -182,6 +185,7 @@ Alongside the MongoDB line's (the user's rulings of 2026-10-16), so the two non-
 | DH19 | a restart | (none) | **refused by name**: a table missing from the server is reported as missing, never recreated empty by the connector; the publisher recreates and reloads (§7) |
 | DH21 | DataCube's route | (none) | **the browser, straight to Deephaven** (the user, 2026-10-23: "we definitely have to find path for browser direct to DeepHaven without server in the middle"; measured, §9): the tab plans (the WebAssembly planner), asks the same module for the plan's bytes, posts them to Deephaven over HTTPS (Deephaven refuses its browser protocol without HTTP/2, which browsers speak only over TLS), publishes the result under a shared name, opens it with `dh-core.js` (`getSharedObject`) and subscribes to the visible rows. The tab's session owns the shared table: it refreshes its token while the grid is open and releases the table on close. Each tab builds its own table; identical ones are one table on the server (measured in the spike). **Who signs in:** the user, from the browser, to Deephaven; the connection's pre-shared key is a server secret and is never sent to a browser (a test key in the demo; Deephaven's per-user login, its code console off, for real users). **Where the page is served from:** an internal site, as Deephaven is: Chrome keeps a page on a site it counts as public from a loopback or private address without the person's permission (its Local Network Access rule, measured on the pinned Chromium, 2026-10-23), and does not keep one internal site's page from another's |
 | DH22 | the plan's form | D10: database-written text | **text: the plan stays Deephaven's own JSON form** of its batch message (shown in DataCube's query pane, compared in tests, quotable); the bytes are the sending step's, which fills what exists only at run time (this session's result ticket, an uploaded parameters table) and encodes |
+| DH23 | a grid's queries on one session | (none) | **one engine per grid, a session that holds what it made** (the user, 2026-10-23: "is there a base query that then you can do different aggs/filters on?"; measured, §9 J1): `DeephavenEngine`, a `QueryEngine` like the tab's DuckDB, so DataCube's own app runs on it unchanged (`new CubeApp(root, snapshot, {engine, planner})`, the planner on a Deephaven runtime). **Reuse:** the wire names each operation's table by a key (SHA-256 of the operation as the plan writes it, its inputs named by their keys) and sends only the operations the session does not hold, every one it sends exported to be read again; an operation held is read by its ticket. The target writes a source alike wherever it stands, so every query over one source shares the source's operations: Deephaven's own memoizing leaves out `view`, `naturalJoin` and `updateView`, the operations a source starts with. Idle tables are kept, the least recently read let go past a bound (128: an idle table still ticks on the server). **Rows:** Arrow Flight's `DoGet` on the session's own export, read by the tab's own Arrow decoders (Deephaven's `BigDecimal` and `BigInteger` forms by their `deephaven:type`), named by the plan by position. **Ticks:** the session's `ExportedTableUpdates` stream (one message per changed export per update cycle) names the results that changed; the engine says which epochs. For DataCube this replaces DH21's shared name and `dh-core.js` (the plain page keeps them): one session, no second sign-in, nothing published |
 | DH20 | joins | (Mongo's own) | **`natural_join` where the right side's key is unique** (its declared key covers the join columns, or it was grouped by them); the general `join` for an inner join otherwise; `asOfJoin` as `aj`; a to-many outer join (Deephaven's outer joins are experimental) and a non-equi join refused by name until measured |
 
 ## 6. Writes: the Cypher line's write design, rendered on Deephaven
@@ -285,13 +289,14 @@ publisher replaces the demo's seeding once they do. Stacked branches, no PR unti
 | B0 | scratch (measured 2026-10-23, below) | **the browser check**: a page served by another site posts a plan to Deephaven over HTTPS, publishes it, opens it with `dh-core.js` and watches it tick | done |
 | L3b | `claude/deephaven-3-browser` (on L2), **built 2026-10-23** | **the browser route (DH21)**: the encoder (DH11, DH22) beside the target, its field table checked against Deephaven's message definitions; the target and the encoder in the WebAssembly planner; the tab's sender (post the bytes, publish, refresh the session, release on close) and the subscription through `dh-core.js`; the pinned test server (HTTPS, a test certificate) | the encoder's tests against Deephaven's own definitions; the browser cases in headless Chromium against the pinned server: L2's 18 shapes give DuckDB's rows, and a live one ticks |
 | D0 | `claude/deephaven-3-browser` (on L3b), **built 2026-10-23** | **the first demo**: the store, classes and mappings of §7; reference data and the simulator as a **Deephaven startup script** (marked temporary: lite's modelled publisher replaces it, L5); a **restart watcher** that re-seeds after a Deephaven restart and tells subscribers; **a plain live-grid page** in the browser (the planner, the sender, `dh-core.js`; no server in the middle) standing in for DataCube | a ticking grid whose values agree with DuckDB's over the same inputs; a restart survived |
+| J1 | `claude/deephaven-3-browser` (on D0), **built 2026-10-23** | **DataCube's own app on Deephaven (DH23)**: the wire's keys and sends of what the session does not hold, `DoGet`'s ticket and the update stream's messages (Java, in the WebAssembly planner); the session's held tables and its update stream, `DeephavenEngine` (`engine-client/src/deephaven-engine.ts`) with its Arrow reader (`deephaven-rows.ts`), `LitePlanner.deephaven` so the cube and its engine share one module; the cube page (`datacube/demo/deephaven/cube.html`), re-running the cube on a tick until L4 | `//core:core_tests_deephaven`, `//engine-client:deephaven_rows_test` (an answer the pinned server sent, every kind of column), `//datacube:deephaven_cube_test` in the pinned Chromium |
 | L3s | `claude/deephaven-3-server` (on L3b, merged with the Mongo branch, whose connector seam it uses) | **the server-side sender**: the same encoder over the JDK's HTTP client (no jar), found through `ServiceLoader`; `rows` over Arrow Flight with lite's own Arrow reader, `subscribe` with its handle, creating tables, the schema check (DH16), the missing-table refusal (DH19); `DeephavenBackend`; the guards' additive lines, each dated | lite's own Deephaven cases, answered on DuckDB and on Deephaven and compared row for row; then the PCT lanes, as every database's |
 | W | `claude/cypher-writes` reaching `main` (the Cypher writes line's landing, its owner's call) | §6: the four verbs, staging, class writes, write plans | its own gates |
 | Wr | on main after W (built here, reviewed by the Cypher writes line) | the relation slot: a parameter whose value is typed rows, staged by the runner (§6's gap) | its own tests on DuckDB, H2, Postgres |
 | X | on Wr | **cross-store with explicit boundaries**: each `from(runtime)` a split, the inner part planned on its runtime and its rows carried into the outer part's slot; refused by name inside a live plan and for writes to two databases | a read on DuckDB merged into Deephaven as one program |
 | L3w | on L3s, W and Wr | Deephaven's write arms (DH17, §6's table) | the write cases, DuckDB against Deephaven |
 | L5 | on D0, X and L3w | the modelled publisher (§7) replaces D0's seeding | D0's checks, with no seeding |
-| L4 | `claude/deephaven-4-datacube`, stacked on the DataCube line's branch once it has settled | DataCube's ticking mode (§10) replaces the plain page | the DataCube line reviews |
+| L4 | `claude/deephaven-4-datacube`, stacked on the DataCube line's branch once it has settled | DataCube's ticking mode (§10) replaces J1's re-run on a tick: a ticked result's rows matched into the grid by group key, outside the transactions | the DataCube line reviews |
 
 **L2, measured (2026-10-23):** the target's batches for 18 query shapes (DataCube's pivot as conditional sums, its
 grand total over a literal key and over no rows, distinct, top-N, nested groupBy-extend, avg, count distinct, std,
@@ -335,6 +340,24 @@ page sees a restart and comes back with the same positions; screenshots of each 
 a comparison of the market values with DuckDB's over a frozen copy of the prices, and class queries through mappings
 (the store's tables are queried directly).
 
+**J1, built (2026-10-23): DataCube's own app on Deephaven.** `bazel run //datacube:deephaven_demo` now serves, beside
+the plain page, `cube.html`: DataCube's `CubeApp`, unchanged, over the risk source (the four joins and the market
+value), its engine `DeephavenEngine` and its planner the WebAssembly `LitePlanner` on the Deephaven runtime. Its judge,
+`//datacube:deephaven_cube_test` (manual, in `//gates:heavy`), drives the app's own changes in the pinned Chromium:
+the tree by desk has the seeding's positions; a pivot on region (two queries: its values, then the level) planned 31
+operations and sent 13; a regroup by region and currency planned 16 and sent 7; a filter to the FX desk planned 15 and
+sent 6 -- every query reading the source's nine operations (five views, four joins) from what the session held; the
+pivot's columns keep their names (`AMER__|__pid`, not the target's `__c<i>`); over the whole run 25 queries planned
+378 operations and 42 were sent, and no table was made twice; with the prices re-quoted ten times a second the cube
+re-ran 20 times in 5 s with nothing sent (each re-run: the plans from the planner's cache, the rows read again); and
+after a Deephaven restart the page said so, signed in again and came back with the same view, ticking. Measured on
+the way: `DoGet` over gRPC-web answers a held result in 10 to 20 ms; the planner's part of a query is 1 to 20 ms
+(planning, keys, the send's bytes); what a new query costs is Deephaven compiling its new formulas (a pivot's level,
+eight conditional sums: about 1.5 s the first time, its compiler keeping the classes by formula text); the update
+stream sends one message per changed export each cycle, a static export's once. The rows reader is checked on an
+answer the pinned server sent (`engine-client/test/deephaven/doget-answer.hex`): a 64-bit integer past 2^53, an
+`Instant` to the microsecond, a `LocalDate`, a `LocalTime`, a negative `BigDecimal`, a `BigInteger`, nulls.
+
 **Before internal users rely on it:** the firm's counsel reviews the deployment against the Deephaven Community
 License (this line's reading, `experiments/deephaven-spike/README.md`, is not legal advice).
 
@@ -343,9 +366,10 @@ License (this line's reading, `experiments/deephaven-spike/README.md`, is not le
 The user's shape: built here on a branch stacked on the DataCube line's, reviewed by that line.
 
 - **Where it plugs in.** Every grid's rows go through one `QueryRunner`, fixed when the cube is built (`PlanThenRun`
-  in the tab, `pythonRunner` on a page Python serves). A Deephaven runtime is another runner chosen at cube build, and
-  a `subscribe` beside `QueryEngine.execute` answers the live handle (DH10). That runner runs in the tab, with no
-  server in the middle (DH21): the WebAssembly planner plans and encodes, the tab sends and subscribes.
+  in the tab, `pythonRunner` on a page Python serves). A Deephaven runtime is another engine chosen at cube build --
+  built (J1, DH23): `DeephavenEngine` beside the planner, `PlanThenRun` unchanged -- and its `onTick` names the epochs
+  whose results changed. It runs in the tab, with no server in the middle (DH21): the WebAssembly planner plans and
+  encodes, the tab sends, reads the rows (`DoGet`) and hears the ticks (the session's update stream).
 - **The tick.** A `ticked` event, small and outside the transaction and undo machinery, so it survives the state
   owner's coming rework (the single writer's client side, after the line's S7): it replaces the grid's derived rows
   and nothing else. It never writes the cube or page document, never adds a command, never adds a page write: the
@@ -354,8 +378,9 @@ The user's shape: built here on a branch stacked on the DataCube line's, reviewe
 - **The first slice.** One grouping level, sums, no pivot, no tree expansion; charts out of it (a chart reads its own
   queries through its grid's runner, and per-view scales would rescale on every tick). Rows are matched by group key,
   since a sorted live table delivers a changed row as a removal and an addition.
-- **Loading.** The ticking code, and Deephaven's `dh-core.js` (fetched from the Deephaven server at run time), load
-  lazily, as the join and chart chunks do (`test/bundle-budget.test.ts`).
+- **Loading.** The ticking code loads lazily, as the join and chart chunks do (`test/bundle-budget.test.ts`). The
+  grid needs no `dh-core.js` (DH23); a page that wants Deephaven's own viewport subscription fetches it from the
+  Deephaven server at run time, never bundled.
 - **The rules.** The database executes and the client only arranges rows; no DataCube rule in Python (a Python side
   calls the TypeScript headless).
 - **Stable to build on**: the command API (`grid-commands.ts`, `page-commands.ts`), the cube and page documents, the
