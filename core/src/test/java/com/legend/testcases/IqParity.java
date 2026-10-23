@@ -445,6 +445,14 @@ public final class IqParity {
      *  bound by its column's type, a quoted value read by it. */
     public static void seed(TestBackend backend, Connection c, List<SqlParity.Table> tables) throws SQLException {
         com.legend.sql.dialect.SqlDialect dialect = backend.dialect();
+        // the dialect's session facts first, as every query's session has them (Execution): Snowflake's naive-UTC
+        // TIMEZONE above all, without which a bound TIMESTAMP is read in the account's zone (the IQ scale program,
+        // 2026-10-23: the Snowflake lane's first full run, every timestamp stored 8 h early)
+        try (Statement s = c.createStatement()) {
+            for (String setup : dialect.sessionSetup()) {
+                s.execute(setup);
+            }
+        }
         for (SqlParity.Table t : tables) {
             com.legend.sql.NameQuoting quoting = new com.legend.sql.NameQuoting(false, declaredQuoted(t.name()));
             List<com.legend.sql.SqlDdl.Column> columns = new ArrayList<>();
