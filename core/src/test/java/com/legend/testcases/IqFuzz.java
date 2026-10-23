@@ -162,9 +162,12 @@ public final class IqFuzz {
         List<Col> cols = new ArrayList<>();
         List<String> items = new ArrayList<>();
         if (mode == 1) {
-            // grouped: keys first, then aggregates
+            // grouped: keys first, then aggregates; an integer key computed a third of the time (2026-10-23: fuzz
+            // round 10's finding was a computed key read by a subquery)
             Col key = pick(scope);
-            items.add(key.ref() + " AS c0");
+            String keyExpr = key.kind() == Kind.INT && rnd.nextInt(3) == 0 ? "(" + key.ref() + " + "
+                    + (1 + rnd.nextInt(9)) + ")" : key.ref();
+            items.add(keyExpr + " AS c0");
             cols.add(new Col(qualifier, "c0", key.kind()));
             int aggs = 1 + rnd.nextInt(3);
             for (int i = 0; i < aggs; i++) {
@@ -174,9 +177,15 @@ public final class IqFuzz {
                 items.add(a + " AS c" + (i + 1));
                 cols.add(new Col(qualifier, "c" + (i + 1), result));
             }
+            Col summed = column(scope, Kind.INT);
+            String having = switch (rnd.nextInt(5)) {
+                case 0 -> " HAVING COUNT(*) > " + rnd.nextInt(3);
+                case 1 -> summed == null ? "" : " HAVING SUM(" + summed.ref() + ") > " + (rnd.nextInt(41) - 20);
+                case 2 -> " HAVING MAX(" + key.ref() + ") IS NOT NULL";
+                default -> "";
+            };
             String sql = "SELECT " + String.join(", ", items) + " FROM " + from
-                    + (rnd.nextBoolean() ? " WHERE " + predicate(scope, d) : "") + " GROUP BY " + key.ref()
-                    + (rnd.nextInt(3) == 0 ? " HAVING COUNT(*) > " + rnd.nextInt(3) : "");
+                    + (rnd.nextBoolean() ? " WHERE " + predicate(scope, d) : "") + " GROUP BY " + keyExpr + having;
             return new Derived(sql, cols);
         }
         int n = 1 + rnd.nextInt(3);
@@ -309,7 +318,7 @@ public final class IqFuzz {
             return more(k, scope, d1);
         }
         return switch (k) {
-            case INT -> switch (rnd.nextInt(14)) {
+            case INT -> switch (rnd.nextInt(16)) {
                 case 0 -> "(" + expr(Kind.INT, scope, d1) + " + " + expr(Kind.INT, scope, d1) + ")";
                 case 1 -> "(" + expr(Kind.INT, scope, d1) + " - " + expr(Kind.INT, scope, d1) + ")";
                 case 2 -> "(" + expr(Kind.INT, scope, d1) + " * " + (1 + rnd.nextInt(4)) + ")";
@@ -324,15 +333,20 @@ public final class IqFuzz {
                 case 10 -> "(" + expr(Kind.INT, scope, d1) + " % " + (2 + rnd.nextInt(5)) + ")";
                 case 11 -> "(" + expr(Kind.INT, scope, d1) + " / " + (2 + rnd.nextInt(5)) + ")";
                 case 12 -> "SIGN(" + expr(Kind.INT, scope, d1) + ")";
-                default -> "CAST(" + expr(Kind.DEC, scope, d1) + " AS INTEGER)";
+                case 13 -> "CAST(" + expr(Kind.DEC, scope, d1) + " AS INTEGER)";
+                // 2026-10-23: a division by an expression (a zero divisor IQ raises for) and a product of two
+                case 14 -> "(" + expr(Kind.INT, scope, d1) + " / " + expr(Kind.INT, scope, d1) + ")";
+                default -> "(" + expr(Kind.INT, scope, d1) + " * " + expr(Kind.INT, scope, d1) + ")";
             };
-            case DEC -> switch (rnd.nextInt(6)) {
+            case DEC -> switch (rnd.nextInt(8)) {
                 case 0 -> "(" + expr(Kind.DEC, scope, d1) + " + " + expr(Kind.DEC, scope, d1) + ")";
                 case 1 -> "(" + expr(Kind.DEC, scope, d1) + " * " + (1 + rnd.nextInt(3)) + ")";
                 case 2 -> "ROUND(" + expr(Kind.DEC, scope, d1) + ", 1)";
                 case 3 -> "COALESCE(" + expr(Kind.DEC, scope, d1) + ", " + literal(Kind.DEC) + ")";
                 case 4 -> "CAST(" + expr(Kind.INT, scope, d1) + " AS NUMERIC(10,2))";
-                default -> "ABS(" + expr(Kind.DEC, scope, d1) + ")";
+                case 5 -> "ABS(" + expr(Kind.DEC, scope, d1) + ")";
+                case 6 -> "(" + expr(Kind.DEC, scope, d1) + " - " + expr(Kind.DEC, scope, d1) + ")";
+                default -> "(" + expr(Kind.DEC, scope, d1) + " * " + expr(Kind.DEC, scope, d1) + ")";
             };
             case DBL -> switch (rnd.nextInt(3)) {
                 case 0 -> "(" + expr(Kind.DBL, scope, d1) + " + " + expr(Kind.DBL, scope, d1) + ")";
@@ -431,7 +445,9 @@ public final class IqFuzz {
         Col agg = pick(inner, k);
         Col corr = pick(inner, Kind.INT);
         Col outer = pick(scope, Kind.INT);
-        return "(SELECT MAX(" + agg.ref() + ") FROM " + item + " WHERE " + corr.ref() + " = " + outer.ref() + ")";
+        // 2026-10-23: a value of no aggregate too, which is IQ's error over more than one row
+        return "(SELECT " + (rnd.nextInt(3) == 0 ? agg.ref() : "MAX(" + agg.ref() + ")") + " FROM " + item + " WHERE "
+                + corr.ref() + " = " + outer.ref() + ")";
     }
 
     private String aggregate(Kind k, List<Col> scope, int d) {
@@ -543,9 +559,17 @@ public final class IqFuzz {
     private String windowed(Shape s) {
         Col part = pick(s.scope());
         Col order = pick(s.scope(), Kind.INT);
-        String more = switch (rnd.nextInt(3)) {
+        String more = switch (rnd.nextInt(8)) {
             case 0 -> ", ROW_NUMBER() OVER (PARTITION BY " + part.ref() + " ORDER BY " + order.ref() + ") AS rn";
             case 1 -> ", LAG(" + order.ref() + ") OVER (ORDER BY " + order.ref() + ") AS lg";
+            // 2026-10-23: the kinds a report reads
+            case 3 -> ", DENSE_RANK() OVER (ORDER BY " + order.ref() + " DESC) AS dr";
+            case 4 -> ", NTILE(3) OVER (ORDER BY " + order.ref() + ") AS nt";
+            case 5 -> ", LEAD(" + order.ref() + ", 1) OVER (PARTITION BY " + part.ref() + " ORDER BY " + order.ref()
+                    + ") AS ld";
+            case 6 -> ", FIRST_VALUE(" + order.ref() + ") OVER (PARTITION BY " + part.ref() + " ORDER BY "
+                    + order.ref() + " ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS fv";
+            case 7 -> ", AVG(" + order.ref() + ") OVER (PARTITION BY " + part.ref() + ") AS av";
             default -> ", SUM(" + order.ref() + ") OVER (ORDER BY " + order.ref() + " ROWS BETWEEN 1 PRECEDING AND"
                     + " CURRENT ROW) AS rs";
         };
