@@ -5,10 +5,19 @@ source, the rows (the page loads the same rows into the tab's DuckDB), and each 
 the test's commands until its standard input closes: `update`, `columns`, `widget-update`, `page <json>` (a page of
 its frames served, as `q3`), `page-again` (that page served again, its second sheet renamed), `desks-update` (the second
 frame a row more), `py-page` (a page built with ll.Page and shown; answered `done py-page <its link as JSON>`),
-`py-page-sheet` (a sheet added to it in Python), `widget-page-sheet` (a sheet added to the notebook's page),
+`py-page-sheet` (a sheet added to it in Python), `py-page-group` and `py-page-regroup` (its first grid grouped by desk,
+then by region, in Python), `py-page-rename` and `py-page-name-back` (it renamed in Python, and named back),
+`py-page-snap`, `py-page-more` and `py-page-live` (its first grid snapped in Python, its frame a LATAM row more, the grid
+live again), `py-page-copies` (answered `done py-page-copies <each grid's snapped, as the page says it, as JSON>`),
+`show-snapped` (a frame shown with snap=True; answered `done show-snapped <its link as JSON>`), `copies-held`
+(answered `done copies-held <the copies Python's engine holds, as JSON>`),
+`widget-page-sheet` (a sheet added to the notebook's page),
+`py-page-desks-wider` (the page's desks frame, read Live, a column more in place, where Python does not look) and
+`py-page-desks-columns` (answered `done py-page-desks-columns <its desks grid's columns, as the page has them, as JSON>`),
+`py-page-version` (answered `done py-page-version <the version its keeper has, as JSON>`),
 `show-closing` (a frame of two rows shown, `closing`; answered `done show-closing <its link as JSON>`), `close-closing`
 (that frame's cube closed in Python), `py-page-read` (answered `done py-page-read <its sheets' names, as
-page.read() says them, as JSON>`), `py-documents` (answered `done py-documents <pages Python writes, each its JSON
+the page has them, as JSON>`), `py-documents` (answered `done py-documents <pages Python writes, each its JSON
 text, as JSON>`: for DataCube's reader to read) -- each answered `done <command>` -- and `widget <name> <message>`, a message from a widget's page, as
 a notebook's channel brings it. What a widget sends its page is printed as it goes: `sent <json>` (its buffers in
 base64) and `trait <json>` (a property set). A second frame, `desks`, is served Live from the start, for the page.
@@ -25,6 +34,7 @@ import tempfile
 import io
 import json
 import os
+import re
 import sys
 import threading
 from decimal import Decimal
@@ -34,7 +44,6 @@ import pyarrow as pa
 
 import legend_lite as ll
 from legend_lite import datacube
-from legend_lite.frames import LIVE
 from legend_lite.notebook import DataCube, PageCube
 
 _said = threading.Lock()
@@ -112,8 +121,24 @@ def main() -> None:
     web = datacube._session.web()
     # a second frame for a page of two (read Live: an update is the next query's)
     desks = {'now': pa.table({'desk': ['Rates', 'FX', 'Credit'], 'head': ['Ana', 'Ben', 'Cy']})}
-    datacube._session.register(lambda: desks['now'], 'desks', LIVE)
+    datacube._session.register(lambda: desks['now'], 'desks')
     served_page: dict = {}
+
+    def served_frames(doc: dict) -> list[str]:
+        # the frames the test's page reads: each of its cubes over one (the test sends no join)
+        return sorted({c['cube']['source']['name'] for c in doc.get('cubes', [])})
+
+    def serve_whole(doc: dict) -> None:
+        # the test's page written whole into the session's keeper and served, as no Python page writes one (a page
+        # replaced whole, by no command): what a tab open on it follows by opening it again
+        keeper = web.engine.keeper
+        reads = {'frames': served_frames(doc), 'copies': [], 'ids': []}
+        kept = keeper.current('q3')
+        if kept is None:
+            keeper.keep('q3', doc, reads, [])
+        else:
+            keeper.write('q3', kept[0], doc, reads, None, [])
+        keeper.serve('q3', True)
     # a remote file a page reads from Python (step 2b): a Parquet file served by a server on this machine, read by
     # Python's DuckDB through the httpfs extension the wheel carries -- nothing leaves the machine
     remote = tempfile.TemporaryDirectory()
@@ -121,8 +146,44 @@ def main() -> None:
     pq.write_table(pa.table({'book': ['Dune', 'Emma', 'Ulysses'], 'pages': [412, 474, 730]}), f'{remote.name}/books.parquet')
 
     class Quiet(http.server.SimpleHTTPRequestHandler):
+        # read by Python's DuckDB and by the tab's DuckDB-WASM (L12's remote-file proof, page.ts): a page at the engine's
+        # origin asks across origins, and DuckDB reads a Parquet file by ranges of it
         def log_message(self, *_):
             pass
+
+        def end_headers(self):
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Headers', 'Range')
+            self.send_header('Access-Control-Expose-Headers', 'Content-Range, Content-Length, Accept-Ranges')
+            self.send_header('Accept-Ranges', 'bytes')
+            super().end_headers()
+
+        def do_OPTIONS(self):
+            self.send_response(204)
+            self.end_headers()
+
+        def do_GET(self):
+            asked = re.fullmatch(r'bytes=(\d+)-(\d*)', self.headers.get('Range') or '')
+            path = self.translate_path(self.path)
+            if asked is None or not os.path.isfile(path):
+                return super().do_GET()
+            with open(path, 'rb') as f:
+                body = f.read()
+            start = int(asked[1])
+            end = min(int(asked[2]) if asked[2] else len(body) - 1, len(body) - 1)
+            if start >= len(body) or end < start:
+                # a range the file has no byte of
+                self.send_response(416)
+                self.send_header('Content-Range', f'bytes */{len(body)}')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
+            self.send_response(206)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Range', f'bytes {start}-{end}/{len(body)}')
+            self.send_header('Content-Length', str(end - start + 1))
+            self.end_headers()
+            self.wfile.write(body[start:end + 1])
     files = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Quiet, directory=remote.name))
     threading.Thread(target=files.serve_forever, daemon=True).start()
     # and an Iceberg table the same server serves (G5), read through the iceberg extension the wheel carries
@@ -153,9 +214,9 @@ def main() -> None:
         'source': table.source,
         'columns': SCHEMA.names,
         'rows': [list(row) for row in ROWS],
-        'widgets': {name: {'esm': w._esm, 'state': {'_module': w._module, 'height': w.height, **(
-            {'table': w.table, 'version': w.version} if isinstance(w, DataCube)
-            else {'page_key': w.page_key, 'versions': w.versions})}} for name, w in widgets.items()},
+        # each a page's widget: a frame's cube too, a page of one grid over it (P12)
+        'widgets': {name: {'esm': w._esm, 'state': {'_module': w._module, 'height': w.height, 'page_key': w.page_key,
+                                                    'versions': w.versions}} for name, w in widgets.items()},
     }))
     # the test's commands, one a line: `update` -- one row more; `columns` -- a column more (a new model);
     # `widget-update` -- the first widget's frame a row more; `widget <name> <message>` -- a widget page's message.
@@ -177,23 +238,33 @@ def main() -> None:
                 notebook_page.sheet('Added in Python')
             elif command.startswith('page '):
                 served_page.update(json.loads(command[len('page '):]))
-                web.engine.serve_page('q3', served_page)
+                serve_whole(served_page)
                 command = 'page'
             elif command == 'page-again':
                 served_page['sheets'][1]['name'] = 'Desks (v2)'
-                web.engine.serve_page('q3', served_page)
+                serve_whole(served_page)
             elif command == 'py-page':
                 # a page built in Python (ll.Page), as a person builds one, and shown (the test opens the tab)
                 pypage = ll.Page('Built in Python')
-                grid = pypage.grid(frame, name='pytrades', rows=['region'], measures={'notional': 'sum'})
-                grid.chart('bar', x='region', y=[('notional', 'sum')], title='By region')
-                pypage.sheet('Desks').add(pypage.grid(lambda: desks['now'], name='pydesks'))
+                pygrid = pypage.grid(frame, name='pytrades', rows=['region'], measures={'notional': 'sum'})
+                pygrid.chart('bar', x='region', y=[('notional', 'sum')], title='By region')
+                # its desks grid reads a frame of its own, Live: changed in place by py-page-desks-wider alone
+                pydesks = {'now': desks['now']}
+                pypage.sheet('Desks').add(pypage.grid(lambda: pydesks['now'], name='pydesks'))
                 # (show() says its link to a person, on standard output: here the test's line is the answer)
                 with contextlib.redirect_stdout(io.StringIO()):
                     shown_page = ll.show(pypage, browser=False)
                 command = f'py-page {json.dumps(shown_page.url)}'
             elif command == 'py-page-sheet':
                 pypage.sheet('Added in Python')
+            elif command == 'py-page-group':
+                pygrid.group('desk')
+            elif command == 'py-page-regroup':
+                pygrid.group('region')
+            elif command == 'py-page-rename':
+                pypage.name = 'Renamed in Python'
+            elif command == 'py-page-name-back':
+                pypage.name = 'Built in Python'
             elif command == 'show-closing':
                 with contextlib.redirect_stdout(io.StringIO()):
                     closing = ll.show(frame.slice(0, 2), name='closing', browser=False)
@@ -202,8 +273,48 @@ def main() -> None:
                 closing.close()
             elif command == 'py-documents':
                 command = f'py-documents {json.dumps(python_documents(frame, served_page, desks))}'
+            elif command == 'py-page-desks-wider':
+                # (P11) a column more, in place: nothing in Python looks at the frame, so the page in Python holds the
+                # cube as it was until the open page, opened again, tells it the cube as it opens now
+                pydesks['now'] = pydesks['now'].append_column('floor', pa.array(
+                    [f'f{i}' for i in range(pydesks['now'].num_rows)]))
+            elif command == 'py-page-desks-columns':
+                held = next(c['cube'] for c in pypage.to_dict()['cubes'] if c['cube']['source']['name'] == 'pydesks')
+                command = f"py-page-desks-columns {json.dumps([c['name'] for c in held['source']['columns']])}"
+            elif command == 'py-page-version':
+                command = f'py-page-version {json.dumps(datacube._session.keeper.current(pypage._key)[0])}'
             elif command == 'py-page-read':
-                command = f'py-page-read {json.dumps([s.name for s in pypage.read().sheets])}'
+                # the page as it is open now: one copy, a write from the open page Python's at once
+                command = f'py-page-read {json.dumps([s.name for s in pypage.sheets])}'
+            elif command == 'py-page-join':
+                # a join of two of its grids' frames (page.join, §18.3), on its first sheet: the open page opens it
+                # through Python, which has its compiler and its frames (the page has neither of its own here)
+                mine = pypage.grid(frame, name='pytrades')
+                theirs = next(g for g in pypage.grids if g.frames == ['pydesks'])
+                pypage.join(mine, theirs, {'form': 'join', 'kind': 'left', 'prefix': 'd_', 'keep': None,
+                                           'on': {'rows': [{'left': 'desk', 'op': '==', 'right': 'desk'}]}},
+                            title='Trades with their desks', sheet=pypage.sheets[0])
+            elif command == 'py-page-snap':
+                # its first grid's rows read once, in Python (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): the page's
+                # snap command, which the open page follows by reading Python's copy
+                pygrid.snap()
+            elif command == 'py-page-more':
+                # its frame a row more, of a region it had none of: a live grid over it shows LATAM, a snapped one not
+                pygrid.update(pa.concat_tables([frame, pa.Table.from_pylist([dict(zip(SCHEMA.names, (
+                    'LATAM', 'Rates', 'B9', 2024, 'Q2', 1.0, 0.5, 2)))], schema=SCHEMA)]))
+            elif command == 'py-page-live':
+                pygrid.live()
+            elif command == 'py-page-copies':
+                # the copies its grids read, the open page's writes among them (a snap made there)
+                command = f'py-page-copies {json.dumps({g.id: g.snapped for g in pypage.grids})}'
+            elif command == 'show-snapped':
+                # ll.show(df, snap=True): its page's grid read once, by its Snap, in Python (P12)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    once = ll.show(frame.slice(0, 4), name='snapped', browser=False, snap=True)
+                command = f'show-snapped {json.dumps(once.url)}'
+            elif command == 'copies-held':
+                # the snaps' copies Python's engine holds, by table
+                command = f'copies-held {json.dumps(sorted(datacube._session.engine()._copies))}'
             elif command == 'py-page-save':
                 # saved into this user's saved pages, as DataCube's Save keeps a page (B6): Open… lists it
                 command = f'py-page-save {json.dumps(pypage.save())}'

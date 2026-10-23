@@ -287,6 +287,7 @@ with the compiler's plan/execution split**, in this order:
    and `datacube/demo/boot.ts` (a grid's planners let go with its last grid). Not touched: `Compiler.java`, L7 step 3's
    files. **The server holds no models** (the Studio line: its leg 8 compiles once per request); `pure/v1` reusing a held
    model is a later change, on a measurement.
+   **Now (2026-10-21): the one API program** (`docs/DATACUBE_ONE_API_PLAN_2026_10_21.md`, the user's go; branch `claude/datacube-query-base`): every change to a saved page a command applied by one function, the browser and Python the same. S0 (ledgers in the build: `datacube/test/one-api-ledger.test.ts`, `one-api-gestures.test.ts`, `python/tests/test_one_api.py`) then S1-S7. S0-S4 built and audited (each step's As built in the plan; the ledger raises and S1's finding 10 signed off 2026-10-22, D10); S5 (Python's copies gone, every source) built 2026-10-22, its As built in the plan; the user's two structural fixes built 2026-10-22 (D15: no lock across a call into DataCube; D16: one rows path; As built in the plan); S6 (Python's API for every gesture, D17's generated command layer, D7's Show Grid, X4) built 2026-10-22; S7 (the final audit: F45-F99 found, fixed or declared, no ledger grown) built 2026-10-22, both As built in the plan; S8 (the user's ask: screen code builds no command -- every gesture's meaning in `datacube/src/grid-gestures.ts` or `page-gestures.ts`, asked by Python too; ledger L11, closed at 0) built 2026-10-22, locally, no push until the user's word; D23 (2026-10-23: the S7 audits' four asked items built -- Python's Save As, delete and list of saved pages, the tab's class grid on a Python host and a class of another project, K13-K17), then the PR, then D19 (the single writer's client side, in its smaller form) next. Touches `datacube/`, `python/`, and `docs/BUILD.bazel` (the plan exported to the ledger test); no `core/` or `wasm/` edit planned -- any such edit is announced here first. **For the dialect line (found 2026-10-22, the plan's F44, declared, not fixed here):** a saved query of a DataCube-made project reads its rows in the version's own database, whose tables the DuckDB dialect's DDL makes with unquoted column names folded to upper case (`DuckDb.ddlIdentifier`, 2026-09-22); a grid's query selecting `t0.desk` unaliased is then answered `DESK`, which its plan does not type (`UntypedColumn`). Held by test_page.py `PublishedQueries`, which asserts the refusal until it is fixed.
 
 **Parked:** the compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`; paused, coming back later — its open items C4,
 B2/B3 and the W6.2 runner wait for it); the server
@@ -1002,6 +1003,103 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   gone), `chart-spec.ts` (a version 1 spec refused), `config.ts` (the settings' lists configure checks names against),
   `tools/link-dictionary/make.ts` (the next dictionary's chart at CHART_VERSION), their tests, and
   `docs/DATACUBE_PAGES_DESIGN_2026_10_09.md` (a dated note).
+  **Landed 2026-10-18: neema2/legend-lite#47, merged by the user as c401fe3f** (branch run 39099277708 and main's own
+  39106971526, green on every job; GATES "Python asks DataCube").
+  **Open 2026-10-18: neema2/legend-lite#57**, header sorting (a click sorts, Ctrl or Cmd chains, Shift selects) and
+  pivot totals as ordinary columns, with the fixes of its independent review. Files: `datacube/src/grid-edits.ts`,
+  `grid/grid.ts`, `grid/columns.ts`, `app.ts`, `ui/menu.ts`, `export-render.ts`, `headless/grid.ts`, their tests,
+  `test/bundle-budget.test.ts` (the engine page 270,000 -> 271,000, its dated note), `docs/UPSTREAM_CENSUS.md`,
+  `demo/verify-features.mjs`, `test/typed-values/typed-values.ts`, `python/tests/test_headless.py`. A preview site
+  built into the Pages deploy was tried in it and reverted (`.github`, `site` and `gates` are main's); previews move to
+  a hosted service, per branch, in a PR of their own.
+  **Announced 2026-10-18: the command program's stage 1a, its test foundation**
+  (`docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md` §11), branch `claude/datacube-command-tests`, stacked on #57 (its
+  PR, neema2/legend-lite#59, closed unmerged: the user, 2026-10-18, wants work on branches, stacked, with no PR until
+  asked, as CI is contended). Tests only: the screen and Python writing the same cube document for each grid edit; round trips as seeded
+  properties, with the invariants on duplicated state; a corpus of saved pages; a coverage report kept as a report.
+  Files: new tests and fixtures under `datacube/test/` (parity, round trips, the page corpus), `datacube/tools/coverage.mjs`
+  and `docs/DATACUBE_COVERAGE_2026_10_18.md`; `python/tests/test_headless.py`, `test_page.py` and `main.py`;
+  `datacube/BUILD.bazel`, `python/BUILD.bazel` and `datacube/test_imports.bzl` for their registration (the Compiler
+  Rewrite line's OK asked); and the fixes the tests and the stage's review found, each named in its commit:
+  `datacube/src/cube-state.ts` (`openedState`, the one open path), `src/headless/grid.ts` (gridCube folds as the screen
+  opens; gridCalculate writes the cube document), `python/legend_lite/page.py` (calculate keeps DataCube's document),
+  `src/examples/charts-dashboard.ts` (the example pages written folded). Still not touched: the SQL plan's ground.
+  **Announced 2026-10-18: the command program's stage 1, its grid half** (`docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md`),
+  branch `claude/datacube-commands`, stacked on stage 1a, no PR until the user asks. Every grid edit a value
+  (`GridCommand`), applied by one pure function both the screen and Python call. Files: `datacube/src/grid-commands.ts`
+  (new), `grid-edits.ts` (`pivotHeaderMeasure`), `app.ts` (`#apply`, `onCommand`), `ui/menu.ts` (`menuCommand`),
+  `ui/column-editor.ts` (`add`), `headless/grid.ts` and `headless/entry.ts` (`gridApply` for `gridEdit`),
+  `python/legend_lite/page.py` (each call a command), their tests, the parity file (each one-edit action's command),
+  `test/bundle-budget.test.ts` (the grid page 283,500 -> 286,500, the engine page 271,000 -> 273,500, the notebook
+  module 290,000 -> 291,000, each dated), and `test/guardrails.test.ts` (`menuCommand(`, dated). The Properties
+  window's Apply is commands too (`draftCommands`; `mergeDraft` gone), and the columns' presentation. Not yet
+  commands: the column editor's edit, rename and delete. Still not touched: the SQL plan's ground.
+  **Announced 2026-10-18: the DataCube roadmap run** (`docs/DATACUBE_ROADMAP_RUN_2026_10_18.md`, its ledger): the
+  roadmap's phases one after another, each on its own branch stacked on the one before (`claude/datacube-page-commands`,
+  then `claude/datacube-page-state`, and on), each audited and pushed with no PR until the user asks. Phase 1, the
+  command program's page half (`docs/DATACUBE_COMMANDS_PAGE_2026_10_18.md`), done and audited. Files: `datacube/src/page-commands.ts`
+  (new), `page-document.ts` (`readLayout` exported), `headless/page.ts` (`pageApply`), `headless/layout.ts` and
+  `headless/model.ts` (the walkers Python no longer needs gone), `page/cube-page.ts` and `page/page-app.ts`
+  (`onPageCommand`, one id allocator), `layout/band-board.ts` (`columns`), `python/legend_lite/page.py` (each page
+  edit a command), their tests, and `datacube/BUILD.bazel` for the new test. Still not touched: the SQL plan's ground.
+  Phases 2 and 3 done and audited (`docs/DATACUBE_PAGE_STATE_2026_10_18.md`, `docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md`):
+  page-level undo; Python's changes served as commands and applied by an open page. Files: `datacube/src/page-state.ts`,
+  `page-ids.ts`, `app/live-follow.ts` (new), `page/cube-page.ts`, `page/page-app.ts`, `app/datacube-app.ts`,
+  `app/sources.ts`, `services/python-host.ts`, `app.ts`, `ui/chart-panel.ts`, `python/legend_lite/page.py`, `engine.py`
+  (page serving only), `datacube.py`, their tests, the bundle budgets (dated). Phase 4, graph mode's design note and G0
+  spike (`docs/DATACUBE_GRAPH_MODE_2026_10_18.md`), main merged into the stack: a test and a note, nothing of core.
+  Phases 5-7 done and audited (charts batches 4 and 5, batch 3's leftovers: the quartiles and a box plot; maps; a
+  Marimekko, a waffle, a Gantt). Files: `datacube/src/chart-spec.ts`, `chart-kinds.ts`, `chart-option.ts`,
+  `chart-render.ts`, `chart-render-kinds.ts`, `chart-maps.ts` and `chart-render-maps.ts` (new), `maps/shapes.ts` and
+  `maps/world-110m.ts` (new, generated by `datacube/tools/maps/prepare.py`, new), `calc-presets.ts`, `query.ts`,
+  `snapshot.ts`, `generated/offer-facts.ts` (regenerated), `ui/chart-form.ts`, `ui/chart-panel.ts`,
+  `ui/panel-column.ts`, `page/cube-page.ts`, `examples/`, `python/legend_lite/page.py` and `_types.py`, their tests,
+  `THIRD_PARTY_NOTICES.md` (Natural Earth), the design doc, the bundle budgets (dated). Phase 8: the identifier rule
+  once (`pure-protocol/src/build.ts` `isIdentifier`; DataCube's `model-names.ts`, `calc.ts`, `cube-document.ts`,
+  `upload.ts`, `ui/column-editor.ts`). Phase 9 (F1-F5) skipped: the other DataCube line's model plan. Nothing of core.
+  Still not touched: the SQL plan's ground.
+  **Taken over 2026-10-19: the model plan** (`docs/DATACUBE_MODEL_DESIGN_2026_10_10.md` §13; the user: "we should take
+  everything over from the other datacube lane, it's dead"). The other DataCube line's entry above (4, "Now: the model
+  plan") stops at step 2; this session continues from step 3 -- dashboards on classes -- then 4 (combining in prep), 5
+  (the model view), 6 (promote and publish: its SDLC half was the Studio line's, asked of the user) and 7 (measures in
+  the model), each on its own branch stacked on the run's (`claude/datacube-model-dashboards` first), audited, pushed
+  with no PR. Files announced per step here before they are touched; core only with its own announcement. D5b stays
+  unclaimed: it is in the SQL plan's ground, asked of the user. **Step 3 done and audited** (2026-10-19,
+  `claude/datacube-model-dashboards`, the design's §16): DataCube only -- `cube-document.ts`, `class-source.ts` (new),
+  `page-filters.ts` (new), `page-document.ts` (version 5), `page-commands.ts`, `page-ids.ts`, `page-model.ts`,
+  `create-class.ts`, `model-actions.ts`, `runner.ts`, `cube.ts`, `app.ts`, `grid-commands.ts` (its filter reader
+  exported), `page/page-app.ts`, `page/cube-page.ts`, `ui/page-filter-bar.ts` (new), `app/sources.ts`,
+  `app/datacube-app.ts`, `headless/page.ts`, `headless/grid.ts`, `headless/entry.ts`; `pure-protocol/src/relation.ts`
+  (`projectObjects`); Python's `page.py` (the pin). Nothing of core; not the SQL plan's ground. **Now: step 4**
+  (combining in prep, the user 2026-10-20: "built like everything else now with a real API ... so it can be driven
+  headless"), on `claude/datacube-model-prep`, stacked. **Core edit announced 2026-10-20:** a model of several tables of
+  one database, for a join's two sides -- `core/src/main/java/com/legend/sql/dialect/CatalogModel.java` (a Database of
+  several tables; one table's text unchanged), `wasm/src/main/java/planner/Boundary.java` (`tableModel` given
+  `tables`: their Databases, one connection, one runtime binding each), a core test beside `CatalogModelTest`; the
+  native library's and the tab's `tableModel` entries unchanged (the same request, the new shape); DataCube's
+  `infer.ts`/`lite-planner.ts` and Python's `compiler.py` callers. **Step 4 done and audited** (2026-10-20,
+  `claude/datacube-model-prep`, the design's §17): the core edit above; DataCube -- `join-how.ts`, `join.ts`,
+  `join-open.ts`, `app/join-app.ts`, `app/join-flow.ts`, `app/join-sources.ts`, `ui/join-dialog.ts`,
+  `headless/join.ts` (all new), `cube-document.ts` (the join source), `query.ts` (`rowCountLambda`),
+  `page-document.ts` (opening order), `page/page-app.ts` and `page/cube-page.ts` (`givenTitle`), `app/sources.ts`,
+  `app/datacube-app.ts`, `headless/entry.ts`, `app.css`, the bundle budgets; `pure-protocol/src/relation.ts`
+  (`asOfJoin`); Python's tests only. Not the SQL plan's ground. **Not built, for later:** Python's `page.join` (step 4b:
+  a page Python serves needs a model of several frames from its engine -- `engine.py`, the SQL plan's ground);
+  for the compiler's line: lite types `[]->cast(@Decimal(10,2))` in an `extend` as `Decimal` (an append of a precise
+  decimal column one side lacks is refused). **Owns all of Python and DataCube from 2026-10-20** (the user: "you can
+  own all of python and datacube now"): the SQL plan's ground (`engine.py`'s snap, frames and project-data paths,
+  `_headless._query`, `warehouse.py`, `_warehouse_snap`) and D5b are this line's. **Now: step 4c**, on
+  `claude/datacube-model-prep`: no table assumption above a grid's base query (a table is the shorthand `#>{db.t}#`
+  for it) -- Create a Class, the data space, headless and Python's class grids, the page model, a join's reopen, and
+  Snap (the base query's result copied into a table of its own, typed by the compiler, shared by query); samples
+  chosen from the query; a mapping test written by Create a Class and run. Core: a mapping test-suite runner, announced
+  here with its files before the first edit. **Announced 2026-10-20, before the edit: one edit in `wasm/`** --
+  `wasm/src/main/java/planner/Boundary.java` `tableModel` loses `snapDatabaseType` and its `snapRuntime` (a second
+  runtime over a table's Database, through the snap store's connection): no caller asks for it since §18 step 2 (a
+  copy is modelled from what it holds, `upload.ts modelLanded`), so DataCube's `infer.ts`/`lite-planner.ts`
+  declarations, their tests (`infer.test.ts`, Python's `test_compiler.py`) and `compiler.py`'s docstring go with it.
+  **Not taken up: the mapping test-suite runner** (§18 step 5) is the Studio line's parked A4 (above, 2026-10-05;
+  `studio-tests-parked`), waiting on the user.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

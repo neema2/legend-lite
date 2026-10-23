@@ -46,6 +46,26 @@ export interface QuerySearchSpecification {
   readonly sortByOption?: QuerySearchSortBy;
 }
 
+/** The orders Open… lists saved pages in, as its menu names them -- its first, the one it opens with (the tab's library;
+ *  Python's ll.Page.saved(), headless pageSearch: K15). */
+export const SAVED_SORTS: readonly (readonly [QuerySearchSortBy, string])[] = [
+  ['SORT_BY_VIEW', 'Last opened'],
+  ['SORT_BY_UPDATE', 'Last saved'],
+  ['SORT_BY_CREATE', 'Created'],
+];
+
+/** A search of the saved pages as Open… asks the store it (the tab's library; Python's ll.Page.saved(), headless
+ *  pageSearch: K15): the pages `term` matches (trimmed; blank, every one), in `sort`'s order (null, Open…'s first), the
+ *  first `limit` (null, as many as the store answers) -- which and in what order, the store's rules (SavedCubes). */
+export function savedSearch(term: string, sort: QuerySearchSortBy | null, limit: number | null): QuerySearchSpecification {
+  const searchTerm = term.trim();
+  return {
+    ...(searchTerm ? { searchTermSpecification: { searchTerm } } : {}),
+    sortByOption: sort ?? SAVED_SORTS[0]![0],
+    ...(limit !== null ? { limit } : {}),
+  };
+}
+
 export class CubeStoreError extends Error {
   /** The HTTP status upstream's store answers the same refusal with. */
   readonly status: 400 | 403 | 404;

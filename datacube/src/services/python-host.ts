@@ -11,8 +11,11 @@
 //   server does (§15.2, as amended 2026-10-15: no worker messages carried over HTTP).
 // - THE DATA IN is Python's frames: each a model Python wrote when the frame was registered (`cube.json?table=`).
 // - PYTHON IS ANOTHER EDITOR of what the page shows (§5): it changes the page (`ll.Page`) and its frames, the page
-//   follows their versions (`version.json`, or the widget's), and it says what it is now, for `page.read()`
-//   (`page.json`, with the version it opened: what it says of a page Python has replaced is refused).
+//   follows their versions (`version.json`, or the widget's), and it writes the edits it made, each a command, against
+//   the version it is at, to the one copy Python keeps (`page.json`): Python has DataCube apply them to the page as it
+//   has it -- made again on top when it moved on, refused in words when one no longer applies -- and an undo or a redo
+//   is written whole, kept only at its version (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md;
+//   docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4).
 //
 // - A PAGE'S FILE (an upload, an example) goes into Python's DuckDB (step 2b): its bytes to Python a part at a time
 //   (`file-part.json`), read there as one file by DataCube's own code (upload.ts, run headless: `file.json`), which
@@ -40,17 +43,21 @@ import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { type ModelOptions } from '../planner.ts';
 import type { PlannerWorker, Request, RequestKind, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
-import { ExactNumber, fromJson, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { ExactNumber, fromJson, readValueSpecification, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { base64 } from '../headless/web.ts';
 import { CubeStoreClient } from '../cube-store.ts';
 import { pageToJson, readPage, type PageDocument } from '../page-document.ts';
+import { readCube } from '../cube-document.ts';
+import type { JoinHow, JoinSide } from '../join-how.ts';
+import type { JoinSummaryCounts } from '../join.ts';
 import { PlanAndRun, QueryFailure } from '../runner.ts';
+import { readGridCommand } from '../grid-commands.ts';
 import type { InferredModel } from '../infer.ts';
 import type { S3Credentials } from '../remote.ts';
 import { fileParts, type UploadResult } from '../upload.ts';
 import type {
-  BrowserService, DatabaseService, FrameModel, LivePage, ModelHomeService, PageService, Plane, PlaneService, PlaneWord,
-  QueryService, Services, Versions, WarehouseService,
+  BrowserService, DatabaseService, FrameModel, LiveCommand, LivePage, LiveWrite, ModelHomeService, PageService, Plane, PlaneService, PlaneWord,
+  QueryService, Services, Versions, WarehouseService, HostCopy, HostOpened,
 } from '../app/services.ts';
 import type { CatalogObject, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
 import type { QueryReader } from '../../../query-store/src/index.ts';
@@ -66,8 +73,10 @@ export interface PythonLink {
   readonly authorization?: string;
 }
 
-/** What Python shows: a page of its own (`ll.Page`, by its key), or one frame (`ll.show(df)`: a page of one grid). */
-export type PythonShows = { readonly page: string } | { readonly frame: string };
+/** What Python shows: a page of its own, by its key (`ll.Page`; `ll.show(df)`, a page of one grid over the frame: P12). */
+export interface PythonShows {
+  readonly page: string;
+}
 
 /** A plane as Python names it: its word, and what the planner menu says of it. */
 export interface PythonPlane {
@@ -106,10 +115,10 @@ export interface PythonServicesOptions {
   readonly settings?: Record<string, unknown>;
   /**
    * How the page is told that Python moved what it shows: at once of the versions now, then as they move, or why
-   * Python no longer says (a string). A tab asks (`askedVersions`, about once a second); a notebook's widget is told
-   * (its `versions`, or its frame's `version`). Returns what stops it.
+   * Python no longer says (a string). A tab asks (`askedVersions`, about once a second), saying where it is
+   * (`follower`); a notebook's widget is told (its `versions`, or its frame's `version`). Returns what stops it.
    */
-  readonly watch: (moved: (now: Versions | string) => void) => () => void;
+  readonly watch: (moved: (now: Versions | string) => void, follower: PageFollower) => () => void;
   /** The browser's own things where the page is: a tab's (its title too), a notebook's (no title of its own). */
   readonly browser: BrowserService;
 }
@@ -149,6 +158,21 @@ function pythonPlanes(offers: PythonOffers): PlaneService {
   };
 }
 
+/**
+ * A PAGE OPEN ON ONE PYTHON KEEPS, as Python knows it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17): the id it asks by,
+ * and the version it shows (none while it opens or follows one). Python keeps the copies that version reads, and every
+ * later version's, until the page says it moved past them -- so a page that has not followed yet still reads its copies.
+ */
+export interface PageFollower {
+  readonly id: string;
+  shown(): number | undefined;
+}
+
+/** A follower's id: random, never read by a person -- made where `crypto.randomUUID` is not too (a page on plain http). */
+function followerId(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 const headers = (link: PythonLink): Record<string, string> =>
   (link.authorization === undefined ? {} : { Authorization: link.authorization });
 
@@ -186,7 +210,7 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
  * its model's text by the handle this gives, and the dry run sends that text, Python planning against the model it
  * holds of that text.
  */
-function pythonWorker(link: PythonLink): PlannerWorker {
+function pythonWorker(link: PythonLink, project = false): PlannerWorker {
   const held = new Map<number, string>();
   let next = 1;
   let alive = true;
@@ -240,8 +264,9 @@ function pythonWorker(link: PythonLink): PlannerWorker {
             reply({ id, ok: true, answer: `ERR\nMODEL\nno model held as ${body.handle} on this page` });
             return;
           }
-          // the dry run: plan-and-run's planning half, over the model Python holds of that text, never run
-          call('/plan.json', JSON.stringify({ lambda: body.lambda, model, runtime: body.runtime }), (answer, text) =>
+          // the dry run: plan-and-run's planning half, over the model Python holds of that text, never run -- a project's
+          // own (a saved query's: ModelOptions.project) said so, as plan-and-run says it
+          call('/plan.json', JSON.stringify({ lambda: body.lambda, model, runtime: body.runtime, ...(project ? { project } : {}) }), (answer, text) =>
             (answer.ok
               ? { id, ok: true, answer: (JSON.parse(text) as { plan: string }).plan }
               : { id, ok: false, error: `the engine answered ${answer.status}: ${text}` }));
@@ -263,10 +288,12 @@ function pythonWorker(link: PythonLink): PlannerWorker {
  * (`plan-and-run.json`) that plans the query against the model Python holds and runs its SQL on Python's DuckDB --
  * the page sends Pure, never SQL (R4). Python answers the database's rows as Arrow, the planner's answer in their
  * metadata; the page reads the plan as its planner reads its own, and the rows typed by it as the tab's executor types
- * the tab's (engine.ts typedByPlan, §15.3a).
+ * the tab's (engine.ts typedByPlan, §15.3a). `worker`: the compiler's questions' worker -- Python's over the link, or,
+ * DataCube's code run inside the host, the host's own (headless host.ts hostWorker).
  */
-export function pythonRunner(link: PythonLink, model: string, runtime: string, how: ModelOptions = {}): PlanAndRun {
-  const { planner, request, read } = planning(link, model, runtime, how);
+export function pythonRunner(link: PythonLink, model: string, runtime: string, how: ModelOptions = {},
+  worker: () => PlannerWorker = () => pythonWorker(link, how.project === true)): PlanAndRun {
+  const { planner, request, read } = planning(model, runtime, how, worker);
   const readPlan = (answer: string, query: Lambda): Plan => {
     try {
       return read(answer, query);
@@ -336,17 +363,25 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string, h
  * takes; and the reading of the plan it answers with the rows. Over a mapping (a saved query's project, C5), the query
  * is planned as `->from(mapping, runtime)`, as Query sends it.
  */
-function planning(link: PythonLink, model: string, runtime: string, how: ModelOptions): {
+function planning(model: string, runtime: string, how: ModelOptions, worker: () => PlannerWorker): {
   readonly planner: LitePlanner;
-  readonly request: (query: Lambda) => { readonly lambda: string; readonly model: string; readonly runtime: string };
+  readonly request: (query: Lambda) => {
+    readonly lambda: string; readonly model: string; readonly runtime: string; readonly project?: true;
+  };
   readonly read: (answer: string, query: Lambda) => Plan;
 } {
   const planner = new LitePlanner({
-    model, runtime, worker: () => pythonWorker(link),
+    model, runtime, worker,
     ...(how.mapping === undefined ? {} : { mapping: how.mapping }),
     ...(how.enumerations === undefined ? {} : { enumerations: how.enumerations }),
   });
-  return { planner, request: (query) => planner.planRequest(query), read: (answer, query) => planner.readPlan(answer, query) };
+  return {
+    planner,
+    // a project's own rows (a saved query's: C5) said so, where the host reads them; any other model's, only the tables
+    // the host serves (F28)
+    request: (query) => ({ ...planner.planRequest(query), ...(how.project ? { project: true as const } : {}) }),
+    read: (answer, query) => planner.readPlan(answer, query),
+  };
 }
 
 /** A frame as Python says it is now (`cube.json`): the model Python wrote for it, and its version. */
@@ -434,11 +469,22 @@ function pythonModelHome(link: PythonLink, where: string, apps: readonly string[
 }
 
 /** A call carrying JSON to Python: its answer's text, or -- refused -- Python's reason. */
-async function posted(link: PythonLink, path: string, body: unknown): Promise<string> {
+async function posted(link: PythonLink, path: string, body: unknown, keepalive = false): Promise<string> {
+  return postedText(link, path, JSON.stringify(body), keepalive);
+}
+
+/** A join.json call's page and grids, as JSON members. */
+const joinOf = (page: string, mine: string, theirs: string): string =>
+  `"page":${JSON.stringify(page)},"mine":${JSON.stringify(mine)},"theirs":${JSON.stringify(theirs)}`;
+
+/** The same, its body JSON text already (a join's condition written as the protocol writes it: its numbers exact). */
+async function postedText(link: PythonLink, path: string, body: string, keepalive = false): Promise<string> {
   const answer = await link.fetch(`${link.baseUrl}/${path}`, {
     method: 'POST',
     headers: { ...headers(link), 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body,
+    // a request that outlives its page (a copy let go as the tab closes)
+    ...(keepalive ? { keepalive } : {}),
   }).catch((e: unknown) => { throw new Error(`the engine did not answer: ${String(e)}`); });
   const text = await answer.text();
   if (!answer.ok) throw new Error(text || `the engine answered ${answer.status}`);
@@ -452,6 +498,67 @@ async function posted(link: PythonLink, path: string, body: unknown): Promise<st
 export function pythonDatabase(link: PythonLink, offers: PythonOffers): DatabaseService {
   return {
     frame: (name) => frameOf(link, name),
+    place: 'Python',
+    // a saved cube opened by Python where it reads it, every kind but a frame's (§18.3; the S7 audit's H-2, H-3): this page
+    // has no compiler or database of its own there
+    ...(offers.files ? {
+      opened: async (cube: string, page: string, gridsOnPage: number): Promise<HostOpened> => {
+        // read exactly: the relation's numbers as their digits (a join condition's decimal)
+        const said = fromJson(await posted(link, 'opened.json', { cube, page, gridsOnPage })) as {
+          cube: string; notes: string[]; taken: boolean; model: string; runtime: string; relation?: unknown;
+          how: { mapping?: string; enumerations?: string[]; project?: true }; frames: Record<string, ExactNumber>;
+        };
+        if (said.relation === undefined) throw new Error('Python opened the grid, and said no relation its rows are read over');
+        const relation = readValueSpecification(said.relation);
+        if (relation._type !== 'lambda' || relation.body.length !== 1) throw new Error('Python said a relation that is no query');
+        return {
+          cube: said.cube, notes: said.notes, taken: said.taken, model: said.model, runtime: said.runtime, how: said.how,
+          relation: relation.body[0]!,
+          frames: Object.fromEntries(Object.entries(said.frames).map(([name, v]) => [name, Number(v.text)])),
+        };
+      },
+    } : {}),
+    // a new grid's cube over a class, made by Python where it reads the class (K16, K17): this page has no compiler or
+    // model home of its own there
+    ...(offers.files ? {
+      made: async (model: string | null, given: string, page: string, gridsOnPage: number): Promise<string> =>
+        (JSON.parse(await posted(link, 'source.json', { model, given, page, gridsOnPage })) as { cube: string }).cube,
+    } : {}),
+    // a join of two of the page's grids, made by Python over its tables -- this page has no database of its own there
+    // (B11): each answer DataCube's own code's, run there (headless join.ts), read as the protocol's exact JSON
+    ...(offers.files ? {
+      join: {
+        sides: async (page: string, mine: string, theirs: string) => {
+          const said = fromJson(await posted(link, 'join.json', { op: 'sides', page, mine, theirs })) as {
+            left: { name: string; relation: unknown; columns: { name: string; type: string }[] };
+            right: { name: string; relation: unknown; columns: { name: string; type: string }[] }; notes: string[];
+          };
+          const side = (s: typeof said.left): JoinSide => ({ name: s.name, relation: readValueSpecification(s.relation), columns: s.columns });
+          return { left: side(said.left), right: side(said.right), notes: said.notes };
+        },
+        questions: async (page: string, mine: string, theirs: string, how: JoinHow) => (JSON.parse(await postedText(link, 'join.json',
+          `{"op":"questions",${joinOf(page, mine, theirs)},"how":${toJson(how)}}`)) as { counts: JoinSummaryCounts }).counts,
+        cube: async (page: string, mine: string, theirs: string, how: JoinHow, sheet: string | null) => {
+          const said = fromJson(await postedText(link, 'join.json',
+            `{"op":"cube",${joinOf(page, mine, theirs)},"how":${toJson(how)},"sheet":${JSON.stringify(sheet)}}`)) as {
+            command: { document: unknown };
+          };
+          return readCube(said.command.document);
+        },
+      },
+    } : {}),
+    // a grid's Snap (§18.3): the pull sent as Pure (R4), as a plan-and-run's query is; Python plans it where the rows are
+    // and keeps the copy, a table of its own it models as it holds the rows (DataCube's code, headless: where it takes
+    // a page's file)
+    ...(offers.files ? {
+      snap: async (model: string, runtime: string, pull: Lambda) =>
+        JSON.parse(await posted(link, 'snap.json', { op: 'snap', model, runtime, pull: toJson(pull) })) as HostCopy,
+      // sent to outlive the tab: a grid's copy is let go as its tab closes (§18.8)
+      release: async (table: string) => { await posted(link, 'snap.json', { op: 'release', table }, true); },
+      // a copy Python made for its page (grid.snap(), §18.8): what the page follows the snap command with
+      held: async (table: string) =>
+        JSON.parse(await posted(link, 'snap.json', { op: 'held', table })) as InferredModel & { readonly table: string },
+    } : {}),
     ...(offers.files ? {
       ingestFile: async (file: File, options: { readonly table: string }) => {
         // the bytes the tab's DuckDB is given (upload.ts fileParts: a text file decoded by its encoding, G4), sent a
@@ -495,14 +602,9 @@ function pythonWarehouse(link: PythonLink): WarehouseService {
     connect: async (url, user, password) => JSON.parse(await posted(link, 'warehouse.json', { op: 'connect', url, user, password })) as
       { session: WarehouseSession; objects: CatalogObject[] },
     signInWithKey: () => Promise.reject(new Error('a page on Python signs in to a warehouse by its user and password')),
-    place: 'Python',
     table: async (session, object) => JSON.parse(await posted(link, 'warehouse.json', {
       op: 'table', url: session.baseUrl, catalog: object.catalog, schema: object.schema, name: object.name,
-    })) as InferredModel & { readonly snapRuntime: string },
-    // the pull sent as Pure (R4), as a plan-and-run's query is; Python plans it where the rows are and keeps the copy
-    snap: async (model, pull) => JSON.parse(await posted(link, 'warehouse.json', { op: 'snap', model, pull: toJson(pull) })) as
-      { readonly rowCount: number; readonly pulledBy?: Receipt },
-    release: async (model) => { await posted(link, 'warehouse.json', { op: 'release', model }); },
+    })) as InferredModel,
   };
 }
 
@@ -543,39 +645,83 @@ function pythonQueries(link: PythonLink, offers: PythonOffers): QueryService {
   };
 }
 
-/** The page Python serves (`page.json`), as the protocol's exact JSON reads it: a calculated column's `12.30` stays. */
-function livePage(link: PythonLink, key: string): LivePage {
+/**
+ * The page Python serves (`page.json`), as the protocol's exact JSON reads it: a calculated column's `12.30` stays.
+ * `follower`: the id the page open here asks by, each follow and write saying the version it shows (Z17).
+ */
+export function livePage(link: PythonLink, key: string, follower?: string): LivePage {
   const at = `page.json?page=${encodeURIComponent(key)}`;
+  const as = follower === undefined ? '' : `&follower=${follower}`;
+  /** The page as Python serves it now, read from the answer's exact JSON, and every id it has held. */
+  const read = (text: string): { version: number; page: PageDocument; held: readonly string[] } => {
+    const said = fromJson(text) as { version: unknown; page: unknown };
+    const version = said.version instanceof ExactNumber && said.version.isInteger ? Number(said.version.text) : NaN;
+    if (!Number.isSafeInteger(version)) throw new Error('the engine said no version of the page');
+    const { held } = JSON.parse(text) as { held?: unknown };
+    if (!Array.isArray(held) || !held.every((id) => typeof id === 'string')) throw new Error('the engine said no ids the page has held');
+    // a page of no grid too: one written live is a page (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md, known limit 5)
+    return { version, page: readPage(said.page, { empty: true }), held };
+  };
   return {
-    read: async () => {
-      const said = fromJson(await asked(link, at)) as { version: unknown; page: unknown };
-      const version = said.version instanceof ExactNumber && said.version.isInteger ? Number(said.version.text) : NaN;
-      if (!Number.isSafeInteger(version)) throw new Error('the engine said no version of the page');
-      return { version, page: readPage(said.page) };
+    read: async () => read(await asked(link, at)),
+    // what moved it since (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): each command read by its own reader, a grid
+    // added's cube and a calculated column's lambda from the answer's exact numbers (12.30 kept, an integer past 2^53
+    // every digit) -- the rest as the screen holds its own commands; the page's rules fetched with the first commands
+    changes: async (since) => {
+      const text = await asked(link, `${at}&since=${since}${as}`);
+      const plain = JSON.parse(text) as { version: number; commands?: unknown[] };
+      if (plain.commands === undefined) return read(text);
+      const exact = (fromJson(text) as { commands: Record<string, Record<string, unknown>>[] }).commands;
+      const { EXACT_FIELD, readPageCommand } = await import('../page-commands.ts');
+      const commands = plain.commands.map((c, i): LiveCommand => {
+        const o = c as { page?: Record<string, unknown>; grid?: unknown; command?: unknown };
+        if (o.page !== undefined) {
+          const field = EXACT_FIELD[o.page['kind'] as keyof typeof EXACT_FIELD];
+          return { page: readPageCommand(field === undefined ? o.page : { ...o.page, [field]: exact[i]!['page']![field] }) };
+        }
+        if (typeof o.grid !== 'string') throw new Error(`the engine said a command of no page and no grid: ${JSON.stringify(c)}`);
+        const command = o.command as Record<string, unknown> | null;
+        const column = command?.['kind'] === 'calculate' ? command['column'] as Record<string, unknown> | null : null;
+        return {
+          grid: o.grid,
+          command: readGridCommand(column && typeof column === 'object'
+            ? { ...command, column: { ...column, lambda: (exact[i]!['command'] as Record<string, Record<string, unknown>>)['column']!['lambda'] } }
+            : command),
+        };
+      });
+      return { version: plain.version, commands };
     },
-    report: async (version: number, page: PageDocument) => {
-      const answer = await link.fetch(`${link.baseUrl}/${at}&version=${version}`, {
+    report: async (version: number, write: LiveWrite) => {
+      const answer = await link.fetch(`${link.baseUrl}/${at}&version=${version}${as}`, {
         method: 'POST',
         headers: { ...headers(link), 'Content-Type': 'application/json' },
-        body: pageToJson(page),
+        // its edits as DataCube writes them (a grid's cube, a calculated column's, its numbers exact), or the page whole
+        body: 'restore' in write ? `{"restore":${pageToJson(write.restore)}}`
+          : `{"edits":[${write.edits.map((e) => toJson(e)).join(',')}]}`,
       });
       if (!answer.ok) throw new Error(`the engine refused the page: ${answer.status} ${await answer.text()}`);
+      const said = JSON.parse(await answer.text()) as { version?: unknown; combined?: unknown };
+      if (typeof said.version !== 'number' || !Number.isSafeInteger(said.version)) throw new Error('the engine said no version of the page');
+      return { version: said.version, combined: said.combined === true };
     },
   };
 }
 
 /**
- * The versions Python says now (`version.json`) of what it shows -- a page's own and each of its frames', or one
- * frame's -- or why it does not say (the page or the frame closed, the engine gone).
+ * The versions Python says now (`version.json`) of the page it shows -- its own and each of its frames' -- or why it does
+ * not say (the page closed, the engine gone). A page open here says, asking, who it is and the version it shows
+ * (`follower`, Z17).
  */
-export async function askedVersions(link: PythonLink, shows: PythonShows): Promise<Versions | string> {
-  const query = 'page' in shows ? `page=${encodeURIComponent(shows.page)}` : `table=${encodeURIComponent(shows.frame)}`;
+export async function askedVersions(link: PythonLink, shows: PythonShows, follower?: PageFollower): Promise<Versions | string> {
+  const shown = follower?.shown();
+  const where = follower === undefined ? '' : `&follower=${follower.id}${shown === undefined ? '' : `&at=${shown}`}`;
+  const query = `page=${encodeURIComponent(shows.page)}${where}`;
   const answer = await link.fetch(`${link.baseUrl}/version.json?${query}`, { headers: headers(link) }).catch(() => undefined);
   if (answer === undefined) return 'the engine stopped';
-  if (answer.status === 404) return 'page' in shows ? 'the page was closed' : 'the frame was closed';
+  if (answer.status === 404) return 'the page was closed';
   if (!answer.ok) return `the engine answered ${answer.status}`;
   const said = (await answer.json()) as { version: number; frames?: Record<string, number> };
-  return 'page' in shows ? { version: said.version, frames: said.frames ?? {} } : { frames: { [shows.frame]: said.version } };
+  return { version: said.version, frames: said.frames ?? {} };
 }
 
 /** Python's services, over its link. */
@@ -584,6 +730,8 @@ export function pythonServices(o: PythonServicesOptions): Services {
   // Python's compiler on legend-engine's and legend-lite's own routes (pure/v1, lite/v1): it writes a model, and reads a
   // query's text and a model's elements
   const compiler = new LitePlanner({ model: '', runtime: '', worker: () => pythonWorker(link) });
+  // who this page is to Python, as it follows Python's page and writes it (Z17)
+  const follower = followerId();
   return {
     engine: {
       plane: pythonPlanes(o.offers),
@@ -613,8 +761,8 @@ export function pythonServices(o: PythonServicesOptions): Services {
     ...(o.offers.modelHome ? { modelHome: pythonModelHome(link, o.offers.modelHome.where, o.offers.apps ?? []) } : {}),
     ...(o.offers.warehouse ? { warehouse: pythonWarehouse(link) } : {}),
     live: {
-      watch: o.watch,
-      ...('page' in o.shows ? { page: livePage(link, o.shows.page) } : {}),
+      watch: (moved, shown) => o.watch(moved, { id: follower, shown: shown ?? (() => undefined) }),
+      page: livePage(link, o.shows.page, follower),
     },
     browser: pythonBrowser(link, o.browser, o.settings),
   };

@@ -26,7 +26,7 @@
 
 import { element, fn, fromJson, lambda, readLambda, readValueSpecification, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { Planner } from './cube.ts';
-import type { CatalogColumn, InferOptions, InferredModel, TableModels } from './infer.ts';
+import type { CatalogColumn, InferOptions, InferredModel, ModelTable, TableModels, TablesModel } from './infer.ts';
 import { PlanError, type ModelOptions } from './planner.ts';
 import { writerBodies } from '../../model-changes/src/wire.ts';
 import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
@@ -549,6 +549,14 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   /**
+   * The query as it is sent to be planned: over a mapping, `->from(mapping, runtime)` outermost (#overMapping); else as
+   * it is -- what a host plans when it is handed a grid's query as text (headless grid.ts gridRelation).
+   */
+  sent(query: Lambda): Lambda {
+    return this.#overMapping(query);
+  }
+
+  /**
    * Over a mapping, the query as Query sends it: `->from(mapping, runtime)` outermost. Without
    * one the runtime travels beside the query, as it always has here.
    */
@@ -586,15 +594,9 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   /**
    * THE MODEL FOR A TABLE, from the rows its CATALOG reports (structured: `catalogColumnsSql`):
    * legend-lite's one writer (planner.Boundary.tableModel, the module's tableModelOrError) -- the Database, read by the table's
-   * own dialect, its connection and runtime, and the snap runtime when asked; the conversions a copy
-   * applies, and the columns left out. The compiler decides every column; nothing here does. The
+   * own dialect, its connection and runtime; the conversions a copy applies, and the columns left out. The compiler decides every column; nothing here does. The
    * same function answers Python's frames.
    */
-  tableModel(
-    columns: readonly CatalogColumn[],
-    options: InferOptions & { readonly snapDatabaseType: string },
-  ): Promise<InferredModel & { readonly snapRuntime: string }>;
-  tableModel(columns: readonly CatalogColumn[], options: InferOptions): Promise<InferredModel>;
   async tableModel(columns: readonly CatalogColumn[], options: InferOptions): Promise<InferredModel> {
     const table = JSON.stringify({ ...options, columns });
     const answer = await this.#call({ kind: 'tableModel', table });
@@ -602,6 +604,21 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
       Omit<InferredModel, 'source'> & { readonly source: unknown; readonly accessor: string };
     const { accessor: _accessor, ...model } = written;
     return { ...model, source: readValueSpecification(source) };
+  }
+
+  /**
+   * THE MODEL OF SEVERAL TABLES of one database (a join's inputs, read in one place): the same writer, given `tables`
+   * (planner.Boundary.tableModel) -- each package's Database, one connection, one runtime over them all.
+   */
+  async tablesModel(tables: readonly ModelTable[], databaseType: string): Promise<TablesModel> {
+    const answer = await this.#call({ kind: 'tableModel', table: JSON.stringify({ databaseType, tables }) });
+    const written = fromJson(decode(answer, `the model of ${tables.map((t) => t.table).join(', ')}`)) as
+      Omit<TablesModel, 'tables'> & { readonly tables: readonly (Omit<TablesModel['tables'][number], 'source'> & { readonly source: unknown; readonly accessor: string })[] };
+    return {
+      model: written.model,
+      runtime: written.runtime,
+      tables: written.tables.map(({ source, accessor: _accessor, ...t }) => ({ ...t, source: readValueSpecification(source) })),
+    };
   }
 
   /** THE catalog question for one table of a DuckDB, its schema and table as SQL string literals. */

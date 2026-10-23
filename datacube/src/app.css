@@ -75,6 +75,26 @@
 .dc-page-status { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
 .dc-page-alone { flex: none; align-self: stretch; display: flex; align-items: center; }
+
+/* THE PAGE'S FILTERS (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2): below the bar on a page with a grid over a
+   class -- each filter a chip in words, what it reaches beside it, its x; Add a Filter's form inline */
+.dc-page-filters { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--dc-pad-1);
+  padding: 2px var(--dc-pad-2); border-bottom: 1px solid var(--dc-border-color); font-size: var(--dc-text-sm-size); }
+.dc-page-filters[hidden] { display: none; }
+.dc-page-filters-label { color: var(--dc-muted); }
+.dc-page-filters-chips { display: contents; }
+.dc-page-filter { display: inline-flex; align-items: center; gap: 4px; padding: 0 2px 0 6px; height: 18px;
+  border: 1px solid var(--tw-sky-600); border-radius: 9px; background: var(--tw-sky-50); }
+.dc-page-filter-click { border-style: dashed; }
+.dc-page-filter-reach { color: var(--dc-muted); }
+.dc-page-filter-remove, .dc-page-filter-add, .dc-page-filter-apply, .dc-page-filter-cancel {
+  font: inherit; border: none; background: transparent; color: var(--tw-sky-600); cursor: pointer; padding: 0 4px; }
+.dc-page-filter-form { display: inline-flex; align-items: center; gap: 4px; }
+.dc-page-filter-form[hidden] { display: none; }
+.dc-page-filter-form select, .dc-page-filter-form input { font: inherit; height: 18px; }
+.dc-page-filter-said { color: var(--dc-muted); }
+/* a grid the page's filters reach says so in its status bar, beside its own filter */
+.dc-status-page-filter { color: var(--tw-sky-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dc-page-alone:empty { display: none; }
 .dc-page-alone > .dc-tile-cube { align-self: stretch; }
 
@@ -853,7 +873,7 @@
   min-height: 0;
 }
 
-/* a grid in a page's tile (an added grid, a chart's editing grid) has no title bar of its own (app.ts): the page has
+/* a grid in a page's tile (an added grid) has no title bar of its own (app.ts): the page has
    the bar, its tile header its source, pill and menu */
 
 /* the controls hidden, the grid alone (setControlsHidden): the right-click menu's last entry
@@ -3528,6 +3548,23 @@
 .dc-association-sentence .dc-picker-input { width: auto; padding: 4px 8px; font-size: 12px; }
 .dc-association-name { max-width: 160px; }
 .dc-association-why { font-size: 11px; color: var(--tw-neutral-500); }
+/* JOIN… (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.5): their grid and how; the condition's rows; their columns; what it will do */
+.dc-join-what { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px 10px; margin-bottom: 12px; }
+.dc-join-condition, .dc-join-columns { margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+.dc-join-suggested { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.dc-join-chip { padding: 3px 10px; font-size: 12px; }
+.dc-join-rows { display: flex; flex-direction: column; gap: 6px; }
+.dc-join-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.dc-join-row .dc-picker-input { width: auto; min-width: 0; padding: 4px 8px; font-size: 12px; }
+.dc-join-row .dc-join-op { width: 4.5em; }
+.dc-join-add { align-self: flex-start; padding: 3px 10px; font-size: 12px; }
+.dc-join-pure-label { font-size: 12px; color: var(--tw-neutral-700); }
+.dc-join-pure { min-height: 4.5em; font-family: var(--dc-mono, ui-monospace, monospace); font-size: 12px; }
+.dc-join-hint { margin: 0; font-size: 11px; color: var(--tw-neutral-500); }
+.dc-join-column-list { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; max-height: 9em; overflow: auto; }
+.dc-join-prefix-line { font-size: 12px; color: var(--tw-neutral-700); display: flex; align-items: center; gap: 6px; }
+.dc-join-prefix { width: 8em; padding: 4px 8px; font-size: 12px; }
+.dc-join-will-list { margin: 0; padding-left: 18px; font-size: 13px; color: var(--tw-neutral-700); display: flex; flex-direction: column; gap: 4px; }
 
 /* ---- Open… (demo): the saved cubes in a window of their own, as the picker and Save are ---- */
 .dc-picker.dc-open { width: min(760px, 100%); height: min(600px, 100%); }

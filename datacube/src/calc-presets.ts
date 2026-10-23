@@ -111,8 +111,7 @@ export function binName(column: string): string {
  * row (before the grid's filter, so the bins stay put as the filter changes); the last bin keeps the maximum, its upper
  * edge one width past it.
  */
-export function binColumns(column: string, bins: Bins): DerivedColumn[] {
-  const name = binName(column);
+export function binColumns(column: string, bins: Bins, name = binName(column)): DerivedColumn[] {
   const v = one(column);
   if (bins.width !== undefined) {
     if (!(bins.width > 0)) throw new Error('a bin is wider than nothing');
@@ -331,6 +330,86 @@ export function ringTotalColumn(measure: string, across: string): DerivedColumn 
     name: ringTotalName(measure),
     window: { fn: 'sum', column: measure, partition: [across], order: [{ column: measure, direction: 'asc' }], frame: 'partition' },
   };
+}
+
+/**
+ * A part over a whole that may be nothing: empty when the whole is zero (a P&L that nets to nothing), as a change from
+ * nothing is (showAsColumns' percentChange) -- where a database would refuse the division, or answer infinity.
+ */
+function share(part: ValueSpecification, whole: string): ValueSpecification {
+  return fn('if', fn('equal', one(whole), lit.integer(0)), lambda([], collection([])), lambda([], divide(part, one(whole))));
+}
+
+/** A Marimekko's columns: where each column starts across and how wide it is, where each cell starts up and ends. */
+export function marimekkoNames(measure: string): {
+  readonly x0: string; readonly x1: string; readonly width: string; readonly y0: string; readonly y1: string;
+} {
+  return {
+    x0: `mekko_x0_${measure}`, x1: `mekko_x1_${measure}`, width: `mekko_width_${measure}`,
+    y0: `mekko_y0_${measure}`, y1: `mekko_y1_${measure}`,
+  };
+}
+
+/**
+ * A MARIMEKKO'S CELLS, the database's (batch 3's leftovers): each column across as wide as its share of the whole, each
+ * cell up it as tall as its share of the column -- every figure a share between 0 and 1. A column starts where the
+ * ones before it (in the order across, `direction`) end: the running total through the cell, less the running total
+ * within its column through the cell, over the whole, and ends that start plus its own total over the whole; a cell
+ * starts where the cells below it in its column (in the split's order) end. The chart draws each cell from its four
+ * edges; nothing is added up in the page.
+ */
+export function marimekkoColumns(measure: string, across: string, split: string, direction: 'asc' | 'desc'): DerivedColumn[] {
+  const { x0, x1, width, y0, y1 } = marimekkoNames(measure);
+  const total = `${width}__column`;
+  const all = `${width}__all`;
+  const run = `${x0}__running`;
+  const within = `${y1}__running`;
+  return [
+    { name: total, window: { fn: 'sum', column: measure, partition: [across], order: [{ column: measure, direction: 'asc' }], frame: 'partition' } },
+    { name: all, window: wholeOf('sum', measure) },
+    {
+      name: run,
+      window: { fn: 'sum', column: measure, partition: [], frame: 'running', order: [{ column: across, direction }, { column: split, direction: 'asc' }] },
+    },
+    { name: within, window: { fn: 'sum', column: measure, partition: [across], frame: 'running', order: [{ column: split, direction: 'asc' }] } },
+    { name: x0, lambda: row(share(minus(one(run), one(within)), all)) },
+    { name: x1, lambda: row(share(plus(minus(one(run), one(within)), one(total)), all)) },
+    { name: width, lambda: row(share(one(total), all)) },
+    { name: y0, lambda: row(share(minus(one(within), one(measure)), total)) },
+    { name: y1, lambda: row(share(one(within), total)) },
+  ];
+}
+
+/** A waffle's columns: the first of its hundred cells a category fills, and the one after its last. */
+export function waffleNames(measure: string): { readonly from: string; readonly to: string } {
+  return { from: `waffle_from_${measure}`, to: `waffle_to_${measure}` };
+}
+
+/** A waffle's cells: a hundred, ten by ten. */
+export const WAFFLE_CELLS = 100;
+
+/**
+ * A WAFFLE'S CELLS, the database's (batch 3's leftovers): each category fills the cells from where the category before
+ * it ended to its running share through it, each a hundredth, rounded -- a running total rounded, never each share on
+ * its own, so the ranges meet and add up to a hundred exactly. In the chart's own order (`order`, ties broken by the
+ * category); a whole of nothing has no cells (empty, as a share of nothing is). The chart colours each cell by the
+ * category whose range holds it, comparing, never counting.
+ */
+export function waffleColumns(measure: string, order: readonly SortSpec[]): DerivedColumn[] {
+  const { from, to } = waffleNames(measure);
+  const run = `${to}__running`;
+  const all = `${to}__all`;
+  const before = `${from}__before`;
+  // a range starts where the one before it ended (the same column, the row before: a lag), never at its own share
+  // rounded again -- two roundings of nearly one figure can part by a cell; the first starts at the first cell
+  return [
+    { name: run, window: { fn: 'sum', column: measure, partition: [], order: [...order], frame: 'running' } },
+    { name: all, window: wholeOf('sum', measure) },
+    { name: to, lambda: row(fn('if', fn('equal', one(all), lit.integer(0)), lambda([], collection([])),
+      lambda([], fn('round', times(divide(one(run), one(all)), lit.integer(WAFFLE_CELLS)))))) },
+    { name: before, window: { fn: 'lag', column: to, partition: [], order: [...order] } },
+    { name: from, lambda: row(fn('if', fn('isEmpty', col(before)), lambda([], lit.integer(0)), lambda([], one(before)))) },
+  ];
 }
 
 // ---------------------------------------------------------------- a clicked period or bin

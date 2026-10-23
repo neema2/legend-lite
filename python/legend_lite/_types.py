@@ -40,6 +40,13 @@ def is_decimal(name: str) -> bool:
     return plain_type(name) == 'Decimal'
 
 
+def is_number(name: str) -> bool:
+    """A Number: what a reducer over numbers of more than one kind answers (an Integer's quartile, its deviation), each
+    value as the database gave it -- a whole number, a double, or an exact decimal, which arrives as its text, as a
+    Decimal's does."""
+    return plain_type(name) == 'Number'
+
+
 def is_boolean(name: str) -> bool:
     """A Boolean."""
     return plain_type(name) == 'Boolean'

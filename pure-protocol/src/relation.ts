@@ -84,6 +84,17 @@ export function over(partition: readonly string[], sort: readonly AppliedFunctio
 
 export type JoinKind = 'INNER' | 'LEFT' | 'RIGHT' | 'FULL';
 
+// ---- objects as rows ----
+
+/**
+ * `instances->project(~[name: x|$x.p, ...])`: a class's instances (`Trade.all()`, filtered or not) as a relation, a
+ * column per lambda -- the Relation API's project of objects (legend-engine's `meta::pure::functions::relation::project`,
+ * its columns a colSpec array), never TDS's project of lambdas and names.
+ */
+export function projectObjects(instances: ValueSpecification, columns: readonly ColSpec[]): Relation {
+  return new Relation(fn('project', instances, colSpecs(columns)));
+}
+
 // ---- the chain ----
 
 /** A relation, being built. Every method returns a new one. */
@@ -159,6 +170,15 @@ export class Relation {
   /** `->join(other, JoinKind.K, {a, b|...})`. */
   join(other: Relation, kind: JoinKind, condition: Lambda): Relation {
     return this.#then('join', other.node, enumValue('meta::pure::functions::relation::JoinKind', kind), condition);
+  }
+
+  /**
+   * `->asOfJoin(other, {a, b|<match>})`, or with `join`, `->asOfJoin(other, {a, b|<match>}, {a, b|<join>})`: each row
+   * with the other's nearest row by the match (`$a.time >= $b.time`: the last at or before), among those the join
+   * keeps.
+   */
+  asOfJoin(other: Relation, match: Lambda, join?: Lambda): Relation {
+    return join === undefined ? this.#then('asOfJoin', other.node, match) : this.#then('asOfJoin', other.node, match, join);
   }
 
   /**

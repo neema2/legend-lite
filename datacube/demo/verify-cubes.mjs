@@ -148,9 +148,9 @@ async function shape() {
   const before = await statusNow();
   await page.evaluate(async () => {
     const app = window.__dataCube;
-    await app.change((s) => ({
-      ...s, snapshot: { ...s.snapshot, rows: ['region'], sorts: [{ column: 'notional', direction: 'desc' }] },
-    }));
+    const refused = await app.edit([{ kind: 'group', rows: ['region'] },
+      { kind: 'sorts', sorts: [{ column: 'notional', direction: 'desc' }] }], 'shape');
+    if (refused !== null) throw new Error(refused);
   });
   await landed(before);
 }
@@ -216,10 +216,10 @@ try {
     const out = await page.evaluate(async () => {
       const app = window.__dataCube;
       const was = app.snapshot.rows.join(',');
-      const o = await app.change((s) => ({ ...s, snapshot: { ...s.snapshot, rows: ['desk'] } }));
-      return `${o.kind} (rows ${was} -> ${app.snapshot.rows.join(',')})`;
+      const refused = await app.edit([{ kind: 'group', rows: ['desk'] }], 'group');
+      return `${refused ?? 'applied'} (rows ${was} -> ${app.snapshot.rows.join(',')})`;
     });
-    // `change` resolves once the view has LANDED: no need to watch the status line (3 regions
+    // `edit` resolves once the view has LANDED: no need to watch the status line (3 regions
     // regrouped as 3 desks can read exactly as before, and the wait never ended)
     if (!/^applied/.test(out)) throw new Error(`the change did not land: ${out}`);
     await page.waitForFunction(() => document.title.startsWith('\u2022'), undefined, { timeout: 10_000 })
@@ -233,8 +233,8 @@ try {
     await page.locator('.dc-save').waitFor({ state: 'detached', timeout: 30_000 });
     if ((await title()).startsWith('\u2022')) throw new Error(`still marked after saving: ${await title()}`);
     // A PRESENTATION change runs no query (Leg B): it is a change all the same
-    const pinned = await page.evaluate(async () => (await window.__dataCube.change((s) => ({ ...s,
-      configuration: { ...s.configuration, columns: { ...s.configuration.columns, desk: { pinned: 'left' } } } }))).kind);
+    const pinned = await page.evaluate(async () => (await window.__dataCube.edit(
+      [{ kind: 'configure', patch: { columns: { desk: { pinned: 'left' } } } }], 'pin')) ?? 'applied');
     if (pinned !== 'applied') throw new Error(`the pin did not apply: ${pinned}`);
     await page.waitForFunction(() => document.title.startsWith('\u2022'), undefined, { timeout: 10_000 })
       .catch(async () => { throw new Error(`a pin (no query) did not mark it: ${await title()}`); });

@@ -39,11 +39,12 @@ and becomes an ordinary DuckDB table or view named as registered. The compiler r
 writes its model with the same writer DataCube uses for a table (`table_model`), so a frame and a
 DataCube table are planned alike.
 
-- **Live** (the default): every query reads the frame as it is then, including changes made in place;
-  if its columns changed, its model is written again. Re-reading is a conversion to Arrow at each
-  query: a few milliseconds per million rows of a pandas or polars frame (pandas text kept as Python
-  objects, `dtype=object`, costs about ten times more), nothing for an Arrow table.
-- **Snapped** (`mode="snapped"`): copied into DuckDB once. Faster to query, and it never changes.
+Every query reads the frame as it is then, including changes made in place; if its columns changed,
+its model is written again. Re-reading is a conversion to Arrow at each query: a few milliseconds per
+million rows of a pandas or polars frame (pandas text kept as Python objects, `dtype=object`, costs
+about ten times more), nothing for an Arrow table. A stream (`pyarrow.RecordBatchReader`) can be read
+only once, so it is read into a table of its own when it is registered. To keep a grid's rows as they
+are at a moment, Snap the grid: its query's result is copied, and the grid reads the copy.
 
 A frame's name is a plain identifier, one name whatever its case (as in DuckDB). Registering it again
 replaces its table, and the old handle stops working; `unregister(name)` and `close()` take tables
@@ -56,14 +57,14 @@ not a column (`reset_index()` keeps it as one).
 ```python
 import legend_lite as ll
 cube = ll.show(df)          # DataCube in a browser tab (under the cell in a notebook); show() returns at once
-df.loc[0, 'qty'] = 5         # Live: the cube's next query sees it (in a notebook, it re-queries after the cell)
+df.loc[0, 'qty'] = 5         # the cube's next query sees it (in a notebook, it re-queries after the cell)
 cube.update(new_df)          # a new frame: the open cube shows it by itself
 cube.close()
 ```
 
 One engine per process. A tab reaches it over HTTP, through a web server started by the first tab and stopped when
 the last tab's cube closes. In IPython and notebooks
-each Live cube is told to query again after every cell; at a plain `>>>` prompt the next click shows a change in the
+each cube is told to query again after every cell; at a plain `>>>` prompt the next click shows a change in the
 rows (or `cube.refresh()`), and a frame given new columns is noticed at its next query and the page opens the cube
 again over them. A plain script that opened a cube in the browser waits at its end, saying so, until Ctrl-C (or an
 IDE's Stop); one that opened none (`browser=False`, or no browser to open: a test, a CI job) ends, and says so. `show(df, browser=False)` opens nothing: the link is `cube.url`, which
@@ -117,14 +118,15 @@ The engine has no transport: a tab reaches it over HTTP (`WebServer`), a noteboo
 (`legend_lite.notebook`); both send it the same calls. It answers the calls DataCube's remote client makes, as legend-engine answers them: parse, print and a
 query's types by legend-lite's own server code (`PureV1Api`, through the native library), and execute in
 upstream's Arrow format (`?serializationFormat=ARROW_IPC`: one zstd frame around an Arrow IPC stream, its schema
-carrying the builder, the SQL that ran and the columns) with the rows DuckDB computes over the frames, Live ones
-read as they are then. Only queries over the models the frames' tables were written with are run, and only SQL
+carrying the builder, the SQL that ran and the columns) with the rows DuckDB computes over the frames, each
+read as it is then. Only queries over the models the frames' tables were written with are run, and only SQL
 the compiler wrote. The web server listens on 127.0.0.1 alone and answers only requests that carry its token and name
 this machine as their Host; it sends no cross-origin header. Design: `docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`.
 
 `Engine(frames, site=...)` also answers a site's files (DataCube's built pages, `//datacube:dist`), and
 `cube.json?table=<name>` (over HTTP, with the token): a frame's model, runtime and source as they are now, which
-DataCube's `engine.html` opens a cube over (`<url>/engine.html?table=<name>#token=<token>`).
+DataCube's `engine.html` opens a page's grid over (`<url>/engine.html?page=<key>#token=<token>`: `ll.show(df)` shows a
+page of one grid over the frame, kept as every Python page is).
 
 Frames and the engine are DataCube's (the `datacube` extra); the compiler itself needs none of its packages, and
 `import legend_lite` loads them only when `Frames` or `Engine` is first used.

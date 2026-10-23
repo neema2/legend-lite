@@ -267,31 +267,37 @@ public final class Boundary {
 
     /**
      * THE MODEL FOR A TABLE, from its catalog rows: what a host plans a table it holds against -- DataCube's file or
-     * warehouse table, a Python frame. The Database (CatalogModel), wrapped in a connection and a runtime the
-     * planner compiles, and, when the table can be snapped, a second runtime over the SAME Database through a
-     * connection of the copy's store's type (the rows pulled with a plan against the table's own runtime; every query
-     * on the copy planned against this one).
-     * {@code {"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "snapDatabaseType"?,
-     * "columns": [catalog rows]}} in;
-     * {@code {"model", "runtime", "snapRuntime"?, "source" (protocol), "accessor" (its Pure text),
-     * "conversions": [{"column","sql"}], "copySelectList"?, "excluded": [name], "bitColumns": [name]}} out.
-     * {@code copySelectList}: the select list a copy applies, written by the copy's own database: the snap's store,
-     * or the source itself when it is rewritten in place ({@code convertible}); a read-only source with no snap is
-     * never copied, and has none.
+     * warehouse table, a Python frame, a Snap's copy (modelled from what the copy holds, as a file read in is:
+     * docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). The Database (CatalogModel), wrapped in a connection and a
+     * runtime the planner compiles.
+     * {@code {"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "columns": [catalog rows]}}
+     * in; {@code {"model", "runtime", "source" (protocol), "accessor" (its Pure text), "conversions":
+     * [{"column","sql"}], "copySelectList"?, "excluded": [name], "bitColumns": [name]}} out.
+     * {@code copySelectList}: the select list the source applies when it is rewritten in place ({@code convertible}),
+     * written by its own database; a read-only source is never rewritten, and has none.
      * {@code bitColumns}: the columns declared BIT (DuckDB's BOOLEAN), which legend-engine types TinyInt.
+     *
+     * <p>SEVERAL TABLES of one database (a join's two sides, read in one place:
+     * docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17): {@code {"databaseType", "connection"? (default "host"),
+     * "tables": [{"table", "schema"?, "pkg"? (default "local"), "convertible", "columns"}]}} in -- each table in the
+     * Database of its package, as its own model declares it, so the relation each side reads is unchanged; one
+     * connection, and a runtime binding every one of those Databases to it (lite plans across stores one connection
+     * serves). {@code {"model", "runtime", "tables": [{"source", "accessor", "conversions", "excluded"}]}} out, in
+     * the order given.
      */
     public static String tableModel(String tableJson) {
         com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(tableJson);
+        if (in.has("tables")) {
+            return tablesModel(in);
+        }
         String pkg = in.getStringOr("pkg", "local");
         String databaseType = in.getString("databaseType");
-        String snapDatabaseType = in.getStringOr("snapDatabaseType", null);
         java.util.List<com.legend.sql.dialect.CatalogModel.Column> columns = catalogColumns(in);
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
         com.legend.sql.dialect.CatalogModel.Database db = com.legend.sql.dialect.CatalogModel.database(
                 pkg + "::DB", in.getStringOr("schema", null), in.getString("table"), columns, dialect,
                 in.getBool("convertible"));
-        String model = db.text() + "\n" + connectionAndRuntime(pkg, "Conn", "RT", databaseType)
-                + (snapDatabaseType == null ? "" : "\n" + connectionAndRuntime(pkg, "SnapConn", "SnapRT", snapDatabaseType));
+        String model = db.text() + "\n" + connectionAndRuntime(pkg, "Conn", "RT", databaseType);
         java.util.List<String> bitColumns = new java.util.ArrayList<>();
         for (com.legend.sql.dialect.CatalogModel.Column c : columns) {
             if (!db.excluded().contains(c.name()) && "BIT".equals(dialect.catalogType(c).declared())) {
@@ -301,20 +307,71 @@ public final class Boundary {
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
         out.put("model", model);
         out.put("runtime", pkg + "::RT");
-        if (snapDatabaseType != null) {
-            out.put("snapRuntime", pkg + "::SnapRT");
-        }
         out.put("source", sourceOf(db));
         out.put("accessor", db.accessor());
         out.put("conversions", conversionsOf(db));
-        String copyDatabaseType = snapDatabaseType != null ? snapDatabaseType
-                : in.getBool("convertible") ? databaseType : null;
-        if (copyDatabaseType != null) {
-            out.put("copySelectList", dialectOf(copyDatabaseType).copySelectList(db.conversions()));
+        if (in.getBool("convertible")) {
+            out.put("copySelectList", dialect.copySelectList(db.conversions()));
         }
         out.put("excluded", db.excluded());
         out.put("bitColumns", bitColumns);
         return com.legend.json.Json.toCompact(out);
+    }
+
+    /** {@link #tableModel} given several tables: their packages' Databases, one connection, one runtime over them. */
+    private static String tablesModel(com.legend.json.Json.Obj in) {
+        String databaseType = in.getString("databaseType");
+        String connection = in.getStringOr("connection", "host");
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+        // each package's tables, in the order the packages first came
+        java.util.Map<String, java.util.List<Integer>> byPkg = new java.util.LinkedHashMap<>();
+        java.util.List<com.legend.json.Json.Obj> tables = new java.util.ArrayList<>();
+        for (com.legend.json.Json.Node n : in.getArr("tables").items()) {
+            com.legend.json.Json.Obj t = (com.legend.json.Json.Obj) n;
+            byPkg.computeIfAbsent(t.getStringOr("pkg", "local"), k -> new java.util.ArrayList<>()).add(tables.size());
+            tables.add(t);
+        }
+        if (tables.isEmpty()) {
+            throw new IllegalArgumentException("a model of several tables has one table at least");
+        }
+        com.legend.sql.dialect.CatalogModel.Database[] each = new com.legend.sql.dialect.CatalogModel.Database[tables.size()];
+        StringBuilder model = new StringBuilder();
+        StringBuilder bindings = new StringBuilder();
+        int c = 0;
+        for (java.util.Map.Entry<String, java.util.List<Integer>> e : byPkg.entrySet()) {
+            java.util.List<com.legend.sql.dialect.CatalogModel.Table> mine = new java.util.ArrayList<>();
+            for (int i : e.getValue()) {
+                com.legend.json.Json.Obj t = tables.get(i);
+                mine.add(new com.legend.sql.dialect.CatalogModel.Table(t.getStringOr("schema", null), t.getString("table"),
+                        catalogColumns(t), t.getBool("convertible")));
+            }
+            com.legend.sql.dialect.CatalogModel.Several db =
+                    com.legend.sql.dialect.CatalogModel.database(e.getKey() + "::DB", mine, dialect);
+            model.append(db.text()).append("\n");
+            for (int k = 0; k < e.getValue().size(); k++) {
+                each[e.getValue().get(k)] = db.tables().get(k);
+            }
+            bindings.append(c == 0 ? "" : ",\n        ").append(e.getKey()).append("::DB: [ c").append(++c).append(": ")
+                    .append(connection).append("::Conn ]");
+        }
+        model.append("###Connection\nRelationalDatabaseConnection ").append(connection).append("::Conn\n{\n    type: ")
+                .append(databaseType).append(";\n    specification: DuckDB { };\n    auth: Test;\n}\n\n###Runtime\nRuntime ")
+                .append(connection).append("::RT\n{\n    mappings: [];\n    connections:\n    [\n        ")
+                .append(bindings).append("\n    ];\n}\n");
+        java.util.List<java.util.Map<String, Object>> out = new java.util.ArrayList<>();
+        for (com.legend.sql.dialect.CatalogModel.Database db : each) {
+            java.util.Map<String, Object> t = new java.util.LinkedHashMap<>();
+            t.put("source", sourceOf(db));
+            t.put("accessor", db.accessor());
+            t.put("conversions", conversionsOf(db));
+            t.put("excluded", db.excluded());
+            out.add(t);
+        }
+        java.util.Map<String, Object> answer = new java.util.LinkedHashMap<>();
+        answer.put("model", model.toString());
+        answer.put("runtime", connection + "::RT");
+        answer.put("tables", out);
+        return com.legend.json.Json.toCompact(answer);
     }
 
     /**

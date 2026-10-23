@@ -26,8 +26,10 @@ export const EXAMPLE_PAGES: readonly ExamplePage[] = [
     id: 'charts-kinds',
     label: 'Charts: more kinds',
     about: 'Lollipops, dumbbells, ranges, waterfalls, Paretos and bump charts; roses, polar bars and half rings; funnels, '
-      + 'two-ring pies, sunbursts, trees and treemaps; Sankeys and chords; streamgraphs, calendars, heatmaps and slope '
-      + 'charts; radars, parallel coordinates and a scatter matrix; small multiples and bubbles; gauges and KPIs -- over '
+      + 'two-ring pies, sunbursts, trees, treemaps, waffles and Marimekkos; Sankeys and chords; streamgraphs, calendars, '
+      + 'heatmaps, slope charts and Gantts; '
+      + 'radars, parallel coordinates and a scatter matrix; box plots and a histogram; maps of countries and of '
+      + 'cities; small multiples and bubbles; gauges and KPIs -- over '
       + 'the sales sample.',
     build: async () => (await import('./charts-kinds.ts')).chartsKindsPage(),
   },

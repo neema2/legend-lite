@@ -22,7 +22,7 @@ const offered = (type: string | undefined): AggregateFn[] => aggregatesFor(type)
 describe('aggregates offered by the compiler\'s answers', () => {
   it('a number takes every numeric aggregate, whatever numeric type the result is', () => {
     // an Integer's average is a Float and its deviation a Number: the same family
-    const numeric: AggregateFn[] = ['sum', 'average', 'count', 'min', 'max', 'median', 'stdDevPopulation',
+    const numeric: AggregateFn[] = ['sum', 'average', 'count', 'min', 'max', 'median', 'percentile25', 'percentile75', 'stdDevPopulation',
       'stdDevSample', 'variancePopulation', 'varianceSample', 'wavg', 'unique'];
     for (const type of ['Integer', 'Float', 'Decimal', 'Number']) assert.deepEqual(offered(type), numeric, type);
   });
@@ -113,7 +113,7 @@ describe('parity with upstream DataCube\'s aggregate offers', () => {
     stdDevPopulation: NUMERIC, stdDevSample: NUMERIC, variancePopulation: NUMERIC, varianceSample: NUMERIC,
     joinStrings: ['Text'],
     unique: ['Text', 'Numeric', 'Date', 'Time'],
-    // median and wavg: this DataCube's own; upstream has neither
+    // median, the quartiles and wavg: this DataCube's own; upstream has none of them
   };
 
   it('differs only where named', () => {
@@ -147,6 +147,11 @@ describe('parity with upstream DataCube\'s aggregate offers', () => {
       'Float median: ours only', 'Float wavg: ours only',
       'Integer median: ours only', 'Integer wavg: ours only',
       'Number median: ours only', 'Number wavg: ours only',
+      // the quartiles, a box plot's box (chart batch 4): Pure's percentile, a number of numbers
+      'Decimal percentile25: ours only', 'Decimal percentile75: ours only',
+      'Float percentile25: ours only', 'Float percentile75: ours only',
+      'Integer percentile25: ours only', 'Integer percentile75: ours only',
+      'Number percentile25: ours only', 'Number percentile75: ours only',
     ].sort());
   });
 });

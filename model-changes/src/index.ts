@@ -85,7 +85,8 @@ export function serverWriter(baseUrl: string, fetcher: typeof fetch = globalThis
       } catch {
         // not JSON: the text is the message
       }
-      throw new Error(`legend-lite's ${route} at ${root}: ${message}`);
+      // the host's own writer (a root of '': a path of its own) said by its route alone
+      throw new Error(`legend-lite's ${route}${root ? ` at ${root}` : ''}: ${message}`);
     }
     return JSON.parse(text) as ModelAnswer;
   };

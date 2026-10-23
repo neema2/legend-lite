@@ -26,7 +26,7 @@ import {
 import { explodeLambda, explodeName, explodeType, type Extraction } from '../json-shape.ts';
 import { buildJsonFields, freeName, type JsonColumnReader } from './json-fields.ts';
 import type { CompileOutcome } from '../cube.ts';
-import type { Lambda } from '../../../pure-protocol/src/index.ts';
+import { IDENTIFIER_LETTERS, type Lambda } from '../../../pure-protocol/src/index.ts';
 import type { PivotColumn } from '../query.ts';
 import { docHint } from './docs.ts';
 import { emptyOperands, isEmptyOperandRefusal, sayEmpty, type EmptyAs } from '../calc-fix.ts';
@@ -35,9 +35,9 @@ import {
   NEW_CHILD,
   NEW_WINDOW,
   draftCandidate,
-  draftLists,
-  draftRename,
+  draftColumn,
   draftStage,
+  existingDraft,
   newDraft,
   type ColumnDraft,
   type ColumnLevel,
@@ -51,7 +51,7 @@ import {
   type WindowFrame,
   type WindowFunction,
 } from '../snapshot.ts';
-import { defaultKind, isVariant } from '../../../engine-client/src/types.ts';
+import { isVariant } from '../../../engine-client/src/types.ts';
 
 export type { ColumnLevel };
 
@@ -83,12 +83,18 @@ export interface ColumnEditorOptions {
     candidate: CubeSnapshot,
     signal: AbortSignal,
   ) => Promise<CompileOutcome | undefined>;
-  /** Offer both lists to the cube: its refusal, or null when it took them. */
-  readonly apply: (
-    row: readonly DerivedColumn[],
-    group: readonly DerivedColumn[],
-    rename?: { readonly from: string; readonly to: string },
-  ) => Promise<string | null>;
+  /**
+   * The column being edited replaced by the draft's, at its level (Edit Column's OK: the grid command Python's
+   * edit_calculated builds, grid-commands.ts editCalculated): its refusal, or null when it took it.
+   */
+  readonly edit: (name: string, level: CalcStage, column: DerivedColumn) => Promise<string | null>;
+  /** The column being edited taken out (Delete: removeCalculated): refused too while another column reads it. */
+  readonly remove: (name: string) => Promise<string | null>;
+  /**
+   * Offer a new column to the cube, at its level (the grid command Python's calculate builds, grid-commands.ts): its
+   * refusal, or null when it took it.
+   */
+  readonly add: (level: CalcStage, column: DerivedColumn) => Promise<string | null>;
   /** The window goes: after OK or Delete succeeds, or on Cancel. */
   readonly onClose: () => void;
   /** Upstream's 500 ms; a test passes 0. */
@@ -139,7 +145,7 @@ const KINDS: readonly KindMeta[] = [
  * the whole lambda, this only decides what the box shows.
  */
 function splitHead(text: string): { readonly head: string; readonly body: string } {
-  const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\|/.exec(text);
+  const m = new RegExp(`^\\s*(${IDENTIFIER_LETTERS})\\s*\\|`).exec(text);
   return m ? { head: `${m[1]}|`, body: text.slice(m[0].length).replace(/^ /, '') } : { head: 'x|', body: text };
 }
 
@@ -206,7 +212,7 @@ export class ColumnEditor {
     const start = options.start;
     let printing: Lambda | undefined;
     if ('edit' in start) {
-      const found = findColumn(options.snapshot(), start.edit);
+      const found = existingDraft(options.snapshot(), start.edit);
       this.#original = start.edit;
       printing = found?.lambda;
       this.#initial = found?.draft ?? {
@@ -277,15 +283,6 @@ export class ColumnEditor {
     } catch (error: unknown) {
       return { refusal: error instanceof Error ? error.message : String(error) };
     }
-  }
-
-  /** The cube's two lists with this draft (its lambda parsed) in place of the original (column-draft.ts). */
-  #lists(lambda?: Lambda): { row: DerivedColumn[]; group: DerivedColumn[] } {
-    return draftLists(this.#options.snapshot(), this.#original, this.#draft, lambda);
-  }
-
-  #rename(): { from: string; to: string } | undefined {
-    return draftRename(this.#original, this.#draft);
   }
 
   #candidate(lambda?: Lambda): CubeSnapshot {
@@ -419,8 +416,11 @@ export class ColumnEditor {
       if ('refusal' in parsed) {
         this.#refusal = parsed.refusal;
       } else {
-        const { row, group } = this.#lists(parsed.lambda);
-        this.#refusal = await this.#options.apply(row, group, this.#rename());
+        // a new column is added (last of its level), an edited one replaced (in its place): each one command
+        const column = draftColumn(this.#draft, parsed.lambda);
+        this.#refusal = this.#original === undefined
+          ? await this.#options.add(this.#stage(), column)
+          : await this.#options.edit(this.#original, this.#stage(), column);
       }
     } finally {
       this.#busy = false;
@@ -435,14 +435,12 @@ export class ColumnEditor {
 
   async #delete(): Promise<void> {
     if (this.#busy || this.#original === undefined) return;
-    const s = this.#options.snapshot();
-    const row = s.derived.filter((d) => d.name !== this.#original);
-    const group = (s.groupDerived ?? []).filter((d) => d.name !== this.#original);
+    const original = this.#original;
     this.#busy = true;
     this.#paint();
     try {
       // Refused too, when another column refers to this one.
-      this.#refusal = await this.#options.apply(row, group);
+      this.#refusal = await this.#options.remove(original);
     } finally {
       this.#busy = false;
     }
@@ -1257,41 +1255,6 @@ function freshName(s: CubeSnapshot): string {
   let n = s.columns.length + s.derived.length + (s.groupDerived ?? []).length + 1;
   while (nameProblem(s, 'row', `col_${n}`) !== null) n += 1;
   return `col_${n}`;
-}
-
-/**
- * An existing calculated column as a draft, and its lambda to print into it
- * (the draft's text waits for the compiler's print), or undefined if it has gone.
- */
-function findColumn(s: CubeSnapshot, name: string): { readonly draft: Draft; readonly lambda?: Lambda } | undefined {
-  const row = s.derived.find((d) => d.name === name);
-  if (row) {
-    return {
-      draft: {
-        name,
-        // A column saved before kinds were declared behaves as its type.
-        level: row.kind ?? defaultKind(row.type),
-        mode: row.window ? 'window' : 'expression',
-        expression: '',
-        unnest: row.unnest === true,
-        window: row.window ?? NEW_WINDOW,
-        child: NEW_CHILD,
-      },
-      ...(row.lambda ? { lambda: row.lambda } : {}),
-    };
-  }
-  const group = (s.groupDerived ?? []).find((d) => d.name === name);
-  return group
-    ? {
-      draft: {
-        name, level: 'group',
-        mode: group.childAggregate ? 'children' : group.window ? 'window' : 'expression',
-        expression: '', unnest: false, window: group.window ?? NEW_WINDOW,
-        child: group.childAggregate ?? NEW_CHILD,
-      },
-      ...(group.lambda ? { lambda: group.lambda } : {}),
-    }
-    : undefined;
 }
 
 /**

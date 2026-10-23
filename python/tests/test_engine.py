@@ -259,17 +259,24 @@ class ProjectQueries(Served):
 
     def test_a_page_plans_and_runs_a_projects_query_on_its_own_rows(self):
         # a saved query opened on Python's page (C5): planned over the project's model held beside its database, its
-        # mapping in the query, and run there -- and its dry run (the page's compile check) planned over that model too
-        status, headers, body = self.post('/plan-and-run.json', json.dumps({
-            'lambda': json.dumps(ll.parse(PARTY_QUERY)), 'model': PARTY, 'runtime': 'demo::party::Runtime'}))
+        # mapping in the query, and run there -- and its dry run (the page's compile check) planned over that model too.
+        # Its rows are its project's because the request says so (``project``, F28)
+        asked = {'lambda': json.dumps(ll.parse(PARTY_QUERY)), 'model': PARTY, 'runtime': 'demo::party::Runtime'}
+        status, headers, body = self.post('/plan-and-run.json', json.dumps({**asked, 'project': True}))
         self.assertEqual((status, headers['Content-Type']), (200, 'application/vnd.apache.arrow.stream'), body[:300])
         rows = pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all()
         self.assertEqual(rows.column('name').to_pylist(), ['Halberd Securities', 'Meridian Capital'])
-        status, _, body = self.post('/plan.json', json.dumps({
-            'lambda': json.dumps(ll.parse(PARTY_QUERY)), 'model': PARTY, 'runtime': 'demo::party::Runtime'}))
+        status, _, body = self.post('/plan.json', json.dumps({**asked, 'project': True}))
         self.assertEqual(status, 200, body)
         self.assertTrue(json.loads(body)['plan'].startswith('OK\n'), body)
         self.assertEqual(len(self.server.engine.projects.names), 1)
+        # not said: the same model reads only the tables this engine serves -- refused naming the one it does not, never
+        # read from the project's own rows in their place (F28), by the run and the dry run alike
+        for path in ('/plan-and-run.json', '/plan.json'):
+            status, _, body = self.post(path, json.dumps(asked))
+            self.assertEqual(status, 200, body)
+            self.assertRegex(json.loads(body)['plan'], r'reads only the tables it serves.*it reads PARTY\.PARTY, which it '
+                                                       r'does not serve now', path)
 
     def test_kept_for_the_process_and_named_by_what_it_holds(self):
         for _ in range(2):
@@ -981,40 +988,82 @@ class Page(Cube):
            'cubes': [{'id': 'grid-1', 'cube': {'source': {'_type': 'frame', 'name': 'trades', 'columns': []}}}],
            'views': [], 'sheets': []}
 
+    def serve_page(self, name, document, commands=None):
+        """``document`` served as page ``name`` over the frame trades, as the session serves a Python page (its keeper,
+        told to serve it), written whole -- moved by ``commands``, when they say what moved it: what these routes answer
+        from, whoever wrote it. Returns its version."""
+        keeper = self.server.engine.keeper
+        reads = {'frames': ['trades'], 'copies': [], 'ids': []}
+        kept = keeper.current(name)
+        version = (keeper.keep(name, document, reads, []) if kept is None
+                   else keeper.write(name, kept[0], document, reads, commands, []))
+        keeper.serve(name, True)
+        return version
+
     def test_a_page_served_its_document_and_version_moving_when_served_again(self):
         auth = {'Authorization': self.server.authorization}
         self.assertEqual(self.get('/page.json?page=q3', auth)[0], 404)
-        self.assertEqual(self.server.engine.serve_page('q3', self.DOC), 1)
+        self.assertEqual(self.serve_page('q3', self.DOC), 1)
         status, content_type, body = self.get('/page.json?page=q3', auth)
         self.assertEqual((status, content_type), (200, 'application/json'))
-        self.assertEqual(json.loads(body), {'version': 1, 'page': self.DOC})
+        self.assertEqual(json.loads(body), {'version': 1, 'page': self.DOC, 'held': []})
         self.assertEqual(json.loads(self.get('/version.json?page=q3', auth)[2]), {'version': 1, 'frames': {'trades': 0}})
         # its frame changed: the frame's version moves, the page's not
         self.server.engine.changed('trades')
         self.assertEqual(json.loads(self.get('/version.json?page=q3', auth)[2]), {'version': 1, 'frames': {'trades': 1}})
         # served again: its version moves
-        self.assertEqual(self.server.engine.serve_page('q3', {**self.DOC, 'name': 'Q4'}), 2)
+        self.assertEqual(self.serve_page('q3', {**self.DOC, 'name': 'Q4'}), 2)
         self.assertEqual(json.loads(self.get('/page.json?page=q3', auth)[2])['page']['name'], 'Q4')
-        self.server.engine.close_page('q3')
+        self.server.engine.keeper.serve('q3', False)
         self.assertEqual(self.get('/version.json?page=q3', auth)[0], 404)
 
+    def test_a_page_open_at_a_version_asks_what_moved_it_since_and_is_told_the_commands_or_the_page(self):
+        # (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md) each serve keeps the commands that moved the page from the version
+        # before; a page open at version v asks since=v: the commands while every version since has them, else the page
+        auth = {'Authorization': self.server.authorization}
+        engine = self.server.engine
+        asked = lambda since: json.loads(self.get(f'/page.json?page=q3&since={since}', auth)[2])
+        self.serve_page('q3', self.DOC)
+        self.assertEqual(asked(1), {'version': 1, 'commands': []}, 'nothing moved it')
+        self.assertEqual(asked(0), {'version': 1, 'page': self.DOC, 'held': []},
+                         'first served: no version before it it was moved from')
+        sheet = {'page': {'kind': 'addSheet', 'id': 'sheet-2', 'name': None}}
+        group = {'grid': 'grid-1', 'command': {'kind': 'group', 'rows': ['desk']}}
+        self.serve_page('q3', {**self.DOC, 'name': 'Q4'}, [sheet])
+        self.serve_page('q3', {**self.DOC, 'name': 'Q5'}, [group])
+        self.assertEqual(asked(1), {'version': 3, 'commands': [sheet, group]}, "each version's commands, in order")
+        self.assertEqual(asked(2), {'version': 3, 'commands': [group]})
+        # a change by no command: a page open before it opens the page again
+        self.serve_page('q3', {**self.DOC, 'name': 'Q6'})
+        self.assertEqual(asked(2)['page']['name'], 'Q6')
+        self.assertEqual(asked(4), {'version': 4, 'commands': []})
+        self.assertEqual(self.get('/page.json?page=q3&since=x', auth)[0], 400)
+        # closed and shown again: kept as it was (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md), so a tab still open on its
+        # earlier showing follows by the commands since; served again unchanged, no new version
+        self.server.engine.keeper.serve('q3', False)
+        self.assertEqual(self.get('/page.json?page=q3&since=4', auth)[0], 404, 'closed: served no more')
+        self.serve_page('q3', self.DOC, [sheet])
+        self.assertEqual(asked(4), {'version': 5, 'commands': [sheet]})
+        self.assertEqual(self.serve_page('q3', self.DOC, [sheet]), 5)
+        # the commands of its last 64 versions are kept: a page open at an older one opens it again
+        for n in range(70):
+            self.serve_page('q3', {**self.DOC, 'name': f'Q{n}'}, [sheet])
+        self.assertIn('page', asked(5))
+        self.assertEqual(len(asked(75 - 63)['commands']), 63)
+
     def test_a_page_asked_with_the_token_only(self):
-        self.server.engine.serve_page('q3', self.DOC)
+        self.serve_page('q3', self.DOC)
         self.assertEqual(self.get('/page.json?page=q3')[0], 401)
         self.assertEqual(self.get('/version.json?page=q3')[0], 401)
 
-    def test_what_the_open_page_says_is_kept_only_for_the_version_it_opened(self):
+    def test_an_open_pages_write_is_read_by_datacubes_own_reader(self):
+        # (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) an engine with no DataCube code to read a page with keeps no page an
+        # open page writes; one with it: test_page.py Live
         engine = self.server.engine
-        engine.serve_page('q3', self.DOC)
+        self.serve_page('q3', self.DOC)
         said = json.dumps({**self.DOC, 'name': 'Renamed there'})
         self.assertEqual(engine.answer('POST', '/page.json', 'page=q3', said).status, 400, 'no version named')
-        self.assertEqual(engine.answer('POST', '/page.json', 'page=q3&version=1', said).status, 204)
-        self.assertEqual(engine.read_page('q3')['name'], 'Renamed there')
-        # Python served it again: what the page says of version 1 is of a document replaced, and refused
-        engine.serve_page('q3', {**self.DOC, 'name': 'Q4'})
-        self.assertIsNone(engine.read_page('q3'))
-        self.assertEqual(engine.answer('POST', '/page.json', 'page=q3&version=1', said).status, 409)
-        self.assertIsNone(engine.read_page('q3'))
+        self.assertEqual(engine.answer('POST', '/page.json', 'page=q3&version=1', said).status, 404)
         self.assertEqual(engine.answer('POST', '/page.json', 'page=nope&version=1', said).status, 404)
 
     def test_a_pages_numbers_exact_both_ways(self):
@@ -1022,21 +1071,18 @@ class Page(Cube):
         engine = self.server.engine
         lambda_ = {'_type': 'lambda', 'body': [{'_type': 'decimal', 'value': Decimal('12.30')},
                                                {'_type': 'integer', 'value': 2 ** 70}], 'parameters': []}
-        engine.serve_page('q3', {**self.DOC, 'lambda': lambda_})
+        self.serve_page('q3', {**self.DOC, 'lambda': lambda_})
         body = self.get('/page.json?page=q3', {'Authorization': self.server.authorization})[2].decode('utf-8')
         self.assertIn('12.30', body)
         self.assertIn(str(2 ** 70), body)
-        said = ('{"kind": "datacube.page", "version": 4, "name": "Q3", "cubes": [], "views": [], "sheets": [],'
-                ' "lambda": {"_type": "lambda", "body": [{"_type": "decimal", "value": 12.30}]}}')
-        self.assertEqual(engine.answer('POST', '/page.json', 'page=q3&version=1', said).status, 204)
-        self.assertEqual(str(engine.read_page('q3')['lambda']['body'][0]['value']), '12.30')
 
 
 class WarehouseOnPython(unittest.TestCase):
     """A warehouse table on Python's page (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3), every route of /warehouse.json
     and the plan-and-run over its model, against a stand-in for the driver (legend_lite.warehouse's Warehouse and
-    connect): the shapes refused, the sign-in, a table opened once as one person, its Live rows and receipt, its copy
-    held by the grids that snapped it and dropped by the last, the snap limit, and an expired session said as one."""
+    connect): the shapes refused, the sign-in, a table opened once as one person, its Live rows and receipt, each snap
+    a copy of its own modelled by DataCube's code and released by its table, the snap limit, and an expired session
+    said as one."""
 
     URL = 'https://wh.example'
     OBJECTS = [{'catalog': 'main', 'databaseType': 'DuckDB', 'schema': 'trading', 'name': 'POSITIONS', 'kind': 'table',
@@ -1090,7 +1136,17 @@ class WarehouseOnPython(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
         self.frames = ll.Frames()
-        self.engine = Engine(self.frames)
+        # DataCube's own code over the frames' database, headless: what models a snap's copy (upload.ts modelLanded)
+        self.headless = None
+
+        def headless():
+            if self.headless is None:
+                from legend_lite._headless import Headless, bundle
+                self.headless = Headless(bundle(), connection=self.frames.connection)
+            return self.headless
+
+        self.addCleanup(lambda: self.headless is not None and self.headless.close())
+        self.engine = Engine(self.frames, headless=headless)
 
     def call(self, said, path='/warehouse.json'):
         a = self.engine.answer('POST', path, '', json.dumps(said))
@@ -1104,7 +1160,7 @@ class WarehouseOnPython(unittest.TestCase):
 
     def query(self, m):
         spec = {'table': 'POSITIONS', 'schema': 'trading', 'convertible': False, 'databaseType': 'DuckDB',
-                'snapDatabaseType': 'DuckDB', 'columns': [{**c, 'dataType': c['type']} for c in self.OBJECTS[0]['columns']]}
+                'columns': [{**c, 'dataType': c['type']} for c in self.OBJECTS[0]['columns']]}
         accessor = ll.table_model(spec)['accessor']
         return json.dumps(ll.parse(f'|{accessor}->select(~[desk, qty])'))
 
@@ -1147,28 +1203,104 @@ class WarehouseOnPython(unittest.TestCase):
         self.assertEqual(status, 409, body)
         self.assertIn('open already as rita', body.decode())
 
-    def test_the_copy_held_by_the_grids_that_snapped_it_and_dropped_by_the_last(self):
+    def snapped(self, m):
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
+        self.assertEqual(status, 200, body)
+        return json.loads(body)
+
+    def copy_rows(self, copy):
+        """The copy's rows, planned over Python's own model of it and run on the frames' database."""
+        path = copy['source']['value']['path']
+        lam = json.dumps(ll.parse(f'|#>{{{path[0]}.{path[1]}}}#->select(~[desk, qty])'))
+        a = self.engine.answer('POST', '/plan-and-run.json', '', json.dumps(
+            {'lambda': lam, 'model': copy['model'], 'runtime': copy['runtime']}))
+        return a.status, a.body
+
+    def test_each_snap_a_copy_of_its_own_read_through_its_own_model_and_released_by_its_table(self):
+        # docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3: the warehouse table's own name was every grid's copy, so a
+        # second grid got the first's rows as they were, and the copy was read through the table's model
         m = self.opened()
-        refused = self.plan_and_run(m, m['snapRuntime'])
-        self.assertIn('or snapped, through its copy', json.loads(refused.body)['plan'])
-        status, first = self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})
-        self.assertEqual(status, 200, first)
-        pulled = self.pulls
-        # a second grid holds the same copy, as it is: nothing pulled again, the first grid's rows unchanged
-        status, second = self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})
-        self.assertEqual((status, self.pulls, json.loads(second)), (200, pulled, json.loads(first)))
-        self.assertEqual(json.loads(second)['rowCount'], 3)
-        a = self.plan_and_run(m, m['snapRuntime'])
-        self.assertEqual(a.status, 200, a.body)
-        self.assertEqual(pyarrow.ipc.open_stream(a.body).read_all().num_rows, 3)
-        self.assertEqual(self.call({'op': 'release', 'model': m['model']})[0], 200)
-        self.assertEqual(self.plan_and_run(m, m['snapRuntime']).status, 200, 'the other grid still holds it')
-        self.call({'op': 'release', 'model': m['model']})
-        self.assertIn('or snapped', json.loads(self.plan_and_run(m, m['snapRuntime']).body)['plan'])
-        gone = self.frames.connection.execute(
-            "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'POSITIONS'").fetchone()[0]
-        made = self.frames.connection.execute("SELECT count(*) FROM duckdb_schemas() WHERE schema_name = 'trading'").fetchone()[0]
-        self.assertEqual((gone, made), (0, 0), 'the copy and the schema it made are dropped')
+        first = self.snapped(m)
+        second = self.snapped(m)
+        self.assertEqual((first['table'], second['table'], self.pulls), ('snap', 'snap_2', 4),
+                         'each grid pulls and lands its own copy (a count and a pull each)')
+        self.assertEqual((first['rowCount'], first['pulledBy']['as']), (3, 'rita'))
+        self.assertNotEqual(first['model'], m['model'], 'a copy is read through a model of its own')
+        status, body = self.copy_rows(first)
+        self.assertEqual(status, 200, body)
+        rows = pyarrow.ipc.open_stream(body).read_all()
+        self.assertEqual(sorted(zip(rows['desk'].to_pylist(), rows['qty'].to_pylist())), [('EQ', 5), ('FX', 3), ('FX', 10)])
+        # a copy held, described for a page following a snap made in Python (§18.8): its table and model, as made
+        status, body = self.call({'op': 'held', 'table': 'snap'}, '/snap.json')
+        self.assertEqual(status, 200, body)
+        held = json.loads(body)
+        self.assertEqual((held['table'], held['model'], held['source']), ('snap', first['model'], first['source']))
+        self.assertEqual(self.call({'op': 'release', 'table': 'snap'}, '/snap.json')[0], 200)
+        self.assertEqual(self.call({'op': 'held', 'table': 'snap'}, '/snap.json')[0], 404, 'let go: held no more')
+        self.assertEqual(self.call({'op': 'held', 'table': 'POSITIONS'}, '/snap.json')[0], 404, 'no copy a snap made')
+        self.assertEqual(self.copy_rows(second)[0], 200, 'the other grid still reads its own')
+        self.assertEqual(self.frames.connection.execute(
+            "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'snap'").fetchone()[0], 0, 'the copy is dropped')
+        self.assertIsNone(self.frames.file_table('snap'), 'and served no more')
+        # only a copy a snap made is let go of this way; one let go already is gone (a late release, a tab's closing
+        # grid's after Python let its page's copy go: §18.8), its name never given to another copy
+        self.assertEqual(self.call({'op': 'release', 'table': 'snap'}, '/snap.json')[0], 200)
+        self.assertEqual(self.call({'op': 'release', 'table': 'POSITIONS'}, '/snap.json')[0], 404)
+        self.assertEqual(self.snapped(m)['table'], 'snap_3', 'a new copy takes no name a copy had')
+        self.assertEqual(self.call({'op': 'release', 'table': 'snap'}, '/snap.json')[0], 200)
+        self.assertEqual(self.call({'op': 'held', 'table': 'snap_3'}, '/snap.json')[0], 200, 'a late release lets no other copy go')
+        # nor is it a page's file to drop
+        self.assertEqual(self.engine.answer('POST', '/forget.json', '', json.dumps({'name': 'x', 'table': 'snap_2'})).status,
+                         404)
+        # a copy a page the keeper keeps reads (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17): the keeper's -- its maker's
+        # release keeps it -- and it goes with the last page that reads it
+        # (what a page reads comes with each write, as DataCube says it: headless pageReads)
+        reads = {'frames': [], 'copies': ['snap_2'], 'ids': []}
+        self.engine.keeper.keep('p', {'name': 'p'}, reads, [])
+        self.engine.keeper.keep('q', {'name': 'q'}, reads, [])
+        status, body = self.call({'op': 'release', 'table': 'snap_2'}, '/snap.json')
+        self.assertEqual((status, json.loads(body)), (200, {'kept': 'a page reads it: it goes when nothing reads it any more'}))
+        self.assertEqual(self.copy_rows(second)[0], 200, 'kept')
+        self.engine.keeper.forget('p')
+        self.engine.sweep()
+        self.assertEqual(self.call({'op': 'held', 'table': 'snap_2'}, '/snap.json')[0], 200, 'another page reads it')
+        self.engine.keeper.write('q', 1, {'name': 'q, live'}, {'frames': [], 'copies': [], 'ids': []}, None, [])
+        self.engine.sweep()
+        self.assertEqual(self.call({'op': 'held', 'table': 'snap_2'}, '/snap.json')[0], 404, 'let go with the last page')
+
+    def test_a_copy_lives_until_every_page_open_on_it_moved_past_it(self):
+        # the keeper's known limit 6, closed (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17): a page open on another -- a
+        # tab, a widget -- at a version that reads a copy still reads it, its queries and the commands it follows by,
+        # until it says it shows a later one (as it asks, follows and writes), or says nothing for FOLLOWED_FOR seconds
+        m = self.opened()
+        copy = self.snapped(m)['table']
+        keeper = self.engine.keeper
+        keeper.keep('p', {'name': 'p'}, {'frames': [], 'copies': [copy], 'ids': []}, [])
+        keeper.serve('p', True)
+
+        def asked(path, query):
+            return self.engine.answer('GET', path, query, None).status
+
+        def held():
+            return self.call({'op': 'held', 'table': copy}, '/snap.json')[0]
+
+        self.assertEqual(asked('/version.json', 'page=p&follower=tab-1&at=1'), 200)
+        # Python goes live: version 2 reads no copy
+        keeper.write('p', 1, {'name': 'p, live'}, {'frames': [], 'copies': [], 'ids': []}, None, [])
+        self.engine.sweep()
+        self.assertEqual(held(), 200, 'the open page shows version 1, which reads it')
+        self.assertEqual(asked('/version.json', 'page=p&follower=tab-1'), 200, 'following: no version said')
+        self.assertEqual(self.call({'op': 'release', 'table': copy}, '/snap.json')[0], 200)
+        self.assertEqual(held(), 200, "its maker's release keeps it: the keeper's")
+        self.assertEqual(asked('/page.json', 'page=p&since=1&follower=tab-1'), 200)
+        self.assertEqual(held(), 200, 'following from version 1')
+        self.assertEqual(asked('/version.json', 'page=p&follower=tab-1&at=2'), 200)
+        self.assertEqual(held(), 404, 'moved past it: let go as it said so')
+        # who it is, and the version it shows, said right or refused
+        self.assertEqual(asked('/version.json', 'page=p&at=2'), 400)
+        self.assertEqual(asked('/version.json', 'page=p&follower=a%20b&at=2'), 400)
+        self.assertEqual(asked('/version.json', 'page=p&follower=tab-1&at=two'), 400)
+        self.assertEqual(asked('/page.json', 'page=p&since=2'), 200, 'a request that names no follower says nothing')
 
     def test_the_dry_run_plans_a_table_as_its_run_does_and_refuses_the_runtime_its_run_refuses(self):
         # plan.json, plan-and-run's planning half (the one-app design §15.10): never run, the run's plan, and the run's
@@ -1186,25 +1318,66 @@ class WarehouseOnPython(unittest.TestCase):
         run = self.plan_and_run(m, m['runtime'])
         self.assertEqual(run.status, 200, run.body)
         self.assertEqual(planned, pyarrow.ipc.open_stream(run.body).read_all().schema.metadata[b'legend.plan'].decode())
-        # the snap runtime with no copy held: refused by both, in the same words
-        refused = dry(m['snapRuntime'])
-        self.assertIn('or snapped, through its copy', refused)
-        self.assertEqual(refused, json.loads(self.plan_and_run(m, m['snapRuntime']).body)['plan'])
+        # another runtime: refused by both, in the same words
+        refused = dry('other::Runtime')
+        self.assertIn('is read on its warehouse, through its own runtime', refused)
+        self.assertEqual(refused, json.loads(self.plan_and_run(m, 'other::Runtime').body)['plan'])
 
     def test_a_copy_that_fails_leaves_nothing(self):
         m = self.opened()
-        # a conversion DuckDB refuses: the copy fails after its schema is made
-        self.engine._warehouse_tables[m['model']].written['conversions'] = [{'column': 'qty', 'sql': 'no_such_function(qty)'}]
-        status, body = self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})
+        made = self.engine._headless
+
+        class Refusing:
+            def __init__(self, inner):
+                self.inner = inner
+
+            def call(self, function, *args, **kw):
+                if function == 'landed':
+                    raise RuntimeError('no model of it')
+                return self.inner.call(function, *args, **kw)
+
+        self.engine._headless = lambda: Refusing(made())
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
         self.assertEqual(status, 422, body)
         self.assertIn('could not be copied', body.decode())
-        made = self.frames.connection.execute("SELECT count(*) FROM duckdb_schemas() WHERE schema_name = 'trading'").fetchone()[0]
-        self.assertEqual(made, 0, 'no schema left of the copy that failed')
+        self.assertEqual(self.frames.connection.execute(
+            "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'snap'").fetchone()[0], 0, 'no copy left')
+        self.assertIsNone(self.frames.file_table('snap'))
+
+    def test_a_frames_grid_snaps_too_a_copy_of_its_base_as_the_frame_was(self):
+        # one Snap for every grid (§18.3): a Live frame read afresh by every query, its grid's copy keeping its rows
+        data = {'df': pd.DataFrame({'desk': ['FX', 'EQ'], 'qty': [1, 2]})}
+        desks = self.frames.register('desks', lambda: data['df'])
+        lam = json.dumps(ll.parse(f'|{desks.accessor}->select(~[desk, qty])'))
+        status, body = self.call({'op': 'snap', 'model': desks.model, 'runtime': desks.runtime, 'pull': lam}, '/snap.json')
+        self.assertEqual(status, 200, body)
+        copy = json.loads(body)
+        self.assertEqual((copy['table'], copy['rowCount'], 'pulledBy' in copy), ('snap', 2, False))
+        data['df'] = pd.DataFrame({'desk': ['FX', 'EQ', 'IR'], 'qty': [1, 2, 3]})
+        self.assertEqual(desks.execute('->select(~[desk])').num_rows, 3, 'the frame, read afresh')
+        status, rows = self.copy_rows(copy)
+        self.assertEqual(status, 200, rows)
+        self.assertEqual(pyarrow.ipc.open_stream(rows).read_all().num_rows, 2, 'its copy, as it was snapped')
+        self.assertEqual(self.call({'op': 'release', 'table': 'snap'}, '/snap.json')[0], 200)
+        # a model reading a table this engine does not serve is not snapped
+        secret = ll.table_model({'table': 'secret', 'convertible': True, 'databaseType': 'DuckDB', 'columns': [
+            {'name': 'desk', 'dataType': 'VARCHAR', 'logicalType': 'VARCHAR', 'precision': None, 'scale': None,
+             'notNull': False}]})
+        status, body = self.call({'op': 'snap', 'model': secret['model'], 'runtime': secret['runtime'], 'pull': lam},
+                                 '/snap.json')
+        self.assertEqual(status, 404, body)
+
+    def test_an_engine_without_datacubes_code_keeps_no_copy(self):
+        self.engine = Engine(self.frames)
+        m = self.opened()
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
+        self.assertEqual(status, 404, body)
+        self.assertIn('keeps no copy', body.decode())
 
     def test_the_snap_limit_in_the_tabs_words(self):
         m = self.opened()
         self.count = 10_000_001
-        status, body = self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
         self.assertEqual((status, body.decode()), (422, '10,000,001 rows exceeds the 10,000,000 row snap limit. Narrow the '
                                                           'filter, or stay live.'))
 
@@ -1214,6 +1387,6 @@ class WarehouseOnPython(unittest.TestCase):
         a = self.plan_and_run(m, m['runtime'])
         said = json.loads(a.body)
         self.assertEqual((a.status, said['expired']), (401, {'baseUrl': self.URL, 'principal': 'rita'}))
-        self.assertEqual(self.call({'op': 'snap', 'model': m['model'], 'pull': self.query(m)})[0], 401)
+        self.assertEqual(self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')[0], 401)
         self.assertEqual(self.call({'op': 'table', 'url': self.URL, 'catalog': 'main', 'schema': 'trading',
                                     'name': 'POSITIONS'})[0], 401)

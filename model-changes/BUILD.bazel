@@ -1,8 +1,8 @@
 # A class, an association or a data space made in any project (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4): a generic
 # Legend capability, not DataCube's -- DataCube's windows are one caller. legend-lite's model writer asked (the host's,
 # or a legend-lite server's), its files saved as one revision of a workspace in an SDLC with lite's text routes (the
-# page's, the model home, sdlc-server). Plain TypeScript, no npm dependency. Its Python twin is
-# python/legend_lite/model.py; test/cases holds the two alike.
+# page's, the model home, sdlc-server). Plain TypeScript, no npm dependency. Python has no twin: its model actions run
+# this library headless (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D4).
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/js:defs.bzl", "node_test")
@@ -17,12 +17,11 @@ js_library(
     ],
 )
 
-# the cases each language is held to: every call one create makes, to the SDLC and to the writer, and its answer,
-# recorded by Python against its native SDLC and writer (python/tests/test_model.py records them again on request)
+# the cases the library is held to: every call one create makes, to the SDLC and to the writer, and its answer, recorded
+# against the native SDLC and writer through Python's host (python/tests/test_model.py records them again on request)
 filegroup(
     name = "cases",
     srcs = glob(["test/cases/*.json"]),
-    visibility = ["//python:__pkg__"],
 )
 
 # The library replayed against the cases: the same calls, in order, with the same bodies, and the same answer.

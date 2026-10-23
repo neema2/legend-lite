@@ -71,11 +71,6 @@ export interface InferredModel {
    * on engine reads them Boolean (relation-type.ts, ENGINE DEFECT S23).
    */
   readonly bitColumns: readonly string[];
-  /**
-   * The runtime a COPY of the table is planned against (`InferOptions.snapDatabaseType`): the same
-   * Database, through a connection of the copy's store's type. Present only when asked for.
-   */
-  readonly snapRuntime?: string;
 }
 
 export interface InferOptions {
@@ -102,28 +97,44 @@ export interface InferOptions {
    * tab's engine (`QueryEngine.databaseType`) or a warehouse catalog (`CatalogObject.databaseType`).
    */
   readonly databaseType: string;
-  /**
-   * The database type of the store a Snap copies the table into (the tab's engine,
-   * `QueryEngine.databaseType`), when it can be snapped. The model then also carries a second
-   * runtime over the SAME Database (`snapRuntime`): the rows are pulled with a plan against the
-   * table's own runtime, and every query on the copy is planned against this one, so a Postgres
-   * table's copy in the tab's DuckDB is queried in DuckDB's SQL (leg C,
-   * docs/DATACUBE_APP_PLAN_2026_10_02.md).
-   */
-  readonly snapDatabaseType?: string;
+}
+
+/** A table of the host's database for a model of several (`TableModels.tablesModel`): its catalog rows. */
+export interface ModelTable {
+  readonly table: string;
+  readonly schema?: string;
+  /** The package of the Database it is declared in (default `local`): tables of one package share one Database. */
+  readonly pkg?: string;
+  /** As `InferOptions.convertible`. */
+  readonly convertible: boolean;
+  readonly columns: readonly CatalogColumn[];
+}
+
+/**
+ * The model of several tables of one database (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.3: a join's inputs, read in
+ * one place): each package's Database declaring its tables as each one's own model does, one connection, and a runtime
+ * binding every Database to it -- and, for each table in the order given, the relation that reads it, its conversions
+ * and the columns left out.
+ */
+export interface TablesModel {
+  readonly model: string;
+  readonly runtime: string;
+  readonly tables: readonly {
+    readonly source: ValueSpecification;
+    readonly conversions: readonly { readonly column: string; readonly sql: string }[];
+    readonly excluded: readonly string[];
+  }[];
 }
 
 /**
  * THE MODEL WRITER for a table (legend-lite's module: `LitePlanner` implements it). A column of a
- * type no Database declares is refused, naming it (a `PlanError` with the compiler's words); given
- * `snapDatabaseType`, the model carries the snap runtime too, and says so in its type.
+ * type no Database declares is refused, naming it (a `PlanError` with the compiler's words). A Snap's copy is modelled
+ * the same way, from what the copy holds (upload.ts modelLanded).
  */
 export interface TableModels {
-  tableModel(
-    columns: readonly CatalogColumn[],
-    options: InferOptions & { readonly snapDatabaseType: string },
-  ): Promise<InferredModel & { readonly snapRuntime: string }>;
   tableModel(columns: readonly CatalogColumn[], options: InferOptions): Promise<InferredModel>;
+  /** The model of several tables of a database of `databaseType` (`TablesModel`); a table given twice is refused. */
+  tablesModel(tables: readonly ModelTable[], databaseType: string): Promise<TablesModel>;
   /** THE catalog question for one table of a DuckDB: its rows are `tableModel`'s columns (`catalogColumns`). */
   catalogColumnsSql(schema: string, table: string): Promise<string>;
   /**

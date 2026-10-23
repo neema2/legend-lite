@@ -247,7 +247,7 @@ describe('a grouped pivot, judged by rows', () => {
 
   it('R3: an expanded group\'s cells (level 2) agree with GROUP BY region, desk, year', async () => {
     const o = await openCube(CUBE);
-    await o.app.change((s) => ({ ...s, tree: s.tree.setOpen(['EMEA'], true) }));
+    await o.app.edit([{ kind: 'open', path: ['EMEA'], open: true }], 'expand');
     await quiet(o.engine);
     assert.deepEqual(o.errors, []);
     await checkLevel(view(o), ['region', 'desk'], { region: 'EMEA' });
@@ -269,10 +269,9 @@ describe('a grouped pivot, judged by rows', () => {
     const o = await openCube(CUBE);
     const sortOn = view(o).columns.all.find((l) => l.path.join('/') === '2021/avg_n');
     assert.ok(sortOn, 'a 2021 avg_n column');
-    await o.app.change((s) => ({ ...s, snapshot: { ...s.snapshot,
-      sorts: [{ column: sortOn.name, direction: 'desc' }] } }));
+    await o.app.edit([{ kind: 'sorts', sorts: [{ column: sortOn.name, direction: 'desc' }] }], 'sort');
     await quiet(o.engine);
-    await o.app.change((s) => ({ ...s, tree: s.tree.setOpen(['EMEA'], true) }));
+    await o.app.edit([{ kind: 'open', path: ['EMEA'], open: true }], 'expand');
     await quiet(o.engine);
     assert.deepEqual(o.errors, []);
     const v = view(o);
@@ -286,10 +285,9 @@ describe('a grouped pivot, judged by rows', () => {
     const o = await openCube({ ...CUBE, maxRows: 2 });
     const total = view(o).columns.all.find((l) => l.path.join('/') === 'Total/cnt_q');
     assert.ok(total, 'a Total/cnt_q column');
-    await o.app.change((s) => ({ ...s, snapshot: { ...s.snapshot,
-      sorts: [{ column: total.name, direction: 'desc' }] } }));
+    await o.app.edit([{ kind: 'sorts', sorts: [{ column: total.name, direction: 'desc' }] }], 'sort');
     await quiet(o.engine);
-    await o.app.change((s) => ({ ...s, tree: s.tree.setOpen(['EMEA'], true) }));
+    await o.app.edit([{ kind: 'open', path: ['EMEA'], open: true }], 'expand');
     await quiet(o.engine);
     assert.deepEqual(o.errors, []);
     const v = view(o);
@@ -302,8 +300,7 @@ describe('a grouped pivot, judged by rows', () => {
 
   it('R7: a filter that removes a pivot value', async () => {
     const o = await openCube({ ...CUBE, rows: ['region'] });
-    await o.app.change((s) => ({ ...s, snapshot: { ...s.snapshot,
-      filter: { kind: 'condition', column: 'region', operator: 'equal', value: 'APAC' } } }));
+    await o.app.edit([{ kind: 'filter', filter: { kind: 'condition', column: 'region', operator: 'equal', value: 'APAC' } }], 'filter');
     await quiet(o.engine);
     assert.deepEqual(o.errors, []);
     const v = view(o);

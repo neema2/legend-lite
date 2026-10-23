@@ -9,7 +9,7 @@ import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 
 import type { HeldCopy } from '../src/app.ts';
 import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../src/config.ts';
-import type { Planner, SnapTarget } from '../src/cube.ts';
+import type { Planner } from '../src/cube.ts';
 import type { ModelOptions } from '../src/planner.ts';
 import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
@@ -180,7 +180,6 @@ export const DEMO_DIMENSIONS: readonly {
 export interface Engine {
   readonly planner: Planner;
   readonly source: ValueSpecification;
-  readonly snapTarget: SnapTarget;
   /**
    * legend-lite's model writer for a table opened on the page -- a file, a remote file, a warehouse
    * table -- whichever planner plans it (infer.ts): the planner itself in this tab; legend-lite's
@@ -232,12 +231,6 @@ export type MakePlanner = (status: HTMLElement) => Promise<Engine>;
 
 /** Where the demo's shared model and tables live: `#>{trades::DB.TRADES}#`. */
 export const SOURCE = accessor('trades::DB', 'TRADES');
-/** Where the demo cube snaps; its copy is planned by the page's own planner (the model is DuckDB's). */
-export const SNAP_TARGET: Omit<SnapTarget, 'planner' | 'host'> = {
-  table: 'TRADES_SNAP',
-  source: accessor('trades::DB', 'TRADES_SNAP'),
-  conversions: [],
-};
 export const RUNTIME = 'trades::RT';
 
 /** One copy of the model text, fetched so the file is the source. */
@@ -356,7 +349,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   performance.mark('dc:data-ready');
   status.textContent = 'starting planner…';
   const chosen = await engineReady;
-  const { planner, source, snapTarget, label } = chosen;
+  const { planner, source, label } = chosen;
   status.textContent = label;
   // THE TAB'S SERVICES (src/services/browser.ts): everything below reads its planner, its database, its stores and its
   // browser through them
@@ -392,7 +385,6 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
         kind: 'sample',
         sample: {
           snapshot: sampleSnapshot,
-          snapTarget,
           ...(generated ? { heldCopy: generated } : {}),
           // the host knows what the snapshot cannot: that notional and pnl are money and qty is a count
           configuration: demoConfiguration('Trades'),

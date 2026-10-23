@@ -442,7 +442,7 @@ describe('T7: one formatter on compiler types', () => {
     const o = await flat(P);
     assert.deepEqual(cells(o.root, 'big').map(([t]) => t).sort(),
       ['(9,007,199,254,740,993)', '1', '2'].sort(), 'a measure, by its type: grouped digits, negatives in parentheses');
-    await o.app.applyConfiguration({ columns: { big: { kind: 'dimension' } } });
+    await o.app.edit([{ kind: 'configure', patch: { columns: { big: { kind: 'dimension' } } } }], 'settings');
     await quiet(o.engine);
     assert.deepEqual(cells(o.root, 'big').map(([t]) => t).sort(), ['-9007199254740993', '1', '2'].sort(),
       'a dimension is a label: the value as written');
@@ -460,9 +460,9 @@ describe('T7: one formatter on compiler types', () => {
     });
     assert.equal(o.app.snapshot.columns.find((c) => c.name === 'qty')?.kind ?? 'measure', 'measure');
     // exactly what Column Properties > Column Kind writes (panel-column.ts)
-    await o.app.applyConfiguration({ columns: { qty: { kind: 'dimension', excludedFromPivot: true } } });
+    await o.app.edit([{ kind: 'configure', patch: { columns: { qty: { kind: 'dimension', excludedFromPivot: true } } } }], 'settings');
     await quiet(o.engine);
-    await o.app.change((s) => ({ ...s, snapshot: { ...s.snapshot, pivotOn: ['qty'] } }));
+    await o.app.edit([{ kind: 'pivot', columns: ['qty'] }], 'pivot');
     await quiet(o.engine);
     assert.deepEqual(o.errors, []);
     const pivot = (o.app.view?.pivot?.columns ?? [])
@@ -479,13 +479,13 @@ describe('T7: one formatter on compiler types', () => {
       source: { query: P }, columns: await sourceColumns(planner, P), derived: [],
       rows: [], pivotOn: [], measures: [{ name: 'pnl', column: 'pnl', fn: 'sum' }], sorts: [], epoch: 1,
     });
-    await o.app.applyConfiguration({ columns: {
+    await o.app.edit([{ kind: 'configure', patch: { columns: {
       qty: { kind: 'dimension', excludedFromPivot: true },
       big: { kind: 'dimension', excludedFromPivot: true },
-    } });
+    } } }], 'settings');
     await quiet(o.engine);
     const group = async (rows: string[], pivotOn: string[] = []) => {
-      await o.app.change((s) => ({ ...s, snapshot: { ...s.snapshot, rows, pivotOn } }));
+      await o.app.edit([{ kind: 'group', rows }, { kind: 'pivot', columns: pivotOn }], 'group');
       await quiet(o.engine);
       assert.deepEqual(o.errors, []);
       const view = o.app.view ?? assert.fail('no view');

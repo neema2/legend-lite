@@ -31,6 +31,13 @@ export interface ModelOptions {
   readonly mapping?: string;
   /** The model's enumerations: a column typed by one is said so (relation-type.ts `PlanColumn.enumeration`). */
   readonly enumerations?: readonly string[];
+  /**
+   * Its rows are its project's own (a saved query's version: C5), in a database of the project's own on its host -- never
+   * the host's tables. A host that plans and runs where the rows are (Python's plan-and-run) reads them there, and reads
+   * any other model's rows only from the tables it serves (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md F28); the tab reads
+   * a project's through its project databases, by the source it opens.
+   */
+  readonly project?: true;
 }
 
 export class PlanError extends Error {

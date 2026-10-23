@@ -1,7 +1,8 @@
-"""show(df) (legend_lite.datacube): DataCube on a dataframe -- its link, the cube the engine serves for it, a frame
-shown again or updated, the page told when the frame changes (a notebook cell's end, update, refresh, a Live frame's
-new columns, a close), closed handles, and a plain script's end: it waits when a cube was opened in a browser (the
-engine still answering) until Ctrl-C, and ends at once when none was."""
+"""show(df) (legend_lite.datacube): DataCube on a dataframe -- a page of one grid over it, kept as every Python page is
+(docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P12) -- its link, the cube the engine serves for its frame, a frame shown again
+or updated, the page told when the frame changes (a notebook cell's end, update, refresh, a Live frame's new columns,
+a close) with the grid's edits kept, closed handles, and a plain script's end: it waits when a cube was opened in a
+browser (the engine still answering) until Ctrl-C, and ends at once when none was."""
 
 import json
 import os
@@ -38,6 +39,10 @@ class Shown(unittest.TestCase):
     def tearDown(self):
         for cube in list(datacube._session.cubes.values()):
             cube.close()
+        # its DataCube engine (headless) closed with it: a session dropped open leaves that engine's folder to the garbage
+        # collector, which warns about it under whichever later test it reaches (CorpusPage counts every warning)
+        if datacube._session._headless is not None:
+            datacube._session._headless.close()
         if self._site is None:
             os.environ.pop('LEGEND_LITE_SITE', None)
         else:
@@ -53,32 +58,47 @@ class Shown(unittest.TestCase):
         except urllib.error.HTTPError as e:
             return e.code, e.read().decode('utf-8')
 
-    def version(self, name='frame'):
-        return self.ask(f'/version.json?table={name}')
+    def version(self, cube):
+        """Its page's versions as its tab asks them: the frame's, by its name -- or the status, refused."""
+        status, said = self.ask(f'/version.json?page={cube.page._key}')
+        return (status, said['frames'][cube.name]) if status == 200 else (status, None)
 
 
 class Show(Shown):
     def test_show_returns_at_once_with_the_cube_s_link(self):
         cube = ll.show(trades(), browser=False)
         url = urlsplit(cube.url)
-        self.assertEqual((url.path, parse_qs(url.query)), ('/engine.html', {'table': ['frame']}))
+        # its page's: a page of one grid over the frame, named by it (P12)
+        self.assertEqual((url.path, parse_qs(url.query)), ('/engine.html', {'page': [cube.page._key]}))
+        self.assertEqual((cube.page.name, [g.frame for g in cube.page.grids]), ('frame', ['frame']))
         self.assertEqual(url.fragment, 'token=' + datacube._session.web().token)
         status, served = self.ask('/cube.json?table=frame')
         self.assertEqual((status, served['version']), (200, 0))
         self.assertIn('#>{frame::DB.frame}#', ll.print_tree({'_type': 'lambda', 'parameters': [], 'body': [served['source']]}))
+
+    def test_snap_true_reads_the_frame_once_by_its_page_s_grid(self):
+        # docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8, P12: its page's grid snapped in Python (its Snap, a copy Python's
+        # DuckDB keeps, which the page reads); shown again, still read once until its Go Live
+        cube = ll.show(trades(), name='once', browser=False, snap=True)
+        copy = cube.page.grids[0].snapped
+        self.assertEqual(copy['rowCount'], 3)
+        self.assertIs(ll.show(trades(2), name='once', browser=False), cube)
+        self.assertEqual(cube.page.grids[0].snapped, copy)
+        with self.assertRaisesRegex(ValueError, "a page's grids snap one by one"):
+            ll.show(ll.Page('P'), browser=False, snap=True)
 
     def test_each_frame_its_own_name_and_a_name_shown_again_replaces_its_frame(self):
         first, second = ll.show(trades(), browser=False), ll.show(trades(), browser=False)
         self.assertEqual((first.name, second.name), ('frame', 'frame_2'))
         again = ll.show(trades(2), name='frame', browser=False)
         self.assertIs(again, first)
-        self.assertEqual(self.version(), (200, {'version': 1}))
+        self.assertEqual(self.version(first), (200, 1))
         self.assertEqual(datacube._session.frames['frame'].execute("->filter(x|$x.qty > 0)").num_rows, 2)
 
     def test_update_shows_another_frame_its_page_told(self):
         cube = ll.show(trades(), browser=False)
         cube.update(trades(4))
-        self.assertEqual(self.version(), (200, {'version': 1}))
+        self.assertEqual(self.version(cube), (200, 1))
         self.assertEqual(datacube._session.frames['frame'].execute("->filter(x|$x.qty > 0)").num_rows, 4)
         # new columns: a new model, which the page opens the cube again over
         cube.update(trades().assign(book=['a', 'b', 'c']))
@@ -86,9 +106,19 @@ class Show(Shown):
 
     def test_refresh_moves_the_version_the_page_asks(self):
         cube = ll.show(trades(), browser=False)
-        self.assertEqual(self.version(), (200, {'version': 0}))
+        self.assertEqual(self.version(cube), (200, 0))
         cube.refresh()
-        self.assertEqual(self.version(), (200, {'version': 1}))
+        self.assertEqual(self.version(cube), (200, 1))
+
+    def test_a_frame_s_new_columns_keep_the_grid_s_edits(self):
+        # B10, P12: its page is kept as every Python page is -- the grid opened again over the frame's new columns, as it
+        # was edited (here in Python; a tab open on it writes its edits to the same page)
+        cube = ll.show(trades(), browser=False)
+        grid = cube.page.grids[0]
+        grid.group('desk')
+        cube.update(trades().assign(book=['a', 'b', 'c']))
+        self.assertEqual(grid._query['rows'], ['desk'])
+        self.assertIn('book', [c['name'] for c in grid._cube['source']['columns']])
 
     def test_a_live_frame_s_new_columns_are_a_change_its_page_is_told(self):
         df = trades()
@@ -97,16 +127,17 @@ class Show(Shown):
         df['book'] = 'x'
         status, served = self.ask('/cube.json?table=frame')  # read again: a new model
         self.assertIn('book', served['model'])
-        self.assertEqual(self.version(), (200, {'version': 1}))
+        self.assertEqual(self.version(datacube._session.cubes['frame']), (200, 1))
 
     def test_a_closed_frame_s_page_is_told_and_finds_it_gone(self):
         kept, closed = ll.show(trades(), browser=False), ll.show(trades(), browser=False)
         closed.close()
-        status, _ = self.version('frame_2')
-        self.assertEqual(status, 404)
-        # shown again under the name: its old page is told
-        ll.show(trades(), name='frame_2', browser=False)
-        self.assertEqual(self.version('frame_2'), (200, {'version': 2}))
+        status, _ = self.version(closed)
+        self.assertEqual(status, 404, 'its page served no more: its tab is told')
+        # shown again under the name: a new page of its own
+        again = ll.show(trades(), name='frame_2', browser=False)
+        self.assertIsNot(again, closed)
+        self.assertEqual(self.version(again)[0], 200)
         kept.refresh()
 
     def test_a_closed_cube_refuses_and_the_last_close_stops_the_web_server(self):
@@ -123,18 +154,22 @@ class Show(Shown):
 
 
 class Notebook(Shown):
-    def test_after_each_cell_the_live_cubes_are_told(self):
+    def test_after_each_cell_the_cubes_read_at_each_query_are_told(self):
         registered = []
         shell = types.SimpleNamespace(events=types.SimpleNamespace(register=lambda event, f: registered.append((event, f))))
         was = sys.modules.get('IPython')
         sys.modules['IPython'] = types.SimpleNamespace(get_ipython=lambda: shell)
         try:
             ll.show(trades(), browser=False)
-            ll.show(trades(), mode='snapped', browser=False)
+            # a stream, read once into a table of its own: nothing of it changes after a cell
+            import pyarrow as pa
+            table = pa.Table.from_pandas(trades(), preserve_index=False)
+            ll.show(pa.RecordBatchReader.from_batches(table.schema, table.to_batches()), browser=False)
             self.assertEqual([event for event, _ in registered], ['post_run_cell'])
             registered[0][1](None)  # a cell ran
-            self.assertEqual(self.version('frame'), (200, {'version': 1}))
-            self.assertEqual(self.version('frame_2'), (200, {'version': 0}))
+            cubes = datacube._session.cubes
+            self.assertEqual(self.version(cubes['frame']), (200, 1))
+            self.assertEqual(self.version(cubes['frame_2']), (200, 0))
             datacube._session.opened = True
             self.assertTrue(datacube._stays(), 'a notebook process stays')
             self.assertFalse(datacube._session.waits(), 'nothing waits at its end')

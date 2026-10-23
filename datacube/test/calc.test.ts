@@ -146,6 +146,12 @@ describe('spelling a column reference', () => {
       `$x.'2023${PIVOT_SEPARATOR}total'`);
   });
 
+  it('quotes true and false, which the grammar reads as literals (one identifier rule: pure-protocol\'s)', () => {
+    assert.equal(columnRef('true'), "$x.'true'");
+    assert.equal(columnRef('false'), "$x.'false'");
+    assert.equal(columnRef('True'), '$x.True');
+  });
+
   it('escapes a quote in a column name rather than ending the token', () => {
     assert.equal(columnRef("it's"), "$x.'it\\'s'");
     assert.equal(columnRef('back\\slash'), "$x.'back\\\\slash'");

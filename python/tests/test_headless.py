@@ -4,19 +4,25 @@ Pure, as Create a Class makes them; ``grid.to_pandas()``, every one of those row
 checked against pandas computing the same, in the same cell, with no browser."""
 
 import base64
+import contextlib
+import datetime
 import json
 import os
+import threading
 import unittest
 from pathlib import Path
 from decimal import Decimal
+from unittest import mock
 
 import pandas as pd
 import pyarrow.ipc
 
 import legend_lite as ll
 from legend_lite import datacube
+from legend_lite import _pool
 from legend_lite._headless import Headless, bundle
 from legend_lite.engine import Engine
+from legend_lite.frames import Frames
 
 TRADES = pd.DataFrame({
     'region': ['EMEA', 'EMEA', 'AMER', 'APAC', 'AMER', 'EMEA'],
@@ -41,6 +47,23 @@ def groups(view, measure):
 class Grids(unittest.TestCase):
     def setUp(self):
         self.page = ll.Page('Headless trades')
+
+    def test_a_column_on_a_quartile_is_the_databases_as_pandas_computes_it(self):
+        # chart batch 4's aggregates, a box plot's box: Pure's percentile, continuous -- between two values, the point
+        # between them, as pandas' quantile
+        grid = self.page.grid(TRADES, name='trades_quartiles', rows=['region'],
+                              measures={'notional': 'percentile25', 'qty': 'percentile75'})
+        view = grid.view()
+        by_region = TRADES.groupby('region')
+        first, third = by_region.notional.quantile(0.25), by_region.qty.quantile(0.75)
+        self.assertEqual(set(groups(view, 'notional')), set(first.index))
+        for region, value in groups(view, 'notional').items():
+            self.assertAlmostEqual(value, first[region])
+        for region, value in groups(view, 'qty').items():
+            # an Integer's quartile is a Number: a number in Python whichever the database answered, an exact decimal
+            # (its text in the view) a Decimal, as a Decimal column's
+            self.assertIsInstance(value, (int, float, Decimal), region)
+            self.assertAlmostEqual(float(value), third[region])
 
     def test_a_grouped_grid_shows_what_pandas_computes(self):
         grid = self.page.grid(TRADES, name='trades_grouped', rows=['region'], measures={'notional': 'sum', 'qty': 'sum'})
@@ -599,6 +622,346 @@ class Remote(unittest.TestCase):
         with mock.patch.dict(os.environ, {'LEGEND_LITE_DUCKDB_EXTENSIONS': os.path.join(os.sep, 'no', 'such', 'folder')}):
             self.assertFalse(json.loads(self.engine.answer('GET', '/services.json', '', None).body)['remote'])
             self.assertEqual(self.mount(f'{self.base}/trades.parquet', 'remote_none').status, 404)
+
+
+
+def _act(grid, action, filters):
+    """One action of DataCube's parity.json, through Python's Page and Grid: the call a program makes for what a
+    person does on the screen (datacube/test/parity-screen.test.ts names the screen's). ``filters``: the conditions set
+    so far -- a cell's filter on the screen adds one to the grid's, and Python's filter() sets them all."""
+    do = action['do']
+    if do == 'group':
+        grid.group(*action['rows'])
+    elif do == 'pivot':
+        grid.pivot(*action['columns'])
+    elif do == 'addSort':
+        grid.sort(action['column'], action['direction'])
+    elif do == 'headerSort':
+        # a header click sorts the column alone, in its first direction; Python has no such call, so a case clicks a
+        # header only on a grid with no sort, where sort() adding one is the same edit
+        if grid._query.get('sorts'):
+            raise AssertionError('parity.json clicks a header of a sorted grid: Python has no call that sorts alone')
+        grid.sort(action['column'], action['direction'])
+    elif do == 'aggregate':
+        grid.column(action['column'], aggregate=action['fn'])
+    elif do == 'wavg':
+        grid.column(action['column'], aggregate='wavg', weight=action['weight'])
+    elif do == 'calculate':
+        # the expression as Python takes one: over the row $x, without the lambda's head
+        assert action['expression'].startswith('x|'), action['expression']
+        grid.calculate(action['name'], action['expression'][len('x|'):])
+    elif do == 'kind':
+        grid.column(action['column'], kind=action['kind'])
+    elif do == 'heatmap':
+        grid.configure({'columns': {action['column']: {'heatmap': {'from': action['from'], 'to': action['to']}}}})
+    elif do == 'hide':
+        grid.configure({'columns': {action['column']: {'hidden': True}}})
+    elif do == 'filter':
+        filters.append((action['column'], action['operator'], action['value']))
+        grid.filter(filters if len(filters) > 1 else filters[0])
+    else:
+        raise AssertionError(f'parity.json names an action Python does not do: {do!r}')
+
+
+class ParityWithTheScreen(unittest.TestCase):
+    """SCREEN AND PYTHON, ONE EDIT, ONE DOCUMENT (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 1): each
+    case of DataCube's parity.json -- a new grid over its frame, then its actions -- done through Python's Page and
+    Grid, and the cube document the page writes held to the case's, which datacube/test/parity-screen.test.ts holds
+    the screen's to. The screen and Python write one document for one edit, tested at the edges a person and a program
+    use; and an action that is one edit on both sides builds one grid command, the case's (the command program's stage
+    1, docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.fixture = json.loads(Path(os.environ['LEGEND_LITE_PARITY']).read_text('utf-8'))
+        # one frame for every case (a name served again serves the same frame: Page.grid), its dates as dates
+        dates = {cls.fixture['columns'].index(c) for c in cls.fixture['dates']}
+        rows = [[datetime.date.fromisoformat(v) if i in dates else v for i, v in enumerate(r)] for r in cls.fixture['rows']]
+        cls.frame = pd.DataFrame(rows, columns=cls.fixture['columns'])
+        # a page's first grid, for a case of its second
+        cls.first = pd.DataFrame({'a': ['x'], 'b': [1]})
+
+    def test_each_case_writes_the_screens_document(self):
+        self.assertGreater(len(self.fixture['cases']), 25)
+        for case in self.fixture['cases']:
+            with self.subTest(case['name']):
+                page = ll.Page(self.fixture['page'])
+                if case.get('capped'):
+                    page.grid(self.first, name='first')
+                grid = page.grid(self.frame, name=self.fixture['frame'])
+                filters = []
+                for action in case['actions']:
+                    before = len(page._commands)
+                    _act(grid, action, filters)
+                    # an action that is one edit on both sides holds the grid command the screen built for it: Python's
+                    # call built the same one (datacube/test/parity-screen.test.ts names which actions those are)
+                    if 'command' in action:
+                        self.assertEqual(page._commands[before:], [action['command']], action['do'])
+                written = json.loads(page.to_json())['cubes'][-1]['cube']
+                self.assertEqual(written, case['cube'])
+
+    def test_the_cases_hold_commands(self):
+        # the screen writes each one-edit action's command into the cases (PARITY_UPDATE): none held, none compared
+        held = [a['do'] for case in self.fixture['cases'] for a in case['actions'] if 'command' in a]
+        self.assertGreater(len(held), 15)
+        self.assertEqual({'group', 'pivot', 'addSort', 'heatmap', 'hide', 'calculate', 'aggregate', 'kind', 'wavg'},
+                         set(held))
+
+class Joins(unittest.TestCase):
+    """Two of a page's grids joined headless (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.4): DataCube's own join --
+    the model of both frames by legend-lite's writer, the join typed by the compiler, its grid's cube for addGrid, what it
+    will do before it is made -- run in V8 over Python's frames, and its rows planned and run by Python."""
+
+    TRADES = pd.DataFrame({'trade_id': [1, 2, 3, 4, 5], 'customer_id': pd.array([10, 10, 20, None, 99], dtype='Int64'),
+                           'qty': [5.0, 7.0, 1.0, 2.0, 3.0]})
+    # customer 20 listed twice: trade 3 comes out twice
+    CUSTOMERS = pd.DataFrame({'customer_id': [10, 20, 20, 30], 'region': ['EMEA', 'AMER', 'APAC', 'EMEA']})
+    HOW = {'form': 'join', 'kind': 'left', 'on': {'rows': [{'left': 'customer_id', 'op': '==', 'right': 'customer_id'}]},
+           'prefix': 'c_', 'keep': None}
+
+    def setUp(self):
+        self.page = ll.Page('Headless joins')
+        self.trades = trades = self.page.grid(self.TRADES, name='join_trades')
+        self.customers = customers = self.page.grid(self.CUSTOMERS, name='join_customers')
+        # each grid as the page has it, under the name it shows: its tile's title, else what it reads (joinInputOf)
+        trades.title = 'trades'
+        # what the host serves, as DataCube takes it: its frames, files and remote files (host-tables.ts HostTables)
+        self.spec = {'mine': trades.id, 'theirs': customers.id, 'host': datacube._session.frames.hosted()}
+        self.headless = datacube._session.headless()
+
+    def ask(self, function, how, **added):
+        # in one read of the frames, as every caller asks (page.join, the engine's join.json): a join's questions are rows
+        # the engine's plan-and-run reads over it (D15, D16)
+        with datacube._session.frames.reading():
+            return json.loads(self.headless.call(function, json.dumps({**self.spec, 'page': json.loads(self.page.to_json()),
+                                                                        'how': how, **added})))
+
+    def test_two_frames_joined_as_the_tabs_join_joins_them(self):
+        sheet = self.page.sheets[0].id
+        said = self.ask('joinCube', self.HOW, sheet=sheet, title=None)
+        command = said['command']
+        cube = command['document']
+        # added as the tab's Join… adds one: beside its first input, on the sheet asked for
+        self.assertEqual({k: v for k, v in command.items() if k != 'document'},
+                         {'kind': 'addGrid', 'sheet': sheet, 'near': self.trades.id, 'title': None, 'columns': None})
+        self.assertEqual(cube['source']['_type'], 'join')
+        self.assertEqual(cube['source']['name'], 'trades \u22c8 join_customers', 'its title, else what it reads')
+        self.assertEqual([c['name'] for c in cube['source']['columns']], ['trade_id', 'customer_id', 'qty', 'c_customer_id', 'region'])
+        self.assertEqual(cube['source']['left']['source'], {'_type': 'frame', 'name': 'join_trades', 'columns': cube['source']['left']['source']['columns']})
+        # its rows, planned by Python's own compiler over the join's model and run on the frames' database
+        with ll.HeldModel(said['model']) as held:
+            rows = datacube._session.frames.run(held.plan(said['relation'], said['runtime'])).to_pylist()
+        pairs = sorted((r['trade_id'], r['region']) for r in rows)
+        self.assertEqual(pairs, [(1, 'EMEA'), (2, 'EMEA'), (3, 'AMER'), (3, 'APAC'), (4, None), (5, None)])
+        # a page takes it as it takes every grid: the page command addGrid, as given
+        doc = json.loads(self.page.to_json())
+        held = [x['id'] for part in ('cubes', 'views', 'sheets') for x in doc[part]]
+        applied = json.loads(self.headless.call('pageApply', self.page.to_json(), json.dumps(held), json.dumps([command])))
+        self.assertNotIn('problems', applied)
+        # under the id the command gave it (the page's cubes in reading order: beside the trades' grid)
+        added = next(c for c in json.loads(applied['page'])['cubes'] if c['id'] == applied['commands'][0]['id'])
+        self.assertEqual(added['cube']['source']['_type'], 'join')
+
+    def test_what_a_join_will_do_before_it_is_made_in_the_windows_words(self):
+        said = self.ask('joinQuestions', self.HOW)
+        self.assertEqual(said['counts'], {'mine': 5, 'matched': 3, 'joined': 6, 'repeated': {'keys': 1, 'most': 2}})
+        self.assertEqual(said['words'][0], '3 rows of my 5 rows find a match, 2 rows do not.')
+        anti = self.ask('joinQuestions', {'form': 'anti', 'on': self.HOW['on']})
+        self.assertEqual(anti['words'], ['3 rows of my 5 rows have a match, 2 rows none.', 'It keeps 2 rows, each once.'])
+
+    def test_what_the_compiler_refuses_is_said_in_its_words(self):
+        sheet = {'sheet': self.page.sheets[0].id, 'title': None}
+        with self.assertRaisesRegex(Exception, "no column 'nope'"):
+            self.ask('joinCube', {**self.HOW, 'on': {'rows': [{'left': 'nope', 'op': '==', 'right': 'customer_id'}]}}, **sheet)
+        with self.assertRaisesRegex(Exception, "a join's form is one of"):
+            self.ask('joinCube', {'form': 'cross'}, **sheet)
+        # a grid the page does not hold, or a chart: refused in DataCube's words
+        with self.assertRaisesRegex(Exception, "'grid-9' is not a tile of the page"):
+            json.loads(self.headless.call('joinCube', json.dumps({**self.spec, 'theirs': 'grid-9', 'page': json.loads(self.page.to_json()),
+                                                                  'how': self.HOW, **sheet})))
+
+
+class OneRead(unittest.TestCase):
+    """A CALL INTO DATACUBE HOLDS NO LOCK, AND WHAT IT ASKS IS ANSWERED ON ITS OWN THREAD (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md
+    D15): a call made in a read of the frames (Frames.reading) reads them as they were when the read began, through the
+    read's own cursor, while a frame is registered again meanwhile on another thread without waiting for it; what the call
+    asks of Python's engine is answered on DataCube's thread, over the read; and a library call made there runs in place,
+    never waiting on the compiler's pool, whose threads may all be waiting for DataCube."""
+
+    def setUp(self):
+        self.frames = Frames()
+        self.frames.register('trades', TRADES)
+        self.headless = Headless(bundle(), connection=self.frames.connection, reading=self.frames.reading_now)
+        self.addCleanup(self.headless.close)
+
+    def rows(self, sql):
+        """A query DataCube's code makes of its host (calls.ts ``query``), as it reads the answer: Arrow, base64."""
+        said = self.headless.evaluate(f'legendLiteHost.query({json.dumps(sql)})')
+        return pyarrow.ipc.open_stream(base64.b64decode(said)).read_all().to_pylist()
+
+    def test_a_frame_registered_meanwhile_waits_for_no_call_which_reads_the_frames_as_they_were(self):
+        asked, go, seen = threading.Event(), threading.Event(), {}
+
+        def slow(method, url, body):
+            # DataCube's call waiting on its host, mid-call: the frames are not to be held meanwhile
+            asked.set()
+            go.wait(20)
+            return 200, '{}'
+
+        def call():
+            with self.frames.reading():
+                self.headless.evaluate("legendLiteHost.fetch('GET', '/api/lite/v1/ping', null)")
+                seen['rows'] = self.rows('SELECT count(*) AS n FROM trades')
+
+        with mock.patch('legend_lite._headless.answer_fetch', slow):
+            calling = threading.Thread(target=call)
+            calling.start()
+            self.assertTrue(asked.wait(20))
+            registering = threading.Thread(target=self.frames.register, args=('trades', TRADES.head(2)))
+            registering.start()
+            registering.join(10)
+            # before D15 the call held the frames' lock until it ended: the frame waited on it, and it on the frame
+            self.assertFalse(registering.is_alive(), 'registering a frame waited on a call into DataCube')
+            go.set()
+            calling.join(20)
+        self.assertEqual(seen['rows'], [{'n': 6}], 'the call read the frame as it was when its read began')
+        with self.frames.reading():
+            self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': 2}], 'a read after it reads it as it is')
+
+    def test_a_read_sees_a_table_as_it_was_when_it_began_though_it_is_replaced_before_its_first_query(self):
+        # DuckDB begins a transaction on a database at its first read, not at BEGIN: the read pins it as it begins, so a
+        # table replaced before the read's first query (a frame read once, a copied table of the database's own) is
+        # still read as it was
+        self.frames.register('streamed', pyarrow.RecordBatchReader.from_batches(
+            pyarrow.schema([('n', pyarrow.int64())]), [pyarrow.record_batch([[1, 2, 3, 4, 5, 6]], names=['n'])]))
+        with self.frames.reading():
+            replacing = threading.Thread(target=self.frames.register, args=('streamed', TRADES.head(2)))
+            replacing.start()
+            replacing.join(10)
+            self.assertFalse(replacing.is_alive())
+            self.assertEqual(self.rows('SELECT count(*) AS n FROM streamed'), [{'n': 6}])
+        with self.frames.reading():
+            self.assertEqual(self.rows('SELECT count(*) AS n FROM streamed'), [{'n': 2}])
+
+    def test_nothing_is_written_inside_a_read_on_its_thread_and_a_page_is_shown_only_with_datacubes_site(self):
+        # F39: a write the read would not see is refused in words, on the read's own thread; F40: what shows a page asks
+        # for DataCube's site, refused in words where the install carries none (this lane's engine has none)
+        with self.frames.reading():
+            for write in (lambda: self.frames.register('other', TRADES), lambda: self.frames.unregister('trades')):
+                with self.assertRaisesRegex(RuntimeError, 'a write inside it would not be read'):
+                    write()
+        self.assertIn('trades', self.frames)
+        session = datacube._session
+        self.assertIsNone(session.engine().site, "this lane's install carries no site")
+        with self.assertRaisesRegex(ValueError, "is not a directory: DataCube's pages are not in this install"):
+            session.shown_engine()
+        with self.assertRaisesRegex(ValueError, "is not a directory: DataCube's pages are not in this install"):
+            ll.show(TRADES, 'not_shown', browser=False, inline=False)
+
+    def test_a_query_that_fails_as_it_runs_leaves_the_reads_next_query_able_to_run(self):
+        # F36: a value that does not convert aborts DuckDB's transaction; the read begins another, so its next query runs
+        with self.frames.reading():
+            with self.assertRaisesRegex(Exception, 'Conversion'):
+                self.rows("SELECT CAST('x' AS INTEGER) AS n")
+            self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': 6}])
+
+    def test_what_a_call_asks_of_the_engine_is_answered_on_datacubes_thread_over_its_read(self):
+        answered = []
+
+        def answers(path, body, over):
+            answered.append((threading.current_thread().name, path, over))
+            return 200, 'application/json', b'{}'
+
+        self.headless.answers = lambda: answers
+        with self.frames.reading() as over:
+            self.headless.evaluate("legendLiteHost.engine('/plan-and-run.json', '{}')")
+        # before D15 it was answered on the caller's thread, which held the frames
+        self.assertEqual(answered, [('legend-lite-datacube', '/plan-and-run.json', over)])
+        # a call made in no read: nothing it asks of the engine is answered, said in words
+        with self.assertRaisesRegex(Exception, 'made in no read of the frames'):
+            self.headless.evaluate("legendLiteHost.engine('/plan-and-run.json', '{}')")
+
+    def test_a_call_made_from_datacubes_own_thread_is_refused_never_left_waiting(self):
+        # F38: an answer of the engine's that called DataCube again would wait on its own caller's turn for ever
+        def answers(path, body, over):
+            self.headless.evaluate('1')
+            return 200, 'application/json', b'{}'
+
+        self.headless.answers = lambda: answers
+        with self.frames.reading(), self.assertRaisesRegex(Exception, "the engine's own thread cannot wait for the engine"):
+            self.headless.evaluate("legendLiteHost.engine('/plan-and-run.json', '{}')", timeout=20)
+
+    def test_a_library_call_on_datacubes_thread_waits_on_no_pool_thread(self):
+        # every compiler thread busy -- as when each waits for DataCube's turn while a call in it asks its host
+        busy, free = threading.Semaphore(0), threading.Event()
+        started = [_pool._workers().submit(lambda: (busy.release(), free.wait(30))) for _ in range(_pool._WORKERS)]
+        self.addCleanup(free.set)
+        for _ in started:
+            self.assertTrue(busy.acquire(timeout=10))
+
+        def fetched(method, url, body):
+            # a host answer that calls the library (a model home's fetch does), as _home.home_call calls it
+            return 200, json.dumps(_pool._on_compiler_threads(lambda: threading.current_thread().name))
+
+        with mock.patch('legend_lite._headless.answer_fetch', fetched), self.frames.reading():
+            said = self.headless.evaluate("legendLiteHost.fetch('GET', '/sdlc/api/projects', null)", timeout=20)
+        # before D15 it waited for a pool thread that was waiting for it
+        self.assertEqual(json.loads(json.loads(said)['body']), 'legend-lite-datacube')
+        free.set()
+        for f in started:
+            f.result(10)
+
+
+class OneRowsPath(unittest.TestCase):
+    """ONE WAY TO A GRID'S ROWS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D16): what a frame's grid shows, its rows and its
+    export are each read by the engine's plan-and-run, as a tab on the page reads them (a class's grid is read the same
+    way: test_page.py OverClasses); the session's engine made with DataCube's, with no site where this install carries
+    none (this lane's)."""
+
+    def test_a_frames_grid_is_read_by_the_engines_plan_and_run_for_its_view_rows_and_export(self):
+        page = ll.Page('One rows path')
+        grid = page.grid(TRADES, name='trades_one_path', rows=['region'], measures={'notional': 'sum'})
+        engine = datacube._session.engine()
+        asked = []
+        planned = engine._plan_and_run_over
+
+        def counted(question, over):
+            asked.append(question['model'])
+            return planned(question, over)
+
+        with mock.patch.object(engine, '_plan_and_run_over', counted):
+            view = grid.view()
+            after_view = len(asked)
+            rows = grid.to_pandas()
+            after_rows = len(asked)
+            grid.export('csv')
+        # before D16 a frame's grid was planned in DataCube and run on the database directly: none of these asked it
+        self.assertGreater(after_view, 0, 'its view')
+        self.assertGreater(after_rows, after_view, 'its rows')
+        self.assertGreater(len(asked), after_rows, 'its export')
+        model = datacube._session.frames['trades_one_path'].model
+        self.assertEqual(set(asked), {model}, "each over the frame's own model")
+        self.assertEqual(sorted(groups(view, 'notional')), ['AMER', 'APAC', 'EMEA'])
+        self.assertEqual(sorted(rows['region']), ['AMER', 'APAC', 'EMEA'], 'its rows at their finest level: by region')
+
+    def test_a_read_that_began_before_a_frame_changed_says_no_change_of_it(self):
+        # F30: a Python call's queries note the frames' models as they are now -- never as its read began, which would say
+        # the frame changed back (and on again at a tab's next query): a page told of changes that never were
+        page = ll.Page('Noted')
+        grid = page.grid(TRADES, name='trades_noted')
+        engine, frames = datacube._session.engine(), datacube._session.frames
+        grid.view()
+        with frames.reading():
+            changing = threading.Thread(target=datacube._session.register, args=(TRADES.assign(extra=1), 'trades_noted'))
+            changing.start()
+            changing.join(20)
+            # as a tab's next query notes it: the frame as it is now
+            engine._noted(frames.models())
+            before = engine.version('trades_noted')
+            # read over the frame as the read began: refused (F28), and noting nothing stale
+            with contextlib.suppress(Exception):
+                grid.view()
+            self.assertEqual(engine.version('trades_noted'), before, 'no change said of a frame that did not change')
 
 
 if __name__ == '__main__':

@@ -21,7 +21,7 @@
 // could, a health-check fallback hid three real bugs for the life of
 // the project.
 
-import type { Lambda } from '../../pure-protocol/src/index.ts';
+import { ExactNumber, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import type { Planner } from './cube.ts';
@@ -95,6 +95,75 @@ export interface QueryRunner {
   parse(text: string, signal?: AbortSignal): Promise<Lambda>;
   /** A query as Pure text for a person to read: the compiler's print (E4 or its twin). */
   print(query: Lambda, style?: PrintStyle, signal?: AbortSignal): Promise<string>;
+}
+
+/**
+ * A REWRITE OF EVERY QUERY A GRID RUNS, set by its host and never part of the grid's own state (a dashboard's page
+ * filters on its class: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.2, page-filters.ts).
+ */
+export type QueryLens = (query: Lambda) => Lambda;
+
+/**
+ * `runner`, each query it plans, runs, compiles or types first rewritten by `lens`: a grid's levels, its typing, its
+ * pivot's values, its charts', its exports' and its drills' queries alike. A parse and a print are the person's own.
+ */
+export function lensed(runner: QueryRunner, lens: QueryLens): QueryRunner {
+  return {
+    name: runner.name,
+    run: (query, snapshot, scope, signal) => runner.run(lens(query), snapshot, scope, signal),
+    stream: (query, snapshot, onChunk, signal) => runner.stream(lens(query), snapshot, onChunk, signal),
+    compile: (query, snapshot, signal) => runner.compile(lens(query), snapshot, signal),
+    relationType: (query, signal) => runner.relationType(lens(query), signal),
+    parse: (text, signal) => runner.parse(text, signal),
+    print: (query, style, signal) => runner.print(query, style, signal),
+  };
+}
+
+/** Whether two parts of a query are the same, part for part (the order a reader wrote an object's keys in aside). */
+function sameSpec(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a instanceof ExactNumber || b instanceof ExactNumber) {
+    return a instanceof ExactNumber && b instanceof ExactNumber && a.text === b.text;
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => sameSpec(x, b[i]));
+  }
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
+  const ka = Object.keys(a).filter((k) => (a as Record<string, unknown>)[k] !== undefined);
+  const kb = Object.keys(b).filter((k) => (b as Record<string, unknown>)[k] !== undefined);
+  return ka.length === kb.length
+    && ka.every((k) => sameSpec((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+}
+
+/** `node` with every part the same as `live` (sameSpec) read as `copy` instead. */
+function rebase<T>(node: T, live: ValueSpecification, copy: ValueSpecification): T {
+  const walk = (n: unknown): unknown => {
+    if (sameSpec(n, live)) return copy;
+    if (Array.isArray(n)) return n.map(walk);
+    if (n === null || typeof n !== 'object' || n instanceof ExactNumber) return n;
+    return Object.fromEntries(Object.entries(n).map(([k, v]) => [k, walk(v)]));
+  };
+  return walk(node) as T;
+}
+
+/**
+ * `runner`, reading `copy` wherever a query reads `live`: a snapped grid's runner (cube.ts, §18.3). Its copy has a
+ * model of its own, declaring the copy alone, so a query a host built from the grid's live base -- a chart's, Ad Hoc
+ * mode's, a drill-through's, a calculated column's preview -- reads the copy, as the grid's own levels do. A parse and
+ * a print are the person's own.
+ */
+export function rebased(runner: QueryRunner, live: ValueSpecification, copy: ValueSpecification): QueryRunner {
+  const onCopy = (snapshot: CubeSnapshot): CubeSnapshot => rebase(snapshot, live, copy);
+  return {
+    name: runner.name,
+    run: (query, snapshot, scope, signal) => runner.run(rebase(query, live, copy), onCopy(snapshot), scope, signal),
+    stream: (query, snapshot, onChunk, signal) =>
+      runner.stream(rebase(query, live, copy), onCopy(snapshot), onChunk, signal),
+    compile: (query, snapshot, signal) => runner.compile(rebase(query, live, copy), onCopy(snapshot), signal),
+    relationType: (query, signal) => runner.relationType(rebase(query, live, copy), signal),
+    parse: (text, signal) => runner.parse(text, signal),
+    print: (query, style, signal) => runner.print(query, style, signal),
+  };
 }
 
 /**

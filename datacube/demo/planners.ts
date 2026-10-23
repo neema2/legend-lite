@@ -18,7 +18,7 @@
 // the in-tab planner always needed: the module (vendor/classes.wasm) and a browser with WebAssembly
 // GC. Without them the open is refused, saying so (PlannerUnavailableError).
 
-import { refusePlanner, RUNTIME, SNAP_TARGET, SOURCE, type Engine, type PlaneWord } from './boot.ts';
+import { refusePlanner, RUNTIME, SOURCE, type Engine, type PlaneWord } from './boot.ts';
 import { pageConfig } from './page-config.ts';
 import { UpstreamPlanner } from '../src/planner.ts';
 import { LitePlanner } from '../src/lite-planner.ts';
@@ -48,7 +48,6 @@ async function inTab(model: string): Promise<Engine> {
   return {
     planner,
     source: SOURCE,
-    snapTarget: { ...SNAP_TARGET, planner, host: planner },
     tables: planner,
     projects: planner,
     label: 'local',
@@ -79,7 +78,6 @@ async function onServer(model: string, which: 'remote' | 'engine'): Promise<Engi
   return {
     planner,
     source: SOURCE,
-    snapTarget: { ...SNAP_TARGET, planner, host: writer },
     tables: writer,
     projects: writer,
     label: which,

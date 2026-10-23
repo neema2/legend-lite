@@ -10,7 +10,7 @@ import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { focusedElement } from '../focus.ts';
 
 /** The sections, in the order the window lists them. */
-export type SectionId = 'files' | 'examples' | 'saved' | 'database' | 'remote';
+export type SectionId = 'files' | 'examples' | 'saved' | 'database' | 'remote' | 'classes';
 
 /** A sample a person can open. */
 export interface ExampleCard {
@@ -120,6 +120,11 @@ export interface PickerSections<T> {
      *  its host's (a Python host's DuckDB). */
     readonly reader: 'page' | 'host';
   };
+  readonly classes?: {
+    /** A class by its path (or, of the page's own model, its name), of a project (blank, the page's) at a revision
+     *  (blank, the page's pin): read through its mapping and runtime (K17). */
+    open(given: { readonly class: string; readonly project?: string; readonly revision?: string }): Promise<T>;
+  };
 }
 
 export interface PickSourceOptions<T> {
@@ -143,6 +148,7 @@ const SECTIONS: readonly {
   { id: 'saved', label: 'Saved queries', hint: 'Queries saved in Legend Query', icon: 'M6 3h12v18l-6-4-6 4z' },
   { id: 'database', label: 'Database', hint: 'Tables in a warehouse you sign in to', icon: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3' },
   { id: 'remote', label: 'Remote files', hint: 'Parquet, CSV or Iceberg by URL', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z' },
+  { id: 'classes', label: 'Classes', hint: 'A class of a project, at a revision', icon: 'M4 5h16v4H4zM4 11h7v8H4zM13 11h7v8h-7z' },
 ];
 
 function icon(doc: Document, path: string, cls = 'dc-picker-icon'): SVGSVGElement {
@@ -633,6 +639,33 @@ export function pickSource<T>(doc: Document, options: PickSourceOptions<T>): Pro
         });
         if (remote.keys) region.focus();
         else url.focus();
+      },
+
+      classes: (host) => {
+        const classes = options.sections.classes!;
+        heading(host, 'Read a class', 'Its properties become the grid\'s columns, read through its project\'s mapping and runtime.');
+        const form = el(doc, 'form', 'dc-picker-form', host);
+        const cls = field(form, 'Class');
+        cls.placeholder = 'model::domain::Trade, or Trade of this page\'s model';
+        const project = field(form, 'Project');
+        project.placeholder = 'group:artifact (blank: this page\'s)';
+        const revision = field(form, 'Revision');
+        revision.placeholder = 'blank: the revision this page is pinned to';
+        el(doc, 'p', 'dc-picker-fine', form, 'A class of another project is named by its path, at a revision of it.');
+        const go = el(doc, 'div', 'dc-picker-actions', form);
+        const submit = el(doc, 'button', 'dc-picker-button dc-primary', go, 'Open') as HTMLButtonElement;
+        submit.type = 'submit';
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const named = cls.value.trim();
+          if (!named) { cls.focus(); return; }
+          void attempt(`Reading ${named}…`, () => classes.open({
+            class: named,
+            ...(project.value.trim() ? { project: project.value.trim() } : {}),
+            ...(revision.value.trim() ? { revision: revision.value.trim() } : {}),
+          }));
+        });
+        cls.focus();
       },
     };
 

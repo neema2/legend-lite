@@ -63,9 +63,10 @@ describe('the aggregate list', () => {
     // catches the other direction.
     // 13 since `unique` joined them: DataCube's default aggregate
     // for every non-numeric column, and what lets grouping keep the
-    // text columns instead of dropping them.
-    assert.equal(AGGREGATES.length, 13);
-    assert.equal(new Set(AGGREGATES.map((a) => a.value)).size, 13);
+    // text columns instead of dropping them; 15 since the quartiles
+    // did (chart batch 4, a box plot's box).
+    assert.equal(AGGREGATES.length, 15);
+    assert.equal(new Set(AGGREGATES.map((a) => a.value)).size, 15);
   });
 });
 

@@ -243,7 +243,7 @@ describe('a part of a document as a JSON column of its own', () => {
     assert.deepEqual(objects(valuesOf(app, PAIR)), expected);
 
     // drop the id and the JSON: just the pairs
-    await app.applyConfiguration({ columns: Object.fromEntries(['id', 'doc'].map((c) => [c, { hidden: true }])) });
+    await app.edit([{ kind: 'configure', patch: { columns: Object.fromEntries(['id', 'doc'].map((c) => [c, { hidden: true }])) } }], 'settings');
     // what the grid shows: its header cells, and the pairs printed for the eye
     const headers = (): string[] => [...doc.querySelectorAll<HTMLElement>('.dc-th[data-column]')]
       .map((th) => th.dataset['column'] ?? '').filter((c) => c !== '' && !c.startsWith('__'));
@@ -254,8 +254,7 @@ describe('a part of a document as a JSON column of its own', () => {
 
     // grouped: each pair once
     // the leaf count is a SETTING (General Properties), folded into the query
-    await app.change((s) => ({ ...s, snapshot: { ...s.snapshot, rows: [PAIR] },
-      configuration: { ...s.configuration, showLeafCount: true, leafCountMode: 'leaves' } }));
+    await app.edit([{ kind: 'group', rows: [PAIR] }, { kind: 'configure', patch: { showLeafCount: true, leafCountMode: 'leaves' } }], 'group');
     await until(() => (app.view?.treeRows ?? []).some((r) => r.path.length === 1), 'the pairs');
     const groups = (app.view?.treeRows ?? []).filter((r) => r.path.length === 1).map((r) => r.path[0]);
     assert.deepEqual(objects(groups), ['{"kind":"billing","city":"London"}', '{"kind":"billing","city":"Paris"}',

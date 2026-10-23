@@ -1,7 +1,7 @@
 // A PAGE ARRANGED BY HAND, in a real browser (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §3.6): the demo's grid, two
 // charts and a copy of the grid laid out as bands -- placed beside the tile they came from, a preset previewed and
 // applied, tiles dragged onto a tile's edge and between bands, a drag cancelled, a divider and a band's edge dragged,
-// the page fitting its window, a tile maximised, the keyboard, Undo Layout, the page locked, and the window narrowed
+// the page fitting its window, a tile maximised, the keyboard, the page's Undo, the page locked, and the window narrowed
 // and widened -- with the browser's own long-task timing while a tile is dragged: nothing inside a tile re-lays out until
 // it is let go (§3.4), so no drag has a task over 100 ms, nor more than one over 50 ms. (A re-layout during a drag
 // comes again on each move of the pointer: a pattern of long tasks, or one very long. One task a little over 50 ms is
@@ -281,16 +281,17 @@ try {
     if (!same(await boxes(), before)) throw new Error('not as it was');
   });
 
-  await check('a focused tile swaps with its neighbour on an arrow key; Undo Layout puts it back', async () => {
+  await check('a focused tile swaps with its neighbour on an arrow key; the page\'s Undo puts it back', async () => {
     const before = await boxes();
     await page.locator(tile(ids.b)).focus();
     await page.keyboard.press('ArrowLeft');
     await settle();
     const swapped = await boxes();
     if (!(swapped[ids.b].x < swapped[ids.grid].x)) throw new Error(`not swapped: ${JSON.stringify(swapped)}`);
-    await titleMenu('Undo Layout');
+    // the page's Undo names its step (docs/DATACUBE_PAGE_STATE_2026_10_18.md)
+    await titleMenu('Undo Layout Change');
     await settle();
-    if (!same(await boxes(), before)) throw new Error('Undo Layout did not put it back');
+    if (!same(await boxes(), before)) throw new Error('the page\'s Undo did not put it back');
   });
 
   await check('Edit Layout unticked locks the page: no handles, and a drag moves nothing', async () => {

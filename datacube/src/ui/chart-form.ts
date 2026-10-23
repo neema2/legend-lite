@@ -5,6 +5,7 @@
 // the form was painted from.
 
 import {
+  boxMeasures,
   CHART_MARKS,
   chartColumns,
   GRID_MARKS,
@@ -32,7 +33,7 @@ import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
 
 /** What each kind calls its split. Which kinds draw one series (no split) and which need one are the rulebook's. */
 const SPLIT_LABELS: Readonly<Partial<Record<ChartMark, string>>> = {
-  heatmap: 'Rows:', sankey: 'Flows to:', chord: 'Flows to:', stream: 'Layers:', pie: 'Outer ring:',
+  heatmap: 'Rows:', sankey: 'Flows to:', chord: 'Flows to:', stream: 'Layers:', pie: 'Outer ring:', marimekko: 'Made of:',
 };
 
 /** The most values one chart plots side by side (bars, lines). */
@@ -73,6 +74,15 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   const { dimensions, measures, groupLevel } = chartColumns(s, spec ?? undefined);
   const dims = dimensions.map((c) => ({ value: c.name, label: c.name }));
   const scatter = spec.mark === 'scatter';
+  // a box plot plots one number column's five figures (chart-spec.ts BOX_FNS): the column is its one choice
+  const box = spec.mark === 'boxplot';
+  // a map's column across names each row's country; a bubble map's names each place, put where two columns say
+  const map = spec.mark === 'map';
+  const bubbles = spec.mark === 'bubblemap';
+  // a Gantt's values are dates -- each the least or greatest of a date column -- not numbers
+  const gantt = spec.mark === 'gantt';
+  const dates = [...new Set([...dimensions, ...measures].filter((c) => isTemporal(c.type)).map((c) => c.name))]
+    .map((name) => ({ value: name, label: name }));
   const across = scatter
     ? [...measures, ...dimensions].map((c) => ({ value: c.name, label: c.name }))
     : dims;
@@ -172,19 +182,22 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   }
   form.append(
     markField,
-    field(doc, scatter ? 'X:' : 'Across:', dropdown<string>(doc, spec.x, across, (v) => {
+    field(doc, scatter ? 'X:' : map ? 'Country:' : bubbles ? 'Place:' : 'Across:', dropdown<string>(doc, spec.x, across, (v) => {
       // a new column across takes its own order, and a grain or bins go with the old one (editChart)
       if (v) h.set({ x: v }, true);
     })),
     ...presetFields(h, spec, typeOf.get(spec.x ?? '')),
     // every handler reads the spec as it is AT THE EVENT, never the one
     // this form was painted from: a stale copy undid the edit before it
-    field(doc, scatter ? 'Y:' : 'Value:', dropdown<string>(
-      doc, scatter ? first?.column : plottedValue,
-      scatter ? measures.map((c) => ({ value: c.name, label: c.name })) : plotted,
-      (v) => pick(v, currentFn()),
+    field(doc, scatter ? 'Y:' : gantt ? 'Start:' : 'Value:', dropdown<string>(
+      doc, scatter || box || gantt ? first?.column : plottedValue,
+      gantt ? dates : scatter || box ? measures.map((c) => ({ value: c.name, label: c.name })) : plotted,
+      (v) => (box ? v && h.set({ y: boxMeasures(v) }, true)
+        // a Gantt's start is a date column's least, unless its aggregate already gives a date (the phase 7 audit)
+        : gantt ? v && h.set({ y: [{ column: v, fn: currentFn() === 'max' ? 'max' : 'min' }, ...current(h).y.slice(1)] }, true)
+        : pick(v, currentFn())),
     )),
-    ...(scatter || first?.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(
+    ...(scatter || box || first?.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(
       doc, currentFn(), fns,
       (v) => {
         const now = h.spec()?.y[0];
@@ -197,6 +210,21 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
       { allowNone: SPLIT_NEEDED[spec.mark] === undefined },
     ))]),
   );
+  if (bubbles) {
+    // where each place is: a number column of its latitude, another of its longitude (the chart groups by them)
+    // a number column once, whether a dimension or a measure (chartColumns lists a numeric dimension among both)
+    const numbers = [...new Set([...dimensions, ...measures].filter((c) => isNumeric(c.type)).map((c) => c.name))]
+      .map((name) => ({ value: name, label: name }));
+    const place = (which: 'lat' | 'lon', text: string): HTMLElement => field(doc, text, dropdown<string>(
+      doc, spec.at?.[which], numbers, (v) => {
+        // the one chosen so far, or both: the rules ask for the other by name until it is chosen
+        const { [which]: _old, ...other } = current(h).at ?? {};
+        const next = v ? { ...other, [which]: v } : other;
+        h.set({ at: Object.keys(next).length > 0 ? next : null });
+      }, { allowNone: true },
+    ));
+    form.append(place('lat', 'Latitude:'), place('lon', 'Longitude:'));
+  }
   if (spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area') {
     form.append(...measureRows(h, spec, plotted, typeOf), ...layerFields(h, spec, plotted));
     // SMALL MULTIPLES: a chart per value of a column, in a row of charts or a column of them (both: a matrix)
@@ -221,7 +249,10 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   if (spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'radar' || spec.mark === 'parallel' || spec.mark === 'polar') {
     form.append(...measureRows(h, spec, plotted, typeOf, false));
   }
-  if (spec.mark === 'bar' || spec.mark === 'lollipop' || spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'polar') {
+  // a Gantt's end: a date column's greatest, as its start is one's least
+  if (gantt) form.append(...measureRows(h, spec, dates, typeOf, false, 'max'));
+  if (spec.mark === 'bar' || spec.mark === 'lollipop' || spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'polar'
+    || box) {
     form.append(field(doc, 'Orientation:', dropdown(doc, spec.options.orientation, spec.mark === 'polar' ? [
       { value: 'vertical', label: 'Around (a polar bar)' },
       { value: 'horizontal', label: 'Radial bars' },
@@ -257,13 +288,17 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   }
   if (spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area' || spec.mark === 'scatter') form.append(...lookFields(h, spec));
   form.append(
-    field(doc, 'Legend:', dropdown(doc, spec.options.legend, [
+    // a map draws no legend (its colour scale is its key), nor a Gantt (one series): no choice of where it goes
+    ...(map || bubbles || gantt ? [] : [field(doc, 'Legend:', dropdown(doc, spec.options.legend, [
       { value: 'top', label: 'Top' },
       { value: 'bottom', label: 'Bottom' },
       { value: 'right', label: 'Right' },
       { value: 'none', label: 'None' },
-    ] as const, (v) => { if (v) h.setOption('legend', v); })),
-    checkbox(doc, 'Show values', spec.options.labels, (v) => h.setOption('labels', v)),
+    ] as const, (v) => { if (v) h.setOption('legend', v); }))]),
+    // a box plot writes none of its five figures on its box (the phase 5 audit), nor a map its values on its places:
+    // no checkbox that does nothing
+    ...(box || map || bubbles || gantt || spec.mark === 'marimekko' || spec.mark === 'waffle'
+      ? [] : [checkbox(doc, 'Show values', spec.options.labels, (v) => h.setOption('labels', v))]),
   );
   if (!scatter) {
     const hint = doc.createElement('p');
@@ -278,7 +313,7 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
  * its own kind of mark and its value axis (by unit unless told), shown as it says; one added or taken away. A split
  * draws the first measure once per value, so the others wait until it is taken off.
  */
-function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: string; label: string }[], typeOf: ReadonlyMap<string, string | undefined>, combination = true): HTMLElement[] {
+function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: string; label: string }[], typeOf: ReadonlyMap<string, string | undefined>, combination = true, added: AggregateFn = 'sum'): HTMLElement[] {
   const doc = h.doc;
   const GROUP = 'group:';
   const out: HTMLElement[] = [];
@@ -342,7 +377,7 @@ function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
     if (!now || !first) return;
     const next = plotted.find((p) => !p.value.startsWith(GROUP) && p.value !== first.column) ?? plotted[0];
     if (!next) return;
-    h.set({ y: [...now.y, { column: next.value, fn: 'sum', ...(combination ? { mark: 'line' as const } : {}) }] }, true);
+    h.set({ y: [...now.y, { column: next.value, fn: added, ...(combination ? { mark: 'line' as const } : {}) }] }, true);
   });
   out.push(add);
   return out;

@@ -39,11 +39,22 @@ exports_files(
     ],
 )
 
+# THE SAVED-PAGE CORPUS (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11): page documents written by DataCube's own
+# writers (test/fixtures/pages/make.ts), held by test/page-corpus.test.ts and, the frame page, by Python's test_page.py
+filegroup(
+    name = "corpus_pages",
+    srcs = glob(["test/fixtures/pages/*.page.json"]),
+)
+
 # DataCube's fixtures Python's tests read too
 exports_files(
     [
         # DataCube's chart rules, which Python's page.py is held to as well (//python:engine_test)
         "test/fixtures/chart-rules.json",
+        # the corpus's frame page, which Python loads and writes as DataCube does (//python:engine_test)
+        "test/fixtures/pages/trades.page.json",
+        # the screen's and Python's one document for one edit (test/parity-screen.test.ts, //python:headless_test)
+        "test/fixtures/parity/parity.json",
     ],
     visibility = ["//python:__pkg__"],
 )
@@ -125,6 +136,19 @@ _SCANNED = {
     # everything a build or a person runs from this package
     "portability": [":src", ":scanned_scripts"],
     "state-guardrail": [":src"],
+    # THE ONE API LEDGERS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md §3): the grid's, the page's and the host's sources,
+    # Python's (a command each kind is made by), the plan's register, and the ledger files it is held to -- and every
+    # test file, DataCube's and Python's, where L12 finds the tests each ability on both hosts is proved by
+    "one-api-ledger": [
+        ":src",
+        ":scanned_test_code",
+        "//docs:one_api_plan",
+        "//python:legend_lite_sources",
+        "//python:one_api_ledger",
+        "//engine-client:warehouse_corpus_test_source",
+        "//query-store:wasm_test_source",
+        "//sdlc-client:wasm_test_source",
+    ],
     # the WASM list against the files that load the planner (A28)
     "wasm-flag": ["BUILD.bazel", ":scanned_tests"],
     # the headless lane's roster against the test files and the helpers they import
@@ -194,15 +218,29 @@ _EXTRA_ENV = {
     "chart-rules": {
         "CHART_RULES": "$(rlocationpath test/fixtures/chart-rules.json)",
     },
+    "parity-screen": {
+        "PARITY": "$(rlocationpath test/fixtures/parity/parity.json)",
+    },
+    "page-corpus": {
+        "CORPUS": "$(rlocationpaths :corpus_pages)",
+    },
 }
 
 # DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
 _DUCKDB_USERS = [
     # chart queries planned and run (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2)
     "chart-queries",
+    # graph mode's G0: a Cypher query planned in the tab and run on its DuckDB (docs/DATACUBE_GRAPH_MODE_2026_10_18.md)
+    "cypher-spike",
     "duckdb",
     "group-derived",
+    # the screen's grid over a real DuckDB, its document held to Python's (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11)
+    "parity-screen",
     "model-join",
+    # a class as a grid's source, its rows planned over the project's files (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16)
+    "class-source",
+    # a join opened over one model of its tables, its rows from DuckDB (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17)
+    "join-open",
     "sample-trades",
     "saved-queries",
     "sorting",
@@ -235,6 +273,23 @@ _EXTRA_DATA = {
     "saved-queries": ["//fixtures/saved-queries:records", ":projects", ":trading_copies"],
     "upstream-plans": ["test/fixtures/upstream-plans.json"],
     "chart-rules": ["test/fixtures/chart-rules.json"],
+    "parity-screen": ["test/fixtures/parity/parity.json"],
+    # the saved-page corpus, and the script that makes it (the test holds the files to what it makes)
+    "page-corpus": [":corpus_pages", "test/fixtures/pages/make.ts"],
+    "page-commands": ["test/fixtures/pages/make.ts"],
+    "host-join-flow": ["test/fixtures/pages/make.ts"],
+    "page-filters": ["test/fixtures/pages/make.ts"],
+    "page-state": ["test/fixtures/pages/make.ts"],
+    "live-follow": ["test/fixtures/pages/make.ts"],
+    "page-rebase": ["test/fixtures/pages/make.ts"],
+    # the tab's channel to the page's keeper, over a real page's grids (the page app's fixtures)
+    "live-channel": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts"],
+    "one-api-gestures": ["test/cube-fixture.ts", "test/gate.ts"],
+    # DataCube's app on a page Python serves, over a stand-in editor (the S4 audit's 1, 4 and 5)
+    "datacube-app-live": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts"],
+    "one-api-ledger": ["test/one-api/scan.ts"],
+    # S3's guardrail reads the board's and the page state's changes by the ledgers' scanner
+    "state-guardrail": ["test/one-api/scan.ts"],
     # the in-memory source the Ad Hoc Analysis tests query
     "adhoc-session": ["test/adhoc-fixture.ts"],
     "adhoc-mode": ["test/adhoc-fixture.ts"],
@@ -264,6 +319,7 @@ _EXTRA_DATA = {
 _WASM_TESTS = [
     "calc-fix",
     "chart-queries",
+    "cypher-spike",
     "infer",
     "offer-facts",
     "upload",
@@ -289,11 +345,24 @@ _WASM_TESTS = [
     "model-join",
     # the model's routes, asked of the tab's module (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.6a)
     "model-route",
+    # a class as a grid's source, read back from a class the writer made (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16)
+    "class-source",
+    # a join's model of several tables, written by the compiler (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17)
+    "join-open",
     # a remote file's operations, and Snap's copy, their statements the planner's
     # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5)
     "remote",
     "plane",
     "app-dom",
+    "parity-screen",
+]
+
+# The jsdom tests that drive a whole page through many gestures, each opening grids: past `small`'s 60 s on CI's
+# Windows runner (PR #64's CI, 2026-10-22: one_api_gestures_test about 1.2 s a gesture there, cube_page_shell_test at
+# the edge). Those get `medium` (300 s) too.
+_SLOW_DOM_TESTS = [
+    "one-api-gestures",
+    "cube-page-shell",
 ]
 
 # node:test files, each its own node_test (tools/js/defs.bzl: types stripped, the spec and strict reporters, a
@@ -303,7 +372,7 @@ _WASM_TESTS = [
     # The tests that load the WebAssembly planner compile it first: seconds on a desk (infer: 6 s), but past
     # `small`'s 60 s on CI's Windows runner while the same lane builds the native image (main's CI run
     # 37214692462, 2026-10-04). Those get `medium` (300 s); the rest stay `small`.
-    size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else "small",
+    size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS + _SLOW_DOM_TESTS else "small",
     # a scanner reads every source; any other test, the files its imports reach (a test not yet in the generated
     # list takes them all until //datacube:update_generated adds it)
     data = [
@@ -368,12 +437,21 @@ _HEADLESS_TESTS = [
     "cancel",
     "chart-rules-more",
     "child-groups",
+    "class-source",
     "column-kind",
     "columns-selector",
     "config",
     "config-fold",
     "create-class",
     "cube-document",
+    # a grid edit as a value (docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md)
+    "cypher-spike",
+    "grid-commands",
+    # a grid's and a page's gestures as their commands (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8)
+    "grid-gestures",
+    "page-gestures",
+    # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
+    "cube-round-trip",
     "cube-state",
     "dimensions",
     "drill",
@@ -394,9 +472,13 @@ _HEADLESS_TESTS = [
     "fuzz",
     "grid",
     "grid-edits",
+    "grid-presets",
     "group-derived",
     "host",
     "infer",
+    "join",
+    "join-inputs",
+    "join-open",
     "json-shape",
     "lite-planner",
     "menu",
@@ -447,6 +529,7 @@ _HEADLESS_LEFT_OUT = {
     # the chart renderer (ECharts) draws on a DOM canvas: a screen test, though it imports no jsdom itself
     "chart-echarts": "ECharts draws on a DOM canvas",
     "chart-kinds": "ECharts draws on a DOM canvas",
+    "chart-maps": "ECharts draws on a DOM canvas",
     # a picked File read as a stream (Blob, TextDecoderStream: upload.ts fileParts) is the page's: headless reads a file
     # by its path (readFileInto, run by //python:headless_test's Files)
     "upload": "a picked File, read as the page's stream",
@@ -640,6 +723,27 @@ write_source_files(
     diff_test = False,
     files = {_NEXT_LINK_FILE: ":link_dictionary_next"},
     tags = ["manual"],
+)
+
+# PYTHON'S COMMAND LAYER (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D17): one builder per command kind, written from the
+# command modules' field lists (GRID_COMMAND_FIELDS, PAGE_COMMAND_FIELDS); committed as python/legend_lite/_commands.py
+# and diff-tested by //python:update_generated
+js_binary(
+    name = "emit_python_commands",
+    data = [":src"],
+    entry_point = "tools/python-commands/emit.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "python_commands",
+    srcs = ["tools/python-commands/emit.ts"],
+    stdout = "generated/commands.gen.py",
+    tool = ":emit_python_commands",
+    visibility = ["//python:__pkg__"],
 )
 
 js_run_binary(
@@ -1616,6 +1720,7 @@ _HARNESSES = [
     "verify-engine",
     "verify-engine-differential",
     "verify-features",
+    "verify-join",
     "verify-layout",
     "verify-page",
     "verify-picker",
@@ -1640,6 +1745,8 @@ _BROWSER_TESTS = {
     # Create a Class… (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.7): two classes of two grids, in the page's SDLC
     "verify-class": "large",
     "verify-cubes": "large",
+    # Join… (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.5): two files joined, what it will do said first, saved and reopened
+    "verify-join": "large",
     "verify-layout": "large",
     "verify-page": "large",
     "verify-upload": "large",

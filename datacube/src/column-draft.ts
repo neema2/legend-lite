@@ -1,13 +1,14 @@
 // A CALCULATED COLUMN'S DRAFT, as the column editor (ui/column-editor.ts) makes one into the cube's columns: no DOM, so
-// code with no screen adds a column by the editor's own steps -- Python's, headless (headless/grid.ts gridCalculate;
+// code with no screen adds a column by the editor's own steps -- Python's, headless (headless/grid.ts gridColumn;
 // docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 5). Plain functions of the cube as it is now, the column's name when
 // editing began (undefined when adding), the draft, and its lambda as the compiler parsed what was typed.
 
+import { defaultKind } from '../../engine-client/src/types.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { CalcStage } from './calc.ts';
 import {
   WINDOW_FUNCTIONS,
-  renameColumnReferences,
+  withCalculated,
   type ChildAggregate,
   type CubeSnapshot,
   type DerivedColumn,
@@ -45,6 +46,42 @@ export function newDraft(name: string, expression: string, level: ColumnLevel = 
   return { name, level, mode: 'expression', expression, unnest: false, window: NEW_WINDOW, child: NEW_CHILD };
 }
 
+/**
+ * An existing calculated column as a draft -- what Edit Column opens on, and what a host's edit of it starts from (the
+ * S1 audit's 4: its kind, its level, its explode kept unless told otherwise) -- and its lambda to print into it (the
+ * draft's text waits for the compiler's print), or undefined if it has gone.
+ */
+export function existingDraft(s: CubeSnapshot, name: string): { readonly draft: ColumnDraft; readonly lambda?: Lambda } | undefined {
+  const row = s.derived.find((d) => d.name === name);
+  if (row) {
+    return {
+      draft: {
+        name,
+        // A column saved before kinds were declared behaves as its type.
+        level: row.kind ?? defaultKind(row.type),
+        mode: row.window ? 'window' : 'expression',
+        expression: '',
+        unnest: row.unnest === true,
+        window: row.window ?? NEW_WINDOW,
+        child: NEW_CHILD,
+      },
+      ...(row.lambda ? { lambda: row.lambda } : {}),
+    };
+  }
+  const group = (s.groupDerived ?? []).find((d) => d.name === name);
+  return group
+    ? {
+      draft: {
+        name, level: 'group',
+        mode: group.childAggregate ? 'children' : group.window ? 'window' : 'expression',
+        expression: '', unnest: false, window: group.window ?? NEW_WINDOW,
+        child: group.childAggregate ?? NEW_CHILD,
+      },
+      ...(group.lambda ? { lambda: group.lambda } : {}),
+    }
+    : undefined;
+}
+
 /** Where the draft's column is computed: before the grouping, or after it (a group-level column). */
 export function draftStage(draft: ColumnDraft): CalcStage {
   return draft.level === 'group' ? 'group' : 'row';
@@ -79,34 +116,8 @@ export function draftColumn(draft: ColumnDraft, lambda?: Lambda): DerivedColumn 
   };
 }
 
-/** The cube's two lists of calculated columns with the draft's column in place of `original` (added when undefined). */
-export function draftLists(s: CubeSnapshot, original: string | undefined, draft: ColumnDraft, lambda?: Lambda):
-  { row: DerivedColumn[]; group: DerivedColumn[] } {
-  const without = (list: readonly DerivedColumn[]): DerivedColumn[] => list.filter((d) => d.name !== original);
-  const row = without(s.derived);
-  const group = without(s.groupDerived ?? []);
-  const next = draftColumn(draft, lambda);
-  // In its old place when it stays at its stage, so an edit does not
-  // reorder the cube's columns.
-  const target = draft.level === 'group' ? group : row;
-  const was = (draft.level === 'group' ? s.groupDerived ?? [] : s.derived).findIndex((x) => x.name === original);
-  if (was >= 0) target.splice(was, 0, next);
-  else target.push(next);
-  return { row, group };
-}
-
-/** The rename the draft makes of `original`, if it renames it. */
-export function draftRename(original: string | undefined, draft: ColumnDraft):
-  { readonly from: string; readonly to: string } | undefined {
-  const to = draft.name.trim();
-  return original !== undefined && original !== to ? { from: original, to } : undefined;
-}
-
 /** The cube with the draft's column in place of `original`, what read a renamed column reading it by its new name. */
 export function draftCandidate(s: CubeSnapshot, original: string | undefined, draft: ColumnDraft, lambda?: Lambda):
   CubeSnapshot {
-  const { row, group } = draftLists(s, original, draft, lambda);
-  const next: CubeSnapshot = { ...s, derived: row, groupDerived: group };
-  const rename = draftRename(original, draft);
-  return rename ? renameColumnReferences(next, rename.from, rename.to) : next;
+  return withCalculated(s, original, draftStage(draft), draftColumn(draft, lambda));
 }

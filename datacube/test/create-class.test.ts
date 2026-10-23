@@ -14,7 +14,7 @@ import { writesModels } from '../src/model-writer.ts';
 import { pageGrids } from '../src/model-actions.ts';
 import { PlanAndRun } from '../src/runner.ts';
 import { isPackage, isPureName, suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '../src/model-names.ts';
-import { classLambda, duplicateLambda, sampleLambda, storeTableOf } from '../src/query.ts';
+import { classBasis, classLambda, duplicateLambda, sampleLambda, storeTableOf, tablesOf } from '../src/query.ts';
 import { createClassOf } from '../src/create-class.ts';
 import { SampleRefusal } from '../src/sample-rows.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
@@ -34,6 +34,9 @@ describe('the names DataCube offers', () => {
   it('a package from the page: lower camel case, a Pure name', () => {
     assert.equal(suggestedPackage('Trades by desk'), 'tradesByDesk');
     assert.equal(suggestedPackage('trades'), 'trades');
+    // a page called True suggests a package isPackage takes: suffixed, never the literal (the phase 8 audit)
+    assert.equal(suggestedPackage('True'), 'true_');
+    assert.ok(isPackage(suggestedPackage('false')));
     assert.equal(suggestedPackage(''), 'datacube');
     assert.equal(suggestedDataSpaceName('Trades by desk'), 'TradesByDesk');
     assert.ok(isPackage('trades::desk') && !isPackage('trades::') && !isPackage('1x'));
@@ -90,6 +93,31 @@ describe("the grid's rows, as a class's", () => {
     assert.match(toJson(sampleLambda(SOURCE, 100)), /"limit"/);
   });
 
+  it('a class of any base: every table its rows read, each with its sample, of one Database (§18.3)', () => {
+    // a file's grid: its one table
+    const one = classBasis(snapshot());
+    assert.deepEqual(one.tables.map((t) => t.table), ['trades_2']);
+    assert.equal(one.database, 'local::DB');
+    assert.match(toJson(one.tables[0]!.sample), /"limit"/);
+    // a join's: each leaf's, in its order, read once though the query names it twice
+    const joined = { _type: 'func', function: 'join', parameters: [SOURCE, accessor('local::DB', 'desks'), SOURCE] } as never;
+    assert.deepEqual(tablesOf(joined).map((t) => t.table), ['trades_2', 'desks']);
+    const basis = classBasis(snapshot({ source: { query: joined } } as never));
+    assert.deepEqual(basis.tables.map((t) => t.table), ['trades_2', 'desks']);
+    assert.match(toJson(basis.tables[1]!.sample), /desks/);
+    assert.doesNotMatch(toJson(basis.tables[1]!.sample), /trades_2/, "each sample reads its own table's rows");
+    // refused in words: rows read from no table, tables of two Databases
+    assert.throws(() => classBasis(snapshot({ source: { query: { _type: 'var', name: 'x' } } } as never)),
+      /its rows are read from no table of a store/);
+    const two = { _type: 'func', function: 'join', parameters: [SOURCE, accessor('other::DB', 'desks')] } as never;
+    assert.throws(() => classBasis(snapshot({ source: { query: two } } as never)),
+      /two databases \(local::DB, other::DB\): a class's store is one/);
+    // two schemas' tables of one name: their samples, kept by table name, would be one (the audit of §18)
+    const schemas = { _type: 'func', function: 'join', parameters: [accessor('local::DB', 'a', 'trades'), accessor('local::DB', 'b', 'trades')] } as never;
+    assert.throws(() => classBasis(snapshot({ source: { query: schemas } } as never)),
+      /two tables named trades \(schemas a, b\): a class's samples are by table name/);
+  });
+
   it('a grid is read where its rows are planned and run, on whichever host: a Python grid too (B1)', async () => {
     // a grid whose rows the host plans and runs (as every grid on Python's page is): its source said by its planner,
     // its sample read through its PlanAndRun -- never the page's own planner or engine, which a Python host has not
@@ -105,14 +133,30 @@ describe("the grid's rows, as a class's", () => {
     };
     const rows = new PlanAndRun(host);
     const [grid] = pageGrids(['g1'], () => ({ snapshot: snapshot(), label: 'trades', rows }), () => undefined,
-      { classLambda, storeTableOf, sampleLambda });
+      { classBasis });
     assert.ok(grid && !('refused' in grid.made), 'a class candidate');
     assert.deepEqual(grid.made.source, { model: 'M', runtime: 'local::R' });
     assert.equal(grid.rows, rows);
     // its rows read where they are: the host's PlanAndRun answers the grid's queries
-    await grid.rows.host.planAndRun(grid.made.sample, 0);
+    assert.deepEqual(grid.made.kept, ['trades_2'], 'the tables it is read as: its store\'s, when the page names none');
+    await grid.rows.host.planAndRun(grid.made.basis.tables[0]!.sample, 0);
     assert.equal(asked.length, 1);
     assert.match(asked[0]!, /"limit"/);
+  });
+
+  it("a join's grid: kept as the tables its leaves are read as here, its samples each of its store's tables (§18.3)", () => {
+    const rows = new PlanAndRun({ name: 'tab', planner: { source: () => ({ model: 'M', runtime: 'local::R' }) } as never,
+      planAndRun: async () => undefined as never, stream: async () => undefined });
+    const joined = { _type: 'func', function: 'join', parameters: [SOURCE, accessor('local::DB', 'desks')] } as never;
+    const [grid] = pageGrids(['g1'], () => ({ snapshot: snapshot({ source: { query: joined } } as never), label: 'joined', rows,
+      tables: ['trades_2', 'desks_3'] }), () => undefined, { classBasis });
+    assert.ok(grid && !('refused' in grid.made), 'a class candidate');
+    assert.deepEqual(grid.made.kept, ['trades_2', 'desks_3']);
+    assert.deepEqual(grid.made.basis.tables.map((t) => t.table), ['trades_2', 'desks']);
+    // a grid over a class reads no table of a store: refused, as the window leaves it out
+    const [cls] = pageGrids(['g2'], () => ({ snapshot: snapshot({ source: { query: { _type: 'var', name: 'x' } } } as never),
+      label: 'cls', rows }), () => undefined, { classBasis });
+    assert.deepEqual(cls?.made, { refused: 'its rows are read from no table of a store' });
   });
 
   it('Create a Class… writes its sample by the one writer: a NaN refused, naming its column and row, before a window opens', async () => {
@@ -128,8 +172,7 @@ describe("the grid's rows, as a class's", () => {
       stream: async () => undefined,
     };
     await assert.rejects(createClassOf({
-      query: classLambda(snapshot()) as never, table: { database: 'local::DB', schema: 'default', table: 'trades_2' },
-      sample: sampleLambda(SOURCE, 10), rows: new PlanAndRun(host as never), model: undefined,
+      basis: classBasis(snapshot()), kept: ['trades_2'], rows: new PlanAndRun(host as never), model: undefined,
     } as never), (e: unknown) => e instanceof SampleRefusal && /the sample's rate in row 2 is NaN/.test(e.message));
   });
 
@@ -211,8 +254,21 @@ describe("the page's model, in the model home (through the library: model-change
     assert.deepEqual(model.ref, { project: 'datacube:trades-3', workspace: 'datacube', package: 'trades', tables: {} });
     assert.equal(done.project, 'datacube:trades-3');
     assert.equal(model.into('Other', 'other').project, 'datacube:trades-3', 'made once');
-    model.keepTable('g1', 'trades_2');
-    assert.deepEqual(model.ref?.tables, { g1: 'trades_2' });
+    model.keep('g1', ['trades_2'], null);
+    assert.deepEqual(model.ref?.tables, { g1: ['trades_2'] });
+    // pinned to the revision it saved: the one its class grids are read at (§16.1)
+    model.pin(done.revision);
+    assert.equal(model.ref?.revision, done.revision);
+    const again = await createClass({ sdlc: sdlc.client(), writer: WRITER, ...model.into('Trades', 'trades'),
+      class: { name: 'Customer' } as never });
+    assert.notEqual(again.revision, done.revision, 'a class made again is a new revision');
+    model.pin(again.revision);
+    assert.equal(model.ref?.revision, again.revision);
+    assert.deepEqual(model.ref?.tables, { g1: ['trades_2'] }, 'its tables kept through the pin');
+  });
+
+  it('a page with no model yet has nothing to pin', () => {
+    assert.throws(() => new PageModel().pin('1'), /the page has no model yet/);
   });
 
   it('its project kept from the moment it is made: a workspace refused after leaves no second project (S2)', async () => {

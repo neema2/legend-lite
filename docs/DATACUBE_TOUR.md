@@ -61,9 +61,9 @@ Each step is one section of the gallery. A step's line says what the check found
    value per series. The chart is then frozen and a second value of the same column is added under another
    aggregate, and the chart is made Dynamic again. Both values stay. This is the B2 fix: a following chart never
    folds one value onto another. There are two pictures, frozen and Dynamic, each with two series.
-10. **Open in grid, then an untouched Update.** The chart opens in an editing grid of its own, and Update writes back
-    exactly what it had. This is the B1 fix. There are two pictures: the editing grid beside the chart, then the
-    chart after Update.
+10. **Show Grid on a frozen chart.** The chart is shown in a grid of its own grouping, which it follows from then on,
+    plotting exactly the values it had (the B1 rule: each value read back from the column that carries it). The
+    page's Undo then takes the step back. There are two pictures: the chart beside its own grid, then the page undone.
 11. **Undo and Redo.** The grid's own menu. Undo changes the grid, and Redo brings it back exactly. The query's epoch,
     a counter every new request bumps, is left out of the comparison.
 12. **Save As, reload, reopen.** The page is saved, the tab reloaded, and the page reopened from Open…. The grid's row

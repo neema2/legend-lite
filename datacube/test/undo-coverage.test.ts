@@ -98,9 +98,9 @@ describe('undo over the configuration, not just the query', () => {
   it('undoes a pin', async () => {
     assert.equal(app.configuration.columns['region']?.pinned, undefined);
 
-    await app.applyConfiguration({
+    await app.edit([{ kind: 'configure', patch: {
       columns: { region: { pinned: 'left' } },
-    });
+    } }], 'settings');
 
     assert.equal(app.configuration.columns['region']?.pinned, 'left');
 
@@ -117,7 +117,7 @@ describe('undo over the configuration, not just the query', () => {
     // is the case where undoing half the state left the other half to
     // put it straight back on the next refresh.
     const original = app.configuration.maxRows;
-    await app.applyConfiguration({ maxRows: 17 });
+    await app.edit([{ kind: 'configure', patch: { maxRows: 17 } }], 'settings');
 
     assert.equal(app.configuration.maxRows, 17);
 
@@ -133,10 +133,10 @@ describe('undo over the configuration, not just the query', () => {
   it('does not put the change back on the next refresh', async () => {
     // The self-reverting undo: the snapshot rolled back, the config
     // did not, and the next refresh folded the stale config in again.
-    await app.applyConfiguration({ maxRows: 17 });
+    await app.edit([{ kind: 'configure', patch: { maxRows: 17 } }], 'settings');
 
     await app.undo();
-    await app.state.refresh();
+    await app.refresh();
     assert.notEqual(
       app.snapshot.maxRows,
       17,
@@ -172,7 +172,7 @@ describe('undo over the configuration, not just the query', () => {
   });
 
   it('enables Undo once there is a step to take back', async () => {
-    await app.applyConfiguration({ columns: { region: { pinned: 'left' } } });
+    await app.edit([{ kind: 'configure', patch: { columns: { region: { pinned: 'left' } } } }], 'settings');
 
     const burger = dom.window.document.querySelector('.dc-titlebar-menu');
     (burger as HTMLElement).dispatchEvent(
@@ -186,7 +186,7 @@ describe('undo over the configuration, not just the query', () => {
   });
 
   it('redoes a configuration change', async () => {
-    await app.applyConfiguration({ columns: { region: { pinned: 'left' } } });
+    await app.edit([{ kind: 'configure', patch: { columns: { region: { pinned: 'left' } } } }], 'settings');
 
     await app.undo();
     assert.equal(app.configuration.columns['region']?.pinned, undefined);

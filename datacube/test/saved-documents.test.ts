@@ -532,7 +532,7 @@ const VIEWS: PageViews = {
   ] }),
 };
 
-const MODEL = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: 'trades_2' } };
+const MODEL = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: ['trades_2'] } };
 
 const page = () => writePage({ name: 'Q3 page', cube: saved(), views: VIEWS, model: MODEL });
 
@@ -605,7 +605,8 @@ describe('a malformed page is refused, saying what is wrong', () => {
     pageRefused((r) => { r['model']['workspace'] = ''; }, "'model' has no workspace");
     pageRefused((r) => { delete r['model']['package']; }, "'model' has no package");
     pageRefused((r) => { delete r['model']['tables']; }, "'model' has no tables");
-    pageRefused((r) => { r['model']['tables'] = { cube: '' }; }, "'model' keeps no table name for cube");
+    pageRefused((r) => { r['model']['tables'] = { cube: [''] }; }, "'model' keeps no list of table names for cube");
+    pageRefused((r) => { r['model']['tables'] = { cube: 'trades_2' }; }, "'model' keeps no list of table names for cube");
   });
 
   it("a model's classes: not an object, for no cube of the page, or with no name", () => {
@@ -660,7 +661,7 @@ describe('a page of several cubes (writePageOf): one per grid, and one kept for 
     cubes: [{ id: 'a', cube: saved() }, { id: 'b', cube: saved() }, { id: 'c', cube: saved() }],
     views,
     // a grid removed since its class was made: its table and class go with it
-    model: { ...MODEL, tables: { a: 't_a', gone: 't_gone' }, classes: { a: 'trades::A', gone: 'trades::Gone' } },
+    model: { ...MODEL, tables: { a: ['t_a'], gone: ['t_gone'] }, classes: { a: 'trades::A', gone: 'trades::Gone' } },
     unknown: { theme: 'dark' },
   });
 
@@ -668,7 +669,7 @@ describe('a page of several cubes (writePageOf): one per grid, and one kept for 
     const p = written();
     assert.equal(p.kind, PAGE_KIND);
     assert.deepEqual(p.cubes.map((c) => [c.id, c.cube.name]), [['a', 'Desk review'], ['b', 'Desk review'], ['c', 'Desk review']]);
-    assert.deepEqual(p.model, { ...MODEL, tables: { a: 't_a' }, classes: { a: 'trades::A' } });
+    assert.deepEqual(p.model, { ...MODEL, tables: { a: ['t_a'] }, classes: { a: 'trades::A' } });
     assert.deepEqual(p.unknown, { theme: 'dark' });
   });
 

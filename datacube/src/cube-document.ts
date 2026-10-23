@@ -28,20 +28,25 @@ import {
   ExactNumber,
   ProtocolError,
   fromJson,
+  isIdentifier,
   readLambda,
   toJson as protocolJson,
   type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
-import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, REQUIRED_SETTINGS, type CubeConfiguration } from './config.ts';
-import type {
-  AggregateFn,
-  ColumnSpec,
-  CubeSnapshot,
-  DerivedColumn,
-  FilterNode,
-  SourceRef,
+import {
+  applyToSnapshot, DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, fromSnapshot, REQUIRED_SETTINGS, type CubeConfiguration,
+} from './config.ts';
+import {
+  CubeRefusal,
+  type AggregateFn,
+  type ColumnSpec,
+  type CubeSnapshot,
+  type DerivedColumn,
+  type FilterNode,
+  type SourceRef,
 } from './snapshot.ts';
 import { TreeState, parsePathKey, type RowPath } from './tree.ts';
+import { readJoinHow, type JoinHow } from './join-how.ts';
 import type { UploadFormat } from './upload.ts';
 import type { SharedQuery } from '../../query-store/src/share.ts';
 
@@ -135,8 +140,65 @@ export interface FrameSource {
   readonly columns: readonly { readonly name: string; readonly type: string }[];
 }
 
-/** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe. */
-export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource | FrameSource;
+/**
+ * A CLASS of a project in the model home the cube reads (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16.1: a dashboard's
+ * tile), by what it is: the class, the project and the exact revision it is read at (the pin), and the mapping and
+ * runtime it runs through -- reopened from that project wherever the model home has it, never a copy of the model.
+ */
+export interface ClassSource {
+  readonly _type: 'class';
+  /** The class's name: what a person calls this source. */
+  readonly name: string;
+  /** The class's path. */
+  readonly class: string;
+  /** The project (`groupId:artifactId`), the workspace and the revision its files are read at. */
+  readonly project: string;
+  readonly workspace: string;
+  readonly revision: string;
+  /** The mapping and the runtime its rows are read through (Create a Class's: the model's, the place's). */
+  readonly mapping: string;
+  readonly runtime: string;
+  /** Its properties as the grid's columns, each under its own name. */
+  readonly columns: readonly { readonly name: string; readonly type: string }[];
+}
+
+/**
+ * A JOIN of two inputs (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17): each a cube -- a source and its saved query --
+ * read as its rows at its finest level (query.ts classLambda, what Create a Class reads), and how they combine
+ * (join.ts JoinHow). Kept by value, so a saved join reopens alone: an input is what its grid was when it was joined.
+ */
+export interface JoinSource {
+  readonly _type: 'join';
+  /** What a person calls it: `trades ⋈ customers` (join.ts joinTitle). */
+  readonly name: string;
+  readonly left: JoinInput;
+  readonly right: JoinInput;
+  readonly how: JoinHow;
+  /** What it answered when the cube was saved. */
+  readonly columns: readonly { readonly name: string; readonly type: string }[];
+}
+
+/** An input of a join: a grid as it was joined -- what it was called, its source, its saved query. */
+export interface JoinInput {
+  readonly name: string;
+  readonly source: CubeSource;
+  readonly query: SavedQuery;
+}
+
+/** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe, a class, a join. */
+export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource | FrameSource | ClassSource | JoinSource;
+
+/** A source that is no join: where rows are read from (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.1). */
+export type LeafSource = Exclude<CubeSource, JoinSource>;
+
+/**
+ * WHAT A GRID READS (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): its source's leaves -- a join's, its inputs' in
+ * turn, left's then right's; any other source, itself. Every question of what a grid reads (its files, its frames, the
+ * tables a join of it reads) is asked of these, never of its source's kind.
+ */
+export function leavesOf(source: CubeSource): LeafSource[] {
+  return source._type === 'join' ? [...leavesOf(source.left.source), ...leavesOf(source.right.source)] : [source];
+}
 
 /**
  * The cube's definition: a snapshot without its runtime state (source relation, epoch, row window).
@@ -151,7 +213,13 @@ export interface CubeDocument {
   readonly query: SavedQuery;
   /** Differences from the product defaults; `null` means "unset" where a default is set. */
   readonly configuration: Readonly<Record<string, unknown>>;
-  readonly tree: { readonly open: readonly RowPath[]; readonly showTotals: boolean };
+  /** Its open groups and grand total; its expand level and the groups closed under it, when it has a level. */
+  readonly tree: {
+    readonly open: readonly RowPath[];
+    readonly showTotals: boolean;
+    readonly expandTo?: number;
+    readonly closed?: readonly RowPath[];
+  };
   /** Top-level fields a newer writer added, kept verbatim. */
   readonly unknown?: Readonly<Record<string, unknown>>;
 }
@@ -170,7 +238,8 @@ const KNOWN = new Set(['kind', 'version', 'name', 'source', 'query', 'configurat
 export interface WriteOptions {
   readonly name: string;
   readonly source: CubeSource;
-  readonly snapshot: CubeSnapshot;
+  /** The cube's query; its relation, if it has one, is no part of the document. */
+  readonly snapshot: Omit<CubeSnapshot, 'source'>;
   readonly configuration: CubeConfiguration;
   readonly tree: TreeState;
   /** Fields carried from the document this cube was opened from. */
@@ -178,7 +247,12 @@ export interface WriteOptions {
 }
 
 export function writeCube(o: WriteOptions): CubeDocument {
-  const { source: _relation, epoch: _epoch, window: _window, ...query } = o.snapshot;
+  const { epoch: _epoch, window: _window, ...withRelation } = o.snapshot;
+  const { source: _relation, ...ran } = withRelation as typeof withRelation & { readonly source?: SourceRef };
+  // a group-level column's type is what a run learned (its level query's plan: cube.ts withGroupStageTypes), never the
+  // cube's: written by no side, so the screen after a run and a host never run write the same cube (V4)
+  const query = ran.groupDerived === undefined ? ran
+    : { ...ran, groupDerived: ran.groupDerived.map(({ type: _learned, ...d }) => d) };
   return {
     kind: CUBE_KIND,
     version: CUBE_VERSION,
@@ -193,7 +267,12 @@ export function writeCube(o: WriteOptions): CubeDocument {
 
 /** The open rows as a cube document holds them: typed paths, and whether totals show. */
 export function treeDocument(tree: TreeState): CubeDocument['tree'] {
-  return { open: tree.openPaths.map(parsePathKey), showTotals: tree.showTotals };
+  const closed = tree.closedPaths.map(parsePathKey);
+  return {
+    open: tree.openPaths.map(parsePathKey), showTotals: tree.showTotals,
+    // the expand level, and the groups closed under it (a grid opened again opens its rows as it was told to: V5)
+    ...(tree.expandTo > 0 ? { expandTo: tree.expandTo, ...(closed.length > 0 ? { closed } : {}) } : {}),
+  };
 }
 
 /**
@@ -266,13 +345,21 @@ export function readCube(input: string | unknown): CubeDocument {
   };
 }
 
+/** A cube's source, read as a cube document reads it (a page command carrying one: `rebuilt`). */
+export function readCubeSource(raw: unknown): CubeSource {
+  return readSource(raw);
+}
+
 function readSource(raw: unknown): CubeSource {
+  // a join's condition may be a lambda, read exactly (its numbers as the protocol's): read before made plain
+  if (isObject(raw) && raw['_type'] === 'join') return readJoinSource(raw);
   const s = plain(raw);
   if (!isObject(s)) throw new CubeDocumentError("missing 'source'");
   if (s['_type'] === 'savedQuery') return readQuerySource(s);
   if (s['_type'] === 'warehouseTable') return readWarehouseSource(s);
   if (s['_type'] === 'remoteFile') return readRemoteSource(s);
   if (s['_type'] === 'frame') return readFrameSource(s);
+  if (s['_type'] === 'class') return readClassSource(s);
   if (s['_type'] !== 'file') {
     throw new CubeDocumentError(`a source of kind ${JSON.stringify(s['_type'] ?? null)} is not supported yet`);
   }
@@ -323,11 +410,42 @@ function readRemoteSource(s: Record<string, unknown>): RemoteSource {
 }
 
 function readFrameSource(s: Record<string, unknown>): FrameSource {
-  if (typeof s['name'] !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(s['name'])) {
-    throw new CubeDocumentError('the frame source has no name (a plain identifier: letters, digits, \'_\')');
+  if (typeof s['name'] !== 'string' || !isIdentifier(s['name'])) {
+    throw new CubeDocumentError('the frame source has no name (a plain identifier: letters, digits, \'_\', not true or false)');
   }
   if (!hasColumns(s)) throw new CubeDocumentError('the frame source has no columns');
   return s as unknown as FrameSource;
+}
+
+function readClassSource(s: Record<string, unknown>): ClassSource {
+  for (const f of ['name', 'class', 'project', 'workspace', 'revision', 'mapping', 'runtime']) {
+    if (typeof s[f] !== 'string' || s[f] === '') throw new CubeDocumentError(`the class source has no ${f}`);
+  }
+  if (!hasColumns(s)) throw new CubeDocumentError('the class source has no columns');
+  // a column of a class source is a property, read as `$x.p`: a name the grammar reads bare
+  const bad = (s['columns'] as { name: string }[]).find((c) => !isIdentifier(c.name));
+  if (bad !== undefined) throw new CubeDocumentError(`the class source's column '${bad.name}' is no property's name`);
+  return s as unknown as ClassSource;
+}
+
+function readJoinSource(s: Record<string, unknown>): JoinSource {
+  if (typeof s['name'] !== 'string' || s['name'] === '') throw new CubeDocumentError('the join source has no name');
+  const columns = plain(s['columns']);
+  if (!hasColumns({ columns })) throw new CubeDocumentError('the join source has no columns');
+  const input = (which: 'left' | 'right'): JoinInput => {
+    const i = s[which];
+    if (!isObject(i)) throw new CubeDocumentError(`the join source has no ${which} input`);
+    if (typeof i['name'] !== 'string' || i['name'] === '') throw new CubeDocumentError(`the join source's ${which} input has no name`);
+    return { name: i['name'], source: readSource(i['source']), query: readQuery(i['query']) };
+  };
+  let how: JoinHow;
+  try {
+    how = readJoinHow(s['how']);
+  } catch (e) {
+    if (e instanceof CubeRefusal) throw new CubeDocumentError(`the join source: ${e.message}`);
+    throw e;
+  }
+  return { _type: 'join', name: s['name'], left: input('left'), right: input('right'), how, columns: columns as JoinSource['columns'] };
 }
 
 function readQuerySource(s: Record<string, unknown>): QuerySource {
@@ -387,13 +505,29 @@ function calculated(raw: unknown, field: string): DerivedColumn[] {
 function readTree(raw: unknown): CubeDocument['tree'] {
   const t = plain(raw ?? { open: [], showTotals: false });
   if (!isObject(t) || !Array.isArray(t['open'])) throw new CubeDocumentError("'tree' has no open paths");
-  const open = t['open'].map((p) => {
+  const path = (p: unknown): RowPath => {
     if (!Array.isArray(p) || !p.every((k) => k === null || typeof k === 'string')) {
       throw new CubeDocumentError(`not a row path: ${JSON.stringify(p)}`);
     }
     return p as RowPath;
-  });
-  return { open, showTotals: t['showTotals'] === true };
+  };
+  const open = t['open'].map(path);
+  const expandTo = t['expandTo'];
+  if (expandTo !== undefined && (typeof expandTo !== 'number' || !Number.isInteger(expandTo) || expandTo < 0)) {
+    throw new CubeDocumentError(`the tree's expand level is a whole number, not ${JSON.stringify(expandTo)}`);
+  }
+  const closed = t['closed'];
+  if (closed !== undefined && !Array.isArray(closed)) {
+    throw new CubeDocumentError(`the tree's closed groups are row paths, not ${JSON.stringify(closed)}`);
+  }
+  // a group is closed under the level the groups open to: a tree of none has nothing to close (the S2 audit's 10)
+  if (closed !== undefined && closed.length > 0 && !expandTo) {
+    throw new CubeDocumentError("the tree's closed groups are closed under its expand level: it has none");
+  }
+  return {
+    open, showTotals: t['showTotals'] === true,
+    ...(expandTo ? { expandTo, ...(closed && closed.length > 0 ? { closed: closed.map(path) } : {}) } : {}),
+  };
 }
 
 // ---------------------------------------------------------------- opening
@@ -418,6 +552,35 @@ export function openCube(
   relation: SourceRef,
   columns: readonly ColumnSpec[],
 ): OpenedCube {
+  const { query, ...rest } = reopened(doc, columns);
+  return { snapshot: { ...query, source: relation }, ...rest };
+}
+
+/**
+ * A SAVED CUBE OPENED AGAIN OVER ITS SOURCE AS IT IS NOW, as a document (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P11): the
+ * page command `rebuilt`'s rule. `source` is the source written as it is now -- its columns as the compiler types them,
+ * over what its host reads (which headless host-tables.ts onHost says, X1) -- and the cube is opened over its columns by
+ * openCube's own rule (a new column hidden, a gone one's parts left out, a retyped one said), whatever the cube is now: a
+ * grid regrouped by another writer meanwhile keeps its grouping. The notes said, and whether a part was left out.
+ */
+export function cubeOpenedAgain(doc: CubeDocument, source: CubeSource): {
+  readonly document: CubeDocument; readonly notes: readonly string[]; readonly changed: boolean;
+} {
+  const { query, configuration, tree, notes, changed } = reopened(doc, source.columns);
+  // as the screen holds a cube it opens (cube-state.ts openedState): what only its query carries read back into its
+  // configuration, then folded into its query
+  const read = fromSnapshot(query, configuration);
+  const document = writeCube({
+    name: doc.name, source, snapshot: applyToSnapshot(query, read), configuration: read, tree,
+    ...(doc.unknown ? { unknown: doc.unknown } : {}),
+  });
+  return { document, notes, changed };
+}
+
+/** openCube's work, its relation aside: what a document of the cube writes (writeCube writes no relation). */
+function reopened(doc: CubeDocument, columns: readonly ColumnSpec[]): Omit<OpenedCube, 'snapshot'> & {
+  readonly query: Omit<CubeSnapshot, 'source'>;
+} {
   const notes: string[] = [];
   const q = doc.query;
   const saved = new Map(q.columns.map((c) => [c.name, c]));
@@ -501,9 +664,8 @@ export function openCube(
     columns: _c, derived: _d, groupDerived: _g, rows: _r, pivotOn: _p, sorts: _s,
     filter: _f, pivotValues, ...rest
   } = q;
-  const snapshot: CubeSnapshot = {
+  const snapshot: Omit<CubeSnapshot, 'source'> = {
     ...rest,
-    source: relation,
     columns: specs,
     derived,
     ...(groupDerived !== undefined ? { groupDerived } : {}),
@@ -515,11 +677,11 @@ export function openCube(
     ...(filter !== undefined ? { filter } : {}),
     epoch: 0,
   };
-  // The open rows are paths through the saved grouping; a different grouping has none.
-  const tree = TreeState.fromPaths(shapeChanged ? [] : doc.tree.open, doc.tree.showTotals);
+  // The open rows are paths through the saved grouping; a different grouping has none (its level stays)
+  const tree = shapeChanged ? TreeState.saved([], doc.tree.showTotals, doc.tree.expandTo ?? 0, []) : treeOf(doc);
   // changed: a part left out -- the cube held is not the one saved
   const changed = notes.some((n) => n.startsWith('left out'));
-  return { snapshot, configuration, tree, notes, changed };
+  return { query: snapshot, configuration, tree, notes, changed };
 }
 
 /**
@@ -548,6 +710,25 @@ export function gridCapped(gridsOnPage: number): boolean {
   return gridsOnPage > 1;
 }
 
+/** A NEW GRID'S CONFIGURATION (the one rule): titled by its source, its rows capped at the row limit when it shares its
+ *  page (gridCapped). A source added from the picker, a host's grid made headless, a grid added to a cube's own board. */
+export function freshConfiguration(label: string, capped: boolean): CubeConfiguration {
+  return { ...DEFAULT_CONFIGURATION, reportTitle: label, ...(capped ? { maxRows: DEFAULT_MAX_ROWS } : {}) };
+}
+
+/**
+ * WHETHER A SAVED CUBE OPENED AGAIN IS ANOTHER (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P11, Z10): opening it left a
+ * part out (`changed`: rebuilt's), or its source is written otherwise now (a frame's columns moved). The one rule its
+ * page takes the cube by, as its `rebuilt` command -- the tab opening a host's page, the host (headless gridOpened).
+ */
+export function cubeTaken(changed: boolean, was: CubeSource, now: CubeSource): boolean {
+  const canonical = (v: unknown): unknown => (Array.isArray(v) ? v.map(canonical)
+    : v !== null && typeof v === 'object'
+      ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, canonical((v as Record<string, unknown>)[k])]))
+      : v);
+  return changed || JSON.stringify(canonical(was)) !== JSON.stringify(canonical(now));
+}
+
 /**
  * A saved cube rebuilt over a source (`relation`, its `columns` as the compiler types them now) -- its view, its
  * configuration, the groups it had open, what it had that the source no longer has (`changed`: a part left out, as
@@ -563,7 +744,7 @@ export function rebuilt(saved: CubeDocument | undefined, relation: ValueSpecific
   if (!saved) {
     return {
       snapshot: rawRows(relation, columns),
-      configuration: { ...DEFAULT_CONFIGURATION, reportTitle: label, ...(capped ? { maxRows: DEFAULT_MAX_ROWS } : {}) },
+      configuration: freshConfiguration(label, capped),
       notes: [],
       changed: false,
     };
@@ -647,15 +828,46 @@ export async function fileSource(
   columns: readonly ColumnSpec[],
   sample?: { readonly id: string; readonly rows: number },
 ): Promise<FileSource> {
+  return fileSourceOf({ name: file.name, size: file.size, sha256: await sha256(await file.arrayBuffer()) }, format, columns, sample);
+}
+
+/**
+ * A FILE AS A CUBE RECORDS IT, the one writer (fileSource's, and a host's that hashed the file it read: headless
+ * data-in.ts fileRead): its name, its format, its size, the lower-case hex SHA-256 of its bytes, its columns as the
+ * compiler types them.
+ */
+export function fileSourceOf(
+  file: { readonly name: string; readonly size: number; readonly sha256: string },
+  format: UploadFormat,
+  columns: readonly ColumnSpec[],
+  sample?: { readonly id: string; readonly rows: number },
+): FileSource {
   return {
     _type: 'file',
     name: file.name,
     format,
     size: file.size,
-    sha256: await sha256(await file.arrayBuffer()),
+    sha256: file.sha256,
     columns: columns.map((c) => ({ name: c.name, type: c.type })),
     ...(sample ? { sample } : {}),
   };
+}
+
+/** What a person calls a remote file: its URL's last part (its query and fragment aside). */
+export const lastSegment = (url: string): string => url.replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop() || url;
+
+/** A REMOTE FILE AS A CUBE RECORDS IT, the one writer (the tab's and a host's): its name, its URL, its columns. */
+export function remoteSourceOf(url: string, columns: readonly ColumnSpec[]): RemoteSource {
+  return { _type: 'remoteFile', name: lastSegment(url), url, columns: columns.map((c) => ({ name: c.name, type: c.type })) };
+}
+
+/**
+ * WHAT A CUBE SAVED OVER A FILE IS TOLD when it opens over `now` (the tab's file picked, a host's file given): that `now`
+ * is not the file it was saved over, its contents differ (its source no file, or another hash).
+ */
+export function fileChanged(saved: CubeSource, now: FileSource): string[] {
+  return saved._type !== 'file' || saved.sha256 !== now.sha256
+    ? [`${now.name} is not the file this cube was saved over (its contents differ)`] : [];
 }
 
 export async function sha256(bytes: ArrayBuffer): Promise<string> {
@@ -668,9 +880,28 @@ export function configurationOf(doc: CubeDocument): CubeConfiguration {
   return merge(DEFAULT_CONFIGURATION, doc.configuration) as CubeConfiguration;
 }
 
+/**
+ * THE TREE A NEW GRID STARTS WITH, the one rule (the screen's grid as it opens, app.ts; a copy, cubeCopied; a chart's
+ * own grid, headless chartOwnGrid): no group open, its grand total and the level it is opened to as its `configuration`
+ * says (the S7 audit's G-2: a copy made by Python started collapsed at a level its settings named).
+ */
+export function newGridTree(configuration: CubeConfiguration): TreeState {
+  return TreeState.empty(configuration.showRootAggregation).withExpandTo(configuration.initialExpandToLevel ?? 0);
+}
+
+/**
+ * A COPY OF A GRID'S CUBE (Copy of Grid; Python's grid.copy): its source, query and settings as `doc` has them now, and
+ * the tree a new grid starts with (newGridTree) -- as the copy the screen makes writes itself; nothing a newer writer
+ * added (`unknown`), which the copy never read.
+ */
+export function cubeCopied(doc: CubeDocument): CubeDocument {
+  const { unknown: _dropped, ...copied } = doc;
+  return { ...copied, tree: treeDocument(newGridTree(configurationOf(doc))) };
+}
+
 /** The open rows a document describes. */
 export function treeOf(doc: CubeDocument): TreeState {
-  return TreeState.fromPaths(doc.tree.open, doc.tree.showTotals);
+  return TreeState.saved(doc.tree.open, doc.tree.showTotals, doc.tree.expandTo ?? 0, doc.tree.closed ?? []);
 }
 
 // ---------------------------------------------------------------- differences

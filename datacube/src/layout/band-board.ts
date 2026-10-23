@@ -51,6 +51,7 @@ import {
   shareText,
   sharesBeside,
   snapped,
+  stackOf,
   stacked,
   tiles,
   tradeBands,
@@ -68,6 +69,15 @@ export interface BandTile {
   readonly removable?: boolean;
 }
 
+/**
+ * A change by hand that is a page command of its own (P14): `stack` -- a lone tile let go on another's middle, the two
+ * stacked where that one is (bands.ts stackTiles of [onto, tile]: a drop's own rule); `arrange` -- a preset picked,
+ * `first` in its first slot, the rest in reading order.
+ */
+export type LayoutMove =
+  | { readonly kind: 'stack'; readonly tiles: readonly [string, string] }
+  | { readonly kind: 'arrange'; readonly preset: Preset; readonly first?: string };
+
 export interface BandBoardOptions {
   /** Space between tiles, in pixels. */
   readonly gap?: number;
@@ -75,8 +85,12 @@ export interface BandBoardOptions {
   readonly leastBand?: number;
   /** Below this width the page is stacked, one tile under another, and cannot be rearranged. */
   readonly narrowBelow?: number;
-  /** The layout changed by the user's hand (not by the screen's width), from `before`: one step, to undo. */
-  readonly onChange?: (layout: Bands, before: Bands) => void;
+  /**
+   * The layout changed by the user's hand (not by the screen's width), from `before`: one step, to undo. `move` says
+   * what the hand did when it is a page command's own (page-commands.ts `stack`, `arrange`): a lone tile let go on
+   * another's middle, a preset picked; any other change (a divider, a band's edge, a drop beside a tile) is the layout.
+   */
+  readonly onChange?: (layout: Bands, before: Bands, move?: LayoutMove) => void;
   /** Ctrl+Z (Shift for redo) on a focused tile's frame: the caller undoes the last arrangement. */
   readonly onUndo?: (redo: boolean) => void;
   /** The user asked to remove a tile. The caller removes it. */
@@ -235,9 +249,14 @@ export class BandBoard {
     // a divider's or an edge's drag ends first (undone): it would end on a layout from before this tile
     this.#gesture?.end(false);
     this.#tiles.set(tile.id, this.#make(tile));
+    this.#commit(add(this.#layout, tile.id, near, this.columns));
+  }
+
+  /** How many tiles fit side by side at a readable width, as wide as the board is now; undefined while it has no width
+   *  (bands.ts add then takes its most): what a placing command says it placed by (page-commands.ts `columns`). */
+  get columns(): number | undefined {
     const { width } = this.#size();
-    const columns = width > 0 ? Math.max(1, Math.floor((width + this.#gap) / (READABLE_WIDTH + this.#gap))) : undefined;
-    this.#commit(add(this.#layout, tile.id, near, columns));
+    return width > 0 ? Math.max(1, Math.floor((width + this.#gap) / (READABLE_WIDTH + this.#gap))) : undefined;
   }
 
   /**
@@ -303,7 +322,8 @@ export class BandBoard {
   /** Arrange every tile on the page as a preset, `first` in its first slot; the others in reading order. */
   arrange(preset: Preset, first?: string): void {
     this.#gesture?.end(false);
-    this.#change(arrange(this.#layout, preset, this.#order(first)), 'Arranged.');
+    this.#change(arrange(this.#layout, preset, this.#order(first)), 'Arranged.',
+      { kind: 'arrange', preset, ...(first !== undefined ? { first } : {}) });
   }
 
   /** Even out the whole page: every split's parts alike, every band as tall as the rest. */
@@ -708,11 +728,11 @@ export class BandBoard {
     wanted.forEach((w, i) => place(this.#handles[i]!.el, w.box));
   }
 
-  /** A change by the user's hand: committed, and told with the layout it came from. */
-  #change(next: Bands, announce?: string): void {
+  /** A change by the user's hand: committed, and told with the layout it came from (and, a command's own, what it was). */
+  #change(next: Bands, announce?: string, move?: LayoutMove): void {
     const before = this.#layout;
     this.#commit(next, announce);
-    this.#options.onChange?.(next, before);
+    this.#options.onChange?.(next, before, move);
   }
 
   #commit(next: Bands, announce?: string): void {
@@ -884,10 +904,14 @@ export class BandBoard {
         return;
       }
       if (!apply || target === undefined) return;
+      // a lone tile onto another's middle: the two stacked, as stackTiles stacks them (a tab dragged out of its stack is
+      // not one: stackTiles would carry its whole stack)
+      const move: LayoutMove | undefined = 'stack' in target && !leaving && stackOf(this.#layout, id).length === 1
+        ? { kind: 'stack', tiles: [target.stack, id] } : undefined;
       const next = drop(this.#layout, id, target);
       // put back where it was (a tab dragged out, let go on its own stack): no step
       if (next === this.#layout || JSON.stringify(next) === JSON.stringify(this.#layout)) return;
-      this.#change(next, `${tile.name} moved.`);
+      this.#change(next, `${tile.name} moved.`, move);
     });
   }
 

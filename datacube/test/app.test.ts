@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
+import type { CubeDraft } from '../src/ui/panel-kit.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 
 const SNAPSHOT: CubeSnapshot = {
@@ -21,12 +22,15 @@ const SNAPSHOT: CubeSnapshot = {
 
 describe('applying the editor', () => {
   it("keeps the Dimensions tab's hierarchies on the configuration", async () => {
-    const { mergeDraft } = await import('../src/app.ts');
-    const base = { snapshot: SNAPSHOT, config: DEFAULT_CONFIGURATION, dimensions: [] };
+    const { asGridDraft } = await import('../src/app.ts');
+    const { applyGridCommands, draftCommands } = await import('../src/grid-commands.ts');
+    const base: CubeDraft = { snapshot: SNAPSHOT, config: DEFAULT_CONFIGURATION, dimensions: [] };
     const geo = [{ name: 'Geography', columns: ['region', 'desk'] }];
-    const merged = mergeDraft(base, base, { ...base, dimensions: geo });
-    assert.deepEqual(merged.config.dimensions, geo);
+    // Apply's commands (grid-commands.ts draftCommands) on the grid as it is
+    const applied = (edited: CubeDraft) => applyGridCommands({ snapshot: SNAPSHOT, config: DEFAULT_CONFIGURATION },
+      draftCommands(asGridDraft(base), asGridDraft(edited)));
+    assert.deepEqual(applied({ ...base, dimensions: geo }).config.dimensions, geo);
     // Untouched, nothing is written: the host's stay in charge.
-    assert.equal(mergeDraft(base, base, base).config.dimensions, undefined);
+    assert.equal(applied(base).config.dimensions, undefined);
   });
 });

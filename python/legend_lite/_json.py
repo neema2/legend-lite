@@ -25,22 +25,6 @@ def dumps(value: Any, indent: int | None = None) -> str:
     return ''.join(out)
 
 
-def protocol(value: Any) -> str:
-    """Protocol JSON as pure-protocol's ``toJson`` writes it, byte for byte: compact, every object's ``_type`` first and
-    its other keys in order, ``Decimal`` as its own digits -- what a TypeScript client sends
-    and so what Python sends as its twin (legend_lite.model)."""
-    return dumps(_ordered(value))
-
-
-def _ordered(v: Any) -> Any:
-    if isinstance(v, dict):
-        keys = sorted(v, key=lambda k: (k != '_type', k))
-        return {k: _ordered(v[k]) for k in keys}
-    if isinstance(v, (list, tuple)):
-        return [_ordered(x) for x in v]
-    return v
-
-
 def _write(v: Any, out: list[str], indent: int | None, depth: int) -> None:
     if v is None:
         out.append('null')

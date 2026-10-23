@@ -4,9 +4,9 @@
 // beside it (widget-styles.css, bundled as widget.css), added to the page by the loader.
 //
 // DataCube's app (src/app/datacube-app.ts) over Python's services (src/services/python-host.ts), its calls over the
-// channel: a page (the widget's `page_key`, Python's `ll.Page`) or one frame (its `table`, `ll.show(df)`: a page of one
-// grid). It follows Python by the widget's own state, which Python sets as it changes what it shows -- the page's and
-// each frame's `versions`, or the frame's `version` -- so it never polls. Its keys stay with it.
+// channel: a page (the widget's `page_key`: Python's `ll.Page`, or `ll.show(df)`'s page of one grid over the frame). It
+// follows Python by the widget's own state, which Python sets as it changes what it shows -- the page's and each
+// frame's `versions` -- so it never polls. Its keys stay with it.
 
 import { openDataCube, type DataCubeApp } from '../src/app/datacube-app.ts';
 import type { Versions } from '../src/app/services.ts';
@@ -17,18 +17,17 @@ import { BASE, type WidgetModel } from './widget-loader.ts';
 const px = (model: WidgetModel): string => `${Number(model.get('height')) || 480}px`;
 
 /** The versions the widget says now, of what it shows. */
-function versionsOf(model: WidgetModel, shows: PythonShows): Versions | undefined {
-  if ('frame' in shows) return { frames: { [shows.frame]: Number(model.get('version')) } };
+function versionsOf(model: WidgetModel): Versions | undefined {
   const said = model.get('versions') as { version?: number; frames?: Record<string, number> } | undefined;
   return said?.version === undefined ? undefined : { version: said.version, frames: said.frames ?? {} };
 }
 
 /** Told at once of the widget's versions, then each time Python moves them. */
-function watched(model: WidgetModel, shows: PythonShows) {
-  const event = 'frame' in shows ? 'change:version' : 'change:versions';
+function watched(model: WidgetModel) {
+  const event = 'change:versions';
   return (moved: (now: Versions | string) => void): (() => void) => {
     const tell = (): void => {
-      const now = versionsOf(model, shows);
+      const now = versionsOf(model);
       if (now) moved(now);
     };
     model.on(event, tell);
@@ -38,8 +37,7 @@ function watched(model: WidgetModel, shows: PythonShows) {
 }
 
 export function render(model: WidgetModel, el: HTMLElement, fetch: typeof globalThis.fetch): () => void {
-  const page = model.get('page_key');
-  const shows: PythonShows = typeof page === 'string' && page !== '' ? { page } : { frame: String(model.get('table')) };
+  const shows: PythonShows = { page: String(model.get('page_key')) };
   const host = document.createElement('div');
   host.style.cssText = 'position:relative;box-sizing:border-box;height:100%';
   el.style.height = px(model);
@@ -70,12 +68,12 @@ export function render(model: WidgetModel, el: HTMLElement, fetch: typeof global
     return openDataCube({
       // a notebook's cell is no tab of its own: no title to set, and no address another person could open
       services: pythonServices({
-        link, shows, offers, ...(settings ? { settings } : {}), watch: watched(model, shows), browser: browserBasics,
+        link, shows, offers, ...(settings ? { settings } : {}), watch: watched(model), browser: browserBasics,
       }),
       host,
       status,
       windows: el,
-      start: 'page' in shows ? { kind: 'live' } : { kind: 'frame', name: shows.frame },
+      start: { kind: 'live' },
       taken: [],
       settled,
     });

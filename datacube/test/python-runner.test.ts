@@ -6,10 +6,14 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { col, element, fn, lambda, type Lambda } from '../../pure-protocol/src/index.ts';
+import { col, element, fn, lambda, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
+import { cubeToJson, writeCube } from '../src/cube-document.ts';
+import type { JoinHow } from '../src/join-how.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
-import { askedOffers, pythonRunner, type PythonLink } from '../src/services/python-host.ts';
+import { askedOffers, pythonDatabase, pythonRunner, type PythonLink, type PythonOffers } from '../src/services/python-host.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
+import { TreeState } from '../src/tree.ts';
 
 const MODEL = '###Pure\nClass x::T {}';
 const RUNTIME = 'x::R';
@@ -99,5 +103,64 @@ describe('a page on Python, planned by Python', () => {
       const { link } = python(() => json(offers(word)));
       await assert.rejects(askedOffers(link), new RegExp(`plans on its own planner, in process: it named "${word}"`), word);
     }
+  });
+});
+
+describe("where Python reads a model's rows: a saved query's are its project's own, said so (F28)", () => {
+  it('asks plan-and-run and the dry run for a project\'s rows only when the base is a saved query\'s', async () => {
+    const { link, calls } = python(() => json({ plan: 'ERR\nCOMPILATION\nno such class' }));
+    await assert.rejects(pythonRunner(link, MODEL, RUNTIME, { project: true }).run(QUERY, { epoch: 1 } as CubeSnapshot));
+    await assert.rejects(pythonRunner(link, MODEL, RUNTIME).run(QUERY, { epoch: 1 } as CubeSnapshot));
+    assert.deepEqual(calls.map((c) => (JSON.parse(c.body) as { project?: boolean }).project), [true, undefined]);
+  });
+});
+
+describe("a join Python makes for a tab on its page: the wire (B11, the review's F37)", () => {
+  const HOW: JoinHow = { form: 'join', kind: 'left', on: { rows: [{ left: 'desk', op: '==', right: 'desk' }] }, prefix: 'd_', keep: null };
+  const RELATION = fn('from', element('x::DB'));
+  const CUBE = writeCube({
+    name: 'trades \u22c8 desks', source: { _type: 'frame', name: 't', columns: [{ name: 'desk', type: 'String' }] },
+    snapshot: { source: { query: { _type: 'var', name: 'x' } }, columns: [{ name: 'desk', type: 'String' }], derived: [],
+      rows: [], pivotOn: [], sorts: [], epoch: 0 } as unknown as CubeSnapshot,
+    configuration: DEFAULT_CONFIGURATION, tree: TreeState.empty(),
+  });
+  const side = (name: string) => ({ name, relation: JSON.parse(toJson(RELATION)) as unknown, columns: [{ name: 'desk', type: 'String' }] });
+  const ANSWERS: Record<string, unknown> = {
+    sides: { left: side('trades'), right: side('desks'), notes: ['desks: a column gone'] },
+    questions: { counts: { mine: 5, matched: 3 }, words: ['3 rows of my 5 rows find a match, 2 rows do not.'] },
+    cube: { command: { kind: 'addGrid', document: JSON.parse(cubeToJson(CUBE)) as unknown }, notes: [] },
+  };
+
+  it("asks join.json each of the window's answers -- the page as its text, how as the protocol writes it -- and reads them", async () => {
+    const { link, calls } = python((_path, body) => json(ANSWERS[(JSON.parse(body) as { op: string }).op]));
+    const join = pythonDatabase(link, offers('local') as unknown as PythonOffers).join!;
+    const sides = await join.sides('PAGE TEXT', 'grid', 'grid-2');
+    assert.deepEqual([sides.left.name, sides.right.name, sides.notes], ['trades', 'desks', ['desks: a column gone']]);
+    assert.equal(sides.left.relation._type, 'func', 'read as the protocol writes a relation');
+    assert.deepEqual(await join.questions('PAGE TEXT', 'grid', 'grid-2', HOW), { mine: 5, matched: 3 });
+    assert.equal((await join.cube('PAGE TEXT', 'grid', 'grid-2', HOW, 'sheet-1')).name, CUBE.name, 'its cube document, read');
+    assert.deepEqual(calls.map((c) => [c.path, c.auth]), Array(3).fill(['/join.json', 'Bearer t0ken']));
+    const [sent, asked, made] = calls.map((c) => JSON.parse(c.body) as Record<string, unknown>);
+    assert.deepEqual(sent, { op: 'sides', page: 'PAGE TEXT', mine: 'grid', theirs: 'grid-2' });
+    assert.deepEqual([asked!['op'], asked!['how']], ['questions', JSON.parse(toJson(HOW))]);
+    assert.deepEqual([made!['op'], made!['sheet'], made!['how']], ['cube', 'sheet-1', JSON.parse(toJson(HOW))]);
+  });
+
+  it("says Python's refusal in its words", async () => {
+    const { link } = python(() => ({ ...json({}, 422), text: async () => "ValueError: 'grid-9' is not a tile of the page" }) as unknown as Response);
+    await assert.rejects(pythonDatabase(link, offers('local') as unknown as PythonOffers).join!.sides('PAGE', 'grid', 'grid-9'), /'grid-9' is not a tile of the page/);
+  });
+});
+
+describe("a tab's grid over a class, on a page Python serves (K16, K17)", () => {
+  it('asks source.json for the cube page.grid makes -- the page\'s model and the class as their text -- and reads it; refused in its words', async () => {
+    const { link, calls } = python(() => json({ cube: 'CUBE TEXT' }));
+    const made = pythonDatabase(link, offers('local') as unknown as PythonOffers).made!;
+    assert.equal(await made('{"project":"p:q"}', '{"class":"Trade"}', 'Q3', 2), 'CUBE TEXT');
+    assert.deepEqual(calls.map((c) => [c.path, c.auth]), [['/source.json', 'Bearer t0ken']]);
+    assert.deepEqual(JSON.parse(calls[0]!.body), { model: '{"project":"p:q"}', given: '{"class":"Trade"}', page: 'Q3', gridsOnPage: 2 });
+    const refused = python(() => ({ ...json({}, 422), text: async () => 'the project has no class Nope' }) as unknown as Response);
+    await assert.rejects(pythonDatabase(refused.link, offers('local') as unknown as PythonOffers).made!(null, '{"class":"Nope"}', 'Q3', 1),
+      /the project has no class Nope/);
   });
 });

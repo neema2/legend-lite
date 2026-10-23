@@ -1,7 +1,8 @@
-// INTO A PROJECT, held alike in both languages (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4): each case of test/cases --
-// every call one create makes, to the SDLC and to the writer, its exact body and the answer it was given, recorded by
-// Python's twin against the native library (python/tests/test_model.py) -- replayed here: this library makes the same
-// calls, in order, with the same bodies, byte for byte, and answers the same.
+// INTO A PROJECT (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4): each case of test/cases -- every call one create makes,
+// to the SDLC and to the writer, its exact body and the answer it was given, recorded against the native library
+// (python/tests/test_model.py: this library run headless by DataCube's model actions, each call through Python's
+// host; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D4) -- replayed here: this library makes the same calls, in order,
+// with the same bodies, byte for byte, and answers the same.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -10,8 +11,8 @@ import { readLambda } from '../../pure-protocol/src/index.ts';
 import { SdlcClient } from '../../sdlc-client/src/client.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import {
-  createAssociation, createClass, createDataSpace, ensureWorkspace, writerBodies, type ClassAction, type Created,
-  type ModelAnswer, type ModelWriter, type NewProject,
+  createAssociation, createClass, createDataSpace, ensureWorkspace, serverWriter, writerBodies, type ClassAction,
+  type Created, type ModelAnswer, type ModelWriter, type NewProject,
 } from '../src/index.ts';
 
 type Call =
@@ -89,7 +90,7 @@ function run(c: Case, sdlc: SdlcClient, writer: ModelWriter): Promise<Created> {
 
 const CASES = runfilesFromEnv('MODEL_CHANGES_CASES').map((f) => JSON.parse(readFileSync(f, 'utf8')) as Case);
 
-describe("into a project: the cases Python's twin recorded", () => {
+describe("into a project: the cases recorded against the native library", () => {
   it('there are cases', () => assert.ok(CASES.length >= 5));
   for (const c of CASES) {
     it(c.name, async () => {
@@ -111,7 +112,7 @@ function answering(answers: readonly [number, string][]): SdlcClient {
   }) as unknown as typeof fetch);
 }
 
-describe('into a project: what the cases cannot record, said as the Python twin says it', () => {
+describe('into a project: what the cases cannot record', () => {
   it('a workspace made by another ask meanwhile is there (lite answers its making 500 once it has commits)', async () => {
     await ensureWorkspace(answering([[404, '{"message":"no such workspace"}'], [500, '{"message":"Branch already exists"}'],
       [200, '{"workspaceId":"w"}']]), { project: 'g:a', workspace: 'w' });
@@ -136,5 +137,20 @@ describe('into a project: what the cases cannot record, said as the Python twin 
     await assert.rejects(createClass({ sdlc, writer: {} as ModelWriter, project: { name: 'Trades', group: 'datacube' },
       workspace: 'datacube', package: 'trades', class: {} as ClassAction, made: (p) => seen.push(p) }), /busy/);
     assert.deepEqual(seen, ['datacube:trades']);
+  });
+});
+
+describe("legend-lite's model writer, over a fetch", () => {
+  const refusing = (async () => new Response('{"message":"the column \'desk\' is asked to be \'primary\'"}', { status: 400 })) as
+    unknown as typeof fetch;
+
+  it("a server's refusal says where it is and the writer's own words", async () => {
+    await assert.rejects(serverWriter('http://lite:8080/', refusing).createAssociation('', 'a', undefined),
+      { message: "legend-lite's createAssociation at http://lite:8080: the column 'desk' is asked to be 'primary'" });
+  });
+
+  it("the host's own writer (a path of its own: a root of '') is said by its route alone", async () => {
+    await assert.rejects(serverWriter('', refusing).createAssociation('', 'a', undefined),
+      { message: "legend-lite's createAssociation: the column 'desk' is asked to be 'primary'" });
   });
 });

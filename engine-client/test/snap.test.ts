@@ -11,12 +11,14 @@ import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import { loadPlanner } from './planner.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 
-/** The live source, and where a snap goes: the model would declare both. */
+/** The live source, and where a snap goes: a table of its own, read (once landed) by what the app's model of it says. */
 const LIVE = element('trades');
-const target = (table: string) => ({ table, source: element(table), conversions: [] });
+const target = (table: string) => ({ table, landed: async () => element(table) });
 import {
+  MAX_SNAP_ROWS,
   SnapManager,
   SnapRefusal,
+  snapRefusal,
 } from '../src/snap.ts';
 
 let engine: DuckDbEngine;
@@ -102,7 +104,10 @@ describe('SnapManager', () => {
       1,
     );
     assert.equal(estimate.withinLimit, false);
-    assert.match(estimate.refusal ?? '', /exceeds the .* row snap limit/);
+    // the one sentence (snapRefusal), which Python's engine says too with its machine's limit (headless snapRefused)
+    assert.equal(estimate.refusal, snapRefusal(20_000_000, MAX_SNAP_ROWS));
+    assert.equal(snapRefusal(20_000_000, 10_000_000),
+      '20,000,000 rows exceeds the 10,000,000 row snap limit. Narrow the filter, or stay live.');
 
     await assert.rejects(
       () => s.snap('SELECT * FROM range(20000000)', 2, { target: target('snap_huge') }),
@@ -127,5 +132,15 @@ describe('SnapManager', () => {
       3,
     );
     assert.equal(stillThere.columns[0]?.values[0], 200);
+  });
+
+  it('drops the copy, live still, when the app cannot model what landed (§18.3)', async () => {
+    const s = new SnapManager(engine, null, planner);
+    await assert.rejects(s.snap('SELECT * FROM trades WHERE region = 2', 4, {
+      target: { table: 'snap_refused', landed: async () => { throw new Error('no model of it'); } },
+    }), /no model of it/);
+    assert.equal(s.isSnapped, false);
+    const left = await engine.run("SELECT count(*) AS n FROM information_schema.tables WHERE table_name = 'snap_refused'", 5);
+    assert.equal(Number(left.columns[0]?.values[0]), 0, 'the copy is gone');
   });
 });

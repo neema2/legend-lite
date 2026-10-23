@@ -10,6 +10,7 @@ import type { Scalar } from '../../engine-client/src/result.ts';
 import type { CatalogColumn, InferredModel, TableModels } from './infer.ts';
 import { mountRemote, type S3Credentials } from './remote.ts';
 import { runHostOperations } from '../../engine-client/src/host-operations.ts';
+import { isIdentifier } from '../../pure-protocol/src/index.ts';
 
 /**
  * The duckdb-wasm surface used here.
@@ -51,13 +52,17 @@ export function formatOf(fileName: string): UploadFormat {
  * The name reaches both SQL and a Pure Database declaration, and a
  * file can be called anything at all, so everything outside
  * [A-Za-z0-9_] goes. A leading digit gets a prefix because a bare
- * `2024_trades` is not an identifier.
+ * `2024_trades` is not an identifier, and a word the grammar reads as
+ * a literal (`true.csv`) a suffix, as the compiler's own writer gives
+ * one (ModelChanges.identifier: `true_`) -- one identifier rule,
+ * pure-protocol's isIdentifier (the phase 8 audit).
  */
 export function tableNameOf(fileName: string): string {
   const stem = fileName.replace(/\.gz$/i, '').replace(/\.[^.]*$/, '');
   const cleaned = stem.replace(/[^A-Za-z0-9_]+/g, '_')
     .replace(/^_+|_+$/g, '') || 'data';
-  return /^[0-9]/.test(cleaned) ? `t_${cleaned}` : cleaned;
+  const led = /^[0-9]/.test(cleaned) ? `t_${cleaned}` : cleaned;
+  return isIdentifier(led) ? led : `${led}_`;
 }
 
 /**
@@ -317,23 +322,7 @@ export async function readFileInto(
     from: { file: { at: file.at, format: format === 'parquet' ? 'parquet' : format === 'json' ? 'json' : 'csv' } },
   }]);
 
-  // legend-lite's writer reads the catalog's types and says which columns the
-  // table must convert to hold what the model declares: a TIMESTAMPTZ its UTC
-  // timestamp, a UBIGINT an exact DECIMAL(20,0), a UUID or TIME its text. A
-  // nested STRUCT or LIST needs none: it is a Variant as stored
-  // (docs/VARIANT_STORAGE_CENSUS_2026_09_27.md). An upload is ours to
-  // rewrite, so it is rewritten here.
-  const inferred = await models.tableModel(await catalogColumns(engine, models, table),
-    { table, convertible: true, databaseType: engine.databaseType });
-  if (inferred.conversions.length > 0) {
-    // the writer's own select list: each conversion under its column's name, written by the copy's own database
-    // (SqlDialect.copySelectList); an upload is rewritten in place, so the writer always writes one
-    const selectList = inferred.copySelectList;
-    if (selectList === undefined) throw new Error(`the model of ${table} came back with no copy select list`);
-    await runHostOperations(models, engine, [{
-      op: 'relation', kind: 'table', target, replace: true, selectList, from: { relation: target },
-    }]);
-  }
+  const inferred = await modelLanded(engine, models, table);
 
   const [count] = await models.hostOperations(engine.databaseType, [{ op: 'count', from: { relation: target } }]);
   const counted = await engine.run(count![0]!, 0);
@@ -345,6 +334,31 @@ export async function readFileInto(
     rowCount,
     fileName: file.fileName,
   };
+}
+
+/**
+ * A TABLE OF ROWS JUST LANDED IN THE HOST'S DATABASE, made to hold what its model declares, and its model -- a file read
+ * in, and a Snap's copy of a grid's base query (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). legend-lite's writer
+ * reads the catalog's types and says which columns the table must convert to hold what the model declares: a
+ * TIMESTAMPTZ its UTC timestamp, a UBIGINT an exact DECIMAL(20,0), a UUID or TIME its text. A nested STRUCT or LIST needs
+ * none: it is a Variant as stored (docs/VARIANT_STORAGE_CENSUS_2026_09_27.md). The table is ours to rewrite, so it is
+ * rewritten in place.
+ */
+export async function modelLanded(engine: QueryEngine & { readonly databaseType: string }, models: TableModels,
+  table: string): Promise<InferredModel> {
+  const target = { name: table };
+  const inferred = await models.tableModel(await catalogColumns(engine, models, table),
+    { table, convertible: true, databaseType: engine.databaseType });
+  if (inferred.conversions.length > 0) {
+    // the writer's own select list: each conversion under its column's name, written by the copy's own database
+    // (SqlDialect.copySelectList); a table rewritten in place, so the writer always writes one
+    const selectList = inferred.copySelectList;
+    if (selectList === undefined) throw new Error(`the model of ${table} came back with no copy select list`);
+    await runHostOperations(models, engine, [{
+      op: 'relation', kind: 'table', target, replace: true, selectList, from: { relation: target },
+    }]);
+  }
+  return inferred;
 }
 
 /**
@@ -362,8 +376,9 @@ export async function mountRemoteView(engine: DuckDbEngine, models: TableModels,
 
 /** A file's table dropped: its name is free again (the caller lets go of the file itself, where it keeps one). */
 export async function dropFileTable(engine: QueryEngine & { readonly databaseType: string }, models: TableModels,
-  table: string): Promise<void> {
-  await runHostOperations(models, engine, [{ op: 'drop', kind: 'table', target: { name: table } }]);
+  table: string, view = false): Promise<void> {
+  // a remote file's is a view (mountRemoteView)
+  await runHostOperations(models, engine, [{ op: 'drop', kind: view ? 'view' : 'table', target: { name: table } }]);
 }
 
 /**

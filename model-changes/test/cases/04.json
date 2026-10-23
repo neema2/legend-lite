@@ -4,14 +4,10 @@
  "project": {
   "name": "Desks",
   "group": "datacube",
-  "description": ""
+  "description": "The classes of a DataCube page (Create a Class…)"
  },
  "workspace": "datacube",
  "package": "desks",
- "dataSpace": {
-  "name": "Desks",
-  "title": "The desks"
- },
  "classes": [
   {
    "query": {
@@ -26,8 +22,8 @@
         "type": ">",
         "value": {
          "path": [
-          "model_desks::DB",
-          "model_desks"
+          "model_desks_alone::DB",
+          "model_desks_alone"
          ]
         }
        },
@@ -51,20 +47,15 @@
     "parameters": []
    },
    "source": {
-    "model": "###Relational\nDatabase model_desks::DB\n(\n    Table model_desks\n    (\n        desk VARCHAR(4096),\n        head VARCHAR(4096)\n    )\n)\n\n###Connection\nRelationalDatabaseConnection model_desks::Conn\n{\n    type: DuckDB;\n    specification: DuckDB { };\n    auth: Test;\n}\n\n###Runtime\nRuntime model_desks::RT\n{\n    mappings: [];\n    connections:\n    [\n        model_desks::DB: [ c1: model_desks::Conn ]\n    ];\n}\n",
-    "runtime": "model_desks::RT"
+    "model": "###Relational\nDatabase model_desks_alone::DB\n(\n    Table model_desks_alone\n    (\n        desk VARCHAR(4096),\n        head VARCHAR(4096)\n    )\n)\n\n###Connection\nRelationalDatabaseConnection model_desks_alone::Conn\n{\n    type: DuckDB;\n    specification: DuckDB { };\n    auth: Test;\n}\n\n###Runtime\nRuntime model_desks_alone::RT\n{\n    mappings: [];\n    connections:\n    [\n        model_desks_alone::DB: [ c1: model_desks_alone::Conn ]\n    ];\n}\n",
+    "runtime": "model_desks_alone::RT"
    },
-   "name": "Desk",
-   "columns": {
-    "desk": {
-     "as": "key"
-    }
-   },
+   "name": "ModelDesksAlone",
    "where": {
-    "from": "model_desks::DB",
+    "from": "model_desks_alone::DB",
     "as": "Python",
     "samples": {
-     "model_desks": {
+     "model_desks_alone": {
       "columns": [
        "desk",
        "head"
@@ -84,6 +75,10 @@
    }
   }
  ],
+ "dataSpace": {
+  "name": "Desks",
+  "title": "The desks"
+ },
  "calls": [
   {
    "to": "sdlc",
@@ -91,15 +86,15 @@
    "path": "/projects",
    "body": null,
    "status": 200,
-   "answer": "[{\"projectId\":\"datacube:trades-by-desk\",\"name\":\"Trades by desk\",\"description\":\"The classes of a DataCube page\",\"tags\":[],\"webUrl\":null}]"
+   "answer": "[{\"projectId\":\"datacube:trades-by-desk\",\"name\":\"Trades by desk\",\"description\":\"The classes of a DataCube page (Create a Class…)\",\"tags\":[],\"webUrl\":null}]"
   },
   {
    "to": "sdlc",
    "method": "POST",
    "path": "/projects",
-   "body": "{\"name\":\"Desks\",\"description\":\"\",\"groupId\":\"datacube\",\"artifactId\":\"desks\"}",
+   "body": "{\"name\":\"Desks\",\"description\":\"The classes of a DataCube page (Create a Class…)\",\"groupId\":\"datacube\",\"artifactId\":\"desks\"}",
    "status": 200,
-   "answer": "{\"projectId\":\"datacube:desks\",\"name\":\"Desks\",\"description\":\"\",\"tags\":[],\"webUrl\":null}"
+   "answer": "{\"projectId\":\"datacube:desks\",\"name\":\"Desks\",\"description\":\"The classes of a DataCube page (Create a Class…)\",\"tags\":[],\"webUrl\":null}"
   },
   {
    "to": "sdlc",
@@ -107,7 +102,7 @@
    "path": "/projects/datacube%3Adesks/workspaces/datacube",
    "body": null,
    "status": 404,
-   "answer": "{\"code\":404,\"message\":\"Unknown: user workspace datacube of project datacube:desks\",\"timestamp\":\"2026-10-13T06:30:24.281Z\"}"
+   "answer": "{\"code\":404,\"message\":\"Unknown: user workspace datacube of project datacube:desks\",\"timestamp\":\"2026-10-22T09:05:07.427Z\"}"
   },
   {
    "to": "sdlc",
@@ -123,12 +118,12 @@
    "path": "/projects/datacube%3Adesks/workspaces/datacube/revisions/CURRENT",
    "body": null,
    "status": 200,
-   "answer": "{\"id\":\"e65b31af316265a259fb1a611cb41e1ea537fbc7\",\"authorName\":\"local\",\"authoredTimestamp\":\"2026-10-13T06:30:24Z\",\"committerName\":\"local\",\"committedTimestamp\":\"2026-10-13T06:30:24Z\",\"message\":\"Build project structure\"}"
+   "answer": "{\"id\":\"6f2b3e9413d7ba28c408d47bd3f2b26d443a3349\",\"authorName\":\"local\",\"authoredTimestamp\":\"2026-10-22T09:05:07Z\",\"committerName\":\"local\",\"committedTimestamp\":\"2026-10-22T09:05:07Z\",\"message\":\"Build project structure\"}"
   },
   {
    "to": "sdlc",
    "method": "GET",
-   "path": "/projects/datacube%3Adesks/workspaces/datacube/revisions/e65b31af316265a259fb1a611cb41e1ea537fbc7/pure",
+   "path": "/projects/datacube%3Adesks/workspaces/datacube/revisions/6f2b3e9413d7ba28c408d47bd3f2b26d443a3349/pure",
    "body": null,
    "status": 200,
    "answer": "[]"
@@ -136,21 +131,21 @@
   {
    "to": "writer",
    "route": "createDataSpace",
-   "body": "{\"project\":{\"_type\":\"text\",\"code\":\"\"},\"package\":\"desks\",\"classes\":[{\"lambda\":{\"_type\":\"lambda\",\"body\":[{\"_type\":\"func\",\"function\":\"select\",\"parameters\":[{\"_type\":\"classInstance\",\"type\":\">\",\"value\":{\"path\":[\"model_desks::DB\",\"model_desks\"]}},{\"_type\":\"classInstance\",\"type\":\"colSpecArray\",\"value\":{\"colSpecs\":[{\"name\":\"desk\"},{\"name\":\"head\"}]}}]}],\"parameters\":[]},\"source\":{\"_type\":\"text\",\"code\":\"###Relational\\nDatabase model_desks::DB\\n(\\n    Table model_desks\\n    (\\n        desk VARCHAR(4096),\\n        head VARCHAR(4096)\\n    )\\n)\\n\\n###Connection\\nRelationalDatabaseConnection model_desks::Conn\\n{\\n    type: DuckDB;\\n    specification: DuckDB { };\\n    auth: Test;\\n}\\n\\n###Runtime\\nRuntime model_desks::RT\\n{\\n    mappings: [];\\n    connections:\\n    [\\n        model_desks::DB: [ c1: model_desks::Conn ]\\n    ];\\n}\\n\"},\"name\":\"Desk\",\"columns\":{\"desk\":{\"as\":\"key\"}},\"where\":{\"from\":\"model_desks::DB\",\"as\":\"Python\",\"samples\":{\"model_desks\":{\"columns\":[\"desk\",\"head\"],\"rows\":[[\"FX\",\"Ana\"],[\"EQ\",\"Ben\"]]}},\"runtime\":\"model_desks::RT\"}}],\"associations\":[],\"dataSpace\":{\"name\":\"Desks\",\"title\":\"The desks\"}}",
-   "answer": "{\"changes\":[{\"type\":\"CREATE\",\"path\":\"desks::store::Python\",\"pureCode\":\"###Relational\\nDatabase desks::store::Python\\n(\\n  Table model_desks\\n  (\\n    desk VARCHAR(4096),\\n    head VARCHAR(4096)\\n  )\\n)\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::connection::Python\",\"pureCode\":\"###Connection\\nRelationalDatabaseConnection desks::connection::Python\\n{\\n  store: desks::store::Python;\\n  type: DuckDB;\\n  specification: DuckDB\\n  {\\n    path: ':memory:';\\n  };\\n  auth: Test;\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::runtime::Python\",\"pureCode\":\"###Runtime\\nRuntime desks::runtime::Python\\n{\\n  mappings:\\n  [\\n    desks::mapping::Model\\n  ];\\n  connections:\\n  [\\n    desks::store::Python:\\n    [\\n      python: desks::connection::Python\\n    ]\\n  ];\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::function::DeskFn__Relation_1_\",\"pureCode\":\"function desks::function::DeskFn(): meta::pure::metamodel::relation::Relation<(desk:String, head:String)>[1]\\n{\\n  #>{desks::store::Python.model_desks}#->select(~[desk, head])\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::domain::Desk\",\"pureCode\":\"Class desks::domain::Desk\\n{\\n  head: String[0..1];\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::mapping::DeskMapping\",\"pureCode\":\"###Mapping\\nMapping desks::mapping::DeskMapping\\n(\\n  *desks::domain::Desk: Relation\\n  {\\n    ~func desks::function::DeskFn():Relation<Any>[1]\\n    +desk: String[0..1]: desk,\\n    head: head\\n  }\\n)\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::mapping::Model\",\"pureCode\":\"###Mapping\\nMapping desks::mapping::Model\\n(\\n  include mapping desks::mapping::DeskMapping\\n)\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::data::Model_desksSample\",\"pureCode\":\"###Data\\nData desks::data::Model_desksSample\\n{\\n  Relational\\n  #{\\n    default.model_desks:\\n      'desk,head\\\\n'+\\n      'FX,Ana\\\\n'+\\n      'EQ,Ben\\\\n';\\n  }#\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::Desks\",\"pureCode\":\"###DataSpace\\nDataSpace desks::Desks\\n{\\n  executionContexts:\\n  [\\n    {\\n      name: 'Python';\\n      mapping: desks::mapping::Model;\\n      defaultRuntime: desks::runtime::Python;\\n    }\\n  ];\\n  defaultExecutionContext: 'Python';\\n  title: 'The desks';\\n  elements:\\n  [\\n    desks::domain::Desk\\n  ];\\n}\\n\"}],\"classes\":[{\"class\":\"desks::domain::Desk\",\"mapping\":\"desks::mapping::Model\",\"runtime\":\"desks::runtime::Python\",\"query\":\"desks::domain::Desk.all()->project(~[head: x|$x.head])\",\"properties\":[{\"column\":\"desk\",\"as\":\"key\",\"property\":\"desk\",\"type\":\"String\",\"multiplicity\":\"[0..1]\"},{\"column\":\"head\",\"as\":\"property\",\"property\":\"head\",\"type\":\"String\",\"multiplicity\":\"[0..1]\"}]}],\"associations\":[],\"dataSpace\":\"desks::Desks\",\"suggestions\":[],\"joinable\":[{\"class\":\"desks::domain::Desk\",\"function\":\"desks::function::DeskFn\",\"keys\":[{\"name\":\"head\",\"type\":\"String\",\"shown\":true,\"column\":\"head\"},{\"name\":\"desk\",\"type\":\"String\",\"shown\":false,\"column\":\"desk\"}]}],\"notes\":[]}"
+   "body": "{\"project\":{\"_type\":\"text\",\"code\":\"\"},\"package\":\"desks\",\"classes\":[{\"lambda\":{\"_type\":\"lambda\",\"body\":[{\"_type\":\"func\",\"function\":\"select\",\"parameters\":[{\"_type\":\"classInstance\",\"type\":\">\",\"value\":{\"path\":[\"model_desks_alone::DB\",\"model_desks_alone\"]}},{\"_type\":\"classInstance\",\"type\":\"colSpecArray\",\"value\":{\"colSpecs\":[{\"name\":\"desk\"},{\"name\":\"head\"}]}}]}],\"parameters\":[]},\"source\":{\"_type\":\"text\",\"code\":\"###Relational\\nDatabase model_desks_alone::DB\\n(\\n    Table model_desks_alone\\n    (\\n        desk VARCHAR(4096),\\n        head VARCHAR(4096)\\n    )\\n)\\n\\n###Connection\\nRelationalDatabaseConnection model_desks_alone::Conn\\n{\\n    type: DuckDB;\\n    specification: DuckDB { };\\n    auth: Test;\\n}\\n\\n###Runtime\\nRuntime model_desks_alone::RT\\n{\\n    mappings: [];\\n    connections:\\n    [\\n        model_desks_alone::DB: [ c1: model_desks_alone::Conn ]\\n    ];\\n}\\n\"},\"name\":\"ModelDesksAlone\",\"where\":{\"from\":\"model_desks_alone::DB\",\"as\":\"Python\",\"samples\":{\"model_desks_alone\":{\"columns\":[\"desk\",\"head\"],\"rows\":[[\"FX\",\"Ana\"],[\"EQ\",\"Ben\"]]}},\"runtime\":\"model_desks_alone::RT\"}}],\"associations\":[],\"dataSpace\":{\"name\":\"Desks\",\"title\":\"The desks\"}}",
+   "answer": "{\"changes\":[{\"type\":\"CREATE\",\"path\":\"desks::store::Python\",\"pureCode\":\"###Relational\\nDatabase desks::store::Python\\n(\\n  Table model_desks_alone\\n  (\\n    desk VARCHAR(4096),\\n    head VARCHAR(4096)\\n  )\\n)\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::connection::Python\",\"pureCode\":\"###Connection\\nRelationalDatabaseConnection desks::connection::Python\\n{\\n  store: desks::store::Python;\\n  type: DuckDB;\\n  specification: DuckDB\\n  {\\n    path: ':memory:';\\n  };\\n  auth: Test;\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::runtime::Python\",\"pureCode\":\"###Runtime\\nRuntime desks::runtime::Python\\n{\\n  mappings:\\n  [\\n    desks::mapping::Model\\n  ];\\n  connections:\\n  [\\n    desks::store::Python:\\n    [\\n      python: desks::connection::Python\\n    ]\\n  ];\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::function::ModelDesksAloneFn__Relation_1_\",\"pureCode\":\"function desks::function::ModelDesksAloneFn(): meta::pure::metamodel::relation::Relation<(desk:String, head:String)>[1]\\n{\\n  #>{desks::store::Python.model_desks_alone}#->select(~[desk, head])\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::domain::ModelDesksAlone\",\"pureCode\":\"Class desks::domain::ModelDesksAlone\\n{\\n  desk: String[0..1];\\n  head: String[0..1];\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::mapping::ModelDesksAloneMapping\",\"pureCode\":\"###Mapping\\nMapping desks::mapping::ModelDesksAloneMapping\\n(\\n  *desks::domain::ModelDesksAlone: Relation\\n  {\\n    ~func desks::function::ModelDesksAloneFn():Relation<Any>[1]\\n    desk: desk,\\n    head: head\\n  }\\n)\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::mapping::Model\",\"pureCode\":\"###Mapping\\nMapping desks::mapping::Model\\n(\\n  include mapping desks::mapping::ModelDesksAloneMapping\\n)\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::data::Model_desks_aloneSample\",\"pureCode\":\"###Data\\nData desks::data::Model_desks_aloneSample\\n{\\n  Relational\\n  #{\\n    default.model_desks_alone:\\n      'desk,head\\\\n'+\\n      'FX,Ana\\\\n'+\\n      'EQ,Ben\\\\n';\\n  }#\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::Desks\",\"pureCode\":\"###DataSpace\\nDataSpace desks::Desks\\n{\\n  executionContexts:\\n  [\\n    {\\n      name: 'Python';\\n      mapping: desks::mapping::Model;\\n      defaultRuntime: desks::runtime::Python;\\n    }\\n  ];\\n  defaultExecutionContext: 'Python';\\n  title: 'The desks';\\n  elements:\\n  [\\n    desks::domain::ModelDesksAlone\\n  ];\\n}\\n\"}],\"classes\":[{\"class\":\"desks::domain::ModelDesksAlone\",\"mapping\":\"desks::mapping::Model\",\"runtime\":\"desks::runtime::Python\",\"query\":\"desks::domain::ModelDesksAlone.all()->project(~[desk: x|$x.desk, head: x|$x.head])\",\"properties\":[{\"column\":\"desk\",\"as\":\"property\",\"property\":\"desk\",\"type\":\"String\",\"multiplicity\":\"[0..1]\"},{\"column\":\"head\",\"as\":\"property\",\"property\":\"head\",\"type\":\"String\",\"multiplicity\":\"[0..1]\"}]}],\"associations\":[],\"dataSpace\":\"desks::Desks\",\"suggestions\":[],\"joinable\":[{\"class\":\"desks::domain::ModelDesksAlone\",\"function\":\"desks::function::ModelDesksAloneFn\",\"keys\":[{\"name\":\"desk\",\"type\":\"String\",\"shown\":true,\"column\":\"desk\"},{\"name\":\"head\",\"type\":\"String\",\"shown\":true,\"column\":\"head\"}]}],\"notes\":[]}"
   },
   {
    "to": "sdlc",
    "method": "POST",
    "path": "/projects/datacube%3Adesks/workspaces/datacube/pureChanges",
-   "body": "{\"message\":\"Create a Data Space: Desks\",\"changes\":[{\"type\":\"CREATE\",\"path\":\"desks::store::Python\",\"pureCode\":\"###Relational\\nDatabase desks::store::Python\\n(\\n  Table model_desks\\n  (\\n    desk VARCHAR(4096),\\n    head VARCHAR(4096)\\n  )\\n)\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::connection::Python\",\"pureCode\":\"###Connection\\nRelationalDatabaseConnection desks::connection::Python\\n{\\n  store: desks::store::Python;\\n  type: DuckDB;\\n  specification: DuckDB\\n  {\\n    path: ':memory:';\\n  };\\n  auth: Test;\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::runtime::Python\",\"pureCode\":\"###Runtime\\nRuntime desks::runtime::Python\\n{\\n  mappings:\\n  [\\n    desks::mapping::Model\\n  ];\\n  connections:\\n  [\\n    desks::store::Python:\\n    [\\n      python: desks::connection::Python\\n    ]\\n  ];\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::function::DeskFn__Relation_1_\",\"pureCode\":\"function desks::function::DeskFn(): meta::pure::metamodel::relation::Relation<(desk:String, head:String)>[1]\\n{\\n  #>{desks::store::Python.model_desks}#->select(~[desk, head])\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::domain::Desk\",\"pureCode\":\"Class desks::domain::Desk\\n{\\n  head: String[0..1];\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::mapping::DeskMapping\",\"pureCode\":\"###Mapping\\nMapping desks::mapping::DeskMapping\\n(\\n  *desks::domain::Desk: Relation\\n  {\\n    ~func desks::function::DeskFn():Relation<Any>[1]\\n    +desk: String[0..1]: desk,\\n    head: head\\n  }\\n)\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::mapping::Model\",\"pureCode\":\"###Mapping\\nMapping desks::mapping::Model\\n(\\n  include mapping desks::mapping::DeskMapping\\n)\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::data::Model_desksSample\",\"pureCode\":\"###Data\\nData desks::data::Model_desksSample\\n{\\n  Relational\\n  #{\\n    default.model_desks:\\n      'desk,head\\\\n'+\\n      'FX,Ana\\\\n'+\\n      'EQ,Ben\\\\n';\\n  }#\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::Desks\",\"pureCode\":\"###DataSpace\\nDataSpace desks::Desks\\n{\\n  executionContexts:\\n  [\\n    {\\n      name: 'Python';\\n      mapping: desks::mapping::Model;\\n      defaultRuntime: desks::runtime::Python;\\n    }\\n  ];\\n  defaultExecutionContext: 'Python';\\n  title: 'The desks';\\n  elements:\\n  [\\n    desks::domain::Desk\\n  ];\\n}\\n\"}],\"revisionId\":\"e65b31af316265a259fb1a611cb41e1ea537fbc7\"}",
+   "body": "{\"message\":\"Create a Data Space: Desks\",\"changes\":[{\"type\":\"CREATE\",\"path\":\"desks::store::Python\",\"pureCode\":\"###Relational\\nDatabase desks::store::Python\\n(\\n  Table model_desks_alone\\n  (\\n    desk VARCHAR(4096),\\n    head VARCHAR(4096)\\n  )\\n)\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::connection::Python\",\"pureCode\":\"###Connection\\nRelationalDatabaseConnection desks::connection::Python\\n{\\n  store: desks::store::Python;\\n  type: DuckDB;\\n  specification: DuckDB\\n  {\\n    path: ':memory:';\\n  };\\n  auth: Test;\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::runtime::Python\",\"pureCode\":\"###Runtime\\nRuntime desks::runtime::Python\\n{\\n  mappings:\\n  [\\n    desks::mapping::Model\\n  ];\\n  connections:\\n  [\\n    desks::store::Python:\\n    [\\n      python: desks::connection::Python\\n    ]\\n  ];\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::function::ModelDesksAloneFn__Relation_1_\",\"pureCode\":\"function desks::function::ModelDesksAloneFn(): meta::pure::metamodel::relation::Relation<(desk:String, head:String)>[1]\\n{\\n  #>{desks::store::Python.model_desks_alone}#->select(~[desk, head])\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::domain::ModelDesksAlone\",\"pureCode\":\"Class desks::domain::ModelDesksAlone\\n{\\n  desk: String[0..1];\\n  head: String[0..1];\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::mapping::ModelDesksAloneMapping\",\"pureCode\":\"###Mapping\\nMapping desks::mapping::ModelDesksAloneMapping\\n(\\n  *desks::domain::ModelDesksAlone: Relation\\n  {\\n    ~func desks::function::ModelDesksAloneFn():Relation<Any>[1]\\n    desk: desk,\\n    head: head\\n  }\\n)\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::mapping::Model\",\"pureCode\":\"###Mapping\\nMapping desks::mapping::Model\\n(\\n  include mapping desks::mapping::ModelDesksAloneMapping\\n)\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::data::Model_desks_aloneSample\",\"pureCode\":\"###Data\\nData desks::data::Model_desks_aloneSample\\n{\\n  Relational\\n  #{\\n    default.model_desks_alone:\\n      'desk,head\\\\n'+\\n      'FX,Ana\\\\n'+\\n      'EQ,Ben\\\\n';\\n  }#\\n}\\n\"},{\"type\":\"CREATE\",\"path\":\"desks::Desks\",\"pureCode\":\"###DataSpace\\nDataSpace desks::Desks\\n{\\n  executionContexts:\\n  [\\n    {\\n      name: 'Python';\\n      mapping: desks::mapping::Model;\\n      defaultRuntime: desks::runtime::Python;\\n    }\\n  ];\\n  defaultExecutionContext: 'Python';\\n  title: 'The desks';\\n  elements:\\n  [\\n    desks::domain::ModelDesksAlone\\n  ];\\n}\\n\"}],\"revisionId\":\"6f2b3e9413d7ba28c408d47bd3f2b26d443a3349\"}",
    "status": 200,
-   "answer": "{\"id\":\"07a68b166c46899aab393e7858eea856aeaae7fa\",\"authorName\":\"local\",\"authoredTimestamp\":\"2026-10-13T06:30:24Z\",\"committerName\":\"local\",\"committedTimestamp\":\"2026-10-13T06:30:24Z\",\"message\":\"Create a Data Space: Desks\"}"
+   "answer": "{\"id\":\"abbebd20be1df658e9819df676d9ae0246b35a90\",\"authorName\":\"local\",\"authoredTimestamp\":\"2026-10-22T09:05:07Z\",\"committerName\":\"local\",\"committedTimestamp\":\"2026-10-22T09:05:07Z\",\"message\":\"Create a Data Space: Desks\"}"
   }
  ],
  "result": {
   "project": "datacube:desks",
   "workspace": "datacube",
-  "revision": "07a68b166c46899aab393e7858eea856aeaae7fa"
+  "revision": "abbebd20be1df658e9819df676d9ae0246b35a90"
  }
 }

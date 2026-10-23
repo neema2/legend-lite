@@ -13993,6 +13993,32 @@ product behaviour change was intended, and none was measured.
     2473/108/14 of 2613 on both, the failures identical between the commits and equal to the DuckDB lane's, test by
     test.
 
+## 2026-10-18 — Python asks DataCube: one way to edit a grid, the twins behind DataCube's own code, no older documents read (the DataCube + Python line)
+
+Pull request neema2/legend-lite#47, branch `claude/epic-rubin-ay7upl`, merged by the user as c401fe3f.
+- **CI:** branch run 39099277708 on bc0aa4c8, green on every job; main's own run 39106971526 on c401fe3f, green on every
+  job.
+- **Local:** `bazel test //datacube/... //python/...` on the head (`verify_app` as an unprivileged user, embedded
+  Postgres refusing root); `//datacube:tour_test`, the screenshot tour (`docs/DATACUBE_TOUR.md`), in the heavy suite.
+
+1. **What it is:**
+   - **One grid-editing path** (`docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md`): a grid's aggregates are its
+     columns' Aggregation (Column Properties), and the screen's panels, menu and drag zones and Python's `gridEdit`
+     edit a grid through one module, `datacube/src/grid-edits.ts`. A grid's measures list is gone: converted on open,
+     never written.
+   - **The twins program** (`docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`): each Python copy of a DataCube rule replaced by
+     a call into DataCube's own code, headless.
+   - **No older document read** (the user, 2026-10-17): a page before version 4, a version 1 chart spec, an older cube,
+     each refused in words.
+   - **The screen bugs the test-gap round found:** ten, each fixed with its test (e2e3ce8, 57b653a, f130b8e).
+2. **What proves it:** grid-edits' own tests; the headless tests through Python (`//python:headless_test`,
+   `//python:engine_test`); the saved-document, config and chart-rule suites; the browser sweeps (`verify_charts`,
+   `verify_cubes`, `verify_features`); the tour.
+3. **Reviews:** the DataCube + Python line's reviewer, the Compiler Rewrite line (the BUILD files), and the round's
+   audits (four auditors before the push); every finding taken or answered.
+4. **Next:** neema2/legend-lite#57 (header sorting, pivot totals as columns), then the command program
+   (`docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md`), stage 1a its tests first.
+
 ## 2026-10-18 — The dialect program's Phase 7: the warehouse, the model writer, the planner boundary and the dead code (the ninth line)
 
 Branch `claude/gracious-edison-jcsvzm`, from main c607cf61 (after #54), with main's #53 merged in (7a7a0096). The record:

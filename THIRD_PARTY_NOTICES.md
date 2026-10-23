@@ -39,6 +39,7 @@ See [NOTICE](NOTICE) for the files and their notice.
 | [fzstd](https://github.com/101arrowz/fzstd) | 0.1.1 | MIT | Query, Studio, DataCube |
 | [Apache ECharts](https://echarts.apache.org) | 6.1.0 | Apache-2.0 (NOTICE in [NOTICE](NOTICE)); includes code from d3 (BSD-3-Clause) | DataCube |
 | [ZRender](https://github.com/ecomfe/zrender) | 6.1.0 | BSD-3-Clause | DataCube |
+| [Natural Earth](https://www.naturalearthdata.com) 1:110m countries, prepared into `datacube/src/maps/world-110m.ts` (`datacube/tools/maps/prepare.py`) | 5.1.2 | Public domain | DataCube |
 | [fflate](https://github.com/101arrowz/fflate) | 0.8.3 | MIT | DataCube |
 | [Monaco Editor](https://github.com/microsoft/monaco-editor) | 0.57.0 | MIT; its ThirdPartyNotices; includes DOMPurify 3.4.15 (used under Apache-2.0, of MPL-2.0 or Apache-2.0), marked 14.0.0 (MIT) and the Codicons font (CC BY 4.0) | Studio |
 | [react-icons](https://github.com/react-icons/react-icons) SVG paths, generated into `legend-art/src/icons.ts` | 5.5.0 | MIT; per icon set: Font Awesome Free (CC BY 4.0), Codicons (CC BY 4.0), Material Design icons (Apache-2.0), Remix Icon 4.2.0 (Apache-2.0), GitHub Octicons, Feather, Ionicons 5, Tabler, Bootstrap Icons (MIT), Simple Icons (CC0) | Query, Studio, DataCube |

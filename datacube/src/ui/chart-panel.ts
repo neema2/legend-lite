@@ -21,6 +21,7 @@ import {
   followCube,
   GRID_MARKS,
   KIND_MARKS,
+  MAP_MARKS,
   kpiQueries,
   markConditions,
   MAX_FACETS,
@@ -43,6 +44,8 @@ const CROSSHAIRED: ReadonlySet<ChartMark> = new Set(['bar', 'line', 'area', 'hea
 
 /** Whether batch 3's rarer ECharts charts are registered on this page (chart-render-kinds.ts, fetched once). */
 let kindsRegistered = false;
+/** Whether the maps' ECharts and the world's countries are registered on this page (chart-render-maps.ts, fetched once). */
+let mapsRegistered = false;
 
 /** How long a click on a chart that drills waits for a second click (a double-click drills instead of filtering). */
 const DOUBLE_CLICK_MS = 250;
@@ -98,6 +101,7 @@ export class ChartPanel {
   #chart: MountedChart | null = null;
   /** Whether the chart was made after batch 3's rarer ECharts charts were registered (`#mount`). */
   #chartKnowsKinds = false;
+  #chartKnowsMaps = false;
   /** A KPI's trend line, mounted under its number (the number is the canvas's own, not a chart). */
   #trend: MountedChart | null = null;
   #timer: ReturnType<typeof setTimeout> | undefined;
@@ -129,7 +133,8 @@ export class ChartPanel {
   setFrozen(frozen: boolean): void {
     if (!this.#spec || this.frozen === frozen) return;
     const { frozen: _was, ...rest } = this.#spec;
-    this.#spec = frozen ? { ...rest, frozen: true } : rest;
+    // following again, it takes the grid's grouping now -- before it says so, so what it says is what it draws
+    this.#spec = frozen ? { ...rest, frozen: true } : followCube(rest, this.#options.snapshot());
     this.#options.onFrozen?.(frozen);
     this.refresh(0);
   }
@@ -303,12 +308,18 @@ export class ChartPanel {
       const rows = await this.#options.run(query, snapshot, abort.signal);
       if (abort.signal.aborted || this.#disposed) return;
       const kinds = KIND_MARKS.has(spec.mark) || spec.facet !== undefined;
-      const chart = await this.#mount(kinds);
+      const maps = MAP_MARKS.has(spec.mark);
+      const chart = await this.#mount(kinds, maps);
       if (abort.signal.aborted || this.#disposed || !chart) return;
       const { chartOption, themeOf } = await import('../chart-option.ts');
       if (abort.signal.aborted || this.#disposed) return;
       let drawing;
-      if (kinds) {
+      if (maps) {
+        // batch 5's maps: their drawing and the world's countries, fetched with the first of them
+        const { mapOption } = await import('../chart-maps.ts');
+        if (abort.signal.aborted || this.#disposed) return;
+        drawing = mapOption(spec, rows, themeOf(this.#canvas), this.#options.label);
+      } else if (kinds) {
         // batch 3's kinds and small multiples: their drawing and the rarer ECharts charts, fetched with the first of them
         const { kindOption, facetOption } = await import('../chart-kinds.ts');
         if (abort.signal.aborted || this.#disposed) return;
@@ -346,11 +357,24 @@ export class ChartPanel {
    * registered first (chart-render-kinds.ts): ECharts builds an instance's layout stages when the instance is made, so
    * one made before they were registered cannot lay a funnel out -- it is made again. Null when the panel went meanwhile.
    */
-  async #mount(kinds: boolean): Promise<MountedChart | null> {
+  async #mount(kinds: boolean, maps = false): Promise<MountedChart | null> {
     if (kinds) {
       await import('../chart-render-kinds.ts');
       kindsRegistered = true;
       if (this.#chart && !this.#chartKnowsKinds) {
+        this.#chart.dispose();
+        this.#chart = null;
+      }
+    }
+    // the maps likewise: an instance made before the map chart was registered cannot lay a map out; the shapes come
+    // with the drawing (chart-maps.ts), registered once
+    if (maps && !mapsRegistered) {
+      const [{ registerWorld }, { WORLD }] = await Promise.all([import('../chart-render-maps.ts'), import('../chart-maps.ts')]);
+      registerWorld(WORLD.name, WORLD.shapes);
+      mapsRegistered = true;
+    }
+    if (maps) {
+      if (this.#chart && !this.#chartKnowsMaps) {
         this.#chart.dispose();
         this.#chart = null;
       }
@@ -360,6 +384,7 @@ export class ChartPanel {
       if (this.#disposed) return null;
       this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key), onBrush: (took) => this.#brush(took), onKind: (mark) => this.#kind(mark) });
       this.#chartKnowsKinds = kindsRegistered;
+      this.#chartKnowsMaps = mapsRegistered;
     }
     return this.#chart;
   }

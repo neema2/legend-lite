@@ -74,6 +74,8 @@ after it is shown (a chart added, a sheet renamed) is sent to the open page.
   cube's). When Python changes a shown page, the page's version moves and the open page reopens the new document,
   staying on the sheet it shows; what was changed in the page meanwhile is replaced -- and `page.read()` takes the open
   page's document back into Python first, to keep it. A frame updated (`grid.update(df)`) only re-queries, as now.
+  (Superseded 2026-10-20 by docs/DATACUBE_PAGE_KEEPER_2026_10_20.md: one copy of the page, versioned, which both
+  editors write; `page.read()` is gone, a write from the open page being Python's page at once.)
 
 ## 4. Order
 

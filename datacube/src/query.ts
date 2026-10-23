@@ -186,6 +186,10 @@ function aggregateSpec(m: Measure, when?: ValueSpecification): ColSpec {
       return agg(m.name, lambda(['x'], only(ref('x', m.column))), lambda(['y'], fn('joinStrings', y, lit.string(', '))));
     case 'unique':
       return agg(m.name, lambda(['x'], only(ref('x', m.column))), lambda(['y'], fn('uniqueValueOnly', y)));
+    case 'percentile25':
+    case 'percentile75':
+      return agg(m.name, lambda(['x'], only(ref('x', m.column))),
+        lambda(['y'], fn('percentile', y, lit.float(m.fn === 'percentile25' ? 0.25 : 0.75))));
     default:
       return agg(m.name, lambda(['x'], only(ref('x', m.column))), lambda(['y'], fn(m.fn, y)));
   }
@@ -327,6 +331,11 @@ export const TOTAL_ROWS_COLUMN = '__rows__';
 export function countLambda(s: QuerySnapshot): Lambda {
   let rel = sourceWithDerived(s);
   if (s.filter) rel = rel.filter(lambda(['x'], filterNode(s.filter, 'x', (c) => columnType(s, c))));
+  return rowCountLambda(rel);
+}
+
+/** How many rows a relation has, in one row's `TOTAL_ROWS_COLUMN`: all of them grouped under one key, counted. */
+export function rowCountLambda(rel: Relation): Lambda {
   return rel.extend([derive(ROOT_COLUMN, lambda(['x'], lit.string(ROOT_VALUE)))])
     .groupBy([ROOT_COLUMN], [agg(TOTAL_ROWS_COLUMN, lambda(['x'], lit.integer(1)), lambda(['y'], fn('count', variable('y'))))])
     .lambda();
@@ -395,6 +404,83 @@ export const SAMPLE_ROWS = 100;
 /** A source's first `n` rows, as they are: a class's sample (its Data element). */
 export function sampleLambda(source: ValueSpecification, n: number = SAMPLE_ROWS): Lambda {
   return from(source).limit(n).lambda();
+}
+
+/**
+ * WHAT A SNAP COPIES (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3, §18.8): the grid's base query, its EVERY column --
+ * not the ones its view shows, so a column shown after it is snapped answers from the copy too, and a fresh grid,
+ * which shows none, is no `select(~[])` the planner refuses. The screen's Snap and Python's ask it alike.
+ */
+export function snapPull(snapshot: Pick<CubeSnapshot, 'source' | 'columns'>): Lambda {
+  return from(snapshot.source.query).select(snapshot.columns.map((c) => c.name)).lambda();
+}
+
+/** A table a query reads straight from its store (storeTableOf), and the accessor that reads it. */
+export interface StoreTable {
+  readonly database: string;
+  readonly schema: string;
+  readonly table: string;
+  readonly relation: ValueSpecification;
+}
+
+/**
+ * THE TABLES A QUERY READS (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): every accessor of a store's table in it,
+ * each table once, in the order the query names them -- a file's grid's one, a join's every leaf's. What a class of the
+ * query is mapped over: its store declares them, and its samples are theirs. Structure only: the query is read, never
+ * typed.
+ */
+export function tablesOf(query: unknown): StoreTable[] {
+  const found = new Map<string, StoreTable>();
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const n of node) walk(n);
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    const t = storeTableOf(node as ValueSpecification);
+    if (t !== undefined) {
+      const key = JSON.stringify([t.database, t.schema, t.table]);
+      if (!found.has(key)) found.set(key, { ...t, relation: node as ValueSpecification });
+      return;
+    }
+    for (const v of Object.values(node)) walk(v);
+  };
+  walk(query);
+  return [...found.values()];
+}
+
+/** What a class of a grid is made over (classBasis). */
+export interface ClassBasis {
+  /** Its rows at their finest level (classLambda): the class's relation. */
+  readonly query: Lambda;
+  /** The store's Database the tables are declared in: one, the class's store. */
+  readonly database: string;
+  /** Each table the query reads (tablesOf), and the query of its sample: its first rows, as they are. */
+  readonly tables: readonly { readonly table: string; readonly sample: Lambda }[];
+}
+
+/**
+ * WHAT A CLASS OF A GRID IS MADE OVER (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): its rows at their finest level,
+ * and every table they read -- a file's grid its one, a join its every leaf's -- each with its sample, all of one
+ * Database. Refused in words: a pivot (classLambda), rows read from no table of a store (a class's grid: a class
+ * already), tables of two Databases.
+ */
+export function classBasis(snapshot: CubeSnapshot): ClassBasis {
+  const query = classLambda(snapshot);
+  const tables = tablesOf(query);
+  if (tables.length === 0) throw new CubeRefusal('its rows are read from no table of a store');
+  const database = tables[0]!.database;
+  const other = tables.find((t) => t.database !== database);
+  if (other !== undefined) {
+    throw new CubeRefusal(`its rows are read from two databases (${database}, ${other.database}): a class's store is one`);
+  }
+  // a class's samples are kept by table name (the writer's Data elements): two schemas' tables of one name would share one
+  const named = tables.find((t, i) => tables.findIndex((u) => u.table === t.table) !== i);
+  if (named !== undefined) {
+    const schemas = tables.filter((t) => t.table === named.table).map((t) => t.schema).join(', ');
+    throw new CubeRefusal(`its rows are read from two tables named ${named.table} (schemas ${schemas}): a class's samples are by table name`);
+  }
+  return { query, database, tables: tables.map((t) => ({ table: t.table, sample: sampleLambda(t.relation) })) };
 }
 
 /**
@@ -929,7 +1015,7 @@ export interface SpecLike {
   readonly aggregateWeight?: string;
 }
 
-export function columnSpecs(s: QuerySnapshot): Map<string, SpecLike> {
+export function columnSpecs(s: Omit<QuerySnapshot, 'source'>): Map<string, SpecLike> {
   const out = new Map<string, SpecLike>();
   for (const d of [...s.derived, ...(s.groupDerived ?? [])]) {
     // The DECLARED kind wins over the type, exactly as it does for a

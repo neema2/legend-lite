@@ -88,7 +88,7 @@ export const EMPTY: Bands = { fit: false, bands: [] };
 /**
  * A NEW SHEET'S BOARD: empty, fitting its window (the user, 2026-10-09: fit by default) -- and scrolling once its bands
  * are too many to fit (draw's floor). A page's first sheet (page-document.ts startingViews), a sheet added on the screen
- * (page/cube-page.ts) and one added in Python (headless layout.ts layoutNew) each start as it.
+ * (page/cube-page.ts) and one added in Python (page-commands.ts addSheet, headless pageApply) each start as it.
  */
 export const NEW_SHEET: Bands = { fit: true, bands: [] };
 

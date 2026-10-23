@@ -15,22 +15,31 @@ import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { fn } from '../../../pure-protocol/src/index.ts';
 import { CubeApp, type CubeAppQuerySource } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
-import { gridCapped, type CubeDocument } from '../cube-document.ts';
+import { gridCapped } from '../cube-document.ts';
+import { handleKey } from '../file-handles.ts';
 import { Latest, TabWork, mayLeave } from '../host.ts';
 import { PlanThenRun, type PlanAndRun } from '../runner.ts';
 import { PageApp, type GridMaker } from '../page/page-app.ts';
 import {
+  NOTHING_TO_SAVE,
+  modelPageName,
+  openedLive,
+  openingOrder,
   pageContent,
   pageDefinitionText,
   pageToJson,
   readSaved,
-  startingViews,
-  writePageOf,
+  leftOutNote,
+  leftOutWhenUnopened,
+  noneOpened,
+  pageSaving,
+  savedPage,
   type PageDocument,
   type SavedDocument,
 } from '../page-document.ts';
+import type { PageCommand } from '../page-commands.ts';
 import type { PageModelRef } from '../page-model.ts';
-import { classLambda, duplicateLambda, sampleLambda, storeTableOf } from '../query.ts';
+import { classBasis, duplicateLambda } from '../query.ts';
 import { isPageFragment, readPageFragment, shareLink } from '../share/link.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import { CubeLibrary } from '../ui/cube-library.ts';
@@ -40,6 +49,8 @@ import { saveDialog } from '../ui/save-dialog.ts';
 import type { SectionId } from '../ui/source-picker.ts';
 import { makeWindow, type WindowSpec } from '../ui/window.ts';
 import type { Sample, Services, Versions } from './services.ts';
+import { applyLive, followBy } from './live-follow.ts';
+import { LiveChannel } from './live-channel.ts';
 import { pageSources, picksSources, type Chosen, type GridPlace, type Opened, type SignedIn } from './sources.ts';
 
 // the query store's code, fetched the first time it is needed -- a query link -- as charts are: a grid-only page never
@@ -52,6 +63,10 @@ const CREATE_CLASS = { id: 'host.createClass', label: 'Create a Class\u2026', se
  *  too, its class one end. */
 const CREATE_ASSOCIATION = { id: 'host.createAssociation', label: 'Create an Association\u2026', section: 'data' } as const;
 const CREATE_DATA_SPACE = { id: 'host.createDataSpace', label: 'Create a Data Space\u2026', section: 'data' } as const;
+/** ADD A GRID OVER <CLASS> (§16.1): a grid made a class, its class read beside it -- a dashboard's tile. */
+const CLASS_GRID_ID = 'host.classGrid' as const;
+/** JOIN… (§17.5): a grid joined to another of the page, the rows they make together a grid beside them. */
+const JOIN = { id: 'host.join', label: 'Join\u2026', section: 'data' } as const;
 
 /** What the app opens first. */
 export type AppStart =
@@ -62,14 +77,10 @@ export type AppStart =
   | { readonly kind: 'link'; readonly hash: string; readonly forget: () => void }
   /** The single-user app's launch key (docs/DATACUBE_APP_PLAN_2026_10_02.md, A3), and the table it asks for. */
   | { readonly kind: 'warehouse'; readonly key: string; readonly table?: string }
-  /** One frame of the host's (Python's `ll.show(df)`): a page of one grid over it, following the frame as it changes. */
-  | { readonly kind: 'frame'; readonly name: string }
-  /** The page another editor serves (`services.live.page`: Python's `ll.Page`), followed and reported back to it. */
+  /** The page another editor serves (`services.live.page`: Python's `ll.Page`, and `ll.show(df)`'s page of one grid:
+   *  docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P12), followed and reported back to it. */
   | { readonly kind: 'live' };
 
-/** How long a change waits to settle before the page reports its document to another editor (a drag, a typed name:
- *  one report, ms). */
-const REPORT_AFTER = 500;
 
 /** The app open on its host: what takes it down (a notebook's cell re-run, its view closed). */
 export interface DataCubeApp {
@@ -167,6 +178,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   const harnessSignal = { changes: 0, printing: 0 };
   /** Each grid the app made, by its tile's id: what following a frame re-runs (`page.cubes` says which are on it). */
   const madeCubes = new Map<string, CubeApp>();
+  /** The page's channel to the page's keeper, on a page another editor serves (live-channel.ts): its writes carry the
+   *  edits made here, each grid's and the page's. */
+  let channel: LiveChannel | undefined;
   (window as unknown as { __dataCubeSignal?: typeof harnessSignal }).__dataCubeSignal = harnessSignal;
 
   /**
@@ -202,21 +216,39 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         ...(place.hostSnap ? { hostSnap: place.hostSnap } : {}),
         ...(place.signInAgain ? { signInAgain: place.signInAgain } : {}),
         ...(place.cubeSource ? { cubeSource: place.cubeSource } : {}),
-        // the groups a saved cube had open: its own grid's, not a copy's (a copy starts collapsed, as a new grid)
-        ...(place.tree && !start ? { tree: place.tree } : {}),
+        // the groups a saved cube had open: its own grid's, not a copy's (a copy starts collapsed, as a new grid) -- or, the
+        // same grid made again by an undo, its own as they were
+        ...(start?.tree ? { tree: start.tree } : place.tree && !start ? { tree: place.tree } : {}),
         ...(place.heldCopy ? { heldCopy: place.heldCopy } : {}),
         ...(place.label !== undefined ? { sourceLabel: place.label } : {}),
         compact: true,
-        // a copy is a grid added beside others
-        foldPanel: start !== undefined || place.foldPanel === true,
+        // a copy is a grid added beside others; the same grid made again folds as it did
+        foldPanel: (start !== undefined && start.tree === undefined) || place.foldPanel === true,
+        // each edit it keeps, written to the page's keeper, on a page another editor serves; an undo or a redo, the page
+        // whole (a restore, N2)
+        onCommand: (command) => {
+          if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command });
+        },
+        onRestore: () => channel?.restored(),
         // WHERE THE PLANNER RUNS, changed where it is read: the status bar's readout offers the planes; and, where the
         // page has a model home and the host writes models, Create a Class… of the grid's rows
-        hostMenu: () => [
-          ...planeMenu(),
-          ...(createClass && rowsOf(place)?.host.planner.source ? [CREATE_CLASS, CREATE_ASSOCIATION] : []),
-        ],
+        hostMenu: () => {
+          const cls = spawned.id === undefined ? undefined : pageModelNow?.()?.classes?.[spawned.id];
+          return [
+            ...planeMenu(),
+            // of any grid: a class is made over every table its rows read, a join's each (§18.3); refused in words when
+            // it cannot be one
+            ...(createClass && rowsOf(place)?.host.planner.source ? [CREATE_CLASS, CREATE_ASSOCIATION] : []),
+            ...(cls !== undefined && classGrid
+              ? [{ id: CLASS_GRID_ID, label: `Add a Grid over ${cls.slice(cls.lastIndexOf(':') + 1)}`, section: 'data' as const }] : []),
+            // a grid that reads tables of the tab's database: a join of it reads them in one place (§17.3)
+            ...(joinGrid?.offered(place) ? [JOIN] : []),
+          ];
+        },
         onHostMenu: (item) => {
-          if (item.id === CREATE_CLASS.id) createClass?.(created, place, spawned.id);
+          if (item.id === CLASS_GRID_ID) classGrid?.(spawned.id);
+          else if (item.id === JOIN.id) joinGrid?.open(spawned.id);
+          else if (item.id === CREATE_CLASS.id) createClass?.(created, place, spawned.id);
           else if (item.id === CREATE_ASSOCIATION.id) createAssociation?.(spawned.id === undefined ? undefined : pageModelNow?.()?.classes?.[spawned.id]);
           else onHostItem(item);
         },
@@ -264,7 +296,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           // The print is asked for; a later view's print wins.
           const printing = (printed += 1);
           harnessSignal.printing += 1;
-          void created.controller.print(view.query, 'STANDARD').then(
+          void created.printQuery(view.query, 'STANDARD').then(
             (text) => { if (printing === printed) windows.pure.textContent = text; },
             (error: unknown) => { if (printing === printed) windows.pure.textContent = String(error); },
           ).finally(() => {
@@ -327,18 +359,27 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
    *  home. */
   let createAssociation: ((first?: string) => void) | undefined;
   let createDataSpace: (() => void) | undefined;
+  /** ADD A GRID OVER <CLASS> (§16.1): the class grid `cube` was made, read beside it at the page's pin. */
+  let classGrid: ((cube: string | undefined) => void) | undefined;
+  /** JOIN… (§17.5): grid `cube` joined to another of the page -- in the tab, where a grid reads tables of its database; by
+   *  the host, on a host's page (B11). Offered on a grid's menu where `offered` says. */
+  let joinGrid: { readonly offered: (place: GridPlace) => boolean; readonly open: (cube: string | undefined) => void } | undefined;
   /** The page's model now (where its classes are), once the page can make them. */
   let pageModelNow: (() => PageModelRef | undefined) | undefined;
+  /** The page as this tab keeps it -- a newer writer's fields and its model with the board's -- once its sources are set
+   *  up (below): what Export ▸ Page File writes. */
+  let pageKept: ((name: string) => PageDocument | undefined) | undefined;
   /** The page renamed in its name box: its name from now (once the page can be saved, a change until it is). */
-  let renamePage = (name: string): void => page.setTitle(name);
+  let renamePage = (name: string): void => page.rename(name);
   /** Told when a grid is made on the page, by its tile's id: what the page keeps of it (its file). */
   let madeGrid: ((id: string, place: GridPlace) => void) | undefined;
   /** Told of every change on the page: the tables no grid reads any more are dropped. */
   let dropUnread: (() => void) | undefined;
   /** The source picker, once the page can open sources: New ▸ Data Source… adds a grid over one; a blank page opens one. */
   let picker: ((purpose: 'add' | 'open', start?: SectionId) => Promise<GridMaker | undefined>) | undefined;
-  /** New ▸ Blank Page: everything goes, for a first data source. */
-  let blankPage: ((reason?: string) => void) | undefined;
+  /** A blank page, everything gone, for a first data source: as asked (New ▸ Blank Page: `asked`, leaving a page another
+   *  editor serves, D1), or where a start opened nothing (`reason`: why). */
+  let blankPage: ((o: { readonly reason: string | undefined } | { readonly asked: true }) => void) | undefined;
   /** Why the page's start opened nothing (a link that failed, a key refused): the empty page says it. */
   let startProblem: string | undefined;
   /** The empty page's card: hidden until the start has settled -- a page still signing in, or opening a link, is not blank. */
@@ -385,12 +426,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       ...planeMenu(),
     ],
     onHostMenu: (item) => onHostItem(item),
-    // A PAGE FILE carries the page, not the classes of its project in this browser's model home: refused while it has
-    // them (§15.3; a file carrying its model comes with the Studio line's export, S23)
-    exportRefusal: () => (pageModelNow?.()
-      ? `This page's classes are in ${pageModelNow()!.project}, in this browser: a page file cannot carry them yet. `
-        + 'Save the page here, or open the project in Studio.'
-      : undefined),
+    // A PAGE FILE: the page as this tab keeps it, which the page writes by DataCube's one rule (pageFile) -- refused while
+    // its classes are in a project (§15.3; a file carrying its model comes with the Studio line's export, S23)
+    pageNow: (name) => pageKept!(name),
     refuse: (text) => window.alert(text),
     // THE HOST'S TEXT, IN THE STATUS BAR (planner progress, errors, the planner's word): the page's first grid's, at the
     // right of its status bar -- a readout belongs there, not in the bar that says what is on screen. MOVED rather than
@@ -398,6 +436,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     hostStatus: (slot) => slot.append(status),
     // THE NAME BOX renamed: the page's name from now, saved by Save (a change of the page until then)
     onRename: (name) => renamePage(name),
+    // each edit of the page's structure, written to its keeper, on a page another editor serves; an undo or a redo, the
+    // page whole (a restore, N2)
+    onPageCommand: (command) => channel?.edit({ page: command }),
+    onRestore: () => channel?.restored(),
     // THE EMPTY PAGE (New ▸ Blank Page, the last grid removed, a start that opened nothing): what to do first -- a
     // data source (the picker, opening in place) or a saved page
     empty: (slot) => {
@@ -424,7 +466,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         add.type = 'button';
         add.className = 'dc-picker-button dc-primary';
         add.textContent = 'Add a data source';
-        add.addEventListener('click', () => void picker?.('open'));
+        // on the page its other editor serves, the first source is added to it, as New ▸ Data Source… adds one -- opened
+        // in place, it would leave that page for one of the tab's own (the S7 confirmation audit's H2-6)
+        add.addEventListener('click', () => void picker?.(channel ? 'add' : 'open'));
         actions.append(add);
       }
       if (services.pages) {
@@ -444,7 +488,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // New ▸ Data Source…: a grid over another source, through the picker, beside the others -- where the host offers one
     ...(picks ? { openSource: () => picker?.('add') ?? Promise.resolve(undefined) } : {}),
     // where the page can start again from a blank one: a data source, or a saved page
-    ...(picks || services.pages ? { onBlankPage: () => blankPage?.() } : {}),
+    ...(picks || services.pages ? { onBlankPage: () => blankPage?.({ asked: true }) } : {}),
     onChange: () => {
       harnessSignal.changes += 1;
       // a grid gone from the page is followed no more
@@ -469,13 +513,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     get: () => (page.grids[0] !== undefined ? page.grid(page.grids[0]) : undefined),
   });
 
-  if (start.kind === 'sample') {
-    const { sample } = start;
-    page.addGrid(gridMaker(await sample.snapshot(), sample.configuration, sample.dimensions,
-      { snapTarget: sample.snapTarget, ...(sample.heldCopy ? { heldCopy: sample.heldCopy } : {}) }));
-    await page.ready();
-  }
-
   // OPENING A FILE.
   //
   // DuckDB reads it and sniffs the schema, legend-lite's writer (`tables.tableModel`) writes the
@@ -489,6 +526,16 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const sources = pageSources({
       services, page, gridMaker, taken: o.taken, ask: (content) => library?.ask(content),
     });
+
+    if (start.kind === 'sample') {
+      const { sample } = start;
+      // generated rows are a copy in the tab from the start; a remote file read through the sample's model is live, and
+      // snaps into a copy of its own, as any grid's rows not in the tab do (§18.3)
+      const snapTarget = sources.snapTarget();
+      page.addGrid(gridMaker(await sample.snapshot(), sample.configuration, sample.dimensions,
+        sample.heldCopy ? { heldCopy: sample.heldCopy } : snapTarget ? { snapTarget } : {}));
+      await page.ready();
+    }
     // WHAT LEAVING WOULD LOSE, asked in this order: the warehouse's session, unsaved changes, the files opened
     work.add(() => sources.sessionHeld());
 
@@ -499,9 +546,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // for it, to reopen it from where it was picked.
     let library: CubeLibrary | undefined;
     let current: {
-      cubeId?: string;
-      name?: string;
-      /** The name it was saved (or opened) under: a name given in the name box since is a change of the page. */
+      /** The name it was saved (or opened) under: a name given in the name box since is a change of the page (its own
+       *  name, the page's: D11, never one of the host's). */
       savedName?: string;
       /** Fields of the saved PAGE this reader does not know, and of each of its cubes, written back as they were. */
       pageUnknown?: Readonly<Record<string, unknown>>;
@@ -510,12 +556,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       baseline?: string;
       /** What opening left out of the saved page (a file changed, a source not opened): saving over it loses them. */
       lost?: readonly string[];
-      /** Where the page's classes are (Create a Class…): its project in the model home, made with its first class. */
-      model?: PageModelRef;
     } = {};
     renamePage = (name) => {
-      current = { ...current, name };
-      page.setTitle(name);
+      page.rename(name);
       onCubeView?.();
     };
     madeGrid = (id, place) => sources.madeGrid(id, place);
@@ -525,11 +568,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      * What saving now would write -- always ONE kind of thing, the page (page-document.ts): one cube per grid, its
      * charts and layout -- and its definition, for "changed since saved".
      */
-    const pageNow = (name: string): PageDocument | undefined => page.document(name, {
+    const pageNow = (name: string, empty = false): PageDocument | undefined => page.document(name, {
       ...(current.pageUnknown ? { page: current.pageUnknown } : {}),
       ...(current.cubeUnknown ? { cubes: current.cubeUnknown } : {}),
-      ...(current.model ? { model: current.model } : {}),
-    });
+    }, empty);
+    pageKept = (name) => pageNow(name);
     const savedForm = (name: string): { content: Record<string, unknown>; definition: string } | undefined => {
       const doc = pageNow(name);
       return doc && { content: pageContent(doc), definition: pageDefinitionText(doc) };
@@ -539,8 +582,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const dirty = (): boolean => {
       if (current.baseline === undefined) return false;
       if ((current.lost?.length ?? 0) > 0) return true;
-      if (current.name !== current.savedName) return true;
-      const now = savedForm(current.name ?? (page.suggestedName || 'page'));
+      if (page.title !== (current.savedName ?? '')) return true;
+      const now = savedForm(page.suggestedName);
       return now !== undefined && now.definition !== current.baseline;
     };
     const baseTitle = services.browser.title?.base ?? '';
@@ -548,12 +591,16 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     let notFollowed: string | undefined;
     /** Why following it failed the last time it moved (it is tried again at its next move): said as not following. */
     let followFailed: string | undefined;
+    /** The page another editor serves, left: a new page opened here in its place (D1). For good. */
+    let left = false;
+    /** Stops watching the other editor (services.live.watch). */
+    let unwatch: (() => void) | undefined;
     onCubeView = () => {
       const changed = dirty();
       page.setChanged(changed);
       services.browser.title?.set(page.empty
         ? baseTitle
-        : `${changed ? '\u2022 ' : ''}${current.name ?? (page.suggestedName || 'page')}${notFollowed ?? followFailed ? ` (not followed: ${notFollowed ?? followFailed})` : ''} \u2013 ${baseTitle}`);
+        : `${changed ? '\u2022 ' : ''}${page.suggestedName}${notFollowed ?? followFailed ? ` (not followed: ${notFollowed ?? followFailed})` : ''} \u2013 ${baseTitle}`);
       library?.sync();
       // what the page is now, to its other editor once the change settles
       liveChanged();
@@ -568,27 +615,61 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     };
     window.addEventListener('beforeunload', onLeave);
     undo.push(() => window.removeEventListener('beforeunload', onLeave));
+    // the tab going (closed, navigated away): each copy its grids' host keeps for them asked to be let go -- the host
+    // keeps one its page's other editor reads (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8)
+    const onGone = (): void => {
+      for (const cube of madeCubes.values()) cube.leaving();
+    };
+    window.addEventListener('pagehide', onGone);
+    undo.push(() => window.removeEventListener('pagehide', onGone));
 
-    // THE PAGE ANOTHER EDITOR SERVES (services.live: Python's `ll.Page`, §5): what it is now, reported once a change
-    // settles, with the version it opened -- what it says of a version Python has since replaced is refused, never read
-    // back as now -- and followed as Python changes it (below).
+    // THE PAGE ANOTHER EDITOR SERVES (services.live: Python's `ll.Page`, §5), kept by its keeper
+    // (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) and written and followed through its one channel (live-channel.ts): written
+    // once a change settles, against the version on screen, as the edits made here -- which the keeper has DataCube apply
+    // to the page as it has it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4), the page then opened as the keeper made it
+    // when it made another, refused in words when one does not apply -- or, undone or redone, whole (a restore, kept only
+    // at the version it was made at); and followed as its other editor changes it (below). A page of no grid is a page too.
     const live = services.live;
-    /** The version of the editor's page on screen, which its reports name; undefined while none is. */
-    let liveShown: number | undefined;
-    /** Its next report, while a change waits to settle. */
-    let reporting: ReturnType<typeof setTimeout> | undefined;
-    undo.push(() => clearTimeout(reporting));
-    function liveChanged(): void {
-      if (!live?.page || liveShown === undefined || notFollowed !== undefined) return;
-      clearTimeout(reporting);
-      const at = liveShown;
-      reporting = setTimeout(() => {
-        if (disposed || notFollowed !== undefined || liveShown !== at) return;
-        const doc = pageNow(current.name ?? (page.suggestedName || 'page'));
-        // a report the editor refuses (a page it replaced, an editor gone) is followed by what it says next
-        if (doc) void live.page?.report(at, doc).catch(() => undefined);
-      }, REPORT_AFTER);
+    if (live?.page) {
+      channel = new LiveChannel(live.page, {
+        // the page as it is, its own name with it ('' unnamed: D11)
+        page: () => pageNow(page.title, true),
+        reopen: async (refused) => {
+          const why = await openLive();
+          if (why !== undefined) sayResting({ text: `not following the page: ${why}`, warn: true });
+          // a write its keeper refused: what was made here is not the page, said
+          else if (refused !== undefined) sayResting({ text: `not kept: ${refused} -- the page is as its keeper has it`, warn: true });
+        },
+      });
+      undo.push(() => channel?.stop());
     }
+    function liveChanged(): void {
+      if (notFollowed === undefined) channel?.changed();
+    }
+    /**
+     * A NEW PAGE ON A PAGE ANOTHER EDITOR SERVES (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D1, P10): Open..., open in place
+     * and Blank Page put a page of this tab's own on screen and leave the served one as it is -- nothing of the new page
+     * written to it, none of its moves followed here -- said once, in the status line; what is said, for a page that has
+     * no grid to show that line (a blank page says it on its card), or undefined: no page served is left.
+     */
+    function leaveServed(): string | undefined {
+      if (!live?.page || left) return undefined;
+      left = true;
+      channel?.stop();
+      channel = undefined;
+      unwatch?.();
+      const said = "a page of this tab's own: the page Python serves is left as it was";
+      sayResting({ text: said, warn: false });
+      return said;
+    }
+    /** Work in the live queue: the channel's (writes and follows in order), or, following a frame alone, one of its own. */
+    let frameQueue: Promise<void> = Promise.resolve();
+    const enqueue = (work: () => Promise<void>): Promise<void> => {
+      if (channel) return channel.enqueue(work);
+      const run = frameQueue.then(work);
+      frameQueue = run.catch(() => undefined);
+      return run;
+    };
 
     /** LATEST WINS: each open in place takes a number, and one overtaken by a newer open lands nothing (P2-330). */
     const opens = new Latest();
@@ -607,9 +688,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      * A SOURCE IN PLACE of the page: everything on it goes (asked first when there are unsaved changes), then one grid
      * over the source -- fresh, the page's name its. An open overtaken by a newer one lands nothing.
      */
-    async function inPlace(open: () => Promise<Opened>, what: string, replacing = false): Promise<readonly string[]> {
-      // `replacing`: the page's other editor replaced what it shows -- nothing of the person's is asked about
-      if (!replacing && dirty() && !window.confirm(`The page has unsaved changes. Open ${what} anyway?`)) return [];
+    async function inPlace(open: () => Promise<Opened>, what: string): Promise<readonly string[]> {
+      if (dirty() && !window.confirm(`The page has unsaved changes. Open ${what} anyway?`)) return [];
       const newest = opens.start();
       const o = await open();
       if (!newest()) {
@@ -617,18 +697,20 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         return [];
       }
       const onScreen = place();
+      // a page of this tab's own, in place of the one its other editor serves (D1; the S7 audit's H-12: a `replacing`
+      // that no caller passed, which would have cleared the page and left it served, is gone)
+      leaveServed();
+      // a new page, unnamed until saved (PageApp.clear: D11): its bar says the grid's report title (its source's name)
       page.clear();
       current = {};
-      // the page has no name of its own until saved: its bar says the grid's report title (its source's name)
-      page.setTitle('');
       page.addGrid(o.make);
       await page.ready();
       // another page put on screen while this one landed: that page is the one to keep a baseline of
       if (!onScreen()) return [];
       // The baseline is the page as it LANDED (normalized by its first refresh); a name given in the name box while it
       // landed stays (a change, as a rename is)
-      const landed = savedForm(page.suggestedName || 'page');
-      current = { ...(current.name !== undefined ? { name: current.name } : {}), ...(landed ? { baseline: landed.definition } : {}), lost: [] };
+      const landed = savedForm(page.suggestedName);
+      current = { ...(landed ? { baseline: landed.definition } : {}), lost: [] };
       onCubeView?.();
       library?.sync();
       return o.notes;
@@ -642,44 +724,55 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const persist = async (): Promise<boolean> => (persistent ||= (await pages?.persist()) ?? false);
 
     /**
-     * Where a saved page keeps the handle of the file a grid reads: by the page and the grid -- or, saved before a page
-     * held several grids, by the page alone.
-     */
-    const handleKeys = (pageId: string | undefined, grid: string): string[] => (pageId === undefined ? [] : [`${pageId}#${grid}`, pageId]);
-
-    /** A cube saved alone, before pages: a page of its one grid, the whole board. */
-    const pageOf = (cube: CubeDocument): PageDocument => writePageOf({
-      name: cube.name, cubes: [{ id: 'cube', cube }], views: startingViews({ id: 'grid', cube: 'cube' }),
-    });
-
-    /**
      * OPEN A SAVED PAGE (from the store, a file someone handed over, a share link): each of its cubes through its own
      * source, in turn, then the page laid out as it was saved -- its grids under their saved ids, its charts, its
-     * layout. A cube whose source was not opened is left out, and said; saving over the page would lose it.
+     * layout. A cube whose source was not opened is kept as the page saved it, its views placeholders that say why
+     * (P9), and said. The cubes opened again as another than the page held (a host's frame whose columns moved:
+     * Opened.taken), by their ids. `held`: every id the page has held where its other editor keeps it (B12).
      */
-    async function openSaved(saved: SavedDocument, id: string | undefined, replacing = false): Promise<void> {
-      const doc = saved.kind === 'page' ? saved.page : pageOf(saved.cube);
+    async function openSaved(saved: SavedDocument, id: string | undefined, replacing = false,
+      held: readonly string[] = [], unread: string[] = []): Promise<readonly string[]> {
+      // a page, or a cube saved alone before pages: the page it opens as (page-document.ts savedPage, Python's Page.open's)
+      const given = savedPage(saved);
+      // a saved page opens live, each grid that was snapped said: a copy lasts only as long as the session that made it
+      // (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8). The page its other editor serves (`replacing`) keeps them: its
+      // host holds them now.
+      const opened = replacing ? { page: given, notes: [] } : openedLive(given);
+      const doc = opened.page;
       // `replacing`: the page's other editor replaced it -- nothing of the person's is asked about
-      if (!replacing && dirty() && !window.confirm(`The page has unsaved changes. Open "${doc.name}" anyway?`)) return;
+      if (!replacing && dirty() && !window.confirm(`The page has unsaved changes. Open "${doc.name}" anyway?`)) return [];
       // LATEST WINS (P2-330), as an open in place: each source is a wait (a file asked for, a sign-in), and an open
       // overtaken meanwhile lands nothing -- what it read is dropped
       const newest = opens.start();
       const makers = new Map<string, GridMaker>();
       const read: Opened[] = [];
-      const notes: string[] = [];
-      sources.reserve(Object.values(doc.model?.tables ?? {}));
+      const taken: string[] = [];
+      const notes: string[] = [...opened.notes];
+      sources.reserve(Object.values(doc.model?.tables ?? {}).flat());
       try {
-        for (const { id: cubeId, cube } of doc.cubes) {
-          const o = await sources.reopened(cube, handleKeys(id, gridOfCube(doc, cubeId)), gridCapped(doc.cubes.length), doc.model?.tables[cubeId]);
+        // a class's grid after the grids whose tables it reads (page-document.ts openingOrder)
+        for (const { id: cubeId, cube } of openingOrder(doc.cubes)) {
+          let o: Opened | undefined;
+          let why = 'not opened';
+          try {
+            o = await sources.reopened(cube, id, gridCapped(doc.cubes.length), doc.model?.tables[cubeId], replacing);
+          } catch (e) {
+            // a class whose rows are not here (its table read by no grid of the tab), or a join that no longer joins (an
+            // input's file changed under it, a remote file that asks for keys) is left out and said, as a file not
+            // given is: the page's other grids open (page-document.ts leftOutWhenUnopened, Python's load's rule too)
+            if (!leftOutWhenUnopened(cube.source)) throw e;
+            why = e instanceof Error ? e.message : String(e);
+          }
           if (o) read.push(o);
           if (!newest()) {
             for (const r of read) await r.discard?.();
-            return;
+            return [];
           }
           if (!o) {
-            notes.push(`left out: ${cube.source.name} (not opened)`);
+            notes.push(leftOutNote(cube.source.name, why));
             continue;
           }
+          if (o.taken) taken.push(cubeId);
           makers.set(cubeId, o.make);
           notes.push(...o.notes);
         }
@@ -690,25 +783,50 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       } finally {
         sources.release();
       }
-      if (makers.size === 0) {
-        library?.say(`not opened: "${doc.name}" -- none of its sources was opened`, 'warn');
-        return;
+      // a page its other editor serves opens as its keeper has it, a page of no grid (or none opened) too: its name, its
+      // sheets and the ids it holds are the page's (the S7 audit's H-1)
+      const unopened = replacing ? undefined : noneOpened(doc.name, makers.size);
+      if (unopened !== undefined) {
+        library?.say(unopened, 'warn');
+        return [];
       }
       // the page on screen is this one from now: Save writes over it, never over the page it replaced
       const onScreen = place();
-      page.restore(doc, makers);
+      // a page of this tab's own, in place of the one its other editor serves (D1)
+      if (!replacing) leaveServed();
+      // the saved page it is, born with it (N1): the store's record it was opened from, else the one its other editor
+      // saved it as (a page file is none: pageFile writes no record) -- the page's state holds it (the S7 audit's H-4)
+      const record = id ?? (replacing ? doc.record : undefined);
+      const { record: _given, ...unsaved } = doc;
+      page.restore(record !== undefined ? { ...unsaved, record } : unsaved, makers, held);
       current = {
-        ...(id !== undefined ? { cubeId: id } : {}),
-        name: doc.name,
         savedName: doc.name,
         ...(doc.unknown ? { pageUnknown: doc.unknown } : {}),
         cubeUnknown: new Map(doc.cubes.filter((c) => c.cube.unknown).map((c) => [gridOfCube(doc, c.id), c.cube.unknown!])),
-        ...(doc.model ? { model: doc.model } : {}),
       };
       page.setTitle(doc.name);
       await page.ready();
       // another page put on screen while this one landed: that page is the one to keep
-      if (!onScreen()) return;
+      if (!onScreen()) return [];
+      // each snapped grid of the page its other editor serves reads that editor's copy (§18.8); one its host no longer
+      // holds reads its rows live, said
+      for (const [cube, copy] of Object.entries(doc.copies ?? {})) {
+        const grid = page.grid(cube);
+        try {
+          if (!grid?.followSnap) throw new Error('this grid reads no copy its host makes');
+          await grid.followSnap(copy);
+        } catch (e) {
+          // read live here: said, and -- its grid's id in `unread` -- told as its live command once the page is open, so
+          // its keeper's page is live too (the S7 audit's G-3); a detached chart's cube has no grid a live command names:
+          // said alone, its keeper's copy kept (the S7 confirmation audit's H2-4: told, it was refused, and the page
+          // opened again, and told again)
+          const shownIn = doc.views.find((v) => v.kind === 'grid' && v.cube === cube)?.id;
+          if (shownIn !== undefined) unread.push(shownIn);
+          notes.push(`${doc.cubes.find((c) => c.id === cube)?.cube.source.name ?? cube} reads its rows live: its snap `
+            + `(${copy.label}) was not read: ${e instanceof Error ? e.message : String(e)}`);
+        }
+        if (!onScreen()) return [];
+      }
       // each file the page reads, where it was picked: kept for the next time it is opened
       if (id !== undefined) await keepHandles(id);
       // The baseline is the page as it LANDED (normalized by its first refresh); a page opened with parts left out is
@@ -723,14 +841,16 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       notes.length === 0 ? 'ok' : 'warn');
       // opened cleanly: the window goes, the page is what the person wanted to see
       if (notes.length === 0) closeCubes?.();
+      return taken;
     }
 
     /**
-     * Each grid's file, where it was picked: kept by the page and the grid (a grid kept off the board for a detached
-     * chart included), so opening the page again reads it from there.
+     * Each file the page's grids read, where it was picked (a join's leaves' among them, a grid kept off the board for a
+     * detached chart included): kept by the page and the file's contents (file-handles.ts handleKey), so opening the
+     * page again reads it from there.
      */
     async function keepHandles(pageId: string): Promise<void> {
-      for (const f of sources.filesNow()) if (f.handle) await pages?.handles?.put(`${pageId}#${f.grid}`, f.handle);
+      for (const f of sources.filesNow()) if (f.handle) await pages?.handles?.put(handleKey(pageId, f.sha256), f.handle);
     }
 
     /** The grid a saved page's cube is shown in (its grid view's id), or the cube's own id (a detached chart's). */
@@ -743,32 +863,38 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const { store } = pages;
       const refused = page.saveRefusal();
       if (refused) throw new Error(refused);
-      const form = savedForm(name);
-      if (!form) throw new Error('This page cannot be saved yet: a grid on it does not know its source.');
-      const id = !asNew && current.cubeId !== undefined ? current.cubeId : crypto.randomUUID();
-      const record = { id, name, content: form.content };
-      if (id === current.cubeId) await store.update(id, record);
+      const doc = pageNow(name);
+      if (!doc) throw new Error('This page cannot be saved yet: a grid on it does not know its source.');
+      // the record by DataCube's one rule (pageSaving: Python's save() and save_as() ask it too): over the saved page it
+      // is, or, Save As, a new one; the page named as it is saved
+      const saving = pageSaving(name, doc, crypto.randomUUID(), asNew);
+      if ('refused' in saving) throw new Error(saving.refused);
+      const { record } = saving;
+      const id = record.id;
+      if (saving.over) await store.update(id, record);
       else await store.create(record);
       await keepHandles(id);
-      current = { ...current, cubeId: id, name, savedName: name, baseline: form.definition, lost: [] };
-      page.setTitle(name);
+      current = { ...current, savedName: record.name, baseline: pageDefinitionText(doc), lost: [] };
+      // the saved page it is, applied to the page's state by its command and told: its other editor saves over the same
+      // record (B13)
+      page.savedAs(id);
+      // saved under a name: the page renamed, told as the name box tells it
+      page.rename(record.name);
       onCubeView?.();
       await persist();
       library?.sync();
     }
 
     if (pages) library = new CubeLibrary(windows.library, pages.store, {
-      currentId: () => current.cubeId,
+      currentId: () => page.record,
       dirty,
-      open: async (id) => openSaved(readSaved((await pages.store.get(id)).content), id),
-      openText: async (text) => openSaved(readSaved(text), undefined),
+      open: async (id) => { await openSaved(readSaved((await pages.store.get(id)).content), id); },
+      openText: async (text) => { await openSaved(readSaved(text), undefined); },
       forget: async (id) => {
         // every handle the page kept, whichever page is on screen
         await pages.handles?.removePage(id);
-        if (current.cubeId === id) {
-          const { cubeId: _gone, ...rest } = current;
-          current = rest;
-        }
+        // that record is gone: the page is no saved page any more, for its other editor too
+        if (page.record === id) page.savedAs(null);
       },
     });
     // OPEN… (the user, 2026-10-01: "fix the Open dialog now too"): the saved cubes in a window of
@@ -881,12 +1007,16 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
             : src._type === 'warehouseTable' ? `opening it reads ${src.name} on the warehouse again, signed in as whoever opens it`
               : src._type === 'remoteFile' ? `opening it reads ${src.name} again from its URL`
                 : src._type === 'frame' ? `it reads the dataframe ${src.name}: it opens where Python serves it`
+                : src._type === 'class' ? `opening it reads the class ${src.name} from ${src.project} again, at the revision it was read at, its rows where its table is open`
+                : src._type === 'join' ? `opening it reads the files ${src.name} joins again, and joins them`
                 : src.sample ? `the example (${src.sample.rows.toLocaleString(UI_LOCALE)} rows) is generated again when it opens`
                   : `opening it reads ${src.name} again, from your computer`
           : src._type === 'savedQuery' ? `it reads the saved query “${src.name}” again, where its project (${src.query.groupId}:${src.query.artifactId}) is known`
             : src._type === 'warehouseTable' ? `whoever opens it signs in to the warehouse as themselves and needs to be granted ${src.name}; no sign-in is in the link`
               : src._type === 'remoteFile' ? `it reads ${src.url} again; no keys are in the link, a private bucket asks for them`
                 : src._type === 'frame' ? `it reads the dataframe ${src.name}, which only the Python that serves it has`
+                : src._type === 'class' ? `it reads the class ${src.name} from ${src.project}, which only this browser's model home has`
+                : src._type === 'join' ? `whoever opens it needs the files ${src.name} joins`
                 : src.sample ? 'it rebuilds its sample on its own'
                   : `whoever opens it needs ${src.name}`);
       }
@@ -897,13 +1027,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // it is kept, what is saved and what is not (the rows), and what saving over would drop
     if (pages) saveCube = (asNew) => {
       if (page.empty) {
-        library?.say('There is nothing on this page to save: add a data source first.', 'warn');
+        library?.say(NOTHING_TO_SAVE, 'warn');
         return;
       }
       void (async () => {
         const refused = page.saveRefusal();
-        const offered = current.name ?? (page.suggestedName || 'page');
-        const savedAt = current.cubeId !== undefined ? (await pages.store.get(current.cubeId).catch(() => undefined))?.lastUpdatedAt : undefined;
+        const offered = page.suggestedName;
+        const savedAt = page.record !== undefined ? (await pages.store.get(page.record).catch(() => undefined))?.lastUpdatedAt : undefined;
         const doc = page.document(offered);
         const views = page.views().views;
         const charts = views.filter((v) => v.kind === 'chart').length;
@@ -926,13 +1056,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         await saveDialog(document, {
           purpose: asNew ? 'saveAs' : 'save',
           name: offered,
-          ...(current.cubeId !== undefined
-            ? { over: { name: current.name ?? offered, ...(savedAt !== undefined ? { savedAt } : {}) } } : {}),
+          ...(page.record !== undefined
+            ? { over: { name: current.savedName ?? offered, ...(savedAt !== undefined ? { savedAt } : {}) } } : {}),
           where: pages.where,
           keeps,
           leaves,
           ...(current.lost?.length
-            ? { warning: `The saved “${current.name ?? 'page'}” has parts this page cannot show: ${current.lost.join('; ')}.` } : {}),
+            ? { warning: `The saved “${current.savedName ?? offered}” has parts this page cannot show: ${current.lost.join('; ')}.` } : {}),
           save: async (name, saveAsNew) => {
             if (refused) throw new Error(refused);
             await saveTo(name, saveAsNew);
@@ -951,7 +1081,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       if (!address) return;
       // nothing on screen is said the way any unsharable page is: in the window, not as a dead button
       const refused = page.saveRefusal();
-      const name = current.name ?? (page.suggestedName || 'page');
+      const name = page.suggestedName;
       const shared = refused ? undefined : page.document(name, {
         ...(current.pageUnknown ? { page: current.pageUnknown } : {}),
         ...(current.cubeUnknown ? { cubes: current.cubeUnknown } : {}),
@@ -971,7 +1101,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       field.value = link.url;
       const about = `It holds the page's settings, filter values included, not its data; ${sourcesSaid(shared, 'share')}.`
         // the page's classes are in this browser's model home (Studio's): a link carries none of them
-        + (current.model ? ` Its classes stay in ${current.model.project}, in this browser: the link does not carry them.` : '');
+        + (page.model ? ` Its classes stay in ${page.model.project}, in this browser: the link does not carry them.` : '');
       const put = async (): Promise<void> => {
         field.select();
         try {
@@ -1002,45 +1132,39 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const source = rows?.host.planner.source?.();
       if (!modelHome || !writing || !rows || !source) return;
       const sourceName = place.label ?? 'this source';
-      const snapshot = grid.snapshot;
-      // refused before the window opens, in words: a source read from no table of its own, a pivot, a lone total
-      const table = storeTableOf(snapshot.source.query);
-      if (!table) {
-        window.alert(`Create a Class makes a class of a table's rows; ${sourceName} is not read from a table of its own.`);
-        return;
-      }
-      let query;
+      // what the class is made over: its rows at their finest level and every table they read -- a file's grid one, a
+      // join its every leaf's (§18.3); refused before the window opens, in words: a pivot, rows read from no table
+      let basis;
       try {
-        query = classLambda(snapshot);
+        basis = classBasis(grid.snapshot);
       } catch (e) {
         window.alert(`Cannot create a class of this grid: ${e instanceof Error ? e.message : String(e)}`);
         return;
       }
       const [{ createClassOf }, home] = await Promise.all([import('../create-class.ts'), modelHome.connect()]);
-      const model = await createClassOf({
-        query,
-        table,
-        sample: sampleLambda(snapshot.source.query),
+      const commands = await createClassOf({
+        basis,
+        // the names its leaves' tables have in this tab, one per leaf (a file's, a join's each), which reopening reads
+        // them under; a grid whose tables are read under the store's own names (a frame's, a warehouse table's, a saved
+        // query's) keeps those
+        kept: place.tables ?? basis.tables.map((t) => t.table),
         rows,
         source,
         writer: writing.writer,
         place: writing.place,
         sourceName,
         cube,
-        // the page's name, or -- never saved -- its grid's source, without its file's extension (`trades.csv` trades)
-        pageName: current.name ?? ((page.suggestedName || sourceName).replace(/\.[A-Za-z0-9]+$/, '') || 'page'),
-        model: current.model,
+        // the page's name, or -- never named -- what it is called, without a file's extension (modelPageName, D11)
+        pageName: modelPageName(page.title, page.suggestedName),
+        model: page.model,
         client: home.client,
         where: home.where,
         ...(modelHome.studio ? { studio: (project: string, workspace: string) => modelHome.studio!(project, workspace) } : {}),
         persist,
       });
-      if (!model) return;
-      // the page's model, made with its first class or a grid's table kept: the page has changed
-      current = { ...current, model };
-      onCubeView?.();
+      landed(commands);
     };
-    pageModelNow = () => current.model;
+    pageModelNow = () => page.model;
     /**
      * THE PAGE'S MODEL ACTIONS (src/model-actions.ts, fetched the first time either is asked for): each grid of the
      * page as they read it -- its class when it is one, else its rows as a class's, or why they cannot be one.
@@ -1053,17 +1177,18 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         const place = sources.place(id);
         const grid = page.grid(id);
         const rows = place ? rowsOf(place) : undefined;
-        return place && grid && rows ? { snapshot: grid.snapshot, label: place.label ?? id, rows } : undefined;
-      }, (id) => current.model?.classes?.[id], { classLambda, storeTableOf, sampleLambda });
-      const sourceName = grids[0]?.label ?? 'page';
+        return place && grid && rows
+          ? { snapshot: grid.snapshot, label: place.label ?? id, rows, ...(place.tables ? { tables: place.tables } : {}) }
+          : undefined;
+      }, (id) => page.model?.classes?.[id], { classBasis });
       return {
         actions,
         of: {
           writer: writing.writer,
           place: writing.place,
           rows: (model, runtime) => writing.rows(model, runtime),
-          pageName: current.name ?? ((page.suggestedName || sourceName).replace(/\.[A-Za-z0-9]+$/, '') || 'page'),
-          model: current.model,
+          pageName: modelPageName(page.title, page.suggestedName),
+          model: page.model,
           client: home.client,
           where: home.where,
           grids,
@@ -1074,9 +1199,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         },
       };
     };
-    const landed = (model: PageModelRef | undefined): void => {
-      if (!model) return;
-      current = { ...current, model };
+    /** What a model action changed of the page's model, applied by the one function -- told, no step of its history
+     *  (D5, P15). */
+    const landed = (commands: readonly PageCommand[]): void => {
+      if (commands.length === 0) return;
+      page.applyModel(commands);
       onCubeView?.();
     };
     const said = (e: unknown): void => window.alert(e instanceof Error ? e.message : String(e));
@@ -1089,6 +1216,44 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     createClass = (grid, place, cube) => {
       void makeClass(grid, place, cube).catch((e: unknown) => window.alert(`Create a Class: ${e instanceof Error ? e.message : String(e)}`));
     };
+    // ADD A GRID OVER <class>: the class this grid was made (Create a Class…), read where the page reads a class -- here,
+    // where it plans and runs its own SQL, or, on a page its other editor serves (Python's), by that host (K16) -- by the
+    // one rule Python's page.grid(cls=...) names it by (sources' class kind), beside the grid
+    if (services.engine.local || services.engine.database.made) classGrid = (cube) => {
+      void (async () => {
+        const cls = cube === undefined ? undefined : page.model?.classes?.[cube];
+        if (cls === undefined || cube === undefined) throw new Error('this grid was made no class of the page');
+        // the page on screen now: one put in its place meanwhile (another opened, a blank page) gets no grid of this one
+        const shown = placed;
+        const opened = await sources.opened({ kind: 'class', given: { class: cls } }, gridCapped(page.cubes.length + 1));
+        if (placed !== shown) {
+          await opened.discard?.();
+          return;
+        }
+        page.addGrid(opened.make, { near: cube });
+      })().catch((e: unknown) => window.alert(`Add a Grid over a class: ${e instanceof Error ? e.message : String(e)}`));
+    };
+    // JOIN… (§17.5): where the page plans and runs its own SQL, its grids' tables in its own database (§17.3); on a
+    // host's page (Python's), which has none there, the host answers its window's asks over its tables (HostJoin: B11).
+    // Its flow fetched with the first Join… (app/join-app.ts)
+    const localEngine = services.engine.local;
+    const hostJoin = services.engine.database.join;
+    if (localEngine || hostJoin) joinGrid = {
+      // a grid of the tab's tables; on a host's page any grid written down by a source (what it reads is the host's to
+      // refuse, in words, before the window opens: join-flow.ts hostJoinFlow)
+      offered: (place) => (localEngine ? place.tables !== undefined : place.cubeSource !== undefined),
+      open: (cube) => {
+        if (cube === undefined) return;
+        const shown = placed;
+        const stillShown = () => placed === shown;
+        const say = (text: string) => library?.say(text, 'warn');
+        void import('./join-app.ts').then(({ joinFlow, hostJoinFlow }) => (localEngine
+          ? joinFlow({ cube, page, sources, services: { ...services, engine: { ...services.engine, local: localEngine } }, stillShown, say })
+          : hostJoinFlow({ cube, page, sources, join: hostJoin!, parse: (text) => services.engine.reading.parse(text), stillShown, say })))
+          .catch((e: unknown) => window.alert(`Join: ${e instanceof Error ? e.message : String(e)}`));
+      },
+    };
+
     /** The chosen source IN PLACE of the page: it empties, then one grid over the source (its only one: gridCapped). */
     async function openInPlace(chosen: Chosen): Promise<void> {
       await inPlace(() => sources.opened(chosen, gridCapped(1)), sources.named(chosen));
@@ -1107,13 +1272,18 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // A BLANK PAGE (New ▸ Blank Page; the user, 2026-10-01): every grid and chart goes, and the page
     // says what to do first -- a data source (the picker, opening in place) or a saved page (PageApp's empty page,
     // `empty` above). Asked first when there are unsaved changes; the page stays until the person agrees.
-    blankPage = (reason?: string) => {
+    blankPage = (how) => {
       if (dirty() && !window.confirm('The page has unsaved changes. Start a blank page anyway?')) return;
+      // an open on its way (a source, a saved page, the other editor's page) lands nothing over it
+      opens.start();
       place();
+      // asked for, on a page its other editor serves: a page of this tab's own in its place (D1), said on the card -- the
+      // page has no grid whose status line would say it. A start that opened nothing leaves nothing: an empty page Python
+      // serves is followed, and a first read that failed is tried again at its next move (the S4 audit's 1)
+      const servedLeft = 'asked' in how ? leaveServed() : undefined;
       page.clear();
       current = {};
-      page.setTitle('');
-      sayWhyBlank(reason);
+      sayWhyBlank('reason' in how ? how.reason : servedLeft);
       if (blankCard) blankCard.hidden = false;
       services.browser.title?.set('New page');
       (host.querySelector('.dc-blank-actions .dc-primary') as HTMLElement | null)?.focus();
@@ -1170,7 +1340,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
             ? `${asked} is not a table you may read here`
             : `${asked} is in ${found.length} catalogs (${found.map((o) => o.catalog).join(', ')}): choose one`));
         }
-        blankPage(startProblem);
+        blankPage({ reason: startProblem });
         void picker('open', 'database');
       }
     }
@@ -1188,50 +1358,111 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       } catch (e) {
         return e instanceof Error ? e.message : String(e);
       }
-      clearTimeout(reporting);
-      liveShown = undefined;
+      // left while it was read (New ▸ Blank Page, Open…): the page on screen is this tab's own (D1, the S4 audit's 4)
+      if (left) return undefined;
+      if (channel) channel.shown = undefined;
       const shown = page.shownSheet;
-      await openSaved({ kind: 'page', page: said.page }, undefined, true);
-      if (page.sheets.includes(shown)) page.showSheet(shown);
-      liveShown = said.version;
-      // the page as it opened, said once it settles: `page.read()` has it before anything changes (restoring is a change)
+      // opened as the keeper has it: nothing the screen does meanwhile is an edit of its own
+      let taken: readonly string[] = [];
+      const unread: string[] = [];
+      const open = async (): Promise<void> => {
+        taken = await openSaved({ kind: 'page', page: said.page }, undefined, true, said.held, unread);
+        if (page.sheets.includes(shown)) page.showSheet(shown);
+      };
+      await (channel ? channel.following(open) : open());
+      channel?.opened(said.version);
+      // a cube opened again over its host's frames as they are now, another than the keeper's (a frame changed in place
+      // since the keeper last opened it): told as its `rebuilt`, the cube as the screen writes it (P11)
+      const opened = taken.length > 0 ? pageNow(said.page.name, true) : undefined;
+      const [{ applyPageCommands, rebuiltCommands }, { pageCommand }] = await Promise.all([import('../page-commands.ts'), import('../page-gestures.ts')]);
+      // a snapped grid whose copy was not read here reads its rows live: told so (the S7 audit's G-3) -- first, so a
+      // grid it leaves over frames that changed meanwhile is told rebuilt too, as Python's Grid.live tells both (the S7
+      // confirmation audit's H2-4: judged against the copy, it never was)
+      const lives = unread.map((grid): PageCommand => pageCommand('live', { grid }));
+      for (const command of lives) channel?.edit({ page: command });
+      const base = lives.length > 0 ? applyPageCommands({ page: said.page, held: said.held }, lives).draft.page : said.page;
+      for (const command of opened ? rebuiltCommands(base, opened, taken) : []) channel?.edit({ page: command });
+      // the page as it opened, written once it settles (restoring is a change): Python's page is what is on screen
       liveChanged();
       return undefined;
     }
 
-    /** One frame in place of the page, the page named by it as Python named it (`ll.show(df, name)`): not a change. */
-    async function openFrame(name: string, replacing: boolean): Promise<void> {
-      await inPlace(() => sources.openedFrame(name), name, replacing);
-      current = { ...current, name, savedName: name };
-      page.setTitle(name);
-      onCubeView?.();
+    /**
+     * THE OTHER EDITOR'S CHANGE FOLLOWED BY ITS COMMANDS (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): what moved its page
+     * since the version on screen, applied to the page as it is here -- no grid made again, none queried again but those
+     * a command changes, what was changed here meanwhile kept. When the editor says the page instead (a change by no
+     * command), or its commands do not apply here (a tile closed meanwhile, an id given since), the page is opened again
+     * as the editor has it, as every move was followed before. Undefined, or why it was not followed.
+     */
+    async function followLive(): Promise<string | undefined> {
+      const editor = live?.page;
+      // the channel this follow writes through: none once the page is left (D1)
+      const through = channel;
+      if (!editor || !through || through.shown === undefined) return openLive();
+      const at = through.shown;
+      let moved: Awaited<ReturnType<typeof editor.changes>>;
+      try {
+        moved = await editor.changes(at);
+      } catch {
+        return openLive();
+      }
+      // left while it was asked (New ▸ Blank Page, Open…): the page on screen is this tab's own (the S4 audit's 4)
+      if (left) return undefined;
+      if (!('commands' in moved)) return openLive();
+      // nothing written while they apply: what the page says is of the version they move it to
+      through.shown = undefined;
+      const wasChanged = dirty();
+      // the other editor's commands: nothing the screen does meanwhile is an edit of its own
+      const applied = await through.following(async () => {
+        try {
+          await applyLive(moved.commands, {
+            grids: page.grids,
+            cubes: page.cubes.length,
+            follow: (commands, makers) => page.follow(commands, makers),
+            applyGrid: async (grid, commands) => madeCubes.get(grid)?.applyGridCommands(commands, 'Python') ?? `no grid ${grid} here`,
+            open: (document, grid, several) => sources.reopened(document, undefined, several, page.model?.tables[grid], true),
+            frameVersion: (frame) => sources.frameVersion(frame),
+          });
+          await page.ready();
+        } catch {
+          return false;
+        }
+        // the editor's page is the page now, as opening it again made it: its name (a rename in Python), and -- unless
+        // the person had changed it here -- "changed since saved" from here
+        const name = page.title;
+        if (!wasChanged) {
+          const landed = savedForm(page.suggestedName);
+          current = { ...current, savedName: name, ...(landed ? { baseline: landed.definition } : {}) };
+        }
+        onCubeView?.();
+        return true;
+      });
+      if (!applied) return openLive();
+      through.shown = moved.version;
+      // the page as it is now, written once it settles: Python's page is what is on screen
+      liveChanged();
+      return undefined;
     }
 
-    // PYTHON'S START: one frame, a page of one grid over it (`ll.show(df)`); or the page Python serves (`ll.Page`)
-    if (start.kind === 'frame') {
-      try {
-        await openFrame(start.name, false);
-      } catch (e) {
-        failedStart(e);
-      }
-    }
+    // PYTHON'S START: the page Python serves (`ll.Page`; `ll.show(df)`, a page of one grid over the frame: P12)
     if (start.kind === 'live') {
       const why = await openLive().catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
       if (why !== undefined) failedStart(new Error(why));
     }
 
     // FOLLOWING THE OTHER EDITOR (services.live, §5): Python moves what the page shows -- the page itself (its version:
-    // opened again, on the sheet shown) or a frame (its version: the grids over it query again, their views as they
-    // stand; a frame whose model changed, its columns, opens again over the new model) -- one move at a time, in order.
-    // A move that fails to be followed (a frame not read, a page not opened) is said, and tried again at the next move:
-    // a success says nothing more of it. Told that Python no longer says (the page or the frame closed, Python gone),
-    // the page keeps what it shows, says it no longer follows, and reports nothing more.
+    // followed by its commands, or opened again, on the sheet shown) or a frame (its version: the grids over it query
+    // again, their views as they stand; a frame whose model changed, its columns, opens the page again as Python has it,
+    // each grid's edits kept: B10) -- one move at a time, in order. A move that fails to be followed (a frame not read, a
+    // page not opened) is said, and tried again at the next move: a success says nothing more of it. Told that Python no
+    // longer says (the page or the frame closed, Python gone), the page keeps what it shows, says it no longer follows,
+    // and reports nothing more.
     if (live) {
-      const what = live.page ? 'the page' : 'the frame';
+      const what = 'the page';
       const stop = (why: string): void => {
         if (notFollowed !== undefined) return;
         notFollowed = why;
-        clearTimeout(reporting);
+        channel?.stop();
         harnessSignal.changes += 1;
         sayResting({ text: `not following ${what}: ${why}`, warn: true });
         onCubeView?.();
@@ -1246,44 +1477,44 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       /** What Python says now, followed: undefined, or why it was not. */
       const followed = async (now: Versions): Promise<string | undefined> => {
         // a start that did not open (a page not read, a frame not there yet) is tried again
-        if (live.page && liveShown === undefined) return openLive();
+        if (channel?.shown === undefined) return openLive();
         // each step below waits: the app taken down meanwhile (a notebook's cell run again) goes no further
-        if (start.kind === 'frame' && sources.frameVersion(start.name) === undefined) {
-          await openFrame(start.name, true);
-          return undefined;
+        // a page moved: by its commands, or -- a frame moved with it -- opened again, every grid reading its frame now
+        const shown = channel?.shown;
+        if (shown !== undefined && now.version !== undefined && now.version !== shown) {
+          const how = followBy(now, shown, (frame) => sources.frameVersion(frame));
+          if (how === 'commands') return followLive();
+          if (how === 'open') return openLive();
         }
-        if (now.version !== undefined && liveShown !== undefined && now.version !== liveShown) return openLive();
         for (const [frame, version] of Object.entries(now.frames)) {
           if (disposed) return undefined;
           const read = sources.frameVersion(frame);
           if (read === undefined || read === version) continue;
           const again = await sources.frameAgain(frame);
           if (disposed) return undefined;
-          if (again === 'changed') {
-            if (live.page) return openLive();
-            await openFrame(frame, true);
-            continue;
-          }
+          // its columns changed: the page as Python has it, opened over the frame as it is now, each grid's edits kept
+          if (again === 'changed') return openLive();
           for (const id of page.cubes) {
             if (disposed) return undefined;
-            if (sources.frameOf(id) === frame) await madeCubes.get(id)?.state.refresh();
+            if (sources.framesOf(id).includes(frame)) await madeCubes.get(id)?.refresh();
           }
         }
         return undefined;
       };
-      let following: Promise<void> = Promise.resolve();
-      undo.push(live.watch((now) => {
-        following = following.then(async () => {
-          if (disposed || notFollowed !== undefined) return;
+      unwatch = live.watch((now) => {
+        enqueue(async () => {
+          if (disposed || left || notFollowed !== undefined) return;
           if (typeof now === 'string') return stop(now);
           failed(await followed(now));
         }).catch((e: unknown) => failed(e instanceof Error ? e.message : String(e)));
-      }));
+      }, () => channel?.shown);
+      undo.push(() => unwatch?.());
     }
 
     // A START THAT OPENED NOTHING (a link that failed, a key refused) leaves the blank page, saying
-    // why: never an empty page without a word
-    if (page.empty) blankPage(startProblem);
+    // why: never an empty page without a word -- but the page its other editor serves, opened, which is shown as its keeper
+    // has it, a page of no grid too (the S7 audit's H-1)
+    if (page.empty && channel?.shown === undefined) blankPage({ reason: startProblem });
   }
   // the start has settled: from now on an empty page is a blank one
   if (blankCard) blankCard.hidden = false;

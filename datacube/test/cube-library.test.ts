@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
-import type { CubeStore, DataCubeQuery } from '../src/cube-store.ts';
+import { SAVED_SORTS, savedSearch, type CubeStore, type DataCubeQuery, type QuerySearchSpecification } from '../src/cube-store.ts';
+import { pageSearch } from '../src/headless/page.ts';
 import { CubeLibrary, type CubeLibraryHost } from '../src/ui/cube-library.ts';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -82,4 +83,32 @@ describe('the Cubes window', () => {
     assert.deepEqual(calls, ['open b']);
   });
 
+});
+
+describe("the saved pages searched as Open… searches them (savedSearch; Python's ll.Page.saved(), headless pageSearch: K15)", () => {
+  it("the window asks the store the one search: its term trimmed, its menu's order (the first, as it opens), its rows' count", async () => {
+    const asked: QuerySearchSpecification[] = [];
+    const store: CubeStore = { ...twoPages(), search: async (spec) => { asked.push(spec); return []; } };
+    const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>');
+    const root = dom.window.document.getElementById('r') as HTMLElement;
+    const library = new CubeLibrary(root, store, { currentId: () => undefined, open: async () => {}, openText: async () => {}, forget: async () => {} });
+    await library.refresh();
+    (root.querySelector('.dc-lib-search') as HTMLInputElement).value = '  Q3 ';
+    (root.querySelector('.dc-lib-sort') as HTMLSelectElement).value = 'SORT_BY_UPDATE';
+    await library.refresh();
+    assert.deepEqual([...root.querySelectorAll('.dc-lib-sort option')].map((o) => o.textContent), SAVED_SORTS.map(([, label]) => label));
+    assert.deepEqual(asked, [savedSearch('', null, 50), savedSearch('Q3', 'SORT_BY_UPDATE', 50)]);
+    assert.deepEqual(asked, [{ sortByOption: 'SORT_BY_VIEW', limit: 50 },
+      { searchTermSpecification: { searchTerm: 'Q3' }, sortByOption: 'SORT_BY_UPDATE', limit: 50 }]);
+  });
+
+  it("Python's the same, of as many as the store answers; what is none of a search refused in words", () => {
+    assert.deepEqual(JSON.parse(pageSearch(' Q3 ', null, null)), { spec: { searchTermSpecification: { searchTerm: 'Q3' }, sortByOption: 'SORT_BY_VIEW' } });
+    assert.deepEqual(JSON.parse(pageSearch('', 'SORT_BY_CREATE', 5)), { spec: { sortByOption: 'SORT_BY_CREATE', limit: 5 } });
+    assert.deepEqual(JSON.parse(pageSearch(3, 'byName', 1.5)).problems, [
+      'a search is text, not 3',
+      'a sort is one of SORT_BY_VIEW, SORT_BY_UPDATE, SORT_BY_CREATE, not "byName"',
+      'a limit is a whole number, 0 or more, not 1.5',
+    ]);
+  });
 });

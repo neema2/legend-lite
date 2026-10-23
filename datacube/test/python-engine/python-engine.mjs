@@ -129,10 +129,17 @@ try {
     console.log(`FAIL the setup: ${verdict.setupError}`);
     failed = true;
   }
-  if (verdict.outcomes.length !== 9) {
-    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 9`);
+  // 2026-10-23 (D23, L12's proof): 9 -> 11, a remote file read and a Snap copied the same on Python and in the tab
+  if (verdict.outcomes.length !== 11) {
+    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 11`);
     failed = true;
   }
+  // THE FIXTURE'S FILE SERVER (R6), asked from here: a page's own fetch of another loopback port is refused by the
+  // browser's local-network rule, though DuckDB-WASM's reads above were not -- a range the file has no byte of answered
+  // as HTTP says, never with a malformed part
+  const past = await fetch(served.remote, { headers: { Range: 'bytes=99999999-' } });
+  console.log(`${past.status === 416 ? 'ok  ' : 'FAIL'} the file server answers a range past the file's end with 416 (it answered ${past.status})`);
+  if (past.status !== 416) failed = true;
 
   // THE PAGE A PERSON OPENS (demo/engine.html, from the engine's site): the link names the frame and carries the
   // token in its fragment; the cube opens over the engine and shows the frame's rows, with nothing run in the tab
@@ -308,10 +315,13 @@ try {
     dc.on('pageerror', (e) => { console.log(`page error: ${e.message}`); failed = true; });
     await dc.goto(served.link);
     await dc.locator('.dc-row').first().waitFor({ timeout: 60_000 });
-    const tiles = await dc.locator('[data-tile^="grid-"]').count();
+    // on a page of the tab's own (New ▸ Blank Page leaves the page Python serves: D1) -- a page Python serves holds what
+    // Python holds, its frames, until Python reads more (X1-X5)
+    const tiles = 0;
     await dc.click('.dc-titlebar-menu');
     await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
-    await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("Data Source\u2026")') }).click();
+    await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+    await dc.locator('.dc-blank .dc-primary').click();
     await dc.locator('.dc-picker').waitFor({ timeout: 5000 });
     await dc.locator('.dc-picker-tab[data-section="saved"]').click();
     const row = dc.locator('.dc-picker-row[data-query]', { hasText: 'Parties' });
@@ -325,7 +335,8 @@ try {
         const tile = dc.locator('[data-tile^="grid-"]').nth(tiles);
         await tile.locator('.dc-row').first().waitFor({ timeout: 60_000 }).catch(() => undefined);
         const cells = await tile.locator('.dc-row').evaluateAll((rs) => rs.map((r) => r.textContent ?? ''));
-        openedSaved = `${(await tile.locator('.dc-tile-cube').textContent()) ?? ''}: ${cells.length} rows | ${cells.join(' | ')}`;
+        // the page's one grid: its header in the page's bar (a lone grid's)
+        openedSaved = `${(await dc.locator('.dc-page-alone').textContent()) ?? ''}: ${cells.length} rows | ${cells.join(' | ')}`;
       }
     } else {
       openedSaved = `Saved queries listed: ${(await dc.$$eval('.dc-picker-row[data-query]', (els) => els.map((e) => e.textContent ?? ''))).join(', ')}`;
@@ -509,8 +520,9 @@ try {
     failed = true;
   }
 
-  // A FRAME CLOSED IN PYTHON: its open tab keeps what it shows, and says it no longer follows the frame -- in its status
-  // line and its title (the app's live page, docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §5)
+  // A FRAME CLOSED IN PYTHON: its open tab keeps what it shows, and says it no longer follows its page -- in its status
+  // line and its title (the app's live page, docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §5; a frame shown is a page of
+  // one grid: P12)
   engine.stdin.write('show-closing\n');
   const closingLine = await nextLine();
   if (!closingLine.startsWith('done show-closing ')) throw new Error(`the engine did not show the frame: ${closingLine}`);
@@ -522,10 +534,10 @@ try {
   engine.stdin.write('close-closing\n');
   if ((await nextLine()) !== 'done close-closing') throw new Error('the engine did not close the frame');
   const closedSaid = closingShown && await closingTab.waitForFunction(
-    () => /not following the frame: the frame was closed/.test(document.querySelector('.dc-app-status')?.textContent ?? '')
-      && /not followed: the frame was closed/.test(document.title) && /\b2 rows\b/.test(document.body.innerText),
+    () => /not following the page: the page was closed/.test(document.querySelector('.dc-app-status')?.textContent ?? '')
+      && /not followed: the page was closed/.test(document.title) && /\b2 rows\b/.test(document.body.innerText),
     undefined, { timeout: 30_000 }).then(() => true, () => false);
-  console.log(`${closedSaid ? 'ok  ' : 'FAIL'} a frame closed in Python: its tab keeps its rows and says it no longer follows the frame`);
+  console.log(`${closedSaid ? 'ok  ' : 'FAIL'} a frame closed in Python: its tab keeps its rows and says it no longer follows its page`);
   if (!closedSaid) {
     console.log(`  the tab said: ${await closingTab.evaluate(() => `${document.title} | ${document.querySelector('.dc-app-status')?.textContent}`)}`);
     failed = true;
@@ -575,8 +587,9 @@ try {
     `(${String(sheetNames)})() === 'trades|Desks (v2)' && document.querySelector('[data-tile="grid-2"]')?.offsetParent !== null`);
 
   // A PAGE BUILT WITH ll.Page (step 2): built and shown in Python as a person does; its link is the one show() gives.
-  // Then a sheet added in Python (the open page opens it again), and a sheet renamed in DataCube read back by
-  // page.read() (the open page reports its document as it changes)
+  // Then a sheet added and the page renamed in Python (the open page follows by their commands), and a sheet renamed in
+  // DataCube that is Python's page at once (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md: one copy of the page, which the open
+  // page writes against the version it is at)
   engine.stdin.write('py-page\n');
   const built = await nextLine();
   if (!built.startsWith('done py-page ')) throw new Error(`the engine did not build the page: ${built}`);
@@ -584,8 +597,21 @@ try {
   await seen('a page built with ll.Page opens in a tab: its sheets, its grid over its frame and the chart beside it',
     `(${String(sheetNames)})() === 'pytrades|Desks' && document.querySelector('[data-tile="grid-1"]')?.innerText.includes('EMEA')
       && document.querySelector('[data-tile="chart-1"]') !== null`);
+  // (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md) followed by the commands Python made: the page is not opened again, so
+  // a mark on its grid's tile stays
+  await tabbed.evaluate(() => { document.querySelector('[data-tile="grid-1"]').dataset.kept = 'yes'; });
   await python('py-page-sheet');
   await seen('a sheet added to it in Python shows on the open page', `(${String(sheetNames)})() === 'pytrades|Desks|Added in Python'`);
+  await seen('followed by its command: the page not opened again (its grid\'s tile the same)',
+    () => document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes');
+  // (the phase 3 audit's 1 and 6) renamed in Python: the open page takes the name, by its command, and is not changed
+  // since it was opened -- Python's change is the page as Python has it
+  await python('py-page-rename');
+  await seen('a page renamed in Python takes the name on the open page, not marked changed, not opened again',
+    () => document.querySelector('.dc-page-name')?.textContent === 'Renamed in Python' && !document.title.startsWith('\u2022')
+      && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes');
+  await python('py-page-name-back');
+  await seen('and named back', () => document.querySelector('.dc-page-name')?.textContent === 'Built in Python');
   await tabbed.locator('.dc-sheet-tab', { hasText: 'Desks' }).dblclick();
   await tabbed.locator('.dc-sheet-tab input').fill('Renamed in DataCube');
   await tabbed.locator('.dc-sheet-tab input').press('Enter');
@@ -601,8 +627,60 @@ try {
     }
     return undefined;
   })();
-  console.log(`${read ? 'ok  ' : 'FAIL'} a sheet renamed in DataCube is in page.read() in Python${read ? ` (${read.join(', ')})` : ''}`);
+  console.log(`${read ? 'ok  ' : 'FAIL'} a sheet renamed in DataCube is on the page in Python${read ? ` (${read.join(', ')})` : ''}`);
   if (!read) failed = true;
+  // Python's change on top of the open page's write is its command, applied there: the page not opened again, the
+  // sheet renamed there kept, and the page still changed since it opened (by that rename, made there)
+  await python('py-page-group');
+  await seen('a change in Python after the open page wrote the page is applied by its command, what was changed there kept',
+    `(${String(sheetNames)})() === 'pytrades|Renamed in DataCube|Added in Python'
+      && document.querySelector('[data-tile="grid-1"] .dc-zone-rows .dc-chip[data-column="desk"]') !== null
+      && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes' && document.title.startsWith('\u2022')`);
+  // then another grid edit in Python, the same way
+  await python('py-page-regroup');
+  await seen('a grid grouped in Python is grouped on the open page by its grid command, the page not opened again',
+    () => document.querySelector('[data-tile="grid-1"] .dc-zone-rows .dc-chip[data-column="region"]') !== null
+      && document.querySelector('[data-tile="grid-1"] .dc-zone-rows .dc-chip[data-column="desk"]') === null
+      && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes');
+
+  // A FRAME CHANGED IN PLACE (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P11): the desks grid's Live frame a column more,
+  // which nothing in Python looks at; the tab opened again reads the frame as it is now, and tells the page in Python
+  // so by its command (rebuilt) -- before, the cube it opened was its own, and Python's page kept the old one
+  await python('py-page-desks-wider');
+  await tabbed.reload();
+  await seen('the page opened again after its desks frame changed in place',
+    `(${String(sheetNames)})() === 'pytrades|Renamed in DataCube|Added in Python'`);
+  const widened = await (async () => {
+    // the page writes its command once it settles (half a second): asked until it has, or ten seconds
+    for (let tries = 0; tries < 20; tries += 1) {
+      await new Promise((done) => { setTimeout(done, 500); });
+      engine.stdin.write('py-page-desks-columns\n');
+      const line = await nextLine();
+      if (!line.startsWith('done py-page-desks-columns ')) throw new Error(`the engine did not read the page: ${line}`);
+      const names = JSON.parse(line.slice('done py-page-desks-columns '.length));
+      if (names.includes('floor')) return names;
+    }
+    return undefined;
+  })();
+  console.log(`${widened ? 'ok  ' : 'FAIL'} the cube the open page opened again over the changed frame is the page's in Python`
+    + `${widened ? ` (${widened.join(', ')})` : ''}`);
+  if (!widened) failed = true;
+  // opened again with nothing changed since: no cube is another, so the page writes nothing (the S1 audit's 14: never a
+  // cube told back and forth between the tab and Python)
+  const versionOf = async () => {
+    engine.stdin.write('py-page-version\n');
+    const line = await nextLine();
+    if (!line.startsWith('done py-page-version ')) throw new Error(`the engine did not say the version: ${line}`);
+    return JSON.parse(line.slice('done py-page-version '.length));
+  };
+  const steady = await versionOf();
+  await tabbed.reload();
+  await seen('the page opened again, nothing changed since',
+    `(${String(sheetNames)})() === 'pytrades|Renamed in DataCube|Added in Python'`);
+  await new Promise((done) => { setTimeout(done, 2000); });
+  const versionNow = await versionOf();
+  console.log(`${versionNow === steady ? 'ok  ' : 'FAIL'} opened again with nothing changed, the page writes nothing (version ${steady} -> ${versionNow})`);
+  if (versionNow !== steady) failed = true;
 
   // SAVED FROM PYTHON (D, B6): page.save() keeps the page in this user's saved pages by the rules the tab's own Save
   // keeps it by; DataCube's Open… lists it, and it opens -- its sheets as Python saved them, its grid over its frame
@@ -624,6 +702,128 @@ try {
       (await cube.evaluate(() => document.body.innerText.slice(0, 400)))}`);
     failed = true;
   }
+
+  // A JOIN OF ITS FRAMES (page.join: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3), made in Python: the open page opens
+  // it through Python (opened.json), whose compiler and frames it reads -- it has neither of its own here -- and reads its
+  // rows there, as a frame's grid's (the audit of §18, 2026-10-20: it was left out, and taking the open page in then dropped it)
+  await tabbed.locator('.dc-sheet-tab', { hasText: 'pytrades' }).click();
+  await python('py-page-join');
+  await seen('a join made in Python (page.join) opens on the open page, its rows from both of its frames',
+    () => [...document.querySelectorAll('[data-tile^="grid"]')].some((t) => t.querySelector('.dc-th[data-column="head"]') !== null
+      && t.querySelector('.dc-th[data-column="d_desk"]') !== null && t.innerText.includes('Ana')));
+
+  // SNAP AS PAGE STATE (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): a grid snapped in Python reads Python's copy on
+  // the open page, by the page's snap command (not opened again), whatever its frame does; gone live in Python it reads
+  // the frame again; snapped on the page, Python's page has the copy; and ll.show(df, snap=True) opens snapped
+  const pill = () => document.querySelector('[data-tile="grid-1"] .dc-titlebar-toggle')?.textContent;
+  const joinTile = () => [...document.querySelectorAll('[data-tile^="grid"]')].find((t) => t.querySelector('.dc-th[data-column="d_desk"]'));
+  await tabbed.evaluate(() => { document.querySelector('[data-tile="grid-1"]').dataset.kept = 'yes'; });
+  await python('py-page-snap');
+  await seen('a grid snapped in Python (grid.snap()) reads Python\'s copy on the open page, by its command',
+    `(${String(pill)})() === 'Snapped' && document.querySelector('[data-tile="grid-1"]')?.dataset.kept === 'yes'`);
+  await python('py-page-more');
+  await seen('its frame grows in Python: the join over it (live) reads the new row, the snapped grid its copy',
+    `(${String(joinTile)})()?.innerText.includes('11 rows') === true
+      && !document.querySelector('[data-tile="grid-1"]').innerText.includes('LATAM')`);
+  await python('py-page-live');
+  await seen('gone live in Python (grid.live()): the open page reads the frame again',
+    `(${String(pill)})() === 'Live' && document.querySelector('[data-tile="grid-1"]').innerText.includes('LATAM')`);
+  await tabbed.locator('[data-tile="grid-1"] .dc-titlebar-toggle').click();
+  await seen('snapped on the open page', `(${String(pill)})() === 'Snapped'`);
+  const copies = await (async () => {
+    // the page reports its document once a change settles: asked until it has, or ten seconds
+    for (let tries = 0; tries < 20; tries += 1) {
+      await new Promise((done) => { setTimeout(done, 500); });
+      engine.stdin.write('py-page-copies\n');
+      const line = await nextLine();
+      if (!line.startsWith('done py-page-copies ')) throw new Error(`the engine did not read the page: ${line}`);
+      const said = JSON.parse(line.slice('done py-page-copies '.length));
+      if (said['grid-1']?.table?.startsWith('snap')) return said;
+    }
+    return undefined;
+  })();
+  console.log(`${copies ? 'ok  ' : 'FAIL'} a grid snapped on the open page is snapped on the page in Python`
+    + `${copies ? ` (${copies['grid-1'].label}, ${copies['grid-1'].rowCount} rows)` : ''}`);
+  if (!copies) failed = true;
+  await python('py-page-live');
+  await seen('and gone live in Python after: the open page live again', `(${String(pill)})() === 'Live'`);
+
+  // D1 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P10): New > Blank Page on the page Python serves puts a page of the
+  // tab's own on screen and leaves Python's page as it is -- nothing written to it, and Python's next change to it not
+  // followed here
+  const servedVersion = async () => {
+    engine.stdin.write('py-page-version\n');
+    const line = await nextLine();
+    if (!line.startsWith('done py-page-version ')) throw new Error(`the engine did not say the version: ${line}`);
+    return JSON.parse(line.slice('done py-page-version '.length));
+  };
+  const sheetsInPython = async () => {
+    engine.stdin.write('py-page-read\n');
+    const line = await nextLine();
+    if (!line.startsWith('done py-page-read ')) throw new Error(`the engine did not read the page: ${line}`);
+    return JSON.parse(line.slice('done py-page-read '.length));
+  };
+  const leftAt = await servedVersion();
+  const leftSheets = await sheetsInPython();
+  // the tab follows Python's page by asking its versions (version.json, about once a second: demo/engine.ts ASK_EVERY)
+  // while it is that page: counted, so leaving it is seen as the asking stopping -- what following needs -- not inferred
+  // from nothing having changed yet
+  let asked = 0;
+  tabbed.on('request', (r) => { if (r.url().includes('/version.json')) asked += 1; });
+  for (let i = 0; i < 50 && asked === 0; i += 1) await tabbed.waitForTimeout(100);
+  const asking = asked > 0;
+  tabbed.on('dialog', (d) => { void d.accept(); });
+  await tabbed.click('.dc-page-bar .dc-titlebar-menu');
+  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await seen('Blank Page on the page Python serves: a page of the tab\'s own, said',
+    () => document.querySelector('[data-tile="grid-1"]') === null && /a page of this tab's own/.test(document.body.innerText));
+  const askedThen = asked;
+  await python('py-page-sheet');
+  // two of its asking periods: a tab still following would ask in each
+  await tabbed.waitForTimeout(2_500);
+  const leftNow = await servedVersion();
+  const sheetsNow = await sheetsInPython();
+  const leftAlone = asking && asked === askedThen && leftNow === leftAt + 1
+    && JSON.stringify(sheetsNow) === JSON.stringify([...leftSheets, 'Added in Python'])
+    && (await tabbed.evaluate(() => document.querySelector('[data-tile="grid-1"]') === null
+      && ![...document.querySelectorAll('.dc-sheet-tab .dc-sheet-label')].some((t) => t.textContent === 'Added in Python')));
+  console.log(`${leftAlone ? 'ok  ' : 'FAIL'} Python's page left as it was: moved by Python's change alone (${leftAt} -> ${leftNow}), `
+    + `its versions asked no more (${askedThen} -> ${asked}, asking before: ${String(asking)}), not followed here`);
+  if (!leftAlone) failed = true;
+  engine.stdin.write('show-snapped\n');
+  const snappedLine = await nextLine();
+  if (!snappedLine.startsWith('done show-snapped ')) throw new Error(`the engine did not show the frame: ${snappedLine}`);
+  const snappedTab = await browser.newPage();
+  snappedTab.on('pageerror', (e) => { console.log(`snapped tab error: ${e.message}`); failed = true; });
+  await snappedTab.goto(JSON.parse(snappedLine.slice('done show-snapped '.length)));
+  const tabSnapped = await snappedTab.waitForFunction(() => document.querySelector('.dc-titlebar-toggle')?.textContent === 'Snapped',
+    undefined, { timeout: 60_000 }).then(() => true, () => false);
+  console.log(`${tabSnapped ? 'ok  ' : 'FAIL'} ll.show(df, snap=True) opens the frame snapped`);
+  if (!tabSnapped) {
+    console.log(`  the tab showed: ${(await snappedTab.evaluate(() => document.body.innerText)).slice(0, 400)}`);
+    failed = true;
+  }
+  // the tab gone (navigated away): the copy stays -- Python's page of one grid reads it (P12), and a copy a page the
+  // keeper keeps reads is the keeper's (Z17): the tab's release of it is answered "kept"
+  const held = async () => {
+    engine.stdin.write('copies-held\n');
+    const line = await nextLine();
+    if (!line.startsWith('done copies-held ')) throw new Error(`the engine did not say its copies: ${line}`);
+    return JSON.parse(line.slice('done copies-held '.length));
+  };
+  const heldBefore = await held();
+  await snappedTab.goto('about:blank');
+  // its release, sent as it goes (keepalive), given the time a let-go copy took to go before (P12): held throughout
+  let heldAfter = heldBefore;
+  for (let tries = 0; tries < 6 && JSON.stringify(heldAfter) === JSON.stringify(heldBefore); tries += 1) {
+    await new Promise((done) => { setTimeout(done, 500); });
+    heldAfter = await held();
+  }
+  const stayed = heldBefore.length > 0 && JSON.stringify(heldAfter) === JSON.stringify(heldBefore);
+  console.log(`${stayed ? 'ok  ' : 'FAIL'} a tab gone keeps the copy Python's page reads (${heldBefore.join(', ')} -> ${heldAfter.join(', ')})`);
+  if (!stayed) failed = true;
+  await snappedTab.close();
 
   // EVERY PAGE PYTHON WRITES IS ONE DATACUBE READS: pages built with each kind of edit Python makes, one with a frozen
   // chart kept without its grid, and DataCube's own page loaded and changed in Python, read by DataCube's reader

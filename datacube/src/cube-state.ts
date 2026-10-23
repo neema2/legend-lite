@@ -3,7 +3,7 @@
 // owned by the one owner (state-owner.ts) with the cube's rules -- what its query IS, what a
 // landed answer commits.
 
-import { applyToSnapshot, type CubeConfiguration } from './config.ts';
+import { applyToSnapshot, fromSnapshot, type CubeConfiguration } from './config.ts';
 import type { CubeView } from './cube.ts';
 import type { CubeSnapshot } from './snapshot.ts';
 import {
@@ -36,6 +36,17 @@ export type OwnerEvent = StateEvent<CubeView>;
  */
 export function fold(state: CubeState): CubeState {
   return { ...state, snapshot: applyToSnapshot(state.snapshot, state.configuration) };
+}
+
+/**
+ * A CUBE AS THE SCREEN HOLDS ONE IT OPENS: the configuration read back from what its query carries (fromSnapshot -- a
+ * column's kind or Aggregation the document holds only in its query is kept, not folded away), then folded. The screen's
+ * constructor keeps this rule (app.ts: fromSnapshot, then its state owner folds); every other place a saved or rebuilt
+ * cube is opened or written asks this one function -- headless opened() and gridCube, the example pages, the tests --
+ * so no copy of the open path drifts (the review of the command program's stage 1a found gridCube's had).
+ */
+export function openedState(snapshot: CubeSnapshot, configuration: CubeConfiguration, tree: TreeState): CubeState {
+  return fold({ snapshot, configuration: fromSnapshot(snapshot, configuration), tree });
 }
 
 /**

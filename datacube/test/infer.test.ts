@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 
 import type { CatalogColumn } from '../src/infer.ts';
 import { formatOf, tableNameOf } from '../src/upload.ts';
-import { agg, col, derive, fn, from, lambda, lit, times, variable } from '../../pure-protocol/src/index.ts';
+import { col, derive, from, lambda, lit, times } from '../../pure-protocol/src/index.ts';
 import { print } from './lite-compiler.ts';
 import { plannerFor } from './catalog-builder.ts';
 
@@ -19,6 +19,9 @@ describe('tableNameOf', () => {
 
   it('never starts with a digit', () => {
     assert.equal(tableNameOf('2024.csv'), 't_2024');
+    // a word the grammar reads as a literal is no table's name: suffixed, as the compiler's writer suffixes it
+    assert.equal(tableNameOf('true.csv'), 'true_');
+    assert.equal(tableNameOf('False.csv'), 'False');
   });
 
   it('always yields something', () => {
@@ -131,43 +134,10 @@ describe('the model for a table', () => {
     assert.match((await writer.tableModel([col_('id', 'BIGINT')], { table: 't', convertible: true, databaseType: 'DuckDB' })).model, /type: DuckDB;/);
   });
 
-  it('carries a snap runtime over the SAME Database when the copy\'s store is named (leg C)', async () => {
-    const m = await writer.tableModel([col_('id', 'int8', 'bigint')],
-      { table: 'orders', schema: 'sales', convertible: false, databaseType: 'Postgres', snapDatabaseType: 'DuckDB' });
-    assert.equal(m.runtime, 'local::RT');
-    assert.equal(m.snapRuntime, 'local::SnapRT');
-    assert.match(m.model, /RelationalDatabaseConnection local::Conn\n\{\n {4}type: Postgres;/);
-    assert.match(m.model, /RelationalDatabaseConnection local::SnapConn\n\{\n {4}type: DuckDB;/);
-    assert.match(m.model, /Runtime local::SnapRT[\s\S]*local::DB: \[ c1: local::SnapConn \]/);
-    assert.equal((m.model.match(/^Database /gm) ?? []).length, 1, 'one Database, read through either runtime');
-    // not asked for, none
-    assert.equal((await writer.tableModel([col_('id', 'BIGINT')], { table: 't', convertible: true, databaseType: 'DuckDB' })).snapRuntime, undefined);
-  });
-
-  it('writes a copy\'s select list in the copy\'s own database: a Postgres zoned timestamp snapped into DuckDB', async () => {
+  it('a read-only source is never rewritten: no select list, and no refusal', async () => {
     const at = col_('at', 'timestamptz', 'timestamp with time zone');
-    const snapped = await writer.tableModel([at],
-      { table: 'orders', schema: 'sales', convertible: false, databaseType: 'Postgres', snapDatabaseType: 'DuckDB' });
-    assert.equal(snapped.copySelectList, '* REPLACE (CAST(timezone(\'UTC\', "at") AS TIMESTAMP) AS "at")');
-    // a read-only source with no snap is never copied: no select list, and no refusal
     const read = await writer.tableModel([at], { table: 'orders', schema: 'sales', convertible: false, databaseType: 'Postgres' });
     assert.equal(read.copySelectList, undefined);
-  });
-
-  it('plans the SAME query in each runtime\'s SQL: Postgres live, DuckDB on the copy', async () => {
-    // a Postgres table, as its own catalog describes it
-    const m = await writer.tableModel([col_('region', 'text'), col_('n', 'int8', 'bigint')],
-      { table: 'orders', schema: 'sales', convertible: false, databaseType: 'Postgres', snapDatabaseType: 'DuckDB' });
-    // the root row's constant group key: Postgres needs it typed, DuckDB takes it bare
-    const query = from(m.source).extend([derive('k', lambda(['x'], lit.string('[ROOT]')))])
-      .groupBy(['k'], [agg('n', lambda(['x'], col('x', 'n')), lambda(['y'], fn('sum', variable('y'))))]).lambda();
-    const live = (await plannerFor(m.model, m.runtime).plan(query)).sql;
-    const copy = (await plannerFor(m.model, m.snapRuntime).plan(query)).sql;
-    assert.match(live, /GROUP BY CAST\('\[ROOT\]' AS VARCHAR\)/);
-    assert.match(copy, /GROUP BY '\[ROOT\]'/);
-    // Postgres folds the store's bare names (decision D8), as the bare CREATE TABLE that made them did
-    assert.match(live, /FROM sales\.orders/);
-    assert.match(copy, /FROM sales\.orders|FROM "sales"\."orders"/);
   });
 
   it('leaves bytes out by name, on every source, and opens the rest', async () => {

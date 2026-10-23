@@ -156,7 +156,7 @@ try {
   // planned for the tab's DuckDB, with no failure (every column of the table, as Postgres read it)
   const groups = await page.locator('.dc-row[aria-expanded]').count();
   await page.click('.dc-titlebar-toggle');
-  await page.waitForFunction(() => window.__dataCube?.controller.snaps.state.mode === 'snapped'
+  await page.waitForFunction(() => document.querySelector('.dc-titlebar-toggle')?.classList.contains('dc-on')
     && !window.__dataCube.busy, null, { timeout: 120_000 })
     .catch(() => bad('the table did not snap'));
   if (await page.locator('text=Data Fetch Failure').count()) {

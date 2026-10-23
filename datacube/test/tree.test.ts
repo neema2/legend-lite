@@ -23,6 +23,14 @@ const CHILDREN = new Map<string, RowPath[]>([
 const childrenOf = (p: RowPath) => CHILDREN.get(pathKey(p));
 
 describe('TreeState', () => {
+  it('a group may be open by hand, or by its expand level -- never one of the deepest (the S7 confirmation audit G2-4)', () => {
+    assert.equal(TreeState.empty().opensAny(2), false);
+    assert.equal(TreeState.empty().expand(['EMEA']).opensAny(2), true, 'opened by hand');
+    assert.equal(TreeState.empty().withExpandTo(1).opensAny(2), true, "the level opens the first group's rows");
+    assert.equal(TreeState.empty().withExpandTo(1).opensAny(1), false, 'one row group: the level opens none');
+    assert.equal(TreeState.empty().withExpandTo(2).opensAny(0), false, 'no row groups');
+  });
+
   it('starts closed', () => {
     const s = TreeState.empty(true);
     assert.equal(s.isOpen(['EMEA']), false);

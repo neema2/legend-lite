@@ -8,6 +8,7 @@ load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_python//python:packaging.bzl", "py_package", "py_wheel")
 load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 load("//tools/guards:defs.bzl", "guards_package")
@@ -21,7 +22,7 @@ load(
 )
 
 # the compiler's bindings, and what reaches the native library beside them -- this user's legend-lite folder and its saved
-# pages and queries (_home.py), a model home (model.py), the compiler's threads (_pool.py): no package beyond Python's
+# pages and queries and its model home (_home.py), the compiler's threads (_pool.py): no package beyond Python's
 # own (the compiler-only install, //python:wheel_test)
 py_library(
     name = "compiler",
@@ -32,6 +33,7 @@ py_library(
             "legend_lite/datacube.py",
             "legend_lite/engine.py",
             "legend_lite/frames.py",
+            "legend_lite/keeper.py",
             "legend_lite/notebook.py",
             "legend_lite/page.py",
         ],
@@ -47,9 +49,11 @@ py_library(
 # `bazel run //python:update_generated`
 write_source_files(
     name = "update_generated",
-    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nthe type facts changed: bazel run //python:update_generated",
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nthe type facts or DataCube's commands changed: bazel run //python:update_generated",
     files = {
         "legend_lite/_type_facts.py": "//engine-client:lite_facts_py",
+        # DataCube's commands, one builder each (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D17)
+        "legend_lite/_commands.py": "//datacube:python_commands",
     },
     visibility = ["//:__pkg__"],
 )
@@ -63,6 +67,8 @@ py_library(
         "legend_lite/datacube.py",
         "legend_lite/engine.py",
         "legend_lite/frames.py",
+        # the one copy of each page, versioned (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)
+        "legend_lite/keeper.py",
         # a DataCube page built in Python (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md)
         "legend_lite/page.py",
     ],
@@ -225,6 +231,9 @@ _HEADLESS_ENV = {
     "LEGEND_LITE_DUCKDB_EXTENSIONS": "$(rlocationpath :wheel_duckdb)",
 }
 
+# the screen's cube documents, case by case, which Python's Page and Grid are held to (datacube/test/parity-screen.test.ts)
+_PARITY_ENV = {"LEGEND_LITE_PARITY": "$(rlocationpath //datacube:test/fixtures/parity/parity.json)"}
+
 # Grids headless (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §4): a page's grid run by DataCube's own code in V8
 # -- grid.view(), grid.relation, grid.to_pandas() -- each checked against pandas computing the same. The bundle is
 # DataCube's (//datacube:headless_bundle), as the wheel's `datacube` extra will carry it (step 4).
@@ -239,13 +248,14 @@ py_test(
     data = [
         ":wheel_duckdb",
         "//datacube:headless_bundle",
+        "//datacube:test/fixtures/parity/parity.json",
         "//native:compiler",
     ],
     # and DuckDB's extensions as the wheel carries them: a page's remote file is read through httpfs (step 2b), an
-    # Iceberg table through iceberg and avro (G5)
+    # Iceberg table through iceberg and avro (G5); and the screen's documents, which Python's are held to (parity.json)
     env = select({
-        "//tools/platforms:windows_x86_64": _ENV | _HEADLESS_ENV | {"PROCESSOR_ARCHITECTURE": "AMD64"},
-        "//conditions:default": _ENV | _HEADLESS_ENV,
+        "//tools/platforms:windows_x86_64": _ENV | _HEADLESS_ENV | _PARITY_ENV | {"PROCESSOR_ARCHITECTURE": "AMD64"},
+        "//conditions:default": _ENV | _HEADLESS_ENV | _PARITY_ENV,
     }),
     main = "tests/main.py",
     target_compatible_with = _PLATFORMS,
@@ -258,11 +268,11 @@ py_test(
     ],
 )
 
-# INTO A PROJECT (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4; legend_lite/model.py): the twin of model-changes/, held
-# to the same recorded cases (each call a create makes, to the SDLC and the writer, with its exact body), then a page's
-# grids made classes, an association and a data space by DataCube's request (headless) into this user's model home.
-# `MODEL_CHANGES_RECORD=1 bazel run //python:model_test` records the cases again.
-_MODEL_ENV = _ENV | _HEADLESS_ENV | {"LEGEND_LITE_MODEL_CASES": "$(rlocationpaths //model-changes:cases)"}
+# INTO A PROJECT (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D4, Z4-Z7): a
+# page's grids made classes, an association and a data space by DataCube's model actions run headless (model-changes/
+# through the host's fetch) into this user's model home. `MODEL_CHANGES_RECORD=1 bazel run //python:model_test` records
+# model-changes' cases again, the library's calls as this host answered them.
+_MODEL_ENV = _ENV | _HEADLESS_ENV
 
 py_test(
     name = "model_test",
@@ -275,7 +285,6 @@ py_test(
     data = [
         ":wheel_duckdb",
         "//datacube:headless_bundle",
-        "//model-changes:cases",
         "//native:compiler",
     ],
     env = select({
@@ -326,12 +335,16 @@ py_test(
     srcs = [
         "tests/main.py",
         "tests/test_engine.py",
+        "tests/test_keeper.py",
+        "tests/test_one_api.py",
         "tests/test_page.py",
         "tests/test_show.py",
         "tests/test_warehouse.py",
     ],
     args = [
         "test_engine",
+        "test_keeper",
+        "test_one_api",
         "test_page",
         "test_show",
         "test_warehouse",
@@ -340,6 +353,7 @@ py_test(
         ":wheel_duckdb",
         "//datacube:headless_bundle",
         "//datacube:test/fixtures/chart-rules.json",
+        "//datacube:test/fixtures/pages/trades.page.json",
         "//native:compiler",
         "//warehouse:sqlapi_corpus",
     ],
@@ -347,6 +361,8 @@ py_test(
     # judged by DataCube's own rules, headless (its bundle), and answered as chart-spec.ts is held to (test_page.py)
     env = _ENV | _HEADLESS_ENV | {
         "LEGEND_LITE_CHART_RULES": "$(rlocationpath //datacube:test/fixtures/chart-rules.json)",
+        # the saved-page corpus's frame page, which Python loads and writes as DataCube does (test_page.py CorpusPage)
+        "LEGEND_LITE_CORPUS_PAGE": "$(rlocationpath //datacube:test/fixtures/pages/trades.page.json)",
         "LEGEND_LITE_SQLAPI_CORPUS": "$(rlocationpath //warehouse:sqlapi_corpus)",
     },
     main = "tests/main.py",
@@ -693,3 +709,19 @@ build_test(
 )
 
 guards_package()
+
+# THE ONE API LEDGERS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md §3): //datacube:one_api_ledger_test reads Python's
+# sources (which command kinds Python makes), this package's ledger file (the register is held to every ledger) and
+# its tests (L12: the tests each ability on the Python host is proved by), each copied to the output tree, where a
+# JavaScript test reads its data (rules_js)
+copy_to_bin(
+    name = "legend_lite_sources",
+    srcs = glob(["legend_lite/*.py"]),
+    visibility = ["//datacube:__pkg__"],
+)
+
+copy_to_bin(
+    name = "one_api_ledger",
+    srcs = glob(["tests/test_*.py"]),
+    visibility = ["//datacube:__pkg__"],
+)

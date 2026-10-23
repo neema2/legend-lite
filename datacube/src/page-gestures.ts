@@ -1,0 +1,119 @@
+// A PAGE'S GESTURES AS THEIR COMMANDS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8; the user, 2026-10-22: "find all
+// [places the UI is coupled to the implementation] and guard against this"). What a gesture on a page means, written
+// outside the screen: a layout the board drew told as the page saves it, a hand move told as what the hand did, a sheet
+// renamed by the names' one rule, Show Grid's steps. The board keeps what is its alone -- where a drag let go, how many
+// tiles fit side by side, which of its tiles the page saves (an editing grid is the board's moment, never the page's) --
+// and passes it. A gesture whose every field is the person's input (a tile renamed as typed, a sheet removed) is built
+// by pageCommand, as Python's generated builder builds it (_commands.py, from the same kinds and fields).
+
+import type { ChartSpec } from './chart-spec.ts';
+import { asSaved, remove, tiles, type Bands, type Preset } from './layout/bands.ts';
+import { fieldNames } from './command-fields.ts';
+import { PAGE_COMMAND_FIELDS, type PageCommand } from './page-commands.ts';
+import type { PageLayout } from './page-document.ts';
+import { givenName } from './page-names.ts';
+import { CubeRefusal } from './snapshot.ts';
+
+/** A page command of `kind` whose every field is the person's input -- what they typed, picked or pointed at -- built
+ *  as Python's generated builder builds it (_commands.py, from the same list): its kind, then its fields in the order
+ *  PAGE_COMMAND_FIELDS lists them, an optional one not given left out; nothing decided. A field the list does not have
+ *  is a programming error, thrown. */
+export function pageCommand<K extends PageCommand['kind']>(kind: K, fields: Omit<Extract<PageCommand, { readonly kind: K }>, 'kind'>):
+  Extract<PageCommand, { readonly kind: K }> {
+  const listed: readonly string[] = PAGE_COMMAND_FIELDS[kind];
+  const given = fields as Readonly<Record<string, unknown>>;
+  const names = fieldNames(listed);
+  const odd = Object.keys(given).filter((k) => !names.includes(k));
+  if (odd.length > 0) throw new Error(`a '${kind}' command has no field ${odd.join(', ')}`);
+  const written: Record<string, unknown> = { kind };
+  for (const field of listed) {
+    const name = field.replace(/\?$/, '');
+    if (!field.endsWith('?') || given[name] !== undefined) written[name] = given[name];
+  }
+  return written as unknown as Extract<PageCommand, { readonly kind: K }>;
+}
+
+/** A sheet's layout as the page saves it: its saved tiles alone, each other one's place closed by its neighbours as a
+ *  removal closes it, a stack reopening on its first tab (the design's §5, 7). */
+export function savedLayout(layout: Bands, saved: ReadonlySet<string>): PageLayout {
+  const kept = tiles(layout).filter((id) => !saved.has(id)).reduce((rest, id) => remove(rest, id), layout);
+  return { kind: 'bands', ...asSaved(kept) };
+}
+
+/** A sheet's layout as the board drew it, told whole, as the page saves it (savedLayout). */
+export function layoutCommand(sheet: string, layout: Bands, saved: ReadonlySet<string>): PageCommand {
+  return { kind: 'layout', sheet, layout: savedLayout(layout, saved) };
+}
+
+/** What the hand did on the board (band-board.ts LayoutMove): a lone tile stacked on another, a preset picked. */
+export type HandMove =
+  | { readonly kind: 'stack'; readonly tiles: readonly [string, string] }
+  | { readonly kind: 'arrange'; readonly preset: Preset; readonly first?: string };
+
+/**
+ * A sheet's layout changed by hand, told as what the hand did (P14): a lone tile stacked on another, when both are tiles
+ * the page saves (an editing grid's place is no command's); a preset picked, the page's tiles arranged as the preset
+ * arranges them -- in the board's order: `first`, then the rest in reading order (`before`, the layout the hand changed);
+ * none given, the page's own -- an editing grid open among them the board's, drawn after (P7; the S3 audit's 4). Any
+ * other change is the sheet's layout whole (layoutCommand of `layout`, the board's now).
+ */
+export function movedCommand(sheet: string, before: Bands, move: HandMove | undefined, layout: Bands,
+  saved: ReadonlySet<string>): PageCommand {
+  if (move?.kind === 'stack' && move.tiles.every((t) => saved.has(t))) return { kind: 'stack', tiles: [...move.tiles] };
+  if (move?.kind === 'arrange') {
+    const was = tiles(before).filter((t) => saved.has(t));
+    const first = move.first !== undefined && saved.has(move.first) ? move.first : undefined;
+    return { kind: 'arrange', sheet, preset: move.preset, order: first !== undefined ? [first, ...was.filter((t) => t !== first)] : null };
+  }
+  return layoutCommand(sheet, layout, saved);
+}
+
+/** A sheet's name given as typed (`name`; undefined, none), by the names' one rule (page-names.ts givenName: trimmed, a
+ *  blank none of its own -- named after its first grid): its renameSheet, or null when it changes nothing -- the name
+ *  it has (`was`), or, with none of its own, the label it shows (`shown`), which renameSheet takes as none. */
+export function renameSheetCommand(sheet: string, name: string | undefined, was: string | undefined,
+  shown: string | undefined): PageCommand | null {
+  const given = givenName('sheet', name ?? '');
+  if ('refused' in given) throw new CubeRefusal(given.refused);
+  if (given.name === was || (was === undefined && given.name === shown)) return null;
+  return { kind: 'renameSheet', sheet, name: given.name ?? null };
+}
+
+/** Sheet `sheet`, at `at` of `count`, moved to `to` in the order (counted with it taken out), held to the order's ends;
+ *  null where it is already. */
+export function moveSheetCommand(sheet: string, at: number, to: number, count: number): PageCommand | null {
+  const place = Math.max(0, Math.min(count - 1, to));
+  return at === place ? null : { kind: 'moveSheet', sheet, to: place };
+}
+
+/** MOVE TO SHEET: tile `tile` onto sheet `sheet`, at its bottom -- a new one (`isNew`), made first, after the last, in
+ *  the same step -- `columns` fitting side by side there (the board's measure; null, as many as a sheet holds). */
+export function moveToSheetCommands(tile: string, sheet: string, isNew: boolean, columns: number | null): PageCommand[] {
+  return [...(isNew ? [{ kind: 'addSheet', id: sheet, name: null } as const] : []), { kind: 'moveTile', tile, sheet, columns }];
+}
+
+/**
+ * SHOW GRID's steps after its grid is added (D7; the screen's Show Grid and Python's chart.grid(), headless pageGesture):
+ * the chart on the new grid's cube (`followGrid`: its selection off its old grid's filter and its page filter off, as a
+ * click on nothing takes them), following it as it was drawn (`setChart`).
+ */
+export function showGridCommands(chart: string, grid: string, spec: ChartSpec): PageCommand[] {
+  return [{ kind: 'followGrid', chart, grid }, { kind: 'setChart', chart, spec }];
+}
+
+/** The page's gestures Python asks by name (headless pageGesture), with their arguments read from JSON: those whose
+ *  meaning a Python call shares with the screen's; the board's own (a hand's move, a layout drawn) are the board's. */
+export const PAGE_GESTURES = {
+  'chart.showGrid': (a: Readonly<Record<string, unknown>>): PageCommand[] => {
+    const text = (k: string): string => {
+      if (typeof a[k] !== 'string') throw new CubeRefusal(`'chart.showGrid' needs ${k}, the ${k}'s id`);
+      return a[k] as string;
+    };
+    if (typeof a['spec'] !== 'object' || a['spec'] === null) throw new CubeRefusal("'chart.showGrid' needs spec, the chart's spec");
+    return showGridCommands(text('chart'), text('grid'), a['spec'] as ChartSpec);
+  },
+} as const;
+
+export function isPageGesture(name: unknown): name is keyof typeof PAGE_GESTURES {
+  return typeof name === 'string' && Object.hasOwn(PAGE_GESTURES, name);
+}

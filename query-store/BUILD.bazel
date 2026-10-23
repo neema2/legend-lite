@@ -8,6 +8,7 @@ load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/teavm:defs.bzl", "teavm_wasm")
+load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 
 # THE SAVED QUERIES IN THE PAGE (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B5): core's rules (//core:saved_queries,
 # the ones legend-lite's server and Python's native library answer with) compiled to WebAssembly, the page's records
@@ -138,6 +139,15 @@ executable_of(
     name = "legend_server",
     testonly = True,
     binary = "//core:server",
+    visibility = ["//datacube:__pkg__"],
+)
+
+# the page's query store's conformance run, which //datacube:one_api_ledger_test (L12) names as half of the proof that the two
+# builds of it (the page's WebAssembly, Python's native library) answer alike, so reads it (copied to the output tree,
+# where a JavaScript test reads its data: rules_js)
+copy_to_bin(
+    name = "wasm_test_source",
+    srcs = ["test/wasm.test.ts"],
     visibility = ["//datacube:__pkg__"],
 )
 

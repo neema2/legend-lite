@@ -8,6 +8,8 @@
 
 // a waterfall's, a dumbbell's and a range's spans
 import 'echarts/lib/chart/custom.js';
+// a box plot's boxes and whiskers
+import 'echarts/lib/chart/boxplot.js';
 import 'echarts/lib/chart/funnel.js';
 import 'echarts/lib/chart/gauge.js';
 import 'echarts/lib/chart/parallel.js';

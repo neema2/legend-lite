@@ -8,11 +8,27 @@ import type {
   Multiplicity, PackageableElementPtr, RelationColumn, ValueSpecification, Variable,
 } from './wire.ts';
 
-const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/**
+ * An identifier's letters: a letter or `_`, then letters, digits and `_` -- the plain form, stricter than the lexer
+ * (which also takes a `$` after the first letter).
+ */
+export const IDENTIFIER_LETTERS = '[A-Za-z_][A-Za-z0-9_]*';
+const IDENT = new RegExp(`^${IDENTIFIER_LETTERS}$`);
 
-/** A parameter or variable name: an identifier (the grammar quotes nothing else). */
+/**
+ * THE identifier rule on the TypeScript side (the one copy DataCube asks: the other DataCube line's follow-up,
+ * 2026-10-18): a name the grammar reads bare -- an identifier's letters, and not `true` or `false`, which its lexer
+ * reads as literals. Any other name is quoted where the grammar quotes one (a column: `$x.'true'`), or refused where it
+ * quotes none (a lambda's parameter). Its twins elsewhere: the compiler's own (ModelChanges.isIdentifier) and Python's
+ * frames (`_NAME` and `_LITERALS`), which writes models before any of this runs.
+ */
+export function isIdentifier(n: string): boolean {
+  return IDENT.test(n) && n !== 'true' && n !== 'false';
+}
+
+/** A parameter or variable name: an identifier (a lambda's parameter is never quoted, so a builder writes none). */
 function name(n: string, what: string): string {
-  if (!IDENT.test(n)) throw new ProtocolError(`${what} '${n}' is not an identifier`);
+  if (!isIdentifier(n)) throw new ProtocolError(`${what} '${n}' is not an identifier`);
   return n;
 }
 

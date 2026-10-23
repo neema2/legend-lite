@@ -108,12 +108,33 @@ class Compiling(unittest.TestCase):
         self.assertEqual(m['copySelectList'], '* REPLACE (CAST("big" AS DECIMAL(20,0)) AS "big")')
         self.assertEqual([(c.name, c.type) for c in ll.relation_type(m['model'], {'_type': 'lambda', 'body': [m['source']], 'parameters': []})],
                          [('id', 'Integer'), ('big', 'Decimal')])
-        self.assertNotIn('snapRuntime', m)
+
+    def test_writes_one_model_of_several_tables_each_read_as_its_own_model_reads_it(self):
+        # docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.3: a join's inputs, read in one place
+        orders = {'table': 'orders', 'pkg': 'shop', 'convertible': True,
+                  'columns': [{'name': 'id', 'dataType': 'BIGINT', 'logicalType': 'BIGINT', 'notNull': True},
+                              {'name': 'cust', 'dataType': 'INTEGER', 'logicalType': 'INTEGER'}]}
+        customers = {'table': 'customers', 'pkg': 'shop', 'convertible': True,
+                     'columns': [{'name': 'id', 'dataType': 'INTEGER', 'logicalType': 'INTEGER', 'notNull': True},
+                                 {'name': 'region', 'dataType': 'VARCHAR', 'logicalType': 'VARCHAR'}]}
+        m = ll.table_model({'databaseType': 'DuckDB', 'tables': [orders, customers]})
+        self.assertEqual(m['runtime'], 'host::RT')
+        self.assertEqual(m['model'].count('Database shop::DB'), 1)
+        self.assertEqual([t['accessor'] for t in m['tables']], ['#>{shop::DB.orders}#', '#>{shop::DB.customers}#'])
+        # each table's relation is the one its own model reads
+        alone = ll.table_model({**customers, 'databaseType': 'DuckDB'})
+        self.assertEqual(m['tables'][1]['source'], alone['source'])
+        joined = ll.parse("|#>{shop::DB.orders}#->join(#>{shop::DB.customers}#->rename(~id, ~c_id), "
+                          "meta::pure::functions::relation::JoinKind.LEFT, {a, b | $a.cust == $b.c_id})")
+        self.assertEqual([c.name for c in ll.relation_type(m['model'], joined)], ['id', 'cust', 'c_id', 'region'])
+        self.assertIn('LEFT OUTER JOIN', ll.plan(m['model'], joined, m['runtime']).sql)
+        with self.assertRaises(ll.LegendError) as e:
+            ll.table_model({'databaseType': 'DuckDB', 'tables': [customers, customers]})
+        self.assertIn("'customers' is given twice", e.exception.message)
 
     def test_the_whole_model_is_exactly_what_datacube_writes(self):
         # DataCube's infer.ts wrote this text by hand; the compiler's boundary writes it now, for both
         m = ll.table_model({'table': 'orders', 'pkg': 'shop', 'convertible': True, 'databaseType': 'DuckDB',
-                            'snapDatabaseType': 'DuckDB',
                             'columns': [{'name': 'id', 'dataType': 'BIGINT', 'logicalType': 'BIGINT', 'notNull': True},
                                         {'name': 'open', 'dataType': 'BOOLEAN', 'logicalType': 'BOOLEAN'}]})
         connection = lambda conn, rt: (
@@ -122,8 +143,8 @@ class Compiling(unittest.TestCase):
             '    mappings: [];\n    connections:\n    [\n        shop::DB: [ c1: shop::' + conn + ' ]\n    ];\n}\n')
         database = ('###Relational\nDatabase shop::DB\n(\n    Table orders\n    (\n        id BIGINT NOT NULL,\n'
                     '        open BIT\n    )\n)\n')
-        self.assertEqual(m['model'], database + '\n' + connection('Conn', 'RT') + '\n' + connection('SnapConn', 'SnapRT'))
-        self.assertEqual((m['runtime'], m['snapRuntime'], m['accessor']), ('shop::RT', 'shop::SnapRT', '#>{shop::DB.orders}#'))
+        self.assertEqual(m['model'], database + '\n' + connection('Conn', 'RT'))
+        self.assertEqual((m['runtime'], m['accessor']), ('shop::RT', '#>{shop::DB.orders}#'))
         self.assertEqual((m['conversions'], m['copySelectList'], m['excluded'], m['bitColumns']), ([], '*', [], ['open']))
 
     def test_a_held_model_is_compiled_once_and_plans_as_a_model_given_each_time(self):

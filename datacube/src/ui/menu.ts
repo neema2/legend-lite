@@ -34,11 +34,9 @@
 import type { MemberPath } from '../adhoc/state.ts';
 import type {
   CubeSnapshot,
-  FilterNode,
   FilterOperator,
   FilterValue,
   SortDirection,
-  SortSpec,
 } from '../snapshot.ts';
 import type { CalcStage } from '../calc.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
@@ -47,8 +45,7 @@ import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
 import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, rowColumns } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 import { takesOperator } from '../offers.ts';
-import { addSort, setGrouping, setPivot, setSorts } from '../grid-edits.ts';
-import type { CubeConfiguration } from '../config.ts';
+import { gestureTakes, isGridGesture, type GestureArgs, type GridGestureName } from '../grid-gestures.ts';
 
 /**
  * A pivoted column's name is a PATH -- `2021__|__notional` -- and a
@@ -155,9 +152,10 @@ export type MenuActionId =
   /**
    * A HOST's own entry, which must be prefixed.
    *
-   * The cube's ids stay a closed union, so `applyMenuAction` and the
-   * dispatch in app.ts remain exhaustive over them and
-   * `menu-ids.test.ts` can still tell a dead entry from a live one.
+   * The cube's ids stay a closed union, so the dispatch in app.ts -- a
+   * grid's gesture by its id (menuGesture), the rest by their cases --
+   * covers them, and `menu-ids.test.ts` can still tell a dead entry
+   * from a live one.
    * A host adds items to the title bar menu and gets them back
    * through `onHostMenu`; the prefix is what keeps the two sets from
    * ever being confused for one another.
@@ -220,6 +218,8 @@ export type MenuActionId =
   | 'page.export'
   | 'page.undoLayout'
   | 'page.redoLayout'
+  | 'page.undo'
+  | 'page.redo'
   | 'page.editLayout'
   | 'view.properties'
   // the cube's controls hidden or shown, the grid alone (setControlsHidden)
@@ -818,95 +818,20 @@ export function menuItems(groups: readonly MenuGroup[]): MenuItem[] {
   return groups.flatMap((g) => walk(g.items));
 }
 
-// -- applying an action to the snapshot -------------------------------
+// -- an entry as its gesture -------------------------------------------
 
 /**
- * Apply a menu action, returning a NEW snapshot.
- *
- * Actions that change nothing return the snapshot unchanged by
- * identity, so a caller can skip a refresh rather than re-running the
- * same query. Sorts and pivots are set by grid-edits.ts, the one way a
- * grid's are set (`config`: the grid's, which says a column's kind);
- * an action its offers refuse throws its words (CubeRefusal).
+ * The grid's gesture a menu entry makes (grid-gestures.ts: its id the gesture's name, the one Python's grid.gesture
+ * takes) and what the entry carries of what the gesture takes -- the column under it, an operator and its value -- or
+ * null: an entry that is the screen's own (a column measured, a window opened), layout, clipboard or export. What the
+ * gesture means is grid-gestures.ts's: an entry that would change nothing makes no command there, one its offers refuse
+ * is refused when applied, in their words (CubeRefusal).
  */
-export function applyMenuAction(
-  s: CubeSnapshot,
-  item: MenuItem,
-  config: CubeConfiguration,
-): CubeSnapshot {
-  const col = item.column;
-  const without = <T>(xs: readonly T[], p: (x: T) => boolean): T[] =>
-    xs.filter((x) => !p(x));
-  const draft = { snapshot: s, config };
-  const sorted = (sorts: readonly SortSpec[]): CubeSnapshot => setSorts(draft, sorts).snapshot;
-  const rows = (names: readonly string[]): CubeSnapshot => setGrouping(draft, names).snapshot;
-  const pivotOn = (names: readonly string[]): CubeSnapshot => setPivot(draft, names).snapshot;
-
-  switch (item.id) {
-    case 'sort.asc':
-    case 'sort.desc':
-      return col
-        ? sorted([{ column: col, direction: item.direction ?? 'asc' }])
-        : s;
-    case 'sort.addAsc':
-    case 'sort.addDesc':
-      return col ? addSort(draft, col, item.direction ?? 'asc').snapshot : s;
-    case 'sort.clearColumn':
-      return col
-        ? sorted(without(s.sorts, (x) => x.column === col))
-        : s;
-    case 'sort.clearAll':
-      return sorted([]);
-
-    case 'filter.add': {
-      // ADDS to the filter rather than replacing it, which is what
-      // "Add Filter" says and what makes the entry usable twice in
-      // a row. The new condition joins the existing tree with AND;
-      // an OR is the filter editor's job.
-      if (!col || !item.operator) return s;
-      const condition: FilterNode = {
-        kind: 'condition',
-        column: col,
-        operator: item.operator,
-        ...(item.value !== undefined ? { value: item.value } : {}),
-      };
-      const filter: FilterNode = s.filter
-        ? s.filter.kind === 'and'
-          ? { kind: 'and', children: [...s.filter.children, condition] }
-          : { kind: 'and', children: [s.filter, condition] }
-        : condition;
-      return { ...s, filter };
-    }
-
-    case 'filter.clearAll': {
-      const { filter: _drop, ...rest } = s;
-      return rest;
-    }
-
-    case 'pivot.vertical':
-      return col ? rows([col]) : s;
-    case 'pivot.addVertical':
-      return col && !s.rows.includes(col)
-        ? rows([...s.rows, col])
-        : s;
-    case 'pivot.removeVertical':
-      return col ? rows(without(s.rows, (x) => x === col)) : s;
-    case 'pivot.clearVertical':
-      return rows([]);
-
-    case 'pivot.horizontal':
-      return col ? pivotOn([col]) : s;
-    case 'pivot.addHorizontal':
-      return col && !s.pivotOn.includes(col)
-        ? pivotOn([...s.pivotOn, col])
-        : s;
-    case 'pivot.removeHorizontal':
-      return col ? pivotOn(without(s.pivotOn, (x) => x === col)) : s;
-    case 'pivot.clearHorizontal':
-      return pivotOn([]);
-
-    default:
-      // Layout, copy and export actions do not touch the query.
-      return s;
-  }
+export function menuGesture(item: MenuItem): { readonly name: GridGestureName; readonly args: GestureArgs } | null {
+  if (!isGridGesture(item.id)) return null;
+  const carried: Record<string, unknown> = { column: item.column, operator: item.operator, value: item.value };
+  return {
+    name: item.id,
+    args: Object.fromEntries(gestureTakes(item.id).flatMap((k) => (carried[k] !== undefined ? [[k, carried[k]]] : []))),
+  };
 }

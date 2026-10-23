@@ -9,8 +9,8 @@ import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
-import { chartQuery, DEFAULT_OPTIONS, GRID_MARKS, measureName, type ChartSpec } from '../src/chart-spec.ts';
-import { paretoName, ringTotalName, waterfallNames } from '../src/calc-presets.ts';
+import { boxMeasures, chartQuery, DEFAULT_OPTIONS, GRID_MARKS, measureName, type ChartSpec } from '../src/chart-spec.ts';
+import { marimekkoNames, paretoName, ringTotalName, waffleNames, waterfallNames } from '../src/calc-presets.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
@@ -232,6 +232,12 @@ describe('the example pages\' charts, planned and run on their own sample (docs/
         assert.ok(t.rowCount > 0, `${v.title}: rows`);
         // a value on a bin's edge is in its own bin: 0.15 / 0.05 is 2.9999999999999996 in floating point, and the
         // database rounds the quotient before its floor (calc-presets.ts floorOf)
+        // a bubble map groups by each place's latitude and longitude with its name: the sample's ten cities, each once
+        if (v.id === 'k-bubbles') {
+          assert.equal(t.rowCount, 10);
+          assert.equal(new Set(values(t, 'city')).size, 10);
+          assert.deepEqual(values(t, 'lat').filter((_, i) => values(t, 'city')[i] === 'Tokyo').map(Number), [35.68]);
+        }
         if (v.id === 'b-discount') {
           assert.deepEqual(values(t, 'discount__bin').map((d) => Number(Number(d).toFixed(2))).sort(), [0, 0.05, 0.1, 0.15, 0.2]);
         }
@@ -359,5 +365,94 @@ describe('batch 3\'s kinds, planned and run: the database computes each kind\'s 
     }
     // the average line is each panel's: 200 a month in each
     assert.deepEqual([...new Set(values(t, 'average_of_percentOfTotal_sum_revenue').map((v) => Number(v).toFixed(6)))], [(1 / 3).toFixed(6)]);
+  });
+});
+
+describe('batch 4, planned and run: a box plot\'s figures are the database\'s', () => {
+  it('each region\'s least, quartiles (continuous, as Pure\'s percentile), median and most, ordered by the median', async () => {
+    const t = await rows({ ...BY_REGION, mark: 'boxplot', y: boxMeasures('revenue'), options: { ...DEFAULT_OPTIONS, sort: { by: 'y', direction: 'desc' } } });
+    // EMEA sold 100, 200, 300 and AMER 50, 150, 400: a quartile between two sales is the point between them
+    assert.deepEqual(values(t, 'region'), ['EMEA', 'AMER']);
+    assert.deepEqual(values(t, 'min_revenue').map(Number), [100, 50]);
+    assert.deepEqual(values(t, 'percentile25_revenue').map(Number), [150, 100]);
+    assert.deepEqual(values(t, 'median_revenue').map(Number), [200, 150]);
+    assert.deepEqual(values(t, 'percentile75_revenue').map(Number), [250, 275]);
+    assert.deepEqual(values(t, 'max_revenue').map(Number), [300, 400]);
+  });
+  it('a pivot cell on a quartile: each region\'s own rows only (the cell\'s condition inside the map), and the total over all', async () => {
+    const { levelLambda, pinnedPivotFacts } = await import('../src/query.ts');
+    const s: CubeSnapshot = {
+      ...cube,
+      rows: [],
+      pivotOn: ['region'],
+      pivotValues: ['AMER', 'EMEA'],
+      pivotTotal: { placement: 'right' },
+      columns: cube.columns.map((c) => (c.name === 'cost' ? { ...c, aggregate: 'percentile25' as const } : c)),
+    };
+    const t = await engine.execute(await planner.plan(levelLambda(s, undefined, pinnedPivotFacts(s) ?? undefined)), 0);
+    const cell = (part: string): number => {
+      const c = t.columns.find((x) => x.name.includes(part) && x.name.includes('cost'));
+      assert.ok(c, `a column for ${part} (the answer has ${t.columns.map((x) => x.name).join(', ')})`);
+      return Number(c.values[0]);
+    };
+    // AMER's costs 40, 90, 100 and EMEA's 60, 150, 200; every cost 40, 60, 90, 100, 150, 200
+    assert.equal(cell('AMER'), 65);
+    assert.equal(cell('EMEA'), 105);
+    assert.equal(cell('total'), 67.5);
+  });
+  it('a grid column on the first or third quartile, planned and run at its level', async () => {
+    const { levelLambda } = await import('../src/query.ts');
+    const s: CubeSnapshot = {
+      ...cube,
+      columns: cube.columns.map((c) => (c.name === 'cost' ? { ...c, aggregate: 'percentile25' as const }
+        : c.name === 'revenue' ? { ...c, aggregate: 'percentile75' as const } : c)),
+      sorts: [{ column: 'region', direction: 'asc' }],
+    };
+    const t = await engine.execute(await planner.plan(levelLambda(s, { level: 1, parent: [] })), 0);
+    // AMER's costs 40, 90, 100 and EMEA's 60, 150, 200; revenues 50, 150, 400 and 100, 200, 300
+    assert.deepEqual(values(t, 'region'), ['AMER', 'EMEA']);
+    assert.deepEqual(values(t, 'cost').map(Number), [65, 105]);
+    assert.deepEqual(values(t, 'revenue').map(Number), [275, 250]);
+  });
+});
+
+describe('batch 3\'s leftovers, planned and run: the database lays out each cell', () => {
+  it('a Marimekko: each region as wide as its share of the whole, each sale up it as tall as its share of the region', async () => {
+    const t = await rows({ ...BY_REGION, mark: 'marimekko', split: 'sold' });
+    const n = marimekkoNames('sum_revenue');
+    const at = (region: string, sold: string): number[] => {
+      const i = values(t, 'region').findIndex((r, k) => r === region && String(values(t, 'sold')[k]).startsWith(sold));
+      return [n.x0, n.x1, n.y0, n.y1].map((c) => Number(Number(values(t, c)[i]).toFixed(4)));
+    };
+    // AMER sold 400, 50, 150 and EMEA 100, 200, 300: 600 each of 1,200, AMER first across
+    assert.deepEqual(at('AMER', '2024-01-20'), [0, 0.5, 0, 0.6667]);
+    assert.deepEqual(at('AMER', '2024-02-25'), [0, 0.5, 0.6667, 0.75]);
+    assert.deepEqual(at('AMER', '2024-03-30'), [0, 0.5, 0.75, 1]);
+    assert.deepEqual(at('EMEA', '2024-03-05'), [0.5, 1, 0.5, 1]);
+  });
+  it('a waffle: each region the cells from its running share before it to its running share through it, a hundred in all', async () => {
+    const t = await rows({ ...BY_REGION, mark: 'waffle', options: { ...DEFAULT_OPTIONS, sort: { by: 'y', direction: 'desc' } } });
+    const { from, to } = waffleNames('sum_revenue');
+    // 600 each: AMER first by name
+    assert.deepEqual(values(t, 'region'), ['AMER', 'EMEA']);
+    assert.deepEqual(values(t, from).map(Number), [0, 50]);
+    assert.deepEqual(values(t, to).map(Number), [50, 100]);
+  });
+  it('a whole of nothing: the waffle\'s ranges and the Marimekko\'s shares empty, never a division by zero', async () => {
+    // a value that nets to nothing in every region: each sale less itself
+    const flat: CubeSnapshot = { ...cube, derived: [{ name: 'flat', lambda: await row('$x.revenue->toOne() - $x.revenue->toOne()') }] };
+    const waffle = await rows({ ...BY_REGION, mark: 'waffle', y: [{ column: 'flat', fn: 'sum' }] }, flat);
+    const { from, to } = waffleNames('sum_flat');
+    assert.deepEqual(values(waffle, to), [null, null]);
+    assert.deepEqual(values(waffle, from).map(Number), [0, 0]);
+    const mekko = await rows({ ...BY_REGION, mark: 'marimekko', split: 'sold', y: [{ column: 'flat', fn: 'sum' }] }, flat);
+    const n = marimekkoNames('sum_flat');
+    assert.ok([n.x0, n.x1, n.y0, n.y1].every((c) => values(mekko, c).every((v) => v === null)));
+  });
+  it('a Gantt: each region\'s first and last sale, the dates the database answers', async () => {
+    const t = await rows({ ...BY_REGION, mark: 'gantt', y: [{ column: 'sold', fn: 'min' }, { column: 'sold', fn: 'max' }] });
+    assert.deepEqual(values(t, 'region'), ['AMER', 'EMEA']);
+    assert.deepEqual(values(t, 'min_sold').map((d) => String(d).slice(0, 10)), ['2024-01-20', '2024-01-15']);
+    assert.deepEqual(values(t, 'max_sold').map((d) => String(d).slice(0, 10)), ['2024-03-30', '2024-03-05']);
   });
 });

@@ -8,6 +8,7 @@ load("//tools/guards:defs.bzl", "guards_package")
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("//tools/js:defs.bzl", "node_test")
 load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@npm_engine_client//:defs.bzl", "npm_link_all_packages")
 load("//tools/js:esbuild.bzl", "esbuild_bundle")
@@ -252,6 +253,15 @@ filegroup(
         "//query:__pkg__",
         "//studio:__pkg__",
     ],
+)
+
+# the tab's warehouse driver held to the corpus Python's driver is held to too: //datacube:one_api_ledger_test (L12)
+# names it as the warehouse's proof on both hosts, so reads it (copied to the output tree, where a JavaScript test reads
+# its data: rules_js)
+copy_to_bin(
+    name = "warehouse_corpus_test_source",
+    srcs = ["test/warehouse-corpus.test.ts"],
+    visibility = ["//datacube:__pkg__"],
 )
 
 # every test here: the local gate and CI's `ui` lane run it

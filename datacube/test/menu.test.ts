@@ -2,15 +2,31 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  applyMenuAction,
   buildMenu,
+  menuGesture,
   menuItems,
   valueLabel,
   type MenuActionId,
+  type MenuItem,
 } from '../src/ui/menu.ts';
+import { applyGridCommands, type GridCommand } from '../src/grid-commands.ts';
+import { gridGestureGiven } from '../src/grid-gestures.ts';
 import { pivotTotalColumn, type CubeSnapshot } from '../src/snapshot.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { element } from '../../pure-protocol/src/index.ts';
+
+/** A menu entry made as the grid makes it (app.ts #onMenuAction): its gesture (menuGesture, grid-gestures.ts gridGesture,
+ *  the one Python's grid.gesture asks), its commands applied -- the very same grid when it makes none. */
+const menuCommands = (s: CubeSnapshot, item: MenuItem): GridCommand[] | null => {
+  const gesture = menuGesture(item);
+  return gesture === null ? null
+    : gridGestureGiven(gesture.name, { snapshot: s, config: DEFAULT_CONFIGURATION, dimensions: [], view: null }, gesture.args);
+};
+const applyMenuAction = (s: CubeSnapshot, item: MenuItem): CubeSnapshot => {
+  const commands = menuCommands(s, item);
+  return commands === null || commands.length === 0 ? s
+    : applyGridCommands({ snapshot: s, config: DEFAULT_CONFIGURATION }, commands).snapshot;
+};
 
 const CUBE: CubeSnapshot = {
   source: { query: element('t') },
@@ -385,27 +401,27 @@ describe('buildMenu', () => {
   });
 });
 
-describe('applyMenuAction', () => {
+describe('a menu entry made as its gesture', () => {
   const run = (id: MenuActionId, column?: string, direction?: 'asc' | 'desc') =>
     applyMenuAction(CUBE, {
       id,
       label: '',
       ...(column ? { column } : {}),
       ...(direction ? { direction } : {}),
-    }, DEFAULT_CONFIGURATION);
+    });
 
   it('replaces the sort, or adds to it', () => {
     // Two different intentions, so two actions rather than one that
     // guesses which was meant.
     const replaced = applyMenuAction(
       { ...CUBE, sorts: [{ column: 'region', direction: 'asc' }] },
-      { id: 'sort.desc', label: '', column: 'desk', direction: 'desc' }, DEFAULT_CONFIGURATION,
+      { id: 'sort.desc', label: '', column: 'desk', direction: 'desc' },
     );
     assert.deepEqual(replaced.sorts, [{ column: 'desk', direction: 'desc' }]);
 
     const added = applyMenuAction(
       { ...CUBE, sorts: [{ column: 'region', direction: 'asc' }] },
-      { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' }, DEFAULT_CONFIGURATION,
+      { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' },
     );
     assert.deepEqual(added.sorts, [
       { column: 'region', direction: 'asc' },
@@ -416,7 +432,7 @@ describe('applyMenuAction', () => {
   it('re-adding a sorted column moves it rather than duplicating', () => {
     const s = applyMenuAction(
       { ...CUBE, sorts: [{ column: 'desk', direction: 'asc' }] },
-      { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' }, DEFAULT_CONFIGURATION,
+      { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' },
     );
     assert.deepEqual(s.sorts, [{ column: 'desk', direction: 'desc' }]);
   });
@@ -443,19 +459,43 @@ describe('applyMenuAction', () => {
     const cleared = applyMenuAction(filtered, {
       id: 'filter.clearAll',
       label: '',
-    }, DEFAULT_CONFIGURATION);
+    });
     assert.equal('filter' in cleared, false);
   });
 
-  it('leaves the query alone for layout, copy and export', () => {
-    for (const id of [
-      'column.hide',
-      'column.pinLeft',
-      'copy.selection',
-      'export.csv',
-    ] as MenuActionId[]) {
-      assert.equal(run(id, 'desk'), CUBE, `${id} must not touch the query`);
+  it('leaves the query alone for layout, copy and export: presentation a configure, the rest the screen\'s own', () => {
+    for (const id of ['column.hide', 'column.pinLeft'] as MenuActionId[]) {
+      assert.deepEqual(menuCommands(CUBE, { id, label: '', column: 'desk' })?.map((c) => c.kind), ['configure'], id);
     }
+    for (const id of ['copy.selection', 'export.csv'] as MenuActionId[]) {
+      assert.equal(menuCommands(CUBE, { id, label: '', column: 'desk' }), null, `${id} makes no command`);
+    }
+  });
+});
+
+describe('menuGesture: a query entry is its grid gesture (grid-gestures.ts), the one Python\'s grid.gesture asks', () => {
+  const command = (id: MenuActionId, column?: string, s: CubeSnapshot = CUBE) =>
+    menuCommands(s, { id, label: '', ...(column ? { column } : {}) });
+
+  it('makes the edit as Python would send it', () => {
+    assert.deepEqual(menuCommands(CUBE, { id: 'sort.addDesc', label: '', column: 'desk', direction: 'desc' }),
+      [{ kind: 'addSort', column: 'desk', direction: 'desc' }]);
+    assert.deepEqual(command('pivot.addVertical', 'desk'), [{ kind: 'group', rows: ['region', 'desk'] }]);
+    assert.deepEqual(command('pivot.horizontal', 'desk'), [{ kind: 'pivot', columns: ['desk'] }]);
+    assert.deepEqual(command('filter.clearAll'), [{ kind: 'filter', filter: null }]);
+    assert.deepEqual(menuCommands(CUBE, { id: 'filter.add', label: '', column: 'desk', operator: 'equal', value: 'FX' }),
+      [{ kind: 'addFilter', condition: { kind: 'condition', column: 'desk', operator: 'equal', value: 'FX' } }]);
+    // the entry's gesture and what it carries of what the gesture takes: its column, not its direction (the name's)
+    assert.deepEqual(menuGesture({ id: 'sort.desc', label: '', column: 'desk', direction: 'desc' }),
+      { name: 'sort.desc', args: { column: 'desk' } });
+  });
+
+  it('makes none for an entry off the query, or one that would change nothing; refuses one with no column', () => {
+    for (const id of ['copy.selection', 'export.csv'] as MenuActionId[]) {
+      assert.equal(command(id, 'desk'), null, id);
+    }
+    assert.deepEqual(command('pivot.addVertical', 'region'), [], 'a row group the grid has');
+    assert.throws(() => command('sort.asc'), /'sort.asc' needs column/, 'no column under it');
   });
 });
 
@@ -513,8 +553,7 @@ describe('a pivot Total column', () => {
     for (const id of ['sort.asc', 'sort.desc', 'sort.addAsc', 'sort.addDesc'] as const) {
       assert.ok(on.includes(id), `${id}: ${on.join(' ')}`);
     }
-    const next = applyMenuAction(ctx.snapshot,
-      menuItems(buildMenu(ctx)).find((i) => i.id === 'sort.desc')!, DEFAULT_CONFIGURATION);
+    const next = applyMenuAction(ctx.snapshot, menuItems(buildMenu(ctx)).find((i) => i.id === 'sort.desc')!);
     assert.deepEqual(next.sorts, [{ column: total, direction: 'desc' }]);
   });
 

@@ -14,12 +14,13 @@
 
 import { allColumns, copiedColumn, measuresAsColumns, type GridDraft } from './grid-edits.ts';
 import { columnSpecs, defaultMeasure, levelLambda, type LevelScope } from './query.ts';
-import { binColumns, binName, grainColumn, grainEndColumn, grainName, paretoColumns, rangeConditions, ringTotalColumn, showAsColumns, showAsName, statColumn, upperName, waterfallColumns } from './calc-presets.ts';
+import { binColumns, binName, grainColumn, grainEndColumn, grainName, marimekkoColumns, paretoColumns, rangeConditions, ringTotalColumn, showAsColumns, showAsName, statColumn, upperName, waffleColumns, waterfallColumns } from './calc-presets.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 import {
   AGGREGATE_FNS,
   rowColumns,
   type AggregateFn,
+  type CubeShape,
   type CubeSnapshot,
   type DerivedColumn,
   type FilterNode,
@@ -27,15 +28,29 @@ import {
   type QuerySnapshot,
   type RowColumn,
   type SortSpec,
+  withoutConditions,
 } from './snapshot.ts';
-import { defaultKind, isDay, isFractional, isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
+import { applyToSnapshot, type CubeConfiguration } from './config.ts';
+import { defaultKind, familyOf, isDay, isFractional, isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 
 export type ChartMark =
   | 'bar' | 'line' | 'area' | 'scatter' | 'pie' | 'heatmap' | 'treemap' | 'kpi'
   // batch 3 (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): drawn by chart-kinds.ts, a chunk of its own
   | 'lollipop' | 'dumbbell' | 'range' | 'waterfall' | 'pareto' | 'funnel' | 'rose' | 'polar' | 'radar' | 'parallel'
-  | 'sankey' | 'chord' | 'stream' | 'calendar' | 'gauge' | 'sunburst' | 'tree' | 'matrix';
+  | 'sankey' | 'chord' | 'stream' | 'calendar' | 'gauge' | 'sunburst' | 'tree' | 'matrix'
+  // batch 4 (statistics): a box per category, its five figures the database's (BOX_FNS)
+  | 'boxplot'
+  // batch 5 (maps, §4): drawn by chart-maps.ts on the world's countries, a chunk of its own
+  | 'map' | 'bubblemap'
+  // batch 3's leftovers: shares as cells (a Marimekko, a waffle), and a start and an end per row (a Gantt)
+  | 'marimekko' | 'waffle' | 'gantt';
+
+/** Batch 5's maps: drawn by chart-maps.ts on Natural Earth's countries, fetched with the first of them. */
+export const MAP_MARKS: ReadonlySet<ChartMark> = new Set(['map', 'bubblemap']);
+
+/** A map asks for this many places: the world has about two hundred countries. */
+export const MAP_LIMIT = 250;
 
 /** The kinds that draw the GRID'S rows as shown, with no query of their own: a treemap, a sunburst, a tree. */
 export const GRID_MARKS: ReadonlySet<ChartMark> = new Set(['treemap', 'sunburst', 'tree']);
@@ -43,7 +58,7 @@ export const GRID_MARKS: ReadonlySet<ChartMark> = new Set(['treemap', 'sunburst'
 /** Batch 3's kinds: drawn by chart-kinds.ts, fetched with the first of them (the rarer ECharts charts with it). */
 export const KIND_MARKS: ReadonlySet<ChartMark> = new Set([
   'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'polar', 'radar', 'parallel',
-  'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree', 'matrix',
+  'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree', 'matrix', 'boxplot', 'marimekko', 'waffle', 'gantt',
 ]);
 
 /** The kinds that plot ROWS, not groups: a scatter, and a scatter matrix (every pair of its values). */
@@ -54,19 +69,32 @@ export function plotsRows(spec: Pick<ChartSpec, 'mark'>): boolean {
 /** The most values a scatter matrix compares: five make twenty scatters. */
 export const MAX_MATRIX = 5;
 
+/**
+ * A box plot's five figures of its one column, in the order its boxes are drawn: the least, the first quartile, the
+ * median, the third quartile, the most -- each an aggregate the database computes per category (`percentile(0.25)`,
+ * `median()`, ...), never a figure computed here.
+ */
+export const BOX_FNS = ['min', 'percentile25', 'median', 'percentile75', 'max'] as const satisfies readonly AggregateFn[];
+
+/** A box plot's values: its column's five figures (BOX_FNS). */
+export function boxMeasures(column: string): ChartMeasure[] {
+  return BOX_FNS.map((fn) => ({ column, fn }));
+}
+
 /** The kinds whose marks are the categories across, one per value: a click drills down from one. */
 const DRILLABLE: ReadonlySet<ChartMark> = new Set([
   'bar', 'line', 'area', 'pie', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose',
-  'polar',
+  'polar', 'boxplot',
 ]);
 
 /** The kinds that draw one series of categories: no split (a colour per value) has a place on them. */
 export const UNSPLIT: ReadonlySet<ChartMark> = new Set([
   'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'radar', 'parallel', 'calendar', 'gauge',
+  'boxplot', 'map', 'bubblemap', 'waffle', 'gantt',
 ]);
 
 /** The kinds that plot several values of their own: following the cube, they keep them. */
-const SEVERAL_VALUES: ReadonlySet<ChartMark> = new Set(['dumbbell', 'range', 'radar', 'parallel']);
+const SEVERAL_VALUES: ReadonlySet<ChartMark> = new Set(['dumbbell', 'range', 'radar', 'parallel', 'boxplot', 'gantt']);
 
 /** The kinds that need a second grouping (the split): a heatmap's rows, a flow's target, a stream's layers. */
 export const SPLIT_NEEDED: Readonly<Partial<Record<ChartMark, string>>> = {
@@ -74,6 +102,7 @@ export const SPLIT_NEEDED: Readonly<Partial<Record<ChartMark, string>>> = {
   sankey: 'A Sankey needs a second column, where each flow goes (Split by).',
   chord: 'A chord diagram needs a second column, where each flow goes (Split by).',
   stream: 'A streamgraph needs a second column, for its layers (Split by).',
+  marimekko: 'A Marimekko needs a second column, what each of its columns is made of (Split by).',
 };
 
 /** The kinds that need a date across. */
@@ -168,6 +197,12 @@ export interface ChartFacet {
   readonly column?: string;
 }
 
+/** Where a bubble map places each row: the columns of its latitude and its longitude, in degrees (one, while chosen). */
+export interface ChartPlace {
+  readonly lat?: string;
+  readonly lon?: string;
+}
+
 /** A chart's own calculated column (§3.2 item 3): the column editor's own kind, at the row or the group stage. */
 export interface ChartCalc {
   readonly stage: 'row' | 'group';
@@ -203,6 +238,8 @@ export interface ChartSpec {
   readonly tooltip?: readonly ChartMeasure[];
   /** Small multiples: a chart per value. */
   readonly facet?: ChartFacet;
+  /** A bubble map's places: each row's latitude and longitude columns (the chart groups by them, with its x). */
+  readonly at?: ChartPlace;
   /** Reference lines, bands, thresholds, pinned extremes. */
   readonly layers?: readonly ChartLayer[];
   /** The chart's own calculated columns. */
@@ -291,8 +328,9 @@ const known = (words: Readonly<Record<string, true>>, v: unknown): boolean => ty
 // it has no place for -- a newer DataCube's, or one misspelt -- is refused by name, never ignored
 const SPEC_KEYS: Readonly<Record<keyof ChartSpec, true>> = {
   version: true, mark: true, x: true, grain: true, bins: true, y: true, split: true, size: true, label: true,
-  tooltip: true, facet: true, layers: true, calcs: true, drill: true, options: true, frozen: true,
+  tooltip: true, facet: true, at: true, layers: true, calcs: true, drill: true, options: true, frozen: true,
 };
+const PLACE_KEYS: Readonly<Record<keyof ChartPlace, true>> = { lat: true, lon: true };
 const MEASURE_KEYS: Readonly<Record<keyof ChartMeasure, true>> = { column: true, fn: true, mark: true, axis: true, showAs: true };
 const FACET_KEYS: Readonly<Record<keyof ChartFacet, true>> = { row: true, column: true };
 const OPTION_KEYS: Readonly<Record<keyof ChartOptions, true>> = {
@@ -431,6 +469,13 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
   }
   const facetExtra = isRecord(facet) ? unknownKey(facet, FACET_KEYS, 'its facet') : null;
   if (facetExtra) return facetExtra;
+  const at = spec['at'];
+  if (at !== undefined && (!isRecord(at) || (at['lat'] !== undefined && typeof at['lat'] !== 'string')
+    || (at['lon'] !== undefined && typeof at['lon'] !== 'string'))) {
+    return `its places ${JSON.stringify(at)} are not the columns of a latitude and a longitude (at: lat, lon)`;
+  }
+  const atExtra = isRecord(at) ? unknownKey(at, PLACE_KEYS, 'its places') : null;
+  if (atExtra) return atExtra;
   const layers = spec['layers'];
   if (layers !== undefined) {
     if (!Array.isArray(layers)) return 'its layers are not a list';
@@ -509,12 +554,18 @@ export const CHART_MARKS: readonly { value: ChartMark; label: string }[] = [
   { value: 'sunburst', label: 'Sunburst' },
   { value: 'tree', label: 'Tree' },
   { value: 'matrix', label: 'Scatter matrix' },
+  { value: 'boxplot', label: 'Box plot' },
+  { value: 'map', label: 'Map' },
+  { value: 'bubblemap', label: 'Bubble map' },
+  { value: 'marimekko', label: 'Marimekko' },
+  { value: 'waffle', label: 'Waffle' },
+  { value: 'gantt', label: 'Gantt' },
 ];
 
 /** A kind's name, as a sentence says it ("a Pareto", "a polar bar"). */
 export function markLabel(mark: ChartMark): string {
   const l = CHART_MARKS.find((m) => m.value === mark)?.label ?? mark;
-  return l === 'KPI' || l === 'Sankey' || l === 'Pareto' ? l : l.toLowerCase();
+  return l === 'KPI' || l === 'Sankey' || l === 'Pareto' || l === 'Marimekko' || l === 'Gantt' ? l : l.toLowerCase();
 }
 
 export const DEFAULT_CHART_LIMIT = 50;
@@ -630,19 +681,34 @@ export function drilledView(spec: ChartSpec): { readonly spec: ChartSpec; readon
  * never the split. Null when there is nothing below, or the column across is not one of them (a period, a bin, a column
  * the grid does not group by).
  */
-export function drillLevels(spec: ChartSpec, s: CubeSnapshot): readonly string[] | null {
-  if (spec.drill) return spec.drill.levels;
-  if (spec.x === undefined || !DRILLABLE.has(spec.mark) || spec.facet !== undefined) return null;
+export function drillLevels(spec: ChartSpec, s: CubeShape): readonly string[] | null {
+  return drillRefusal(spec, s) === null ? drillLevelsOf(spec, s) : null;
+}
+
+/**
+ * Why a chart does not drill (drillLevels null), in words -- what Python's chart.drill is told (D8) -- or null: it does.
+ */
+export function drillRefusal(spec: ChartSpec, s: CubeShape): string | null {
+  if (spec.drill) return null;
+  if (spec.x === undefined) return 'the chart has nothing across to drill into';
+  if (!DRILLABLE.has(spec.mark)) return `a ${spec.mark} chart does not drill: its marks are not its categories across`;
+  if (spec.facet !== undefined) return 'a chart of small multiples does not drill';
   // a period or a bin is not a level of the grid's groupings: there is nowhere "down" from a month
-  if (spec.grain !== undefined || spec.bins !== undefined) return null;
-  const at = s.rows.indexOf(spec.x);
-  if (at < 0) return null;
-  const levels = s.rows.slice(at).filter((c) => c !== spec.split);
+  if (spec.grain !== undefined || spec.bins !== undefined) {
+    return `${spec.x} across is in ${spec.grain !== undefined ? `${spec.grain}s` : 'bins'}, not a grouping of the grid's: there is nothing below one`;
+  }
+  if (!s.rows.includes(spec.x)) return `the grid does not group by ${spec.x}, the chart's column across: it has no level below it`;
+  return drillLevelsOf(spec, s) === null ? `nothing is below ${spec.x} in the grid's groupings (${s.rows.join(', ')})` : null;
+}
+
+function drillLevelsOf(spec: ChartSpec, s: CubeShape): readonly string[] | null {
+  if (spec.drill) return spec.drill.levels;
+  const levels = s.rows.slice(s.rows.indexOf(spec.x!)).filter((c) => c !== spec.split);
   return levels.length > 1 ? levels : null;
 }
 
 /** The chart one level down from a clicked mark's value across, or null at the bottom. */
-export function drillDown(spec: ChartSpec, s: CubeSnapshot, value: Scalar): ChartSpec | null {
+export function drillDown(spec: ChartSpec, s: CubeShape, value: Scalar): ChartSpec | null {
   const levels = drillLevels(spec, s);
   const path = spec.drill?.path ?? [];
   if (!levels || path.length + 1 >= levels.length) return null;
@@ -687,7 +753,7 @@ export function rangesAcross(spec: ChartSpec): boolean {
  */
 export function markConditions(
   spec: ChartSpec,
-  s: CubeSnapshot,
+  s: CubeShape,
   key: Readonly<Record<string, Scalar>>,
   upper?: Scalar,
 ): FilterNode[] {
@@ -708,6 +774,33 @@ export function markConditions(
       ? [{ kind: 'condition', column, operator: 'isEmpty' }]
       : [{ kind: 'condition', column, operator: 'equal', value }];
   })];
+}
+
+/**
+ * A MARK NAMED BY ITS VALUES, as a click on it names it (the drawing's key: chart-option.ts, chart-kinds.ts; D8, Python's
+ * chart.select): its value across -- the level drilled to, on a drilled chart -- and, on a chart split by a column, its
+ * series' (`split`, which a chart split by nothing takes none of). A chart whose marks are not its categories across
+ * names none so: rows (a scatter, a scatter matrix), the grid's own rows (a treemap, a sunburst, a tree), layers no click
+ * takes (a stream), one figure (a KPI, a gauge). A period or a bin across is a range that ends where the database says
+ * (`AXIS_UPPER`), not named by its start (D8: not at first). The mark's key, for `markConditions`, or why not, in words.
+ */
+export function namedMark(
+  drilled: ChartSpec, value: Scalar, split?: { readonly value: Scalar },
+): Readonly<Record<string, Scalar>> | string {
+  const { spec } = drilledView(drilled);
+  if (plotsRows(spec) || GRID_MARKS.has(spec.mark) || spec.mark === 'stream' || spec.mark === 'kpi' || spec.mark === 'gauge') {
+    return `a ${spec.mark} chart's marks are not named by a value across`;
+  }
+  if (spec.x === undefined) return 'the chart has nothing across: no mark of it is named by a value';
+  if (rangesAcross(spec)) {
+    return `the chart's marks across are ${spec.grain !== undefined ? `${spec.grain}s` : 'bins'} of ${spec.x}, each a range `
+      + 'the database ends: a range is not selected by its start';
+  }
+  if (spec.split === undefined) {
+    return split === undefined ? { [spec.x]: value } : 'the chart is split by nothing: a mark of it is named by its value across alone';
+  }
+  if (split === undefined) return `the chart is split by ${spec.split}: name the mark's ${spec.split} too`;
+  return { [spec.x]: value, [spec.split]: split.value };
 }
 
 /**
@@ -783,14 +876,14 @@ function firstMeasure(s: CubeSnapshot): ChartMeasure | undefined {
 }
 
 /**
- * A CHART'S VALUES AS A GRID'S COLUMN PROPERTIES (Open in Grid): each (column, aggregate) pair once -- two values of
+ * A CHART'S VALUES AS A GRID'S COLUMN PROPERTIES (Show Grid: chartGrid): each (column, aggregate) pair once -- two values of
  * one pair (a sum and its running total) carried by one column. A pair a column of the grid carries already (its own
- * column at that Aggregation, or a copy of it: a converted measures list's, an earlier Open in Grid's) is that column's;
+ * column at that Aggregation, or a copy of it: a converted measures list's, an earlier Show Grid's) is that column's;
  * any other is made by grid-edits.ts measuresAsColumns, the one rule: the first of a column its Aggregation, unless the
  * column is the chart's across or split (a key the grid groups by) or carries another value already, and those a
  * calculated column named for the value, apart from every name the grid has. `carriedBy` says which column carries
- * each value, for Update (followCube); a value no column carries -- a group-level column plotted as it is, a pair
- * left out -- has none, and Update leaves it as it is.
+ * each value, for the chart following that grid (followCube); a value no column carries -- a group-level column
+ * plotted as it is, a pair left out -- has none, and the chart keeps it as it is.
  */
 export function chartValuesAsColumns<D extends GridDraft>(draft: D, y: readonly ChartMeasure[]): {
   readonly draft: D;
@@ -823,6 +916,43 @@ export function chartValuesAsColumns<D extends GridDraft>(draft: D, y: readonly 
   return { draft: made.draft, notes: made.notes, carriedBy: (m) => carrier.get(pairKey(m)) };
 }
 
+/**
+ * Why a chart has no grouping of its own to show in a grid (D7, Show Grid; Python's chart.grid()), in words -- or null:
+ * it has one, its column across (and its split). A chart of rows (a scatter, a scatter matrix), of the grid as shown (a
+ * treemap, a sunburst, a tree), of places (a map) or of one figure (a gauge) has none a grid's Rows would hold.
+ */
+export function ownGridRefusal(spec: ChartSpec): string | null {
+  if (plotsRows(spec) || GRID_MARKS.has(spec.mark) || MAP_MARKS.has(spec.mark) || spec.mark === 'gauge') {
+    return `a ${spec.mark} chart has no grouping of its own to show in a grid`;
+  }
+  return spec.x === undefined ? 'the chart has nothing across: no grouping of its own to show in a grid' : null;
+}
+
+/**
+ * A CHART'S OWN GRID (D7: Show Grid on a frozen or a detached chart; Python's chart.grid()): the grid of the chart's own
+ * grouping and query -- its cube's query (`draft`: as its grid has it, or as the chart kept it, detached) with the chart's
+ * selection off its filter, grouped by its column across and its split, pivoted by nothing, its values the grid's Column
+ * Properties (chartValuesAsColumns, each value read back from the column that carries it) -- and the chart following
+ * that grid: the same chart, frozen no more. Or why it has none (ownGridRefusal).
+ */
+export function chartGrid(draft: GridDraft, spec: ChartSpec, selection: readonly FilterNode[]): {
+  readonly snapshot: CubeSnapshot;
+  readonly configuration: CubeConfiguration;
+  readonly spec: ChartSpec;
+  readonly notes: readonly string[];
+} | string {
+  const refused = ownGridRefusal(spec);
+  if (refused !== null) return refused;
+  const { filter: was, ...query } = draft.snapshot;
+  const filter = withoutConditions(was, selection) ?? undefined;
+  const rows = [spec.x!, ...(spec.split !== undefined ? [spec.split] : [])];
+  const made = chartValuesAsColumns({ ...draft, snapshot: { ...query, ...(filter ? { filter } : {}), rows, pivotOn: [] } }, spec.y);
+  // folded: the grid reads its query back over its configuration, whose Aggregations are the chart's values now
+  const snapshot = applyToSnapshot(made.draft.snapshot, made.draft.config);
+  const { frozen: _frozen, ...following } = spec;
+  return { snapshot, configuration: made.draft.config, spec: followCube(following, snapshot, made.carriedBy), notes: made.notes };
+}
+
 /** A name for a calculated column carrying `m` that the grid has not: the value's own (`max_notional`), else by its column. */
 function unusedName(m: ChartMeasure, taken: ReadonlySet<string>): string {
   const base = baseName(m);
@@ -836,10 +966,10 @@ function unusedName(m: ChartMeasure, taken: ReadonlySet<string>): string {
 /**
  * The grid's column that carries a chart's value as it is, if one does: its own column at that aggregate (not a key the
  * grid groups by, which it does not aggregate), else a calculated column that copies it (grid-edits.ts copiedColumn,
- * as a converted measures list or Open in Grid makes one) at that aggregate -- so a saved page's min and max of one
+ * as a converted measures list or Show Grid makes one) at that aggregate -- so a saved page's min and max of one
  * column, converted into the column and a copy, stay two values.
  */
-function carryingColumn(m: ChartMeasure, s: CubeSnapshot): string | undefined {
+function carryingColumn(m: ChartMeasure, s: CubeShape): string | undefined {
   if (m.fn === 'value') return m.column;
   const specs = columnSpecs(s);
   const carries = (name: string): boolean => defaultMeasure(name, specs.get(name)).fn === m.fn;
@@ -855,7 +985,7 @@ function carryingColumn(m: ChartMeasure, s: CubeSnapshot): string | undefined {
  * of the chart's values plots already (the grid carries one of two values of a column: followed, the chart would plot
  * it twice, and lose the other for good, as a following chart keeps what it follows) keep the chart's own.
  */
-function followedValue(m: ChartMeasure, s: CubeSnapshot, column: string | undefined,
+function followedValue(m: ChartMeasure, s: CubeShape, column: string | undefined,
   plotted: readonly ChartMeasure[]): ChartMeasure {
   if (m.fn === 'value' || column === undefined) return m;
   if (rowColumns(s).find((c) => c.name === column)?.kind !== 'measure') return m;
@@ -871,13 +1001,13 @@ function sameValue(a: ChartMeasure, b: ChartMeasure): boolean {
 }
 
 /** A new chart's options with `x` across: time runs left to right, and long; categories lead with the largest. */
-function optionsAcross(x: string | undefined, s: CubeSnapshot): ChartOptions {
+function optionsAcross(x: string | undefined, s: CubeShape): ChartOptions {
   const temporal = isTemporalAcross(x, s);
   return { ...DEFAULT_OPTIONS, ...(temporal ? { sort: { by: 'x', direction: 'asc' }, limit: TIME_LIMIT } : {}) };
 }
 
 /** Whether `x` is a date or a time the cube has (its rows' columns). */
-function isTemporalAcross(x: string | undefined, s: CubeSnapshot): boolean {
+function isTemporalAcross(x: string | undefined, s: CubeShape): boolean {
   return x !== undefined && isTemporal(rowColumns(s).find((c) => c.name === x)?.type);
 }
 
@@ -889,18 +1019,21 @@ function isTemporalAcross(x: string | undefined, s: CubeSnapshot): boolean {
  * for a date, a category's default for anything else. A chart of rows (a scatter's X) asks no order and no such limit
  * (chartQuery): its options stay as they are.
  */
-function acrossChanged(spec: ChartSpec, x: string | undefined, s: CubeSnapshot): ChartSpec {
+function acrossChanged(spec: ChartSpec, x: string | undefined, s: CubeShape): ChartSpec {
   const { x: _x, grain: _g, bins: _b, drill: _d, ...rest } = spec;
   const across = { ...rest, ...(x !== undefined ? { x } : {}) };
   if (plotsRows(spec)) return across;
   const inTime = spec.mark !== 'pareto' && isTemporalAcross(x, s);
-  // the limit the old column was given by default, never one the chart was told
-  const limit = inTime && spec.options.limit === DEFAULT_CHART_LIMIT ? TIME_LIMIT
+  // the limit the old column was given by default, never one the chart was told; a map's is the world's, whatever is
+  // across (the phase 6 audit: a map made from a date across lost it to the time default's change back)
+  const limit = MAP_MARKS.has(spec.mark) ? spec.options.limit
+    : inTime && spec.options.limit === DEFAULT_CHART_LIMIT ? TIME_LIMIT
     : !inTime && spec.options.limit === TIME_LIMIT ? DEFAULT_CHART_LIMIT : spec.options.limit;
-  return {
-    ...across,
-    options: { ...spec.options, sort: inTime ? { by: 'x', direction: 'asc' } : { by: 'y', direction: 'desc' }, limit },
-  };
+  // a Marimekko runs in its order across and a Gantt from the earliest start, whatever is across (their own orders:
+  // asMark's)
+  const own = spec.mark === 'marimekko' || spec.mark === 'gantt';
+  const sort = own ? spec.options.sort : inTime ? { by: 'x' as const, direction: 'asc' as const } : { by: 'y' as const, direction: 'desc' as const };
+  return { ...across, options: { ...spec.options, sort, limit } };
 }
 
 /**
@@ -928,28 +1061,47 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
 /**
  * A chart taking another kind, as the form's change of kind has always made it: a gauge and a scatter matrix drop the
  * column across (and its grain or bins with it, as a change of the column across takes them), a gauge and a kind of one
- * series the split, and a Pareto runs from the largest. Only those: every other slot (a layer, a facet, a label, a size,
+ * series the split, a Pareto runs from the largest, a box plot plots its first value's column's five figures
+ * (boxMeasures; a group-level column, already one figure per group, has none: kept, for the rules to refuse), and a box
+ * plot taking a kind of one value keeps its median, the figure it was ordered by (its four others would be drawn by no
+ * kind of one value, the phase 5 audit); a map asks for the world's countries (MAP_LIMIT), and a bubble map's places
+ * go with it, as a gauge's column across does. Only those: every other slot (a layer, a facet, a label, a size,
  * a hover's measures) stays, for the rules to judge on the new kind -- refused by name where it has no place, never
  * dropped without a word. Part of a change by hand (editChart).
  */
-function asMark(spec: ChartSpec, mark: ChartMark): ChartSpec {
-  const { x, split, grain, bins, ...rest } = spec;
+function asMark(spec: ChartSpec, mark: ChartMark, s: CubeSnapshot): ChartSpec {
+  const { x, split, grain, bins, at: _at, ...rest } = spec;
+  // a bubble map's places go with it: no other kind places anything by latitude and longitude
+  const at = mark === 'bubblemap' ? spec.at : undefined;
   const keepX = mark !== 'gauge' && mark !== 'matrix' && x !== undefined;
   const keepSplit = !UNSPLIT.has(mark) && split !== undefined;
+  // the options built once (the phase 7 audit: a kind's order was lost to a map's limit spread after it): a Pareto runs
+  // from the largest, a Marimekko in its order across, a Gantt from the earliest start; a map asks for the world's
+  // countries, and leaving one a chart asks for its own default again (a date across's, or the first fifty) -- the
+  // default a map was given, never one it was told
+  const sort: ChartOptions['sort'] | undefined = mark === 'pareto' ? { by: 'y', direction: 'desc' }
+    : mark === 'marimekko' ? { by: 'x', direction: 'asc' } : mark === 'gantt' ? { by: 'y', direction: 'asc' } : undefined;
+  const limit = MAP_MARKS.has(mark) && !MAP_MARKS.has(spec.mark) ? MAP_LIMIT
+    : !MAP_MARKS.has(mark) && MAP_MARKS.has(spec.mark) && rest.options.limit === MAP_LIMIT
+      ? (keepX && isTemporalAcross(x, s) ? TIME_LIMIT : DEFAULT_CHART_LIMIT) : undefined;
   return {
     ...rest,
     mark,
     // the column across's grain or bins go with it (acrossChanged's rule)
     ...(keepX ? { x, ...(grain !== undefined ? { grain } : {}), ...(bins !== undefined ? { bins } : {}) } : {}),
     ...(keepSplit ? { split } : {}),
-    ...(mark === 'pareto' ? { options: { ...rest.options, sort: { by: 'y', direction: 'desc' } } } : {}),
+    ...(sort !== undefined || limit !== undefined
+      ? { options: { ...rest.options, ...(sort !== undefined ? { sort } : {}), ...(limit !== undefined ? { limit } : {}) } } : {}),
+    ...(mark === 'boxplot' && rest.y[0] !== undefined && rest.y[0].fn !== 'value' ? { y: boxMeasures(rest.y[0].column) } : {}),
+    ...(spec.mark === 'boxplot' && !SEVERAL_VALUES.has(mark) && rest.y[2] !== undefined ? { y: [rest.y[2]] } : {}),
+    ...(at !== undefined ? { at } : {}),
   };
 }
 
 /** Whether a chart takes its grouping from the cube as the cube's grouping changes (followCube): a live chart of
  *  groups, not one of rows, nor one drawing the grid as shown. */
 function live(spec: ChartSpec): boolean {
-  return !spec.frozen && !plotsRows(spec) && !GRID_MARKS.has(spec.mark);
+  return !spec.frozen && !plotsRows(spec) && !GRID_MARKS.has(spec.mark) && !MAP_MARKS.has(spec.mark);
 }
 
 /**
@@ -983,7 +1135,7 @@ export type ChartChange = {
  */
 export function editChart(spec: ChartSpec, change: ChartChange, s: CubeSnapshot): ChartSpec {
   const told = (key: string): boolean => Object.hasOwn(change, key);
-  const shaped = change.mark !== undefined && change.mark !== spec.mark ? asMark(spec, change.mark) : spec;
+  const shaped = change.mark !== undefined && change.mark !== spec.mark ? asMark(spec, change.mark, s) : spec;
   const x = change.x ?? undefined;
   const moved = told('x') && x !== spec.x ? acrossChanged(shaped, x, s) : shaped;
   const { options, ...slots } = change;
@@ -1047,11 +1199,11 @@ export function followRefusal(told: readonly string[], made: ChartSpec, followed
 /**
  * A live chart, regrouped the way the cube is now: its first row group across; its second row group -- else its first
  * column label -- as the split; each value on the grid's Aggregation of the column carrying it (followedValue:
- * `carriedBy` -- Update's, from Open in Grid; else carryingColumn, a value the grid carries as it is keeping its
+ * `carriedBy` -- Show Grid's, from the grid it makes (chartGrid); else carryingColumn, a value the grid carries as it is keeping its
  * aggregate, and one it does not following its own column's). The mark and the options are the chart's; the order follows what is across (acrossChanged). A frozen chart, a chart of rows (it plots
  * values, not groups), a chart of the grid as shown and a cube with nothing grouped are left as they are.
  */
-export function followCube(spec: ChartSpec, s: CubeSnapshot,
+export function followCube(spec: ChartSpec, s: CubeShape,
   carriedBy: (m: ChartMeasure) => string | undefined = (m) => carryingColumn(m, s) ?? m.column): ChartSpec {
   // a drilled chart stays where it was taken until it is taken back up
   if (!live(spec) || (spec.drill?.path.length ?? 0) > 0) return spec;
@@ -1117,11 +1269,71 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   if ((spec.mark === 'dumbbell' || spec.mark === 'range') && spec.y.length !== 2) {
     out.push(`${article} ${kind} plots two values per category: its low and its high (pick two).`);
   }
+  if (spec.mark === 'boxplot') {
+    const column = spec.y[0]?.column;
+    const figures = spec.y.map((m) => ({ column: m.column, fn: m.fn }));
+    const five = column === undefined ? [] : boxMeasures(column);
+    if (column !== undefined && same(figures, five)) {
+      // a chart's own calculated column is one of its columns (chartColumns offers it), as `xType` reads it below
+      const type = [...rowColumns(s), ...chartRowCalcs(spec)].find((c) => c.name === column)?.type;
+      if (known.has(column) && !isNumeric(type)) out.push(`'${column}' is not a number: it has no quartiles.`);
+    } else if (figures.length === five.length && figures.every((m) => m.column === column)
+      && same([...figures].map((m) => m.fn).sort(), [...BOX_FNS].sort())) {
+      out.push(`A box plot's five figures go in order: ${BOX_FNS.join(', ')}.`);
+    } else {
+      out.push(`A box plot plots five figures of one column: its ${BOX_FNS.join(', ')}.`);
+    }
+    if (spec.y.some((m) => m.mark !== undefined || m.axis !== undefined)) {
+      out.push('A box plot draws its five figures as one box: a value\'s own mark or axis has no place on it.');
+    }
+  }
+  // A MAP finds each row's country by its code or its name (text); a bubble map places each by its latitude and
+  // longitude, two number columns; nothing else places by them
+  if (spec.mark === 'map' && spec.x !== undefined && known.has(spec.x)
+    && familyOf([...rowColumns(s), ...chartRowCalcs(spec)].find((c) => c.name === spec.x)?.type) !== 'text') {
+    out.push(`A map finds each row's country by its ISO code or its name: '${spec.x}' is not text.`);
+  }
+  if (spec.mark === 'bubblemap') {
+    if (spec.at?.lat === undefined) out.push('A bubble map needs the column of each place\'s latitude.');
+    if (spec.at?.lon === undefined) out.push('A bubble map needs the column of each place\'s longitude.');
+    for (const c of [spec.at?.lat, spec.at?.lon].filter((p): p is string => p !== undefined)) {
+      const type = [...rowColumns(s), ...chartRowCalcs(spec)].find((r) => r.name === c)?.type;
+      if (!known.has(c)) out.push(`The cube has no column '${c}'.`);
+      else if (!isNumeric(type)) out.push(`'${c}' is not a number: it places nothing.`);
+    }
+    // a place's name is one column and its position two others: grouped by each once (the phase 6 audit)
+    if (spec.x !== undefined && (spec.x === spec.at?.lat || spec.x === spec.at?.lon)) {
+      out.push(`'${spec.x}' is a place's ${spec.x === spec.at?.lat ? 'latitude' : 'longitude'}: name the places by another column.`);
+    }
+  } else if (spec.at !== undefined) {
+    out.push(`${article} ${kind} places nothing by latitude and longitude: only a bubble map does.`);
+  }
+  // a map's places are countries or points, never periods or bins: a click on one would have no range to filter to
+  if (MAP_MARKS.has(spec.mark) && (spec.grain !== undefined || spec.bins !== undefined)) {
+    out.push(`${article} ${kind} places each row by what it names: it has no ${spec.grain !== undefined ? 'grain' : 'bins'}.`);
+  }
+  // A GANTT runs each row from its start to its end: two values, each a date column's least or greatest
+  if (spec.mark === 'gantt') {
+    // a date or an instant: a time of day alone has no place on a calendar's axis (the phase 7 audit)
+    const dated = (m: ChartMeasure): boolean => {
+      const type = [...rowColumns(s), ...chartRowCalcs(spec)].find((c) => c.name === m.column)?.type;
+      return (m.fn === 'min' || m.fn === 'max') && isTemporal(type) && !isTimeOfDay(type);
+    };
+    if (spec.y.length !== 2 || !spec.y.every(dated)) {
+      out.push('A Gantt runs each row from a start to an end: two values, each the min or max of a date column.');
+    }
+  }
+  if (spec.mark === 'marimekko' && (spec.options.sort.by !== 'x')) {
+    out.push('A Marimekko lays its columns out in their order across: order by category.');
+  }
   if (spec.mark === 'radar' && spec.y.length < 3) out.push('A radar needs three values or more, one per spoke.');
   if (spec.mark === 'parallel' && spec.y.length < 2) out.push('Parallel coordinates need two values or more, one per axis.');
+  // a pie, a lollipop, a KPI and a heatmap draw their first value alone: the others would be asked and never drawn
   if ((spec.mark === 'waterfall' || spec.mark === 'pareto' || spec.mark === 'gauge' || spec.mark === 'calendar'
     || spec.mark === 'funnel' || spec.mark === 'rose' || spec.mark === 'stream' || spec.mark === 'sankey'
-    || spec.mark === 'chord') && spec.y.length > 1) {
+    || spec.mark === 'chord' || spec.mark === 'pie' || spec.mark === 'lollipop' || spec.mark === 'kpi'
+    || spec.mark === 'heatmap' || MAP_MARKS.has(spec.mark) || spec.mark === 'marimekko' || spec.mark === 'waffle')
+    && spec.y.length > 1) {
     out.push(`${article} ${kind} plots one value.`);
   }
   // a Pareto runs from the largest: its cumulative share is along that order, so the chart's order is it
@@ -1131,7 +1343,8 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   if (spec.mark === 'gauge' && spec.options.target === undefined) {
     out.push('A gauge needs a target: its scale runs from zero to it.');
   }
-  if ((spec.mark === 'waterfall' || spec.mark === 'pareto' || spec.mark === 'gauge') && spec.y.some((m) => m.showAs)) {
+  if ((spec.mark === 'waterfall' || spec.mark === 'pareto' || spec.mark === 'gauge' || spec.mark === 'boxplot'
+    || spec.mark === 'marimekko' || spec.mark === 'waffle' || spec.mark === 'gantt') && spec.y.some((m) => m.showAs)) {
     out.push(`${article} ${kind} computes its own figures: a value shown as something else has no place on it.`);
   }
   // a grain takes a date to its period, bins a number to its bin: on any other column they mean nothing
@@ -1204,7 +1417,9 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   }
   // a group-level column of the cube's that reads a column of the grid's grouping the chart does not group by would be
   // computed over the chart's rows as if that column were there: refused, not answered wrongly
-  const keys = new Set([spec.x, spec.split, axisName(spec)].filter((c): c is string => c !== undefined));
+  // a bubble map's places are its grouping too (chartSnapshot's keys)
+  const placeKeys = spec.mark === 'bubblemap' ? [spec.at?.lat, spec.at?.lon] : [];
+  const keys = new Set([spec.x, spec.split, axisName(spec), ...placeKeys].filter((c): c is string => c !== undefined));
   const dimensions = new Set(rowColumns(s).filter((c) => c.kind === 'dimension').map((c) => c.name));
   const byName = new Map(groupLevelColumns(s, spec).map((d) => [d.name, d]));
   const reads = (name: string, seen = new Set<string>()): string[] => {
@@ -1243,7 +1458,9 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapsho
   const across = axisName(spec);
   // SMALL MULTIPLES: a chart per value of the facet's columns -- grouped by them too, each panel a whole of its own
   const panels = facetColumns(spec);
-  const keys = [scatter ? spec.x : across, spec.split, ...panels].filter((c): c is string => c !== undefined);
+  // a bubble map's places: grouped by them too, each place where its rows say it is (never an average of positions)
+  const places = spec.mark === 'bubblemap' ? [spec.at?.lat, spec.at?.lon] : [];
+  const keys = [scatter ? spec.x : across, spec.split, ...panels, ...places].filter((c): c is string => c !== undefined);
   // what the chart plots, and the measures a hover lists, a mark's size reads and its label says
   const extras = [...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : [])];
   const plotted = [...spec.y, ...extras];
@@ -1315,6 +1532,8 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapsho
     if (spec.mark === 'waterfall') shown.push(...waterfallColumns(base, chartOrder(spec, across, base)));
     if (spec.mark === 'pareto') shown.push(...paretoColumns(base, across));
     if (spec.mark === 'pie' && spec.split !== undefined) shown.push(ringTotalColumn(base, across));
+    if (spec.mark === 'marimekko' && spec.split !== undefined) shown.push(...marimekkoColumns(base, across, spec.split, spec.options.sort.direction));
+    if (spec.mark === 'waffle') shown.push(...waffleColumns(base, chartOrder(spec, across, base)));
   }
   const rowCalcs = [...axisCalcs(spec), ...(spec.calcs ?? []).filter((c) => c.stage === 'row').map((c) => c.column)];
   // what the chart reads, and what the cube's filter reads (its literals are
@@ -1329,7 +1548,8 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapsho
     ...rowCalcs.flatMap(columnsRead),
     ...filterColumns(filter),
   ]);
-  const first = spec.y[0];
+  // a box plot's value is its median (BOX_FNS' third)
+  const first = spec.mark === 'boxplot' ? spec.y[2] : spec.y[0];
   // the chart's order, ties broken by the category: a waterfall's running total runs along this very order; small
   // multiples panel by panel first
   const sorts = scatter ? [] : [...panels.map((column) => ({ column, direction: 'asc' as const })), ...(spec.options.sort.by === 'y' && first

@@ -1,6 +1,7 @@
 // BATCH 3'S KINDS (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): a chart spec and its rows as the ECharts option of
 // a kind the first seven do not draw -- lollipop, dumbbell, range, waterfall, Pareto, funnel, rose, polar bar, radar,
-// parallel coordinates, Sankey, chord, streamgraph, calendar, gauge -- and the grid's rows as a sunburst or a tree.
+// parallel coordinates, Sankey, chord, streamgraph, calendar, gauge, batch 4's box plot, and batch 3's leftovers (a
+// Marimekko, a waffle, a Gantt) -- and the grid's rows as a sunburst or a tree.
 //
 // Its own module, fetched with the first chart of one of these kinds (ui/chart-panel.ts), as is the registration of the
 // rarer ECharts charts it draws with (chart-render-kinds.ts): a page of bars never downloads either. PURE and
@@ -11,12 +12,13 @@
 // calc-presets.ts) -- or the grid's own row (a sunburst's rings). What happens here is placement: a category's index,
 // a value's position, a calendar's years, all by comparing what the rows say.
 
-import { axisName, drilledView, facetColumns, markLabel, MAX_FACETS, measureName, type ChartMeasure, type ChartSpec } from './chart-spec.ts';
-import { paretoName, waterfallNames } from './calc-presets.ts';
+import { AXIS_UPPER, axisName, drilledView, facetColumns, markLabel, MAX_FACETS, measureName, rangesAcross, type ChartMeasure, type ChartSpec } from './chart-spec.ts';
+import { marimekkoNames, paretoName, WAFFLE_CELLS, waffleNames, waterfallNames } from './calc-presets.ts';
 import {
   asOption,
   chartOption,
   column,
+  compareScalars,
   defaultLabel,
   describe,
   distinct,
@@ -25,6 +27,7 @@ import {
   keyText,
   legendOf,
   LIGHT_THEME,
+  localTime,
   MAX_SCATTER_SERIES,
   MAX_SERIES,
   measureText,
@@ -112,7 +115,7 @@ export function kindOption(
   };
   const categoryAxis = { ...axisCommon, type: 'category' as const, data: catLabels, splitLine: { show: false } };
   const valueAxis = (m: ChartMeasure) => ({
-    ...axisCommon, type: 'value' as const, scale: spec.mark === 'dumbbell' || spec.mark === 'range',
+    ...axisCommon, type: 'value' as const, scale: spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'boxplot',
     axisLabel: { ...axisCommon.axisLabel, formatter: (v: number) => write(m, v) },
   });
   const axes = (m: ChartMeasure) => (horizontal
@@ -122,8 +125,24 @@ export function kindOption(
     ...tooltip, trigger: 'item' as const,
     formatter: (p: { dataIndex: number; data?: { ci?: number } }) => hover(p.data?.ci ?? p.dataIndex, drawn),
   });
+  // A PERIOD'S OR A BIN'S END (chart-spec.ts AXIS_UPPER), the database's, for a click on a category of periods or bins
+  // to filter to its range (markConditions): the greatest its rows say -- compared, never computed (chartOption's rule).
+  // The clicked item says its category where its index does not (a calendar's day, in its year's series)
+  const upperCol = rangesAcross(spec) ? column(rows, AXIS_UPPER) : undefined;
+  const upperAt = (dataIndex: number, datum?: unknown): Scalar | undefined => {
+    const ci = (datum as { ci?: number } | undefined)?.ci ?? dataIndex;
+    if (!upperCol || categories[ci] === undefined) return undefined;
+    const want = keyText(categories[ci]!);
+    let best: Scalar | undefined;
+    xCol.values.forEach((xv, i) => {
+      const u = upperCol.values[i] ?? null;
+      if (keyText(xv) !== want || u === null) return;
+      if (best === undefined || best === null || compareScalars(u, best, upperCol.type) > 0) best = u;
+    });
+    return best;
+  };
   const done = (option: object, keyAt: ChartDrawing['keyAt'] = (_s, i) => keyOf(i)): ChartDrawing => ({
-    option: asOption(option), keyAt, notes, description: describe(spec, rows),
+    option: asOption(option), keyAt, notes, description: describe(spec, rows), ...(upperCol ? { upperAt } : {}),
   });
   // a point on a category: [category, value] -- or [value, category] across a horizontal chart
   const pointAt = (ci: number, v: number | null): (number | null)[] => (horizontal ? [v, ci] : [ci, v]);
@@ -196,6 +215,243 @@ export function kindOption(
         ...axes(lo),
         series: [span, ...dots],
       }, (_s, i) => keyOf(i));
+    }
+
+    // -- the spread of a column per category: a box from its first quartile to its third, the median across it, a
+    // whisker to its least and its most -- five figures the database computed (BOX_FNS), placed here ----------------
+    case 'boxplot': {
+      const five = spec.y.slice(0, 5);
+      const median = five[2] ?? first;
+      const boxes = categories.map((_, ci) => five.map((m) => num(m, at(ci))));
+      const colour = theme.series[0]!;
+      const words = ['least', 'first quartile', 'median', 'third quartile', 'most'];
+      // a category with no numbers has no box: ECharts' empty value, never a box drawn at zero
+      const data = boxes.map((b, ci) => ({ value: b.some((v) => v === null) ? ['-', '-', '-', '-', '-'] : b, ci }));
+      return done({
+        ...base,
+        tooltip: {
+          ...tooltip, trigger: 'item' as const,
+          formatter: (p: { dataIndex: number; data?: { ci?: number } }) => {
+            const ci = p.data?.ci ?? p.dataIndex;
+            return [
+              `<b>${escapeHtml(catLabels[ci] ?? '')}</b>`,
+              ...five.map((m, k) => `${words[k]}: <b>${escapeHtml(write(m, boxes[ci]?.[k] ?? null))}</b>`),
+            ].join('<br>');
+          },
+        },
+        ...axes(median),
+        series: [{
+          type: 'boxplot', name: first.column, data, boxWidth: [8, 40],
+          itemStyle: { color: theme.surface, borderColor: colour, borderWidth: 1.5 },
+          emphasis: { itemStyle: { borderColor: colour, borderWidth: 2.5 } },
+        }],
+      });
+    }
+
+    // -- shares as cells: each column as wide as its share of the whole, each cell up it as tall as its share of the
+    // column -- four edges per cell, the database's (calc-presets.ts marimekkoColumns), placed here --------------------
+    case 'marimekko': {
+      const names = marimekkoNames(measureName(first));
+      const splitCol = spec.split !== undefined ? column(rows, spec.split) : undefined;
+      const edge = { x0: column(rows, names.x0), x1: column(rows, names.x1), y0: column(rows, names.y0), y1: column(rows, names.y1) };
+      if (!splitCol || !edge.x0 || !edge.x1 || !edge.y0 || !edge.y1) return empty('Nothing to draw.');
+      // parts of a whole: a value below zero has no place in one (its cell would be drawn upside down, its column's
+      // total less than its parts) -- said, the chart not drawn (the phase 7 audit)
+      const below = xCol.values.filter((_, i) => (num(first, i) ?? 0) < 0).length;
+      if (below > 0) return empty(`A Marimekko shows parts of a whole: ${below} ${below === 1 ? 'value is' : 'values are'} below zero.`);
+      const ciOf = new Map(categories.map((c, ci) => [keyText(c), ci] as const));
+      const at4 = (i: number): [number, number, number, number] | null => {
+        const v = [edge.x0!, edge.x1!, edge.y0!, edge.y1!].map((c) => numberOf(c.values[i] ?? null, c.type));
+        return v.every((n) => n !== null && Number.isFinite(n)) ? v as [number, number, number, number] : null;
+      };
+      const groups = distinct(splitCol.values);
+      if (groups.length > MAX_SERIES) notes.push(`Showing the first ${MAX_SERIES} of ${groups.length} parts.`);
+      const shown = groups.slice(0, MAX_SERIES);
+      const unplaced: string[] = [];
+      const percent = (v: number): string => new Intl.NumberFormat(UI_LOCALE, { style: 'percent', maximumFractionDigits: 0 }).format(v);
+      const series = shown.map((g, k) => ({
+        type: 'custom',
+        name: label(g, spec.split!, splitCol.type),
+        itemStyle: { color: theme.series[k % theme.series.length]! },
+        data: xCol.values.flatMap((xv, i) => {
+          if (keyText(splitCol.values[i] ?? null) !== keyText(g)) return [];
+          const e = at4(i);
+          if (e === null) {
+            unplaced.push(`${catLabels[ciOf.get(keyText(xv)) ?? -1] ?? label(xv, spec.x!, xCol.type)} / ${label(g, spec.split!, splitCol.type)}`);
+            return [];
+          }
+          // its category, for a click on a period or a bin to find its end (upperAt): its index is its part's series'
+          return [{ value: e, row: i, ci: ciOf.get(keyText(xv)), key: { [spec.x!]: xv, [spec.split!]: g } }];
+        }),
+        renderItem: (_params: unknown, api: CustomApi) => {
+          const p0 = api.coord([api.value(0) as number, api.value(3) as number]);
+          const p1 = api.coord([api.value(1) as number, api.value(2) as number]);
+          return {
+            type: 'rect',
+            shape: { x: p0[0]!, y: p0[1]!, width: p1[0]! - p0[0]!, height: p1[1]! - p0[1]! },
+            style: { fill: api.visual('color'), stroke: theme.surface, lineWidth: 1 },
+          };
+        },
+        encode: { x: [0, 1], y: [2, 3] },
+      }));
+      if (unplaced.length > 0) notes.push(`${unplaced.length} ${unplaced.length === 1 ? 'cell' : 'cells'} not drawn (no share): ${unplaced.slice(0, 5).join(', ')}.`);
+      // each column named under it, at its own start: placed by the database's edges
+      // a period named as the axis names it (Jan 2024), as the other kinds do
+      const named = categories.map((_, ci) => [ci, at(ci)] as const).filter(([, i]) => i >= 0 && at4(i) !== null)
+        .map(([ci, i]) => ({ value: [at4(i)![0], at4(i)![1]], text: catLabels[ci] ?? '' }));
+      const columnNames = {
+        type: 'custom', name: spec.x!, silent: true, tooltip: { show: false },
+        data: named,
+        renderItem: (params: { dataIndex: number }, api: CustomApi) => {
+          const p0 = api.coord([api.value(0) as number, 0]);
+          const p1 = api.coord([api.value(1) as number, 0]);
+          return {
+            type: 'text',
+            style: {
+              x: p0[0]! + 4, y: p0[1]! + 6, text: named[params.dataIndex]?.text ?? '', fill: theme.muted, fontSize: 11,
+              width: Math.max(0, p1[0]! - p0[0]! - 8), overflow: 'truncate',
+            },
+          };
+        },
+        encode: { x: [0, 1] },
+      };
+      const shareAxis = { ...axisCommon, type: 'value' as const, min: 0, max: 1, axisLabel: { ...axisCommon.axisLabel, formatter: percent } };
+      return done({
+        ...base,
+        grid: { ...base.grid, bottom: 28 },
+        tooltip: {
+          ...tooltip, trigger: 'item' as const,
+          formatter: (p: { data?: { row?: number; key?: MarkKey } }) => {
+            const i = p.data?.row;
+            if (i === undefined) return '';
+            const ci = ciOf.get(keyText(xCol.values[i] ?? null));
+            return [`<b>${escapeHtml(catLabels[ci ?? -1] ?? '')}</b> / ${escapeHtml(label(splitCol.values[i] ?? null, spec.split!, splitCol.type))}`,
+              `${escapeHtml(measureTitle(first))}: <b>${escapeHtml(write(first, num(first, i)))}</b>`].join('<br>');
+          },
+        },
+        legend: { ...legendOf(spec, shown.length, theme), data: shown.map((g) => label(g, spec.split!, splitCol.type)) },
+        // the columns' names stand under them, in the band an axis's labels would take: the widths show the shares
+        xAxis: { ...shareAxis, splitLine: { show: false }, axisLabel: { show: false } },
+        yAxis: shareAxis,
+        series: [...series, columnNames],
+      }, (_s, _i, datum) => (datum as { key?: MarkKey } | undefined)?.key ?? null);
+    }
+
+    // -- a hundred cells, ten by ten: each category the cells from its running share before it to its running share
+    // through it, the database's (calc-presets.ts waffleColumns); each cell coloured by the range that holds it -------
+    case 'waffle': {
+      const names = waffleNames(measureName(first));
+      const fromCol = column(rows, names.from);
+      const toCol = column(rows, names.to);
+      if (!fromCol || !toCol) return empty('Nothing to draw.');
+      const below = categories.filter((_, ci) => (num(first, at(ci)) ?? 0) < 0).length;
+      if (below > 0) return empty(`A waffle shows parts of a whole: ${below} ${below === 1 ? 'value is' : 'values are'} below zero.`);
+      // a whole of nothing has no cells to share (the database's ranges empty)
+      if (categories.every((_, ci) => toCol.values[at(ci)] === null || toCol.values[at(ci)] === undefined)) {
+        return empty('The values add up to nothing: a waffle has no hundred to share.');
+      }
+      if (categories.length > MAX_SERIES) notes.push(`${categories.length} categories: a waffle reads ${MAX_SERIES} or fewer best.`);
+      const ranges = categories.map((_, ci) => {
+        const f = numberOf(fromCol.values[at(ci)] ?? null, fromCol.type);
+        const t = numberOf(toCol.values[at(ci)] ?? null, toCol.type);
+        return f === null || t === null ? null : [f, t] as const;
+      });
+      const empties = categories.filter((_, ci) => ranges[ci] === null || ranges[ci]![1] <= ranges[ci]![0]);
+      if (empties.length > 0) notes.push(`${empties.length} ${empties.length === 1 ? 'category fills' : 'categories fill'} no cell (no share, or less than none): ${empties.slice(0, 5).map((c) => label(c, spec.x!, xCol.type)).join(', ')}.`);
+      const side = Math.sqrt(WAFFLE_CELLS);
+      const cellsOf = (ci: number): { value: [number, number]; ci: number }[] => {
+        const r = ranges[ci];
+        const out: { value: [number, number]; ci: number }[] = [];
+        for (let c = 0; c < WAFFLE_CELLS; c++) if (r && c >= r[0] && c < r[1]) out.push({ value: [c % side, Math.floor(c / side)], ci });
+        return out;
+      };
+      const ticks = Array.from({ length: side }, (_, k) => k);
+      const hiddenAxis = { type: 'category' as const, data: ticks, show: false };
+      return done({
+        ...base,
+        tooltip: { ...tooltip, trigger: 'item' as const, formatter: (p: { data?: { ci?: number } }) => (p.data?.ci === undefined ? '' : hover(p.data.ci, [first])) },
+        legend: { ...legendOf(spec, categories.length, theme), data: catLabels },
+        // the cells square (the lesser of a cell's width and height), the grid the panel's box
+        grid: { ...base.grid, containLabel: false },
+        xAxis: hiddenAxis,
+        yAxis: { ...hiddenAxis, inverse: true },
+        series: categories.map((_, ci) => ({
+          type: 'custom', name: catLabels[ci], itemStyle: { color: theme.series[ci % theme.series.length]! },
+          data: cellsOf(ci),
+          renderItem: (_params: unknown, api: CustomApi) => {
+            const centre = api.coord([api.value(0) as number, api.value(1) as number]);
+            const size = api.size([1, 1]) as number[];
+            const s = Math.min(size[0]!, size[1]!) * 0.86;
+            return { type: 'rect', shape: { x: centre[0]! - s / 2, y: centre[1]! - s / 2, width: s, height: s, r: 2 }, style: { fill: api.visual('color') } };
+          },
+        })),
+      }, (_s, _i, datum) => {
+        const ci = (datum as { ci?: number } | undefined)?.ci;
+        return ci === undefined ? null : keyOf(ci);
+      });
+    }
+
+    // -- a start and an end per row, on a time axis: each bar from one to the other ----------------------------------
+    case 'gantt': {
+      const [startM, endM] = [spec.y[0]!, spec.y[1]!];
+      const startCol = valueCol(startM);
+      const endCol = valueCol(endM);
+      if (!startCol || !endCol) return empty('Nothing to draw.');
+      // a date's text as the time axis places it (chart-option.ts localTime: as ECharts reads a date with no zone)
+      const time = (c: typeof startCol, i: number): number | null => {
+        const v = c.values[i];
+        return v === null || v === undefined ? null : localTime(String(v));
+      };
+      const undated: string[] = [];
+      const backwards: string[] = [];
+      const bars = categories.flatMap((_, ci) => {
+        const a = time(startCol, at(ci));
+        const b = time(endCol, at(ci));
+        if (a === null || b === null || Number.isNaN(a) || Number.isNaN(b)) {
+          undated.push(catLabels[ci] ?? '');
+          return [];
+        }
+        if (b < a) backwards.push(catLabels[ci] ?? '');
+        return [{ value: [ci, a, b], ci }];
+      });
+      if (backwards.length > 0) notes.push(`${backwards.length} ${backwards.length === 1 ? 'row ends' : 'rows end'} before ${backwards.length === 1 ? 'it starts' : 'they start'}: ${backwards.slice(0, 5).join(', ')}.`);
+      if (undated.length > 0) notes.push(`${undated.length} ${undated.length === 1 ? 'row has' : 'rows have'} no start or no end: ${undated.slice(0, 5).join(', ')}.`);
+      const dateText = (m: ChartMeasure, c: typeof startCol, i: number): string => label(c.values[i] ?? null, m.column, c.type);
+      return done({
+        ...base,
+        tooltip: {
+          ...tooltip, trigger: 'item' as const,
+          formatter: (p: { data?: { ci?: number } }) => {
+            const ci = p.data?.ci;
+            if (ci === undefined) return '';
+            return [`<b>${escapeHtml(catLabels[ci] ?? '')}</b>`,
+              `${escapeHtml(measureTitle(startM))}: <b>${escapeHtml(dateText(startM, startCol, at(ci)))}</b>`,
+              `${escapeHtml(measureTitle(endM))}: <b>${escapeHtml(dateText(endM, endCol, at(ci)))}</b>`].join('<br>');
+          },
+        },
+        xAxis: { ...axisCommon, type: 'time' as const },
+        yAxis: { ...categoryAxis, inverse: true },
+        series: [{
+          type: 'custom', name: `${measureTitle(startM)} to ${measureTitle(endM)}`,
+          data: bars,
+          encode: { x: [1, 2], y: 0 },
+          renderItem: (_params: unknown, api: CustomApi) => {
+            const ci = api.value(0) as number;
+            const from = api.coord([api.value(1) as number, ci]);
+            const to = api.coord([api.value(2) as number, ci]);
+            const band = (api.size([0, 1]) as number[])[1]!;
+            const h = Math.min(20, band * 0.6);
+            return {
+              type: 'rect',
+              shape: { x: Math.min(from[0]!, to[0]!), y: from[1]! - h / 2, width: Math.max(2, Math.abs(to[0]! - from[0]!)), height: h, r: 3 },
+              style: { fill: theme.series[0], stroke: theme.surface, lineWidth: 1 },
+            };
+          },
+        }],
+      }, (_s, _i, datum) => {
+        const ci = (datum as { ci?: number } | undefined)?.ci;
+        return ci === undefined ? null : keyOf(ci);
+      });
     }
 
     // -- a bridge: each bar from where the one before ended, then the total ------------------------------------------
@@ -627,6 +883,7 @@ interface CustomApi {
   value(dim: number): unknown;
   coord(point: readonly (number | null)[]): number[];
   size(delta: readonly number[]): number[] | number;
+  visual(key: string): unknown;
 }
 
 /** A GAUGE: the measure over every row (one row, as a KPI's total), against its target, the scale's end. */

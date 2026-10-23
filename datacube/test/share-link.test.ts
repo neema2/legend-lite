@@ -107,7 +107,7 @@ const V1_LINK = 'p1.1VvJbsIwEP2ViDNQZyUcOeRQCaRCpV4qZNlZeqCliNBWHPrvHTvBSewEskr0
 
 describe('a link made before 2026-10-17 is refused, saying why', () => {
   it('its page is version 1: no longer read', () => {
-    assert.throws(() => readPageFragment(V1_LINK), /older version \(1 < 4\): it is no longer read/);
+    assert.throws(() => readPageFragment(V1_LINK), /older version \(1 < 6\): it is no longer read/);
   });
 });
 
@@ -123,6 +123,13 @@ describe('a link gives back EXACTLY the page', () => {
     same(p, got);
     assert.equal(got.name, p.name);
     assert.match(pageDefinitionText(got), /10000\.50/, 'the decimal kept exactly');
+  });
+
+  it("a saved page's link carries no record of the person's store (the S7 confirmation audit's H2-3)", () => {
+    const p = page(12);
+    const read = readPageFragment(pageFragment({ ...p, record: 'r-1' }));
+    assert.equal(read.record, undefined);
+    same(p, read);
   });
 
   it('with or without its #; and a link read from a whole address', () => {

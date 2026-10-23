@@ -5,6 +5,7 @@ load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/js:defs.bzl", "node_test")
 load("//tools/runfiles:defs.bzl", "executable_of")
+load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 
 js_library(
     name = "sdlc_client",
@@ -83,6 +84,15 @@ test_suite(
         ":server_test",
         ":wasm_test",
     ],
+)
+
+# the page's SDLC's conformance run, which //datacube:one_api_ledger_test (L12) names as half of the proof that the two
+# builds of it (the page's WebAssembly, Python's native library) answer alike, so reads it (copied to the output tree,
+# where a JavaScript test reads its data: rules_js)
+copy_to_bin(
+    name = "wasm_test_source",
+    srcs = ["test/wasm.test.ts"],
+    visibility = ["//datacube:__pkg__"],
 )
 
 guards_package()

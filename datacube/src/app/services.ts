@@ -16,11 +16,16 @@ import type { Receipt } from '../../../engine-client/src/receipt.ts';
 import type { QueryReader } from '../../../query-store/src/index.ts';
 import type { HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
-import type { Planner, SnapTarget } from '../cube.ts';
+import type { Planner } from '../cube.ts';
+import type { CubeDocument } from '../cube-document.ts';
 import type { CubeStore } from '../cube-store.ts';
 import type { FileHandles } from '../file-handles.ts';
 import type { InferredModel, TableModels } from '../infer.ts';
+import type { JoinHow, JoinSide } from '../join-how.ts';
+import type { JoinSummaryCounts } from '../join.ts';
 import type { PageDocument } from '../page-document.ts';
+import type { PageCommand } from '../page-commands.ts';
+import type { GridCommand } from '../grid-commands.ts';
 import type { ModelOptions } from '../planner.ts';
 import type { S3Credentials } from '../remote.ts';
 import type { ModelWriter } from '../model-writer.ts';
@@ -156,6 +161,75 @@ export interface DatabaseService {
   readonly mountRemote?: (url: string, s3: S3Credentials | undefined, name: string) => Promise<InferredModel>;
   /** A frame (Python's dataframe) as the host says it is now: the model it wrote when the frame was registered. */
   readonly frame?: (name: string) => Promise<FrameModel>;
+  /**
+   * A grid's base query copied into a table of the host's database of its own (Snap: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+   * §18.3; Python's `snap.json`) -- a frame's grid, a file's, a warehouse table's the host opened: `pull` (Pure, its
+   * every column) planned over `model` against `runtime` and run where the rows are, the copy modelled by the host as
+   * it holds them. Its count, the pull's receipt, its table, and that model. Given with `release`.
+   */
+  readonly snap?: (model: string, runtime: string, pull: Lambda) => Promise<HostCopy>;
+  /** A snap's copy dropped, by its table. */
+  readonly release?: (table: string) => Promise<void>;
+  /**
+   * A copy the host holds, by its table, as it was made -- its model and the relation that reads it: what a page
+   * follows when its other editor snapped a grid (Python's grid.snap(), the page's snap command naming only the copy's
+   * table: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8). Refused when the host holds no such copy.
+   */
+  readonly held?: (table: string) => Promise<InferredModel & { readonly table: string }>;
+  /** Whose database it is, as a person reads it (`Python`): where a snap's copy is said to be kept. */
+  readonly place?: string;
+  /**
+   * A saved cube opened by the host where it reads it, as its source is now (Python's `opened.json`: headless gridOpened)
+   * -- every kind but a frame's, which a page with no database or compiler of its own on the host cannot open
+   * (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3; the S7 audit's H-2, H-3). `cube`: its document's text; `page`: its
+   * page's name; `gridsOnPage`: how many grids the page holds.
+   */
+  readonly opened?: (cube: string, page: string, gridsOnPage: number) => Promise<HostOpened>;
+  /**
+   * A new grid's cube over a class made by the host where it reads it (Python's `source.json`: headless sourceCube, as
+   * Python's page.grid(cls=...) makes one: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md K16, K17) -- for a page with no
+   * compiler or model home of its own there. `model`: the page's model (its text), or null; `given`: the class as
+   * class-source.ts classGiven takes it (its text); `page`: the page's name; `gridsOnPage`: how many grids the page holds
+   * with it. Its cube document's text, then opened as every grid of the host's page is (`opened`); refused in DataCube's
+   * words.
+   */
+  readonly made?: (model: string | null, given: string, page: string, gridsOnPage: number) => Promise<string>;
+  /** A join of two of the page's grids made by the host over its tables (HostJoin): where the page has no database of
+   *  its own there, its Join… asks the host (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B11). */
+  readonly join?: HostJoin;
+}
+
+/**
+ * A JOIN MADE BY THE HOST (Python's `join.json`: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B11), for a page with no
+ * database of its own there: each answer DataCube's own code's, run by the host over its tables (headless join.ts). `page`
+ * is the page as the tab holds it, its document's text; `mine` and `theirs` the grids joined, by their tiles' ids.
+ */
+export interface HostJoin {
+  /** The two sides as the Join window shows them (headless joinSides), and what drifted in an input since. */
+  sides(page: string, mine: string, theirs: string): Promise<{ readonly left: JoinSide; readonly right: JoinSide; readonly notes: readonly string[] }>;
+  /** What the join will do (headless joinQuestions). */
+  questions(page: string, mine: string, theirs: string, how: JoinHow): Promise<JoinSummaryCounts>;
+  /** The join's grid's cube document, as the page command addGrid carries it onto `sheet` (headless joinCube). */
+  cube(page: string, mine: string, theirs: string, how: JoinHow, sheet: string | null): Promise<CubeDocument>;
+}
+
+/** A saved cube the host opened (`DatabaseService.opened`): rebuilt as it opens now, and the base its rows are read over. */
+export interface HostOpened {
+  /** The cube document's text, rebuilt over its source as it is now. */
+  readonly cube: string;
+  /** What opening it said: what drifted, what was left out. */
+  readonly notes: readonly string[];
+  /** Whether the cube opened is another than the one asked about (cube-document.ts cubeTaken). */
+  readonly taken: boolean;
+  readonly model: string;
+  readonly runtime: string;
+  /** How its rows are planned over `model` besides: a class's mapping, a saved query's own project. */
+  readonly how: ModelOptions;
+  /** The relation its rows are read over: a file's, a remote file's, a class's, a saved query's, a warehouse table's,
+   *  a join's of the host's tables. */
+  readonly relation: ValueSpecification;
+  /** Each frame it reads, by name, at the version it was read at: what following the host's frames compares. */
+  readonly frames: Readonly<Record<string, number>>;
 }
 
 /** A frame's model, as its host wrote it (Python's `Frames`): its model, runtime and source, and how often it changed. */
@@ -189,25 +263,57 @@ export interface Versions {
 }
 
 /**
- * ANOTHER EDITOR OF WHAT THE PAGE SHOWS (§5): Python, whose code changes the page (`ll.Page`) and its frames, and reads
- * the page back (`page.read()`). Its protocol is the page's document, its versions, and a refusal of a stale report.
+ * ANOTHER EDITOR OF WHAT THE PAGE SHOWS (§5): Python, whose code changes the page (`ll.Page`) and its frames. The page is
+ * one copy, Python's keeper's (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): its protocol is the page's document, its
+ * versions, and a write against the version it is at -- refused when the page has moved on since.
  */
 export interface LiveService {
   /**
    * Told each time the editor moves what the page shows (its versions), or -- a string -- why it no longer says (the
-   * page or the frame closed, Python gone): told nothing after that. Returns what stops it.
+   * page or the frame closed, Python gone): told nothing after that. `shown`: the version of the editor's page on
+   * screen (none while it opens or follows one), which the editor is told as it is asked (its copies that version
+   * reads stay until the screen moves past them: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17). Returns what stops it.
    */
-  watch(moved: (now: Versions | string) => void): () => void;
+  watch(moved: (now: Versions | string) => void, shown?: () => number | undefined): () => void;
   /** The page the editor serves, when it serves one (`ll.Page`; `ll.show(df)` serves a frame, a page of one grid). */
   readonly page?: LivePage;
 }
 
+/** One command the editor made (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): the page's, or a grid's, by its tile's id. */
+export type LiveCommand =
+  | { readonly page: PageCommand }
+  | { readonly grid: string; readonly command: GridCommand };
+
+/**
+ * What a page open on screen writes to the page's keeper (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4): the edits made
+ * on screen at the version it is at, each a command, which the keeper applies -- or, an undo or a redo (N2), the page
+ * whole, a restore the keeper takes only at that version.
+ */
+export type LiveWrite =
+  | { readonly edits: readonly LiveCommand[] }
+  | { readonly restore: PageDocument };
+
 /** A page another editor serves: read as it is now, and told what it is now. */
 export interface LivePage {
-  /** The page as the editor says it is now, at its version; refused with the editor's reason. */
-  read(): Promise<{ readonly version: number; readonly page: PageDocument }>;
-  /** The page as it is now, said back with the version it opened (what it says of a version replaced is refused). */
-  report(version: number, page: PageDocument): Promise<void>;
+  /** The page as the editor says it is now, at its version, with every id it has held (none is given out again: B12);
+   *  refused with the editor's reason. */
+  read(): Promise<{ readonly version: number; readonly page: PageDocument; readonly held: readonly string[] }>;
+  /**
+   * What moved the page since version `since` (the one open): the commands its editors made, in order -- or, when it
+   * keeps none for a version since (a page born or restored whole, a version long gone), the page as it is now.
+   */
+  changes(since: number): Promise<
+    | { readonly version: number; readonly commands: readonly LiveCommand[] }
+    | { readonly version: number; readonly page: PageDocument; readonly held: readonly string[] }>;
+  /**
+   * A write against the version on screen, settled by the page's keeper (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): its
+   * edits applied by DataCube's one rule to the page as the keeper has it, and what they make kept -- or a restore, kept
+   * whole at that version. Its version from then on -- the same, when it changed nothing -- and whether the keeper made
+   * another page than the screen's (the page had moved on, or an id was given out afresh: the screen then opens the
+   * page as the keeper made it). Refused in the keeper's words (an edit that does not apply there, a restore made
+   * against a version moved on from): nothing kept.
+   */
+  report(version: number, write: LiveWrite): Promise<{ readonly version: number; readonly combined: boolean }>;
 }
 
 // ------------------------------------------------------------------------------------------------------- the queries
@@ -262,18 +368,16 @@ export interface WarehouseService {
   live?(session: WarehouseSession, catalog: string, databaseType: string): WarehouseEngine;
   /**
    * A table's model written and held by the host, which then plans and runs its queries itself (Python's: C3, R4) --
-   * the tab's own writer's answer, read-only, with the runtime a copy is planned against.
+   * the tab's own writer's answer, read-only.
    */
-  table?(session: WarehouseSession, object: CatalogObject): Promise<InferredModel & { readonly snapRuntime: string }>;
-  /** Whose database a host's table's copy is in, as a person reads it (`Python`): the host that reads its tables. */
-  readonly place?: string;
-  /**
-   * A table the host read (`table`) snapped there: `pull` (Pure: its every column) planned and run where the rows are,
-   * the copy in the host's database, read through the model's snap runtime. Its count, and the pull's receipt.
-   */
-  snap?(model: string, pull: Lambda): Promise<{ readonly rowCount: number; readonly pulledBy?: Receipt }>;
-  /** That copy dropped. */
-  release?(model: string): Promise<void>;
+  table?(session: WarehouseSession, object: CatalogObject): Promise<InferredModel>;
+}
+
+/** A copy its host made of a grid's base query (DatabaseService.snap): its own table, and the host's model of it. */
+export interface HostCopy extends InferredModel {
+  readonly rowCount: number;
+  readonly pulledBy?: Receipt;
+  readonly table: string;
 }
 
 // -------------------------------------------------------------------------------------------------------- the browser
@@ -298,8 +402,8 @@ export interface BrowserService {
 export interface Sample {
   /** Its opening view, typed by the compiler over its source. */
   readonly snapshot: () => Promise<CubeSnapshot>;
-  readonly snapTarget: SnapTarget;
-  /** Generated rows are a copy in the host's database from the start; a mounted remote file is live. */
+  /** Generated rows are a copy in the host's database from the start; a mounted remote file is live, and snaps as any
+   *  grid does (PageSources.snapTarget). */
   readonly heldCopy?: HeldCopy;
   readonly configuration: CubeConfiguration;
   readonly dimensions: { name: string; columns: string[] }[];

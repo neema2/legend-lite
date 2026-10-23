@@ -14,7 +14,7 @@ import { element, lambda, property, variable } from '../../pure-protocol/src/ind
 import { stand } from './fake-planner.ts';
 
 // ONE WAY TO EDIT A GRID (docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md): the screen's offers, as one module the
-// screen's panels, its header menu, its drag zones and Python's calls (headless gridEdit) all call.
+// screen's panels, its header menu, its drag zones and Python's calls (headless gridApply) all call.
 
 const CUBE: CubeSnapshot = {
   source: { query: element('t') },

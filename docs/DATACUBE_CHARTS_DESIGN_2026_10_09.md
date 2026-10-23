@@ -146,8 +146,8 @@ The gaps, and what each step closes:
    each adding the columns to the cube, editable afterwards as Pure; a new column may start from a preset.
 5. **The editor's vocabulary** (`CALC_FUNCTIONS`) gains the date functions, each with an example the build compiles.
 6. **Batch 4's aggregates** -- `percentile` (quartiles), `corr`, `covarSample`/`covarPopulation`, `maxBy`/`minBy`
-   (first and last by time) -- are natives of the compiler already; DataCube's `AggregateFn` and Python's `AGGREGATES`
-   gain them. A trend line needs no regression function: its slope is the covariance over the variance, its intercept
+   (first and last by time) -- are natives of the compiler already; DataCube's `AggregateFn` gains them (Python takes
+   DataCube's; the quartiles are built, the two-column ones are not -- see Batch 4). A trend line needs no regression function: its slope is the covariance over the variance, its intercept
    the mean of y less the slope times the mean of x -- two aggregates and a group-level column.
 
 #### 3.3 An example page per batch
@@ -253,7 +253,28 @@ on another kind, with a brush or a slider, or coloured by value.
 **Step 3, built 2026-10-14**: the scatter matrix (`matrix`): two to five values, each pair plotted against each other
 from the cube's rows (as a scatter, not groups), each value's name on the diagonal, a colour per value of the split.
 
-Batch 3 is complete but for the kinds named above as not planned yet (Marimekko, waffle, Gantt).
+Batch 3 is complete but for the kinds named above as not planned yet (Marimekko, waffle, Gantt) -- **built
+2026-10-18** (the roadmap run's phase 7, `docs/DATACUBE_ROADMAP_RUN_2026_10_18.md`), each with the layout the database
+computes:
+
+- **A Marimekko** (`mark: 'marimekko'`, its split needed): each column across as wide as its share of the whole, each
+  cell up it as tall as its share of the column. The database gives each cell its four edges, shares between 0 and 1
+  (`calc-presets.ts marimekkoColumns`: a running total through the cell less the running total within its column, over
+  the whole, is where its column starts; that plus the column's total, where it ends; the running total within the
+  column, over the column's total, where the cell ends) -- in the order across, which it must be ordered by.
+- **A waffle** (`mark: 'waffle'`): a hundred cells, ten by ten, each category the cells from where the category before
+  it ended (the database's lag of the same column) to its running share through it, rounded by the database
+  (`waffleColumns`) -- a running total rounded, so the ranges meet and add up to a hundred exactly. The chart colours
+  each cell by the range that holds it.
+- **A Gantt** (`mark: 'gantt'`): each row a bar from a start to an end on a time axis -- two values, each the min or max
+  of a date column (the database's least and greatest), run from the earliest start.
+
+Each draws one value (a Gantt two), takes no show-as (it computes its own figures), and is on the "more kinds" example
+page with its family. Their audit: a whole of nothing gives empty shares (never a division by zero, which failed the
+query), said by the chart; a waffle or a Marimekko of values below zero says so rather than drawing a wrong whole; a
+Marimekko cell knows its category (a click on a period filters to it) and its columns are named as the axis names a
+period; a Gantt takes dates or instants, never a time of day, and says a row that ends before it starts; the form shows
+none of the options these kinds do not draw.
 
 **Its audit (2026-10-14)** found and fixed: a live chart of one series (a waterfall, a lollipop) took the cube's
 second grouping as its split and was refused with no way to take it off -- following the cube, such a kind takes no
@@ -263,8 +284,8 @@ day grain; a waterfall cut by "At most" called its last bar the total ("Total sh
 with DataCube's; the notebook's loader asks the next open cube's channel when one does not answer in 30 seconds.
 **A saved pie with a split changes look**: it was drawn as one ring from each category's first row (a split silently
 dropped); it is now two rings, the split outside. `options.half` and `options.ring` are checked words (true or false);
-a DataCube from before batch 3 draws a full pie or a dial for them, as it reads version 2. Named, not planned yet: Marimekko and waffle (each needs its shares laid out as cells, a layout to
-design so the page does not compute), Gantt (a start and an end per row: dates as measures).
+a DataCube from before batch 3 draws a full pie or a dial for them, as it reads version 2. Named then, not planned yet: Marimekko and waffle (each needs its shares laid out as cells, a layout
+to design so the page does not compute), Gantt (a start and an end per row: dates as measures) -- built since, above.
 
 **The rules written once (2026-10-15, before batches 2 and 3 landed; the review of 2d24022).** The DataCube + Python
 line's review found Python's chart rules (`page.py _drawable`) a copy of `chartProblems`, held to it only by the shared
@@ -295,8 +316,27 @@ The audit of the other twins is `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`.
 
 ### Batch 4: new aggregates, and the kinds they unlock
 
-The rule holds -- the database computes, the chart draws. The aggregates (§3.2 item 6) join `AggregateFn` and Python's
-`AGGREGATES`; then:
+The rule holds -- the database computes, the chart draws. The aggregates (§3.2 item 6) join `AggregateFn` (Python
+takes DataCube's); then:
+
+**Built (2026-10-18, the roadmap run's phase 5, `docs/DATACUBE_ROADMAP_RUN_2026_10_18.md`):** the quartiles
+`percentile25` and `percentile75` (Pure's `percentile(0.25)` and `(0.75)`, continuous; offered on every number column by
+the compiler's own answers, `generated/offer-facts.ts`) as aggregates of the grid and of a chart; the **box plot**
+(`mark: 'boxplot'`): one number column's five figures -- `min`, `percentile25`, `median`, `percentile75`, `max`, in that
+order (`BOX_FNS`) -- per category, drawn by ECharts' boxplot series, ordered by its median, drillable, one series; a
+chart told the kind takes its first value's column's five figures (`editChart`), and leaving it for a kind of one value
+keeps its median. The histogram needed nothing new -- the bins preset with a count, as batch 2 built it -- and has an
+example of its own beside the box plots, on the Statistics sheet of the "more kinds" example page. The phase's audit
+also made a click on a batch 3 kind's period or bin (a range or a box plot by month, a calendar's day) filter to its
+range, and a pie, a lollipop, a KPI and a heatmap refuse a second value by name (they draw their first alone). Python writes a box plot as any chart
+(`grid.chart('boxplot', x=...)`), and an Integer's quartile -- a `Number` the database may answer as an exact decimal --
+reaches `GridView` as a `Decimal`.
+
+**Not built (left for a later pass):** `corr`, `covarSample`/`covarPopulation` and `maxBy`/`minBy` read a SECOND column
+per measure (a measure names one; `wavg`'s weight is the only second column a measure has), so the correlation
+heatmap, the trend line and the candlestick wait on a measure with two columns; the candlestick also on the `prices`
+sample. Percentile lines need a percentile window (a new `WindowFunction`, in the window form and Python's words); the
+ECDF a `cumeDist` show-as; the violin, error bars, hexbin and KPI change were not started.
 
 | Kind | What the query computes |
 |---|---|
@@ -315,6 +355,26 @@ The rule holds -- the database computes, the chart draws. The aggregates (§3.2 
 And its example page.
 
 ### Batch 5: maps (§4), with its example page
+
+**Built (2026-10-18, the roadmap run's phase 6, `docs/DATACUBE_ROADMAP_RUN_2026_10_18.md`):** two kinds on Natural
+Earth's 1:110m countries, in the Equal Earth projection, zoomed and panned. A **map** (`mark: 'map'`) colours each
+country its column across names -- an ISO code exactly (alpha-3 or alpha-2), else one of Natural Earth's names, case
+aside -- by one value, and says the values it found no country for, and a country two rows named (the first drawn). A
+**bubble map** (`mark: 'bubblemap'`) puts a bubble at each place its column across names, where a new slot says --
+`at: {lat, lon}`, two number columns -- sized by one value; its query groups by the place's name, latitude and
+longitude (never an average of positions), and a row with no position is said. Both draw one series of one value,
+ask for 250 places (`MAP_LIMIT`), and are placed by their own columns: they do not follow the grid's grouping. A click
+filters to the place, as a bar's does. Drawn by `chart-maps.ts`, the shapes in its chunk; ECharts' map chart and its
+geo component are a chunk of their own (`chart-render-maps.ts`, handed the shapes to register); both are fetched with
+the first map. Its audit: a map is not offered Open in grid (Update would not change its places) and its pill says it
+does not regroup; its limit stays the world's whatever is across, and a chart leaving it takes its own default again; a
+map has no grain or bins, and a bubble map's name is not one of its places; a place with no value is said. Python writes them as any chart
+(`grid.chart('map', x=...)`, `grid.chart('bubblemap', x=..., at={'lat': ..., 'lon': ...})`). On the Maps sheet of the
+"more kinds" example page.
+
+**Not built (left for a later pass):** provinces and states (one file per country, item 1); the borders as each of
+31 countries draws them (item 4: Natural Earth's views, a deployment's default and a user's setting); the US with
+Alaska and Hawaii set in (item 5); a user's own shapes (item 6).
 
 ### After the batches
 
@@ -390,5 +450,12 @@ Batch 2 is built on the session branch `claude/epic-rubin-ay7upl`, from main.
 1. **Regions beyond countries and their provinces** (UK regions, EU regions): not planned; Natural Earth's provinces
    cover most countries, and a user's own shapes cover the rest.
 2. **The map-preparation tool**: a pinned Python tool run at build time, or files prepared once and committed with how
-   they were made. To be chosen when batch 5 starts, with the measured sizes.
+   they were made. To be chosen when batch 5 starts, with the measured sizes. **Taken for now, for the user to confirm
+   (the roadmap run's phase 6):** prepared once and committed -- `datacube/tools/maps/prepare.py` (standard library
+   only) reads the published 1:110m countries of release 5.1.2, its sha256 pinned, keeps the geometry with every
+   coordinate rounded to 2 decimals (a shared border's vertices stay the same on both sides: no simplification, so no
+   slivers) and five fields, and writes `datacube/src/maps/world-110m.ts`: 183 KB, 60 KB gzipped, fetched only with
+   the first map. A build-time run would need Natural Earth's file at build time, which a cloud session's network
+   may refuse; the committed file needs nothing. Provinces (41 MB published) will need simplification, and so a real
+   tool, when they come.
 3. **The notebook widget's chart code fetched lazily** (batch 2 item 13): measured, asked, built (2026-10-14).

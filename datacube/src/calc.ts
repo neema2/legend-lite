@@ -27,6 +27,7 @@
 // "all columns" -- the completion has to be as honest as the query.
 
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
+import { isIdentifier } from '../../pure-protocol/src/index.ts';
 import { CALC_FACTS } from './generated/offer-facts.ts';
 import { ROOT_COLUMN } from './grid/columns.ts';
 import { groupedMeasures, pivotLabel, type PivotColumn } from './query.ts';
@@ -145,11 +146,14 @@ export const CALC_OPERATORS: readonly Completion[] = [
  * A column reference, spelled for a Pure lambda.
  *
  * A generated pivot name carries the separator and is not a plain
- * identifier, so it needs the quoted form -- which is exactly the
- * spelling the serialiser uses for the same column.
+ * identifier, so it needs the quoted form; so do `true` and `false`,
+ * which the grammar reads as literals. (The compiler's printer still
+ * writes those two bare -- a core-side gap noted in the roadmap run's
+ * ledger, phase 8.)
  */
 export function columnRef(name: string): string {
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name)
+  // a name the grammar reads bare (pure-protocol's rule: `true` and `false` are literals, so quoted)
+  return isIdentifier(name)
     ? `$x.${name}`
     : `$x.'${name.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }

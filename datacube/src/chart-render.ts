@@ -116,15 +116,15 @@ export function mountChart(
 ): MountedChart {
   const chart = echarts.init(el, null, { renderer: 'canvas' });
   let drawing: ChartDrawing | null = null;
-  const markOf = (params: unknown): { key: MarkKey; dataIndex: number } | null => {
+  const markOf = (params: unknown): { key: MarkKey; dataIndex: number; datum: unknown } | null => {
     const p = params as { seriesIndex?: number; dataIndex?: number; data?: unknown };
     if (!drawing || p.seriesIndex === undefined || p.dataIndex === undefined) return null;
     const key = drawing.keyAt(p.seriesIndex, p.dataIndex, p.data);
-    return key ? { key, dataIndex: p.dataIndex } : null;
+    return key ? { key, dataIndex: p.dataIndex, datum: p.data } : null;
   };
   chart.on('click', (params: unknown) => {
     const mark = markOf(params);
-    if (mark && onPick) onPick(mark.key, drawing?.upperAt?.(mark.dataIndex));
+    if (mark && onPick) onPick(mark.key, drawing?.upperAt?.(mark.dataIndex, mark.datum));
   });
   chart.on('dblclick', (params: unknown) => {
     const mark = markOf(params);

@@ -71,6 +71,8 @@ const AGGREGATE_LABELS: Readonly<Record<AggregateFn, string>> = {
   min: 'min',
   max: 'max',
   median: 'median',
+  percentile25: 'first quartile (25th percentile)',
+  percentile75: 'third quartile (75th percentile)',
   stdDevPopulation: 'std deviation (population)',
   stdDevSample: 'std deviation (sample)',
   variancePopulation: 'variance (population)',

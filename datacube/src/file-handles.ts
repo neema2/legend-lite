@@ -86,9 +86,15 @@ export async function readHandle(
 }
 
 /**
- * Kept handles in the cubes' own browser database: by saved page id and grid (`page#grid`), or -- saved before a page
- * held several grids -- by the page's id alone.
+ * Where a saved page keeps a file's handle: by the page and the file's contents, its hash -- so every grid reading that
+ * file finds it, one of its own or a join's leaf (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3: what a grid reads is
+ * its leaves, never one file of its own).
  */
+export function handleKey(pageId: string, sha256: string): string {
+  return `${pageId}#${sha256}`;
+}
+
+/** Kept handles in the cubes' own browser database, by `handleKey`. */
 export class FileHandles {
   static readonly STORE = 'handles';
   readonly #db: Promise<IDBDatabase>;
@@ -110,7 +116,7 @@ export class FileHandles {
     await this.#request('readwrite', (s) => s.delete(cubeId));
   }
 
-  /** Every handle a saved page kept: its own, and each of its grids' (`page#grid`). */
+  /** Every handle a saved page kept (`page#…`), and one an older writer kept under the page's id alone. */
   async removePage(pageId: string): Promise<void> {
     await this.remove(pageId);
     await this.#request('readwrite', (s) => s.delete(IDBKeyRange.bound(`${pageId}#`, `${pageId}#\uffff`)));

@@ -2,7 +2,7 @@
 and returns at once.
 
     import legend_lite as ll
-    cube = ll.show(df)          # DataCube on df, Live: each query reads df as it is then
+    cube = ll.show(df)          # DataCube on df: each query reads df as it is then
     df.loc[0, 'qty'] = 5         # an in-place change: the cube shows it on its next query
     cube.update(new_df)          # a NEW frame (rebinding `df` does not reach the cube)
 
@@ -27,7 +27,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .engine import Engine, WebServer
-from .frames import LIVE, Frames
+from .frames import Frames
+from .keeper import PageKeeper
 
 if TYPE_CHECKING:
     from .notebook import DataCube, PageCube
@@ -64,50 +65,6 @@ def _kernel() -> bool:
     if zmqshell is None or ipython is None:
         return False
     return isinstance(ipython.get_ipython(), zmqshell.ZMQInteractiveShell)
-
-
-class Cube:
-    """A frame shown in DataCube in a browser tab: its link, and what changes it."""
-
-    def __init__(self, session: _Session, name: str) -> None:
-        self._session = session
-        self.name = name
-        self._closed = False
-
-    @property
-    def url(self) -> str:
-        """The cube's link: the page, the frame, and the engine's token (in the fragment, never sent to a server)."""
-        self._open()
-        web = self._session.web()
-        return f'{web.url}/engine.html?table={self.name}#token={web.token}'
-
-    def update(self, frame: Any, mode: str | None = None) -> None:
-        """Shows another frame in this cube (Live or Snapped as before, unless ``mode`` says): the page opens it, over
-        its new columns if they changed. It returns nothing, as a notebook's cube's does."""
-        self._open()
-        self._session.register(frame, self.name, self._session.frames[self.name].mode if mode is None else mode)
-
-    def refresh(self) -> None:
-        """Tells the page to query again: a change the next click would show, shown now."""
-        self._open()
-        self._session.engine().changed(self.name)
-
-    def close(self) -> None:
-        """Takes the frame out of the engine; the page keeps what it shows. The last tab's cube closed stops the web
-        server. A cube its name has since moved to another (shown under a notebook's cell) takes only itself away."""
-        if not self._closed:
-            self._closed = True
-            self._session.close(self.name, self)
-
-    def _after_cell(self) -> None:
-        pass
-
-    def _open(self) -> None:
-        if self._closed:
-            raise ValueError(f'the cube {self.name!r} was closed: show the frame again')
-
-    def __repr__(self) -> str:
-        return f'<DataCube {self.name!r}: {self.url}>' if not self._closed else f'<DataCube {self.name!r}: closed>'
 
 
 class PageTab:
@@ -151,6 +108,42 @@ class PageTab:
         return f'<DataCube page {self.page.name!r}: {self.url}>' if not self._closed else f'<DataCube page {self.page.name!r}: closed>'
 
 
+class Cube(PageTab):
+    """A frame shown in DataCube in a browser tab (``ll.show(df)``): a page of one grid over it, kept as every Python page
+    is (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P12) -- so a column changed in the frame keeps the grid's edits, made in
+    Python or in the tab -- its link, and what changes it."""
+
+    def __init__(self, session: _Session, name: str, page: Page) -> None:
+        super().__init__(session, page)
+        self.name = name
+
+    def update(self, frame: Any) -> None:
+        """Shows another frame in this cube: the page opens it, over its new columns if they changed, the grid's edits
+        kept (its page's own update: B10). It returns nothing, as a notebook's cube's does."""
+        self._open()
+        self._page._update(self.name, frame)
+
+    def refresh(self) -> None:
+        """Tells the page to query again: a change the next click would show, shown now."""
+        self._open()
+        self._session.engine().changed(self.name)
+
+    def close(self) -> None:
+        """Takes the frame out of the engine; the tab keeps what it shows. The last tab closed stops the web server. A
+        cube its name has since moved to another (shown under a notebook's cell) takes only itself away."""
+        if not self._closed:
+            self._closed = True
+            self._session.close_page(self)
+            self._session.close(self.name, self)
+
+    def _open(self) -> None:
+        if self._closed:
+            raise ValueError(f'the cube {self.name!r} was closed: show the frame again')
+
+    def __repr__(self) -> str:
+        return f'<DataCube {self.name!r}: {self.url}>' if not self._closed else f'<DataCube {self.name!r}: closed>'
+
+
 class _Session:
     """The process's one engine, the frames it serves, the cubes over them (one a name: a tab's or a notebook's), the
     pages shown (``ll.Page``), and the web server the tabs reach it through."""
@@ -171,14 +164,46 @@ class _Session:
         self._hooked = False
         # a cube was opened in a browser: a person is looking, so a plain script's end keeps the engine for them
         self.opened = False
+        # the one copy of each Python page, versioned (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): each new version told
+        # where its page is shown; each write's edits applied by DataCube's rule (_combine)
+        self.keeper = PageKeeper(on_write=self._page_written, combine=self._combine)
+        # the keys of pages collected, forgotten by the keeper at the next safe moment (sweep): never in the collector
+        self.gone: list[str] = []
+        # every Python page of this session not yet collected: a saved page deleted is no saved page any more for each
+        # saved as it (Page.delete, as the tab's Open… tells its page: K14) -- added to and read under its own lock (a
+        # page made on another thread meanwhile), never held across a call into DataCube (D15)
+        self._page_objects: weakref.WeakSet[Any] = weakref.WeakSet()
+        self._page_objects_lock = threading.Lock()
+
+    def page_made(self, page: Any) -> None:
+        """A Python page of this session, kept (weakly) among its pages."""
+        with self._page_objects_lock:
+            self._page_objects.add(page)
+
+    def page_objects(self) -> list[Any]:
+        """This session's Python pages not yet collected, as they are now."""
+        with self._page_objects_lock:
+            return list(self._page_objects)
 
     def engine(self) -> Engine:
+        """This session's engine: its rows' plan-and-run (every grid's, D16), and what a tab or a notebook's widget is
+        served by -- with DataCube's site when this install carries it (``shown_engine``)."""
         with self._lock:
             if self._engine is None:
                 # a page's file is read into the frames' database by DataCube's own code, headless (file.json); every
                 # query planned in this process, by Python's own compiler (a host plans in process: the program's §1.1)
-                self._engine = Engine(self.frames, site=_site(), headless=self.headless)
+                site = _site()
+                self._engine = Engine(self.frames, site=site if site.is_dir() else None, headless=self.headless,
+                                      keeper=self.keeper)
             return self._engine
+
+    def shown_engine(self) -> Engine:
+        """The engine, for what shows a page (a tab, a notebook's widget): DataCube's site with it -- refused in words when
+        this install carries none, which reads grids in Python alone."""
+        engine = self.engine()
+        if engine.site is None:
+            raise ValueError(f'the site {_site()} is not a directory: DataCube\'s pages are not in this install')
+        return engine
 
     def headless(self) -> Any:
         """DataCube's own non-screen code, in V8, over these frames' database (the `datacube` extra): made on first
@@ -190,17 +215,75 @@ class _Session:
                 self._headless = None
             if self._headless is None:
                 from ._headless import Headless, bundle
-                self._headless = Headless(bundle(), connection=self.frames.connection)
+                # a call made in a read of the frames (Frames.reading) queries through it (D15)
+                self._headless = Headless(bundle(), connection=self.frames.connection, reading=self.frames.reading_now)
+                # what DataCube's code asks of the engine beside it (a grid's rows where they are), answered by this
+                # session's engine -- by a weak method: the session holds its DataCube engine, never the other way round
+                # (any function of this module would reach the session through the module's globals, and an engine in
+                # such a cycle is collected at the interpreter's end, where tearing V8 down crashes the process)
+                self._headless.answers = weakref.WeakMethod(self._answer_over)
+                # every grid's rows are read by the engine's plan-and-run (D16): made with it, before any call asks it
+                self.engine()
             return self._headless
+
+    def _answer_over(self, path: str, body: str, over: Any) -> tuple[int, str, bytes]:
+        """A call of DataCube's code to the engine (headless calls.ts ``engine``), answered by this session's engine on
+        DataCube's thread over the read the call was made in (``Engine.answer_over``: D15) -- made with DataCube's engine
+        (``headless``), so it takes no session lock (the call's caller may hold it, waiting)."""
+        engine = self._engine
+        if engine is None:
+            raise RuntimeError('this session made DataCube\'s engine without its own: no grid\'s rows can be read')
+        return engine.answer_over(path, body, over)
+
+    def held_copies(self) -> dict[str, dict[str, Any]]:
+        """Every snap's copy this session's engine holds, by its table (its model, runtime and relation, as DataCube
+        modelled it as it landed: headless grid.ts HeldCopy) -- none made yet, no engine yet: none. Asked as a read of the
+        frames begins (a snapped grid's base, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): the copies held now, which
+        a copy made after the read began is among though the read does not see it (F31). It takes no session lock, only
+        the engine's own."""
+        engine = self._engine
+        return {} if engine is None else engine.held_copies()
+
+    def sweep(self) -> None:
+        """The pages collected since forgotten, and each snap's copy no page kept reads any more let go of by the engine
+        holding it (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md; engine.py ``sweep``). Called where nothing is held but, at
+        most, the session's lock: a page's change, a cell's end."""
+        while self.gone:
+            self.keeper.forget(self.gone.pop())
+        engine = self._engine
+        if engine is not None:
+            engine.sweep()
+
+    def _combine(self, page: dict[str, Any], held: list[str], edits: list[Any], known: list[str]) -> dict[str, Any]:
+        """A writer's edits applied to ``page`` as the keeper has it now, by DataCube's one rule (headless pageRebase:
+        page-rebase.ts; made again on top when the page moved on since they were made, ``known`` the ids it held then) --
+        a grid's over the frames this session serves, a snapped grid's over the copy its engine holds: ``{page, held,
+        edits, renamed, reads}``, or ``{problems}``. The keeper's, asked holding nothing (the session's lock first, then
+        the frames')."""
+        from . import _json
+        headless = self.headless()
+        copies = self.held_copies()
+        with self.frames.reading():
+            said = _json.loads(headless.call('pageRebase', _json.dumps(page), _json.dumps(held), _json.dumps(edits),
+                                             _json.dumps(known), self.frames.hosted(), copies))
+        if 'page' in said:
+            said['page'] = _json.loads(said['page'])
+        return said
+
+    def _page_written(self, key: str, version: int) -> None:
+        """A page's new version, written by any of its editors: told where it is shown (a notebook's widget follows it)."""
+        for view in list(self.pages):
+            if view._page._key == key:
+                view._page_moved(version)
 
     def web(self) -> WebServer:
         """The engine over HTTP, for the tabs: started by the first."""
         with self._lock:
             if self._web is None:
-                self._web = WebServer(self.engine())
+                self._web = WebServer(self.shown_engine())
             return self._web
 
-    def register(self, frame: Any, name: str | None, mode: str) -> str:
+    def register(self, frame: Any, name: str | None) -> str:
         """The frame registered under ``name`` (the next free one unless given), and a page showing that name told."""
         with self._lock:
             if name is None:
@@ -208,9 +291,9 @@ class _Session:
             # shown by a cube of its name, or read by a page shown
             shown = name.lower() in self.cubes or any(f.lower() == name.lower()
                                                       for view in self.pages for f in view._page._frames())
-            self.frames.register(name, frame, mode)
-            # an engine is made by what shows a frame (a tab, a notebook's cube, a page shown): none yet, nothing has
-            # been served and nobody is told; a page's grid read headless (Grid.view) needs none
+            self.frames.register(name, frame)
+            # an engine is made by what shows a frame (a tab, a notebook's cube, a page shown) or reads a grid (D16):
+            # none yet, nothing has been served and nobody is told
             engine = self._engine
             if engine is not None and (shown or engine.seen(name)):
                 # shown again under its name (or again after it was closed): a page showing it reads it again
@@ -223,13 +306,40 @@ class _Session:
             if name in self.frames and name.lower() not in self.cubes:
                 self.frames.unregister(name)
 
-    def show(self, frame: Any, name: str | None, mode: str) -> Cube:
-        """The frame registered, and its name's cube in a tab: the one it has, else a new one."""
+    def frame_page(self, frame: Any, name: str | None, snap: bool) -> tuple[str, Page]:
+        """THE PAGE A FRAME IS SHOWN AS (``ll.show(df)``: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P12): a page of one grid
+        over it, kept as every Python page is, and its name -- its name's page when it shows already, its frame replaced
+        (each place it is shown follows), else a new page named by it; its grid read once by its Snap when ``snap`` (and
+        not snapped already). Built outside the session's lock, as any page is: a snap's copy is made on the engine's own
+        threads, which ask for DataCube's code (the session's lock first, then the frames')."""
+        from .page import Page
         with self._lock:
-            name = self.register(frame, name, mode)
+            shown = self.cubes.get(name.lower()) if name is not None else None
+            if shown is not None and shown._closed:
+                shown = None
+            named = name if name is not None else self._next_name()
+        if shown is not None:
+            page = shown._page
+            # its frame replaced as a grid's update replaces it: each cube over it opened again, its edits kept (B10)
+            page._update(shown.name, frame)
+            if snap and page.grids and page.grids[0].snapped is None:
+                page.grids[0].snap()
+            return shown.name, page
+        page = Page(named)
+        page.grid(frame, name=named, snap=snap)
+        return named, page
+
+    def show(self, frame: Any, name: str | None, snap: bool = False) -> Cube:
+        """The frame shown in a tab (frame_page): its name's cube there, the one it has, else a new one -- refused in words
+        first where this install carries no DataCube site to show it in (F40)."""
+        self.shown_engine()
+        name, page = self.frame_page(frame, name, snap)
+        with self._lock:
             cube = self.cubes.get(name.lower())
-            if not isinstance(cube, Cube):
-                cube = self.adopt(Cube(self, name))
+            if not isinstance(cube, Cube) or cube._closed:
+                cube = Cube(self, name, page)
+                self.adopt(cube)
+                self.serve(page, cube)
             return cube
 
     def adopt(self, cube: Any) -> Any:
@@ -247,18 +357,17 @@ class _Session:
         return name
 
     def after_cell(self, *_: Any) -> None:
-        """A notebook cell (or an IPython command) has run: each Live cube, and each Live frame of a page shown, queries
-        again, so a change shows."""
+        """A notebook cell (or an IPython command) has run: each cube, and each frame of a page shown, read at each query
+        (a stream's, read once, never changes), queries again, so a change shows."""
         with self._lock:
-            for key, cube in list(self.cubes.items()):
-                cube._after_cell()
-                if self._engine is not None and key in self.frames and self.frames[key].mode == LIVE:
-                    self._engine.changed(cube.name)
+            # the pages collected meanwhile (a cell made its page again), and the copies no page reads any more: let go
+            self.sweep()
+            # (each frame's cube is a page shown: P12)
             for view in self.pages:
                 view._after_cell()
             frames = {f for shown in self.pages for f in shown._page._frames()}
             for name in frames:
-                if self._engine is not None and name in self.frames and self.frames[name].mode == LIVE:
+                if self._engine is not None and name in self.frames and self.frames[name].live:
                     self._engine.changed(name)
 
     def show_page(self, page: Page) -> PageTab:
@@ -269,13 +378,15 @@ class _Session:
             return tab
 
     def serve(self, page: Page, view: PageTab | PageCube) -> None:
-        """``page`` served by the engine, shown in ``view`` (a tab's or a notebook's) and told of each change."""
-        page._showable()
+        """``page`` served by the engine, shown in ``view`` (a tab's or a notebook's) and told of each change -- a page of
+        no grid yet too, which DataCube shows and follows as Python adds to it (D2)."""
         with self._lock:
             # served when it is first shown; shown again, the engine has it as it is (served each time it changed), and
             # a page open on it stays as it is
             if not page._shown:
-                self.engine().serve_page(page._key, page._doc)
+                # its engine made, to serve it -- with DataCube's site, or refused in words; the page kept already
+                self.shown_engine()
+                self.keeper.serve(page._key, True)
             page._shown.append(view)
             self.pages.append(view)
             self._hook()
@@ -288,8 +399,8 @@ class _Session:
             page = view._page
             if view in page._shown:
                 page._shown.remove(view)
-            if not page._shown and self._engine is not None:
-                self._engine.close_page(page._key)
+            if not page._shown:
+                self.keeper.serve(page._key, False)
             self._stop_web_if_unused()
 
     def close(self, name: str, cube: Any) -> None:
@@ -309,8 +420,8 @@ class _Session:
             self._stop_web_if_unused()
 
     def _stop_web_if_unused(self) -> None:
-        if self._web is not None and not self.apps and not any(isinstance(c, Cube) for c in self.cubes.values()) \
-                and not any(isinstance(p, PageTab) for p in self.pages):
+        # a frame's cube in a tab is a page shown there (P12)
+        if self._web is not None and not self.apps and not any(isinstance(p, PageTab) for p in self.pages):
             self._web.close()
             self._web = None
 
@@ -335,7 +446,8 @@ class _Session:
         """A plain script ending with a cube open in a browser waits, saying so, until Ctrl-C (an IDE's Stop): the
         cube is this process's."""
         with self._lock:
-            open_cubes = [c for c in self.cubes.values() if isinstance(c, Cube)] + [p for p in self.pages if isinstance(p, PageTab)]
+            # a frame's cube in a tab is a page shown there (P12)
+            open_cubes = [p for p in self.pages if isinstance(p, PageTab)]
             apps = dict(self.apps)
         if not (open_cubes or apps) or _stays():
             return
@@ -402,25 +514,29 @@ def _release(key: int) -> None:
     session.frames.close()
 
 
-def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool = True,
-         inline: bool | None = None) -> Cube | DataCube | PageTab | PageCube:
+def show(frame: Any, name: str | None = None, *, browser: bool = True,
+         inline: bool | None = None, snap: bool = False) -> Cube | DataCube | PageTab | PageCube:
     """Shows DataCube on ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one) and returns
     at once: under the cell in a Jupyter notebook; in a marimo notebook, as the cell's output when it is the cell's last
     expression (marimo's way); in a browser tab anywhere else (a plain script that opened one waits at its end until
     Ctrl-C). ``name`` names its table (``frame``, ``frame_2``, ... unless given; showing a name again
     replaces its frame and shows its cube again, in a tab or under this cell, as it first showed -- in marimo, a new
-    cube each call, the latest taking the name's frame). ``mode``: Live (the default: each query reads the frame as it
-    is then) or ``'snapped'`` (copied once). ``browser=False`` opens no tab: the link is ``cube.url``.
+    cube each call, the latest taking the name's frame). Each query reads the frame as it is then; the grid's Snap
+    keeps its rows as they are. ``snap=True``: the frame read once, by the grid's Snap as its page opens it -- a copy
+    Python's DuckDB keeps, which the grid reads whatever the frame does after, until its Go Live (the frame stays served
+    as it is). ``browser=False`` opens no tab: the link is ``cube.url``.
     ``inline=False`` opens a tab from a notebook's kernel too (a console that shows no widget: Spyder's, qtconsole);
     under the cell needs the notebook extra (``pip install 'legend-lite[notebook]'``)."""
     from .page import Page
     if isinstance(frame, Page):
+        if snap:
+            raise ValueError("a page's grids snap one by one: grid.snap(), or page.grid(df, snap=True)")
         return _show_page(frame, browser=browser, inline=inline)
     if _marimo() and inline is not False:
         # a marimo notebook: the cube for the cell to show, as its last expression (marimo's way: nothing is added to
         # the cell's output, which would show it twice); the cell's next run closes it
         from .notebook import for_marimo
-        return for_marimo(frame, name, mode)
+        return for_marimo(frame, name, snap)
     if inline is None:
         # a name shown again shows where it showed; a new one under the cell in a notebook's kernel, else in a tab
         shown_before = _current().cubes.get(name.lower()) if name is not None else None
@@ -428,9 +544,9 @@ def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool
     if inline:
         # the notebook extra: without anywidget, the import says how to install it
         from .notebook import shown
-        return shown(frame, name, mode)
+        return shown(frame, name, snap)
     session = _current()
-    cube = session.show(frame, name, mode)
+    cube = session.show(frame, name, snap)
     print(f'DataCube: {cube.url}', flush=True)
     if browser and webbrowser.open(cube.url):
         session.opened = True

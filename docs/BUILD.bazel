@@ -1,3 +1,4 @@
+load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/guards:defs.bzl", "guards_package")
 
@@ -6,6 +7,14 @@ load("//tools/guards:defs.bzl", "guards_package")
 # $(rlocationpath) (parser-equivalence's _LEDGERS): no blanket filegroup, so no test carries a ledger it never
 # reads (Bazel workplan P2-18). The other TSVs here are frozen snapshots or measurements no build reads.
 exports_files(glob(["*.tsv"]))
+
+# THE ONE API PLAN's register (§4), which //datacube:one_api_ledger_test holds every ledger to (copied to the output
+# tree, where a JavaScript test reads its data: rules_js)
+copy_to_bin(
+    name = "one_api_plan",
+    srcs = ["DATACUBE_ONE_API_PLAN_2026_10_21.md"],
+    visibility = ["//datacube:__pkg__"],
+)
 
 # GENERATED ledgers in docs/ (see //:update_generated)
 write_source_files(

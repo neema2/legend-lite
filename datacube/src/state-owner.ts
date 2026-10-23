@@ -64,11 +64,14 @@ export interface ChangeOptions {
 
 export type StateEvent<V> =
   | { readonly kind: 'pending' }
-  | { readonly kind: 'committed'; readonly view: V }
+  /** `moved`: an undo or a redo landed with it (a change made on top of one in flight lands the move too). */
+  | { readonly kind: 'committed'; readonly view: V; readonly moved: boolean }
   /** Committed WITHOUT a query (`StateRules.defer`): the view on screen is the old state's. */
   | { readonly kind: 'deferred' }
-  | { readonly kind: 'presentation' }
-  | { readonly kind: 'refused'; readonly error: unknown; readonly reverted: readonly string[] }
+  /** `moved`: an undo or a redo that differs from the committed state only in presentation (no query) landed. */
+  | { readonly kind: 'presentation'; readonly moved: boolean }
+  /** `moved`: an undo or a redo was part of the change refused (a change made on top of one in flight). */
+  | { readonly kind: 'refused'; readonly error: unknown; readonly reverted: readonly string[]; readonly moved: boolean }
   | { readonly kind: 'cancelled'; readonly reverted: readonly string[] };
 
 export interface OwnerOptions {
@@ -344,7 +347,7 @@ export class StateOwner<S, V> {
     this.#drop();
     this.#land(target, move, false, this.#rules.queryKey(target) === this.#rules.queryKey(this.#rendered));
     this.#represent();
-    this.#emit({ kind: 'presentation' });
+    this.#emit({ kind: 'presentation', moved: true });
     return { kind: 'applied' };
   }
 
@@ -415,7 +418,7 @@ export class StateOwner<S, V> {
       };
     }
     this.#represent();
-    this.#emit({ kind: 'presentation' });
+    this.#emit({ kind: 'presentation', moved: false });
     return { kind: 'applied' };
   }
 
@@ -444,7 +447,7 @@ export class StateOwner<S, V> {
       if (pending?.id !== id) return { kind: 'superseded' };
       this.#pending = null;
       this.#refused = pending;
-      this.#emit({ kind: 'refused', error, reverted: pending.labels });
+      this.#emit({ kind: 'refused', error, reverted: pending.labels, moved: pending.move !== undefined });
       return { kind: 'refused', error, reverted: pending.labels };
     }
     const pending = this.#pending;
@@ -458,7 +461,7 @@ export class StateOwner<S, V> {
     this.#land(landed, pending.move, pending.record);
     this.#view = view;
     this.#pending = null;
-    this.#emit({ kind: 'committed', view });
+    this.#emit({ kind: 'committed', view, moved: pending.move !== undefined });
     return { kind: 'applied', view };
   }
 

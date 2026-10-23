@@ -6,30 +6,39 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { cubeToJson, writeCube, type FileSource } from '../src/cube-document.ts';
+import { cubeToJson, frameSource, rawRows, writeCube, type FileSource } from '../src/cube-document.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import {
   FIRST_SHEET,
+  NOTHING_TO_SAVE,
+  modelPageName,
+  newPage,
+  pageContent,
+  pageFile,
+  pageSaving,
+  savedRecord,
+  type SavedRecord,
   PAGE_KIND,
   PageDocumentError,
-  PageNoCubeError,
   oneSheet,
   pageDefinitionText,
   pageToJson,
   readPage,
   readSaved,
+  sheetLabel,
   startingViews,
+  suggestedName,
   writePage,
+  type PageDocument,
   type PageLayout,
   type PageViews,
 } from '../src/page-document.ts';
 import { givenName } from '../src/page-names.ts';
-import { layoutAdd } from '../src/headless/layout.ts';
-import { pageNew } from '../src/headless/page.ts';
+import { pageApply, pageFile as pageFileJson, pageNew, pageRead, pageRecord as pageRecordJson, pageSaved } from '../src/headless/page.ts';
 import type { ChartSpec } from '../src/chart-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
-import { accessor, col, lambda, lit, times } from '../../pure-protocol/src/index.ts';
+import { accessor, col, element, lambda, lit, times, toJson } from '../../pure-protocol/src/index.ts';
 
 const SOURCE: FileSource = {
   _type: 'file', name: 'trades.csv', format: 'csv', size: 120, sha256: 'ab'.repeat(32),
@@ -159,12 +168,12 @@ describe('a saved page', () => {
     const back = readPage(JSON.stringify(withMore));
     assert.deepEqual(back.unknown, { variables: [{ name: 'asOf' }] });
     assert.deepEqual(JSON.parse(pageToJson(back)).variables, [{ name: 'asOf' }]);
-    assert.throws(() => readPage(JSON.stringify({ ...raw, version: 5 })), /newer version \(5 > 4\)/);
+    assert.throws(() => readPage(JSON.stringify({ ...raw, version: 7 })), /newer version \(7 > 6\)/);
   });
 
-  it('keeps where its classes are -- its project, its workspace, its package, each grid\'s table -- strictly', () => {
-    // writePage's one cube is PAGE_CUBE ('cube')
-    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: 'trades_2' } };
+  it('keeps where its classes are -- its project, its workspace, its package, each grid\'s tables -- strictly', () => {
+    // writePage's one cube is PAGE_CUBE ('cube'); a join's grid keeps each of its leaves' tables, in order (§18.3)
+    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: ['trades_2', 'desks'] } };
     const base = page();
     const made = writePage({ name: 'Q3 page', cube: CUBE, views: VIEWS, model });
     const back = readPage(pageToJson(made));
@@ -173,20 +182,33 @@ describe('a saved page', () => {
     assert.notEqual(pageDefinitionText(back), pageDefinitionText(base), 'a class made: the page has changed');
     const raw = JSON.parse(pageToJson(made));
     assert.throws(() => readPage(JSON.stringify({ ...raw, model: { ...model, project: '' } })), /'model' has no project/);
-    assert.throws(() => readPage(JSON.stringify({ ...raw, model: { ...model, tables: { nope: 't' } } })),
-      /keeps a table for nope, which is no cube of the page/);
+    assert.throws(() => readPage(JSON.stringify({ ...raw, model: { ...model, tables: { nope: ['t'] } } })),
+      /keeps tables for nope, which is no cube of the page/);
+    for (const bad of ['trades_2', [], ['trades_2', ''], [1]]) {
+      assert.throws(() => readPage(JSON.stringify({ ...raw, model: { ...model, tables: { cube: bad } } })),
+        /'model' keeps no list of table names for cube/, JSON.stringify(bad));
+    }
     assert.throws(() => readPage(JSON.stringify({ ...raw, model: 'datacube:trades' })), /'model' is not an object/);
   });
 
+  it('keeps the revision the page is pinned to; one that is no revision\'s id refused', () => {
+    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: ['trades_2'] }, revision: '7' };
+    const made = writePage({ name: 'Q3 page', cube: CUBE, views: VIEWS, model });
+    assert.deepEqual(readPage(pageToJson(made)).model, model);
+    const raw = JSON.parse(pageToJson(made));
+    assert.throws(() => readPage(JSON.stringify({ ...raw, model: { ...model, revision: '' } })), /'model' has a revision that is no revision's id/);
+    assert.throws(() => readPage(JSON.stringify({ ...raw, model: { ...model, revision: 7 } })), /'model' has a revision that is no revision's id/);
+  });
+
   it('writes a table kept only for a cube it holds: a grid removed since its class was made, the page still opens', () => {
-    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: 'trades_2', gone: 'customers' } };
+    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { cube: ['trades_2'], gone: ['customers'] } };
     const written = writePage({ name: 'Q3 page', cube: CUBE, views: VIEWS, model });
-    assert.deepEqual(written.model?.tables, { cube: 'trades_2' });
-    assert.deepEqual(readPage(pageToJson(written)).model, { ...model, tables: { cube: 'trades_2' } });
+    assert.deepEqual(written.model?.tables, { cube: ['trades_2'] });
+    assert.deepEqual(readPage(pageToJson(written)).model, { ...model, tables: { cube: ['trades_2'] } });
   });
 
   it('writes a class kept only for a cube it holds: the class of every grid removed goes with its table', () => {
-    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { gone: 'customers' },
+    const model = { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: { gone: ['customers'] },
       classes: { gone: 'trades::domain::Customer' } };
     const written = writePage({ name: 'Q3 page', cube: CUBE, views: VIEWS, model });
     assert.deepEqual(written.model, { project: 'datacube:trades', workspace: 'datacube', package: 'trades', tables: {} });
@@ -196,8 +218,8 @@ describe('a saved page', () => {
   it('says what is wrong with a page it cannot read', () => {
     const raw = JSON.parse(pageToJson(page()));
     const bad = (patch: Record<string, unknown>) => () => readPage(JSON.stringify({ ...raw, ...patch }));
-    // a page with no cube, refused by name (PageNoCubeError): a host says what makes one, never guessing it
-    assert.throws(bad({ cubes: [] }), PageNoCubeError);
+    // a page with no cube: DataCube opens no saved page of nothing (an open page of none is read with `empty`)
+    assert.throws(bad({ cubes: [] }), /^PageDocumentError: cannot read saved page: it has no cube$/);
     assert.throws(bad({ cubes: [] }), PageDocumentError);
     assert.throws(bad({ cubes: [] }), /no cube/);
     // two cubes of one id: a view could not say which it shows
@@ -280,7 +302,7 @@ describe('a saved page', () => {
     };
     const back = readPage(pageToJson(writePage({ name: 'Q3 page', cube: CUBE, views: sheets })));
     assert.deepEqual(back.sheets, sheets.sheets);
-    assert.equal(back.version, 4);
+    assert.equal(back.version, 6);
   });
 
   it('holds a stack of tiles in one place: its tiles in their tabs\' order, read back as they were', () => {
@@ -301,14 +323,57 @@ describe('a saved page', () => {
 
   it('refuses a page saved by an older version, by its version: no older page is read (the user, 2026-10-17)', () => {
     const { sheets: _sheets, ...raw } = JSON.parse(pageToJson(page()));
-    for (const version of [1, 2, 3]) {
+    for (const version of [1, 2, 3, 4, 5]) {
       assert.throws(() => readPage(JSON.stringify({ ...raw, version, layout: LAYOUT })),
-        new RegExp(`saved by an older version \\(${version} < 4\\): it is no longer read`));
+        new RegExp(`saved by an older version \\(${version} < 6\\): it is no longer read`));
     }
   });
 });
 
 describe('a page as it starts (startingViews: the cube app, a cube saved before pages, Python\'s new page)', () => {
+  it('is one skeleton, unnamed unless named (newPage: Python\'s new page and the tab\'s Blank Page, D11, B9)', () => {
+    assert.deepEqual(newPage(), { ...readPage(pageToJson(newPage()), { empty: true }), name: '' });
+    assert.equal(newPage().name, '');
+    assert.equal(newPage('Q3').name, 'Q3');
+    assert.deepEqual({ views: newPage().views, sheets: newPage().sheets }, startingViews());
+    assert.deepEqual(newPage().cubes, []);
+    // headless pageNew: unnamed when Python gives no name, else named by the one rule
+    assert.equal((JSON.parse(JSON.parse(pageNew(null)).page as string) as PageDocument).name, '');
+    assert.equal((JSON.parse(JSON.parse(pageNew('Q3')).page as string) as PageDocument).name, 'Q3');
+    assert.deepEqual(JSON.parse(pageNew(' ')).problems, [(givenName('page', ' ') as { refused: string }).refused]);
+  });
+
+  it("is called by its sheet's name, else its first grid's report title, else by its place (sheetLabel)", () => {
+    const grids = new Map([['g1', { title: 'trades' }], ['g2', { title: undefined }], ['g3', { title: 'desks' }]]);
+    const grid = (t: string): { title: string | undefined } | undefined => grids.get(t);
+    assert.equal(sheetLabel({ name: 'Mine', tiles: ['g1'] }, 0, grid), 'Mine');
+    assert.equal(sheetLabel({ tiles: ['chart', 'g1', 'g3'] }, 0, grid), 'trades');
+    // the first grid's title only: one with none is the sheet's place, a later grid's title aside
+    assert.equal(sheetLabel({ tiles: ['g2', 'g3'] }, 2, grid), 'Sheet 3');
+    assert.equal(sheetLabel({ tiles: [] }, 0, grid), 'Sheet 1');
+  });
+
+  it("is saved, unnamed, under its first sheet's name, and its model named after it without a file's extension (D11)", () => {
+    const unnamed = JSON.parse(JSON.parse(pageNew(null)).page as string) as PageDocument;
+    assert.equal(suggestedName(unnamed), 'Sheet 1');
+    const cube = writeCube({ name: 'q', source: frameSource('q', [{ name: 'a', type: 'String' }]),
+      snapshot: rawRows(element('q'), [{ name: 'a', type: 'String' }]),
+      configuration: { ...DEFAULT_CONFIGURATION, reportTitle: 'trades.csv' }, tree: TreeState.empty() });
+    const added = JSON.parse(pageApply(JSON.stringify(unnamed), '["sheet-1"]', JSON.stringify([
+      { kind: 'addGrid', document: cube, sheet: 'sheet-1', near: null, title: null, columns: null },
+    ]))) as { page: string };
+    const page = readPage(added.page);
+    assert.equal(page.name, '');
+    assert.equal(suggestedName(page), 'trades.csv');
+    assert.equal(suggestedName({ ...page, name: 'Q3' }), 'Q3');
+    // headless pageRecord: Python's save() naming nothing, saved as the Save window suggests
+    assert.equal(JSON.parse(pageRecordJson('r-1', null, added.page, false)).name, 'trades.csv');
+    assert.equal(JSON.parse(pageRecordJson('r-1', 'Q4', added.page, false)).name, 'Q4');
+    assert.equal(modelPageName('', suggestedName(page)), 'trades');
+    assert.equal(modelPageName('Q3.final', 'x.csv'), 'Q3.final');
+    assert.equal(modelPageName('', ''), 'page');
+  });
+
   it('is its grid on the whole board, or an empty board a grid is added to', () => {
     assert.deepEqual(startingViews({ id: 'grid', cube: 'cube' }), {
       views: [{ id: 'grid', kind: 'grid', cube: 'cube' }],
@@ -317,10 +382,108 @@ describe('a page as it starts (startingViews: the cube app, a cube saved before 
     assert.deepEqual(startingViews(), { views: [], sheets: [{ id: FIRST_SHEET, layout: { kind: 'bands', fit: true, bands: [] } }] });
   });
 
-  it("is the page Python starts and lays its first grid on, by the same add (headless pageNew, layoutAdd)", () => {
-    const started = JSON.parse(JSON.parse(pageNew('Q3 review')).page as string) as { sheets: { layout: unknown }[] };
-    const laid = JSON.parse(layoutAdd(JSON.stringify(started.sheets[0]!.layout), 'grid-1', null)) as unknown;
+  it("is the page Python starts and lays its first grid on, by the same add (headless pageNew, pageApply's addGrid)", () => {
+    const started = JSON.parse(JSON.parse(pageNew('Q3 review')).page as string) as PageDocument;
+    const cube = writeCube({ name: 'q', source: frameSource('q', [{ name: 'a', type: 'String' }]),
+      snapshot: rawRows(element('q'), [{ name: 'a', type: 'String' }]), configuration: DEFAULT_CONFIGURATION, tree: TreeState.empty() });
+    const applied = JSON.parse(pageApply(JSON.stringify(started), '["sheet-1"]', JSON.stringify([
+      { kind: 'addGrid', document: cube, sheet: 'sheet-1', near: null, title: null, columns: null },
+    ]))) as { page: string };
+    const laid = (JSON.parse(applied.page) as PageDocument).sheets[0]!.layout;
     assert.deepEqual(laid, startingViews({ id: 'grid-1', cube: 'grid-1' }).sheets[0]!.layout);
+  });
+
+  it("an added grid's cube keeps its exact numbers, and a cube its reader refuses is refused in its words", () => {
+    // (the phase 1 audit's 3) the commands are read from their exact numbers, as the page's cubes are: 12.30 stays 12.30
+    const started = JSON.parse(pageNew('Q3 review')).page as string;
+    const add = (document: string): { page?: string; problems?: string[] } => JSON.parse(pageApply(started, '["sheet-1"]',
+      `[{"kind":"addGrid","document":${document},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`));
+    assert.match(cubeToJson(CUBE), /12\.30/);
+    assert.match(add(cubeToJson(CUBE)).page!, /12\.30/);
+    assert.match(add('{"bogus":1}').problems![0]!, /cannot read saved cube/);
+  });
+
+  it("saved or written as a file (headless pageSaved: Python's save and to_json) only with something on it, refused in the screen's words (B14)", () => {
+    const started = JSON.parse(pageNew('Q3 review')).page as string;
+    assert.deepEqual(JSON.parse(pageSaved(started)), { problems: [NOTHING_TO_SAVE] });
+    assert.equal(NOTHING_TO_SAVE, 'There is nothing on this page to save: add a data source first.');
+    const added = JSON.parse(pageApply(started, '["sheet-1"]',
+      `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string };
+    assert.equal(JSON.parse(pageSaved(added.page)).page, JSON.parse(pageRead(added.page)).page, 'written as DataCube writes it');
+    assert.match(JSON.parse(pageSaved('{"bogus":1}')).problems[0], /^cannot read saved page/);
+  });
+
+  it("saved under a name as the page store keeps it (savedRecord; headless pageRecord: Python's save()), the page so named (Z18, B4)", () => {
+    const started = JSON.parse(pageNew('Q3 review')).page as string;
+    const added = (JSON.parse(pageApply(started, '["sheet-1"]',
+      `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string }).page;
+    const page = readPage(added);
+    const record = savedRecord('  Q4 review ', page, 'r-1') as SavedRecord;
+    assert.deepEqual(record, { id: 'r-1', name: 'Q4 review', content: pageContent({ ...page, name: 'Q4 review', record: 'r-1' }) });
+    assert.deepEqual(savedRecord(' ', page, 'r-1'), { refused: "a page's name is not blank" });
+    // headless: the record's text, its numbers exact, its id and the name it is saved under; nothing on the page, refused
+    const said = JSON.parse(pageRecordJson('r-1', 'Q4 review', added, false)) as { record: string; id: string; name: string };
+    assert.deepEqual([said.id, said.name], ['r-1', 'Q4 review']);
+    assert.equal(said.record, toJson(record));
+    assert.match(said.record, /12\.30/);
+    assert.deepEqual(JSON.parse(pageRecordJson('r-1', 'Q4', started, false)), { problems: [NOTHING_TO_SAVE] });
+  });
+
+  it("the saved page it is, kept in the page: saved again, by either editor, over that record; never in a page file (B13)", () => {
+    const started = JSON.parse(pageNew('Q3 review')).page as string;
+    const added = (JSON.parse(pageApply(started, '["sheet-1"]',
+      `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string }).page;
+    // saved by one editor: the page says its record (the savedAs command), read and written by the page's own reader
+    const saved = JSON.parse(pageApply(added, '["sheet-1","grid-1"]', '[{"kind":"savedAs","record":"r-1"}]')) as { page: string };
+    const page = readPage(saved.page);
+    assert.equal(page.record, 'r-1');
+    assert.equal(readPage(pageToJson(page)).record, 'r-1');
+    // saved again, by the other: over r-1, whatever new id it was handed
+    assert.equal((savedRecord('Q3', page, 'r-other') as SavedRecord).id, 'r-1');
+    assert.equal(JSON.parse(pageRecordJson('r-other', 'Q3', saved.page, false)).id, 'r-1');
+    // Save As, by either editor (pageSaving; the tab's Save As, Python's save_as(): K13): a new record under the id it was
+    // handed, the page it is saved from left saved as r-1 until it is told otherwise; Save, over r-1
+    const copy = pageSaving('Q3 copy', page, 'r-new', true) as { record: SavedRecord; over: boolean };
+    assert.deepEqual([copy.record.id, copy.record.name, copy.over], ['r-new', 'Q3 copy', false]);
+    assert.equal(readPage(toJson(copy.record.content)).record, 'r-new', 'the copy is the saved page it is');
+    assert.deepEqual(JSON.parse(pageRecordJson('r-new', 'Q3 copy', saved.page, true)).id, 'r-new');
+    assert.equal(JSON.parse(pageRecordJson('r-new', 'Q3 copy', saved.page, true)).over, false);
+    assert.equal(JSON.parse(pageRecordJson('r-new', 'Q3', saved.page, false)).over, true);
+    assert.deepEqual(pageSaving(' ', page, 'r-new', true), { refused: "a page's name is not blank" });
+    assert.throws(() => pageRecordJson('r-new', 'Q3', saved.page, 'yes' as unknown as boolean), /asNew is true or false/);
+    // a page file carries none: opened elsewhere, its first save is a new record
+    assert.equal(readPage((pageFile(page) as { file: string }).file).record, undefined);
+    // its record deleted: the page no saved page any more
+    const gone = JSON.parse(pageApply(saved.page, '["sheet-1","grid-1"]', '[{"kind":"savedAs","record":null}]')) as { page: string };
+    assert.equal(readPage(gone.page).record, undefined);
+    assert.throws(() => readPage({ ...JSON.parse(saved.page), record: '' }), /'record' is not a saved page's id/);
+  });
+
+  it("as a page file (Export ▸ Page File; headless pageFile: Python's save(path)): DataCube's text, or refused in one wording (B5)", () => {
+    const started = JSON.parse(pageNew('Q3 review')).page as string;
+    assert.deepEqual(JSON.parse(pageFileJson(started)), { problems: [NOTHING_TO_SAVE] });
+    const added = (JSON.parse(pageApply(started, '["sheet-1"]',
+      `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string }).page;
+    const page = readPage(added);
+    assert.deepEqual(pageFile(page), { file: pageToJson(page), name: 'Q3 review' });
+    assert.deepEqual(JSON.parse(pageFileJson(added)), { file: pageToJson(page) });
+    // an unnamed page: named as Save names it (its first sheet's), the file and its name alike (the S7 audit's Y-4: the
+    // tab named it in its own code, Python's file said '')
+    const unnamed = readPage((JSON.parse(pageApply(JSON.parse(pageNew(null)).page as string, '["sheet-1"]',
+      `[{"kind":"addGrid","document":${cubeToJson(CUBE)},"sheet":"sheet-1","near":null,"title":null,"columns":null}]`)) as { page: string }).page);
+    assert.equal(unnamed.name, '');
+    const filed = pageFile(unnamed) as { file: string; name: string };
+    assert.equal(filed.name, suggestedName(unnamed));
+    assert.notEqual(filed.name, '');
+    assert.equal(readPage(filed.file).name, filed.name);
+    assert.equal(readPage(JSON.parse(pageFileJson(pageToJson(unnamed))).file as string).name, filed.name, "Python's the same");
+    // a newer writer's field kept, as Save keeps it
+    const newer = readPage({ ...JSON.parse(added), variables: [{ name: 'asOf' }] });
+    assert.match((pageFile(newer) as { file: string }).file, /"variables":\[\{"name":"asOf"\}\]/);
+    // classes kept in a project: a page file cannot carry them yet
+    const modelled = readPage({ ...JSON.parse(added), model: { project: 'demo:trades', workspace: 'datacube', package: 'demo', tables: {} } });
+    assert.deepEqual(pageFile(modelled), { refused: "This page's classes are in demo:trades: a page file cannot carry them yet -- "
+      + 'save the page where its classes are kept.' });
   });
 });
 

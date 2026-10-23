@@ -23,10 +23,12 @@
 // and says why.
 
 import {
-  findAll, fn, isLambda, transform, type ColSpec, type Lambda, type ValueSpecification,
+  findAll, fn, isLambda, lambda, transform, type ColSpec, type Lambda, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import { contextOf as readContext, projectOf, type QueryContext } from '../../query-store/src/context.ts';
 import type { Query } from '../../query-store/src/wire.ts';
+import type { ModelOptions } from './planner.ts';
+import type { RelationTyper } from './source-columns.ts';
 
 /** A project's model as the compiler gives it (PureModelContextData elements): what is read here. */
 export interface ModelElement {
@@ -118,4 +120,38 @@ export function enumsAsStrings(source: ValueSpecification, named: ReadonlySet<st
     throw new Error(`its column${left.size === 1 ? '' : 's'} ${[...left].map((c) => `'${c}'`).join(', ')} ${left.size === 1 ? 'is an enumeration' : 'are enumerations'} a cube cannot read here: project ${left.size === 1 ? 'it' : 'them'} in the query`);
   }
   return out;
+}
+
+/** What reads a project's model for a saved query: the host's compiler -- its elements, a lambda's text parsed. */
+export interface QueryReading {
+  elements(model: string): Promise<readonly unknown[]>;
+  parse(text: string): Promise<Lambda>;
+}
+
+/**
+ * A SAVED QUERY OPENED AS A GRID'S BASE, the one rule (the tab's app/sources.ts openedRecord; headless host-tables.ts, a
+ * page on the host: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X1, X5): rules 1-4 over its project's model text (`model`)
+ * -- the mapping and runtime it runs on and the model's enumerations (`how`), its one expression with each parameter's
+ * saved value, and each column the compiler types with an enumeration read as its value's name (rule 4: typed by
+ * `typerOf`, a typer over the model through the runtime and mapping found).
+ */
+export async function savedQueryOpened(
+  q: Pick<Query, 'name' | 'groupId' | 'artifactId' | 'versionId' | 'content' | 'executionContext' | 'defaultParameterValues'>,
+  model: string, reading: QueryReading, typerOf: (runtime: string, how: ModelOptions) => RelationTyper,
+): Promise<{ readonly runtime: string; readonly how: ModelOptions; readonly source: ValueSpecification }> {
+  const elements = await reading.elements(model) as ModelElement[];
+  const context = contextOf(q, elements);
+  const parsed = await reading.parse(q.content);
+  const values = new Map<string, ValueSpecification>();
+  for (const v of q.defaultParameterValues ?? []) {
+    const value = (await reading.parse(`|${v.content}`)).body[0];
+    if (value) values.set(v.name, value);
+  }
+  let source = sourceOf(parsed, values);
+  // its rows its project's own (C5): a host that plans and runs them reads them there, never its own tables (F28)
+  const how: ModelOptions = { mapping: context.mapping, enumerations: [...enumerationsOf(elements)], project: true };
+  // rule 4: an enumeration column is read as its value's name
+  const named = new Set((await typerOf(context.runtime, how).relationType(lambda([], source))).filter((c) => c.enumeration).map((c) => c.name));
+  if (named.size > 0) source = enumsAsStrings(source, named);
+  return { runtime: context.runtime, how, source };
 }

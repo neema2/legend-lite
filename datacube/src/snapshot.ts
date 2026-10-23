@@ -151,7 +151,11 @@ export interface RowColumn {
  * default applies only to a snapshot saved before kinds were
  * declared, exactly as `kindOf` does for a source column.
  */
-export function rowColumns(s: CubeSnapshot): RowColumn[] {
+/** A cube's query without its relation: what a saved document holds of it (cube-document.ts), and all a rule that
+ *  reads the cube's shape alone needs (chart-spec.ts followCube). */
+export type CubeShape = Omit<CubeSnapshot, 'source'>;
+
+export function rowColumns(s: CubeShape): RowColumn[] {
   return [
     ...s.columns.map((c): RowColumn => ({
       name: c.name,
@@ -209,6 +213,9 @@ export type AggregateFn =
   | 'min'
   | 'max'
   | 'median'
+  /** The first and third quartiles: `$y->percentile(0.25)` and `(0.75)`, a box plot's box (chart batch 4). */
+  | 'percentile25'
+  | 'percentile75'
   | 'stdDevSample'
   | 'stdDevPopulation'
   | 'varianceSample'
@@ -228,7 +235,7 @@ export type AggregateFn =
 
 /** Every aggregate, once: exhaustive by construction (a Record over the union). */
 const EVERY_AGGREGATE: Readonly<Record<AggregateFn, true>> = {
-  sum: true, average: true, count: true, min: true, max: true, median: true,
+  sum: true, average: true, count: true, min: true, max: true, median: true, percentile25: true, percentile75: true,
   stdDevPopulation: true, stdDevSample: true, variancePopulation: true, varianceSample: true,
   joinStrings: true, wavg: true, unique: true,
 };
@@ -326,6 +333,9 @@ export const WINDOW_FUNCTIONS: readonly {
  * source rows. Group level only; not on a pivoted cube.
  */
 export type ChildAggregateFn = 'min' | 'max' | 'average' | 'median' | 'sum' | 'count';
+
+/** Every child aggregate, in the editor's order (what a command read from JSON may name). */
+export const CHILD_AGGREGATE_FNS = ['min', 'max', 'average', 'median', 'sum', 'count'] as const satisfies readonly ChildAggregateFn[];
 
 export interface ChildAggregate {
   readonly fn: ChildAggregateFn;
@@ -797,6 +807,25 @@ function renamedWindow(d: DerivedColumn, one: (n: string) => string): DerivedCol
   };
 }
 
+/**
+ * THE CALCULATED COLUMN `name` REPLACED BY `column`, computed at `level` -- or, with no `name`, `column` added last of
+ * its level: the one rule for the cube's two lists, the column editor's candidate and the commands its OK and Add build
+ * (grid-commands.ts calculate, editCalculated). In its place when it stays at its level, so an edit does not reorder the
+ * cube's columns, else last of its new one; renamed, what read it reads it by its new name (renameColumnReferences).
+ */
+export function withCalculated(s: CubeSnapshot, name: string | undefined, level: 'row' | 'group', column: DerivedColumn):
+  CubeSnapshot {
+  const without = (list: readonly DerivedColumn[]): DerivedColumn[] => list.filter((d) => name === undefined || d.name !== name);
+  const row = without(s.derived);
+  const group = without(s.groupDerived ?? []);
+  const target = level === 'group' ? group : row;
+  const was = name === undefined ? -1 : (level === 'group' ? s.groupDerived ?? [] : s.derived).findIndex((d) => d.name === name);
+  if (was >= 0) target.splice(was, 0, column);
+  else target.push(column);
+  const next: CubeSnapshot = { ...s, derived: row, groupDerived: group };
+  return name !== undefined && name !== column.name ? renameColumnReferences(next, name, column.name) : next;
+}
+
 export function renameColumnReferences(
   s: CubeSnapshot,
   from: string,
@@ -836,16 +865,34 @@ export function renameColumnReferences(
 }
 
 /**
- * A CHART'S SELECTION TAKEN OFF (page/cube-page.ts): `filter` without one occurrence of each of `conditions` (compared as data) among its top-level
- * AND. With `strict`, null when any is not there.
+ * TWO VALUES OF A DOCUMENT ALIKE AS DATA, whatever order their writers put an object's keys in: the protocol's writer
+ * (toJson) puts them in order, each reader in its own, so one filter node, chart spec or layout comes in either (F18,
+ * F19). A key whose value is undefined is no key, as JSON writes it; a list's order is its own.
+ */
+export function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => sameValue(x, b[i]));
+  }
+  const x = a as Record<string, unknown>;
+  const y = b as Record<string, unknown>;
+  const keys = Object.keys(x).filter((k) => x[k] !== undefined);
+  return keys.length === Object.keys(y).filter((k) => y[k] !== undefined).length && keys.every((k) => sameValue(x[k], y[k]));
+}
+
+/**
+ * A CHART'S SELECTION TAKEN OFF (page/cube-page.ts): `filter` without one occurrence of each of `conditions` among its
+ * top-level AND, compared as data whatever order its keys were written in (F18). With `strict`, null when any is not
+ * there.
  */
 export function withoutConditions(
   filter: FilterNode | undefined, conditions: readonly FilterNode[], strict = false,
 ): FilterNode | undefined | null {
   const children = filter === undefined ? [] : filter.kind === 'and' ? [...filter.children] : [filter];
   for (const c of conditions) {
-    const key = JSON.stringify(c);
-    const at = children.findIndex((n) => JSON.stringify(n) === key);
+    // one condition however its writer ordered its keys (a document read back, a command read: F18)
+    const at = children.findIndex((n) => sameValue(n, c));
     if (at < 0) {
       if (strict) return null;
       continue;

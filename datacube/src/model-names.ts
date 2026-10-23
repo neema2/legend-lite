@@ -3,6 +3,8 @@
 // model-actions.ts and theirs), so the page's startup carries none of it. Where a class's rows are -- the host's
 // database, its place in the class's model (`Browser`, `Python`) -- is the host's to say (services.ts ModelWriting).
 
+import { isIdentifier } from '../../pure-protocol/src/index.ts';
+
 /**
  * The class a source's name suggests: its file's name without the extension, in upper camel case, singular --
  * `trades.csv` a `Trade`, `order_lines.parquet` an `OrderLine`. A suggestion only: the person names it.
@@ -37,7 +39,9 @@ export function suggestedPackage(pageName: string): string {
     return (i === 0 ? w.charAt(0).toLowerCase() : w.charAt(0).toUpperCase()) + rest;
   }).join('');
   if (name === '') return 'datacube';
-  return /^[0-9]/.test(name) ? `_${name}` : name;
+  const led = /^[0-9]/.test(name) ? `_${name}` : name;
+  // a page called "True" suggests no package Pure reads as a literal (isPackage would refuse it): `true_`
+  return isPureName(led) ? led : `${led}_`;
 }
 
 /** The data space a page's name suggests: its words in upper camel case (`Trades by desk` `TradesByDesk`). */
@@ -46,9 +50,9 @@ export function suggestedDataSpaceName(pageName: string): string {
   return pkg.charAt(0).toUpperCase() + pkg.slice(1);
 }
 
-/** A Pure name: letters, digits and `_`, not led by a digit, and no word Pure reads as a literal. */
+/** A Pure name: letters, digits and `_`, not led by a digit, and no word Pure reads as a literal (pure-protocol's rule). */
 export function isPureName(name: string): boolean {
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && name !== 'true' && name !== 'false';
+  return isIdentifier(name);
 }
 
 /** A package: Pure names joined by `::`. */

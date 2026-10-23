@@ -39,10 +39,12 @@ export class ShareLinkError extends Error {
   }
 }
 
-/** The fragment for a page, without the `#`: `p1.<data>`. */
+/** The fragment for a page, without the `#`: `p1.<data>`. A link carries no saved record of the person's store, as a page
+ *  file carries none (B13; the S7 confirmation audit's H2-3: it leaked the store's id, and opening it dropped it). */
 export function pageFragment(page: PageDocument): string {
   const dictionary = DICTIONARIES[LINK_VERSION] as Uint8Array;
-  const packed = deflateSync(strToU8(pageToJson(page)), { level: 9, dictionary });
+  const { record: _saved, ...shared } = page;
+  const packed = deflateSync(strToU8(pageToJson(shared)), { level: 9, dictionary });
   return `${LINK_VERSION}.${toBase64Url(packed)}`;
 }
 

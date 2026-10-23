@@ -27,12 +27,14 @@ import {
   drillDown,
   drilledView,
   drillLevels,
+  drillRefusal,
   drillUp,
   editChart,
   followCube,
   followRefusal,
   markConditions,
   MAX_FACETS,
+  namedMark,
   readChart,
   SCATTER_LIMIT,
   specProblem,
@@ -676,6 +678,21 @@ describe('drill-down through the grid\'s groupings: from where, how far, and int
     assert.equal(drillLevels(of('bar', { facet: { row: 'trade_date' } }), CUBE), null);
   });
 
+  it('why a chart does not drill, in words (drillRefusal: what Python\'s chart.drill is told), null where it does', () => {
+    assert.equal(drillRefusal(BAR, CUBE), null);
+    assert.equal(drillRefusal(of('bar', { x: 'trade_date', grain: 'month' }), CUBE),
+      "trade_date across is in months, not a grouping of the grid's: there is nothing below one");
+    assert.equal(drillRefusal(of('bar', { x: 'booked_at' }), CUBE),
+      "the grid does not group by booked_at, the chart's column across: it has no level below it");
+    assert.equal(drillRefusal(of('bar', { split: 'desk' }), CUBE), "nothing is below region in the grid's groupings (region, desk)");
+    assert.equal(drillRefusal(of('scatter', { x: 'qty' }), CUBE), 'a scatter chart does not drill: its marks are not its categories across');
+    assert.equal(drillRefusal(of('bar', { facet: { row: 'trade_date' } }), CUBE), 'a chart of small multiples does not drill');
+    const { x: _x, ...across } = BAR;
+    assert.equal(drillRefusal(across, CUBE), 'the chart has nothing across to drill into');
+    // drilled, it drills on through its own levels
+    assert.equal(drillRefusal(drillDown(BAR, CUBE, 'EMEA')!, CUBE), null);
+  });
+
   it('taken back up part of the way, the chart shows the level after what is left of its path', () => {
     const deep = of('bar', { drill: { levels: ['region', 'desk', 'trade_date'], path: ['EMEA', 'FX'] } });
     assert.equal(drilledView(deep).spec.x, 'trade_date');
@@ -683,6 +700,31 @@ describe('drill-down through the grid\'s groupings: from where, how far, and int
     assert.deepEqual(up.drill?.path, ['EMEA']);
     assert.equal(drilledView(up).spec.x, 'desk');
     assert.equal(drillUp(BAR, 0), BAR, 'an undrilled chart is left as it is');
+  });
+});
+
+describe('a mark named by its values, as a click names it (namedMark: Python\'s chart.select, D8)', () => {
+  it('its value across, and its series\' on a split chart; a drilled chart\'s at the level it shows', () => {
+    assert.deepEqual(namedMark(BAR, 'EMEA'), { region: 'EMEA' });
+    assert.deepEqual(namedMark(of('bar', { split: 'desk' }), 'EMEA', { value: 'FX' }), { region: 'EMEA', desk: 'FX' });
+    assert.deepEqual(namedMark(drillDown(BAR, CUBE, 'EMEA')!, 'FX'), { desk: 'FX' });
+    // the same key a click gives markConditions: a drilled chart's path with it
+    assert.deepEqual(markConditions(drillDown(BAR, CUBE, 'EMEA')!, CUBE, namedMark(drillDown(BAR, CUBE, 'EMEA')!, 'FX') as never), [
+      { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' },
+      { kind: 'condition', column: 'desk', operator: 'equal', value: 'FX' },
+    ]);
+  });
+
+  it('refused, in words: a split missing or not wanted, marks no value across names, a range across', () => {
+    assert.equal(namedMark(of('bar', { split: 'desk' }), 'EMEA'), "the chart is split by desk: name the mark's desk too");
+    assert.equal(namedMark(BAR, 'EMEA', { value: 'FX' }), 'the chart is split by nothing: a mark of it is named by its value across alone');
+    for (const mark of ['scatter', 'treemap', 'sunburst', 'stream', 'kpi', 'gauge'] as const) {
+      assert.equal(namedMark(of(mark), 'EMEA'), `a ${mark} chart's marks are not named by a value across`);
+    }
+    assert.equal(namedMark(BY_MONTH, '2024-01-01'),
+      "the chart's marks across are months of trade_date, each a range the database ends: a range is not selected by its start");
+    const { x: _x, ...across } = BAR;
+    assert.equal(namedMark(across, 'EMEA'), 'the chart has nothing across: no mark of it is named by a value');
   });
 });
 

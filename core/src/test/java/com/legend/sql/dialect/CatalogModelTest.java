@@ -133,6 +133,39 @@ class CatalogModelTest {
         assertEquals(List.of(), undecided, "canonical DuckDB types with no decision");
     }
 
+    /**
+     * SEVERAL TABLES of one database (a join's two sides, read in one place: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+     * §17): one Database declaring each as its own would, the default schema's first, then each schema's; each table's
+     * accessor and conversions its own; one table's text exactly what {@code database} of it alone writes; a table given
+     * twice refused. A join of the two compiles over it, each side typed.
+     */
+    @Test
+    void severalTablesOfOneDatabase_oneDeclaration_eachItsOwnAccessor() {
+        List<CatalogModel.Column> trades = catalog("id BIGINT NOT NULL, \"at\" TIMESTAMP WITH TIME ZONE, cust INTEGER");
+        List<CatalogModel.Column> customers = catalog("id INTEGER NOT NULL, region VARCHAR");
+        CatalogModel.Several several = CatalogModel.database("t::DB", List.of(
+                new CatalogModel.Table("s", "trades", trades, true),
+                new CatalogModel.Table(null, "customers", customers, true)), new DuckDb());
+        assertEquals(List.of("#>{t::DB.s.trades}#", "#>{t::DB.customers}#"),
+                several.tables().stream().map(CatalogModel.Database::accessor).toList());
+        assertEquals(List.of(new CatalogModel.Conversion("at", "CAST(timezone('UTC', \"at\") AS TIMESTAMP)")),
+                several.tables().get(0).conversions());
+        assertTrue(several.text().indexOf("Table customers") < several.text().indexOf("Schema s"),
+                "the default schema's tables first\n" + several.text());
+        assertEquals(CatalogModel.database("t::DB", null, "customers", customers, new DuckDb(), true).text(),
+                CatalogModel.database("t::DB", List.of(new CatalogModel.Table(null, "customers", customers, true)), new DuckDb()).text(),
+                "one table: the text its own declaration writes");
+        ExprType joined = com.legend.Compiler.query(com.legend.Compiler.compileModel(several.text() + WRAPPER),
+                "|#>{t::DB.s.trades}#->join(#>{t::DB.customers}#, meta::pure::functions::relation::JoinKind.LEFT,"
+                        + " {a, b | $a.cust == $b.id}, 'c_')").resultType();
+        assertEquals(List.of("id", "at", "cust", "c_id", "c_region"),
+                UpstreamRelationType.columns(joined).stream().map(c -> c.name()).toList());
+        IllegalArgumentException twice = assertThrows(IllegalArgumentException.class, () -> CatalogModel.database("t::DB",
+                List.of(new CatalogModel.Table(null, "customers", customers, true),
+                        new CatalogModel.Table(null, "customers", customers, true)), new DuckDb()));
+        assertTrue(twice.getMessage().contains("'customers' is given twice"), twice.getMessage());
+    }
+
     @Test
     void aTypeTheDdlCannotSayIsConvertedAtTheSource_named() {
         CatalogModel.Database db = CatalogModel.database("t::DB", "s", "orders", catalog("id BIGINT, \"at\" TIMESTAMP WITH TIME ZONE, big UBIGINT"), new DuckDb(), true);

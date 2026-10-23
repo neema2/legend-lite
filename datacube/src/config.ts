@@ -414,7 +414,7 @@ export function withSettings(
 }
 
 /**
- * A configuration patch as a host applies one (CubeApp.applyConfiguration, Python's Grid.configure): its settings by
+ * A configuration patch as a host applies one (a configure command: CubeApp.edit, Python's Grid.configure): its settings by
  * withSettings, the grid-wide appearance by withAppearance and each column's by withColumn, each merged into what it
  * has. `columns` and `appearance` are split out rather than passed through: withSettings prunes undefined keys and
  * replaces the rest, so `columns: undefined` would delete the column map, and a part of the appearance would replace
@@ -689,10 +689,13 @@ export function toColumnAppearance(
  * The epoch is NOT bumped here. A caller that means to refetch bumps
  * it; one that is only reconciling does not.
  */
+export function applyToSnapshot(snapshot: CubeSnapshot, config: CubeConfiguration): CubeSnapshot;
+/** A cube's query alone (a document's: cube-document.ts cubeOpenedAgain), its relation no part of it. */
+export function applyToSnapshot(snapshot: Omit<CubeSnapshot, 'source'>, config: CubeConfiguration): Omit<CubeSnapshot, 'source'>;
 export function applyToSnapshot(
-  snapshot: CubeSnapshot,
+  snapshot: Omit<CubeSnapshot, 'source'>,
   config: CubeConfiguration,
-): CubeSnapshot {
+): Omit<CubeSnapshot, 'source'> {
   const columns: ColumnSpec[] = snapshot.columns.map((spec) => {
     const c = columnConfig(config, spec.name);
     // kept out of the pivot as the aggregate is: the configuration's alone, so a setting cleared there (Column
@@ -751,7 +754,7 @@ export function applyToSnapshot(
  * defaults.
  */
 export function fromSnapshot(
-  snapshot: CubeSnapshot,
+  snapshot: Omit<CubeSnapshot, 'source'>,
   base: CubeConfiguration = DEFAULT_CONFIGURATION,
 ): CubeConfiguration {
   const limit = snapshot.maxRows ?? base.maxRows;

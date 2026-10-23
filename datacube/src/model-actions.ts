@@ -6,17 +6,20 @@
 // queries and its windows' shapes are handed in), so the page's own modules stay in its bundle.
 
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
+import type { ClassBasis } from './query.ts';
 import type { SdlcClient } from '../../sdlc-client/src/client.ts';
 import type { PlanAndRun } from './runner.ts';
 import type { CubeSnapshot } from './snapshot.ts';
 import { createAssociation, createDataSpace, projectState } from '../../model-changes/src/index.ts';
+import type { PageCommand } from './page-commands.ts';
 import { PageModel, type PageModelRef } from './page-model.ts';
 import type { ClassAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
 import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from './model-names.ts';
-import { sampleOf } from './sample-rows.ts';
+import { classAction, classSamples, keyUnique, noRow } from './model-plans.ts';
 import { associationDialog } from './ui/association-dialog.ts';
 import { dataSpaceDialog, type DataSpaceChoice, type DataSpaceGrid } from './ui/data-space-dialog.ts';
 import type { CreatedClass } from './ui/class-dialog.ts';
+import { writerClass } from './class-source.ts';
 
 /** A grid of the page, as the actions read it. */
 export interface PageGrid {
@@ -24,31 +27,31 @@ export interface PageGrid {
   readonly label: string;
   /** Its class, when its rows were made one (the page's model keeps it). */
   readonly cls?: string;
-  /** Its rows at their finest level, the table it reads, its first rows and where its rows are read from, when it can be
-   *  a class; else why not. */
+  /** What a class of it is made over (query.ts classBasis: its rows at their finest level, the tables they read, each
+   *  with its sample), the tables its leaves are read as here (what the page's model keeps), and where its rows are read
+   *  from, when it can be a class; else why not. */
   readonly made: {
-    readonly query: Lambda;
+    readonly basis: ClassBasis;
     readonly relation: ValueSpecification;
-    readonly table: { readonly database: string; readonly schema: string; readonly table: string };
-    readonly sample: Lambda;
+    readonly kept: readonly string[];
     readonly source: GridSource;
   } | { readonly refused: string };
   /** Where its rows are planned and run, on whichever host: its sample and its keys' facts are read there. */
   readonly rows: PlanAndRun;
 }
 
-/** A grid as the page hands it in: its state, what its header says, where its rows plan and run. */
+/** A grid as the page hands it in: its state, what its header says, where its rows plan and run, and the tables of the
+ *  host's database its leaves are read as (GridPlace.tables), when they are. */
 export interface GridOnPage {
   readonly snapshot: CubeSnapshot;
   readonly label: string;
   readonly rows: PlanAndRun;
+  readonly tables?: readonly string[];
 }
 
 /** The query builders the page loads already (query.ts), handed in so this module imports none of the page's own. */
 export interface GridQueries {
-  readonly classLambda: (snapshot: CubeSnapshot) => Lambda;
-  readonly storeTableOf: (source: ValueSpecification) => { readonly database: string; readonly schema: string; readonly table: string } | undefined;
-  readonly sampleLambda: (source: ValueSpecification) => Lambda;
+  readonly classBasis: (snapshot: CubeSnapshot) => ClassBasis;
 }
 
 /** The page's grids as the actions read them: each a class already, or its rows as a class's, or why they cannot be. */
@@ -57,14 +60,12 @@ export function pageGrids(ids: readonly string[], gridOf: (id: string) => GridOn
   return ids.flatMap((id) => {
     const g = gridOf(id);
     if (!g) return [];
-    const table = q.storeTableOf(g.snapshot.source.query);
     const source = g.rows.host.planner.source?.();
     let made: PageGrid['made'];
     try {
-      if (!table) throw new Error('its source is not a table of its own');
       if (!source) throw new Error('its planner does not say where its rows are read from');
-      const query = q.classLambda(g.snapshot);
-      made = { query, relation: query.body[0]!, table, sample: q.sampleLambda(g.snapshot.source.query), source };
+      const basis = q.classBasis(g.snapshot);
+      made = { basis, relation: basis.query.body[0]!, kept: g.tables ?? basis.tables.map((t) => t.table), source };
     } catch (e) {
       made = { refused: e instanceof Error ? e.message : String(e) };
     }
@@ -95,31 +96,18 @@ export interface ModelActionsOf {
   readonly call: (fn: string) => ValueSpecification;
 }
 
-/** Whether the planned query answers no row: the column is unique over the rows; undefined when it cannot be run. */
-async function noRow(rows: PlanAndRun, query: Lambda): Promise<boolean | undefined> {
-  try {
-    return (await rows.host.planAndRun(query, 0)).rows.rowCount === 0;
-  } catch {
-    // the rows are not in this tab (a class made in another browser, its table not opened here): asked, not guessed
-    return undefined;
-  }
-}
 
 /** The facts' rows over the project's files: the place's runtime, through the model's mapping. */
 function projectRows(o: ModelActionsOf, project: string, pkg: string): PlanAndRun {
   return o.rows(project, `${pkg}::runtime::${o.place}`);
 }
 
-/** The page's model after the window: made or changed, or undefined when it is as it was. */
-function after(model: PageModel, o: ModelActionsOf): PageModelRef | undefined {
-  return model.ref !== o.model ? model.ref : undefined;
-}
 
 /**
  * CREATE AN ASSOCIATION… between two of the page's classes. `first`: a class to start one end with (a grid's own).
  * Refused in words when the page has fewer than two classes.
  */
-export async function createAssociationOf(o: ModelActionsOf, first?: string): Promise<PageModelRef | undefined> {
+export async function createAssociationOf(o: ModelActionsOf, first?: string): Promise<readonly PageCommand[]> {
   if (!o.model) throw new NotYet('An association relates two of the page\'s classes: make them first (Create a Class…, or Create a Data Space… for the whole page).');
   const model = new PageModel(o.model);
   const pkg = o.model.package;
@@ -133,16 +121,14 @@ export async function createAssociationOf(o: ModelActionsOf, first?: string): Pr
       joinable: start.joinable,
       suggestions: start.suggestions,
       ...(first !== undefined ? { first } : {}),
-      unique: async (cls, on) => {
-        const j = start.joinable.find((x) => x.class === cls);
-        const column = j?.keys.find((k) => k.name === on)?.column;
-        if (j?.function === undefined || column === undefined) return undefined;
-        return noRow(facts, o.duplicate(o.call(j.function), column));
-      },
+      // the class's key read over its rows, as Python's create_association presets it (model-plans.ts keyUnique)
+      unique: (cls, on) => keyUnique(facts, start.joinable, cls, on, o),
       preview: (a) => o.writer.createAssociation(state.text, pkg, a),
       create: async (a): Promise<CreatedClass> => {
-        const made = (await createAssociation({ sdlc: o.client, writer: o.writer, ...model.into(o.pageName, pkg), association: a }))
-          .answer;
+        const done = await createAssociation({ sdlc: o.client, writer: o.writer, ...model.into(o.pageName, pkg), association: a });
+        const made = done.answer;
+        // the page pinned to what it saved (§16.1)
+        model.pin(done.revision);
         const kept = await o.persist();
         const at = model.ref!;
         return {
@@ -156,29 +142,28 @@ export async function createAssociationOf(o: ModelActionsOf, first?: string): Pr
   } finally {
     facts.host.planner.dispose?.();
   }
-  return after(model, o);
+  // what the window changed of the page's model, as the page commands that change it (page-model.ts PageModel)
+  return model.commands;
 }
 
 /**
  * CREATE A DATA SPACE… of the whole page, in one go: its grids not yet classes made classes in the same window, the
  * associations it suggests offered, all one revision (the project made with it, when the page has none yet).
  */
-export async function createDataSpaceOf(o: ModelActionsOf): Promise<PageModelRef | undefined> {
+export async function createDataSpaceOf(o: ModelActionsOf): Promise<readonly PageCommand[]> {
   const model = new PageModel(o.model);
   const pkg = o.model?.package ?? suggestedPackage(o.pageName);
   const state = o.model ? await projectState(o.client, o.model) : { text: '', revision: '' };
-  // each grid not yet a class, as a class action: its first rows read once
-  const samples = new Map<string, Awaited<ReturnType<typeof sampleOf>>>();
+  // each grid not yet a class, as a class action: each of its tables' first rows read once
+  const samples = new Map<string, Awaited<ReturnType<typeof classSamples>>>();
   for (const g of o.grids) {
-    if (g.cls === undefined && !('refused' in g.made)) samples.set(g.id, await sampleOf(g.rows.host, g.made.sample));
+    if (g.cls !== undefined || 'refused' in g.made) continue;
+    samples.set(g.id, await classSamples(g.rows, g.made.basis));
   }
   const actions = (choice: DataSpaceChoice): ClassAction[] => choice.made.flatMap((m) => {
     const g = o.grids.find((x) => x.id === m.id);
     if (!g || 'refused' in g.made) return [];
-    return [{
-      query: g.made.query, source: g.made.source, name: m.className,
-      where: { from: g.made.table.database, as: o.place, samples: { [g.made.table.table]: samples.get(g.id)! } },
-    }];
+    return [classAction(g.made, o.place, samples.get(g.id)!, { className: m.className })];
   });
   let last: ModelAnswer | undefined;
   let lastChoice: DataSpaceChoice | undefined;
@@ -196,9 +181,9 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<PageModelRef
         // a class of the project: its relation function over the project's files
         const j = last?.joinable.find((x) => x.class === cls);
         const column = j?.keys.find((k) => k.name === on)?.column;
-        const made = lastChoice?.made.find((m) => `${pkg}::domain::${m.className}` === cls);
+        const made = lastChoice?.made.find((m) => writerClass(pkg, m.className) === cls);
         if (made === undefined && j?.function !== undefined && column !== undefined && state.text !== '') {
-          return noRow(facts, o.duplicate(o.call(j.function), column));
+          return keyUnique(facts, last!.joinable, cls, on, o);
         }
         // a class still to be made: its grid's own rows
         const g = made ? o.grids.find((x) => x.id === made.id) : undefined;
@@ -225,12 +210,13 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<PageModelRef
           ...(choice.associations ? { associations: choice.associations } : {}),
         });
         const made = done.answer;
-        // each grid made a class keeps its table and its class
+        // the page pinned to what it saved (§16.1)
+        model.pin(done.revision);
+        // each grid made a class keeps its tables and its class
         for (const m of choice.made) {
           const g = o.grids.find((x) => x.id === m.id);
           if (!g || 'refused' in g.made) continue;
-          model.keepTable(g.id, g.made.table.table);
-          model.keepClass(g.id, `${into.package}::domain::${m.className}`);
+          model.keep(g.id, g.made.kept, writerClass(into.package, m.className));
         }
         const kept = await o.persist();
         const at = model.ref ?? { project: done.project, workspace: done.workspace };
@@ -245,7 +231,8 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<PageModelRef
   } finally {
     facts.host.planner.dispose?.();
   }
-  return after(model, o);
+  // what the window changed of the page's model, as the page commands that change it (page-model.ts PageModel)
+  return model.commands;
 }
 
 function dataSpaceOf(choice: DataSpaceChoice): { name: string; title?: string; description?: string } {

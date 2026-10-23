@@ -51,6 +51,21 @@ public final class CatalogModel {
     public record Database(String text, String accessor, List<Conversion> conversions, List<String> excluded) {
     }
 
+    /** One table of a Database of several: its schema (null: the default one), its name, its catalog rows, and whether
+     *  its source can convert (as {@link #database(String, String, String, List, SqlDialect, boolean)} reads them). */
+    public record Table(@com.legend.base.Nullable String schema, String name, List<Column> columns, boolean convertible) {
+    }
+
+    /** A Database of several tables: its text, and each table as {@link Database} says one (its accessor, conversions
+     *  and columns left out; its {@code text} the whole Database's), in the order given. */
+    public record Several(String text, List<Database> tables) {
+    }
+
+    /** One table's part of a Database: its declaration, where it sits, and what reading it takes. */
+    private record Part(@com.legend.base.Nullable String schema, String block, String accessor, List<Conversion> conversions,
+            List<String> excluded) {
+    }
+
     /**
      * {@code ###Relational Database <path> ( [Schema s (] Table t ( col TYPE, ... ) [)] )}.
      * A column of a type the dialect cannot declare is refused, naming the column; so are two
@@ -67,6 +82,60 @@ public final class CatalogModel {
      *                    named on every source.
      */
     public static Database database(String path, @com.legend.base.Nullable String schema, String table,
+            List<Column> columns, SqlDialect dialect, boolean convertible) {
+        Part p = part(path, schema, table, columns, dialect, convertible);
+        return new Database(text(path, List.of(p), dialect), p.accessor(), p.conversions(), p.excluded());
+    }
+
+    /**
+     * A DATABASE OF SEVERAL TABLES of one database (a join's two sides, read in one place: the tab's DuckDB, Python's,
+     * one warehouse): each table declared as {@link #database(String, String, String, List, SqlDialect, boolean)}
+     * declares one, those of the default schema first, then each schema's, in the order their tables came. A table
+     * given twice is refused by name.
+     */
+    public static Several database(String path, List<Table> tables, SqlDialect dialect) {
+        if (tables.isEmpty()) {
+            throw new IllegalArgumentException("a Database of several tables has one table at least");
+        }
+        List<Part> parts = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (Table t : tables) {
+            if (!seen.add((t.schema() == null ? "" : t.schema() + ".") + t.name())) {
+                throw new IllegalArgumentException("the table '" + (t.schema() == null ? "" : t.schema() + ".") + t.name()
+                        + "' is given twice");
+            }
+            parts.add(part(path, t.schema(), t.name(), t.columns(), dialect, t.convertible()));
+        }
+        String text = text(path, parts, dialect);
+        List<Database> each = new ArrayList<>();
+        for (Part p : parts) {
+            each.add(new Database(text, p.accessor(), p.conversions(), p.excluded()));
+        }
+        return new Several(text, List.copyOf(each));
+    }
+
+    /** {@code ###Relational Database <path> ( ... )}: the default schema's tables, then each schema's, in their order. */
+    private static String text(String path, List<Part> parts, SqlDialect dialect) {
+        List<String> blocks = new ArrayList<>();
+        for (Part p : parts) {
+            if (p.schema() == null) {
+                blocks.add("    " + p.block());
+            }
+        }
+        java.util.Map<String, List<String>> bySchema = new java.util.LinkedHashMap<>();
+        for (Part p : parts) {
+            if (p.schema() != null) {
+                bySchema.computeIfAbsent(p.schema(), s -> new ArrayList<>()).add(p.block().replace("\n", "\n    "));
+            }
+        }
+        for (java.util.Map.Entry<String, List<String>> s : bySchema.entrySet()) {
+            blocks.add("    Schema " + ident(s.getKey(), dialect) + "\n    (\n        "
+                    + String.join("\n        ", s.getValue()) + "\n    )");
+        }
+        return "###Relational\nDatabase " + path + "\n(\n" + String.join("\n", blocks) + "\n)\n";
+    }
+
+    private static Part part(String path, @com.legend.base.Nullable String schema, String table,
             List<Column> columns, SqlDialect dialect, boolean convertible) {
         if (columns.isEmpty()) {
             throw new IllegalArgumentException("the table '" + table + "' has no columns");
@@ -111,13 +180,9 @@ public final class CatalogModel {
         }
         String tableBlock = "Table " + ident(table, dialect) + "\n    (\n        "
                 + String.join(",\n        ", lines) + "\n    )";
-        String body = schema == null ? "    " + tableBlock
-                : "    Schema " + ident(schema, dialect) + "\n    (\n        "
-                        + tableBlock.replace("\n", "\n    ") + "\n    )";
         String accessor = "#>{" + path + "." + (schema == null ? "" : ident(schema, dialect) + ".")
                 + ident(table, dialect) + "}#";
-        return new Database("###Relational\nDatabase " + path + "\n(\n" + body + "\n)\n", accessor,
-                List.copyOf(conversions), List.copyOf(excluded));
+        return new Part(schema, tableBlock, accessor, List.copyOf(conversions), List.copyOf(excluded));
     }
 
     /**

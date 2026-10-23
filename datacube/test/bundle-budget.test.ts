@@ -39,6 +39,18 @@ function outputsOf(bundle: string): ReadonlyMap<string, Output> {
 
 const PAGE = outputsOf(join(DEMO, 'bundle.js'));
 
+/** The chunks a page's first chart fetches: its renderer's and its drawing's, with all they import. */
+function firstChart(): ReadonlySet<string> {
+  const fetched = new Set<string>();
+  const visit = (f: string): void => {
+    if (fetched.has(f)) return;
+    fetched.add(f);
+    for (const s of PAGE.get(f)?.statics ?? []) visit(s);
+  };
+  [...PAGE.keys()].filter((f) => dirname(f) === CHUNKS && (holds(f, 'src/chart-render.ts') || holds(f, 'src/chart-option.ts'))).forEach(visit);
+  return fetched;
+}
+
 /** Whether a file of a bundle holds code of `module`: ECharts (any of its modules), or one of DataCube's by its path in
  *  the package (`src/chart-render.ts`; the record names it from wherever esbuild ran, so by its end). */
 function holds(file: string, module: string, outputs: ReadonlyMap<string, Output> = PAGE): boolean {
@@ -152,8 +164,99 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  one way to edit a grid -- grid-edits.ts, the screen's grouping, pivot, sort and Column Properties rules in one module
  *  the panels, the header menu, the drag zones and Python all call, with their refusals in words, and measuresAsColumns
  *  (a cube saved with a measures list converted on open; Open in Grid's values as Column Properties). Measured 282,270;
- *  278,151 on 2026-10-15, before #47's rounds 2 and 3. */
-const BUDGET = 283_500;
+ *  278,151 on 2026-10-15, before #47's rounds 2 and 3.
+ *  283,500 -> 285,500 (2026-10-18, the command program's stage 1, step 3: docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md):
+ *  the screen applies its edits as grid commands (grid-commands.ts applyGridCommand, the one function Python's calls are
+ *  applied by), so it carries every command's rule -- the configure command's checks and setting lists, the measures
+ *  command's measureAsColumn -- though it builds only some; and #57's header clicks (no bump of their own here).
+ *  Measured 284,959.
+ *  285,500 -> 286,500 (2026-10-18, stage 1's step 3b and its review): the Properties window's Apply as grid commands
+ *  (grid-commands.ts draftCommands, the three-way merge it replaced gone), commands told as the cube keeps them
+ *  (app.ts #followCommands), and a command read from JSON field by field (its filter by its operators' operands).
+ *  Measured 285,529.
+ *  286,500 -> 288,500 (2026-10-18, the command program's stage 2, the roadmap run's phase 2:
+ *  docs/DATACUBE_PAGE_STATE_2026_10_18.md): a page of its own has one page state and page-level undo -- page-state.ts,
+ *  CubePage.sync putting the screen at a step (sheets, tiles made again, titles, specs, layouts), PageApp keeping the
+ *  state and each grid's maker, the screen telling a grid and a chart added and a chart's spec. The page commands'
+ *  rules stay out (applyToState lives beside them, not in the state). Measured 287,626.
+ *  288,500 -> 289,500 (2026-10-18, the command program's stage 3 and its audit: docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md):
+ *  DataCube's app follows a page Python serves by its commands (app/live-follow.ts: which way a move is followed, and
+ *  each grid closed or frame moved refused so the page opens again), with its page name and "changed since saved".
+ *  Imported, not fetched: a chunk of its own costs more than it saves (its shared code split out with it). Measured
+ *  288,919.
+ *  289,500 -> 290,000 (2026-10-18, chart batch 4, the roadmap run's phase 5: docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md
+ *  Batch 4): the quartile aggregates (their labels and the compiler's offers for them) and the box plot's rules in
+ *  chart-spec.ts, which the grid carries for its charts' panel; the box plot's drawing is chart-kinds.ts's chunk.
+ *  Measured 289,651 before the phase's audit fixes.
+ *  290,000 -> 291,000 (2026-10-18, chart batch 5, the roadmap run's phase 6: the design note's Batch 5): the maps' rules
+ *  in chart-spec.ts (a map reads a country's code or name; a bubble map's places, `at`) and the panel's routing to
+ *  them; their drawing, shapes and ECharts are chunks of their own (MAPS_BUDGET). Measured 290,341.
+ *  291,000 -> 292,000 (2026-10-18, batch 3's leftovers, the roadmap run's phase 7: a Marimekko's, a waffle's and a
+ *  Gantt's rules and the database's layouts for them, calc-presets.ts, in the grid's chart rules). Measured 291,127.
+ *  292,000 -> 296,500 (2026-10-19, the model plan's step 3, dashboards on classes: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+ *  §16): the page's filters at startup -- their reader in the page document's (page-filters.ts), the page holding them
+ *  with their undo, each grid's lens on its queries (runner.ts lensed, cube.ts and app.ts setLens, its status bar's
+ *  readout), a chart's click taken as one -- and a class as a source (cube-document.ts, app/sources.ts openedClass). The
+ *  filter bar, the class source's rules and the page commands are chunks fetched with a page's first class grid or
+ *  filter. Measured 296,324; 297,275 before the bar and the class helper were made lazy.
+ *  296,500 -> 297,000 (2026-10-19, step 3's audit: a class's cube opened after the others and left out when its rows
+ *  are not here, filter edits one after another, a chart's mark split between the page and its grid, Open in Grid's
+ *  grid given the page's filters as they change). Measured 296,653.
+ *  297,000 -> 301,500 (2026-10-20, the model plan's step 4, combining in prep: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+ *  §17): every cube document reads a join (join-how.ts, cube-document.ts readJoinSource), a grid's place says the tables
+ *  it reads, the Join… entry and its two stubs, the planner's tablesModel. Join…'s flow, the window, a join's relation
+ *  and its opening are one chunk fetched with the first join (app/join-app.ts); with them at startup it measured about
+ *  1,300 more. Most of the rest is esbuild's: a lazy module sharing startup code splits it into more chunks (18 -> 22
+ *  files), each gzipped alone. Measured 301,329.
+ *  301,500 -> 302,000 (2026-10-20, design §18 step 2, Snap by query: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3):
+ *  each snap a copy of its own -- the page's snap target making one (app/sources.ts snapInto), modelled as a file read
+ *  in is (upload.ts modelLanded), the cube's copy runner made and let go with each snap -- and remote files offered a
+ *  snap. Measured 301,561.
+ *  302,000 -> 303,000 (2026-10-20, §18's independent audit, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): a snapped
+ *  grid's runner reads its copy wherever a query reads its live base (runner.ts rebased: a chart's, Ad Hoc mode's, a
+ *  drill-through's query was refused on the copy), one snap at a time, a closed grid's copy let go as it lands, and a
+ *  host's saved join opened by the host (sources.ts openedHostJoin). Measured 302,679.
+ *  303,000 -> 303,500 (2026-10-20, design §18.8 step A, Snap as page state: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+ *  §18.8): the page document's `copies` -- the copy each snapped grid reads -- read strictly by the page's reader at
+ *  open (page-document.ts readGridCopy) and kept for the cubes a page holds as it is written (copiesFor). Measured
+ *  303,359.
+ *  303,500 -> 305,000 (2026-10-20, design §18.8 step B: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): the page follows
+ *  its other editor's snap and live commands -- a grid reading a copy its host holds (cube.ts adopt, HostSnaps adopt,
+ *  forget, handOver), the page writing down each grid's copy (page-app.ts #copies) and following them (PageApp.follow),
+ *  a saved page opening live, each snapped grid said (datacube-app.ts openSaved, openedLive) -- and a frame read once as
+ *  it opens (ll.show(df, snap=True): CubeApp.snapRows). Measured 304,504.
+ *  305,000 -> 305,500 (2026-10-20, the page keeper's step 2.3: docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): the tab's
+ *  channel to the page's keeper (app/live-channel.ts) -- the edits made on screen, each grid's and the page's, written
+ *  with the page; one queue of writes and follows -- and a page of no grid written and read live (PageApp.document's
+ *  `empty`, readPage's). Measured 305,133.
+ *  305,500 -> 306,500 (2026-10-21, the one API program's step S1, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md: every edit
+ *  of a grid and of its page a command -- the grid's new commands (an open group, Collapse All, a calculated column
+ *  edited and taken out, a chart's mark), the page's (a chart's selection and own query), a saved page's tiles it
+ *  could not open kept as placeholders). Measured 306,226.
+ *  306,500 -> 307,000 (2026-10-21, step S1's P11: a cube opened again over a host's frames told as the page's
+ *  `rebuilt` -- its rule (page-commands.ts), whether it is another (cube-document.ts cubeTaken), told as a host's page
+ *  opens (datacube-app.ts openLive)). Measured 306,571.
+ *  307,000 -> 307,500 (2026-10-21, step S1's audit round and step S2's G3 and V5: `rebuilt` applied by one rule over the
+ *  source as it is now (cube-document.ts cubeOpenedAgain), what a reopened page tells (rebuiltCommands), a retry by its
+ *  commands, a saved tree's expand level). Measured 307,284.
+ *  307,500 -> 308,000 (2026-10-21, step S3's P14: the board says what the hand did, a stack and an arrangement told as
+ *  their own commands -- band-board.ts LayoutMove, cube-page.ts #tellMove). Measured 307,520.
+ *  308,000 -> 314,500 (2026-10-21, step S3's core, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md "the board produced by the
+ *  commands": the page now applies its own edits, so it carries page-commands.ts -- the page commands' rules, their
+ *  reader, followedPage, cubeOpenedAgain -- where it fetched them with another editor's first command; the plan's S3
+ *  bullet names this raise). Measured 314,140.
+ *  314,500 -> 315,500 (2026-10-21, step S3's audit round, the plan's F6-F17: a cube alone's board kept as its grid's own
+ *  changes land, its ids held across its lifetimes, a detached chart's Update told and its query read by sync, an editing
+ *  grid drawn in a band of its own, every grid's document said). Measured 314,975.
+ *  315,500 -> 316,000 (2026-10-22, step S5's B8, B14, B6 and B5: setChart's refusal of a detached chart told to follow,
+ *  the one "nothing to save" sentence and the one page-file rule, DataCube's, which Python says and asks too). Measured
+ *  315,525.
+ *  316,000 -> 319,000 (2026-10-22, step S8, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md "screen code builds no command":
+ *  every gesture's meaning in one module the screen's controls and Python's grid.gesture share -- grid-gestures.ts, its
+ *  refusals in words, about 2.8 KB gzipped, and page-gestures.ts, 0.8 KB -- app.ts and the menu losing their copies,
+ *  about 1 KB; making the gestures load later would put the selection-off path behind an await, F93's order). Measured
+ *  318,627. */
+const BUDGET = 319_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -177,8 +280,64 @@ const BUDGET = 283_500;
  *  tree 390,443.
  *  270,000 -> 271,000 (2026-10-18, neema2/legend-lite#57 and its audit: a header click sorts (grid-edits.ts clickSort,
  *  clickTreeSort), the header's marks from the order the query applies (headerSorts), and a child group's aggregate
- *  refused as a sort). Measured 270,114. */
-const ENGINE_BUDGET = 271_000;
+ *  refused as a sort). Measured 270,114.
+ *  271,000 -> 272,500 (2026-10-18, the command program's stage 1, step 3: as the grid's -- the screen applies its edits
+ *  as grid commands, by the one function Python's calls are applied by). Measured 272,184.
+ *  272,500 -> 273,500 (2026-10-18, stage 1's step 3b and its review: as the grid's). Measured 272,761.
+ *  273,500 -> 275,500 (2026-10-18, the command program's stage 2: page-level undo, as the grid's). Measured 274,868.
+ *  275,500 -> 278,500 (2026-10-18, the command program's stage 3, the roadmap run's phase 3:
+ *  docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): this is the page Python shows, which now follows Python's changes by
+ *  their commands -- the live page's changes (python-host.ts, the grid command reader with them) and the app applying
+ *  them (datacube-app.ts followLive). The page commands' rules come only with the first commands (a chunk of their
+ *  own: page-ids.ts keeps the screen's ids apart from them). Measured 277,563.
+ *  278,500 -> 279,000 (2026-10-18, chart batch 4: the quartiles and the box plot's rules -- the grid's note of the same
+ *  date). Measured 278,735 before the phase's audit fixes.
+ *  279,000 -> 280,000 (2026-10-18, chart batch 5: the maps' rules -- the grid's note of the same date). Measured
+ *  279,416.
+ *  280,000 -> 281,000 (2026-10-18, batch 3's leftovers -- the grid's note of the same date). Measured 280,228.
+ *  281,000 -> 285,000 (2026-10-19, the model plan's step 3: the page's filters and a class as a source -- the grid's note
+ *  of the same date). Measured 284,804.
+ *  285,000 -> 285,500 (2026-10-19, step 3's audit -- the grid's note of the same date). Measured 285,174.
+ *  285,500 -> 290,000 (2026-10-20, the model plan's step 4, combining in prep -- the grid's note of the same date).
+ *  Measured 289,795.
+ *  290,000 -> 290,500 (2026-10-20, design §18 step 2, Snap by query -- the grid's note of the same date). Measured
+ *  290,349.
+ *  290,500 -> 291,000 (2026-10-20, design §18 step 4, a class of any base: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+ *  §18.3): what a class is made over read at startup, before its window is fetched, so a grid that cannot be one is
+ *  refused in words there (query.ts classBasis, tablesOf: every table a grid's rows read, a join's each), and the page's
+ *  model keeping a list of tables per grid. Measured 290,648.
+ *  291,000 -> 292,000 (2026-10-20, §18's independent audit -- the grid's note of the same date; this page also asks
+ *  Python to open a page.join grid, opened.json). Measured 291,599.
+ *  292,000 -> 292,500 (2026-10-20, design §18.8 step A -- the grid's note of the same date). Measured 292,296.
+ *  292,500 -> 294,000 (2026-10-20, design §18.8 step B -- the grid's note of the same date; this page also asks Python
+ *  for a copy it holds, held). Measured 293,533.
+ *  294,000 -> 294,500 (2026-10-20, the page keeper's step 2.3 -- the grid's note of the same date). Measured 294,287.
+ *  294,500 -> 295,500 (2026-10-21, the one API program's step S1, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md: every edit
+ *  of a grid a command -- each calculated column the screen makes read whole (C1), a group opened and Collapse All (G1,
+ *  G2), a calculated column edited and taken out (G4, G5) -- read, applied and told by grid-commands.ts, which the page
+ *  loads at start). Measured 295,261.
+ *  295,500 -> 296,000 (2026-10-21, step S1's P1-P3: the page's rename, a grid's own Snap and Go Live told as page
+ *  commands, its copy settled only once its move holds). Measured 295,526.
+ *  296,000 -> 296,500 (2026-10-21, step S1's P8-P9: a detached chart's own query told, a saved page's tiles it could not
+ *  open kept as placeholders -- the grid's note of the same date). Measured 296,329.
+ *  296,500 -> 297,000 (2026-10-21, step S1's P11 -- the grid's note of the same date). Measured 296,697.
+ *  297,000 -> 297,500 (2026-10-21, step S2's G3 and V5: configure's tree rule, a saved tree's expand level and closed
+ *  groups written and read). Measured 297,040.
+ *  297,500 -> 298,000 (2026-10-21, step S3's P14 -- the grid's note of the same date; step S2's V1 V2, followedPage on
+ *  every path a cube changes, came in under the last raise). Measured 297,661.
+ *  298,000 -> 304,500 (2026-10-21, step S3's core -- the grid's note of the same date). Measured 304,314.
+ *  304,500 -> 305,000 (2026-10-21, step S3's G8 and P7: a step's selection put back by its grid's own refilter, each
+ *  sheet's layout as the page has it kept apart from the board's drawing). Measured 304,513.
+ *  305,000 -> 305,500 (2026-10-21, step S3's audit round -- the grid's note of the same date). Measured 305,177.
+ *  305,500 -> 306,000 (2026-10-21, step S4, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md "the host applies the commands":
+ *  the page Python serves written as its edits or, undone or redone, whole (a restore), the ids it has held read with it,
+ *  and Open..., in place and Blank Page leaving it for a page of the tab's own (D1), said on a blank page's card).
+ *  Measured 305,535.
+ *  306,000 -> 306,500 (2026-10-22, step S5's B8, B14, B6, B5, Z18, B4 and B13 -- the grid's note of the same date, and
+ *  the saved page it is kept with the page and told (savedAs), so either editor saves over one record). Measured
+ *  306,214.
+ *  306,500 -> 310,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 309,694. */
+const ENGINE_BUDGET = 310_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -201,8 +360,12 @@ const ENGINE_BUDGET = 271_000;
  *  compress less well than one; and a pie in two rings or half a ring (chart-option.ts). Measured 445,666.
  *  447,000 -> 301,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's
  *  "does minify buy anything if already zipped?" -- it does, about a third). Measured 298,386; unminified, the same
- *  tree 446,304. */
-const CHART_BUDGET = 301_000;
+ *  tree 446,304.
+ *  301,000 -> 303,000 (2026-10-18, chart batch 5, the roadmap run's phase 6): the ECharts code a first chart shares with
+ *  the maps' chunk is a file of its own (three files compress less well than two), and the drawing grew with batches 4
+ *  and 5's words; the measure counts only the chunks a first chart fetches (one only batch 3's kinds and the maps share
+ *  is theirs). Measured 302,497. */
+const CHART_BUDGET = 303_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -213,8 +376,17 @@ const isKinds = (file: string): boolean => /[\\/]chart-(?:render-)?kinds-[^\\/]+
  *  batch 3's later kinds (small multiples, a bubble).
  *  100,000 -> 66,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's
  *  "does minify buy anything if already zipped?" -- it does, about a third): batch 3's kinds all in. Measured 62,426;
- *  unminified, the same tree 95,848. */
-const KINDS_BUDGET = 66_000;
+ *  unminified, the same tree 95,848.
+ *  66,000 -> 68,000 (2026-10-18, the roadmap run's phases 5-7: the box plot, the click's period end on these kinds,
+ *  batch 3's leftovers -- a Marimekko, a waffle, a Gantt -- and ECharts code these kinds share only with the maps,
+ *  counted here since phase 6's audit). Measured 66,807. */
+const KINDS_BUDGET = 68_000;
+
+const isMaps = (file: string): boolean => /[\\/]chart-(?:render-)?maps-[^\\/]+\.js$/.test(file);
+/** Set 2026-10-18 at its first measure (chart batch 5, the roadmap run's phase 6), 75,526: the drawing with the world's
+ *  countries (Natural Earth 1:110m, prepared by tools/maps/prepare.py: about 60,000 of it) and ECharts' map chart and
+ *  geo component, a chunk each. */
+const MAPS_BUDGET = 78_000;
 
 /** The charts' options form (ui/chart-form.ts), fetched the first time a chart's options are shown: set 2026-10-14 at
  *  its first measure, 4,872, with room for batch 3's fields.
@@ -256,8 +428,48 @@ const EXAMPLE_BUDGET = 4_000;
  *  chunks (widget-chunks/), which the loader fetches over the channel when the cube first needs each and imports with
  *  their specifiers rewritten -- ECharts and the chart code, the page's sheets, the saved pages' windows, the model
  *  actions. What a cube fetches before it shows: the module, the chunks it imports statically and its styles, measured
- *  281,797 (all the chunks 410,466). */
-const WIDGET_BUDGET = 290_000;
+ *  281,797 (all the chunks 410,466).
+ *  290,000 -> 291,000 (2026-10-18, the command program's stage 1: the screen applies its edits as grid commands, the
+ *  Properties window's Apply among them -- the grid's notes of the same date). Measured 290,232.
+ *  291,000 -> 293,000 (2026-10-18, the command program's stage 2: page-level undo -- the grid's notes of the same date).
+ *  Measured 292,353.
+ *  293,000 -> 296,000 (2026-10-18, the command program's stage 3: a notebook's page follows Python's changes by their
+ *  commands -- the engine page's note of the same date). Measured 295,033.
+ *  296,000 -> 296,500 (2026-10-18, chart batch 4: the quartiles and the box plot's rules -- the grid's note of the same
+ *  date). Measured 296,208 before the phase's audit fixes.
+ *  296,500 -> 297,500 (2026-10-18, chart batch 5: the maps' rules -- the grid's note of the same date). Measured
+ *  296,883.
+ *  297,500 -> 298,500 (2026-10-18, batch 3's leftovers -- the grid's note of the same date). Measured 297,692.
+ *  298,500 -> 302,600 (2026-10-19, the model plan's step 3: the page's filters and a class as a source -- the grid's
+ *  note of the same date). Measured 302,450.
+ *  302,600 -> 303,000 (2026-10-19, step 3's audit -- the grid's note of the same date). Measured 302,803.
+ *  303,000 -> 307,800 (2026-10-20, the model plan's step 4, combining in prep -- the grid's note of the same date).
+ *  Measured 307,630.
+ *  307,800 -> 308,300 (2026-10-20, design §18 step 2, Snap by query -- the grid's note of the same date). Measured
+ *  308,163.
+ *  308,300 -> 308,800 (2026-10-20, design §18 step 4, a class of any base -- the engine page's note of the same date).
+ *  Measured 308,467.
+ *  308,800 -> 309,800 (2026-10-20, §18's independent audit -- the engine page's note of the same date). Measured
+ *  309,429.
+ *  309,800 -> 310,300 (2026-10-20, design §18.8 step A -- the grid's note of the same date). Measured 310,121.
+ *  310,300 -> 311,800 (2026-10-20, design §18.8 step B -- the engine page's note of the same date). Measured 311,364.
+ *  311,800 -> 312,500 (2026-10-20, the page keeper's step 2.3 -- the grid's note of the same date). Measured 312,118.
+ *  312,500 -> 313,500 (2026-10-21, the one API program's step S1 -- the engine page's note of the same date). Measured
+ *  313,083.
+ *  313,500 -> 314,500 (2026-10-21, step S1's P1-P9 -- the grid's note of the same date). Measured 314,150.
+ *  314,500 -> 315,000 (2026-10-21, step S1's P11 -- the grid's note of the same date). Measured 314,514.
+ *  315,000 -> 315,500 (2026-10-21, step S1's audit round and step S2's G3 and V5 -- the grid's note of the same date).
+ *  Measured 315,233.
+ *  315,500 -> 316,000 (2026-10-21, step S3's P14 and step S2's audit round: a stack and an arrangement told as their own
+ *  commands, a selection judged when its filter moves -- the grid's note of the same date). Measured 315,526.
+ *  316,000 -> 322,500 (2026-10-21, step S3's core -- the grid's note of the same date). Measured 322,107.
+ *  322,500 -> 323,500 (2026-10-21, step S3's audit round -- the grid's note of the same date). Measured 322,960.
+ *  323,500 -> 324,000 (2026-10-22, step S5's B8, B14 and B6: setChart's refusal of a detached chart told to follow, and
+ *  the one "nothing to save" sentence, DataCube's, which Python says too). Measured 323,533.
+ *  324,000 -> 324,500 (2026-10-22, step S5's B5, Z18, B4 and B13 -- the engine page's note of the same date). Measured
+ *  324,039.
+ *  324,500 -> 328,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 327,491. */
+const WIDGET_BUDGET = 328_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
@@ -284,7 +496,11 @@ describe('the page loads ECharts only when a chart draws', () => {
 
   it(`the first chart fetches at most ${CHART_BUDGET.toLocaleString()} bytes more, gzipped: ECharts and the drawing`, () => {
     // what a chart adds to the page, beside the grid's own budget (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5)
-    const chart = chunksOf().filter((f) => (holds(f, 'echarts') || holds(f, 'src/chart-option.ts')) && !isKinds(f));
+    // ECharts' chunks and the drawing's that a first chart fetches (firstChart): a chunk only batch 3's kinds and the
+    // maps share is theirs, counted with the kinds
+    const fetched = firstChart();
+    const chart = chunksOf().filter((f) => (holds(f, 'echarts') || holds(f, 'src/chart-option.ts')) && !isKinds(f) && !isMaps(f)
+      && fetched.has(f));
     assert.ok(chart.length >= 1, 'the chart\'s chunks are found');
     const size = chart.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= CHART_BUDGET, `a first chart fetches ${size.toLocaleString()} bytes gzipped, over its budget of ${CHART_BUDGET.toLocaleString()}`);
@@ -294,9 +510,25 @@ describe('the page loads ECharts only when a chart draws', () => {
     for (const f of startup()) assert.ok(!isKinds(f) && !holds(f, 'src/chart-kinds.ts'), `${f} carries batch 3's kinds`);
     const kinds = chunksOf().filter(isKinds);
     assert.equal(kinds.length, 2, 'the kinds\' drawing and their ECharts charts, a chunk each');
-    assert.ok(kinds.length >= 1, 'the kinds\' chunks are found');
-    const size = kinds.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
+    // with them, the ECharts code they share only with the maps' chunks: fetched with the first of either, counted here
+    // (the phase 6 audit: a chunk in no budget)
+    const shared = chunksOf().filter((f) => holds(f, 'echarts') && !isKinds(f) && !isMaps(f) && !firstChart().has(f));
+    for (const f of shared) {
+      assert.ok([...PAGE].every(([importer, out]) => !out.statics.includes(f) || isKinds(importer) || isMaps(importer)),
+        `${f} holds ECharts code a first chart does not fetch, and is fetched by something other than the kinds or the maps`);
+    }
+    const size = [...kinds, ...shared].reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= KINDS_BUDGET, `batch 3's kinds fetch ${size.toLocaleString()} bytes gzipped, over their budget of ${KINDS_BUDGET.toLocaleString()}`);
+  });
+
+  it(`batch 5's maps are chunks of their own, fetched with the first of them: at most ${MAPS_BUDGET.toLocaleString()} bytes more`, () => {
+    for (const f of startup()) assert.ok(!isMaps(f) && !holds(f, 'src/chart-maps.ts') && !holds(f, 'src/maps/world-110m.ts'), `${f} carries the maps`);
+    const maps = chunksOf().filter(isMaps);
+    assert.equal(maps.length, 2, 'the maps\' drawing with their shapes, and their ECharts chart, a chunk each');
+    // the shapes come with the drawing alone: in no chunk a first chart or batch 3's kinds fetch
+    assert.deepEqual(chunksOf().filter((f) => holds(f, 'src/maps/world-110m.ts')).map((f) => isMaps(f)), [true]);
+    const size = maps.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
+    assert.ok(size <= MAPS_BUDGET, `batch 5's maps fetch ${size.toLocaleString()} bytes gzipped, over their budget of ${MAPS_BUDGET.toLocaleString()}`);
   });
 
   it(`the options form and an example page are chunks of their own, each within its budget`, () => {

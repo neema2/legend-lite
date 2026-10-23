@@ -131,7 +131,7 @@ export interface ChartDrawing {
    * For a chart of bins: the edge of the bin after the clicked one (the least category above it), so a click filters
    * to the bin's range; undefined for the last bin, or a chart that is not of bins.
    */
-  upperAt?(dataIndex: number): Scalar | undefined;
+  upperAt?(dataIndex: number, datum?: unknown): Scalar | undefined;
   /**
    * What a brush took (batch 2 item 11), from ECharts' brush areas: the categories inside a range across (in order,
    * with the edge after the last for a chart of bins), or a scatter's rectangle. Null when nothing was taken.
@@ -1018,6 +1018,8 @@ const MARK_WORDS: Record<ChartSpec['mark'], string> = {
   pareto: 'Pareto chart', funnel: 'Funnel', rose: 'Rose chart', polar: 'Polar bar chart', radar: 'Radar chart',
   parallel: 'Parallel coordinates', sankey: 'Sankey diagram', chord: 'Chord diagram', stream: 'Streamgraph',
   calendar: 'Calendar heatmap', gauge: 'Gauge', sunburst: 'Sunburst', tree: 'Tree', matrix: 'Scatter matrix',
+  boxplot: 'Box plot', map: 'Map', bubblemap: 'Bubble map', marimekko: 'Marimekko chart', waffle: 'Waffle chart',
+  gantt: 'Gantt chart',
 };
 
 /** A KPI as drawn: its number as the grid writes it, how it stands against its target, and its trend's line. */
@@ -1115,6 +1117,7 @@ export function kpiDrawing(
 /** The chart in one sentence: what is plotted against what, and how much of it. */
 export function describe(spec: ChartSpec, rows: ResultTable): string {
   const what = spec.mark === 'matrix' ? `each pair of ${spec.y.map((m) => m.column).join(', ')}`
+    : spec.mark === 'boxplot' ? `the spread of ${spec.y[0]?.column ?? ''} by ${spec.x ?? ''}`
     : spec.mark === 'scatter'
     ? `${spec.y[0]?.column ?? ''} against ${spec.x ?? ''}`
     : `${spec.y.map(measureName).join(', ')} by ${spec.x ?? ''}`;

@@ -8,6 +8,7 @@ import { fn, lambda, property, variable, element } from '../../../pure-protocol/
 import { CHART_VERSION, DEFAULT_OPTIONS, type ChartOptions, type ChartSpec } from '../chart-spec.ts';
 import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../config.ts';
 import { fileSource, writeCube } from '../cube-document.ts';
+import { openedState } from '../cube-state.ts';
 import type { Band, Node } from '../layout/bands.ts';
 import { writePageOf, type PageDocument, type PageSheet, type PageView } from '../page-document.ts';
 import { sampleById, sampleFileName } from '../samples.ts';
@@ -249,13 +250,10 @@ export async function salesPage(name: string, sheets: readonly ExampleSheet[], e
     SALES_SPECS,
     { id: EXAMPLE_SAMPLE, rows: EXAMPLE_ROWS },
   );
-  const cube = writeCube({
-    name,
-    source,
-    snapshot: EXAMPLE_CUBE,
-    configuration: CONFIGURATION,
-    tree: TreeState.fromPaths(expanded.map((p) => [...p]), false),
-  });
+  // written as the screen holds the cube it opens (cube-state.ts openedState): a page written unfolded was reopened and
+  // saved as another document (the saved-page corpus holds the example pages to it)
+  const state = openedState(EXAMPLE_CUBE, CONFIGURATION, TreeState.fromPaths(expanded.map((p) => [...p]), false));
+  const cube = writeCube({ name, source, snapshot: state.snapshot, configuration: state.configuration, tree: state.tree });
   const grid: PageView = { id: 'grid', kind: 'grid', cube: CUBE, title: 'The sales' };
   const placed: PageSheet[] = sheets.map((s, i) => ({
     id: `sheet-${i + 1}`,

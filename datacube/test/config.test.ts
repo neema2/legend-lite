@@ -74,7 +74,7 @@ describe('withColumn', () => {
   });
 });
 
-describe('withConfiguration: a host\'s patch (CubeApp.applyConfiguration, Python\'s Grid.configure)', () => {
+describe('withConfiguration: a host\'s patch (a configure command: CubeApp.edit, Python\'s Grid.configure)', () => {
   it('merges each column into what it has, and leaves the others and the column map alone', () => {
     let c = withColumn(DEFAULT_CONFIGURATION, 'region', { pinned: 'left' });
     c = withColumn(c, 'year', { hidden: true });

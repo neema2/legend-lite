@@ -1,6 +1,6 @@
-"""Frames as Legend tables (legend_lite.frames): answers checked against pandas computing the same; Live reads
-the frame as it is at each query, Snapped as it was copied; pandas, polars and Arrow answer alike; the model
-writer's conversions hold exact values; an answer is typed by its plan; and what a frame cannot be is refused."""
+"""Frames as Legend tables (legend_lite.frames): answers checked against pandas computing the same; a frame is read
+as it is at each query, a stream as it was read once; pandas, polars and Arrow answer alike; the model writer's
+conversions hold exact values; an answer is typed by its plan; and what a frame cannot be is refused."""
 
 import datetime
 import unittest
@@ -21,6 +21,12 @@ def trades():
         'desk': ['FX', 'EQ', 'FX', 'RATES', 'EQ'],
         'qty': [10.5, 20.0, 30.25, 1.0, 7.5],
     })
+
+
+def streamed(frame):
+    """``frame`` as a stream: read once, so registered as a table of its own (the other way a frame is held)."""
+    table = frame if isinstance(frame, pa.Table) else pa.Table.from_pandas(frame, preserve_index=False)
+    return pa.RecordBatchReader.from_batches(table.schema, table.to_batches())
 
 
 def by_desk(df):
@@ -78,8 +84,8 @@ class Answers(unittest.TestCase):
         self.assertEqual(table.execute("->filter(x|$x.select == 'b')").to_pylist(), [{'total pnl': 2.5, 'select': 'b'}])
 
 
-class LiveAndSnapped(unittest.TestCase):
-    def test_live_reads_the_frame_as_it_is_at_each_query(self):
+class ReadAtEachQuery(unittest.TestCase):
+    def test_a_frame_is_read_as_it_is_at_each_query(self):
         df = trades()
         table = ll.Frames().register('trades', df)
         before = table.execute(GROUP).to_pylist()
@@ -87,12 +93,22 @@ class LiveAndSnapped(unittest.TestCase):
         self.assertNotEqual(table.execute(GROUP).to_pylist(), before)
         self.assertEqual(table.execute(GROUP).to_pylist(), by_desk(df))
 
-    def test_snapped_keeps_the_frame_as_it_was_copied(self):
+    def test_a_stream_is_read_once_into_a_table_of_its_own(self):
+        # it can be read only once: its rows copied when it is registered, and never read again
         df = trades()
-        table = ll.Frames().register('trades', df, mode='snapped')
+        table = ll.Frames().register('trades', streamed(df))
+        self.assertFalse(table.live)
         copied = by_desk(df)
         df.loc[0, 'qty'] = 1000.0
         self.assertEqual(table.execute(GROUP).to_pylist(), copied)
+        self.assertEqual(table.execute(GROUP).to_pylist(), copied, 'asked again, the stream is not read again')
+
+    def test_a_function_making_a_stream_is_read_at_each_query(self):
+        holder = {'df': trades()}
+        table = ll.Frames().register('trades', lambda: streamed(holder['df']))
+        self.assertTrue(table.live)
+        holder['df'] = trades().iloc[:2]
+        self.assertEqual(table.execute('->select(~[id])').to_pylist(), [{'id': 1}, {'id': 2}])
 
     def test_a_live_frame_that_gains_a_column_gets_its_model_written_again(self):
         df = trades()
@@ -109,14 +125,14 @@ class LiveAndSnapped(unittest.TestCase):
 
 
 class Names(unittest.TestCase):
-    def test_registering_a_name_again_replaces_its_table_in_either_mode(self):
+    def test_registering_a_name_again_replaces_its_table_a_view_or_a_streams_table(self):
         frames = ll.Frames()
         live = frames.register('trades', trades())
-        snapped = frames.register('trades', trades().iloc[:1], mode='snapped')
-        self.assertEqual(snapped.execute('->select(~[id])').to_pylist(), [{'id': 1}])
+        copied = frames.register('trades', streamed(trades().iloc[:1]))
+        self.assertEqual(copied.execute('->select(~[id])').to_pylist(), [{'id': 1}])
         again = frames.register('trades', trades())
         self.assertEqual(len(again.execute('->select(~[id])')), 5)
-        for old in (live, snapped):
+        for old in (live, copied):
             with self.assertRaises(ValueError):
                 old.execute('->select(~[id])')
 
@@ -135,20 +151,19 @@ class Names(unittest.TestCase):
         self.assertEqual(frames.connection.execute('SELECT count(*) FROM ledger').fetchone(), (0,))
 
     def test_a_frame_that_cannot_be_served_leaves_its_name_free(self):
-        # a Live column of nothing but nulls (no type a Pure column can have), a frame of no columns: refused, and
-        # nothing of either left behind
-        for frame, mode in ((pd.DataFrame({'id': [1, 2], 'nothing': [None, None]}), 'live'),
-                            (pd.DataFrame(), 'live'), (pd.DataFrame(), 'snapped')):
+        # a column of nothing but nulls (no type a Pure column can have), a frame of no columns, a stream of none:
+        # refused, and nothing of either left behind
+        for frame in (pd.DataFrame({'id': [1, 2], 'nothing': [None, None]}), pd.DataFrame(), streamed(pa.table({}))):
             frames = ll.Frames()
             with self.assertRaises(Exception):
-                frames.register('trades', frame, mode=mode)
+                frames.register('trades', frame)
             self.assertNotIn('trades', frames)
-            self.assertEqual(len(frames.register('trades', trades(), mode=mode).execute('->select(~[id])')), 5)
+            self.assertEqual(len(frames.register('trades', trades()).execute('->select(~[id])')), 5)
 
     def test_unregister_and_close_take_the_tables_out(self):
         frames = ll.Frames()
         one = frames.register('one', trades())
-        frames.register('two', trades(), mode='snapped')
+        frames.register('two', streamed(trades()))
         frames.unregister('one')
         with self.assertRaises(ValueError):
             one.execute('->select(~[id])')
@@ -173,13 +188,13 @@ class Names(unittest.TestCase):
         with self.assertRaises(ValueError), frames.reading_file('false'):
             pass
 
-    def test_a_name_pure_takes_and_sql_reserves_reads_its_rows_in_either_mode(self):
-        # `order` is a Pure identifier (ModelChanges.isIdentifier) and a SQL keyword: the frame's table or view is
-        # quoted wherever a query reads it, Live and Snapped alike
-        for mode in ('live', 'snapped'):
-            with self.subTest(mode=mode):
+    def test_a_name_pure_takes_and_sql_reserves_reads_its_rows_a_view_or_a_table(self):
+        # `order` is a Pure identifier (ModelChanges.isIdentifier) and a SQL keyword: the frame's view or a stream's
+        # table is quoted wherever a query reads it
+        for make in (trades, lambda: streamed(trades())):
+            with self.subTest(stream=make is not trades):
                 frames = ll.Frames()
-                table = frames.register('order', trades(), mode=mode)
+                table = frames.register('order', make())
                 self.assertEqual(table.accessor, '#>{order::DB.order}#')
                 self.assertEqual(table.execute("->filter(x|$x.desk == 'EQ')->select(~[id])").to_pylist(),
                                  [{'id': 2}, {'id': 5}])
@@ -204,15 +219,15 @@ class Conversions(unittest.TestCase):
 
     def test_an_unsigned_64_bit_integer_is_an_exact_decimal(self):
         frame = pa.table({'u': pa.array([2 ** 64 - 1, 1], pa.uint64())})
-        for mode in ('live', 'snapped'):
-            table = ll.Frames().register('t', frame, mode=mode)
+        for given in (frame, streamed(frame)):
+            table = ll.Frames().register('t', given)
             self.assertEqual([(c.name, c.type) for c in table.columns], [('u', 'Decimal')])
             self.assertEqual(table.execute('->select(~[u])').to_pylist(), [{'u': Decimal(2 ** 64 - 1)}, {'u': Decimal(1)}])
 
     def test_a_zoned_timestamp_is_its_utc_instant(self):
         at = pd.Timestamp('2026-10-08 09:30', tz='America/New_York')
-        for mode in ('live', 'snapped'):
-            table = ll.Frames().register('t', pd.DataFrame({'at': [at]}), mode=mode)
+        for given in (pd.DataFrame({'at': [at]}), streamed(pd.DataFrame({'at': [at]}))):
+            table = ll.Frames().register('t', given)
             self.assertEqual([(c.name, c.type) for c in table.columns], [('at', 'DateTime')])
             self.assertEqual(table.execute('->select(~[at])').to_pylist(), [{'at': datetime.datetime(2026, 10, 8, 13, 30)}])
 
@@ -374,15 +389,6 @@ class Refusals(unittest.TestCase):
     def test_a_name_is_a_plain_identifier(self):
         with self.assertRaises(ValueError):
             ll.Frames().register('my trades', trades())
-
-    def test_a_mode_is_live_or_snapped(self):
-        with self.assertRaises(ValueError):
-            ll.Frames().register('t', trades(), mode='linked')
-
-    def test_a_stream_cannot_be_live(self):
-        stream = pa.RecordBatchReader.from_batches(pa.schema([('a', pa.int64())]), [])
-        with self.assertRaises(ValueError):
-            ll.Frames().register('t', stream)
 
     def test_a_query_the_compiler_refuses_says_why(self):
         table = ll.Frames().register('trades', trades())

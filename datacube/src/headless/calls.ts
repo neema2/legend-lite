@@ -13,6 +13,19 @@ export interface HostCalls {
   registerFile(name: string, bytes: string): Promise<void>;
   /** A digest (crypto.subtle.digest): the algorithm's name ('SHA-256', ...) and the data, base64; the digest, base64. */
   digest(algorithm: string, data: string): Promise<string>;
+  /**
+   * One HTTP call DataCube's code makes of a service (the model actions' SDLC and model writer: D4), answered by the
+   * host -- its own by a path (`/sdlc/api/...`, `/api/lite/v1/...`: its model home and its writer, as its engine answers
+   * a tab), a server's by its address: the method, the URL and the body (or null); `{status, body}` as JSON.
+   */
+  fetch(method: string, url: string, body: string | null): Promise<string>;
+  /**
+   * One call of the engine the host runs beside DataCube (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X1, D13), answered by
+   * the engine's own code as the tab's call of the same path is: `/plan-and-run.json` (a grid's query planned and run
+   * where its rows are) or `/warehouse.json` (a warehouse table opened under the session the engine holds). The path and
+   * the body; `{status, contentType, body}` as JSON, the body base64.
+   */
+  engine(path: string, body: string): Promise<string>;
 }
 
 /** The host's calls, defined as `legendLiteHost` before the bundle loads; none is a bundle run where it does not belong. */

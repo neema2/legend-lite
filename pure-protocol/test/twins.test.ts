@@ -8,7 +8,7 @@ import { describe, it } from 'node:test';
 import {
   accessor, agg, and, asc, col, collection, derive, desc, divide, element, enumValue, eq, flatten, fn, from, ge, gt,
   lambda, lit, minus, ne, not, or, over, parameter, plus, relationType, times, to, toMany, type, variable,
-  ExactNumber, ONE, MANY, ProtocolError, readLambda, toJson, type Lambda,
+  ExactNumber, ONE, MANY, ProtocolError, isIdentifier, readLambda, toJson, type Lambda,
 } from '../src/index.ts';
 import { compose, parse } from './lite.ts';
 
@@ -77,6 +77,19 @@ describe('each builder is the grammar, byte for byte', () => {
       assert.equal(toJson(readLambda(json)), json);
     });
   }
+});
+
+describe('the identifier rule, once (the other DataCube line\'s follow-up): what the grammar reads bare', () => {
+  it('an identifier\'s letters, and not true or false, which the lexer reads as literals', async () => {
+    for (const n of ['a', '_a', 'A1', 'True', 'trueish', 'False_']) assert.ok(isIdentifier(n), n);
+    for (const n of ['true', 'false', '1a', 'a b', 'a-b', '', 'é']) assert.ok(!isIdentifier(n), n);
+    // legend-lite's own grammar agrees: `$x.true` is no property true, `$x.'true'` is
+    const quoted = JSON.parse(await parse("x|$x.'true'")) as { body: { property?: string }[] };
+    assert.equal(quoted.body[0]?.property, 'true');
+    await assert.rejects(parse('x|$x.true'), /expected property name/);
+    // a variable the grammar cannot quote is refused where it is made
+    assert.throws(() => variable('true'), ProtocolError);
+  });
 });
 
 describe('why queries are built as trees, not text', () => {

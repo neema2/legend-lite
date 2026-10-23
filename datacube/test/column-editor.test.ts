@@ -15,6 +15,7 @@ import {
   caretFor,
   type ColumnEditorStart,
 } from '../src/ui/column-editor.ts';
+import type { CalcStage } from '../src/calc.ts';
 import type { CubeSnapshot, DerivedColumn } from '../src/snapshot.ts';
 import type { JsonColumnReader } from '../src/ui/json-fields.ts';
 import { element } from '../../pure-protocol/src/index.ts';
@@ -41,8 +42,11 @@ let dom: JSDOM;
 let root: HTMLElement;
 let compiled: CubeSnapshot[];
 let refuse: string | null;
-let applied: { row: readonly DerivedColumn[]; group: readonly DerivedColumn[];
-  rename?: { from: string; to: string } }[];
+/** Each edit the editor offered the cube (its edit and remove: the grid commands Python's edit_calculated and
+ *  remove_calculated build). */
+let edited: { name: string; level?: CalcStage; column?: DerivedColumn }[];
+/** Each new column the editor offered the cube (its add: the grid command Python's calculate builds). */
+let added: { level: CalcStage; column: DerivedColumn }[];
 let applyRefusal: string | null;
 let closed: number;
 let canCompile: boolean;
@@ -61,8 +65,16 @@ function open(start: ColumnEditorStart): ColumnEditor {
       if (compileFails) throw compileFails;
       return canCompile ? { query: someQuery(), refusal: refuse } : undefined;
     },
-    apply: async (row, group, rename) => {
-      applied.push({ row, group, ...(rename ? { rename } : {}) });
+    edit: async (name, level, column) => {
+      edited.push({ name, level, column });
+      return applyRefusal;
+    },
+    remove: async (name) => {
+      edited.push({ name });
+      return applyRefusal;
+    },
+    add: async (level, column) => {
+      added.push({ level, column });
       return applyRefusal;
     },
     onClose: () => { closed += 1; },
@@ -94,7 +106,8 @@ beforeEach(() => {
   root = dom.window.document.getElementById('r') as unknown as HTMLElement;
   compiled = [];
   refuse = null;
-  applied = [];
+  edited = [];
+  added = [];
   applyRefusal = null;
   closed = 0;
   canCompile = true;
@@ -144,8 +157,11 @@ describe('a new column', () => {
     await settle();
     $<HTMLButtonElement>('.dc-calc-ok').click();
     await settle();
-    assert.equal((await printed(applied[0]?.group.at(-1))), 'x|1');
-    assert.equal(applied[0]?.group.at(-1)?.kind, undefined);
+    // a new column is offered as one, at its level -- not as the cube's two lists
+    assert.equal(added[0]?.level, 'group');
+    assert.equal((await printed(added[0]?.column)), 'x|1');
+    assert.equal(added[0]?.column.kind, undefined);
+    assert.deepEqual(edited, []);
     assert.equal(closed, 1, 'OK that the cube took closes the window');
   });
 
@@ -168,8 +184,10 @@ describe('an existing column', () => {
     await settle();
     $<HTMLButtonElement>('.dc-calc-ok').click();
     await settle();
-    assert.deepEqual(applied[0]?.rename, { from: 'uplift', to: 'boost' });
-    assert.deepEqual(applied[0]?.row.map((d) => d.name), ['boost']);
+    // the column it edits, by the name it had, replaced by the draft's at its level
+    assert.equal(edited[0]?.name, 'uplift');
+    assert.equal(edited[0]?.level, 'row');
+    assert.equal(edited[0]?.column?.name, 'boost');
   });
 
   it('Reset puts back what it opened with', async () => {
@@ -186,7 +204,7 @@ describe('an existing column', () => {
     await settle();
     $<HTMLButtonElement>('.dc-calc-delete').click();
     await settle();
-    assert.deepEqual(applied[0]?.row, []);
+    assert.deepEqual(edited, [{ name: 'uplift' }], 'the column taken out, by its name');
     assert.equal(closed, 0);
     assert.match($('.dc-calc-problem').textContent ?? '', /another column/);
   });
@@ -199,6 +217,18 @@ describe('an existing column', () => {
     await settle();
     $<HTMLButtonElement>('.dc-calc-ok').click();
     await settle();
+    assert.equal(closed, 0);
+    assert.equal(formula(), 'x|$x.notional * 3');
+    assert.match($('.dc-calc-problem').textContent ?? '', /refused by the cube/);
+  });
+
+  it("a new column the cube refuses keeps the user's text too (its add's refusal)", async () => {
+    applyRefusal = 'refused by the cube';
+    open({ expression: 'x|$x.notional * 3' });
+    await settle();
+    $<HTMLButtonElement>('.dc-calc-ok').click();
+    await settle();
+    assert.equal(added.length, 1);
     assert.equal(closed, 0);
     assert.equal(formula(), 'x|$x.notional * 3');
     assert.match($('.dc-calc-problem').textContent ?? '', /refused by the cube/);
@@ -258,12 +288,13 @@ describe('a window column', () => {
     assert.equal($<HTMLButtonElement>('.dc-calc-ok').disabled, false);
     $<HTMLButtonElement>('.dc-calc-ok').click();
     await settle();
-    const added = applied.at(-1)?.row.at(-1);
-    assert.deepEqual(added?.window, {
+    assert.equal(added.at(-1)?.level, 'row');
+    const made = added.at(-1)?.column;
+    assert.deepEqual(made?.window, {
       fn: 'sum', column: 'notional', partition: ['region'],
       order: [{ column: 'notional', direction: 'desc' }], frame: 'running',
     });
-    assert.equal(added?.lambda, undefined);
+    assert.equal(made?.lambda, undefined);
     // And the compile saw the cube with it.
     assert.ok(compiled.at(-1)?.derived.some((d) => d.window?.fn === 'sum'));
   });
@@ -284,7 +315,7 @@ describe('a window column', () => {
     await settle();
     $<HTMLButtonElement>('.dc-calc-ok').click();
     await settle();
-    assert.deepEqual(applied.at(-1)?.row.at(-1)?.window?.frame, { lastRows: 5 });
+    assert.deepEqual(added.at(-1)?.column.window?.frame, { lastRows: 5 });
   });
 
   it('at the group level an empty order means the grid order, and says so', async () => {
@@ -301,7 +332,9 @@ describe('a window column', () => {
     const cube: CubeSnapshot = { ...CUBE, derived: [...CUBE.derived, { name: 'prev', kind: 'measure', window: w }] };
     new ColumnEditor(root, {
       snapshot: () => cube, start: { edit: 'prev' }, debounceMs: 0, parse: liteParse, print: litePrint,
-      compile: async () => ({ query: someQuery(), refusal: null }), apply: async () => null, onClose: () => {},
+      compile: async () => ({ query: someQuery(), refusal: null }), edit: async () => null, remove: async () => null,
+      add: async () => null,
+      onClose: () => {},
     });
     assert.equal(kindOn(), 'window');
     assert.equal($<HTMLSelectElement>('.dc-win-fn').value, 'lag');
@@ -346,7 +379,9 @@ describe('picking a JSON field', () => {
         compiled.push(candidate);
         return { query: someQuery(), refusal: null };
       },
-      apply: async (row, group) => { applied.push({ row, group }); return null; },
+      edit: async (name, level, column) => { edited.push({ name, level, column }); return null; },
+      remove: async (name) => { edited.push({ name }); return null; },
+      add: async (level, column) => { added.push({ level, column }); return null; },
       onClose: () => { closed += 1; },
       readJson: (column) => reader(sampled, column, wait, cells),
     });
@@ -381,7 +416,7 @@ describe('picking a JSON field', () => {
       .some((t) => (t ?? '').includes("get('email')")), 'the pick was compiled');
     $<HTMLButtonElement>('.dc-calc-ok').click();
     await settle();
-    assert.equal(applied.at(-1)?.row.at(-1)?.name, 'customer_contact_email');
+    assert.equal(added.at(-1)?.column.name, 'customer_contact_email');
   });
 
   it('pulls a nested object out as a JSON column', async () => {
@@ -417,9 +452,9 @@ describe('picking a JSON field', () => {
     await settle();
     $<HTMLButtonElement>('.dc-calc-ok').click();
     await settle();
-    const added = applied.at(-1)?.row.at(-1);
-    assert.equal(added?.name, 'addresses_kind_city');
-    assert.equal(added?.unnest, true);
+    const made = added.at(-1)?.column;
+    assert.equal(made?.name, 'addresses_kind_city');
+    assert.equal(made?.unnest, true);
   });
 
   it('keeps a name the user typed', async () => {
@@ -460,7 +495,7 @@ describe('picking a JSON field', () => {
     new ColumnEditor(root, {
       snapshot: () => CUBE, start: {}, debounceMs: 0, parse: liteParse, print: litePrint,
       compile: async () => ({ query: someQuery(), refusal: null }),
-      apply: async () => null, onClose: () => {},
+      edit: async () => null, remove: async () => null, add: async () => null, onClose: () => {},
       readJson: () => ({ sample: async () => ({ cells: [], total: 0 }), all: async () => undefined }),
     });
     assert.equal(root.querySelector('.dc-calc-json'), null);

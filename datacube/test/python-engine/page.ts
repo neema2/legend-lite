@@ -38,7 +38,8 @@ import { CASES, queries } from '../wasm-differential/cases.ts';
 import { askedOffers, askedSettings, pythonDatabase, pythonRunner, pythonServices, type PythonLink } from '../../src/services/python-host.ts';
 import { browserBasics } from '../../src/services/browser-basics.ts';
 import type { Services } from '../../src/app/services.ts';
-import { ingestFile } from '../../src/upload.ts';
+import { dropFileTable, ingestFile, modelLanded, mountRemoteView } from '../../src/upload.ts';
+import { SnapManager } from '../../../engine-client/src/snap.ts';
 
 /** What the harness hands the page: the engine, and the frame it serves. */
 interface Served {
@@ -50,6 +51,8 @@ interface Served {
   readonly rows: readonly (readonly (string | number | null)[])[];
   /** A warehouse the harness started and seeded (python-engine.mjs): the page reads it through Python (C3). */
   readonly warehouse: string;
+  /** A Parquet file a server on this machine serves (engine_fixture.py): read by Python's DuckDB and by the tab's. */
+  readonly remote: string;
 }
 
 interface Outcome {
@@ -260,6 +263,57 @@ async function run(): Promise<void> {
     deepEqual(differ, [], 'Python\'s page and the tab read a file differently:');
   });
 
+  // A REMOTE FILE, BOTH WAYS (L12: an ability the two hosts do by a DuckDB each): the same Parquet file, served by a
+  // server on this machine, mounted by the one implementation (upload.ts mountRemoteView) -- in the tab's DuckDB-WASM,
+  // and in Python's DuckDB through the httpfs it carries -- its model written by the one writer, every row planned and
+  // run on each host: the same columns, types and values
+  await check('a remote file reads the same on Python\'s page and in the tab', async () => {
+    const link: PythonLink = { baseUrl: location.origin, fetch: (i, init) => fetch(i, init), authorization: served.authorization };
+    const python = pythonDatabase(link, await askedOffers(link));
+    if (python.mountRemote === undefined) throw new CheckFailed('Python\'s engine reads no remote file');
+    const all = (source: unknown): Lambda => ({ _type: 'lambda', parameters: [], body: [source] }) as unknown as Lambda;
+    const snapshot = CASES[0]!.snapshot;
+    const here = await mountRemoteView(local, planner, { url: served.remote, name: 'remote_books' });
+    const there = await python.mountRemote(served.remote, undefined, 'remote_books');
+    const tabRows = await new PlanThenRun(planner.withModel(here.model, here.runtime), local).run(all(here.source), snapshot);
+    const pythonRows = await pythonRunner(link, there.model, there.runtime).run(all(there.source), snapshot);
+    equal(shape(tabRows.rows, false), shape(pythonRows.rows, false), 'the tab and Python read the remote file differently:');
+    // and right, not only alike
+    equal(shape(tabRows.rows, false), 'book:String,pages:Integer\n["Dune",412]\n["Emma",474]\n["Ulysses",730]', 'its rows:');
+    // the tab's view dropped; Python keeps a remote file's view by its URL, as for its pages (a later mount of the same
+    // URL takes its place), and offers a page no way to drop one
+    await dropFileTable(local, planner, 'remote_books', true);
+  });
+
+  // A SNAP, BOTH WAYS (L12: the tab's copy and Python's, an implementation each): the frame's every column copied by
+  // each host's own Snap -- the tab's SnapManager into its DuckDB, Python's snap.json into its own -- each copy made to
+  // hold what its model declares by the one writer (upload.ts modelLanded) and read through that model: the same
+  // columns, types and rows
+  await check('a grid snaps the same copy on Python and in the tab', async () => {
+    const link: PythonLink = { baseUrl: location.origin, fetch: (i, init) => fetch(i, init), authorization: served.authorization };
+    const python = pythonDatabase(link, await askedOffers(link));
+    if (python.snap === undefined || python.release === undefined) throw new CheckFailed('Python\'s engine snaps no grid');
+    const snapshot = CASES[0]!.snapshot;
+    const columns = (await sourceColumns(tab, served.source as never)).map((c) => c.name);
+    const pull = from(served.source as never).select(columns).lambda();
+    // Python's: the pull sent as Pure, run and landed there
+    const theirs = await python.snap(served.model, served.runtime, pull);
+    const fromTheirs = await pythonRunner(link, theirs.model, theirs.runtime).run(from(theirs.source).select(columns).lambda(), snapshot);
+    // the tab's: the live plan run into a table of its own, modelled once the rows land
+    let landed: Awaited<ReturnType<typeof modelLanded>> | undefined;
+    const snaps = new SnapManager(local, null, planner);
+    await snaps.snap((await planner.plan(pull)).sql, 0, { target: { table: 'snap_parity', landed: async () => {
+      landed = await modelLanded(local, planner, 'snap_parity');
+      return landed.source;
+    } } });
+    const ours = new PlanThenRun(planner.withModel(landed!.model, landed!.runtime), local);
+    const fromOurs = await ours.run(from(landed!.source).select(columns).lambda(), snapshot);
+    equal(shape(fromOurs.rows, false), shape(fromTheirs.rows, false), 'the tab\'s copy and Python\'s differ:');
+    equal(fromOurs.rows.rowCount, served.rows.length, 'the copy holds every row:');
+    await snaps.release();
+    await python.release(theirs.table);
+  });
+
   // THE SESSION'S ZONE: this browser is in New York, Python's process in UTC; the tab's DuckDB set up as Python's is, a
   // query of the time now answers the same instant on both (planned `CAST(now() AS TIMESTAMP)`: the session's wall time)
   await check('the time now answers alike on Python and in a tab in New York: both sessions in UTC', async () => {
@@ -285,7 +339,7 @@ async function run(): Promise<void> {
     const offers = await askedOffers(link);
     const open = async (): Promise<Services> => {
       const kept = await askedSettings(link);
-      return pythonServices({ link, shows: { frame: 'trades' }, offers, ...(kept ? { settings: kept } : {}),
+      return pythonServices({ link, shows: { page: 'trades' }, offers, ...(kept ? { settings: kept } : {}),
         watch: () => () => undefined, browser: browserBasics });
     };
     const first = await open();
@@ -306,7 +360,7 @@ async function run(): Promise<void> {
     const link: PythonLink = { baseUrl: location.origin, fetch: (i, init) => fetch(i, init), authorization: served.authorization };
     const offers = await askedOffers(link);
     equal(offers.warehouse, true, 'Python offers a warehouse:');
-    const services = pythonServices({ link, shows: { frame: 'trades' }, offers, watch: () => () => undefined, browser: browserBasics });
+    const services = pythonServices({ link, shows: { page: 'trades' }, offers, watch: () => () => undefined, browser: browserBasics });
     const warehouse = services.warehouse!;
     await rejects(warehouse.connect(served.warehouse, 'rita', 'wrong'), /sign-in failed — AUTH_INVALID: wrong user or password/);
     const { session, objects } = await warehouse.connect(served.warehouse, 'rita', 'rita-pw');
@@ -320,17 +374,27 @@ async function run(): Promise<void> {
     equal(shape(read.rows, false), 'desk:String,qty:Integer\n["EQ",5]\n["FX",10]\n["FX",3]', 'its rows, read Live through Python:');
     // a table it did not list is not one Python opens
     await rejects(warehouse.table!(session, { ...objects[0]!, name: 'secret' }), /not a table rita may read/);
-    // SNAP, on Python: the pull sent as Pure, counted and copied there; the copy read through the snap runtime, by
+    // SNAP, on Python (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): the pull sent as Pure, counted and landed there
+    // in a table of its own, modelled by DataCube's code as the tab models its copy; read through that model, by
     // Python's DuckDB; released, the copy is gone, and reading it is refused
-    const copy = services.engine.rows(m.model, m.snapRuntime, { bitColumns: m.bitColumns }).runner!;
-    const two = from(m.source).select(['desk', 'qty']).lambda();
-    await rejects(copy.run(two, { epoch: 0 } as CubeSnapshot), /read on its warehouse, through its own runtime, or snapped/);
-    const frozen = await warehouse.snap!(m.model, from(m.source).select(['desk', 'qty', 'px']).lambda());
+    const frozen = await services.engine.database.snap!(m.model, m.runtime, from(m.source).select(['desk', 'qty', 'px']).lambda());
     deepEqual([frozen.rowCount, frozen.pulledBy?.as, frozen.pulledBy?.serverRows], [3, 'rita', 3], 'what Python froze:');
+    const copy = services.engine.rows(frozen.model, frozen.runtime, { bitColumns: frozen.bitColumns }).runner!;
+    const two = from(frozen.source).select(['desk', 'qty']).lambda();
     equal(shape((await copy.run(two, { epoch: 0 } as CubeSnapshot)).rows, false), 'desk:String,qty:Integer\n["EQ",5]\n["FX",10]\n["FX",3]',
       'the copy\'s rows, read in Python\'s DuckDB:');
-    await warehouse.release!(m.model);
-    await rejects(copy.run(two, { epoch: 0 } as CubeSnapshot), /read on its warehouse, through its own runtime, or snapped/);
+    await services.engine.database.release!(frozen.table);
+    await rejects(copy.run(two, { epoch: 0 } as CubeSnapshot), /reads only the tables it serves.*which it does not serve now/);
+    // and a frame's grid snaps the same way (one Snap), its copy read through Python's own model of it
+    const fm = await services.engine.database.frame!('trades');
+    const frameRows = services.engine.rows(fm.model, fm.runtime).runner!;
+    const all = (await sourceColumns(frameRows, fm.source)).map((c) => c.name);
+    const frameCopy = await services.engine.database.snap!(fm.model, fm.runtime, from(fm.source).select(all).lambda());
+    const fromCopy = await services.engine.rows(frameCopy.model, frameCopy.runtime).runner!.run(
+      from(frameCopy.source).select(all).lambda(), { epoch: 0 } as CubeSnapshot);
+    const fromFrame = await frameRows.run(from(fm.source).select(all).lambda(), { epoch: 0 } as CubeSnapshot);
+    equal(shape(fromCopy.rows, false), shape(fromFrame.rows, false), 'a frame\'s copy holds its rows, read in Python\'s DuckDB:');
+    await services.engine.database.release!(frameCopy.table);
   });
 
   await check('a query\'s types, parse and print: the same compiler\'s answers', async () => {

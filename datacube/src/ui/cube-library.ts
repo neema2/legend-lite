@@ -3,7 +3,7 @@
 // `cube-store.ts`); the HOST decides what opening one means (it owns the data: re-reading the
 // file, rebuilding the cube) -- this window only asks.
 
-import type { CubeStore, LightDataCubeQuery, QuerySearchSortBy } from '../cube-store.ts';
+import { SAVED_SORTS, savedSearch, type CubeStore, type LightDataCubeQuery, type QuerySearchSortBy } from '../cube-store.ts';
 
 export interface CubeLibraryHost {
   /** The id of the saved cube on screen, when it came from the store: its row is marked. */
@@ -17,12 +17,6 @@ export interface CubeLibraryHost {
   /** Whether the cube on screen differs from what was saved (or first opened): opening another asks first. */
   dirty?(): boolean;
 }
-
-const SORTS: readonly [QuerySearchSortBy, string][] = [
-  ['SORT_BY_VIEW', 'Last opened'],
-  ['SORT_BY_UPDATE', 'Last saved'],
-  ['SORT_BY_CREATE', 'Created'],
-];
 
 export class CubeLibrary {
   readonly #root: HTMLElement;
@@ -61,7 +55,7 @@ export class CubeLibrary {
     });
     this.#sort = this.#el('select', 'dc-lib-sort');
     this.#sort.setAttribute('aria-label', 'Sort saved cubes');
-    for (const [value, label] of SORTS) {
+    for (const [value, label] of SAVED_SORTS) {
       const o = this.#el('option');
       o.value = value;
       o.textContent = label;
@@ -118,11 +112,8 @@ export class CubeLibrary {
     const term = this.#search.value.trim();
     let found: LightDataCubeQuery[];
     try {
-      found = await this.#store.search({
-        ...(term ? { searchTermSpecification: { searchTerm: term } } : {}),
-        sortByOption: this.#sort.value as QuerySearchSortBy,
-        limit: 50,
-      });
+      // as many as the window lists (Python's ll.Page.saved() asks the same search, of as many as the store answers)
+      found = await this.#store.search(savedSearch(term, this.#sort.value as QuerySearchSortBy, 50));
     } catch (e) {
       this.say(e instanceof Error ? e.message : String(e), 'error');
       return;

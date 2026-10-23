@@ -7,24 +7,25 @@
 // that makes no class never fetches it -- and it imports nothing the page loads at startup (its queries are handed in),
 // so the page's own modules stay in its bundle.
 
-import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { SdlcClient } from '../../sdlc-client/src/client.ts';
 import type { PlanAndRun } from './runner.ts';
 import { createClass, projectState } from '../../model-changes/src/index.ts';
 import { PageModel, type PageModelRef } from './page-model.ts';
 import type { ClassAction, GridSource, ModelWriter } from './model-writer.ts';
 import { suggestedClassName, suggestedPackage } from './model-names.ts';
-import { sampleOf } from './sample-rows.ts';
+import { classAction, classSamples } from './model-plans.ts';
 import { classDialog, type ClassChoice, type ClassPreview, type CreatedClass } from './ui/class-dialog.ts';
 import type { ModelAnswer } from './model-writer.ts';
+import type { PageCommand } from './page-commands.ts';
+import type { ClassBasis } from './query.ts';
 
 export interface CreateClassOf {
-  /** The grid's rows at their finest level (query.ts classLambda): the class's relation. */
-  readonly query: Lambda;
-  /** The table the grid's source reads (query.ts storeTableOf). */
-  readonly table: { readonly database: string; readonly schema: string; readonly table: string };
-  /** The source's first rows (query.ts sampleLambda): the class's sample. */
-  readonly sample: Lambda;
+  /** What the class is made over (query.ts classBasis): the grid's rows at their finest level, the Database and every
+   *  table they read, each with its sample's query. */
+  readonly basis: ClassBasis;
+  /** The tables the grid's leaves are read as in this tab, in their order: what the page's model keeps for the grid
+   *  (its project's store reads them by those names). */
+  readonly kept: readonly string[];
   /** Where the grid's rows are planned and run, on whichever host: its sample is read there. */
   readonly rows: PlanAndRun;
   /** The grid's source: its planner's model and runtime, which the class is made over. */
@@ -52,23 +53,18 @@ export interface CreateClassOf {
 }
 
 /**
- * Ask for the class and write it. Resolves with the page's model as it is after -- made with its first class (kept
- * even when its first save failed), its grid's table kept -- or undefined when nothing of it changed.
+ * Ask for the class and write it. Resolves with the page commands its record of the page takes (page-model.ts
+ * PageModel: made with its first class -- kept even when its first save failed -- pinned, its grid's tables and class
+ * kept), in order; none when nothing of it changed.
  */
-export async function createClassOf(o: CreateClassOf): Promise<PageModelRef | undefined> {
-  const { query, table } = o;
+export async function createClassOf(o: CreateClassOf): Promise<readonly PageCommand[]> {
+  const { basis } = o;
   const model = new PageModel(o.model);
-  // its source's first rows, as the database has them: the class's sample (a Data element), written by the one writer
-  // (sample-rows.ts sampleOf: a NaN or an infinity refused, naming its column and row, never written as null)
-  const samples = { [table.table]: await sampleOf(o.rows.host, o.sample) };
-  const action = (c: ClassChoice): ClassAction => ({
-    query,
-    source: o.source,
-    name: c.className,
-    ...(c.documentation ? { documentation: c.documentation } : {}),
-    columns: c.columns,
-    where: { from: table.database, as: o.place, samples },
-  });
+  // each table's first rows, as the database has them: the class's samples (a Data element each), written by the one
+  // writer (model-plans.ts classSamples: a NaN or an infinity refused, naming its column and row, never written as null)
+  const samples = await classSamples(o.rows, basis);
+  // the grid's rows as the class the person named, as Python's create_class makes it (model-plans.ts classAction)
+  const action = (c: ClassChoice): ClassAction => classAction({ basis, source: o.source }, o.place, samples, c);
   const preview = (answer: ModelAnswer): ClassPreview => ({
     changes: answer.changes, properties: answer.classes[0]?.properties ?? [], notes: answer.notes,
   });
@@ -84,12 +80,10 @@ export async function createClassOf(o: CreateClassOf): Promise<PageModelRef | un
         sdlc: o.client, writer: o.writer, ...model.into(c.projectName ?? o.pageName, c.package), class: action(c),
       });
       const made = done.answer;
-      // the grid's table keeps its name from now: the project's store reads it by that name
-      if (o.cube !== undefined) {
-        model.keepTable(o.cube, table.table);
-        const cls = made.classes[0]?.class;
-        if (cls !== undefined) model.keepClass(o.cube, cls);
-      }
+      // the page pinned to what it saved: its class grids are read at it (§16.1)
+      model.pin(done.revision);
+      // the grid's tables keep their names from now: the project's store reads them by those names
+      if (o.cube !== undefined) model.keep(o.cube, o.kept, made.classes[0]?.class ?? null);
       const after = model.ref ?? { project: done.project, workspace: done.workspace };
       const kept = await o.persist();
       return {
@@ -103,7 +97,6 @@ export async function createClassOf(o: CreateClassOf): Promise<PageModelRef | un
       };
     },
   });
-  // the page's model as it is now, when the window changed it: made (whether or not its save then went through), or a
-  // grid's table kept
-  return model.ref !== o.model ? model.ref : undefined;
+  // what the window changed of the page's model: made (whether or not its save then went through), pinned, kept
+  return model.commands;
 }

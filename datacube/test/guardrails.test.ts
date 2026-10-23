@@ -459,7 +459,9 @@ describe('nothing is built and left unreachable', () => {
     // check above while leaving the feature just as unreachable.
     for (const call of [
       'buildMenu(',
-      'applyMenuAction(',
+      // the menu's query entries reach the cube as grid commands (2026-10-18, the command program's stage 1), each its
+      // gesture (2026-10-22, S8: app.ts makes menuGesture's gesture, grid-gestures.ts gridGesture)
+      'menuGesture(',
       'heatColour(',
       'columnRange(',
       // every export format, and the one model they all read (export-model.ts, 2026-09-29)

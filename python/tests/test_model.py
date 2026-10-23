@@ -1,137 +1,200 @@
-"""Into a project (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4; legend_lite/model.py): the twin of the TypeScript library
-model-changes/, held to the same cases (model-changes/test/cases: every call one create makes, to the SDLC and to the
-writer, its exact body and the answer it was given -- the TypeScript library replays them too, model-changes/test/
-replay.test.ts), then end to end: a page's grids made classes, an association and a data space, into this user's
-model home, by the native library's SDLC and writer, the page's model kept.
+"""Into a project (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D4, Z4-Z7): a
+page's grids made classes, an association and a data space by DataCube's own model actions run headless (headless/
+model.ts: the windows' plans over the TypeScript library model-changes/), into this user's model home -- the native
+library's SDLC and model writer answering DataCube's fetch (legend_lite._headless.answer_fetch) -- the page's model kept
+by the commands DataCube answers. Python keeps none of it.
 
-The cases are recorded here, against the native library, from a page's grids as Python asks DataCube for them
-(``Grid._class``): ``MODEL_CHANGES_RECORD=1 bazel run //python:model_test`` writes them into model-changes/test/cases."""
+The library's calls, as this host answers them, are model-changes' cases (model-changes/test/cases, replayed by
+model-changes/test/replay.test.ts): ``MODEL_CHANGES_RECORD=1 bazel run //python:model_test`` records them again."""
 
 import json
 import os
 import sys
 import tempfile
+import threading
 import unittest
+import urllib.parse
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest import mock
 
 import pyarrow as pa
 
 import legend_lite as ll
-from legend_lite import _json, datacube, model
+from legend_lite import _headless, _json, datacube
+from legend_lite._home import home_call, model_home_folder
 
-CASES = sorted(os.environ['LEGEND_LITE_MODEL_CASES'].split(os.pathsep)) if os.environ.get('LEGEND_LITE_MODEL_CASES') else []
+# where DataCube's model actions reach this host's own SDLC and writer (headless/model.ts reached)
+_SDLC = '/sdlc/api'
+_WRITER = '/api/lite/v1/model/'
+
+TRADES = pa.table({'desk': ['FX', 'EQ', 'FX'], 'qty': [1, 2, 4]})
+DESKS = pa.table({'desk': ['FX', 'EQ'], 'head': ['Ana', 'Ben']})
 
 
-class Transcript:
-    """An SDLC and a writer whose every call is recorded (``record``) or answered from a case (``replay``): the same
-    calls, in order, with the same bodies."""
+class Fetches:
+    """Every fetch DataCube's code makes through this host while it is in place (``with Fetches() as f``), each as the
+    host answered it -- answer_fetch, wrapped by the test alone -- the SDLC's by its path under the API's root, the
+    writer's by its route: the calls a model action makes, in order. ``before_save``: run once, just before the first
+    save is asked (another save meanwhile)."""
 
-    def __init__(self, calls: list[dict] | None = None, sdlc: model.Sdlc | None = None) -> None:
-        self.calls: list[dict] = [] if calls is None else calls
-        self.replaying = calls is not None
-        self._real = sdlc
-        self._next = 0
-        self.before_save = None
+    def __init__(self, before_save=None):
+        self.calls: list[dict] = []
+        self.before_save = before_save
+        self._answer = _headless.answer_fetch
 
-    def _expected(self, to: str) -> dict:
-        assert self._next < len(self.calls), f'a call more than the case has: the {to}'
-        call = self.calls[self._next]
-        self._next += 1
-        assert call['to'] == to, f'call {self._next}: the case has a call to the {call["to"]}, this one is to the {to}'
-        return call
+    def __enter__(self):
+        self._patch = mock.patch.object(_headless, 'answer_fetch', self)
+        self._patch.start()
+        return self
 
-    def sdlc(self) -> model.Sdlc:
-        def call(method: str, path: str, body: str | None) -> tuple[int, str]:
-            if self.replaying:
-                expected = self._expected('sdlc')
-                assert (method, path, body) == (expected['method'], expected['path'], expected['body']), \
-                    f'call {self._next}: {method} {path} {body!r}, the case has {expected["method"]} {expected["path"]} ' \
-                    f'{expected["body"]!r}'
-                return expected['status'], expected['answer']
+    def __exit__(self, *_exc):
+        self._patch.stop()
+
+    def __call__(self, method, url, body):
+        if url.startswith(_SDLC + '/'):
+            path = url[len(_SDLC):]
             if self.before_save is not None and method == 'POST' and path.endswith('/pureChanges'):
                 hook, self.before_save = self.before_save, None
                 hook()
-            status, text = self._real._call(method, path, body)
-            self.calls.append({'to': 'sdlc', 'method': method, 'path': path, 'body': body, 'status': status, 'answer': text})
+            status, text = self._answer(method, url, body)
+            self.calls.append({'to': 'sdlc', 'method': method, 'path': path, 'body': body, 'status': status,
+                               'answer': text})
             return status, text
-        return model.Sdlc(call)
+        status, text = self._answer(method, url, body)
+        if url.startswith(_WRITER):
+            self.calls.append({'to': 'writer', 'route': url[len(_WRITER):], 'body': body, 'answer': text})
+        return status, text
 
-    def writer(self) -> model.ModelWriter:
-        real = model.local_writer()
+    def written(self, route):
+        """The bodies the writer was sent on ``route``, read as the library reads JSON (a decimal keeps its digits)."""
+        return [_json.loads(c['body']) for c in self.calls if c['to'] == 'writer' and c['route'] == route]
 
-        def post(route: str, body: str) -> str:
-            if self.replaying:
-                expected = self._expected('writer')
-                assert (route, body) == (expected['route'], expected['body']), \
-                    f'call {self._next}: the writer\'s {route} with a body not the case\'s'
-                return expected['answer']
-            text = real._post(route, body)
-            self.calls.append({'to': 'writer', 'route': route, 'body': body, 'answer': text})
-            return text
-        return model._Writer(post)
 
-    def done(self) -> None:
-        assert self._next == len(self.calls), f'{len(self.calls) - self._next} calls of the case were not made'
+def _enc(part: str) -> str:
+    """A path segment as encodeURIComponent writes it, as the SDLC client asks."""
+    return urllib.parse.quote(part, safe="-_.!~*'()")
+
+
+def _sdlc(method: str, path: str, body=None, folder: Path | None = None):
+    """One call of a model home's SDLC (this user's, unless ``folder``), its answer read: a refusal fails the test."""
+    status, text = home_call(folder or model_home_folder(), 'sdlc', method, path,
+                             None if body is None else json.dumps(body))
+    assert 200 <= status < 300, f'{method} {path}: {status} {text}'
+    return json.loads(text) if text else None
+
+
+def _files(ref: dict, folder: Path | None = None) -> dict[str, str]:
+    """The page's project's files at its workspace's current revision, by path."""
+    at = f'/projects/{_enc(ref["project"])}/workspaces/{_enc(ref["workspace"])}'
+    revision = _sdlc('GET', f'{at}/revisions/CURRENT', folder=folder)['id']
+    return {f['path']: f['pureCode'] for f in _sdlc('GET', f'{at}/revisions/{_enc(revision)}/pure', folder=folder)}
+
+
+def _own_home(test: unittest.TestCase) -> Path:
+    """This user's legend-lite folder, the test's own while it runs."""
+    home = tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))
+    before = os.environ.get('LEGEND_LITE_HOME')
+    os.environ['LEGEND_LITE_HOME'] = home
+
+    def restore():
+        if before is None:
+            os.environ.pop('LEGEND_LITE_HOME', None)
+        else:
+            os.environ['LEGEND_LITE_HOME'] = before
+    test.addCleanup(restore)
+    return Path(home)
 
 
 def _page(test: unittest.TestCase | None = None) -> 'll.Page':
     """A page of two grids, as a person builds one: trades, and desks -- their frames let go after ``test``."""
     page = ll.Page('Trades by desk')
-    page.grid(pa.table({'desk': ['FX', 'EQ', 'FX'], 'qty': [1, 2, 4]}), name='model_trades')
-    page.grid(pa.table({'desk': ['FX', 'EQ'], 'head': ['Ana', 'Ben']}), name='model_desks')
+    page.grid(TRADES, name='model_trades')
+    page.grid(DESKS, name='model_desks')
     if test is not None:
         for frame in ('model_trades', 'model_desks'):
             test.addCleanup(datacube._session.unregister, frame)
     return page
 
 
-def _run(case: dict, sdlc: model.Sdlc, writer: model.ModelWriter) -> model.Created:
-    project = case['project'] if isinstance(case['project'], str) else model.NewProject(**case['project'])
-    if case['function'] == 'createClass':
-        return model.create_class(sdlc, writer, project, case['workspace'], case['package'], case['class'])
-    if case['function'] == 'createAssociation':
-        return model.create_association(sdlc, writer, project, case['workspace'], case['package'], case['association'],
-                                        case.get('classes', []))
-    return model.create_data_space(sdlc, writer, project, case['workspace'], case['package'], case['dataSpace'],
-                                   case.get('classes', []), case.get('associations', []))
+# -- model-changes' cases, recorded ------------------------------------------------------------------------------------
+
+def _action(cls: dict) -> dict:
+    """A class action as the writer's body carries it, read back as the library takes it (model-changes' ClassAction):
+    its relation, its source's model and runtime, its names and choices, and where it reads."""
+    where = dict(cls['where'])
+    runtime = where.pop('runtime')
+    rest = {k: v for k, v in cls.items() if k not in ('lambda', 'source', 'where')}
+    return {'query': cls['lambda'], 'source': {'model': cls['source']['code'], 'runtime': runtime}, **rest,
+            'where': where}
+
+
+def _case(name: str, fetches: Fetches, page: 'll.Page', before: dict | None, **flags) -> dict:
+    """A case of model-changes': what the library was asked (read back from the body the writer was last sent: a save
+    made again sends it twice), the calls it made, and where it saved -- the page's model after."""
+    route = next(c['route'] for c in reversed(fetches.calls) if c['to'] == 'writer')
+    body = fetches.written(route)[-1]
+    if before is None:
+        made = next(json.loads(c['body']) for c in fetches.calls
+                    if c['to'] == 'sdlc' and (c['method'], c['path']) == ('POST', '/projects'))
+        project = {'name': made['name'], 'group': made['groupId'], 'description': made['description']}
+    else:
+        project = before['project']
+    ref = page.model
+    case = {'name': name, 'function': route, 'project': project, 'workspace': ref['workspace'],
+            'package': body['package']}
+    if route == 'createClass':
+        case['class'] = _action(body['class'])
+    else:
+        if body['classes']:
+            case['classes'] = [_action(c) for c in body['classes']]
+        if route == 'createAssociation':
+            case['association'] = body['association']
+        else:
+            if body['associations']:
+                case['associations'] = body['associations']
+            case['dataSpace'] = body['dataSpace']
+    return {**case, **flags, 'calls': fetches.calls,
+            'result': {'project': ref['project'], 'workspace': ref['workspace'], 'revision': ref['revision']}}
 
 
 def record(into: Path) -> None:
-    """The cases, recorded against the native library's SDLC (a fresh repository) and writer, from a page's grids."""
-    folder = Path(tempfile.mkdtemp())
-    real = model.local_sdlc(folder)
+    """The cases, recorded from a page's model actions in a fresh model home (this user's: the caller's own), each call
+    the library makes as this host answered it."""
     page = _page()
     trades, desks = page.grids
-    trade, _ = trades._class('Trade', {'qty': {'name': 'quantity'}})
-    desk, _ = desks._class('Desk', {'desk': 'key'})
-    cases = [
-        {'name': 'a class into a project made for it', 'function': 'createClass',
-         'project': {'name': 'Trades by desk', 'group': 'datacube', 'description': 'The classes of a DataCube page'},
-         'workspace': 'datacube', 'package': 'tradesByDesk', 'class': trade},
-    ]
-    made = _recorded(cases[0], real)
-    project = made.project
-    cases.append({'name': "a second class, the workspace moved by another save before this one's: made again once",
-                  'function': 'createClass', 'project': project, 'workspace': 'datacube', 'package': 'tradesByDesk',
-                  'class': desk, 'moved': True})
-    _recorded(cases[1], real, moved=lambda: real.perform_pure_changes(project, 'datacube', {
-        'message': 'another save', 'changes': [{'type': 'CREATE', 'path': 'tradesByDesk::Note', 'pureCode': 'Class tradesByDesk::Note {}'}],
-        'revisionId': real.revision(project, 'datacube')['id']}))
-    cases.append({'name': 'an association between the two', 'function': 'createAssociation', 'project': project,
-                  'workspace': 'datacube', 'package': 'tradesByDesk',
-                  'association': {'name': 'TradeDesk', 'ends': [
-                      {'class': 'tradesByDesk::domain::Trade', 'on': 'desk', 'name': 'trades', 'unique': False},
-                      {'class': 'tradesByDesk::domain::Desk', 'on': 'desk', 'name': 'theDesk', 'unique': True}]}})
-    _recorded(cases[2], real)
-    cases.append({'name': 'a data space over the project, a class made with it, into a new project', 'function': 'createDataSpace',
-                  'project': {'name': 'Desks', 'group': 'datacube', 'description': ''}, 'workspace': 'datacube',
-                  'package': 'desks', 'dataSpace': {'name': 'Desks', 'title': 'The desks'}, 'classes': [desk]})
-    _recorded(cases[3], real)
+    cases = []
+    with Fetches() as f:
+        trade = trades.create_class('Trade', columns={'qty': {'name': 'quantity'}})
+    cases.append(_case('a class into a project made for it', f, page, None))
+    before = page.model
+    at = f'/projects/{_enc(before["project"])}/workspaces/{_enc(before["workspace"])}'
+
+    def another_save():
+        _sdlc('POST', f'{at}/pureChanges', {
+            'message': 'another save', 'revisionId': _sdlc('GET', f'{at}/revisions/CURRENT')['id'],
+            'changes': [{'type': 'CREATE', 'path': 'tradesByDesk::Note', 'pureCode': 'Class tradesByDesk::Note {}'}]})
+    with Fetches(before_save=another_save) as f:
+        desk = desks.create_class('Desk', columns={'desk': 'key'})
+    cases.append(_case("a second class, the workspace moved by another save before this one's: made again once", f,
+                       page, before, moved=True))
+    before = page.model
+    with Fetches() as f:
+        page.create_association({'class': trade, 'on': 'desk', 'name': 'trades', 'unique': False},
+                                {'class': desk, 'on': 'desk', 'name': 'theDesk', 'unique': True}, name='TradeDesk')
+    cases.append(_case('an association between the two', f, page, before))
+    desks_alone = ll.Page('Desks')
+    desks_alone.grid(DESKS, name='model_desks_alone')
+    with Fetches() as f:
+        desks_alone.create_data_space(title='The desks')
+    cases.append(_case('a data space over the project, a class made with it, into a new project', f, desks_alone,
+                       None))
     # a class made again as it is: the writer answers no change, so nothing is saved, the revision the one read
-    cases.append({'name': 'the first class made again as it is: nothing saved, the revision the one read',
-                  'function': 'createClass', 'project': project, 'workspace': 'datacube', 'package': 'tradesByDesk',
-                  'class': trade, 'unchanged': True})
-    _recorded(cases[4], real)
+    before = page.model
+    with Fetches() as f:
+        trades.create_class('Trade', columns={'qty': {'name': 'quantity'}})
+    cases.append(_case('the first class made again as it is: nothing saved, the revision the one read', f, page,
+                       before, unchanged=True))
     into.mkdir(parents=True, exist_ok=True)
     for old in into.glob('*.json'):
         old.unlink()
@@ -139,76 +202,73 @@ def record(into: Path) -> None:
         (into / f'{n:02d}.json').write_text(_json.dumps(case, indent=1) + '\n', encoding='utf-8')
 
 
-def _recorded(case: dict, real: model.Sdlc, moved=None) -> model.Created:
-    transcript = Transcript(sdlc=real)
-    transcript.before_save = moved
-    made = _run(case, transcript.sdlc(), transcript.writer())
-    case['calls'] = transcript.calls
-    case['result'] = {'project': made.project, 'workspace': made.workspace, 'revision': made.revision}
-    return made
+class Record(unittest.TestCase):
+    """The cases recorded again, when asked (``MODEL_CHANGES_RECORD=1 bazel run //python:model_test``)."""
+
+    def test_record(self):
+        if not os.environ.get('MODEL_CHANGES_RECORD'):
+            self.skipTest('recorded only when asked: MODEL_CHANGES_RECORD=1 bazel run //python:model_test')
+        _own_home(self)
+        for frame in ('model_trades', 'model_desks', 'model_desks_alone'):
+            self.addCleanup(datacube._session.unregister, frame)
+        record(Path(os.environ['BUILD_WORKSPACE_DIRECTORY']) / 'model-changes' / 'test' / 'cases')
 
 
-class Replayed(unittest.TestCase):
-    """Each case replayed: Python makes the same calls, in order, with the same bodies, and answers the same."""
+# -- the host's fetch --------------------------------------------------------------------------------------------------
 
-    def test_the_cases_are_there(self):
-        self.assertGreaterEqual(len(CASES), 5)
+class TheHostsFetch(unittest.TestCase):
+    """What DataCube's code fetches headless, answered by this process (answer_fetch): its model home and legend-lite's
+    API at a path of its own, a server at its address; anything else refused in words, never raised into V8."""
 
-    def test_each_case(self):
-        for path in CASES:
-            # read as the library reads JSON: a decimal keeps its digits
-            case = _json.loads(Path(path).read_text(encoding='utf-8'))
-            with self.subTest(case=case['name']):
-                transcript = Transcript(case['calls'])
-                made = _run(case, transcript.sdlc(), transcript.writer())
-                transcript.done()
-                self.assertEqual({'project': made.project, 'workspace': made.workspace, 'revision': made.revision},
-                                 case['result'])
-                saves = [c['status'] for c in case['calls'] if c['to'] == 'sdlc' and c['path'].endswith('/pureChanges')]
-                if case.get('moved'):
-                    self.assertEqual(saves, [409, 200], 'stale once, then made again and saved')
-                if case.get('unchanged'):
-                    self.assertEqual(saves, [], 'no change, so no save')
-                    reads = [c for c in case['calls'] if c['to'] == 'sdlc' and c['path'].endswith('/revisions/CURRENT')]
-                    self.assertEqual(made.revision, json.loads(reads[-1]['answer'])['id'], 'the revision the one read')
+    def setUp(self):
+        self.home = _own_home(self)
 
+    def test_its_model_home_at_its_sdlcs_path(self):
+        self.assertEqual(_headless.answer_fetch('GET', '/sdlc/api/projects', None), (200, '[]'))
+        self.assertTrue((self.home / 'projects').is_dir(), "the user's model home, made where their folder says")
 
-class Unrecorded(unittest.TestCase):
-    """What the cases cannot record from the native library: answers a race makes, said the same as the TypeScript
-    library says them (model-changes/test/replay.test.ts)."""
+    def test_legend_lites_writer_at_its_apis_path_its_refusal_in_its_words(self):
+        status, text = _headless.answer_fetch('POST', '/api/lite/v1/model/createClass', '{}')
+        self.assertNotEqual(status, 200)
+        self.assertIsInstance(json.loads(text)['message'], str)
 
-    def test_a_workspace_made_by_another_ask_meanwhile_is_there(self):
-        # lite's SDLC refuses a workspace that has commits already with a 500 ("Branch already exists"): read again
-        answers = iter([(404, '{"message": "no such workspace"}'), (500, '{"message": "Branch already exists"}'),
-                        (200, '{"workspaceId": "w"}')])
-        model.ensure_workspace(model.Sdlc(lambda m, p, b: next(answers)), 'g:a', 'w')
+    def test_another_path_or_kind_of_address_is_refused_in_words(self):
+        status, text = _headless.answer_fetch('GET', '/elsewhere', None)
+        self.assertEqual(status, 404)
+        self.assertIn('/sdlc/api/', json.loads(text)['message'])
+        status, text = _headless.answer_fetch('GET', 'ftp://somewhere/sdlc/api/projects', None)
+        self.assertEqual(status, 400)
+        self.assertIn('over HTTP', json.loads(text)['message'])
 
-    def test_a_workspace_refused_and_still_not_there_is_said(self):
-        answers = iter([(404, '{}'), (409, '{"message": "a workspace W differs only in case"}'), (404, '{}')])
-        with self.assertRaisesRegex(model.SdlcError, 'differs only in case'):
-            model.ensure_workspace(model.Sdlc(lambda m, p, b: next(answers)), 'g:a', 'w')
+    def test_a_server_is_asked_over_http(self):
+        # another model home, served by a server of the test's own: the page's project made there, not in this user's
+        elsewhere = Path(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))) / 'projects'
+        asked = []
 
-    def test_a_save_that_changes_nothing_answers_the_revision_read(self):
-        # every change the bytes already there: the SDLC's 204, no body (another tab saved the same meanwhile)
-        answers = iter([(200, '{}'), (200, '{"id": "r1"}'), (200, '[]'), (204, '')])
-        writer = type('W', (), {'create_class': lambda self, m, p, c: {'changes': [{'type': 'MODIFY', 'path': 'a::A',
-                                                                                    'pureCode': 'Class a::A {}'}]}})()
-        made = model.create_class(model.Sdlc(lambda m, p, b: next(answers)), writer, 'g:a', 'w', 'a', {'name': 'A'})
-        self.assertEqual(made.revision, 'r1')
+        class Sdlc(BaseHTTPRequestHandler):
+            def _answer(self):
+                length = int(self.headers.get('Content-Length') or 0)
+                body = self.rfile.read(length).decode('utf-8') if length else None
+                asked.append((self.command, self.path))
+                status, text = home_call(elsewhere, 'sdlc', self.command, self.path[len('/sdlc/api'):], body)
+                self.send_response(status)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(text.encode('utf-8'))
+            do_GET = do_POST = _answer
 
-    def test_a_project_made_stays_the_callers_when_a_later_step_fails(self):
-        seen = []
-
-        def call(method, path, body):
-            if (method, path) == ('GET', '/projects'):
-                return 200, '[]'
-            if (method, path) == ('POST', '/projects'):
-                return 200, '{"projectId": "datacube:trades"}'
-            return 500, '{"message": "busy"}'
-        with self.assertRaisesRegex(model.SdlcError, 'busy'):
-            model.create_class(model.Sdlc(call), None, model.NewProject('Trades', 'datacube'), 'datacube', 'trades',
-                               {'name': 'Trade'}, made=seen.append)
-        self.assertEqual(seen, ['datacube:trades'])
+            def log_message(self, *_args):
+                pass
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Sdlc)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        page = _page(self)
+        path = page.grids[0].create_class('Trade', sdlc=f'http://127.0.0.1:{server.server_port}/sdlc/api')
+        self.assertEqual(path, 'tradesByDesk::domain::Trade')
+        self.assertIn(('POST', '/sdlc/api/projects'), asked)
+        self.assertIn('Class tradesByDesk::domain::Trade', '\n'.join(_files(page.model, elsewhere).values()))
+        self.assertEqual(_sdlc('GET', '/projects'), [], "nothing in this user's model home")
 
 
 class TheRepositorysLock(unittest.TestCase):
@@ -220,11 +280,9 @@ class TheRepositorysLock(unittest.TestCase):
     @unittest.skipIf(sys.platform == 'win32', 'the other process takes a POSIX record lock, as the JVM does here')
     def test_a_call_waits_while_another_process_holds_the_repository(self):
         import subprocess
-        import tempfile
         import time
         folder = Path(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))) / 'projects'
-        sdlc = model.local_sdlc(folder)
-        sdlc.projects()  # the repository made
+        _sdlc('GET', '/projects', folder=folder)  # the repository made
         holder = subprocess.Popen([sys.executable, '-c', (
             'import fcntl, sys, time\n'
             f'f = open({str(folder / "legend" / "lock")!r}, "a+b")\n'
@@ -234,30 +292,18 @@ class TheRepositorysLock(unittest.TestCase):
         self.addCleanup(holder.wait)
         self.assertEqual(holder.stdout.readline().strip(), 'held')
         started = time.monotonic()
-        sdlc.projects()
+        _sdlc('GET', '/projects', folder=folder)
         self.assertGreater(time.monotonic() - started, 0.5, 'the call did not wait for the other process')
 
 
+# -- on the page -------------------------------------------------------------------------------------------------------
+
 class OnThePage(unittest.TestCase):
-    """A page's grids made classes, an association and a data space, by DataCube's request and the library, into this
-    user's model home (the test's own folder): what Studio would open."""
+    """A page's grids made classes, an association and a data space, by DataCube's model actions run headless, into
+    this user's model home (the test's own folder): what Studio would open."""
 
     def setUp(self):
-        home = tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))
-        self._home = os.environ.get('LEGEND_LITE_HOME')
-        os.environ['LEGEND_LITE_HOME'] = home
-        self.addCleanup(self._restore)
-        self.sdlc = model.local_sdlc()
-
-    def _restore(self):
-        if self._home is None:
-            os.environ.pop('LEGEND_LITE_HOME', None)
-        else:
-            os.environ['LEGEND_LITE_HOME'] = self._home
-
-    def files(self, ref):
-        revision = self.sdlc.revision(ref['project'], ref['workspace'])['id']
-        return {f['path']: f['pureCode'] for f in self.sdlc.pure(ref['project'], ref['workspace'], revision)}
+        _own_home(self)
 
     def test_a_grid_made_a_class_then_an_association_and_a_data_space(self):
         page = _page(self)
@@ -269,18 +315,47 @@ class OnThePage(unittest.TestCase):
         self.assertEqual((ref['workspace'], ref['package']), ('datacube', 'tradesByDesk'))
         self.assertTrue(ref['project'].startswith('datacube:trades-by-desk'), ref)
         self.assertEqual(ref['classes'], {trades._view['cube']: trade})
+        # pinned to the revision its class was saved as (page-model.ts pin): where its class grids are read
+        at = f'/projects/{_enc(ref["project"])}/workspaces/{_enc(ref["workspace"])}'
+        self.assertEqual(ref['revision'], _sdlc('GET', f'{at}/revisions/CURRENT')['id'])
+        # each change of the page's model a page command, as the screen tells it (page-model.ts PageModel's commands): a
+        # page open on it follows the commands, never reads the page whole (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P4)
+        self.assertEqual([c['kind'] for c in page._page_commands[-3:]], ['modelInto', 'modelPin', 'modelKeep'])
         desk = desks.create_class(columns={'desk': 'key'})
         self.assertEqual(desk, 'tradesByDesk::domain::ModelDesk')
         self.assertEqual(page.model['project'], ref['project'], "the page's one project")
+        self.assertNotEqual(page.model['revision'], ref['revision'], 'a class made: the page pinned to the new revision')
         # how many of each end: preset from whether its key is unique over its grid's rows, as the window presets it
-        association = page.create_association((trade, 'desk'), (desk, 'desk'), name='TradeDesk')
+        # (model-plans.ts keyUnique: read through the class's relation function, planned and run in this process)
+        with Fetches() as f:
+            association = page.create_association((trade, 'desk'), (desk, 'desk'), name='TradeDesk')
         self.assertEqual(association, 'tradesByDesk::domain::TradeDesk')
-        files = self.files(page.model)
+        (asked,) = [b for b in f.written('createAssociation') if 'association' in b]
+        self.assertEqual([e.get('unique') for e in asked['association']['ends']], [False, True])
+        files = _files(page.model)
         self.assertIn('Class tradesByDesk::domain::Trade', '\n'.join(files.values()))
         self.assertIn('Association tradesByDesk::domain::TradeDesk', '\n'.join(files.values()))
         space = page.create_data_space('TradesByDesk')
         self.assertTrue(space.endswith('TradesByDesk'), space)
-        self.assertIn('DataSpace', '\n'.join(self.files(page.model).values()))
+        self.assertIn('DataSpace', '\n'.join(_files(page.model).values()))
+
+    def test_a_joins_grid_made_a_class_over_both_its_tables(self):
+        # its base a query over two frames' tables (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): DataCube's action
+        # names both, with a sample of each, the writer writes both, and the page keeps both under the grid's cube
+        page = _page(self)
+        trades, desks = page.grids
+        joined = page.join(trades, desks, {'form': 'join', 'kind': 'left', 'prefix': 'd_', 'keep': None,
+                                           'on': {'rows': [{'left': 'desk', 'op': '==', 'right': 'desk'}]}})
+        with Fetches() as f:
+            path = joined.create_class('TradeDesk')
+        self.assertEqual(path, 'tradesByDesk::domain::TradeDesk')
+        samples = f.written('createClass')[-1]['class']['where']['samples']
+        self.assertEqual(sorted(samples), ['model_desks', 'model_trades'])
+        self.assertEqual(samples['model_desks']['rows'], [['FX', 'Ana'], ['EQ', 'Ben']])
+        self.assertEqual(page.model['tables'], {joined._view['cube']: ['model_trades', 'model_desks']})
+        files = '\n'.join(_files(page.model).values())
+        self.assertIn('Model_tradesSample', files)
+        self.assertIn('Model_desksSample', files)
 
     def test_a_grid_removed_after_its_class_takes_its_model_with_it(self):
         """A grid made a class, then removed: its table's name and its class leave the page's model with it, as DataCube
@@ -297,9 +372,9 @@ class OnThePage(unittest.TestCase):
         self.assertEqual(set(page.model['classes']), {kept})
 
     def test_a_class_sample_is_its_first_rows_as_datacube_writes_them(self):
-        # DataCube's own sample (sample-rows.ts sampleOf, headless gridClass), each value as its executor gives it: an
-        # integer past 2**53 as text, a decimal its digits at its scale, a date and a timestamp as text, a double as
-        # JavaScript writes it (a whole one an integer)
+        # DataCube's own sample (sample-rows.ts sampleOf, run by the action headless), each value as its executor gives
+        # it: an integer past 2**53 as text, a decimal its digits at its scale, a date and a timestamp as text, a double
+        # as JavaScript writes it (a whole one an integer)
         import datetime
         from decimal import Decimal
         page = ll.Page('Sampled')
@@ -309,11 +384,13 @@ class OnThePage(unittest.TestCase):
             'day': [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
             'at': [datetime.datetime(2024, 1, 1, 9, 30, 0, 120000), datetime.datetime(2024, 1, 2, 10, 0)],
             'flag': [True, None]}), name='sampled')
-        cls, asked = grid._class()
-        self.assertEqual(cls['where']['samples'][asked['table']['table']], {
+        self.addCleanup(datacube._session.unregister, 'sampled')
+        with Fetches() as f:
+            grid.create_class('Sampled')
+        self.assertEqual(f.written('createClass')[-1]['class']['where']['samples'], {'sampled': {
             'columns': ['desk', 'qty', 'big', 'notional', 'dec', 'day', 'at', 'flag'],
             'rows': [['FX', 1, str(2 ** 60), Decimal('1.5'), '12.30', '2024-01-01', '2024-01-01T09:30:00.12', True],
-                     ['EQ', 2, 3, 2, '1.05', '2024-01-02', '2024-01-02T10:00:00', None]]})
+                     ['EQ', 2, 3, 2, '1.05', '2024-01-02', '2024-01-02T10:00:00', None]]}})
 
     def test_a_sample_holding_a_nan_or_an_infinity_is_refused_never_written_as_null(self):
         # the sample goes to the route as JSON, which has no NaN or infinity: refused by DataCube's sampleOf, naming the
@@ -321,7 +398,7 @@ class OnThePage(unittest.TestCase):
         page = ll.Page('Odd values')
         nan = page.grid(pa.table({'desk': ['FX', 'EQ'], 'rate': pa.array([1.5, float('nan')])}), name='odd_nan')
         with self.assertRaisesRegex(ValueError, r"the sample's rate in row \d is NaN, which a class's data cannot hold"):
-            nan._class()
+            nan.create_class()
         infinite = page.grid(pa.table({'desk': ['FX'], 'rate': pa.array([float('-inf')])}), name='odd_infinite')
         with self.assertRaisesRegex(ValueError, r"the sample's rate in row 1 is -Infinity"):
             infinite.create_class('Odd')
@@ -341,10 +418,21 @@ class OnThePage(unittest.TestCase):
         # Python keeps no list of the roles: the writer judges them (CreateClass asOf). The project made before it stays
         # the page's (a project made stays the caller's when a later step fails); no class is written or kept
         page = _page(self)
-        with self.assertRaisesRegex(ll.LegendError, r"the column 'desk' is asked to be 'primary': a property, a key or omit"):
+        with self.assertRaisesRegex(ValueError, r"^legend-lite's createClass: .*the column 'desk' is asked to be 'primary': "
+                                                r'a property, a key or omit'):
             page.grids[0].create_class('Trade', columns={'desk': 'primary'})
         self.assertEqual(page.model['tables'], {})
-        self.assertNotIn('Class ', '\n'.join(self.files(page.model).values()))
+        self.assertNotIn('Class ', '\n'.join(_files(page.model).values()))
+
+    def test_what_a_model_action_is_given_is_read_by_datacube_in_its_words(self):
+        page = _page(self)
+        with self.assertRaisesRegex(ValueError, "a class's columns are its choices by column, not"):
+            page.grids[0].create_class('Trade', columns=['desk'])
+        self.assertIsNone(page.model, 'refused before anything was asked')
+        page.grids[0].create_class('Trade')
+        with self.assertRaisesRegex(ValueError, "an association's end names its class and what it is joined on"):
+            page.create_association(('a::A',), ('b::B', 'y'))
+        self.assertEqual(len(page.model['classes']), 1, 'the class made; the association refused before it was asked')
 
     def test_an_association_before_any_class_is_refused_in_words(self):
         with self.assertRaisesRegex(ValueError, 'make them first'):
@@ -358,16 +446,18 @@ class OnThePage(unittest.TestCase):
                          ['tradesByDesk::domain::ModelDesk', 'tradesByDesk::domain::ModelTrade'])
 
 
-class Record(unittest.TestCase):
-    """The cases recorded again, when asked (``MODEL_CHANGES_RECORD=1 bazel run //python:model_test``)."""
 
-    def test_record(self):
-        if not os.environ.get('MODEL_CHANGES_RECORD'):
-            self.skipTest('recorded only when asked: MODEL_CHANGES_RECORD=1 bazel run //python:model_test')
-        for frame in ('model_trades', 'model_desks'):
-            self.addCleanup(datacube._session.unregister, frame)
-        record(Path(os.environ['BUILD_WORKSPACE_DIRECTORY']) / 'model-changes' / 'test' / 'cases')
+class AtTheEnd(unittest.TestCase):
+    """A process that made DataCube's engine ends as it should: the engine is never kept alive by what it answers
+    DataCube's calls through (a weak method of its session's), so it is never left in a cycle with its session to be
+    collected as the interpreter ends -- where tearing V8 down crashed the process after every test had passed."""
 
+    def test_a_process_that_made_datacubes_engine_ends_cleanly(self):
+        import subprocess
+        code = 'from legend_lite import datacube\ndatacube._session.headless()\nprint("made")\n'
+        done = subprocess.run([sys.executable, '-c', code], env={**os.environ, 'PYTHONPATH': os.pathsep.join(sys.path)},
+                              capture_output=True, text=True, timeout=300)
+        self.assertEqual((done.returncode, done.stdout.strip()), (0, 'made'), done.stderr[-2000:])
 
 if __name__ == '__main__':
     unittest.main()

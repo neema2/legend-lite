@@ -199,12 +199,17 @@ def table_model(table: dict[str, Any]) -> dict[str, Any]:
     """The model for a table, from its catalog rows: the Database, its connection and runtime -- the one
     writer DataCube's tables and Python's frames share (the compiler's ``tableModelOrError``).
 
-    Takes ``{"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType",
-    "snapDatabaseType"?, "columns": [catalog rows]}``. Returns ``{"model", "runtime", "snapRuntime"?,
-    "source", "accessor", "conversions", "copySelectList"?, "excluded", "bitColumns"}``: ``model`` is Pure
-    text, ``source`` the relation that reads the table (a tree; ``accessor`` its text), ``copySelectList``
-    the select list a copy applies so it holds the declared types, written by the copy's own database (the snap's
-    store, or the table itself when ``convertible``; absent when the table is never copied)."""
+    Takes ``{"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "columns": [catalog
+    rows]}``. Returns ``{"model", "runtime", "source", "accessor", "conversions", "copySelectList"?, "excluded",
+    "bitColumns"}``: ``model`` is Pure text, ``source`` the relation that reads the table (a tree; ``accessor`` its
+    text), ``copySelectList`` the select list the table applies, rewritten in place so it holds the declared types,
+    written by its own database (``convertible``; absent when the table is never rewritten).
+
+    Given ``{"databaseType", "connection"? (default "host"), "tables": [{"table", "schema"?, "pkg"? (default
+    "local"), "convertible", "columns"}]}`` instead, the model of SEVERAL tables of one database (a join's inputs, read
+    in one place): each package's Database declaring its tables as each one's own model does, one connection, and a
+    runtime binding every Database to it. Returns ``{"model", "runtime", "tables": [{"source", "accessor",
+    "conversions", "excluded"}]}``, the tables in the order given; a table given twice is refused."""
     return _json.loads(_answer(library().call('lite_table_model', _json.dumps(table))))
 
 

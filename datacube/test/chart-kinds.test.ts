@@ -5,12 +5,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { element } from '../../pure-protocol/src/index.ts';
-import { chartProblems, chartSnapshot, drillLevels, followCube, type ChartSpec } from '../src/chart-spec.ts';
-import { chartOption, kpiDrawing, type ChartDrawing, type GridShown } from '../src/chart-option.ts';
+import { element, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
+import { AXIS_UPPER, boxMeasures, chartProblems, chartSnapshot, drillLevels, editChart, followCube, type ChartSpec } from '../src/chart-spec.ts';
+import { chartOption, describe as describeChart, kpiDrawing, type ChartDrawing, type GridShown } from '../src/chart-option.ts';
 import { facetOption, gridKindOption, kindOption } from '../src/chart-kinds.ts';
-import { paretoName, ringTotalName, waterfallNames } from '../src/calc-presets.ts';
+import { grainName, marimekkoNames, paretoName, ringTotalName, waffleNames, waterfallNames } from '../src/calc-presets.ts';
 import * as echarts from 'echarts/core';
+import { JSDOM } from 'jsdom';
+import { paintChartForm } from '../src/ui/chart-form.ts';
 import { SVGRenderer } from 'echarts/renderers';
 import '../src/chart-render.ts';
 import '../src/chart-render-kinds.ts';
@@ -455,3 +457,308 @@ describe('a KPI by a period', () => {
   });
 });
 
+
+describe('batch 4: a box plot, its five figures the database\'s', () => {
+  const BOX = of('boxplot', { y: boxMeasures('revenue') });
+  const problems = (spec: ChartSpec) => chartProblems(spec, CUBE).join(' ');
+  it('plots its one number column\'s five figures, in order; one series; no show-as', () => {
+    assert.deepEqual(chartProblems(BOX, CUBE), []);
+    assert.match(problems(of('boxplot')), /five figures of one column/);
+    assert.match(problems(of('boxplot', { y: [...boxMeasures('revenue')].reverse() })), /five figures go in order/);
+    assert.match(problems(of('boxplot', { y: [...boxMeasures('revenue').slice(0, 4), { column: 'cost', fn: 'max' }] })), /five figures of one column/);
+    assert.match(problems(of('boxplot', { y: boxMeasures('channel') })), /'channel' is not a number: it has no quartiles/);
+    assert.match(problems({ ...BOX, split: 'channel' }), /A box plot draws one series/);
+    assert.match(problems({ ...BOX, y: BOX.y.map((m) => ({ ...m, showAs: { kind: 'rank' as const } })) }), /computes its own figures/);
+  });
+  it('a chart told the kind takes its first value\'s column\'s five figures; a group-level column has none', () => {
+    const made = editChart(of('bar', { y: [{ column: 'cost', fn: 'sum' }] }), { mark: 'boxplot' }, CUBE);
+    assert.deepEqual(made.y, boxMeasures('cost'));
+    assert.deepEqual(chartProblems(made, CUBE), []);
+    const group = editChart(of('bar', { y: [{ column: 'margin', fn: 'value' }] }), { mark: 'boxplot' }, CUBE);
+    assert.deepEqual(group.y, [{ column: 'margin', fn: 'value' }]);
+    assert.match(chartProblems(group, CUBE).join(' '), /five figures of one column/);
+  });
+  it('asks the database for each figure per category, ordered by its median; keeps its five as the cube regroups; drills', () => {
+    const s = chartSnapshot(CUBE, BOX);
+    assert.deepEqual(s.measures?.map((m) => `${m.name}:${m.fn}`), [
+      'min_revenue:min', 'percentile25_revenue:percentile25', 'median_revenue:median',
+      'percentile75_revenue:percentile75', 'max_revenue:max',
+    ]);
+    assert.deepEqual(s.sorts, [{ column: 'median_revenue', direction: 'desc' }, { column: 'region', direction: 'asc' }]);
+    const followed = followCube({ ...BOX, x: 'channel' }, CUBE);
+    assert.equal(followed.x, 'region');
+    assert.deepEqual(followed.y, BOX.y);
+    assert.deepEqual(drillLevels(BOX, CUBE), ['region', 'channel']);
+  });
+  it('is drawn: a box per category, whiskers to the least and the most; a category with no numbers has no box', () => {
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC', 'LATAM'] },
+      { name: 'min_revenue', type: 'Float', values: [10, 5, null] },
+      { name: 'percentile25_revenue', type: 'Float', values: [20, 15, null] },
+      { name: 'median_revenue', type: 'Float', values: [30, 25, null] },
+      { name: 'percentile75_revenue', type: 'Float', values: [40, 35, null] },
+      { name: 'max_revenue', type: 'Float', values: [90, 45, null] },
+    ]);
+    const d = kindOption(BOX, rows);
+    const series = (d.option as { series: { type: string; data: { value: unknown[] }[] }[] }).series;
+    assert.equal(series[0]?.type, 'boxplot');
+    assert.deepEqual(series[0]?.data.map((b) => b.value), [[10, 20, 30, 40, 90], [5, 15, 25, 35, 45], ['-', '-', '-', '-', '-']]);
+    const out = svg(d);
+    assert.ok(out.includes('EMEA') && out.includes('APAC'));
+    assert.deepEqual(d.keyAt(0, 1), { region: 'APAC' });
+    const tip = (d.option as { tooltip: { formatter: (p: unknown) => string } }).tooltip.formatter({ dataIndex: 0, data: { ci: 0 } });
+    assert.match(tip, /least: <b>10<\/b>.*first quartile: <b>20<\/b>.*median: <b>30<\/b>.*third quartile: <b>40<\/b>.*most: <b>90<\/b>/);
+    assert.match(describeChart(BOX, rows), /^Box plot of the spread of revenue by region: 3 rows\.$/);
+    // side on: the categories down, the values across
+    const side = kindOption({ ...BOX, options: { ...OPTIONS, orientation: 'horizontal' } }, rows);
+    assert.equal((side.option as { yAxis: { type: string } }).yAxis.type, 'category');
+    assert.ok(svg(side).includes('EMEA'));
+  });
+});
+
+describe('the phase 5 audit: what each fix pins', () => {
+  const BOX = of('boxplot', { y: boxMeasures('revenue') });
+  const problems = (spec: ChartSpec) => chartProblems(spec, CUBE).join(' ');
+  it('a chart\'s own calculated number column has quartiles, as the form offers it', () => {
+    const calc = { stage: 'row' as const, column: {
+      name: 'double', lambda: lambda(['x'], fn('times', property(variable('x'), 'revenue'), { _type: 'integer', value: 2 } as never)),
+      type: 'Float',
+    } };
+    assert.deepEqual(chartProblems({ ...BOX, y: boxMeasures('double'), calcs: [calc] }, CUBE), []);
+  });
+  it('a box plot by month or by bins says each box\'s end, so its click filters to the period', () => {
+    const across = grainName('sold', 'month');
+    const rows = table([
+      { name: across, type: 'StrictDate', values: ['2024-01-01', '2024-02-01'] },
+      ...boxMeasures('revenue').map((m, k) => ({ name: `${m.fn}_revenue`, type: 'Float', values: [10 + k, 20 + k] })),
+      { name: AXIS_UPPER, type: 'StrictDate', values: ['2024-02-01', '2024-03-01'] },
+    ]);
+    const d = kindOption({ ...BOX, x: 'sold', grain: 'month' }, rows);
+    assert.equal(d.upperAt?.(1, { ci: 1 }), '2024-03-01');
+    assert.equal(d.upperAt?.(0), '2024-02-01');
+    // a calendar's day says its category itself: its index is within its year's series
+    const days = table([
+      { name: grainName('sold', 'day'), type: 'StrictDate', values: ['2023-12-31', '2024-01-01'] },
+      { name: 'sum_revenue', type: 'Float', values: [1, 2] },
+      { name: AXIS_UPPER, type: 'StrictDate', values: ['2024-01-01', '2024-01-02'] },
+    ]);
+    const cal = kindOption(of('calendar', { x: 'sold', grain: 'day' }), days);
+    assert.equal(cal.upperAt?.(0, { ci: 1 }), '2024-01-02');
+  });
+  it('a box plot taking a kind of one value keeps its median; a kind of several keeps the five, for its rules', () => {
+    assert.deepEqual(editChart(BOX, { mark: 'bar' }, CUBE).y, [{ column: 'revenue', fn: 'median' }]);
+    assert.deepEqual(editChart(BOX, { mark: 'pie' }, CUBE).y, [{ column: 'revenue', fn: 'median' }]);
+    assert.deepEqual(editChart(BOX, { mark: 'dumbbell' }, CUBE).y, BOX.y);
+  });
+  it('a pie, a lollipop, a KPI and a heatmap draw one value: a second is refused, never asked and left undrawn', () => {
+    const two = [REVENUE_SUM, { column: 'cost', fn: 'sum' } as const];
+    for (const mark of ['pie', 'lollipop', 'kpi', 'heatmap'] as const) {
+      assert.match(problems(of(mark, { y: two, ...(mark === 'heatmap' ? { split: 'channel' } : {}) })), /plots one value/, mark);
+    }
+  });
+  it('the form of a box plot picks its column -- its five figures with it -- and offers no aggregate and no values to show', () => {
+    const doc = new JSDOM('<!doctype html><div id="form"></div>').window.document;
+    const form = doc.getElementById('form')!;
+    let spec: ChartSpec = BOX;
+    paintChartForm({
+      doc, spec: () => spec, snapshot: () => CUBE, setOption: () => undefined,
+      set: (change) => { spec = editChart(spec, change, CUBE); },
+    }, form);
+    const labels = [...form.querySelectorAll('.dc-field-label')].map((l) => l.textContent);
+    assert.ok(labels.includes('Value:') && !labels.includes('Aggregate:'), labels.join(' '));
+    assert.ok(!(form.textContent ?? '').includes('Show values'));
+    const value = [...form.querySelectorAll('.dc-field')].find((f) => f.querySelector('.dc-field-label')?.textContent === 'Value:')!
+      .querySelector('select')!;
+    value.value = 'cost';
+    value.dispatchEvent(new doc.defaultView!.Event('change'));
+    assert.deepEqual(spec.y, boxMeasures('cost'));
+  });
+  it('the five figures in another order, or carrying a mark or an axis, are refused in their own words', () => {
+    const swapped = [BOX.y[1]!, BOX.y[0]!, ...BOX.y.slice(2)];
+    assert.match(problems({ ...BOX, y: swapped }), /five figures go in order: min, percentile25, median, percentile75, max/);
+    const placed = { ...BOX, y: BOX.y.map((m) => ({ ...m, axis: 'left' as const })) };
+    assert.deepEqual(chartProblems(placed, CUBE), ['A box plot draws its five figures as one box: a value\'s own mark or axis has no place on it.']);
+  });
+});
+
+describe('batch 3\'s leftovers: a Marimekko and a waffle (shares as cells, the database\'s), and a Gantt', () => {
+  const problems = (spec: ChartSpec) => chartProblems(spec, CUBE).join(' ');
+  const MEKKO = of('marimekko', { split: 'channel', options: { ...OPTIONS, sort: { by: 'x', direction: 'asc' } } });
+  const GANTT = of('gantt', { y: [{ column: 'day', fn: 'min' }, { column: 'day', fn: 'max' }], options: { ...OPTIONS, sort: { by: 'y', direction: 'asc' } } });
+  it('their rules: a Marimekko\'s split, its order across and one value; a waffle\'s one value; a Gantt\'s two dates', () => {
+    assert.deepEqual(chartProblems(MEKKO, CUBE), []);
+    const { split: _split, ...unsplit } = MEKKO;
+    assert.match(problems(unsplit), /what each of its columns is made of/);
+    assert.match(problems({ ...MEKKO, options: OPTIONS }), /order by category/);
+    assert.match(problems({ ...MEKKO, y: [REVENUE_SUM, { column: 'cost', fn: 'sum' }] }), /A Marimekko plots one value/);
+    assert.deepEqual(chartProblems(of('waffle'), CUBE), []);
+    assert.match(problems(of('waffle', { split: 'channel' })), /A waffle draws one series/);
+    assert.match(problems(of('waffle', { y: [REVENUE_SUM, { column: 'cost', fn: 'sum' }] })), /A waffle plots one value/);
+    assert.match(problems(of('waffle', { y: [{ ...REVENUE_SUM, showAs: { kind: 'rank' } }] })), /computes its own figures/);
+    assert.deepEqual(chartProblems(GANTT, CUBE), []);
+    assert.match(problems(of('gantt')), /two values, each the min or max of a date column/);
+    assert.match(problems({ ...GANTT, y: [{ column: 'day', fn: 'min' }, { column: 'revenue', fn: 'max' }] }), /each the min or max of a date column/);
+    assert.match(problems({ ...GANTT, y: [{ column: 'day', fn: 'min' }, { column: 'day', fn: 'unique' }] }), /each the min or max of a date column/);
+  });
+  it('a chart told the kind takes its order: a Marimekko across, a Gantt from the earliest start', () => {
+    assert.deepEqual(editChart(of('bar', { split: 'channel' }), { mark: 'marimekko' }, CUBE).options.sort, { by: 'x', direction: 'asc' });
+    assert.deepEqual(editChart(of('bar'), { mark: 'gantt' }, CUBE).options.sort, { by: 'y', direction: 'asc' });
+    // and keeps it as its column across changes, as Python's grid.chart(mark, x=...) tells both at once
+    assert.deepEqual(editChart(of('bar', { split: 'channel' }), { mark: 'marimekko', x: 'channel', split: 'region' }, CUBE).options.sort,
+      { by: 'x', direction: 'asc' });
+    assert.deepEqual(editChart(of('bar'), { mark: 'gantt', x: 'channel' }, CUBE).options.sort, { by: 'y', direction: 'asc' });
+  });
+  it('the database computes each cell: a Marimekko\'s four edges, a waffle\'s range of cells along the chart\'s order', () => {
+    const m = chartSnapshot(CUBE, MEKKO);
+    const names = marimekkoNames('sum_revenue');
+    for (const n of [names.x0, names.x1, names.y0, names.y1, names.width]) assert.ok(m.groupDerived?.some((d) => d.name === n), n);
+    const running = m.groupDerived?.find((d) => d.name === `${names.x0}__running`);
+    assert.deepEqual(running?.window?.order, [{ column: 'region', direction: 'asc' }, { column: 'channel', direction: 'asc' }]);
+    const w = chartSnapshot(CUBE, of('waffle'));
+    const { from, to } = waffleNames('sum_revenue');
+    assert.ok(w.groupDerived?.some((d) => d.name === from) && w.groupDerived?.some((d) => d.name === to));
+    assert.deepEqual(w.groupDerived?.find((d) => d.name === `${to}__running`)?.window?.order,
+      [{ column: 'sum_revenue', direction: 'desc' }, { column: 'region', direction: 'asc' }]);
+  });
+  it('a Marimekko drawn: a cell per row from its edges, a series per part, each cell\'s click its column and part', () => {
+    const n = marimekkoNames('sum_revenue');
+    const rows = table([
+      { name: 'region', type: 'String', values: ['AMER', 'AMER', 'EMEA'] },
+      { name: 'channel', type: 'String', values: ['Online', 'Store', 'Online'] },
+      { name: 'sum_revenue', type: 'Float', values: [300, 100, 400] },
+      { name: n.x0, type: 'Float', values: [0, 0, 0.5] },
+      { name: n.x1, type: 'Float', values: [0.5, 0.5, 1] },
+      { name: n.y0, type: 'Float', values: [0, 0.75, 0] },
+      { name: n.y1, type: 'Float', values: [0.75, 1, 1] },
+    ]);
+    const d = kindOption(MEKKO, rows);
+    const series = (d.option as { series: { name: string; data: { value: number[]; key?: object }[] }[] }).series;
+    assert.deepEqual(series.slice(0, 2).map((x) => [x.name, x.data.map((c) => c.value)]), [
+      ['Online', [[0, 0.5, 0, 0.75], [0.5, 1, 0, 1]]],
+      ['Store', [[0, 0.5, 0.75, 1]]],
+    ]);
+    assert.deepEqual(d.keyAt(1, 0, series[1]!.data[0]), { region: 'AMER', channel: 'Store' });
+    const out = svg(d);
+    assert.ok(out.includes('AMER') && out.includes('EMEA'), 'each column named under it');
+  });
+  it('a waffle drawn: each category the cells of its range; a category with none said', () => {
+    const { from, to } = waffleNames('sum_revenue');
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC', 'LATAM'] },
+      { name: 'sum_revenue', type: 'Float', values: [600, 400, 0] },
+      { name: from, type: 'Integer', values: [0, 60, 100] },
+      { name: to, type: 'Integer', values: [60, 100, 100] },
+    ]);
+    const d = kindOption(of('waffle'), rows);
+    const series = (d.option as { series: { name: string; data: { value: number[]; ci: number }[] }[] }).series;
+    assert.deepEqual(series.map((x) => x.data.length), [60, 40, 0]);
+    assert.deepEqual(series[1]!.data[0]!.value, [0, 6], 'the 61st cell: the seventh row\'s first');
+    assert.match(d.notes.join(' '), /1 category fills no cell .*: LATAM/);
+    assert.deepEqual(d.keyAt(1, 3, series[1]!.data[3]), { region: 'APAC' });
+    // a hundred cells drawn: the SVG's shapes beyond those of the waffle drawn with none
+    const shapes = (out: string): number => out.split('<path').length;
+    const bare = { ...d, option: { ...(d.option as object), series: series.map((x) => ({ ...x, data: [] })) } } as ChartDrawing;
+    assert.equal(shapes(svg(d)) - shapes(svg(bare)), 100);
+  });
+  it('a Gantt drawn: each row a bar from its start to its end on a time axis; a row with no end said', () => {
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC', 'AMER'] },
+      { name: 'min_day', type: 'StrictDate', values: ['2024-01-15', '2024-02-01', '2024-03-01'] },
+      { name: 'max_day', type: 'StrictDate', values: ['2024-03-05', '2024-02-20', null] },
+    ]);
+    const d = kindOption(GANTT, rows);
+    const option = d.option as { xAxis: { type: string }; series: { data: { value: number[]; ci: number }[] }[] };
+    assert.equal(option.xAxis.type, 'time');
+    assert.deepEqual(option.series[0]!.data.map((b) => [b.ci, b.value[1], b.value[2]]), [
+      [0, new Date(2024, 0, 15).getTime(), new Date(2024, 2, 5).getTime()],
+      [1, new Date(2024, 1, 1).getTime(), new Date(2024, 1, 20).getTime()],
+    ]);
+    assert.match(d.notes.join(' '), /1 row has no start or no end: AMER/);
+    assert.deepEqual(d.keyAt(0, 1, option.series[0]!.data[1]), { region: 'APAC' });
+    assert.ok(svg(d).includes('EMEA'));
+  });
+});
+
+describe('the phase 7 audit: what each fix pins', () => {
+  const MEKKO = of('marimekko', { split: 'channel', options: { ...OPTIONS, sort: { by: 'x', direction: 'asc' } } });
+  it('a Marimekko cell knows its category: a click on a period filters to that period\'s end; its names are the axis\'s', () => {
+    const n = marimekkoNames('sum_revenue');
+    const across = grainName('day', 'month');
+    const rows = table([
+      { name: across, type: 'StrictDate', values: ['2024-01-01', '2024-02-01', '2024-02-01'] },
+      { name: 'channel', type: 'String', values: ['Online', 'Online', 'Store'] },
+      { name: 'sum_revenue', type: 'Float', values: [1, 1, 2] },
+      { name: n.x0, type: 'Float', values: [0, 0.25, 0.25] },
+      { name: n.x1, type: 'Float', values: [0.25, 1, 1] },
+      { name: n.y0, type: 'Float', values: [0, 0, 0.33] },
+      { name: n.y1, type: 'Float', values: [1, 0.33, 1] },
+      { name: AXIS_UPPER, type: 'StrictDate', values: ['2024-02-01', '2024-03-01', '2024-03-01'] },
+    ]);
+    const d = kindOption({ ...MEKKO, x: 'day', grain: 'month' }, rows);
+    const series = (d.option as { series: { data: { ci?: number; text?: string }[] }[]; xAxis: { axisLabel: { show: boolean } } }).series;
+    // the Store cell is its series' first, in February's column
+    assert.equal(d.upperAt?.(0, series[1]!.data[0]), '2024-03-01');
+    assert.deepEqual(series[2]!.data.map((c) => c.text), ['Jan 2024', 'Feb 2024']);
+    assert.equal((d.option as { xAxis: { axisLabel: { show: boolean } } }).xAxis.axisLabel.show, false);
+  });
+  it('a waffle or a Marimekko of values below zero, or a whole of nothing, says so rather than drawing a wrong whole', () => {
+    const { from, to } = waffleNames('sum_revenue');
+    const negative = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC'] },
+      { name: 'sum_revenue', type: 'Float', values: [50, -20] },
+      { name: from, type: 'Integer', values: [0, 100] },
+      { name: to, type: 'Integer', values: [100, 70] },
+    ]);
+    assert.deepEqual(kindOption(of('waffle'), negative).notes, ['A waffle shows parts of a whole: 1 value is below zero.']);
+    const nothing = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC'] },
+      { name: 'sum_revenue', type: 'Float', values: [0, 0] },
+      { name: from, type: 'Integer', values: [0, null] },
+      { name: to, type: 'Integer', values: [null, null] },
+    ]);
+    assert.deepEqual(kindOption(of('waffle'), nothing).notes, ['The values add up to nothing: a waffle has no hundred to share.']);
+    const n = marimekkoNames('sum_revenue');
+    const mekko = table([
+      { name: 'region', type: 'String', values: ['EMEA'] }, { name: 'channel', type: 'String', values: ['Online'] },
+      { name: 'sum_revenue', type: 'Float', values: [-1] },
+      ...[n.x0, n.x1, n.y0, n.y1].map((name) => ({ name, type: 'Float', values: [0] })),
+    ]);
+    assert.deepEqual(kindOption(MEKKO, mekko).notes, ['A Marimekko shows parts of a whole: 1 value is below zero.']);
+  });
+  it('a Gantt of a time of day is refused; one that ends before it starts is said', () => {
+    const timed: CubeSnapshot = { ...CUBE, columns: [...CUBE.columns, { name: 'at', type: 'StrictTime' }] };
+    assert.match(chartProblems(of('gantt', { y: [{ column: 'at', fn: 'min' }, { column: 'at', fn: 'max' }] }), timed).join(' '), /min or max of a date column/);
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA'] },
+      { name: 'min_day', type: 'StrictDate', values: ['2024-03-01'] },
+      { name: 'max_day', type: 'StrictDate', values: ['2024-01-01'] },
+    ]);
+    const gantt = of('gantt', { y: [{ column: 'day', fn: 'min' }, { column: 'day', fn: 'max' }] });
+    assert.match(kindOption(gantt, rows).notes.join(' '), /1 row ends before it starts: EMEA/);
+  });
+  it('a map taking a Marimekko or a Gantt takes the kind\'s order (the options built once)', () => {
+    const map: ChartSpec = of('map', { x: 'region', options: { ...OPTIONS, limit: 250 } });
+    const mekko = editChart(map, { mark: 'marimekko', split: 'channel' }, CUBE);
+    assert.deepEqual([mekko.options.sort, mekko.options.limit], [{ by: 'x', direction: 'asc' }, 50]);
+    assert.deepEqual(editChart(map, { mark: 'gantt' }, CUBE).options.sort, { by: 'y', direction: 'asc' });
+  });
+  it('the form: no values to show on these kinds, no legend on a Gantt, and its start a date column\'s least', () => {
+    const doc = new JSDOM('<!doctype html><div id="form"></div>').window.document;
+    const form = doc.getElementById('form')!;
+    let spec: ChartSpec = { ...of('bar'), mark: 'gantt', y: [{ column: 'revenue', fn: 'sum' }] };
+    paintChartForm({ doc, spec: () => spec, snapshot: () => CUBE, setOption: () => undefined,
+      set: (change) => { spec = editChart(spec, change, CUBE); } }, form);
+    const labels = [...form.querySelectorAll('.dc-field-label')].map((l) => l.textContent);
+    assert.ok(!labels.includes('Legend:') && !(form.textContent ?? '').includes('Show values'), labels.join(' '));
+    const start = [...form.querySelectorAll('.dc-field')].find((f) => f.querySelector('.dc-field-label')?.textContent === 'Start:')!
+      .querySelector('select')!;
+    start.value = 'day';
+    start.dispatchEvent(new doc.defaultView!.Event('change'));
+    assert.deepEqual(spec.y[0], { column: 'day', fn: 'min' });
+    for (const mark of ['marimekko', 'waffle'] as const) {
+      const f = doc.createElement('div');
+      paintChartForm({ doc, spec: () => of(mark, { split: 'channel' }), snapshot: () => CUBE, setOption: () => undefined, set: () => undefined }, f);
+      assert.ok(!(f.textContent ?? '').includes('Show values'), mark);
+    }
+  });
+});

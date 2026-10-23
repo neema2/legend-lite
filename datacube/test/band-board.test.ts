@@ -300,6 +300,38 @@ describe('the band board', () => {
     wellFormed(board);
   });
 
+  it('says what the hand did when it is a page command of its own: a lone tile stacked, a preset picked (P14)', () => {
+    const moves: unknown[] = [];
+    const board = new BandBoard(host, { onChange: (_layout, _before, move) => moves.push(move) });
+    for (const id of ['a', 'b', 'c']) board.add(tile(id));
+    board.setLayout({ fit: false, bands: [{ height: 0.5, node: { split: 'row', parts: ['a', 'b', 'c'].map((id) => ({ node: { tile: id }, size: 1 / 3 })) } }] });
+    const head = (id: string) => root(id).querySelector<HTMLElement>('.dc-tile-head')!;
+    // a onto c's middle: stacked where c is
+    pointer(head('a'), 'pointerdown', 50, 10);
+    pointer(head('a'), 'pointerup', 840, 150);
+    assert.deepEqual(moves.at(-1), { kind: 'stack', tiles: ['c', 'a'] });
+    // a tab dragged out of that stack onto b's middle: no stack of the two (stackTiles would carry the whole stack)
+    const tabOf = (id: string): HTMLElement => [...host.querySelectorAll<HTMLElement>('.dc-tile-tab')]
+      .find((t) => t.dataset['tab'] === id && !(t.closest('.dc-tile-tabs') as HTMLElement).hidden)!;
+    pointer(tabOf('c'), 'pointerdown', 700, 10);
+    pointer(tabOf('c'), 'pointermove', 400, 200);
+    const out = root('c').querySelector<HTMLElement>('.dc-tile-head')!;
+    pointer(out, 'pointermove', 250, 150);
+    pointer(out, 'pointerup', 250, 150);
+    assert.equal(moves.length, 2, 'the drop changed the layout');
+    assert.equal(moves.at(-1), undefined, 'told as the layout');
+    // a divider or a drop beside a tile: the layout
+    pointer(head('a'), 'pointerdown', 750, 10);
+    pointer(head('a'), 'pointerup', 5, 300);
+    assert.equal(moves.length, 3);
+    assert.equal(moves.at(-1), undefined);
+    // a preset: its name, and the tile put first
+    board.arrange('stacked', 'b');
+    assert.deepEqual(moves.at(-1), { kind: 'arrange', preset: 'stacked', first: 'b' });
+    board.arrange('side-by-side');
+    assert.deepEqual(moves.at(-1), { kind: 'arrange', preset: 'side-by-side' });
+  });
+
   it('a tab dragged off its strip carries its tile out of the stack (the rest stay stacked); Escape leaves it', () => {
     const { board, changes } = sideBySide(['a', 'b', 'c']);
     board.setLayout({ fit: false, bands: [{ height: 0.5, node: { stack: ['a', 'b', 'c'] } }] });

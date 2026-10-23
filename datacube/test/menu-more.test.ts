@@ -7,9 +7,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  applyMenuAction,
   buildMenu,
   calcStageOf,
+  menuGesture,
   menuItems,
   valueLabel,
   type MenuContext,
@@ -17,6 +17,8 @@ import {
 } from '../src/ui/menu.ts';
 import { CubeRefusal, pivotTotalColumn, type CubeSnapshot, type FilterNode } from '../src/snapshot.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
+import { applyGridCommands, type GridCommand } from '../src/grid-commands.ts';
+import { gridGestureGiven } from '../src/grid-gestures.ts';
 import { element, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
 
 // grouped by region, pivoted by year: the menu test's own cube
@@ -56,8 +58,19 @@ const labels = (list: readonly MenuItem[]): string[] => list.map((i) => `${i.lab
 const submenu = (ctx: MenuContext, verb: string): MenuItem[] =>
   [...(buildMenu(ctx).flatMap((g) => g.items).find((i) => i.label === verb)?.submenu ?? [])];
 
-const apply = (s: CubeSnapshot, item: Omit<MenuItem, 'label'>): CubeSnapshot =>
-  applyMenuAction(s, { label: '', ...item }, DEFAULT_CONFIGURATION);
+/** A menu entry made as the grid makes it (app.ts #onMenuAction): its gesture (menuGesture, grid-gestures.ts gridGesture,
+ *  the one Python's grid.gesture asks), its commands applied -- the very same grid when it makes none. */
+const menuCommands = (s: CubeSnapshot, item: MenuItem): GridCommand[] | null => {
+  const gesture = menuGesture(item);
+  return gesture === null ? null
+    : gridGestureGiven(gesture.name, { snapshot: s, config: DEFAULT_CONFIGURATION, dimensions: [], view: null }, gesture.args);
+};
+const applyMenuAction = (s: CubeSnapshot, item: MenuItem): CubeSnapshot => {
+  const commands = menuCommands(s, item);
+  return commands === null || commands.length === 0 ? s
+    : applyGridCommands({ snapshot: s, config: DEFAULT_CONFIGURATION }, commands).snapshot;
+};
+const apply = (s: CubeSnapshot, item: Omit<MenuItem, 'label'>): CubeSnapshot => applyMenuAction(s, { label: '', ...item });
 
 describe('a calculated column\'s own entries (Extended Columns)', () => {
   it('a calculated column says its stage; a source column, or none the cube has, says none', () => {
@@ -195,24 +208,26 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
   });
 });
 
-describe('applying an entry to the grid (applyMenuAction)', () => {
+describe('applying an entry to the grid (its gesture)', () => {
   const SORTED: CubeSnapshot = {
     ...CUBE, sorts: [{ column: 'region', direction: 'asc' }, { column: 'desk', direction: 'desc' }, { column: 'notional', direction: 'asc' }],
   };
 
   it('Clear Sort takes the column\'s sort away, the others kept in order; Clear All Sorts takes every one', () => {
+    // by the one rule Python's clear_sort asks (a clearSort command: grid-edits.ts clearSort), not a list the menu makes
+    assert.deepEqual(menuCommands(SORTED, { id: 'sort.clearColumn', label: '', column: 'desk' }), [{ kind: 'clearSort', column: 'desk' }]);
     assert.deepEqual(apply(SORTED, { id: 'sort.clearColumn', column: 'desk' }).sorts,
       [{ column: 'region', direction: 'asc' }, { column: 'notional', direction: 'asc' }]);
     assert.deepEqual(apply(SORTED, { id: 'sort.clearAll' }).sorts, []);
   });
 
-  it('a column entry with no column changes nothing: the very same grid, so nothing is asked again', () => {
+  it('a column entry with no column is refused in words, nothing changed (the menu offers none: disabled)', () => {
     for (const id of ['sort.asc', 'sort.addDesc', 'sort.clearColumn', 'pivot.vertical', 'pivot.addVertical', 'pivot.removeVertical',
       'pivot.horizontal', 'pivot.addHorizontal', 'pivot.removeHorizontal', 'filter.add'] as const) {
-      assert.equal(apply(SORTED, { id }), SORTED, id);
+      assert.throws(() => apply(SORTED, { id }), (e: unknown) => e instanceof CubeRefusal && /needs column/.test(e.message), id);
     }
     // a filter with no operator is no filter
-    assert.equal(apply(SORTED, { id: 'filter.add', column: 'region', value: 'EMEA' }), SORTED);
+    assert.throws(() => apply(SORTED, { id: 'filter.add', column: 'region', value: 'EMEA' }), /'filter.add' needs operator/);
   });
 
   it('Add Filter adds: alone it is the filter; beside one it is AND-ed; to an AND it joins it, flat', () => {
@@ -232,12 +247,12 @@ describe('applying an entry to the grid (applyMenuAction)', () => {
     const offered = items({ snapshot: CUBE, column: 'region', columnType: 'String', value: 'EMEA' })
       .find((i) => i.label === 'Add Filter: region does not start with \'EMEA\'');
     assert.ok(offered);
-    assert.deepEqual(applyMenuAction(CUBE, offered, DEFAULT_CONFIGURATION).filter,
+    assert.deepEqual(applyMenuAction(CUBE, offered).filter,
       { kind: 'condition', column: 'region', operator: 'notStartsWith', value: 'EMEA' });
     const blank = items({ snapshot: CUBE, column: 'region', columnType: 'String', value: null })
       .find((i) => i.label === 'Add Filter: region is null');
     assert.ok(blank);
-    const filter = applyMenuAction(CUBE, blank, DEFAULT_CONFIGURATION).filter;
+    const filter = applyMenuAction(CUBE, blank).filter;
     assert.deepEqual(filter, { kind: 'condition', column: 'region', operator: 'isEmpty' });
     assert.ok(filter && !('value' in filter), 'no value key: a null predicate takes none');
   });
