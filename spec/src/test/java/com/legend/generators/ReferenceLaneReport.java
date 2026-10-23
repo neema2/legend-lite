@@ -59,6 +59,14 @@ public final class ReferenceLaneReport {
         Files.writeString(out.resolve(MODULE + ".txt"), report(dump, join, pin(pins, "LEGEND_PURE_RELEASE"),
                 pin(pins, "LEGEND_ENGINE_RELEASE")), StandardCharsets.UTF_8);
         Files.writeString(out.resolve(MODULE + "-examples.tsv"), examples(join), StandardCharsets.UTF_8);
+        Files.writeString(out.resolve(MODULE + "-failures.tsv"), failures(dump), StandardCharsets.UTF_8);
+    }
+
+    /** Why each body failed, one line each (diagnostic, unpinned: a message may change without a verdict changing). */
+    static String failures(OurResolutions.Result dump) {
+        StringBuilder sb = new StringBuilder("function\treason\n");
+        dump.failureReasons().forEach((fn, why) -> sb.append(fn).append('\t').append(why).append('\n'));
+        return sb.toString();
     }
 
     private static String pin(Map<String, String> pins, String key) {

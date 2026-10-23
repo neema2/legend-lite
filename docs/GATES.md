@@ -12553,3 +12553,59 @@ one against the code and the references before anything changed; what follows is
    - `//gates:parser_equivalence`: 3 of 3. The JSON door: the engine collection 7,085 matched and the same 4 failed,
      rule A 116 written and the same 10 refused, now listed text by text (126 rows); lite's projects 167 of 167; the
      showcase 123 of 123. Own corpus 2,976 matched (the new tests' models).
+
+## 2026-10-22 — the reference lane re-blessed: main's drift traced, PR #65's lines, and the first cause its failures name (a parameterized class meets a class of another raw)
+
+The user, before PR #65 merged: "Are we nervous about anything in the heavy lane that we should run before we merge
+this PR?" The heavy suite's `//spec:update_reference_lane_test` was red on main: its golden, blessed at e21c7ed75, was
+53 lines from main's own build (the 2026-10-21 entries above recorded it, and no one re-blessed it). After the merge:
+"What's the reference lane, let's def fix that", and of the failures: "maybe it's a quick fix that we just know how to
+do".
+
+1. **Where main's 53 lines came from.** A bisect over main's first parents, each step building the report and
+   comparing it with the golden: e21c7ed75 builds its golden byte for byte; the first merge whose report differs is
+   PR #58, the Cypher island (797531cac); the merge before it (6b729c264) builds the golden. Within PR #58, three
+   commits, each an improvement of its own landing, nothing regressed:
+   - 31b3680c4 (stored times of day, W5 leg 1): one more function, which only ours types;
+   - a80499291 (a property typed two ways, W7): four more of the engine's bodies typed --
+     `reOrderAndMergeRelationTree`, `mergeChildPropertyPathTreeNodes`, `mergePropertyPaths`,
+     `getDistinctClusterVSByStore` -- AGREE +74, ABSENT +54, EXTRA +11;
+   - f2c665f9a (stored nanosecond times, W5 leg 2a): one more function.
+   From f2c665f9a to main adcb420b7 the report does not move.
+2. **PR #65's 6 lines:** 50 more functions and bodies, only ours (the lifted defaults of the engine's own classes, S90).
+3. **The lane names a failure's cause.** It kept each failed body's exception class alone, so a cause took a run of
+   its own to find. A third output, `reference-lane/core_relational-failures.tsv`, lists each failed body with its
+   exception and its message's first line (`OurResolutions.Result.failureReasons`, `ReferenceLaneReport.failures`).
+   It is diagnostic and not part of the golden: a message may change where no verdict does.
+4. **The first cause it named, fixed.** A type variable bound to a parameterized class, meeting a class of another
+   raw -- `Class<Any>` meeting `Type`, as in the protocol scans' `$classes->concatenate($types)` and
+   `$types->remove(Any)` -- was refused ("type variable T bound to Class<Any> cannot also bind Type"). legend-pure
+   takes their common supertype (`Class<T> extends Type`, so `Type`). `InferenceKernel.bindOrCheckTypeVar`'s
+   covariance took class pairs and same-raw pairs only; such a pair now binds `commonSupertype`, which already walked
+   the raws. As the arms beside it: never for a rigid or contravariant variable, never for a relation schema.
+   `InferenceKernelTest.typeVar_parameterizedClassMeetsAnotherRawAtTheirCommonSupertype` pins it in both orders. In
+   the lane: bodies FAILED 1,148 -> 970; legend-pure typed and we failed 980 -> 807; AGREE 76,958 -> 79,436; OVERLOAD,
+   PACKAGE and DRIFT unchanged, so the bodies now typed resolve their calls as legend-pure does. The new ABSENT and
+   EXTRA classes are the newly typed bodies' calls, under the reasons `reasons.tsv` already gives
+   (`//spec:reference_lane` green).
+5. **Re-blessed.** The golden is this commit's report: from e21c7ed75's, PR #58's lines (1), PR #65's (2) and this
+   fix's (4).
+6. **The 970 left, by cause** (the failures file, grouped by message):
+   - 97 no overload for the arguments: 60 `toJsonBeta` and 5 `fromJsonNative` with a config are engine natives the
+     prelude does not carry, by decision (their signatures name a type the platform owns); `newMap` 8, `eval` 4,
+     `replace` 4, ...;
+   - 132 a name that is not an element: `system::imports::coreImport` as a value (32), `new` named by its id (21), the
+     model-to-model tests' mappings;
+   - 70 `match` over branches held in a variable (`$a->match($matchClass)`), not a literal list;
+   - 65 + 56 + 11 the legacy TDS `project` and `groupBy` forms;
+   - 50 a NormalizeRequired body the inliner cannot inline; 44 `JSONKeyValue.key` outside its one read; 41 `validate`
+     reaching the typer; and a tail.
+7. **Measured on e0ec357b5** (the code; the golden and this entry follow it) against main bff1c703f:
+   - `bazel test --lockfile_mode=error //gates:local`: 376 of 385 pass (1 skipped); the 8 that start a Postgres
+     server, which refuses root, pass unprivileged (8 of 8);
+   - the six corpus passes: unchanged (`//spec:corpus_duckdb` and `//spec:corpus_h2`, their roster diffs, green);
+   - PCT: DuckDB, H2 and channel B 12 of 12; Postgres unprivileged 5 of 5;
+   - the stress suites: 2 of 2, at their pins;
+   - `//gates:parser_equivalence`: 3 of 3;
+   - `//spec:reference_lane` and `//spec:update_reference_lane_test`: green, the second for the first time since
+     PR #58.

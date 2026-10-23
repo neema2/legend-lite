@@ -297,6 +297,8 @@ java_run(
     outs = [
         "reference-lane/core_relational.txt",
         "reference-lane/core_relational-examples.tsv",
+        # why each body failed (2026-10-22): diagnostic, not part of the golden
+        "reference-lane/core_relational-failures.tsv",
     ],
     arguments = [
         "$(execpath //tools/reference:ref_dump)",

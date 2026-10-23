@@ -100,6 +100,26 @@ class InferenceKernelTest {
     }
 
     @Test
+    void typeVar_parameterizedClassMeetsAnotherRawAtTheirCommonSupertype() {
+        // Real pure covariance walks both raws to their nearest shared ancestor: Class<T> extends Type, so
+        // Class<Any> and Type meet at Type, in either order (the protocol scans' $classes->concatenate($types),
+        // $types->remove(Any); 2026-10-22, the reference lane: about 150 bodies legend-pure types).
+        InferenceKernel k = kernel();
+        Type classOfAny = new Type.GenericType("meta::pure::metamodel::type::Class",
+                List.of(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY)));
+        Type type = new Type.ClassType("meta::pure::metamodel::type::Type");
+        Bindings b = new Bindings();
+        k.unify(new Type.TypeVar("T"), classOfAny, b);
+        k.unify(new Type.TypeVar("T"), type, b);
+        assertEquals(type, b.type("T").orElseThrow());
+
+        Bindings b2 = new Bindings();
+        k.unify(new Type.TypeVar("T"), type, b2);
+        k.unify(new Type.TypeVar("T"), classOfAny, b2);
+        assertEquals(type, b2.type("T").orElseThrow());
+    }
+
+    @Test
     void unboundTypeVarResolutionThrows() {
         assertThrows(TypeInferenceException.class,
                 () -> kernel().resolve(new Type.TypeVar("U"), new Bindings()));

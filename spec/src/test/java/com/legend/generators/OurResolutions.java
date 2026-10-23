@@ -39,8 +39,11 @@ import java.util.stream.Stream;
  */
 final class OurResolutions {
 
-    /** What the dump saw: the sources dropped to make the model build, the bodies it could not type. */
-    record Result(List<String> droppedSources, int functions, List<String> failedFunctions, long rows) {
+    /** What the dump saw: the sources dropped to make the model build, the bodies it could not type, and why each
+     *  failed (its exception and the message's first line: diagnostic, never pinned -- 2026-10-22, the lane recorded
+     *  the exception's class alone, so a failure's cause took a run of its own to find). */
+    record Result(List<String> droppedSources, int functions, List<String> failedFunctions,
+                  Map<String, String> failureReasons, long rows) {
     }
 
     private OurResolutions() {
@@ -95,6 +98,7 @@ final class OurResolutions {
         long rows = 0;
         int functions = 0;
         List<String> failed = new ArrayList<>();
+        Map<String, String> reasons = new java.util.TreeMap<>();
         w.println("sourceId\tline\tcolumn\tkind\tresolvedFqn\tresolvedId\tenclosingFqn\tenclosingId");
         for (String fqn : new TreeSet<>(ctx.functionFqns())) {
             List<TypedFunction> overloads;
@@ -116,7 +120,9 @@ final class OurResolutions {
                 try {
                     compiled = specs.compile(fn);
                 } catch (RuntimeException | StackOverflowError e) {
-                    failed.add(idOf(fn).isEmpty() ? fqn : idOf(fn));
+                    String id = idOf(fn).isEmpty() ? fqn : idOf(fn);
+                    failed.add(id);
+                    reasons.put(id, reason(e));
                     w.println(src + "\t\t\tFAILED\t" + e.getClass().getSimpleName() + "\t\t" + enclosing);
                     continue;
                 }
@@ -125,7 +131,18 @@ final class OurResolutions {
                 }
             }
         }
-        return new Result(List.copyOf(new TreeSet<>(dropped)), functions, List.copyOf(new TreeSet<>(failed)), rows);
+        return new Result(List.copyOf(new TreeSet<>(dropped)), functions, List.copyOf(new TreeSet<>(failed)),
+                java.util.Collections.unmodifiableMap(reasons), rows);
+    }
+
+    /** A failure's reason on one line: the exception's class and its message's first line, or the class alone. */
+    private static String reason(Throwable e) {
+        String m = e.getMessage();
+        if (m == null || m.isBlank()) {
+            return e.getClass().getSimpleName();
+        }
+        String first = m.strip().lines().findFirst().orElse("").replace('\t', ' ');
+        return e.getClass().getSimpleName() + ": " + (first.length() > 400 ? first.substring(0, 400) + "..." : first);
     }
 
     /** The callee's identity in upstream's own spelling (FunctionId), blank for a synthetic callee. */
