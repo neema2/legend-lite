@@ -282,6 +282,13 @@ publisher replaces the demo's seeding once they do. Stacked branches, no PR unti
 | L5 | on D0, X and L3w | the modelled publisher (§7) replaces D0's seeding | D0's checks, with no seeding |
 | L4 | `claude/deephaven-4-datacube`, stacked on the DataCube line's branch once it has settled | DataCube's ticking mode (§10) replaces the plain page | the DataCube line reviews |
 
+**L2, measured (2026-10-23):** the target's batches for 18 query shapes (DataCube's pivot as conditional sums, its
+grand total over a literal key and over no rows, distinct, top-N, nested groupBy-extend, avg, count distinct, std,
+median, left and inner joins with null keys, three-valued NOT and OR, a boolean column, IN, IS NULL, a HAVING-style
+filter), run on a Deephaven 42.7 server (its release tarball, Java 21) over 200 rows with about 12% nulls in every
+column, gave DuckDB's rows on all 18 (the harness: a scratch check through the protocol's own stubs, which L3's
+differential test replaces). Two shapes were the compiler's refusals, not the target's.
+
 **Before internal users rely on it:** the firm's counsel reviews the deployment against the Deephaven Community
 License (this line's reading, `experiments/deephaven-spike/README.md`, is not legal advice).
 
