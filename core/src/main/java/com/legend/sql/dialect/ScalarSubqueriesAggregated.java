@@ -74,7 +74,7 @@ final class ScalarSubqueriesAggregated extends SqlRewriter {
         if (s instanceof SqlSource.Join j) {
             aliases(j.left(), out);
             aliases(j.right(), out);
-        } else if (s.alias() != null) {
+        } else if (!(s instanceof SqlSource.Dual) && s.alias() != null) {
             out.add(s.alias());
         }
     }

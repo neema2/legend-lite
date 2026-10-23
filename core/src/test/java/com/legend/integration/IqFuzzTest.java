@@ -205,11 +205,11 @@ class IqFuzzTest {
         return rows.stream().map(r -> collationKey(r, caseFolded)).toList();
     }
 
-    /** A row's text as IQ's collation tells rows apart: no cell's trailing blanks (an IQ database's and SQL Anywhere's
-     *  alike: 'a' and 'a ' are equal), and the ASCII letters folded under a sqla17 profile. */
+    /** A row's text as the profile's database tells rows apart: an IQ database's ignores a cell's trailing blanks ('a'
+     *  and 'a ' are equal), a sqla17 profile's database folds the ASCII letters and keeps the blanks (fuzz round 5,
+     *  2026-10-23: its DISTINCT shows 'A' and 'A ' apart). */
     static String collationKey(String row, boolean caseFolded) {
-        String key = row.replaceAll(" +(?=, |]$)", "");
-        return caseFolded ? key.toLowerCase(java.util.Locale.ROOT) : key;
+        return caseFolded ? row.toLowerCase(java.util.Locale.ROOT) : row.replaceAll(" +(?=, |]$)", "");
     }
 
     /**
