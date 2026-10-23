@@ -192,7 +192,7 @@ says so.
 | Q15 | The corpus coverage lane rebuilt in the cloud (SEDE, SQLStorm and Public BI fetched; BIRD needs disk) | P3 | the user's approval to run the research repo's scripts | open |
 | Q16 | Very wide joins on DuckDB: per statement, `SET disabled_optimizers = 'join_order'` past ~64 joined relations | P4 | an exec-seam hook (another line's) | proposed. Measured on DuckDB 1.4.4, plain SQL, a chain of self-joins over 11 rows: 100 joins 0.6 s, 200 joins 19 s, 350 joins 181 s. With the join-order optimizer off: 0.15 s, 0.5 s, and 700 joins in 2.8 s |
 | Q17 | DuckDB's own depth limits (`max_expression_depth` 1,000, the planner's tree depth 1,000): UNION ALL past ~1,000 branches, 1,000 nested parentheses or CASEs, 700+ joins. Raising the setting is unsafe on small-stack callers (DuckDB's parser recurses natively); balanced UNION ALL emission is the way | P4 | — | open |
-| Q18 | `SqlToPure` and `IqParser` recursion: stack use per nesting level, for callers other than the server (the browser planner) | P4 | — | open |
+| Q18 | `SqlToPure` and `IqParser` recursion: stack use per nesting level, for callers other than the server (the browser planner) | P4 | — | measured (slice 4's log, `IqFuzzTest.theDefaultStacksReach`); making the layers iterative is open, below the correctness items |
 | Q19 | Core's DuckDB 1.4.4 → 1.5.x: 1.4.4 loses rows from a UNION ALL nested in a UNION ALL under parallel execution (slice 3's log). Latent for the islands: lite's lowering writes a nested UNION ALL as one flat union, and the fuzzer's nested-union partition check (3,000 shapes) found no loss. Another shape that nests a union inside a union would meet it | P1 | the build line's DuckDB bump, the user's call | proposed |
 | Q20 | The fuzzer's set operations: nested and parenthesized UNION, UNION ALL, INTERSECT, EXCEPT, so that Q19's class is reached by the generator | P2 | — | done: nested set operations of every kind, and the set identities (DISTINCT, UNION, INTERSECT/EXCEPT [ALL]) over every shape |
 | Q24 | Snowflake's correlated subqueries: a correlation two derived tables down, a scalar subquery of no aggregate, and lite's NOT EXISTS forms of NOT IN and ALL are "Unsupported subquery type" there (59 runs), and a COUNT read through the nesting is NULL for no row | P1.2 | the sibling's measurements | open |
@@ -285,3 +285,19 @@ says so.
     predicate drawn after `complex()` reused a correlation name (IQ's -143, rightly).
   - **Measured on the way:** INTERSECT and EXCEPT are IQ's -1001030 under its engine, refused rightly; INTERSECT ALL
     and EXCEPT ALL are "not supported yet" in the shared translator (front-end queries only, so low in the queue).
+  - **Q18, the default stack's reach** (`theDefaultStacksReach`: plan only, for DuckDB, on a 1 MB stack, the JDK's
+    default; the server plans on 512 MB). The largest size of a doubling series that plans, and the layer that
+    overflows at the next:
+    - UNION ALL of 256 (the typer, Pure's `concatenate` chain);
+    - 512 joins (the typer);
+    - 128 nested parentheses (the SQL renderer);
+    - 256 nested functions or CASEs (`IqParser`);
+    - a CASE of 512 WHENs (the typer);
+    - an AND or OR of 2,048, and a `||` of 1,024 (`IqAggregates.shape`);
+    - 128 nested derived tables or CTEs (the typer);
+    - an IN list of 131,072 and 32,768 select items, the series' ends.
+
+    These limits bind any caller that is not the server: the browser's planner (TeaVM, `//wasm`) above all.
+  - **The flattening pass** (`ScalarSubqueriesFlattened`, Snowflake): a scalar subquery's chain of one-column derived
+    tables is its innermost select, so `(SELECT COUNT(*) ... WHERE u.t_id = t.id)` reaches Snowflake as written.
+  - **Fuzz round 4, rerun** with the checker's fixes: 26,000 queries, 1,846 partitioned, no finding.
