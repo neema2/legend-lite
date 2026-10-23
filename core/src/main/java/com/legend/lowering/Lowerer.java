@@ -2319,8 +2319,33 @@ public final class Lowerer {
      * bare join TREE (SQL joins are left-associative, so chains stay flat).
      */
     private SqlSource asLeftJoinSide(SqlSelect side) {
-        return isBareSelect(side) ? side.from() : new SqlSource.Subselect(side, nextAlias(), null);
+        if (!isBareSelect(side)) {
+            return new SqlSource.Subselect(side, nextAlias(), null);
+        }
+        if (chainedRelations(side.from()) < JOIN_GROUP) {
+            return side.from();
+        }
+        // a chain this long is read as a derived table: DuckDB orders a chain's joins as one set, 200 joins in 21.7 s
+        // and 350 in 197 s, and grouped in derived tables of 32 in 3.1 s and 10.3 s (the IQ scale program's Q16,
+        // 2026-10-23, measured on DuckDB 1.4.4; the IQ scale probe's 350 joins ran in 210 s, now 12.6 s). The group
+        // reads every column: a list of them, narrowed by SubselectPrune, cost its rounds a nesting each (1,200 joins
+        // planned in 188 s). The chain is the next join's left operand either way, so its rows are the same whatever
+        // the joins' kinds.
+        return new SqlSource.Subselect(side, nextAlias(), null);
     }
+
+    /** The relations a join chain reads, down its left spine (each right side one: a joined right side is a
+     *  derived table, {@link #asRightSide}). */
+    private static int chainedRelations(SqlSource from) {
+        int n = 1;
+        for (SqlSource s = from; s instanceof SqlSource.Join j; s = j.left()) {
+            n++;
+        }
+        return n;
+    }
+
+    /** The relations a join chain holds before it is read as a derived table ({@link #asLeftJoinSide}). */
+    static final int JOIN_GROUP = 32;
 
     /**
      * A join's RIGHT side (also pivot's source): a bare select unwraps ONLY

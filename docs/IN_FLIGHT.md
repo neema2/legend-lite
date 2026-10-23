@@ -2203,6 +2203,9 @@ repros will be in the study's §9.
   - **The dialect package's common render passes, 2026-10-23** (`AnsiSqlRenderer.renderPasses`, every dialect after its
     own): `BalancedUnions` (a union of more than 64 branches as nested groups through derived tables, under DuckDB's
     depth of 1,000) and `ConstantAggregateOrder` (a string or list aggregate's constant ORDER BY key dropped).
+  - **The compiler line's `lowering/Lowerer.java` (`asLeftJoinSide`), 2026-10-23:** a join chain past 32 relations is
+    the next join's left side as a derived table, so DuckDB orders each group's joins on their own (350 joins ran in
+    210 s, now 12.6 s; `JoinChainGroupsTest`).
   - **The compiler line's `lowering/Fold.java` (`sourceColumn`), 2026-10-23:** a join's outputs are scanned for a
     pivot identity's check only when the name is one (the same result; a chain of 700 joins planned in 9.7 s).
   - **The server's `LegendHttpServer` (`route`, `stop`), 2026-10-23:** whatever a handler lets through, an Error too,

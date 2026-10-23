@@ -190,7 +190,7 @@ says so.
 | Q21 | DATEADD of a computed timestamp of no known year under the iq17 profiles: refused for SQL Anywhere 17's defect past the year 7910 (531 of round 3's refusals); whether IQ 17.1 shares it decides the iq17 reading | P3 | oracle | open |
 | Q14 | A stored REAL or FLOAT column read: compared, computed, shown | P3 | oracle | open. Measured: under IQ 17.1's engine `rl = 0.1` in a WHERE holds for a stored REAL (the constant compared in single precision), while SQL Anywhere 17 compares as doubles, and a computed REAL compares as a double under both (`reals_compared_as_doubles`) |
 | Q15 | The corpus coverage lane rebuilt in the cloud (SEDE, SQLStorm and Public BI fetched; BIRD needs disk) | P3 | the user's approval to run the research repo's scripts | open |
-| Q16 | Very wide joins on DuckDB: per statement, `SET disabled_optimizers = 'join_order'` past ~64 joined relations | P4 | an exec-seam hook (another line's) | proposed. Measured on DuckDB 1.4.4, plain SQL, a chain of self-joins over 11 rows: 100 joins 0.6 s, 200 joins 19 s, 350 joins 181 s. With the join-order optimizer off: 0.15 s, 0.5 s, and 700 joins in 2.8 s |
+| Q16 | Very wide joins on DuckDB: per statement, `SET disabled_optimizers = 'join_order'` past ~64 joined relations | P4 | an exec-seam hook (another line's) | done in the lowering (2026-10-23): a chain past 32 relations read in groups, 350 joins in 12.6 s (were 210 s). Measured on DuckDB 1.4.4, plain SQL, a chain of self-joins over 11 rows: 100 joins 0.6 s, 200 joins 19 s, 350 joins 181 s. With the join-order optimizer off: 0.15 s, 0.5 s, and 700 joins in 2.8 s |
 | Q17 | DuckDB's own depth limits (`max_expression_depth` 1,000, the planner's tree depth 1,000): UNION ALL past ~1,000 branches, 1,000 nested parentheses or CASEs, 700+ joins. Raising the setting is unsafe on small-stack callers (DuckDB's parser recurses natively); balanced UNION ALL emission is the way | P4 | — | open |
 | Q18 | `SqlToPure` and `IqParser` recursion: stack use per nesting level, for callers other than the server (the browser planner) | P4 | — | measured (slice 4's log, `IqFuzzTest.theDefaultStacksReach`); making the layers iterative is open, below the correctness items |
 | Q19 | Core's DuckDB 1.4.4 → 1.5.x: 1.4.4 loses rows from a UNION ALL nested in a UNION ALL under parallel execution (slice 3's log). Latent for the islands: lite's lowering writes a nested UNION ALL as one flat union, and the fuzzer's nested-union partition check (3,000 shapes) found no loss. Another shape that nests a union inside a union would meet it | P1 | the build line's DuckDB bump, the user's call | proposed |
@@ -446,3 +446,14 @@ says so.
   planned for and run on the account in a schema of its own, on the server's request stack, with a statement timeout
   (`-Diq.scale.timeout`, 300 s): its plan time, SQL size, run time and outcome go to `iq-scale-snowflake.tsv`. A limit
   of Snowflake's is reported; only lite's own crash fails it.
+- 2026-10-23, **Q16: a long join chain is read in groups** (`Lowerer.asLeftJoinSide`): past 32 relations, the chain
+  so far is the next join's left side as a derived table (`SELECT *`), so DuckDB orders each group's joins on their
+  own. Measured with plain SQL on DuckDB 1.4.4: 200 joins 21.7 s and 350 joins 197 s as one chain; 3.1 s and 10.3 s
+  in groups of 32 reading every column; 0.12 s at 200 in groups of 32 reading only the columns used past them. The
+  scale probe's 350 joins now run in 12.6 s (were 210 s), and planning is faster at every size (700 joins 2.6 s,
+  were 4.0 s). Groups listing their columns for `SubselectPrune` to narrow were tried and dropped: its rounds narrow
+  a nesting each, and 1,200 joins planned in 188 s. The chain is the next join's left operand either way, so its rows
+  are the same for every join kind. `JoinChainGroupsTest`: 40 joins with a LEFT join past a group's edge, on every
+  in-process database.
+- 2026-10-23, **fuzz round 9** (seed 9, 2,000 shapes, depth 4, `iq16-default`): 30,000 queries, 1,718 partitioned, no
+  finding.
