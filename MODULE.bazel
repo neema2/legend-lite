@@ -257,32 +257,7 @@ maven.install(
     lock_file = "//:maven_native_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
-# THE DEEPHAVEN CONNECTOR's client (docs/DEEPHAVEN_PLAN_2026_10_22.md DH11): Deephaven's protocol stubs (under the
-# Deephaven Community License, so NEVER SHIPPED: //core:deephaven_connector rides with no product target, and
-# //tools/deps:core_closure_test holds the server's closure free of it), gRPC with its shaded Netty transport, and
-# protobuf, at the protocol jar's own versions (its POM: grpc 1.76.2, protobuf 4.36.2). An opt-in server target adds
-# it, for a deployment that fetches Deephaven itself. Rows come over Arrow Flight's DoGet on the same channel, read by
-# the connector's own Arrow reader: no Apache Arrow jar.
-maven.install(
-    name = "maven_deephaven",
-    artifacts = [
-        "io.deephaven:deephaven-proto-backplane-grpc:42.7",
-        "io.grpc:grpc-netty-shaded:1.76.2",
-
-        # USED DIRECTLY by BUILD files, so declared: strict_visibility (Bazel workplan P1-25) makes an
-        # undeclared transitive artifact invisible.
-        "io.grpc:grpc-api:1.76.2",
-        "io.grpc:grpc-stub:1.76.2",
-        "io.grpc:grpc-protobuf:1.76.2",
-        "com.google.protobuf:protobuf-java:4.36.2",
-        "com.google.protobuf:protobuf-java-util:4.36.2",
-    ],
-    fail_if_repin_required = True,
-    strict_visibility = True,
-    lock_file = "//:maven_deephaven_install.json",
-    repositories = ["https://repo1.maven.org/maven2"],
-)
-use_repo(maven, "maven_deephaven", "maven_native", "maven_teavm", "maven_test", "maven_tools")
+use_repo(maven, "maven_native", "maven_teavm", "maven_test", "maven_tools")
 
 # THE WAREHOUSE AS A NATIVE IMAGE (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md, W1e): GraalVM's
 # native-image run by Bazel over the server's own runtime class path, as //tools/teavm runs
