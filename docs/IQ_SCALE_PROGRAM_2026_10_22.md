@@ -313,9 +313,10 @@ says so.
   - **The differential** (`IqFuzzSnowflakeTest`, P2.2): the fuzzer's queries answered by DuckDB in process and by the
     account, compared as multisets; a DIFF, a Snowflake error where DuckDB answers, or a raise in DuckDB alone is a
     finding.
-  - **Q25's iq17 half is right as it is.** IQ types an integer operation by its operands' data: `id + 1` over ids 1 to
-    7 is a SMALLINT, and `bg + 1` is a NUMERIC(20,0) only where `bg` holds a value near 2^63. Lite types it by the
-    operands' types, as a BIGINT. That matches IQ over everyday data, where IQ's NUMERIC(20,0) would turn `(bg + 1) / 2`
-    into a NUMERIC quotient. Only at 64 bits' edge does DuckDB raise its own overflow where IQ answers, the known
-    D-N3. The iq16 half (SQL Anywhere's -158) is a question of Snowflake's NUMBER(38): a range check on every BIGINT
+  - **Q25's iq17 half stays as it is.** IQ types an integer operation by its operands' data (measured: `id + 1` over
+    ids 1 to 7 is a SMALLINT). The parity table's `bg` holds 2^63 - 1, and there `bg + 1` is a NUMERIC(20,0). Lite types
+    it by the operands' types, as a BIGINT. If the same data rule makes `bg + 1` a BIGINT over everyday values (not
+    measured yet: an oracle question), widening to NUMERIC by type would turn `(bg + 1) / 2` into a NUMERIC quotient
+    where IQ divides integers. Today only 64 bits' edge diverges: DuckDB raises its own overflow where IQ answers, the
+    known D-N3. The iq16 half (SQL Anywhere's -158) is a question of Snowflake's NUMBER(38): a range check on every BIGINT
     operation there, or the divergence named.
