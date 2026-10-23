@@ -167,13 +167,22 @@ XFORM = {
 # The source column type a transform READS, where it differs from the cell's own type. A
 # boolean cell computed by `startsWith` reads a string; without this the generator would ask
 # for a BIT column and hand it to a string function.
+#
+# `cbrt` reads CUBE: a DOUBLE column whose every value is a perfect cube (seed_cubes), so the
+# true cube root is a double, which a C library's `cbrt` within an ulp returns. Over the ordinary
+# float columns the oracle's correctly rounded root and the library's differed in the last
+# bit on Windows -- cbrt(325.0) came back one double up (F60) -- and the stress corpus plan's
+# D6 chose inputs with exact roots over per-platform verdicts. The cells still test `cbrt`,
+# though not its last bit. One column per nullability: `cbrt` takes one argument.
+CUBE = "cube"
 READS = {"not": "bool", "isnull": "string", "isnotnull": "string",
-         "starts": "string", "ends": "string", "has": "string", "alnum": "string"}
+         "starts": "string", "ends": "string", "has": "string", "alnum": "string",
+         "cbrt": CUBE}
 
 TYPE_SQL = {"string": "VARCHAR(200)", "char": "CHAR(12)", "int": "INTEGER",
             "bigint": "BIGINT", "smallint": "SMALLINT", "float": "DOUBLE",
             "decimal": "DECIMAL(18,4)", "bool": "BIT",
-            "date": "DATE", "timestamp": "TIMESTAMP"}
+            "date": "DATE", "timestamp": "TIMESTAMP", CUBE: "DOUBLE"}
 TYPE_PURE = {"string": "String", "char": "String", "int": "Integer",
              "bigint": "Integer", "smallint": "Integer", "float": "Float",
              "decimal": "Float", "bool": "Boolean",
@@ -184,11 +193,17 @@ TYPE_PURE = {"string": "String", "char": "String", "int": "Integer",
 _PREFIX = {ROOT: "R", HOP1: "H1", HOP2: "H2", ALT: "A", "COMBO_SUMMARY": "SM"}
 _SHORT = {"string": "S", "char": "C", "int": "I", "bigint": "BI",
           "smallint": "SI", "float": "F", "decimal": "DE",
-          "bool": "B", "date": "DT", "timestamp": "TS"}
+          "bool": "B", "date": "DT", "timestamp": "TS", CUBE: "CU"}
 
 
 def column(table: str, type_: str, nulls: str, which: int) -> str:
     return f"{_PREFIX[table]}_{_SHORT[type_]}_{'NN' if nulls == 'notnull' else 'NL'}{which}"
+
+
+def _cube_tables() -> list[str]:
+    """The tables a `cbrt` cell reads, in reach order: the ones that carry CUBE columns."""
+    return list(dict.fromkeys(_TABLE_FOR[axis(c, "reach")] for c in cells()
+                              if axis(c, "xform") == "cbrt"))
 
 
 # The join FORMS, as one-hop reaches onto COMBO_ALT. Crossed with type and nullability but
@@ -419,6 +434,15 @@ def check_data(c: model.Corpus, tables: dict[str, list[dict]]) -> list[str]:
                 if vals and not any(v is None for v in vals):
                     bad.append(f"{table}.{col} is a `nullable` source but carries no NULL, "
                                f"so every cell reading it tests the non-null case twice")
+    for table in _cube_tables():
+        for nulls in NULLS:
+            col = column(table, CUBE, nulls, 1)
+            vals = [r.get(col) for r in tables.get(table, [])]
+            if nulls == "nullable" and vals and not any(v is None for v in vals):
+                bad.append(f"{table}.{col} is a `nullable` source but carries no NULL")
+            # seed_cubes, not the expansion's generic floats, must have written these
+            bad += [f"{table}.{col}: {v!r} is not a perfect cube, so its cbrt is platform-dependent (F60)"
+                    for v in vals if v is not None and round(v ** (1 / 3)) ** 3 != v]
     return bad
 
 
@@ -500,6 +524,11 @@ def build_source() -> str:
                     sfx = "" if nulls == "nullable" else " NOT NULL"
                     out.append(f"      {column(table, type_, nulls, which)} "
                                f"{TYPE_SQL[type_]}{sfx},")
+        # After every typed column, so the expansion's NULLs (placed by column order) stay
+        # where they were.
+        if table in _cube_tables():
+            out += [f"      {column(table, CUBE, nulls, 1)} {TYPE_SQL[CUBE]}"
+                    f"{'' if nulls == 'nullable' else ' NOT NULL'}," for nulls in NULLS]
         if table in (ROOT, HOP1):
             out += [f"      {c} VARCHAR(200) NOT NULL," for c in OTW_COLS]
         if last:
@@ -1114,6 +1143,18 @@ def derive_alt(c: model.Corpus, tables: dict[str, list[dict]]) -> None:
     sentinel[ALT_LOW] = 10 ** 6
     out.append(sentinel)
     tables[ALT] = out
+
+
+def seed_cubes(tables: dict[str, list[dict]]) -> None:
+    """Overwrite the CUBE columns' generic floats with perfect cubes: 6^3 up on COMBO_ROOT,
+    and on each later table five past the one before, so a reach that lands on the wrong
+    table returns a different root. The expansion's NULL is kept."""
+    for t, table in enumerate(_cube_tables()):
+        for i, row in enumerate(tables.get(table) or []):
+            for nulls in NULLS:
+                col = column(table, CUBE, nulls, 1)
+                if row.get(col) is not None:
+                    row[col] = float((6 + 5 * t + i) ** 3)
 
 
 def runtime_text() -> str:

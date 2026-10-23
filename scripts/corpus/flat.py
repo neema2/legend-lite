@@ -194,6 +194,8 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     # FORM pairs deterministically. Last, because it reads rows the expansion produced.
     import combos
     combos.derive_alt(c, tables)
+    # and its cbrt cells' sources, perfect cubes, so their roots are exact on every platform
+    combos.seed_cubes(tables)
     _narrow_single_precision(c, tables)
     return tables
 

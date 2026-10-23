@@ -1934,19 +1934,24 @@ after 30001ms (total=100)`). Repro: delete the `clearAllConnections()` call in
 `tools/engine-runner/src/main/java/perf/TestableMain.java` and run those twelve services
 (`DSDeep_RequestForInformation` to `DSDeep_RiskAppetiteMetric` in `94-fanout-services.pure`).
 
-## F60 — On Windows, legend-engine's DuckDB `cbrt` is one ulp from the true cube root
+## F60 — On Windows, legend-engine's DuckDB `cbrt` is not correctly rounded
 
-Found 2026-10-21 by the corpus's first full engine run on Windows (the improvement plan's Phase 0). Three combination
-cells (`stress::CB_C0`, `CB_C2`, `CB_C4`, in `98-combination-execution.pure`) project `cbrt` of the seeded Float
-`324.99999999999994` (`COMBO_ROOT.R_F_NN1`, row `CR-0004`). The true cube root is 6.875344335370704653, 0.011 ulp
-below the double `6.875344335370705` (`0x1.b805a43f49fc7p+2`). That double is the correctly rounded result, and it is
-what the oracle (`exactmath.cbrt`) and Java's `Math.cbrt` both return. legend-engine 4.145.0 on DuckDB returns the
-next double up, `6.8753443353707056` (`…fc8`), 1.01 ulp from the true value, so its exact `EqualToJson` fails. Every
-other cell of those rows matches. DuckDB called directly on this Windows x64 desk returns `…fc8` too, in both 1.3.0.0
-(the engine runner's) and 1.4.4 (lite's), as does Python's `math.cbrt`: this is the platform C library's `cbrt`,
-which `exactmath`'s header already names as not correctly rounded on glibc. lite returns the same `…fc8` and passes
-only under its one declared Float leniency (two doubles within 2 ulp, `Equality.withinTwoUlp`). Not quarantined:
-`quarantine.py` judges one list on every platform, and the three were never quarantined, so presumably they pass
-where the engine runs on a correctly rounded `cbrt` (the earlier runs were on macOS arm64). How the corpus should
-treat a platform's last-ulp `cbrt` is an open decision (the plan's D6). Repro: `bazel run //scripts/corpus:run --
---only <a file naming the three>` on Windows.
+Found 2026-10-21 by the corpus's first full engine run on Windows (the improvement plan's Phase 0); corrected and
+settled 2026-10-23. Three combination cells (`stress::CB_C0`, `CB_C2`, `CB_C4`, in `98-combination-execution.pure`)
+projected `cbrt` of the seeded Float `325.0` (`COMBO_ROOT.R_F_NN1` and `R_F_NL1`, row `CR-0004`). The true cube root,
+6.8753443353707050538, lies 0.44 ulp above the double `6.875344335370705` (`0x1.b805a43f49fc7p+2`) and 0.56 ulp below
+the next one, `6.8753443353707056` (`…fc8`). The first is the correctly rounded result, and it is what the oracle
+(`exactmath.cbrt`) and Java's `Math.cbrt` return. legend-engine 4.145.0 on DuckDB returned the second, so its exact
+`EqualToJson` failed; every other cell of those rows matched. DuckDB 1.4.4 (lite's) called directly on this Windows
+x64 desk returns `…fc8` too, as do Python's `math.cbrt` and Java's `StrictMath.cbrt`: the platform's `cbrt` is within
+an ulp but not correctly rounded, as `exactmath`'s header already says of glibc's. lite returns the same `…fc8` and
+passed only under its one declared Float leniency (two doubles within 2 ulp, `Equality.withinTwoUlp`). The earlier
+engine runs were on macOS arm64, where the three passed. (This entry first named the input `324.99999999999994` and
+the error 1.01 ulp. Both came from a probe on the wrong input, for which the oracle and the platform return the same
+two doubles.)
+
+**Settled 2026-10-23 by the plan's D6, option (a):** the corpus's twelve `cbrt` cells read perfect cubes
+(`combos.seed_cubes`, the `*_CU_NN1` and `*_CU_NL1` columns), so the true root is a double, which a `cbrt` within an
+ulp must return. The roots are now whole numbers, and the three pass on Windows. They still test `cbrt`, though not
+its last bit. The upstream fact stands: a platform's `cbrt` may miss the last bit. Repro: `SELECT cbrt(CAST(325.0 AS
+DOUBLE))` in DuckDB on Windows x64 gives `6.8753443353707056`.

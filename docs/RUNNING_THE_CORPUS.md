@@ -62,8 +62,8 @@ The whole corpus takes **88 minutes** with `--jobs 4` on a 20-core Windows desk 
 
 The 18 were 14 JVMs killed by a concurrent Bazel build (all passed alone), legend-engine's fix
 of F27 (`FIXED`; its quarantine entry is now gone) and F60's three `cbrt` cells (the
-improvement plan's D6). **`0 unexpected` is the only acceptable result.** The other numbers
-are allowed to move.
+platform's last bit; since 2026-10-23 those cells read perfect cubes, the improvement plan's
+D6). **`0 unexpected` is the only acceptable result.** The other numbers are allowed to move.
 
 ### Where the time actually goes
 
