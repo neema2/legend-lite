@@ -479,3 +479,12 @@ says so.
   (`SqlProbes.carriesComputedProjection`) now isolates for any grouped projection that is no plain column, an
   aggregate or a computed key; `GroupedFilterSubqueryTest` pins a computed key under a sort. The round's rerun: no
   finding.
+- 2026-10-23, **Q27's DuckDB half, the design** (not built): a nested division by a column copies its dividend three
+  times a level on DuckDB. The translator's NULL guard tests the operand and reads it (`if(X->isEmpty() || ...,
+  |[], |X->toOne() ...)`), and `quotient`'s zero guard writes it into its message. The guard cannot merge the
+  operand's own (as it does where nothing raises), because IQ evaluates the operand, and raises its divide-by-zero,
+  where the other operand is NULL. A form linear in size that keeps the raise needs the operand bound once, which SQL
+  does only as a column: `SqlToPure` would hoist such an operand into an `extend` before the item that reads it, when
+  it reads the select's own row alone (no aggregate, window, or other scope's variable). It changes the shared
+  translator's Pure for both SQL islands, so it waits for a slice of its own; dropping the dividend from `quotient`'s
+  message alone would take the base from 3 to 2.
