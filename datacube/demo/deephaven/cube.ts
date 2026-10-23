@@ -173,9 +173,12 @@ async function main(): Promise<void> {
     waiting = setTimeout(rerun, Math.max(0, TICK_MS - (performance.now() - last)));
   });
 
-  // the test's gestures: what dragging a column to a zone, or applying a filter, changes
+  // the test's gestures: what opening a group, dragging a column to a zone, or applying a filter, changes
   shown.change = async (what: string): Promise<string> => {
     const out = await app.change((s) => {
+      // a chevron's click: the FX desk opened, its sectors a level of their own
+      if (what === 'expand') return { ...s, tree: s.tree.expand(['FX']) };
+      if (what === 'collapse') return { ...s, tree: s.tree.collapse(['FX']) };
       const snap = s.snapshot;
       const next: CubeSnapshot = what === 'regroup' ? { ...snap, rows: ['region', 'ccy'], pivotOn: [] }
         : what === 'pivot' ? { ...snap, rows: ['desk'], pivotOn: ['region'] }

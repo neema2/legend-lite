@@ -2,8 +2,8 @@
 // DH23). Node only drives: it starts the pinned Deephaven with the demo's application (risk.groovy), serves the cube page
 // (demo/deephaven/cube.ts: DataCube's own app, planning in the tab on a Deephaven runtime and running on the server),
 // and checks what DataCube shows and what the tab sent: the tree's positions are the seeding's (worked out here from
-// the same formulas); a pivot, a regroup and a filter -- the app's own changes, as its zones and filter editor make
-// them -- each send only their own operations, the source's nine (its five tables and four joins) read from what the
+// the same formulas); a group opened, a pivot, a regroup and a filter -- the app's own changes, as its chevrons, zones
+// and filter editor make them -- each send only their own operations, the source's nine (its five tables and four joins) read from what the
 // session holds; a pivot's columns keep their names; no table is made twice; the grid ticks, re-run with nothing sent;
 // and when Deephaven restarts the page says so and comes back by itself. Screenshots of each stage are its outputs.
 
@@ -94,6 +94,21 @@ try {
   if (receipt.includes('the Deephaven server at 127.0.0.1')) ok('the status bar\'s receipt names the Deephaven server');
   else fail(`the status bar says ${JSON.stringify(receipt)}`);
   await page.screenshot({ path: join(outputs, '1-tree.png') });
+
+  // a group opened: its level's own query, over the held source
+  const expand = await change('expand');
+  reused(expand, 'the FX desk opened');
+  const opened = level(expand.after, ['pid']);
+  const sectors = positions((p) => p.sector, (p) => p.desk === 'FX');
+  const openWrong = [];
+  if (opened.size !== DESKS.length + sectors.size) openWrong.push(`${opened.size} rows, not ${DESKS.length + sectors.size}`);
+  for (const [sector, n] of sectors) if (opened.get(sector)?.[0] !== n) openWrong.push(`${sector}: ${opened.get(sector)?.[0]}, not ${n}`);
+  check(openWrong, 'the FX desk\'s sectors under it, each with the seeding\'s positions');
+  await page.screenshot({ path: join(outputs, '1-opened.png') });
+  // and closed again: the tree as it was, every table its rows read held already
+  const closed = await change('collapse');
+  if (closed.sent === 0) ok(`the FX desk closed: ${closed.queries} queries, nothing sent`);
+  else fail(`closing the FX desk sent ${closed.sent} operations`);
 
   // a pivot on region: two queries (its values, then the level), each over the held source
   const pivot = await change('pivot');

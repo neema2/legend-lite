@@ -6,13 +6,14 @@
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
 import { runfileFromEnv, runfileNamed } from '../../../tools/js/runfiles.mts';
 
 /** Starts the demo's Deephaven: `next()` is the fixture's next JSON line (its address and key first, then a restart's
  *  word); `restart()` restarts the server; `stop()` stops it. */
 export function startDeephaven({ quiet = false } = {}) {
   // `bazel run` gives no TEST_TMPDIR: the server's data goes under the system's temporary directory
-  const env = { ...process.env, TEST_TMPDIR: process.env.TEST_TMPDIR ?? process.env.TMPDIR ?? '/tmp' };
+  const env = { ...process.env, TEST_TMPDIR: process.env.TEST_TMPDIR ?? tmpdir() };
   const server = spawn(runfileFromEnv('DEEPHAVEN_FIXTURE'), [], { stdio: ['pipe', 'pipe', 'pipe'], env });
   server.stderr.on('data', (b) => {
     for (const line of String(b).split('\n')) {
@@ -62,7 +63,7 @@ export async function serveDemo(config, port = 0) {
     '/config.json': ['application/json', JSON.stringify({ url: config.url, psk: config.psk })],
   };
   const site = createServer((req, res) => {
-    const f = files[new URL(req.url, 'http://page').pathname];
+    const f = files[new URL(req.url, 'http://page').pathname]; // portable: an HTTP route, never a file's path
     if (!f) {
       res.writeHead(404);
       res.end();
