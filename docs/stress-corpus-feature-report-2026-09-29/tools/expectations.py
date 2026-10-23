@@ -78,7 +78,7 @@ def classify(data):
     return 'ROWS', 1, 'scalar'
 
 
-TEST = re.compile(r"^\s*([A-Za-z0-9_]+):\s*\n\s*\{\s*\n\s*(?:serializationFormat|asserts)", re.M)
+TEST = re.compile(r"^\s*([A-Za-z0-9_]+):\s*\n\s*\{\s*\n\s*(?:serializationFormat|asserts|parameters)", re.M)
 DATA = re.compile(r"data: '((?:[^'\\]|\\.)*)';", re.S)
 
 rows = []

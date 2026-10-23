@@ -1,10 +1,11 @@
 # Stress corpus improvement plan
 
 Proposed 2026-10-19. The user took the five decisions on 2026-10-21 ([Decisions](#decisions)), and Phase 0 started
-that day (`docs/IN_FLIGHT.md`, the twelfth line). This plan turns the gaps in the
-[stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md) (§10) into ten phases of work. Each
-phase lists the files it changes, how its expected results are computed, roughly how many services it adds, and the
-report numbers that say it is done. A session that starts a phase adds a line to `docs/IN_FLIGHT.md` first.
+that day (`docs/IN_FLIGHT.md`, the twelfth line). Phase 1 started and was done on 2026-10-23, on `stress_test/corpus`.
+This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
+(§10) into ten phases of work. Each phase lists the files it changes, how its expected results are computed, roughly
+how many services it adds, and the report numbers that say it is done. A session that starts a phase adds a line to
+`docs/IN_FLIGHT.md` first.
 
 ## Goal and measures
 
@@ -116,6 +117,21 @@ Taken by the user on 2026-10-21. Each entry states the question as it was put, t
   The corpus is for catching wrong answers, and a C library's last ulp isn't one. `exactmath` exists to make expected
   results platform-independent, and that works only when the engine's result is too. **Decided (2026-10-23): (a).**
   Done on `stress_test/corpus`: the twelve `cbrt` cells read perfect cubes, and their roots are whole numbers.
+- **D7, how the oracle compares an absent value (raised 2026-10-23 by Phase 1).** Phase 1 asked for predicate
+  trees "under three-valued logic", and the oracle followed SQL: a comparison with a NULL operand was UNKNOWN, and
+  a filter kept only TRUE. Before writing a tree, Phase 1 probed `!`, `||`, `in` and `!=` over NULLs on the pinned
+  engine, and checked legend-pure. legend-pure defines it otherwise: an ordered comparison over an absent value is
+  false (`greaterThan(left:Number[0..1], right:Number[1])` is `$left->isNotEmpty() && ...`, documented "a missing
+  value never satisfies the comparison"), and `==` is collection equality, so `[] == 'x'` is false and `[] != 'x'`,
+  its negation, is true. Two-valued, and `!` is plain negation. legend-engine lowers it so, except in F64 and F65;
+  legend-lite too (`NullSemantics`, after the engine's `processNotEqual`). The two readings differ only on `!=` among
+  the flat comparisons, which is what F28 had recorded as an engine defect ("`>` should not be excluding it either")
+  -- under Pure's definition `>` excludes and `!=` keeps, so F28 was the oracle's error. Under rule 3 ("or the oracle
+  is wrong and gets fixed"), with legend-pure as the spec: **the oracle compares as legend-pure defines**
+  (`oracle._cmp`), a store's join conditions and Filters, which are SQL, keep SQL's rule (`oracle._sql_cmp`), F28
+  is withdrawn, and `CB_NotEqualsNull` is out of quarantine (it passes on the engine and in lite). **Taken by the
+  Phase 1 session on that evidence; the user may reverse it.** Reversing it is one function, and the generated
+  expectations follow.
 
 ## Phases
 
@@ -208,7 +224,7 @@ Report §4.2, §4.3 and §10 items 1–2. Real queries filter on typed values an
 - **Reader and oracle** (`query.py`, `oracle.py`).
   - Literals of every type. Today `_literal` reads String, Boolean, Integer and Float.
   - Predicates as a tree with `or`, `not` and `in`, under three-valued logic. Today a filter is a list of ANDed
-    comparisons.
+    comparisons. (Done under legend-pure's two-valued rule instead: D7.)
   - Service parameters bound by name: at `[1]`; at `[0..1]` in the optional-filter form
     `$p->isEmpty() || $x.v == $p->toOne()`; and at `[*]` as `$x.v->in($ps)`.
 - **Emitter** (`emit.py`). The service function's parameter list, and the test's `parameters:` block.
@@ -217,7 +233,8 @@ Report §4.2, §4.3 and §10 items 1–2. Real queries filter on typed values an
   - The comparison matrix covers the nine ordered types with a literal (String, Integer, Float, Decimal, Number, Date,
     StrictDate, DateTime, StrictTime) under `==`, `!=`, `<`, `<=`, `>` and `>=`, plus Boolean under `==` and `!=` and
     the enumeration under `==`, `!=` and `in`. Each comparison appears at the root and one hop away, as a literal
-    service and as a parameter twin with the same expected result. That makes 236 services.
+    service and as a parameter twin with the same expected result. That makes 236 services. (StrictTime has no
+    ordering in legend-pure, so 220: see the record below.)
   - About 40 services combine `or`, `and` and `not` over nullable columns, where three-valued logic decides the
     answer.
   - About 20 `[0..1]` and `[*]` parameter services each have two tests: value given and value absent, or one value
@@ -226,6 +243,116 @@ Report §4.2, §4.3 and §10 items 1–2. Real queries filter on typed values an
   `stress::` filter, so the new services are `stress::` services.
 - **Done when:** the parameter, literal, enumeration-literal and `or`/`in`/`not` rows reach their targets, and every
   new service passes on the engine or is quarantined with a finding.
+
+**What was built (2026-10-23).**
+
+- `8112-typedvalues.pure`: the enumeration `typedvalues::Grade` (mapped from codes, one code unmapped), the class
+  `typedvalues::TypedValue` with a property of every primitive type that has a relational column at `[1]` and at
+  `[0..1]`, its own store (`typedvalues::TypedStore`, included by `store::DB`), a mapping included from
+  `89-all-mapping.pure`, and a to-one association from `trading::Trade` (seven of the twenty trades have no typed
+  value). StrictTime and Byte have no relational column type in the grammar; they read a VARCHAR and a TINYINT and
+  live on a sibling class over the same rows, `typedvalues::TimeAndOctet`, because lite refuses a StrictTime over a
+  VARCHAR when it compiles a class mapping, and on `TypedValue` that refusal failed every service over it.
+- `seed.TYPED_VALUE`: fifteen rows written by column. Every comparand has a tie and both neighbours (42 between 41
+  and 43; noon with a second either side; 2024-02-29 between month ends), with negatives, zero, INTEGER's and
+  TINYINT's extremes, strings that differ by case, carry an apostrophe or end in a space, Decimals a double cannot
+  tell apart (`1.0000000000000000`, `…0001`, and `1.000000000000000001`), and an unmapped grade code. One row is
+  absent in every optional column; otherwise each optional column has NULLs of its own, so a predicate over two of
+  them meets one absent side as well as both.
+- `query.py`, `oracle.py`, `emit.py`: DateTime, StrictTime, Decimal and enumeration literals; predicate trees
+  (`And`, `Or`, `Not`, `in`, `isEmpty`); service parameters at `[1]`, `[0..1]` (the optional-filter form) and `[*]`,
+  each test binding its own values and carrying its own expected result; Decimals rendered digit for digit, since
+  the engine's JSON assertion compares numbers by value.
+- `literals.py` writes `99-typed-services.pure` (added to `STRESS_GENERATED`): 306 services. The comparison matrix
+  is 220 (every operator each type has, at the root and one hop away, each as a literal and as a parameter twin
+  that must return the same rows: `TL_`/`TP_`); 40 predicate trees (`TQ_`); 20 enumeration services (`TE_`: each
+  value under `==` and `!=`, an `in` over three, and `||` of two, at both sites); 10 optional-parameter services
+  with a given and an absent test (`TO_`); 10 to-many parameter services with several values and one (`TM_`); the
+  Decimal-scale pair (`TL_`/`TP_AmountScale18_Eq_Root`); and four projection controls (`TV_`). `literals.check()`
+  fails the build when a comparand keeps all of a root's rows or none, when a control or an absent parameter
+  filters anything, or when fewer than 20 trees turn on how an absent value compares. The literal/parameter pairs,
+  and `TE_PrimeOrWatch_*` with `TL_Grade_In_*`, join the invariance check.
+- The pack is hidden from the generators that walk the model (`literals.FIXTURE_TABLES`, `literals.walked`), in
+  `build.py`, `executed.base_specs`, `differential.py` and `quarantine.check_f24` alike. Walked, it displaced five
+  `DS*_CustodiedCryptoHolding` services under the generators' caps and changed seventeen dense services reaching it
+  from a trade; hidden, regenerating changed no existing service but `CB_NotEqualsNull`'s expectation and the data
+  element.
+- `executed.py` holds nine new features (rule 6): parameters at each multiplicity, Decimal, DateTime and
+  enumeration literals, and filters using `||`, `!` and `in`; all nine are executed by passing services.
+- `tools/engine-runner`: an ERROR line carries the exception's causes, since a suite that fails to start names its
+  reason only there (announced in `docs/IN_FLIGHT.md`).
+
+**Found on the way.** Probed on the pinned engine before the oracle was written, then confirmed by the services:
+
+- **D7 (below): the oracle compared an absent value as SQL does, and legend-pure does not.** F28 is withdrawn.
+- **F61:** a Decimal literal is cast to `DECIMAL(32,16)`, so one with 18 fractional digits is rounded before it is
+  compared: a wrong answer. The parameter twin is bound exactly and passes.
+- **F62:** a `Number` service parameter fails with a NullPointerException (Number is not an external parameter type;
+  the fall-through reads a context the test runner never sets).
+- **F63:** a StrictTime literal or parameter in a relational query fails plan generation; projecting one works.
+- **F64:** inside `!(a || b)` or `!(a && b)`, an `==` or `in` over an absent value reaches SQL bare and reads as
+  UNKNOWN, so the row is dropped where Pure keeps it: a wrong answer, and inconsistent with the engine's own `!(a ==
+  x)`, which is right.
+- **F65:** an enumeration parameter under `!=` or `!in` drops the absent rows that the literal keeps: a wrong answer.
+- A partial-date literal (`%2024-06`, the only literal whose type is `Date`) fails in relational SQL ("Date has no
+  day"), and Pure's comparison of dates of different precision is not one the oracle should guess, so no service
+  uses one.
+- Each is minimized under `scripts/corpus/repro/` (`decimal-literal-scale`, `number-parameter`,
+  `stricttime-relational`, `negated-composite-equality`, `enum-parameter-negation`) and recorded in
+  `docs/UPSTREAM_FINDINGS.md`; `repro/not-equals-null/` now asserts Pure's reading and passes.
+
+**Corrections to the targets.**
+
+- The literal-type row's 11 of 12 cannot be reached at the pin: Number has no literal syntax either (as Byte has
+  none), `Date`'s own literal fails in relational SQL, and StrictTime's fails plan generation (F63). The reachable
+  count is 8 of 12 passing on the engine (StrictTime's literal is written, and quarantined).
+- StrictTime is not ordered in legend-pure (no `greaterThan` or `lessThan` takes one), so the matrix has eight
+  ordered types, not nine, and 220 services, not 236.
+- "Every type with a literal syntax at `[1]`": the engine accepts nine (String, Boolean, Integer, Float, Decimal,
+  Date, StrictDate, DateTime, and an enumeration); Number (F62) and StrictTime (F63) are written and quarantined.
+
+**The engine verdict (2026-10-23, legend-engine 4.145.0, Windows x64).** The whole corpus (`bazel run
+//scripts/corpus:run -- --jobs 4`, 88 minutes): 4,973 pass, 58 known-fail (quarantined), 1 not run (F15, which
+hangs), 0 unexpected, of 5,032 testables. The ten enumeration services written after it (`TE_*_Ne_*` and
+`TE_PrimeOrWatch_*`, below) ran alone and pass, so 5,042 in all. No pass of Phase 0's baseline is lost;
+`CB_NotEqualsNull` passes (F28 withdrawn), and so do `CB_C0`, `CB_C2` and `CB_C4` (D6 (a)). Of the 306 typed
+services 279 pass and 27 are quarantined: F61 1, F62 12, F63 8, F64 3, F65 3.
+
+**The measures** (the report's `tools/run.sh` at the pin; each counts services that pass on the engine with a
+populated expected result):
+
+- Service parameter types: nine at `[1]`, at `[0..1]` and at `[*]` alike (String, Boolean, Integer, Float, Decimal,
+  Date, StrictDate, DateTime and the enumeration), over 112 services. Every type the engine accepts as a parameter
+  is covered; Number (F62) and StrictTime (F63) are written and quarantined.
+- Literal types in service queries: 8 of 12 (DateTime and Decimal added). The target is corrected above.
+- Enumeration literals in queries: 33 services. The first commit made 23, so it added ten more: each value under
+  `!=` at both sites, and `PRIME || WATCH` at both sites, the twin of `TL_Grade_In_*`.
+- Filters using `or` / `in` / `not`: 29 / 25 / 27. `profile.py` counts a `!=` as `not` and reports 76; the 27
+  are filters with an explicit `!`.
+- EMIT 43 of 109 on the engine and 37 in lite, as before: the EMIT features Phase 1 reaches (service parameters,
+  enumerations) were reached already. PCT names 66 of 321 (64 before: `lessThanEqual` and `toOne`).
+- The measure needed one fix on `stress_test/report`: `expectations.py` read a test only when its first key was
+  `serializationFormat` or `asserts`, so a test opening with `parameters:` had no expected result. Before the fix
+  the parameter row counted 10 of the 112 services, the `TO_` services by their `absent` tests, which bind
+  nothing.
+
+**Lite.** On DuckDB 4,849 tests pass (4,705 before: 143 typed tests and `CB_NotEqualsNull`, which now expects
+Pure's reading); on H2 4,820 (4,676 before). No previously passing test fails. Both `MIN_PASS` ratchets moved by
+that, in two steps, each with a dated note. Lite's 183 failing typed tests fall into five buckets:
+
+- **Parameters (151 tests: every `TP_`, `TO_` and `TM_`).** `ServiceTestRunner.body()` unwraps the service's lambda
+  only when it takes no parameters, so a parameterized query runs as `let p = …;` followed by the lambda itself, and
+  the store resolver reports `getAll(...) unresolved`. The plan's "already binds parameters" holds for the binding,
+  not for the body.
+- **StrictTime over a VARCHAR (6: `TL_Cutoff_*` and the two `TV_TimeAndOctet_*` controls).** Lite's
+  class-mapping check refuses `cutoff: StrictTime` read from a VARCHAR (`expected StrictTime, got String`); the
+  engine accepts it, and the grammar has no TIME column to use instead.
+- **A trailing space trimmed (20).** TV-04's name `'alpha '` reads as `'alpha'` in lite on both databases, so
+  every comparison on it, and both projection controls, differ.
+- **`!` over a navigation that lands on nothing (3).** `!($x.typedValue.quantity > 42)` drops the seven trades with
+  no typed value (`TQ_NotGt_Hop`, `TQ_NotLe_Hop`, `TQ_NotAnd_Hop`); the engine keeps them.
+- **F64's shape (3).** `TQ_NotOr_Root`, `TQ_NotOr_Hop` and `TQ_AndNotOr_Root` lose the rows the engine loses: lite
+  follows the engine's lowering there, not legend-pure's definition.
 
 ### Phase 2: data that reaches the bottom of deep queries (about 5 days; changes existing services)
 
@@ -429,7 +556,7 @@ to gate 10's time and about 10 minutes to a full engine run.
 | Phase | Started | Landed | Services added | Quarantined on the engine | New lite failure buckets | Measures after |
 |---|---|---|---|---|---|---|
 | 0 | 2026-10-21 | — | 0 | none added; F27's entry removed (fixed upstream); F60's 3 unexpected settled by D6 (a) | none | EMIT 43 of 109 on the engine, 37 in lite; PCT 64 of 321 |
-| 1 | — | — | — | — | — | — |
+| 1 | 2026-10-23 | — | 306 | F61–F65 (27 services) added; F28's entry removed (withdrawn, D7) | parameterized queries (151 tests), StrictTime over a VARCHAR (6), a trailing space trimmed (20), `!` over an absent navigation (3), F64's shape (3) | parameter types 9 at `[1]`, `[0..1]` and `[*]`; literal types 8 of 12; enumeration literals 33; `or`/`in`/`!` 29/25/27; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 2 | — | — | — | — | — | — |
 | 3 | — | — | — | — | — | — |
 | 4 | — | — | — | — | — | — |
