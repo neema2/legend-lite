@@ -320,3 +320,11 @@ says so.
     where IQ divides integers. Today only 64 bits' edge diverges: DuckDB raises its own overflow where IQ answers, the
     known D-N3. The iq16 half (SQL Anywhere's -158) is a question of Snowflake's NUMBER(38): a range check on every BIGINT
     operation there, or the divergence named.
+  - **The lane's rerun at 955a705a** (the sibling): PASS -> FAIL 208 to 0, PASS -> ERROR 59 to 37, PASS -> PASS 5,719 to
+    5,949. Then, for the 37:
+    - the oversized literals' digits counted past a negative scale (3.4028234663852886E38 is 17 digits of scale -22);
+    - `ExistsOverOneRow`, `NotExistsAsAll` and `ExistsUnnested`: an EXISTS over a one-row source or an ungrouped
+      aggregate needs no subquery; the island's NOT IN and ALL in a WHERE are Snowflake's native ALL; an EXISTS's TOP,
+      START AT, pass-through derived tables and outer-only conjuncts are unnested.
+  - **Fuzz round 6** (seed 6, `iq16-default`, 1,500 shapes: 19,500 queries, 1,406 partitioned): no finding. Every
+    profile family has a clean round now.

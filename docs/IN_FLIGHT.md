@@ -2177,7 +2177,12 @@ repros will be in the study's §9.
     - ASCII_CODE is `unicode()`. Snowflake's `ascii` is the first UTF-8 byte.
     - A decimal literal no NUMBER holds (more than 38 digits, or a scale past 37) is the DOUBLE DuckDB reads.
     - A percentile's level is a bare constant.
-    - Three passes for its subquery positions:
+    - Passes for its subquery positions, each exact:
+      - `ExistsUnnested`: an EXISTS's pass-through derived tables peeled, its row limit dropped (an offset m:
+        `COUNT(*) > m`), and a conjunct reading only the outer row hoisted out.
+      - `ExistsOverOneRow`: an EXISTS over a one-row source is its condition, and over an ungrouped aggregate TRUE.
+      - `NotExistsAsAll`: a WHERE conjunct that is the island's NOT IN or ALL (a two-valued NOT EXISTS) is the native
+        `x op ALL (...)`.
       - `ScalarSubqueriesFlattened`: a scalar subquery's chain of one-column derived tables is its innermost select.
       - `ScalarSubqueriesAggregated`: a correlated scalar subquery of no aggregate is `CASE WHEN COUNT(*) > 1 THEN
         error ELSE ANY_VALUE(x) END`.
