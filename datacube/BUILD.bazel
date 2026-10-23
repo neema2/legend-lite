@@ -2000,10 +2000,43 @@ executable_of(
     binary = ":deephaven_demo_fixture",
 )
 
+# THE DATACUBE ON DEEPHAVEN (DH23, 2026-10-23): DataCube's own app, unchanged, over the same server -- planned in the tab
+# on a Deephaven runtime and run by engine-client's DeephavenEngine, each query reading the source's tables the session
+# made for the first; a tick on a result on screen re-runs the cube. Served beside the plain page as cube.html.
+esbuild_bundle(
+    name = "deephaven_cube_bundle",
+    testonly = True,
+    srcs = glob(["demo/deephaven/*.ts"]) + [":src"],
+    outs = ["demo/deephaven/cube.js"],
+    args = [
+        "demo/deephaven/cube.ts",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--log-level=warning",
+        "--outfile=demo/deephaven/cube.js",
+    ],
+)
+
+# DataCube's styles, as its pages load them (demo/engine.html)
+filegroup(
+    name = "deephaven_cube_styles",
+    testonly = True,
+    srcs = [
+        "src/app.css",
+        "src/grid/grid.css",
+        "src/theme.css",
+    ],
+)
+
 _DEEPHAVEN_DEMO_DATA = [
     "demo/deephaven/index.html",
+    "demo/deephaven/cube.html",
+    "demo/deephaven/site.mjs",
     # the binary for its runfiles (the server's jars and Java, the application), its executable to start it by
     ":deephaven_demo_bundle",
+    ":deephaven_cube_bundle",
+    ":deephaven_cube_styles",
     ":deephaven_demo_fixture",
     ":deephaven_demo_fixture_executable",
     "//wasm:planner",
@@ -2013,6 +2046,9 @@ _DEEPHAVEN_DEMO_ENV = {
     "DEEPHAVEN_FIXTURE": "$(rlocationpath :deephaven_demo_fixture_executable)",
     "DEMO_BUNDLE": "$(rlocationpath :deephaven_demo_bundle)",
     "DEMO_PAGE": "$(rlocationpath demo/deephaven/index.html)",
+    "CUBE_BUNDLE": "$(rlocationpath :deephaven_cube_bundle)",
+    "CUBE_PAGE": "$(rlocationpath demo/deephaven/cube.html)",
+    "CUBE_STYLES": "$(rlocationpaths :deephaven_cube_styles)",
     "PLANNER": "$(rlocationpaths //wasm:planner)",
 }
 
@@ -2046,5 +2082,21 @@ browser_test(
         ":node_modules/playwright",
     ],
     entry_point = "test/deephaven/demo.mjs",
+    env = _DEEPHAVEN_DEMO_ENV,
+)
+
+# DataCube's own app on Deephaven, in the pinned Chromium (DH23): its tree's positions are the seeding's; a regroup, a
+# pivot and a filter each send only their own operations, the source's read from what the session holds; a pivot's
+# columns keep their names; and a tick re-runs it with nothing sent. Screenshots of each are its outputs. Manual, in
+# //gates:heavy, as :deephaven_demo_test.
+browser_test(
+    name = "deephaven_cube_test",
+    size = "medium",
+    tags = ["manual"],
+    data = _DEEPHAVEN_DEMO_DATA + [
+        "test/deephaven/cube.mjs",
+        ":node_modules/playwright",
+    ],
+    entry_point = "test/deephaven/cube.mjs",
     env = _DEEPHAVEN_DEMO_ENV,
 )

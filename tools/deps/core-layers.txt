@@ -55,6 +55,8 @@
 # planner and ide reach `door` (their texts' parses).
 # 2026-10-23 (docs/DEEPHAVEN_PLAN_2026_10_22.md DH11, DH22): `deephaven_wire`, the messages lite writes to a Deephaven
 # server and reads back (base and json only: the WebAssembly planner carries it to the browser tab, DH21).
+# 2026-10-23 (DH23, the JS lane's base reuse): `deephaven_wire` reaches `cache` -- its SHA-256, which TeaVM carries
+# (cache/Sha256.java), names each operation's table so a session reads a table it holds rather than making it again.
 spi	
 cache	base
 values	base
@@ -89,5 +91,5 @@ driver	base builtin cache compiler compiler_element_type database diagnostics er
 ide	base door lexer model parser
 test	base compiler driver error exec model planner protocol sql values
 saved_queries	base json
-deephaven_wire	base json
+deephaven_wire	base cache json
 server_lib	base cache compiler compiler_element_type database driver error exec json lowering model parser plan planner protocol pure_v1 saved_queries setup sql_dialect

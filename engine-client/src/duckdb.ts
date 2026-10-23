@@ -157,7 +157,7 @@ export function decimalToScalar(raw: unknown, scale: number): Scalar {
 }
 
 /** One column's decoder: a vector and a row to the value, exactly as stored (values.ts). */
-type Decode = (vector: ArrowishVector, row: number) => Scalar;
+export type Decode = (vector: ArrowishVector, row: number) => Scalar;
 
 /** The raw stored value of a row, across Arrow's chunks: what `get()` would round. */
 function rawAt(vector: ArrowishVector, row: number): unknown {
@@ -173,9 +173,10 @@ function rawAt(vector: ArrowishVector, row: number): unknown {
  * A decoder for one column, chosen once from its Arrow STORAGE type -- what the database
  * wrote -- and exact: a DATE is its calendar day (never a local-midnight instant), a
  * TIMESTAMP keeps its microseconds, a DECIMAL its digits. What the value MEANS is the
- * plan's compiler type; this only keeps it exact.
+ * plan's compiler type; this only keeps it exact. Every Arrow reader's: the tab's DuckDB, and a
+ * Deephaven server's rows (deephaven-rows.ts), so a value reads the same whichever answered.
  */
-function decoderFor(type: unknown): Decode {
+export function decoderFor(type: unknown): Decode {
   const name = String(type ?? '');
   const nonNull = (d: Decode): Decode => (v, r) => (v.get(r) === null || v.get(r) === undefined ? null : d(v, r));
   if (type && typeof type === 'object' && 'scale' in type

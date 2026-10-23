@@ -6,20 +6,10 @@
 
 // first: points Playwright at the Chromium Bazel fetched
 import '../../../tools/browser/pinned-chromium.mjs';
-import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { runfileFromEnv, runfileNamed } from '../../../tools/js/runfiles.mts';
+import { serveDemo, startDeephaven } from '../../demo/deephaven/site.mjs';
 
-const fixture = runfileFromEnv('DEEPHAVEN_FIXTURE');
-const files = {
-  '/': ['text/html', readFileSync(runfileFromEnv('DEMO_PAGE'))],
-  '/risk.js': ['text/javascript', readFileSync(runfileFromEnv('DEMO_BUNDLE'))],
-  '/wasm-gc-module-runtime.js': ['text/javascript', readFileSync(runfileNamed('PLANNER', 'wasm-gc-module-runtime.js'))],
-  '/classes.wasm': ['application/wasm', readFileSync(runfileNamed('PLANNER', 'classes.wasm'))],
-};
 const outputs = process.env.TEST_UNDECLARED_OUTPUTS_DIR ?? process.env.TEST_TMPDIR ?? '.';
 
 // the seeding's own positions per desk and sector (demo/deephaven/risk.groovy): position i is book (i / 40) % 8 and
@@ -32,38 +22,9 @@ for (let i = 0; i < 400; i++) {
   expected.set(key, (expected.get(key) ?? 0) + 1);
 }
 
-const server = spawn(fixture, [], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env } });
-server.stderr.on('data', (b) => {
-  for (const line of String(b).split('\n')) if (line && !/ INFO | DEBUG /.test(line)) process.stderr.write(`[deephaven] ${line}\n`);
-});
-let said = '';
-const lines = [];
-server.stdout.on('data', (b) => {
-  said += String(b);
-  const all = said.split('\n');
-  said = all.pop() ?? '';
-  for (const l of all) if (l.startsWith('{')) lines.push(JSON.parse(l));
-});
-const next = async (what) => {
-  for (let i = 0; i < 1800 && lines.length === 0; i++) await new Promise((r) => setTimeout(r, 100));
-  if (lines.length === 0) throw new Error(`the fixture said nothing ${what}`);
-  return lines.shift();
-};
-server.on('exit', (code) => console.log(`the Deephaven fixture exited (${code})`));
-const config = await next('on starting');
-files['/config.json'] = ['application/json', JSON.stringify({ url: config.url, psk: config.psk })];
-
-const site = createServer((req, res) => {
-  const f = files[new URL(req.url, 'http://page').pathname];
-  if (!f) {
-    res.writeHead(404);
-    res.end();
-    return;
-  }
-  res.writeHead(200, { 'content-type': f[0] });
-  res.end(f[1]);
-});
-const sitePort = await new Promise((done) => site.listen(0, '127.0.0.1', () => done(site.address().port)));
+const server = startDeephaven({ quiet: true });
+const config = await server.next('on starting');
+const site = await serveDemo(config);
 
 let failed = false;
 const fail = (why) => { console.log(`FAIL ${why}`); failed = true; };
@@ -73,7 +34,7 @@ try {
   browser = await chromium.launch();
   const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 900, height: 900 } })).newPage();
   page.on('pageerror', (e) => fail(`page error: ${e.message}`));
-  await page.goto(`http://127.0.0.1:${sitePort}/`);
+  await page.goto(`${site.url}/`);
   const state = () => page.evaluate(() => window.__demo);
   const until = async (test, what, ms = 120_000) => {
     const end = Date.now() + ms;
@@ -104,11 +65,11 @@ try {
   await page.screenshot({ path: join(outputs, '2-ticking.png'), fullPage: true });
 
   // a restart: Deephaven keeps nothing across one; its start-up script seeds again, and the page must come back alone
-  server.stdin.write('restart\n');
+  server.restart();
   const down = await until((s) => s.status === 'reconnecting', 'reconnecting after the restart', 60_000);
   ok(`the page saw the server go (${down.error.slice(0, 80)})`);
   await page.screenshot({ path: join(outputs, '3-reconnecting.png'), fullPage: true });
-  const restarted = await next('on restarting');
+  const restarted = await server.next('on restarting');
   if (!restarted.restarted) fail(`the fixture answered ${JSON.stringify(restarted)}`);
   const back = await until((s) => s.status === 'live' && s.reconnects >= 1 && s.updates >= later.updates + 3, 'live again', 120_000);
   const again = counts(back);
@@ -119,8 +80,6 @@ try {
 } finally {
   await browser?.close();
   site.close();
-  server.stdin.end();
-  await new Promise((r) => setTimeout(r, 2000));
-  if (server.exitCode === null) server.kill('SIGKILL');
+  await server.stop();
 }
 process.exit(failed ? 1 : 0);

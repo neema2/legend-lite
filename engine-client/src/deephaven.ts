@@ -1,9 +1,11 @@
-// THE TAB'S DEEPHAVEN SENDER (docs/DEEPHAVEN_PLAN_2026_10_22.md DH21): a plan the tab's own planner wrote, sent
-// straight to a Deephaven server -- no server of legend-lite's in between -- and its live result published under a
-// shared name that the JS library the Deephaven server serves opens (deephaven-live.ts). The planner writes every byte
-// sent and reads every answer (the protocol's `deephaven` kind: com.legend.deephaven.DeephavenWire); this only carries
-// them over Deephaven's browser protocol -- gRPC-web: each message a 5-byte frame, the status in a trailer frame, over
-// HTTP/2, which a browser speaks only over HTTPS -- and reads the status. It decides nothing about the query.
+// THE TAB'S DEEPHAVEN SENDER (docs/DEEPHAVEN_PLAN_2026_10_22.md DH21, DH23): a plan the tab's own planner wrote, sent
+// straight to a Deephaven server -- no server of legend-lite's in between -- the tables it makes held by the session for
+// the next plan to read, its rows read back as Arrow, and the server's word when a held table changes. The planner
+// writes every byte sent and reads every answer (the protocol's `deephaven` kind: com.legend.deephaven.DeephavenWire),
+// the rows aside: they are Arrow's, read by apache-arrow as the tab's DuckDB answers are. This only carries the bytes
+// over Deephaven's browser protocol -- gRPC-web: each message a 5-byte frame, the status in a trailer frame, over
+// HTTP/2, which a browser speaks only over HTTPS -- keeps the session's tables, and reads the status. It decides
+// nothing about the query.
 
 /** The planner's half: one `deephaven` operation answered, as the module tags it (`OK\n...`, `ERR\n<kind>\n<why>`). */
 export type DeephavenPlanner = (op: string, args: Readonly<Record<string, unknown>>) => Promise<string>;
@@ -33,18 +35,45 @@ export class DeephavenRefused extends Error {
   }
 }
 
-/** A plan's live result on the server, published under `name` until it is released (releasing its export ends the
- *  name too: measured on Deephaven 42.7, 2026-10-23). A watch already open keeps its own copy. */
+/** A plan's live result on the server, published under `name` while the session holds it: `release` lets it go idle,
+ *  and the name ends when the session lets the table go (an export's name lives as long as the export: measured on
+ *  Deephaven 42.7, 2026-10-23). A watch already open keeps its own copy. */
 export interface LiveTable {
   readonly name: string;
   release(): Promise<void>;
 }
 
-/** What a session needs of its page: how it fetches (the page's own `fetch`), and how often it keeps the session's
- *  token fresh (Deephaven ends a session left unrefreshed; a minute is well inside its five). */
+/**
+ * A plan's result, held for its reader (DH23): the export the session reads its rows by. `release` lets it go IDLE,
+ * not away: the session keeps the tables it made to be read again -- a grid's next query over the same source reads
+ * the source's tables rather than making them again -- and lets idle tables go, the least recently used first, past
+ * its `keep`.
+ */
+export interface HeldResult {
+  readonly exportId: number;
+  /** The plan's operations, and those sent to make it: none when the session held it already. */
+  readonly ops: number;
+  readonly sent: number;
+  release(): void;
+}
+
+/** What the server says of one of the session's tables on its update stream: it changed (it is now `size` rows), or
+ *  it failed, and why (a to-one join that met a second match, DH20). */
+export interface DeephavenUpdate {
+  readonly exportId: number;
+  readonly size: number;
+  readonly failure: string;
+}
+
+/** What a session needs of its page: how it fetches (the page's own `fetch`), how often it keeps the session's token
+ *  fresh (Deephaven ends a session left unrefreshed; a minute is well inside its five), how many idle tables it keeps
+ *  to be read again (128: a grid's last several views; an idle table still ticks on the server, so they are not free),
+ *  and how often it reads its update stream's messages (the server's cycle is the faster bound). */
 export interface DeephavenSessionOptions {
   readonly fetch?: typeof fetch;
   readonly refreshMs?: number;
+  readonly keep?: number;
+  readonly updatesMs?: number;
 }
 
 const CONFIG = 'io.deephaven.proto.backplane.grpc.ConfigService/GetConfigurationConstants';
@@ -52,6 +81,15 @@ const BATCH = 'io.deephaven.proto.backplane.grpc.TableService/Batch';
 const PUBLISH = 'io.deephaven.proto.backplane.grpc.SessionService/PublishFromTicket';
 const RELEASE = 'io.deephaven.proto.backplane.grpc.SessionService/Release';
 const CLOSE = 'io.deephaven.proto.backplane.grpc.SessionService/CloseSession';
+const UPDATES = 'io.deephaven.proto.backplane.grpc.TableService/ExportedTableUpdates';
+const DO_GET = 'arrow.flight.protocol.FlightService/DoGet';
+
+/** A table the session holds: its export, how many readers hold it now, and when it was last read (a count). */
+interface Held {
+  readonly exportId: number;
+  pins: number;
+  used: number;
+}
 
 /** One session of the tab's on a Deephaven server: the plans it sends, and the results it publishes. */
 export class DeephavenSession {
@@ -62,16 +100,30 @@ export class DeephavenSession {
   private nextExport = 1;
   private readonly timer: ReturnType<typeof setInterval>;
   private closed = false;
+  private readonly keep: number;
+  private readonly updatesMs: number;
+  /** The tables the session holds, by their key (DeephavenWire.keys). */
+  private readonly tables = new Map<string, Held>();
+  /** The tables a send of the session's is making now, by key: another send that reads one waits for it. */
+  private readonly making = new Map<string, Promise<void>>();
+  private clock = 0;
+  /** Every table the session has made, by key, and how many of them it made again after letting them go. */
+  private readonly made = new Set<string>();
+  private madeAgain = 0;
+  /** The update stream, while anything listens: what reads it, and its listeners. */
+  private updates: { readonly stop: AbortController; readonly listeners: Set<UpdateListener> } | null = null;
 
   private constructor(server: DeephavenServer, planner: DeephavenPlanner, fetcher: typeof fetch, auth: string,
-    refreshMs: number) {
+    options: DeephavenSessionOptions) {
     this.server = server;
     this.planner = planner;
     this.fetcher = fetcher;
     this.auth = auth;
+    this.keep = options.keep ?? 128;
+    this.updatesMs = options.updatesMs ?? 100;
     this.timer = setInterval(() => {
       this.call(CONFIG, new Uint8Array()).catch(() => { /* the next call reports a session that ended */ });
-    }, refreshMs);
+    }, options.refreshMs ?? 60_000);
   }
 
   /** Signs in to `server`: its first call carries the credential, and the server answers with the session's token. */
@@ -80,7 +132,7 @@ export class DeephavenSession {
     // the page's own fetch, called as a function: a method call would bind it to the session ("Illegal invocation")
     const fetcher = options.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
     const session = new DeephavenSession(server, planner, fetcher, `${server.signIn.type} ${server.signIn.token}`,
-      options.refreshMs ?? 60_000);
+      options);
     try {
       await session.call(CONFIG, new Uint8Array());
       if (!session.auth.startsWith('Bearer ')) {
@@ -93,29 +145,233 @@ export class DeephavenSession {
     return session;
   }
 
-  /** Sends `plan` (a Deephaven plan's text, as the planner wrote it) and publishes its result under a fresh name. */
-  async publish(plan: string): Promise<LiveTable> {
+  /**
+   * `plan`'s result, held (DH23): the planner names each of its operations' tables by key and writes the request that
+   * makes what the session does not hold -- each table it makes exported, to be read again -- and the server's answer
+   * for each is checked; a table another send is making now is waited for, not made twice.
+   */
+  async hold(plan: string): Promise<HeldResult> {
     this.open();
-    const exportId = this.nextExport++;
-    const answer = await this.call(BATCH, fromBase64(await this.ask('batch', { plan, exportId })));
-    if (answer.length === 0) throw new DeephavenRefused('Batch', 2, 'the server answered no operation');
+    const { keys } = JSON.parse(await this.ask('keys', { plan })) as { readonly keys: readonly string[] };
+    const resultKey = keys[keys.length - 1];
+    if (resultKey === undefined) throw new Error('the planner named no operation of the Deephaven plan');
+    for (;;) {
+      const making = keys.flatMap((k) => this.making.get(k) ?? []);
+      if (making.length === 0) break;
+      await Promise.allSettled(making);
+    }
+    // what is held is pinned while this reads it; what is not is marked as being made, and its ids set aside
+    const pinned = keys.flatMap((k) => this.tables.get(k) ?? []);
+    for (const t of pinned) t.pins++;
+    const missing = [...new Set(keys.filter((k) => !this.tables.has(k)))];
+    let made!: () => void;
+    const making = new Promise<void>((done) => { made = done; });
+    for (const k of missing) this.making.set(k, making);
+    const nextExportId = this.nextExport;
+    this.nextExport += missing.length;
+    try {
+      const held = Object.fromEntries(keys.flatMap((k) => {
+        const t = this.tables.get(k);
+        return t ? [[k, t.exportId]] : [];
+      }));
+      const send = JSON.parse(await this.ask('send', { plan, held, nextExportId })) as {
+        readonly request: string;
+        readonly exports: readonly { readonly key: string; readonly exportId: number }[];
+        readonly result: number;
+      };
+      if (send.exports.length > 0) await this.make(send.request, send.exports);
+      const result = this.tables.get(resultKey);
+      if (result === undefined || result.exportId !== send.result) {
+        throw new Error(`the Deephaven session holds no table for its result (export ${send.result})`);
+      }
+      result.pins++;
+      let released = false;
+      return {
+        exportId: result.exportId,
+        ops: keys.length,
+        sent: send.exports.length,
+        release: () => {
+          if (released) return;
+          released = true;
+          result.pins--;
+          result.used = ++this.clock;
+          this.letGo();
+        },
+      };
+    } finally {
+      for (const k of missing) if (this.making.get(k) === making) this.making.delete(k);
+      made();
+      for (const t of pinned) {
+        t.pins--;
+        t.used = ++this.clock;
+      }
+      this.letGo();
+    }
+  }
+
+  /** Sends a batch that makes `exports`, checks the server made each, and holds them; a refusal lets them all go. */
+  private async make(request: string, exports: readonly { readonly key: string; readonly exportId: number }[]):
+  Promise<void> {
+    const answer = await this.call(BATCH, fromBase64(request));
+    let refused: string | null = answer.length === exports.length ? null
+      : `the server answered ${answer.length} of the batch's ${exports.length} operations`;
     for (const message of answer) {
       const created = JSON.parse(await this.ask('created', { message: toBase64(message) })) as {
         readonly success: boolean;
         readonly errorInfo: string;
       };
-      if (!created.success) throw new DeephavenRefused('Batch', 3, created.errorInfo);
+      // the first refusal is the cause: the operations after it that read it fail for it
+      if (!created.success && refused === null) refused = created.errorInfo;
     }
+    if (refused !== null) {
+      for (const e of exports) this.releaseExport(e.exportId);
+      throw new DeephavenRefused('Batch', 3, refused);
+    }
+    for (const e of exports) {
+      this.tables.set(e.key, { exportId: e.exportId, pins: 0, used: ++this.clock });
+      if (this.made.has(e.key)) this.madeAgain++;
+      this.made.add(e.key);
+    }
+  }
+
+  /** How many tables the session made again after letting them go (past `keep`): none while it holds every one. */
+  get remade(): number {
+    return this.madeAgain;
+  }
+
+  /** Whether the session holds the export `exportId` still. */
+  holds(exportId: number): boolean {
+    for (const t of this.tables.values()) if (t.exportId === exportId) return true;
+    return false;
+  }
+
+  /** Lets the least recently read idle tables go, past `keep`. */
+  private letGo(): void {
+    const idle = [...this.tables].filter(([, t]) => t.pins === 0).sort(([, a], [, b]) => a.used - b.used);
+    for (const [key, t] of idle.slice(0, Math.max(0, idle.length - this.keep))) {
+      this.tables.delete(key);
+      this.releaseExport(t.exportId);
+    }
+  }
+
+  private releaseExport(exportId: number): void {
+    if (this.closed) return;
+    void this.ask('releaseExport', { exportId })
+      .then((request) => this.call(RELEASE, fromBase64(request)))
+      .catch(() => { /* a session that ended released it */ });
+  }
+
+  /** The rows of the export `exportId` as they are now, an Arrow IPC stream: Arrow Flight's DoGet, its answer's
+   *  messages (Flight's `FlightData`, each an Arrow message's header and body) laid end to end as the stream format
+   *  lays them. */
+  async rows(exportId: number): Promise<Uint8Array> {
+    this.open();
+    return ipcStream(await this.call(DO_GET, fromBase64(await this.ask('doGet', { exportId }))));
+  }
+
+  /**
+   * Calls `onUpdates` with what the server says of the session's tables, as it reads its update stream (one message
+   * per table each update cycle that changes it), the messages read by the planner every `updatesMs`; `onEnd` when
+   * the stream ends -- the session ended (a restart: Deephaven keeps no session across one). The stream opens with
+   * the first listener and closes with the last.
+   */
+  onUpdates(onUpdates: (updates: readonly DeephavenUpdate[]) => void, onEnd?: (why: unknown) => void): () => void {
+    this.open();
+    const listener: UpdateListener = { onUpdates, onEnd: onEnd ?? (() => {}) };
+    if (this.updates === null) {
+      const updates = { stop: new AbortController(), listeners: new Set<UpdateListener>() };
+      this.updates = updates;
+      void this.readUpdates(updates.stop.signal, updates.listeners);
+    }
+    const listeners = this.updates.listeners;
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0 && this.updates?.listeners === listeners) {
+        this.updates.stop.abort();
+        this.updates = null;
+      }
+    };
+  }
+
+  private async readUpdates(signal: AbortSignal, listeners: Set<UpdateListener>): Promise<void> {
+    const pending: Uint8Array[] = [];
+    let reading = false;
+    const flush = async (): Promise<void> => {
+      if (reading || pending.length === 0) return;
+      reading = true;
+      const messages = pending.splice(0).map(toBase64);
+      try {
+        const { updates } = JSON.parse(await this.ask('updated', { messages })) as {
+          readonly updates: readonly DeephavenUpdate[];
+        };
+        for (const l of listeners) l.onUpdates(updates);
+      } finally {
+        reading = false;
+      }
+    };
+    const timer = setInterval(() => { flush().catch((e) => end(e)); }, this.updatesMs);
+    let ended = false;
+    const end = (why: unknown): void => {
+      if (ended) return;
+      ended = true;
+      clearInterval(timer);
+      if (!signal.aborted) for (const l of listeners) l.onEnd(why);
+    };
+    try {
+      const response = await this.fetcher(`${this.server.url}/${UPDATES}`, {
+        method: 'POST',
+        body: frame(new Uint8Array()),
+        headers: this.headers(),
+        signal,
+      });
+      if (!response.ok || response.body === null) {
+        throw new DeephavenRefused('ExportedTableUpdates', 14, `HTTP ${response.status}`);
+      }
+      const reader = response.body.getReader();
+      let buffer = new Uint8Array();
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const joined = new Uint8Array(buffer.length + value.length);
+        joined.set(buffer);
+        joined.set(value, buffer.length);
+        buffer = joined;
+        while (buffer.length >= 5) {
+          const length = new DataView(buffer.buffer, buffer.byteOffset + 1, 4).getUint32(0);
+          if (buffer.length < 5 + length) break;
+          const flag = buffer[0] ?? 0;
+          const message = buffer.slice(5, 5 + length);
+          buffer = buffer.slice(5 + length);
+          // the trailer: the stream's status, its end
+          if (flag & 0x80) {
+            const said = trailer(message);
+            throw said.status === '0' || said.status === null
+              ? new DeephavenRefused('ExportedTableUpdates', 14, 'the server ended the update stream')
+              : new DeephavenRefused('ExportedTableUpdates', Number(said.status), decodeURIComponent(said.message ?? ''));
+          }
+          pending.push(message);
+        }
+      }
+      throw new DeephavenRefused('ExportedTableUpdates', 14, 'the server ended the update stream');
+    } catch (e) {
+      end(e);
+    }
+  }
+
+  /** Sends `plan` and publishes its result under a fresh name, for another session to open (deephaven-live.ts). */
+  async publish(plan: string): Promise<LiveTable> {
+    const held = await this.hold(plan);
     const name = `legend-${randomName()}`;
-    await this.call(PUBLISH, fromBase64(await this.ask('publish', { exportId, name })));
-    let released = false;
+    try {
+      await this.call(PUBLISH, fromBase64(await this.ask('publish', { exportId: held.exportId, name })));
+    } catch (e) {
+      held.release();
+      throw e;
+    }
     return {
       name,
-      release: async () => {
-        if (released || this.closed) return;
-        released = true;
-        await this.call(RELEASE, fromBase64(await this.ask('releaseExport', { exportId })));
-      },
+      release: async () => held.release(),
     };
   }
 
@@ -130,6 +386,8 @@ export class DeephavenSession {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    this.updates?.stop.abort();
+    this.updates = null;
     clearInterval(this.timer);
     await this.call(CLOSE, new Uint8Array());
   }
@@ -142,16 +400,17 @@ export class DeephavenSession {
     return untag(await this.planner(op, args), op);
   }
 
+  private headers(): Record<string, string> {
+    return { 'content-type': 'application/grpc-web+proto', 'x-grpc-web': '1', authorization: this.auth };
+  }
+
   /** One gRPC-web call: its request message framed, its answer's messages unframed, and its status read. */
   private async call(method: string, message: Uint8Array): Promise<Uint8Array[]> {
-    const body = new Uint8Array(5 + message.length);
-    new DataView(body.buffer).setUint32(1, message.length);
-    body.set(message, 5);
     const name = method.slice(method.lastIndexOf('/') + 1);
     const response = await this.fetcher(`${this.server.url}/${method}`, {
       method: 'POST',
-      body,
-      headers: { 'content-type': 'application/grpc-web+proto', 'x-grpc-web': '1', authorization: this.auth },
+      body: frame(message),
+      headers: this.headers(),
     });
     if (!response.ok) throw new DeephavenRefused(name, 14, `HTTP ${response.status} ${await response.text()}`);
     const token = response.headers.get('authorization');
@@ -169,13 +428,9 @@ export class DeephavenSession {
       const frame = bytes.slice(at + 5, at + 5 + length);
       at += 5 + length;
       if (flag & 0x80) {
-        for (const line of new TextDecoder().decode(frame).split('\r\n')) {
-          const colon = line.indexOf(':');
-          if (colon < 0) continue;
-          const key = line.slice(0, colon).trim().toLowerCase();
-          if (key === 'grpc-status') status = line.slice(colon + 1).trim();
-          if (key === 'grpc-message') why = line.slice(colon + 1).trim();
-        }
+        const said = trailer(frame);
+        status = said.status ?? status;
+        why = said.message ?? why;
       } else {
         messages.push(frame);
       }
@@ -184,6 +439,95 @@ export class DeephavenSession {
     if (status !== '0') throw new DeephavenRefused(name, Number(status), decodeURIComponent(why));
     return messages;
   }
+}
+
+/** Who listens to the update stream. */
+interface UpdateListener {
+  readonly onUpdates: (updates: readonly DeephavenUpdate[]) => void;
+  readonly onEnd: (why: unknown) => void;
+}
+
+/** A trailer frame's status and message (gRPC-web's trailers: `key: value` lines), each null when it has none. */
+function trailer(frame: Uint8Array): { readonly status: string | null; readonly message: string | null } {
+  let status: string | null = null;
+  let message: string | null = null;
+  for (const line of new TextDecoder().decode(frame).split('\r\n')) {
+    const colon = line.indexOf(':');
+    if (colon < 0) continue;
+    const key = line.slice(0, colon).trim().toLowerCase();
+    if (key === 'grpc-status') status = line.slice(colon + 1).trim();
+    if (key === 'grpc-message') message = line.slice(colon + 1).trim();
+  }
+  return { status, message };
+}
+
+/** One gRPC-web frame: a flag byte, the message's length (32 bits, big-endian), the message. */
+function frame(message: Uint8Array): Uint8Array<ArrayBuffer> {
+  const body = new Uint8Array(5 + message.length);
+  new DataView(body.buffer).setUint32(1, message.length);
+  body.set(message, 5);
+  return body;
+}
+
+/**
+ * Arrow Flight's `FlightData` messages as one Arrow IPC stream: each message's Arrow header (field 2) and body (field
+ * 1000) as the stream format lays a message out -- the continuation marker, the header's length padded to 8 bytes, the
+ * header, its padding, the body -- and the end-of-stream marker. The rows' envelope, not an answer the planner judges:
+ * only those two fields are read, each by protobuf's own rule (a field number and wire type, then its length).
+ */
+export function ipcStream(messages: readonly Uint8Array[]): Uint8Array {
+  const parts: Uint8Array[] = [];
+  for (const m of messages) {
+    let header: Uint8Array | null = null;
+    let body: Uint8Array = new Uint8Array();
+    for (let at = 0; at < m.length;) {
+      const [key, afterKey] = varint(m, at);
+      const number = Number(key >> 3n);
+      const wire = Number(key & 7n);
+      if (wire === 0) {
+        at = varint(m, afterKey)[1];
+      } else if (wire === 2) {
+        const [length, start] = varint(m, afterKey);
+        const end = start + Number(length);
+        if (end > m.length) throw new Error('a Deephaven row message ended inside a field');
+        if (number === 2) header = m.subarray(start, end);
+        if (number === 1000) body = m.subarray(start, end);
+        at = end;
+      } else {
+        throw new Error(`a Deephaven row message holds wire type ${wire}, which FlightData does not use`);
+      }
+    }
+    // a message without a header carries no Arrow message (Flight's metadata alone)
+    if (header === null) continue;
+    const pad = (8 - (header.length % 8)) % 8;
+    const prefix = new Uint8Array(8);
+    const view = new DataView(prefix.buffer);
+    view.setUint32(0, 0xffffffff, true);
+    view.setInt32(4, header.length + pad, true);
+    parts.push(prefix, header, new Uint8Array(pad), body);
+  }
+  const end = new Uint8Array(8);
+  new DataView(end.buffer).setUint32(0, 0xffffffff, true);
+  parts.push(end);
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+}
+
+/** A base-128 varint at `at`: its value, and where the next field starts. */
+function varint(bytes: Uint8Array, at: number): [bigint, number] {
+  let value = 0n;
+  for (let shift = 0n, i = at; shift < 64n; shift += 7n, i++) {
+    const b = bytes[i];
+    if (b === undefined) throw new Error('a Deephaven row message ended inside a number');
+    value |= BigInt(b & 0x7f) << shift;
+    if ((b & 0x80) === 0) return [value, i + 1];
+  }
+  throw new Error('a Deephaven row message holds a number longer than 64 bits');
 }
 
 /** The module's tagged answer's payload, or its refusal thrown. */

@@ -41,13 +41,59 @@ final class ProtoWire {
         return out.toByteArray();
     }
 
-    private static void message(ByteArrayOutputStream out, Message m, Json.Obj value, UnaryOperator<byte[]> ticket) {
+    /** {@code value}, a {@code type} in its JSON form, with each table reference it holds (a {@code TableReference},
+     *  at any depth: an operation's source, a join's two sides, a merge's list) replaced by {@code reference}'s answer
+     *  for it; the rest as it is, its fields in the table's order. The walk is the table's, so a key it does not know
+     *  is refused as {@link #write} refuses it. */
+    static Json.Obj references(String type, Json.Obj value, UnaryOperator<Json.Obj> reference) {
+        Message m = DeephavenMessages.message(type);
+        known(m, value);
+        LinkedHashMap<String, Json.Node> out = new LinkedHashMap<>();
+        for (Field f : m.fields().values()) {
+            Json.Node v = value.fields().get(f.json());
+            if (v == null) {
+                continue;
+            }
+            if (f.kind() != DeephavenMessages.Kind.MESSAGE) {
+                out.put(f.json(), v);
+            } else if (f.card() == Card.REPEATED) {
+                if (!(v instanceof Json.Arr items)) {
+                    throw kind(m, f, v);
+                }
+                List<Json.Node> each = new ArrayList<>();
+                for (Json.Node item : items.items()) {
+                    each.add(referencesIn(m, f, item, reference));
+                }
+                out.put(f.json(), new Json.Arr(each));
+            } else {
+                out.put(f.json(), referencesIn(m, f, v, reference));
+            }
+        }
+        return new Json.Obj(out);
+    }
+
+    private static Json.Obj referencesIn(Message m, Field f, Json.Node v, UnaryOperator<Json.Obj> reference) {
+        if (!(v instanceof Json.Obj obj)) {
+            throw kind(m, f, v);
+        }
+        if (typeOf(f).equals("TableReference")) {
+            known(DeephavenMessages.message("TableReference"), obj);
+            return reference.apply(obj);
+        }
+        return references(typeOf(f), obj, reference);
+    }
+
+    private static void known(Message m, Json.Obj value) {
         for (String key : value.fields().keySet()) {
             if (!m.fields().containsKey(key)) {
                 throw new IllegalArgumentException("Deephaven message " + m.name() + " has no field '" + key
                         + "' lite writes (it writes " + m.fields().keySet() + ")");
             }
         }
+    }
+
+    private static void message(ByteArrayOutputStream out, Message m, Json.Obj value, UnaryOperator<byte[]> ticket) {
+        known(m, value);
         for (Field f : m.fields().values()) {
             Json.Node v = value.fields().get(f.json());
             if (v == null) {

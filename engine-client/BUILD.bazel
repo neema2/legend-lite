@@ -158,6 +158,20 @@ node_test(
     entry_point = "test/arrow-ipc.test.ts",
 )
 
+# a Deephaven server's rows (deephaven-rows.ts, docs/DEEPHAVEN_PLAN_2026_10_22.md DH23): an answer the pinned server sent,
+# recorded, read as the Deephaven engine reads it -- no server here
+node_test(
+    name = "deephaven_rows_test",
+    size = "small",
+    data = [
+        ":engine_client",
+        ":node_modules/apache-arrow",
+        "test/deephaven/doget-answer.hex",
+    ],
+    entry_point = "test/deephaven-rows.test.ts",
+    env = {"DOGET_ANSWER": "$(rlocationpath test/deephaven/doget-answer.hex)"},
+)
+
 # DuckDB in a Node test (src/node-require.ts startNodeDuckDb): the pinned extensions only, none fetched (node_test gives
 # a test that takes DuckDB-WASM the pinned files)
 node_test(

@@ -12,12 +12,15 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -150,6 +153,140 @@ class DeephavenWireTest {
         }
     }
 
+    /** Two grid queries over one source, as the target writes them on a Deephaven runtime. */
+    private static final String SOURCE = "#>{risk::Ref.trades}#->join(#>{risk::Ref.instrument}#,"
+            + " meta::pure::functions::relation::JoinKind.LEFT, {t, i | $t.instrument == $i.iid})";
+
+    private static String plan(String query) {
+        String model = """
+                ###Relational
+                Database risk::Ref
+                (
+                  Table trades (id INTEGER PRIMARY KEY, desk VARCHAR(16), qty BIGINT, pnl DOUBLE, instrument VARCHAR(16))
+                  Table instrument (iid VARCHAR(16) PRIMARY KEY, sector VARCHAR(16), ccy VARCHAR(3) NOT NULL)
+                )
+                ###Connection
+                RelationalDatabaseConnection risk::Conn
+                {
+                  store: risk::Ref;
+                  type: DuckDB;
+                  specification: DuckDB { };
+                  auth: Test;
+                }
+                ###Runtime
+                Runtime risk::RT
+                {
+                  mappings: [];
+                  connections: [ risk::Ref: [ c: risk::Conn ] ];
+                }
+                """.replace("type: DuckDB;\n  specification: DuckDB { };\n  auth: Test;",
+                "type: Deephaven;\n  specification: Deephaven { host: 'localhost'; port: 8443; useTls: true; };\n"
+                        + "  auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };");
+        return Compiler.query(Compiler.compileModel(model), query).plan("risk::RT").sql();
+    }
+
+    /** The operations a request sends: each one's name, its result's export id, and the references it reads. */
+    private static List<String> sent(byte[] request) {
+        List<String> out = new ArrayList<>();
+        for (Json.Node n : ProtoWire.read("BatchTableRequest", request).getArrOr("ops", new Json.Arr(List.of())).items()) {
+            Json.Obj op = (Json.Obj) n;
+            String name = op.fields().keySet().iterator().next();
+            Json.Obj body = op.getObj(name);
+            byte[] result = java.util.Base64.getDecoder().decode(body.getObj("resultId").getString("ticket"));
+            StringBuilder reads = new StringBuilder();
+            ProtoWire.references("BatchTableRequest.Operation", op, ref -> {
+                if (ref.has("batchOffset")) {
+                    reads.append(" @").append(ref.getLong("batchOffset"));
+                } else {
+                    byte[] t = java.util.Base64.getDecoder().decode(ref.getObj("ticket").getString("ticket"));
+                    reads.append(' ').append(t[0] == 'e' ? "e" + (t[1] & 0xFF) : new String(t, StandardCharsets.UTF_8));
+                }
+                return ref;
+            });
+            out.add(name + " e" + (result[1] & 0xFF) + reads);
+        }
+        return out;
+    }
+
+    /** A key names the table an operation makes: two queries over one source share the source's keys, and part at
+     *  the first operation that differs, and every one after it differs too (it reads a different table). */
+    @Test
+    void queriesOverOneSourceShareTheSourcesKeys() {
+        String byDesk = plan(SOURCE + "->groupBy(~[desk], ~[pnl:x|$x.pnl:y|$y->sum()])->sort(~desk->ascending())");
+        String bySector = plan(SOURCE + "->filter(x|$x.qty > 10)->groupBy(~[sector], ~[pnl:x|$x.pnl:y|$y->sum()])");
+        List<String> a = DeephavenWire.keys(byDesk);
+        List<String> b = DeephavenWire.keys(bySector);
+        int shared = 0;
+        while (shared < Math.min(a.size(), b.size()) && a.get(shared).equals(b.get(shared))) {
+            shared++;
+        }
+        // the two sides' views and their join
+        assertEquals(3, shared, a + "\n" + b);
+        for (int i = shared; i < b.size(); i++) {
+            assertFalse(a.contains(b.get(i)), "operation " + i + " of the second plan");
+        }
+        assertEquals(a, DeephavenWire.keys(byDesk));
+        assertTrue(a.stream().allMatch(k -> k.matches("[0-9a-f]{64}")), a.toString());
+    }
+
+    /** A send exports every operation it sends; a later send of a query over the same source sends only what it does
+     *  not hold, reading the held join by its ticket; a held result sends nothing. */
+    @Test
+    void aSendSendsOnlyWhatTheSessionDoesNotHold() {
+        String byDesk = plan(SOURCE + "->groupBy(~[desk], ~[pnl:x|$x.pnl:y|$y->sum()])->sort(~desk->ascending())");
+        String bySector = plan(SOURCE + "->filter(x|$x.qty > 10)->groupBy(~[sector], ~[pnl:x|$x.pnl:y|$y->sum()])");
+        DeephavenWire.Send first = DeephavenWire.send(byDesk, Map.of(), 1);
+        List<String> keys = DeephavenWire.keys(byDesk);
+        assertEquals(keys.size(), first.exports().size());
+        assertEquals(keys.get(keys.size() - 1), first.exports().get(first.exports().size() - 1).key());
+        assertEquals(first.exports().size(), first.result());
+        List<String> ops = sent(first.request());
+        assertEquals("view e1 s/trades", ops.get(0));
+        assertEquals("view e2 s/instrument", ops.get(1));
+        assertEquals("naturalJoin e3 @0 @1", ops.get(2));
+
+        Map<String, Integer> held = new LinkedHashMap<>();
+        for (DeephavenWire.Export e : first.exports()) {
+            held.put(e.key(), e.exportId());
+        }
+        DeephavenWire.Send second = DeephavenWire.send(bySector, held, 100);
+        List<String> tail = sent(second.request());
+        assertEquals(DeephavenWire.keys(bySector).size() - 3, tail.size(), tail.toString());
+        assertEquals("unstructuredFilter e100 e3", tail.get(0));
+        assertTrue(tail.get(1).endsWith(" @0"), tail.toString());
+        assertEquals(99 + tail.size(), second.result());
+
+        DeephavenWire.Send again = DeephavenWire.send(byDesk, held, 200);
+        assertEquals(0, again.request().length);
+        assertEquals(List.of(), again.exports());
+        assertEquals(first.result(), again.result());
+    }
+
+    /** The same table twice in one plan is sent once, every reader of either reading the one sent. */
+    @Test
+    void theSameTableTwiceInOnePlanIsSentOnce() {
+        String twice = "{\"ops\": [{\"emptyTable\": {\"size\": \"3\"}}, {\"emptyTable\": {\"size\": \"3\"}},"
+                + " {\"merge\": {\"sourceIds\": [{\"batchOffset\": 0}, {\"batchOffset\": 1}]}}]}";
+        List<String> keys = DeephavenWire.keys(twice);
+        assertEquals(keys.get(0), keys.get(1));
+        DeephavenWire.Send s = DeephavenWire.send(twice, Map.of(), 1);
+        assertEquals(List.of("emptyTable e1", "merge e2 @0 @0"), sent(s.request()));
+        assertEquals(2, s.result());
+    }
+
+    @Test
+    void theRowsTicketAndTheUpdateStreamsMessages() {
+        assertEquals("0a056507000000", HEX.formatHex(DeephavenWire.doGet(7)));
+        // as the server sent them (measured, 2026-10-23): export 10, size 40; export 11, size 3
+        assertEquals(new DeephavenWire.Updated(10, 40, ""), DeephavenWire.updated(HEX.parseHex("0a070a05650a0000001050")));
+        assertEquals(new DeephavenWire.Updated(11, 3, ""), DeephavenWire.updated(HEX.parseHex("0a070a05650b0000001006")));
+        assertEquals(new DeephavenWire.Updated(11, 0, "gone"),
+                DeephavenWire.updated(HEX.parseHex("0a070a05650b0000001a04676f6e65")));
+        IllegalArgumentException scope = assertThrows(IllegalArgumentException.class,
+                () -> DeephavenWire.updated(HEX.parseHex("0a040a02732f")));
+        assertTrue(scope.getMessage().contains("names no export"), scope.getMessage());
+    }
+
     @Test
     void whatTheTableDoesNotHoldIsRefusedByName() {
         IllegalArgumentException key = assertThrows(IllegalArgumentException.class,
@@ -170,6 +307,15 @@ class DeephavenWireTest {
         IllegalArgumentException value = assertThrows(IllegalArgumentException.class, () -> ProtoWire.write(
                 "SortDescriptor", Json.parseObject("{\"direction\": \"SIDEWAYS\"}"), b -> b));
         assertTrue(value.getMessage().contains("has no value 'SIDEWAYS'"), value.getMessage());
+        IllegalArgumentException forward = assertThrows(IllegalArgumentException.class, () -> DeephavenWire.keys(
+                "{\"ops\": [{\"emptyTable\": {\"size\": \"1\"}}, {\"dropColumns\": {\"sourceId\": {\"batchOffset\": 1},"
+                        + " \"columnNames\": []}}]}"));
+        assertTrue(forward.getMessage().contains("reads operation 1, which is not before it"), forward.getMessage());
+        IllegalArgumentException named2 = assertThrows(IllegalArgumentException.class, () -> DeephavenWire.send(
+                "{\"ops\": [{\"emptyTable\": {\"size\": \"1\", \"resultId\": {\"ticket\": \"ZQEAAAA=\"}}}]}", Map.of(), 1));
+        assertTrue(named2.getMessage().contains("names no result of its own"), named2.getMessage());
+        assertNotEquals(DeephavenWire.keys("{\"ops\": [{\"emptyTable\": {\"size\": \"1\"}}]}"),
+                DeephavenWire.keys("{\"ops\": [{\"emptyTable\": {\"size\": \"2\"}}]}"));
         assertThrows(IllegalArgumentException.class, () -> DeephavenWire.publish(0, "abc"));
         assertThrows(IllegalArgumentException.class, () -> DeephavenWire.publish(1, "a/b"));
         assertFalse(DeephavenMessages.all().isEmpty());

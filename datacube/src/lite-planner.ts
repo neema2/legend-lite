@@ -524,6 +524,15 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     return JSON.parse(await this.#pureV1(`/api/lite/v1/model/${route}`, '', body, body)) as ModelAnswer;
   }
 
+  /**
+   * One Deephaven operation (docs/DEEPHAVEN_PLAN_2026_10_22.md DH21, DH23), answered by this planner's module as the
+   * module tags it: what a Deephaven engine in the tab sends and reads (engine-client's deephaven.ts
+   * `DeephavenPlanner`), so the tab's grid and its Deephaven engine share the one module.
+   */
+  deephaven(op: string, args: Readonly<Record<string, unknown>>): Promise<string> {
+    return this.#call({ kind: 'deephaven', op, args: JSON.stringify(args) });
+  }
+
   /** Where this planner's queries are planned from: its model, and the runtime they run on. */
   source(): GridSource {
     return { model: this.#options.model, runtime: this.#options.runtime };

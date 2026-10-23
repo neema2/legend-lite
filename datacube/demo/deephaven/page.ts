@@ -7,32 +7,9 @@
 
 import { DeephavenSession, type DeephavenServer, type LiveTable } from '../../../engine-client/src/deephaven.ts';
 import { watch, type LiveRows, type LiveWatch } from '../../../engine-client/src/deephaven-live.ts';
+import { MODEL } from './model.ts';
 // @ts-ignore the module's runtime, served beside the page from //wasm:planner
 import { load } from './wasm-gc-module-runtime.js';
-
-const MODEL = (host: string, port: number): string => `###Relational
-Database risk::Store
-(
-  Table instrument (iid VARCHAR(8) PRIMARY KEY, sector VARCHAR(16) NOT NULL, ccy VARCHAR(3) NOT NULL)
-  Table book (bid VARCHAR(8) PRIMARY KEY, desk VARCHAR(16) NOT NULL, region VARCHAR(8) NOT NULL)
-  Table position (pid INTEGER PRIMARY KEY, book_id VARCHAR(8) NOT NULL, inst_id VARCHAR(8) NOT NULL, qty BIGINT NOT NULL)
-  Table price (px_iid VARCHAR(8) PRIMARY KEY, px DOUBLE NOT NULL)
-  Table fx (fx_ccy VARCHAR(3) PRIMARY KEY, rate DOUBLE NOT NULL)
-)
-###Connection
-RelationalDatabaseConnection risk::Live
-{
-  store: risk::Store;
-  type: Deephaven;
-  specification: Deephaven { host: '${host}'; port: ${port}; useTls: true; };
-  auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };
-}
-###Runtime
-Runtime risk::LiveRuntime
-{
-  mappings: [];
-  connections: [ risk::Store: [ live: risk::Live ] ];
-}`;
 
 const JOIN = 'meta::pure::functions::relation::JoinKind.LEFT';
 /** The risk view: every position valued at its instrument's live price in dollars, by desk and sector. */

@@ -93,7 +93,7 @@ legend_java_library(
 # server and reads back, from a plan's JSON to protobuf's bytes and back, by a field table a test checks against
 # Deephaven's own definitions. //base and //json only, and no Deephaven code: the browser tab carries it in the
 # WebAssembly planner (DH21), and a server-side sender reuses it.
-legend_java_library(name = "deephaven_wire", srcs = glob(["src/main/java/com/legend/deephaven/*.java"]), deps = ["//base", "//json"])
+legend_java_library(name = "deephaven_wire", srcs = glob(["src/main/java/com/legend/deephaven/*.java"]), deps = ["//base", "//json", ":cache"])
 # visible to //datacube: its catalog corpus and offer facts generators read the protocol directly
 legend_java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"], visibility = ["//datacube:__pkg__"])
 legend_java_library(name = "model", srcs = glob(["src/main/java/com/legend/model/*.java"]), deps = ["//base", ":protocol"])
