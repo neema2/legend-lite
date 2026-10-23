@@ -543,7 +543,7 @@ class IqFuzzTest {
     }
 
     /** The island of {@code sql}, under {@code profile}, as the parity lanes write it. */
-    private static String island(String sql, String profile, List<SqlParity.Table> tables, Set<String> names,
+    static String island(String sql, String profile, List<SqlParity.Table> tables, Set<String> names,
             long seed, int q) {
         IqParity.Case c = new IqParity.Case("lite/fuzz.yaml", "s" + seed + "_" + q, sql, List.of(profile), null, null,
                 null, null);
@@ -565,7 +565,7 @@ class IqFuzzTest {
         }
     }
 
-    private static Outcome classify(Throwable e) {
+    static Outcome classify(Throwable e) {
         boolean sql = false;
         for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
             if (t instanceof com.legend.error.NotImplementedException

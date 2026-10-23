@@ -405,6 +405,7 @@ legend_java_library(
             # fuzzer's, :iq_fuzz_test (manual)
             "src/test/java/com/legend/integration/IqParitySnowflakeTest.java",
             "src/test/java/com/legend/integration/IqFuzzTest.java",
+            "src/test/java/com/legend/integration/IqFuzzSnowflakeTest.java",
             # the corpus lane is :iq_corpus_test's alone (manual): it fails without -Diq.corpus.root (2026-10-16)
             "src/test/java/com/legend/integration/IqCorpusTest.java",
             # the regression suite's corpus lane is :pg_regress_corpus_test's alone (manual): it fails without
@@ -870,6 +871,43 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# the fuzzer's differential between DuckDB and a real Snowflake account (the IQ scale program, P2.2): random islands
+# answered by both, compared as multisets; manual, as :iq_parity_snowflake_test (the account's properties file):
+#   LEGENDLITE_PCT_CLOUD_PROPERTIES=... bazel test //core:iq_fuzz_snowflake_test --test_output=errors \
+#       --jvmopt=-Diq.fuzz.seed=1 --jvmopt=-Diq.fuzz.count=300
+junit_test(
+    name = "iq_fuzz_snowflake_test",
+    memory_mb = 2048,
+    size = "enormous",
+    srcs = [
+        "src/test/java/com/legend/integration/IqFuzzSnowflakeTest.java",
+        "src/test/java/com/legend/integration/IqFuzzTest.java",
+    ],
+    data = ["src/test/resources/iq-parity/schema.yaml"],
+    env_inherit = ["LEGENDLITE_PCT_CLOUD_PROPERTIES"],
+    jvm_flags = [
+        "-Diq.parity.schema=$(rlocationpath src/test/resources/iq-parity/schema.yaml)",
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    ],
+    select = ["--select-class=com.legend.integration.IqFuzzSnowflakeTest"],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    runtime_deps = [
+        ":drivers",
+        "@snowflake_jdbc//jar",
+    ],
+    deps = [
+        ":core",
+        ":test_backends",
         ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
