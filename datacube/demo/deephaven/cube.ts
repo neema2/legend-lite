@@ -16,6 +16,7 @@ import { ServerBases } from '../../src/server-base.ts';
 import type { GridCommand } from '../../src/grid-commands.ts';
 import type { DeephavenCounts } from '../../../engine-client/src/deephaven-engine.ts';
 import { CONNECTION, STORES, openRisk, type RiskConfig } from './risk.ts';
+import { openServerLog, type ServerOp } from './server-log.ts';
 
 /** DataCube's row height (app.ts DATACUBE_ROW_HEIGHT): a row's place times it is where the grid scrolls to show it. */
 const ROW_HEIGHT = 20;
@@ -49,6 +50,10 @@ interface Shown {
   change?: (what: string) => Promise<string>;
   /** Scrolls the grid to show row `row` at its top, as a person does: ms until the grid holds that row's values. */
   scroll?: (row: number) => Promise<number>;
+  /** What the server made since `ms` (its clock, ms since the epoch), by its own operation log: a test's diagnostic. */
+  serverOps?: (ms: number) => Promise<ServerOp[]>;
+  /** Runs `code` in the server's console: a test's change to the demo's data. */
+  serverRun?: (code: string) => Promise<void>;
 }
 const shown: Shown = {
   status: 'starting', error: '', views: 0, reconnects: 0, ticks: 0, refreshes: 0, tickToPaint: [], runMs: [], tickParts: [], counts: null,
@@ -75,6 +80,10 @@ async function main(): Promise<void> {
   const config = await (await fetch('config.json')).json() as RiskConfig;
   const { model, planner, engine, cube } = await openRisk(config);
   const snapshot = cube(['desk', 'sector']);
+  // the server's own account of each gesture, for the test: opened when first asked
+  let serverLog: ReturnType<typeof openServerLog> | null = null;
+  shown.serverOps = async (ms) => (await (serverLog ??= openServerLog(config.url, config.psk))).since(ms);
+  shown.serverRun = async (code) => (await (serverLog ??= openServerLog(config.url, config.psk))).run(code);
 
   // every query the grid sends reads its base from one table the server keeps (B1)
   const runner = new ServerBases(planner, engine, { model, connection: CONNECTION, stores: STORES }).runner();

@@ -17,11 +17,12 @@ instrument = emptyTable(instruments).update(
         "sector = i % 4 == 0 ? `Tech` : (i % 4 == 1 ? `Energy` : (i % 4 == 2 ? `Banks` : `Retail`))",
         "ccy = i % 3 == 0 ? `USD` : (i % 3 == 1 ? `EUR` : `JPY`)")
 
-// eight books over four desks and two regions
-book = emptyTable(8).update(
+// eight books over four desks and two regions, kept in an input table keyed by the book: a test moves one to another
+// region while a grid shows them (docs/DEEPHAVEN_PLAN_2026_10_22.md P1: a pivot value appearing on the server)
+book = io.deephaven.engine.table.impl.util.KeyedArrayBackedInputTable.make(emptyTable(8).update(
         "bid = `B` + i",
         "desk = i % 4 == 0 ? `Rates` : (i % 4 == 1 ? `FX` : (i % 4 == 2 ? `Credit` : `Equities`))",
-        "region = i < 4 ? `EMEA` : `AMER`")
+        "region = i < 4 ? `EMEA` : `AMER`"), "bid")
 
 // 400 positions, each a book's holding of an instrument: position i holds instrument i % 40 in book (i / 40) % 8, so
 // every desk holds every sector

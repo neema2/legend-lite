@@ -524,7 +524,7 @@ public final class Deephaven extends AnsiSqlRenderer {
             Bare bare = notNull == null ? bare(c.getKey(), c.getValue()) : null;
             String guard = notNull != null ? notNull : bare != null && bare.guard() ? bare.column() : null;
             if (guard != null && guarded.add(guard)) {
-                writer.append(first ? "\"!isNull(" : ", \"!isNull(").append(guard).append(")\"");
+                writer.append(first ? "\"" : ", \"").append(notNullFilter(guard)).append("\"");
                 first = false;
             }
             if (notNull != null) {
@@ -540,6 +540,33 @@ public final class Deephaven extends AnsiSqlRenderer {
             writer.append("\"");
         }
         return writer;
+    }
+
+    /**
+     * A PIVOT CELL'S ROWS (docs/DEEPHAVEN_PLAN_2026_10_22.md P1): {@code condition} as the columns it holds equal to a
+     * literal -- DataCube's pivot cell, each pivot column equal to one of its values -- each value as the server's
+     * filter parser reads it (a match filter: no compiling), by column; null when it is any other condition, or names
+     * a column twice. A match filter keeps no null, as the cell's condition takes none: a null guard on a column it
+     * matches is what the match keeps already.
+     */
+    java.util.@com.legend.base.Nullable SortedMap<String, String> pivotCell(SqlExpr condition) {
+        List<Map.Entry<SqlExpr, Boolean>> conjuncts = new java.util.ArrayList<>();
+        conjuncts(condition, true, conjuncts);
+        java.util.SortedMap<String, String> cell = new java.util.TreeMap<>();
+        java.util.Set<String> notNull = new java.util.HashSet<>();
+        for (Map.Entry<SqlExpr, Boolean> c : conjuncts) {
+            // a column's own null guard (the lowering states some itself): what its match keeps already
+            String guarded = notNull(c.getKey(), c.getValue());
+            if (guarded != null) {
+                notNull.add(guarded);
+                continue;
+            }
+            Bare bare = bare(c.getKey(), c.getValue());
+            if (bare == null || !bare.op().equals(" == ") || bare.guard() || cell.put(bare.column(), bare.values()) != null) {
+                return null;
+            }
+        }
+        return cell.isEmpty() || !cell.keySet().containsAll(notNull) ? null : cell;
     }
 
     /** The column "{@code e} holds as {@code holds}" says is not null ({@code x IS NOT NULL}, or FALSE of
@@ -573,6 +600,15 @@ public final class Deephaven extends AnsiSqlRenderer {
             }
         }
         out.add(Map.entry(e, holds));
+    }
+
+    /**
+     * A filter entry keeping the rows where {@code column} is not null: an inverted match filter on null, which the server
+     * reads with no compiling (P1: written {@code !isNull(column)}, a formula, the server compiled it once for each
+     * column a filter guarded -- a first filter, a first join, a first count of a column, each 150-400 ms).
+     */
+    static String notNullFilter(String column) {
+        return column + " != null";
     }
 
     /** A filter entry the server reads with no compiling: {@code column + op + values}, after a null guard on the
@@ -931,7 +967,7 @@ public final class Deephaven extends AnsiSqlRenderer {
             return "{\"count\": {\"columnName\": \"" + out + "\"}}";
         }
         return "{\"countWhere\": {\"columnName\": \"" + out + "\", \"filters\": "
-                + DeephavenJson.strings(List.of("!isNull(" + arg + ")")) + "}}";
+                + DeephavenJson.strings(List.of(notNullFilter(arg))) + "}}";
     }
 
     /** An aggregation over one column; a distinct one refused (only COUNT's is shaped). */

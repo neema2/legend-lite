@@ -74,13 +74,59 @@ try {
     return wrong;
   };
   /** A change as the app makes it, with ticks paused: the view it shows, and what its queries planned and sent. */
+  // PROFILE=1: each gesture's CPU profile in the page, its costliest functions and its idle time said (O1)
+  const profiler = process.env.PROFILE === '1' ? await page.context().newCDPSession(page) : null;
+  if (profiler) {
+    await profiler.send('Profiler.enable');
+    await profiler.send('Profiler.setSamplingInterval', { interval: 100 });
+  }
+  const said = (what, profile) => {
+    const self = new Map();
+    const dt = new Map();
+    profile.samples.forEach((id, i) => dt.set(id, (dt.get(id) ?? 0) + (profile.timeDeltas[i] ?? 0)));
+    for (const n of profile.nodes) {
+      const f = n.callFrame;
+      const key = `${f.functionName || '(anonymous)'} ${f.url.split('/').pop()}:${f.lineNumber + 1}`;
+      self.set(key, (self.get(key) ?? 0) + (dt.get(n.id) ?? 0) / 1000);
+    }
+    const total = [...self.values()].reduce((t, x) => t + x, 0);
+    const idle = self.get('(idle) :0') ?? 0;
+    const top = [...self].filter(([k]) => !/^\((idle|program|garbage collector)\)/.test(k)).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    console.log(`     (${what} in the page: ${total.toFixed(0)} ms sampled, idle ${idle.toFixed(0)}, program `
+      + `${(self.get('(program) :0') ?? 0).toFixed(0)}, gc ${(self.get('(garbage collector) :0') ?? 0).toFixed(0)}; `
+      + top.map(([k, ms]) => `${k} ${ms.toFixed(1)}`).join('; ') + ')');
+  };
   const change = async (what) => {
     const before = await state();
+    if (profiler) await profiler.send('Profiler.start');
+    await page.evaluate(() => performance.clearMeasures());
     const started = Date.now();
     const kind = await page.evaluate((w) => window.__cube.change(w), what);
     const ms = Date.now() - started;
+    // the page's own account of it: each step's time on its performance timeline (O1), summed by step
+    const steps = await page.evaluate(() => {
+      const out = {};
+      for (const m of performance.getEntriesByType('measure')) {
+        if (!m.name.startsWith('dh:')) continue;
+        const s = out[m.name.slice(3)] ??= { n: 0, ms: 0, first: m.startTime, last: m.startTime + m.duration };
+        s.n++;
+        s.ms += m.duration;
+        s.first = Math.min(s.first, m.startTime);
+        s.last = Math.max(s.last, m.startTime + m.duration);
+      }
+      return out;
+    });
+    console.log(`     (${what} steps: ${Object.entries(steps).map(([k, s]) => `${k} ${s.n}x ${s.ms.toFixed(1)} ms`).join(', ')})`);
+    if (profiler) said(what, (await profiler.send('Profiler.stop')).profile);
     const after = await state();
     if (kind !== 'applied') throw new Error(`the ${what} was ${kind}: ${after.error}`);
+    // the server's own account of it (its operation log): the operations it made, and its compiling
+    const ops = await page.evaluate((t) => window.__cube.serverOps(t), started - 5);
+    const top = ops.filter((o) => o.depth === 0);
+    const compiled = ops.filter((o) => o.compiling);
+    console.log(`     (${what}: the server made ${top.length} operations in ${top.reduce((t, o) => t + o.ms, 0).toFixed(0)} ms, `
+      + `${compiled.length} compilations ${compiled.reduce((t, o) => t + o.ms, 0).toFixed(0)} ms`
+      + `${compiled.length > 0 ? `: ${compiled.map((o) => JSON.stringify(o.description.slice(0, 400))).join(' | ')}` : ''})`);
     const queries = after.counts.queries - before.counts.queries;
     const planned = after.counts.planned - before.counts.planned;
     const sent = after.counts.sent - before.counts.sent;
@@ -96,8 +142,9 @@ try {
     : fail(`${what}: ${c.ms} ms to the view, past its ${budgetMs} ms budget`));
   /** Each query of a change read the grid's base from the one table the server keeps (B1): none of the source's
    *  operations in it, and no base made again. */
-  const reused = (c, what) => (c.queries > 0 && c.based >= c.queries && c.made === 0
-    && c.planned < (SOURCE_OPS + 1) * c.queries
+  // `own`: operations a query's shape has of its own beyond one (a pivot's cells: a filter and a join for each value)
+  const reused = (c, what, own = 0) => (c.queries > 0 && c.based >= c.queries && c.made === 0
+    && c.planned < (SOURCE_OPS + 1) * c.queries + own
     ? ok(`${what}: ${c.queries} queries planned ${c.planned} operations and sent ${c.sent}, each reading the grid's base on the server; ${c.ms} ms to the view`)
     : fail(`${what}: ${c.queries} queries planned ${c.planned} operations and sent ${c.sent}; ${c.based} read the base, ${c.made} bases made`));
 
@@ -129,7 +176,8 @@ try {
 
   // a pivot on region: two queries (its values, then the level), each over the source kept alive
   const pivot = await change('pivot');
-  reused(pivot, 'pivoted by region');
+  // the pivot's cells with no formula (P1): its two regions' rows each taken by a filter and joined back
+  reused(pivot, 'pivoted by region', 2 * 2);
   const pivotWrong = [];
   for (const region of ['AMER', 'EMEA']) {
     const column = `${region}__|__pid`;
@@ -210,6 +258,36 @@ try {
   if (t1.counts.remade === 0) ok(`no table made twice: ${t1.counts.queries} queries planned ${t1.counts.planned} operations, ${t1.counts.sent} sent`);
   else fail(`${t1.counts.remade} tables made twice`);
 
+  // A PIVOT VALUE APPEARING ON THE SERVER (P1, DH27): the FX desk's books by region, then its EMEA book moved to APAC
+  // on the server -- the next tick runs the cube again, its pivot's values (followed live) say a third region, and the
+  // grid has a column for it, made as a change is: no gesture, nothing held but this grid's next tick
+  const book = (region) => 'import io.deephaven.engine.util.input.InputTableUpdater\n'
+    + '((InputTableUpdater) book.getAttribute(io.deephaven.engine.table.Table.INPUT_TABLE_ATTRIBUTE)).add('
+    + `newTable(stringCol("bid", "B1"), stringCol("desk", "FX"), stringCol("region", "${region}")))`;
+  await page.evaluate(() => { window.__cube.paused = true; });
+  const byRegion = await change('pivot');
+  if (byRegion.after.columns.includes('APAC__|__pid')) fail(`APAC before any book is there: ${byRegion.after.columns.join(', ')}`);
+  await page.evaluate(() => { window.__cube.paused = false; });
+  const moved = Date.now();
+  await page.evaluate((code) => window.__cube.serverRun(code), book('APAC'));
+  const apac = await until((s) => s.columns.includes('APAC__|__pid'), 'a column for APAC', 30_000);
+  const appeared = Date.now() - moved;
+  // FX's books are B1 (EMEA until now) and B5 (AMER): B1 holds the positions of the 40-blocks 1 and 9, 80 of them
+  const fx = level(apac, ['APAC__|__pid', 'AMER__|__pid', 'EMEA__|__pid']).get('FX');
+  if (fx?.[0] === 80 && fx[1] === 40 && !(Number(fx[2]) > 0)) {
+    ok(`a book moved to APAC on the server: the grid's column for APAC ${appeared} ms after, FX's 80 positions in it`);
+  } else {
+    fail(`a book moved to APAC: FX by region ${JSON.stringify(fx)} (APAC, AMER, EMEA) after ${appeared} ms`);
+  }
+  await page.screenshot({ path: join(outputs, '6-new-region.png') });
+  await page.evaluate((code) => window.__cube.serverRun(code), book('EMEA'));
+  await until((s) => !s.columns.includes('APAC__|__pid'), 'APAC gone again', 30_000);
+  ok('moved back: the column for APAC gone at a tick');
+  // the view the restart is checked by: FX's positions by region again
+  await page.evaluate(() => { window.__cube.paused = true; });
+  await change('regroup');
+  await page.evaluate(() => { window.__cube.paused = false; });
+
   // a restart: Deephaven keeps no session across one; its start-up script seeds again, and the cube comes back by itself
   server.restart();
   const down = await until((s) => s.status === 'reconnecting', 'reconnecting after the restart', 60_000);
@@ -220,7 +298,7 @@ try {
   const back = await until((s) => s.status === 'live' && s.reconnects >= 1 && s.refreshes >= t1.refreshes + 3,
     'live again and ticking', 120_000);
   check(against(back, 'pid', positions((p) => p.region, (p) => p.desk === 'FX')),
-    `back after the restart (${back.counts.reconnects} sign-ins), the same view, ticking`);
+    `back after the restart (${back.reconnects} sign-ins; the engine's counts ${JSON.stringify(back.counts)}), the same view, ticking`);
   await page.screenshot({ path: join(outputs, '7-back.png') });
 } catch (e) {
   fail(String(e?.stack ?? e));

@@ -308,7 +308,7 @@ publisher replaces the demo's seeding once they do. Stacked branches, no PR unti
 | B1 | `claude/deephaven-3-browser` (on F1), **built 2026-10-23** | **ONE BASE PER GRID** (agreed with the user 2026-10-23): the grid's base query and its leaf-level calculated columns made once on the server as one ticking table, its calculations stored (`update`) and kept current; every query the cube sends reads that table and adds only its filter, grouping, pivot, sort and limit -- DataCube's `rebased(runner, live, copy)`, the seam Snap uses, the copy the live table on the server. Today the target's keys share the source's joins only: the lowering folds a calculated column into each query that reads it, so every followed result recomputes it every tick. A new calculated column makes a new base once (its formula compiled once; the joins under it still kept alive) | the cube test (its views' answers unchanged, nothing sent on a tick); the server's work per tick with five results followed, measured before and after in the tick benchmark |
 | G1 | on B1, **built 2026-10-23** | **a gesture's time, broken down, and budgets the tests hold**: planning, making, reading, painting, per gesture; the cube test fails past a budget (a tick on screen 10 ms after its rows; a repeated filter or regroup, its formulas compiled, 100 ms to the view; a group opened 50 ms once R1 lands). Something new -- a calculated column, a pivot value, a formula's first appearance on a server -- costs once (a compile, about 240 ms a formula) and is not held to them | the cube test |
 | R1 | on G1 (agreed with the user 2026-10-23: try it, views not shared; **spiked and measured 2026-10-23**, below) | **DataCube's tree as Deephaven's rollup** (`HierarchicalTableService.Rollup`, in 42.7's protocol): the deepest level's grouping planned from Pure as today and written as a rollup over its key prefix -- one server object holding every level, kept current incrementally, each level re-aggregated from the one below; a group opened or closed is a viewport change (`View`), no query, no compile; one subscription for the grid, only the rows on screen sent. A spike first: which of DataCube's aggregates a rollup re-aggregates (an aggregate it cannot stays on per-level queries, chosen per aggregate and said); group-level calculated columns per level (node operations, through the protocol or the JS library); the grid's windowed rows over the rollup's viewport | each level's answers equal to DuckDB's per-level queries over the same seeded rows, nulls included; the cube test's gestures; the tick benchmark with every level of a tree open |
-| P1 | on R1 | **pivots**: each pivot value's conditional sum a formula of its own text (a new value compiles once, the server keeping the rest); the pivot's values followed live, so a value appearing on the server becomes a column; on the rollup, each value's conditional column a calculation of the base, summed at every level | DuckDB's pivot answers; a value appearing live |
+| P1 | on R1, **built 2026-10-23** | **pivots**: each pivot value's conditional sum a formula of its own text (a new value compiles once, the server keeping the rest); the pivot's values followed live, so a value appearing on the server becomes a column; on the rollup, each value's conditional column a calculation of the base, summed at every level | DuckDB's pivot answers; a value appearing live |
 | C1 | V3, on V2, **built 2026-10-23** | **charts tick**: a chart's queries followed as a grid's are; its scale's rule on a tick decided with the DataCube line | the chart's test in the pinned Chromium |
 | S1 | after L5 and L3s | **views shared between viewers**: a base and a rollup per saved grid, owned on the server (the modelled publisher's side, not a browser), each viewer its own expansion; who may read one, and when it is let go, decided then | two viewers of one grid: one base on the server |
 | V1 | on G1 (the user, 2026-10-23: "flat grid with lot of rows"; DH27), **built 2026-10-23** | **a flat grid of any size**: a flat view's result made once on the server, sorted and filtered there, and followed by a VIEWPORT -- the rows on screen and a margin -- so a tick carries those rows only and the page's work does not grow with the result; a scroll past the margin moves the viewport (no table made, no formula compiled); the grid paints a block of the whole (`DataGrid.setRows(block, offset, total)`); a person's row limit still applies | the cube test over 100,000 positions: a tick's time on screen, a scroll's, the server's update graph busy |
@@ -479,6 +479,35 @@ answered from the live rows, no debounce -- an edit's 150 ms debounce had starve
 and no animation left running behind the next tick). On the page above: 69-70 draws in six seconds each, on screen
 7.3-7.8 ms after the tick's rows, its values moving with the prices. A chart's scale follows its data at each tick
 (ECharts' own); a scale held between ticks is the DataCube line's call.
+
+**P1, built (2026-10-23): pivots the server compiles nothing for.** Measured first with the server's own query
+operation log (`demo/deephaven/server-log.ts`, read by the cube test after each gesture: its operations' time and its
+compilations): a pivot's cells were conditional formulas -- one for each value and measure, the value in the text -- so
+a first pivot compiled for 1.7-1.9 s on a fresh server and every new value set compiled again. Now
+(`DeephavenBatch.group`, `Deephaven.pivotCell`): a cell's count is the server's count of the rows its match filters take
+(`countWhere`), in the group's own aggregate -- 0 where none, as SQL's; its sum, average, minimum or maximum one
+aggregation over the keys and the pivot's columns, each cell's rows taken from it by their match filters and joined back
+by the keys -- null where no row is the cell's. A condition other than columns equal to literals, or cells over
+different pivot columns, is written as before. Found on the way by the same log, and cut: every sort by a column that
+may be null compiled its null flag once a column (`isNull(region)`), now read through the key's place (`__k0 = region`,
+a rename; `isNull(__k0)`, one text for every key of a type); and every null guard was a formula (`!isNull(x)`), now the
+server's match filter on null (`x != null`, no compiling). The cube test: the pivot 21 operations in 112 ms on the
+server, no compilation, 216-309 ms to the view; the six seeded rows' pivot -- counts, sums, an average, nulls --
+answered as worked out by hand (`//datacube:deephaven_test`). A pivot value appearing on the server is a column at the
+next tick (DataCube's own path: a tick re-runs the cube, its pivot's values read from their live rows): a book moved to
+APAC on the server, its column in the grid 382-414 ms later, FX's 80 positions in it; moved back, gone at a tick. The
+residue: the old pivot's tables stay followed until the person's next gesture.
+
+**O1, measured (2026-10-23): where a gesture's time goes.** Each step on the browser's performance timeline (`dh:`
+measures: `timed` in deephaven.ts, the planner's plan in runner.ts, the landed view's paint in app.ts), and the server's
+operation log beside them. A warm regroup, 91 ms to the view: planning, naming the plan's tables and encoding its
+request 8 ms; the server's `Batch` 43 ms, its operations 16 ms of it; the rows (asked while the batch is made) 5 ms
+after; reading them 1 ms; painting the view 4-7 ms. So a request's cost beyond its operations, 25-40 ms, is inside
+Deephaven (its export scheduling, about 3-5 ms an operation, and HTTP/2): the lever is fewer operations a query (G1's);
+the next candidate is the column renaming that starts every query of one table, left for now. Cut: Deephaven's JS
+library (8 MB) parsed on the page's thread in the middle of the person's first gesture -- now loaded when the engine
+opens (`DeephavenEngine.open`), parsed while the first view waits on the server: the first group opened in 328 ms, from
+465-1,195. A fresh server's first operations of a kind still run slower (its JVM's), not ours.
 
 **Before internal users rely on it:** the firm's counsel reviews the deployment against the Deephaven Community
 License (this line's reading, `experiments/deephaven-spike/README.md`, is not legal advice).

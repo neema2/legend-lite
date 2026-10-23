@@ -280,7 +280,10 @@ export function localHost(planner: Planner, engine: QueryEngine): PlanAndRunHost
       return { plan, rows: await step(query, plan.sql, signal, () => executeWindow(plan, epoch, window, signal)) };
     },
     async planAndRun(query, epoch, signal) {
+      const planning = performance.now();
       const plan = await step(query, undefined, signal, () => planner.plan(query, signal));
+      // the planner's time on the browser's timeline, beside its engine's steps (docs/DEEPHAVEN_PLAN_2026_10_22.md O1)
+      performance.measure('dh:plan', { start: planning, end: performance.now() });
       // the engine types every column by the plan (engine.ts typedByPlan)
       return { plan, rows: await step(query, plan.sql, signal, () => engine.execute(plan, epoch, signal)) };
     },

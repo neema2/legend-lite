@@ -92,6 +92,15 @@ const KNOWN: readonly { readonly query: string; readonly rows: readonly (readonl
     rows: [[3, null], [1, 5], [4, 2]] },
   { query: `${T}->select(~[region])->distinct()->sort(~region->ascending())`,
     rows: [['AMER'], ['APAC'], ['EMEA'], [null]] },
+  // A PIVOT WITH NO FORMULA (P1): a cell's count the server's count of its rows (0 where none), its sum and average
+  // one aggregation over the desk and the year, joined back (null where no row is the cell's, or none has a value)
+  { query: `${T}->groupBy(~[desk], ~['2023__|__n':x|if($x.year == 2023, |1, |[]):y|$y->count(),`
+      + ` '2023__|__s':x|if($x.year == 2023, |$x.notional, |[]):y|$y->sum(),`
+      + ` '2024__|__n':x|if($x.year == 2024, |1, |[]):y|$y->count(),`
+      + ` '2024__|__s':x|if($x.year == 2024, |$x.notional, |[]):y|$y->sum(),`
+      + ` '2024__|__p':x|if($x.year == 2024, |$x.pnl, |[]):y|$y->average()])->sort(~desk->ascending())`,
+    rows: [['Credit', 1, 10, 0, null, null], ['FX', 0, null, 1, 50, null], ['Rates', 2, 300, 0, null, null],
+      [null, 0, null, 1, 30, 1.5]] },
   // FILTERS DEEPHAVEN READS WITHOUT COMPILING (DH25): a column against a literal, each comparison, over columns with nulls
   ...([
     // Pure's != is null-safe: a null region differs from 'EMEA' (SQL's IS DISTINCT FROM)

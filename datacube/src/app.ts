@@ -1417,9 +1417,12 @@ export class CubeApp {
     // the board's state as the grid now leaves it: its cube, a chart following it, a selection its filter lost (the S3
     // audit's 1)
     this.#keepBoard();
+    const painting = performance.now();
     this.#paintView(view);
     this.#paintReceipts();
     this.#reportSchemaChanges(view);
+    // a landed view's paint on the browser's timeline, beside its queries' steps (docs/DEEPHAVEN_PLAN_2026_10_22.md O1)
+    performance.measure('dh:paint', { start: painting, end: performance.now() });
     // The host LAST, once the app has taken the view in: told first, it read the app one view
     // behind (the snapshot was still the previous one), so "changed since saved" missed the
     // change that had just landed.

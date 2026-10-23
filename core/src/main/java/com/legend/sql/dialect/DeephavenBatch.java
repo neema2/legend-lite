@@ -269,9 +269,16 @@ final class DeephavenBatch {
             if (Deephaven.nullable(key.expr())) {
                 boolean nullsFirst = key.nullOrder() != null
                         ? key.nullOrder() == SqlSelect.SortKey.NullOrder.NULLS_FIRST : !key.ascending();
+                // the flag reads the key by its place, so its formula's text is the same whatever the column: the
+                // server compiles it once for a place and a type, not once a column (P1: a pivot's values and every
+                // level of a tree sorted by a new column paid a compile for its flag); the alias is a column renamed,
+                // which compiles nothing
+                String alias = "__k" + k;
                 String flag = "__n" + k;
+                hidden.add(alias);
                 hidden.add(flag);
-                flags.add(new Spec(flag + " = isNull(" + column + ")", null));
+                flags.add(new Spec(alias + " = " + column, null));
+                flags.add(new Spec(flag + " = isNull(" + alias + ")", null));
                 sorts.add(new String[] {flag, nullsFirst ? "DESCENDING" : "ASCENDING"});
             }
             sorts.add(new String[] {column, key.ascending() ? "ASCENDING" : "DESCENDING"});
@@ -343,8 +350,17 @@ final class DeephavenBatch {
     // Groups
     // ==================================================================
 
-    /** The keys and the aggregates' arguments computed, then one aggregate; its columns then read the select's keys and
-     *  aggregates. With no key, the one group of SQL's answer is kept even over no rows ({@code preserveEmpty}). */
+    /**
+     * The keys and the aggregates' arguments computed, then one aggregate; its columns then read the select's keys and
+     * aggregates. With no key, the one group of SQL's answer is kept even over no rows ({@code preserveEmpty}).
+     *
+     * A PIVOT'S CELLS are written with no formula (docs/DEEPHAVEN_PLAN_2026_10_22.md P1): a cell's count is the server's
+     * count of the rows its match filters take, in the group's aggregate; its sum, average, minimum or maximum one
+     * aggregation over the keys and the pivot's columns, each cell's rows taken from it by their match filters and
+     * joined back by the keys -- a cell no row reaches is null, as SQL's aggregate of no rows. Measured on Deephaven 42.7
+     * (2026-10-23): a pivot's conditional formulas, one for each value and measure, cost a first pivot 1.7 to 1.9 s of
+     * compiling on a fresh server, and every new value another.
+     */
     private int group(SqlSelect s, int cur, Deephaven.Scope scope) {
         // each SQL aggregate, or a whole expression the server holds as one aggregation (a unique value)
         List<SqlExpr> reducers = new ArrayList<>();
@@ -370,15 +386,20 @@ final class DeephavenBatch {
                 pre.add(new Spec("__g" + i, s.groupBy().get(i)));
             }
         }
+        List<@com.legend.base.Nullable Cell> cells = cells(reducers, keys);
         List<String> inputs = new ArrayList<>();
         for (int j = 0; j < reducers.size(); j++) {
+            if (cells.get(j) != null) {
+                inputs.add("");
+                continue;
+            }
             SqlExpr arg;
             if (reducers.get(j) instanceof SqlAgg.Reducer r) {
                 if (r.args().size() > 1) {
                     throw new DialectCapability("aggregate " + r.fn() + " over " + r.args().size()
                             + " arguments reached Deephaven: no shape yet");
                 }
-                arg = r.args().isEmpty() ? null : averaged(r);
+                arg = r.args().isEmpty() ? null : averaged(r.fn(), r.args().get(0));
             } else {
                 arg = uniqueValueOf(reducers.get(j));
             }
@@ -399,11 +420,23 @@ final class DeephavenBatch {
         open("aggregate");
         w.append(source(cur)).append(", \"groupByColumns\": ").append(DeephavenJson.strings(keys))
                 .append(", \"aggregations\": [");
+        boolean first = true;
         for (int j = 0; j < reducers.size(); j++) {
-            if (j > 0) {
-                w.append(", ");
+            Cell cell = cells.get(j);
+            if (cell != null && cell.fn() != SqlAgg.Fn.COUNT) {
+                continue;
             }
-            if (reducers.get(j) instanceof SqlAgg.Reducer r) {
+            w.append(first ? "" : ", ");
+            first = false;
+            if (cell != null) {
+                // a cell's count: the rows its match filters take (and its column's nulls off, when it counts one)
+                List<String> filters = new ArrayList<>(cell.filters());
+                if (cell.column() != null) {
+                    filters.add(Deephaven.notNullFilter(cell.column()));
+                }
+                w.append("{\"countWhere\": {\"columnName\": \"__r" + j + "\", \"filters\": "
+                        + DeephavenJson.strings(filters) + "}}");
+            } else if (reducers.get(j) instanceof SqlAgg.Reducer r) {
                 dialect.reducer(w, r);
             } else {
                 w.append("{\"columns\": {\"spec\": {\"unique\": {\"nonUniqueSentinel\": {\"nullValue\": \"NULL_VALUE\"}}},"
@@ -411,11 +444,15 @@ final class DeephavenBatch {
                         + DeephavenJson.strings(List.of("__r" + j + "=" + inputs.get(j))) + "}}");
             }
         }
+        if (first) {
+            // every aggregate a pivot's cell joined in below: the group's rows, counted only to be made
+            w.append("{\"count\": {\"columnName\": \"__n\"}}");
+        }
         w.append("]");
         if (keys.isEmpty()) {
             w.append(", \"preserveEmpty\": true");
         }
-        int grouped = close();
+        int grouped = spread(cur, close(), keys, cells);
         for (int i = 0; i < s.groupBy().size(); i++) {
             scope.computed.put(s.groupBy().get(i), keys.get(i));
         }
@@ -423,6 +460,114 @@ final class DeephavenBatch {
             scope.computed.put(reducers.get(j), "__r" + j);
         }
         scope.grouped = true;
+        return grouped;
+    }
+
+    /**
+     * A pivot's cell (P1): an aggregate over the rows its pivot columns' match filters take -- DataCube's
+     * {@code agg(x | if(cond, | v, | []), y | fn(y))}, lowered {@code fn(CASE WHEN cond THEN v ELSE NULL END)} -- of
+     * {@code column} (null: a count of the rows), the pivot columns by name and their filters in the same order.
+     */
+    private record Cell(SqlAgg.Fn fn, @com.legend.base.Nullable String column, List<String> on, List<String> filters) {
+    }
+
+    /** Each reducer's cell, or null when it is no cell's; the cells other than counts all over the same pivot
+     *  columns, none of them a key, or none of them a cell (one aggregation over the keys and those columns). */
+    private List<@com.legend.base.Nullable Cell> cells(List<SqlExpr> reducers, List<String> keys) {
+        List<@com.legend.base.Nullable Cell> cells = new ArrayList<>();
+        List<String> on = null;
+        boolean spread = true;
+        for (SqlExpr e : reducers) {
+            Cell cell = cellOf(e);
+            cells.add(cell);
+            if (cell == null || cell.fn() == SqlAgg.Fn.COUNT) {
+                continue;
+            }
+            if (on == null) {
+                on = cell.on();
+            }
+            spread = spread && on.equals(cell.on()) && java.util.Collections.disjoint(keys, cell.on());
+        }
+        if (!spread) {
+            for (int j = 0; j < cells.size(); j++) {
+                Cell cell = cells.get(j);
+                if (cell != null && cell.fn() != SqlAgg.Fn.COUNT) {
+                    cells.set(j, null);
+                }
+            }
+        }
+        return cells;
+    }
+
+    /** {@code e}'s cell, or null when it is any other aggregate. */
+    private @com.legend.base.Nullable Cell cellOf(SqlExpr e) {
+        // an average's promotion (`avg(1.0 * x)`) is the server's own: the cell is its argument's
+        if (!(e instanceof SqlAgg.Reducer r) || r.args().size() != 1 || r.distinct() || !r.orderBy().isEmpty()
+                || !(averaged(r.fn(), r.args().get(0)) instanceof SqlExpr.Case c) || c.whens().size() != 1
+                || !(c.otherwise() instanceof SqlExpr.NullLit)) {
+            return null;
+        }
+        java.util.SortedMap<String, String> cond = dialect.pivotCell(c.whens().get(0).condition());
+        if (cond == null) {
+            return null;
+        }
+        List<String> on = List.copyOf(cond.keySet());
+        List<String> filters = cond.entrySet().stream().map(x -> x.getKey() + " == " + x.getValue()).toList();
+        SqlExpr then = averaged(r.fn(), c.whens().get(0).then());
+        String column = dialect.plainColumn(then);
+        return switch (r.fn()) {
+            // a count of a value never null counts the rows
+            case COUNT -> then instanceof SqlExpr.IntLit || column != null && !Deephaven.nullable(then)
+                    ? new Cell(SqlAgg.Fn.COUNT, null, on, filters)
+                    : column != null ? new Cell(SqlAgg.Fn.COUNT, column, on, filters) : null;
+            case SUM, AVG, MIN, MAX -> column == null ? null : new Cell(r.fn(), column, on, filters);
+            default -> null;
+        };
+    }
+
+    /** The pivot's cells other than counts (`cells`), joined onto the group {@code grouped} by its keys: one aggregation
+     *  of {@code source} over the keys and the pivot's columns, each cell's rows taken from it by their match filters. */
+    private int spread(int source, int grouped, List<String> keys, List<@com.legend.base.Nullable Cell> cells) {
+        Map<String, String> aggregated = new LinkedHashMap<>();
+        List<String> specs = new ArrayList<>();
+        Map<List<String>, List<String>> joined = new LinkedHashMap<>();
+        List<String> on = null;
+        for (int j = 0; j < cells.size(); j++) {
+            Cell cell = cells.get(j);
+            if (cell == null || cell.fn() == SqlAgg.Fn.COUNT) {
+                continue;
+            }
+            on = cell.on();
+            String key = cell.fn() + " " + cell.column();
+            String name = aggregated.get(key);
+            if (name == null) {
+                name = "__l" + aggregated.size();
+                aggregated.put(key, name);
+                String spec = switch (cell.fn()) {
+                    case SUM -> "{\"sum\": {}}";
+                    case AVG -> "{\"avg\": {}}";
+                    case MIN -> "{\"min\": {}}";
+                    case MAX -> "{\"max\": {}}";
+                    default -> throw new IllegalStateException("a pivot's cell of " + cell.fn());
+                };
+                specs.add("{\"columns\": {\"spec\": " + spec + ", \"matchPairs\": "
+                        + DeephavenJson.strings(List.of(name + "=" + cell.column())) + "}}");
+            }
+            joined.computeIfAbsent(cell.filters(), f -> new ArrayList<>()).add("__r" + j + "=" + name);
+        }
+        if (on == null) {
+            return grouped;
+        }
+        List<String> by = new ArrayList<>(keys);
+        by.addAll(on);
+        int values = simple("aggregate", source(source) + ", \"groupByColumns\": " + DeephavenJson.strings(by)
+                + ", \"aggregations\": [" + String.join(", ", specs) + "]");
+        for (Map.Entry<List<String>, List<String>> cell : joined.entrySet()) {
+            int taken = filterText(values, cell.getKey());
+            grouped = simple("naturalJoin", "\"leftId\": " + DeephavenJson.offset(grouped) + ", \"rightId\": "
+                    + DeephavenJson.offset(taken) + ", \"columnsToMatch\": " + DeephavenJson.strings(keys)
+                    + ", \"columnsToAdd\": " + DeephavenJson.strings(cell.getValue()));
+        }
         return grouped;
     }
 
@@ -449,9 +594,8 @@ final class DeephavenBatch {
      * is an integer on some (H2) -- is the server's already, and the column is read as it is (G1: one formula fewer for
      * the server to parse). Any other argument as the lowering wrote it.
      */
-    private static SqlExpr averaged(SqlAgg.Reducer r) {
-        SqlExpr arg = r.args().get(0);
-        if (r.fn() == SqlAgg.Fn.AVG && arg instanceof SqlExpr.Call times && times.fn() == com.legend.sql.SqlFn.TIMES
+    private static SqlExpr averaged(SqlAgg.Fn fn, SqlExpr arg) {
+        if (fn == SqlAgg.Fn.AVG && arg instanceof SqlExpr.Call times && times.fn() == com.legend.sql.SqlFn.TIMES
                 && times.args().size() == 2 && times.args().get(0) instanceof SqlExpr.FloatLit one && one.value() == 1.0
                 && times.args().get(1).type() instanceof com.legend.sql.TypeFact.Typed t
                 && (t.type() == com.legend.sql.SqlType.Scalar.INTEGER || t.type() == com.legend.sql.SqlType.Scalar.BIGINT
@@ -589,7 +733,7 @@ final class DeephavenBatch {
                 }
                 matches.add(pair[0] + "=" + pair[1]);
                 if (pair[2] != null) {
-                    rightNullFilters.add("!isNull(" + pair[1] + ")");
+                    rightNullFilters.add(Deephaven.notNullFilter(pair[1]));
                 }
             }
         } finally {

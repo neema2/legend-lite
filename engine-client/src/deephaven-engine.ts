@@ -13,7 +13,7 @@
 // The engine is itself the reader of one grid (its own `execute`, `follow`, `onLive`), for a page of one.
 
 import type { DeephavenPlanner, DeephavenServer, DeephavenSessionOptions, KeptResult } from './deephaven.ts';
-import { DeephavenSession } from './deephaven.ts';
+import { DeephavenSession, measured } from './deephaven.ts';
 import { LiveClient, type DhModule, type Followed } from './deephaven-live.ts';
 import { byPosition, deephavenRows, followedTable } from './deephaven-rows.ts';
 import { QueryError, type QueryEngine, type RawTable, type ResultWindow, type WindowedResult } from './engine.ts';
@@ -145,10 +145,17 @@ export class DeephavenEngine implements QueryEngine {
     this.#own = this.reader();
   }
 
-  /** Signs in to `server` (deephaven.ts `DeephavenSession.open`). */
+  /**
+   * Signs in to `server` (deephaven.ts `DeephavenSession.open`), and starts loading Deephaven's JS library for the live
+   * reader at once (O1): it is 8 MB to parse on the page's thread, which a first follow paid in the middle of the
+   * person's first gesture (measured: a group's opening 390 ms slower); loaded now, it is parsed while the first view
+   * waits on the server. A library that fails to load is said by the first follow that needs it.
+   */
   static async open(server: DeephavenServer, planner: DeephavenPlanner,
     options: DeephavenEngineOptions = {}): Promise<DeephavenEngine> {
-    return new DeephavenEngine(server, planner, options, await DeephavenSession.open(server, planner, options));
+    const engine = new DeephavenEngine(server, planner, options, await DeephavenSession.open(server, planner, options));
+    engine.#liveClient().catch(() => { /* said by the follow that needs it */ });
+    return engine;
   }
 
   /** The session queries go to now. */
@@ -274,7 +281,12 @@ export class DeephavenEngine implements QueryEngine {
   }
 
   #liveClient(): Promise<LiveClient> {
-    this.#live ??= LiveClient.open(this.#server, (why) => this.#ended(why), this.#options.loadLive);
+    if (this.#live === null) {
+      const opening = LiveClient.open(this.#server, (why) => this.#ended(why), this.#options.loadLive);
+      this.#live = opening;
+      // one that failed to open is opened again by the next follow that needs it, never kept failing
+      opening.catch(() => { if (this.#live === opening) this.#live = null; });
+    }
     return this.#live;
   }
 
@@ -390,8 +402,10 @@ export class DeephavenReader implements QueryEngine {
       counts.sent += kept.sent;
       counts.fetched++;
       let raw: RawTable;
+      const decoding = performance.now();
       try {
         raw = deephavenRows(stream, epoch, performance.now() - started);
+        measured('rows', decoding);
       } catch (e) {
         throw new QueryError(e instanceof Error ? e.message : String(e), plan.sql, { cause: e });
       }

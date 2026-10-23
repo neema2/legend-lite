@@ -136,7 +136,7 @@ export class DeephavenSession {
   async keepAlive(plan: string, supplied: Readonly<Record<string, number>> = {},
     onSent?: (exportId: number) => void): Promise<KeptResult> {
     this.open();
-    const { keys } = JSON.parse(await this.ask('keys', { plan })) as { readonly keys: readonly string[] };
+    const { keys } = JSON.parse(await timed('keys', () => this.ask('keys', { plan }))) as { readonly keys: readonly string[] };
     const resultKey = keys[keys.length - 1];
     if (resultKey === undefined) throw new Error('the planner named no operation of the Deephaven plan');
     for (;;) {
@@ -158,7 +158,7 @@ export class DeephavenSession {
         const t = this.tables.get(k);
         return t ? [[k, t.exportId]] : [];
       }));
-      const send = JSON.parse(await this.ask('send', { plan, alive, supplied, nextExportId })) as {
+      const send = JSON.parse(await timed('encode', () => this.ask('send', { plan, alive, supplied, nextExportId }))) as {
         readonly request: string;
         readonly exports: readonly { readonly key: string; readonly exportId: number }[];
         readonly result: number;
@@ -198,7 +198,8 @@ export class DeephavenSession {
    *  go. */
   private async make(request: string, exports: readonly { readonly key: string; readonly exportId: number }[]):
   Promise<void> {
-    const answer = await this.call(BATCH, fromBase64(request));
+    const answer = await timed('batch', () => this.call(BATCH, fromBase64(request)));
+    const decoding = performance.now();
     let refused: string | null = answer.length === exports.length ? null
       : `the server answered ${answer.length} of the batch's ${exports.length} operations`;
     for (const message of answer) {
@@ -209,6 +210,7 @@ export class DeephavenSession {
       // the first refusal is the cause: the operations after it that read it fail for it
       if (!created.success && refused === null) refused = created.errorInfo;
     }
+    measured('created', decoding);
     if (refused !== null) {
       for (const e of exports) this.releaseExport(e.exportId);
       throw new DeephavenRefused('Batch', 3, refused);
@@ -246,7 +248,7 @@ export class DeephavenSession {
    *  lays them. */
   async rows(exportId: number): Promise<Uint8Array> {
     this.open();
-    return ipcStream(await this.call(DO_GET, fromBase64(await this.ask('doGet', { exportId }))));
+    return ipcStream(await timed('doGet', async () => this.call(DO_GET, fromBase64(await this.ask('doGet', { exportId })))));
   }
 
   /**
@@ -444,4 +446,23 @@ function randomName(): string {
   const bytes = new Uint8Array(12);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
+}
+
+/**
+ * A step's time on the browser's performance timeline (docs/DEEPHAVEN_PLAN_2026_10_22.md O1): a `dh:<step>` measure --
+ * naming a plan's tables, encoding its request, the server's batch, reading its answers, a result's rows -- which the
+ * browser's own tools show and a test reads.
+ */
+export async function timed<T>(step: string, work: () => Promise<T>): Promise<T> {
+  const start = performance.now();
+  try {
+    return await work();
+  } finally {
+    measured(step, start);
+  }
+}
+
+/** A `dh:<step>` measure from `start` to now (`timed`). */
+export function measured(step: string, start: number): void {
+  performance.measure(`dh:${step}`, { start, end: performance.now() });
 }

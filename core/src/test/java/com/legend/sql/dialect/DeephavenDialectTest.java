@@ -84,14 +84,16 @@ class DeephavenDialectTest {
         assertTrue(b.contains("__region = region"), b);
         assertTrue(b.contains("{\"unstructuredFilter\": {\"sourceId\": {\"batchOffset\": 0}, \"filters\":"
                 + " [\"t0__region == `EMEA`\"]}}"), b);
-        // pnl may be null: its null flag sorts it first, the platform's order for a descending key
-        assertTrue(b.contains("__n0 = isNull(pnl)"), b);
+        // pnl may be null: its null flag sorts it first, the platform's order for a descending key; the flag reads the
+        // key by its place (a column renamed), so its formula's text is the same for every key of the type: compiled
+        // once on a server, not once a column (P1)
+        assertTrue(b.contains("\"__k0 = pnl\", \"__n0 = isNull(__k0)\""), b);
         assertTrue(b.contains("{\"columnName\": \"__n0\", \"direction\": \"DESCENDING\"}, {\"columnName\": \"pnl\","
                 + " \"direction\": \"DESCENDING\"}"), b);
         assertTrue(b.contains("{\"head\": {"), b);
         assertTrue(b.contains("\"numRows\": \"10\""), b);
-        assertTrue(b.endsWith("{\"dropColumns\": {\"sourceId\": {\"batchOffset\": 5}, \"columnNames\": [\"__n0\"]}}]}"),
-                b);
+        assertTrue(b.endsWith("{\"dropColumns\": {\"sourceId\": {\"batchOffset\": 5}, \"columnNames\": [\"__k0\","
+                + " \"__n0\"]}}]}"), b);
     }
 
     @Test
@@ -112,10 +114,10 @@ class DeephavenDialectTest {
     @Test
     void aFilterIsWhatTheServerReadsWithoutCompiling() {
         filters("($x.qty > 1000000000) && ($x.desk == 'FX')",
-                "\"!isNull(t0__qty)\", \"t0__qty > 1000000000\", \"t0__desk == `FX`\"");
+                "\"t0__qty != null\", \"t0__qty > 1000000000\", \"t0__desk == `FX`\"");
         // a literal first is mirrored; a negative float is a plain decimal
-        filters("-3.5 < $x.pnl", "\"!isNull(t0__pnl)\", \"t0__pnl > -3.5\"");
-        filters("$x.pnl <= 0.0", "\"!isNull(t0__pnl)\", \"t0__pnl <= 0.0\"");
+        filters("-3.5 < $x.pnl", "\"t0__pnl != null\", \"t0__pnl > -3.5\"");
+        filters("$x.pnl <= 0.0", "\"t0__pnl != null\", \"t0__pnl <= 0.0\"");
         // Pure's NOT keeps a null (a null is not greater than 0): "null or at most 0", a formula
         filters("!($x.pnl > 0.0)", "\"(isNull(t0__pnl) || (!isNull(t0__pnl) && t0__pnl <= 0.0))\"");
         // Pure's != is null-safe: a null differs from 'EMEA', and the inverted match keeps it
@@ -158,17 +160,61 @@ class DeephavenDialectTest {
         assertTrue(computed.contains("{\"updateView\": {") && computed.contains("\"__a0 = "), computed);
     }
 
+    /** A PIVOT'S CELLS, written with no formula (docs/DEEPHAVEN_PLAN_2026_10_22.md P1): a sum is one aggregation over the
+     *  keys and the pivot's column, the cell's rows taken by a match filter and joined back by the keys; the measure the
+     *  pivot leaves alone is the group's own aggregate. Nothing the server compiles: no conditional, no typed null. */
     @Test
-    void aPivotIsAGroupOfConditionalAggregates() {
+    void aPivotsCellsAreWrittenWithNoFormula() {
         String b = batch("#>{risk::Ref.trades}#->groupBy(~[region, country], ~['2023__|__total': x | if($x.year =="
                 + " 2023, | $x.notional, | []) : y | $y->sum(), total: x | $x.notional : y | $y->sum()])"
                 + "->sort([~region->ascending(), ~country->ascending()])");
-        // the condition is a CASE's: taken when TRUE, else the typed null
-        assertTrue(b.contains(" ? "), b);
-        assertTrue(b.contains("NULL_DOUBLE"), b);
+        assertTrue(!b.contains(" ? ") && !b.contains("NULL_DOUBLE") && !b.contains("__a0"), b);
+        // the group's own aggregate: the total
+        assertTrue(b.contains("\"groupByColumns\": [\"t0__region\", \"t0__country\"], \"aggregations\": [{\"columns\":"
+                + " {\"spec\": {\"sum\": {}}, \"matchPairs\": [\"__r1=t0__notional\"]}}]"), b);
+        // the cells' aggregation, over the keys and the pivot's column
+        assertTrue(b.contains("\"groupByColumns\": [\"t0__region\", \"t0__country\", \"t0__year\"], \"aggregations\":"
+                + " [{\"columns\": {\"spec\": {\"sum\": {}}, \"matchPairs\": [\"__l0=t0__notional\"]}}]"), b);
+        // the cell's rows, by a match filter, joined back by the keys
+        assertTrue(b.contains("\"filters\": [\"t0__year == 2023\"]"), b);
+        assertTrue(b.contains("\"columnsToMatch\": [\"t0__region\", \"t0__country\"], \"columnsToAdd\": [\"__r0=__l0\"]"), b);
         // a name Deephaven cannot hold is the output's place; the plan reads its columns by position
         assertTrue(b.contains("\"__c2 = __r0\""), b);
         assertTrue(b.contains("\"total = __r1\""), b);
+    }
+
+    /** A cell's count is the server's count of the rows its match filters take, in the group's aggregate -- 0 where no
+     *  row is one of them, as SQL's count -- and a cell over two pivot columns takes both; cells of the same rows are
+     *  one join. */
+    @Test
+    void aPivotsCountsAreCountedWhereAndItsCellsJoinedOnceForTheirRows() {
+        String b = batch("#>{risk::Ref.trades}#->groupBy(~[desk], ~["
+                + "'EMEA__|__2023__|__n': x | if($x.region == 'EMEA' && $x.year == 2023, | 1, | []) : y | $y->count(),"
+                + "'EMEA__|__2023__|__qty': x | if($x.region == 'EMEA' && $x.year == 2023, | $x.qty, | []) : y | $y->max(),"
+                + "'EMEA__|__2023__|__pnl': x | if($x.region == 'EMEA' && $x.year == 2023, | $x.pnl, | []) : y | $y->min()])");
+        assertTrue(b.contains("{\"countWhere\": {\"columnName\": \"__r0\", \"filters\": [\"t0__region == `EMEA`\","
+                + " \"t0__year == 2023\"]}}"), b);
+        assertTrue(b.contains("\"groupByColumns\": [\"t0__desk\", \"t0__region\", \"t0__year\"]"), b);
+        assertEquals(1, b.split("naturalJoin", -1).length - 1, b);
+        assertTrue(b.contains("\"columnsToAdd\": [\"__r1=__l0\", \"__r2=__l1\"]"), b);
+        assertTrue(!b.contains(" ? "), b);
+        // a cell whose condition guards its pivot column's nulls itself (the lowering's, at times) is the same cell
+        String guarded = batch("#>{risk::Ref.trades}#->groupBy(~[desk], ~[a: x | if($x.region->isNotEmpty() &&"
+                + " $x.region == 'EMEA', | $x.pnl, | []) : y | $y->average()])");
+        assertTrue(!guarded.contains(" ? ") && guarded.contains("\"filters\": [\"t0__region == `EMEA`\"]"), guarded);
+    }
+
+    /** What is no cell is written as before: a condition other than columns equal to literals, or cells over
+     *  different pivot columns, a conditional formula and its aggregate. */
+    @Test
+    void aConditionalAggregateNoCellIsAFormula() {
+        String ranged = batch("#>{risk::Ref.trades}#->groupBy(~[desk], ~[big: x | if($x.notional > 100.0, | $x.pnl,"
+                + " | []) : y | $y->sum()])");
+        assertTrue(ranged.contains(" ? ") && ranged.contains("NULL_DOUBLE"), ranged);
+        String mixed = batch("#>{risk::Ref.trades}#->groupBy(~[desk], ~["
+                + "a: x | if($x.region == 'EMEA', | $x.pnl, | []) : y | $y->sum(),"
+                + "b: x | if($x.year == 2023, | $x.pnl, | []) : y | $y->sum()])");
+        assertTrue(mixed.contains(" ? ") && !mixed.contains("naturalJoin"), mixed);
     }
 
     /** A group's unique value (DataCube's aggregate of a column a level does not group by), lowered as COUNT(DISTINCT)
@@ -209,8 +255,8 @@ class DeephavenDialectTest {
                 + " meta::pure::functions::relation::JoinKind.INNER, {a, b | $a.iid == $b.instrument})"
                 + "->select(~[sector, desk])");
         assertTrue(b.contains("{\"crossJoin\": {"), b);
-        assertTrue(b.contains("{\"unstructuredFilter\": {\"sourceId\": {\"batchOffset\": 1}, \"filters\": [\"!isNull("),
-                b);
+        assertTrue(b.contains("{\"unstructuredFilter\": {\"sourceId\": {\"batchOffset\": 1}, \"filters\": [\"")
+                && b.contains(" != null\""), b);
     }
 
     @Test
