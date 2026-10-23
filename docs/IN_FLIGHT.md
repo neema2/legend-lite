@@ -2173,6 +2173,17 @@ repros will be in the study's §9.
     - Under a row limit, the fuzzer's `TOP 5 CAST((SELECT MAX(...) ...) AS VARCHAR(12)) ... ORDER BY 1` read the
       subquery's column before the sort and computed it after the limit, a compile error.
     - Judged by both `sql-parity` lanes and both `iq-parity` lanes.
+  - **The ninth line's `sql/dialect/Snowflake.java`, from the IQ lane's first Snowflake run (2026-10-23):**
+    - ASCII_CODE is `unicode()`. Snowflake's `ascii` is the first UTF-8 byte.
+    - A decimal literal no NUMBER holds (more than 38 digits, or a scale past 37) is the DOUBLE DuckDB reads.
+    - A percentile's level is a bare constant.
+    - Three passes for its subquery positions:
+      - `ScalarSubqueriesFlattened`: a scalar subquery's chain of one-column derived tables is its innermost select.
+      - `ScalarSubqueriesAggregated`: a correlated scalar subquery of no aggregate is `CASE WHEN COUNT(*) > 1 THEN
+        error ELSE ANY_VALUE(x) END`.
+      - The DuckDB pass `OuterJoinSubqueryFilters`, flagged: a LEFT JOIN conjunct holding a subquery of any kind
+        that reads only the null-supplying side filters that side. DuckDB's use is unchanged.
+    - Judged by the Snowflake plan census, the dialect tests, both IQ lanes, SQL parity and the DuckDB and H2 corpora.
   - **The compiler line's `lowering/Lowerer.java` (`filter`) and `lowering/SqlProbes.java`:**
     - A filter over a grouped select is isolated (filtered from outside), not folded into HAVING, when the fold
       would carry an aggregate that reads no column (`MIN(-1)`, `COUNT(*)`) into the predicate's subquery.
