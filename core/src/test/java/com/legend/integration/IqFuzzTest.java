@@ -50,6 +50,10 @@ class IqFuzzTest {
             + " account: 'acct'; warehouse: 'wh'; region: 'us-east-1'; };\n    auth: SnowflakePublic { publicUserName:"
             + " 'u'; privateKeyVaultReference: 'vault/k'; passPhraseVaultReference: 'vault/pp'; };";
 
+    /** A Postgres connection the lens plans for (render only: no server is reached). */
+    private static final String POSTGRES = "type: Postgres;\n    specification: Static { host: '127.0.0.1'; port: 5432;"
+            + " name: 'postgres'; };\n    auth: Test;";
+
     /** One query's outcome: its kind, and its rows (ROWS) or its reason. */
     record Outcome(String kind, List<String> rows, String reason) {
     }
@@ -455,7 +459,7 @@ class IqFuzzTest {
                     }
                 }
                 for (String[] lane : plans ? new String[][] {{"duckdb", PLATFORM.connectionBody()},
-                        {"snowflake", SNOWFLAKE}} : new String[0][]) {
+                        {"snowflake", SNOWFLAKE}, {"postgres", POSTGRES}} : new String[0][]) {
                     try {
                         var ctx = com.legend.Compiler.compileModel(IqParity.model(tables, lane[1]));
                         System.out.println("-- " + lane[0] + "\n" + com.legend.Compiler.query(ctx, island)

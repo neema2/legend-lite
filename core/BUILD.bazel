@@ -406,6 +406,8 @@ legend_java_library(
             "src/test/java/com/legend/integration/IqParitySnowflakeTest.java",
             "src/test/java/com/legend/integration/IqFuzzTest.java",
             "src/test/java/com/legend/integration/IqFuzzSnowflakeTest.java",
+            "src/test/java/com/legend/integration/IqFuzzPostgresTest.java",
+            "src/test/java/com/legend/integration/IqFuzzDifferential.java",
             # the corpus lane is :iq_corpus_test's alone (manual): it fails without -Diq.corpus.root (2026-10-16)
             "src/test/java/com/legend/integration/IqCorpusTest.java",
             # the regression suite's corpus lane is :pg_regress_corpus_test's alone (manual): it fails without
@@ -886,6 +888,7 @@ junit_test(
     memory_mb = 2048,
     size = "enormous",
     srcs = [
+        "src/test/java/com/legend/integration/IqFuzzDifferential.java",
         "src/test/java/com/legend/integration/IqFuzzSnowflakeTest.java",
         "src/test/java/com/legend/integration/IqFuzzTest.java",
     ],
@@ -905,6 +908,41 @@ junit_test(
         ":drivers",
         "@snowflake_jdbc//jar",
     ],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# the same differential between DuckDB and the embedded Postgres 16 (P2.2), runnable where the Postgres lanes run;
+# manual:
+#   bazel test //core:iq_fuzz_postgres_test --test_output=errors --strategy=TestRunner=standalone \
+#       --jvmopt=-Diq.fuzz.seed=1 --jvmopt=-Diq.fuzz.count=500
+junit_test(
+    name = "iq_fuzz_postgres_test",
+    memory_mb = 2048,
+    size = "enormous",
+    srcs = [
+        "src/test/java/com/legend/integration/IqFuzzDifferential.java",
+        "src/test/java/com/legend/integration/IqFuzzPostgresTest.java",
+        "src/test/java/com/legend/integration/IqFuzzTest.java",
+    ],
+    data = [
+        "src/test/resources/iq-parity/schema.yaml",
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = [
+        "-Diq.parity.schema=$(rlocationpath src/test/resources/iq-parity/schema.yaml)",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+    ],
+    select = ["--select-class=com.legend.integration.IqFuzzPostgresTest"],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
         ":test_backends",
