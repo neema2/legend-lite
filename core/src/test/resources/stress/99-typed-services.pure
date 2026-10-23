@@ -14830,6 +14830,61 @@ Service stress::TE_Prime_Eq_Root
   ]
 }
 
+Service stress::TE_Prime_Ne_Root
+{
+    pattern: '/stress/typed/te_prime_ne_root';
+    documentation: 'An enumeration `!=` its value PRIME: the absent and the unmapped are kept.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|($x.gradeOpt != typedvalues::Grade.PRIME)})
+        ->project(~[
+            valueId:x|$x.valueId,
+            value:x|$x.gradeOpt
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TE_Prime_Ne_Root_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 13 rows; 5 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-02","value":null},{"valueId":"TV-03","value":"WATCH"},{"valueId":"TV-04","value":null},{"valueId":"TV-05","value":"STANDARD"},{"valueId":"TV-07","value":null},{"valueId":"TV-08","value":"STANDARD"},{"valueId":"TV-09","value":"DEFAULTED"},{"valueId":"TV-10","value":null},{"valueId":"TV-11","value":"STANDARD"},{"valueId":"TV-12","value":"WATCH"},{"valueId":"TV-13","value":null},{"valueId":"TV-14","value":"DEFAULTED"},{"valueId":"TV-15","value":"STANDARD"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::TE_Standard_Eq_Root
 {
     pattern: '/stress/typed/te_standard_eq_root';
@@ -14876,6 +14931,61 @@ Service stress::TE_Standard_Eq_Root
                   #{
                     contentType: 'application/json';
                     data: '[{"valueId":"TV-05","value":"STANDARD"},{"valueId":"TV-08","value":"STANDARD"},{"valueId":"TV-11","value":"STANDARD"},{"valueId":"TV-15","value":"STANDARD"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::TE_Standard_Ne_Root
+{
+    pattern: '/stress/typed/te_standard_ne_root';
+    documentation: 'An enumeration `!=` its value STANDARD: the absent and the unmapped are kept.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|($x.gradeOpt != typedvalues::Grade.STANDARD)})
+        ->project(~[
+            valueId:x|$x.valueId,
+            value:x|$x.gradeOpt
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TE_Standard_Ne_Root_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 11 rows; 5 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","value":"PRIME"},{"valueId":"TV-02","value":null},{"valueId":"TV-03","value":"WATCH"},{"valueId":"TV-04","value":null},{"valueId":"TV-06","value":"PRIME"},{"valueId":"TV-07","value":null},{"valueId":"TV-09","value":"DEFAULTED"},{"valueId":"TV-10","value":null},{"valueId":"TV-12","value":"WATCH"},{"valueId":"TV-13","value":null},{"valueId":"TV-14","value":"DEFAULTED"}]';
                   }#;
               }#
           ]
@@ -14940,6 +15050,61 @@ Service stress::TE_Watch_Eq_Root
   ]
 }
 
+Service stress::TE_Watch_Ne_Root
+{
+    pattern: '/stress/typed/te_watch_ne_root';
+    documentation: 'An enumeration `!=` its value WATCH: the absent and the unmapped are kept.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|($x.gradeOpt != typedvalues::Grade.WATCH)})
+        ->project(~[
+            valueId:x|$x.valueId,
+            value:x|$x.gradeOpt
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TE_Watch_Ne_Root_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 13 rows; 5 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","value":"PRIME"},{"valueId":"TV-02","value":null},{"valueId":"TV-04","value":null},{"valueId":"TV-05","value":"STANDARD"},{"valueId":"TV-06","value":"PRIME"},{"valueId":"TV-07","value":null},{"valueId":"TV-08","value":"STANDARD"},{"valueId":"TV-09","value":"DEFAULTED"},{"valueId":"TV-10","value":null},{"valueId":"TV-11","value":"STANDARD"},{"valueId":"TV-13","value":null},{"valueId":"TV-14","value":"DEFAULTED"},{"valueId":"TV-15","value":"STANDARD"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::TE_Defaulted_Eq_Root
 {
     pattern: '/stress/typed/te_defaulted_eq_root';
@@ -14986,6 +15151,61 @@ Service stress::TE_Defaulted_Eq_Root
                   #{
                     contentType: 'application/json';
                     data: '[{"valueId":"TV-09","value":"DEFAULTED"},{"valueId":"TV-14","value":"DEFAULTED"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::TE_Defaulted_Ne_Root
+{
+    pattern: '/stress/typed/te_defaulted_ne_root';
+    documentation: 'An enumeration `!=` its value DEFAULTED: the absent and the unmapped are kept.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|($x.gradeOpt != typedvalues::Grade.DEFAULTED)})
+        ->project(~[
+            valueId:x|$x.valueId,
+            value:x|$x.gradeOpt
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TE_Defaulted_Ne_Root_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 13 rows; 5 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","value":"PRIME"},{"valueId":"TV-02","value":null},{"valueId":"TV-03","value":"WATCH"},{"valueId":"TV-04","value":null},{"valueId":"TV-05","value":"STANDARD"},{"valueId":"TV-06","value":"PRIME"},{"valueId":"TV-07","value":null},{"valueId":"TV-08","value":"STANDARD"},{"valueId":"TV-10","value":null},{"valueId":"TV-11","value":"STANDARD"},{"valueId":"TV-12","value":"WATCH"},{"valueId":"TV-13","value":null},{"valueId":"TV-15","value":"STANDARD"}]';
                   }#;
               }#
           ]
@@ -15050,6 +15270,61 @@ Service stress::TE_AllButDefaulted_In_Root
   ]
 }
 
+Service stress::TE_PrimeOrWatch_Root
+{
+    pattern: '/stress/typed/te_primeorwatch_root';
+    documentation: '`||` of two enumeration equalities; TL_Grade_In_Root, `in` the same two values, must return the same rows.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|(($x.gradeOpt == typedvalues::Grade.PRIME) || ($x.gradeOpt == typedvalues::Grade.WATCH))})
+        ->project(~[
+            valueId:x|$x.valueId,
+            value:x|$x.gradeOpt
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TE_PrimeOrWatch_Root_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","value":"PRIME"},{"valueId":"TV-03","value":"WATCH"},{"valueId":"TV-06","value":"PRIME"},{"valueId":"TV-12","value":"WATCH"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::TE_Prime_Eq_Hop
 {
     pattern: '/stress/typed/te_prime_eq_hop';
@@ -15096,6 +15371,61 @@ Service stress::TE_Prime_Eq_Hop
                   #{
                     contentType: 'application/json';
                     data: '[{"tradeId":"TRD-0001","value":"PRIME"},{"tradeId":"TRD-0006","value":"PRIME"},{"tradeId":"TRD-0010","value":"PRIME"},{"tradeId":"TRD-0014","value":"PRIME"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::TE_Prime_Ne_Hop
+{
+    pattern: '/stress/typed/te_prime_ne_hop';
+    documentation: 'An enumeration `!=` its value PRIME: the absent and the unmapped are kept.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->filter({x|($x.typedValue.grade != typedvalues::Grade.PRIME)})
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            value:x|$x.typedValue.grade
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TE_Prime_Ne_Hop_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 rows; 7 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0002","value":"STANDARD"},{"tradeId":"TRD-0003","value":"WATCH"},{"tradeId":"TRD-0004","value":"DEFAULTED"},{"tradeId":"TRD-0005","value":"STANDARD"},{"tradeId":"TRD-0007","value":"WATCH"},{"tradeId":"TRD-0008","value":"STANDARD"},{"tradeId":"TRD-0009","value":"DEFAULTED"},{"tradeId":"TRD-0011","value":"STANDARD"},{"tradeId":"TRD-0012","value":"WATCH"},{"tradeId":"TRD-0013","value":null},{"tradeId":"TRD-0015","value":null},{"tradeId":"TRD-0016","value":null},{"tradeId":"TRD-0017","value":null},{"tradeId":"TRD-0018","value":null},{"tradeId":"TRD-0019","value":null},{"tradeId":"TRD-0020","value":null}]';
                   }#;
               }#
           ]
@@ -15160,6 +15490,61 @@ Service stress::TE_Standard_Eq_Hop
   ]
 }
 
+Service stress::TE_Standard_Ne_Hop
+{
+    pattern: '/stress/typed/te_standard_ne_hop';
+    documentation: 'An enumeration `!=` its value STANDARD: the absent and the unmapped are kept.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->filter({x|($x.typedValue.grade != typedvalues::Grade.STANDARD)})
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            value:x|$x.typedValue.grade
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TE_Standard_Ne_Hop_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 rows; 7 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","value":"PRIME"},{"tradeId":"TRD-0003","value":"WATCH"},{"tradeId":"TRD-0004","value":"DEFAULTED"},{"tradeId":"TRD-0006","value":"PRIME"},{"tradeId":"TRD-0007","value":"WATCH"},{"tradeId":"TRD-0009","value":"DEFAULTED"},{"tradeId":"TRD-0010","value":"PRIME"},{"tradeId":"TRD-0012","value":"WATCH"},{"tradeId":"TRD-0013","value":null},{"tradeId":"TRD-0014","value":"PRIME"},{"tradeId":"TRD-0015","value":null},{"tradeId":"TRD-0016","value":null},{"tradeId":"TRD-0017","value":null},{"tradeId":"TRD-0018","value":null},{"tradeId":"TRD-0019","value":null},{"tradeId":"TRD-0020","value":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::TE_Watch_Eq_Hop
 {
     pattern: '/stress/typed/te_watch_eq_hop';
@@ -15206,6 +15591,61 @@ Service stress::TE_Watch_Eq_Hop
                   #{
                     contentType: 'application/json';
                     data: '[{"tradeId":"TRD-0003","value":"WATCH"},{"tradeId":"TRD-0007","value":"WATCH"},{"tradeId":"TRD-0012","value":"WATCH"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::TE_Watch_Ne_Hop
+{
+    pattern: '/stress/typed/te_watch_ne_hop';
+    documentation: 'An enumeration `!=` its value WATCH: the absent and the unmapped are kept.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->filter({x|($x.typedValue.grade != typedvalues::Grade.WATCH)})
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            value:x|$x.typedValue.grade
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TE_Watch_Ne_Hop_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 17 rows; 7 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","value":"PRIME"},{"tradeId":"TRD-0002","value":"STANDARD"},{"tradeId":"TRD-0004","value":"DEFAULTED"},{"tradeId":"TRD-0005","value":"STANDARD"},{"tradeId":"TRD-0006","value":"PRIME"},{"tradeId":"TRD-0008","value":"STANDARD"},{"tradeId":"TRD-0009","value":"DEFAULTED"},{"tradeId":"TRD-0010","value":"PRIME"},{"tradeId":"TRD-0011","value":"STANDARD"},{"tradeId":"TRD-0013","value":null},{"tradeId":"TRD-0014","value":"PRIME"},{"tradeId":"TRD-0015","value":null},{"tradeId":"TRD-0016","value":null},{"tradeId":"TRD-0017","value":null},{"tradeId":"TRD-0018","value":null},{"tradeId":"TRD-0019","value":null},{"tradeId":"TRD-0020","value":null}]';
                   }#;
               }#
           ]
@@ -15270,6 +15710,61 @@ Service stress::TE_Defaulted_Eq_Hop
   ]
 }
 
+Service stress::TE_Defaulted_Ne_Hop
+{
+    pattern: '/stress/typed/te_defaulted_ne_hop';
+    documentation: 'An enumeration `!=` its value DEFAULTED: the absent and the unmapped are kept.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->filter({x|($x.typedValue.grade != typedvalues::Grade.DEFAULTED)})
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            value:x|$x.typedValue.grade
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TE_Defaulted_Ne_Hop_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 18 rows; 7 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","value":"PRIME"},{"tradeId":"TRD-0002","value":"STANDARD"},{"tradeId":"TRD-0003","value":"WATCH"},{"tradeId":"TRD-0005","value":"STANDARD"},{"tradeId":"TRD-0006","value":"PRIME"},{"tradeId":"TRD-0007","value":"WATCH"},{"tradeId":"TRD-0008","value":"STANDARD"},{"tradeId":"TRD-0010","value":"PRIME"},{"tradeId":"TRD-0011","value":"STANDARD"},{"tradeId":"TRD-0012","value":"WATCH"},{"tradeId":"TRD-0013","value":null},{"tradeId":"TRD-0014","value":"PRIME"},{"tradeId":"TRD-0015","value":null},{"tradeId":"TRD-0016","value":null},{"tradeId":"TRD-0017","value":null},{"tradeId":"TRD-0018","value":null},{"tradeId":"TRD-0019","value":null},{"tradeId":"TRD-0020","value":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::TE_AllButDefaulted_In_Hop
 {
     pattern: '/stress/typed/te_allbutdefaulted_in_hop';
@@ -15316,6 +15811,61 @@ Service stress::TE_AllButDefaulted_In_Hop
                   #{
                     contentType: 'application/json';
                     data: '[{"tradeId":"TRD-0001","value":"PRIME"},{"tradeId":"TRD-0002","value":"STANDARD"},{"tradeId":"TRD-0003","value":"WATCH"},{"tradeId":"TRD-0005","value":"STANDARD"},{"tradeId":"TRD-0006","value":"PRIME"},{"tradeId":"TRD-0007","value":"WATCH"},{"tradeId":"TRD-0008","value":"STANDARD"},{"tradeId":"TRD-0010","value":"PRIME"},{"tradeId":"TRD-0011","value":"STANDARD"},{"tradeId":"TRD-0012","value":"WATCH"},{"tradeId":"TRD-0014","value":"PRIME"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::TE_PrimeOrWatch_Hop
+{
+    pattern: '/stress/typed/te_primeorwatch_hop';
+    documentation: '`||` of two enumeration equalities; TL_Grade_In_Hop, `in` the same two values, must return the same rows.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->filter({x|(($x.typedValue.grade == typedvalues::Grade.PRIME) || ($x.typedValue.grade == typedvalues::Grade.WATCH))})
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            value:x|$x.typedValue.grade
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TE_PrimeOrWatch_Hop_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 7 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","value":"PRIME"},{"tradeId":"TRD-0003","value":"WATCH"},{"tradeId":"TRD-0006","value":"PRIME"},{"tradeId":"TRD-0007","value":"WATCH"},{"tradeId":"TRD-0010","value":"PRIME"},{"tradeId":"TRD-0012","value":"WATCH"},{"tradeId":"TRD-0014","value":"PRIME"}]';
                   }#;
               }#
           ]

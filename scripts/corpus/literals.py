@@ -14,7 +14,8 @@ at [0..1], seeded so that each comparison keeps some rows and drops others (seed
             (an invariance group, checked before anything is written).
   TQ_       predicate trees: `!`, `||` and `in` over absent values, where the answer turns on
             how Pure compares an absent value (oracle._cmp: false, and true for `!=`).
-  TE_       every value of the enumeration compared, at both sites, and an `in` over three.
+  TE_       every value of the enumeration under `==` and `!=`, at both sites, an `in` over
+            three, and `||` of two (the twin of TL_Grade_In_).
   TO_       an optional parameter in the optional-filter form, `$p->isEmpty() || ...`, tested
             given and absent.
   TM_       a to-many parameter, `->in($p)`, tested with several values and with one.
@@ -299,8 +300,9 @@ def parameters() -> list[Spec]:
 
 
 def enumerations() -> list[Spec]:
-    """Every value of the enumeration, compared at both sites, and an `in` over three of them:
-    each value's mapping is asked separately, and the unmapped code 'Z' equals none of them."""
+    """Every value of the enumeration, compared at both sites under `==` and `!=`, an `in` over
+    three of them, and `||` of two: each value's mapping is asked separately, and the unmapped
+    code 'Z' equals none of them."""
     out = []
     for site in ("Root", "Hop"):
         root, path, ident = _site(site)
@@ -309,11 +311,21 @@ def enumerations() -> list[Spec]:
             out.append(_spec(f"TE_{value.title()}_Eq_{site}",
                              f"An enumeration compared with its value {value}.", root, ident,
                              [("value", path(g))], [Pred(path(g), "==", _grade(value))]))
+            out.append(_spec(f"TE_{value.title()}_Ne_{site}",
+                             f"An enumeration `!=` its value {value}: the absent and the unmapped "
+                             f"are kept.", root, ident,
+                             [("value", path(g))], [Pred(path(g), "!=", _grade(value))]))
         three = [_grade("PRIME"), _grade("STANDARD"), _grade("WATCH")]
         out.append(_spec(f"TE_AllButDefaulted_In_{site}",
                          "An enumeration `in` three of its four values: the fourth, the absent and "
                          "the unmapped are dropped.", root, ident, [("value", path(g))],
                          [Pred(path(g), "in", three)]))
+        out.append(_spec(f"TE_PrimeOrWatch_{site}",
+                         f"`||` of two enumeration equalities; TL_Grade_In_{site}, `in` the same "
+                         f"two values, must return the same rows.", root, ident,
+                         [("value", path(g))],
+                         [Or([Pred(path(g), "==", _grade("PRIME")),
+                              Pred(path(g), "==", _grade("WATCH"))])]))
     return out
 
 
@@ -360,10 +372,13 @@ def build() -> list[Spec]:
 
 
 def invariance_groups(specs: list[Spec]) -> list[list[Spec]]:
-    """Each literal and its parameter twin, by name."""
+    """Each literal and its parameter twin, by name; and `in` two enumeration values against
+    `||` of their equalities."""
     by = {s.short: s for s in specs}
-    return [[s, by["TP_" + s.short[3:]]] for s in specs
-            if s.short.startswith("TL_") and "TP_" + s.short[3:] in by]
+    return ([[s, by["TP_" + s.short[3:]]] for s in specs
+             if s.short.startswith("TL_") and "TP_" + s.short[3:] in by]
+            + [[by[f"TL_Grade_In_{site}"], by[f"TE_PrimeOrWatch_{site}"]]
+               for site in ("Root", "Hop")])
 
 
 def cases(c, spec: Spec, tables) -> list[tuple[str, dict | None, list[dict]]]:
