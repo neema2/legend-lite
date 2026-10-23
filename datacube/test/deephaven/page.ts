@@ -110,6 +110,9 @@ const KNOWN: readonly { readonly query: string; readonly rows: readonly (readonl
     query: `${T}->filter(x|${condition})->select(~[id])->sort(~id->ascending())`,
     rows: ids.map((id) => [id]),
   })),
+  // the null-safe != as a value, not a filter: a formula, its null half the desk's (a null desk differs from 'FX')
+  { query: `${T}->extend(~[d:x|$x.desk != 'FX'])->select(~[id, d])->sort(~id->ascending())`,
+    rows: [[1, true], [2, true], [3, false], [4, false], [5, true], [6, true]] },
 ];
 
 /** DataCube's shapes, L2's eighteen (the two the compiler refuses, a string operation on a nullable column, are not

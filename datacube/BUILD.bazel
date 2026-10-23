@@ -1995,8 +1995,9 @@ guards_package()
 # DEEPHAVEN FROM THE BROWSER (docs/DEEPHAVEN_PLAN_2026_10_22.md DH21, L3b, 2026-10-23): a page served from a site that is
 # not the server's plans each query with //wasm:planner on a Deephaven runtime, sends it with the tab's sender
 # (engine-client/src/deephaven.ts) straight to the pinned Deephaven (@embedded_deephaven, HTTPS), and reads the rows
-# with the tab's live reader (deephaven-live.ts) -- seven answers worked out by hand from six seeded rows, DataCube's eighteen shapes
-# created and answering, a grouping over a ticking table ticking, and a refusal in the server's own words. In the
+# with the tab's live reader (deephaven-live.ts) -- eighteen answers worked out by hand from six seeded rows with nulls (ten
+# of them filters the server reads without compiling, DH25), DataCube's eighteen shapes created and answering, a
+# grouping over a ticking table ticking, and a refusal in the server's own words. In the
 # pinned Chromium, as live_snap_test runs; the server is Java, so every platform Chromium runs on.
 esbuild_bundle(
     name = "deephaven_page",

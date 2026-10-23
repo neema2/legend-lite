@@ -659,12 +659,9 @@ public final class Deephaven extends AnsiSqlRenderer {
 
     /** A column of a kind the server's filter parser compares with a literal, by its name; else null. */
     private @com.legend.base.Nullable String bareColumn(SqlExpr e) {
-        if (!(e instanceof SqlExpr.Column c) || scope().computed.get(e) != null || bareKind(e) == null) {
-            return null;
-        }
-        String name = column(c);
-        // the server's own names for a row's place are never a column it filters by name
-        return name.equals("i") || name.equals("ii") || name.equals("k") ? null : name;
+        // a name the server keeps for a row's place (i, ii, k), which its filter parser would not read as a column, is
+        // never a column's: DeephavenJson refuses it
+        return e instanceof SqlExpr.Column c && scope().computed.get(e) == null && bareKind(e) != null ? column(c) : null;
     }
 
     /** A literal as the server's filter parser reads one of {@code column}'s kind: an integer's digits (no
