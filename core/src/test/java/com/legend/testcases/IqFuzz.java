@@ -292,6 +292,9 @@ public final class IqFuzz {
             return c != null && rnd.nextInt(4) != 0 ? c.ref() : literal(k);
         }
         int d1 = d - 1;
+        if (rnd.nextInt(4) == 0) {
+            return more(k, scope, d1);
+        }
         return switch (k) {
             case INT -> switch (rnd.nextInt(14)) {
                 case 0 -> "(" + expr(Kind.INT, scope, d1) + " + " + expr(Kind.INT, scope, d1) + ")";
@@ -350,6 +353,64 @@ public final class IqFuzz {
         };
     }
 
+    /** The island's wider catalogue (the IQ scale program, 2026-10-23: the census's built functions the generator had
+     *  not written): dates' parts and names, string search and editing, NULL handling, the front end's GREATER and
+     *  LESSER (which move the statement to SQL Anywhere's engine), numbers' roots, powers and truncation. */
+    private String more(Kind k, List<Col> scope, int d1) {
+        return switch (k) {
+            case INT -> switch (rnd.nextInt(10)) {
+                case 0 -> "DATEPART(" + pick(List.of("year", "month", "day", "dayofyear", "quarter", "week"))
+                        + ", " + expr(Kind.DATE, scope, d1) + ")";
+                case 1 -> "DATEPART(" + pick(List.of("hour", "minute", "second")) + ", " + expr(Kind.TS, scope, d1)
+                        + ")";
+                case 2 -> "CHARINDEX('" + pick(List.of("a", "b", "x")) + "', " + expr(Kind.STR, scope, d1) + ")";
+                case 3 -> "LOCATE(" + expr(Kind.STR, scope, d1) + ", '" + pick(List.of("a", "b", "c")) + "')";
+                case 4 -> pick(List.of("DAYS(", "MONTHS(", "YEARS(", "WEEKS(")) + expr(Kind.DATE, scope, d1) + ")";
+                case 5 -> "ISNULL(" + expr(Kind.INT, scope, d1) + ", NULLIF(" + expr(Kind.INT, scope, d1) + ", "
+                        + literal(Kind.INT) + "))";
+                case 6 -> pick(List.of("GREATER(", "LESSER(")) + expr(Kind.INT, scope, d1) + ", "
+                        + expr(Kind.INT, scope, d1) + ")";
+                case 7 -> "MOD(" + expr(Kind.INT, scope, d1) + ", " + (2 + rnd.nextInt(5)) + ")";
+                case 8 -> "BYTE_LENGTH(" + expr(Kind.STR, scope, d1) + ")";
+                default -> "DATEDIFF(" + pick(List.of("month", "year", "week")) + ", " + expr(Kind.DATE, scope, d1)
+                        + ", " + expr(Kind.DATE, scope, d1) + ")";
+            };
+            case DEC -> switch (rnd.nextInt(3)) {
+                case 0 -> "TRUNCNUM(" + expr(Kind.DEC, scope, d1) + ", " + rnd.nextInt(2) + ")";
+                case 1 -> "ISNULL(" + expr(Kind.DEC, scope, d1) + ", " + literal(Kind.DEC) + ")";
+                default -> "ROUND(" + expr(Kind.DEC, scope, d1) + ", 0)";
+            };
+            case DBL -> switch (rnd.nextInt(3)) {
+                case 0 -> "SQRT(ABS(" + expr(Kind.DBL, scope, d1) + "))";
+                case 1 -> "POWER(" + expr(Kind.DBL, scope, d1) + ", 2)";
+                default -> "CAST(" + expr(Kind.DEC, scope, d1) + " AS DOUBLE)";
+            };
+            case STR -> switch (rnd.nextInt(10)) {
+                case 0 -> pick(List.of("RTRIM(", "LTRIM(", "REVERSE(", "UCASE(", "LCASE(")) + expr(Kind.STR, scope, d1)
+                        + ")";
+                case 1 -> "REPLICATE(" + expr(Kind.STR, scope, d1) + ", " + rnd.nextInt(3) + ")";
+                case 2 -> "STUFF(" + expr(Kind.STR, scope, d1) + ", " + (1 + rnd.nextInt(3)) + ", " + rnd.nextInt(2)
+                        + ", 'z')";
+                case 3 -> "INSERTSTR(" + rnd.nextInt(3) + ", " + expr(Kind.STR, scope, d1) + ", 'q')";
+                case 4 -> "STRING(" + expr(Kind.INT, scope, d1) + ", " + expr(Kind.STR, scope, d1) + ")";
+                case 5 -> "DAYNAME(" + expr(Kind.DATE, scope, d1) + ")";
+                case 6 -> "DATEFORMAT(" + expr(Kind.DATE, scope, d1) + ", '" + pick(List.of("yyyy-mm-dd",
+                        "dd/mm/yyyy", "yyyymmdd", "Mmm dd, yyyy")) + "')";
+                case 7 -> "ISNULL(" + expr(Kind.STR, scope, d1) + ", NULLIF(" + expr(Kind.STR, scope, d1) + ", 'a'))";
+                case 8 -> "CONVERT(VARCHAR(12), " + expr(Kind.DATE, scope, d1) + ", " + pick(List.of("101", "103",
+                        "112", "23")) + ")";
+                default -> "DATENAME(" + pick(List.of("month", "weekday")) + ", " + expr(Kind.DATE, scope, d1) + ")";
+            };
+            case DATE -> switch (rnd.nextInt(3)) {
+                case 0 -> "DATEADD(month, " + (rnd.nextInt(25) - 12) + ", " + expr(Kind.DATE, scope, d1) + ")";
+                case 1 -> "DATE(" + expr(Kind.TS, scope, d1) + ")";
+                default -> "ISNULL(" + expr(Kind.DATE, scope, d1) + ", " + literal(Kind.DATE) + ")";
+            };
+            case TS -> rnd.nextBoolean() ? "DATEADD(" + pick(List.of("hour", "minute")) + ", " + (rnd.nextInt(97)
+                    - 48) + ", " + expr(Kind.TS, scope, d1) + ")" : "DATETIME(" + expr(Kind.DATE, scope, d1) + ")";
+        };
+    }
+
     /** A correlated scalar subquery of {@code k}'s kind: one row, an aggregate, over a table of its own. */
     private String scalar(Kind k, List<Col> scope, int d) {
         List<Col> inner = new ArrayList<>();
@@ -361,7 +422,10 @@ public final class IqFuzz {
     }
 
     private String aggregate(Kind k, List<Col> scope, int d) {
-        return switch (rnd.nextInt(5)) {
+        return switch (rnd.nextInt(7)) {
+            case 5 -> k == Kind.INT || k == Kind.DEC ? "AVG(" + expr(k, scope, Math.min(d, 1)) + ")"
+                    : "COUNT(" + expr(k, scope, Math.min(d, 1)) + ")";
+            case 6 -> "COUNT(" + expr(k, scope, Math.min(d, 1)) + ")";
             case 0 -> "COUNT(*)";
             case 1 -> "COUNT(DISTINCT " + expr(k, scope, Math.min(d, 1)) + ")";
             case 2 -> k == Kind.INT || k == Kind.DEC ? "SUM(" + expr(k, scope, Math.min(d, 1)) + ")"
@@ -453,17 +517,28 @@ public final class IqFuzz {
     private String grouped(Shape s) {
         Col key = pick(s.scope());
         String agg = aggregate(pick(List.of(Kind.INT, Kind.DEC, Kind.STR)), s.scope(), 1);
-        return s.with() + "SELECT " + key.ref() + " AS k, " + agg + " AS a, COUNT(*) AS n FROM " + s.from()
-                + (s.where() == null ? "" : " WHERE " + s.where()) + " GROUP BY " + key.ref()
+        boolean rollup = rnd.nextInt(4) == 0;
+        Col text = column(s.scope(), Kind.STR);
+        String list = text != null && rnd.nextInt(4) == 0 ? ", LIST(" + text.ref() + ", ',' ORDER BY " + text.ref()
+                + ") AS l" : "";
+        return s.with() + "SELECT " + key.ref() + " AS k, " + agg + " AS a, COUNT(*) AS n" + list + " FROM "
+                + s.from() + (s.where() == null ? "" : " WHERE " + s.where()) + " GROUP BY "
+                + (rollup ? "ROLLUP(" + key.ref() + ")" : key.ref())
                 + (rnd.nextBoolean() ? " HAVING COUNT(*) >= 1" : "") + " ORDER BY 1, 2, 3";
     }
 
     private String windowed(Shape s) {
         Col part = pick(s.scope());
         Col order = pick(s.scope(), Kind.INT);
+        String more = switch (rnd.nextInt(3)) {
+            case 0 -> ", ROW_NUMBER() OVER (PARTITION BY " + part.ref() + " ORDER BY " + order.ref() + ") AS rn";
+            case 1 -> ", LAG(" + order.ref() + ") OVER (ORDER BY " + order.ref() + ") AS lg";
+            default -> ", SUM(" + order.ref() + ") OVER (ORDER BY " + order.ref() + " ROWS BETWEEN 1 PRECEDING AND"
+                    + " CURRENT ROW) AS rs";
+        };
         return s.with() + "SELECT " + String.join(", ", s.items()) + ", RANK() OVER (PARTITION BY " + part.ref()
-                + " ORDER BY " + order.ref() + ") AS rk, COUNT(*) OVER (PARTITION BY " + part.ref() + ") AS cnt FROM "
-                + s.from() + (s.where() == null ? "" : " WHERE " + s.where());
+                + " ORDER BY " + order.ref() + ") AS rk, COUNT(*) OVER (PARTITION BY " + part.ref() + ") AS cnt"
+                + more + " FROM " + s.from() + (s.where() == null ? "" : " WHERE " + s.where());
     }
 
     /** Three branches of the select list over the FROM under two set operations of any kind, parenthesized on
