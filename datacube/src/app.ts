@@ -19,6 +19,7 @@ import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { hostOf, receiptLabel, receiptLines } from '../../engine-client/src/receipt.ts';
 import type { WarehouseEngine } from '../../engine-client/src/warehouse.ts';
 import { sessionExpired } from '../../engine-client/src/warehouse-session.ts';
+import { measured } from '../../engine-client/src/timeline.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { isQueryFailure, type QueryLens, type QueryRunner } from './runner.ts';
 import {
@@ -1422,7 +1423,7 @@ export class CubeApp {
     this.#paintReceipts();
     this.#reportSchemaChanges(view);
     // a landed view's paint on the browser's timeline, beside its queries' steps (docs/DEEPHAVEN_PLAN_2026_10_22.md O1)
-    performance.measure('dh:paint', { start: painting, end: performance.now() });
+    measured('paint', painting);
     // The host LAST, once the app has taken the view in: told first, it read the app one view
     // behind (the snapshot was still the previous one), so "changed since saved" missed the
     // change that had just landed.

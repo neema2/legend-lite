@@ -13,13 +13,14 @@
 // The engine is itself the reader of one grid (its own `execute`, `follow`, `onLive`), for a page of one.
 
 import type { DeephavenPlanner, DeephavenServer, DeephavenSessionOptions, KeptResult } from './deephaven.ts';
-import { DeephavenSession, measured } from './deephaven.ts';
+import { DeephavenSession } from './deephaven.ts';
 import { LiveClient, type DhModule, type Followed } from './deephaven-live.ts';
 import { byPosition, deephavenRows, followedTable } from './deephaven-rows.ts';
 import { QueryError, type QueryEngine, type RawTable, type ResultWindow, type WindowedResult } from './engine.ts';
 import { hostOf, type Receipt } from './receipt.ts';
 import type { Plan } from './relation-type.ts';
 import type { ResultTable } from './result.ts';
+import { measured } from './timeline.ts';
 
 /** What the live side says: a followed result changed (`since`: when the first change since the last word arrived,
  *  `performance.now()`), the live connection ended (`ended`: why) -- the server went away; `reconnect` -- or a result
@@ -67,9 +68,11 @@ interface FollowingWindow {
   waiting: { readonly resolve: () => void; readonly reject: (error: unknown) => void }[];
 }
 
-/** A whole result followed for every reader that reads it: one subscription, its changes said to each. */
+/** A whole result followed for every reader that reads it: one subscription, its changes said to each; `ready`
+ *  settles once it is followed (or could not be), for every reader that joins it meanwhile. */
 interface SharedFollowing extends Following {
   readonly readers: Set<DeephavenReader>;
+  ready: Promise<void>;
 }
 
 /** A plan an epoch executed, and the window it asked of the result (null: the whole result). */
@@ -202,27 +205,40 @@ export class DeephavenEngine implements QueryEngine {
     return this.#own.onLive(listener);
   }
 
-  /** `plan`'s whole result followed for `reader`: one subscription for every reader that reads it. */
-  async #holdWhole(plan: Plan, reader: DeephavenReader): Promise<void> {
+  /** `plan`'s whole result followed for `reader`: one subscription for every reader that reads it, resolved once its
+   *  rows are live in the page -- a reader that joins a following under way waits for it too. */
+  #holdWhole(plan: Plan, reader: DeephavenReader): Promise<void> {
     const held = this.#whole.get(plan.sql);
     if (held !== undefined) {
       held.readers.add(reader);
-      return;
+      return held.ready;
     }
-    const f: SharedFollowing = { table: null, window: null, stop: null, stopped: false, readers: new Set([reader]) };
+    const f: SharedFollowing = { table: null, window: null, stop: null, stopped: false, readers: new Set([reader]),
+      ready: Promise.resolve() };
     this.#whole.set(plan.sql, f);
+    f.ready = this.#startWhole(plan, f);
+    return f.ready;
+  }
+
+  /** Resolved once the result's first rows are in the page (N1: a read the moment it resolves is answered live), or
+   *  once it is let go before they came. */
+  async #startWhole(plan: Plan, f: SharedFollowing): Promise<void> {
     const session = this.#session;
     const kept = await session.keepAlive(plan.sql, this.#supplied());
+    let arrived!: () => void;
+    const first = new Promise<void>((done) => { arrived = done; });
     try {
       const name = await session.publishKept(kept.exportId);
       const followed: Followed = await (await this.#liveClient()).follow(name, (rows) => {
         if (f.stopped) return;
         f.table = followedTable(rows, plan, 0, 0);
+        arrived();
         for (const r of f.readers) r.changed();
       });
       f.stop = () => {
         followed.close();
         kept.release();
+        arrived();
       };
     } catch (e) {
       kept.release();
@@ -230,6 +246,7 @@ export class DeephavenEngine implements QueryEngine {
       throw e;
     }
     if (f.stopped) stopFollowing(f);
+    await first;
   }
 
   /** `reader` no longer reads `sql`'s whole result: let go when no reader does. */
@@ -341,8 +358,8 @@ export class DeephavenReader implements QueryEngine {
   readonly #core: EngineCore;
   /** The plans each recent epoch executed, by their text: what `follow` follows. */
   readonly #executed = new Map<number, Map<string, Executed>>();
-  /** The whole results this reader follows (held by the engine), by their text. */
-  readonly #whole = new Set<string>();
+  /** The whole results this reader follows (held by the engine), by their text: each settled once it is followed. */
+  readonly #whole = new Map<string, Promise<void>>();
   /** The results this reader follows by a window, by their text. */
   readonly #windows = new Map<string, Following>();
   readonly #listeners = new Set<(e: LiveEvent) => void>();
@@ -390,6 +407,9 @@ export class DeephavenReader implements QueryEngine {
         if (signal?.aborted) return;
         reading = session.rows(exportId);
         reading.catch(() => { /* a refused batch is said by keepAlive */ });
+        // published as its rows are read, when the view that reads it will follow it: its following then starts a
+        // round trip on (N1)
+        if (this.#follows(plan, epoch)) session.publishKept(exportId).catch(() => { /* its following asks again */ });
       });
     } catch (e) {
       throw new QueryError(e instanceof Error ? e.message : String(e), plan.sql, { cause: e });
@@ -417,15 +437,22 @@ export class DeephavenReader implements QueryEngine {
     }
   }
 
+  /** Whether `plan`'s whole result read in `epoch` will be followed: read in a view not older than the one followed
+   *  (the first view's, before any is), and not read by a window. */
+  #follows(plan: Plan, epoch: number): boolean {
+    return (this.#floor === null || epoch >= this.#floor) && !this.#windows.has(plan.sql);
+  }
+
   /** `plan`'s whole result read in `epoch`: followed from now when that is the view's or later (`#floor`). */
   #keepWhole(plan: Plan, epoch: number): void {
     if (this.#floor === null || epoch < this.#floor || this.#whole.has(plan.sql) || this.#windows.has(plan.sql)) return;
-    this.#whole.add(plan.sql);
-    this.#core.holdWhole(plan, this).catch((error: unknown) => {
-      this.#whole.delete(plan.sql);
+    // a failure is said to the listeners, and the next read follows it again: `follow` waits for this, never throws it
+    const holding: Promise<void> = this.#core.holdWhole(plan, this).catch((error: unknown) => {
+      if (this.#whole.get(plan.sql) === holding) this.#whole.delete(plan.sql);
       const failed = error instanceof Error ? error.message : String(error);
       for (const l of this.#listeners) l({ since: performance.now(), ended: null, failed });
     });
+    this.#whole.set(plan.sql, holding);
   }
 
   /**
@@ -478,13 +505,14 @@ export class DeephavenReader implements QueryEngine {
    * FOLLOWS THE VIEW of `epoch` (one that LANDED, never a tick's): every result read in it or since kept live -- on the
    * server (the session keeps its table alive) and in the page (Deephaven's JS library pushes its rows at every
    * change) -- and every result last read before it let go. A result read later, in it or after it (a chart drawn from
-   * the view, a tick's re-read), is followed as it is read. Resolves once each is followed; its rows arrive by `onLive`.
+   * the view, a tick's re-read), is followed as it is read. Resolves once each is followed and its rows are in the page
+   * (a read then is answered from them); every change after arrives by `onLive`.
    */
   async follow(epoch: number): Promise<void> {
     if (this.#floor === null || epoch > this.#floor) this.#floor = epoch;
     const floor = this.#floor;
     const read = (sql: string): number => this.#readAt.get(sql) ?? Number.NEGATIVE_INFINITY;
-    for (const sql of [...this.#whole]) {
+    for (const sql of [...this.#whole.keys()]) {
       if (read(sql) < floor) {
         this.#whole.delete(sql);
         this.#core.letGoWhole(sql, this);
@@ -504,12 +532,15 @@ export class DeephavenReader implements QueryEngine {
     }
     await Promise.all([...plans.values()].map((e) => {
       if (e.window !== null) return this.#windows.has(e.plan.sql) ? undefined : this.#startWindow(e.plan, e.window);
-      if (this.#whole.has(e.plan.sql)) return undefined;
-      this.#whole.add(e.plan.sql);
-      return this.#core.holdWhole(e.plan, this).catch((error: unknown) => {
-        this.#whole.delete(e.plan.sql);
+      // one under way since its read (`#keepWhole`) waited for: resolved, the view is live
+      const under = this.#whole.get(e.plan.sql);
+      if (under !== undefined) return under;
+      const holding: Promise<void> = this.#core.holdWhole(e.plan, this).catch((error: unknown) => {
+        if (this.#whole.get(e.plan.sql) === holding) this.#whole.delete(e.plan.sql);
         throw error;
       });
+      this.#whole.set(e.plan.sql, holding);
+      return holding;
     }));
   }
 
@@ -550,7 +581,7 @@ export class DeephavenReader implements QueryEngine {
 
   /** Done: every result it follows let go, and the engine no longer counts it. */
   async close(): Promise<void> {
-    for (const sql of this.#whole) this.#core.letGoWhole(sql, this);
+    for (const sql of this.#whole.keys()) this.#core.letGoWhole(sql, this);
     this.#whole.clear();
     for (const f of this.#windows.values()) stopFollowing(f);
     this.#windows.clear();
@@ -568,7 +599,10 @@ export class DeephavenReader implements QueryEngine {
     const counts = this.#core.counts;
     let kept: KeptResult;
     try {
-      kept = await session.keepAlive(plan.sql, this.#core.supplied());
+      // published as soon as it is named, while the server makes it: the window's rows a round trip sooner (N1)
+      kept = await session.keepAlive(plan.sql, this.#core.supplied(), (exportId) => {
+        session.publishKept(exportId).catch(() => { /* asked again below, and said there */ });
+      });
     } catch (e) {
       if (this.#windows.get(plan.sql) === f) this.#windows.delete(plan.sql);
       for (const r of w.waiting.splice(0)) r.reject(e);

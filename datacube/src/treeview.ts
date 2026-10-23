@@ -156,8 +156,9 @@ export async function fetchTree(
     readonly pivot?: PivotFacts;
     /**
      * Abort for work a newer interaction replaced. Levels are fetched
-     * in SEQUENCE, so a burst that is already obsolete stops at the
-     * next level rather than grinding through the whole tree.
+     * a round at a time (a round's levels at once), so a burst that is
+     * already obsolete stops at the next round rather than grinding
+     * through the whole tree.
      */
     readonly signal?: AbortSignal;
   },
@@ -180,7 +181,12 @@ export async function fetchTree(
     );
     if (wanted.length === 0) break;
 
-    for (const request of wanted) {
+    // A round's levels are asked at ONCE -- the grand total and the
+    // root, or every open branch of one level -- each its own query, so
+    // over a network a round costs one round trip, not one a level
+    // (docs/DEEPHAVEN_PLAN_2026_10_22.md N1). They are kept in the
+    // order they were asked.
+    const fetched = await Promise.all(wanted.map(async (request): Promise<LevelData> => {
       // Ask for one more than the cap: if it comes back there is more
       // data, which is cheaper than a second counting query.
       // Below the deepest group: its detail rows, from their own query.
@@ -199,24 +205,25 @@ export async function fetchTree(
       const table = detail ? capped : await withChildAggregates(
         snapshot, request, capped, pathsOf(request, capped, depth), levelDeps,
       );
-      levels.set(requestKey(request), {
+      return {
         request,
         table,
         paths: pathsOf(request, table, depth),
         truncated,
         query,
         sql,
-      });
-      // A superseded interaction should stop fetching the rest of the
-      // tree rather than finish work nobody will look at.
-      if (!deps.guard.isCurrent(deps.epoch)) {
-        return {
-          rows: [],
-          table: emptyTable(deps.epoch),
-          levels,
-          truncated: [],
-        };
-      }
+      };
+    }));
+    for (const level of fetched) levels.set(requestKey(level.request), level);
+    // A superseded interaction should stop fetching the rest of the
+    // tree rather than finish work nobody will look at.
+    if (!deps.guard.isCurrent(deps.epoch)) {
+      return {
+        rows: [],
+        table: emptyTable(deps.epoch),
+        levels,
+        truncated: [],
+      };
     }
   }
 

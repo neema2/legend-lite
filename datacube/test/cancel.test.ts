@@ -106,9 +106,9 @@ describe('the epoch guard as a cancellation source', () => {
 
 describe('a tree fetch that is already obsolete', () => {
   it('stops at the next level instead of walking the whole tree', async () => {
-    // Levels are fetched in SEQUENCE, so the query in flight cannot be
-    // recalled but every one behind it can be skipped. That is most of
-    // the wasted work in a burst.
+    // Levels are fetched a round at a time, so the queries in flight
+    // cannot be recalled but every round behind them can be skipped.
+    // That is most of the wasted work in a burst.
     const guard = new EpochGuard();
     const controller = new AbortController();
     let planned = 0;

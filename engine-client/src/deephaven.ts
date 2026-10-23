@@ -8,6 +8,8 @@
 // HTTP/2, which a browser speaks only over HTTPS -- keeps the session's tables, and reads the status. It decides
 // nothing about the query.
 
+import { measured, timed } from './timeline.ts';
+
 /** The planner's half: one `deephaven` operation answered, as the module tags it (`OK\n...`, `ERR\n<kind>\n<why>`). */
 export type DeephavenPlanner = (op: string, args: Readonly<Record<string, unknown>>) => Promise<string>;
 
@@ -92,6 +94,9 @@ export class DeephavenSession {
   /** Every table the session has made, by key, and how many of them it made again after letting them go. */
   private readonly made = new Set<string>();
   private madeAgain = 0;
+  /** The name each export is published under (`publishKept`), as it is asked: one name an export, for as long as it
+   *  lives. */
+  private readonly published = new Map<number, Promise<string>>();
 
   private constructor(server: DeephavenServer, planner: DeephavenPlanner, fetcher: typeof fetch, auth: string,
     options: DeephavenSessionOptions) {
@@ -237,6 +242,7 @@ export class DeephavenSession {
   }
 
   private releaseExport(exportId: number): void {
+    this.published.delete(exportId);
     if (this.closed) return;
     void this.ask('releaseExport', { exportId })
       .then((request) => this.call(RELEASE, fromBase64(request)))
@@ -266,12 +272,21 @@ export class DeephavenSession {
 
   /** Publishes the session's export `exportId` -- a result it keeps alive -- under a fresh name, for another session
    *  to open (deephaven-live.ts): the name lives as long as the export does (measured on Deephaven 42.7,
-   *  2026-10-23), and a reader that opened it keeps its own copy. */
-  async publishKept(exportId: number): Promise<string> {
+   *  2026-10-23), and a reader that opened it keeps its own copy, so an export is published once, and asked again
+   *  answers the same name. It may be asked as soon as the export is named, before the server has made it: the
+   *  server publishes it once it has (N1: a round trip less before a view is followed). */
+  publishKept(exportId: number): Promise<string> {
     this.open();
+    const asked = this.published.get(exportId);
+    if (asked !== undefined) return asked;
     const name = `legend-${randomName()}`;
-    await this.call(PUBLISH, fromBase64(await this.ask('publish', { exportId, name })));
-    return name;
+    const publishing = this.ask('publish', { exportId, name })
+      .then((request) => this.call(PUBLISH, fromBase64(request)))
+      .then(() => name);
+    this.published.set(exportId, publishing);
+    // a refused publish is asked again by the next reader, never answered refused for good
+    publishing.catch(() => { if (this.published.get(exportId) === publishing) this.published.delete(exportId); });
+    return publishing;
   }
 
   /** One call that keeps the session's token fresh; it throws when the server no longer answers this session (a
@@ -446,23 +461,4 @@ function randomName(): string {
   const bytes = new Uint8Array(12);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
-}
-
-/**
- * A step's time on the browser's performance timeline (docs/DEEPHAVEN_PLAN_2026_10_22.md O1): a `dh:<step>` measure --
- * naming a plan's tables, encoding its request, the server's batch, reading its answers, a result's rows -- which the
- * browser's own tools show and a test reads.
- */
-export async function timed<T>(step: string, work: () => Promise<T>): Promise<T> {
-  const start = performance.now();
-  try {
-    return await work();
-  } finally {
-    measured(step, start);
-  }
-}
-
-/** A `dh:<step>` measure from `start` to now (`timed`). */
-export function measured(step: string, start: number): void {
-  performance.measure(`dh:${step}`, { start, end: performance.now() });
 }

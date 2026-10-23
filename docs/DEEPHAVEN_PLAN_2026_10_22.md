@@ -2,7 +2,8 @@
 
 **Status: L1, L2, L3b, D0, J1 (DataCube's own app on Deephaven, DH23), T1 (real ticking, DH24), F1 (filters the
 server reads without compiling, DH25), B1, G1, and V1-V3 (a flat grid of any size, a page of several grids, charts
-that tick: DH27) built (their branches, §9); the rest PROPOSED.** Revised the same day on the user's ruling:
+that tick: DH27), P1 (pivots the server compiles nothing for), O1 and N1 (a gesture's time, and over a network)
+built (their branches, §9); the rest PROPOSED.** Revised the same day on the user's ruling:
 **Deephaven is just another backend.** A user builds a `###Relational` store, mappings and classes, and everything
 works: the Relation API straight on the store's tables, `project()` over class navigation. No store of its own, no
 table kinds. The first version of this document (a `###Deephaven` store with source and input tables,
@@ -313,6 +314,10 @@ publisher replaces the demo's seeding once they do. Stacked branches, no PR unti
 | S1 | after L5 and L3s | **views shared between viewers**: a base and a rollup per saved grid, owned on the server (the modelled publisher's side, not a browser), each viewer its own expansion; who may read one, and when it is let go, decided then | two viewers of one grid: one base on the server |
 | V1 | on G1 (the user, 2026-10-23: "flat grid with lot of rows"; DH27), **built 2026-10-23** | **a flat grid of any size**: a flat view's result made once on the server, sorted and filtered there, and followed by a VIEWPORT -- the rows on screen and a margin -- so a tick carries those rows only and the page's work does not grow with the result; a scroll past the margin moves the viewport (no table made, no formula compiled); the grid paints a block of the whole (`DataGrid.setRows(block, offset, total)`); a person's row limit still applies | the cube test over 100,000 positions: a tick's time on screen, a scroll's, the server's update graph busy |
 | V2 | on V1 (the same ask: "few grids in same datacube with different pivots"), **built 2026-10-23** | **several grids on one page, one session**: each grid its own follower over the engine's one session, live reader and bases (a grid following its view lets go of nothing another grid reads); grids over the same source read one base; each grid's pivot ticks; a tick re-runs only the grids whose results changed; P1's live pivot values here: a value appearing on the server is a change (DH27) | the page test: three grids, two pivots, every grid's tick on screen |
+| O1 | on P1 (the user, 2026-10-23: the roadmap's #1), **measured 2026-10-23** | **a gesture's time, where it goes**: each step on the browser's timeline, the server's operation log beside it; what is ours cut | the cube test's per-gesture lines |
+| N1 | on O1 (the same ask), **built 2026-10-23** | **over a real network**: the cube page behind a link of its own round trip (a delaying proxy), each gesture's time to the view and to the view live, its requests, a tick's; the round trips a gesture waits on cut to what its reads need | `//datacube:deephaven_network_bench` (manual) |
+| B2 | on V2 (the same ask) | **the page of grids, whole**: a server restart recovered by every grid and chart; the page saved and opened again over Deephaven, each grid's source written down | the page test: a restart, a save and an open, every grid and chart ticking after each |
+| C2 | on V3 (the same ask) | **a chart's scale held while it ticks**: its value axes as the view drew them, widened only where a tick's values leave them, drawn afresh at the next view | the chart's tests (the rule, drawn by ECharts); the page test: the axes during six seconds of ticks |
 
 **L2, measured (2026-10-23):** the target's batches for 18 query shapes (DataCube's pivot as conditional sums, its
 grand total over a literal key and over no rows, distinct, top-N, nested groupBy-extend, avg, count distinct, std,
@@ -508,6 +513,36 @@ the next candidate is the column renaming that starts every query of one table, 
 library (8 MB) parsed on the page's thread in the middle of the person's first gesture -- now loaded when the engine
 opens (`DeephavenEngine.open`), parsed while the first view waits on the server: the first group opened in 328 ms, from
 465-1,195. A fresh server's first operations of a kind still run slower (its JVM's), not ours.
+
+**N1, built (2026-10-23): over a network.** The benchmark (`datacube/bench/deephaven/network-bench.mjs`,
+`//datacube:deephaven_network_bench`, manual) starts the pinned server with the demo's application, puts a TCP proxy
+between the browser and the server that holds every chunk half the round trip each way (so TLS, HTTP/2 and each request
+meet it as on a link), and runs the cube page's gestures three rounds, each round from the page's opening view and each
+gesture after the view before it is live. Each gesture's time to the view, then to the view LIVE (followed, its rows in
+the page), first round / warm (ms):
+
+| round trip | page live | expand | collapse | pivot | regroup | filter | a tick on screen |
+|---|---|---|---|---|---|---|---|
+| 0 ms | 3,043 | 312 / 34, live 152 | 30 / 23 | 241 / 73, live 143 | 99 / 48, live 124 | 86 / 34, live 110 | 3 ms after its rows |
+| 20 ms | 3,037 | 370 / 134, live 535 | 21 / 47 | 270 / 176, live 582 | 112 / 95, live 520 | 90 / 98, live 440 | 3 ms |
+| 80 ms | 3,661 | 406 / 148, live 704 | 30 / 29 | 391 / 305, live 820 | 165 / 124, live 672 | 163 / 137, live 616 | 3 ms |
+
+A tick sends nothing (its rows are pushed: the link adds its one-way delay, never a request). A warm gesture waits on
+ONE round trip -- its rows read from tables the session keeps alive -- and a first one on one too, the rows asked
+while the server makes them (G1); a collapse waits on none; a pivot on two (its values, then the level that reads
+them). Traced request by request (`BENCH_TRACE=1`) and cut, three round trips the reads did not need: (1) a tree's
+levels were read one after another -- the grand total, the root, every open branch -- now each ROUND's levels at once
+(`treeview.ts fetchTree`: one round trip a level of the tree, whatever its branches; every engine's, and DuckDB's
+connection queues them as before); (2) a result's following published it only after its view landed -- now it is
+published as soon as its export is named, while the server makes it (`DeephavenSession.publishKept`, once an export);
+(3) `follow` resolved before a following started at a result's read was done, and a following before its first rows
+arrived, so a gesture made at once read again what was about to be live -- now it resolves when the rows are in the
+page: the warm expand at 80 ms 148 ms, from 258-281. Found by the same run: the timeline's measures broke the headless
+runner (no `performance.measure`), now said only where the runtime keeps a timeline (`engine-client/src/timeline.ts`).
+The residue, Deephaven's JS library's own: a view goes live four of its sequential calls after it lands (the shared
+ticket into its session, its schema, its preview columns, the subscription) and its first snapshot at the server's
+next cycle, 0.3-0.6 s over 20-80 ms (0.1 s over none); until then the view on screen is the one read, and its first rows tick it. The
+page's start (3.0-3.7 s) is the planner's start and the 8 MB library over the link.
 
 **Before internal users rely on it:** the firm's counsel reviews the deployment against the Deephaven Community
 License (this line's reading, `experiments/deephaven-spike/README.md`, is not legal advice).

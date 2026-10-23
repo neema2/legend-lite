@@ -2327,6 +2327,21 @@ browser_test(
     env = _DEEPHAVEN_DEMO_ENV,
 )
 
+# THE NETWORK BENCHMARK (docs/DEEPHAVEN_PLAN_2026_10_22.md N1): the cube page over a link with a round trip of its own
+# (a delaying TCP proxy between the browser and the server): the page's start, each gesture and its requests, a tick.
+# Manual: `bazel test //datacube:deephaven_network_bench --test_output=streamed` (BENCH_RTTS: the round trips, ms).
+browser_test(
+    name = "deephaven_network_bench",
+    size = "large",
+    tags = ["manual"],
+    data = _DEEPHAVEN_DEMO_DATA + [
+        "bench/deephaven/network-bench.mjs",
+        ":node_modules/playwright",
+    ],
+    entry_point = "bench/deephaven/network-bench.mjs",
+    env = _DEEPHAVEN_DEMO_ENV,
+)
+
 # A DATACUBE PAGE OF SEVERAL GRIDS AND CHARTS, TICKING (docs/DEEPHAVEN_PLAN_2026_10_22.md V2, V3, DH27): DataCube's own
 # page over 100,000 positions in a storm -- the book flat, the desks and the sectors pivoted, a chart on each pivoted
 # grid, every grid its own reader over one engine. Checks one base for the three grids, the pivots' columns, and every

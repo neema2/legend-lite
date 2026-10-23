@@ -36,8 +36,9 @@ interface Shown {
   /** Each tick's time in parts, ms: waiting for the run before it, the run, and the frame after it (the last 200). */
   tickParts: [number, number, number][];
   counts: DeephavenCounts | null;
-  /** The view on screen: its epoch, its columns, and its rows' values. */
+  /** The view on screen: its epoch, its columns, and its rows' values; and the epoch of the last view followed. */
   epoch: number;
+  followed: number;
   columns: readonly string[];
   rows: readonly (readonly unknown[])[];
   /** A flat view read by a window (V1): where its rows are in the result, and how many the result has; else null. */
@@ -57,7 +58,7 @@ interface Shown {
 }
 const shown: Shown = {
   status: 'starting', error: '', views: 0, reconnects: 0, ticks: 0, refreshes: 0, tickToPaint: [], runMs: [], tickParts: [], counts: null,
-  epoch: 0, columns: [], rows: [], window: null, base: null, paused: false,
+  epoch: 0, followed: 0, columns: [], rows: [], window: null, base: null, paused: false,
 };
 (window as unknown as { __cube: Shown }).__cube = shown;
 
@@ -123,7 +124,10 @@ async function main(): Promise<void> {
       shown.views++;
       showRows(view);
       // the view on screen followed: its results kept live, the ones no view reads let go
-      engine.follow(view.snapshot.epoch).then(countedSoon, (e: unknown) => {
+      engine.follow(view.snapshot.epoch).then(() => {
+        shown.followed = Math.max(shown.followed, view.snapshot.epoch);
+        countedSoon();
+      }, (e: unknown) => {
         shown.error = String(e instanceof Error ? e.message : e);
         said(`could not follow the view: ${shown.error}`, 'error');
       });
@@ -207,6 +211,8 @@ async function main(): Promise<void> {
     pivot: [{ kind: 'group', rows: ['desk'] }, { kind: 'pivot', columns: ['region'] }],
     regroup: [{ kind: 'group', rows: ['region', 'ccy'] }, { kind: 'pivot', columns: [] }],
     filter: [{ kind: 'filter', filter: { kind: 'condition', column: 'desk', operator: 'equal', value: 'FX' } }],
+    // the view the page opens with again: by desk and sector, no pivot, no filter (a benchmark's rounds start from it)
+    reset: [{ kind: 'filter', filter: null }, { kind: 'group', rows: ['desk', 'sector'] }, { kind: 'pivot', columns: [] }],
     // every position, grouped by nothing, the largest market value first: a flat grid of the whole book (V1)
     flat: [{ kind: 'group', rows: [] }, { kind: 'pivot', columns: [] }, { kind: 'sorts', sorts: [{ column: 'mv', direction: 'desc' }] }],
   };
