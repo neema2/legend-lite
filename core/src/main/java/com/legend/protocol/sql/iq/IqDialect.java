@@ -6533,7 +6533,11 @@ public final class IqDialect implements InputDialect {
         // IQ island, 2026-10-15 (D-N3): under IQ's engine an operation that cannot raise merges every operand's NULL
         // guard: none of its operands raises where another is NULL either (an integer operation raises only for a
         // zero divisor, which IQ's engine answers no rows for, its defect), so a chain stays linear in size
-        boolean merge = widened != null && !check && !zeroDivisor && zeroGuard < 0;
+        // IQ scale program, 2026-10-23: past a BIGINT too, where IQ's engine raises nothing either (it answers a
+        // NUMERIC, D-N3) and only lite's database may (its own 64-bit overflow): unmerged, each operand's guard read
+        // it again, and a sum of ten BIGINT terms was 2^9 copies of its first (35,000 characters of SQL)
+        boolean merge = (widened != null || engine == Engine.IQ && type.family().equals("BIGINT")) && !check
+                && !zeroDivisor && zeroGuard < 0;
         Tx result = SqlToPure.strict(Kind.INTEGER, operands, merge || operands.stream().filter(Tx::nullable).count()
                 == 1, v -> {
             List<ValueSpecification> args = new ArrayList<>();
