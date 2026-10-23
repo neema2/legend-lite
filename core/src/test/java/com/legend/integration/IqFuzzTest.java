@@ -253,6 +253,49 @@ class IqFuzzTest {
         }
     }
 
+    /** The scale probe's shapes at {@code f} times their sizes, by name (IqScaleSnowflakeTest runs them on Snowflake). */
+    static Map<String, String> scaleShapes(int f) {
+        Map<String, String> shapes = new java.util.LinkedHashMap<>();
+        for (int n : new int[] {500 * f, 1_000 * f, 2_000 * f}) {
+            shapes.put("union all of " + n, unionAll(n));
+        }
+        for (int n : new int[] {350 * f, 700 * f, 1_200 * f}) {
+            shapes.put("joins " + n, joins(n));
+        }
+        for (int n : new int[] {500 * f, 1_000 * f}) {
+            shapes.put("parentheses " + n, "SELECT " + "(".repeat(n) + "id" + " + 1)".repeat(n) + " AS v FROM t"
+                    + " WHERE id = 1");
+            shapes.put("nested functions " + n, "SELECT " + "ABS(".repeat(n) + "id" + ")".repeat(n) + " AS v FROM t"
+                    + " WHERE id = 1");
+            shapes.put("nested CASE " + n, nestedCase(n));
+            shapes.put("CASE of whens " + n, flatCase(n));
+        }
+        for (int n : new int[] {20_000 * f, 60_000 * f}) {
+            shapes.put("IN list of " + n, "SELECT id FROM t WHERE id IN (" + numbers(n) + ") ORDER BY id");
+        }
+        for (int n : new int[] {5_000 * f, 16_000 * f}) {
+            shapes.put("select items " + n, selectItems(n));
+            shapes.put("AND of " + n, "SELECT id FROM t WHERE " + andChain(n) + " ORDER BY id");
+        }
+        for (int n : new int[] {50 * f, 200 * f}) {
+            shapes.put("derived tables nested " + n, nestedDerived(n));
+            shapes.put("CTE chain " + n, cteChain(n));
+        }
+        // the IQ scale program, 2026-10-23: a range check at each level of a chain copied its operand three times a
+        // level, a 10-term BIGINT sum past Snowflake's statement timeout (3^9); the size check below holds such growth
+        for (int n : new int[] {10 * f, 50 * f, 200 * f}) {
+            shapes.put("integer sum of " + n, "SELECT id, " + "it + ".repeat(n - 1) + "it AS v FROM t ORDER BY id");
+            shapes.put("BIGINT sum of " + n, "SELECT id, " + "bg + ".repeat(n - 1) + "bg AS v FROM t WHERE id <> 1"
+                    + " ORDER BY id");
+        }
+        // 2026-10-23, an independent review: a division's zero guard copied its dividend into its message, and
+        // Snowflake's exact quotient wrote each operand twice (eight divisions by 2, 843,095 characters there)
+        for (int n : new int[] {10 * f, 50 * f}) {
+            shapes.put("divisions by a literal " + n, "SELECT id, it" + " / 2".repeat(n) + " AS v FROM t ORDER BY id");
+        }
+        return shapes;
+    }
+
     /** A scale shape's family: its SQL at a size, and the largest size the reach probe tries. */
     private record Family(java.util.function.IntFunction<String> sql, int max) {
     }
@@ -347,44 +390,7 @@ class IqFuzzTest {
         String model = IqParity.model(tables, PLATFORM.connectionBody());
         var platform = com.legend.Compiler.compileModel(model);
         var cloud = com.legend.Compiler.compileModel(IqParity.model(tables, CLOUD_TARGET));
-        Map<String, String> shapes = new java.util.LinkedHashMap<>();
-        for (int n : new int[] {500 * f, 1_000 * f, 2_000 * f}) {
-            shapes.put("union all of " + n, unionAll(n));
-        }
-        for (int n : new int[] {350 * f, 700 * f, 1_200 * f}) {
-            shapes.put("joins " + n, joins(n));
-        }
-        for (int n : new int[] {500 * f, 1_000 * f}) {
-            shapes.put("parentheses " + n, "SELECT " + "(".repeat(n) + "id" + " + 1)".repeat(n) + " AS v FROM t"
-                    + " WHERE id = 1");
-            shapes.put("nested functions " + n, "SELECT " + "ABS(".repeat(n) + "id" + ")".repeat(n) + " AS v FROM t"
-                    + " WHERE id = 1");
-            shapes.put("nested CASE " + n, nestedCase(n));
-            shapes.put("CASE of whens " + n, flatCase(n));
-        }
-        for (int n : new int[] {20_000 * f, 60_000 * f}) {
-            shapes.put("IN list of " + n, "SELECT id FROM t WHERE id IN (" + numbers(n) + ") ORDER BY id");
-        }
-        for (int n : new int[] {5_000 * f, 16_000 * f}) {
-            shapes.put("select items " + n, selectItems(n));
-            shapes.put("AND of " + n, "SELECT id FROM t WHERE " + andChain(n) + " ORDER BY id");
-        }
-        for (int n : new int[] {50 * f, 200 * f}) {
-            shapes.put("derived tables nested " + n, nestedDerived(n));
-            shapes.put("CTE chain " + n, cteChain(n));
-        }
-        // the IQ scale program, 2026-10-23: a range check at each level of a chain copied its operand three times a
-        // level, a 10-term BIGINT sum past Snowflake's statement timeout (3^9); the size check below holds such growth
-        for (int n : new int[] {10 * f, 50 * f, 200 * f}) {
-            shapes.put("integer sum of " + n, "SELECT id, " + "it + ".repeat(n - 1) + "it AS v FROM t ORDER BY id");
-            shapes.put("BIGINT sum of " + n, "SELECT id, " + "bg + ".repeat(n - 1) + "bg AS v FROM t WHERE id <> 1"
-                    + " ORDER BY id");
-        }
-        // 2026-10-23, an independent review: a division's zero guard copied its dividend into its message, and
-        // Snowflake's exact quotient wrote each operand twice (eight divisions by 2, 843,095 characters there)
-        for (int n : new int[] {10 * f, 50 * f}) {
-            shapes.put("divisions by a literal " + n, "SELECT id, it" + " / 2".repeat(n) + " AS v FROM t ORDER BY id");
-        }
+        Map<String, String> shapes = scaleShapes(f);
         // -Diq.scale.only=<regex>: the shapes whose names match
         String only = System.getProperty("iq.scale.only");
         if (only != null) {

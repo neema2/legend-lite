@@ -201,7 +201,7 @@ says so.
 | Q27 | Nested integer division by a column grows exponentially: `it / sm / sm` doubles a level twice on DuckDB (the translator's NULL guard repeats the inner quotient, unmerged where IQ raises for a zero divisor; the zero guard's message copies the dividend) and six times on Snowflake (its exact quotient writes the dividend twice). Needs a common-subexpression hoist (the operand as a computed column) or a single-copy exact quotient for Snowflake (`TRUNC(CAST(a AS NUMBER(38, 19)) / b)`, by its division scale rule, to be measured) | P4, P1.3 | the sibling's measurement for the Snowflake half | the Snowflake half done (2026-10-23, the scale-19 quotient, measured); DuckDB's open |
 | Q28 | Planning a long UNION ALL grows faster than linearly: 1.9 s at 1,000 branches, 4.0 s at 2,000, 16.6 s at 4,000 (the scale probe at twice its sizes, 2026-10-23) | P4 | a profile | done (2026-10-23): 4,000 branches planned in 1.4 s |
 | Q29 | Planning a long join chain: `Fold.sourceColumn` scanned a join's every output at each level of its recursion, for a pivot identity's check | P4 | a profile | done (2026-10-23): 700 joins planned in 4.0 s (were 9.7 s); 1,200 in 8.7 s, the rest spread over the translator's taken names and the typer, past DuckDB's depth limit anyway |
-| Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | open |
+| Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | the lane built (`//core:iq_scale_snowflake_test`, 2026-10-23); its first run asked of the sibling |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
 | Q9 | Unread derived columns dropped | P3.2 | oracle (some answers are committed) | open |
 | Q10 | Balanced UNION and join emission past 1,000 | P4 | — | the union half done (`BalancedUnions`, 2026-10-23): a UNION ALL of 4,000 runs on DuckDB; joins open |
@@ -441,3 +441,8 @@ says so.
   name. 700 joins plan in 4.0 s (were 9.7 s), 1,200 in 8.7 s; what remains is spread over the translator's
   taken-name sets, rebuilt at each join, and the typer's relation types. 700 joins are past DuckDB's tree depth
   anyway (Q17), and 350 still take its join-order optimizer 210 s (Q16).
+- 2026-10-23, **Q7's lane: the scale probe's shapes on a real Snowflake account** (`IqScaleSnowflakeTest`,
+  `//core:iq_scale_snowflake_test`, manual like the other account lanes). Each shape of `IqFuzzTest.scaleShapes` is
+  planned for and run on the account in a schema of its own, on the server's request stack, with a statement timeout
+  (`-Diq.scale.timeout`, 300 s): its plan time, SQL size, run time and outcome go to `iq-scale-snowflake.tsv`. A limit
+  of Snowflake's is reported; only lite's own crash fails it.

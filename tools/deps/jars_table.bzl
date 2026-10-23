@@ -63,8 +63,9 @@ JARS = {
         sha256 = "eeabc114d2fd429365f8bdde0cb5dd00f0cf529b22aab754751bab1b09fc65c0",
         # 2026-10-22, the IQ scale program (docs/IQ_SCALE_PROGRAM_2026_10_22.md P1.1): the #IQ{...}# island's parity
         # cases on the same account, one manual test target, test-only like the PCT lanes; 2026-10-23, its fuzzer's
-        # differential between DuckDB and the account (P2.2), another manual test target
-        users = ["pct", "core:iq_parity_snowflake_test", "core:iq_fuzz_snowflake_test"],
+        # differential between DuckDB and the account (P2.2), another manual test target; and the scale probe's shapes
+        # on the account (Q7), a third
+        users = ["pct", "core:iq_parity_snowflake_test", "core:iq_fuzz_snowflake_test", "core:iq_scale_snowflake_test"],
     ),
     # group:artifact:version:classifier -- the shaded jar; the plain one declares 109 runtime dependencies
     "bigquery_jdbc": struct(
