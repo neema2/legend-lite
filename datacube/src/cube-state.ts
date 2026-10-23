@@ -6,6 +6,7 @@
 import { applyToSnapshot, fromSnapshot, type CubeConfiguration } from './config.ts';
 import type { CubeView } from './cube.ts';
 import type { CubeSnapshot } from './snapshot.ts';
+import { toJson } from '../../pure-protocol/src/index.ts';
 import {
   StateOwner,
   type OwnerOptions,
@@ -56,13 +57,14 @@ export function openedState(snapshot: CubeSnapshot, configuration: CubeConfigura
  */
 export function queryKey(state: CubeState): string {
   const { epoch: _epoch, ...query } = fold(state).snapshot;
-  return JSON.stringify([query, state.tree.key]);
+  // the protocol's own writer: a calculated column's decimal literal is an ExactNumber, which JSON.stringify refuses
+  return toJson([query, state.tree.key]);
 }
 
 /** A state's identity for undo: everything, presentation included. */
 export function stateKey(state: CubeState): string {
   const { epoch: _epoch, ...query } = state.snapshot;
-  return JSON.stringify([query, state.configuration, state.tree.key]);
+  return toJson([query, state.configuration, state.tree.key]);
 }
 
 /** The cube's rules. */

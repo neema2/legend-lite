@@ -64,6 +64,8 @@ export class DeephavenEngine implements QueryEngine {
   readonly #executed = new Map<number, Map<string, Plan>>();
   readonly #following = new Map<string, Following>();
   readonly #listeners = new Set<(e: LiveEvent) => void>();
+  /** The grids' bases kept on the server (B1), by the name a query reads each by. */
+  readonly #bases = new Map<string, KeptResult>();
   #changedSince: number | null = null;
   #counts = { queries: 0, planned: 0, sent: 0, fetched: 0, live: 0, remade: 0, reconnects: 0 };
 
@@ -107,7 +109,7 @@ export class DeephavenEngine implements QueryEngine {
     const session = this.#session;
     let kept: KeptResult;
     try {
-      kept = await session.keepAlive(plan.sql);
+      kept = await session.keepAlive(plan.sql, this.#supplied());
     } catch (e) {
       throw new QueryError(e instanceof Error ? e.message : String(e), plan.sql, { cause: e });
     }
@@ -167,7 +169,7 @@ export class DeephavenEngine implements QueryEngine {
     const f: Following = { table: null, stop: null, stopped: false };
     this.#following.set(plan.sql, f);
     const session = this.#session;
-    const kept = await session.keepAlive(plan.sql);
+    const kept = await session.keepAlive(plan.sql, this.#supplied());
     try {
       const name = await session.publishKept(kept.exportId);
       const followed: Followed = await (await this.#liveClient()).follow(name, (rows) => {
@@ -185,6 +187,44 @@ export class DeephavenEngine implements QueryEngine {
       throw e;
     }
     if (f.stopped) stopFollowing(f);
+  }
+
+  /**
+   * A GRID'S BASE KEPT ON THE SERVER (docs/DEEPHAVEN_PLAN_2026_10_22.md B1): `plan` -- the grid's base query and its
+   * leaf-level calculated columns -- made once with its result stored, so the server computes the calculations once a
+   * change and every query the grid sends, and every result it follows, reads them; kept until `letBaseGo`. Answers
+   * the name a query reads it by (a table of that name, which this engine supplies on every send) and the stored
+   * result's columns as the plan names them. A base kept already is answered at once.
+   */
+  async keepBase(plan: string): Promise<{ readonly name: string; readonly columns: readonly string[] }> {
+    const session = this.#session;
+    const stored = await session.stored(plan);
+    if (!this.#bases.has(stored.name)) {
+      const kept = await session.keepAlive(stored.plan, this.#supplied());
+      if (session !== this.#session) {
+        kept.release();
+        throw new QueryError('the Deephaven session changed while the base was made', plan);
+      }
+      this.#bases.get(stored.name)?.release();
+      this.#bases.set(stored.name, kept);
+    }
+    return { name: stored.name, columns: stored.columns };
+  }
+
+  /** Whether the base named `name` is kept now: a reconnect lets every one go. */
+  keepsBase(name: string): boolean {
+    return this.#bases.has(name);
+  }
+
+  /** The base named `name` let go: idle in the session, then gone past its keep (deephaven.ts). */
+  letBaseGo(name: string): void {
+    this.#bases.get(name)?.release();
+    this.#bases.delete(name);
+  }
+
+  /** The tables this engine supplies on a send: each base, by its name. */
+  #supplied(): Record<string, number> {
+    return Object.fromEntries([...this.#bases].map(([name, kept]) => [name, kept.exportId]));
   }
 
   #liveClient(): Promise<LiveClient> {
@@ -229,6 +269,8 @@ export class DeephavenEngine implements QueryEngine {
     for (const f of this.#following.values()) stopFollowing(f);
     this.#following.clear();
     this.#executed.clear();
+    // the old session's bases went with it: each grid makes its own again on its next query
+    this.#bases.clear();
     const live = this.#live;
     this.#live = null;
     live?.then((l) => l.close(), () => { /* it never opened */ });

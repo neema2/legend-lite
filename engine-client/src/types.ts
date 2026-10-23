@@ -43,6 +43,11 @@ export function isFractional(type: string | undefined): boolean {
   return isNumeric(type) && plainType(type as string) !== 'Integer';
 }
 
+/** A binary floating-point number: Float (not Decimal, whose digits are exact, nor the abstract Number). */
+export function isFloat(type: string | undefined): boolean {
+  return isNumeric(type) && plainType(type as string) === 'Float';
+}
+
 export function isTemporal(type: string | undefined): boolean {
   return familyOf(type) === 'temporal';
 }

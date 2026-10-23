@@ -84,15 +84,21 @@ try {
     const queries = after.counts.queries - before.counts.queries;
     const planned = after.counts.planned - before.counts.planned;
     const sent = after.counts.sent - before.counts.sent;
-    return { after, queries, planned, sent, ms };
+    const based = after.base.based - before.base.based;
+    const made = after.base.made - before.base.made;
+    return { after, queries, planned, sent, ms, based, made };
   };
-  /** Each query of a change read the source's operations from what the session keeps alive. */
-  const reused = (c, what) => (c.queries > 0 && c.sent <= c.planned - SOURCE_OPS * c.queries
-    ? ok(`${what}: ${c.queries} queries planned ${c.planned} operations and sent ${c.sent}, the source's read from what the session keeps alive; ${c.ms} ms to the view`)
-    : fail(`${what}: ${c.queries} queries planned ${c.planned} operations and sent ${c.sent}`));
+  /** Each query of a change read the grid's base from the one table the server keeps (B1): none of the source's
+   *  operations in it, and no base made again. */
+  const reused = (c, what) => (c.queries > 0 && c.based >= c.queries && c.made === 0
+    && c.planned < (SOURCE_OPS + 1) * c.queries
+    ? ok(`${what}: ${c.queries} queries planned ${c.planned} operations and sent ${c.sent}, each reading the grid's base on the server; ${c.ms} ms to the view`)
+    : fail(`${what}: ${c.queries} queries planned ${c.planned} operations and sent ${c.sent}; ${c.based} read the base, ${c.made} bases made`));
 
   const first = await until((s) => s.status === 'live' && s.views >= 1, 'live');
   await page.evaluate(() => { window.__cube.paused = true; });
+  if (first.base?.table && first.base.made === 1 && first.base.asWritten === 0) ok(`the grid's base is one table on the server (${first.base.table}): its joins and its market value made once`);
+  else fail(`the grid's base: ${JSON.stringify(first.base)}`);
   check(against(first, 'pid', positions((p) => p.desk)), 'the tree by desk: each desk\'s positions are the seeding\'s');
   const receipt = await page.evaluate(() => document.querySelector('.dc-app-stats')?.textContent ?? '');
   if (receipt.includes('the Deephaven server at 127.0.0.1')) ok('the status bar\'s receipt names the Deephaven server');
@@ -137,6 +143,15 @@ try {
   reused(filter, 'filtered to the FX desk');
   check(against(filter.after, 'pid', positions((p) => p.region, (p) => p.desk === 'FX')), 'the FX desk by region: the seeding\'s positions');
   await page.screenshot({ path: join(outputs, '4-filter.png') });
+
+  // a leaf-level calculated column: a new base, made once, the column a stored column of it
+  const calc = await change('calc');
+  const mvk = level(calc.after, ['mv', 'mvk']);
+  const calcWrong = [];
+  if (calc.made !== 1 || calc.after.base.table === filter.after.base.table) calcWrong.push(`${calc.made} bases made, the table ${calc.after.base.table}`);
+  for (const [label, [mv, k]] of mvk) if (!(Math.abs(mv / 1000 - k) <= 1e-9 * Math.abs(mv))) calcWrong.push(`${label}: mvk ${k}, mv ${mv}`);
+  if (mvk.size === 0) calcWrong.push(`no rows: ${calc.after.columns.join(', ')}`);
+  check(calcWrong, `a calculated column added: one new base on the server (${calc.after.base.table}), each row's mvk its market value in thousands; ${calc.ms} ms to the view`);
 
   // TICKING: every result on screen followed live; at each change the cube runs again from the live rows -- nothing
   // sent, nothing fetched -- and the grid paints

@@ -80,10 +80,13 @@ public final class DeephavenWire {
      * session's tables by {@link #keys key}; an operation whose key it keeps alive is not sent, and the operations that
      * read it read its export by ticket; every operation sent is exported under its own id, {@code nextExportId} up, so
      * a later plan can read it too. Only what the result needs is sent: an operation kept alive cuts the walk there.
-     * The same table twice in one plan is sent once. A plan that names a result of its own, or reads parameters, is
-     * refused by name as {@link #batch} refuses it.
+     * The same table twice in one plan is sent once. {@code supplied}: the tables the session supplies itself, a
+     * table's name to the export that is it (a grid's base, B1) -- a plan reading one by its name ({@code s/<name>})
+     * reads that export, the ticket the sending step fills (DH22). A plan that names a result of its own, or reads
+     * parameters, is refused by name as {@link #batch} refuses it.
      */
-    public static Send send(String plan, Map<String, Integer> alive, int nextExportId) {
+    public static Send send(String plan, Map<String, Integer> alive, Map<String, Integer> supplied,
+            int nextExportId) {
         Parsed p = parse(plan);
         int last = p.ops().size() - 1;
         Integer resultAlive = alive.get(p.keys().get(last));
@@ -124,7 +127,7 @@ public final class DeephavenWire {
             int at = i;
             Json.Obj op = ProtoWire.references("BatchTableRequest.Operation", p.ops().get(i), ref -> {
                 if (!ref.has("batchOffset")) {
-                    return ref;
+                    return suppliedTicket(ref, supplied);
                 }
                 int j = firstOf[offset(ref, at)];
                 Integer exportId = alive.get(p.keys().get(j));
@@ -148,6 +151,55 @@ public final class DeephavenWire {
         request.put("ops", new Json.Arr(ops));
         byte[] bytes = ProtoWire.write("BatchTableRequest", new Json.Obj(request), DeephavenWire::refuseParameters);
         return new Send(bytes, List.copyOf(exports), exports.get(exports.size() - 1).exportId());
+    }
+
+    /** {@code ref}, a reference by ticket, as the export the session supplies when it names a table the session
+     *  supplies; else as it is. */
+    private static Json.Obj suppliedTicket(Json.Obj ref, Map<String, Integer> supplied) {
+        String ticket = new String(Base64.getDecoder().decode(ref.getObj("ticket").getString("ticket")),
+                StandardCharsets.UTF_8);
+        Integer exportId = ticket.startsWith("s/") ? supplied.get(ticket.substring(2)) : null;
+        if (exportId == null) {
+            return ref;
+        }
+        LinkedHashMap<String, Json.Node> to = new LinkedHashMap<>();
+        to.put("ticket", ticket(exportTicket(exportId)));
+        return new Json.Obj(to);
+    }
+
+    /** A plan whose result the server stores, and that result's columns, by their names in the plan. */
+    public record Stored(String plan, List<String> columns) {
+    }
+
+    /**
+     * {@code plan} with its result STORED (B1): its last operation, a {@code view} (or an {@code updateView}), written
+     * as a {@code select} (an {@code update}) of the same columns, so the server computes each column once a change and
+     * keeps it, where a view computes it again for each reader -- a grid's base, read by every query the grid sends
+     * and every result it follows. A plan whose last operation is not one of those is refused by name.
+     */
+    public static Stored stored(String plan) {
+        Parsed p = parse(plan);
+        Json.Obj last = p.ops().get(p.ops().size() - 1);
+        String name = last.fields().keySet().iterator().next();
+        String as = switch (name) {
+            case "view" -> "select";
+            case "updateView" -> "update";
+            default -> throw new IllegalArgumentException("a Deephaven plan whose result is its " + name
+                    + " has no stored form: a view's or an updateView's has");
+        };
+        List<String> columns = new ArrayList<>();
+        for (Json.Node spec : last.getObj(name).getArr("columnSpecs").items()) {
+            String text = ((Json.Str) spec).value();
+            int eq = text.indexOf('=');
+            columns.add((eq < 0 ? text : text.substring(0, eq)).trim());
+        }
+        LinkedHashMap<String, Json.Node> op = new LinkedHashMap<>();
+        op.put(as, last.getObj(name));
+        List<Json.Node> ops = new ArrayList<>(p.ops());
+        ops.set(ops.size() - 1, new Json.Obj(op));
+        LinkedHashMap<String, Json.Node> request = new LinkedHashMap<>();
+        request.put("ops", new Json.Arr(ops));
+        return new Stored(Json.toCompact(new Json.Obj(request)), List.copyOf(columns));
     }
 
     /** The ticket Arrow Flight's {@code DoGet} reads the export {@code exportId}'s rows by (DH23): Flight's

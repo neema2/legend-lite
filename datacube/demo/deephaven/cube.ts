@@ -13,12 +13,16 @@
 import { CubeApp } from '../../src/app.ts';
 import type { CubeView } from '../../src/cube.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
+import { ServerBaseRunner } from '../../src/server-base.ts';
 import type { GridCommand } from '../../src/grid-commands.ts';
 import type { ColumnSpec, CubeSnapshot } from '../../src/snapshot.ts';
 import { DeephavenEngine, type DeephavenCounts } from '../../../engine-client/src/deephaven-engine.ts';
 import { MODEL } from './model.ts';
 
 const RUNTIME = 'risk::LiveRuntime';
+/** The grid's connection to the server, and the store it binds: the base's table is bound to the same (B1). */
+const CONNECTION = 'risk::Live';
+const STORES = ['risk::Store'];
 const JOIN = 'meta::pure::functions::relation::JoinKind.LEFT';
 /** The cube's source: every position, with its book, instrument, live price and fx rate, valued in dollars. */
 const SOURCE = `#>{risk::Store.position}#`
@@ -50,6 +54,8 @@ interface Shown {
   epoch: number;
   columns: readonly string[];
   rows: readonly (readonly unknown[])[];
+  /** The grid's base on the server (B1): its table, and the queries read from it, read as written, and bases made. */
+  base: { table: string | null; based: number; asWritten: number; made: number } | null;
   /** Set, a tick runs nothing: a test measures a change's own queries. */
   paused: boolean;
   /** The gestures the test makes, as the app's own changes (the zones' and the filter editor's). */
@@ -57,7 +63,7 @@ interface Shown {
 }
 const shown: Shown = {
   status: 'starting', error: '', views: 0, reconnects: 0, ticks: 0, refreshes: 0, tickToPaint: [], runMs: [], counts: null,
-  epoch: 0, columns: [], rows: [], paused: false,
+  epoch: 0, columns: [], rows: [], base: null, paused: false,
 };
 (window as unknown as { __cube: Shown }).__cube = shown;
 
@@ -79,7 +85,8 @@ const median = (xs: readonly number[]): number => [...xs].sort((a, b) => a - b)[
 async function main(): Promise<void> {
   const config = await (await fetch('config.json')).json() as { url: string; psk: string };
   const at = new URL(config.url);
-  const planner = new LitePlanner({ model: MODEL(at.hostname, Number(at.port)), runtime: RUNTIME, assetBaseUrl: './' });
+  const model = MODEL(at.hostname, Number(at.port));
+  const planner = new LitePlanner({ model, runtime: RUNTIME, assetBaseUrl: './' });
   await planner.warmUp();
   const engine = await DeephavenEngine.open({
     url: config.url,
@@ -104,9 +111,12 @@ async function main(): Promise<void> {
     epoch: 1,
   };
 
+  // every query the grid sends reads its base from one table the server keeps (B1)
+  const runner = new ServerBaseRunner(planner, engine, { model, connection: CONNECTION, stores: STORES });
   const counted = (): void => {
     const c = engine.counts;
     shown.counts = c;
+    shown.base = { table: runner.baseTable, ...runner.counts };
     const paint = shown.tickToPaint.length > 0
       ? `; a tick on screen ${median(shown.tickToPaint).toFixed(1)} ms after its rows arrived`
       : '';
@@ -114,8 +124,7 @@ async function main(): Promise<void> {
       + `${c.planned} operations planned, ${c.sent} sent${paint}`;
   };
   const app = new CubeApp(byId('cube'), snapshot, {
-    engine,
-    planner,
+    runner,
     showColumnZone: true,
     onStatus: (text, kind) => { if (kind !== 'ok') said(text, kind); },
     onView: (view: CubeView) => {
@@ -199,8 +208,13 @@ async function main(): Promise<void> {
     regroup: [{ kind: 'group', rows: ['region', 'ccy'] }, { kind: 'pivot', columns: [] }],
     filter: [{ kind: 'filter', filter: { kind: 'condition', column: 'desk', operator: 'equal', value: 'FX' } }],
   };
+  // a leaf-level calculated column, as the column editor adds one: the person's expression, parsed
+  const calc = async (): Promise<readonly GridCommand[]> => [{
+    kind: 'calculate', level: 'row',
+    column: { name: 'mvk', lambda: await planner.parse('x|$x.mv / 1000.0'), kind: 'measure', aggregate: 'sum' },
+  }];
   shown.change = async (what: string): Promise<string> => {
-    const commands = gestures[what];
+    const commands = what === 'calc' ? await calc() : gestures[what];
     if (commands === undefined) return `no gesture '${what}'`;
     return (await app.edit(commands, what)) ?? 'applied';
   };

@@ -415,8 +415,10 @@ public final class Boundary {
      * too) and {@code doGet} ({@code exportId}: the Flight ticket its rows are read by) -- each answered as its bytes
      * in base64 -- {@code created} ({@code message}, one answer of a batch in base64), answered
      * {@code {"success", "errorInfo"}}; {@code keys} ({@code plan}), answered {@code {"keys"}}, each operation's; and
-     * {@code send} ({@code plan}, {@code alive}: the session's tables, key to export id, {@code nextExportId}),
-     * answered {@code {"request", "exports": [{"key", "exportId"}], "result"}}. The host carries the bytes; it builds
+     * {@code send} ({@code plan}, {@code alive}: the session's tables, key to export id, {@code supplied}?: the tables
+     * the session supplies itself, name to export id, {@code nextExportId}), answered {@code {"request", "exports":
+     * [{"key", "exportId"}], "result"}}; and {@code stored} ({@code plan}), answered {@code {"plan", "columns"}}, the
+     * plan with its result stored. The host carries the bytes; it builds
      * none and reads none itself. An operation not listed is refused by name.
      */
     public static String deephaven(String op, String argsJson) {
@@ -436,8 +438,13 @@ public final class Boundary {
                 java.util.Map<String, Integer> alive = new java.util.LinkedHashMap<>();
                 a.getObj("alive").fields().forEach((key, id) ->
                         alive.put(key, (int) ((com.legend.json.Json.Num) id).longValue()));
+                java.util.Map<String, Integer> supplied = new java.util.LinkedHashMap<>();
+                if (a.has("supplied")) {
+                    a.getObj("supplied").fields().forEach((name, id) ->
+                            supplied.put(name, (int) ((com.legend.json.Json.Num) id).longValue()));
+                }
                 com.legend.deephaven.DeephavenWire.Send sent = com.legend.deephaven.DeephavenWire.send(
-                        a.getString("plan"), alive, a.getInt("nextExportId"));
+                        a.getString("plan"), alive, supplied, a.getInt("nextExportId"));
                 java.util.List<Object> exports = new java.util.ArrayList<>();
                 for (com.legend.deephaven.DeephavenWire.Export e : sent.exports()) {
                     java.util.Map<String, Object> one = new java.util.LinkedHashMap<>();
@@ -451,6 +458,14 @@ public final class Boundary {
                 out.put("result", sent.result());
                 yield com.legend.json.Json.toCompact(out);
             }
+            case "stored" -> {
+                com.legend.deephaven.DeephavenWire.Stored st = com.legend.deephaven.DeephavenWire.stored(
+                        a.getString("plan"));
+                java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+                out.put("plan", st.plan());
+                out.put("columns", st.columns());
+                yield com.legend.json.Json.toCompact(out);
+            }
             case "created" -> {
                 com.legend.deephaven.DeephavenWire.Created c = com.legend.deephaven.DeephavenWire.created(
                         java.util.Base64.getDecoder().decode(a.getString("message")));
@@ -460,7 +475,7 @@ public final class Boundary {
                 yield com.legend.json.Json.toCompact(out);
             }
             default -> throw new IllegalArgumentException("no Deephaven operation '" + op
-                    + "': batch, keys, send, publish, releaseExport, doGet, created");
+                    + "': batch, keys, send, stored, publish, releaseExport, doGet, created");
         };
     }
 

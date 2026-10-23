@@ -45,6 +45,7 @@ public final class DeephavenMessages {
                     f("update", 4, Kind.MESSAGE, "SelectOrUpdateRequest", Card.PRESENT),
                     f("view", 6, Kind.MESSAGE, "SelectOrUpdateRequest", Card.PRESENT),
                     f("updateView", 7, Kind.MESSAGE, "SelectOrUpdateRequest", Card.PRESENT),
+                    f("select", 8, Kind.MESSAGE, "SelectOrUpdateRequest", Card.PRESENT),
                     f("selectDistinct", 9, Kind.MESSAGE, "SelectDistinctRequest", Card.PRESENT),
                     f("unstructuredFilter", 11, Kind.MESSAGE, "UnstructuredFilterTableRequest", Card.PRESENT),
                     f("sort", 12, Kind.MESSAGE, "SortTableRequest", Card.PRESENT),

@@ -13,7 +13,7 @@ import { CubeStateOwner, queryKey, stateKey, type CubeState, type OwnerEvent } f
 import { StateOwner, UndoStack, type StateRules } from '../src/state-owner.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
-import { accessor } from '../../pure-protocol/src/index.ts';
+import { accessor, fn, lambda, lit, variable } from '../../pure-protocol/src/index.ts';
 
 const SNAPSHOT: CubeSnapshot = {
   source: { query: accessor('t::DB', 'T') },
@@ -458,6 +458,15 @@ describe('the history, as the controller\'s pinned it', () => {
     assert.equal(stateKey({ ...INITIAL, snapshot: { ...SNAPSHOT, epoch: 1 } }),
       stateKey({ ...INITIAL, snapshot: { ...SNAPSHOT, epoch: 99 } }));
     assert.notEqual(stateKey(INITIAL), stateKey({ ...INITIAL, tree: TreeState.fromPaths([['EMEA']]) }));
+  });
+
+  it("keys a calculated column's decimal literal by its digits (an ExactNumber JSON.stringify refuses)", () => {
+    const thousands = (text: string): CubeState => ({ ...INITIAL, snapshot: { ...SNAPSHOT, derived: [{
+      name: 'k', kind: 'measure', lambda: lambda(['x'], fn('divide', variable('x'), lit.float(text))),
+    }] } });
+    assert.equal(stateKey(thousands('1000.0')), stateKey(thousands('1000.0')));
+    assert.notEqual(stateKey(thousands('1000.0')), stateKey(thousands('1000.5')));
+    assert.notEqual(queryKey(thousands('1000.0')), queryKey(thousands('1000.5')));
   });
 
   it('drops the oldest step past the limit', async () => {

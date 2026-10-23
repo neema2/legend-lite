@@ -235,7 +235,7 @@ class DeephavenWireTest {
     void aSendSendsOnlyWhatTheSessionDoesNotKeepAlive() {
         String byDesk = plan(SOURCE + "->groupBy(~[desk], ~[pnl:x|$x.pnl:y|$y->sum()])->sort(~desk->ascending())");
         String bySector = plan(SOURCE + "->filter(x|$x.qty > 10)->groupBy(~[sector], ~[pnl:x|$x.pnl:y|$y->sum()])");
-        DeephavenWire.Send first = DeephavenWire.send(byDesk, Map.of(), 1);
+        DeephavenWire.Send first = DeephavenWire.send(byDesk, Map.of(), Map.of(), 1);
         List<String> keys = DeephavenWire.keys(byDesk);
         assertEquals(keys.size(), first.exports().size());
         assertEquals(keys.get(keys.size() - 1), first.exports().get(first.exports().size() - 1).key());
@@ -249,14 +249,14 @@ class DeephavenWireTest {
         for (DeephavenWire.Export e : first.exports()) {
             alive.put(e.key(), e.exportId());
         }
-        DeephavenWire.Send second = DeephavenWire.send(bySector, alive, 100);
+        DeephavenWire.Send second = DeephavenWire.send(bySector, alive, Map.of(), 100);
         List<String> tail = sent(second.request());
         assertEquals(DeephavenWire.keys(bySector).size() - 3, tail.size(), tail.toString());
         assertEquals("unstructuredFilter e100 e3", tail.get(0));
         assertTrue(tail.get(1).endsWith(" @0"), tail.toString());
         assertEquals(99 + tail.size(), second.result());
 
-        DeephavenWire.Send again = DeephavenWire.send(byDesk, alive, 200);
+        DeephavenWire.Send again = DeephavenWire.send(byDesk, alive, Map.of(), 200);
         assertEquals(0, again.request().length);
         assertEquals(List.of(), again.exports());
         assertEquals(first.result(), again.result());
@@ -269,9 +269,34 @@ class DeephavenWireTest {
                 + " {\"merge\": {\"sourceIds\": [{\"batchOffset\": 0}, {\"batchOffset\": 1}]}}]}";
         List<String> keys = DeephavenWire.keys(twice);
         assertEquals(keys.get(0), keys.get(1));
-        DeephavenWire.Send s = DeephavenWire.send(twice, Map.of(), 1);
+        DeephavenWire.Send s = DeephavenWire.send(twice, Map.of(), Map.of(), 1);
         assertEquals(List.of("emptyTable e1", "merge e2 @0 @0"), sent(s.request()));
         assertEquals(2, s.result());
+    }
+
+    /** A grid's base (B1): its plan's result stored -- its view a select of the same columns, named as the plan names
+     *  them -- and a query that reads the base by its name reads the session's export of it, the rest as written. */
+    @Test
+    void aGridsBaseIsStoredAndReadByTheExportThatIsIt() {
+        DeephavenWire.Stored base = DeephavenWire.stored(plan(SOURCE + "->extend(~[v:x|$x.id * 2])"));
+        List<String> ops = sent(DeephavenWire.send(base.plan(), Map.of(), Map.of(), 1).request());
+        assertTrue(ops.get(ops.size() - 1).startsWith("select "), ops.toString());
+        assertEquals(List.of("id", "desk", "qty", "pnl", "instrument", "iid", "sector", "ccy", "v"), base.columns());
+        String named = java.util.Base64.getEncoder().encodeToString("s/legend_base_ab12".getBytes(StandardCharsets.UTF_8));
+        String other = java.util.Base64.getEncoder().encodeToString("s/trades".getBytes(StandardCharsets.UTF_8));
+        String query = "{\"ops\": [{\"view\": {\"sourceId\": {\"ticket\": {\"ticket\": \"" + named + "\"}},"
+                + " \"columnSpecs\": [\"t0__v = v\"]}}, {\"unstructuredFilter\": {\"sourceId\": {\"batchOffset\": 0},"
+                + " \"filters\": [\"t0__v > 1\"]}}]}";
+        assertEquals(List.of("view e10 e7", "unstructuredFilter e11 @0"),
+                sent(DeephavenWire.send(query, Map.of(), Map.of("legend_base_ab12", 7), 10).request()));
+        // a table the session does not supply is read by its own name
+        String server = "{\"ops\": [{\"view\": {\"sourceId\": {\"ticket\": {\"ticket\": \"" + other + "\"}},"
+                + " \"columnSpecs\": [\"t1__id = id\"]}}]}";
+        assertEquals(List.of("view e20 s/trades"),
+                sent(DeephavenWire.send(server, Map.of(), Map.of("legend_base_ab12", 7), 20).request()));
+        IllegalArgumentException sorted = assertThrows(IllegalArgumentException.class,
+                () -> DeephavenWire.stored(plan("#>{risk::Ref.trades}#->sort(~id->ascending())")));
+        assertTrue(sorted.getMessage().contains("has no stored form"), sorted.getMessage());
     }
 
     @Test
@@ -304,7 +329,8 @@ class DeephavenWireTest {
                         + " \"columnNames\": []}}]}"));
         assertTrue(forward.getMessage().contains("reads operation 1, which is not before it"), forward.getMessage());
         IllegalArgumentException named2 = assertThrows(IllegalArgumentException.class, () -> DeephavenWire.send(
-                "{\"ops\": [{\"emptyTable\": {\"size\": \"1\", \"resultId\": {\"ticket\": \"ZQEAAAA=\"}}}]}", Map.of(), 1));
+                "{\"ops\": [{\"emptyTable\": {\"size\": \"1\", \"resultId\": {\"ticket\": \"ZQEAAAA=\"}}}]}", Map.of(), Map.of(),
+                1));
         assertTrue(named2.getMessage().contains("names no result of its own"), named2.getMessage());
         assertNotEquals(DeephavenWire.keys("{\"ops\": [{\"emptyTable\": {\"size\": \"1\"}}]}"),
                 DeephavenWire.keys("{\"ops\": [{\"emptyTable\": {\"size\": \"2\"}}]}"));

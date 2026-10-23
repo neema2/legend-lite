@@ -128,8 +128,10 @@ export class DeephavenSession {
    * `plan`'s result, kept alive (DH23): the planner names each of its operations' tables by key and writes the request
    * that makes what the session does not keep alive already -- each table it makes exported, to be read again -- and
    * the server's answer for each is checked; a table another send is making now is waited for, not made twice.
+   * `supplied`: the tables the session supplies itself, a name to the export that is it (a grid's base, B1): a plan
+   * reading one by that name reads the export.
    */
-  async keepAlive(plan: string): Promise<KeptResult> {
+  async keepAlive(plan: string, supplied: Readonly<Record<string, number>> = {}): Promise<KeptResult> {
     this.open();
     const { keys } = JSON.parse(await this.ask('keys', { plan })) as { readonly keys: readonly string[] };
     const resultKey = keys[keys.length - 1];
@@ -153,7 +155,7 @@ export class DeephavenSession {
         const t = this.tables.get(k);
         return t ? [[k, t.exportId]] : [];
       }));
-      const send = JSON.parse(await this.ask('send', { plan, alive, nextExportId })) as {
+      const send = JSON.parse(await this.ask('send', { plan, alive, supplied, nextExportId })) as {
         readonly request: string;
         readonly exports: readonly { readonly key: string; readonly exportId: number }[];
         readonly result: number;
@@ -241,6 +243,19 @@ export class DeephavenSession {
   async rows(exportId: number): Promise<Uint8Array> {
     this.open();
     return ipcStream(await this.call(DO_GET, fromBase64(await this.ask('doGet', { exportId }))));
+  }
+
+  /**
+   * `plan` with its result STORED (B1: its last view a select of the same columns, so the server computes each column
+   * once a change and keeps it), the name a query reads it by when the session supplies it -- `legend_base_` and the
+   * stored result's key, so one base is one name in any session -- and its columns as the plan names them.
+   */
+  async stored(plan: string): Promise<{ readonly plan: string; readonly name: string; readonly columns: readonly string[] }> {
+    const stored = JSON.parse(await this.ask('stored', { plan })) as { readonly plan: string; readonly columns: string[] };
+    const { keys } = JSON.parse(await this.ask('keys', { plan: stored.plan })) as { readonly keys: readonly string[] };
+    const key = keys[keys.length - 1];
+    if (key === undefined) throw new Error('the planner named no operation of the stored Deephaven plan');
+    return { plan: stored.plan, name: `legend_base_${key.slice(0, 16)}`, columns: stored.columns };
   }
 
   /** Publishes the session's export `exportId` -- a result it keeps alive -- under a fresh name, for another session
