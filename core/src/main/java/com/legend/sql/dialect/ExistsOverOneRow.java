@@ -26,7 +26,8 @@ final class ExistsOverOneRow extends SqlRewriter {
 
     @Override
     protected SqlExpr expr(SqlExpr e) {
-        if (!(e instanceof SqlExpr.Exists x) || !(x.subquery() instanceof SqlSelect s) || !keepsItsRows(s)) {
+        if (!(e instanceof SqlExpr.Exists x) || !(x.subquery() instanceof SqlSelect s) || !keepsItsRows(s)
+                || explodes(s)) {
             return e;
         }
         if (oneRowAggregate(s)) {
@@ -48,6 +49,26 @@ final class ExistsOverOneRow extends SqlRewriter {
         return e;
     }
 
+    /** Whether a projection of {@code s} explodes a list ({@code UNNEST}: a select-list explosion's marker, the
+     *  IQ island's sa_rowgenerator among them): such a select has as many rows as its lists' elements, none to many,
+     *  whatever its FROM (an independent review, 2026-10-23: {@code NOT EXISTS (SELECT * FROM sa_rowgenerator(5, 1))}
+     *  was NOT TRUE). The subquery passes leave it as it is. */
+    static boolean explodes(SqlSelect s) {
+        return s.projections().stream().anyMatch(p -> holdsUnnest(p.expr()));
+    }
+
+    private static boolean holdsUnnest(SqlExpr e) {
+        if (ExplosionMarkers.isUnnest(e)) {
+            return true;
+        }
+        for (SqlExpr c : e.children()) {
+            if (holdsUnnest(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** No clause of {@code s} drops or groups its source's rows past its WHERE. */
     private static boolean keepsItsRows(SqlSelect s) {
         return s.groupBy().isEmpty() && s.having() == null && s.qualify() == null && s.offset() == null
@@ -56,7 +77,8 @@ final class ExistsOverOneRow extends SqlRewriter {
 
     /** {@code in} aggregates with no grouping, and nothing drops its one row. */
     private static boolean oneRowAggregate(SqlSelect in) {
-        return keepsItsRows(in) && in.projections().stream().anyMatch(p -> SqlAgg.aggregatesSelect(p.expr()));
+        return keepsItsRows(in) && !explodes(in)
+                && in.projections().stream().anyMatch(p -> SqlAgg.aggregatesSelect(p.expr()));
     }
 
     /** Whether {@code e} reads a column of {@code alias}, its subqueries' included. */

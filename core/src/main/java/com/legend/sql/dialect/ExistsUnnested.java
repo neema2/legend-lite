@@ -37,8 +37,12 @@ final class ExistsUnnested extends SqlRewriter {
             return e;
         }
         SqlQuery q = x.subquery();
-        while (q instanceof SqlSelect s && s.from() instanceof SqlSource.Subselect sub && passesRowsOn(s)) {
+        while (q instanceof SqlSelect s && s.from() instanceof SqlSource.Subselect sub && passesRowsOn(s)
+                && !(sub.inner() instanceof SqlSelect in && ExistsOverOneRow.explodes(in))) {
             q = sub.inner();
+        }
+        if (q instanceof SqlSelect s && ExistsOverOneRow.explodes(s)) {
+            return q == x.subquery() ? e : new SqlExpr.Exists(q);
         }
         if (q instanceof SqlSelect s && s.limit() != null && s.limit() >= 1 && s.qualify() == null) {
             if (s.offset() == null) {

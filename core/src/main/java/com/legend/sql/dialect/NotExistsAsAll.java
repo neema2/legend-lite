@@ -53,12 +53,20 @@ final class NotExistsAsAll extends SqlRewriter {
                 s.having(), s.qualify(), s.orderBy(), s.limit(), s.offset(), s.outputs()) : s;
     }
 
+    /** Whether {@code c} is a NOT EXISTS of the island's two-valued NOT IN or ALL (SnowflakeSubqueryRefusals). */
+    static boolean isTwoValuedQuantified(SqlExpr c) {
+        return asAll(c) != null;
+    }
+
     /** {@code c} as its ALL, or null when it is no NOT EXISTS of the form. */
     private static @com.legend.base.Nullable SqlExpr asAll(SqlExpr c) {
         if (!(ungrouped(c) instanceof SqlExpr.Call not) || not.fn() != SqlFn.NOT || not.args().size() != 1
                 || !(ungrouped(not.args().get(0)) instanceof SqlExpr.Exists exists)
                 || !(exists.subquery() instanceof SqlSelect q) || q.where() == null || !q.groupBy().isEmpty()
-                || q.having() != null || q.qualify() != null || q.limit() != null || q.offset() != null) {
+                || q.having() != null || q.qualify() != null || q.limit() != null || q.offset() != null
+                || q.projections().stream().anyMatch(p -> com.legend.sql.SqlAgg.aggregatesSelect(p.expr()))
+                || ExistsOverOneRow.explodes(q)) {
+            // an aggregate's select has one row whatever its WHERE, and an explosion's as many as its lists
             return null;
         }
         Set<String> inner = new HashSet<>();

@@ -188,7 +188,8 @@ public final class Snowflake extends AnsiSqlRenderer {
      * subquery and reads only the null-supplying side, as that side's filter (OuterJoinSubqueryFilters: Snowflake
      * evaluates a subquery predicate in a WHERE alone); a scalar subquery's chain of derived tables that
      * only pass one column up, collapsed, so its correlation is its own WHERE's (ScalarSubqueriesFlattened); a
-     * correlated scalar subquery of no aggregate as the one value of its rows (ScalarSubqueriesAggregated); and the
+     * correlated scalar subquery of no aggregate as the one value of its rows (ScalarSubqueriesAggregated); the
+     * subquery shapes left that Snowflake cannot evaluate, refused by name (SnowflakeSubqueryRefusals); and the
      * root's DECIMAL(p,s) and HUGEINT columns cast to their declared types. QUALIFY and star exclusion are native.
      */
     @Override
@@ -196,11 +197,11 @@ public final class Snowflake extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
-                new ConstantKeysAsExpressions(), new RedundantNullGuards(), new ExistsUnnested(), new ExistsOverOneRow(),
-                new NotExistsAsAll(),
+                new ConstantKeysAsExpressions(), new RedundantNullGuards(), new NotExistsAsAll(), new ExistsUnnested(),
+                new ExistsOverOneRow(),
                 new OuterJoinSubqueryFilters(true),
                 new ScalarSubqueriesFlattened(),
-                new ScalarSubqueriesAggregated(), new RootNumericTypes());
+                new ScalarSubqueriesAggregated(), new SnowflakeSubqueryRefusals(), new RootNumericTypes());
     }
 
     @Override
@@ -426,10 +427,18 @@ public final class Snowflake extends AnsiSqlRenderer {
             // a decimal literal is the DECIMAL of its digits (SqlTyping.decimalLitType): Snowflake drops a trailing
             // zero's scale (1.0 is a NUMBER(2,0), its text '1', measured), so such a literal spells its type
             // a decimal literal no NUMBER holds (more than 38 digits, or a scale past 37: the IQ island's single
-            // precision bounds, 3.4028234663852886E38 and 1.1754943508222875E-38) is DuckDB's DOUBLE reading of its
-            // digits; Snowflake's reading of them is an error ("Integer literal is out of representable range")
-            case SqlExpr.DecimalLit d when numberDigits(d.value()) > 38 || d.value().scale() > 37 ->
-                    writer.append("CAST('" + d.value().doubleValue() + "' AS DOUBLE)");
+            // precision bounds, 3.4028234663852886E38 and 1.1754943508222875E-38) typed DOUBLE (SqlTyping's reading,
+            // DuckDB's) is that DOUBLE; Snowflake's reading of its digits is an error ("Integer literal is out of
+            // representable range")
+            case SqlExpr.DecimalLit d when numberDigits(d.value()) > 38 || d.value().scale() > 37 -> {
+                if (!(d.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == SqlType.Scalar.DOUBLE)) {
+                    // a HUGEINT literal past 38 digits (10^38 to 2^127, which DuckDB reads exactly): no NUMBER holds
+                    // it, and a DOUBLE would round it (an independent review, 2026-10-23)
+                    throw new DialectCapability("a " + numberDigits(d.value()) + "-digit integer literal reached"
+                            + " Snowflake, whose NUMBER holds 38 digits");
+                }
+                yield writer.append("CAST('" + d.value().doubleValue() + "' AS DOUBLE)");
+            }
             case SqlExpr.DecimalLit d when d.value().scale() > 0
                     && d.value().stripTrailingZeros().scale() < d.value().scale() -> writer.append("CAST("
                     + d.value().toPlainString() + " AS " + (d.type() instanceof com.legend.sql.TypeFact.Typed t

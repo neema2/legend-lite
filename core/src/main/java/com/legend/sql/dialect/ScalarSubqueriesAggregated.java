@@ -45,6 +45,7 @@ final class ScalarSubqueriesAggregated extends SqlRewriter {
     /** One projection of no aggregate or window, over rows nothing groups, sorts, limits or makes distinct. */
     private static boolean oneValueOfItsRows(SqlSelect q) {
         return q.projections().size() == 1 && !(q.projections().get(0).expr() instanceof SqlExpr.Star)
+                && !(q.projections().get(0).expr() instanceof SqlExpr.StarExcept) && !ExistsOverOneRow.explodes(q)
                 && !SqlAgg.aggregatesSelect(q.projections().get(0).expr())
                 && !windowed(q.projections().get(0).expr()) && !q.distinct() && q.groupBy().isEmpty()
                 && q.having() == null && q.qualify() == null && q.orderBy().isEmpty() && q.limit() == null

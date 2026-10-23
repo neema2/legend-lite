@@ -3,6 +3,7 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlRewriter;
@@ -17,8 +18,9 @@ import java.util.List;
  * is {@code (SELECT COUNT(*) AS v FROM u WHERE u.t_id = t.id)}. Snowflake decorrelates a subquery whose correlation
  * is in its own WHERE, not one two derived tables down (the IQ scale program's Snowflake lane, 2026-10-23: there a
  * correlated COUNT over no row is NULL, and a correlated read of no aggregate is "Unsupported subquery type cannot be
- * evaluated"). A derived table that is DISTINCT over more than the column, or that sorts, limits, filters its groups or
- * qualifies (each may read the columns dropped), stays as it is.
+ * evaluated"). A derived table that is DISTINCT over more than the column, that sorts, limits, filters its groups,
+ * qualifies or explodes a list (each may read or multiply by the columns dropped), or whose one row is an aggregate's
+ * beside the column read, stays as it is.
  */
 final class ScalarSubqueriesFlattened extends SqlRewriter {
 
@@ -37,7 +39,10 @@ final class ScalarSubqueriesFlattened extends SqlRewriter {
             SqlSelect.Projection p = s.projections().get(0);
             String name = ((SqlExpr.Column) p.expr()).name();
             SqlSelect.Projection read = projectionNamed(in, name);
-            if (read == null) {
+            // a derived table that aggregates with no grouping has one row only while an aggregate is kept: its column
+            // of no aggregate, read alone, would be one row per source row (an independent review, 2026-10-23)
+            if (read == null || in.groupBy().isEmpty() && !SqlAgg.aggregatesSelect(read.expr())
+                    && in.projections().stream().anyMatch(x -> SqlAgg.aggregatesSelect(x.expr()))) {
                 break;
             }
             q = new SqlSelect(List.of(new SqlSelect.Projection(read.expr(), p.alias() != null ? p.alias() : name,
@@ -58,7 +63,8 @@ final class ScalarSubqueriesFlattened extends SqlRewriter {
     /** Keeping one of {@code in}'s columns keeps its rows: no clause reads the columns dropped. */
     private static boolean keepsItsRows(SqlSelect in) {
         return (!in.distinct() || in.projections().size() == 1) && in.having() == null && in.qualify() == null
-                && in.orderBy().isEmpty() && in.limit() == null && in.offset() == null;
+                && in.orderBy().isEmpty() && in.limit() == null && in.offset() == null
+                && !ExistsOverOneRow.explodes(in);
     }
 
     /** {@code in}'s projection of output name {@code name}, or null (none, or a star that may hold it). */
