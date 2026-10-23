@@ -6,6 +6,7 @@
 //   BENCH_POSITIONS, BENCH_INSTRUMENTS  the world's size
 //   BENCH_TICK_MS                       how often the feed quotes (the server's update cycle is the driver's too)
 //   BENCH_STORM                         "1": every instrument re-quoted each tick; else one instrument a tick
+//   BENCH_TREE                          "levels": the tree benchmark's per-level results too (tree-page.mjs)
 // Its results are the two a grid shows: `agg`, market value by desk and sector (16 rows), and `flat`, every position.
 
 env = System.getenv()
@@ -55,3 +56,14 @@ flat = position
         .naturalJoin(fx, "ccy = fx_ccy", "rate")
         .update("mv = qty * px * rate")
 agg = flat.aggBy([AggSum("mv"), AggCount("n"), AggMax("pxMs")], "desk", "sector").sort("desk", "sector")
+
+// THE TREE BENCHMARK's per-level results (tree-bench.mjs): a tree by region, desk, sector and currency, its path EMEA >
+// Rates > Tech open, one aggregation a level over the stored base (`flat`), as DataCube's level queries make them
+if (env.getOrDefault("BENCH_TREE", "") == "levels") {
+    levelAggs = [AggSum("mv"), AggSum("qty"), AggMax("pxMs")]
+    level0 = flat.aggBy(levelAggs)
+    level1 = flat.aggBy(levelAggs, "region")
+    level2 = flat.where("region == `EMEA`").aggBy(levelAggs, "region", "desk")
+    level3 = flat.where("region == `EMEA`", "desk == `Rates`").aggBy(levelAggs, "region", "desk", "sector")
+    level4 = flat.where("region == `EMEA`", "desk == `Rates`", "sector == `Tech`").aggBy(levelAggs, "region", "desk", "sector", "ccy")
+}

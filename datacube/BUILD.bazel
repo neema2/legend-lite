@@ -2204,6 +2204,29 @@ browser_test(
     },
 )
 
+# THE TREE BENCHMARK (bench/deephaven/README.md, docs/DEEPHAVEN_PLAN_2026_10_22.md R1, 2026-10-23): DataCube's tree on a
+# ticking server, one aggregation a level against Deephaven's rollup made from the page -- a tick's latency, the server's
+# update graph busy share, a rollup's making and each group's opening, and which aggregates a rollup takes. Manual:
+# `bazel test //datacube:deephaven_tree_bench --test_output=streamed`.
+browser_test(
+    name = "deephaven_tree_bench",
+    size = "large",
+    tags = ["manual"],
+    data = [
+        "bench/deephaven/tree-bench.mjs",
+        "bench/deephaven/tree-page.mjs",
+        "demo/deephaven/site.mjs",
+        ":deephaven_tick_fixture",
+        ":deephaven_tick_fixture_executable",
+        ":node_modules/playwright",
+    ],
+    entry_point = "bench/deephaven/tree-bench.mjs",
+    env = {
+        "TICK_FIXTURE": "$(rlocationpath :deephaven_tick_fixture_executable)",
+        "TREE_PAGE": "$(rlocationpath bench/deephaven/tree-page.mjs)",
+    },
+)
+
 # THE FIRST-ROWS BENCHMARK (bench/deephaven/README.md, 2026-10-23): a result the grid has not shown before, read whole
 # by Arrow Flight's DoGet (how DeephavenEngine.execute reads it) or published and subscribed by Deephaven's JS library
 # (how DeephavenEngine.follow reads it after) -- which reaches the page first, over the risk demo's world at a 100 and

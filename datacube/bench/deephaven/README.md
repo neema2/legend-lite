@@ -1,7 +1,8 @@
 # Deephaven: how fast a change, and a new view, reach the page
 
-Two benchmarks, both manual: the tick benchmark (a change on the server to the page seeing it) and the first-rows
-benchmark (a result the grid has not shown before, to its first rows in the page).
+Three benchmarks, all manual: the tick benchmark (a change on the server to the page seeing it), the first-rows
+benchmark (a result the grid has not shown before, to its first rows in the page), and the tree benchmark (DataCube's
+tree as one aggregation a level against Deephaven's rollup).
 
 ## Ticks
 
@@ -115,3 +116,48 @@ What it says:
    its values (DataCube's pivot gesture 1,784 ms on a fresh server, 473 ms once compiled; opening the tree's first group
    689 against 283).
 3. The p95s are a trial's first appearance of a formula the source's queries share (compiled once, then kept).
+
+## The tree: one aggregation a level, or Deephaven's rollup
+
+`bazel test //datacube:deephaven_tree_bench --test_output=streamed` (manual; `--test_env=BENCH_WORLDS=1`,
+`--test_env=BENCH_SECONDS=15`; docs/DEEPHAVEN_PLAN_2026_10_22.md R1). Over the tick world in a storm (every instrument
+re-quoted every 100 ms cycle), a tree by region, desk, sector and currency, its path EMEA > Rates > Tech open, read two
+ways, each on a fresh server: **`levels`**, one aggregation a level over the stored base as DataCube's level queries
+make them (five results, each followed whole), and **`rollup`**, Deephaven's rollup made from the page with its JS
+library, the same path opened in its viewport; and **`none`**, the feed and the base alone, the server's floor.
+Latency is from the cycle that made a quote to the page seeing it; **busy** is the server's update graph's cycles'
+time over the window (its own state log, every second); a cycle is its time per update cycle.
+
+Results (2026-10-23), ms:
+
+| world | way | latency p50 / p95 | busy | cycle p50 / p95 |
+|---|---|---|---|---|
+| 400 positions | none | -- | 6.8-7.5% | 6.5-7.2 / 9.8-10.8 |
+| | levels | 9.4-12.6 / 15.4-25.5 | 10.4-14.6% | 10.2-13.4 / 16.0-22.9 |
+| | rollup | 11.5-12.0 / 17.2-20.1 | 9.5-10.1% | 9.1-9.8 / 14.0-15.6 |
+| 100,000 positions (four runs) | none | -- | 20.7-21.7% | 20.2-21.5 / 25.6-28.8 |
+| | levels | 21.4-23.4 / 31.7-48.0 | 23.4-28.4% | 23.3-25.9 / 29.3-39.8 |
+| | rollup | 27.7-30.9 / 32.6-40.2 | 25.6-28.1% | 25.3-28.4 / 32.6-34.6 |
+
+Above the floor, in the four big runs: levels +7.4, +2.0, +3.8, +5.2 points of busy; the rollup +4.6, +6.7, +5.5, +4.6.
+
+The rollup, made from the page: made in 500-740 ms and its first rows 250-345 ms later (the first on a server); made
+again warm -- a regroup (other keys) 62 ms over 400 positions and 281 over 100,000, the same keys over a filtered base
+(a filter on a column it does not group by) 181 and 243 -- each to its first rows; a group opened in its viewport
+62-117 ms, no query and no compile. What a rollup takes (asked of the pinned server, 42.7): Count, CountDistinct,
+Distinct, Min, Max, Sum, AbsSum, Var, Avg, Std, First, Last, Unique, and the weighted average and sum (the server's;
+the JS library's rollup carries none of the weighted ones); **not Median or Percentile** ("not supported for
+rollup()"). A column computed from each level's aggregates (a group-level calculated column): none through the
+protocol (its `Apply` filters a rollup by its group-by columns and sorts it, nothing more; the engine's per-level
+`updateView` is the server's Java API alone) and none through the JS library (`applyCustomColumns` on the rollup added
+no column).
+
+What it says:
+
+1. **The server does not do less with a rollup.** It keeps every node of every level current, opened or not, where
+   one aggregation a level computes only what the grid opened: over four runs the rollup cost the server as much as
+   the levels or a little more, its median tick 5-8 ms later at 100,000 positions, its p95 no worse.
+2. **The rollup's gain is opening a group**: 62-117 ms in its viewport, against DataCube's 283 ms warm (689 fresh) for
+   a level's query -- planning, making, reading and painting it, which is G1's to break down first.
+3. **What it costs**: no median or percentile, no group-level calculated column, a filter on any other column a new
+   rollup (180-245 ms), and DataCube's tree driven by the server's viewport rather than its own levels.
