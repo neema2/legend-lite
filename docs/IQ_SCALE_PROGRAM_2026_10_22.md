@@ -182,10 +182,10 @@ says so.
 |---|---|---|---|---|
 | Q1 | Bazel in this container; DuckDB and Postgres IQ lanes green as the baseline | — | — | done |
 | Q2 | Snowflake's exact `INT_DIVIDE` | P1.3 | — | done, measured on an account by Q3 |
-| Q3 | `//core:iq_parity_snowflake_test` and the ledger's `snowflake` column | P1.1 | Snowflake credentials | built; run by the Snowflake sibling session (2026-10-23: 8,991 runs in 330 s at 8 threads). The column waits for Q4's fixes |
+| Q3 | `//core:iq_parity_snowflake_test` and the ledger's `snowflake` column | P1.1 | Snowflake credentials | done: the column filled from the run at b26592b3 (5955b476); 5,982 runs PASS on both |
 | Q3b | The Snowflake plan census: every run DuckDB plans is planned for Snowflake, render only | P1.1 | — | done: 6,236 of 6,236 |
-| Q4 | First Snowflake triage: every status that differs from DuckDB's | P1.2 | Q3 | in progress: 282 runs differ (slice 4's log); the seed's zone, ASCII, oversized literals and percentile levels fixed; Q24-Q26 open |
-| Q5 | The DuckDB-against-Snowflake differential runner and TLP/NoREC checks | P2.1, P2.2 | Q3 | TLP done on DuckDB (Q6); the differential built (`//core:iq_fuzz_snowflake_test`, 2026-10-23), its first run with the sibling |
+| Q4 | First Snowflake triage: every status that differs from DuckDB's | P1.2 | Q3 | done: 282 runs differed, 18 now (5 iq17 PASS where DuckDB raises, 3 refused by name, 10 diverging: 3 listed iq17, 7 SQL Anywhere judges, a decision) |
+| Q5 | The DuckDB-against-Snowflake differential runner and TLP/NoREC checks | P2.1, P2.2 | Q3 | TLP done on DuckDB (Q6); the differential built for Snowflake (`//core:iq_fuzz_snowflake_test`, its first run waits on the user) and for the embedded Postgres (`//core:iq_fuzz_postgres_test`: seeds 1 and 2, 2,000 shapes, no finding) |
 | Q6 | The generator: `IqFuzz` and `//core:iq_fuzz_test` | P2.3 | — | done; the rounds feed the queue (seeds 1-3 clean after slice 3) |
 | Q21 | DATEADD of a computed timestamp of no known year under the iq17 profiles: refused for SQL Anywhere 17's defect past the year 7910 (531 of round 3's refusals); whether IQ 17.1 shares it decides the iq17 reading | P3 | oracle | open |
 | Q14 | A stored REAL or FLOAT column read: compared, computed, shown | P3 | oracle | open. Measured: under IQ 17.1's engine `rl = 0.1` in a WHERE holds for a stored REAL (the constant compared in single precision), while SQL Anywhere 17 compares as doubles, and a computed REAL compares as a double under both (`reals_compared_as_doubles`) |
@@ -359,3 +359,17 @@ says so.
     GREATER/LESSER, TRUNCNUM/SQRT/POWER, AVG/LIST/ROLLUP, ROW_NUMBER/LAG): 26,000 queries, 1,713 partitioned, no
     finding. Its errors are IQ's own, raised by name: a CONVERT style invalid for a date, LIST beside ROLLUP, LESSER in
     a window.
+  - **The differential against the embedded Postgres** (`IqFuzzPostgresTest`, P2.2): the fuzzer's queries answered by
+    DuckDB and by Postgres 16, here, with no account. Two verdicts are not findings:
+    - UNORDERED: LAG, ROW_NUMBER or a ROWS frame over an order with ties, whose rows may rightly differ;
+    - RAISE_ORDER: an error one database raises for a row the other never computes. Postgres computes a windowed
+      derived table's columns for every row before the filter outside it.
+
+    Seeds 1 and 2, 1,000 shapes each: 4,961 queries answered alike, no finding.
+  - **The Snowflake column is in the ledger** (the lane's run at b26592b3; 5955b476). 18 runs differ from DuckDB's
+    column:
+    - 5 iq17 BIGINT overflows PASS, Snowflake answering IQ 17.1's NUMERIC;
+    - 3 are refused by name;
+    - 3 iq17 runs are listed (`sf-lazy`, `sf-internal`);
+    - 7 runs SQL Anywhere judges wait on a decision: 5 iq16 BIGINT overflows, sqla17's DISTINCT TOP error in a
+      dropped row, and the iq16 internal error.
