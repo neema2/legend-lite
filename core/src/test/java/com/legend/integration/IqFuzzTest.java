@@ -66,6 +66,7 @@ class IqFuzzTest {
         var snowflake = com.legend.Compiler.compileModel(IqParity.model(tables, SNOWFLAKE));
         Map<String, Integer> kinds = new TreeMap<>();
         Map<String, Integer> reasons = new TreeMap<>();
+        Map<String, String> examples = new TreeMap<>();
         StringBuilder findings = new StringBuilder("seed\tcheck\tsql\twhat\n");
         int found = 0;
         int partitioned = 0;
@@ -78,8 +79,11 @@ class IqFuzzTest {
                 IqFuzz.Shape shape = gen.shape();
                 String p = gen.predicate(shape.scope());
                 String complex = gen.complex();
-                List<String> sqls = List.of(shape.sql(), shape.where("(" + p + ")"), shape.where("NOT (" + p + ")"),
-                        shape.where("(" + p + ") IS UNKNOWN"), complex, shape.partitions(p));
+                String p2 = gen.predicate(shape.scope());
+                List<String> sqls = new ArrayList<>(List.of(shape.sql(), shape.where("(" + p + ")"),
+                        shape.where("NOT (" + p + ")"), shape.where("(" + p + ") IS UNKNOWN"), complex,
+                        shape.partitions(p)));
+                sqls.addAll(setQueries(shape, p, p2));
                 List<Outcome> outcomes = new ArrayList<>();
                 for (int q = 0; q < sqls.size(); q++) {
                     String sql = sqls.get(q);
@@ -88,6 +92,7 @@ class IqFuzzTest {
                     kinds.merge(o.kind(), 1, Integer::sum);
                     if (o.kind().equals("TRANSLATED") || o.kind().equals("REFUSED")) {
                         reasons.merge(o.kind() + " " + reason(o.reason()), 1, Integer::sum);
+                        examples.putIfAbsent(o.kind() + " " + reason(o.reason()), s + "\t" + sql);
                     }
                     if (o.kind().equals("CRASH") || o.kind().equals("DBERROR")) {
                         found++;
@@ -103,6 +108,7 @@ class IqFuzzTest {
                         }
                     }
                 }
+                found += setIdentities(outcomes, sqls, s, findings);
                 if (outcomes.subList(0, 4).stream().allMatch(o -> o.kind().equals("ROWS"))) {
                     partitioned++;
                     List<String> whole = sorted(outcomes.get(0).rows());
@@ -127,9 +133,11 @@ class IqFuzzTest {
                 }
             }
         }
-        StringBuilder ranked = new StringBuilder("count\treason\n");
+        // each reason with its first query (its seed, then its SQL), as the loop's next look
+        StringBuilder ranked = new StringBuilder("count\treason\tseed\tsql\n");
         reasons.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue())
-                .forEach(e -> ranked.append(e.getValue()).append('\t').append(e.getKey()).append('\n'));
+                .forEach(e -> ranked.append(e.getValue()).append('\t').append(e.getKey()).append('\t')
+                        .append(examples.get(e.getKey())).append('\n'));
         System.out.println("iq-fuzz seed " + seed + ", " + count + " shapes, depth " + depth + ", " + profile + ": "
                 + kinds + "; " + partitioned + " partitioned; " + found + " findings");
         String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
@@ -139,6 +147,53 @@ class IqFuzzTest {
         }
         assertTrue(found == 0, found + " findings (the test's outputs, iq-fuzz-findings.tsv):\n"
                 + findings.substring(0, Math.min(findings.length(), 20_000)));
+    }
+
+    /** The set identities' queries, after the six above (6..12): A's distinct rows, then A INTERSECT, EXCEPT, UNION,
+     *  UNION ALL, INTERSECT ALL and EXCEPT ALL B, A the shape where {@code p} (query 1) and B the shape where
+     *  {@code p2} (the IQ scale program's Q20). */
+    private static List<String> setQueries(IqFuzz.Shape shape, String p, String p2) {
+        List<String> out = new ArrayList<>(List.of(shape.distinct(p)));
+        for (String op : SET_OPS) {
+            out.add(shape.set(p, op, p2));
+        }
+        return out;
+    }
+
+    private static final List<String> SET_OPS = List.of("INTERSECT", "EXCEPT", "UNION", "UNION ALL", "INTERSECT ALL",
+            "EXCEPT ALL");
+
+    /** The identities over A's rows (query 1) and its set operations with B (queries 6..12): DISTINCT A is A's rows
+     *  each once; A INTERSECT B and A EXCEPT B split DISTINCT A; A UNION B is A UNION ALL B each once; A INTERSECT ALL
+     *  B and A EXCEPT ALL B split A's rows. Each a finding appended to {@code findings}; the number found. */
+    private static int setIdentities(List<Outcome> outcomes, List<String> sqls, long seed, StringBuilder findings) {
+        int found = 0;
+        // {check, the whole, its parts...}, each an index into the outcomes; the whole each once where the check says
+        int[][] checks = {{1, 6}, {6, 7, 8}, {10, 9}, {1, 11, 12}};
+        String[] names = {"DISTINCT", "SET INTERSECT+EXCEPT", "SET UNION", "SET INTERSECT ALL+EXCEPT ALL"};
+        for (int c = 0; c < checks.length; c++) {
+            int[] at = checks[c];
+            if (!java.util.Arrays.stream(at).allMatch(i -> outcomes.get(i).kind().equals("ROWS"))) {
+                continue;
+            }
+            List<String> whole = sorted(outcomes.get(at[0]).rows());
+            List<String> parts = new ArrayList<>();
+            for (int i = 1; i < at.length; i++) {
+                parts.addAll(outcomes.get(at[i]).rows());
+            }
+            // DISTINCT and UNION: the part, each once, is the whole's rows each once
+            if (c == 0 || c == 2) {
+                whole = sorted(new ArrayList<>(new java.util.LinkedHashSet<>(whole)));
+            }
+            parts = sorted(parts);
+            if (!whole.equals(parts)) {
+                found++;
+                findings.append(seed).append('\t').append(names[c]).append('\t').append(sqls.get(at[at.length - 1]))
+                        .append('\t').append(whole.size()).append(" rows, the parts ").append(parts.size())
+                        .append('\n');
+            }
+        }
+        return found;
     }
 
     /**
@@ -162,6 +217,91 @@ class IqFuzzTest {
         t.join();
         if (failed[0] != null) {
             throw failed[0];
+        }
+    }
+
+    /** A scale shape's family: its SQL at a size, and the largest size the reach probe tries. */
+    private record Family(java.util.function.IntFunction<String> sql, int max) {
+    }
+
+    private static final Map<String, Family> FAMILIES = new java.util.LinkedHashMap<>();
+
+    static {
+        FAMILIES.put("union all", new Family(IqFuzzTest::unionAll, 4_096));
+        FAMILIES.put("joins", new Family(IqFuzzTest::joins, 2_048));
+        FAMILIES.put("parentheses", new Family(n -> "SELECT " + "(".repeat(n) + "id" + " + 1)".repeat(n) + " AS v"
+                + " FROM t WHERE id = 1", 4_096));
+        FAMILIES.put("nested functions", new Family(n -> "SELECT " + "ABS(".repeat(n) + "id" + ")".repeat(n) + " AS v"
+                + " FROM t WHERE id = 1", 4_096));
+        FAMILIES.put("nested CASE", new Family(IqFuzzTest::nestedCase, 4_096));
+        FAMILIES.put("CASE of whens", new Family(IqFuzzTest::flatCase, 16_384));
+        FAMILIES.put("IN list", new Family(n -> "SELECT id FROM t WHERE id IN (" + numbers(n) + ") ORDER BY id",
+                131_072));
+        FAMILIES.put("select items", new Family(IqFuzzTest::selectItems, 32_768));
+        FAMILIES.put("AND", new Family(n -> "SELECT id FROM t WHERE " + andChain(n) + " ORDER BY id", 32_768));
+        FAMILIES.put("OR", new Family(n -> "SELECT id FROM t WHERE " + andChain(n).replace(" AND ", " OR ")
+                .replace("<>", "=") + " ORDER BY id", 32_768));
+        FAMILIES.put("string concatenation", new Family(n -> "SELECT " + "label || ".repeat(n) + "'.' AS v FROM u",
+                8_192));
+        FAMILIES.put("derived tables nested", new Family(IqFuzzTest::nestedDerived, 1_024));
+        FAMILIES.put("CTE chain", new Family(IqFuzzTest::cteChain, 1_024));
+    }
+
+    /**
+     * The default stack's reach (the IQ scale program's Q18): each scale shape's family at doubling sizes, translated and
+     * planned for DuckDB on a thread of {@code -Diq.stack.kb} (default 1,024, the JDK's default on 64-bit Linux), until
+     * one overflows, fails or takes past 30 s. Reported, not asserted ({@code iq-stack.tsv}): the largest size planned,
+     * and the frames that overflowed past it, which name the layer to make iterative. {@code -Diq.scale.only}
+     * narrows the families.
+     */
+    @Test
+    void theDefaultStacksReach() throws Exception {
+        long stack = Long.getLong("iq.stack.kb", 1_024L) << 10;
+        List<SqlParity.Table> tables = IqParity.schema(Runfile.property("iq.parity.schema"));
+        Set<String> names = IqParity.tableNames(tables);
+        var duckdb = com.legend.Compiler.compileModel(IqParity.model(tables, PLATFORM.connectionBody()));
+        String only = System.getProperty("iq.scale.only");
+        StringBuilder report = new StringBuilder("family\tlargest planned\tms\tpast it\n");
+        for (var e : FAMILIES.entrySet()) {
+            if (only != null && !e.getKey().matches(only)) {
+                continue;
+            }
+            int planned = 0;
+            long plannedMs = 0;
+            String past = "none up to " + e.getValue().max();
+            for (int n = 8; n <= e.getValue().max(); n *= 2) {
+                String island = island(e.getValue().sql().apply(n), "iq17-default", tables, names, 0, n);
+                Object[] out = new Object[1];
+                long t0 = System.nanoTime();
+                Thread t = new Thread(null, () -> {
+                    try {
+                        out[0] = com.legend.Compiler.query(duckdb, island).plan(IqParity.RUNTIME).sql();
+                    } catch (Throwable x) {
+                        out[0] = x;
+                    }
+                }, "iq-stack-probe", stack);
+                t.start();
+                t.join();
+                long ms = (System.nanoTime() - t0) / 1_000_000;
+                if (out[0] instanceof Throwable x) {
+                    past = n + ": " + (x instanceof StackOverflowError ? "StackOverflowError " + frames(x)
+                            : classify(x).kind() + " " + classify(x).reason());
+                    break;
+                }
+                planned = n;
+                plannedMs = ms;
+                if (ms > 30_000) {
+                    past = "stopped: " + n + " planned in " + ms + " ms";
+                    break;
+                }
+            }
+            report.append(e.getKey()).append('\t').append(planned).append('\t').append(plannedMs).append('\t')
+                    .append(past.length() > 400 ? past.substring(0, 400) : past).append('\n');
+        }
+        System.out.println("iq-stack, " + (stack >> 10) + " KB:\n" + report);
+        String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
+        if (outputs != null) {
+            Files.writeString(Path.of(outputs, "iq-stack.tsv"), report.toString(), StandardCharsets.UTF_8);
         }
     }
 

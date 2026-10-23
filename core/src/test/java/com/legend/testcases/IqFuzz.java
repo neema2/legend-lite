@@ -49,6 +49,17 @@ public final class IqFuzz {
                     + (where == null ? more : "(" + where + ") AND " + more);
         }
 
+        /** {@code A op B}, A this query where {@code p} and B this query where {@code q}, the WITH before both: the set
+         *  identities' queries (IqFuzzTest). */
+        public String set(String p, String op, String q) {
+            return with + body("(" + p + ")") + " " + op + " " + body("(" + q + ")");
+        }
+
+        /** This query's distinct rows where {@code p}. */
+        public String distinct(String p) {
+            return with + "SELECT DISTINCT " + body("(" + p + ")").substring("SELECT ".length());
+        }
+
         /** The three partitions of {@code p} as one query: a UNION ALL nesting a parenthesized UNION ALL (the IQ scale
          *  program's Q19: DuckDB 1.4.4 loses rows from a nested UNION ALL under parallel execution). */
         public String partitions(String p) {
@@ -102,7 +113,7 @@ public final class IqFuzz {
      *  spelling here): grouping with HAVING, windows, TOP with START AT over a unique order, UNION, DISTINCT. */
     public String complex() {
         Shape s = shape();
-        return switch (rnd.nextInt(6)) {
+        return switch (rnd.nextInt(7)) {
             case 0 -> grouped(s);
             case 1 -> s.with() + "SELECT DISTINCT " + String.join(", ", s.items()) + " FROM " + s.from()
                     + (s.where() == null ? "" : " WHERE " + s.where());
@@ -117,6 +128,7 @@ public final class IqFuzz {
                     + (s.where() == null ? "" : " WHERE " + s.where()) + " ORDER BY "
                     + String.join(", ", positions(s.items().size()));
             case 4 -> windowed(s);
+            case 5 -> nestedSet(s);
             default -> s.sql();
         };
     }
@@ -452,6 +464,27 @@ public final class IqFuzz {
         return s.with() + "SELECT " + String.join(", ", s.items()) + ", RANK() OVER (PARTITION BY " + part.ref()
                 + " ORDER BY " + order.ref() + ") AS rk, COUNT(*) OVER (PARTITION BY " + part.ref() + ") AS cnt FROM "
                 + s.from() + (s.where() == null ? "" : " WHERE " + s.where());
+    }
+
+    /** Three branches of the select list over the FROM under two set operations of any kind, parenthesized on
+     *  either side or not at all (INTERSECT binds tighter than UNION and EXCEPT), the WITH before the whole statement
+     *  (so then never a parenthesis first). */
+    private String nestedSet(Shape s) {
+        String a = s.body(predicate(s.scope(), depth));
+        String b = s.body(predicate(s.scope(), depth));
+        String c = s.body(predicate(s.scope(), depth));
+        String op1 = setOp();
+        String op2 = setOp();
+        return s.with() + switch (rnd.nextInt(s.with().isEmpty() ? 3 : 2)) {
+            case 0 -> a + op1 + b + op2 + c;
+            case 1 -> a + op1 + "(" + b + op2 + c + ")";
+            default -> "(" + a + op1 + b + ")" + op2 + c;
+        };
+    }
+
+    private String setOp() {
+        return " " + pick(List.of("UNION", "UNION ALL", "UNION DISTINCT", "INTERSECT", "INTERSECT ALL", "EXCEPT",
+                "EXCEPT ALL")) + " ";
     }
 
     private static List<String> positions(int n) {
