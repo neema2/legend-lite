@@ -11,6 +11,7 @@
 import { CubeApp } from '../../src/app.ts';
 import type { CubeView } from '../../src/cube.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
+import type { GridCommand } from '../../src/grid-commands.ts';
 import type { ColumnSpec, CubeSnapshot } from '../../src/snapshot.ts';
 import { DeephavenEngine, type DeephavenCounts } from '../../../engine-client/src/deephaven-engine.ts';
 import { MODEL } from './model.ts';
@@ -130,7 +131,7 @@ async function main(): Promise<void> {
     if (app.busy || shown.paused || shown.status !== 'live') return;
     last = performance.now();
     shown.refreshes++;
-    void app.state.refresh();
+    void app.refresh();
   };
   // THE SERVER WENT AWAY: said, and once it answers again, a new session and the cube run on it
   const reconnect = async (why: string): Promise<void> => {
@@ -147,11 +148,7 @@ async function main(): Promise<void> {
       }
     }
     shown.reconnects++;
-    const out = await app.state.refresh();
-    if (out.kind === 'refused') {
-      void reconnect(String(out.error));
-      return;
-    }
+    await app.refresh();
     shown.status = 'live';
     said('live');
   };
@@ -173,20 +170,18 @@ async function main(): Promise<void> {
     waiting = setTimeout(rerun, Math.max(0, TICK_MS - (performance.now() - last)));
   });
 
-  // the test's gestures: what opening a group, dragging a column to a zone, or applying a filter, changes
+  // the test's gestures, as the commands the screen's chevrons, zones and filter editor make (grid-commands.ts)
+  const gestures: Readonly<Record<string, readonly GridCommand[]>> = {
+    expand: [{ kind: 'open', path: ['FX'], open: true }],
+    collapse: [{ kind: 'open', path: ['FX'], open: false }],
+    pivot: [{ kind: 'group', rows: ['desk'] }, { kind: 'pivot', columns: ['region'] }],
+    regroup: [{ kind: 'group', rows: ['region', 'ccy'] }, { kind: 'pivot', columns: [] }],
+    filter: [{ kind: 'filter', filter: { kind: 'condition', column: 'desk', operator: 'equal', value: 'FX' } }],
+  };
   shown.change = async (what: string): Promise<string> => {
-    const out = await app.change((s) => {
-      // a chevron's click: the FX desk opened, its sectors a level of their own
-      if (what === 'expand') return { ...s, tree: s.tree.expand(['FX']) };
-      if (what === 'collapse') return { ...s, tree: s.tree.collapse(['FX']) };
-      const snap = s.snapshot;
-      const next: CubeSnapshot = what === 'regroup' ? { ...snap, rows: ['region', 'ccy'], pivotOn: [] }
-        : what === 'pivot' ? { ...snap, rows: ['desk'], pivotOn: ['region'] }
-        : what === 'filter' ? { ...snap, filter: { kind: 'condition', column: 'desk', operator: 'equal', value: 'FX' } }
-        : snap;
-      return { ...s, snapshot: next };
-    });
-    return out.kind;
+    const commands = gestures[what];
+    if (commands === undefined) return `no gesture '${what}'`;
+    return (await app.edit(commands, what)) ?? 'applied';
   };
 }
 
