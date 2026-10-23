@@ -18,6 +18,7 @@ What each dialect does with each aggregate of the SQL IR. The legend, the method
 - [MariaDb](#mariadb)
 - [MySql](#mysql)
 - [MongoDb](#mongodb)
+- [Deephaven](#deephaven)
 - [EngineStyleH2](#enginestyleh2)
 - [EngineStyleDB2](#enginestyledb2)
 - [EngineStyleComposite](#enginestylecomposite)
@@ -621,6 +622,53 @@ Database types planned with it: MongoDB.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | emulated | `pushed` |  | 0 |
 | `STDDEV` | emulated | `accumulate: $stdDevSamp` |  | 0 |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTILE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAG` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LEAD` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+
+## Deephaven
+
+Database types planned with it: Deephaven.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | emulated | `columns: {"sum": {}}` |  | 0 |
+| `COUNT` | emulated | `count` |  | 0 |
+| `AVG` | emulated | `columns: {"avg": {}}` |  | 0 |
+| `MIN` | emulated | `columns: {"min": {}}` |  | 0 |
+| `MAX` | emulated | `columns: {"max": {}}` |  | 0 |
+| `ANY_VALUE` | emulated | `columns: {"first": {}}` |  | 0 |
+| `STDDEV_SAMP` | emulated | `columns: {"std": {}}` |  | 0 |
+| `STDDEV_POP` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `VAR_SAMP` | emulated | `columns: {"var": {}}` |  | 0 |
+| `VAR_POP` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `MEDIAN` | emulated | `columns: {"median": {"averageEvenlyDivided": true}}` |  | 0 |
+| `MODE` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `STRING_AGG` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `LIST` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `QUANTILE_CONT` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `QUANTILE_DISC` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `CORR` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `COVAR_SAMP` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `COVAR_POP` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `ARG_MAX` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `ARG_MIN` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `BOOL_AND` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `BOOL_OR` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `VARIANCE` | emulated | `columns: {"var": {}}` |  | 0 |
+| `STDDEV` | emulated | `columns: {"std": {}}` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |

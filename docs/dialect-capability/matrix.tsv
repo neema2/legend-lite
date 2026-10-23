@@ -2888,6 +2888,228 @@ MongoDb	MongoDB	reducer	LEAD	not_here	is a window function: windowCall writes it
 MongoDb	MongoDB	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
 MongoDb	MongoDB	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
 MongoDb	MongoDB	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
+Deephaven	Deephaven	call	AND	emulated	booleanValue		0
+Deephaven	Deephaven	call	OR	emulated	booleanValue		0
+Deephaven	Deephaven	call	NOT	emulated	booleanValue		0
+Deephaven	Deephaven	call	EQUAL	emulated	booleanValue		0
+Deephaven	Deephaven	call	NOT_EQUAL	emulated	booleanValue		0
+Deephaven	Deephaven	call	LESS	emulated	booleanValue		0
+Deephaven	Deephaven	call	LESS_EQUAL	emulated	booleanValue		0
+Deephaven	Deephaven	call	GREATER	emulated	booleanValue		0
+Deephaven	Deephaven	call	GREATER_EQUAL	emulated	booleanValue		0
+Deephaven	Deephaven	call	PLUS	emulated	infixArithmetic:  + 		0
+Deephaven	Deephaven	call	MINUS	emulated	infixArithmetic:  - 		0
+Deephaven	Deephaven	call	TIMES	emulated	infixArithmetic:  * 		0
+Deephaven	Deephaven	call	DIVIDE	emulated	infixArithmetic:  / 		0
+Deephaven	Deephaven	call	MOD	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	REM	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	NEGATE	emulated	(-…)		0
+Deephaven	Deephaven	call	ABS	emulated	function: abs		0
+Deephaven	Deephaven	call	IS_NULL	emulated	booleanValue		0
+Deephaven	Deephaven	call	IS_NOT_NULL	emulated	booleanValue		0
+Deephaven	Deephaven	call	IN	emulated	booleanValue		0
+Deephaven	Deephaven	call	COALESCE	emulated	coalesce		0
+Deephaven	Deephaven	call	PARSE_INT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	CONCAT	emulated	concat		0
+Deephaven	Deephaven	call	LENGTH	emulated	stringMethod: length		0
+Deephaven	Deephaven	call	UPPER	emulated	stringMethod: toUpperCase		0
+Deephaven	Deephaven	call	LOWER	emulated	stringMethod: toLowerCase		0
+Deephaven	Deephaven	call	GREATEST	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LEAST	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	CONCAT_JOIN	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_FILTER	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_TRANSFORM	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_CONCAT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_GET	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_POSITION	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_EXISTS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_FOR_ALL	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	STRUCT_INSERT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	UNNEST	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_FLATTEN	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	JSON_MERGE_PATCH	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	SQRT	emulated	function: sqrt		0
+Deephaven	Deephaven	call	CBRT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	EXP	emulated	function: exp		0
+Deephaven	Deephaven	call	LN	emulated	function: log		0
+Deephaven	Deephaven	call	LOG10	emulated	function: log10		0
+Deephaven	Deephaven	call	POW	emulated	function: pow		0
+Deephaven	Deephaven	call	PI	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	SIN	emulated	function: sin		0
+Deephaven	Deephaven	call	COS	emulated	function: cos		0
+Deephaven	Deephaven	call	TAN	emulated	function: tan		0
+Deephaven	Deephaven	call	ASIN	emulated	function: asin		0
+Deephaven	Deephaven	call	ACOS	emulated	function: acos		0
+Deephaven	Deephaven	call	ATAN	emulated	function: atan		0
+Deephaven	Deephaven	call	ATAN2	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	SINH	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	COSH	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	TANH	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	CEILING	emulated	function: ceil		0
+Deephaven	Deephaven	call	FLOOR	emulated	function: floor		0
+Deephaven	Deephaven	call	ROUND	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	SIGN	emulated	function: signum		0
+Deephaven	Deephaven	call	XOR	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	BIT_AND	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	BIT_OR	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	BIT_XOR	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	BIT_SHIFT_LEFT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	BIT_SHIFT_RIGHT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	BIT_NOT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	REGEXP_EXTRACT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	REGEXP_EXTRACT_ALL	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	REGEXP_REPLACE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	REGEXP_FULL_MATCH	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	MAP_FROM_LISTS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	MAP_FROM_ENTRIES	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	MAP_EMPTY	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	MAP_EXTRACT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	MAP_KEYS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	MAP_VALUES	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	MAP_CONCAT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	SUBSTRING	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	STRPOS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	STARTS_WITH	emulated	booleanValue		0
+Deephaven	Deephaven	call	ENDS_WITH	emulated	booleanValue		0
+Deephaven	Deephaven	call	MATCHES	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LEFT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	RIGHT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LPAD	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	RPAD	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	TRIM	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LTRIM	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	RTRIM	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	REPLACE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	SPLIT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	SPLIT_PART	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	TRANSLATE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	PURE_SPLIT_PART	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	REVERSE_STRING	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	ASCII_CODE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	CHR	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	UC_FIRST	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LC_FIRST	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	ENCODE_BASE64	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LEVENSHTEIN	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	GUID	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	FORMAT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	HASH	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	MD5	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	SHA1	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	SHA256	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	RANDOM	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	EXTRACT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	TODAY	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	NOW	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	DATE_TRUNC_DAY	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	MAKE_DATE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	MAKE_TIMESTAMP	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	DATE_TRUNC	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	ADD_INTERVAL	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	DATE_DIFF	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	TIME_BUCKET	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	TIMEZONE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	DATE_AT_TIME	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	EPOCH_NS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	FROM_EPOCH_NS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	ADD_INTERVAL_TEMPORAL	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	EPOCH_SECONDS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	EPOCH_MS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	FROM_EPOCH_SECONDS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	FROM_EPOCH_MS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	DAYNAME	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	MONTHNAME	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	COT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	RADIANS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	DEGREES	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	INT_DIVIDE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	REPEAT_STR	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	JARO_WINKLER	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	DECODE_BASE64	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	CURRENT_USER_FN	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_LENGTH	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_ZIP	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_DISTINCT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_APPEND	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_SUM	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_MIN	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_MAX	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_AVG	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_MEDIAN	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_MODE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_SORT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_SORT_DESC	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_TAIL	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_INIT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	RANGE_FN	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_PRODUCT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_REDUCE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_SLICE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	REPEAT_VALUE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_BOOL_AND	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_BOOL_OR	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	IS_DISTINCT_FROM	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	ALL_DISTINCT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	NULL_SAFE_EQUAL	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	NULL_SAFE_NOT_EQUAL	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	STRFTIME	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	STRPTIME	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	PARSE_DATE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	LIST_REVERSE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	TYPEOF	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	ROUND_HALF_UP	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	ERROR	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	FLOOR_RAW	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	TO_VARIANT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	BOOL_TO_TEXT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	FLOAT_CANON	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	FLOAT_PRINT	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	FLOAT_PRINT_ENGINE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	VARIANT_ELEMENTS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	VARIANT_GET	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	JSON_TYPE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	JSON_ARRAY_LENGTH	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	JSON_PRETTY	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	SUM	emulated	columns: {"sum": {}}		0
+Deephaven	Deephaven	reducer	COUNT	emulated	count		0
+Deephaven	Deephaven	reducer	AVG	emulated	columns: {"avg": {}}		0
+Deephaven	Deephaven	reducer	MIN	emulated	columns: {"min": {}}		0
+Deephaven	Deephaven	reducer	MAX	emulated	columns: {"max": {}}		0
+Deephaven	Deephaven	reducer	ANY_VALUE	emulated	columns: {"first": {}}		0
+Deephaven	Deephaven	reducer	STDDEV_SAMP	emulated	columns: {"std": {}}		0
+Deephaven	Deephaven	reducer	STDDEV_POP	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	VAR_SAMP	emulated	columns: {"var": {}}		0
+Deephaven	Deephaven	reducer	VAR_POP	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	MEDIAN	emulated	columns: {"median": {"averageEvenlyDivided": true}}		0
+Deephaven	Deephaven	reducer	MODE	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	STRING_AGG	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	LIST	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	QUANTILE_CONT	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	QUANTILE_DISC	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	CORR	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	COVAR_SAMP	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	COVAR_POP	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	ARG_MAX	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	ARG_MIN	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	WAVG	not_here	lowering marker reached the renderer		0
+Deephaven	Deephaven	reducer	HASH_LIST	not_here	lowering marker reached the renderer		0
+Deephaven	Deephaven	reducer	BOOL_AND	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	BOOL_OR	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		0
+Deephaven	Deephaven	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
+Deephaven	Deephaven	reducer	VARIANCE	emulated	columns: {"var": {}}		0
+Deephaven	Deephaven	reducer	STDDEV	emulated	columns: {"std": {}}		0
+Deephaven	Deephaven	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
+Deephaven	Deephaven	reducer	RANK	not_here	is a window function: windowCall writes it		0
+Deephaven	Deephaven	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
+Deephaven	Deephaven	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it		0
+Deephaven	Deephaven	reducer	CUME_DIST	not_here	is a window function: windowCall writes it		0
+Deephaven	Deephaven	reducer	NTILE	not_here	is a window function: windowCall writes it		0
+Deephaven	Deephaven	reducer	LAG	not_here	is a window function: windowCall writes it		0
+Deephaven	Deephaven	reducer	LEAD	not_here	is a window function: windowCall writes it		0
+Deephaven	Deephaven	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
+Deephaven	Deephaven	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
+Deephaven	Deephaven	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
 EngineStyleH2	-	call	AND	spelled	an operator (infix)		-
 EngineStyleH2	-	call	OR	spelled	an operator (infix)		-
 EngineStyleH2	-	call	NOT	spelled	an operator (notPrefix)		-

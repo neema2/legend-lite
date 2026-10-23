@@ -108,9 +108,9 @@ class DeephavenWireTest {
                 RelationalDatabaseConnection risk::Conn
                 {
                   store: risk::Ref;
-                  type: Deephaven;
-                  specification: Deephaven { host: 'localhost'; port: 8443; useTls: true; };
-                  auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };
+                  type: DuckDB;
+                  specification: DuckDB { };
+                  auth: Test;
                 }
                 ###Runtime
                 Runtime risk::RT
@@ -119,7 +119,13 @@ class DeephavenWireTest {
                   connections: [ risk::Ref: [ c: risk::Conn ] ];
                 }
                 """;
-        var ctx = Compiler.compileModel(model);
+        // the connection made a Deephaven one here, so the text the own-corpus census harvests is the engine's grammar
+        // (lite's Deephaven words are parser/DeephavenConnectionTest's to hold)
+        String deephaven = model.replace("type: DuckDB;\n  specification: DuckDB { };\n  auth: Test;",
+                "type: Deephaven;\n  specification: Deephaven { host: 'localhost'; port: 8443; useTls: true; };\n"
+                        + "  auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };");
+        assertTrue(deephaven.contains("type: Deephaven;"), deephaven);
+        var ctx = Compiler.compileModel(deephaven);
         List<String> queries = List.of(
                 "#>{risk::Ref.trades}#->groupBy(~[region, country], ~['2023__|__total':x|if($x.year == 2023,"
                         + " |$x.notional, |[]):y|$y->sum(), total:x|$x.notional:y|$y->sum()])"

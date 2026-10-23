@@ -178,7 +178,7 @@ public final class DeephavenMessages {
             m("ReleaseRequest",
                     f("id", 1, Kind.MESSAGE, "Ticket", Card.SINGLE))));
 
-    private static final Map<String, Map<String, Integer>> ENUMS = Map.ofEntries(
+    private static final Map<String, Map<String, Integer>> ENUMS = enumIndex(
             e("SortDescriptor.SortDirection", "UNKNOWN", 0, "DESCENDING", -1, "ASCENDING", 1, "REVERSE", 2),
             e("NaturalJoinTablesRequest.JoinType", "JOIN_TYPE_NOT_SPECIFIED", 0, "ERROR_ON_DUPLICATE", 1,
                     "FIRST_MATCH", 2, "LAST_MATCH", 3, "EXACTLY_ONE_MATCH", 4));
@@ -225,9 +225,9 @@ public final class DeephavenMessages {
         throw new IllegalArgumentException("Deephaven enum " + type + " has no value numbered " + number);
     }
 
-    /** Every enum's values by name (for the definitions check). */
+    /** Every enum's values by name, in the table's order (for the definitions check). */
     public static Map<String, Map<String, Integer>> enums() {
-        return Map.copyOf(ENUMS);
+        return ENUMS;
     }
 
     private static Field f(String json, int number, Kind kind, @com.legend.base.Nullable String type, Card card) {
@@ -246,6 +246,15 @@ public final class DeephavenMessages {
         Map<String, Message> byName = new LinkedHashMap<>();
         for (Message message : messages) {
             byName.put(message.name(), message);
+        }
+        return java.util.Collections.unmodifiableMap(byName);
+    }
+
+    @SafeVarargs
+    private static Map<String, Map<String, Integer>> enumIndex(Map.Entry<String, Map<String, Integer>>... enums) {
+        Map<String, Map<String, Integer>> byName = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, Integer>> e : enums) {
+            byName.put(e.getKey(), e.getValue());
         }
         return java.util.Collections.unmodifiableMap(byName);
     }

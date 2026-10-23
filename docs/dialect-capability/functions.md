@@ -18,6 +18,7 @@ What each dialect does with each function of the SQL IR. The legend, the method 
 - [MariaDb](#mariadb)
 - [MySql](#mysql)
 - [MongoDb](#mongodb)
+- [Deephaven](#deephaven)
 - [EngineStyleH2](#enginestyleh2)
 - [EngineStyleDB2](#enginestyledb2)
 - [EngineStyleComposite](#enginestylecomposite)
@@ -2478,6 +2479,195 @@ Database types planned with it: MongoDB.
 | `JSON_TYPE` | emulated | `jsonType` |  | 0 |
 | `JSON_ARRAY_LENGTH` | emulated | `guardedOp: $size` |  | 0 |
 | `JSON_PRETTY` | refused | `a pretty-printed JSON text reached MongoDb, which has no JSON text operator` |  | 0 |
+
+## Deephaven
+
+Database types planned with it: Deephaven.
+
+| function | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `AND` | emulated | `booleanValue` |  | 0 |
+| `OR` | emulated | `booleanValue` |  | 0 |
+| `NOT` | emulated | `booleanValue` |  | 0 |
+| `EQUAL` | emulated | `booleanValue` |  | 0 |
+| `NOT_EQUAL` | emulated | `booleanValue` |  | 0 |
+| `LESS` | emulated | `booleanValue` |  | 0 |
+| `LESS_EQUAL` | emulated | `booleanValue` |  | 0 |
+| `GREATER` | emulated | `booleanValue` |  | 0 |
+| `GREATER_EQUAL` | emulated | `booleanValue` |  | 0 |
+| `PLUS` | emulated | `infixArithmetic:  + ` |  | 0 |
+| `MINUS` | emulated | `infixArithmetic:  - ` |  | 0 |
+| `TIMES` | emulated | `infixArithmetic:  * ` |  | 0 |
+| `DIVIDE` | emulated | `infixArithmetic:  / ` |  | 0 |
+| `MOD` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `REM` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `NEGATE` | emulated | `(-…)` |  | 0 |
+| `ABS` | emulated | `function: abs` |  | 0 |
+| `IS_NULL` | emulated | `booleanValue` |  | 0 |
+| `IS_NOT_NULL` | emulated | `booleanValue` |  | 0 |
+| `IN` | emulated | `booleanValue` |  | 0 |
+| `COALESCE` | emulated | `coalesce` |  | 0 |
+| `PARSE_INT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `CONCAT` | emulated | `concat` |  | 0 |
+| `LENGTH` | emulated | `stringMethod: length` |  | 0 |
+| `UPPER` | emulated | `stringMethod: toUpperCase` |  | 0 |
+| `LOWER` | emulated | `stringMethod: toLowerCase` |  | 0 |
+| `GREATEST` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LEAST` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `CONCAT_JOIN` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_FILTER` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_TRANSFORM` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_CONCAT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_GET` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_POSITION` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_EXISTS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_FOR_ALL` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `STRUCT_INSERT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `UNNEST` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_FLATTEN` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `JSON_MERGE_PATCH` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `SQRT` | emulated | `function: sqrt` |  | 0 |
+| `CBRT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `EXP` | emulated | `function: exp` |  | 0 |
+| `LN` | emulated | `function: log` |  | 0 |
+| `LOG10` | emulated | `function: log10` |  | 0 |
+| `POW` | emulated | `function: pow` |  | 0 |
+| `PI` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `SIN` | emulated | `function: sin` |  | 0 |
+| `COS` | emulated | `function: cos` |  | 0 |
+| `TAN` | emulated | `function: tan` |  | 0 |
+| `ASIN` | emulated | `function: asin` |  | 0 |
+| `ACOS` | emulated | `function: acos` |  | 0 |
+| `ATAN` | emulated | `function: atan` |  | 0 |
+| `ATAN2` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `SINH` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `COSH` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `TANH` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `CEILING` | emulated | `function: ceil` |  | 0 |
+| `FLOOR` | emulated | `function: floor` |  | 0 |
+| `ROUND` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `SIGN` | emulated | `function: signum` |  | 0 |
+| `XOR` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `BIT_AND` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `BIT_OR` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `BIT_XOR` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `BIT_SHIFT_LEFT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `BIT_SHIFT_RIGHT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `BIT_NOT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `REGEXP_EXTRACT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `REGEXP_EXTRACT_ALL` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `REGEXP_REPLACE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `REGEXP_FULL_MATCH` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `MAP_FROM_LISTS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `MAP_FROM_ENTRIES` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `MAP_EMPTY` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `MAP_EXTRACT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `MAP_KEYS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `MAP_VALUES` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `MAP_CONCAT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `SUBSTRING` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `STRPOS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `STARTS_WITH` | emulated | `booleanValue` |  | 0 |
+| `ENDS_WITH` | emulated | `booleanValue` |  | 0 |
+| `MATCHES` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LEFT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `RIGHT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LPAD` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `RPAD` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `TRIM` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LTRIM` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `RTRIM` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `REPLACE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `SPLIT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `SPLIT_PART` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `TRANSLATE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `PURE_SPLIT_PART` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `REVERSE_STRING` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `ASCII_CODE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `CHR` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `UC_FIRST` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LC_FIRST` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `ENCODE_BASE64` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LEVENSHTEIN` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `GUID` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `FORMAT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `HASH` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `MD5` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `SHA1` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `SHA256` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `RANDOM` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `EXTRACT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `TODAY` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `NOW` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `DATE_TRUNC_DAY` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `MAKE_DATE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `MAKE_TIMESTAMP` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `DATE_TRUNC` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `ADD_INTERVAL` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `DATE_DIFF` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `TIME_BUCKET` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `TIMEZONE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `DATE_AT_TIME` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `EPOCH_NS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `EPOCH_SECONDS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `EPOCH_MS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `FROM_EPOCH_SECONDS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `FROM_EPOCH_MS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `DAYNAME` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `MONTHNAME` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `COT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `RADIANS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `DEGREES` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `INT_DIVIDE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `REPEAT_STR` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `JARO_WINKLER` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `DECODE_BASE64` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `CURRENT_USER_FN` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_LENGTH` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_ZIP` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_DISTINCT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_APPEND` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_SUM` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_MIN` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_MAX` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_AVG` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_MEDIAN` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_MODE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_SORT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_SORT_DESC` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_TAIL` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_INIT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `RANGE_FN` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_PRODUCT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_REDUCE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_SLICE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `REPEAT_VALUE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_BOOL_AND` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_BOOL_OR` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `IS_DISTINCT_FROM` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `ALL_DISTINCT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `NULL_SAFE_EQUAL` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `NULL_SAFE_NOT_EQUAL` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `STRFTIME` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `STRPTIME` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `PARSE_DATE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_REVERSE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `TYPEOF` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `ROUND_HALF_UP` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `ERROR` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `FLOOR_RAW` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `TO_VARIANT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `BOOL_TO_TEXT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `FLOAT_CANON` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `FLOAT_PRINT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `VARIANT_ELEMENTS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `VARIANT_GET` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `JSON_TYPE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `JSON_ARRAY_LENGTH` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `JSON_PRETTY` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 
 ## EngineStyleH2
 
