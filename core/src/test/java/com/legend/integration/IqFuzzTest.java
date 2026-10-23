@@ -630,6 +630,12 @@ class IqFuzzTest {
                 return new Outcome("REFUSED", List.of(), oneLine(t));
             }
             if (t instanceof com.legend.error.DataError && t.getMessage() != null
+                    && t.getMessage().contains("More than one row returned by a subquery")) {
+                // a scalar subquery of more than one row: IQ's error too, raised by the database at run time (fuzz
+                // round 14, 2026-10-23: the generator's correlated read of no aggregate)
+                return new Outcome("TRANSLATED", List.of(), oneLine(t));
+            }
+            if (t instanceof com.legend.error.DataError && t.getMessage() != null
                     && t.getMessage().matches("(?s)(Binder|Parser|Catalog|Not implemented|INTERNAL|Invalid Input)"
                     + " Error.*")) {
                 // the database refused the SQL the island sent: lite's bug, or a limit of the database's own
