@@ -199,7 +199,7 @@ says so.
 | Q25 | IQ 16's BIGINT overflow (-158) on Snowflake, whose NUMBER(38) does not overflow (5 runs BUG). The island checks no BIGINT arithmetic itself; under iq17, where IQ answers past 64 bits, DuckDB's overflow is the lane's ERROR and Snowflake passes | P1.2, P3 | a decision (with Q26's): a run SQL Anywhere judges whose only difference is an error Snowflake does not raise | open: the check of 38df46ba reverted (2f40358c), its 3^n growth timed out on Snowflake |
 | Q26 | TOP and START AT compute the items of rows they skip (IQ raises for them); Snowflake evaluates the select list after the limit (3 runs BUG) | P1.2 | the sibling's measurements | open |
 | Q27 | Nested integer division by a column grows exponentially: `it / sm / sm` doubles a level twice on DuckDB (the translator's NULL guard repeats the inner quotient, unmerged where IQ raises for a zero divisor; the zero guard's message copies the dividend) and six times on Snowflake (its exact quotient writes the dividend twice). Needs a common-subexpression hoist (the operand as a computed column) or a single-copy exact quotient for Snowflake (`TRUNC(CAST(a AS NUMBER(38, 19)) / b)`, by its division scale rule, to be measured) | P4, P1.3 | the sibling's measurement for the Snowflake half | the Snowflake half done (2026-10-23, the scale-19 quotient, measured); DuckDB's open |
-| Q28 | Planning a long UNION ALL grows faster than linearly: 1.9 s at 1,000 branches, 4.0 s at 2,000, 16.6 s at 4,000 (the scale probe at twice its sizes, 2026-10-23) | P4 | a profile | open |
+| Q28 | Planning a long UNION ALL grows faster than linearly: 1.9 s at 1,000 branches, 4.0 s at 2,000, 16.6 s at 4,000 (the scale probe at twice its sizes, 2026-10-23) | P4 | a profile | done (2026-10-23): 4,000 branches planned in 1.4 s |
 | Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | open |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
 | Q9 | Unread derived columns dropped | P3.2 | oracle (some answers are committed) | open |
@@ -427,3 +427,10 @@ says so.
     non-integer literal in an ORDER BY ("has no effect"). `ConstantAggregateOrder`, a render pass every dialect runs,
     drops a constant key from a string or list aggregate (a percentile's key is its value, and stays).
     `ConstantAggregateOrderTest` on every in-process database.
+- 2026-10-23, **Q28: planning a long UNION ALL is linear.** Thread dumps of the lens on a UNION ALL of 4,000 branches
+  found `IqDialect.checked` choosing the statement's engine (`engineOf`, a walk of the whole statement) again for
+  each of its queries, and collecting each set operation's whole tree of branches: quadratic in the chain. The engine
+  is now chosen once, and each operation adds its own operands. The scale probe at twice its sizes: 1,000, 2,000 and
+  4,000 branches plan in 1.0, 0.7 and 1.4 s (were 1.9, 4.0 and 16.6 s); the 4,000 run in 4.2 s (was 33 s). The probe
+  at its own sizes: every shape plans in under 2 s but 700 joins (9.7 s, then DuckDB's depth limit); DuckDB's join
+  order for 350 joins is still 210 s (Q16).

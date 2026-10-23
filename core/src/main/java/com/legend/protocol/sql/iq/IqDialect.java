@@ -563,14 +563,21 @@ public final class IqDialect implements InputDialect {
                 nameless.add(now);
             }
         });
+        // a set operation's branches, each its own operation's operand (2026-10-23, the IQ scale program's Q28: each
+        // operation's whole tree collected was quadratic in a chain's length)
         Set<SqlAst.Select> setBranches = Collections.newSetFromMap(new IdentityHashMap<>());
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.SetOperation o) {
-                List<SqlAst.Select> all = new ArrayList<>();
-                branches(o, all);
-                setBranches.addAll(all);
+                for (SqlAst.Statement operand : List.of(o.left(), o.right())) {
+                    if (operand instanceof SqlAst.Select branch) {
+                        setBranches.add(branch);
+                    }
+                }
             }
         }
+        // the statement's engine, once (Q28: chosen again for each of its queries, a walk of the whole statement each
+        // time, a UNION ALL of 4,000 branches planned in 16.6 s)
+        Engine queriesEngine = engine != null ? engine : engineOf(statement, settings);
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.SetOperation o) {
                 setWidths(o);
@@ -616,7 +623,7 @@ public final class IqDialect implements InputDialect {
                 subqueryWidths(e);
             }
             // IQ island, 2026-10-15 (windows): the errors IQ raises for a query's window functions
-            IqWindows.parsed(s, engine != null ? engine : engineOf(statement, settings), settings, numbering);
+            IqWindows.parsed(s, queriesEngine, settings, numbering);
             // IQ island, 2026-10-14 (M1c): the errors IQ raises for a query's aggregates and grouping
             IqAggregates.parsed(s);
             nameLengths(s);
