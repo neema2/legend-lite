@@ -3576,6 +3576,13 @@ public final class SqlToPure {
             }
             try {
                 t = tx(x.expr(), scope, row);
+                // the IQ scale program, 2026-10-23 (Q27): an item whose Pure grows far past its SQL (a NULL guard or
+                // a zero divisor's check repeating a nested operand, eight divisions by a column 852 KB of DuckDB's
+                // SQL, under the dialect's bound) has its long operands computed once too
+                if (written(valueOf(t)) > HOIST_FROM && written(valueOf(t)) > HOIST_RATIO * astSize(x.expr())) {
+                    hoistOperands(x.expr(), scope, present, pre, mine);
+                    t = tx(x.expr(), scope, row);
+                }
             } catch (SqlTranslationException tooLarge) {
                 if (!tooLarge.pastSizeBound()) {
                     throw tooLarge;
@@ -3583,21 +3590,7 @@ public final class SqlToPure {
                 // IQ island, 2026-10-17 (the corpus lane's scale): an item past the dialect's size bound has its long
                 // operands, read on every path, each computed once, a column before it (bottom up, so each reads
                 // the ones below it), then is translated again; past the bound still, it is refused as before
-                for (SqlAst.Expr c : eagerOperands(x.expr())) {
-                    Tx ct;
-                    try {
-                        ct = tx(c, scope, row);
-                    } catch (SqlTranslationException notAlone) {
-                        continue;
-                    }
-                    if (ct.kind() == Kind.BOOLEAN || written(ct.vs()) < BOUND_OPERAND) {
-                        continue;
-                    }
-                    String column = fresh(present);
-                    pre.add(new ColSpec(column, lambda(row, valueOf(ct)), null, null));
-                    hoisted.put(c, Col.of(column, ct.kind(), ct.nullable(), ct.detail()));
-                    mine.add(c);
-                }
+                hoistOperands(x.expr(), scope, present, pre, mine);
                 t = tx(x.expr(), scope, row);
             }
         } finally {
@@ -3645,9 +3638,55 @@ public final class SqlToPure {
         }
     }
 
+    /** {@code e}'s long operands, read on every path, each computed once, a column before the item (bottom up, so
+     *  each reads the ones below it): into {@code pre} and {@link #hoisted}, each noted in {@code mine}. */
+    private void hoistOperands(SqlAst.Expr e, Scope scope, Set<String> present, List<ColSpec> pre,
+            List<SqlAst.Expr> mine) {
+        for (SqlAst.Expr c : eagerOperands(e)) {
+            if (hoisted.containsKey(c)) {
+                continue;
+            }
+            Tx ct;
+            try {
+                ct = tx(c, scope, row);
+            } catch (SqlTranslationException notAlone) {
+                continue;
+            }
+            if (ct.kind() == Kind.BOOLEAN || written(ct.vs()) < BOUND_OPERAND) {
+                continue;
+            }
+            String column = fresh(present);
+            pre.add(new ColSpec(column, lambda(row, valueOf(ct)), null, null));
+            hoisted.put(c, Col.of(column, ct.kind(), ct.nullable(), ct.detail()));
+            mine.add(c);
+        }
+    }
+
     /** The written size, in Pure nodes, from which an operand of an item past the size bound is computed once
      *  ({@link #output}). */
     private static final long BOUND_OPERAND = 64;
+
+    /** The written size, in Pure nodes, from which an item whose Pure grows past {@link #HOIST_RATIO} times its SQL's
+     *  nodes has its long operands computed once ({@link #output}): a linear item never reaches it. */
+    private static final long HOIST_FROM = 2_000;
+
+    /** The Pure nodes per node of an item's SQL past which it is growing (a guard repeating an operand per level). */
+    private static final long HOIST_RATIO = 50;
+
+    /** The nodes of {@code e}'s SQL, counted without recursion. */
+    private static long astSize(SqlAst.Expr e) {
+        long n = 0;
+        java.util.ArrayDeque<SqlAst.Expr> todo = new java.util.ArrayDeque<>();
+        todo.push(e);
+        while (!todo.isEmpty()) {
+            SqlAst.Expr x = todo.pop();
+            n++;
+            for (SqlAst.Expr c : children(x)) {
+                todo.push(c);
+            }
+        }
+        return n;
+    }
 
     /** {@code e}'s operands (not {@code e} itself) that it computes whenever it is computed, composite ones only and
      *  no subquery, each after its own ({@link #eagerSubqueries}' positions). */
