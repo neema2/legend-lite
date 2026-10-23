@@ -342,6 +342,10 @@ test_suite(
         # the MongoDB v0 end to end on the embedded MongoDB 8.0 (docs/MONGODB_PLAN_2026_10_16.md §11, 2026-10-17):
         # manual until a per-push lane for it is the user's call
         "//core:mongodb_plan_test",
+        # Deephaven from the browser on the pinned Deephaven 42.7 (docs/DEEPHAVEN_PLAN_2026_10_22.md L3b, 2026-10-23):
+        # the tab's planner, sender and watch against the server, no server of lite's between; manual until a per-push
+        # lane for it is the user's call (its server is a 270 MB download)
+        "//datacube:deephaven_test",
         # the five PCT suites on the embedded MongoDB 8.0, channel A through the plan path (docs/MONGODB_PLAN_2026_10_16.md
         # §6, 2026-10-17)
         "//pct:pct_mongodb",
