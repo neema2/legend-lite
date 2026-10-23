@@ -2536,10 +2536,14 @@ public final class Snowflake extends AnsiSqlRenderer {
             case SqlAgg.Reducer r -> {
                 return windowedReducer(writer, r, win);
             }
-            // a ranking function takes no frame (ANSI ignores one; Snowflake refuses it, measured)
+            // a ranking function takes no frame (ANSI ignores one; Snowflake refuses it, measured), and needs an order:
+            // with none, every row is a peer of every other (ROW_NUMBER numbers them in no order, RANK is 1), which
+            // ORDER BY NULL says ("Window function type [ROW_NUMBER] requires ORDER BY in window specification", the
+            // IQ lane's NUMBER(*), 2026-10-23)
             case SqlAgg.RankingFn r -> {
                 writer.append(aggregateName(r.fn())).append("(").list(r.args()).append(")");
-                return over(writer, win.withFrame(null));
+                return over(writer, win.orderBy().isEmpty() ? new Window(win.partitionBy(), List.of(UNORDERED), null)
+                        : win.withFrame(null));
             }
             case SqlAgg.ValueFn v -> {
                 return valueFn(writer, v, win);
@@ -2567,6 +2571,9 @@ public final class Snowflake extends AnsiSqlRenderer {
     private static boolean rowsFrame(Window win) {
         return win.frame() != null && win.frame().kind() == SqlExpr.WindowCall.Frame.Kind.ROWS;
     }
+
+    /** The sort key of no order: every row a peer. */
+    private static final SqlSelect.SortKey UNORDERED = new SqlSelect.SortKey(new SqlExpr.NullLit(), true, null, null);
 
     private static final SqlExpr.WindowCall.Frame WHOLE = new SqlExpr.WindowCall.Frame(
             SqlExpr.WindowCall.Frame.Kind.ROWS, new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding(),
