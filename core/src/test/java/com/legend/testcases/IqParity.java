@@ -460,8 +460,10 @@ public final class IqParity {
                 continue;
             }
             String marks = String.join(", ", java.util.Collections.nCopies(t.columns().size(), "?"));
-            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + quoted(t.name()) + " VALUES (" + marks
-                    + ")")) {
+            // the table as the dialect's DDL created it and its queries read it (the IQ scale program, 2026-10-22: the
+            // Snowflake lane's first run, where a bare `t` folds to T and the dialect's table is "t")
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + dialect.storedName(t.name(),
+                    declaredQuoted(t.name())) + " VALUES (" + marks + ")")) {
                 for (List<Object> row : t.rows()) {
                     for (int i = 0; i < row.size(); i++) {
                         bind(ps, i + 1, row.get(i), relationalType(t.columns().get(i).type()));
