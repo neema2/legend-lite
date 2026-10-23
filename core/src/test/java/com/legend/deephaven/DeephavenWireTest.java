@@ -83,7 +83,6 @@ class DeephavenWireTest {
     void publishAndReleaseNameTheirTickets() {
         assertEquals("0a070a05650700000012070a05682f616263", HEX.formatHex(DeephavenWire.publish(7, "abc")));
         assertEquals("0a070a056507000000", HEX.formatHex(DeephavenWire.releaseExport(7)));
-        assertEquals("0a070a05682f616263", HEX.formatHex(DeephavenWire.releaseShared("abc")));
     }
 
     @Test

@@ -354,8 +354,8 @@ public final class Boundary {
      * What a host sends a Deephaven server and reads back (docs/DEEPHAVEN_PLAN_2026_10_22.md DH21, DH22;
      * {@code com.legend.deephaven.DeephavenWire}), one operation by name, its arguments a JSON object: {@code batch}
      * ({@code plan}, {@code exportId}: the plan's request, its result exported under that id in the host's session),
-     * {@code publish} ({@code exportId}, {@code name}), {@code releaseExport} ({@code exportId}), {@code releaseShared}
-     * ({@code name}) -- each answered as its bytes in base64 -- and {@code created} ({@code message}, one answer of a
+     * {@code publish} ({@code exportId}, {@code name}) and {@code releaseExport} ({@code exportId}, which ends the name
+     * too) -- each answered as its bytes in base64 -- and {@code created} ({@code message}, one answer of a
      * batch in base64), answered {@code {"success", "errorInfo"}}. The host carries the bytes; it builds none and
      * reads none itself. An operation not listed is refused by name.
      */
@@ -369,8 +369,6 @@ public final class Boundary {
                     com.legend.deephaven.DeephavenWire.publish(a.getInt("exportId"), a.getString("name")));
             case "releaseExport" -> b64.encodeToString(
                     com.legend.deephaven.DeephavenWire.releaseExport(a.getInt("exportId")));
-            case "releaseShared" -> b64.encodeToString(
-                    com.legend.deephaven.DeephavenWire.releaseShared(a.getString("name")));
             case "created" -> {
                 com.legend.deephaven.DeephavenWire.Created c = com.legend.deephaven.DeephavenWire.created(
                         java.util.Base64.getDecoder().decode(a.getString("message")));
@@ -380,7 +378,7 @@ public final class Boundary {
                 yield com.legend.json.Json.toCompact(out);
             }
             default -> throw new IllegalArgumentException("no Deephaven operation '" + op
-                    + "': batch, publish, releaseExport, releaseShared, created");
+                    + "': batch, publish, releaseExport, created");
         };
     }
 

@@ -15,8 +15,8 @@ import java.util.List;
 /**
  * What a sender sends a Deephaven server, and reads back (docs/DEEPHAVEN_PLAN_2026_10_22.md DH11, DH21, DH22): a
  * plan's batch, made at sending time with what exists only then (the result's id in the sending session), the
- * request that publishes a result under a shared name, the request that releases a ticket, and the outcome of each
- * operation the server created. The browser tab calls it through the WebAssembly planner; a server-side sender
+ * request that publishes a result under a shared name, the request that releases it, and the outcome of each operation
+ * the server created. The browser tab calls it through the WebAssembly planner; a server-side sender
  * (L3s) the same way, so there is one encoder. It sends nothing: how the bytes travel is the sender's.
  */
 public final class DeephavenWire {
@@ -57,7 +57,8 @@ public final class DeephavenWire {
     }
 
     /** The request that publishes the export {@code exportId} under {@code name}, a shared ticket another session (the
-     *  JS library's, in the tab) opens. */
+     *  JS library's, in the tab) opens. The name lives as long as the export: releasing the export ends it, and the
+     *  server refuses to release the name itself (measured on Deephaven 42.7, 2026-10-23). */
     public static byte[] publish(int exportId, String name) {
         LinkedHashMap<String, Json.Node> fields = new LinkedHashMap<>();
         fields.put("sourceId", ticket(exportTicket(exportId)));
@@ -65,19 +66,10 @@ public final class DeephavenWire {
         return ProtoWire.write("PublishRequest", new Json.Obj(fields), b -> b);
     }
 
-    /** The request that releases the export {@code exportId}. */
+    /** The request that releases the export {@code exportId}, and with it any name it was published under. */
     public static byte[] releaseExport(int exportId) {
-        return release(exportTicket(exportId));
-    }
-
-    /** The request that releases the shared ticket {@code name}. */
-    public static byte[] releaseShared(String name) {
-        return release(sharedTicket(name));
-    }
-
-    private static byte[] release(byte[] ticket) {
         LinkedHashMap<String, Json.Node> fields = new LinkedHashMap<>();
-        fields.put("id", ticket(ticket));
+        fields.put("id", ticket(exportTicket(exportId)));
         return ProtoWire.write("ReleaseRequest", new Json.Obj(fields), b -> b);
     }
 
