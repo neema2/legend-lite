@@ -261,6 +261,8 @@ class IqFuzzTest {
                 8_192));
         FAMILIES.put("derived tables nested", new Family(IqFuzzTest::nestedDerived, 1_024));
         FAMILIES.put("CTE chain", new Family(IqFuzzTest::cteChain, 1_024));
+        FAMILIES.put("BIGINT sum", new Family(n -> "SELECT id, " + "bg + ".repeat(n - 1) + "bg AS v FROM t WHERE"
+                + " id <> 1", 4_096));
     }
 
     /**
@@ -354,6 +356,13 @@ class IqFuzzTest {
             shapes.put("derived tables nested " + n, nestedDerived(n));
             shapes.put("CTE chain " + n, cteChain(n));
         }
+        // the IQ scale program, 2026-10-23: a range check at each level of a chain copied its operand three times a
+        // level, a 10-term BIGINT sum past Snowflake's statement timeout (3^9); the size check below holds such growth
+        for (int n : new int[] {10 * f, 50 * f, 200 * f}) {
+            shapes.put("integer sum of " + n, "SELECT id, " + "it + ".repeat(n - 1) + "it AS v FROM t ORDER BY id");
+            shapes.put("BIGINT sum of " + n, "SELECT id, " + "bg + ".repeat(n - 1) + "bg AS v FROM t WHERE id <> 1"
+                    + " ORDER BY id");
+        }
         // -Diq.scale.only=<regex>: the shapes whose names match
         String only = System.getProperty("iq.scale.only");
         if (only != null) {
@@ -396,6 +405,11 @@ class IqFuzzTest {
                         .append('\t').append(detail.length() > 300 ? detail.substring(0, 300) : detail).append('\n');
                 if (o.kind().equals("CRASH") || o.kind().equals("DBERROR") || snow.startsWith("CRASH")) {
                     problems.add(e.getKey() + ": " + o.kind() + " " + detail + " / snowflake " + snow);
+                }
+                // the SQL grows with its island linearly: a hundredfold is a check or a guard copied per level
+                if (sql.length() > 100L * e.getValue().length()) {
+                    problems.add(e.getKey() + ": the DuckDB SQL is " + sql.length() + " characters for an island of "
+                            + e.getValue().length());
                 }
             }
         }

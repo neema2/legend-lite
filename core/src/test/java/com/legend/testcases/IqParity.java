@@ -1810,6 +1810,12 @@ public final class IqParity {
             return expected instanceof SqlParity.Rejected r ? bothError(e, r)
                     : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
         } catch (Exception | StackOverflowError e) {
+            if (dialectRefusal(e)) {
+                // the IQ scale program, 2026-10-23: a dialect's capability wall is its refusal by name (a construct it
+                // has no spelling for, DialectCapability), as the island's own NotImplementedException is
+                return expected instanceof SqlParity.Rejected r ? bothError(e, r)
+                        : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
+            }
             if (!liteError(e)) {
                 return new SqlParity.Outcome(SqlParity.Status.ERROR, "a Java exception in legend-lite: " + oneLine(e));
             }
@@ -1854,6 +1860,16 @@ public final class IqParity {
             }
         }
         return new SqlParity.Outcome(SqlParity.Status.BOTH_ERROR, oneLine(e));
+    }
+
+    /** Whether {@code e}, or a cause of it, is a dialect's refusal by name. */
+    private static boolean dialectRefusal(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof com.legend.sql.dialect.DialectCapability) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Whether {@code e} is the database's error that the island raises by name ({@link IqDialect#REFUSED_AT_RUN_TIME},
