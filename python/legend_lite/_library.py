@@ -34,6 +34,8 @@ _ARITY = {
     'lite_pure_v1': 3, 'lite_execute_plan': 2, 'lite_pure_v1_refusal': 1,
     # the planner protocol's execute halves for a host's own database, and its warm (C2)
     'lite_execute_json_plan': 2, 'lite_execute_json_answer': 2, 'lite_warm_model': 1,
+    # what a host sends a Deephaven server and reads back (docs/DEEPHAVEN_PLAN_2026_10_22.md DH21)
+    'lite_deephaven': 2,
     # the site's media types, the one table every host serving a site answers with (C4)
     'lite_site_types': 0,
     # the warehouse's SQL API, as the one binding speaks it (C3)

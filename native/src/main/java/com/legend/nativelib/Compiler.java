@@ -255,6 +255,20 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** What a host sends a Deephaven server, and reads back ({@code Boundary.deephaven}; the protocol's
+     *  {@code deephaven}, docs/DEEPHAVEN_PLAN_2026_10_22.md DH21). */
+    @CEntryPoint(name = "lite_deephaven")
+    static CCharPointer deephaven(IsolateThread thread, CCharPointer op, CCharPointer args) {
+        String a;
+        try {
+            String o = text(op), g = text(args);
+            a = Folded.of(() -> Boundary.deephaven(o, g));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** A project's own database on a database of the given type ({@code Boundary.projectData}). */
     @CEntryPoint(name = "lite_project_data")
     static CCharPointer projectData(IsolateThread thread, CCharPointer model, CCharPointer databaseType) {

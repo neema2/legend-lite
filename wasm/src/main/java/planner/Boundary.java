@@ -351,6 +351,40 @@ public final class Boundary {
     }
 
     /**
+     * What a host sends a Deephaven server and reads back (docs/DEEPHAVEN_PLAN_2026_10_22.md DH21, DH22;
+     * {@code com.legend.deephaven.DeephavenWire}), one operation by name, its arguments a JSON object: {@code batch}
+     * ({@code plan}, {@code exportId}: the plan's request, its result exported under that id in the host's session),
+     * {@code publish} ({@code exportId}, {@code name}), {@code releaseExport} ({@code exportId}), {@code releaseShared}
+     * ({@code name}) -- each answered as its bytes in base64 -- and {@code created} ({@code message}, one answer of a
+     * batch in base64), answered {@code {"success", "errorInfo"}}. The host carries the bytes; it builds none and
+     * reads none itself. An operation not listed is refused by name.
+     */
+    public static String deephaven(String op, String argsJson) {
+        com.legend.json.Json.Obj a = com.legend.json.Json.parseObject(argsJson);
+        java.util.Base64.Encoder b64 = java.util.Base64.getEncoder();
+        return switch (op) {
+            case "batch" -> b64.encodeToString(
+                    com.legend.deephaven.DeephavenWire.batch(a.getString("plan"), a.getInt("exportId")));
+            case "publish" -> b64.encodeToString(
+                    com.legend.deephaven.DeephavenWire.publish(a.getInt("exportId"), a.getString("name")));
+            case "releaseExport" -> b64.encodeToString(
+                    com.legend.deephaven.DeephavenWire.releaseExport(a.getInt("exportId")));
+            case "releaseShared" -> b64.encodeToString(
+                    com.legend.deephaven.DeephavenWire.releaseShared(a.getString("name")));
+            case "created" -> {
+                com.legend.deephaven.DeephavenWire.Created c = com.legend.deephaven.DeephavenWire.created(
+                        java.util.Base64.getDecoder().decode(a.getString("message")));
+                java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+                out.put("success", c.success());
+                out.put("errorInfo", c.errorInfo());
+                yield com.legend.json.Json.toCompact(out);
+            }
+            default -> throw new IllegalArgumentException("no Deephaven operation '" + op
+                    + "': batch, publish, releaseExport, releaseShared, created");
+        };
+    }
+
+    /**
      * A project's own database on a database of the given type (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5,
      * {@code com.legend.setup.ProjectData}): where {@code model}'s Data rows live on a host, named by what it holds
      * (the model's Databases and Data rows). {@code {"name", "open", "use", "fill", "close"}}, each but the name the

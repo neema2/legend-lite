@@ -174,6 +174,7 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
   projectData: "a project's Data rows are held by Python itself (C5)",
   hostOperations: "a host's operations are the tab's own database's",
   warm: "warming the planner is the tab's",
+  deephaven: "a Deephaven server is the tab's to send to: the tab's own planner writes the bytes (DH21)",
 };
 
 /**

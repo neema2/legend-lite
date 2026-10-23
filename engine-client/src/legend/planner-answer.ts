@@ -27,6 +27,7 @@ export interface PlannerModule {
     projectDataOrError(model: string, databaseType: string): string;
     hostOperationsOrError(databaseType: string, operations: string): string;
     warmModelOrError(model: string): string;
+    deephavenOrError(op: string, args: string): string;
   };
 }
 
@@ -49,5 +50,6 @@ export function answer(m: PlannerModule, r: RequestBody): string {
     case 'projectData': return m.exports.projectDataOrError(r.model, r.databaseType);
     case 'hostOperations': return m.exports.hostOperationsOrError(r.databaseType, r.operations);
     case 'warm': return m.exports.warmModelOrError(r.model);
+    case 'deephaven': return m.exports.deephavenOrError(r.op, r.args);
   }
 }

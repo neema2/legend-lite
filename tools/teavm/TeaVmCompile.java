@@ -86,6 +86,9 @@ public final class TeaVmCompile {
             // class it cannot find: the module is not what the source says
             System.exit(1);
         }
+        // TeaVM 0.15.0 writes a data segment's address unsigned; WebAssembly reads it signed (SegmentOffsets)
+        Path module = new File(out, "classes.wasm").toPath();
+        Files.write(module, SegmentOffsets.fix(Files.readAllBytes(module)));
         try (InputStream runtime = TeaVmCompile.class.getClassLoader().getResourceAsStream(RUNTIME)) {
             if (runtime == null) {
                 throw new IllegalStateException(RUNTIME + " is not in teavm-core");

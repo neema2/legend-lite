@@ -31,6 +31,7 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'projectData': ('lite_project_data', lambda m: (m['model'], m['databaseType'])),
     'hostOperations': ('lite_host_operations', lambda m: (m['databaseType'], m['operations'])),
     'warm': ('lite_warm_model', lambda m: (m['model'],)),
+    'deephaven': ('lite_deephaven', lambda m: (m['op'], m['args'])),
 }
 
 

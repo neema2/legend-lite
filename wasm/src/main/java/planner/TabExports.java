@@ -50,6 +50,12 @@ public final class TabExports {
         return Folded.of(() -> Boundary.plan(model, query, runtime));
     }
 
+    /** {@link Boundary#deephaven}: what the tab sends a Deephaven server, and reads back (DH21). */
+    @JSExport
+    public static String deephavenOrError(String op, String argsJson) {
+        return Folded.of(() -> Boundary.deephaven(op, argsJson));
+    }
+
     /** {@link Boundary#relationType}. */
     @JSExport
     public static String relationTypeOrError(String model, String query) {

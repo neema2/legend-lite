@@ -24,6 +24,7 @@ export const REQUEST_KINDS = [
   'projectData',
   'hostOperations',
   'warm',
+  'deephaven',
 ] as const;
 
 export type RequestKind = (typeof REQUEST_KINDS)[number];
@@ -57,7 +58,10 @@ export type RequestBody =
   // a host's named operations on its own database of that type (D5): a JSON array of them, each answered its statements
   | { readonly kind: 'hostOperations'; readonly databaseType: string; readonly operations: string }
   // the planner's boot layer built for a model now, before a person waits on it
-  | { readonly kind: 'warm'; readonly model: string };
+  | { readonly kind: 'warm'; readonly model: string }
+  // what the host sends a Deephaven server and reads back, one operation by name with its arguments as a JSON object
+  // (docs/DEEPHAVEN_PLAN_2026_10_22.md DH21): the planner writes the bytes, the host carries them
+  | { readonly kind: 'deephaven'; readonly op: string; readonly args: string };
 
 /** A request as a worker receives it: its id, and where the tab's module lives (a host with its own ignores it). */
 export type Request = RequestBody & { readonly id: number; readonly base?: string };
