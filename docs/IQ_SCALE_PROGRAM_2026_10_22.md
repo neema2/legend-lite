@@ -182,9 +182,9 @@ says so.
 |---|---|---|---|---|
 | Q1 | Bazel in this container; DuckDB and Postgres IQ lanes green as the baseline | — | — | done |
 | Q2 | Snowflake's exact `INT_DIVIDE` | P1.3 | — | done, measured on an account by Q3 |
-| Q3 | `//core:iq_parity_snowflake_test` and the ledger's `snowflake` column | P1.1 | Snowflake credentials | built; its first run waits for the credentials |
+| Q3 | `//core:iq_parity_snowflake_test` and the ledger's `snowflake` column | P1.1 | Snowflake credentials | built; run by the Snowflake sibling session (2026-10-23: 8,991 runs in 330 s at 8 threads). The column waits for Q4's fixes |
 | Q3b | The Snowflake plan census: every run DuckDB plans is planned for Snowflake, render only | P1.1 | — | done: 6,236 of 6,236 |
-| Q4 | First Snowflake triage: every status that differs from DuckDB's | P1.2 | Q3 | open |
+| Q4 | First Snowflake triage: every status that differs from DuckDB's | P1.2 | Q3 | in progress: 282 runs differ (slice 4's log); the seed's zone, ASCII, oversized literals and percentile levels fixed; Q24-Q26 open |
 | Q5 | The DuckDB-against-Snowflake differential runner and TLP/NoREC checks | P2.1, P2.2 | Q3 | TLP done on DuckDB (Q6); the Snowflake half waits for Q3 |
 | Q6 | The generator: `IqFuzz` and `//core:iq_fuzz_test` | P2.3 | — | done; the rounds feed the queue (seeds 1-3 clean after slice 3) |
 | Q21 | DATEADD of a computed timestamp of no known year under the iq17 profiles: refused for SQL Anywhere 17's defect past the year 7910 (531 of round 3's refusals); whether IQ 17.1 shares it decides the iq17 reading | P3 | oracle | open |
@@ -194,7 +194,10 @@ says so.
 | Q17 | DuckDB's own depth limits (`max_expression_depth` 1,000, the planner's tree depth 1,000): UNION ALL past ~1,000 branches, 1,000 nested parentheses or CASEs, 700+ joins. Raising the setting is unsafe on small-stack callers (DuckDB's parser recurses natively); balanced UNION ALL emission is the way | P4 | — | open |
 | Q18 | `SqlToPure` and `IqParser` recursion: stack use per nesting level, for callers other than the server (the browser planner) | P4 | — | open |
 | Q19 | Core's DuckDB 1.4.4 → 1.5.x: 1.4.4 loses rows from a UNION ALL nested in a UNION ALL under parallel execution (slice 3's log). Latent for the islands: lite's lowering writes a nested UNION ALL as one flat union, and the fuzzer's nested-union partition check (3,000 shapes) found no loss. Another shape that nests a union inside a union would meet it | P1 | the build line's DuckDB bump, the user's call | proposed |
-| Q20 | The fuzzer's set operations: nested and parenthesized UNION, UNION ALL, INTERSECT, EXCEPT, so that Q19's class is reached by the generator | P2 | — | partial: each shape's partitions also run as a nested, parenthesized UNION ALL (`Shape.partitions`) |
+| Q20 | The fuzzer's set operations: nested and parenthesized UNION, UNION ALL, INTERSECT, EXCEPT, so that Q19's class is reached by the generator | P2 | — | done: nested set operations of every kind, and the set identities (DISTINCT, UNION, INTERSECT/EXCEPT [ALL]) over every shape |
+| Q24 | Snowflake's correlated subqueries: a correlation two derived tables down, a scalar subquery of no aggregate, and lite's NOT EXISTS forms of NOT IN and ALL are "Unsupported subquery type" there (59 runs), and a COUNT read through the nesting is NULL for no row | P1.2 | the sibling's measurements | open |
+| Q25 | IQ 16's BIGINT overflow (-158) on Snowflake, whose NUMBER(38) does not overflow (5 runs BUG). The island checks no BIGINT arithmetic itself; under iq17, where IQ answers past 64 bits, DuckDB's overflow is the lane's ERROR and Snowflake passes | P1.2, P3 | — | open |
+| Q26 | TOP and START AT compute the items of rows they skip (IQ raises for them); Snowflake evaluates the select list after the limit (3 runs BUG) | P1.2 | the sibling's measurements | open |
 | Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | open |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
 | Q9 | Unread derived columns dropped | P3.2 | oracle (some answers are committed) | open |
@@ -263,3 +266,22 @@ says so.
     WHERE id = 3)` returns 2 rows with 4 threads, every time, and 3 with 1 thread. Wrapping the inner union in a
     subquery doesn't help. DuckDB 1.5.2 answers 3, every time. Core pins `duckdb_jdbc` 1.4.4.0, and the warehouse
     already runs 1.5.5.1.
+- 2026-10-23, slice 4, the Snowflake lane and fuzz round 4:
+  - **The Snowflake lane ran** (the sibling session, on `claude/iq-scale`): 8,991 runs. Against the DuckDB column:
+    5,719 PASS, 1,501 BOTH_ERROR, 1,376 REFUSED and 78 SKIP alike; 282 differ (208 PASS -> FAIL, 59 PASS -> ERROR,
+    8 BOTH_ERROR -> BUG, 5 ERROR -> PASS, 2 FAIL -> ERROR). Its first try failed in seeding: the INSERT named the table
+    bare, which Snowflake folds to T (fixed, `dialect.storedName`).
+  - **Most of the 208 were the seed's zone:** the seed's connection never ran the dialect's session setup, so each
+    bound TIMESTAMP was read in the account's zone (America/Los_Angeles) and stored 8 h early. The seed now runs
+    `sessionSetup()` first, as every query's session does.
+  - **Fixed in Snowflake's dialect:** ASCII_CODE is `unicode()` (Snowflake's `ascii` is the first UTF-8 byte: 'é'
+    195); a decimal literal no NUMBER holds (the island's single-precision bounds) is the DOUBLE DuckDB reads it as; a
+    percentile's level is written as a bare constant.
+  - **Open:** Q24 (correlated subqueries), Q25 (BIGINT overflow), Q26 (TOP's skipped rows), and NUMBER(*)'s
+    `ROW_NUMBER() OVER ()` (Snowflake needs an ORDER BY).
+  - **Fuzz round 4** (seed 4, 2,000 shapes, depth 4, with set operations and set identities): no crash, no TLP
+    finding. Its 6 set-identity findings were the checker's: IQ's collation makes 'a' and 'a ' one row, and the
+    checker compared text. It compares collation keys now. Its 32 "no column" errors were the generator's: a
+    predicate drawn after `complex()` reused a correlation name (IQ's -143, rightly).
+  - **Measured on the way:** INTERSECT and EXCEPT are IQ's -1001030 under its engine, refused rightly; INTERSECT ALL
+    and EXCEPT ALL are "not supported yet" in the shared translator (front-end queries only, so low in the queue).
