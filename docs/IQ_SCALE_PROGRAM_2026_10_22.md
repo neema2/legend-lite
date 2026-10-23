@@ -196,7 +196,7 @@ says so.
 | Q19 | Core's DuckDB 1.4.4 → 1.5.x: 1.4.4 loses rows from a UNION ALL nested in a UNION ALL under parallel execution (slice 3's log). Latent for the islands: lite's lowering writes a nested UNION ALL as one flat union, and the fuzzer's nested-union partition check (3,000 shapes) found no loss. Another shape that nests a union inside a union would meet it | P1 | the build line's DuckDB bump, the user's call | proposed |
 | Q20 | The fuzzer's set operations: nested and parenthesized UNION, UNION ALL, INTERSECT, EXCEPT, so that Q19's class is reached by the generator | P2 | — | done: nested set operations of every kind, and the set identities (DISTINCT, UNION, INTERSECT/EXCEPT [ALL]) over every shape |
 | Q24 | Snowflake's correlated subqueries: a correlation two derived tables down, a scalar subquery of no aggregate, and lite's NOT EXISTS forms of NOT IN and ALL are "Unsupported subquery type" there (59 runs), and a COUNT read through the nesting is NULL for no row | P1.2 | the sibling's measurements | open |
-| Q25 | IQ 16's BIGINT overflow (-158) on Snowflake, whose NUMBER(38) does not overflow (5 runs BUG). The island checks no BIGINT arithmetic itself; under iq17, where IQ answers past 64 bits, DuckDB's overflow is the lane's ERROR and Snowflake passes | P1.2, P3 | — | done (38df46ba): a BIGINT result is checked on every database; fuzz round 4's counts unchanged |
+| Q25 | IQ 16's BIGINT overflow (-158) on Snowflake, whose NUMBER(38) does not overflow (5 runs BUG). The island checks no BIGINT arithmetic itself; under iq17, where IQ answers past 64 bits, DuckDB's overflow is the lane's ERROR and Snowflake passes | P1.2, P3 | a decision (with Q26's): a run SQL Anywhere judges whose only difference is an error Snowflake does not raise | open: the check of 38df46ba reverted (2f40358c), its 3^n growth timed out on Snowflake |
 | Q26 | TOP and START AT compute the items of rows they skip (IQ raises for them); Snowflake evaluates the select list after the limit (3 runs BUG) | P1.2 | the sibling's measurements | open |
 | Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | open |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
@@ -345,3 +345,17 @@ says so.
     - a FROM-less explosion (sa_rowgenerator's) was taken as one row, so `NOT EXISTS (SELECT * FROM sa_rowgenerator(5,
       1))` was NOT TRUE;
     - a HUGEINT literal past 38 digits was rounded to a DOUBLE. It is now refused by name.
+  - **The rerun at 06f29b3a:** the 5 iq16 overflow runs pass, but `m0/a_sum_of_ten_bigint_terms` timed out (120 s). A
+    range check at every level of a chain copied its operand three times a level (3^9). The check is reverted
+    (2f40358c). Its fuzz comparison had missed this: the generator's chains are short.
+  - **The scale probe now holds SQL growth:** sums of 10, 50 and 200 integer and BIGINT terms, with any shape whose
+    DuckDB SQL is a hundred times its island failing. It then found the doubling under the check: a BIGINT chain's
+    NULL guards, unmerged past 64 bits, made a 10-term sum 34,867 characters (2^9). Under IQ's engine they now merge
+    as below a BIGINT, since IQ raises nothing there either (D-N3). It is 387 characters now, and 200 terms are 5,137.
+  - **The IQ harness counts a dialect's `DialectCapability` as REFUSED.** It is the dialect's refusal by name, as the
+    island's `NotImplementedException` is; it had been an ERROR.
+  - **Fuzz round 7** (seed 7, 2,000 shapes, depth 4, the generator's wider catalogue: DATEPART, DAYS/MONTHS/YEARS,
+    DAYNAME/DATENAME/DATEFORMAT, CONVERT styles, CHARINDEX/LOCATE, STUFF/INSERTSTR/REPLICATE/STRING, ISNULL/NULLIF,
+    GREATER/LESSER, TRUNCNUM/SQRT/POWER, AVG/LIST/ROLLUP, ROW_NUMBER/LAG): 26,000 queries, 1,713 partitioned, no
+    finding. Its errors are IQ's own, raised by name: a CONVERT style invalid for a date, LIST beside ROLLUP, LESSER in
+    a window.
