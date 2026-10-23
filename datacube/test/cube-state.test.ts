@@ -648,3 +648,58 @@ describe('the owner over any state: deferral and re-placing (StateRules)', () =>
   });
 });
 
+
+describe('a tick: the view run again, as it is', () => {
+  it('runs the committed state, tells `ticked` with its view, and is no step, nothing busy, nothing pending', async () => {
+    const { o, e, events } = owner();
+    await landed(o, e);
+    const out = o.rerun();
+    assert.equal(o.busy, false, 'nothing in flight to show');
+    assert.equal(e.runs.length, 2);
+    assert.deepEqual(e.runs[1]?.state, o.committed, 'the committed state, as it is');
+    e.land(1);
+    const done = await out;
+    assert.equal(done.kind, 'applied');
+    assert.equal(events.at(-1), 'ticked');
+    assert.equal(o.view, (done as { view: CubeView }).view, 'its view the one on screen');
+    assert.equal(o.canUndo, false, 'no step');
+  });
+
+  it('a change made while it runs wins: the tick is superseded and its view dropped', async () => {
+    const { o, e, events } = owner();
+    await landed(o, e);
+    const ticked = o.rerun();
+    const changed = o.change(group(['region']));
+    e.land(1);
+    assert.equal((await ticked).kind, 'superseded');
+    assert.equal(events.includes('ticked'), false);
+    e.land(2);
+    assert.equal((await changed).kind, 'applied');
+    assert.deepEqual(o.committed.snapshot.rows, ['region']);
+  });
+
+  it('nothing runs while a change is in flight, or before a view is shown', async () => {
+    const { o, e } = owner();
+    assert.equal((await o.rerun()).kind, 'superseded', 'no view yet');
+    await landed(o, e);
+    const changed = o.change(group(['region']));
+    const runs = e.runs.length;
+    assert.equal((await o.rerun()).kind, 'superseded');
+    assert.equal(e.runs.length, runs, 'no query');
+    e.land(runs - 1);
+    await changed;
+  });
+
+  it('a refusal is returned, not said: the view on screen stays', async () => {
+    const { o, e, events } = owner();
+    await landed(o, e);
+    const shown = o.view;
+    const heard = events.length;
+    const out = o.rerun();
+    e.refuse(1, 'the live source failed');
+    const done = await out;
+    assert.equal(done.kind, 'refused');
+    assert.equal(o.view, shown);
+    assert.equal(events.length, heard, 'nobody told');
+  });
+});

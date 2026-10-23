@@ -2192,6 +2192,52 @@ browser_test(
     env = _DEEPHAVEN_DEMO_ENV,
 )
 
+# THE TICK BENCHMARK (bench/deephaven/README.md, 2026-10-23): how fast a tick on a Deephaven server reaches a page, by
+# transport -- Deephaven's own JS library's viewport and full subscriptions and setViewport (the baseline they replaced,
+# fetching each changed result again, is in its README) -- over a small and a big world, a quiet feed and a storm, the
+# server's cycle from 100 ms to 20. Manual: `bazel test //datacube:deephaven_tick_bench --test_output=streamed`.
+legend_java_binary(
+    name = "deephaven_tick_fixture",
+    testonly = True,
+    data = [
+        "bench/deephaven/tick.app",
+        "bench/deephaven/tick.groovy",
+        "@embedded_deephaven//:deephaven",
+        "@embedded_deephaven//:deephaven/DEEPHAVEN_ROOT",
+    ],
+    jvm_flags = [
+        "-Dembedded.deephaven.root=$(rlocationpath @embedded_deephaven//:deephaven/DEEPHAVEN_ROOT)",
+        "-Dembedded.deephaven.application=$(rlocationpath bench/deephaven/tick.app)",
+    ],
+    main_class = "com.legend.testing.EmbeddedDeephaven",
+    runtime_deps = ["//testing"],
+)
+
+executable_of(
+    name = "deephaven_tick_fixture_executable",
+    testonly = True,
+    binary = ":deephaven_tick_fixture",
+)
+
+browser_test(
+    name = "deephaven_tick_bench",
+    size = "large",
+    tags = ["manual"],
+    data = [
+        "bench/deephaven/tick-bench.mjs",
+        "bench/deephaven/tick-page.mjs",
+        "demo/deephaven/site.mjs",
+        ":deephaven_tick_fixture",
+        ":deephaven_tick_fixture_executable",
+        ":node_modules/playwright",
+    ],
+    entry_point = "bench/deephaven/tick-bench.mjs",
+    env = {
+        "TICK_FIXTURE": "$(rlocationpath :deephaven_tick_fixture_executable)",
+        "TICK_PAGE": "$(rlocationpath bench/deephaven/tick-page.mjs)",
+    },
+)
+
 # DataCube's own app on Deephaven, in the pinned Chromium (DH23): its tree's positions are the seeding's; a regroup, a
 # pivot and a filter each send only their own operations, the source's read from what the session holds; a pivot's
 # columns keep their names; and a tick re-runs it with nothing sent. Screenshots of each are its outputs. Manual, in

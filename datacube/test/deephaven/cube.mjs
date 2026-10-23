@@ -9,6 +9,7 @@
 
 // first: points Playwright at the Chromium Bazel fetched
 import '../../../tools/browser/pinned-chromium.mjs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { serveDemo, startDeephaven } from '../../demo/deephaven/site.mjs';
@@ -47,9 +48,10 @@ try {
   browser = await chromium.launch();
   const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 860 } })).newPage();
   page.on('pageerror', (e) => fail(`page error: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error') console.log(`[page] ${m.text()}`); });
+  page.on('console', (m) => console.log(`[page ${m.type()}] ${m.text().slice(0, 300)}`));
   await page.goto(`${site.url}/cube.html`);
-  const state = () => page.evaluate(() => ({ ...window.__cube, change: undefined }));
+  const state = () => page.evaluate(() => ({ ...window.__cube, change: undefined,
+    said: `${document.getElementById('status')?.textContent ?? ''} | ${document.querySelector('.dc-app-stats')?.textContent ?? ''} | ${(() => { const t = document.getElementById('cube')?.innerText ?? ''; const i = t.indexOf('Error'); return i < 0 ? '' : t.slice(i, i + 1200); })()}` }));
   const until = async (test, what, ms = 120_000) => {
     const end = Date.now() + ms;
     while (Date.now() < end) {
@@ -134,17 +136,49 @@ try {
   check(against(filter.after, 'pid', positions((p) => p.region, (p) => p.desk === 'FX')), 'the FX desk by region: the seeding\'s positions');
   await page.screenshot({ path: join(outputs, '4-filter.png') });
 
-  // ticking: a result on screen changes on the server, and the cube runs again, sending nothing
+  // TICKING: every result on screen followed live; at each change the cube runs again from the live rows -- nothing
+  // sent, nothing fetched -- and the grid paints
+  await until((s) => s.counts?.following > 0, 'following the view', 30_000);
   const t0 = await state();
+  // PROFILE=1 (`--test_env=PROFILE=1`): the ticking window's CPU profile, its costliest functions said, the profile an output
+  const profiling = process.env.PROFILE === '1' ? await page.context().newCDPSession(page) : null;
+  if (profiling) {
+    await profiling.send('Profiler.enable');
+    await profiling.send('Profiler.setSamplingInterval', { interval: 100 });
+    await profiling.send('Profiler.start');
+  }
   await page.evaluate(() => { window.__cube.paused = false; });
   await new Promise((r) => setTimeout(r, 5000));
   const t1 = await state();
+  if (profiling) {
+    const { profile } = await profiling.send('Profiler.stop');
+    writeFileSync(join(outputs, 'ticking.cpuprofile'), JSON.stringify(profile));
+    const self = new Map();
+    const dt = new Map();
+    profile.samples.forEach((id, i) => dt.set(id, (dt.get(id) ?? 0) + (profile.timeDeltas[i] ?? 0)));
+    for (const n of profile.nodes) {
+      const f = n.callFrame;
+      const key = `${f.functionName || '(anonymous)'} ${f.url.split('/').pop()}:${f.lineNumber + 1}`;
+      self.set(key, (self.get(key) ?? 0) + (dt.get(n.id) ?? 0) / 1000);
+    }
+    const top = [...self].filter(([k]) => !/^\((idle|program|garbage collector)\)/.test(k)).sort((a, b) => b[1] - a[1]).slice(0, 30);
+    console.log(`the ticking window's costliest functions (self ms over 5 s; idle ${(self.get('(idle) :0') ?? 0).toFixed(0)}):`);
+    for (const [k, ms] of top) console.log(`  ${ms.toFixed(1).padStart(8)}  ${k}`);
+  }
   const refreshes = t1.refreshes - t0.refreshes;
+  const fetched = t1.counts.fetched - t0.counts.fetched;
+  const live = t1.counts.live - t0.counts.live;
   const mv = (s) => JSON.stringify(s.rows.map((r) => r[s.columns.indexOf('mv')]));
-  if (refreshes < 5) fail(`${refreshes} re-runs in 5 s (${t1.onScreen - t0.onScreen} ticks on screen)`);
-  else if (t1.counts.sent !== t0.counts.sent) fail(`re-running sent ${t1.counts.sent - t0.counts.sent} operations`);
+  const paints = [...t1.tickToPaint].sort((a, b) => a - b);
+  const p = (q) => paints[Math.min(paints.length - 1, Math.floor(q * paints.length))]?.toFixed(1);
+  const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]?.toFixed(1);
+  if (refreshes < 10) fail(`${refreshes} runs in 5 s (${t1.ticks - t0.ticks} ticks)`);
+  else if (t1.counts.sent !== t0.counts.sent) fail(`ticking sent ${t1.counts.sent - t0.counts.sent} operations`);
+  else if (fetched !== 0) fail(`ticking fetched ${fetched} results, answered ${live} live`);
   else if (mv(t1) === mv(t0)) fail('the market values did not change');
-  else ok(`it ticks: ${refreshes} re-runs in 5 s, nothing sent, the market values moving`);
+  else ok(`it ticks: ${refreshes} runs in 5 s, ${live} results answered live, nothing sent or fetched; on screen `
+    + `${p(0.5)} ms (p95 ${p(0.95)}) after a tick's rows arrived, the cube's run ${median(t1.runMs)} ms of it; `
+    + `${t1.counts.following} results followed`);
   await page.screenshot({ path: join(outputs, '5-ticking.png') });
   if (t1.counts.remade === 0) ok(`no table made twice: ${t1.counts.queries} queries planned ${t1.counts.planned} operations, ${t1.counts.sent} sent`);
   else fail(`${t1.counts.remade} tables made twice`);

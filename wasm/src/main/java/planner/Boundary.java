@@ -414,11 +414,10 @@ public final class Boundary {
      * {@code publish} ({@code exportId}, {@code name}), {@code releaseExport} ({@code exportId}, which ends the name
      * too) and {@code doGet} ({@code exportId}: the Flight ticket its rows are read by) -- each answered as its bytes
      * in base64 -- {@code created} ({@code message}, one answer of a batch in base64), answered
-     * {@code {"success", "errorInfo"}}; {@code keys} ({@code plan}), answered {@code {"keys"}}, each operation's;
+     * {@code {"success", "errorInfo"}}; {@code keys} ({@code plan}), answered {@code {"keys"}}, each operation's; and
      * {@code send} ({@code plan}, {@code held}: the session's tables, key to export id, {@code nextExportId}), answered
-     * {@code {"request", "exports": [{"key", "exportId"}], "result"}}; and {@code updated} ({@code messages}, its
-     * update stream's messages in base64), answered {@code {"updates": [{"exportId", "size", "failure"}]}}. The host
-     * carries the bytes; it builds none and reads none itself. An operation not listed is refused by name.
+     * {@code {"request", "exports": [{"key", "exportId"}], "result"}}. The host carries the bytes; it builds none and
+     * reads none itself. An operation not listed is refused by name.
      */
     public static String deephaven(String op, String argsJson) {
         com.legend.json.Json.Obj a = com.legend.json.Json.parseObject(argsJson);
@@ -452,19 +451,6 @@ public final class Boundary {
                 out.put("result", sent.result());
                 yield com.legend.json.Json.toCompact(out);
             }
-            case "updated" -> {
-                java.util.List<Object> updates = new java.util.ArrayList<>();
-                for (com.legend.json.Json.Node m : a.getArr("messages").items()) {
-                    com.legend.deephaven.DeephavenWire.Updated u = com.legend.deephaven.DeephavenWire.updated(
-                            java.util.Base64.getDecoder().decode(((com.legend.json.Json.Str) m).value()));
-                    java.util.Map<String, Object> one = new java.util.LinkedHashMap<>();
-                    one.put("exportId", u.exportId());
-                    one.put("size", u.size());
-                    one.put("failure", u.failure());
-                    updates.add(one);
-                }
-                yield com.legend.json.Json.toCompact(java.util.Map.of("updates", updates));
-            }
             case "created" -> {
                 com.legend.deephaven.DeephavenWire.Created c = com.legend.deephaven.DeephavenWire.created(
                         java.util.Base64.getDecoder().decode(a.getString("message")));
@@ -474,7 +460,7 @@ public final class Boundary {
                 yield com.legend.json.Json.toCompact(out);
             }
             default -> throw new IllegalArgumentException("no Deephaven operation '" + op
-                    + "': batch, keys, send, publish, releaseExport, doGet, created, updated");
+                    + "': batch, keys, send, publish, releaseExport, doGet, created");
         };
     }
 

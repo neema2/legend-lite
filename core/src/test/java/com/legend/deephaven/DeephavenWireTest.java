@@ -275,16 +275,8 @@ class DeephavenWireTest {
     }
 
     @Test
-    void theRowsTicketAndTheUpdateStreamsMessages() {
+    void theRowsTicket() {
         assertEquals("0a056507000000", HEX.formatHex(DeephavenWire.doGet(7)));
-        // as the server sent them (measured, 2026-10-23): export 10, size 40; export 11, size 3
-        assertEquals(new DeephavenWire.Updated(10, 40, ""), DeephavenWire.updated(HEX.parseHex("0a070a05650a0000001050")));
-        assertEquals(new DeephavenWire.Updated(11, 3, ""), DeephavenWire.updated(HEX.parseHex("0a070a05650b0000001006")));
-        assertEquals(new DeephavenWire.Updated(11, 0, "gone"),
-                DeephavenWire.updated(HEX.parseHex("0a070a05650b0000001a04676f6e65")));
-        IllegalArgumentException scope = assertThrows(IllegalArgumentException.class,
-                () -> DeephavenWire.updated(HEX.parseHex("0a040a02732f")));
-        assertTrue(scope.getMessage().contains("names no export"), scope.getMessage());
     }
 
     @Test

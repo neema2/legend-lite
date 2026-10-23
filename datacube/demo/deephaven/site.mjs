@@ -9,12 +9,13 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { runfileFromEnv, runfileNamed } from '../../../tools/js/runfiles.mts';
 
-/** Starts the demo's Deephaven: `next()` is the fixture's next JSON line (its address and key first, then a restart's
- *  word); `restart()` restarts the server; `stop()` stops it. */
-export function startDeephaven({ quiet = false } = {}) {
+/** Starts the demo's Deephaven (or the fixture `fixture` names, with `args` and `env` beside the process's own):
+ *  `next()` is the fixture's next JSON line (its address and key first, then a restart's word); `restart()` restarts
+ *  the server; `stop()` stops it. */
+export function startDeephaven({ quiet = false, fixture = 'DEEPHAVEN_FIXTURE', args = [], env: extra = {} } = {}) {
   // `bazel run` gives no TEST_TMPDIR: the server's data goes under the system's temporary directory
-  const env = { ...process.env, TEST_TMPDIR: process.env.TEST_TMPDIR ?? tmpdir() };
-  const server = spawn(runfileFromEnv('DEEPHAVEN_FIXTURE'), [], { stdio: ['pipe', 'pipe', 'pipe'], env });
+  const env = { ...process.env, TEST_TMPDIR: process.env.TEST_TMPDIR ?? tmpdir(), ...extra };
+  const server = spawn(runfileFromEnv(fixture), args, { stdio: ['pipe', 'pipe', 'pipe'], env });
   server.stderr.on('data', (b) => {
     for (const line of String(b).split('\n')) {
       if (line && !(quiet && / INFO | DEBUG /.test(line))) process.stderr.write(`[deephaven] ${line}\n`);

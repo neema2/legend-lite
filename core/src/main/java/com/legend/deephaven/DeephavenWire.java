@@ -157,26 +157,6 @@ public final class DeephavenWire {
         return ProtoWire.write("Ticket", new Json.Obj(fields), b -> b);
     }
 
-    /** What the server says of one of a session's exports on its update stream (DH23): the export, its size, and why
-     *  it failed (empty while it has not). */
-    public record Updated(int exportId, long size, String failure) {
-    }
-
-    /** {@code message}, one message of the session's {@code ExportedTableUpdates} stream. */
-    public static Updated updated(byte[] message) {
-        Json.Obj r = ProtoWire.read("ExportedTableUpdateMessage", message);
-        Json.Obj export = r.getObjOr("exportId", null);
-        byte[] ticket = export == null ? new byte[0] : Base64.getDecoder().decode(export.getStringOr("ticket", ""));
-        if (ticket.length != 5 || ticket[0] != 'e') {
-            throw new IllegalArgumentException("a Deephaven update names no export of the session's: "
-                    + Arrays.toString(ticket));
-        }
-        int exportId = (ticket[1] & 0xFF) | (ticket[2] & 0xFF) << 8 | (ticket[3] & 0xFF) << 16 | (ticket[4] & 0xFF) << 24;
-        String failure = r.getStringOr("updateFailureMessage", null);
-        // a field the server left out is its type's default (proto3)
-        return new Updated(exportId, r.getLongOr("size", 0), failure == null ? "" : failure);
-    }
-
     /** A plan's operations and each one's key. */
     private record Parsed(List<Json.Obj> ops, List<String> keys) {
     }

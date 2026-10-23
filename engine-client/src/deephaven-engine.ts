@@ -1,27 +1,25 @@
-// A DEEPHAVEN SERVER AS THE TAB'S ENGINE (docs/DEEPHAVEN_PLAN_2026_10_22.md DH23): a planned query's plan sent straight
-// from the tab (deephaven.ts) and its rows read back typed by the plan, so a grid runs on Deephaven as it runs on the
-// tab's DuckDB -- `new CubeController(engine, planner)`, the planner planning on a Deephaven runtime. What it adds is
-// Deephaven's own: the session holds the tables each query made, so the grid's next query over the same source reads
-// them rather than making them again (a regroup, a repivot, a filter sends only what differs); and the server says
-// when a result the grid read has changed (`onTick`), so the grid can read it again. A server that restarts keeps no
-// session: `onTick` says the session ended, and `reconnect` signs in again.
+// A DEEPHAVEN SERVER AS THE TAB'S ENGINE (docs/DEEPHAVEN_PLAN_2026_10_22.md DH23, DH24): a planned query's plan sent
+// straight from the tab (deephaven.ts) and its rows read back typed by the plan, so a grid runs on Deephaven as it runs
+// on the tab's DuckDB -- `new CubeController(engine, planner)`, the planner planning on a Deephaven runtime. The session
+// keeps alive the tables each query made, so the grid's next query over the same source builds on them (a regroup, a
+// repivot, a filter sends only what differs). And it TICKS: `follow` keeps every result a view read live in the page
+// too -- Deephaven's JS library pushes each one's rows as the server's update cycle changes them (deephaven-live.ts)
+// -- so the grid runs again with no query sent and no row fetched: `execute` answers a followed plan from its live
+// rows, and `onLive` says at once that one changed.
 
 import type { DeephavenPlanner, DeephavenServer, DeephavenSessionOptions, HeldResult } from './deephaven.ts';
 import { DeephavenSession } from './deephaven.ts';
-import { byPosition, deephavenRows } from './deephaven-rows.ts';
+import { LiveClient, type DhModule, type Followed } from './deephaven-live.ts';
+import { byPosition, deephavenRows, followedTable } from './deephaven-rows.ts';
 import { QueryError, type QueryEngine, type RawTable } from './engine.ts';
 import { hostOf, type Receipt } from './receipt.ts';
 import type { Plan } from './relation-type.ts';
 import type { ResultTable } from './result.ts';
 
-/**
- * What the server said since the last tick: the epochs whose results changed, the results that failed (a to-one join
- * that met a second match, DH20), and -- when the session's update stream ended (the server went away, or restarted:
- * Deephaven keeps no session across one) -- why; `reconnect` then signs in again.
- */
-export interface Ticked {
-  readonly epochs: ReadonlySet<number>;
-  readonly failures: readonly string[];
+/** What the live side says: a followed result changed (`since`: when the first change since the last word arrived,
+ *  `performance.now()`), or the live connection ended (`ended`: why) -- the server went away; `reconnect`. */
+export interface LiveEvent {
+  readonly since: number;
   readonly ended: string | null;
 }
 
@@ -30,29 +28,46 @@ export interface DeephavenCounts {
   /** Plans executed, and the operations in them. */
   readonly queries: number;
   readonly planned: number;
-  /** Operations sent to the server to answer them: a query over a source the session holds sends only its own. */
+  /** Operations sent to the server to answer them: a query over a source the session keeps alive sends only its own. */
   readonly sent: number;
-  /** Plans whose result the session held already: nothing sent, the rows read again. */
-  readonly held: number;
+  /** Results read from the server (Arrow Flight's DoGet), and results answered from their live rows in the page. */
+  readonly fetched: number;
+  readonly live: number;
+  /** Results followed now. */
+  readonly following: number;
   /** Tables the session made again after letting them go (deephaven.ts `remade`). */
   readonly remade: number;
   /** Sessions signed in again (`reconnect`). */
   readonly reconnects: number;
 }
 
+/** A plan followed: its live rows once the first update lands, and how to stop. */
+interface Following {
+  table: ResultTable | null;
+  stop: (() => void) | null;
+  stopped: boolean;
+}
+
+export interface DeephavenEngineOptions extends DeephavenSessionOptions {
+  /** How Deephaven's JS library is loaded (a test's own); from the server by default. */
+  readonly loadLive?: (url: string) => Promise<DhModule>;
+}
+
 export class DeephavenEngine implements QueryEngine {
   readonly name = 'deephaven';
   readonly #server: DeephavenServer;
   readonly #planner: DeephavenPlanner;
-  readonly #options: DeephavenSessionOptions;
+  readonly #options: DeephavenEngineOptions;
   #session: DeephavenSession;
-  /** The epoch each result was last read for, by its export (in the session now). */
-  readonly #reads = new Map<number, number>();
-  readonly #tickers = new Set<(ticked: Ticked) => void>();
-  #stopUpdates: (() => void) | null = null;
-  #counts = { queries: 0, planned: 0, sent: 0, held: 0, remade: 0, reconnects: 0 };
+  #live: Promise<LiveClient> | null = null;
+  /** The plans each recent epoch executed, by their text: what `follow` follows. */
+  readonly #executed = new Map<number, Map<string, Plan>>();
+  readonly #following = new Map<string, Following>();
+  readonly #listeners = new Set<(e: LiveEvent) => void>();
+  #changedSince: number | null = null;
+  #counts = { queries: 0, planned: 0, sent: 0, fetched: 0, live: 0, remade: 0, reconnects: 0 };
 
-  private constructor(server: DeephavenServer, planner: DeephavenPlanner, options: DeephavenSessionOptions,
+  private constructor(server: DeephavenServer, planner: DeephavenPlanner, options: DeephavenEngineOptions,
     session: DeephavenSession) {
     this.#server = server;
     this.#planner = planner;
@@ -62,7 +77,7 @@ export class DeephavenEngine implements QueryEngine {
 
   /** Signs in to `server` (deephaven.ts `DeephavenSession.open`). */
   static async open(server: DeephavenServer, planner: DeephavenPlanner,
-    options: DeephavenSessionOptions = {}): Promise<DeephavenEngine> {
+    options: DeephavenEngineOptions = {}): Promise<DeephavenEngine> {
     return new DeephavenEngine(server, planner, options, await DeephavenSession.open(server, planner, options));
   }
 
@@ -72,16 +87,22 @@ export class DeephavenEngine implements QueryEngine {
   }
 
   get counts(): DeephavenCounts {
-    return { ...this.#counts, remade: this.#counts.remade + this.#session.remade };
+    return { ...this.#counts, following: this.#following.size, remade: this.#counts.remade + this.#session.remade };
   }
 
   /**
-   * The plan's result made (or read from what the session holds), its rows read as they are now, typed by the plan.
-   * A Deephaven server cannot stop a batch it has started; `signal` is checked before the plan is sent and before the
-   * rows are read.
+   * The plan's result: from its live rows when it is followed, else made (or found alive in the session) and its rows
+   * read from the server, typed by the plan. A Deephaven server cannot stop a batch it has started; `signal` is
+   * checked before the plan is sent and before the rows are read.
    */
   async execute(plan: Plan, epoch: number, signal?: AbortSignal): Promise<ResultTable> {
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
+    this.#record(plan, epoch);
+    const live = this.#following.get(plan.sql)?.table;
+    if (live) {
+      this.#counts.live++;
+      return { ...live, epoch, elapsedMs: 0, receipt: this.#receipt() };
+    }
     const started = performance.now();
     const session = this.#session;
     let held: HeldResult;
@@ -93,11 +114,10 @@ export class DeephavenEngine implements QueryEngine {
     try {
       if (signal?.aborted) throw signal.reason ?? new Error('aborted');
       const stream = await session.rows(held.exportId);
-      if (session === this.#session) this.#reads.set(held.exportId, epoch);
       this.#counts.queries++;
       this.#counts.planned += held.ops;
       this.#counts.sent += held.sent;
-      if (held.sent === 0) this.#counts.held++;
+      this.#counts.fetched++;
       let raw: RawTable;
       try {
         raw = deephavenRows(stream, epoch, performance.now() - started);
@@ -121,67 +141,119 @@ export class DeephavenEngine implements QueryEngine {
   }
 
   /**
-   * Calls `listener` when a result the engine read has changed on the server -- with the epochs it was read for, the
-   * latest read of each -- or failed, or when the session's update stream ended. At most once each update stream read
-   * (`updatesMs`). Returns what stops it.
+   * FOLLOWS THE VIEW of `epoch`: every result its queries read kept live -- on the server (the session keeps its table
+   * alive) and in the page (Deephaven's JS library pushes its rows at every change) -- and every result no longer read
+   * let go. Resolves once each is followed; its rows arrive by `onLive`.
    */
-  onTick(listener: (ticked: Ticked) => void): () => void {
-    this.#tickers.add(listener);
-    if (this.#stopUpdates === null) this.#listen();
-    return () => {
-      this.#tickers.delete(listener);
-      if (this.#tickers.size === 0 && this.#stopUpdates !== null) {
-        this.#stopUpdates();
-        this.#stopUpdates = null;
+  async follow(epoch: number): Promise<void> {
+    const plans = this.#executed.get(epoch);
+    if (plans === undefined) return;
+    for (const [sql, f] of [...this.#following]) {
+      if (!plans.has(sql)) {
+        this.#following.delete(sql);
+        stopFollowing(f);
       }
-    };
+    }
+    await Promise.all([...plans.values()].filter((p) => !this.#following.has(p.sql)).map((p) => this.#start(p)));
   }
 
-  #listen(): void {
+  /** Calls `listener` when a followed result changed or the live side ended. */
+  onLive(listener: (e: LiveEvent) => void): () => void {
+    this.#listeners.add(listener);
+    return () => { this.#listeners.delete(listener); };
+  }
+
+  async #start(plan: Plan): Promise<void> {
+    const f: Following = { table: null, stop: null, stopped: false };
+    this.#following.set(plan.sql, f);
     const session = this.#session;
-    this.#stopUpdates = session.onUpdates((updates) => {
-      const epochs = new Set<number>();
-      const failures: string[] = [];
-      for (const u of updates) {
-        const epoch = this.#reads.get(u.exportId);
-        if (epoch === undefined) continue;
-        if (u.failure) failures.push(u.failure);
-        else epochs.add(epoch);
-      }
-      // a result the session no longer holds ticks no more
-      for (const id of this.#reads.keys()) if (!session.holds(id)) this.#reads.delete(id);
-      if (epochs.size === 0 && failures.length === 0) return;
-      for (const t of this.#tickers) t({ epochs, failures, ended: null });
-    }, (why) => {
-      const ended = why instanceof Error ? why.message : String(why);
-      for (const t of this.#tickers) t({ epochs: new Set(), failures: [], ended });
+    const held = await session.hold(plan.sql);
+    try {
+      const name = await session.publishHeld(held.exportId);
+      const followed: Followed = await (await this.#liveClient()).follow(name, (rows) => {
+        if (f.stopped) return;
+        f.table = followedTable(rows, plan, 0, 0);
+        this.#changed();
+      });
+      f.stop = () => {
+        followed.close();
+        held.release();
+      };
+    } catch (e) {
+      held.release();
+      this.#following.delete(plan.sql);
+      throw e;
+    }
+    if (f.stopped) stopFollowing(f);
+  }
+
+  #liveClient(): Promise<LiveClient> {
+    this.#live ??= LiveClient.open(this.#server, (why) => this.#ended(why), this.#options.loadLive);
+    return this.#live;
+  }
+
+  /** A followed result changed: said at once (the next microtask: the changes one message carried, said once) --
+   *  waiting for an animation frame cost a tick half a frame, and its listener runs one run at a time anyway. */
+  #changed(): void {
+    if (this.#changedSince !== null) return;
+    this.#changedSince = performance.now();
+    queueMicrotask(() => {
+      const since = this.#changedSince ?? performance.now();
+      this.#changedSince = null;
+      for (const l of this.#listeners) l({ since, ended: null });
     });
   }
 
+  #ended(why: string): void {
+    for (const l of this.#listeners) l({ since: performance.now(), ended: why });
+  }
+
+  /** Each epoch's plans, the last few kept: `follow` follows the view's, which is the latest one or near it. */
+  #record(plan: Plan, epoch: number): void {
+    let plans = this.#executed.get(epoch);
+    if (plans === undefined) {
+      plans = new Map();
+      this.#executed.set(epoch, plans);
+      for (const old of [...this.#executed.keys()].sort((a, b) => a - b).slice(0, -8)) this.#executed.delete(old);
+    }
+    plans.set(plan.sql, plan);
+  }
+
   /**
-   * Signs in again: a new session, holding nothing (the old one's tables went with it), its update stream reopened
-   * while anything listens. Throws while the server does not answer; the old session is let go either way.
+   * Signs in again: a new session, keeping nothing alive (the old one's tables went with it), and a new live reader;
+   * nothing is followed until the next `follow`. Throws while the server does not answer.
    */
   async reconnect(): Promise<void> {
     const session = await DeephavenSession.open(this.#server, this.#planner, this.#options);
     const old = this.#session;
-    this.#stopUpdates?.();
-    this.#stopUpdates = null;
+    for (const f of this.#following.values()) stopFollowing(f);
+    this.#following.clear();
+    this.#executed.clear();
+    const live = this.#live;
+    this.#live = null;
+    live?.then((l) => l.close(), () => { /* it never opened */ });
     this.#counts.remade += old.remade;
     this.#session = session;
-    this.#reads.clear();
     this.#counts.reconnects++;
     old.close().catch(() => { /* the server that held it is gone */ });
-    if (this.#tickers.size > 0) this.#listen();
   }
 
   async close(): Promise<void> {
-    this.#stopUpdates?.();
-    this.#stopUpdates = null;
+    for (const f of this.#following.values()) stopFollowing(f);
+    this.#following.clear();
+    const live = this.#live;
+    this.#live = null;
+    (await live?.catch(() => null))?.close();
     await this.#session.close();
   }
 
   #receipt(): Receipt {
     return { plane: 'warehouse', where: `the Deephaven server at ${hostOf(this.#server.url)}` };
   }
+}
+
+function stopFollowing(f: Following): void {
+  f.stopped = true;
+  f.stop?.();
+  f.stop = null;
 }

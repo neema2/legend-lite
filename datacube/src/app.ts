@@ -849,6 +849,15 @@ export class CubeApp {
     await this.#owner.refresh();
   }
 
+  /**
+   * THE ROWS BEHIND THE VIEW CHANGED (a live source ticked): the cube run again as it is -- no change, no step, nothing
+   * shown busy -- and only its cells repainted when its columns are those on screen. A change in flight, or made while
+   * it runs, wins; a refusal is returned (the view on screen stays).
+   */
+  async tick(): Promise<Outcome> {
+    return this.#owner.rerun();
+  }
+
   /** A query as the compiler prints it (the debug window's): reads, changes nothing. */
   printQuery(query: Lambda, style: PrintStyle): Promise<string> {
     return this.#controller.print(query, style);
@@ -1100,6 +1109,8 @@ export class CubeApp {
       case 'cancelled':
         this.#untold = [];
         return;
+      case 'ticked':
+        return;
     }
   }
 
@@ -1117,6 +1128,11 @@ export class CubeApp {
    * (P2-102, P2-108).
    */
   #onState(event: OwnerEvent): void {
+    // a tick changes no state: nothing to follow, show busy or repaint but the view
+    if (event.kind === 'ticked') {
+      this.#onTicked(event.view);
+      return;
+    }
     this.#followCommands(event);
     this.#setBusy(this.#owner.busy);
     this.#paintState();
@@ -1334,6 +1350,24 @@ export class CubeApp {
     // The host LAST, once the app has taken the view in: told first, it read the app one view
     // behind (the snapshot was still the previous one), so "changed since saved" missed the
     // change that had just landed.
+    this.#emit('view', view);
+  }
+
+  /**
+   * A TICK'S VIEW (`tick`): the same query run again, its rows changed. When its columns are those on screen, only the
+   * cells are repainted -- the rows, and the heatmaps that colour them -- not the headers, zones, panels and status a
+   * landed view repaints; else it is painted as one. Its host is told, as of any view.
+   */
+  #onTicked(view: CubeView): void {
+    const model = shownColumns(view, this.#config);
+    const same = model.leaves.length === this.#headers.length
+      && model.leaves.every((leaf, i) => leaf.name === this.#headers[i]?.name);
+    if (!same) {
+      this.#paintView(view);
+    } else {
+      this.#refreshHeatmaps(view);
+      this.#grid.setRows(view.rows, 0, view.rows.rowCount);
+    }
     this.#emit('view', view);
   }
 

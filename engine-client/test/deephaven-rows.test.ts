@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import { ipcStream } from '../src/deephaven.ts';
-import { byPosition, deephavenRows } from '../src/deephaven-rows.ts';
+import { byPosition, deephavenRows, followedTable, followedValue } from '../src/deephaven-rows.ts';
 import type { Plan } from '../src/relation-type.ts';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 
@@ -63,5 +63,49 @@ describe("a Deephaven server's rows", () => {
     const renamed = PLAN.columns.map((c, i) => (i === 3 ? { ...c, name: 'region' } : c));
     assert.throws(() => byPosition(raw, { ...PLAN, columns: renamed }),
       /column 3 is 's', where the plan has 'region'/);
+  });
+});
+
+/** The JS library's own value forms (dh-core.js): a wrapper whose text is exact, as its LongWrapper, DateWrapper
+ *  (nanoseconds), BigDecimalWrapper and BigIntegerWrapper are; a LocalDateWrapper's text its day. */
+const wrapped = (text: string): { toString(): string; valueOf(): string } => ({ toString: () => text, valueOf: () => text });
+const timeOfDay = (h: number, m: number, sec: number, nano: number) => ({
+  getHour: () => h, getMinute: () => m, getSecond: () => sec, getNano: () => nano,
+});
+
+describe("a followed table's rows (Deephaven's JS library)", () => {
+  it('every value as values.ts writes it: the same as the Arrow rows of the same table', () => {
+    // the recorded answer's table, as the library hands its values over
+    const followed = {
+      columns: ['x', 'l', 'd', 's', 'b', 'ts', 'dt', 'tm', 'bd', 'bi', '__c10'],
+      values: [
+        [0, 1, 2],
+        [wrapped('9007199254740993'), wrapped('18014398509481986'), null],
+        [0, 1.5, 3],
+        ['x0', null, 'x2'],
+        [true, null, true],
+        ['1704164645123456000', '1704164646123456000', '1704164647123456000'].map(wrapped),
+        ['2024-02-29', '2024-03-01', '2024-03-02'].map(wrapped),
+        [timeOfDay(3, 4, 5, 123456000), timeOfDay(3, 4, 5, 123456000), timeOfDay(3, 4, 5, 123456000)],
+        ['-12.345', '87.655', '187.655'].map(wrapped),
+        ['-700000000000000000000', '-700000000000000000000', '-700000000000000000000'].map(wrapped),
+        ['pivoted', 'pivoted', 'pivoted'],
+      ],
+    };
+    const live = followedTable(followed, PLAN, 7, 0);
+    const fetched = byPosition(raw, PLAN);
+    assert.deepEqual(live.columns, fetched.columns);
+    assert.equal(live.rowCount, 3);
+  });
+
+  it("Java's decimal text, exponent and all, as exact decimal text", () => {
+    assert.equal(followedValue(wrapped('1E+3'), 'Decimal', 'd'), '1000');
+    assert.equal(followedValue(wrapped('-1.5E-7'), 'Decimal', 'd'), '-0.00000015');
+    assert.equal(followedValue(wrapped('12.300'), 'Decimal', 'd'), '12.300');
+  });
+
+  it('a value the plan does not type so is refused', () => {
+    assert.throws(() => followedValue(42, 'String', 'desk'), /'desk' \(String\) holds number 42/);
+    assert.throws(() => followedValue(wrapped('1.5'), 'Integer', 'n'), SyntaxError);
   });
 });

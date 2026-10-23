@@ -1,6 +1,7 @@
 // THE TAB'S DEEPHAVEN SENDER (docs/DEEPHAVEN_PLAN_2026_10_22.md DH21, DH23): a plan the tab's own planner wrote, sent
-// straight to a Deephaven server -- no server of legend-lite's in between -- the tables it makes held by the session for
-// the next plan to read, its rows read back as Arrow, and the server's word when a held table changes. The planner
+// straight to a Deephaven server -- no server of legend-lite's in between -- the tables it makes kept alive by the session
+// for the next plan to build on, its rows read back as Arrow, and a table published for the live reader to follow
+// (deephaven-live.ts). The planner
 // writes every byte sent and reads every answer (the protocol's `deephaven` kind: com.legend.deephaven.DeephavenWire),
 // the rows aside: they are Arrow's, read by apache-arrow as the tab's DuckDB answers are. This only carries the bytes
 // over Deephaven's browser protocol -- gRPC-web: each message a 5-byte frame, the status in a trailer frame, over
@@ -57,23 +58,14 @@ export interface HeldResult {
   release(): void;
 }
 
-/** What the server says of one of the session's tables on its update stream: it changed (it is now `size` rows), or
- *  it failed, and why (a to-one join that met a second match, DH20). */
-export interface DeephavenUpdate {
-  readonly exportId: number;
-  readonly size: number;
-  readonly failure: string;
-}
-
 /** What a session needs of its page: how it fetches (the page's own `fetch`), how often it keeps the session's token
- *  fresh (Deephaven ends a session left unrefreshed; a minute is well inside its five), how many idle tables it keeps
- *  to be read again (128: a grid's last several views; an idle table still ticks on the server, so they are not free),
- *  and how often it reads its update stream's messages (the server's cycle is the faster bound). */
+ *  fresh (Deephaven ends a session left unrefreshed; a minute is well inside its five), and how many idle tables it
+ *  keeps alive to be read again (128: a grid's last several views; an idle table still ticks on the server, so they
+ *  are not free). */
 export interface DeephavenSessionOptions {
   readonly fetch?: typeof fetch;
   readonly refreshMs?: number;
   readonly keep?: number;
-  readonly updatesMs?: number;
 }
 
 const CONFIG = 'io.deephaven.proto.backplane.grpc.ConfigService/GetConfigurationConstants';
@@ -81,7 +73,6 @@ const BATCH = 'io.deephaven.proto.backplane.grpc.TableService/Batch';
 const PUBLISH = 'io.deephaven.proto.backplane.grpc.SessionService/PublishFromTicket';
 const RELEASE = 'io.deephaven.proto.backplane.grpc.SessionService/Release';
 const CLOSE = 'io.deephaven.proto.backplane.grpc.SessionService/CloseSession';
-const UPDATES = 'io.deephaven.proto.backplane.grpc.TableService/ExportedTableUpdates';
 const DO_GET = 'arrow.flight.protocol.FlightService/DoGet';
 
 /** A table the session holds: its export, how many readers hold it now, and when it was last read (a count). */
@@ -101,7 +92,6 @@ export class DeephavenSession {
   private readonly timer: ReturnType<typeof setInterval>;
   private closed = false;
   private readonly keep: number;
-  private readonly updatesMs: number;
   /** The tables the session holds, by their key (DeephavenWire.keys). */
   private readonly tables = new Map<string, Held>();
   /** The tables a send of the session's is making now, by key: another send that reads one waits for it. */
@@ -110,8 +100,6 @@ export class DeephavenSession {
   /** Every table the session has made, by key, and how many of them it made again after letting them go. */
   private readonly made = new Set<string>();
   private madeAgain = 0;
-  /** The update stream, while anything listens: what reads it, and its listeners. */
-  private updates: { readonly stop: AbortController; readonly listeners: Set<UpdateListener> } | null = null;
 
   private constructor(server: DeephavenServer, planner: DeephavenPlanner, fetcher: typeof fetch, auth: string,
     options: DeephavenSessionOptions) {
@@ -120,7 +108,6 @@ export class DeephavenSession {
     this.fetcher = fetcher;
     this.auth = auth;
     this.keep = options.keep ?? 128;
-    this.updatesMs = options.updatesMs ?? 100;
     this.timer = setInterval(() => {
       this.call(CONFIG, new Uint8Array()).catch(() => { /* the next call reports a session that ended */ });
     }, options.refreshMs ?? 60_000);
@@ -269,94 +256,13 @@ export class DeephavenSession {
     return ipcStream(await this.call(DO_GET, fromBase64(await this.ask('doGet', { exportId }))));
   }
 
-  /**
-   * Calls `onUpdates` with what the server says of the session's tables, as it reads its update stream (one message
-   * per table each update cycle that changes it), the messages read by the planner every `updatesMs`; `onEnd` when
-   * the stream ends -- the session ended (a restart: Deephaven keeps no session across one). The stream opens with
-   * the first listener and closes with the last.
-   */
-  onUpdates(onUpdates: (updates: readonly DeephavenUpdate[]) => void, onEnd?: (why: unknown) => void): () => void {
+  /** Publishes the session's export `exportId` under a fresh name, for another session to open (deephaven-live.ts):
+   *  the name lives as long as the export does. */
+  async publishHeld(exportId: number): Promise<string> {
     this.open();
-    const listener: UpdateListener = { onUpdates, onEnd: onEnd ?? (() => {}) };
-    if (this.updates === null) {
-      const updates = { stop: new AbortController(), listeners: new Set<UpdateListener>() };
-      this.updates = updates;
-      void this.readUpdates(updates.stop.signal, updates.listeners);
-    }
-    const listeners = this.updates.listeners;
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-      if (listeners.size === 0 && this.updates?.listeners === listeners) {
-        this.updates.stop.abort();
-        this.updates = null;
-      }
-    };
-  }
-
-  private async readUpdates(signal: AbortSignal, listeners: Set<UpdateListener>): Promise<void> {
-    const pending: Uint8Array[] = [];
-    let reading = false;
-    const flush = async (): Promise<void> => {
-      if (reading || pending.length === 0) return;
-      reading = true;
-      const messages = pending.splice(0).map(toBase64);
-      try {
-        const { updates } = JSON.parse(await this.ask('updated', { messages })) as {
-          readonly updates: readonly DeephavenUpdate[];
-        };
-        for (const l of listeners) l.onUpdates(updates);
-      } finally {
-        reading = false;
-      }
-    };
-    const timer = setInterval(() => { flush().catch((e) => end(e)); }, this.updatesMs);
-    let ended = false;
-    const end = (why: unknown): void => {
-      if (ended) return;
-      ended = true;
-      clearInterval(timer);
-      if (!signal.aborted) for (const l of listeners) l.onEnd(why);
-    };
-    try {
-      const response = await this.fetcher(`${this.server.url}/${UPDATES}`, {
-        method: 'POST',
-        body: frame(new Uint8Array()),
-        headers: this.headers(),
-        signal,
-      });
-      if (!response.ok || response.body === null) {
-        throw new DeephavenRefused('ExportedTableUpdates', 14, `HTTP ${response.status}`);
-      }
-      const reader = response.body.getReader();
-      let buffer = new Uint8Array();
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const joined = new Uint8Array(buffer.length + value.length);
-        joined.set(buffer);
-        joined.set(value, buffer.length);
-        buffer = joined;
-        while (buffer.length >= 5) {
-          const length = new DataView(buffer.buffer, buffer.byteOffset + 1, 4).getUint32(0);
-          if (buffer.length < 5 + length) break;
-          const flag = buffer[0] ?? 0;
-          const message = buffer.slice(5, 5 + length);
-          buffer = buffer.slice(5 + length);
-          // the trailer: the stream's status, its end
-          if (flag & 0x80) {
-            const said = trailer(message);
-            throw said.status === '0' || said.status === null
-              ? new DeephavenRefused('ExportedTableUpdates', 14, 'the server ended the update stream')
-              : new DeephavenRefused('ExportedTableUpdates', Number(said.status), decodeURIComponent(said.message ?? ''));
-          }
-          pending.push(message);
-        }
-      }
-      throw new DeephavenRefused('ExportedTableUpdates', 14, 'the server ended the update stream');
-    } catch (e) {
-      end(e);
-    }
+    const name = `legend-${randomName()}`;
+    await this.call(PUBLISH, fromBase64(await this.ask('publish', { exportId, name })));
+    return name;
   }
 
   /** Sends `plan` and publishes its result under a fresh name, for another session to open (deephaven-live.ts). */
@@ -386,8 +292,6 @@ export class DeephavenSession {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    this.updates?.stop.abort();
-    this.updates = null;
     clearInterval(this.timer);
     await this.call(CLOSE, new Uint8Array());
   }
@@ -439,12 +343,6 @@ export class DeephavenSession {
     if (status !== '0') throw new DeephavenRefused(name, Number(status), decodeURIComponent(why));
     return messages;
   }
-}
-
-/** Who listens to the update stream. */
-interface UpdateListener {
-  readonly onUpdates: (updates: readonly DeephavenUpdate[]) => void;
-  readonly onEnd: (why: unknown) => void;
 }
 
 /** A trailer frame's status and message (gRPC-web's trailers: `key: value` lines), each null when it has none. */

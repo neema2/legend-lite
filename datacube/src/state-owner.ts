@@ -72,7 +72,9 @@ export type StateEvent<V> =
   | { readonly kind: 'presentation'; readonly moved: boolean }
   /** `moved`: an undo or a redo was part of the change refused (a change made on top of one in flight). */
   | { readonly kind: 'refused'; readonly error: unknown; readonly reverted: readonly string[]; readonly moved: boolean }
-  | { readonly kind: 'cancelled'; readonly reverted: readonly string[] };
+  | { readonly kind: 'cancelled'; readonly reverted: readonly string[] }
+  /** The committed state run again as it is (`rerun`: the rows behind its view changed): a view, and no change. */
+  | { readonly kind: 'ticked'; readonly view: V };
 
 export interface OwnerOptions {
   /** How many undo steps are kept (Settings > Max History Stack Size). */
@@ -420,6 +422,32 @@ export class StateOwner<S, V> {
     this.#represent();
     this.#emit({ kind: 'presentation', moved: false });
     return { kind: 'applied' };
+  }
+
+  /**
+   * THE VIEW ON SCREEN RUN AGAIN, AS IT IS: the rows behind it changed (a live source ticked), its state did not. The
+   * committed state is run with no pending state, no history step and nothing busy -- no person did anything, so there
+   * is nothing to show in flight, undo or revert -- and its view replaces the one on screen (`ticked`). A change made
+   * meanwhile wins: the run is `superseded` and its view dropped; so is one asked for while a change is in flight or
+   * before any view is shown. A refusal is returned, not said: the view on screen stays, and its caller decides.
+   */
+  async rerun(): Promise<StateOutcome<V>> {
+    if (this.#pending !== null || this.#view === null) return { kind: 'superseded' };
+    const state = this.#committed;
+    const seq = this.#seq;
+    let out: V | Stale;
+    try {
+      out = await this.#run(state);
+    } catch (error) {
+      if (this.#seq !== seq || this.#pending !== null) return { kind: 'superseded' };
+      return { kind: 'refused', error, reverted: [] };
+    }
+    if (isStale(out) || this.#seq !== seq || this.#pending !== null || this.#committed !== state) {
+      return { kind: 'superseded' };
+    }
+    this.#view = out;
+    this.#emit({ kind: 'ticked', view: out });
+    return { kind: 'applied', view: out };
   }
 
   async #transact(next: S, label: string, record: boolean, move?: Move): Promise<StateOutcome<V>> {

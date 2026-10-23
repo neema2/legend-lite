@@ -33,7 +33,8 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>With {@code -Dembedded.deephaven.application=$(rlocationpath <an .app file>)}, the server runs the Deephaven
  * application that file defines (its start-up script, beside it) every time it starts: a demo's data, seeded again by
- * every restart.
+ * every restart. {@code -Dembedded.deephaven.cycleMs} sets its update cycle (100 ms unless given): a tick
+ * benchmark's knob.
  *
  * <p>As a program ({@link #main}), for a browser test's driver: it prints one JSON line, the server's URL, key and
  * certificate, then runs until its input closes; a {@code restart} line restarts the server (on the same port, with the
@@ -141,7 +142,8 @@ public final class EmbeddedDeephaven implements AutoCloseable {
                 "-Dssl.identity.type=privatekey",
                 "-Dssl.identity.certChainPath=" + data.resolve("cert.pem"),
                 "-Dssl.identity.privateKeyPath=" + data.resolve("key.pem"),
-                "-DPeriodicUpdateGraph.targetCycleDurationMillis=100"));
+                "-DPeriodicUpdateGraph.targetCycleDurationMillis="
+                        + Integer.getInteger("embedded.deephaven.cycleMs", 100)));
         if (application != null) {
             command.add("-Ddeephaven.application.dir=" + application);
         }

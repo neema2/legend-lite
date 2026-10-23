@@ -12,7 +12,9 @@ import { decoderFor, type ArrowishVector, type Decode } from './duckdb.ts';
 import { QueryError, type RawTable } from './engine.ts';
 import type { Plan } from './relation-type.ts';
 import type { ResultTable, Scalar } from './result.ts';
-import { decimalText, exactInteger } from './values.ts';
+import { familyOf, hasTimeOfDay, isBoolean, isDay, isFractional, isNumeric, isTimeOfDay } from './types.ts';
+import { decimalText, exactInteger, timeText, timestampText } from './values.ts';
+import type { FollowedRows } from './deephaven-live.ts';
 
 /** An Arrow IPC stream of a Deephaven result as its columns and values, untyped: the plan types them (`byPosition`). */
 export function deephavenRows(stream: Uint8Array, epoch: number, elapsedMs: number): RawTable {
@@ -83,4 +85,66 @@ export function byPosition(raw: RawTable, plan: Plan): ResultTable {
       return { name: p.name, type: p.type, values: c.values };
     }),
   };
+}
+
+/**
+ * A followed table's rows (deephaven-live.ts: Deephaven's JS library's values) as a planned query's result, each value
+ * exactly as values.ts writes it -- the same as the Arrow rows of the same table (`deephavenRows`) -- by the plan's type
+ * of its column: a 64-bit integer, an instant's nanoseconds, a decimal and a big integer from the library's own exact
+ * text, a date its calendar day, a time of day from its parts. Named and typed by the plan by position (`byPosition`).
+ */
+export function followedTable(rows: FollowedRows, plan: Plan, epoch: number, elapsedMs: number): ResultTable {
+  const columns = rows.columns.map((name, c) => {
+    const type = plan.columns[c]?.type;
+    const values = rows.values[c] ?? [];
+    return { name, values: type === undefined ? values.map(() => null) : values.map((v) => followedValue(v, type, name)) };
+  });
+  const rowCount = rows.values[0]?.length ?? 0;
+  return byPosition({ columns, rowCount, epoch, elapsedMs }, plan);
+}
+
+/**
+ * One of the library's values as the Scalar values.ts writes for a column of the plan's `type` -- by the type's family
+ * (types.ts, the one reader) and the value's own form: a whole number from its exact digits (an int a number, a long the
+ * library's wrapper); a fractional one a number where Deephaven holds a double and exact text where it holds a
+ * BigDecimal (the wrapper), as the Arrow rows of the same column are; an instant from its nanoseconds; a day its text; a
+ * time of day from its parts. A value the type does not hold is refused, never shown as something else.
+ */
+export function followedValue(v: unknown, type: string, column: string): Scalar {
+  if (v === null || v === undefined) return null;
+  const refused = (): Error =>
+    new Error(`the Deephaven column '${column}' (${type}) holds ${typeof v} ${String(v)}, which the tab does not read`);
+  if (familyOf(type) === 'text') {
+    if (typeof v === 'string') return v;
+    throw refused();
+  }
+  if (isBoolean(type)) {
+    if (typeof v === 'boolean') return v;
+    throw refused();
+  }
+  if (isNumeric(type)) {
+    if (!isFractional(type)) return exactInteger(BigInt(String(v)));
+    return typeof v === 'number' ? v : javaDecimal(String(v));
+  }
+  if (hasTimeOfDay(type)) return timestampText(BigInt(String(v)) / 1000n);
+  if (isDay(type)) {
+    if (/^-?\d{4,}-\d{2}-\d{2}$/.test(String(v))) return String(v);
+    throw refused();
+  }
+  if (isTimeOfDay(type)) {
+    const t = v as { getHour?(): number; getMinute?(): number; getSecond?(): number; getNano?(): number };
+    if (!t.getHour || !t.getMinute || !t.getSecond || !t.getNano) throw refused();
+    const seconds = (BigInt(t.getHour()) * 60n + BigInt(t.getMinute())) * 60n + BigInt(t.getSecond());
+    return timeText(seconds * 1_000_000n + BigInt(t.getNano()) / 1000n);
+  }
+  throw refused();
+}
+
+/** Java's BigDecimal text (`12.345`, `-1E+3`, `1.5E-7`) as exact decimal text. */
+function javaDecimal(text: string): string {
+  const m = /^(-?)(\d+)(?:\.(\d+))?(?:E([+-]?\d+))?$/.exec(text);
+  if (!m) throw new Error(`'${text}' is not a decimal`);
+  const fraction = m[3] ?? '';
+  const unscaled = BigInt(`${m[1]}${m[2]}${fraction}`);
+  return decimalText(unscaled, fraction.length - Number(m[4] ?? 0));
 }
