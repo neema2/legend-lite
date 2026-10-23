@@ -119,6 +119,13 @@ export class DeephavenSession {
     };
   }
 
+  /** One call that keeps the session's token fresh; it throws when the server no longer answers this session (a
+   *  restart: Deephaven keeps no session across one). */
+  async ping(): Promise<void> {
+    this.open();
+    await this.call(CONFIG, new Uint8Array());
+  }
+
   /** Ends the session: the server releases every table it holds. */
   async close(): Promise<void> {
     if (this.closed) return;

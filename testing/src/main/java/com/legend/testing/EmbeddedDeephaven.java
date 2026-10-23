@@ -31,24 +31,34 @@ import java.util.concurrent.TimeUnit;
  * server reads; a browser told to accept it is the test's. Its Groovy console is on, so a test seeds its tables the
  * way a person would, and only here: a deployment turns it off (DH21).
  *
+ * <p>With {@code -Dembedded.deephaven.application=$(rlocationpath <an .app file>)}, the server runs the Deephaven
+ * application that file defines (its start-up script, beside it) every time it starts: a demo's data, seeded again by
+ * every restart.
+ *
  * <p>As a program ({@link #main}), for a browser test's driver: it prints one JSON line, the server's URL, key and
- * certificate, then runs until its input closes.
+ * certificate, then runs until its input closes; a {@code restart} line restarts the server (on the same port, with the
+ * same key and certificate) and prints {@code {"restarted": true}} once it is back.
  */
 public final class EmbeddedDeephaven implements AutoCloseable {
 
     /** The authentication handler a session signs in with, its token {@link #psk()}. */
     public static final String PSK_HANDLER = "io.deephaven.authentication.psk.PskAuthenticationHandler";
 
+    private final Path root;
     private final Path data;
     private final String psk;
     private final int port;
-    private final Process server;
+    private final Path application;
+    private Process server;
 
-    private EmbeddedDeephaven(Path data, String psk, int port, Process server) {
+    private EmbeddedDeephaven(Path root, Path data, String psk, int port, Path application)
+            throws IOException {
+        this.root = root;
         this.data = data;
         this.psk = psk;
         this.port = port;
-        this.server = server;
+        this.application = application;
+        this.server = launch();
     }
 
     /** The server's HTTPS origin. */
@@ -94,14 +104,24 @@ public final class EmbeddedDeephaven implements AutoCloseable {
             try (ServerSocket s = new ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress())) {
                 port = s.getLocalPort();
             }
-            return new EmbeddedDeephaven(data, psk, port, launch(root, data, psk, port));
+            String app = System.getProperty("embedded.deephaven.application");
+            Path application = app == null ? null : Runfile.of(app).toRealPath().getParent();
+            return new EmbeddedDeephaven(root, data, psk, port, application);
         } catch (IOException e) {
             throw new IllegalStateException("the embedded Deephaven did not start: " + e.getMessage(), e);
         }
     }
 
-    private static Process launch(Path root, Path data, String psk, int port) throws IOException {
+    /** Stops the server and starts it again, on the same port with the same key and certificate; Deephaven keeps
+     *  nothing across it, and its application seeds again. */
+    public void restart() throws IOException {
+        stop();
+        server = launch();
+    }
+
+    private Process launch() throws IOException {
         Path log = data.resolve("server.log");
+        Files.deleteIfExists(log);
         String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         Path etc = root.resolve("etc");
         List<String> command = new ArrayList<>(List.of(java, "-server", "-Xmx1g",
@@ -121,8 +141,11 @@ public final class EmbeddedDeephaven implements AutoCloseable {
                 "-Dssl.identity.type=privatekey",
                 "-Dssl.identity.certChainPath=" + data.resolve("cert.pem"),
                 "-Dssl.identity.privateKeyPath=" + data.resolve("key.pem"),
-                "-DPeriodicUpdateGraph.targetCycleDurationMillis=100",
-                "-cp", root.resolve("lib") + "/*", "io.deephaven.server.jetty.JettyMain"));
+                "-DPeriodicUpdateGraph.targetCycleDurationMillis=100"));
+        if (application != null) {
+            command.add("-Ddeephaven.application.dir=" + application);
+        }
+        command.addAll(List.of("-cp", root.resolve("lib") + "/*", "io.deephaven.server.jetty.JettyMain"));
         ProcessBuilder pb = new ProcessBuilder(command).redirectErrorStream(true)
                 .redirectOutput(ProcessBuilder.Redirect.appendTo(log.toFile()));
         pb.environment().remove("JAVA_TOOL_OPTIONS");
@@ -203,6 +226,10 @@ public final class EmbeddedDeephaven implements AutoCloseable {
 
     @Override
     public void close() {
+        stop();
+    }
+
+    private void stop() {
         if (server.isAlive()) {
             server.destroy();
             try {
@@ -223,8 +250,14 @@ public final class EmbeddedDeephaven implements AutoCloseable {
             System.out.println("{\"url\": \"" + dh.url() + "\", \"psk\": \"" + dh.psk() + "\", \"certificate\": \""
                     + dh.certificate().toString().replace("\\", "\\\\") + "\"}");
             System.out.flush();
-            while (System.in.read() >= 0) {
-                // until the driver closes our input
+            java.io.BufferedReader in = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(System.in, StandardCharsets.UTF_8));
+            for (String line; (line = in.readLine()) != null; ) {
+                if (line.trim().equals("restart")) {
+                    dh.restart();
+                    System.out.println("{\"restarted\": true}");
+                    System.out.flush();
+                }
             }
         }
     }

@@ -1,6 +1,6 @@
 # Deephaven as a database of legend-lite: the design (2026-10-22, revised)
 
-**Status: L1, L2 and L3b built (their branches, §9); the rest PROPOSED.** Revised the same day on the user's ruling:
+**Status: L1, L2, L3b and D0 built (their branches, §9); the rest PROPOSED.** Revised the same day on the user's ruling:
 **Deephaven is just another backend.** A user builds a `###Relational` store, mappings and classes, and everything
 works: the Relation API straight on the store's tables, `project()` over class navigation. No store of its own, no
 table kinds. The first version of this document (a `###Deephaven` store with source and input tables,
@@ -284,7 +284,7 @@ publisher replaces the demo's seeding once they do. Stacked branches, no PR unti
 | L2 | `claude/deephaven-2-target` (on L1 merged with the MongoDB branch, whose dialect hooks a non-SQL target uses) | `sql/dialect/Deephaven.java` (`SqlDialect` whole), designed against the IR DataCube's 14 query shapes actually lower to, then class queries through mappings; **a parameter as a one-row table joined in** (a formula reads its column; no value is ever written into formula text, DH5); DDL as input tables (DH15); a column type (§3), a schema or a name the server cannot hold refused by name; every other IR node, function and aggregate refused by name; unit tests on the plan text, as `MongoDbDialectTest` | the dialect's tests; every existing lane's dump unchanged |
 | B0 | scratch (measured 2026-10-23, below) | **the browser check**: a page served by another site posts a plan to Deephaven over HTTPS, publishes it, opens it with `dh-core.js` and watches it tick | done |
 | L3b | `claude/deephaven-3-browser` (on L2), **built 2026-10-23** | **the browser route (DH21)**: the encoder (DH11, DH22) beside the target, its field table checked against Deephaven's message definitions; the target and the encoder in the WebAssembly planner; the tab's sender (post the bytes, publish, refresh the session, release on close) and the subscription through `dh-core.js`; the pinned test server (HTTPS, a test certificate) | the encoder's tests against Deephaven's own definitions; the browser cases in headless Chromium against the pinned server: L2's 18 shapes give DuckDB's rows, and a live one ticks |
-| D0 | a demo module (on L3b) | **the first demo**: the store, classes and mappings of §7; reference data and the simulator as a **Deephaven startup script** (marked temporary: lite's modelled publisher replaces it, L5); a **restart watcher** that re-seeds after a Deephaven restart and tells subscribers; **a plain live-grid page** in the browser (the planner, the sender, `dh-core.js`; no server in the middle) standing in for DataCube | a ticking grid whose values agree with DuckDB's over the same inputs; a restart survived |
+| D0 | `claude/deephaven-3-browser` (on L3b), **built 2026-10-23** | **the first demo**: the store, classes and mappings of §7; reference data and the simulator as a **Deephaven startup script** (marked temporary: lite's modelled publisher replaces it, L5); a **restart watcher** that re-seeds after a Deephaven restart and tells subscribers; **a plain live-grid page** in the browser (the planner, the sender, `dh-core.js`; no server in the middle) standing in for DataCube | a ticking grid whose values agree with DuckDB's over the same inputs; a restart survived |
 | L3s | `claude/deephaven-3-server` (on L3b, merged with the Mongo branch, whose connector seam it uses) | **the server-side sender**: the same encoder over the JDK's HTTP client (no jar), found through `ServiceLoader`; `rows` over Arrow Flight with lite's own Arrow reader, `subscribe` with its handle, creating tables, the schema check (DH16), the missing-table refusal (DH19); `DeephavenBackend`; the guards' additive lines, each dated | lite's own Deephaven cases, answered on DuckDB and on Deephaven and compared row for row; then the PCT lanes, as every database's |
 | W | `claude/cypher-writes` reaching `main` (the Cypher writes line's landing, its owner's call) | §6: the four verbs, staging, class writes, write plans | its own gates |
 | Wr | on main after W (built here, reviewed by the Cypher writes line) | the relation slot: a parameter whose value is typed rows, staged by the runner (§6's gap) | its own tests on DuckDB, H2, Postgres |
@@ -323,6 +323,17 @@ run of the same route gave DuckDB's rows on all eighteen shapes over 200 rows. F
 a data segment's address as an unsigned LEB128 that WebAssembly reads signed, which broke the planner's module once
 its static data passed 1 MiB (`tools/teavm/SegmentOffsets` rewrites it, `//tools/teavm:segment_offsets_test`); a
 shared name lives as long as the export it was published from, and the server refuses to release the name itself.
+
+**D0, built (2026-10-23):** `bazel run //datacube:deephaven_demo` serves the live risk page (`datacube/demo/deephaven/`) and
+the pinned Deephaven running its start-up script (`risk.groovy`, marked temporary: 40 instruments, 8 books, 400
+positions, three currencies, prices re-quoted ten times a second). The page plans the risk view (four keyed left joins,
+a market value, a grouping by desk and sector) with the WebAssembly planner, sends it, streams it, and after a
+Deephaven restart dims the last rows, says Deephaven is not answering, and comes back by itself (the start-up script
+seeds again). Its judge, `//datacube:deephaven_demo_test` (manual, in `//gates:heavy`): sixteen desk and sector rows,
+each with the seeding's own number of positions, worked out by the test from the same formulas; the values tick; the
+page sees a restart and comes back with the same positions; screenshots of each stage are its outputs. Not yet in it:
+a comparison of the market values with DuckDB's over a frozen copy of the prices, and class queries through mappings
+(the store's tables are queried directly).
 
 **Before internal users rely on it:** the firm's counsel reviews the deployment against the Deephaven Community
 License (this line's reading, `experiments/deephaven-spike/README.md`, is not legal advice).

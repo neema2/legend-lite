@@ -346,6 +346,8 @@ test_suite(
         # the tab's planner, sender and watch against the server, no server of lite's between; manual until a per-push
         # lane for it is the user's call (its server is a 270 MB download)
         "//datacube:deephaven_test",
+        # the live risk demo (D0, 2026-10-23): it ticks, it is the seeding's, it survives a Deephaven restart
+        "//datacube:deephaven_demo_test",
         # the five PCT suites on the embedded MongoDB 8.0, channel A through the plan path (docs/MONGODB_PLAN_2026_10_16.md
         # §6, 2026-10-17)
         "//pct:pct_mongodb",

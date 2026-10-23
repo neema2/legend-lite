@@ -1877,6 +1877,8 @@ build_test(
         ":make_link_dictionary",
         ":serve",
         ":verify_app",
+        # the live risk demo's hand tool (bazel run //datacube:deephaven_demo, 2026-10-23)
+        ":deephaven_demo",
     ],
 )
 
@@ -1947,4 +1949,102 @@ browser_test(
         "DEEPHAVEN_PAGE": "$(rlocationpath :deephaven_page)",
         "PLANNER": "$(rlocationpaths //wasm:planner)",
     },
+)
+
+# THE LIVE RISK DEMO (docs/DEEPHAVEN_PLAN_2026_10_22.md D0, 2026-10-23): a plain page standing in for DataCube until its
+# ticking mode lands (L4). The browser plans the risk view with //wasm:planner, sends it straight to the pinned
+# Deephaven and streams the grid, and comes back by itself after Deephaven restarts; the reference data and the price
+# simulator are Deephaven's start-up script (demo/deephaven/risk.groovy, marked temporary: lite's modelled publisher
+# replaces it, L5). `bazel run //datacube:deephaven_demo` serves it by hand; :deephaven_demo_test checks it.
+esbuild_bundle(
+    name = "deephaven_demo_bundle",
+    testonly = True,
+    srcs = [
+        "demo/deephaven/page.ts",
+        "//engine-client:engine_client",
+    ],
+    outs = ["demo/deephaven/risk.js"],
+    args = [
+        "demo/deephaven/page.ts",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--log-level=warning",
+        "--external:./wasm-gc-module-runtime.js",
+        "--outfile=demo/deephaven/risk.js",
+    ],
+)
+
+# the demo's Deephaven (//testing EmbeddedDeephaven) running the demo's application: prints its URL and key once it has
+# started, restarts on a `restart` line, and runs until its stdin closes
+legend_java_binary(
+    name = "deephaven_demo_fixture",
+    testonly = True,
+    data = [
+        "demo/deephaven/risk.app",
+        "demo/deephaven/risk.groovy",
+        "@embedded_deephaven//:deephaven",
+        "@embedded_deephaven//:deephaven/DEEPHAVEN_ROOT",
+    ],
+    jvm_flags = [
+        "-Dembedded.deephaven.root=$(rlocationpath @embedded_deephaven//:deephaven/DEEPHAVEN_ROOT)",
+        "-Dembedded.deephaven.application=$(rlocationpath demo/deephaven/risk.app)",
+    ],
+    main_class = "com.legend.testing.EmbeddedDeephaven",
+    runtime_deps = ["//testing"],
+)
+
+executable_of(
+    name = "deephaven_demo_fixture_executable",
+    testonly = True,
+    binary = ":deephaven_demo_fixture",
+)
+
+_DEEPHAVEN_DEMO_DATA = [
+    "demo/deephaven/index.html",
+    # the binary for its runfiles (the server's jars and Java, the application), its executable to start it by
+    ":deephaven_demo_bundle",
+    ":deephaven_demo_fixture",
+    ":deephaven_demo_fixture_executable",
+    "//wasm:planner",
+]
+
+_DEEPHAVEN_DEMO_ENV = {
+    "DEEPHAVEN_FIXTURE": "$(rlocationpath :deephaven_demo_fixture_executable)",
+    "DEMO_BUNDLE": "$(rlocationpath :deephaven_demo_bundle)",
+    "DEMO_PAGE": "$(rlocationpath demo/deephaven/index.html)",
+    "PLANNER": "$(rlocationpaths //wasm:planner)",
+}
+
+# `bazel run //datacube:deephaven_demo`: the demo by hand, its address printed (a hand tool: manual, built by
+# :tools_build_test)
+js_binary(
+    name = "deephaven_demo",
+    testonly = True,
+    data = _DEEPHAVEN_DEMO_DATA + [
+        "demo/deephaven/serve.mjs",
+        "//tools/js:runfiles",
+    ],
+    entry_point = "demo/deephaven/serve.mjs",
+    env = _DEEPHAVEN_DEMO_ENV,
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+    tags = ["manual"],
+)
+
+# the demo in the pinned Chromium: it ticks, its positions per desk and sector are the seeding's, and it comes back by
+# itself after Deephaven restarts; screenshots of each stage are its outputs. In //gates:heavy until a per-push lane
+# for it is the user's call (its server is a 270 MB download).
+browser_test(
+    name = "deephaven_demo_test",
+    size = "medium",
+    tags = ["manual"],
+    data = _DEEPHAVEN_DEMO_DATA + [
+        "test/deephaven/demo.mjs",
+        ":node_modules/playwright",
+    ],
+    entry_point = "test/deephaven/demo.mjs",
+    env = _DEEPHAVEN_DEMO_ENV,
 )
