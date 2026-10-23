@@ -180,7 +180,8 @@ public final class Snowflake extends AnsiSqlRenderer {
      * (a to-many hoist nests lambdas and walls here); the substring start clamp (a negative start counts from the
      * end here); a select-list UNNEST as a lateral FLATTEN; a constant GROUP BY or ORDER BY key as a typed
      * expression (Snowflake reads an integer one as a position); an EXISTS one row decides, without its subquery
-     * (ExistsOverOneRow); a LEFT JOIN condition's conjunct that holds a
+     * (ExistsOverOneRow); a WHERE's NOT EXISTS of the IQ island's NOT IN or ALL as its ALL (NotExistsAsAll); a LEFT JOIN
+     * condition's conjunct that holds a
      * subquery and reads only the null-supplying side, as that side's filter (OuterJoinSubqueryFilters: Snowflake
      * evaluates a subquery predicate in a WHERE alone); a scalar subquery's chain of derived tables that
      * only pass one column up, collapsed, so its correlation is its own WHERE's (ScalarSubqueriesFlattened); a
@@ -192,7 +193,7 @@ public final class Snowflake extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
-                new ConstantKeysAsExpressions(), new ExistsOverOneRow(), new OuterJoinSubqueryFilters(true),
+                new ConstantKeysAsExpressions(), new ExistsOverOneRow(), new NotExistsAsAll(), new OuterJoinSubqueryFilters(true),
                 new ScalarSubqueriesFlattened(),
                 new ScalarSubqueriesAggregated(), new RootNumericTypes());
     }
