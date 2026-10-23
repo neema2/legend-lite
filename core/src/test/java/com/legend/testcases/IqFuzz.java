@@ -55,6 +55,19 @@ public final class IqFuzz {
             return with + body("(" + p + ")") + " " + op + " " + body("(" + q + ")");
         }
 
+        /** NoREC's two counts of the rows where {@code p} holds (the IQ scale program, P2.2): in a WHERE, as the
+         *  island filters, and in the select list, as it computes a CASE; the two must agree. */
+        public String countWhere(String p) {
+            return with + "SELECT COUNT(*) AS n FROM " + from + " WHERE " + (where == null ? "(" + p + ")"
+                    : "(" + where + ") AND (" + p + ")");
+        }
+
+        /** {@link #countWhere}'s other count: {@code COUNT(CASE WHEN p THEN 1 END)} over the shape's rows. */
+        public String countCase(String p) {
+            return with + "SELECT COUNT(CASE WHEN " + p + " THEN 1 END) AS n FROM " + from
+                    + (where == null ? "" : " WHERE " + where);
+        }
+
         /** This query's distinct rows where {@code p}. */
         public String distinct(String p) {
             return with + "SELECT DISTINCT " + body("(" + p + ")").substring("SELECT ".length());

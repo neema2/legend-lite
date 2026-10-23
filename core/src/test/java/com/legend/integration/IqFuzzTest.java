@@ -35,7 +35,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li><b>no database error</b>: SQL the island sends DuckDB runs, unless the island raises IQ's error there by name
  *       (an overflow past a type, D-N3's known divergence, is counted apart);</li>
  *   <li><b>ternary logic partitioning</b> (SQLancer's TLP): a query's rows are, as a multiset, its rows where a
- *       predicate holds, where it fails, and where it is unknown.</li>
+ *       predicate holds, where it fails, and where it is unknown;</li>
+ *   <li><b>the set identities</b>: DISTINCT, UNION, INTERSECT and EXCEPT [ALL] against the shape's rows;</li>
+ *   <li><b>NoREC</b> (SQLancer's): the rows where a predicate holds, counted by a WHERE and by a CASE in the select
+ *       list, are as many.</li>
  * </ul>
  *
  * A finding replays from its seed. Manual ({@code //core:iq_fuzz_test}): {@code -Diq.fuzz.seed} (default 1),
@@ -90,6 +93,9 @@ class IqFuzzTest {
                         shape.where("NOT (" + p + ")"), shape.where("(" + p + ") IS UNKNOWN"), complex,
                         shape.partitions(p)));
                 sqls.addAll(setQueries(shape, p, p2));
+                // NoREC (13, 14): the predicate counted where the island filters and where it computes a CASE
+                sqls.add(shape.countWhere(p));
+                sqls.add(shape.countCase(p));
                 List<Outcome> outcomes = new ArrayList<>();
                 for (int q = 0; q < sqls.size(); q++) {
                     String sql = sqls.get(q);
@@ -115,6 +121,13 @@ class IqFuzzTest {
                     }
                 }
                 found += setIdentities(outcomes, sqls, s, profile.startsWith("sqla17"), findings);
+                if (outcomes.get(13).kind().equals("ROWS") && outcomes.get(14).kind().equals("ROWS")
+                        && !outcomes.get(13).rows().equals(outcomes.get(14).rows())) {
+                    found++;
+                    findings.append(s).append("\tNOREC\t").append(sqls.get(14)).append('\t').append("WHERE counts ")
+                            .append(outcomes.get(13).rows()).append(", the CASE ").append(outcomes.get(14).rows())
+                            .append('\n');
+                }
                 if (outcomes.subList(0, 4).stream().allMatch(o -> o.kind().equals("ROWS"))) {
                     partitioned++;
                     List<String> whole = sorted(outcomes.get(0).rows());
