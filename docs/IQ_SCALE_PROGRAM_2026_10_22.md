@@ -506,3 +506,4 @@ says so.
   (measured on IQ 17.1), so its partitions ran in the front end and the shape alone in IQ's engine, where a DATEADD
   of a DATE is a DATE (the front end's a TIMESTAMP). The TLP check now skips a predicate that reads GREATER or LESSER
   where the shape does not.
+  - The round's rerun with the check corrected: 803 partitioned, no finding.
