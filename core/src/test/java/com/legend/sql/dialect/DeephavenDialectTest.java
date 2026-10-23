@@ -19,8 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The Deephaven target's text (docs/DEEPHAVEN_PLAN_2026_10_22.md L2): a query the one compiler lowers renders a batch
  * of Deephaven's table operations, each reading earlier ones by their place; what has no shape yet is refused by name.
- * The query is lowered for a DuckDB runtime (lowering knows no target) and written by the Deephaven dialect: the
- * planner reaches Deephaven itself once its connector and test backend land (L3).
+ * The query is lowered for a DuckDB runtime (lowering knows no target) and written by the Deephaven dialect; the
+ * planner reaches the same target for a Deephaven runtime (DH21: the platform plans, the browser tab sends).
  */
 class DeephavenDialectTest {
 
@@ -60,6 +60,17 @@ class DeephavenDialectTest {
 
     private static String ticket(String name) {
         return Base64.getEncoder().encodeToString(("s/" + name).getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void aQueryOnADeephavenRuntimeIsPlannedAsDeephavensTableOperations() {
+        String deephaven = MODEL.replace("type: DuckDB;\n  specification: DuckDB { };\n  auth: Test;",
+                "type: Deephaven;\n  specification: Deephaven { host: 'localhost'; port: 8443; useTls: true; };\n"
+                        + "  auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };");
+        assertTrue(deephaven.contains("type: Deephaven;"), deephaven);
+        String query = "#>{risk::Ref.trades}#->groupBy(~[desk], ~[total:x|$x.notional:y|$y->sum()])->sort(~desk->ascending())";
+        String planned = Compiler.query(Compiler.compileModel(deephaven), query).plan("risk::RT").sql();
+        assertEquals(batch(query), planned);
     }
 
     @Test

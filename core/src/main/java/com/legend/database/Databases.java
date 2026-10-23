@@ -44,9 +44,21 @@ public final class Databases {
     /** Every database the platform executes on: those {@link #dialect} gives a dialect, in the declared type's order
      *  (the dialect program's Phase 6, 2026-10-16: tests and tools iterate it instead of listing databases by hand). */
     public static java.util.List<DatabaseType> implemented() {
+        return executedBy(Runs.PLATFORM);
+    }
+
+    /** Every database the platform plans for and a HOST executes on, in the declared type's order: the plan is the
+     *  platform's, running it the embedding host's (Deephaven: the browser tab sends the plan to the server itself,
+     *  docs/DEEPHAVEN_PLAN_2026_10_22.md DH21, 2026-10-23). Never among {@link #implemented}: no session of the
+     *  platform's opens on one (its connector refuses by name) and no test backend runs one. */
+    public static java.util.List<DatabaseType> hostExecuted() {
+        return executedBy(Runs.HOST);
+    }
+
+    private static java.util.List<DatabaseType> executedBy(Runs who) {
         java.util.List<DatabaseType> out = new java.util.ArrayList<>();
         for (DatabaseType type : DatabaseType.values()) {
-            if (executes(type)) {
+            if (runs(type) == who) {
                 out.add(type);
             }
         }
@@ -59,13 +71,19 @@ public final class Databases {
         return implemented().stream().filter(t -> dialect(t).relational()).toList();
     }
 
-    /** Whether the platform executes on {@code type}: {@link #dialect} gives it one (a test holds the two together). */
-    private static boolean executes(DatabaseType type) {
+    /** Who runs a plan for a database: the platform's own sessions, the host that embeds the planner, or nobody yet. */
+    private enum Runs { PLATFORM, HOST, NONE }
+
+    /** Who executes on {@code type}: {@link #dialect} gives one exactly when someone does (a test holds the two
+     *  together). */
+    private static Runs runs(DatabaseType type) {
         return switch (type) {
             case DuckDB, H2, Postgres, Databricks, Snowflake, BigQuery, SQLite, MariaDB, MySQL, Trino,
-                 ClickHouse, MongoDB -> true;
+                 ClickHouse, MongoDB -> Runs.PLATFORM;
+            // the browser tab sends a Deephaven plan to the server itself (DH21); a server-side sender is L3s's
+            case Deephaven -> Runs.HOST;
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto, Redshift, Spanner, Athena, Oracle,
-                 Aurora, Deephaven -> false;
+                 Aurora -> Runs.NONE;
         };
     }
 
@@ -91,9 +109,10 @@ public final class Databases {
             case ClickHouse -> new com.legend.sql.dialect.ClickHouse();
             // docs/MONGODB_PLAN_2026_10_16.md (D1, D2): the aggregation pipeline as the one compiler's target
             case MongoDB -> new com.legend.sql.dialect.MongoDb();
-            // Deephaven: modelled first, its target (table operations, not SQL) next (docs/DEEPHAVEN_PLAN_2026_10_22.md)
+            // docs/DEEPHAVEN_PLAN_2026_10_22.md (DH1, DH21): Deephaven's table operations, planned here, sent by the tab
+            case Deephaven -> new com.legend.sql.dialect.Deephaven();
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto,
-                 Redshift, Spanner, Athena, Oracle, Aurora, Deephaven ->
+                 Redshift, Spanner, Athena, Oracle, Aurora ->
                     throw new com.legend.error.NotImplementedException(
                             "SQL dialect for database type '" + type + "' is not implemented yet");
         };

@@ -39,7 +39,13 @@ class TestBackendsTest {
                 // no dialect: not implemented
             }
         }
-        assertEquals(withDialect, Set.copyOf(Databases.implemented()));
+        // a host-executed database has a dialect too: the platform plans it, the embedding host runs it (2026-10-23,
+        // docs/DEEPHAVEN_PLAN_2026_10_22.md DH21: Deephaven's plans are sent by the browser tab)
+        Set<DatabaseType> planned = new HashSet<>(Databases.implemented());
+        for (DatabaseType type : Databases.hostExecuted()) {
+            assertTrue(planned.add(type), type + " is both executed by the platform and by a host");
+        }
+        assertEquals(withDialect, planned);
     }
 
     @Test

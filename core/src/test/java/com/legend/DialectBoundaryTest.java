@@ -112,7 +112,9 @@ class DialectBoundaryTest {
             // 12 -> 14 (2026-10-16, the dialect program's Phase 6): which types the platform executes on
             // (Databases.implemented, which tests and tools iterate instead of listing databases), one arm each way
             // 14 -> 15 (2026-10-22, main's merge): MongoDB executes (the branch's MongoDB line, 2026-10-17), one arm
-            "Databases.java", 15,           // the owner: a declared type's dialect
+            // 15 -> 17 (2026-10-23, docs/DEEPHAVEN_PLAN_2026_10_22.md DH21): Deephaven's dialect arm, and its arm in who
+            // executes a plan (a host: the browser tab)
+            "Databases.java", 17,           // the owner: a declared type's dialect
             // Sessions.java 24 -> 0, row deleted, and StorelessRuntime.java 5 -> 0, row deleted (2026-10-16, the
             // dialect program's Phase 5): each type's product name, URL, opening and storeless declaration are its
             // connector's; Connectors is the registry, one arm per type, as Databases is the dialects'
@@ -176,7 +178,9 @@ class DialectBoundaryTest {
             // counted 7; it names all eleven now
             // 11 -> 12 (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D2 and D4): the MongoDb target, a dialect class
             // like the others, constructed by the owner for the MongoDB type
-            "Databases.java", 12,
+            // 12 -> 13 (2026-10-23, docs/DEEPHAVEN_PLAN_2026_10_22.md DH1, DH21): the Deephaven target, constructed by
+            // the owner for the Deephaven type, and named by the census below
+            "Databases.java", 13,
             "EngineText.java", 5);          // legend-engine's text printers, root layer only (invariant 4d)
 
     /** Lines spelling a JDBC URL, by file: only a database's connector opens it (C3b; connectors since 2026-10-16). */
@@ -191,7 +195,7 @@ class DialectBoundaryTest {
     void eachDatabaseDecisionHasOneOwner() throws IOException {
         assertEquals(new TreeMap<>(DIALECT_CONSTRUCTIONS),
                 census(Pattern.compile("\\bnew\\s+(com\\.legend\\.sql\\.dialect\\.)?(H2|H2Modern|DuckDb|Postgres"
-                        + "|SQLite|Databricks|Snowflake|BigQuery|MariaDb|MySql|Trino|ClickHouse|MongoDb"
+                        + "|SQLite|Databricks|Snowflake|BigQuery|MariaDb|MySql|Trino|ClickHouse|MongoDb|Deephaven"
                         + "|AnsiSqlRenderer|EngineStyleH2|EngineStyleDB2|EngineStyleComposite)\\s*\\(")),
                 "a dialect constructed outside its owner — ask com.legend.database.Databases (the SQL a"
                         + " query runs) or com.legend.EngineText (legend-engine's golden text)");
