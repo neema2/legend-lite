@@ -3216,3 +3216,30 @@ every lane; then core, the corpus, the deletion.
   - the resolver's: `resolver/Substitution.java` (a collection's drop, take or slice over values substitutes in
     object space), and, in the ninety-ninth landing, `resolver/ClassWrites.java` (an embedded property's
     sub-property written as the column its mapping reads it from, the rows' column `p.sub`).
+
+## A fourteenth line, 2026-10-21: the stress corpus plan (the user's ask, rule 5)
+
+The user asked to start the stress corpus plan (`docs/STRESS_CORPUS_PLAN_2026_10_19.md`) and took its five decisions
+(its "Decisions": D1 to D5). Under D1 its Phase 0 takes over the Bazel program's Exec-2 (the old P3-25, the stress
+corpus through legend-engine as a Bazel tool and a manual test), which no clone holds as a draft, so it is rewritten.
+Status lives in the plan's Progress table (rule 0b.16).
+- **Branches (the user, 2026-10-23):** `stress_test/report` holds the plan and the feature report (with the report's
+  tools); `stress_test/corpus` holds the changes to the corpus and its tools, built on `main`, and never the plan or
+  the report. Until the report lands, the plan's path cited here and in the corpus's files is on `stress_test/report`.
+- **Owned for the line's length:**
+  - `scripts/corpus/` (the generators, the oracle, the engine run `run.py`, `changed.py`, `quarantine.py`)
+  - `core/src/test/resources/stress/` (the generated files, and the hand-written packs the phases add)
+  - `core/stress.bzl`, `tools/wrongrows/`, `docs/stress-corpus-feature-report-2026-09-29/tools/`
+  - the corpus's docs: `docs/RUNNING_THE_CORPUS.md`, `docs/UPSTREAM_FINDINGS.md` (F59 added 2026-10-21)
+  - the stress suites' `MIN_PASS` (`StressServiceSuitesTest`, `StressServiceSuitesH2Test`), moved per phase with a
+    dated note
+- **Cross-area, Phase 0 (announced here before it lands):**
+  - `tools/engine-runner/` (the Bazel program's): `TestableMain` runs testables one at a time and gains `@<file>`
+    arguments, `--report=` and `--limit=`; the smoke test gains a fixture that executes; `:testable` is visible to
+    `//scripts/corpus`. No output line the probes read changes.
+  - `tools/engine-runner/`: after every testable `TestableMain` closes legend-engine's connection pools
+    (`ConnectionStateManager.clearAllConnections()`, as legend-engine's own test helpers do); left open, each later
+    test's data setup slowed (F59).
+  - `gates/BUILD.bazel` and `docs/GATES.md` (the Bazel program's): `//scripts/corpus:engine_stress` in `heavy`,
+    `:changed_test` and `:run_test` in `checks`, `:tools_build_test` in `core`.
+  - `docs/build-inventory/program/PHASE_8.md`: Exec-2's row, taken over.

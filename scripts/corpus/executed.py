@@ -170,7 +170,7 @@ def _spec_touches(c: model.Corpus, spec) -> tuple[set[str], set[tuple[str, str]]
     to be PROJECTED to be executed, not merely to live on a class some service reads:
     hier::Issuer carries a Binding transformer and is read by H_Issuer, which does not
     project it -- so counting the class alone reported the Binding as executed while the
-    only service that projects one is quarantined under F27.
+    only service that projects one was quarantined under F27 (fixed upstream by 4.145.0).
     """
     classes, props = {spec.root}, set()
     for p in getattr(spec, "projections", []):

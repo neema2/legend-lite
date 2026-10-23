@@ -57,6 +57,23 @@ class RunnerSmokeTest {
     }
 
     @Test
+    void testableRunsAServiceAndReportsEachTestByTestable() throws Exception {
+        // the arguments from a file (a whole corpus overflows Windows' command line), the verdicts to --report
+        Path dir = java.nio.file.Files.createTempDirectory("testable-report");
+        Path args = dir.resolve("args.txt");
+        Path report = dir.resolve("report.tsv");
+        java.nio.file.Files.write(args, List.of(Runfile.property("runner.smoke.service").toString(),
+                "--testable=smoke::Rich"));
+        Run r = run("runner.testable", "@" + args, "--report=" + report);
+        assertEquals(0, r.exit(), r.out());
+        // status, testable, suite, test, the testable's millis, and a detail only an ERROR or a HUNG carries
+        assertEquals(List.of("FAIL\tsmoke::Rich\trich_suite\twrong\t", "PASS\tsmoke::Rich\trich_suite\tright\t"),
+                java.nio.file.Files.readAllLines(report).stream()
+                        .map(line -> line.replaceFirst("\t\\d+\t", "\t"))
+                        .sorted().toList(), r.out());
+    }
+
+    @Test
     void anEmptyRunIsRefusedNotGreen() throws Exception {
         // a directory holding no .pure file: zero fixtures is not a green run
         Path empty = java.nio.file.Files.createTempDirectory("no-fixtures");

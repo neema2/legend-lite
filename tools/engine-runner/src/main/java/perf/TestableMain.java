@@ -51,7 +51,16 @@ public class TestableMain
         // elements of the same path (a damaged ###Data element in place of the seed);
         // the seed files are never edited. Several allowed; later ones win.
         List<String> dataOverrides = new ArrayList<>();
-        for (String a : args)
+        // --report=<file>: one line per test, `status \t testable \t suite \t test \t millis \t detail` (the testable's
+        // millis, all its tests together), written as each testable
+        // finishes, so a caller reads verdicts by testable rather than matching a suite id in the printed text, and
+        // keeps them when the JVM dies (scripts/corpus/run.py). Status PASS, FAIL, ERROR, ROWS, or HUNG (--limit).
+        String report = null;
+        // --limit=<seconds>: a testable still running after this long is reported HUNG and the JVM halts with exit
+        // status 3, so the caller restarts the testables after it. Killing the JVM from outside would lose what it
+        // had not yet written, and on Windows would leave java.exe running after its launcher.
+        long limitSeconds = 0;
+        for (String a : expand(args))
         {
             if (a.startsWith("--testable="))
             {
@@ -69,6 +78,14 @@ public class TestableMain
             else if (a.startsWith("--pmcd-json="))
             {
                 pmcdJson = a.substring("--pmcd-json=".length());
+            }
+            else if (a.startsWith("--report="))
+            {
+                report = a.substring("--report=".length());
+            }
+            else if (a.startsWith("--limit="))
+            {
+                limitSeconds = Long.parseLong(a.substring("--limit=".length()));
             }
             else if (a.startsWith("--dump="))
             {
@@ -105,25 +122,80 @@ public class TestableMain
         PureModel pureModel = Compiler.compile(pmcd, DeploymentMode.TEST, null);
         double compileMs = (System.nanoTime() - t0) / 1e6;
 
-        List<RunTestsTestableInput> inputs = new ArrayList<>();
+        // ONE TESTABLE AT A TIME, each one's verdicts written to the report as it finishes: a testable that hangs or
+        // kills the JVM costs itself, not the testables after it. One that throws out of the framework (a test suite
+        // that fails to initialise did, and took a whole batch's results with it) is an ERROR of its own.
+        java.io.PrintWriter out = report == null ? null
+                : new java.io.PrintWriter(
+                        Files.newBufferedWriter(Cwd.of(report), java.nio.charset.StandardCharsets.UTF_8));
+        java.util.concurrent.ScheduledExecutorService watchdog = java.util.concurrent.Executors
+                .newSingleThreadScheduledExecutor(r ->
+                {
+                    Thread th = new Thread(r, "testable-limit");
+                    th.setDaemon(true);
+                    return th;
+                });
+        TestableRunner runner = new TestableRunner();
+        int[] counts = new int[4];   // passed, failed, errored, total
+        t0 = System.nanoTime();
         for (String t : testables)
         {
             RunTestsTestableInput in = new RunTestsTestableInput();
             in.testable = t;
             in.unitTestIds = new ArrayList<>();
-            inputs.add(in);
+            long limit = limitSeconds;
+            long started = System.nanoTime();
+            java.util.concurrent.ScheduledFuture<?> alarm = limit <= 0 ? null
+                    : watchdog.schedule(() -> hung(t, limit, out), limit, java.util.concurrent.TimeUnit.SECONDS);
+            RunTestsResult res;
+            try
+            {
+                res = runner.doTests(List.of(in), pureModel, pmcd);
+            }
+            catch (Exception | StackOverflowError e)
+            {
+                counts[2]++;
+                counts[3]++;
+                System.out.println("ERROR " + t + "\n      " + oneLine(String.valueOf(e), 400));
+                write(out, "ERROR\t" + t + "\t\t\t" + (System.nanoTime() - started) / 1_000_000 + "\t"
+                        + oneLine(String.valueOf(e), 300).replace('\t', ' '));
+                continue;
+            }
+            finally
+            {
+                if (alarm != null)
+                {
+                    alarm.cancel(false);
+                }
+                // Every test's connection pools closed before the next testable, as legend-engine's own test helpers
+                // do between tests (PureTestHelper, Test_RelationalMFTH2). Left open, the service test runner keeps
+                // one pooled DuckDB connection per test and each later test's data setup slows: measured 2026-10-21,
+                // nine services sharing stress::RT took 2.4 s to 25 s, one after another, and 40 took over 40 minutes.
+                org.finos.legend.engine.plan.execution.stores.relational.connection.ds.state.ConnectionStateManager
+                        .getInstance().clearAllConnections();
+            }
+            long millis = (System.nanoTime() - started) / 1_000_000;
+            for (TestResult r : flatten(res))
+            {
+                counts[3]++;
+                record(r, millis, rowsDir, dumpDir, out, counts);
+            }
         }
-
-        t0 = System.nanoTime();
-        RunTestsResult res = new TestableRunner().doTests(inputs, pureModel, pmcd);
         double runMs = (System.nanoTime() - t0) / 1e6;
+        if (out != null)
+        {
+            out.close();
+        }
+        System.out.printf("%nparse %.0f ms   compile %.0f ms   run %.0f ms%n", parseMs, compileMs, runMs);
+        System.out.printf("%n%d passed, %d failed, %d errored, %d total%n", counts[0], counts[1], counts[2], counts[3]);
+        System.exit(0);
+    }
 
-        int pass = 0, fail = 0, err = 0;
-        System.out.printf("parse %.0f ms   compile %.0f ms   run %.0f ms%n%n", parseMs, compileMs, runMs);
-        // A MultiExecution service returns ONE result per execution KEY, wrapped in a
-        // MultiExecutionServiceTestResult rather than a TestExecuted. Casting blindly
-        // threw a ClassCastException that killed the JVM mid-run, so every service after
-        // it went unreported -- which looked exactly like the runner hanging.
+    /** A MultiExecution service returns ONE result per execution KEY, wrapped in a MultiExecutionServiceTestResult
+     *  rather than a TestExecuted. Casting blindly threw a ClassCastException that killed the JVM mid-run, so every
+     *  service after it went unreported -- which looked exactly like the runner hanging. */
+    static List<TestResult> flatten(RunTestsResult res)
+    {
         List<TestResult> flat = new ArrayList<>();
         for (TestResult r : res.results)
         {
@@ -131,6 +203,7 @@ public class TestableMain
             {
                 m.getKeyIndexedTestResults().forEach((key, inner) ->
                 {
+                    inner.testable = r.testable;
                     inner.testSuiteId = r.testSuiteId;
                     inner.atomicTestId = r.atomicTestId + " [" + key + "]";
                     flat.add(inner);
@@ -141,58 +214,117 @@ public class TestableMain
                 flat.add(r);
             }
         }
+        return flat;
+    }
 
-        for (TestResult r : flat)
+    /** One test's verdict, printed and reported with its testable's time; counts[0..2] are passed, failed, errored. */
+    static void record(TestResult r, long millis, String rowsDir, String dumpDir, java.io.PrintWriter out, int[] counts)
+            throws java.io.IOException
+    {
+        String id = r.testSuiteId + " / " + r.atomicTestId;
+        String row = "\t" + r.testable + "\t" + r.testSuiteId + "\t" + r.atomicTestId + "\t" + millis + "\t";
+        if (r instanceof TestError te)
         {
-            String id = r.testSuiteId + " / " + r.atomicTestId;
-            if (r instanceof TestError te)
+            counts[2]++;
+            System.out.println("ERROR " + id + "\n      " + oneLine(te.error, 400));
+            write(out, "ERROR" + row + oneLine(te.error, 300).replace('\t', ' '));
+            return;
+        }
+        TestExecuted te = (TestExecuted) r;
+        boolean allPass = te.assertStatuses.stream().allMatch(a -> !(a instanceof AssertFail));
+        if (allPass)
+        {
+            counts[0]++;
+            System.out.println("PASS  " + id);
+            write(out, "PASS" + row);
+            return;
+        }
+        if (rowsDir != null)
+        {
+            // the rows mode: every assertion fails by construction; the actual is the point
+            String base = id.replaceAll("[^A-Za-z0-9_.-]", "_");
+            String actual = te.assertStatuses.stream()
+                    .filter(a -> a instanceof EqualToJsonAssertFail)
+                    .map(a -> ((EqualToJsonAssertFail) a).actual)
+                    .findFirst().orElse(null);
+            Files.writeString(Cwd.of(rowsDir, base + ".rows.json"), actual == null ? "null" : actual);
+            System.out.println("ROWS  " + id + "  -> " + base + ".rows.json");
+            write(out, "ROWS" + row);
+            return;
+        }
+        counts[1]++;
+        System.out.println("FAIL  " + id);
+        write(out, "FAIL" + row);
+        for (AssertionStatus a : te.assertStatuses)
+        {
+            if (a instanceof EqualToJsonAssertFail eq)
             {
-                err++;
-                System.out.println("ERROR " + id + "\n      " + oneLine(te.error, 400));
-                continue;
-            }
-            TestExecuted te = (TestExecuted) r;
-            boolean allPass = te.assertStatuses.stream().allMatch(a -> !(a instanceof AssertFail));
-            if (allPass) { pass++; System.out.println("PASS  " + id); continue; }
-            if (rowsDir != null)
-            {
-                // the rows mode: every assertion fails by construction; the actual is the point
-                String base = id.replaceAll("[^A-Za-z0-9_.-]", "_");
-                String actual = te.assertStatuses.stream()
-                        .filter(a -> a instanceof EqualToJsonAssertFail)
-                        .map(a -> ((EqualToJsonAssertFail) a).actual)
-                        .findFirst().orElse(null);
-                Files.writeString(Cwd.of(rowsDir, base + ".rows.json"), actual == null ? "null" : actual);
-                System.out.println("ROWS  " + id + "  -> " + base + ".rows.json");
-                continue;
-            }
-            fail++;
-            System.out.println("FAIL  " + id);
-            for (AssertionStatus a : te.assertStatuses)
-            {
-                if (a instanceof EqualToJsonAssertFail eq)
+                System.out.println("      expected: " + oneLine(eq.expected, 300));
+                System.out.println("      actual  : " + oneLine(eq.actual, 300));
+                if (dumpDir != null)
                 {
-                    System.out.println("      expected: " + oneLine(eq.expected, 300));
-                    System.out.println("      actual  : " + oneLine(eq.actual, 300));
-                    if (dumpDir != null)
-                    {
-                        String base = id.replaceAll("[^A-Za-z0-9_.-]", "_");
-                        Files.writeString(Cwd.of(dumpDir, base + ".expected.json"),
-                                eq.expected == null ? "null" : eq.expected);
-                        Files.writeString(Cwd.of(dumpDir, base + ".actual.json"),
-                                eq.actual == null ? "null" : eq.actual);
-                        System.out.println("      dumped  : " + base + ".{expected,actual}.json");
-                    }
+                    String base = id.replaceAll("[^A-Za-z0-9_.-]", "_");
+                    Files.writeString(Cwd.of(dumpDir, base + ".expected.json"),
+                            eq.expected == null ? "null" : eq.expected);
+                    Files.writeString(Cwd.of(dumpDir, base + ".actual.json"),
+                            eq.actual == null ? "null" : eq.actual);
+                    System.out.println("      dumped  : " + base + ".{expected,actual}.json");
                 }
-                else if (a instanceof AssertFail af)
-                {
-                    System.out.println("      " + oneLine(af.message, 300));
-                }
+            }
+            else if (a instanceof AssertFail af)
+            {
+                System.out.println("      " + oneLine(af.message, 300));
             }
         }
-        System.out.printf("%n%d passed, %d failed, %d errored, %d total%n",
-            pass, fail, err, res.results.size());
-        System.exit(0);
+    }
+
+    /** A report line, flushed at once: the watchdog may halt the JVM at any moment. */
+    static void write(java.io.PrintWriter out, String line)
+    {
+        if (out == null)
+        {
+            return;
+        }
+        synchronized (out)
+        {
+            out.println(line);
+            out.flush();
+        }
+    }
+
+    /** The watchdog's alarm: the testable is reported HUNG and the JVM halts, exit status 3. */
+    static void hung(String testable, long limitSeconds, java.io.PrintWriter out)
+    {
+        write(out, "HUNG\t" + testable + "\t\t\t" + limitSeconds * 1000
+                + "\tstill running after " + limitSeconds + " s");
+        System.out.println("HUNG  " + testable + " still running after " + limitSeconds + " s; halting");
+        System.out.flush();
+        Runtime.getRuntime().halt(3);
+    }
+
+    /** The arguments with each {@code @<file>} replaced by that file's lines, one argument per non-blank line: a
+     *  whole corpus and a batch of testables exceed Windows' 32,767-character command line. */
+    static List<String> expand(String[] args) throws java.io.IOException
+    {
+        List<String> out = new ArrayList<>();
+        for (String a : args)
+        {
+            if (a.startsWith("@"))
+            {
+                for (String line : Files.readAllLines(Cwd.of(a.substring(1))))
+                {
+                    if (!line.isBlank())
+                    {
+                        out.add(line.strip());
+                    }
+                }
+            }
+            else
+            {
+                out.add(a);
+            }
+        }
+        return out;
     }
 
     /** The model with every element of {@code over} replacing the element of the same

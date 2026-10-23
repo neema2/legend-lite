@@ -5,14 +5,15 @@ Defects and limitations found by building the L0 asserted corpus
 the smallest source that reproduces it, and each says plainly whether the fault is in
 legend-engine, in legend-lite, or in the corpus itself.
 
-Reproduce any of them with:
+Reproduce any of them with (since 2026-10-21; the Maven-era runner is gone):
 
 ```
-cd tools/engine-runner && mvn -o compile -q
-java -cp target/classes:$(cat cp.txt) perf.TestableMain <files...> [--testable=<fqn>] [--dump=<dir>]
+bazel run //tools/engine-runner:testable -- <files...> [--testable=<fqn>] [--dump=<dir>]   # a repro's own files
+bazel run //scripts/corpus:run -- --only <file of service names> [-v]                     # corpus services, judged
 ```
 
-Engine version: `4.138.2`.
+Engine version when this file was written: `4.138.2`. The corpus now runs at the release `release.MODULE.bazel` pins
+(`4.145.0` on 2026-10-21), the one version every test uses.
 
 **legend-lite's own gaps are executable, not prose.**
 `core/src/test/java/com/legend/integration/LegendLiteGapTest.java` asserts the CURRENT
@@ -1911,7 +1912,41 @@ legend-pure's m4 `DateFunctions` defines the time units as elapsed time with the
 counting boundaries", and `DateDiff` computes `ChronoUnit.between`. legend-engine's relational SQL counts boundaries
 (SQL `DATEDIFF`: 164), as did this repository's corpus oracle until 2026-10-05; legend-lite answers 163. legend-pure's
 PCT cases all start on a unit boundary, where the two rules agree, so no PCT test catches the engine. Five stress
-services show it (their expectations now follow Pure; legend-engine's are in `ENGINE_QUARANTINE`, to be confirmed by
-`run.py`). First noted as a seed disagreement (`docs/plan-audit-2026-09-26/wrongrows/seed-disagreements-2026-09-30.md`);
+services show it (their expectations now follow Pure; legend-engine's are in `ENGINE_QUARANTINE`, and `run.py`
+confirmed all five failing on 4.145.0 on 2026-10-21). First noted as a seed disagreement (`docs/plan-audit-2026-09-26/wrongrows/seed-disagreements-2026-09-30.md`);
 found decisive 2026-10-05 when the cross-engine differential first ran (Bazel workplan P3-18). Repro:
 `repro/datediff-hours-off-boundary/`. Upstream: a PCT case starting off the boundary would pin it for every engine.
+
+## F59 — The service test runner keeps every test's pooled connection, and each later test's data setup slows
+
+Not a wrong answer: a cost, found 2026-10-21 when the corpus first ran through the Bazel launcher (`run.py`, the
+improvement plan's Phase 0). legend-engine 4.145.0's `TestableRunner`, run over many services in one JVM, keeps one
+pooled DuckDB connection per test. After 2 and then 9 services sharing `stress::RT`, a heap histogram held one Hikari
+pool with 3 and then 10 `PoolEntry`s, and 108 and then 237 `DuckDBPreparedStatement`s. The test-data setup, which runs
+when a test takes its connection (`DuckDBDataSourceSpecification.getConnection`), took longer each time: twelve DSDeep
+services took 5.1, 2.4, 3.5, 4.6, 6.9, 8.6, 14.1, 20.4, 25.1, 29.4, 34.1 and 38.4 s, one after another, and a batch of
+40 ran for over 40 minutes. DuckDB alone does not slow: 1,200 setup statements take 0.25 s on a fresh database, on the
+same database twelve times over, and with thirty databases open. legend-engine's own test helpers close the pools
+between tests (`ConnectionStateManager.getInstance().clearAllConnections()`, in `PureTestHelper` and
+`Test_RelationalMFTH2`), and `TestableMain` now does the same after every testable: the same twelve took 1.7 to 4.5 s
+each. The pool is also what `run.py`'s batches of 40 worked around (`Connection is not available, request timed out
+after 30001ms (total=100)`). Repro: delete the `clearAllConnections()` call in
+`tools/engine-runner/src/main/java/perf/TestableMain.java` and run those twelve services
+(`DSDeep_RequestForInformation` to `DSDeep_RiskAppetiteMetric` in `94-fanout-services.pure`).
+
+## F60 — On Windows, legend-engine's DuckDB `cbrt` is one ulp from the true cube root
+
+Found 2026-10-21 by the corpus's first full engine run on Windows (the improvement plan's Phase 0). Three combination
+cells (`stress::CB_C0`, `CB_C2`, `CB_C4`, in `98-combination-execution.pure`) project `cbrt` of the seeded Float
+`324.99999999999994` (`COMBO_ROOT.R_F_NN1`, row `CR-0004`). The true cube root is 6.875344335370704653, 0.011 ulp
+below the double `6.875344335370705` (`0x1.b805a43f49fc7p+2`). That double is the correctly rounded result, and it is
+what the oracle (`exactmath.cbrt`) and Java's `Math.cbrt` both return. legend-engine 4.145.0 on DuckDB returns the
+next double up, `6.8753443353707056` (`…fc8`), 1.01 ulp from the true value, so its exact `EqualToJson` fails. Every
+other cell of those rows matches. DuckDB called directly on this Windows x64 desk returns `…fc8` too, in both 1.3.0.0
+(the engine runner's) and 1.4.4 (lite's), as does Python's `math.cbrt`: this is the platform C library's `cbrt`,
+which `exactmath`'s header already names as not correctly rounded on glibc. lite returns the same `…fc8` and passes
+only under its one declared Float leniency (two doubles within 2 ulp, `Equality.withinTwoUlp`). Not quarantined:
+`quarantine.py` judges one list on every platform, and the three were never quarantined, so presumably they pass
+where the engine runs on a correctly rounded `cbrt` (the earlier runs were on macOS arm64). How the corpus should
+treat a platform's last-ulp `cbrt` is an open decision (the plan's D6). Repro: `bazel run //scripts/corpus:run --
+--only <a file naming the three>` on Windows.

@@ -224,12 +224,11 @@ ENGINE_QUARANTINE.update({
 # compile time, and F26 records why it cannot be executed. Coverage of a construct and
 # coverage of its semantics are different claims, and this corpus can now make both.
 
-# F27 -- a Binding transformer returns the JSON-ENCODED value, not the decoded one. A
-# String property read out of a JSON payload comes back as "\"sector-001\"" -- quotes and
-# all -- where the value of the key is sector-001. The oracle asserts the decoded string
-# because that is what a String[0..1] property means; the engine disagrees.
-ENGINE_QUARANTINE["stress::H_IssuerBinding"] = (
-    "F27", "Binding returns each value as its raw JSON token, not its declared type")
+# F27 -- a Binding transformer returned the JSON-ENCODED value, not the decoded one: a
+# String property read out of a JSON payload came back as "\"sector-001\"", quotes and all
+# (repro/binding-json-token/, found at 4.138.2). FIXED upstream by 4.145.0: run.py reported
+# stress::H_IssuerBinding FIXED on 2026-10-21 (the stress corpus plan's Phase 0 baseline), so
+# its quarantine entry is gone and the service is an ordinary PASS.
 
 ENGINE_QUARANTINE["stress::G3_UnionTreeWithEnum"] = (
     "F10", "graph fetch RAISES on an unmapped enum code where TDS returns null")
@@ -256,8 +255,9 @@ HANGS = {
 
 # F58 (2026-10-05): dateDiff in HOURS, MINUTES or SECONDS is ELAPSED time with the remainder dropped (legend-pure's
 # m4 DateDiff); legend-engine's relational SQL counts unit boundaries (DATEDIFF), which differs whenever the start is off
-# a boundary. The oracle followed the engine until 2026-10-05; these five services' expectations moved with it. To be
-# confirmed by run.py when it runs again (Bazel workplan P3-25). repro/datediff-hours-off-boundary/
+# a boundary. The oracle followed the engine until 2026-10-05; these five services' expectations moved with it.
+# Confirmed by run.py on 2026-10-21 (legend-engine 4.145.0): all five fail on the engine.
+# repro/datediff-hours-off-boundary/
 for _svc in ("stress::MO2_Confirmations", "stress::DSLocal_MiddleofficeConfirmation", "stress::REGX_All",
              "stress::REGX_LiquidityCoverageReport", "stress::DSLocal_RegulatorySubmission"):
     ENGINE_QUARANTINE[_svc] = ("F58", "dateDiff HOURS counts boundaries in SQL; Pure measures elapsed time")

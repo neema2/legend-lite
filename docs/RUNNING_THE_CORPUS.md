@@ -12,36 +12,32 @@ Some of the 56 are also pulled into the corpus and executed; see
 
 ## Prerequisites
 
-**A JDK 21.** The scripts default to `~/jdk/jdk-21.0.11+10/Contents/Home`; set `JAVA_HOME`
-if yours is elsewhere. Everything shells out to `$JAVA_HOME/bin/java`, so a `java` on `PATH`
-alone is not enough.
+**Bazel.** Since 2026-10-21 the corpus commands are Bazel targets: the engine runner, its JDK
+and its jars (legend-engine at the release `release.MODULE.bazel` pins), and the Python the
+scripts run on all come from the build. Nothing is built by hand, and there is no `cp.txt`.
 
-**Maven, and the runner built once.** `tools/engine-runner` is outside the reactor, so `-pl`
-cannot reach it — use `-f`. Drop `-o` on a cold cache.
+The probes (`scripts/corpus/probe_*.py`) and `scripts/projects/{check,loadtime}.py` still read
+the Maven-era runner (`cp.txt`, `target/classes`, `run.py`'s old `RUNNER` and `JAVA_HOME`),
+so they don't run. Moving them onto `run.py`'s `Engine.launch` is the Bazel workplan's P7-03.
 
-```
-mvn -B -pl core install -DskipTests
-mvn -B -f tools/engine-runner/pom.xml compile
-mvn -B -f tools/engine-runner/pom.xml dependency:build-classpath -Dmdep.outputFile=cp.txt
-```
-
-That last line writes `tools/engine-runner/cp.txt`, an 80 KB list of absolute jar paths. It
-is **gitignored and machine-specific** — regenerate it on any new machine rather than copying
-it, and regenerate it whenever a dependency changes. Every script reads it, and a stale one
-fails as a missing class rather than as a stale classpath.
-
-**Python 3.12+.** No third-party packages: the scripts use only the standard library.
-
-## The two commands
+## The commands
 
 Everything is driven from the repository root.
 
 ```
-python3 scripts/corpus/build.py     # regenerate the corpus from the generators
-python3 scripts/corpus/run.py       # execute it and report
+bazel run //core:update_stress_corpus                    # regenerate the corpus from the generators
+bazel run //scripts/corpus:changed -- --out changed.txt  # the testables that changed against HEAD
+bazel run //scripts/corpus:run -- --only changed.txt     # run those on legend-engine and judge them
+bazel run //scripts/corpus:run -- --jobs 4               # the whole corpus, four JVMs at once
+bazel test //scripts/corpus:engine_stress                # the whole corpus as a sharded test (manual)
 ```
 
-`build.py` is the one that matters. Four files under `stress/` are **generated wholesale**
+`changed` lists every testable when anything other than a service changed: a seed, a mapping
+or a class can change any service's answer. `run` writes `engine-pass.txt` (lite's pass-list
+form), `engine-verdicts.tsv`, `engine-report.tsv` and each JVM's log into `--out`, or into a
+temporary directory it names.
+
+The generators are the part that matters. Four files under `stress/` are **generated wholesale**
 and must never be hand-edited, because the next build overwrites them:
 
 - `94-fanout-services.pure` — every generated service and its expectation (134k lines)
@@ -57,42 +53,34 @@ mapping the runtime cannot resolve, a duplicate set id, a seeded value too wide 
 column, a service that sorts on an unprojected alias. It prints them all and writes nothing
 if any fires. A clean build ends with `wrote` or `no changes`.
 
-`run.py` takes about **an hour** at 4290 testables and `build.py` about **10 minutes**. Those
-follow from the measured costs below -- roughly 0.6s per service plus 9s per JVM -- rather
-than from a fresh stopwatch, so treat them as the right order rather than to the minute. It batches the services across several JVMs, because a single
-process stops working somewhere past ~170 testables. Its last line is the summary:
+The whole corpus takes **88 minutes** with `--jobs 4` on a 20-core Windows desk (measured
+2026-10-21 at 4,735 testables). The run's last line is the summary, which on that day read:
 
 ```
-4661 passed, 28 known-fail (quarantined), 1 not run (hangs), 0 unexpected, 4690 total
+4685 passed, 32 known-fail (quarantined), 1 not run (hangs), 18 unexpected, 4736 total, in 5291 s
 ```
 
-**`0 unexpected` is the only acceptable result.** The other numbers are allowed to move.
+The 18 were 14 JVMs killed by a concurrent Bazel build (all passed alone), legend-engine's fix
+of F27 (`FIXED`; its quarantine entry is now gone) and F60's three `cbrt` cells (the
+improvement plan's D6). **`0 unexpected` is the only acceptable result.** The other numbers
+are allowed to move.
 
 ### Where the time actually goes
 
-Measured on an idle machine, two runs of each, at ~2,290 testables and `BATCH = 40`
-(58 JVMs):
+Measured 2026-10-21, four JVMs at once:
 
-| | | share |
-| --- | --- | --- |
-| per-service execution — 0.61s each | ~23 min at 2294 | 56% |
-| per-JVM fixed — 5.9s parse + 2.8s compile + 3.2s warm-up + start | ~12 min at 58 JVMs | 30% |
-| `build.py`, pure Python, even when it writes nothing | 6.4 min | 15% |
+| | |
+| --- | --- |
+| per testable | about 3 s; a graph fetch up to 24 s (`DSTree_*`), the slowest family |
+| per JVM | 25 s alone, about 50 s beside three others, to parse and compile the corpus (parse is twice compile) |
+| per batch of 200 | 650 to 1,130 s, by family |
+| memory | about 4 GB resident per JVM, under a 6 GB heap |
 
-Measured at 2294 testables and `BATCH = 40`. Both terms are linear, so at 4290 testables and
-108 JVMs the run roughly doubles.
-
-Compile is the SMALLEST piece, at about 7% -- which is worth stating because it is the
-obvious guess and it is wrong. Parse is twice compile here, the reverse of the project graph
-(998ms parse, 2334ms compile in a third of the bytes): the corpus is mostly generated service
-text, wide and shallow, and the graph is dense cross-referenced elements.
-
-The 3.2s warm-up is per JVM, not per seed -- a throwaway one-table model takes 3.3s to run a
-single service, which is the whole intercept and no marginal.
-
-So raising `BATCH` only attacks the 12-minute slice, and walks back toward the ~170 point
-where one JVM stopped working. The 0.61s per service is the block worth attacking, and the
-open question is how much of it is re-creating and re-loading the seed for every suite.
+Until 2026-10-21 each test also paid for every test before it in its JVM: legend-engine's
+service test runner kept every test's pooled DuckDB connection, and each later test's data
+setup slowed (`docs/UPSTREAM_FINDINGS.md`, F59). Nine services sharing `stress::RT` took 2.4 s
+to 25 s, one after another, and a batch of 40 ran for over 40 minutes. The runner now closes
+the pools after every testable, which is also what makes batches of 200 work.
 
 ## The two generated layers
 
@@ -118,7 +106,7 @@ exactly one side of the pair fails and names itself.
 
 ## Reading a failure
 
-`run.py` classifies every service, and the classes mean different things:
+`run.py` classifies every testable, and the classes mean different things:
 
 | verdict | meaning |
 | --- | --- |
@@ -127,29 +115,27 @@ exactly one side of the pair fails and names itself.
 | `REGRESSION` | it failed and is not quarantined — **this is the one to care about** |
 | `ERROR` | it threw rather than returning a wrong answer |
 | `FIXED <Fnn>` | a quarantined service now passes; remove it from `quarantine.py` |
-| `MISSING` | it reported nothing at all |
+| `HUNG` | it was still running after `--limit` (600 s); it needs a repro and a `HANGS` entry |
+| `DIED` | its JVM exited while it ran |
+| `MISSING` | it ran and reported no test |
 
-A wall of `MISSING` almost always means **one** service killed the JVM its batch ran in.
-`run.py` prints `FATAL AT INIT <name>` above them when it can detect this. A service that
-throws during test-suite *initialisation* cannot be quarantined — quarantine excuses a
-failure, and this one never reports one — so it has to be removed from the corpus and its
-defect pinned with a probe under `repro/` instead.
+Since 2026-10-21 the runner takes one testable at a time and reports each as it finishes, so
+one service costs only itself. A service that throws during test-suite *initialisation* is
+an `ERROR` of its own; before, it killed its batch's JVM and left a wall of `MISSING`. After
+a hang or a crash, `run.py` starts a new JVM on the testables after it.
 
 ## Running one service
 
-The full suite is too slow for a debugging loop. To run a handful:
+The full suite is too slow for a debugging loop. To run a handful, list them in a file and:
 
-```python
-# scripts/corpus/one.py — or inline; see the pattern in scripts/corpus/run.py
-import os, subprocess, sys
-sys.path.insert(0, "scripts/corpus")
-import model, run as R
-cp = (R.RUNNER / "cp.txt").read_text().strip()
-files = ([str(f) for f in model.linked_files()]
-         + sorted(str(p) for p in R.STRESS.glob("*.pure")))
-subprocess.run([f"{R.JAVA_HOME}/bin/java", "-cp", f"{R.RUNNER}/target/classes:{cp}",
-                "perf.TestableMain", *files, "--testable=stress::PL2_PillarTenorBand"],
-               env=dict(os.environ, JAVA_HOME=R.JAVA_HOME), cwd=R.RUNNER)
+```
+bazel run //scripts/corpus:run -- --only mine.txt -v      # -v prints every verdict and the JVM's log
+```
+
+or run the runner directly on any files, the linked projects first:
+
+```
+bazel run //tools/engine-runner:testable -- <files...> --testable=stress::PL2_PillarTenorBand --dump=<dir>
 ```
 
 Two things that are easy to get wrong and fail anonymously:

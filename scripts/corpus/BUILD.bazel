@@ -1,4 +1,5 @@
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
@@ -294,6 +295,105 @@ _INVENTORIES = {
     main = gate + ".py",
     deps = [":corpus"],
 ) for gate, docs in _INVENTORIES.items()]
+
+# THE ENGINE VERDICT (Bazel workplan P3-25, Exec-2; docs/STRESS_CORPUS_PLAN_2026_10_19.md Phase 0): the committed
+# corpus through legend-engine at the pinned release (//tools/engine-runner:testable), judged against quarantine.py.
+# `bazel run :run -- --only <file>` runs a batch's services; :engine_stress is the whole corpus, manual and sharded
+# (//gates:heavy): its trigger is a corpus or quarantine change or a legend-engine bump, never a change to lite.
+_ENGINE_DATA = [
+    "//core:src/test/resources/com/legend/integration/stress-layout.json",
+    "//core:stress_files",
+    "//tools/engine-runner:testable",
+] + _LINKED
+
+_ENGINE_ENV = dict(
+    _GATE_ENV,
+    ENGINE_RUNNER = "$(rlocationpath //tools/engine-runner:testable)",
+)
+
+py_library(
+    name = "run_lib",
+    srcs = ["run.py"],
+    imports = ["."],
+    deps = [
+        ":corpus",
+        "@rules_python//python/runfiles",
+    ],
+)
+
+py_binary(
+    name = "run",
+    testonly = True,
+    srcs = ["run.py"],
+    data = _ENGINE_DATA,
+    env = _ENGINE_ENV,
+    # a tool, built when run: //... never builds it
+    tags = ["manual"],
+    deps = [":run_lib"],
+)
+
+# 4,735 testables, every eighth to a shard, in batches of 200, one JVM at a time per shard. Measured 2026-10-21 on a
+# Windows desk with four JVMs at once: about 3 s a testable (graph fetch up to 17 s) and 40 s to parse and compile the
+# corpus, so a shard takes about half of the enormous test's hour. Each JVM holds the compiled corpus (-Xmx6g, about
+# 4 GB resident).
+py_test(
+    name = "engine_stress",
+    size = "enormous",
+    srcs = ["engine_stress.py"],
+    data = _ENGINE_DATA,
+    env = _ENGINE_ENV,
+    main = "engine_stress.py",
+    shard_count = 8,
+    tags = [
+        "manual",
+        "resources:memory:7168",
+    ],
+    deps = [":run_lib"],
+)
+
+# run.py's batch loop over a stand-in JVM: a hang, a crash and a JVM that reports nothing (no engine is run)
+py_test(
+    name = "run_test",
+    size = "small",
+    srcs = ["run_test.py"],
+    data = ["//core:src/test/resources/com/legend/integration/stress-layout.json"],
+    env = _GATE_ENV,
+    main = "run_test.py",
+    deps = [":run_lib"],
+)
+
+# The testables a batch runs on the engine: the services whose text or expected result differs from the committed
+# corpus, or every testable when anything else changed (`bazel run :changed -- --out <file>`, then :run --only). It
+# reads the checkout and git, so it runs only under `bazel run`.
+py_binary(
+    name = "changed",
+    srcs = ["changed.py"],
+    tags = ["manual"],
+    deps = [":corpus"],
+)
+
+py_test(
+    name = "changed_test",
+    size = "small",
+    srcs = [
+        "changed.py",
+        "changed_test.py",
+    ],
+    env = _GATE_ENV,
+    # the test imports changed by bare name, as the corpus modules import each other
+    imports = ["."],
+    main = "changed_test.py",
+)
+
+# the two hand tools above are manual, so a wildcard build leaves them out: this keeps them compiling (PHASE_8.md
+# Gen-5, as //tools/census:tools_build_test)
+build_test(
+    name = "tools_build_test",
+    targets = [
+        ":changed",
+        ":run",
+    ],
+)
 
 # this package's hand-written .pure, for the keyword census (//scripts/parser:keyword_coverage, P2-20)
 filegroup(
