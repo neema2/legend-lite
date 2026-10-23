@@ -199,10 +199,11 @@ says so.
 | Q25 | IQ 16's BIGINT overflow (-158) on Snowflake, whose NUMBER(38) does not overflow (5 runs BUG). The island checks no BIGINT arithmetic itself; under iq17, where IQ answers past 64 bits, DuckDB's overflow is the lane's ERROR and Snowflake passes | P1.2, P3 | a decision (with Q26's): a run SQL Anywhere judges whose only difference is an error Snowflake does not raise | open: the check of 38df46ba reverted (2f40358c), its 3^n growth timed out on Snowflake |
 | Q26 | TOP and START AT compute the items of rows they skip (IQ raises for them); Snowflake evaluates the select list after the limit (3 runs BUG) | P1.2 | the sibling's measurements | open |
 | Q27 | Nested integer division by a column grows exponentially: `it / sm / sm` doubles a level twice on DuckDB (the translator's NULL guard repeats the inner quotient, unmerged where IQ raises for a zero divisor; the zero guard's message copies the dividend) and six times on Snowflake (its exact quotient writes the dividend twice). Needs a common-subexpression hoist (the operand as a computed column) or a single-copy exact quotient for Snowflake (`TRUNC(CAST(a AS NUMBER(38, 19)) / b)`, by its division scale rule, to be measured) | P4, P1.3 | the sibling's measurement for the Snowflake half | open |
+| Q28 | Planning a long UNION ALL grows faster than linearly: 1.9 s at 1,000 branches, 4.0 s at 2,000, 16.6 s at 4,000 (the scale probe at twice its sizes, 2026-10-23) | P4 | a profile | open |
 | Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | open |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
 | Q9 | Unread derived columns dropped | P3.2 | oracle (some answers are committed) | open |
-| Q10 | Balanced UNION and join emission past 1,000 | P4 | — | open |
+| Q10 | Balanced UNION and join emission past 1,000 | P4 | — | the union half done (`BalancedUnions`, 2026-10-23): a UNION ALL of 4,000 runs on DuckDB; joins open |
 | Q11 | The error order's general form | P3.3 | oracle | open |
 | Q12 | PIVOT | P3.4 | oracle | open |
 | Q13 | Q8/Q14's division: a SELECT level for a reread complex column | P3.6 | — (judged by committed TPC-H answers off-repo) | open |
@@ -402,3 +403,12 @@ says so.
     `SNOWFLAKE`, `everyRunPlansForSnowflakeAsForDuckDb`): renamed to the platform and the cloud target
     (`everyRunPlansForTheCloudTargetAsForThePlatform`), the lane's name read from `IqParity.PLATFORM_LANE`. The
     capability matrix is regenerated for `ASCII_CODE`'s `unicode`.
+- 2026-10-23, Q10 (the union half of Q17): **a union of more than 64 branches is written as nested groups**
+  (`BalancedUnions`, a render pass every dialect runs after its own): each group of 64 branches is read through a
+  derived table, `SELECT * FROM (b1 UNION ALL ... b64) AS u1 UNION ALL SELECT * FROM (...) AS u2`, recursively. A
+  database parses a flat chain as a tree as deep as its branches, and DuckDB's depth of 1,000 refused the scale
+  probe's UNION ALL of 2,000. A union, deduplicating or not, is associative, and its columns are its first branch's
+  either way. A derived table rather than a parenthesized set operation, which SQLite does not read.
+  - `BalancedUnionsTest`: 5,000 branches of UNION ALL and of UNION, their rows, on every in-process database.
+  - The scale probe at twice its sizes: UNION ALL of 1,000, 2,000 and 4,000 run (637, 1,274 and 2,548 rows).
+  - Lite's own planning grows faster than the union: 1.9 s, 4.0 s and 16.6 s (Q28).

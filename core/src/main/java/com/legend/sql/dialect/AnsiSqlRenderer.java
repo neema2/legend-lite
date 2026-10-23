@@ -112,7 +112,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      */
     protected abstract java.util.List<com.legend.sql.SqlRewriter> passes();
 
-    /** What {@code render()} runs: this dialect's {@link #passes()}, then the STORED READS LAST
+    /** What {@code render()} runs: this dialect's {@link #passes()}, a long union grouped ({@link BalancedUnions}),
+     *  then the STORED READS LAST
      *  (docs/STORE_TYPES_HOMEWORK_2026_10_02.md, 4.3) -- every source the passes introduced is in
      *  scope, and every reference they built reads what the store holds. One owner, so no
      *  dialect's pass list can leave the reads out. */
@@ -123,6 +124,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             ps.add(new FloatCanonText.Expansion(bindsFloatText()));
         }
         ps.addAll(passes());
+        // a long union as nested groups, which every dialect parses shallow (the IQ scale program's Q10, 2026-10-23)
+        ps.add(new BalancedUnions());
         ps.add(new StoredReads(this::readsStored));
         return java.util.List.copyOf(ps);
     }
