@@ -24,7 +24,6 @@ cause	exp-underflow	EXP's underflow is NULL in IQ 17.1's front end, 0 in SQL Any
 cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is false where no row matches; the internal error -1006000 for ISNULL(LEFT(...)) beside a CASE of SUBSTRING; (IQ island, 2026-10-16) a filter of the null-supplying side of a LEFT JOIN inside a windowed derived table, or an outer join's condition on it, applied below its window functions (a RANK or a COUNT(*) OVER () of the filtered rows)
 cause	pg-double-overflow	a DOUBLE beyond the largest is NULL under IQ's engine, which the island answers; Postgres raises its own float8 overflow before the island's test can read the infinity
 cause	sf-lazy	Snowflake computes a select list's items for the rows TOP, START AT or a DISTINCT TOP keeps only, so IQ's error in a row they drop (a zero divisor) is not raised there, where IQ, SQL Anywhere and DuckDB compute every row's (the IQ scale program, 2026-10-23: the Snowflake lane)
-cause	sf-internal	Snowflake's own internal error 370001 for a correlated scalar subquery over a grouped derived table (a common table expression read in one); its other spellings are to be measured (the IQ scale program, 2026-10-23: the Snowflake lane)
 
 # IQ island, landing 4 (WP1), 2026-10-14: the first snap of the iq17-* runs from the live IQ (161 runs)
 run	lite/m0/bigint_minimum_divided_by_minus_one@iq17-default	D-N3	duckdb,postgres
@@ -81,4 +80,3 @@ run	lite/m1a/double_overflow@iq17-default	pg-double-overflow	postgres
 # alike on Snowflake gained its lane above
 run	lite/corpus_gaps/start_at_skipping_a_raising_row_is_iqs_error@iq17-default	sf-lazy	snowflake
 run	lite/corpus_gaps/top_computes_a_distincts_items_for_every_row@iq17-default	sf-lazy	snowflake
-run	lite/cte/a_cte_in_a_scalar_subquery@iq17-default	sf-internal	snowflake

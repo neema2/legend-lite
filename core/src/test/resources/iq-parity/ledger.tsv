@@ -1335,8 +1335,8 @@ lite/cte/a_cte_in_a_subquery@iq16-default	PASS	PASS	PASS
 lite/cte/a_cte_in_a_subquery@iq17-default	PASS	PASS	PASS
 lite/cte/a_cte_in_exists@iq16-default	PASS	PASS	PASS
 lite/cte/a_cte_in_exists@iq17-default	PASS	PASS	PASS
-lite/cte/a_cte_in_a_scalar_subquery@iq16-default	PASS	PASS	ERROR
-lite/cte/a_cte_in_a_scalar_subquery@iq17-default	PASS	PASS	ERROR
+lite/cte/a_cte_in_a_scalar_subquery@iq16-default	PASS	PASS	PASS
+lite/cte/a_cte_in_a_scalar_subquery@iq17-default	PASS	PASS	PASS
 lite/cte/a_cte_of_a_union@iq16-default	PASS	PASS	PASS
 lite/cte/a_cte_of_a_union@iq17-default	PASS	PASS	PASS
 lite/cte/a_cte_grouped_in_the_query@iq16-default	PASS	PASS	PASS

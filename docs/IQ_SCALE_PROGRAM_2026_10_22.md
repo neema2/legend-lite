@@ -507,3 +507,10 @@ says so.
   of a DATE is a DATE (the front end's a TIMESTAMP). The TLP check now skips a predicate that reads GREATER or LESSER
   where the shape does not.
   - The round's rerun with the check corrected: 803 partitioned, no finding.
+- 2026-10-23, **the Snowflake lane at 476bb731** (the sibling): `cte/a_cte_in_a_scalar_subquery` passes on both
+  profiles (ERROR -> PASS), and nothing else moved. 5,984 runs pass on both; no run passes on DuckDB and errs on
+  Snowflake any longer. The ledger's snowflake column and the divergences follow (the `sf-internal` cause is gone).
+  16 runs still differ from the duckdb column: 5 iq17 BIGINT overflows Snowflake answers as IQ 17.1 does, 3 refused
+  by name, 2 listed iq17 runs (`sf-lazy`), and 6 runs SQL Anywhere judges that wait on the user's decision (the five
+  iq16 BIGINT overflows and sqla17's DISTINCT TOP).
+- 2026-10-23, **fuzz round 13** (seed 13, 2,000 shapes, `iq17-odbc`): 30,000 queries, 1,814 partitioned, no finding.
