@@ -23,8 +23,24 @@ import java.util.Set;
  * an outer join's condition only in such a conjunct, beside a condition of a column, {@code ON u.t_id > 0 AND u.id =
  * (SELECT MAX(id) FROM u)}). Only conjuncts holding a scalar subquery move; a right side that is a table or a subselect
  * keeps its alias, inside and out.
+ *
+ * <p>Snowflake evaluates an EXISTS, IN or quantified subquery only in a WHERE clause (its documented subquery
+ * positions; the IQ scale program's Snowflake lane, 2026-10-23: "Unsupported subquery type cannot be evaluated" for
+ * {@code ON u.t_id = t.id AND u.t_id IN (SELECT id FROM g)}), so its dialect moves a conjunct holding a subquery of
+ * any kind ({@link #anySubquery}), and one that is the whole condition too, leaving {@code ON TRUE}.
  */
 final class OuterJoinSubqueryFilters extends SqlRewriter {
+
+    /** Whether a conjunct holding any subquery moves (Snowflake), or one holding a scalar subquery only (DuckDB). */
+    private final boolean anySubquery;
+
+    OuterJoinSubqueryFilters() {
+        this(false);
+    }
+
+    OuterJoinSubqueryFilters(boolean anySubquery) {
+        this.anySubquery = anySubquery;
+    }
 
     @Override
     protected SqlQuery select(SqlSelect s) {
@@ -33,7 +49,7 @@ final class OuterJoinSubqueryFilters extends SqlRewriter {
                 s.having(), s.qualify(), s.orderBy(), s.limit(), s.offset(), s.outputs());
     }
 
-    private static SqlSource moved(SqlSource source) {
+    private SqlSource moved(SqlSource source) {
         if (!(source instanceof SqlSource.Join j)) {
             return source;
         }
@@ -49,9 +65,12 @@ final class OuterJoinSubqueryFilters extends SqlRewriter {
             List<SqlExpr> kept = new ArrayList<>();
             List<SqlExpr> filters = new ArrayList<>();
             for (SqlExpr c : conjuncts) {
-                (holdsScalarSubquery(c) && !readsAny(c, leftAliases) ? filters : kept).add(c);
+                (holdsSubquery(c) && !readsAny(c, leftAliases) ? filters : kept).add(c);
             }
-            if (!filters.isEmpty() && !kept.isEmpty()) {
+            if (!filters.isEmpty() && (!kept.isEmpty() || anySubquery)) {
+                if (kept.isEmpty()) {
+                    kept.add(new SqlExpr.BoolLit(true));
+                }
                 SqlSelect filtered = new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Star(null), null,
                         null)), false, right, and(filters), List.of(), null, null, List.of(), null, null,
                         right.outputs());
@@ -89,12 +108,13 @@ final class OuterJoinSubqueryFilters extends SqlRewriter {
         return out;
     }
 
-    private static boolean holdsScalarSubquery(SqlExpr e) {
+    private boolean holdsSubquery(SqlExpr e) {
         boolean[] found = {false};
         new Walk() {
             @Override
             protected SqlExpr expr(SqlExpr x) {
-                found[0] |= x instanceof SqlExpr.ScalarSubquery;
+                found[0] |= x instanceof SqlExpr.ScalarSubquery || anySubquery && (x instanceof SqlExpr.Exists
+                        || x instanceof SqlExpr.InSubquery || x instanceof SqlExpr.Quantified);
                 return x;
             }
         }.run(e);
