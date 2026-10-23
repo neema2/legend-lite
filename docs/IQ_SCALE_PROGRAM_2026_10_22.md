@@ -196,7 +196,7 @@ says so.
 | Q19 | Core's DuckDB 1.4.4 → 1.5.x: 1.4.4 loses rows from a UNION ALL nested in a UNION ALL under parallel execution (slice 3's log). Latent for the islands: lite's lowering writes a nested UNION ALL as one flat union, and the fuzzer's nested-union partition check (3,000 shapes) found no loss. Another shape that nests a union inside a union would meet it | P1 | the build line's DuckDB bump, the user's call | proposed |
 | Q20 | The fuzzer's set operations: nested and parenthesized UNION, UNION ALL, INTERSECT, EXCEPT, so that Q19's class is reached by the generator | P2 | — | done: nested set operations of every kind, and the set identities (DISTINCT, UNION, INTERSECT/EXCEPT [ALL]) over every shape |
 | Q24 | Snowflake's correlated subqueries: a correlation two derived tables down, a scalar subquery of no aggregate, and lite's NOT EXISTS forms of NOT IN and ALL are "Unsupported subquery type" there (59 runs), and a COUNT read through the nesting is NULL for no row | P1.2 | the sibling's measurements | open |
-| Q25 | IQ 16's BIGINT overflow (-158) on Snowflake, whose NUMBER(38) does not overflow (5 runs BUG). The island checks no BIGINT arithmetic itself; under iq17, where IQ answers past 64 bits, DuckDB's overflow is the lane's ERROR and Snowflake passes | P1.2, P3 | a decision: checks on every BIGINT operation for Snowflake's sake | open; the iq17 half stays as it is (slice 4's log) |
+| Q25 | IQ 16's BIGINT overflow (-158) on Snowflake, whose NUMBER(38) does not overflow (5 runs BUG). The island checks no BIGINT arithmetic itself; under iq17, where IQ answers past 64 bits, DuckDB's overflow is the lane's ERROR and Snowflake passes | P1.2, P3 | — | done (38df46ba): a BIGINT result is checked on every database; fuzz round 4's counts unchanged |
 | Q26 | TOP and START AT compute the items of rows they skip (IQ raises for them); Snowflake evaluates the select list after the limit (3 runs BUG) | P1.2 | the sibling's measurements | open |
 | Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | open |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
@@ -328,3 +328,20 @@ says so.
       START AT, pass-through derived tables and outer-only conjuncts are unnested.
   - **Fuzz round 6** (seed 6, `iq16-default`, 1,500 shapes: 19,500 queries, 1,406 partitioned): no finding. Every
     profile family has a clean round now.
+  - **The rerun at b799442a:** PASS -> ERROR 37 to 6, PASS -> PASS 5,980. Of the rest, a run SQL Anywhere judges may not
+    diverge (the guard file's rule), so each is fixed or refused by name:
+    - **Q25, done:** a BIGINT result past its range is checked on every database (`checkedInteger`). DuckDB and Postgres
+      raised their own overflow, while Snowflake's NUMBER(38) answered SQL Anywhere's -158. Fuzz round 4, rerun with
+      the check, is unchanged: 9,528 refused, 16,421 answered, no new refusal for size.
+    - `RedundantNullGuards`: a WHERE's `IS NOT NULL` of a column it compares is dropped. The outer column's guard
+      kept the correlated ALL from Snowflake.
+    - `SnowflakeSubqueryRefusals`, by name: the island's NOT IN read outside a WHERE's condition, and a correlated
+      scalar subquery of a row limit (SQL Anywhere's TOP in a subquery).
+    - Open, a decision: `top_computes_a_distincts_items_for_every_row@sqla17`. Snowflake computes a DISTINCT TOP's
+      items for the rows it keeps only, so SQL Anywhere's -628 in a row the limit drops is not raised.
+  - **An independent review of the passes** (a fresh agent, given the code, not the reasoning) confirmed three bugs,
+    each fixed and pinned in `SnowflakeSubqueryPassesTest`:
+    - a column read beside an ungrouped aggregate was flattened into a row per source row;
+    - a FROM-less explosion (sa_rowgenerator's) was taken as one row, so `NOT EXISTS (SELECT * FROM sa_rowgenerator(5,
+      1))` was NOT TRUE;
+    - a HUGEINT literal past 38 digits was rounded to a DOUBLE. It is now refused by name.
