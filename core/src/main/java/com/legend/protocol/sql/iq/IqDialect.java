@@ -6467,8 +6467,8 @@ public final class IqDialect implements InputDialect {
     /**
      * An integer operation's translation: strict in its operands (each widened to 64 bits unless it is a constant or
      * already wide), checked against {@code type}'s range unless {@code lo..hi} (the range its operands allow) lies in
-     * it. A BIGINT result is not checked: the database computes it in 64 bits and raises its own overflow first --
-     * but over a value it may compute wider ({@link IqType#wider}, IQ island, 2026-10-14, review 5's B1).
+     * it. A BIGINT result is checked too (the IQ scale program, 2026-10-23): DuckDB and Postgres compute it in 64 bits
+     * and raise their own overflow first, but Snowflake computes integers in NUMBER(38).
      * <ul>
      *   <li>A result that can only leave the range is IQ's error now when every operand is a constant
      *       ({@code constant}: literals, signs and arithmetic of literals, never NULL), as IQ folds one; otherwise
@@ -6512,7 +6512,11 @@ public final class IqDialect implements InputDialect {
         for (IqType t : types) {
             loose |= t.wider();
         }
-        boolean check = leaves && (!type.family().equals("BIGINT") || loose);
+        // IQ scale program, 2026-10-23 (the Snowflake lane): a BIGINT past its range is the error a database's own
+        // 64-bit overflow raised for it, but Snowflake computes integers in NUMBER(38) and raises none (SQL Anywhere's
+        // -158 answered there); so a BIGINT result is checked too, and every database raises alike (IQ's engine
+        // answers a NUMERIC there, D-N3, as no database lite runs on does)
+        boolean check = leaves;
         boolean wide = false;
         List<Boolean> widen = new ArrayList<>();
         for (int i = 0; i < types.size(); i++) {
