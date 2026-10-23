@@ -1639,11 +1639,12 @@ public final class Lowerer {
             verbatimEquality = prevVerbatim;
         }
         Fold.FilterSlot slot = Fold.filterSlot(src, windowRef);
-        // a HAVING would carry an aggregate that reads no column into the predicate's subquery, where no database can
-        // tell whose rows it aggregates: filter the grouped rows from outside, in their order (the IQ scale program,
+        // a HAVING would carry an aggregate or a computed key into the predicate's subquery, where no database binds it
+        // as the grouped select's: filter the grouped rows from outside, in their order (the IQ scale program,
         // 2026-10-22, its fuzzer: GROUP BY v ... MIN(-1) read by an EXISTS was DuckDB's Binder Error; 2026-10-23, an
-        // independent review: only where the subquery reads such an aggregate, and the sort before it kept)
-        boolean carried = slot == Fold.FilterSlot.HAVING && SqlProbes.carriesAggregateOfNoColumn(predicate, src);
+        // independent review: only where the subquery reads such a projection, and the sort before it kept; fuzz round
+        // 10: a key j + 6 read by an EXISTS, "column j must appear in the GROUP BY clause")
+        boolean carried = slot == Fold.FilterSlot.HAVING && SqlProbes.carriesComputedProjection(predicate, src);
         if (carried) {
             slot = Fold.FilterSlot.ISOLATE;
         }

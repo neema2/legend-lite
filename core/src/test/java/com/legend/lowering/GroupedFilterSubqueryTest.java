@@ -25,7 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * whose rows it aggregates (the IQ scale program's fuzzer, 2026-10-22: DuckDB's Binder Error); such a filter reads the
  * grouped rows from outside. An independent review (2026-10-23) found the rule too broad and its isolation dropping
  * the sort: a subquery reading only a group key isolated too, and the rows came back ascending. Now only a subquery
- * holding such an aggregate isolates, and the isolation keeps the sort.
+ * holding such an aggregate, or a computed key (fuzz round 10, 2026-10-23), isolates, and the isolation keeps the
+ * sort.
  */
 class GroupedFilterSubqueryTest {
 
@@ -73,7 +74,7 @@ class GroupedFilterSubqueryTest {
                 st.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, BT INTEGER)");
                 st.execute("CREATE TABLE U (ID INTEGER PRIMARY KEY, T_ID INTEGER)");
                 st.execute("INSERT INTO T VALUES (1, 10), (2, 20), (3, 10), (4, 30), (5, 30), (6, 30)");
-                st.execute("INSERT INTO U VALUES (2, 1), (3, 3), (9, 9)");
+                st.execute("INSERT INTO U VALUES (2, 1), (3, 3), (9, 9), (16, 0), (36, 0)");
             }
             // the subquery reads a group key alone: the HAVING form, the sort kept (the review's input)
             String byKey = "|#>{g::db.T}#->groupBy(~ID, ~c: x|1 : y|$y->count())->sort(~ID->descending())"
@@ -90,6 +91,16 @@ class GroupedFilterSubqueryTest {
                     + plan);
             assertEquals(List.of(List.of(30L, 3L), List.of(10L, 2L)), run(conn, backend, byCount),
                     backend + ": the groups whose count is a U id, in the sort's order");
+            // the subquery reads a computed key: from outside, the sort kept (fuzz round 10, 2026-10-23: in HAVING,
+            // DuckDB's "column BT must appear in the GROUP BY clause")
+            String byComputedKey = "|#>{g::db.T}#->extend(~k:x|$x.BT->toOne() + 6)"
+                    + "->groupBy(~k, ~c: x|$x.ID : y|$y->count())->sort(~k->descending())"
+                    + "->filter(r|#>{g::db.U}#->filter(u|$u.ID == $r.k)->isNotEmpty())";
+            plan = sql(backend, byComputedKey);
+            assertTrue(!plan.contains("HAVING") && orderedOutermost(plan), backend + ": no HAVING, the sort kept\n"
+                    + plan);
+            assertEquals(List.of(List.of(36L, 3L), List.of(16L, 2L)), run(conn, backend, byComputedKey),
+                    backend + ": the groups whose key is a U id, in the sort's order");
         }
     }
 }

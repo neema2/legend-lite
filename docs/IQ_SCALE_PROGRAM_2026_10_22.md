@@ -471,3 +471,11 @@ says so.
   3. **Snowflake's scale-19 quotient of a HUGEINT operand** (a SUM of BIGINTs) can pass the 19 integer digits
      NUMBER(38, 19) holds: such an operand keeps the remainder form (`SnowflakeIqScaleTest`).
   - Checked and found sound: `IqDialect.checked`'s engine and branches, `Fold.sourceColumn`, `ConstantAggregateOrder`.
+- 2026-10-23, **fuzz round 10** (seed 10, 2,000 shapes, `sqla17-default`): 30,000 queries, 1,203 partitioned, one
+  DBERROR (5 queries of one shape), fixed. A grouped derived table whose key is computed (`x2.j + 6`) filtered by an
+  EXISTS reading the key was folded into HAVING, carrying `j + 6` into the subquery, where DuckDB binds no grouped
+  expression ("column j must appear in the GROUP BY clause"). The review's narrowing of the isolation (fix 1 above)
+  had exposed it: the broad rule had isolated this query by chance. The probe
+  (`SqlProbes.carriesComputedProjection`) now isolates for any grouped projection that is no plain column, an
+  aggregate or a computed key; `GroupedFilterSubqueryTest` pins a computed key under a sort. The round's rerun: no
+  finding.

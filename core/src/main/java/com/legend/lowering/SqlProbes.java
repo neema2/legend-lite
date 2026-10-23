@@ -62,15 +62,20 @@ final class SqlProbes {
         return hit[0];
     }
 
-    /** Whether a subquery of {@code predicate} holds one of {@code grouped}'s aggregates that read no column: a HAVING
-     *  fold carried it there, where no database can tell whose rows it aggregates (DuckDB: "Aggregate with only constant
-     *  parameters has to be bound in the root subquery"; Postgres binds it to the subquery's own rows; the IQ scale
-     *  program, 2026-10-22: its fuzzer's grouped derived tables read by a correlated subquery). A subquery reading only
-     *  group keys keeps its HAVING (an independent review, 2026-10-23); one with an aggregate of its own equal to such a
-     *  projection isolates too, which costs a subselect, never an answer. */
-    static boolean carriesAggregateOfNoColumn(SqlExpr predicate, SqlSelect grouped) {
+    /** Whether a subquery of {@code predicate} holds one of {@code grouped}'s projections that is no plain column (an
+     *  aggregate, a computed group key), which a HAVING fold carried there. An aggregate that reads no column is one no
+     *  database can tell whose rows it aggregates (DuckDB: "Aggregate with only constant parameters has to be bound in
+     *  the root subquery"; Postgres binds it to the subquery's own rows; the IQ scale program, 2026-10-22: its fuzzer's
+     *  grouped derived tables read by a correlated subquery); a computed key's columns read in a subquery are not the
+     *  grouped expression (DuckDB: "column j must appear in the GROUP BY clause", fuzz round 10, 2026-10-23, a key
+     *  j + 6). A subquery reading only plain group keys keeps its HAVING (an independent review, 2026-10-23); one with
+     *  an expression of its own equal to such a projection isolates too, which costs a subselect, never an answer. */
+    static boolean carriesComputedProjection(SqlExpr predicate, SqlSelect grouped) {
         java.util.Set<SqlExpr> carried = new java.util.HashSet<>();
         for (SqlSelect.Projection p : grouped.projections()) {
+            if (!(p.expr() instanceof SqlExpr.Column)) {
+                carried.add(p.expr());
+            }
             aggregatesOfNoColumn(p.expr(), carried);
         }
         if (carried.isEmpty()) {
