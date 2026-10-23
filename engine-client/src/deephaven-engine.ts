@@ -7,7 +7,7 @@
 // -- so the grid runs again with no query sent and no row fetched: `execute` answers a followed plan from its live
 // rows, and `onLive` says at once that one changed.
 
-import type { DeephavenPlanner, DeephavenServer, DeephavenSessionOptions, HeldResult } from './deephaven.ts';
+import type { DeephavenPlanner, DeephavenServer, DeephavenSessionOptions, KeptResult } from './deephaven.ts';
 import { DeephavenSession } from './deephaven.ts';
 import { LiveClient, type DhModule, type Followed } from './deephaven-live.ts';
 import { byPosition, deephavenRows, followedTable } from './deephaven-rows.ts';
@@ -105,18 +105,18 @@ export class DeephavenEngine implements QueryEngine {
     }
     const started = performance.now();
     const session = this.#session;
-    let held: HeldResult;
+    let kept: KeptResult;
     try {
-      held = await session.hold(plan.sql);
+      kept = await session.keepAlive(plan.sql);
     } catch (e) {
       throw new QueryError(e instanceof Error ? e.message : String(e), plan.sql, { cause: e });
     }
     try {
       if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-      const stream = await session.rows(held.exportId);
+      const stream = await session.rows(kept.exportId);
       this.#counts.queries++;
-      this.#counts.planned += held.ops;
-      this.#counts.sent += held.sent;
+      this.#counts.planned += kept.ops;
+      this.#counts.sent += kept.sent;
       this.#counts.fetched++;
       let raw: RawTable;
       try {
@@ -126,7 +126,7 @@ export class DeephavenEngine implements QueryEngine {
       }
       return { ...byPosition(raw, plan), receipt: this.#receipt() };
     } finally {
-      held.release();
+      kept.release();
     }
   }
 
@@ -167,9 +167,9 @@ export class DeephavenEngine implements QueryEngine {
     const f: Following = { table: null, stop: null, stopped: false };
     this.#following.set(plan.sql, f);
     const session = this.#session;
-    const held = await session.hold(plan.sql);
+    const kept = await session.keepAlive(plan.sql);
     try {
-      const name = await session.publishHeld(held.exportId);
+      const name = await session.publishKept(kept.exportId);
       const followed: Followed = await (await this.#liveClient()).follow(name, (rows) => {
         if (f.stopped) return;
         f.table = followedTable(rows, plan, 0, 0);
@@ -177,10 +177,10 @@ export class DeephavenEngine implements QueryEngine {
       });
       f.stop = () => {
         followed.close();
-        held.release();
+        kept.release();
       };
     } catch (e) {
-      held.release();
+      kept.release();
       this.#following.delete(plan.sql);
       throw e;
     }
@@ -235,7 +235,7 @@ export class DeephavenEngine implements QueryEngine {
     this.#counts.remade += old.remade;
     this.#session = session;
     this.#counts.reconnects++;
-    old.close().catch(() => { /* the server that held it is gone */ });
+    old.close().catch(() => { /* the server it was on is gone */ });
   }
 
   async close(): Promise<void> {

@@ -56,8 +56,9 @@ public final class DeephavenWire {
      * the table the operation makes, the same in every plan that makes that table -- SHA-256 of the operation as the
      * plan writes it, with each operation it reads named by THAT one's key rather than by its place in the batch. The
      * target writes a source alike wherever it stands, so the queries a grid sends over one source share their keys up
-     * to where they part, and a session that holds the table one of them made can read it rather than make it again
-     * ({@link #send}). A table read by its ticket (a server's own name, {@code s/position}) is named by that ticket.
+     * to where they part, and a session that keeps alive the table one of them made can read it rather than make it
+     * again ({@link #send}). A table read by its ticket (a server's own name, {@code s/position}) is named by that
+     * ticket.
      */
     public static List<String> keys(String plan) {
         return parse(plan).keys();
@@ -68,28 +69,28 @@ public final class DeephavenWire {
     }
 
     /**
-     * What a {@link #send} sends: its request (empty when the session holds the result already: nothing is sent),
+     * What a {@link #send} sends: its request (empty when the session keeps the result alive already: nothing is sent),
      * the tables it exports, in order, and the id of the export that is the plan's result.
      */
     public record Send(byte[] request, List<Export> exports, int result) {
     }
 
     /**
-     * {@code plan} as the request that makes what its session does not hold (DH23): {@code held} is the session's
-     * tables by {@link #keys key}; an operation whose key it holds is not sent, and the operations that read it read
-     * its export by ticket; every operation sent is exported under its own id, {@code nextExportId} up, so a later plan
-     * can read it too. Only what the result needs is sent: an operation held cuts the walk there. The same table twice
-     * in one plan is sent once. A plan that names a result of its own, or reads parameters, is refused by name as
-     * {@link #batch} refuses it.
+     * {@code plan} as the request that makes what its session does not keep alive (DH23): {@code alive} is the
+     * session's tables by {@link #keys key}; an operation whose key it keeps alive is not sent, and the operations that
+     * read it read its export by ticket; every operation sent is exported under its own id, {@code nextExportId} up, so
+     * a later plan can read it too. Only what the result needs is sent: an operation kept alive cuts the walk there.
+     * The same table twice in one plan is sent once. A plan that names a result of its own, or reads parameters, is
+     * refused by name as {@link #batch} refuses it.
      */
-    public static Send send(String plan, Map<String, Integer> held, int nextExportId) {
+    public static Send send(String plan, Map<String, Integer> alive, int nextExportId) {
         Parsed p = parse(plan);
         int last = p.ops().size() - 1;
-        Integer resultHeld = held.get(p.keys().get(last));
-        if (resultHeld != null) {
-            return new Send(new byte[0], List.of(), resultHeld);
+        Integer resultAlive = alive.get(p.keys().get(last));
+        if (resultAlive != null) {
+            return new Send(new byte[0], List.of(), resultAlive);
         }
-        // the first operation of each key, and which of them the result needs: an operation held cuts the walk
+        // the first operation of each key, and which of them the result needs: an operation kept alive cuts the walk
         int[] firstOf = new int[last + 1];
         Map<String, Integer> seen = new LinkedHashMap<>();
         for (int i = 0; i <= last; i++) {
@@ -106,14 +107,14 @@ public final class DeephavenWire {
             ProtoWire.references("BatchTableRequest.Operation", p.ops().get(i), ref -> {
                 if (ref.has("batchOffset")) {
                     int j = firstOf[offset(ref, at)];
-                    if (!held.containsKey(p.keys().get(j))) {
+                    if (!alive.containsKey(p.keys().get(j))) {
                         needed.set(j);
                     }
                 }
                 return ref;
             });
         }
-        // each needed operation exported, in the plan's order; its references to held tables by their tickets
+        // each needed operation exported, in the plan's order; its references to tables kept alive by their tickets
         int[] sentAt = new int[last + 1];
         java.util.Arrays.fill(sentAt, -1);
         List<Export> exports = new ArrayList<>();
@@ -126,7 +127,7 @@ public final class DeephavenWire {
                     return ref;
                 }
                 int j = firstOf[offset(ref, at)];
-                Integer exportId = held.get(p.keys().get(j));
+                Integer exportId = alive.get(p.keys().get(j));
                 LinkedHashMap<String, Json.Node> to = new LinkedHashMap<>();
                 if (exportId != null) {
                     to.put("ticket", ticket(exportTicket(exportId)));
@@ -134,7 +135,7 @@ public final class DeephavenWire {
                     to.put("batchOffset", Json.Num.ofLong(sentAt[j]));
                 } else {
                     throw new IllegalStateException("Deephaven operation " + at + " reads operation " + j
-                            + ", neither held nor sent");
+                            + ", neither kept alive nor sent");
                 }
                 return new Json.Obj(to);
             });

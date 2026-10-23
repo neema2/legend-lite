@@ -641,6 +641,7 @@ typescript.tsc_test(
     data = glob([
         "src/**/*.ts",
         "test/**/*.ts",
+        "bench/**/*.ts",
         "demo/**/*.ts",
         "tools/**/*.ts",
     ]) + [
@@ -1994,7 +1995,7 @@ guards_package()
 # DEEPHAVEN FROM THE BROWSER (docs/DEEPHAVEN_PLAN_2026_10_22.md DH21, L3b, 2026-10-23): a page served from a site that is
 # not the server's plans each query with //wasm:planner on a Deephaven runtime, sends it with the tab's sender
 # (engine-client/src/deephaven.ts) straight to the pinned Deephaven (@embedded_deephaven, HTTPS), and reads the rows
-# with the watch (deephaven-live.ts) -- seven answers worked out by hand from six seeded rows, DataCube's eighteen shapes
+# with the tab's live reader (deephaven-live.ts) -- seven answers worked out by hand from six seeded rows, DataCube's eighteen shapes
 # created and answering, a grouping over a ticking table ticking, and a refusal in the server's own words. In the
 # pinned Chromium, as live_snap_test runs; the server is Java, so every platform Chromium runs on.
 esbuild_bundle(
@@ -2058,30 +2059,12 @@ browser_test(
     },
 )
 
-# THE LIVE RISK DEMO (docs/DEEPHAVEN_PLAN_2026_10_22.md D0, 2026-10-23): a plain page standing in for DataCube until its
-# ticking mode lands (L4). The browser plans the risk view with //wasm:planner, sends it straight to the pinned
-# Deephaven and streams the grid, and comes back by itself after Deephaven restarts; the reference data and the price
-# simulator are Deephaven's start-up script (demo/deephaven/risk.groovy, marked temporary: lite's modelled publisher
-# replaces it, L5). `bazel run //datacube:deephaven_demo` serves it by hand; :deephaven_demo_test checks it.
-esbuild_bundle(
-    name = "deephaven_demo_bundle",
-    testonly = True,
-    srcs = [
-        "demo/deephaven/page.ts",
-        "//engine-client:engine_client",
-    ],
-    outs = ["demo/deephaven/risk.js"],
-    args = [
-        "demo/deephaven/page.ts",
-        "--bundle",
-        "--format=esm",
-        "--target=es2022",
-        "--log-level=warning",
-        "--external:./wasm-gc-module-runtime.js",
-        "--outfile=demo/deephaven/risk.js",
-    ],
-)
-
+# THE LIVE RISK DEMO (docs/DEEPHAVEN_PLAN_2026_10_22.md D0, DH23, DH24): DataCube on Deephaven over a risk book whose
+# reference data and price simulator are Deephaven's start-up script (demo/deephaven/risk.groovy, marked temporary:
+# lite's modelled publisher replaces it, L5). The plain page that stood in for DataCube until it ticked went on
+# 2026-10-23 (DH24): the cube's test checks all it did. `bazel run //datacube:deephaven_demo` serves the cube by hand;
+# :deephaven_cube_test checks it.
+#
 # the demo's Deephaven (//testing EmbeddedDeephaven) running the demo's application: prints its URL and key once it has
 # started, restarts on a `restart` line, and runs until its stdin closes
 legend_java_binary(
@@ -2107,9 +2090,10 @@ executable_of(
     binary = ":deephaven_demo_fixture",
 )
 
-# THE DATACUBE ON DEEPHAVEN (DH23, 2026-10-23): DataCube's own app, unchanged, over the same server -- planned in the tab
-# on a Deephaven runtime and run by engine-client's DeephavenEngine, each query reading the source's tables the session
-# made for the first; a tick on a result on screen re-runs the cube. Served beside the plain page as cube.html.
+# THE DATACUBE ON DEEPHAVEN (DH23, DH24, 2026-10-23): DataCube's own app, unchanged, over the same server -- planned in
+# the tab on a Deephaven runtime and run by engine-client's DeephavenEngine, each query reading the source's tables the
+# session made for the first; every result on screen followed live, and a change to one re-runs the cube from the live
+# rows.
 esbuild_bundle(
     name = "deephaven_cube_bundle",
     testonly = True,
@@ -2137,11 +2121,9 @@ filegroup(
 )
 
 _DEEPHAVEN_DEMO_DATA = [
-    "demo/deephaven/index.html",
     "demo/deephaven/cube.html",
     "demo/deephaven/site.mjs",
     # the binary for its runfiles (the server's jars and Java, the application), its executable to start it by
-    ":deephaven_demo_bundle",
     ":deephaven_cube_bundle",
     ":deephaven_cube_styles",
     ":deephaven_demo_fixture",
@@ -2151,8 +2133,6 @@ _DEEPHAVEN_DEMO_DATA = [
 
 _DEEPHAVEN_DEMO_ENV = {
     "DEEPHAVEN_FIXTURE": "$(rlocationpath :deephaven_demo_fixture_executable)",
-    "DEMO_BUNDLE": "$(rlocationpath :deephaven_demo_bundle)",
-    "DEMO_PAGE": "$(rlocationpath demo/deephaven/index.html)",
     "CUBE_BUNDLE": "$(rlocationpath :deephaven_cube_bundle)",
     "CUBE_PAGE": "$(rlocationpath demo/deephaven/cube.html)",
     "CUBE_STYLES": "$(rlocationpaths :deephaven_cube_styles)",
@@ -2175,21 +2155,6 @@ js_binary(
         "--disable-warning=ExperimentalWarning",
     ],
     tags = ["manual"],
-)
-
-# the demo in the pinned Chromium: it ticks, its positions per desk and sector are the seeding's, and it comes back by
-# itself after Deephaven restarts; screenshots of each stage are its outputs. In //gates:heavy until a per-push lane
-# for it is the user's call (its server is a 270 MB download).
-browser_test(
-    name = "deephaven_demo_test",
-    size = "medium",
-    tags = ["manual"],
-    data = _DEEPHAVEN_DEMO_DATA + [
-        "test/deephaven/demo.mjs",
-        ":node_modules/playwright",
-    ],
-    entry_point = "test/deephaven/demo.mjs",
-    env = _DEEPHAVEN_DEMO_ENV,
 )
 
 # THE TICK BENCHMARK (bench/deephaven/README.md, 2026-10-23): how fast a tick on a Deephaven server reaches a page, by
@@ -2238,10 +2203,55 @@ browser_test(
     },
 )
 
-# DataCube's own app on Deephaven, in the pinned Chromium (DH23): its tree's positions are the seeding's; a regroup, a
-# pivot and a filter each send only their own operations, the source's read from what the session holds; a pivot's
-# columns keep their names; and a tick re-runs it with nothing sent. Screenshots of each are its outputs. Manual, in
-# //gates:heavy, as :deephaven_demo_test.
+# THE FIRST-ROWS BENCHMARK (bench/deephaven/README.md, 2026-10-23): a result the grid has not shown before, read whole
+# by Arrow Flight's DoGet (how DeephavenEngine.execute reads it) or published and subscribed by Deephaven's JS library
+# (how DeephavenEngine.follow reads it after) -- which reaches the page first, over the risk demo's world at a 100 and
+# a 20 ms cycle. Manual: `bazel test //datacube:deephaven_first_bench --test_output=streamed`.
+esbuild_bundle(
+    name = "deephaven_first_page",
+    testonly = True,
+    srcs = [
+        "bench/deephaven/first-page.ts",
+        "demo/deephaven/model.ts",
+        ":src",
+    ],
+    outs = ["bench/deephaven/first.js"],
+    args = [
+        "bench/deephaven/first-page.ts",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--log-level=warning",
+        "--outfile=bench/deephaven/first.js",
+    ],
+)
+
+browser_test(
+    name = "deephaven_first_bench",
+    size = "large",
+    tags = ["manual"],
+    data = [
+        "bench/deephaven/first-bench.mjs",
+        "demo/deephaven/site.mjs",
+        ":deephaven_demo_fixture",
+        ":deephaven_demo_fixture_executable",
+        ":deephaven_first_page",
+        ":node_modules/playwright",
+        "//wasm:planner",
+    ],
+    entry_point = "bench/deephaven/first-bench.mjs",
+    env = {
+        "DEEPHAVEN_FIXTURE": "$(rlocationpath :deephaven_demo_fixture_executable)",
+        "FIRST_PAGE": "$(rlocationpath :deephaven_first_page)",
+        "PLANNER": "$(rlocationpaths //wasm:planner)",
+    },
+)
+
+# DataCube's own app on Deephaven, in the pinned Chromium (DH23, DH24): its tree's positions are the seeding's; a
+# regroup, a pivot and a filter each send only their own operations, the source's read from what the session keeps
+# alive; a pivot's columns keep their names; a tick re-runs it from the live rows with nothing sent or fetched; and it
+# comes back by itself after Deephaven restarts. Screenshots of each are its outputs. Manual, in //gates:heavy until a
+# per-push lane for it is the user's call (its server is a 270 MB download).
 browser_test(
     name = "deephaven_cube_test",
     size = "medium",

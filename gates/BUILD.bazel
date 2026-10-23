@@ -343,13 +343,12 @@ test_suite(
         # manual until a per-push lane for it is the user's call
         "//core:mongodb_plan_test",
         # Deephaven from the browser on the pinned Deephaven 42.7 (docs/DEEPHAVEN_PLAN_2026_10_22.md L3b, 2026-10-23):
-        # the tab's planner, sender and watch against the server, no server of lite's between; manual until a per-push
-        # lane for it is the user's call (its server is a 270 MB download)
+        # the tab's planner, sender and live reader against the server, no server of lite's between; manual until a
+        # per-push lane for it is the user's call (its server is a 270 MB download)
         "//datacube:deephaven_test",
-        # the live risk demo (D0, 2026-10-23): it ticks, it is the seeding's, it survives a Deephaven restart
-        "//datacube:deephaven_demo_test",
-        # DataCube's own app on Deephaven (DH23, 2026-10-23): a regroup, a pivot and a filter send only their own
-        # operations, the source's held; a tick re-runs it with nothing sent
+        # DataCube's own app on Deephaven (DH23, DH24, 2026-10-23; the plain D0 page it replaced went with its test): a
+        # regroup, a pivot and a filter send only their own operations, the source's kept alive; a tick re-runs it from
+        # the live rows with nothing sent; it survives a Deephaven restart
         "//datacube:deephaven_cube_test",
         # the five PCT suites on the embedded MongoDB 8.0, channel A through the plan path (docs/MONGODB_PLAN_2026_10_16.md
         # §6, 2026-10-17)

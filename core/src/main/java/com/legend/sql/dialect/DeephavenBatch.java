@@ -114,12 +114,13 @@ final class DeephavenBatch {
         return close();
     }
 
-    /** The rows where {@code condition} is TRUE. */
+    /** The rows where {@code condition} is TRUE: its filter list ({@link Deephaven#filters}, what the server can read
+     *  without compiling written so). */
     private int filter(int src, SqlExpr condition) {
         open("unstructuredFilter");
-        w.append(source(src)).append(", \"filters\": [\"");
-        dialect.truth(w, condition);
-        w.append("\"]");
+        w.append(source(src)).append(", \"filters\": [");
+        dialect.filters(w, condition);
+        w.append("]");
         return close();
     }
 

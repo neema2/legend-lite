@@ -1,12 +1,13 @@
 // DEEPHAVEN FROM THE BROWSER, the page (//datacube:deephaven_test; docs/DEEPHAVEN_PLAN_2026_10_22.md DH21, L3b): served
 // from a site that is not the Deephaven server's, it plans each query with the WebAssembly planner on a Deephaven
 // runtime, sends it with the tab's sender (engine-client/src/deephaven.ts) straight to the server, and reads the rows
-// with the watch (deephaven-live.ts) -- no server of legend-lite's anywhere. The data is six rows with nulls in every
+// with the tab's live reader (deephaven-live.ts), as DataCube's engine follows a result -- no server of legend-lite's
+// anywhere. The data is six rows with nulls in every
 // column, seeded through the test server's console; the known answers are worked out by hand from them, so the test
 // needs no second database. Every check runs here; the driver (deephaven.mjs) reports what the page found.
 
 import { DeephavenSession, type DeephavenServer } from '../../../engine-client/src/deephaven.ts';
-import { watch, type LiveRows } from '../../../engine-client/src/deephaven-live.ts';
+import { LiveClient, type Followed, type FollowedRows } from '../../../engine-client/src/deephaven-live.ts';
 // @ts-ignore the module's runtime, served beside the page from //wasm:planner
 import { load } from './wasm-gc-module-runtime.js';
 
@@ -91,6 +92,24 @@ const KNOWN: readonly { readonly query: string; readonly rows: readonly (readonl
     rows: [[3, null], [1, 5], [4, 2]] },
   { query: `${T}->select(~[region])->distinct()->sort(~region->ascending())`,
     rows: [['AMER'], ['APAC'], ['EMEA'], [null]] },
+  // FILTERS DEEPHAVEN READS WITHOUT COMPILING (DH25): a column against a literal, each comparison, over columns with nulls
+  ...([
+    // Pure's != is null-safe: a null region differs from 'EMEA' (SQL's IS DISTINCT FROM)
+    ["$x.region != 'EMEA'", [2, 4, 5]],
+    ['$x.pnl < 2.0', [2, 5, 6]],
+    ['$x.qty <= 5', [2, 5, 6]],
+    ['$x.pnl > -3.5', [1, 2, 4, 5, 6]],
+    ['$x.notional == 50.0', [3]],
+    ['$x.year != 2023', [3, 4, 6]],
+    ["($x.year >= 2023) && ($x.desk == 'Rates')", [1, 2]],
+    ["$x.desk->in(['Rates', 'FX']) && ($x.qty > 4)", [1, 2, 4]],
+    ["!$x.region->in(['EMEA', 'APAC'])", [4, 5]],
+    // a value with a comma: Deephaven's `in` splits its list on commas, so this one stays a formula
+    ["$x.country->in(['UK', 'J,P'])", [1, 6]],
+  ] as const).map(([condition, ids]) => ({
+    query: `${T}->filter(x|${condition})->select(~[id])->sort(~id->ascending())`,
+    rows: ids.map((id) => [id]),
+  })),
 ];
 
 /** DataCube's shapes, L2's eighteen (the two the compiler refuses, a string operation on a nullable column, are not
@@ -123,6 +142,10 @@ const SHAPES: readonly string[] = [
   `${T}->groupBy(~[desk, year], ~[q:x|$x.qty:y|$y->sum()])->filter(x|$x.q > 100)`
     + `->sort([~desk->ascending(), ~year->ascending()])`,
 ];
+
+/** A followed table's rows, row by row. */
+const byRow = (rows: FollowedRows): unknown[][] =>
+  Array.from({ length: rows.values[0]?.length ?? 0 }, (_, r) => rows.values.map((column) => column[r]));
 
 /** A cell as the page compares it: a Deephaven long (a wrapper) as its number. */
 const plain = (v: unknown): unknown => (v !== null && typeof v === 'object' && 'asNumber' in v
@@ -167,29 +190,38 @@ try {
     if (!planned.startsWith('OK\n')) throw new Error(`the planner refused it: ${planned.replace(/\n/g, ' | ')}`);
     return (JSON.parse(planned.slice(3)) as { sql: string }).sql;
   };
-  const answer = async (query: string): Promise<LiveRows> => {
-    const table = await session.publish(planOf(query));
+  const live = await LiveClient.open(server, (why) => { verdict.setupError ??= `the live reader ended: ${why}`; });
+  /** A query's result kept alive and published, and its rows as the live reader first hands them over. */
+  const answer = async (query: string): Promise<unknown[][]> => {
+    const kept = await session.keepAlive(planOf(query));
     try {
-      return await new Promise<LiveRows>((resolve, reject) => {
-        let opened: { close(): void } | null = null;
-        let first: LiveRows | null = null;
-        watch(server, table.name, (rows) => {
-          first ??= rows;
-          opened?.close();
-          resolve(rows);
-        }, { first: 0, last: 9999 }).then((w) => {
-          opened = w;
-          if (first) w.close();
-        }, reject);
+      const name = await session.publishKept(kept.exportId);
+      return await new Promise<unknown[][]>((resolve, reject) => {
+        let followed: Followed | null = null;
+        let first: unknown[][] | null = null;
+        const late = setTimeout(() => reject(new Error(`no rows in 10 s for ${query}`)), 10_000);
+        live.follow(name, (rows) => {
+          if (first) return;
+          first = byRow(rows);
+          clearTimeout(late);
+          followed?.close();
+          resolve(first);
+        }).then((f) => {
+          followed = f;
+          if (first) f.close();
+        }, (e: unknown) => {
+          clearTimeout(late);
+          reject(e);
+        });
       });
     } finally {
-      await table.release();
+      kept.release();
     }
   };
 
   for (const k of KNOWN) {
     await check(`answers ${k.query}`, async () => {
-      const got = (await answer(k.query)).rows.map((r) => r.map(plain));
+      const got = (await answer(k.query)).map((r) => r.map(plain));
       return JSON.stringify(got) === JSON.stringify(k.rows) ? null
         : `expected ${JSON.stringify(k.rows)}\n   got ${JSON.stringify(got)}`;
     });
@@ -206,26 +238,27 @@ try {
     return failed.length === 0 ? null : failed.join('\n');
   });
   await check('a grouping over a ticking table ticks', async () => {
-    const table = await session.publish(planOf(
+    const kept = await session.keepAlive(planOf(
       "#>{risk::Ref.ticks}#->groupBy(~[sym], ~[total:x|$x.px:y|$y->sum()])->sort(~sym->ascending())"));
     const seen: string[] = [];
-    const w = await watch(server, table.name, (rows) => seen.push(JSON.stringify(rows.rows.map((r) => r.map(plain)))),
-      { first: 0, last: 9, intervalMs: 200 });
+    const followed = await live.follow(await session.publishKept(kept.exportId),
+      (rows) => seen.push(JSON.stringify(byRow(rows).map((r) => r.map(plain)))), 200);
     await new Promise((r) => setTimeout(r, 3000));
-    w.close();
-    await table.release();
+    followed.close();
+    kept.release();
     const distinct = new Set(seen).size;
     return seen.length >= 5 && distinct >= 3 ? null : `${seen.length} updates, ${distinct} distinct, in 3 s`;
   });
   await check('a refused plan names the server\'s own reason', async () => {
     try {
-      await session.publish('{"ops": [{"view": {"sourceId": {"ticket": {"ticket": "cy9ub3N1Y2g="}},'
+      await session.keepAlive('{"ops": [{"view": {"sourceId": {"ticket": {"ticket": "cy9ub3N1Y2g="}},'
         + ' "columnSpecs": ["x = 1"]}}]}');
       return 'a plan reading a table the server does not have was accepted';
     } catch (e) {
       return /DeephavenRefused/.test(String(e)) ? null : `refused otherwise: ${String(e)}`;
     }
   });
+  live.close();
   await session.close();
   seeder.disconnect();
 } catch (e) {

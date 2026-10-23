@@ -229,10 +229,10 @@ class DeephavenWireTest {
         assertTrue(a.stream().allMatch(k -> k.matches("[0-9a-f]{64}")), a.toString());
     }
 
-    /** A send exports every operation it sends; a later send of a query over the same source sends only what it does
-     *  not hold, reading the held join by its ticket; a held result sends nothing. */
+    /** A send exports every operation it sends; a later send of a query over the same source sends only what the
+     *  session does not keep alive, reading the join it keeps by its ticket; a result kept alive sends nothing. */
     @Test
-    void aSendSendsOnlyWhatTheSessionDoesNotHold() {
+    void aSendSendsOnlyWhatTheSessionDoesNotKeepAlive() {
         String byDesk = plan(SOURCE + "->groupBy(~[desk], ~[pnl:x|$x.pnl:y|$y->sum()])->sort(~desk->ascending())");
         String bySector = plan(SOURCE + "->filter(x|$x.qty > 10)->groupBy(~[sector], ~[pnl:x|$x.pnl:y|$y->sum()])");
         DeephavenWire.Send first = DeephavenWire.send(byDesk, Map.of(), 1);
@@ -245,18 +245,18 @@ class DeephavenWireTest {
         assertEquals("view e2 s/instrument", ops.get(1));
         assertEquals("naturalJoin e3 @0 @1", ops.get(2));
 
-        Map<String, Integer> held = new LinkedHashMap<>();
+        Map<String, Integer> alive = new LinkedHashMap<>();
         for (DeephavenWire.Export e : first.exports()) {
-            held.put(e.key(), e.exportId());
+            alive.put(e.key(), e.exportId());
         }
-        DeephavenWire.Send second = DeephavenWire.send(bySector, held, 100);
+        DeephavenWire.Send second = DeephavenWire.send(bySector, alive, 100);
         List<String> tail = sent(second.request());
         assertEquals(DeephavenWire.keys(bySector).size() - 3, tail.size(), tail.toString());
         assertEquals("unstructuredFilter e100 e3", tail.get(0));
         assertTrue(tail.get(1).endsWith(" @0"), tail.toString());
         assertEquals(99 + tail.size(), second.result());
 
-        DeephavenWire.Send again = DeephavenWire.send(byDesk, held, 200);
+        DeephavenWire.Send again = DeephavenWire.send(byDesk, alive, 200);
         assertEquals(0, again.request().length);
         assertEquals(List.of(), again.exports());
         assertEquals(first.result(), again.result());

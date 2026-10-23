@@ -79,11 +79,11 @@ class DeephavenDialectTest {
                 + "->sort(~pnl->descending())->limit(10)");
         assertTrue(b.startsWith("{\"ops\": [{\"view\": {\"sourceId\": {\"ticket\": {\"ticket\": \"" + ticket("trades")
                 + "\"}}, \"columnSpecs\": [\""), b);
-        // the scan renames each column under its alias; the filter guards a column that may be null
+        // the scan renames each column under its alias; the filter is a match the server reads with no compiling (a
+        // match keeps no null: no guard)
         assertTrue(b.contains("__region = region"), b);
-        assertTrue(b.contains("{\"unstructuredFilter\": {\"sourceId\": {\"batchOffset\": 0}, \"filters\": [\"(!isNull("),
-                b);
-        assertTrue(b.contains(" == `EMEA`)"), b);
+        assertTrue(b.contains("{\"unstructuredFilter\": {\"sourceId\": {\"batchOffset\": 0}, \"filters\":"
+                + " [\"t0__region == `EMEA`\"]}}"), b);
         // pnl may be null: its null flag sorts it first, the platform's order for a descending key
         assertTrue(b.contains("__n0 = isNull(pnl)"), b);
         assertTrue(b.contains("{\"columnName\": \"__n0\", \"direction\": \"DESCENDING\"}, {\"columnName\": \"pnl\","
@@ -96,10 +96,41 @@ class DeephavenDialectTest {
 
     @Test
     void aMembershipOfAColumnThatMayBeNullIsTrueOnlyWhenItMatches() {
-        // the lowering's null-safe membership, COALESCE(x IN (...), false), is the membership's TRUE
+        // the lowering's null-safe membership, COALESCE(x IN (...), false), is the membership's TRUE: a match of the
+        // list, which keeps no null
         String b = batch("#>{risk::Ref.trades}#->filter(x | $x.region->in(['EMEA', 'APAC']))");
-        assertTrue(b.contains("\"filters\": [\"(!isNull(t0__region) && (t0__region == `EMEA` || t0__region =="
-                + " `APAC`))\"]"), b);
+        assertTrue(b.contains("\"filters\": [\"t0__region in `EMEA`, `APAC`\"]"), b);
+        // its negation keeps the nulls (a null is in no list): the inverted match, unguarded
+        String not = batch("#>{risk::Ref.trades}#->filter(x | !$x.region->in(['EMEA', 'APAC']))");
+        assertTrue(not.contains("\"filters\": [\"t0__region not in `EMEA`, `APAC`\"]"), not);
+    }
+
+    /** A filter Deephaven reads without compiling (DH25): its conjunction split into the server's list, and each
+     *  comparison of a column with a literal bare -- a match or a range filter, a literal's own form (no {@code L},
+     *  a plain decimal) -- its null guard a formula of its own that names only its column. What has no bare form is a
+     *  formula, as before. */
+    @Test
+    void aFilterIsWhatTheServerReadsWithoutCompiling() {
+        filters("($x.qty > 1000000000) && ($x.desk == 'FX')",
+                "\"!isNull(t0__qty)\", \"t0__qty > 1000000000\", \"t0__desk == `FX`\"");
+        // a literal first is mirrored; a negative float is a plain decimal
+        filters("-3.5 < $x.pnl", "\"!isNull(t0__pnl)\", \"t0__pnl > -3.5\"");
+        filters("$x.pnl <= 0.0", "\"!isNull(t0__pnl)\", \"t0__pnl <= 0.0\"");
+        // Pure's NOT keeps a null (a null is not greater than 0): "null or at most 0", a formula
+        filters("!($x.pnl > 0.0)", "\"(isNull(t0__pnl) || (!isNull(t0__pnl) && t0__pnl <= 0.0))\"");
+        // Pure's != is null-safe: a null differs from 'EMEA', and the inverted match keeps it
+        filters("$x.region != 'EMEA'", "\"t0__region != `EMEA`\"");
+        // a value with a comma (the server splits an `in` list at its commas) and a disjunction stay formulas
+        filters("$x.country->in(['UK', 'J,P'])",
+                "\"(!isNull(t0__country) && (t0__country == `UK` || t0__country == `J,P`))\"");
+        String or = batch("#>{risk::Ref.trades}#->filter(x | ($x.year == 2023) || ($x.desk == 'FX'))");
+        assertTrue(or.contains("\"filters\": [\"(") && or.contains(" || "), or);
+    }
+
+    /** {@code condition}'s filter list is {@code expected}. */
+    private static void filters(String condition, String expected) {
+        String b = batch("#>{risk::Ref.trades}#->filter(x | " + condition + ")");
+        assertTrue(b.contains("\"filters\": [" + expected + "]"), condition + ": " + b);
     }
 
     @Test

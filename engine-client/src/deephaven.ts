@@ -36,23 +36,15 @@ export class DeephavenRefused extends Error {
   }
 }
 
-/** A plan's live result on the server, published under `name` while the session holds it: `release` lets it go idle,
- *  and the name ends when the session lets the table go (an export's name lives as long as the export: measured on
- *  Deephaven 42.7, 2026-10-23). A watch already open keeps its own copy. */
-export interface LiveTable {
-  readonly name: string;
-  release(): Promise<void>;
-}
-
 /**
- * A plan's result, held for its reader (DH23): the export the session reads its rows by. `release` lets it go IDLE,
- * not away: the session keeps the tables it made to be read again -- a grid's next query over the same source reads
- * the source's tables rather than making them again -- and lets idle tables go, the least recently used first, past
- * its `keep`.
+ * A plan's result, KEPT ALIVE for its reader (DH23): the export the session reads its rows by, pinned until `release`.
+ * Released, it goes IDLE, not away: the session keeps alive the tables it made, to be read again -- a grid's next query
+ * over the same source reads the source's tables rather than making them again -- and lets idle tables go, the least
+ * recently used first, past its `keep`.
  */
-export interface HeldResult {
+export interface KeptResult {
   readonly exportId: number;
-  /** The plan's operations, and those sent to make it: none when the session held it already. */
+  /** The plan's operations, and those sent to make it: none when the session kept it alive already. */
   readonly ops: number;
   readonly sent: number;
   release(): void;
@@ -75,8 +67,8 @@ const RELEASE = 'io.deephaven.proto.backplane.grpc.SessionService/Release';
 const CLOSE = 'io.deephaven.proto.backplane.grpc.SessionService/CloseSession';
 const DO_GET = 'arrow.flight.protocol.FlightService/DoGet';
 
-/** A table the session holds: its export, how many readers hold it now, and when it was last read (a count). */
-interface Held {
+/** A table the session keeps alive: its export, how many readers pin it now, and when it was last read (a count). */
+interface Kept {
   readonly exportId: number;
   pins: number;
   used: number;
@@ -92,8 +84,8 @@ export class DeephavenSession {
   private readonly timer: ReturnType<typeof setInterval>;
   private closed = false;
   private readonly keep: number;
-  /** The tables the session holds, by their key (DeephavenWire.keys). */
-  private readonly tables = new Map<string, Held>();
+  /** The tables the session keeps alive, by their key (DeephavenWire.keys). */
+  private readonly tables = new Map<string, Kept>();
   /** The tables a send of the session's is making now, by key: another send that reads one waits for it. */
   private readonly making = new Map<string, Promise<void>>();
   private clock = 0;
@@ -133,11 +125,11 @@ export class DeephavenSession {
   }
 
   /**
-   * `plan`'s result, held (DH23): the planner names each of its operations' tables by key and writes the request that
-   * makes what the session does not hold -- each table it makes exported, to be read again -- and the server's answer
-   * for each is checked; a table another send is making now is waited for, not made twice.
+   * `plan`'s result, kept alive (DH23): the planner names each of its operations' tables by key and writes the request
+   * that makes what the session does not keep alive already -- each table it makes exported, to be read again -- and
+   * the server's answer for each is checked; a table another send is making now is waited for, not made twice.
    */
-  async hold(plan: string): Promise<HeldResult> {
+  async keepAlive(plan: string): Promise<KeptResult> {
     this.open();
     const { keys } = JSON.parse(await this.ask('keys', { plan })) as { readonly keys: readonly string[] };
     const resultKey = keys[keys.length - 1];
@@ -147,7 +139,7 @@ export class DeephavenSession {
       if (making.length === 0) break;
       await Promise.allSettled(making);
     }
-    // what is held is pinned while this reads it; what is not is marked as being made, and its ids set aside
+    // what is alive is pinned while this reads it; what is not is marked as being made, and its ids set aside
     const pinned = keys.flatMap((k) => this.tables.get(k) ?? []);
     for (const t of pinned) t.pins++;
     const missing = [...new Set(keys.filter((k) => !this.tables.has(k)))];
@@ -157,11 +149,11 @@ export class DeephavenSession {
     const nextExportId = this.nextExport;
     this.nextExport += missing.length;
     try {
-      const held = Object.fromEntries(keys.flatMap((k) => {
+      const alive = Object.fromEntries(keys.flatMap((k) => {
         const t = this.tables.get(k);
         return t ? [[k, t.exportId]] : [];
       }));
-      const send = JSON.parse(await this.ask('send', { plan, held, nextExportId })) as {
+      const send = JSON.parse(await this.ask('send', { plan, alive, nextExportId })) as {
         readonly request: string;
         readonly exports: readonly { readonly key: string; readonly exportId: number }[];
         readonly result: number;
@@ -169,7 +161,7 @@ export class DeephavenSession {
       if (send.exports.length > 0) await this.make(send.request, send.exports);
       const result = this.tables.get(resultKey);
       if (result === undefined || result.exportId !== send.result) {
-        throw new Error(`the Deephaven session holds no table for its result (export ${send.result})`);
+        throw new Error(`the Deephaven session keeps no table alive for its result (export ${send.result})`);
       }
       result.pins++;
       let released = false;
@@ -196,7 +188,8 @@ export class DeephavenSession {
     }
   }
 
-  /** Sends a batch that makes `exports`, checks the server made each, and holds them; a refusal lets them all go. */
+  /** Sends a batch that makes `exports`, checks the server made each, and keeps them alive; a refusal lets them all
+   *  go. */
   private async make(request: string, exports: readonly { readonly key: string; readonly exportId: number }[]):
   Promise<void> {
     const answer = await this.call(BATCH, fromBase64(request));
@@ -221,15 +214,9 @@ export class DeephavenSession {
     }
   }
 
-  /** How many tables the session made again after letting them go (past `keep`): none while it holds every one. */
+  /** How many tables the session made again after letting them go (past `keep`): none while it keeps every one. */
   get remade(): number {
     return this.madeAgain;
-  }
-
-  /** Whether the session holds the export `exportId` still. */
-  holds(exportId: number): boolean {
-    for (const t of this.tables.values()) if (t.exportId === exportId) return true;
-    return false;
   }
 
   /** Lets the least recently read idle tables go, past `keep`. */
@@ -256,29 +243,14 @@ export class DeephavenSession {
     return ipcStream(await this.call(DO_GET, fromBase64(await this.ask('doGet', { exportId }))));
   }
 
-  /** Publishes the session's export `exportId` under a fresh name, for another session to open (deephaven-live.ts):
-   *  the name lives as long as the export does. */
-  async publishHeld(exportId: number): Promise<string> {
+  /** Publishes the session's export `exportId` -- a result it keeps alive -- under a fresh name, for another session
+   *  to open (deephaven-live.ts): the name lives as long as the export does (measured on Deephaven 42.7,
+   *  2026-10-23), and a reader that opened it keeps its own copy. */
+  async publishKept(exportId: number): Promise<string> {
     this.open();
     const name = `legend-${randomName()}`;
     await this.call(PUBLISH, fromBase64(await this.ask('publish', { exportId, name })));
     return name;
-  }
-
-  /** Sends `plan` and publishes its result under a fresh name, for another session to open (deephaven-live.ts). */
-  async publish(plan: string): Promise<LiveTable> {
-    const held = await this.hold(plan);
-    const name = `legend-${randomName()}`;
-    try {
-      await this.call(PUBLISH, fromBase64(await this.ask('publish', { exportId: held.exportId, name })));
-    } catch (e) {
-      held.release();
-      throw e;
-    }
-    return {
-      name,
-      release: async () => held.release(),
-    };
   }
 
   /** One call that keeps the session's token fresh; it throws when the server no longer answers this session (a
@@ -288,7 +260,7 @@ export class DeephavenSession {
     await this.call(CONFIG, new Uint8Array());
   }
 
-  /** Ends the session: the server releases every table it holds. */
+  /** Ends the session: the server releases every table it keeps alive. */
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;

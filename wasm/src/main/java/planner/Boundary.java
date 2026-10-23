@@ -415,9 +415,9 @@ public final class Boundary {
      * too) and {@code doGet} ({@code exportId}: the Flight ticket its rows are read by) -- each answered as its bytes
      * in base64 -- {@code created} ({@code message}, one answer of a batch in base64), answered
      * {@code {"success", "errorInfo"}}; {@code keys} ({@code plan}), answered {@code {"keys"}}, each operation's; and
-     * {@code send} ({@code plan}, {@code held}: the session's tables, key to export id, {@code nextExportId}), answered
-     * {@code {"request", "exports": [{"key", "exportId"}], "result"}}. The host carries the bytes; it builds none and
-     * reads none itself. An operation not listed is refused by name.
+     * {@code send} ({@code plan}, {@code alive}: the session's tables, key to export id, {@code nextExportId}),
+     * answered {@code {"request", "exports": [{"key", "exportId"}], "result"}}. The host carries the bytes; it builds
+     * none and reads none itself. An operation not listed is refused by name.
      */
     public static String deephaven(String op, String argsJson) {
         com.legend.json.Json.Obj a = com.legend.json.Json.parseObject(argsJson);
@@ -433,11 +433,11 @@ public final class Boundary {
             case "keys" -> com.legend.json.Json.toCompact(java.util.Map.of("keys",
                     com.legend.deephaven.DeephavenWire.keys(a.getString("plan"))));
             case "send" -> {
-                java.util.Map<String, Integer> held = new java.util.LinkedHashMap<>();
-                a.getObj("held").fields().forEach((key, id) ->
-                        held.put(key, (int) ((com.legend.json.Json.Num) id).longValue()));
+                java.util.Map<String, Integer> alive = new java.util.LinkedHashMap<>();
+                a.getObj("alive").fields().forEach((key, id) ->
+                        alive.put(key, (int) ((com.legend.json.Json.Num) id).longValue()));
                 com.legend.deephaven.DeephavenWire.Send sent = com.legend.deephaven.DeephavenWire.send(
-                        a.getString("plan"), held, a.getInt("nextExportId"));
+                        a.getString("plan"), alive, a.getInt("nextExportId"));
                 java.util.List<Object> exports = new java.util.ArrayList<>();
                 for (com.legend.deephaven.DeephavenWire.Export e : sent.exports()) {
                     java.util.Map<String, Object> one = new java.util.LinkedHashMap<>();

@@ -78,8 +78,8 @@ try {
     console.log(`FAIL the setup: ${verdict.setupError}`);
     failed = true;
   }
-  if (verdict.outcomes.length !== 10) {
-    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 10`);
+  if (verdict.outcomes.length !== 20) {
+    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 20`);
     failed = true;
   }
 } finally {

@@ -3,9 +3,9 @@
 // (demo/deephaven/cube.ts: DataCube's own app, planning in the tab on a Deephaven runtime and running on the server),
 // and checks what DataCube shows and what the tab sent: the tree's positions are the seeding's (worked out here from
 // the same formulas); a group opened, a pivot, a regroup and a filter -- the app's own changes, as its chevrons, zones
-// and filter editor make them -- each send only their own operations, the source's nine (its five tables and four joins) read from what the
-// session holds; a pivot's columns keep their names; no table is made twice; the grid ticks, re-run with nothing sent;
-// and when Deephaven restarts the page says so and comes back by itself. Screenshots of each stage are its outputs.
+// and filter editor make them -- each send only their own operations, the source's nine (its five tables and four
+// joins) read from what the session keeps alive; a pivot's columns keep their names; no table is made twice; the grid
+// ticks, re-run with nothing sent; and when Deephaven restarts the page says so and comes back by itself. Screenshots of each stage are its outputs.
 
 // first: points Playwright at the Chromium Bazel fetched
 import '../../../tools/browser/pinned-chromium.mjs';
@@ -49,7 +49,7 @@ try {
   const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 860 } })).newPage();
   page.on('pageerror', (e) => fail(`page error: ${e.message}`));
   page.on('console', (m) => console.log(`[page ${m.type()}] ${m.text().slice(0, 300)}`));
-  await page.goto(`${site.url}/cube.html`);
+  await page.goto(`${site.url}/`);
   const state = () => page.evaluate(() => ({ ...window.__cube, change: undefined,
     said: `${document.getElementById('status')?.textContent ?? ''} | ${document.querySelector('.dc-app-stats')?.textContent ?? ''} | ${(() => { const t = document.getElementById('cube')?.innerText ?? ''; const i = t.indexOf('Error'); return i < 0 ? '' : t.slice(i, i + 1200); })()}` }));
   const until = async (test, what, ms = 120_000) => {
@@ -76,17 +76,19 @@ try {
   /** A change as the app makes it, with ticks paused: the view it shows, and what its queries planned and sent. */
   const change = async (what) => {
     const before = await state();
+    const started = Date.now();
     const kind = await page.evaluate((w) => window.__cube.change(w), what);
+    const ms = Date.now() - started;
     const after = await state();
     if (kind !== 'applied') throw new Error(`the ${what} was ${kind}: ${after.error}`);
     const queries = after.counts.queries - before.counts.queries;
     const planned = after.counts.planned - before.counts.planned;
     const sent = after.counts.sent - before.counts.sent;
-    return { after, queries, planned, sent };
+    return { after, queries, planned, sent, ms };
   };
-  /** Each query of a change read the source's operations from what the session held. */
+  /** Each query of a change read the source's operations from what the session keeps alive. */
   const reused = (c, what) => (c.queries > 0 && c.sent <= c.planned - SOURCE_OPS * c.queries
-    ? ok(`${what}: ${c.queries} queries planned ${c.planned} operations and sent ${c.sent}, the source's read from what the session held`)
+    ? ok(`${what}: ${c.queries} queries planned ${c.planned} operations and sent ${c.sent}, the source's read from what the session keeps alive; ${c.ms} ms to the view`)
     : fail(`${what}: ${c.queries} queries planned ${c.planned} operations and sent ${c.sent}`));
 
   const first = await until((s) => s.status === 'live' && s.views >= 1, 'live');
@@ -97,7 +99,7 @@ try {
   else fail(`the status bar says ${JSON.stringify(receipt)}`);
   await page.screenshot({ path: join(outputs, '1-tree.png') });
 
-  // a group opened: its level's own query, over the held source
+  // a group opened: its level's own query, over the source the session keeps alive
   const expand = await change('expand');
   reused(expand, 'the FX desk opened');
   const opened = level(expand.after, ['pid']);
@@ -107,12 +109,12 @@ try {
   for (const [sector, n] of sectors) if (opened.get(sector)?.[0] !== n) openWrong.push(`${sector}: ${opened.get(sector)?.[0]}, not ${n}`);
   check(openWrong, 'the FX desk\'s sectors under it, each with the seeding\'s positions');
   await page.screenshot({ path: join(outputs, '1-opened.png') });
-  // and closed again: the tree as it was, every table its rows read held already
+  // and closed again: the tree as it was, every table its rows read kept alive already
   const closed = await change('collapse');
-  if (closed.sent === 0) ok(`the FX desk closed: ${closed.queries} queries, nothing sent`);
+  if (closed.sent === 0) ok(`the FX desk closed: ${closed.queries} queries, nothing sent; ${closed.ms} ms to the view`);
   else fail(`closing the FX desk sent ${closed.sent} operations`);
 
-  // a pivot on region: two queries (its values, then the level), each over the held source
+  // a pivot on region: two queries (its values, then the level), each over the source kept alive
   const pivot = await change('pivot');
   reused(pivot, 'pivoted by region');
   const pivotWrong = [];

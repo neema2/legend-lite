@@ -1,5 +1,5 @@
 // THE RISK DEMO'S MODEL (docs/DEEPHAVEN_PLAN_2026_10_22.md D0, DH23): the tables the demo's Deephaven server holds
-// (risk.groovy), a connection to that server, and the runtime the pages plan on.
+// (risk.groovy), a connection to that server, and the runtime the cube plans on.
 
 /** The model, its connection at `host`:`port` over TLS. */
 export const MODEL = (host: string, port: number): string => `###Relational

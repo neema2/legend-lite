@@ -301,7 +301,7 @@ public final class Deephaven extends AnsiSqlRenderer {
     private static boolean isCondition(SqlExpr e) {
         return e instanceof SqlExpr.Call c && switch (c.fn()) {
             case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, IS_NULL, IS_NOT_NULL, IN,
-                 STARTS_WITH, ENDS_WITH -> true;
+                 STARTS_WITH, ENDS_WITH, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL -> true;
             // a COALESCE of conditions (the lowering's null-safe membership: COALESCE(x IN (...), false))
             case COALESCE -> c.args().stream().allMatch(x -> isCondition(x) || x instanceof SqlExpr.BoolLit);
             default -> false;
@@ -326,7 +326,7 @@ public final class Deephaven extends AnsiSqlRenderer {
         }
         if (e instanceof SqlExpr.Call c) {
             return switch (c.fn()) {
-                case IS_NULL, IS_NOT_NULL -> false;
+                case IS_NULL, IS_NOT_NULL, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL -> false;
                 case AND, OR, NOT -> c.args().stream().anyMatch(Deephaven::mayBeUnknown);
                 case COALESCE -> c.args().stream().allMatch(Deephaven::mayBeUnknown);
                 default -> c.args().stream().anyMatch(Deephaven::nullable);
@@ -384,6 +384,9 @@ public final class Deephaven extends AnsiSqlRenderer {
             case GREATER -> comparison(writer, a, holds ? " > " : " <= ");
             case GREATER_EQUAL -> comparison(writer, a, holds ? " >= " : " < ");
             case IN -> membership(writer, a, holds);
+            // a null is equal to a null and to nothing else: two-valued, never unknown
+            case NULL_SAFE_EQUAL -> nullSafeEqual(writer, a, holds);
+            case NULL_SAFE_NOT_EQUAL -> nullSafeEqual(writer, a, !holds);
             case COALESCE -> coalesceCondition(writer, a, 0, holds);
             case STARTS_WITH -> stringTest(writer, a, "startsWith", holds);
             case ENDS_WITH -> stringTest(writer, a, "endsWith", holds);
@@ -464,11 +467,235 @@ public final class Deephaven extends AnsiSqlRenderer {
         return writer.append("))");
     }
 
+    /** {@code a IS NOT DISTINCT FROM b} ({@code equal}) or its negation: both null, or neither null and equal. An
+     *  operand that cannot be null drops its half of the test. */
+    private SqlWriter nullSafeEqual(SqlWriter writer, List<SqlExpr> a, boolean equal) {
+        SqlExpr x = a.get(0);
+        SqlExpr y = a.get(1);
+        if (!nullable(x) && !nullable(y)) {
+            return writer.append("(").expr(x, 0).append(equal ? " == " : " != ").expr(y, 0).append(")");
+        }
+        if (!nullable(x) || !nullable(y)) {
+            // one side is never null: equal is "the other is not null and equal"; unequal is "null or unequal"
+            SqlExpr maybe = nullable(x) ? x : y;
+            writer.append(equal ? "(!isNull(" : "(isNull(").expr(maybe, 0).append(equal ? ") && " : ") || ");
+            return writer.expr(x, 0).append(equal ? " == " : " != ").expr(y, 0).append(")");
+        }
+        writer.append(equal ? "((isNull(" : "!((isNull(").expr(x, 0).append(") && isNull(").expr(y, 0)
+                .append(")) || (!isNull(").expr(x, 0).append(") && !isNull(").expr(y, 0).append(") && ");
+        return writer.expr(x, 0).append(" == ").expr(y, 0).append("))");
+    }
+
     private SqlWriter stringTest(SqlWriter writer, List<SqlExpr> a, String method, boolean holds) {
         writer.append("(");
         guard(writer, a);
         writer.append(holds ? "" : "!");
         return writer.expr(a.get(0), 0).append("." + method + "(").expr(a.get(1), 0).append("))");
+    }
+
+    // ==================================================================
+    // Filters: what the server reads without compiling (DH25)
+    // ==================================================================
+
+    /**
+     * A filter's condition as the filter list Deephaven ANDs (docs/DEEPHAVEN_PLAN_2026_10_22.md DH25): its conjunction
+     * split, one entry a conjunct, and each comparison of a column with a literal written as the server's filter parser
+     * reads it with no compiling -- {@code col == v}, {@code col != v}, {@code col < v} (and its kin), {@code col in v1,
+     * v2} and {@code col not in v1, v2}, bare, as a match or range filter. Any other entry is a formula, which the server
+     * compiles to a Java class once for each distinct text: measured on Deephaven 42.7 (2026-10-23), a new literal in a
+     * formula cost a filter 240 ms of compiling on the server, written bare 0 -- every value a person filters on, every
+     * group a tree opens, was a compile. A comparison's null guard is its own entry, a formula that names only its
+     * column, so it is compiled once a column.
+     */
+    SqlWriter filters(SqlWriter writer, SqlExpr condition) {
+        List<Map.Entry<SqlExpr, Boolean>> conjuncts = new java.util.ArrayList<>();
+        conjuncts(condition, true, conjuncts);
+        // each column's guard written once: the lowering states some itself ("x is not null and x > v")
+        java.util.Set<String> guarded = new java.util.LinkedHashSet<>();
+        boolean first = true;
+        for (Map.Entry<SqlExpr, Boolean> c : conjuncts) {
+            String notNull = notNull(c.getKey(), c.getValue());
+            Bare bare = notNull == null ? bare(c.getKey(), c.getValue()) : null;
+            String guard = notNull != null ? notNull : bare != null && bare.guard() ? bare.column() : null;
+            if (guard != null && guarded.add(guard)) {
+                writer.append(first ? "\"!isNull(" : ", \"!isNull(").append(guard).append(")\"");
+                first = false;
+            }
+            if (notNull != null) {
+                continue;
+            }
+            writer.append(first ? "\"" : ", \"");
+            first = false;
+            if (bare != null) {
+                writer.append(bare.column() + bare.op() + bare.values());
+            } else {
+                condition(writer, c.getKey(), c.getValue());
+            }
+            writer.append("\"");
+        }
+        return writer;
+    }
+
+    /** The column "{@code e} holds as {@code holds}" says is not null ({@code x IS NOT NULL}, or FALSE of
+     *  {@code x IS NULL}), by its name; else null. */
+    private @com.legend.base.Nullable String notNull(SqlExpr e, boolean holds) {
+        if (e instanceof SqlExpr.Group g) {
+            return notNull(g.inner(), holds);
+        }
+        return e instanceof SqlExpr.Call c && scope().computed.get(e) == null
+                && (c.fn() == SqlFn.IS_NOT_NULL && holds || c.fn() == SqlFn.IS_NULL && !holds)
+                && c.args().get(0) instanceof SqlExpr.Column x && scope().computed.get(x) == null ? column(x) : null;
+    }
+
+    /** The conjuncts of "{@code e} holds as {@code holds}": TRUE(a AND b) is TRUE(a) and TRUE(b), FALSE(a OR b) is
+     *  FALSE(a) and FALSE(b), and a NOT turns which one. */
+    private void conjuncts(SqlExpr e, boolean holds, List<Map.Entry<SqlExpr, Boolean>> out) {
+        if (scope().computed.get(e) == null) {
+            if (e instanceof SqlExpr.Group g) {
+                conjuncts(g.inner(), holds, out);
+                return;
+            }
+            if (e instanceof SqlExpr.Call c && (c.fn() == SqlFn.AND && holds || c.fn() == SqlFn.OR && !holds)) {
+                for (SqlExpr a : c.args()) {
+                    conjuncts(a, holds, out);
+                }
+                return;
+            }
+            if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.NOT) {
+                conjuncts(c.args().get(0), !holds, out);
+                return;
+            }
+        }
+        out.add(Map.entry(e, holds));
+    }
+
+    /** A filter entry the server reads with no compiling: {@code column + op + values}, after a null guard on the
+     *  column when {@code guard}. */
+    private record Bare(String column, String op, String values, boolean guard) {
+    }
+
+    /** "{@code e} holds as {@code holds}" as a bare filter entry, or null when it has no bare form. */
+    private @com.legend.base.Nullable Bare bare(SqlExpr e, boolean holds) {
+        if (e instanceof SqlExpr.Group g) {
+            return bare(g.inner(), holds);
+        }
+        if (!(e instanceof SqlExpr.Call c) || scope().computed.get(e) != null) {
+            return null;
+        }
+        List<SqlExpr> a = c.args();
+        return switch (c.fn()) {
+            // a match filter keeps no null: TRUE(x == v) needs no guard; an inverted one keeps every null: TRUE(x != v)
+            // and FALSE(x == v) need one, and the null-safe forms, whose null is unequal to v, none
+            case EQUAL -> compared(a, holds ? " == " : " != ", !holds);
+            case NOT_EQUAL -> compared(a, holds ? " != " : " == ", holds);
+            case NULL_SAFE_EQUAL -> compared(a, holds ? " == " : " != ", false);
+            case NULL_SAFE_NOT_EQUAL -> compared(a, holds ? " != " : " == ", false);
+            // a range filter's nulls are guarded off either way
+            case LESS -> compared(a, holds ? " < " : " >= ", true);
+            case LESS_EQUAL -> compared(a, holds ? " <= " : " > ", true);
+            case GREATER -> compared(a, holds ? " > " : " <= ", true);
+            case GREATER_EQUAL -> compared(a, holds ? " >= " : " < ", true);
+            // FALSE(x IN vs): not null and none of them
+            case IN -> listed(a, holds ? " in " : " not in ", !holds);
+            case COALESCE -> a.size() == 2 && a.get(1) instanceof SqlExpr.BoolLit b && !b.value()
+                    ? orFalse(a.get(0), holds) : null;
+            default -> null;
+        };
+    }
+
+    /** COALESCE(c, false), the lowering's null-safe membership (nested, at times): TRUE is c's TRUE; FALSE is c's
+     *  FALSE where c is never unknown, and where c is {@code x IN vs}, "a null x or none of them" -- the inverted
+     *  match, which keeps every null. */
+    private @com.legend.base.Nullable Bare orFalse(SqlExpr c, boolean holds) {
+        if (holds || !mayBeUnknown(c)) {
+            return bare(c, holds);
+        }
+        SqlExpr inner = c instanceof SqlExpr.Group g ? g.inner() : c;
+        return inner instanceof SqlExpr.Call in && in.fn() == SqlFn.IN && scope().computed.get(in) == null
+                ? listed(in.args(), " not in ", false) : null;
+    }
+
+    /** A column and a literal compared, either way round (a literal first is mirrored); {@code guard}: the column's
+     *  nulls are filtered off first, when it may hold one. */
+    private @com.legend.base.Nullable Bare compared(List<SqlExpr> a, String op, boolean guard) {
+        for (int side = 0; side < 2; side++) {
+            SqlExpr x = a.get(side);
+            String column = bareColumn(x);
+            String value = column == null ? null : bareLiteral(a.get(1 - side), x);
+            if (column != null && value != null) {
+                return new Bare(column, side == 0 ? op : mirrored(op), value, guard && nullable(x));
+            }
+        }
+        return null;
+    }
+
+    private static String mirrored(String op) {
+        return switch (op) {
+            case " < " -> " > ";
+            case " <= " -> " >= ";
+            case " > " -> " < ";
+            case " >= " -> " <= ";
+            default -> op;
+        };
+    }
+
+    /** {@code x in v1, v2}: every value a literal of the column's kind. The server splits the list at its commas, so
+     *  a string holding one has no bare form. */
+    private @com.legend.base.Nullable Bare listed(List<SqlExpr> a, String op, boolean guard) {
+        String column = bareColumn(a.get(0));
+        if (column == null) {
+            return null;
+        }
+        StringBuilder values = new StringBuilder();
+        for (SqlExpr v : a.subList(1, a.size())) {
+            String value = bareLiteral(v, a.get(0));
+            if (value == null || v instanceof SqlExpr.StringLit s && s.value().indexOf(',') >= 0) {
+                return null;
+            }
+            values.append(values.isEmpty() ? "" : ", ").append(value);
+        }
+        return new Bare(column, op, values.toString(), guard && nullable(a.get(0)));
+    }
+
+    /** A column of a kind the server's filter parser compares with a literal, by its name; else null. */
+    private @com.legend.base.Nullable String bareColumn(SqlExpr e) {
+        if (!(e instanceof SqlExpr.Column c) || scope().computed.get(e) != null || bareKind(e) == null) {
+            return null;
+        }
+        String name = column(c);
+        // the server's own names for a row's place are never a column it filters by name
+        return name.equals("i") || name.equals("ii") || name.equals("k") ? null : name;
+    }
+
+    /** A literal as the server's filter parser reads one of {@code column}'s kind: an integer's digits (no
+     *  {@code L}), a float's plain decimal with its point, a string in backticks, a boolean; else null. */
+    private static @com.legend.base.Nullable String bareLiteral(SqlExpr e, SqlExpr column) {
+        SqlType.Scalar kind = bareKind(column);
+        if (e instanceof SqlExpr.IntLit i && (kind == SqlType.Scalar.INTEGER || kind == SqlType.Scalar.BIGINT)) {
+            return Long.toString(i.value());
+        }
+        if (e instanceof SqlExpr.FloatLit f && kind == SqlType.Scalar.DOUBLE && Double.isFinite(f.value())) {
+            String plain = java.math.BigDecimal.valueOf(f.value()).toPlainString();
+            return plain.indexOf('.') >= 0 ? plain : plain + ".0";
+        }
+        if (e instanceof SqlExpr.StringLit s && kind == SqlType.Scalar.VARCHAR) {
+            return stringLiteral(s.value());
+        }
+        if (e instanceof SqlExpr.BoolLit b && kind == SqlType.Scalar.BOOLEAN) {
+            return b.value() ? "true" : "false";
+        }
+        return null;
+    }
+
+    /** The kinds the bare forms compare: whole numbers, floats, strings, booleans. */
+    private static @com.legend.base.Nullable SqlType.Scalar bareKind(SqlExpr e) {
+        if (e.type() instanceof TypeFact.Typed t && t.type() instanceof SqlType.Scalar s) {
+            return switch (s) {
+                case INTEGER, BIGINT, DOUBLE, VARCHAR, BOOLEAN -> s;
+                default -> null;
+            };
+        }
+        return null;
     }
 
     // ==================================================================

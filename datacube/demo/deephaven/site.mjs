@@ -1,7 +1,7 @@
-// THE RISK DEMO'S SITE (docs/DEEPHAVEN_PLAN_2026_10_22.md D0, DH23), for the hand tool (serve.mjs) and the tests
-// (test/deephaven/demo.mjs, cube.mjs): the pinned Deephaven started with the demo's application, and its two pages served
-// on the loopback -- the plain live grid (/) and DataCube on Deephaven (/cube.html) -- each from Bazel's runfiles, beside
-// the planner's module and the server's address and key (config.json).
+// THE RISK DEMO'S SITE (docs/DEEPHAVEN_PLAN_2026_10_22.md D0, DH23, DH24), for the hand tool (serve.mjs), the test
+// (test/deephaven/cube.mjs) and the benchmarks (bench/deephaven/): the pinned Deephaven started with the demo's
+// application, and DataCube on Deephaven (cube.html) served at / on the loopback from Bazel's runfiles, beside the
+// planner's module and the server's address and key (config.json).
 
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -52,9 +52,7 @@ export function startDeephaven({ quiet = false, fixture = 'DEEPHAVEN_FIXTURE', a
 export async function serveDemo(config, port = 0) {
   const style = (name) => ['text/css', readFileSync(runfileNamed('CUBE_STYLES', name))];
   const files = {
-    '/': ['text/html', readFileSync(runfileFromEnv('DEMO_PAGE'))],
-    '/risk.js': ['text/javascript', readFileSync(runfileFromEnv('DEMO_BUNDLE'))],
-    '/cube.html': ['text/html', readFileSync(runfileFromEnv('CUBE_PAGE'))],
+    '/': ['text/html', readFileSync(runfileFromEnv('CUBE_PAGE'))],
     '/cube.js': ['text/javascript', readFileSync(runfileFromEnv('CUBE_BUNDLE'))],
     '/app.css': style('app.css'),
     '/grid.css': style('grid.css'),
