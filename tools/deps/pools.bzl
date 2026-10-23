@@ -40,6 +40,10 @@ POOL_USERS = {
     # test tooling: JUnit, ArchUnit; for the packages with tests. sdlc-server also takes JGit from here, the judge
     # of the git repository it writes by hand (2026-10-04, the Studio line: no host git in tests)
     "maven_test": ["core", "json", "parser-equivalence", "pct", "sdlc-server", "spec", "third_party/teavm_classlib", "tools/bump", "tools/deps", "tools/engine-runner", "tools/guards", "tools/junit", "tools/legend", "warehouse"],
+    # Deephaven's client (gRPC, protobuf, the Deephaven protocol stubs), under the Deephaven Community License, so
+    # never shipped: the opt-in connector only, which no product target carries (2026-10-23,
+    # docs/DEEPHAVEN_PLAN_2026_10_22.md L3, DH11)
+    "maven_deephaven": ["core:deephaven_connector"],
     # compiler plugins (NullAway), never on a classpath
     "maven_tools": ["tools/nullaway"],
     # legend-engine and legend-pure: TEST INPUTS ONLY, for the packages that referee lite against them (AGENTS.md,
