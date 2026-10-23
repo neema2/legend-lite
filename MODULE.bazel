@@ -138,6 +138,12 @@ use_repo(embedded_mysql, "embedded_mysql")
 embedded_trino = use_extension("//tools/trino:extensions.bzl", "embedded_trino")
 use_repo(embedded_trino, "embedded_trino")
 
+# THE DEEPHAVEN the Deephaven tests run on (tools/deephaven/deephaven.bzl): Deephaven Community's pinned server tarball,
+# trimmed by Bazel to its jars and JVM options -- no Docker -- in @embedded_deephaven (every platform: the server is
+# Java). A test input only, under the Deephaven Community License: nothing the build ships carries it.
+embedded_deephaven = use_extension("//tools/deephaven:extensions.bzl", "embedded_deephaven")
+use_repo(embedded_deephaven, "embedded_deephaven")
+
 # THE CLICKHOUSE the ClickHouse lanes run on (tools/clickhouse/clickhouse.bzl): ClickHouse's pinned static build, its one
 # binary kept -- no Docker -- in @embedded_clickhouse (Linux x86_64 only: the build pinned).
 embedded_clickhouse = use_extension("//tools/clickhouse:extensions.bzl", "embedded_clickhouse")
@@ -478,6 +484,16 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
     "linux_arm64": "sha256-WYSeikvgD6DsjE2w0mcHmZBh0QO5Ar8yMi+lzeH8OT0=",
     "windows_amd64": "sha256-ZbMfACxwrF+BLSk7hVK5d9HA5nUtChEnF2RUyBhO0AE=",
 }.items()]
+
+# DEEPHAVEN'S PROTOCOL DEFINITIONS (docs/DEEPHAVEN_PLAN_2026_10_22.md DH11, 2026-10-23): the .proto files in Deephaven
+# 42.7's protocol jar (the same jar @embedded_deephaven's server carries), what //core:deephaven_messages_test checks
+# lite's wire table against. A test input only, read as a zip and never on a classpath (the Deephaven Community License).
+http_file(
+    name = "deephaven_proto_jar",
+    downloaded_file_path = "deephaven-proto-backplane-grpc-42.7.jar",
+    sha256 = "035ff11ce71e3a3fd3b09821fa7d0458b9de5ea75f9824c6e2011c4abbcc46b0",
+    urls = ["https://repo1.maven.org/maven2/io/deephaven/deephaven-proto-backplane-grpc/42.7/deephaven-proto-backplane-grpc-42.7.jar"],
+)
 
 # DuckDB's httpfs extension for Python's DuckDB (1.5.5, as duckdb's Python wheel is pinned: tools/python/requirements.in;
 # it must match exactly), one per platform, pinned by content. Pinned 2026-10-12 on the user's ruling that day: httpfs

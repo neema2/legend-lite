@@ -89,6 +89,11 @@ legend_java_library(
     deps = ["//base", "//json"],
     visibility = ["//native:__pkg__", "//query-store:__pkg__"],
 )
+# DEEPHAVEN'S WIRE (docs/DEEPHAVEN_PLAN_2026_10_22.md DH11, DH22, 2026-10-23): the messages lite writes to a Deephaven
+# server and reads back, from a plan's JSON to protobuf's bytes and back, by a field table a test checks against
+# Deephaven's own definitions. //base and //json only, and no Deephaven code: the browser tab carries it in the
+# WebAssembly planner (DH21), and a server-side sender reuses it.
+legend_java_library(name = "deephaven_wire", srcs = glob(["src/main/java/com/legend/deephaven/*.java"]), deps = ["//base", "//json"])
 # visible to //datacube: its catalog corpus and offer facts generators read the protocol directly
 legend_java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"], visibility = ["//datacube:__pkg__"])
 legend_java_library(name = "model", srcs = glob(["src/main/java/com/legend/model/*.java"]), deps = ["//base", ":protocol"])
@@ -286,7 +291,7 @@ _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":probe", ":testdatagen",
-    ":execution_plan", ":planner", ":pure_v1", ":saved_queries", ":driver", ":ide", ":test", ":server_lib",
+    ":execution_plan", ":planner", ":pure_v1", ":saved_queries", ":deephaven_wire", ":driver", ":ide", ":test", ":server_lib",
 ]
 
 # THE PLAN SIDE (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the planner and every library it
@@ -296,6 +301,7 @@ _PLAN_SIDE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":planner", ":pure_v1",
+    ":deephaven_wire",
 ]
 
 legend_java_library(
@@ -446,6 +452,9 @@ legend_java_library(
             # its driver (2026-10-17)
             "src/test/java/com/legend/exec/MongoDbPlanTest.java",
             "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
+            # the wire table's definitions check is :deephaven_messages_test's alone: Deephaven's protocol jar is its
+            # data (2026-10-23)
+            "src/test/java/com/legend/deephaven/DeephavenMessagesTest.java",
             "src/test/java/com/legend/FixtureAsidePostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
@@ -560,6 +569,7 @@ _CORE_TEST_PACKAGES = [
     "builtin",
     "cache",
     "compiler",
+    "deephaven",
     "exec",
     "ide",
     "integration",
@@ -631,7 +641,7 @@ junit_test(
 
 test_suite(
     name = "core_tests",
-    tests = [":core_tests_" + p for p in _CORE_TEST_PACKAGES + ["root"]],
+    tests = [":core_tests_" + p for p in _CORE_TEST_PACKAGES + ["root"]] + [":deephaven_messages_test"],
     visibility = ["//gates:__pkg__"],
 )
 
@@ -753,6 +763,24 @@ junit_test(
     runtime_deps = [":drivers"],
     deps = [
         ":core",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# THE DEEPHAVEN WIRE TABLE AGAINST DEEPHAVEN'S DEFINITIONS (docs/DEEPHAVEN_PLAN_2026_10_22.md DH11, 2026-10-23): every
+# message, field and enum value lite writes or reads, checked against the .proto files in Deephaven 42.7's protocol jar
+# (@deephaven_proto_jar, read as a zip, never on a classpath). Small and fast: it runs with the core tests.
+junit_test(
+    name = "deephaven_messages_test",
+    memory_mb = 256,
+    size = "small",
+    srcs = ["src/test/java/com/legend/deephaven/DeephavenMessagesTest.java"],
+    data = ["@deephaven_proto_jar//file"],
+    jvm_flags = ["-Ddeephaven.proto.jar=$(rlocationpath @deephaven_proto_jar//file)"],
+    select = ["--select-class=com.legend.deephaven.DeephavenMessagesTest"],
+    deps = [
+        ":core",
+        "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
