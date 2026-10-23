@@ -412,6 +412,11 @@ public final class Snowflake extends AnsiSqlRenderer {
                     "list parameter '" + p.name() + "' reached Snowflake, which binds no array (= ANY(?))");
             // a decimal literal is the DECIMAL of its digits (SqlTyping.decimalLitType): Snowflake drops a trailing
             // zero's scale (1.0 is a NUMBER(2,0), its text '1', measured), so such a literal spells its type
+            // a decimal literal no NUMBER holds (more than 38 digits, or a scale past 37: the IQ island's single
+            // precision bounds, 3.4028234663852886E38 and 1.1754943508222875E-38) is DuckDB's DOUBLE reading of its
+            // digits; Snowflake's reading of them is an error ("Integer literal is out of representable range")
+            case SqlExpr.DecimalLit d when d.value().precision() > 38 || d.value().scale() > 37 ->
+                    writer.append("CAST('" + d.value().doubleValue() + "' AS DOUBLE)");
             case SqlExpr.DecimalLit d when d.value().scale() > 0
                     && d.value().stripTrailingZeros().scale() < d.value().scale() -> writer.append("CAST("
                     + d.value().toPlainString() + " AS " + (d.type() instanceof com.legend.sql.TypeFact.Typed t
@@ -1345,7 +1350,9 @@ public final class Snowflake extends AnsiSqlRenderer {
             case UNNEST -> unnestProjection(writer, c.args());
             // this database's plain spellings: name(args)
             case ABS -> writer.function("abs", c.args());
-            case ASCII_CODE -> writer.function("ascii", c.args());
+            // the first character's code point (DuckDB's ascii): Snowflake's ascii is the first byte of its UTF-8
+            // ('é' 195, measured by the IQ scale program's Snowflake lane, 2026-10-23), its unicode the code point
+            case ASCII_CODE -> writer.function("unicode", c.args());
             case ATAN -> writer.function("atan", c.args());
             case ATAN2 -> writer.function("atan2", c.args());
             case CBRT -> writer.function("cbrt", c.args());
@@ -2448,10 +2455,22 @@ public final class Snowflake extends AnsiSqlRenderer {
             throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
         }
         boolean desc = !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
-        writer.append(name).append("(").expr(r.args().get(1), 0)
+        writer.append(name).append("(").piece(level(r.args().get(1)))
                 .append(") WITHIN GROUP (ORDER BY ");
         return (numeric ? writer.piece(numericArg(r.args().get(0))) : writer.expr(r.args().get(0), 0))
                 .append(desc ? " DESC" : "").append(")");
+    }
+
+    /** A percentile's level: a literal by its plain digits, which Snowflake reads as the constant the function needs
+     *  (a {@code CAST(0.0 AS NUMBER(1,1))}, this dialect's spelling of a 0.0 literal elsewhere, is no constant to
+     *  it: "argument 0 to function PERCENTILE_CONT needs to be constant", measured). */
+    private SqlWriter.Piece level(SqlExpr e) {
+        return switch (e) {
+            case SqlExpr.DecimalLit d -> w -> w.append(d.value().toPlainString());
+            case SqlExpr.FloatLit f when Double.isFinite(f.value()) ->
+                    w -> w.append(java.math.BigDecimal.valueOf(f.value()).toPlainString());
+            default -> w -> w.expr(e, 0);
+        };
     }
 
     /** The {@code LIST} arm of {@link #reducer}. */

@@ -78,8 +78,10 @@ class IqFuzzTest {
                 IqFuzz gen = new IqFuzz(s, tables, depth);
                 IqFuzz.Shape shape = gen.shape();
                 String p = gen.predicate(shape.scope());
-                String complex = gen.complex();
+                // before complex(), whose own shape numbers its correlation names afresh: a predicate drawn after it
+                // could name a subquery's table as one the shape already names (IQ's -143, rightly)
                 String p2 = gen.predicate(shape.scope());
+                String complex = gen.complex();
                 List<String> sqls = new ArrayList<>(List.of(shape.sql(), shape.where("(" + p + ")"),
                         shape.where("NOT (" + p + ")"), shape.where("(" + p + ") IS UNKNOWN"), complex,
                         shape.partitions(p)));
@@ -108,7 +110,7 @@ class IqFuzzTest {
                         }
                     }
                 }
-                found += setIdentities(outcomes, sqls, s, findings);
+                found += setIdentities(outcomes, sqls, s, profile.startsWith("sqla17"), findings);
                 if (outcomes.subList(0, 4).stream().allMatch(o -> o.kind().equals("ROWS"))) {
                     partitioned++;
                     List<String> whole = sorted(outcomes.get(0).rows());
@@ -165,8 +167,11 @@ class IqFuzzTest {
 
     /** The identities over A's rows (query 1) and its set operations with B (queries 6..12): DISTINCT A is A's rows
      *  each once; A INTERSECT B and A EXCEPT B split DISTINCT A; A UNION B is A UNION ALL B each once; A INTERSECT ALL
-     *  B and A EXCEPT ALL B split A's rows. Each a finding appended to {@code findings}; the number found. */
-    private static int setIdentities(List<Outcome> outcomes, List<String> sqls, long seed, StringBuilder findings) {
+     *  B and A EXCEPT ALL B split A's rows. Rows compared by their collation keys ({@link #collationKey}): where equal
+     *  keys differ in their text, IQ shows one of them, the plan's choice. Each a finding appended to
+     *  {@code findings}; the number found. */
+    private static int setIdentities(List<Outcome> outcomes, List<String> sqls, long seed, boolean caseFolded,
+            StringBuilder findings) {
         int found = 0;
         // {check, the whole, its parts...}, each an index into the outcomes; the whole each once where the check says
         int[][] checks = {{1, 6}, {6, 7, 8}, {10, 9}, {1, 11, 12}};
@@ -176,10 +181,10 @@ class IqFuzzTest {
             if (!java.util.Arrays.stream(at).allMatch(i -> outcomes.get(i).kind().equals("ROWS"))) {
                 continue;
             }
-            List<String> whole = sorted(outcomes.get(at[0]).rows());
+            List<String> whole = sorted(collationKeys(outcomes.get(at[0]).rows(), caseFolded));
             List<String> parts = new ArrayList<>();
             for (int i = 1; i < at.length; i++) {
-                parts.addAll(outcomes.get(at[i]).rows());
+                parts.addAll(collationKeys(outcomes.get(at[i]).rows(), caseFolded));
             }
             // DISTINCT and UNION: the part, each once, is the whole's rows each once
             if (c == 0 || c == 2) {
@@ -194,6 +199,17 @@ class IqFuzzTest {
             }
         }
         return found;
+    }
+
+    private static List<String> collationKeys(List<String> rows, boolean caseFolded) {
+        return rows.stream().map(r -> collationKey(r, caseFolded)).toList();
+    }
+
+    /** A row's text as IQ's collation tells rows apart: no cell's trailing blanks (an IQ database's and SQL Anywhere's
+     *  alike: 'a' and 'a ' are equal), and the ASCII letters folded under a sqla17 profile. */
+    static String collationKey(String row, boolean caseFolded) {
+        String key = row.replaceAll(" +(?=, |]$)", "");
+        return caseFolded ? key.toLowerCase(java.util.Locale.ROOT) : key;
     }
 
     /**
