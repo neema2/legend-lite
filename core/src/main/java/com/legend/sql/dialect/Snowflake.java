@@ -179,7 +179,9 @@ public final class Snowflake extends AnsiSqlRenderer {
      * aggregate and names its columns {@code 'a'}, quotes included); the checked-defect envelopes as list lambdas
      * (a to-many hoist nests lambdas and walls here); the substring start clamp (a negative start counts from the
      * end here); a select-list UNNEST as a lateral FLATTEN; a constant GROUP BY or ORDER BY key as a typed
-     * expression (Snowflake reads an integer one as a position); an EXISTS written closer to an equality correlation
+     * expression (Snowflake reads an integer one as a position); a WHERE's IS NOT NULL guard of a column it compares,
+     * dropped (RedundantNullGuards: a guard of the outer row keeps Snowflake from decorrelating); an EXISTS written
+     * closer to an equality correlation
      * in its subquery's own WHERE (ExistsUnnested); an EXISTS one row decides, without its subquery
      * (ExistsOverOneRow); a WHERE's NOT EXISTS of the IQ island's NOT IN or ALL as its ALL (NotExistsAsAll); a LEFT JOIN
      * condition's conjunct that holds a
@@ -194,7 +196,8 @@ public final class Snowflake extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
-                new ConstantKeysAsExpressions(), new ExistsUnnested(), new ExistsOverOneRow(), new NotExistsAsAll(),
+                new ConstantKeysAsExpressions(), new RedundantNullGuards(), new ExistsUnnested(), new ExistsOverOneRow(),
+                new NotExistsAsAll(),
                 new OuterJoinSubqueryFilters(true),
                 new ScalarSubqueriesFlattened(),
                 new ScalarSubqueriesAggregated(), new RootNumericTypes());
