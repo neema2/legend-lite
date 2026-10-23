@@ -514,3 +514,10 @@ says so.
   by name, 2 listed iq17 runs (`sf-lazy`), and 6 runs SQL Anywhere judges that wait on the user's decision (the five
   iq16 BIGINT overflows and sqla17's DISTINCT TOP).
 - 2026-10-23, **fuzz round 13** (seed 13, 2,000 shapes, `iq17-odbc`): 30,000 queries, 1,814 partitioned, no finding.
+- 2026-10-23, **the generator widened** (a655f837): a division of two integer expressions, products of two (integer
+  and NUMERIC) and a NUMERIC difference, a correlated scalar read of no aggregate, a grouped derived table's key
+  computed and its HAVING on SUM or MAX, and DENSE_RANK, NTILE, LEAD, FIRST_VALUE over a frame and AVG over a
+  partition in the crash-only window query. **Fuzz round 14**, its first (seed 14, 2,000 shapes): 65 findings, all
+  DuckDB's "More than one row returned by a subquery", which is IQ's error too: the classifier counts it as one now
+  (55de6994). The rerun: 30,000 queries, 1,771 partitioned, no finding. The widened catalogue's new refusals are
+  IQ's -1001030 for a subquery inside a conditional (630) and NUMERIC widths IQ's own rules decide.
