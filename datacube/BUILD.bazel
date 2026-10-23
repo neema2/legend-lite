@@ -2357,3 +2357,17 @@ browser_test(
     entry_point = "test/deephaven/board.mjs",
     env = _DEEPHAVEN_DEMO_ENV,
 )
+
+# THE DEMO PAGES RECORDED TICKING (a hand tool, manual): the cube page and the page of grids, eight seconds each, as
+# screencast frames and their times under the outputs, for ffmpeg (test/deephaven/record.mjs says how).
+browser_test(
+    name = "deephaven_record",
+    size = "large",
+    tags = ["manual"],
+    data = _DEEPHAVEN_DEMO_DATA + [
+        "test/deephaven/record.mjs",
+        ":node_modules/playwright",
+    ],
+    entry_point = "test/deephaven/record.mjs",
+    env = _DEEPHAVEN_DEMO_ENV,
+)
