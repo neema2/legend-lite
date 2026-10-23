@@ -1076,8 +1076,11 @@ final class Fold {
         // A quote-bearing pivot IDENTITY ('2011__|__newCol') strips to its
         // bare SQL name ONLY when the source does not claim the exact name —
         // a genuine column carrying that spelling (its own extend) wins.
-        if (src.outputs().isEmpty() || !claims(src.outputs(), column)) {
-            column = pivotIdentity(column);
+        // (the scan of the outputs only for such an identity: at every level of a join's recursion it made a chain
+        // of 700 joins plan in 9.7 s, the IQ scale program's Q29, 2026-10-23)
+        String identity = pivotIdentity(column);
+        if (!identity.equals(column) && (src.outputs().isEmpty() || !claims(src.outputs(), column))) {
+            column = identity;
         }
         // M2 leaf stamping (TYPED_SQL_IR.md §2): a claiming source has
         // the OutputCol in hand — the reference carries its declared

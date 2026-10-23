@@ -200,6 +200,7 @@ says so.
 | Q26 | TOP and START AT compute the items of rows they skip (IQ raises for them); Snowflake evaluates the select list after the limit (3 runs BUG) | P1.2 | the sibling's measurements | open |
 | Q27 | Nested integer division by a column grows exponentially: `it / sm / sm` doubles a level twice on DuckDB (the translator's NULL guard repeats the inner quotient, unmerged where IQ raises for a zero divisor; the zero guard's message copies the dividend) and six times on Snowflake (its exact quotient writes the dividend twice). Needs a common-subexpression hoist (the operand as a computed column) or a single-copy exact quotient for Snowflake (`TRUNC(CAST(a AS NUMBER(38, 19)) / b)`, by its division scale rule, to be measured) | P4, P1.3 | the sibling's measurement for the Snowflake half | the Snowflake half done (2026-10-23, the scale-19 quotient, measured); DuckDB's open |
 | Q28 | Planning a long UNION ALL grows faster than linearly: 1.9 s at 1,000 branches, 4.0 s at 2,000, 16.6 s at 4,000 (the scale probe at twice its sizes, 2026-10-23) | P4 | a profile | done (2026-10-23): 4,000 branches planned in 1.4 s |
+| Q29 | Planning a long join chain: `Fold.sourceColumn` scanned a join's every output at each level of its recursion, for a pivot identity's check | P4 | a profile | done (2026-10-23): 700 joins planned in 4.0 s (were 9.7 s); 1,200 in 8.7 s, the rest spread over the translator's taken names and the typer, past DuckDB's depth limit anyway |
 | Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | open |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
 | Q9 | Unread derived columns dropped | P3.2 | oracle (some answers are committed) | open |
@@ -434,3 +435,9 @@ says so.
   4,000 branches plan in 1.0, 0.7 and 1.4 s (were 1.9, 4.0 and 16.6 s); the 4,000 run in 4.2 s (was 33 s). The probe
   at its own sizes: every shape plans in under 2 s but 700 joins (9.7 s, then DuckDB's depth limit); DuckDB's join
   order for 350 joins is still 210 s (Q16).
+- 2026-10-23, **Q29: a long join chain plans faster.** Thread dumps of the lens on 700 joins found
+  `Fold.sourceColumn` scanning the whole join's outputs at every level of its recursion, for each column read, only to
+  decide whether a quoted pivot identity (`'2011__|__newCol'`) should be stripped. The scan now runs only for such a
+  name. 700 joins plan in 4.0 s (were 9.7 s), 1,200 in 8.7 s; what remains is spread over the translator's
+  taken-name sets, rebuilt at each join, and the typer's relation types. 700 joins are past DuckDB's tree depth
+  anyway (Q17), and 350 still take its join-order optimizer 210 s (Q16).
