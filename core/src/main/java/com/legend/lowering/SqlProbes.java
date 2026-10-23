@@ -61,18 +61,61 @@ final class SqlProbes {
         probe.scan(e);
         return hit[0];
     }
-    /** Whether the expression tree carries an aggregate that reads no column ({@code MIN(-1)}, {@code COUNT(*)}):
-     *  substituted into a subquery, no database can tell whose rows it aggregates (DuckDB: "Aggregate with only
-     *  constant parameters has to be bound in the root subquery"; Postgres binds it to the subquery's own rows). The IQ
-     *  scale program, 2026-10-22: its fuzzer's grouped derived tables read by a correlated subquery. */
-    static boolean aggregatesNoColumn(SqlExpr e) {
+
+    /** Whether a subquery of {@code predicate} holds one of {@code grouped}'s aggregates that read no column: a HAVING
+     *  fold carried it there, where no database can tell whose rows it aggregates (DuckDB: "Aggregate with only constant
+     *  parameters has to be bound in the root subquery"; Postgres binds it to the subquery's own rows; the IQ scale
+     *  program, 2026-10-22: its fuzzer's grouped derived tables read by a correlated subquery). A subquery reading only
+     *  group keys keeps its HAVING (an independent review, 2026-10-23); one with an aggregate of its own equal to such a
+     *  projection isolates too, which costs a subselect, never an answer. */
+    static boolean carriesAggregateOfNoColumn(SqlExpr predicate, SqlSelect grouped) {
+        java.util.Set<SqlExpr> carried = new java.util.HashSet<>();
+        for (SqlSelect.Projection p : grouped.projections()) {
+            aggregatesOfNoColumn(p.expr(), carried);
+        }
+        if (carried.isEmpty()) {
+            return false;
+        }
         boolean[] hit = {false};
+        var subqueries = new SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr x) {
+                com.legend.sql.SqlQuery sub = switch (x) {
+                    case SqlExpr.ScalarSubquery q -> q.subquery();
+                    case SqlExpr.Exists q -> q.subquery();
+                    case SqlExpr.InSubquery q -> q.subquery();
+                    case SqlExpr.Quantified q -> q.subquery();
+                    default -> null;
+                };
+                if (sub != null && !hit[0]) {
+                    var inside = new SqlRewriter() {
+                        @Override
+                        protected SqlExpr expr(SqlExpr y) {
+                            hit[0] |= carried.contains(y);
+                            return y;
+                        }
+                    };
+                    inside.rewrite(sub);
+                }
+                return x;
+            }
+
+            void scan(SqlExpr x) {
+                rewriteExpr(x);
+            }
+        };
+        subqueries.scan(predicate);
+        return hit[0];
+    }
+
+    /** The aggregates of {@code e} that read no column ({@code MIN(-1)}, {@code COUNT(*)}), into {@code out}. */
+    private static void aggregatesOfNoColumn(SqlExpr e, java.util.Set<SqlExpr> out) {
         var probe = new SqlRewriter() {
             @Override
             protected SqlExpr expr(SqlExpr x) {
                 if (x instanceof com.legend.sql.SqlAgg.Reducer r
                         && r.args().stream().noneMatch(SqlProbes::readsColumn)) {
-                    hit[0] = true;
+                    out.add(x);
                 }
                 return x;
             }
@@ -82,7 +125,6 @@ final class SqlProbes {
             }
         };
         probe.scan(e);
-        return hit[0];
     }
 
     /** Whether the expression tree reads a column. */
