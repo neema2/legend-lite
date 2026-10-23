@@ -1,19 +1,22 @@
 """The platform function inventory: every function carrying <<PCT.function>> in legend-pure and
-legend-engine, with a category from its source path. Writes pct_functions.tsv (name, category, file)."""
+legend-engine, with a category from its source path. Writes pct_functions.tsv (name, category, file, repo).
+
+Usage: pct_inventory.py <legend-pure root> <legend-engine root> <out.tsv> (run.sh passes the pinned trees)."""
 import collections
 import glob
 import os
 import re
 import sys
 
-L = sys.argv[1]
-OUT = sys.argv[2]
+PURE, ENGINE, OUT = sys.argv[1:4]
 FN = re.compile(r'function\s+(<<[^>]*>>\s*)?(\{[^}]*\}\s*)?([\w:]+?)(?:<[^>(]*>)?\s*\(', re.S)
 
 rows = set()
-for repo in ('legend-pure', 'legend-engine'):
-    for f in glob.glob(os.path.join(L, repo, '**', '*.pure'), recursive=True):
-        p = f.replace('\\', '/')
+for repo, root in (('legend-pure', PURE), ('legend-engine', ENGINE)):
+    for f in glob.glob(os.path.join(root, '**', '*.pure'), recursive=True):
+        # the path within its tree, so the categories read the same wherever the tree is
+        rel = os.path.relpath(f, root).replace('\\', '/')
+        p = '/' + rel
         if '/target/' in p or '/src/test/' in p:
             continue
         txt = open(f, encoding='utf-8', errors='replace').read()
@@ -38,7 +41,7 @@ for repo in ('legend-pure', 'legend-engine'):
             if 'PCT.function' not in st:
                 continue
             name = fm.group(3).split('::')[-1]
-            rows.add((name, cat, p.split(repo + '/')[-1] if repo + '/' in p else p, repo))
+            rows.add((name, cat, rel, repo))
 
 with open(OUT, 'w', encoding='utf-8') as o:
     for r in sorted(rows):

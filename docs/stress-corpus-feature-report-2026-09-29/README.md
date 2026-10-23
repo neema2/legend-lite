@@ -691,16 +691,21 @@ other stores that no user model can contain.
 
 ## Appendix: reproducing this
 
-The legend-engine and legend-pure releases are pinned in `release.MODULE.bazel` (4.145.0 and 5.99.0). The EMIT
-models, `emit.md` and the PCT sources come from local checkouts. This update used legend-engine `35930373b41`
-(2026-10-16) and legend-pure `57f94a6c1` (5.108.0 and 17 commits). The first edition used legend-engine `1d40dd7251d`
-and a legend-pure 5.105.1-SNAPSHOT (`5fed02095` reproduces its PCT count). The scripts are in [`tools/`](tools/), and
-`tools/run.sh` runs all of them in order:
+The legend-engine and legend-pure releases are pinned in `release.MODULE.bazel` (4.145.0 and 5.99.0). This edition's
+EMIT models, `emit.md` and PCT sources came from local checkouts: legend-engine `35930373b41` (2026-10-16) and
+legend-pure `57f94a6c1` (5.108.0 and 17 commits). The first edition used legend-engine `1d40dd7251d` and a legend-pure
+5.105.1-SNAPSHOT (`5fed02095` reproduces its PCT count). Since 2026-10-21 `tools/run.sh` reads them at the pin
+instead, from the trees Bazel fetches (the improvement plan's D3: one engine version for every test), so a re-run
+measures the pinned release's taxonomy, not these checkouts'. The scripts are in [`tools/`](tools/), and `tools/run.sh`
+runs all of them in order:
 
 ```
 bazel test //core:stress_suites          # the pass list the scripts judge against (gate 10, DuckDB)
-docs/stress-corpus-feature-report-2026-09-29/tools/run.sh <dir holding legend-engine/ and legend-pure/> <work dir>
+bazel run //scripts/corpus:run -- --out <engine dir> --jobs 4    # optional: legend-engine's pass list
+docs/stress-corpus-feature-report-2026-09-29/tools/run.sh <work dir> [<engine dir>/engine-pass.txt]
 ```
+
+Given the engine's pass list, `profile.py` and `matrix.py` count a second "tested" column, judged on legend-engine.
 
 On Windows, run both from Git Bash with `BAZEL_SH` set to Git's `bash.exe` and `MSYS_NO_PATHCONV=1`, and set
 `PYTHON=python` where there is no `python3`.

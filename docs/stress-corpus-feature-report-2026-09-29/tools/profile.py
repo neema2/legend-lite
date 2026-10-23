@@ -4,7 +4,10 @@ For each service: resolve the query's root class and every navigated property th
 service mapping's include closure, and collect the mapping/store/milestoning/grammar/execution
 features the query actually reaches. Then roll up per feature and per EMIT complexity class.
 
-Env PMCD_JSON=<pmcd.json>; args: <expectations.tsv> <pass.txt> <out.json>
+Env PMCD_JSON=<pmcd.json>; args: <expectations.tsv> <pass.txt> <out.json> [<engine-pass.txt>]
+<pass.txt> is lite's (gate 10's stress-suites-pass.txt). <engine-pass.txt>, when given, is legend-engine's
+(scripts/corpus/run.py writes it in the same form), and each service gains an `engine` status beside lite's: the
+plan's measures are judged on the engine (docs/STRESS_CORPUS_PLAN_2026_10_19.md).
 """
 import collections
 import json
@@ -14,11 +17,19 @@ from lib import (E, classes, enums, measures, assocs, services, mappings, dbs, p
                  Walk, tname, mult, kind_of, fp, lambda_env)
 
 EXP, PASS, OUT = sys.argv[1:4]
+ENGINE_PASS = sys.argv[4] if len(sys.argv) > 4 else None
 exp = collections.defaultdict(set)
 for line in open(EXP, encoding='utf-8'):
     s, t, fam, kind, n, detail = line.rstrip('\n').split('\t')
     exp[s].add(kind)
-passed = {l.split(' / ')[0] for l in open(PASS, encoding='utf-8', errors='replace') if ' / ' in l}
+
+
+def pass_list(path):
+    return {l.split(' / ')[0] for l in open(path, encoding='utf-8', errors='replace') if ' / ' in l}
+
+
+passed = pass_list(PASS)
+engine_passed = pass_list(ENGINE_PASS) if ENGINE_PASS else None
 
 MAP = {fp(m): m for m in mappings}
 DB = {fp(d): d for d in dbs}
@@ -613,25 +624,36 @@ for s in services:
     cx = 'basic' if ndom <= 2 else ('intermediate' if ndom <= 4 else 'advanced')
     tests = [t for ts in s.get('testSuites') or [] for t in ts.get('tests') or []]
     status = 'PASS' if name in passed else ('no-tests' if not tests else ('not-run' if not name.startswith('stress::') else 'FAIL/SKIP'))
-    rows.append(dict(svc=name, mapping=mp, feats=sorted(feats), domains=sorted(doms), complexity=cx,
-                     status=status, exp=sorted(exp.get(name, [])), tables=len(tables), table_list=sorted('.'.join(map(str, t)) for t in tables),
-                     classes=len(touched_classes)))
+    row = dict(svc=name, mapping=mp, feats=sorted(feats), domains=sorted(doms), complexity=cx,
+               status=status, exp=sorted(exp.get(name, [])), tables=len(tables), table_list=sorted('.'.join(map(str, t)) for t in tables),
+               classes=len(touched_classes))
+    if engine_passed is not None:
+        # run.py takes the same stress:: set lite's runner does (the plan's D4)
+        row['engine'] = 'PASS' if name in engine_passed else ('no-tests' if not tests else ('not-run' if not name.startswith('stress::') else 'FAIL'))
+    rows.append(row)
 
 json.dump(rows, open(OUT, 'w', encoding='utf-8'), indent=0)
 
 # ------------------------------------------------------------------ roll-up
 tot = collections.Counter()
 ok = collections.Counter()
+ok_engine = collections.Counter()
 for r in rows:
     real = r['status'] == 'PASS' and 'ROWS' in r['exp']
+    real_engine = r.get('engine') == 'PASS' and 'ROWS' in r['exp']
     for f in r['feats']:
         tot[f] += 1
         if real:
             ok[f] += 1
+        if real_engine:
+            ok_engine[f] += 1
 print('services profiled:', len(rows))
 print('EMIT complexity of stress services:', collections.Counter(r['complexity'] for r in rows))
 print('  among PASS+ROWS:', collections.Counter(r['complexity'] for r in rows if r['status'] == 'PASS' and 'ROWS' in r['exp']))
 print('domain sets:', collections.Counter(tuple(r['domains']) for r in rows).most_common(12))
 print()
+if engine_passed is not None:
+    print('  among engine PASS+ROWS:', collections.Counter(r['complexity'] for r in rows if r.get('engine') == 'PASS' and 'ROWS' in r['exp']))
 for f in sorted(tot):
-    print('  %-58s services %5d   pass-with-rows %5d' % (f, tot[f], ok[f]))
+    print('  %-58s services %5d   pass-with-rows %5d' % (f, tot[f], ok[f])
+          + ('   engine %5d' % ok_engine[f] if engine_passed is not None else ''))

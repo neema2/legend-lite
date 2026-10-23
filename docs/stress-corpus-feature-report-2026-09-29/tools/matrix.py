@@ -1,5 +1,6 @@
 """EMIT taxonomy x stress corpus matrix: EMIT models per feature, corpus declarations, services
-reaching the feature, and how many of those PASS in lite with a populated expectation.
+reaching the feature, and how many of those PASS with a populated expectation: in lite, and on legend-engine when
+profile.py was given the engine's pass list (its rows then carry `engine`; the plan's measures are the engine's).
 
 Usage: matrix.py <legend-engine>/docs/emit/emit.md <emit_models.json> <profile.json> <matrix.json>
 The DECL column (what the corpus declares) is hand-entered from analyze.py's output.
@@ -22,12 +23,17 @@ for f in emit_count:
 prof = json.load(open(PROFILE, encoding='utf-8'))
 svc = collections.Counter()
 ok = collections.Counter()
+ok_engine = collections.Counter()
+judged_on_engine = any('engine' in r for r in prof)
 for r in prof:
     real = r['status'] == 'PASS' and 'ROWS' in r['exp']
+    real_engine = r.get('engine') == 'PASS' and 'ROWS' in r['exp']
     for f in r['feats']:
         svc[f] += 1
         if real:
             ok[f] += 1
+        if real_engine:
+            ok_engine[f] += 1
 
 # corpus declarations (anything in the model, whether or not a service reaches it) -- from analysis
 DECL = {
@@ -72,9 +78,18 @@ DECL = {
 }
 rows = []
 for f, desc in tax:
-    rows.append(dict(feature=f, desc=desc, emit=emit_count.get(f, 0), decl=DECL.get(f, '-'),
-                     services=svc.get(f, 0), pass_rows=ok.get(f, 0)))
+    row = dict(feature=f, desc=desc, emit=emit_count.get(f, 0), decl=DECL.get(f, '-'),
+               services=svc.get(f, 0), pass_rows=ok.get(f, 0))
+    if judged_on_engine:
+        row['pass_rows_engine'] = ok_engine.get(f, 0)
+    rows.append(row)
 json.dump(rows, open(OUT, 'w', encoding='utf-8'), indent=1)
 print('taxonomy features:', len(tax))
 for r in rows:
-    print('%-52s emit %3d | decl %-32s | svc %5d | ok %5d' % (r['feature'], r['emit'], r['decl'][:32], r['services'], r['pass_rows']))
+    print('%-52s emit %3d | decl %-32s | svc %5d | ok %5d' % (r['feature'], r['emit'], r['decl'][:32], r['services'], r['pass_rows'])
+          + (' | engine %5d' % r['pass_rows_engine'] if judged_on_engine else ''))
+# §3's headline: the non-scaffolding features with a passing, populated service (before §3's hand adjustments, which
+# the README explains where they appear)
+features = [r for r in rows if not r['feature'].startswith('scaffolding:')]
+print('non-scaffolding features: %d; tested in lite: %d' % (len(features), sum(1 for r in features if r['pass_rows']))
+      + ('; tested on legend-engine: %d' % sum(1 for r in features if r['pass_rows_engine']) if judged_on_engine else ''))
