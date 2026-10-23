@@ -2986,8 +2986,8 @@ export class CubeApp {
   async #email(kind: ExportKind): Promise<void> {
     const view = this.#view;
     if (!view) return;
-    // every row of the view: a flat cube read by a window is read whole first (V1)
-    const rendered = this.#render(kind, await this.#whole(view));
+    // every row of the view: a flat cube read by a window is read whole first (V1); any other drawn at once
+    const rendered = this.#render(kind, view.window === undefined ? view : await this.#whole(view));
     if (!rendered) return;
     const send = this.#options.email;
     const download = this.#options.download;
