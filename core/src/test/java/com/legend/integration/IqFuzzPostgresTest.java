@@ -34,7 +34,7 @@ import java.util.Set;
 class IqFuzzPostgresTest {
 
     @Test
-    void duckDbAndPostgresAnswerRandomIslandsAlike() throws Exception {
+    void thePlatformAndPostgresAnswerRandomIslandsAlike() throws Exception {
         long seed = Long.getLong("iq.fuzz.seed", 1L);
         int count = Integer.getInteger("iq.fuzz.count", 500);
         int depth = Integer.getInteger("iq.fuzz.depth", 3);
@@ -42,7 +42,7 @@ class IqFuzzPostgresTest {
         List<SqlParity.Table> tables = IqParity.schema(Runfile.property("iq.parity.schema"));
         Set<String> names = IqParity.tableNames(tables);
         List<IqFuzzDifferential.Query> queries = IqFuzzDifferential.queries(seed, count, depth, tables);
-        Map<IqFuzzDifferential.Query, IqFuzzDifferential.Answer> duck = IqFuzzDifferential.onDuckDb(queries, profile,
+        Map<IqFuzzDifferential.Query, IqFuzzDifferential.Answer> duck = IqFuzzDifferential.onPlatform(queries, profile,
                 tables, names);
         Map<IqFuzzDifferential.Query, IqFuzzDifferential.Answer> pg = new LinkedHashMap<>();
         EmbeddedPostgres postgres = EmbeddedPostgres.shared();

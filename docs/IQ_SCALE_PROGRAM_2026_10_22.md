@@ -198,6 +198,7 @@ says so.
 | Q24 | Snowflake's correlated subqueries: a correlation two derived tables down, a scalar subquery of no aggregate, and lite's NOT EXISTS forms of NOT IN and ALL are "Unsupported subquery type" there (59 runs), and a COUNT read through the nesting is NULL for no row | P1.2 | the sibling's measurements | open |
 | Q25 | IQ 16's BIGINT overflow (-158) on Snowflake, whose NUMBER(38) does not overflow (5 runs BUG). The island checks no BIGINT arithmetic itself; under iq17, where IQ answers past 64 bits, DuckDB's overflow is the lane's ERROR and Snowflake passes | P1.2, P3 | a decision (with Q26's): a run SQL Anywhere judges whose only difference is an error Snowflake does not raise | open: the check of 38df46ba reverted (2f40358c), its 3^n growth timed out on Snowflake |
 | Q26 | TOP and START AT compute the items of rows they skip (IQ raises for them); Snowflake evaluates the select list after the limit (3 runs BUG) | P1.2 | the sibling's measurements | open |
+| Q27 | Nested integer division by a column grows exponentially: `it / sm / sm` doubles a level twice on DuckDB (the translator's NULL guard repeats the inner quotient, unmerged where IQ raises for a zero divisor; the zero guard's message copies the dividend) and six times on Snowflake (its exact quotient writes the dividend twice). Needs a common-subexpression hoist (the operand as a computed column) or a single-copy exact quotient for Snowflake (`TRUNC(CAST(a AS NUMBER(38, 19)) / b)`, by its division scale rule, to be measured) | P4, P1.3 | the sibling's measurement for the Snowflake half | open |
 | Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | open |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
 | Q9 | Unread derived columns dropped | P3.2 | oracle (some answers are committed) | open |
@@ -373,3 +374,31 @@ says so.
     - 3 iq17 runs are listed (`sf-lazy`, `sf-internal`);
     - 7 runs SQL Anywhere judges wait on a decision: 5 iq16 BIGINT overflows, sqla17's DISTINCT TOP error in a
       dropped row, and the iq16 internal error.
+- 2026-10-23, a second independent review (a fresh agent, given the code): six confirmed bugs, each fixed and
+  pinned:
+  1. **A grouped filter isolated too broadly, and lost its sort** (`Lowerer.filter`, plain Pure too): any subquery
+     in a filter over a grouped select that projected a no-column aggregate isolated it, with a plain isolation
+     dropping the sort before it. It now isolates only when the folded predicate's subquery holds one of the grouped
+     select's own no-column aggregates (`SqlProbes.carriesAggregateOfNoColumn`), with `Sorts.isolateOrdered`.
+     `GroupedFilterSubqueryTest` checks the plans on every in-process database; its rows alone passed on the old
+     code, DuckDB keeping a small input's order by chance.
+  2. **A REAL read only in a named WINDOW counted as unread** (`IqDialect.reading`), so its table was not refused;
+     a CHAR read only there was not padded. The scan now reads the windows' keys (`readExpressions`).
+  3. **Snowflake's exact quotient wrote each operand twice** (eight divisions by 2: 843,095 characters). Over a
+     literal divisor of at most a million, `CAST(TRUNC(a / b) AS BIGINT)` is exact (a fraction of at most 0.999999
+     survives the six places), and `quotient` has no zero guard for a literal divisor that is not zero, as `rem`
+     had none. Fifty divisions by 2 are 480 characters on DuckDB and 1,510 on Snowflake; the scale probe now holds
+     both targets' SQL to a hundred times the island. Division by a column stays exponential (Q27).
+  4. **A group the pattern does not open** (`REGEXP_EXTRACT('xab', '(?:a)b', 1)`, `\2` against `(?:a)(b)`) read a
+     group the plain pattern opened. It is refused by name.
+  5. **The bracket scans misread `[](]` and `[[:alpha:](]`**, counting the class's `(` as a group. One scanner
+     (`Snowflake.live`) now marks the pattern's live characters for every scan, and the conversion of `(?:` keeps an
+     escaped `\(?:` and a class's `[(?:]` as written (the old replace dropped their `?` and `:`).
+  6. **A handler's Error left the client waiting** on the request thread's executor. `route` now answers whatever a
+     handler lets through with a 500 and closes the exchange (`HandlerFailureTest`); `stop()` lets the request in
+     flight finish for up to five seconds. Not changed: the executor's queue is unbounded where the JDK's dispatcher
+     had the listen backlog.
+  - **The local gate's census** caught this program's test files naming databases in identifiers (`onDuckDb`,
+    `SNOWFLAKE`, `everyRunPlansForSnowflakeAsForDuckDb`): renamed to the platform and the cloud target
+    (`everyRunPlansForTheCloudTargetAsForThePlatform`), the lane's name read from `IqParity.PLATFORM_LANE`. The
+    capability matrix is regenerated for `ASCII_CODE`'s `unicode`.

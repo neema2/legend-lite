@@ -102,17 +102,42 @@ public class LegendHttpServer {
         }
     }
 
-    /** Every route passes the origin check first; a refused origin never reaches a handler. */
-    private void route(String path, HttpHandler handler) {
+    /** Every route passes the origin check first; a refused origin never reaches a handler. Package-private: a test
+     *  routes a handler of its own. */
+    void route(String path, HttpHandler handler) {
         server.createContext(path, exchange -> {
-            String origin = exchange.getRequestHeaders().getFirst("Origin");
-            if (origin != null && !origins.allows(origin)) {
-                sendResponse(exchange, 403,
-                        "{\"error\":\"origin not allowed: " + Json.escape(origin) + "\"}");
-                return;
+            try {
+                String origin = exchange.getRequestHeaders().getFirst("Origin");
+                if (origin != null && !origins.allows(origin)) {
+                    sendResponse(exchange, 403,
+                            "{\"error\":\"origin not allowed: " + Json.escape(origin) + "\"}");
+                    return;
+                }
+                handler.handle(exchange);
+            } catch (Throwable t) {
+                failed(exchange, t);
             }
-            handler.handle(exchange);
         });
+    }
+
+    /**
+     * What a handler let through (an exception, a StackOverflowError, an OutOfMemoryError): a 500 when no response
+     * has begun, and the exchange closed either way. An independent review, 2026-10-23: on the request thread's
+     * executor ({@link #requests}) an Error left the client waiting for its own timeout, where the JDK's dispatcher,
+     * running handlers itself, had closed the connection.
+     */
+    private static void failed(HttpExchange exchange, Throwable t) {
+        System.err.println("legend-http: " + exchange.getRequestMethod() + " " + exchange.getRequestURI() + ": " + t);
+        try {
+            if (exchange.getResponseCode() == -1) {
+                sendResponse(exchange, 500, "{\"error\":\"internal error: " + Json.escape(t.getClass().getName())
+                        + "\"}");
+            }
+        } catch (IOException ignored) {
+            // the client's connection is gone: there is no one to answer
+        } finally {
+            exchange.close();
+        }
     }
 
     private void setupRoutes() {
@@ -341,9 +366,19 @@ public class LegendHttpServer {
         System.out.println("Legend HTTP server started on port " + server.getAddress().getPort());
     }
 
+    /** Stops taking requests, lets the one in flight finish (a saved query's write among them) for up to five
+     *  seconds, then interrupts it. */
     public void stop() {
         server.stop(0);
-        requests.shutdownNow();
+        requests.shutdown();
+        try {
+            if (!requests.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                requests.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            requests.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     public int getPort() {

@@ -40,7 +40,7 @@ import java.util.concurrent.Future;
 class IqFuzzSnowflakeTest {
 
     @Test
-    void duckDbAndSnowflakeAnswerRandomIslandsAlike() throws Exception {
+    void thePlatformAndSnowflakeAnswerRandomIslandsAlike() throws Exception {
         long seed = Long.getLong("iq.fuzz.seed", 1L);
         int count = Integer.getInteger("iq.fuzz.count", 300);
         int depth = Integer.getInteger("iq.fuzz.depth", 3);
@@ -50,7 +50,7 @@ class IqFuzzSnowflakeTest {
         Set<String> names = IqParity.tableNames(tables);
         List<IqFuzzDifferential.Query> queries = IqFuzzDifferential.queries(seed, count, depth, tables);
         // DuckDB first, in process: what it refuses never reaches the account
-        Map<IqFuzzDifferential.Query, IqFuzzDifferential.Answer> duck = IqFuzzDifferential.onDuckDb(queries, profile,
+        Map<IqFuzzDifferential.Query, IqFuzzDifferential.Answer> duck = IqFuzzDifferential.onPlatform(queries, profile,
                 tables, names);
         TestBackend snowflake = TestBackends.of(DatabaseType.Snowflake);
         String model = IqParity.model(tables, snowflake.connectionBody());

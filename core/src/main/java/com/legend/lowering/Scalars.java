@@ -2398,11 +2398,15 @@ final class Scalars {
         // an integer quotient cut toward zero: the database's integer division (every dialect's INT_DIVIDE
         // truncates; 2026-10-17, the IQ island's scale)
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_QUOTIENT) {
-            // a zero divisor raises as rem's does ('Cannot divide 5 by zero'): DuckDB's // gives NULL
-            RULES.put(f, (n, args) -> guarded(
-                    SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
-                    cat(new SqlExpr.StringLit("Cannot divide "), str(args.get(0)), new SqlExpr.StringLit(" by zero")),
-                    SqlExpr.Call.of(SqlFn.INT_DIVIDE, args.get(0), args.get(1))));
+            // a zero divisor raises as rem's does ('Cannot divide 5 by zero'): DuckDB's // gives NULL; a literal
+            // divisor that is not zero has no guard, as rem's (the IQ scale program, 2026-10-23: the guard's message
+            // copied the dividend, so nested divisions doubled a level)
+            RULES.put(f, (n, args) -> args.get(1) instanceof SqlExpr.IntLit lit && lit.value() != 0
+                    ? SqlExpr.Call.of(SqlFn.INT_DIVIDE, args.get(0), args.get(1))
+                    : guarded(SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
+                            cat(new SqlExpr.StringLit("Cannot divide "), str(args.get(0)),
+                                    new SqlExpr.StringLit(" by zero")),
+                            SqlExpr.Call.of(SqlFn.INT_DIVIDE, args.get(0), args.get(1))));
         }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_INSTANT_IN) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"),

@@ -685,7 +685,7 @@ Database types planned with it: Snowflake.
 | `TRANSLATE` | spelled | `translate` |  | 0 |
 | `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | 9 |
 | `REVERSE_STRING` | spelled | `reverse` |  | 2 |
-| `ASCII_CODE` | spelled | `ascii` |  | 10 |
+| `ASCII_CODE` | spelled | `unicode` |  | 10 |
 | `CHR` | spelled | `chr` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |

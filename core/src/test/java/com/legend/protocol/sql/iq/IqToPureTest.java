@@ -183,6 +183,10 @@ class IqToPureTest {
         assertEquals("#>{s::DB.T}#->extend(~[_sql_1:r|if($r.ch->isEmpty(), |[], |$r.ch->toOne()->rpad(5, ' '))])"
                         + "->select(~[id, _sql_1, vc])->rename(~_sql_1, ~ch)->select(~[ch])",
                 pure("SELECT ch FROM " + T, IqProfile.IQ16_DEFAULT.settings(), WITH_CHAR));
+        // read only in a named window's keys, it is padded too (an independent review, 2026-10-23: unpadded there,
+        // LENGTH(ch) partitioned by the stored text's length)
+        assertTrue(pure("SELECT id, COUNT(*) OVER w AS c FROM " + T + " WINDOW w AS (PARTITION BY LENGTH(ch))",
+                IqProfile.IQ16_DEFAULT.settings(), WITH_CHAR).contains("rpad(5, ' ')"));
     }
 
     @Test
@@ -496,6 +500,10 @@ class IqToPureTest {
                 + " b", IqProfile.IQ16_DEFAULT.settings(), withReal).kind());
         assertEquals("#>{s::DB.T}#->select(~[id])", pure("SELECT id FROM " + T, IqProfile.IQ16_DEFAULT.settings(),
                 withReal));
+        // read only in a named window's keys, it is read (an independent review, 2026-10-23)
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id, COUNT(*) OVER w AS c FROM " + T
+                + " WINDOW w AS (PARTITION BY CASE WHEN r > 0.1 THEN 1 ELSE 0 END)", IqProfile.IQ16_DEFAULT.settings(),
+                withReal).kind());
         // m4: a CHAR of no length read is refused by name, never a crash
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT c FROM " + T, IqProfile.IQ16_DEFAULT.settings(),
                 List.of(new Col("c", "String", true, "CHAR"))).kind());

@@ -62,7 +62,7 @@ final class IqFuzzDifferential {
     }
 
     /** Each query's answer on DuckDB, in process. */
-    static Map<Query, Answer> onDuckDb(List<Query> queries, String profile, List<SqlParity.Table> tables,
+    static Map<Query, Answer> onPlatform(List<Query> queries, String profile, List<SqlParity.Table> tables,
             Set<String> names) throws Exception {
         Map<Query, Answer> duck = new LinkedHashMap<>();
         try (Connection session = PLATFORM.open()) {

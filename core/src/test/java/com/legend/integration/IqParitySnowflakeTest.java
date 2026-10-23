@@ -188,13 +188,13 @@ class IqParitySnowflakeTest {
     private static void triage(List<IqParity.Run> runs, Map<String, SqlParity.Outcome> outcomes, Path ledger)
             throws java.io.IOException {
         Map<String, String[]> pinned = SqlParity.readLedger(ledger, IqParity.LANES.size());
-        int duckdb = IqParity.LANES.indexOf("duckdb");
+        int platform = IqParity.LANES.indexOf(IqParity.PLATFORM_LANE);
         Map<String, Integer> moves = new TreeMap<>();
-        StringBuilder out = new StringBuilder("case\tduckdb\tsnowflake\tdetail\n");
+        StringBuilder out = new StringBuilder("case\t" + IqParity.PLATFORM_LANE + "\tsnowflake\tdetail\n");
         for (IqParity.Run r : runs) {
             String key = r.key();
             String[] statuses = pinned.get(key);
-            String duck = statuses == null || statuses[duckdb] == null ? "" : statuses[duckdb];
+            String duck = statuses == null || statuses[platform] == null ? "" : statuses[platform];
             SqlParity.Outcome o = outcomes.get(r.key());
             String now = o.status().name();
             moves.merge(duck + " -> " + now, 1, Integer::sum);
@@ -203,7 +203,7 @@ class IqParitySnowflakeTest {
                         .append(o.detail()).append('\n');
             }
         }
-        System.out.println("iq-parity, duckdb column -> snowflake lane: " + moves);
+        System.out.println("iq-parity, " + IqParity.PLATFORM_LANE + " column -> snowflake lane: " + moves);
         String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
         if (outputs != null) {
             Files.writeString(Path.of(outputs, "iq-parity-snowflake-triage.tsv"), out.toString(),

@@ -49,13 +49,13 @@ class IqFuzzTest {
 
     private static final TestBackend PLATFORM = TestBackends.platform();
 
-    private static final String SNOWFLAKE = "type: Snowflake;\n    specification: Snowflake { name: 'IQ_FUZZ';"
+    private static final String CLOUD_TARGET = "type: Snowflake;\n    specification: Snowflake { name: 'IQ_FUZZ';"
             + " account: 'acct'; warehouse: 'wh'; region: 'us-east-1'; };\n    auth: SnowflakePublic { publicUserName:"
             + " 'u'; privateKeyVaultReference: 'vault/k'; passPhraseVaultReference: 'vault/pp'; };";
 
     /** A Postgres connection the lens plans for (render only: no server is reached). */
-    private static final String POSTGRES = "type: Postgres;\n    specification: Static { host: '127.0.0.1'; port: 5432;"
-            + " name: 'postgres'; };\n    auth: Test;";
+    private static final String SERVER_TARGET = "type: Postgres;\n    specification: Static { host: '127.0.0.1';"
+            + " port: 5432; name: 'postgres'; };\n    auth: Test;";
 
     /** One query's outcome: its kind, and its rows (ROWS) or its reason. */
     record Outcome(String kind, List<String> rows, String reason) {
@@ -70,7 +70,7 @@ class IqFuzzTest {
         List<SqlParity.Table> tables = IqParity.schema(Runfile.property("iq.parity.schema"));
         Set<String> names = IqParity.tableNames(tables);
         String model = IqParity.model(tables, PLATFORM.connectionBody());
-        var snowflake = com.legend.Compiler.compileModel(IqParity.model(tables, SNOWFLAKE));
+        var cloud = com.legend.Compiler.compileModel(IqParity.model(tables, CLOUD_TARGET));
         Map<String, Integer> kinds = new TreeMap<>();
         Map<String, Integer> reasons = new TreeMap<>();
         Map<String, String> examples = new TreeMap<>();
@@ -112,7 +112,7 @@ class IqFuzzTest {
                                 .append(o.reason()).append('\n');
                     }
                     if (o.kind().equals("ROWS")) {
-                        String crash = snowflakeCrash(snowflake, sql, profile, tables, names, s, q);
+                        String crash = cloudCrash(cloud, sql, profile, tables, names, s, q);
                         if (crash != null) {
                             found++;
                             findings.append(s).append("\tSNOWFLAKE CRASH\t").append(sql).append('\t').append(crash)
@@ -294,7 +294,7 @@ class IqFuzzTest {
         long stack = Long.getLong("iq.stack.kb", 1_024L) << 10;
         List<SqlParity.Table> tables = IqParity.schema(Runfile.property("iq.parity.schema"));
         Set<String> names = IqParity.tableNames(tables);
-        var duckdb = com.legend.Compiler.compileModel(IqParity.model(tables, PLATFORM.connectionBody()));
+        var platform = com.legend.Compiler.compileModel(IqParity.model(tables, PLATFORM.connectionBody()));
         String only = System.getProperty("iq.scale.only");
         StringBuilder report = new StringBuilder("family\tlargest planned\tms\tpast it\n");
         for (var e : FAMILIES.entrySet()) {
@@ -310,7 +310,7 @@ class IqFuzzTest {
                 long t0 = System.nanoTime();
                 Thread t = new Thread(null, () -> {
                     try {
-                        out[0] = com.legend.Compiler.query(duckdb, island).plan(IqParity.RUNTIME).sql();
+                        out[0] = com.legend.Compiler.query(platform, island).plan(IqParity.RUNTIME).sql();
                     } catch (Throwable x) {
                         out[0] = x;
                     }
@@ -345,8 +345,8 @@ class IqFuzzTest {
         List<SqlParity.Table> tables = IqParity.schema(Runfile.property("iq.parity.schema"));
         Set<String> names = IqParity.tableNames(tables);
         String model = IqParity.model(tables, PLATFORM.connectionBody());
-        var duckdb = com.legend.Compiler.compileModel(model);
-        var snowflake = com.legend.Compiler.compileModel(IqParity.model(tables, SNOWFLAKE));
+        var platform = com.legend.Compiler.compileModel(model);
+        var cloud = com.legend.Compiler.compileModel(IqParity.model(tables, CLOUD_TARGET));
         Map<String, String> shapes = new java.util.LinkedHashMap<>();
         for (int n : new int[] {500 * f, 1_000 * f, 2_000 * f}) {
             shapes.put("union all of " + n, unionAll(n));
@@ -380,6 +380,11 @@ class IqFuzzTest {
             shapes.put("BIGINT sum of " + n, "SELECT id, " + "bg + ".repeat(n - 1) + "bg AS v FROM t WHERE id <> 1"
                     + " ORDER BY id");
         }
+        // 2026-10-23, an independent review: a division's zero guard copied its dividend into its message, and
+        // Snowflake's exact quotient wrote each operand twice (eight divisions by 2, 843,095 characters there)
+        for (int n : new int[] {10 * f, 50 * f}) {
+            shapes.put("divisions by a literal " + n, "SELECT id, it" + " / 2".repeat(n) + " AS v FROM t ORDER BY id");
+        }
         // -Diq.scale.only=<regex>: the shapes whose names match
         String only = System.getProperty("iq.scale.only");
         if (only != null) {
@@ -396,10 +401,11 @@ class IqFuzzTest {
                 long t0 = System.nanoTime();
                 String sql = "";
                 String snow;
+                long snowChars = 0;
                 Outcome o;
                 long planMs = -1;
                 try {
-                    sql = com.legend.Compiler.query(duckdb, island).plan(IqParity.RUNTIME).sql();
+                    sql = com.legend.Compiler.query(platform, island).plan(IqParity.RUNTIME).sql();
                     planMs = (System.nanoTime() - t0) / 1_000_000;
                     o = run(service, session, model, e.getValue(), "iq17-default", tables, names, 0, q);
                     o = new Outcome(o.kind(), o.rows(), o.reason() + " (planned in " + planMs + " ms)");
@@ -411,8 +417,8 @@ class IqFuzzTest {
                 }
                 long ms = (System.nanoTime() - t0) / 1_000_000;
                 try {
-                    snow = "PLANNED " + com.legend.Compiler.query(snowflake, island).plan(IqParity.RUNTIME).sql()
-                            .length();
+                    snowChars = com.legend.Compiler.query(cloud, island).plan(IqParity.RUNTIME).sql().length();
+                    snow = "PLANNED " + snowChars;
                 } catch (Exception | StackOverflowError x) {
                     snow = classify(x).kind() + ": " + classify(x).reason();
                 }
@@ -426,6 +432,10 @@ class IqFuzzTest {
                 // the SQL grows with its island linearly: a hundredfold is a check or a guard copied per level
                 if (sql.length() > 100L * e.getValue().length()) {
                     problems.add(e.getKey() + ": the DuckDB SQL is " + sql.length() + " characters for an island of "
+                            + e.getValue().length());
+                }
+                if (snowChars > 100L * e.getValue().length()) {
+                    problems.add(e.getKey() + ": the Snowflake SQL is " + snowChars + " characters for an island of "
                             + e.getValue().length());
                 }
             }
@@ -472,7 +482,7 @@ class IqFuzzTest {
                     }
                 }
                 for (String[] lane : plans ? new String[][] {{"duckdb", PLATFORM.connectionBody()},
-                        {"snowflake", SNOWFLAKE}, {"postgres", POSTGRES}} : new String[0][]) {
+                        {"snowflake", CLOUD_TARGET}, {"postgres", SERVER_TARGET}} : new String[0][]) {
                     try {
                         var ctx = com.legend.Compiler.compileModel(IqParity.model(tables, lane[1]));
                         System.out.println("-- " + lane[0] + "\n" + com.legend.Compiler.query(ctx, island)
@@ -626,10 +636,10 @@ class IqFuzzTest {
     }
 
     /** Snowflake's plan of an island DuckDB answered: null, or the crash (a refusal by name is no crash). */
-    private static String snowflakeCrash(com.legend.compiler.element.ModelContext snowflake, String sql, String profile,
+    private static String cloudCrash(com.legend.compiler.element.ModelContext cloud, String sql, String profile,
             List<SqlParity.Table> tables, Set<String> names, long seed, int q) {
         try {
-            com.legend.Compiler.query(snowflake, island(sql, profile, tables, names, seed, q)).plan(IqParity.RUNTIME)
+            com.legend.Compiler.query(cloud, island(sql, profile, tables, names, seed, q)).plan(IqParity.RUNTIME)
                     .sql();
             return null;
         } catch (Exception | StackOverflowError e) {

@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Snowflake's spellings the IQ scale program fixed (docs/IQ_SCALE_PROGRAM_2026_10_22.md, P1), each found before any
  * account was reached: by landing 5's review (an integer quotient) and by the plan census of the {@code #IQ{...}#}
- * parity cases (IqParityTest's everyRunPlansForSnowflakeAsForDuckDb: a month name's non-capturing groups).
+ * parity cases (IqParityTest's everyRunPlansForTheCloudTargetAsForThePlatform: a month name's non-capturing groups).
  */
 class SnowflakeIqScaleTest {
 
@@ -38,12 +38,37 @@ class SnowflakeIqScaleTest {
         assertFalse(sql.contains("TRUNC("), sql);
     }
 
+    /** Over a literal of at most a million, a quotient's fraction (at most 0.999999) survives the six places: TRUNC
+     *  is exact, and the dividend is written once, so nested divisions grow as the dividend does, not three times a
+     *  level (an independent review, 2026-10-23: eight divisions by 2 were 843,095 characters). */
+    @Test
+    void aDivisorOfAtMostAMillionTruncatesTheQuotientWritingTheDividendOnce() {
+        SqlExpr x = new SqlExpr.IntLit(999999);
+        for (long d : new long[] {1_000_000, -1_000_000, 7, -1}) {
+            String sql = rendered(SqlExpr.Call.of(SqlFn.INT_DIVIDE, x, new SqlExpr.IntLit(d)));
+            assertTrue(sql.contains("CAST(TRUNC(999999 / " + d + ") AS BIGINT)"), sql);
+        }
+        for (long d : new long[] {1_000_001, -1_000_001, 0, Long.MIN_VALUE}) {
+            String sql = rendered(SqlExpr.Call.of(SqlFn.INT_DIVIDE, x, new SqlExpr.IntLit(d)));
+            assertTrue(sql.contains("MOD(999999, NULLIF("), sql);
+        }
+        SqlExpr nested = new SqlExpr.IntLit(7);
+        for (int i = 0; i < 12; i++) {
+            nested = SqlExpr.Call.of(SqlFn.INT_DIVIDE, nested, new SqlExpr.IntLit(2));
+        }
+        String sql = rendered(nested);
+        assertTrue(sql.length() < 1_000, sql.length() + " characters");
+    }
+
     @Test
     void aDividendOfLowerPrecedenceKeepsItsParentheses() {
         SqlExpr sum = SqlExpr.Call.of(SqlFn.PLUS, new SqlExpr.IntLit(7), new SqlExpr.IntLit(8));
         SqlExpr times = SqlExpr.Call.of(SqlFn.TIMES, new SqlExpr.IntLit(7), new SqlExpr.IntLit(8));
-        String overSum = rendered(SqlExpr.Call.of(SqlFn.INT_DIVIDE, sum, new SqlExpr.IntLit(2)));
-        assertTrue(overSum.contains("CAST((7 + 8 - MOD(7 + 8, NULLIF(2, 0))) / NULLIF(2, 0) AS BIGINT)"), overSum);
+        String overSum = rendered(SqlExpr.Call.of(SqlFn.INT_DIVIDE, sum, new SqlExpr.IntLit(2_000_000)));
+        assertTrue(overSum.contains("CAST((7 + 8 - MOD(7 + 8, NULLIF(2000000, 0))) / NULLIF(2000000, 0) AS BIGINT)"),
+                overSum);
+        String overSumByTwo = rendered(SqlExpr.Call.of(SqlFn.INT_DIVIDE, sum, new SqlExpr.IntLit(2)));
+        assertTrue(overSumByTwo.contains("CAST(TRUNC((7 + 8) / 2) AS BIGINT)"), overSumByTwo);
         String overProduct = rendered(SqlExpr.Call.of(SqlFn.INT_DIVIDE, times, sum));
         assertTrue(overProduct.contains("CAST((7 * 8 - MOD(7 * 8, NULLIF(7 + 8, 0))) / NULLIF(7 + 8, 0) AS BIGINT)"),
                 overProduct);
@@ -78,5 +103,44 @@ class SnowflakeIqScaleTest {
         String sql = rendered(SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT, new SqlExpr.StringLit("ab"),
                 new SqlExpr.StringLit("(?:a)(b)"), new SqlExpr.IntLit(1)));
         assertTrue(sql.contains("REGEXP_SUBSTR('ab', '(a)(b)', 1, 1, 'ce', 2)"), sql);
+    }
+
+    /** A group the pattern does not open is refused by name: DuckDB answers '' (an extraction) or the subject (a
+     *  replacement), and the plain pattern may open it (an independent review, 2026-10-23). */
+    @Test
+    void aGroupThePatternDoesNotOpenIsRefused() {
+        for (SqlExpr call : List.of(
+                SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT, new SqlExpr.StringLit("xab"), new SqlExpr.StringLit("(?:a)b"),
+                        new SqlExpr.IntLit(1)),
+                SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT, new SqlExpr.StringLit("xab"), new SqlExpr.StringLit("(?:a)(b)"),
+                        new SqlExpr.IntLit(2)),
+                SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, new SqlExpr.StringLit("xab"), new SqlExpr.StringLit("(?:a)(b)"),
+                        new SqlExpr.StringLit("\\2")))) {
+            DialectCapability refusal = assertThrows(DialectCapability.class, () -> rendered(call));
+            assertTrue(refusal.getMessage().contains("does not open"), refusal.getMessage());
+        }
+    }
+
+    /** A bracket expression's '(' opens no group: one whose ']' comes first, or after a POSIX class, is read to its
+     *  real end (an independent review, 2026-10-23: the '(' of [](] was counted, \1 renumbered to the wrong group). */
+    @Test
+    void aBracketExpressionsParenthesisOpensNoGroup() {
+        for (String cls : List.of("[](]", "[^](]", "[[:alpha:](]")) {
+            String sql = rendered(SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, new SqlExpr.StringLit("x(ab"),
+                    new SqlExpr.StringLit(cls + "(?:a)(b)"), new SqlExpr.StringLit("<\\1>")));
+            assertTrue(sql.contains("'" + cls + "(a)(b)'") && sql.contains("'<\\\\2>'"), sql);
+        }
+    }
+
+    /** A '(?:' that opens no group is left as written: escaped (an optional '(' then ':') or in a bracket expression
+     *  (the replace of every '(?:' dropped their '?' and ':'). */
+    @Test
+    void aNonCapturingSpellingThatOpensNoGroupIsKept() {
+        for (String pattern : List.of("\\(?:x", "[(?:]x", "[]?(]?:x")) {
+            String sql = rendered(SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT, new SqlExpr.StringLit("a(:x"),
+                    new SqlExpr.StringLit(pattern)));
+            assertTrue(sql.contains("'" + pattern.replace("\\", "\\\\") + "'"), sql);
+        }
+        assertTrue(Snowflake.live("[]a](")[4] && !Snowflake.live("[]a](")[2] && !Snowflake.live("\\(")[1]);
     }
 }

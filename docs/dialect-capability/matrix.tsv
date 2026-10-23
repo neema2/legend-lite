@@ -759,7 +759,7 @@ Snowflake	Snowflake	call	SPLIT_PART	spelled	split_part		19
 Snowflake	Snowflake	call	TRANSLATE	spelled	translate		0
 Snowflake	Snowflake	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 Snowflake	Snowflake	call	REVERSE_STRING	spelled	reverse		2
-Snowflake	Snowflake	call	ASCII_CODE	spelled	ascii		10
+Snowflake	Snowflake	call	ASCII_CODE	spelled	unicode		10
 Snowflake	Snowflake	call	CHR	spelled	chr		9
 Snowflake	Snowflake	call	UC_FIRST	emulated	firstCharCased: upper		5
 Snowflake	Snowflake	call	LC_FIRST	emulated	firstCharCased: lower		5

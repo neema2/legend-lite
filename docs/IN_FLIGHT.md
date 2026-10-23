@@ -2194,12 +2194,19 @@ repros will be in the study's §9.
       would carry an aggregate that reads no column (`MIN(-1)`, `COUNT(*)`) into the predicate's subquery.
     - DuckDB refuses it ("Aggregate with only constant parameters has to be bound in the root subquery"), and
       Postgres binds it to the subquery's own rows.
-    - The probe is `SqlProbes.aggregatesNoColumn`. Judged by both parity lanes of each island, the lowering and
-      integration suites, and the relational corpus on DuckDB and H2.
+    - The probe is `SqlProbes.carriesAggregateOfNoColumn` (2026-10-23, an independent review: only when a subquery
+      of the folded predicate holds one of the grouped select's own no-column aggregates, and the isolation keeps the
+      sort, `Sorts.isolateOrdered`; `GroupedFilterSubqueryTest`). Judged by both parity lanes of each island, the
+      lowering and integration suites, and the relational corpus on DuckDB and H2.
+  - **The compiler line's `lowering/Scalars.java` (`quotient`), 2026-10-23:** a literal divisor that is not zero has
+    no zero guard, as `rem`'s had none (the guard's message copied the dividend, so nested divisions doubled a level).
+  - **The server's `LegendHttpServer` (`route`, `stop`), 2026-10-23:** whatever a handler lets through, an Error too,
+    is answered 500 and the exchange closed (`HandlerFailureTest`); `stop()` lets the request in flight finish for up
+    to five seconds.
   - **This line's own files:**
     - `IqParity.LANES` adds `snowflake` to the IQ ledger's lanes;
     - `IqParitySnowflakeTest` and `//core:iq_parity_snowflake_test` (manual, a real account);
-    - `IqParityTest.everyRunPlansForSnowflakeAsForDuckDb`, the Snowflake plan census (render only);
+    - `IqParityTest.everyRunPlansForTheCloudTargetAsForThePlatform`, the Snowflake plan census (render only);
     - `IqFuzz`, `IqFuzzTest` and `//core:iq_fuzz_test` (manual), the oracle-free fuzzer;
     - `IqDialect.read`: a REAL or FLOAT column no one reads, and no NATURAL or USING join compares, no longer refuses
       its table.

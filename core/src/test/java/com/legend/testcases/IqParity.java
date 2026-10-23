@@ -2202,6 +2202,9 @@ public final class IqParity {
      *  IqParitySnowflakeTest, manual, on a real account). */
     public static final List<String> LANES = List.of("duckdb", "postgres", "snowflake");
 
+    /** The lane of the platform's own engine, the column another lane's triage reads beside its own. */
+    public static final String PLATFORM_LANE = LANES.get(0);
+
     /** Each run's outcome against the ledger's column for {@code lane} (SqlParity's ratchet: REGRESSION, FIX
      *  DETECTED, STATUS MISMATCH, NEW, GONE); with {@code update}, the ledger's column is written instead. */
     public static List<String> ratchet(List<Run> runs, Map<String, SqlParity.Outcome> outcomes, Path ledger,

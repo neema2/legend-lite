@@ -105,7 +105,10 @@ class ErrorShapeGuardrailTest {
             // 6 -> 5 (2026-09-27, upstream pure/v1 API): /engine/plan deleted with its
             // handler; its bug-vs-honest split moved to PureV1Api (below)
             // 5 -> 4 (2026-09-29, plan W0.1): /engine/sql deleted with its handler
-            Map.entry("LegendHttpServer.java", 4),
+            // 4 -> 5 (2026-10-23, the IQ scale program's independent review): route's catch of whatever a handler
+            // lets through, an Error too, answered 500 and the exchange closed (failed): on the request thread's
+            // executor an Error had left the client waiting for its timeout
+            Map.entry("LegendHttpServer.java", 5),
             // 1 = the pure/v1 call boundary (2026-09-27): one catch for every upstream
             // call; a non-honest failure is a BUG, logged whole and answered 500 in the
             // engine's error shape, the split /engine/plan's handler made before it

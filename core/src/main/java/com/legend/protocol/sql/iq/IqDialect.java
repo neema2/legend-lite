@@ -1758,7 +1758,7 @@ public final class IqDialect implements InputDialect {
             if (!(q instanceof SqlAst.Select s)) {
                 continue;
             }
-            for (SqlAst.Expr e : expressions(s)) {
+            for (SqlAst.Expr e : readExpressions(s)) {
                 caseConditions(e, inCase);
                 List<SqlAst.ColumnRef> refs = new ArrayList<>();
                 columnRefs(e, refs);
@@ -3517,7 +3517,9 @@ public final class IqDialect implements InputDialect {
             "substring_index", "splitpart", "parsename", "regexp_replace", "md5", "chr", "array_to_string");
 
     /** A select's expressions ({@link #expressions}) and its named windows' keys (the landing's review, 2026-10-17: a
-     *  WINDOW clause's PARTITION BY reads a derived table's column as an OVER's does). */
+     *  WINDOW clause's PARTITION BY reads a derived table's column as an OVER's does; an independent review,
+     *  2026-10-23: {@link #reading}'s columns read, a REAL read only there counted as unread and its table not refused,
+     *  a CHAR read only there not padded). */
     private static List<SqlAst.Expr> readExpressions(SqlAst.Select s) {
         List<SqlAst.Expr> all = new ArrayList<>(expressions(s));
         for (SqlAst.NamedWindow w : s.windows()) {

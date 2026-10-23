@@ -1583,6 +1583,14 @@ public final class Snowflake extends AnsiSqlRenderer {
     private SqlWriter intDivide(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
         if (isInteger(typeOf(a.get(0))) && isInteger(typeOf(a.get(1)))) {
+            // over a literal of at most a million, a quotient's fraction is at most 1 - 1/|b|, 0.999999 at the most,
+            // which six places do not round up: TRUNC is exact, and the dividend is written once (an independent
+            // review, 2026-10-23: the remainder form writes each operand twice, nested divisions grew x3 a level)
+            if (a.get(1) instanceof SqlExpr.IntLit d && d.value() != 0 && d.value() >= -1_000_000
+                    && d.value() <= 1_000_000) {
+                return writer.append("CAST(TRUNC(").expr(a.get(0), 6).append(" / ").expr(a.get(1), 6)
+                        .append(") AS BIGINT)");
+            }
             return writer.append("CAST((").expr(a.get(0), 5).append(" - MOD(").expr(a.get(0), 0).append(", NULLIF(")
                     .expr(a.get(1), 0).append(", 0))) / NULLIF(").expr(a.get(1), 0).append(", 0) AS BIGINT)");
         }
@@ -1893,11 +1901,18 @@ public final class Snowflake extends AnsiSqlRenderer {
         int[] numbers = a.size() > 2 && a.get(2) instanceof SqlExpr.IntLit ? renumbered(a.get(1)) : null;
         if (numbers != null) {
             // the IQ scale program, 2026-10-22: the pattern's non-capturing groups made plain, the group read renumbered
-            int read = (int) ((SqlExpr.IntLit) a.get(2)).value();
+            long read = ((SqlExpr.IntLit) a.get(2)).value();
+            if (read >= numbers.length) {
+                // DuckDB's '' for a group the pattern lacks; the plain pattern may have one (an independent review,
+                // 2026-10-23: group 1 of (?:a)b read a once the pattern was (a)b)
+                throw new DialectCapability("an extraction of group " + read + ", which the pattern does not open,"
+                        + " reached Snowflake with the pattern's non-capturing groups plain: "
+                        + ((SqlExpr.StringLit) a.get(1)).value());
+            }
             Pattern p = pattern(a.get(1), 0);
             return writer.append("COALESCE(REGEXP_SUBSTR(").expr(a.get(0), 0).append(", ").piece(p.text())
                     .append(", 1, 1, ").append(stringLit(p.params() + "e")).append(", ")
-                    .append(Integer.toString(read > 0 && read < numbers.length ? numbers[read] : read)).append("), '')");
+                    .append(Long.toString(read > 0 ? numbers[(int) read] : read)).append("), '')");
         }
         Pattern p = pattern(a.get(1), groupRead(a));
         writer.append("COALESCE(REGEXP_SUBSTR(").expr(a.get(0), 0).append(", ").piece(p.text())
@@ -1941,18 +1956,11 @@ public final class Snowflake extends AnsiSqlRenderer {
             return null;
         }
         String s = lit.value();
+        boolean[] live = live(s);
         List<Integer> numbers = new java.util.ArrayList<>(List.of(0));
         int plain = 0;
-        boolean inClass = false;
         for (int i = 0; i < s.length(); i++) {
-            char ch = s.charAt(i);
-            if (ch == '\\') {
-                i++;
-            } else if (inClass) {
-                inClass = ch != ']';
-            } else if (ch == '[') {
-                inClass = true;
-            } else if (ch == '(') {
+            if (live[i] && s.charAt(i) == '(') {
                 if (s.startsWith("(?:", i)) {
                     plain++;
                 } else if (!s.startsWith("(?", i)) {
@@ -1971,7 +1979,14 @@ public final class Snowflake extends AnsiSqlRenderer {
             char ch = replacement.charAt(i);
             if (ch == '\\' && i + 1 < replacement.length()) {
                 char next = replacement.charAt(++i);
-                if (next >= '1' && next <= '9' && next - '0' < numbers.length) {
+                if (next >= '1' && next <= '9' && next - '0' >= numbers.length) {
+                    // RE2 replaces nothing for a group the pattern lacks; the plain pattern may have one (an
+                    // independent review, 2026-10-23: \2 against (?:a)(b) read b once the pattern was (a)(b))
+                    throw new DialectCapability("a replacement reading group " + (next - '0') + ", which the"
+                            + " pattern does not open, reached Snowflake with the pattern's non-capturing groups"
+                            + " plain: " + replacement);
+                }
+                if (next >= '1' && next <= '9') {
                     int n = numbers[next - '0'];
                     if (n > 9) {
                         throw new DialectCapability("a replacement reading group " + (next - '0') + ", group " + n
@@ -2028,21 +2043,27 @@ public final class Snowflake extends AnsiSqlRenderer {
             throw new DialectCapability("a lazy quantifier reached Snowflake, whose POSIX regular expressions are"
                     + " greedy (measured): " + literal);
         }
-        String plain = literal;
-        if (plain.contains("(?:")) {
+        boolean[] live = live(literal);
+        StringBuilder plain = new StringBuilder();
+        for (int i = 0; i < literal.length(); i++) {
+            plain.append(literal.charAt(i));
+            if (!live[i] || !literal.startsWith("(?", i)) {
+                continue;
+            }
+            if (!literal.startsWith("(?:", i)) {
+                throw new DialectCapability("a lookaround, flag group or named group reached Snowflake's POSIX"
+                        + " regular expressions: " + literal);
+            }
             // a non-capturing group made a plain one renumbers only the groups opened after it: refused where a
-            // numbered group is read and one opens before it (group 1 of -?([0-9]+(?:\.[0-9]+)?) stays group 1)
-            if (group > 0 && opensBeforeGroup(plain, group)) {
+            // numbered group is read and one opens before it (group 1 of -?([0-9]+(?:\.[0-9]+)?) stays group 1);
+            // only a live one (an escaped \(?: or a bracket expression's [(?:] is no group)
+            if (group > 0 && opensBeforeGroup(literal, group)) {
                 throw new DialectCapability("a non-capturing group in a pattern whose groups are numbered reached"
                         + " Snowflake (no (?: here, measured): " + literal);
             }
-            plain = plain.replace("(?:", "(");
+            i += 2;
         }
-        if (plain.contains("(?")) {
-            throw new DialectCapability("a lookaround, flag group or named group reached Snowflake's POSIX regular"
-                    + " expressions: " + literal);
-        }
-        String spelled = stringLit(plain);
+        String spelled = stringLit(plain.toString());
         return new Pattern(w -> w.append(spelled), params);
     }
 
@@ -2089,16 +2110,13 @@ public final class Snowflake extends AnsiSqlRenderer {
      *  -1 when none. */
     private static int closingParen(String pattern) {
         int depth = 0;
-        boolean inClass = false;
+        boolean[] live = live(pattern);
         for (int i = 0; i < pattern.length(); i++) {
             char ch = pattern.charAt(i);
-            if (ch == '\\') {
-                i++;
-            } else if (inClass) {
-                inClass = ch != ']';
-            } else if (ch == '[') {
-                inClass = true;
-            } else if (ch == '(') {
+            if (!live[i]) {
+                continue;
+            }
+            if (ch == '(') {
                 depth++;
             } else if (ch == ')') {
                 if (depth == 0) {
@@ -2113,16 +2131,9 @@ public final class Snowflake extends AnsiSqlRenderer {
     /** The capturing groups a pattern opens, escapes and bracket expressions skipped. */
     private static int capturingGroups(String pattern) {
         int n = 0;
-        boolean inClass = false;
+        boolean[] live = live(pattern);
         for (int i = 0; i < pattern.length(); i++) {
-            char ch = pattern.charAt(i);
-            if (ch == '\\') {
-                i++;
-            } else if (inClass) {
-                inClass = ch != ']';
-            } else if (ch == '[') {
-                inClass = true;
-            } else if (ch == '(' && !pattern.startsWith("(?", i)) {
+            if (live[i] && pattern.charAt(i) == '(' && !pattern.startsWith("(?", i)) {
                 n++;
             }
         }
@@ -2142,16 +2153,9 @@ public final class Snowflake extends AnsiSqlRenderer {
      *  last), escapes and bracket expressions skipped. */
     private static boolean opensBeforeGroup(String pattern, int group) {
         int capturing = 0;
-        boolean inClass = false;
+        boolean[] live = live(pattern);
         for (int i = 0; i < pattern.length(); i++) {
-            char ch = pattern.charAt(i);
-            if (ch == '\\') {
-                i++;
-            } else if (inClass) {
-                inClass = ch != ']';
-            } else if (ch == '[') {
-                inClass = true;
-            } else if (ch == '(') {
+            if (live[i] && pattern.charAt(i) == '(') {
                 if (pattern.startsWith("(?:", i)) {
                     return true;
                 }
@@ -2165,6 +2169,43 @@ public final class Snowflake extends AnsiSqlRenderer {
             }
         }
         return false;
+    }
+
+    /**
+     * Which characters of a pattern are live (the scans above read a group's parentheses there only): none of an escape
+     * ({@code \x}) nor of a bracket expression, which a {@code ]} first in it ({@code []a]}, {@code [^]a]}) does not
+     * close, nor one inside a POSIX class, collating element or equivalence class ({@code [[:alpha:](]}): an
+     * independent review, 2026-10-23, found {@code [](](?:a)(b)}'s {@code (} counted as a group, its references
+     * renumbered to the wrong one.
+     */
+    static boolean[] live(String pattern) {
+        int n = pattern.length();
+        boolean[] live = new boolean[n];
+        int i = 0;
+        while (i < n) {
+            char ch = pattern.charAt(i);
+            if (ch == '\\') {
+                i += 2;
+            } else if (ch != '[') {
+                live[i++] = true;
+            } else {
+                int j = i + 1;
+                if (j < n && pattern.charAt(j) == '^') {
+                    j++;
+                }
+                if (j < n && pattern.charAt(j) == ']') {
+                    j++;
+                }
+                while (j < n && pattern.charAt(j) != ']') {
+                    char c = pattern.charAt(j);
+                    int end = c == '[' && j + 1 < n && ":.=".indexOf(pattern.charAt(j + 1)) >= 0
+                            ? pattern.indexOf(pattern.charAt(j + 1) + "]", j + 2) : -1;
+                    j = c == '\\' ? j + 2 : end >= 0 ? end + 2 : j + 1;
+                }
+                i = j + 1;
+            }
+        }
+        return live;
     }
 
     // ---- temporal helpers
