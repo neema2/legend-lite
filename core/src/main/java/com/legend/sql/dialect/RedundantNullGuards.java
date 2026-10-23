@@ -21,7 +21,7 @@ import java.util.Set;
  * ({@code u.t_id IS NOT NULL AND t.id IS NOT NULL AND u.t_id = t.id}), and Snowflake decorrelates a subquery whose
  * own WHERE reads the outer row in equalities alone: a guard of the outer column is "Unsupported subquery type cannot
  * be evaluated" there (the IQ scale program's Snowflake lane, 2026-10-23, the correlated ALL of
- * {@code m1b/all_correlated}). So for Snowflake such a guard is dropped, in every WHERE.
+ * {@code m1b/all_correlated}). So for Snowflake such a guard is dropped from a subquery's own WHERE.
  */
 final class RedundantNullGuards extends SqlRewriter {
 
@@ -29,9 +29,25 @@ final class RedundantNullGuards extends SqlRewriter {
             SqlFn.GREATER, SqlFn.GREATER_EQUAL);
 
     @Override
-    protected SqlQuery select(SqlSelect s) {
-        if (s.where() == null) {
-            return s;
+    protected SqlExpr expr(SqlExpr e) {
+        return switch (e) {
+            case SqlExpr.Exists x when unguarded(x.subquery()) != x.subquery() ->
+                    new SqlExpr.Exists(unguarded(x.subquery()));
+            case SqlExpr.InSubquery i when unguarded(i.subquery()) != i.subquery() ->
+                    new SqlExpr.InSubquery(i.value(), unguarded(i.subquery()));
+            case SqlExpr.Quantified q when unguarded(q.subquery()) != q.subquery() ->
+                    new SqlExpr.Quantified(q.value(), q.comparison(), q.quantifier(), unguarded(q.subquery()));
+            case SqlExpr.ScalarSubquery q when unguarded(q.subquery()) != q.subquery() ->
+                    new SqlExpr.ScalarSubquery(unguarded(q.subquery()));
+            default -> e;
+        };
+    }
+
+    /** {@code q}, a subquery, its own WHERE's redundant guards dropped (a statement's other WHEREs keep theirs: the
+     *  guards matter to Snowflake in a correlated subquery alone). */
+    private static SqlQuery unguarded(SqlQuery q) {
+        if (!(q instanceof SqlSelect s) || s.where() == null) {
+            return q;
         }
         List<SqlExpr> parts = new ArrayList<>();
         conjuncts(s.where(), parts);
