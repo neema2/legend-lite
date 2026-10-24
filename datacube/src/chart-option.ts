@@ -901,7 +901,8 @@ function zoomOf(spec: ChartSpec, points: number, horizontal: boolean): Record<st
 
 /** A measure as a legend and a hover name it: its column and aggregate, and what it is shown as. */
 export function measureTitle(m: ChartMeasure): string {
-  const base = m.fn === 'value' ? m.column : m.fn === 'count' ? 'count' : `${m.fn} of ${m.column}`;
+  const base = m.fn === 'value' ? m.column : m.fn === 'count' ? 'count'
+    : m.weight !== undefined ? `${m.fn} of ${m.column} by ${m.weight}` : `${m.fn} of ${m.column}`;
   return m.showAs ? `${base} (${SHOW_AS_LABELS[m.showAs.kind].toLowerCase()})` : base;
 }
 
@@ -1076,7 +1077,7 @@ const MARK_WORDS: Record<ChartSpec['mark'], string> = {
   parallel: 'Parallel coordinates', sankey: 'Sankey diagram', chord: 'Chord diagram', stream: 'Streamgraph',
   calendar: 'Calendar heatmap', gauge: 'Gauge', sunburst: 'Sunburst', tree: 'Tree', matrix: 'Scatter matrix',
   boxplot: 'Box plot', map: 'Map', bubblemap: 'Bubble map', marimekko: 'Marimekko chart', waffle: 'Waffle chart',
-  gantt: 'Gantt chart',
+  gantt: 'Gantt chart', candlestick: 'Candlestick chart',
 };
 
 /**
@@ -1232,6 +1233,8 @@ export function kpiDrawing(
 export function describe(spec: ChartSpec, rows: ResultTable): string {
   const what = spec.mark === 'matrix' ? `each pair of ${spec.y.map((m) => m.column).join(', ')}`
     : spec.mark === 'boxplot' ? `the spread of ${spec.y[0]?.column ?? ''} by ${spec.x ?? ''}`
+    : spec.mark === 'candlestick' ? `the open, high, low and close of ${spec.y[0]?.column ?? ''} by ${spec.x ?? ''}`
+      + (spec.y[4] ? `, with the volume of ${spec.y[4].column}` : '')
     : spec.mark === 'scatter'
     ? `${spec.y[0]?.column ?? ''} against ${spec.x ?? ''}`
     : `${spec.y.map(measureName).join(', ')} by ${spec.x ?? ''}`;

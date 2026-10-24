@@ -36,7 +36,7 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | K1 | **built 2026-10-24** (§5). **Time on Deephaven** (DH29, DH30): a DateTime literal, in a formula and in a filter the server reads without compiling (DH25); `timeBucket` as `lowerBin`; a date-time's calendar parts (year to second, day of year, ISO day of week) in UTC; `datePart`; `firstDayOf...` and the truncations DataCube's time grains write; `adjust` by a fixed unit; the epoch conversions | the dialect's tests; answers worked out by hand on the pinned server (`datacube/test/deephaven/page.ts`) |
 | K2 | **built 2026-10-24** (§5). **The market world**: a realistic equity simulator and a crypto feed handler that gives way to it (DH28), as the server's startup scripts; a store, classes and mappings over their tables | the world's figures checked on the pinned server; the fallback taken when the feed is refused |
 | K3a | **built 2026-10-24** (§5). **A candle's open and close on Deephaven**: Pure's `minBy` and `maxBy` over a whole-number order (a trade's sequence number), SQL's `ARG_MIN` and `ARG_MAX`, as the server's `sortedFirst` and `sortedLast` | the dialect's tests; DuckDB's answer on the pinned server |
-| K3 | **intraday grains built 2026-10-24** (§5); the candlestick kind waits on PR #72's `minBy` and `maxBy` aggregates (its open and close). **A candlestick chart** in DataCube: open, high, low, close and volume by time bucket, drawn again at its grid's tick with its axes held (C2) | DataCube's chart tests; the chart ticking in a browser check |
+| K3 | **built 2026-10-24** (§5); its ticking in a browser is K4's page. **A candlestick chart** in DataCube: open, high, low, close and volume by time bucket, drawn again at its grid's tick with its axes held (C2) | DataCube's chart tests; the chart ticking in a browser check |
 | K4 | **the ticker**: a watchlist (last, change, bid/ask, volume, day VWAP, high/low), the tape, time and sales, and a live candle chart for the symbol picked | a browser check of every part ticking; the speeds of §4 measured |
 | K5 | **the runtime error on Deephaven**: the lowering's guard (Pure fails on `sqrt` of a negative, on an Integer division by zero) writes an `ERROR` no Deephaven formula holds yet; a formula that fails by name, so `sqrt` and Integer `/` plan | the dialect's tests; a failing row failing the view, said, on the server |
 | K6 | **built 2026-10-24** (§5), but for EMA, delta and NTH_VALUE. **Windows as `updateBy`**: running and moving figures (by rows and by time), lag and lead, first and last, the ranks; top-N per group (a row number filtered, SQL's QUALIFY: no `headBy` needed); DataCube's window functions and show-as | each against DuckDB's answer |
@@ -165,4 +165,21 @@ functions, with each frame it takes, and its 6 show-as at a cube's levels plan f
 (`window-columns.test.ts`). Not built: EMA and delta (Deephaven's own, no Pure function names them yet), NTH_VALUE,
 LAG with a default, a RANGE of numbers, a distinct or ordered aggregate over a window; each refused by name. A
 window's speed on a realistic tape is K4's to measure.
+
+**K3, the candlestick (2026-10-24).** A new kind of DataCube chart: a price's open, high, low and close per category
+-- a period, by K3's grains -- in that order (`chart-spec.ts candleMeasures`), the open and the close #72's `minBy` and
+`maxBy` by an order column (a print's number), the high and the low its greatest and least, each the database's; and,
+given one, a volume, a column's sum drawn as bars beneath on an axis of its own. A chart's value gains a second column
+(`ChartMeasure.weight`, #72's `Measure.weight` for an aggregate of two), so any kind may plot the price at the last of
+an order; a value naming one for an aggregate that reads one column, or naming none for one that needs it, is refused
+by name. The order is the chart's to be told: a candlestick made from another kind takes its value's column and asks
+for its order (none is guessed). Drawn by ECharts' candlestick series, rising green and falling red (the theme's third
+series colour and its `bad`), a period with no price drawn as none; one series, upright, its own figures (no split, no
+show-as, no value's own mark or axis); a click filters to its period; a kind of one value made from it keeps its close.
+The form asks the price, the order ("Open and close by") and the volume; the gallery shows one (each month's first,
+highest, lowest and last sale's revenue, and its units). Measured: six prints in three five-minute buckets, planned and
+run on DuckDB (`chart-queries.test.ts`); the same chart's query planned for a Deephaven runtime is the server's
+`lowerBin` and `sortedFirst` and `sortedLast` by the number (`window-columns.test.ts`), K3a's measured shapes. The
+kinds' chunk grows by ECharts' candlestick (68,000 -> 70,500, measured 70,117) and the startup pages by its rules
+(grid 358,500 -> 359,000). Python reaches it by a value's dict (`{'column': 'px', 'fn': 'minBy', 'weight': 'seq'}`).
 

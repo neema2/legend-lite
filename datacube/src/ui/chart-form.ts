@@ -6,6 +6,7 @@
 
 import {
   boxMeasures,
+  candleMeasures,
   CHART_MARKS,
   chartColumns,
   GRID_MARKS,
@@ -62,6 +63,20 @@ export interface FormHost {
   snapshot(): CubeSnapshot;
 }
 
+/** A candlestick's order -- its open and close the price at the first and the last of it, a number column -- and its
+ *  volume, a column's sum or none. */
+function candleFields(h: FormHost, spec: ChartSpec, numbers: readonly { value: string; label: string }[]): HTMLElement[] {
+  const price = spec.y[0]?.column;
+  const order = spec.y[0]?.weight;
+  const volume = spec.y[4]?.column;
+  return [
+    field(h.doc, 'Open and close by:', dropdown<string>(h.doc, order, numbers,
+      (v) => price !== undefined && h.set({ y: candleMeasures(price, v ?? undefined, volume) }, true))),
+    field(h.doc, 'Volume:', dropdown<string>(h.doc, volume, numbers,
+      (v) => price !== undefined && h.set({ y: candleMeasures(price, order, v ?? undefined) }, true), { allowNone: true })),
+  ];
+}
+
 export function paintChartForm(h: FormHost, form: HTMLElement): void {
   const doc = h.doc;
     form.replaceChildren();
@@ -76,6 +91,11 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   const scatter = spec.mark === 'scatter';
   // a box plot plots one number column's five figures (chart-spec.ts BOX_FNS): the column is its one choice
   const box = spec.mark === 'boxplot';
+  // a candlestick plots a price's open, high, low and close (candleMeasures): the price, the order its open and close
+  // are taken along, and a volume if any
+  const candle = spec.mark === 'candlestick';
+  const candleOrder = candle ? spec.y[0]?.weight : undefined;
+  const candleVolume = candle ? spec.y[4]?.column : undefined;
   // a map's column across names each row's country; a bubble map's names each place, put where two columns say
   const map = spec.mark === 'map';
   const bubbles = spec.mark === 'bubblemap';
@@ -190,14 +210,16 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
     // every handler reads the spec as it is AT THE EVENT, never the one
     // this form was painted from: a stale copy undid the edit before it
     field(doc, scatter ? 'Y:' : gantt ? 'Start:' : 'Value:', dropdown<string>(
-      doc, scatter || box || gantt ? first?.column : plottedValue,
-      gantt ? dates : scatter || box ? measures.map((c) => ({ value: c.name, label: c.name })) : plotted,
+      doc, scatter || box || candle || gantt ? first?.column : plottedValue,
+      gantt ? dates : scatter || box || candle ? measures.map((c) => ({ value: c.name, label: c.name })) : plotted,
       (v) => (box ? v && h.set({ y: boxMeasures(v) }, true)
+        : candle ? v && h.set({ y: candleMeasures(v, candleOrder, candleVolume) }, true)
         // a Gantt's start is a date column's least, unless its aggregate already gives a date (the phase 7 audit)
         : gantt ? v && h.set({ y: [{ column: v, fn: currentFn() === 'max' ? 'max' : 'min' }, ...current(h).y.slice(1)] }, true)
         : pick(v, currentFn())),
     )),
-    ...(scatter || box || first?.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(
+    ...(candle ? candleFields(h, spec, measures.map((c) => ({ value: c.name, label: c.name }))) : []),
+    ...(scatter || box || candle || first?.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(
       doc, currentFn(), fns,
       (v) => {
         const now = h.spec()?.y[0];

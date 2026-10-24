@@ -4,7 +4,7 @@
 // sheet laid out as a BI dashboard, a strip of KPIs on top (KPI_DASHBOARD). Built as the other example pages are
 // (charts-dashboard.ts salesPage); test/examples.test.ts holds it to every kind, each drawable.
 
-import { boxMeasures, MAP_LIMIT, type ChartMark } from '../chart-spec.ts';
+import { boxMeasures, candleMeasures, MAP_LIMIT, type ChartMark } from '../chart-spec.ts';
 import type { PageDocument } from '../page-document.ts';
 import { BY_TIME, chart, PROFIT, REVENUE, salesPage, type ExampleSheet } from './charts-dashboard.ts';
 
@@ -117,6 +117,9 @@ export const GALLERY_SHEETS: readonly ExampleSheet[] = [
       of('stream', 'Streamgraph', 'revenue by week, by category', { x: 'sold', grain: 'week', split: 'category', options: BY_TIME }),
       of('calendar', 'Calendar', 'revenue by day', { x: 'sold', options: BY_TIME }),
       of('boxplot', 'Box plot', 'the spread of each sale\'s revenue by category', { x: 'category', y: boxMeasures('revenue') }),
+      of('candlestick', 'Candlestick', 'each month\'s first, highest, lowest and last sale\'s revenue, and its units', {
+        x: 'sold', grain: 'month', y: candleMeasures('revenue', 'order_id', 'units'), options: BY_TIME,
+      }),
       of('matrix', 'Scatter matrix', 'each sale\'s revenue, cost and profit against each other', {
         y: [REVENUE, COST, PROFIT], split: 'channel',
       }),

@@ -143,7 +143,7 @@ describe('the reader refuses a chart it cannot read, in words', () => {
 
   it('a value\'s mark, axis and show-as words, and keys it has no place for', () => {
     assert.equal(measureRefusal({ ...SUM_NOTIONAL, colour: 'red' }),
-      'there is no "colour" in measure 1 (it says column, fn, mark, axis, showAs)');
+      'there is no "colour" in measure 1 (it says column, fn, mark, axis, showAs, weight)');
     assert.equal(measureRefusal({ ...SUM_NOTIONAL, mark: 'pie' }), 'measure 1\'s mark "pie" is not bar, line or area');
     assert.equal(measureRefusal({ ...SUM_NOTIONAL, axis: 'top' }), 'measure 1\'s axis "top" is not left or right');
     assert.equal(measureRefusal({ ...SUM_NOTIONAL, showAs: { kind: 'cumulative' } }),

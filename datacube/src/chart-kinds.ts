@@ -12,7 +12,7 @@
 // calc-presets.ts) -- or the grid's own row (a sunburst's rings). What happens here is placement: a category's index,
 // a value's position, a calendar's years, all by comparing what the rows say.
 
-import { AXIS_UPPER, axisName, drilledView, facetColumns, markLabel, MAX_FACETS, measureName, rangesAcross, type ChartMeasure, type ChartSpec } from './chart-spec.ts';
+import { AXIS_UPPER, axisName, CANDLE_WORDS, drilledView, facetColumns, markLabel, MAX_FACETS, measureName, rangesAcross, type ChartMeasure, type ChartSpec } from './chart-spec.ts';
 import { marimekkoNames, paretoName, WAFFLE_CELLS, waffleNames, waterfallNames } from './calc-presets.ts';
 import {
   asOption,
@@ -115,7 +115,8 @@ export function kindOption(
   };
   const categoryAxis = { ...axisCommon, type: 'category' as const, data: catLabels, splitLine: { show: false } };
   const valueAxis = (m: ChartMeasure) => ({
-    ...axisCommon, type: 'value' as const, scale: spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'boxplot',
+    ...axisCommon, type: 'value' as const,
+    scale: spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'boxplot' || spec.mark === 'candlestick',
     axisLabel: { ...axisCommon.axisLabel, formatter: (v: number) => write(m, v) },
   });
   const axes = (m: ChartMeasure) => (horizontal
@@ -388,6 +389,59 @@ export function kindOption(
       }, (_s, _i, datum) => {
         const ci = (datum as { ci?: number } | undefined)?.ci;
         return ci === undefined ? null : keyOf(ci);
+      });
+    }
+
+    // -- a price per period: its open and close the candle's body, its high and low its wick, rising green and falling
+    // red -- four figures the database computed (candleMeasures), placed here -- and a volume's bars beneath ----------
+    case 'candlestick': {
+      const [open, high, low, close] = spec.y;
+      const volume = spec.y[4];
+      if (!open || !high || !low || !close) return empty('Nothing to draw.');
+      const figures = [open, high, low, close];
+      const candles = categories.map((_, ci) => figures.map((m) => num(m, at(ci))));
+      const rising = theme.series[2]!;
+      const falling = theme.bad ?? theme.series[1]!;
+      // ECharts' order is open, close, lowest, highest; a period with no price has no candle (its empty value), never
+      // a candle drawn at zero
+      const data = candles.map(([o, h, l, c], ci) => ({
+        value: o == null || h == null || l == null || c == null ? ['-', '-', '-', '-'] : [o, c, l, h], ci,
+      }));
+      const tip = {
+        ...tooltip, trigger: 'item' as const,
+        formatter: (p: { dataIndex: number; data?: { ci?: number } }) => {
+          const ci = p.data?.ci ?? p.dataIndex;
+          return [
+            `<b>${escapeHtml(catLabels[ci] ?? '')}</b>`,
+            ...figures.map((m, k) => `${CANDLE_WORDS[k]}: <b>${escapeHtml(write(m, candles[ci]?.[k] ?? null))}</b>`),
+            ...(volume ? [`${CANDLE_WORDS[4]}: <b>${escapeHtml(write(volume, num(volume, at(ci))))}</b>`] : []),
+          ].join('<br>');
+        },
+      };
+      const series = {
+        type: 'candlestick' as const, name: open.column, data,
+        itemStyle: { color: rising, color0: falling, borderColor: rising, borderColor0: falling },
+      };
+      if (!volume) return done({ ...base, tooltip: tip, ...axes(close), series: [series] });
+      // the volume beneath, a fifth of the height, on its own axis: the two grids one width, so a bar is under its
+      // candle (an axis's labels kept inside its grid would make each grid as wide as its own labels)
+      const edge = { left: 64, right: 16 };
+      return done({
+        ...base,
+        grid: [{ ...edge, top: 40, bottom: '30%' }, { ...edge, top: '76%', bottom: 24 }],
+        tooltip: tip,
+        xAxis: [categoryAxis, { ...categoryAxis, gridIndex: 1, axisLabel: { show: false } }],
+        yAxis: [valueAxis(close), { ...valueAxis(volume), gridIndex: 1, scale: false, splitNumber: 2 }],
+        series: [series, {
+          type: 'bar' as const, name: volume.column, xAxisIndex: 1, yAxisIndex: 1,
+          data: categories.map((_, ci) => {
+            const [o, , , c] = candles[ci] ?? [];
+            return {
+              value: num(volume, at(ci)) ?? '-', ci,
+              itemStyle: { color: o != null && c != null && c < o ? falling : rising, opacity: 0.55 },
+            };
+          }),
+        }],
       });
     }
 

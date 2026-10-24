@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { element, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
-import { AXIS_UPPER, boxMeasures, chartProblems, chartSnapshot, drillLevels, editChart, followCube, type ChartSpec } from '../src/chart-spec.ts';
+import { AXIS_UPPER, boxMeasures, candleMeasures, chartProblems, chartSnapshot, drillLevels, editChart, followCube, type ChartSpec } from '../src/chart-spec.ts';
 import { chartOption, describe as describeChart, kpiDrawing, LIGHT_THEME, type ChartDrawing, type GridShown } from '../src/chart-option.ts';
 import { facetOption, gridKindOption, kindOption } from '../src/chart-kinds.ts';
 import { grainName, marimekkoNames, paretoName, ringTotalName, waffleNames, waterfallNames } from '../src/calc-presets.ts';
@@ -542,6 +542,75 @@ describe('batch 4: a box plot, its five figures the database\'s', () => {
     const side = kindOption({ ...BOX, options: { ...OPTIONS, orientation: 'horizontal' } }, rows);
     assert.equal((side.option as { yAxis: { type: string } }).yAxis.type, 'category');
     assert.ok(svg(side).includes('EMEA'));
+  });
+});
+
+// A CANDLESTICK (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K3): a price's open, high, low and close per category, the open
+// and close by an order column (#72's minBy and maxBy, the database's), and a volume beneath
+describe('the trader screens: a candlestick, its open and close by an order', () => {
+  const TAPE: CubeSnapshot = { ...CUBE, columns: [...CUBE.columns, { name: 'seq', type: 'Integer', kind: 'dimension' },
+    { name: 'size', type: 'Float' }] };
+  const CANDLE = of('candlestick', { y: candleMeasures('revenue', 'seq') });
+  const problems = (spec: ChartSpec) => chartProblems(spec, TAPE).join(' ');
+  it('plots a number column\'s open, high, low and close, in order, by a number column; a volume; one series', () => {
+    assert.deepEqual(chartProblems(CANDLE, TAPE), []);
+    assert.deepEqual(chartProblems({ ...CANDLE, y: candleMeasures('revenue', 'seq', 'size') }, TAPE), []);
+    assert.match(problems(of('candlestick')), /open, high, low and close, in that order/);
+    assert.match(problems({ ...CANDLE, y: [...CANDLE.y].reverse() }), /open, high, low and close, in that order/);
+    assert.match(problems({ ...CANDLE, y: candleMeasures('revenue', undefined) }), /name the order \(a number column\)/);
+    assert.match(problems({ ...CANDLE, y: candleMeasures('revenue', 'channel') }), /'channel' is not a number: it orders no open or close/);
+    assert.match(problems({ ...CANDLE, y: candleMeasures('revenue', 'tick') }), /The cube has no column 'tick'/);
+    assert.match(problems({ ...CANDLE, y: candleMeasures('channel', 'seq') }), /'channel' is not a number: it has no open or close/);
+    assert.match(problems({ ...CANDLE, y: candleMeasures('revenue', 'seq', 'channel') }), /'channel' is not a number: it has no volume/);
+    assert.match(problems({ ...CANDLE, split: 'channel' }), /A candlestick draws one series/);
+    assert.match(problems({ ...CANDLE, options: { ...OPTIONS, orientation: 'horizontal' } }), /drawn upright/);
+    assert.match(problems({ ...CANDLE, y: CANDLE.y.map((m) => ({ ...m, showAs: { kind: 'rank' as const } })) }), /computes its own figures/);
+  });
+  it('a value names a second column only for an aggregate of two; a chart told the kind asks for its order', () => {
+    // the close of a candle on a bar: the last revenue by seq, a value of its own
+    assert.deepEqual(chartProblems(of('bar', { y: [{ column: 'revenue', fn: 'maxBy', weight: 'seq' }] }), TAPE), []);
+    assert.match(problems(of('bar', { y: [{ column: 'revenue', fn: 'sum', weight: 'seq' }] })), /reads one column: it has no second column 'seq'/);
+    assert.match(problems(of('bar', { y: [{ column: 'revenue', fn: 'maxBy' }] })), /would need its ordering column/);
+    const made = editChart(of('bar', { y: [{ column: 'cost', fn: 'sum' }] }), { mark: 'candlestick' }, TAPE);
+    assert.deepEqual(made.y, candleMeasures('cost', undefined));
+    assert.match(chartProblems(made, TAPE).join(' '), /name the order/);
+    // a kind of one value keeps its close
+    assert.deepEqual(editChart(CANDLE, { mark: 'bar' }, TAPE).y, [CANDLE.y[3]]);
+  });
+  it('asks the database for each figure per category, the open and close by the order, ordered by the close', () => {
+    const s = chartSnapshot(TAPE, CANDLE);
+    assert.deepEqual(s.measures?.map((m) => `${m.name}:${m.fn}:${m.weight ?? ''}`), [
+      'minBy_revenue_by_seq:minBy:seq', 'max_revenue:max:', 'min_revenue:min:', 'maxBy_revenue_by_seq:maxBy:seq',
+    ]);
+    assert.deepEqual(s.sorts, [{ column: 'maxBy_revenue_by_seq', direction: 'desc' }, { column: 'region', direction: 'asc' }]);
+    assert.deepEqual(followCube({ ...CANDLE, x: 'channel' }, TAPE).y, CANDLE.y);
+  });
+  it('is drawn: a candle per category, rising green and falling red, a volume beneath; no price, no candle', () => {
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC', 'LATAM'] },
+      { name: 'minBy_revenue_by_seq', type: 'Float', values: [10, 30, null] },
+      { name: 'max_revenue', type: 'Float', values: [40, 35, null] },
+      { name: 'min_revenue', type: 'Float', values: [5, 12, null] },
+      { name: 'maxBy_revenue_by_seq', type: 'Float', values: [20, 15, null] },
+      { name: 'sum_size', type: 'Float', values: [100, 50, 0] },
+    ]);
+    const plain = kindOption(CANDLE, rows);
+    const series = (plain.option as { series: { type: string; data: { value: unknown[] }[] }[] }).series;
+    assert.equal(series[0]?.type, 'candlestick');
+    // ECharts' order: open, close, lowest, highest
+    assert.deepEqual(series[0]?.data.map((c) => c.value), [[10, 20, 5, 40], [30, 15, 12, 35], ['-', '-', '-', '-']]);
+    assert.ok(svg(plain).includes('EMEA'));
+    assert.deepEqual(plain.keyAt(0, 1), { region: 'APAC' });
+    const tip = (plain.option as { tooltip: { formatter: (p: unknown) => string } }).tooltip.formatter({ dataIndex: 1, data: { ci: 1 } });
+    assert.match(tip, /open: <b>30<\/b>.*high: <b>35<\/b>.*low: <b>12<\/b>.*close: <b>15<\/b>/);
+    assert.match(describeChart(CANDLE, rows), /^Candlestick chart of the open, high, low and close of revenue by region: 3 rows\.$/);
+    const withVolume = kindOption({ ...CANDLE, y: candleMeasures('revenue', 'seq', 'size') }, rows);
+    const both = (withVolume.option as { series: { type: string; data: { value: unknown; itemStyle?: { color?: string } }[] }[] }).series;
+    assert.deepEqual(both.map((x) => x.type), ['candlestick', 'bar']);
+    assert.deepEqual(both[1]?.data.map((b) => b.value), [100, 50, 0]);
+    // a falling period's bar is red, a rising one's green
+    assert.deepEqual(both[1]?.data.slice(0, 2).map((b) => b.itemStyle?.color), [LIGHT_THEME.series[2], LIGHT_THEME.bad]);
+    assert.ok(svg(withVolume).includes('EMEA'));
   });
 });
 

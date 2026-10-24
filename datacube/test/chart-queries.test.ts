@@ -9,7 +9,7 @@ import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
-import { axisName, boxMeasures, chartQuery, DEFAULT_OPTIONS, GRID_MARKS, kpiChange, kpiQueries, measureName, type ChartSpec } from '../src/chart-spec.ts';
+import { axisName, boxMeasures, candleMeasures, chartQuery, DEFAULT_OPTIONS, GRID_MARKS, kpiChange, kpiQueries, measureName, type ChartSpec } from '../src/chart-spec.ts';
 import { marimekkoNames, paretoName, ringTotalName, waffleNames, waterfallNames } from '../src/calc-presets.ts';
 import type { CubeSnapshot, DerivedColumn } from '../src/snapshot.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
@@ -548,6 +548,36 @@ describe('a date-time by 5 minutes, planned and run: its buckets and their ends'
   let engine2: DuckDbEngine;
   after(async () => {
     await engine2?.close();
+  });
+
+  it('a candle per 5 minutes: the price at its first and last print, its high, its low, its volume', async () => {
+    const tape = ['seq,sym,ts,px,sz', '1,A,2024-01-15 09:31:10,10,100', '2,A,2024-01-15 09:32:00,14,50',
+      '3,A,2024-01-15 09:33:59,11,25', '4,A,2024-01-15 09:35:00,12,10', '5,A,2024-01-15 09:36:00,9,40',
+      '6,A,2024-01-15 09:41:30,13,5'].join('\n');
+    const db = await openDatabase();
+    const e = new DuckDbEngine(db.connection);
+    try {
+      const r = await ingestFile(e, db.files, new File([tape], 'tape.csv'), writer);
+      const p = plannerFor(r.model, r.runtime);
+      const s: CubeSnapshot = {
+        source: { query: r.source },
+        columns: [{ name: 'seq', type: 'Integer', kind: 'dimension' }, { name: 'sym', type: 'String' },
+          { name: 'ts', type: 'DateTime' }, { name: 'px', type: 'Integer', kind: 'measure' },
+          { name: 'sz', type: 'Integer', kind: 'measure' }],
+        derived: [], rows: ['sym'], pivotOn: [], sorts: [], epoch: 1,
+      };
+      const spec: ChartSpec = { version: 2, mark: 'candlestick', x: 'ts', grain: 'minute5', y: candleMeasures('px', 'seq', 'sz'),
+        options: { ...DEFAULT_OPTIONS, sort: { by: 'x', direction: 'asc' } } };
+      const t = await e.execute(await p.plan(chartQuery(s, spec).query), 0);
+      assert.deepEqual(values(t, axisName(spec)!).map(String), ['2024-01-15T09:30:00', '2024-01-15T09:35:00', '2024-01-15T09:40:00']);
+      assert.deepEqual(values(t, 'minBy_px_by_seq').map(Number), [10, 12, 13]);
+      assert.deepEqual(values(t, 'max_px').map(Number), [14, 12, 13]);
+      assert.deepEqual(values(t, 'min_px').map(Number), [10, 9, 13]);
+      assert.deepEqual(values(t, 'maxBy_px_by_seq').map(Number), [11, 9, 13]);
+      assert.deepEqual(values(t, 'sum_sz').map(Number), [175, 50, 5]);
+    } finally {
+      await e.close();
+    }
   });
 
   it('each print in the 5-minute bucket it starts in, the bucket\'s end five minutes on', async () => {

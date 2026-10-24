@@ -47,7 +47,9 @@ export type ChartMark =
   // batch 5 (maps, §4): drawn by chart-maps.ts on the world's countries, a chunk of its own
   | 'map' | 'bubblemap'
   // batch 3's leftovers: shares as cells (a Marimekko, a waffle), and a start and an end per row (a Gantt)
-  | 'marimekko' | 'waffle' | 'gantt';
+  | 'marimekko' | 'waffle' | 'gantt'
+  // the trader screens (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K3): a price's open, high, low and close per period
+  | 'candlestick';
 
 /** Batch 5's maps: drawn by chart-maps.ts on Natural Earth's countries, fetched with the first of them. */
 export const MAP_MARKS: ReadonlySet<ChartMark> = new Set(['map', 'bubblemap']);
@@ -62,6 +64,7 @@ export const GRID_MARKS: ReadonlySet<ChartMark> = new Set(['treemap', 'sunburst'
 export const KIND_MARKS: ReadonlySet<ChartMark> = new Set([
   'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'polar', 'radar', 'parallel',
   'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree', 'matrix', 'boxplot', 'marimekko', 'waffle', 'gantt',
+  'candlestick',
 ]);
 
 /** The kinds that plot ROWS, not groups: a scatter, and a scatter matrix (every pair of its values). */
@@ -84,20 +87,42 @@ export function boxMeasures(column: string): ChartMeasure[] {
   return BOX_FNS.map((fn) => ({ column, fn }));
 }
 
+/**
+ * A CANDLESTICK'S VALUES: a price's open, high, low and close per period, in that order -- the open and the close the
+ * price at the first and the last of an order (`minBy` and `maxBy` by it: a trade's sequence number), the high and the
+ * low its greatest and least -- each an aggregate the database computes (PR #72's two-column aggregates; on Deephaven
+ * its `sortedFirst` and `sortedLast`, K3a), never a figure found here; and, given one, a volume: a column's sum, drawn
+ * as bars beneath. The order is the chart's to be told: without one the rules say so (none is guessed).
+ */
+export function candleMeasures(price: string, order: string | undefined, volume?: string): ChartMeasure[] {
+  const by = order === undefined ? {} : { weight: order };
+  return [
+    { column: price, fn: 'minBy', ...by },
+    { column: price, fn: 'max' },
+    { column: price, fn: 'min' },
+    { column: price, fn: 'maxBy', ...by },
+    ...(volume === undefined ? [] : [{ column: volume, fn: 'sum' as const }]),
+  ];
+}
+
+/** A candle's figures, as its hover says them. */
+export const CANDLE_WORDS = ['open', 'high', 'low', 'close', 'volume'] as const;
+
 /** The kinds whose marks are the categories across, one per value: a click drills down from one. */
 const DRILLABLE: ReadonlySet<ChartMark> = new Set([
   'bar', 'line', 'area', 'pie', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose',
-  'polar', 'boxplot',
+  'polar', 'boxplot', 'candlestick',
 ]);
 
 /** The kinds that draw one series of categories: no split (a colour per value) has a place on them. */
 export const UNSPLIT: ReadonlySet<ChartMark> = new Set([
   'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'radar', 'parallel', 'calendar', 'gauge',
-  'boxplot', 'map', 'bubblemap', 'waffle', 'gantt',
+  'boxplot', 'map', 'bubblemap', 'waffle', 'gantt', 'candlestick',
 ]);
 
 /** The kinds that plot several values of their own: following the cube, they keep them. */
-const SEVERAL_VALUES: ReadonlySet<ChartMark> = new Set(['dumbbell', 'range', 'radar', 'parallel', 'boxplot', 'gantt']);
+const SEVERAL_VALUES: ReadonlySet<ChartMark> = new Set(['dumbbell', 'range', 'radar', 'parallel', 'boxplot', 'gantt',
+  'candlestick']);
 
 /** The kinds that need a second grouping (the split): a heatmap's rows, a flow's target, a stream's layers. */
 export const SPLIT_NEEDED: Readonly<Partial<Record<ChartMark, string>>> = {
@@ -158,6 +183,9 @@ export interface ChartMeasure {
   readonly axis?: MeasureAxis;
   /** Shown as a running total, a share of the total, a change, a moving average or a rank. */
   readonly showAs?: ShowAs;
+  /** The second column an aggregate of two reads (snapshot.ts SECOND_COLUMN): a candle's open and close, `minBy` and
+   *  `maxBy`, by their order (K3). Named by no other value. */
+  readonly weight?: string;
 }
 
 /** A date across, taken to its period: the grain's first day (the compiler's `firstDayOf...`), or its year. */
@@ -365,7 +393,9 @@ const SPEC_KEYS: Readonly<Record<keyof ChartSpec, true>> = {
 };
 const KEPT_KEYS: Readonly<Record<keyof ChartKept, true>> = { filter: true };
 const PLACE_KEYS: Readonly<Record<keyof ChartPlace, true>> = { lat: true, lon: true };
-const MEASURE_KEYS: Readonly<Record<keyof ChartMeasure, true>> = { column: true, fn: true, mark: true, axis: true, showAs: true };
+const MEASURE_KEYS: Readonly<Record<keyof ChartMeasure, true>> = {
+  column: true, fn: true, mark: true, axis: true, showAs: true, weight: true,
+};
 const FACET_KEYS: Readonly<Record<keyof ChartFacet, true>> = { row: true, column: true };
 const OPTION_KEYS: Readonly<Record<keyof ChartOptions, true>> = {
   orientation: true, stack: true, sort: true, limit: true, labels: true, legend: true, target: true, better: true,
@@ -402,6 +432,7 @@ function measureProblem(m: unknown, what: string): string | null {
   if (extra) return extra;
   if (m['mark'] !== undefined && !known(MEASURE_MARK_WORDS, m['mark'])) return `${what}'s mark ${JSON.stringify(m['mark'])} is not bar, line or area`;
   if (m['axis'] !== undefined && !known(AXIS_WORDS, m['axis'])) return `${what}'s axis ${JSON.stringify(m['axis'])} is not left or right`;
+  if (m['weight'] !== undefined && typeof m['weight'] !== 'string') return `${what}'s second column is not a column's name`;
   const showAs = m['showAs'];
   if (showAs !== undefined && (!isRecord(showAs) || !known(SHOW_AS_WORDS, showAs['kind']))) {
     return `${what} is shown as something this DataCube does not know (${JSON.stringify(showAs)})`;
@@ -608,6 +639,7 @@ export const CHART_MARKS: readonly { value: ChartMark; label: string }[] = [
   { value: 'marimekko', label: 'Marimekko' },
   { value: 'waffle', label: 'Waffle' },
   { value: 'gantt', label: 'Gantt' },
+  { value: 'candlestick', label: 'Candlestick' },
 ];
 
 /** A kind's name, as a sentence says it ("a Pareto", "a polar bar"). */
@@ -642,6 +674,8 @@ export function measureName(m: ChartMeasure): string {
 export function baseName(m: ChartMeasure): string {
   // a group-level column is already one figure per group: it keeps its name
   if (m.fn === 'value') return m.column;
+  // an aggregate of two by its second column too: a candle's open, `minBy_price_by_seq`
+  if (m.weight !== undefined) return `${m.fn}_${m.column}_by_${m.weight}`;
   return m.fn === 'count' ? 'count' : `${m.fn}_${m.column}`;
 }
 
@@ -946,7 +980,8 @@ export function chartValuesAsColumns<D extends GridDraft>(draft: D, y: readonly 
   readonly notes: readonly string[];
   readonly carriedBy: (m: ChartMeasure) => string | undefined;
 } {
-  const pairKey = (m: { readonly column: string; readonly fn: string }): string => JSON.stringify([m.column, m.fn]);
+  const pairKey = (m: { readonly column: string; readonly fn: string; readonly weight?: string }): string =>
+    JSON.stringify([m.column, m.fn, m.weight ?? null]);
   const keys = new Set([...draft.snapshot.rows, ...draft.snapshot.pivotOn]);
   const taken = new Set(allColumns(draft));
   // the columns whose Aggregation carries a value: another value of the column is a calculated column
@@ -965,7 +1000,7 @@ export function chartValuesAsColumns<D extends GridDraft>(draft: D, y: readonly 
     const name = own ? m.column : unusedName(m, taken);
     claimed.add(name);
     taken.add(name);
-    asked.push({ name, column: m.column, fn: m.fn });
+    asked.push({ name, column: m.column, fn: m.fn, ...(m.weight !== undefined ? { weight: m.weight } : {}) });
   }
   const made = measuresAsColumns(draft, asked);
   for (const x of made.made) carrier.set(pairKey(x.measure), x.column);
@@ -1067,6 +1102,7 @@ function unusedName(m: ChartMeasure, taken: ReadonlySet<string>): string {
  */
 function carryingColumn(m: ChartMeasure, s: CubeShape): string | undefined {
   if (m.fn === 'value') return m.column;
+  if (m.weight !== undefined) return undefined;
   const specs = columnSpecs(s);
   const carries = (name: string): boolean => defaultMeasure(name, specs.get(name)).fn === m.fn;
   if (!s.rows.includes(m.column) && !s.pivotOn.includes(m.column) && carries(m.column)) return m.column;
@@ -1093,7 +1129,8 @@ function followedValue(m: ChartMeasure, s: CubeShape, column: string | undefined
 
 /** Whether two of a chart's values plot the same: one column, one aggregate, shown alike. */
 function sameValue(a: ChartMeasure, b: ChartMeasure): boolean {
-  return a.column === b.column && a.fn === b.fn && JSON.stringify(a.showAs ?? null) === JSON.stringify(b.showAs ?? null);
+  return a.column === b.column && a.fn === b.fn && a.weight === b.weight
+    && JSON.stringify(a.showAs ?? null) === JSON.stringify(b.showAs ?? null);
 }
 
 /** A new chart's options with `x` across: time runs left to right, and long; categories lead with the largest. */
@@ -1190,6 +1227,11 @@ function asMark(spec: ChartSpec, mark: ChartMark, s: CubeSnapshot): ChartSpec {
       ? { options: { ...rest.options, ...(sort !== undefined ? { sort } : {}), ...(limit !== undefined ? { limit } : {}) } } : {}),
     ...(mark === 'boxplot' && rest.y[0] !== undefined && rest.y[0].fn !== 'value' ? { y: boxMeasures(rest.y[0].column) } : {}),
     ...(spec.mark === 'boxplot' && !SEVERAL_VALUES.has(mark) && rest.y[2] !== undefined ? { y: [rest.y[2]] } : {}),
+    // a candlestick of its first value's column: its order a value's own second column, else for the rules to ask
+    ...(mark === 'candlestick' && spec.mark !== 'candlestick' && rest.y[0] !== undefined && rest.y[0].fn !== 'value'
+      ? { y: candleMeasures(rest.y[0].column, rest.y.find((m) => m.weight !== undefined)?.weight) } : {}),
+    // a candlestick taking a kind of one value keeps its close
+    ...(spec.mark === 'candlestick' && !SEVERAL_VALUES.has(mark) && rest.y[3] !== undefined ? { y: [rest.y[3]] } : {}),
     ...(at !== undefined ? { at } : {}),
   };
 }
@@ -1389,9 +1431,14 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     } else if (m.fn !== 'count' && !known.has(m.column)) {
       out.push(`The cube has no column '${m.column}'.`);
     }
-    // an aggregate of two reads another column, which a chart's value names none of (the grid's has its second column)
+    // an aggregate of two reads another column: a value names it (`weight`), a candle's open and close their order (K3);
+    // a value naming none is refused, as a candlestick's rules say it for its own
     const second = m.fn === 'value' ? undefined : SECOND_COLUMN[m.fn];
-    if (second?.required) out.push(`A chart plots no ${second.words}: '${m.column}' would need its ${second.role} column.`);
+    if (m.weight !== undefined && second === undefined) {
+      out.push(`${m.fn} of '${m.column}' reads one column: it has no second column '${m.weight}'.`);
+    } else if (second?.required && m.weight === undefined && spec.mark !== 'candlestick') {
+      out.push(`A chart plots no ${second.words}: '${m.column}' would need its ${second.role} column.`);
+    }
   }
   if (spec.split !== undefined && !gridKind && !known.has(spec.split)) {
     out.push(`The cube has no column '${spec.split}'.`);
@@ -1426,6 +1473,35 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     if (spec.y.some((m) => m.mark !== undefined || m.axis !== undefined)) {
       out.push('A box plot draws its five figures as one box: a value\'s own mark or axis has no place on it.');
     }
+  }
+  // A CANDLESTICK: a price's open, high, low and close, in that order (candleMeasures), its open and close by one order
+  // column, a number; and, given one, a volume, a column's sum
+  if (spec.mark === 'candlestick') {
+    const price = spec.y[0]?.column;
+    const order = spec.y[0]?.weight;
+    const typeOf = (c: string): string | undefined => [...rowColumns(s), ...chartRowCalcs(spec)].find((r) => r.name === c)?.type;
+    const volume = spec.y[4];
+    const candle = price === undefined ? [] : candleMeasures(price, order, volume?.fn === 'sum' ? volume.column : undefined);
+    if (price === undefined || spec.y.length < 4 || spec.y.length > 5
+      || !same(spec.y.map(({ mark: _m, axis: _a, ...m }) => m), candle)) {
+      out.push('A candlestick plots a price\'s open, high, low and close, in that order, and a volume (a sum) if any.');
+    } else {
+      if (known.has(price) && !isNumeric(typeOf(price))) out.push(`'${price}' is not a number: it has no open or close.`);
+      if (order === undefined) {
+        out.push('A candlestick\'s open and close are its price at the first and the last of an order: name the order (a number column).');
+      } else if (!known.has(order)) {
+        out.push(`The cube has no column '${order}'.`);
+      } else if (!isNumeric(typeOf(order))) {
+        out.push(`'${order}' is not a number: it orders no open or close.`);
+      }
+      if (volume !== undefined && known.has(volume.column) && !isNumeric(typeOf(volume.column))) {
+        out.push(`'${volume.column}' is not a number: it has no volume.`);
+      }
+    }
+    if (spec.y.some((m) => m.mark !== undefined || m.axis !== undefined)) {
+      out.push('A candlestick draws its figures as one candle: a value\'s own mark or axis has no place on it.');
+    }
+    if (spec.options.orientation === 'horizontal') out.push('A candlestick\'s periods run across: it is drawn upright.');
   }
   // A MAP finds each row's country by its code or its name (text); a bubble map places each by its latitude and
   // longitude, two number columns; nothing else places by them
@@ -1484,7 +1560,8 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     out.push('A gauge needs a target: its scale runs from zero to it.');
   }
   if ((spec.mark === 'waterfall' || spec.mark === 'pareto' || spec.mark === 'gauge' || spec.mark === 'boxplot'
-    || spec.mark === 'marimekko' || spec.mark === 'waffle' || spec.mark === 'gantt') && spec.y.some((m) => m.showAs)) {
+    || spec.mark === 'marimekko' || spec.mark === 'waffle' || spec.mark === 'gantt' || spec.mark === 'candlestick')
+    && spec.y.some((m) => m.showAs)) {
     out.push(`${article} ${kind} computes its own figures: a value shown as something else has no place on it.`);
   }
   // a grain takes a date to its period, bins a number to its bin: on any other column they mean nothing
@@ -1613,6 +1690,7 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapsho
     name: baseName(m),
     column: m.column,
     fn: m.fn,
+    ...(m.weight !== undefined ? { weight: m.weight } : {}),
   }] as const)).values()];
   // A GROUP-LEVEL COLUMN plotted as it is: kept, with every group-level column it reads (a share reads a window, a
   // window a measure) and every measure of the cube's they read, under the names they read them by -- the expression
@@ -1683,7 +1761,7 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapsho
   // written by their columns' types, so those columns must stay typed)
   const reads = new Set([
     ...keys,
-    ...aggregated.map((m) => m.column),
+    ...aggregated.flatMap((m) => [m.column, ...(m.weight !== undefined ? [m.weight] : [])]),
     // a scatter plots rows: its columns as they are, a bubble's size and a hover's measures among them
     ...(scatter ? plotted.map((m) => m.column) : []),
     ...(spec.x !== undefined ? [spec.x] : []),
@@ -1691,8 +1769,8 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapsho
     ...rowCalcs.flatMap(columnsRead),
     ...filterColumns(filter),
   ]);
-  // a box plot's value is its median (BOX_FNS' third)
-  const first = spec.mark === 'boxplot' ? spec.y[2] : spec.y[0];
+  // a box plot's value is its median (BOX_FNS' third), a candlestick's its close
+  const first = spec.mark === 'boxplot' ? spec.y[2] : spec.mark === 'candlestick' ? spec.y[3] : spec.y[0];
   // the chart's order, ties broken by the category: a waterfall's running total runs along this very order; small
   // multiples panel by panel first
   const sorts = scatter ? [] : [...panels.map((column) => ({ column, direction: 'asc' as const })), ...(spec.options.sort.by === 'y' && first

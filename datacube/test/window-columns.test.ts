@@ -7,7 +7,7 @@ import { describe, it } from 'node:test';
 
 import { extendWindow, levelLambda } from '../src/query.ts';
 import { showAsColumns, SHOW_AS_LABELS } from '../src/calc-presets.ts';
-import type { ShowAsKind } from '../src/chart-spec.ts';
+import { candleMeasures, chartQuery, DEFAULT_OPTIONS, type ShowAsKind } from '../src/chart-spec.ts';
 import {
   renameColumnReferences, WINDOW_FUNCTIONS, type QuerySnapshot, type WindowFrame, type WindowSpec,
 } from '../src/snapshot.ts';
@@ -126,6 +126,7 @@ const DEEPHAVEN = `###Relational
 Database risk::Ref
 (
   Table trades (id INTEGER PRIMARY KEY, region VARCHAR(16), desk VARCHAR(16), year INTEGER, notional DOUBLE, pnl DOUBLE)
+  Table prints (seq BIGINT PRIMARY KEY, sym VARCHAR(8) NOT NULL, ts TIMESTAMP NOT NULL, px DOUBLE NOT NULL, sz DOUBLE NOT NULL)
 )
 ###Connection
 RelationalDatabaseConnection risk::Conn
@@ -199,3 +200,25 @@ describe('every window DataCube writes plans on Deephaven', () => {
     assert.deepEqual(refused, []);
   });
 });
+
+describe('a candlestick plans on Deephaven (K3)', () => {
+  it('a name\'s candles by 5 minutes: its open and close by the print\'s number, its high, low and volume', async () => {
+    const planner = plannerFor(DEEPHAVEN, 'risk::RT');
+    const tape: QuerySnapshot = {
+      source: { query: await source('#>{risk::Ref.prints}#') },
+      columns: [{ name: 'seq', type: 'Integer', kind: 'dimension' }, { name: 'sym', type: 'String' },
+        { name: 'ts', type: 'DateTime' }, { name: 'px', type: 'Float' }, { name: 'sz', type: 'Float' }],
+      derived: [], rows: ['sym'], pivotOn: [], sorts: [], epoch: 1,
+      filter: { kind: 'condition', column: 'sym', operator: 'equal', value: 'AAPL' },
+    };
+    const { query } = chartQuery(tape, { version: 2, mark: 'candlestick', x: 'ts', grain: 'minute5',
+      y: candleMeasures('px', 'seq', 'sz'), options: { ...DEFAULT_OPTIONS, sort: { by: 'x', direction: 'asc' } } });
+    const plan = await planner.plan(query);
+    // the server's own: the bucket its lowerBin, the open and close its sortedFirst and sortedLast by the number
+    assert.ok(plan.sql.startsWith('{"ops": ['), plan.sql);
+    assert.match(plan.sql, /lowerBin\(/);
+    assert.match(plan.sql, /"sortedFirst": \{"columns": \[\{"columnName": "[^"]*seq"\}\]\}/);
+    assert.match(plan.sql, /"sortedLast": \{"columns": \[\{"columnName": "[^"]*seq"\}\]\}/);
+  });
+});
+

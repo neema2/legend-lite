@@ -315,8 +315,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  DH27: a flat cube read by a window, a tick drawn in place and flashed, a grid's charts drawn again at its tick) ->
  *  335,500 (K3, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md: a date-time's periods finer than a day in the header menu's and
  *  the grid presets' paths) -- each signed off with the line (D9)); #72's conditional formats drawn by the one cell
- *  painter a tick draws with (grid.ts #cell), measured again at a tick). Measured 358,132. */
-const BUDGET = 358_500;
+ *  painter a tick draws with (grid.ts #cell), measured again at a tick). Measured 358,132.
+ *  358,500 -> 359,000 (2026-10-24, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K3: the candlestick's rules, its values and
+ *  a value's second column (chart-spec.ts candleMeasures, the spec's `weight`), which the chart's rules read at startup;
+ *  for the user's sign-off, D9). Measured 358,756. */
+const BUDGET = 359_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -422,8 +425,9 @@ const BUDGET = 358_500;
  *  338,000 -> 344,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 314,000 -> 324,000 -- the
  *  grid-only page's note of the same date). Measured 343,438.
  *  344,000 -> 347,000 (2026-10-24, main (PR #72) merged into the Deephaven line -- the grid-only page's note of the same
- *  date). Measured 346,501. */
-const ENGINE_BUDGET = 347_000;
+ *  date). Measured 346,501.
+ *  347,000 -> 347,500 (2026-10-24, K3's candlestick -- the grid-only page's note of the same date). Measured 347,124. */
+const ENGINE_BUDGET = 347_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -468,8 +472,11 @@ const isKinds = (file: string): boolean => /[\\/]chart-(?:render-)?kinds-[^\\/]+
  *  unminified, the same tree 95,848.
  *  66,000 -> 68,000 (2026-10-18, the roadmap run's phases 5-7: the box plot, the click's period end on these kinds,
  *  batch 3's leftovers -- a Marimekko, a waffle, a Gantt -- and ECharts code these kinds share only with the maps,
- *  counted here since phase 6's audit). Measured 66,807. */
-const KINDS_BUDGET = 68_000;
+ *  counted here since phase 6's audit). Measured 66,807.
+ *  68,000 -> 70,500 (2026-10-24, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K3, the trader screens: the candlestick --
+ *  ECharts' candlestick series, the candles and the volume beneath them; for the user's sign-off, D9). Measured
+ *  70,117. */
+const KINDS_BUDGET = 70_500;
 
 const isMaps = (file: string): boolean => /[\\/]chart-(?:render-)?maps-[^\\/]+\.js$/.test(file);
 /** Set 2026-10-18 at its first measure (chart batch 5, the roadmap run's phase 6), 75,526: the drawing with the world's
@@ -583,8 +590,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  357,000 -> 363,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 332,500 -> 342,500 -- the
  *  grid-only page's note of the same date). Measured 362,642.
  *  363,000 -> 366,000 (2026-10-24, main (PR #72) merged into the Deephaven line -- the grid-only page's note of the same
- *  date). Measured 365,842. */
-const WIDGET_BUDGET = 366_000;
+ *  date). Measured 365,842.
+ *  366,000 -> 366,500 (2026-10-24, K3's candlestick -- the grid-only page's note of the same date). Measured 366,467. */
+const WIDGET_BUDGET = 366_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

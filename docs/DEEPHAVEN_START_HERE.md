@@ -27,14 +27,15 @@ INTO the browser branch, never the reverse, and never rebased (the branch is pus
 334,805: 333,500 -> 335,000; the other two fit main's); one conflict the text did not show: D19 removed
 `PageApp.follow`, which `board.ts` used to add its charts (`PageApp.reapply` now).
 
-**Next from `main`: PR #72** (DataCube BI and Excel parity), not merged on 2026-10-24. Its trial merge with this branch
-conflicts in `app.ts`, `grid/grid.ts`, `test/app-dom.test.ts` and the budgets. The one that matters is `grid.ts`: this
-branch moved a cell's painting into `DataGrid.#cell` so a tick repaints a cell in place, and #72 added conditional
-formats (data bars, colour scales, icon sets, rules, a format code's colour) in the old inline painting. Their code moves
-into `#cell`, and the conditionals (`measureConditionals`, measured over the grid's rows as heatmaps are) must be measured
-again at a tick, or a ticking cell keeps a stale bar or colour; on a flat grid read by a window (V1) the rows are the
-window's, as a heatmap's are. #72 also adds DataCube features the Deephaven target refuses today (below): correlation,
-covariance and dates relative to today; its max-by and min-by (K3a) and Top/Bottom N's rank window (K6) are built.
+**PR #72** (DataCube BI and Excel parity) merged in 2026-10-24, merge commit `7a604f2e`. Its six conflicts were each kept
+both ways; the one that mattered was `grid.ts`: #72's conditional formats (data bars, icon sets, rules), a format
+code's colour and pinned columns' offsets moved into `DataGrid.#cell`, the one painter a tick redraws a cell with. A
+tick redraws every cell when a conditional reads them all, as a heatmap's scale does (both measured again at a tick),
+and the in-place text update stands aside when a format code's colour changes. The menu's copies are #72's clipboard
+text, made from the whole view where a window reads it (V1). The bundle budgets are main's with the line's growth on
+top (grid 358,500, engine page 347,000, notebook module 366,000; each measured, dated). #72's correlation, covariance
+and dates relative to today are still refused on Deephaven (below); its max-by and min-by run there (K3a), and its Top/
+Bottom N's rank window (K6).
 
 ## What is built (the plan's §9 table; each row's paragraph says what it measured)
 
@@ -104,7 +105,7 @@ normally); `browser_guard_test` fails behind the session's proxy certificate.
 3. **Sign-in and authorization for the whole system** (the user: "needs a bigger auth design"). The fact it must start
    from: Deephaven Community has no per-table permissions -- whoever signs in reads every table, and runs code if the
    console is on (the demo's key can) -- so restricting it means an authorization plugin, which is Deephaven-licensed code.
-4. ~~Merge `main`~~: done 2026-10-24 (above); PR #72 next.
+4. ~~Merge `main`~~: done 2026-10-24 (above), PR #72 with it.
 
 ## Gaps measured (2026-10-24)
 
