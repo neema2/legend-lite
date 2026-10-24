@@ -140,11 +140,10 @@ Settle 1-3, then **make it real for one desk**: the person's own sign-in, a real
 the model, counsel's review. Later, in the plan's order: the server-side sender (L3s); writes (W, Wr, X, L3w); the
 modelled publisher (L5); views shared between viewers (S1, which revisits the idle cache's cost, audit R3).
 
-Also proposed on 2026-10-24 (the user asked for them; order not yet chosen): **trader screens at realistic speeds** -- a
-stock ticker with a live candle chart first, then a market map, real-time P&L with limits, an execution blotter, an
-options desk, FX, TCA -- on the platform as far as it goes, anything bespoke (a market simulator as a startup script)
-written down as a thing to push into the platform. The ticker needs the time row of the gaps above; volatility and
-greeks the runtime error's; moving figures the windows'; TCA the as-of join's.
+**Chosen 2026-10-24: trader screens at realistic speeds** -- `docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md` (decisions
+DH28-DH32, landings K1-K13, the bespoke ledger). The user: this line owns every missing Deephaven feature and whatever
+its demos need, charts included (DH31). First the ticker: time on Deephaven (K1), the market world with a crypto feed
+and a simulator in its place (K2), a candlestick chart (K3), the page (K4).
 
 ## Where the code is
 
