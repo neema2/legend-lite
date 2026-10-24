@@ -2103,6 +2103,75 @@ browser_test(
     },
 )
 
+# THE MARKET WORLD (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K2, DH28): the trader screens' Deephaven, its equities
+# simulated and its crypto from a public feed where the server reaches one, simulated where it does not -- bespoke, the
+# server's start-up script (demo/deephaven/market/market.groovy; the plan's ledger, §3). Its own application, so the
+# risk demo's tests never run its clock. `:deephaven_market_test` checks the world with its feed refused.
+legend_java_binary(
+    name = "deephaven_market_fixture",
+    testonly = True,
+    data = [
+        "demo/deephaven/market/market.app",
+        "demo/deephaven/market/market.groovy",
+        "@embedded_deephaven//:deephaven",
+        "@embedded_deephaven//:deephaven/DEEPHAVEN_ROOT",
+    ],
+    jvm_flags = [
+        "-Dembedded.deephaven.root=$(rlocationpath @embedded_deephaven//:deephaven/DEEPHAVEN_ROOT)",
+        "-Dembedded.deephaven.application=$(rlocationpath demo/deephaven/market/market.app)",
+    ],
+    main_class = "com.legend.testing.EmbeddedDeephaven",
+    runtime_deps = ["//testing"],
+)
+
+executable_of(
+    name = "deephaven_market_fixture_executable",
+    testonly = True,
+    binary = ":deephaven_market_fixture",
+)
+
+esbuild_bundle(
+    name = "deephaven_market_page",
+    testonly = True,
+    srcs = [
+        "demo/deephaven/market/model.ts",
+        "test/deephaven/market-page.ts",
+        "//engine-client:engine_client",
+    ],
+    outs = ["test/deephaven/market.js"],
+    args = [
+        "test/deephaven/market-page.ts",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--log-level=warning",
+        # the planner's runtime, served beside the page
+        "--external:./wasm-gc-module-runtime.js",
+        "--outfile=test/deephaven/market.js",
+    ],
+)
+
+browser_test(
+    name = "deephaven_market_test",
+    size = "medium",
+    tags = ["manual"],
+    data = [
+        "demo/deephaven/site.mjs",
+        "test/deephaven/market.mjs",
+        ":deephaven_market_fixture",
+        ":deephaven_market_fixture_executable",
+        ":deephaven_market_page",
+        ":node_modules/playwright",
+        "//wasm:planner",
+    ],
+    entry_point = "test/deephaven/market.mjs",
+    env = {
+        "MARKET_FIXTURE": "$(rlocationpath :deephaven_market_fixture_executable)",
+        "MARKET_PAGE": "$(rlocationpath :deephaven_market_page)",
+        "PLANNER": "$(rlocationpaths //wasm:planner)",
+    },
+)
+
 # THE LIVE RISK DEMO (docs/DEEPHAVEN_PLAN_2026_10_22.md D0, DH23, DH24): DataCube on Deephaven over a risk book whose
 # reference data and price simulator are Deephaven's start-up script (demo/deephaven/risk.groovy, marked temporary:
 # lite's modelled publisher replaces it, L5). The plain page that stood in for DataCube until it ticked went on

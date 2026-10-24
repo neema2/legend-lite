@@ -164,6 +164,7 @@ public final class EmbeddedDeephaven implements AutoCloseable {
                 return server;
             }
             if (!server.isAlive()) {
+                keepLog();
                 throw new IllegalStateException("the Deephaven server exited " + server.exitValue()
                         + " before it started:\n" + tail(text));
             }
@@ -176,6 +177,7 @@ public final class EmbeddedDeephaven implements AutoCloseable {
             }
         }
         server.destroyForcibly();
+        keepLog();
         throw new IllegalStateException("the Deephaven server did not start in 180 s:\n" + tail(read(log)));
     }
 

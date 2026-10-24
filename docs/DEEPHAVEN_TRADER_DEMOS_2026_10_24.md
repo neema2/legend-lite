@@ -34,7 +34,7 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | # | content | judge |
 |---|---|---|
 | K1 | **built 2026-10-24** (§5). **Time on Deephaven** (DH29, DH30): a DateTime literal, in a formula and in a filter the server reads without compiling (DH25); `timeBucket` as `lowerBin`; a date-time's calendar parts (year to second, day of year, ISO day of week) in UTC; `datePart`; `firstDayOf...` and the truncations DataCube's time grains write; `adjust` by a fixed unit; the epoch conversions | the dialect's tests; answers worked out by hand on the pinned server (`datacube/test/deephaven/page.ts`) |
-| K2 | **the market world**: a realistic equity simulator and a crypto feed handler that gives way to it (DH28), as the server's startup scripts; a store, classes and mappings over their tables | the world's figures checked on the pinned server; the fallback taken when the feed is refused |
+| K2 | **built 2026-10-24** (§5). **The market world**: a realistic equity simulator and a crypto feed handler that gives way to it (DH28), as the server's startup scripts; a store, classes and mappings over their tables | the world's figures checked on the pinned server; the fallback taken when the feed is refused |
 | K3a | **built 2026-10-24** (§5). **A candle's open and close on Deephaven**: Pure's `minBy` and `maxBy` over a whole-number order (a trade's sequence number), SQL's `ARG_MIN` and `ARG_MAX`, as the server's `sortedFirst` and `sortedLast` | the dialect's tests; DuckDB's answer on the pinned server |
 | K3 | **a candlestick chart** in DataCube: open, high, low, close and volume by time bucket, drawn again at its grid's tick with its axes held (C2) | DataCube's chart tests; the chart ticking in a browser check |
 | K4 | **the ticker**: a watchlist (last, change, bid/ask, volume, day VWAP, high/low), the tape, time and sales, and a live candle chart for the symbol picked | a browser check of every part ticking; the speeds of §4 measured |
@@ -60,6 +60,9 @@ Each row is a thing done outside the platform, to push into it.
 | piece | what it does | why bespoke | the platform's home |
 |---|---|---|---|
 | `risk.groovy` (D0) | the risk demo's reference data and prices | lite writes no rows into Deephaven yet | the modelled publisher (L5) over writes (W, Wr, L3w) |
+| `market/market.groovy`'s simulator (K2) | the equity market: names, prices that move together, quotes and trades at each name's pace | lite writes no rows into Deephaven yet, and a market's rows come from no source of record | a feed the store declares (DH16), its rows written by the platform (L3w, Wr) from a simulator that is a program of its own |
+| `market/market.groovy`'s Coinbase feed (K2) | crypto from Coinbase Exchange's public feed, the simulator in its place where it is refused | no feed ingestion in lite | a feed declared in the store and started by the platform; Kafka into Deephaven in production |
+| `market/market.groovy`'s `world` table (K2) | what each part of the world is and why (simulated, live, connecting) | the page has no other way to learn it | the feed's own status, a system table of the platform's |
 
 ## 4. Realistic speeds
 
@@ -100,4 +103,23 @@ its column, checked against Deephaven's definitions). SQL skips a row whose orde
 first, so a value or an order that may be null is refused by name. Measured: a day's candle -- open, high, low,
 close and count by `timeBucket` -- answers on the pinned server exactly DuckDB's answer (`page.ts`, 38 checks). Pure's
 `first()` in a group is SQL's `ANY_VALUE`, any row's: never a candle's open.
+
+**K2, the market world (2026-10-24).** The market's Deephaven (`datacube/demo/deephaven/market/`, its own application
+so the risk demo's tests never run its clock) holds `instrument`, `quote` (each name's latest top of book, a blink
+table's `lastBy`), `trade` (every print, append-only; a ring of the latest `MARKET_HISTORY` for a long or stormy run)
+and `world`, published every 20 ms by a `TablePublisher`. Equities are simulated (500 names over eleven sectors by
+default, 8,000 quotes and 800 trades a second, the largest names busiest; prices on a market, a sector and a name's
+own factor, rare jumps; a cent tick, spreads by liquidity, trades at the bid, the ask or the midpoint off-exchange,
+round lots mostly). Crypto is Coinbase Exchange's public ticker and matches where the server reaches them -- eight
+coins, their 24 hours' open the prior close -- and simulated, from the last price, where it does not; asked again a
+minute later. The model is `market/model.ts`.
+
+Measured: `//datacube:deephaven_market_test` (9 checks, a 50-name world, the feed's address refusing): the world says
+crypto is simulated because its feed was refused; every name is an instrument and quoted, its bid under its ask by at
+least its tick; every trade a known name's, well formed; trades at the configured pace; every minute's candle (K1's
+bucket, K3a's open and close) holds its open and close between its low and high; every name's VWAP between its low
+and high; every coin traded by the simulator; the busiest quote ticking -- each a Pure query planned in the tab and
+answered by the server. By hand, the server started with this cloud session's proxy: "the market world's crypto is
+live: Coinbase Exchange" (the server's log). Found on the way: the server's log is kept when it fails to start too
+(a Groovy compile error said why only there); a Groovy decimal is a `BigDecimal` unless written `1.5d`.
 

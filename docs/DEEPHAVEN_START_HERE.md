@@ -61,7 +61,8 @@ Open the printed Deephaven `https://` address first and accept its certificate (
 then `http://127.0.0.1:8080/` (one cube) and `/board.html` (three grids, two charts). `restart` + Enter restarts
 Deephaven. Verified on Linux only.
 
-**Checks** (the browser ones start the pinned server): `//datacube:deephaven_test` (answers worked out by hand),
+**Checks** (the browser ones start the pinned server): `//datacube:deephaven_test` (answers worked out by hand, and
+K1's DuckDB's), `deephaven_market_test` (the trader screens' market world, K2),
 `deephaven_cube_test`, `deephaven_flat_test`, `deephaven_board_test`; `//core:core_tests_deephaven`,
 `//core:core_tests_sql` (`DeephavenDialectTest`), `//core:deephaven_messages_test` (the message table against
 Deephaven's own definitions); then `//datacube:all //engine-client:all`. **Manual tools:**
