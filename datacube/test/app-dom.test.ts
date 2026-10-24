@@ -928,6 +928,17 @@ describe('the app', () => {
     assert.equal(win.querySelector<HTMLElement>('.dc-pe-col.dc-on')?.dataset['column'], 'notional');
   });
 
+  it('a window takes the keyboard as it opens: Escape, pressed at once, closes it (A1)', () => {
+    // opened from the status bar's link, focus stayed on the link, and the window heard no Escape
+    (root.querySelector('.dc-status-properties') as HTMLElement).focus();
+    app.openEditor();
+    const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
+    const focused = dom.window.document.activeElement;
+    assert.ok(focused !== null && win.contains(focused), `focus is on ${focused?.className}`);
+    focused.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(root.querySelector('[data-window="Properties"]'), null, 'Escape left the window open');
+  });
+
   it('keeps several windows open at once, as upstream\'s layout', () => {
     app.openEditor();
     app.openFilters();
@@ -1195,6 +1206,76 @@ describe('the app', () => {
     ).click();
     for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
     assert.equal(app.snapshot.maxRows, 42);
+  });
+});
+
+/**
+ * A TICK (docs/DEEPHAVEN_PLAN_2026_10_22.md A1): the status bar's count drawn again when the tick brought rows, the
+ * selection's figures with the values the tick moved, and a refused tick said once -- until a tick lands again.
+ */
+describe('a tick, in the status bar', () => {
+  /** Answers the grid's rows as `now` says: its regions and their notionals, or a refusal. */
+  class TickingEngine extends FakeEngine {
+    readonly name = 'ticking';
+    now: { regions: string[]; notional: number[] } | Error = { regions: ['EMEA', 'AMER'], notional: [600, 400] };
+    async answer(_sql: string, epoch: number): Promise<ResultTable> {
+      if (this.now instanceof Error) throw this.now;
+      return {
+        columns: [
+          { name: 'region', type: 'String', values: this.now.regions },
+          { name: 'notional', type: 'Float', values: this.now.notional },
+        ],
+        rowCount: this.now.regions.length,
+        epoch,
+        elapsedMs: 1,
+      };
+    }
+  }
+
+  it('redraws the count when rows come, the selection\'s figures as values move, and says a refused tick once', async () => {
+    const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>');
+    (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame = (fn: () => void) => {
+      fn();
+      return 0;
+    };
+    const root = dom.window.document.getElementById('r') as HTMLElement;
+    const engine = new TickingEngine();
+    const statuses: [string, string][] = [];
+    const app = new CubeApp(root, SNAPSHOT, {
+      engine, planner: new StubPlanner(), onStatus: (text, kind) => statuses.push([text, kind]),
+      // the selection's figures are a setting, off by default
+      configuration: { ...DEFAULT_CONFIGURATION, showSelectionStats: true },
+    });
+    await app.open();
+    const timing = (): string => root.querySelector('.dc-status-timing')?.textContent ?? '';
+    const stats = (): string => root.querySelector('.dc-status-stats')?.textContent ?? '';
+    assert.match(timing(), /^2 rows/);
+    // the notional of the first region selected: its figures in the bar
+    const cell = [...root.querySelectorAll('.dc-row')][0]?.querySelectorAll('.dc-cell')[1] as HTMLElement;
+    cell.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    assert.match(stats(), /sum 600/);
+    // a tick that moves the value: the figures follow it
+    engine.now = { regions: ['EMEA', 'AMER'], notional: [650, 400] };
+    assert.equal((await app.tick()).kind, 'applied');
+    assert.match(stats(), /sum 650/, 'the selection\'s figures still said the value before the tick');
+    // a tick that brings a row: the count follows it
+    engine.now = { regions: ['EMEA', 'AMER', 'APAC'], notional: [650, 400, 50] };
+    await app.tick();
+    assert.match(timing(), /^3 rows/, 'the count still said the rows before the tick');
+    // refused ticks: said once, until one lands
+    engine.now = new Error('the session went');
+    statuses.length = 0;
+    await app.tick();
+    await app.tick();
+    const said = statuses.filter(([t]) => /live rows could not be read/.test(t));
+    assert.equal(said.length, 1, JSON.stringify(statuses));
+    assert.equal(said[0]?.[1], 'error');
+    engine.now = { regions: ['EMEA'], notional: [1] };
+    await app.tick();
+    engine.now = new Error('the session went');
+    await app.tick();
+    assert.equal(statuses.filter(([t]) => /live rows could not be read/.test(t)).length, 2, 'said again after one landed');
+    app.dispose();
   });
 });
 

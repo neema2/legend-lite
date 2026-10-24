@@ -2342,6 +2342,36 @@ browser_test(
     env = _DEEPHAVEN_DEMO_ENV,
 )
 
+# THE SINGLE-USER WALK-THROUGH (docs/DEEPHAVEN_PLAN_2026_10_22.md A1): both demo pages driven as a person drives them
+# (clicks, keys, the page's menu, a server restart), each step timed and screenshotted, every error collected.
+# Manual: `bazel test //datacube:deephaven_walkthrough --test_output=streamed`.
+browser_test(
+    name = "deephaven_walkthrough",
+    size = "large",
+    tags = ["manual"],
+    data = _DEEPHAVEN_DEMO_DATA + [
+        "test/deephaven/walkthrough.mjs",
+        ":node_modules/playwright",
+    ],
+    entry_point = "test/deephaven/walkthrough.mjs",
+    env = _DEEPHAVEN_DEMO_ENV,
+)
+
+# A LONG SESSION'S COST ON THE SERVER (docs/DEEPHAVEN_PLAN_2026_10_22.md A1): the storm world, the server's CPU and the
+# page's ticks on the first view, after many distinct views (the session's kept tables), and on a fresh page.
+# Manual: `bazel test //datacube:deephaven_session_bench --test_output=streamed`.
+browser_test(
+    name = "deephaven_session_bench",
+    size = "large",
+    tags = ["manual"],
+    data = _DEEPHAVEN_DEMO_DATA + [
+        "bench/deephaven/session-bench.mjs",
+        ":node_modules/playwright",
+    ],
+    entry_point = "bench/deephaven/session-bench.mjs",
+    env = _DEEPHAVEN_DEMO_ENV,
+)
+
 # A DATACUBE PAGE OF SEVERAL GRIDS AND CHARTS, TICKING (docs/DEEPHAVEN_PLAN_2026_10_22.md V2, V3, DH27): DataCube's own
 # page over 100,000 positions in a storm -- the book flat, the desks and the sectors pivoted, a chart on each pivoted
 # grid, every grid its own reader over one engine. Checks one base for the three grids, the pivots' columns, and every

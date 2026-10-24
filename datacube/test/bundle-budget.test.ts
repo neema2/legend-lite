@@ -345,8 +345,11 @@ const BUDGET = 322_000;
  *  the saved page it is kept with the page and told (savedAs), so either editor saves over one record). Measured
  *  306,214.
  *  306,500 -> 310,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 309,694.
- *  310,000 -> 312,000 (2026-10-23, the Deephaven line's V1-V3 -- the grid's note of the same date). Measured 311,541. */
-const ENGINE_BUDGET = 312_000;
+ *  310,000 -> 312,000 (2026-10-23, the Deephaven line's V1-V3 -- the grid's note of the same date). Measured 311,541.
+ *  312,000 -> 313,000 (2026-10-24, the Deephaven line's A1, docs/DEEPHAVEN_SINGLE_USER_AUDIT_2026_10_24.md: a window
+ *  takes the keyboard as it opens, the selection's figures drawn again at a tick, the grid's note of 2026-10-23's
+ *  flash). Measured 312,012. */
+const ENGINE_BUDGET = 313_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

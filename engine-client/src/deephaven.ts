@@ -60,6 +60,9 @@ export interface DeephavenSessionOptions {
   readonly fetch?: typeof fetch;
   readonly refreshMs?: number;
   readonly keep?: number;
+  /** Told when the server no longer knows the session (gRPC's UNAUTHENTICATED on any call after sign-in: it expired --
+   *  a laptop asleep past Deephaven's five minutes -- or the server forgot it): its host signs in again (A1). */
+  readonly onForgotten?: (why: string) => void;
 }
 
 const CONFIG = 'io.deephaven.proto.backplane.grpc.ConfigService/GetConfigurationConstants';
@@ -97,9 +100,14 @@ export class DeephavenSession {
   /** The name each export is published under (`publishKept`), as it is asked: one name an export, for as long as it
    *  lives. */
   private readonly published = new Map<number, Promise<string>>();
+  private readonly options: DeephavenSessionOptions;
+  /** Signed in (the server answered a token), and the server since answered that it no longer knows the session. */
+  private signedIn = false;
+  private forgotten = false;
 
   private constructor(server: DeephavenServer, planner: DeephavenPlanner, fetcher: typeof fetch, auth: string,
     options: DeephavenSessionOptions) {
+    this.options = options;
     this.server = server;
     this.planner = planner;
     this.fetcher = fetcher;
@@ -122,6 +130,7 @@ export class DeephavenSession {
       if (!session.auth.startsWith('Bearer ')) {
         throw new DeephavenRefused('sign-in', 16, 'the server answered no session token');
       }
+      session.signedIn = true;
     } catch (e) {
       clearInterval(session.timer);
       throw e;
@@ -203,7 +212,14 @@ export class DeephavenSession {
    *  go. */
   private async make(request: string, exports: readonly { readonly key: string; readonly exportId: number }[]):
   Promise<void> {
-    const answer = await timed('batch', () => this.call(BATCH, fromBase64(request)));
+    let answer: Uint8Array[];
+    try {
+      answer = await timed('batch', () => this.call(BATCH, fromBase64(request)));
+    } catch (e) {
+      // no answer: what the server made of it, if anything, is let go -- never an export the session does not keep
+      for (const x of exports) this.releaseExport(x.exportId);
+      throw e;
+    }
     const decoding = performance.now();
     let refused: string | null = answer.length === exports.length ? null
       : `the server answered ${answer.length} of the batch's ${exports.length} operations`;
@@ -230,6 +246,11 @@ export class DeephavenSession {
   /** How many tables the session made again after letting them go (past `keep`): none while it keeps every one. */
   get remade(): number {
     return this.madeAgain;
+  }
+
+  /** How many tables the session keeps alive now, read or idle: each one the server keeps current. */
+  get kept(): number {
+    return this.tables.size;
   }
 
   /** Lets the least recently read idle tables go, past `keep`. */
@@ -296,12 +317,14 @@ export class DeephavenSession {
     await this.call(CONFIG, new Uint8Array());
   }
 
-  /** Ends the session: the server releases every table it keeps alive. */
+  /** Ends the session: the server releases every table it keeps alive. The request outlives the page (`keepalive`): a
+   *  tab closed or reloaded ends its session as it goes, never leaving its tables kept current on the server until
+   *  Deephaven expires the session (A1: measured, a reloaded page's old session still cost the server its tables). */
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
     clearInterval(this.timer);
-    await this.call(CLOSE, new Uint8Array());
+    await this.call(CLOSE, new Uint8Array(), true);
   }
 
   private open(): void {
@@ -317,12 +340,13 @@ export class DeephavenSession {
   }
 
   /** One gRPC-web call: its request message framed, its answer's messages unframed, and its status read. */
-  private async call(method: string, message: Uint8Array): Promise<Uint8Array[]> {
+  private async call(method: string, message: Uint8Array, keepalive = false): Promise<Uint8Array[]> {
     const name = method.slice(method.lastIndexOf('/') + 1);
     const response = await this.fetcher(`${this.server.url}/${method}`, {
       method: 'POST',
       body: frame(message),
       headers: this.headers(),
+      ...(keepalive ? { keepalive: true } : {}),
     });
     if (!response.ok) throw new DeephavenRefused(name, 14, `HTTP ${response.status} ${await response.text()}`);
     const token = response.headers.get('authorization');
@@ -348,6 +372,12 @@ export class DeephavenSession {
       }
     }
     if (status === null) throw new DeephavenRefused(name, 13, 'the answer carried no status');
+    // a session the server no longer knows: said once, to the host, which signs in again (never at sign-in itself:
+    // a credential refused is the opener's to say)
+    if (status === '16' && this.signedIn && !this.forgotten) {
+      this.forgotten = true;
+      this.options.onForgotten?.(`the Deephaven server no longer knows this session (${decodeURIComponent(why)})`);
+    }
     if (status !== '0') throw new DeephavenRefused(name, Number(status), decodeURIComponent(why));
     return messages;
   }

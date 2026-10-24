@@ -20,6 +20,7 @@ import { hostOf, receiptLabel, receiptLines } from '../../engine-client/src/rece
 import type { WarehouseEngine } from '../../engine-client/src/warehouse.ts';
 import { sessionExpired } from '../../engine-client/src/warehouse-session.ts';
 import { measured } from '../../engine-client/src/timeline.ts';
+import { focusedElement } from './focus.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { isQueryFailure, type QueryLens, type QueryRunner } from './runner.ts';
 import {
@@ -1477,8 +1478,10 @@ export class CubeApp {
       // number flashes where a row is the same row each tick: a group's, or a flat view's in the source's order
       this.#grid.tickRows(view.rows, view.window?.offset ?? 0, view.window?.total ?? view.rows.rowCount,
         this.#heatmaps.size > 0, view.snapshot.rows.length > 0 || view.snapshot.sorts.length === 0);
-      // the status bar's count drawn again when the tick brought or took rows: a tick that moved values leaves it
+      // the status bar's count drawn again when the tick brought or took rows: a tick that moved values leaves it --
+      // but for the selection's figures (its sum, average, least and greatest), which read the values the tick moved
       if (statusCount(view) !== this.#statusCounted) this.#renderStatusBar(view, model.leaves.length);
+      else if (this.#selection !== null) this.#renderSelectionStats();
     }
     // a tick is no view landing: its charts -- on its own board, or on its page's -- drawn again from their live rows
     this.#page?.page.tick();
@@ -3828,6 +3831,8 @@ export class CubeApp {
     if (!open) {
       win.className = 'dc-app-overlay';
       win.dataset['window'] = key;
+      // a window takes the keyboard when it opens (below): it is focusable itself, not in the tab order
+      win.tabIndex = -1;
       // still this cube's, wherever it floats: its drags land here, its keys are this cube's
       win.dataset['dcCube'] = this.#els.root.dataset['dcCube'] ?? '';
       const host = this.#options.windowHost ?? this.#els.root;
@@ -3884,6 +3889,10 @@ export class CubeApp {
       }),
     );
     this.#raise(win);
+    // THE KEYBOARD GOES WITH IT (docs/DEEPHAVEN_PLAN_2026_10_22.md A1): a window opened from a link, a menu or a key
+    // took no focus, so its Escape -- which it hears only inside it -- did nothing until it was clicked. The window
+    // itself takes it, unless what it built took it already (a field it focuses); never a field, whose Escape is its own.
+    if (!win.contains(focusedElement(this.#doc))) win.focus({ preventScroll: true });
     return win;
   }
 

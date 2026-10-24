@@ -8,6 +8,12 @@ two executed.
 > corpus figure in this file predates the current ledger — **2,398 pass of 2,798** (2,298 of the
 > 2,575 runnable). Take numbers from `docs/GATES.md` and `docs/RELATIONAL_CORPUS.md`, not from here.
 
+### The 2026-10 Deephaven round
+
+| Doc | Covers |
+|---|---|
+| [`DEEPHAVEN_SINGLE_USER_AUDIT_2026_10_24.md`](DEEPHAVEN_SINGLE_USER_AUDIT_2026_10_24.md) | **One person, a browser tab straight to Deephaven**: DataCube's own app and page of grids and charts over a ticking world. A walk-through as a person drives it, a long session's cost on the server and in the page, a code review of the path. **Headline: a closed or reloaded tab left its whole session ticking on the server, and a session the server forgot failed every gesture without signing in again**; 15 findings fixed, 12 recorded with their reasons, and three tools left (`deephaven_walkthrough`, `deephaven_session_bench`, `deephaven_record`). |
+
 ### The 2026-10 build round
 
 | Doc | Covers |

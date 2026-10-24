@@ -3,8 +3,8 @@
 **Status: L1, L2, L3b, D0, J1 (DataCube's own app on Deephaven, DH23), T1 (real ticking, DH24), F1 (filters the
 server reads without compiling, DH25), B1, G1, and V1-V3 (a flat grid of any size, a page of several grids, charts
 that tick: DH27), P1 (pivots the server compiles nothing for), O1 and N1 (a gesture's time, and over a network),
-B2 (the page saved, opened and restarted) and C2 (a chart's scale held while it ticks) built (their branches, §9);
-the rest PROPOSED.** Revised the same day on the user's ruling:
+B2 (the page saved, opened and restarted) and C2 (a chart's scale held while it ticks) built, and A1 (the
+single-user audit, docs/DEEPHAVEN_SINGLE_USER_AUDIT_2026_10_24.md) done (their branches, §9); the rest PROPOSED.** Revised the same day on the user's ruling:
 **Deephaven is just another backend.** A user builds a `###Relational` store, mappings and classes, and everything
 works: the Relation API straight on the store's tables, `project()` over class navigation. No store of its own, no
 table kinds. The first version of this document (a `###Deephaven` store with source and input tables,
@@ -318,6 +318,7 @@ publisher replaces the demo's seeding once they do. Stacked branches, no PR unti
 | O1 | on P1 (the user, 2026-10-23: the roadmap's #1), **measured 2026-10-23** | **a gesture's time, where it goes**: each step on the browser's timeline, the server's operation log beside it; what is ours cut | the cube test's per-gesture lines |
 | N1 | on O1 (the same ask), **built 2026-10-23** | **over a real network**: the cube page behind a link of its own round trip (a delaying proxy), each gesture's time to the view and to the view live, its requests, a tick's; the round trips a gesture waits on cut to what its reads need | `//datacube:deephaven_network_bench` (manual) |
 | B2 | on V2 (the same ask), **built 2026-10-23** | **the page of grids, whole**: a server restart recovered by every grid and chart; the page saved and opened again over Deephaven, each grid's source written down | the page test: a restart, a save and an open, every grid and chart ticking after each |
+| A1 | on B2 and C2 (the user, 2026-10-23: "a full audit/review of the whole single user experience"), **done 2026-10-24** | **the single-user audit**: a walk-through as a person drives both pages, a long session's cost on the server and in the page, a code review of the path; findings fixed or recorded (docs/DEEPHAVEN_SINGLE_USER_AUDIT_2026_10_24.md) | `//datacube:deephaven_walkthrough`, `deephaven_session_bench` (manual) |
 | C2 | on V3 (the same ask), **built 2026-10-23** | **a chart's scale held while it ticks**: its value axes as the view drew them, widened only where a tick's values leave them, drawn afresh at the next view | the chart's tests (the rule, drawn by ECharts); the page test: the axes during six seconds of ticks |
 
 **L2, measured (2026-10-23):** the target's batches for 18 query shapes (DataCube's pivot as conditional sums, its
@@ -569,6 +570,17 @@ grids, two charts, 7 KB), opened again in 1.2-1.3 s with the same grids, columns
 back in 5.6 s (the server's own start included); after each, three seconds of ticks run every grid and draw every
 chart, nothing sent or fetched. Found on the way: the reconnect count "0" the cube test printed was a snapshot read
 before the page refreshed its counts -- the engine counts the sign-in (1).
+
+**A1, done (2026-10-24): the single-user audit** (docs/DEEPHAVEN_SINGLE_USER_AUDIT_2026_10_24.md). A walk-through
+of both pages as a person drives them, a long session measured on the server and in the page, and the path read
+again whole. Fixed: a closed or reloaded tab left its session ticking on the server (its close now outlives the
+page); a session the server forgot failed every gesture (it now ends the live side and the page signs in again, 1.3
+s); live rows the tab does not read hung their view; a refused tick was silent; the status bar's count and the
+selection's figures went stale under ticks; DataCube's windows took no focus, so Escape did nothing; a ticked number
+now flashes, only where its row is the same row each tick. Measured: after 59 distinct views the server keeps 130
+tables at 0.5 cores (0.3 on the first view), the page's ticks unchanged and its heap flat over 600 more. Recorded,
+each with its reason: a pivot's two round trips, the JS library's own chain to live, the idle cache's cost for a
+shared server, and nine more.
 
 **Before internal users rely on it:** the firm's counsel reviews the deployment against the Deephaven Community
 License (this line's reading, `experiments/deephaven-spike/README.md`, is not legal advice).

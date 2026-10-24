@@ -39,6 +39,8 @@ export function startDeephaven({ quiet = false, fixture = 'DEEPHAVEN_FIXTURE', a
   };
   return {
     next,
+    /** The fixture's process: the server runs in it or under it (a benchmark reads their CPU). */
+    pid: server.pid,
     restart: () => server.stdin.write('restart\n'),
     stop: async () => {
       server.stdin.end();

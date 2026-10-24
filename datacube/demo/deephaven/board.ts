@@ -22,6 +22,7 @@ import { pageToJson, readPage } from '../../src/page-document.ts';
 import { PageApp, type GridMaker } from '../../src/page/page-app.ts';
 import { ServerBases } from '../../src/server-base.ts';
 import type { CubeSnapshot } from '../../src/snapshot.ts';
+import type { GridCommand } from '../../src/grid-commands.ts';
 import type { TreeState } from '../../src/tree.ts';
 import type { DeephavenCounts } from '../../../engine-client/src/deephaven-engine.ts';
 import { CONNECTION, STORES, isRiskSource, openRisk, type RiskConfig } from './risk.ts';
@@ -64,6 +65,8 @@ interface Shown {
   /** The page written down, as its Save writes it; and a page so written opened in its place, as its Open does. */
   save?: () => string;
   open?: (saved: string) => Promise<void>;
+  /** A change to the grid `name`, as grid commands (a walk-through's): the refusal, or 'applied'. */
+  edit?: (name: string, commands: readonly GridCommand[]) => Promise<string>;
 }
 const shown: Shown = {
   status: 'starting', error: '', reconnects: 0, opened: 0, grids: {}, charts: {}, counts: null, bases: [], paused: false,
@@ -77,10 +80,16 @@ const byId = (id: string): HTMLElement => {
   if (!e) throw new Error(`the page has no #${id}`);
   return e;
 };
-function said(text: string, kind: 'ok' | 'warn' | 'error' = 'ok'): void {
+/** What the page says in its header: the page's state ('live', 'reconnecting'), or a PASSING message -- a grid's
+ *  refusal, a save -- said, then the page's state again after eight seconds (A1: an error kept saying itself long
+ *  after the page had gone on). */
+let passing: ReturnType<typeof setTimeout> | undefined;
+function said(text: string, kind: 'ok' | 'warn' | 'error' = 'ok', passes = false): void {
   const e = byId('status');
   e.textContent = text;
   e.className = kind;
+  clearTimeout(passing);
+  if (passes) passing = setTimeout(() => { if (shown.status === 'live') said('live'); }, 8000);
 }
 const frame = (): Promise<void> => new Promise((r) => { requestAnimationFrame(() => r()); });
 const keep = (xs: number[], x: number): void => {
@@ -95,6 +104,8 @@ const keep2 = (xs: [number, number][], x: [number, number]): void => {
 async function main(): Promise<void> {
   const config = await (await fetch('config.json')).json() as RiskConfig;
   const { model, planner, engine, cube, query, columns, source } = await openRisk(config);
+  // the tab going (closed, reloaded, navigated away): its session ended as it goes, never left ticking on the server
+  addEventListener('pagehide', () => { engine.close().catch(() => { /* the page is gone */ }); });
   // the page's bases: one per source and its calculated columns, whichever grids read it (V2)
   const bases = new ServerBases(planner, engine, { model, connection: CONNECTION, stores: STORES });
   const counted = (): void => {
@@ -132,6 +143,8 @@ async function main(): Promise<void> {
       configuration: start?.configuration ?? opened?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
       ...(tree ? { tree } : {}),
       ...spawned,
+      // what the grid says that is not good news (a refused change, a tick whose rows could not be read), on the page
+      onStatus: (text, kind) => { if (kind !== 'ok') said(`${name}: ${text}`, kind, true); },
       onView: (view) => {
         g.views++;
         show(view);
@@ -226,7 +239,7 @@ async function main(): Promise<void> {
       if (item.id === 'host.save') {
         try {
           localStorage.setItem(SAVED, save());
-          said('saved in this browser');
+          said('saved in this browser', 'ok', true);
         } catch (e) {
           said(`could not save: ${e instanceof Error ? e.message : String(e)}`, 'error');
         }
@@ -307,10 +320,15 @@ async function main(): Promise<void> {
     shown.opened++;
     counted();
     shown.status = 'live';
-    said(notes.length > 0 ? `opened: ${notes.join('; ')}` : 'opened', notes.length > 0 ? 'warn' : 'ok');
+    said(notes.length > 0 ? `opened: ${notes.join('; ')}` : 'opened', notes.length > 0 ? 'warn' : 'ok', true);
   };
   shown.save = save;
   shown.open = open;
+  shown.edit = async (name, commands) => {
+    const app = apps.get(name);
+    if (app === undefined) return `no grid '${name}'`;
+    return (await app.edit(commands, 'walk-through')) ?? 'applied';
+  };
 
   const ids = {
     Book: page.addGrid(grid('Book', flat), { title: 'Book' }),

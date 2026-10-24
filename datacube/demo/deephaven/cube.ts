@@ -49,6 +49,8 @@ interface Shown {
   paused: boolean;
   /** The gestures the test makes, as the app's own changes (the zones' and the filter editor's). */
   change?: (what: string) => Promise<string>;
+  /** Any change, as grid commands (a benchmark's many views): the refusal, or 'applied'. */
+  edit?: (commands: readonly GridCommand[]) => Promise<string>;
   /** Scrolls the grid to show row `row` at its top, as a person does: ms until the grid holds that row's values. */
   scroll?: (row: number) => Promise<number>;
   /** What the server made since `ms` (its clock, ms since the epoch), by its own operation log: a test's diagnostic. */
@@ -68,10 +70,16 @@ const byId = (id: string): HTMLElement => {
   return e;
 };
 
-function said(text: string, kind: 'ok' | 'warn' | 'error' = 'ok'): void {
+/** What the page says in its header: the page's state ('live', 'reconnecting'), or a PASSING message -- a grid's
+ *  refusal, a save -- said, then the page's state again after eight seconds (A1: an error kept saying itself long
+ *  after the page had gone on). */
+let passing: ReturnType<typeof setTimeout> | undefined;
+function said(text: string, kind: 'ok' | 'warn' | 'error' = 'ok', passes = false): void {
   const e = byId('status');
   e.textContent = text;
   e.className = kind;
+  clearTimeout(passing);
+  if (passes) passing = setTimeout(() => { if (shown.status === 'live') said('live'); }, 8000);
 }
 
 const frame = (): Promise<void> => new Promise((r) => { requestAnimationFrame(() => r()); });
@@ -80,6 +88,8 @@ const median = (xs: readonly number[]): number => [...xs].sort((a, b) => a - b)[
 async function main(): Promise<void> {
   const config = await (await fetch('config.json')).json() as RiskConfig;
   const { model, planner, engine, cube } = await openRisk(config);
+  // the tab going (closed, reloaded, navigated away): its session ended as it goes, never left ticking on the server
+  addEventListener('pagehide', () => { engine.close().catch(() => { /* the page is gone */ }); });
   const snapshot = cube(['desk', 'sector']);
   // the server's own account of each gesture, for the test: opened when first asked
   let serverLog: ReturnType<typeof openServerLog> | null = null;
@@ -119,7 +129,7 @@ async function main(): Promise<void> {
   const app = new CubeApp(byId('cube'), snapshot, {
     runner,
     showColumnZone: true,
-    onStatus: (text, kind) => { if (kind !== 'ok') said(text, kind); },
+    onStatus: (text, kind) => { if (kind !== 'ok') said(text, kind, true); },
     onView: (view: CubeView) => {
       shown.views++;
       showRows(view);
@@ -218,9 +228,10 @@ async function main(): Promise<void> {
     flat: [{ kind: 'group', rows: [] }, { kind: 'pivot', columns: [] }, { kind: 'sorts', sorts: [{ column: 'mv', direction: 'desc' }] }],
   };
   // a leaf-level calculated column, as the column editor adds one: the person's expression, parsed
-  const calc = async (): Promise<readonly GridCommand[]> => [{
+  /** A calculated column, `mvk`: the market value in thousands, or what `text` says. */
+  const calc = async (text = 'x|$x.mv / 1000.0'): Promise<readonly GridCommand[]> => [{
     kind: 'calculate', level: 'row',
-    column: { name: 'mvk', lambda: await planner.parse('x|$x.mv / 1000.0'), kind: 'measure', aggregate: 'sum' },
+    column: { name: 'mvk', lambda: await planner.parse(text), kind: 'measure', aggregate: 'sum' },
   }];
   shown.scroll = async (row: number): Promise<number> => {
     const scroller = document.querySelector<HTMLElement>('#cube .dc-scroller');
@@ -234,8 +245,10 @@ async function main(): Promise<void> {
       if (performance.now() - started > 10_000) throw new Error(`row ${row} not shown in 10 s: ${JSON.stringify(w)}`);
     }
   };
+  shown.edit = async (commands) => (await app.edit(commands, 'benchmark')) ?? 'applied';
   shown.change = async (what: string): Promise<string> => {
-    const commands = what === 'calc' ? await calc() : gestures[what];
+    // `calc:<lambda>`: a calculated column of the walk-through's own text
+    const commands = what === 'calc' ? await calc() : what.startsWith('calc:') ? await calc(what.slice(5)) : gestures[what];
     if (commands === undefined) return `no gesture '${what}'`;
     return (await app.edit(commands, what)) ?? 'applied';
   };

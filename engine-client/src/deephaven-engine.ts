@@ -43,8 +43,9 @@ export interface DeephavenCounts {
   readonly live: number;
   /** Results followed now. */
   readonly following: number;
-  /** Tables the session made again after letting them go (deephaven.ts `remade`). */
+  /** Tables the session made again after letting them go (deephaven.ts `remade`), and keeps alive now (`kept`). */
   readonly remade: number;
+  readonly kept: number;
   /** Sessions signed in again (`reconnect`). */
   readonly reconnects: number;
 }
@@ -156,7 +157,11 @@ export class DeephavenEngine implements QueryEngine {
    */
   static async open(server: DeephavenServer, planner: DeephavenPlanner,
     options: DeephavenEngineOptions = {}): Promise<DeephavenEngine> {
-    const engine = new DeephavenEngine(server, planner, options, await DeephavenSession.open(server, planner, options));
+    // a session the server forgot ends the live side as a server gone does: each reader's host signs in again
+    let ended: (why: string) => void = () => { /* no engine yet */ };
+    const engine = new DeephavenEngine(server, planner, options, await DeephavenSession.open(server, planner,
+      { ...options, onForgotten: (why) => ended(why) }));
+    ended = (why) => engine.#ended(why);
     engine.#liveClient().catch(() => { /* said by the follow that needs it */ });
     return engine;
   }
@@ -169,7 +174,10 @@ export class DeephavenEngine implements QueryEngine {
   get counts(): DeephavenCounts {
     let windows = 0;
     for (const r of this.#readers) windows += r.windowsFollowed;
-    return { ...this.#counts, following: this.#whole.size + windows, remade: this.#counts.remade + this.#session.remade };
+    return {
+      ...this.#counts, following: this.#whole.size + windows, remade: this.#counts.remade + this.#session.remade,
+      kept: this.#session.kept,
+    };
   }
 
   /** A grid's own reader over this engine's session, live reader and bases: what the grid follows is its own. */
@@ -339,7 +347,8 @@ export class DeephavenEngine implements QueryEngine {
    * nothing is followed until each reader's next `follow`. Throws while the server does not answer.
    */
   async reconnect(): Promise<void> {
-    const session = await DeephavenSession.open(this.#server, this.#planner, this.#options);
+    const session = await DeephavenSession.open(this.#server, this.#planner,
+      { ...this.#options, onForgotten: (why) => this.#ended(why) });
     const old = this.#session;
     for (const f of this.#whole.values()) stopFollowing(f);
     this.#whole.clear();
@@ -355,14 +364,17 @@ export class DeephavenEngine implements QueryEngine {
     old.close().catch(() => { /* the server it was on is gone */ });
   }
 
+  /** Done: the session ended first (its request outlives a page that is going: deephaven.ts `close`), then every
+   *  following stopped and the live reader closed. */
   async close(): Promise<void> {
+    const ending = this.#session.close();
     for (const f of this.#whole.values()) stopFollowing(f);
     this.#whole.clear();
     for (const r of this.#readers) r.reset();
     const live = this.#live;
     this.#live = null;
     (await live?.catch(() => null))?.close();
-    await this.#session.close();
+    await ending;
   }
 
   #receipt(): Receipt {
