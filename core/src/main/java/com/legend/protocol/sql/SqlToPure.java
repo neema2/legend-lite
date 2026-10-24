@@ -3576,6 +3576,16 @@ public final class SqlToPure {
             }
             try {
                 t = tx(x.expr(), scope, row);
+                // the IQ scale program, 2026-10-23 (Q27): an item whose Pure grows far past its SQL (a NULL guard or
+                // a zero divisor's check repeating a nested operand, eight divisions by a column 852 KB of DuckDB's
+                // SQL, under the dialect's bound) has its long operands computed once too, where the dialect computes
+                // every operand anyway (Q30, 2026-10-24: a fourth review found it raised where the item, unhoisted,
+                // skipped an operand beside a NULL one; IQ 17.1 raises there too, and SQL Anywhere's front end not)
+                if (dialect.computesEveryOperand() && written(valueOf(t)) > HOIST_FROM
+                        && written(valueOf(t)) > HOIST_RATIO * astSize(x.expr())) {
+                    hoistOperands(x.expr(), scope, present, pre, mine);
+                    t = tx(x.expr(), scope, row);
+                }
             } catch (SqlTranslationException tooLarge) {
                 if (!tooLarge.pastSizeBound()) {
                     throw tooLarge;
@@ -3583,21 +3593,7 @@ public final class SqlToPure {
                 // IQ island, 2026-10-17 (the corpus lane's scale): an item past the dialect's size bound has its long
                 // operands, read on every path, each computed once, a column before it (bottom up, so each reads
                 // the ones below it), then is translated again; past the bound still, it is refused as before
-                for (SqlAst.Expr c : eagerOperands(x.expr())) {
-                    Tx ct;
-                    try {
-                        ct = tx(c, scope, row);
-                    } catch (SqlTranslationException notAlone) {
-                        continue;
-                    }
-                    if (ct.kind() == Kind.BOOLEAN || written(ct.vs()) < BOUND_OPERAND) {
-                        continue;
-                    }
-                    String column = fresh(present);
-                    pre.add(new ColSpec(column, lambda(row, valueOf(ct)), null, null));
-                    hoisted.put(c, Col.of(column, ct.kind(), ct.nullable(), ct.detail()));
-                    mine.add(c);
-                }
+                hoistOperands(x.expr(), scope, present, pre, mine);
                 t = tx(x.expr(), scope, row);
             }
         } finally {
@@ -3645,9 +3641,55 @@ public final class SqlToPure {
         }
     }
 
+    /** {@code e}'s long operands, read on every path, each computed once, a column before the item (bottom up, so
+     *  each reads the ones below it): into {@code pre} and {@link #hoisted}, each noted in {@code mine}. */
+    private void hoistOperands(SqlAst.Expr e, Scope scope, Set<String> present, List<ColSpec> pre,
+            List<SqlAst.Expr> mine) {
+        for (SqlAst.Expr c : eagerOperands(e)) {
+            if (hoisted.containsKey(c)) {
+                continue;
+            }
+            Tx ct;
+            try {
+                ct = tx(c, scope, row);
+            } catch (SqlTranslationException notAlone) {
+                continue;
+            }
+            if (ct.kind() == Kind.BOOLEAN || written(ct.vs()) < BOUND_OPERAND) {
+                continue;
+            }
+            String column = fresh(present);
+            pre.add(new ColSpec(column, lambda(row, valueOf(ct)), null, null));
+            hoisted.put(c, Col.of(column, ct.kind(), ct.nullable(), ct.detail()));
+            mine.add(c);
+        }
+    }
+
     /** The written size, in Pure nodes, from which an operand of an item past the size bound is computed once
      *  ({@link #output}). */
     private static final long BOUND_OPERAND = 64;
+
+    /** The written size, in Pure nodes, from which an item whose Pure grows past {@link #HOIST_RATIO} times its SQL's
+     *  nodes has its long operands computed once ({@link #output}): a linear item never reaches it. */
+    private static final long HOIST_FROM = 2_000;
+
+    /** The Pure nodes per node of an item's SQL past which it is growing (a guard repeating an operand per level). */
+    private static final long HOIST_RATIO = 50;
+
+    /** The nodes of {@code e}'s SQL, counted without recursion. */
+    private static long astSize(SqlAst.Expr e) {
+        long n = 0;
+        java.util.ArrayDeque<SqlAst.Expr> todo = new java.util.ArrayDeque<>();
+        todo.push(e);
+        while (!todo.isEmpty()) {
+            SqlAst.Expr x = todo.pop();
+            n++;
+            for (SqlAst.Expr c : children(x)) {
+                todo.push(c);
+            }
+        }
+        return n;
+    }
 
     /** {@code e}'s operands (not {@code e} itself) that it computes whenever it is computed, composite ones only and
      *  no subquery, each after its own ({@link #eagerSubqueries}' positions). */
@@ -4382,6 +4424,121 @@ public final class SqlToPure {
             return Tx.value(result, kind, false);
         }
         return Tx.guarded(anyNull, result, kind);
+    }
+
+    /**
+     * {@link #strict} for an input dialect whose operands may raise beside a NULL one ({@code raises}, by operand; the
+     * IQ scale program's Q30, 2026-10-24, measured on IQ 17.1 and SQL Anywhere 17). IQ's engine computes every operand,
+     * as Postgres does: {@code NULLIF(sm, 0) + it / sm} over a zero {@code sm} raises its divide-by-zero. SQL Anywhere's
+     * front end ({@code inOrder}) computes them from the left and stops at the first NULL: NULL there, and the
+     * divide-by-zero for {@code it / sm + NULLIF(sm, 0)}. An operand that may raise is tested whole where another
+     * operand's NULL test could skip it, and never in an OR beside another test, whose operands a database may read in
+     * any order (DuckDB by their cost): under IQ's engine every such test is read (their sum), under SQL Anywhere's each
+     * in its place (nested). An operand that cannot raise merges its guard as {@link #strict} does, and the value is
+     * guarded ({@link Tx#guarded}) only where its test cannot raise.
+     */
+    public static Tx strict(Kind kind, List<Tx> args, List<Boolean> raises, boolean inOrder,
+            java.util.function.Function<List<ValueSpecification>, ValueSpecification> build) {
+        int nullAt = -1;
+        for (int i = 0; i < args.size(); i++) {
+            if (isNullConstant(args.get(i))) {
+                if (!raisesBefore(args, raises, i, inOrder)) {
+                    // a NULL constant makes it NULL when no operand that may raise is computed before it is read
+                    return nullOf(kind);
+                }
+                nullAt = nullAt < 0 ? i : nullAt;
+            }
+        }
+        List<ValueSpecification> values = new ArrayList<>();
+        // the tests of the operands that may raise, each a level of its own, the first of them always read (a
+        // database folds a test it knows the answer to, and DuckDB a sum of tests one of which it knows); then the OR
+        // of those that cannot raise (group), under SQL Anywhere's front end each in its place
+        List<ValueSpecification> levels = new ArrayList<>();
+        int raising = 0;
+        ValueSpecification group = null;
+        for (int i = 0; i < (inOrder && nullAt >= 0 ? nullAt : args.size()); i++) {
+            Tx a = args.get(i);
+            if (nullAt >= 0 && !inOrder) {
+                // NULL whatever the others are: those that may raise computed for their errors alone (under SQL
+                // Anywhere's front end the operands before the NULL, each read in its place, as they stop at a NULL)
+                if (raises.get(i) && !isNullConstant(a)) {
+                    levels.add(call("isEmpty", valueOf(a)));
+                    raising++;
+                }
+                continue;
+            }
+            boolean skippable = raises.get(i) && nullableBeside(args, i, inOrder);
+            if (!skippable && a.guard() != null && a.body() != null) {
+                // a strict operand: NULL exactly when its guard holds, else its body
+                group = group == null ? a.guard() : call("or", group, a.guard());
+                values.add(a.body());
+                continue;
+            }
+            ValueSpecification v = valueOf(a);
+            if (!skippable && !a.nullable()) {
+                values.add(v);
+                continue;
+            }
+            ValueSpecification test = call("isEmpty", v);
+            values.add(a.nullable() ? call("toOne", v) : v);
+            if (!raises.get(i)) {
+                group = group == null ? test : call("or", group, test);
+                continue;
+            }
+            if (inOrder && group != null) {
+                levels.add(group);
+                group = null;
+            }
+            levels.add(test);
+            raising++;
+        }
+        if (nullAt >= 0 && raising == 0) {
+            return nullOf(kind);
+        }
+        ValueSpecification result = nullAt >= 0 ? nullOf(kind).vs() : build.apply(values);
+        if (raising == 0) {
+            return group == null ? Tx.value(result, kind, false) : Tx.guarded(group, result, kind);
+        }
+        if (group != null) {
+            levels.add(group);
+        }
+        if (!inOrder && raising > 1) {
+            // under IQ's engine every one is read: a sum computes each of its terms, an OR stops at one that holds
+            List<ValueSpecification> counts = new ArrayList<>();
+            for (ValueSpecification l : levels.subList(0, raising)) {
+                counts.add(call("if", l, thunk(new CInteger(1L)), thunk(new CInteger(0L))));
+            }
+            List<ValueSpecification> read = new ArrayList<>();
+            read.add(call("greaterThan", AppliedFunction.infixRun("plus", counts), new CInteger(0L)));
+            read.addAll(levels.subList(raising, levels.size()));
+            levels = read;
+        }
+        for (int i = levels.size() - 1; i >= 0; i--) {
+            result = call("if", levels.get(i), thunk(empty()), thunk(result));
+        }
+        return Tx.value(result, kind, true);
+    }
+
+    /** Whether an operand other than the one at {@code i} may be NULL and is tested before it is read: any other under
+     *  IQ's engine, a later one under SQL Anywhere's front end ({@code inOrder}). */
+    private static boolean nullableBeside(List<Tx> args, int i, boolean inOrder) {
+        for (int j = inOrder ? i + 1 : 0; j < args.size(); j++) {
+            if (j != i && args.get(j).nullable()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether an operand that may raise is computed before the one at {@code i} is read ({@link #nullableBeside}): a
+     *  NULL constant raises nothing. */
+    private static boolean raisesBefore(List<Tx> args, List<Boolean> raises, int i, boolean inOrder) {
+        for (int j = 0; j < (inOrder ? i : raises.size()); j++) {
+            if (j != i && raises.get(j) && !isNullConstant(args.get(j))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Whether a strict operation merges a strict operand's guard into its own ({@link Tx#guarded}): only when that

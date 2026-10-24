@@ -198,9 +198,9 @@ says so.
 | Q24 | Snowflake's correlated subqueries: a correlation two derived tables down, a scalar subquery of no aggregate, and lite's NOT EXISTS forms of NOT IN and ALL are "Unsupported subquery type" there (59 runs), and a COUNT read through the nesting is NULL for no row | P1.2 | the sibling's measurements | done (2026-10-23): every Snowflake shape of the lane answers or is refused by name; the last, a CTE read in a scalar subquery, by the one-group ANY_VALUE (f5186929) |
 | Q25 | IQ 16's BIGINT overflow (-158) on Snowflake, whose NUMBER(38) does not overflow (5 runs BUG). The island checks no BIGINT arithmetic itself; under iq17, where IQ answers past 64 bits, DuckDB's overflow is the lane's ERROR and Snowflake passes | P1.2, P3 | a decision (with Q26's): a run SQL Anywhere judges whose only difference is an error Snowflake does not raise | open: the check of 38df46ba reverted (2f40358c), its 3^n growth timed out on Snowflake |
 | Q26 | TOP and START AT compute the items of rows they skip (IQ raises for them); Snowflake evaluates the select list after the limit (3 runs BUG) | P1.2 | the sibling's measurements | open |
-| Q27 | Nested integer division by a column grows exponentially: `it / sm / sm` doubles a level twice on DuckDB (the translator's NULL guard repeats the inner quotient, unmerged where IQ raises for a zero divisor; the zero guard's message copies the dividend) and six times on Snowflake (its exact quotient writes the dividend twice). Needs a common-subexpression hoist (the operand as a computed column) or a single-copy exact quotient for Snowflake (`TRUNC(CAST(a AS NUMBER(38, 19)) / b)`, by its division scale rule, to be measured) | P4, P1.3 | the sibling's measurement for the Snowflake half | the Snowflake half done (2026-10-23, the scale-19 quotient, measured); DuckDB's open |
+| Q27 | Nested integer division by a column grows exponentially: `it / sm / sm` doubles a level twice on DuckDB (the translator's NULL guard repeats the inner quotient, unmerged where IQ raises for a zero divisor; the zero guard's message copies the dividend) and six times on Snowflake (its exact quotient writes the dividend twice). Needs a common-subexpression hoist (the operand as a computed column) or a single-copy exact quotient for Snowflake (`TRUNC(CAST(a AS NUMBER(38, 19)) / b)`, by its division scale rule, to be measured) | P4, P1.3 | the sibling's measurement for the Snowflake half | done: the Snowflake half (2026-10-23, the scale-19 quotient, measured); DuckDB's (2026-10-24, the translator's operand hoist, under IQ's engine once Q30 measured it: eight divisions 7.9 KB, sixteen 17.1 KB) |
 | Q28 | Planning a long UNION ALL grows faster than linearly: 1.9 s at 1,000 branches, 4.0 s at 2,000, 16.6 s at 4,000 (the scale probe at twice its sizes, 2026-10-23) | P4 | a profile | done (2026-10-23): 4,000 branches planned in 1.4 s |
-| Q30 | Whether IQ computes an operand beside a NULL one (`NULL + x / 0`: IQ's divide-by-zero, or NULL): the translator's merged NULL guard skips a raising operand in a strict operation's body where another operand is NULL (Postgres raises there), and an early hoist that computed such operands for every row changed an item's answer with its size (reverted) | P3, P4 | the live IQ | open: to measure first when IQ is up; then fix the merge, and bring back Q27's DuckDB half |
+| Q30 | Whether IQ computes an operand beside a NULL one (`NULL + x / 0`: IQ's divide-by-zero, or NULL): the translator's merged NULL guard skips a raising operand in a strict operation's body where another operand is NULL (Postgres raises there), and an early hoist that computed such operands for every row changed an item's answer with its size (reverted) | P3, P4 | the live IQ | done (2026-10-24): measured on IQ 17.1 and SQL Anywhere 17 (`lite/null_beside_a_raise`); IQ's engine computes every operand, SQL Anywhere's front end reads from the left to the first NULL, and the translator follows each. Open: the same rule for a strict function's arguments and a comparison's operands (each still merges the one NULL operand's guard), and SQL Anywhere's twins over tables (sqla17) to snap |
 | Q29 | Planning a long join chain: `Fold.sourceColumn` scanned a join's every output at each level of its recursion, for a pivot identity's check | P4 | a profile | done (2026-10-23): 700 joins planned in 4.0 s (were 9.7 s); 1,200 in 8.7 s, the rest spread over the translator's taken names and the typer, past DuckDB's depth limit anyway |
 | Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | the lane built (`//core:iq_scale_snowflake_test`, 2026-10-23); its run waits on the user's approval of warehouse time |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
@@ -532,3 +532,31 @@ says so.
   arguments). Reverted (b66e4d3f); Q30 measures it on the live IQ, then the merge is fixed and the hoist comes back.
   The review found the other two changes sound (`carriesComputedProjection`'s isolation, Snowflake's one-group
   `ANY_VALUE`).
+- 2026-10-24, **Q30 measured, and the NULL guards follow it.** The Mac session snapped the nine cases of
+  `lite/null_beside_a_raise` on both oracles (521ed8a0; the live IQ 17.1.263.7761, each answer that differs from SQL
+  Anywhere's confirmed by a second run). IQ's engine raises its divide-by-zero (-1001007) in all eight queries over `t`,
+  the NULL operand on either side: a NULL constant, a column, NULLIF, ABS of it, a product, a NULL quotient, in WHERE
+  too. SQL Anywhere 17 reads from the left and stops at the first NULL: NULL for `NULLIF(sm, 0) + it / sm` (and no row
+  in the WHERE case), -628 for `it / sm + NULLIF(sm, 0)`. Without FROM (the front end under both profiles), NULL. lite
+  answered NULL in all nine.
+  - **The fix** (`SqlToPure.strict` with each operand's raise, `IqDialect.mayRaise`): an operand that may raise is
+    tested whole where another operand's NULL test could skip it. Under IQ's engine every such test is read: the first
+    of a CASE's tests, alone, or a sum of them when there are several. A test inside an OR may be read last (DuckDB orders
+    an OR's operands by cost), and a sum may be folded once one of its terms is a constant (`CASE WHEN NULL IS NULL THEN
+    1 ELSE 0 END + ... > 0` is always true by DuckDB's statistics, so it never read the quotient; measured). Under SQL
+    Anywhere's front end each is read in its place, nested. An operand that cannot raise (a column, a constant, an
+    aggregate's or a window's value, IQ's widening + - *, a division by a nonzero integer constant) merges its guard as
+    before, so a chain of them stays linear. The integer, NUMERIC and DOUBLE operations use it, and an untyped NULL
+    beside an operand that may raise reads the operand first.
+  - **The hoist back** (d889ea5f, Q27's DuckDB half): an item past 2,000 Pure nodes and 50 times its SQL computes its
+    long operands once, as columns before it, where the dialect computes every operand (`computesEveryOperand`:
+    Postgres, IQ's engine; not SQL Anywhere's front end, which stops at a NULL). The fourth review's finding is IQ's
+    answer now: the hoisted item and the item written smaller both raise. Scale probe: eight divisions by a column
+    7.9 KB of DuckDB's SQL (were 852 KB), sixteen 17.1 KB; a new shape, a sum of quotients by a column, 6.0 KB at
+    eight and 12.7 KB at sixteen.
+  - **The cases.** The seven over `t` run under iq17-default alone: lite follows IQ's engine for an IQ database's
+    tables, which SQL Anywhere, judging their iq16 runs, does not compute (its answers, dropped from the answers file:
+    NULL for the six with the NULL operand to the left, -628 for `it / sm + NULLIF(sm, 0)`). The WHERE case is the
+    harness's D-E2 skip (a raise beside AND depends on the plan; IQ raised there). `IqNullBesideARaiseTest` pins both
+    rules on every in-process database, the front end's under sqla17-default. The DuckDB and Postgres lanes: the seven
+    are BOTH_ERROR, and no other run moved.

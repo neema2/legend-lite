@@ -1,27 +1,37 @@
 # The IQ scale program's Q30 (docs/IQ_SCALE_PROGRAM_2026_10_22.md, 2026-10-24): whether IQ computes an operand that
-# raises (a division by zero) beside an operand that is NULL. lite's translator guards a strict operation's operands
-# and may skip one where another is NULL; Postgres raises there (a strict operator reads its arguments). Row 3 of t
-# holds zeros (sm, it, bg = 0), row 5 NULLs. Each is judged by its oracle's answer in iq-answers.jsonl: SQL Anywhere 17
-# for iq16-default, the live IQ 17.1 for its iq17-default twin. tools/iq-oracle's README.md has the keys.
+# raises (a division by zero) beside an operand that is NULL. Row 3 of t holds zeros (sm, it, bg = 0), row 5 NULLs.
+# Measured: IQ 17.1's engine computes every operand and raises (-1001007) whichever side the NULL is on; SQL Anywhere
+# 17's front end computes them from the left and stops at the first NULL (NULL for NULLIF(sm, 0) + it / sm, -628 for
+# it / sm + NULLIF(sm, 0)). lite follows IQ's engine for a query over an IQ database's tables, so those cases are the
+# live IQ's to judge alone (iq17-default): their iq16-default runs, which SQL Anywhere 17 judges, read its front end's
+# rule (core's IqNullBesideARaiseTest pins it, under sqla17-default). tools/iq-oracle's README.md has the keys.
 tests:
 
   # ---- under IQ's engine (a query over t)
   - id: a_null_constant_beside_a_zero_divisor
     sql: "SELECT id, CAST(NULL AS INTEGER) + it / sm AS v FROM t WHERE id = 3"
+    profile: iq17-default
   - id: a_computed_null_beside_a_zero_divisor
     sql: "SELECT id, NULLIF(sm, 0) + it / sm AS v FROM t WHERE id = 3"
+    profile: iq17-default
   - id: a_zero_divisor_beside_a_computed_null
     sql: "SELECT id, it / sm + NULLIF(sm, 0) AS v FROM t WHERE id = 3"
+    profile: iq17-default
   - id: a_computed_null_times_a_zero_divisor
     sql: "SELECT id, NULLIF(it, 0) * (bg / sm) AS v FROM t WHERE id = 3"
+    profile: iq17-default
   - id: a_null_quotient_beside_a_zero_divisor
     sql: "SELECT id, nm / NULLIF(sm, 0) + (it + bg + id) / sm AS v FROM t WHERE id = 3"
+    profile: iq17-default
   - id: a_null_column_beside_a_zero_divisor
     sql: "SELECT a.id, a.it + b.it / b.sm AS v FROM t a, t b WHERE a.id = 5 AND b.id = 3"
+    profile: iq17-default
   - id: a_function_of_a_null_beside_a_zero_divisor
     sql: "SELECT id, ABS(NULLIF(sm, 0)) + it / sm AS v FROM t WHERE id = 3"
+    profile: iq17-default
   - id: a_null_beside_a_zero_divisor_in_a_condition
     sql: "SELECT id FROM t WHERE id = 3 AND NULLIF(sm, 0) + it / sm > 0"
+    skip: plan-dependent run-time error (D-E2)
 
   # ---- in SQL Anywhere's front end (no table)
   - id: a_computed_null_beside_a_zero_divisor_without_from

@@ -332,6 +332,14 @@ public interface InputDialect {
         return false;
     }
 
+    /** Whether a strict operation computes every one of its operands, whether or not another is NULL (Postgres's, and
+     *  IQ's engine's: the IQ scale program's Q30, 2026-10-24, measured on IQ 17.1): only then may an item's long operand
+     *  be computed once, a column before it, for every row ({@link SqlToPure}'s early hoist); SQL Anywhere's front end
+     *  stops at the first NULL operand, reading the rest for some rows only, and says false. */
+    default boolean computesEveryOperand() {
+        return true;
+    }
+
     /** Whether a NATURAL join shows the columns its two sides share once, merged (the standard's, Postgres's); a
      *  dialect that keeps both sides' columns, each read qualified, joining on their equality, says false. */
     default boolean mergesNaturalJoin() {

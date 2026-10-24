@@ -303,6 +303,17 @@ class IqFuzzTest {
         for (int n : new int[] {10 * f, 50 * f}) {
             shapes.put("divisions by a literal " + n, "SELECT id, it" + " / 2".repeat(n) + " AS v FROM t ORDER BY id");
         }
+        // 2026-10-23 (Q27): a division by a column checks its divisor and guards a nested operand, which repeated it a
+        // level (eight divisions, 852 KB of DuckDB's SQL) until the translator computed such operands once
+        for (int n : new int[] {8 * f, 16 * f}) {
+            shapes.put("divisions by a column " + n, "SELECT id, it" + " / sm".repeat(n) + " AS v FROM t WHERE id = 1");
+        }
+        // 2026-10-24 (Q30): a quotient by a column beside another operand that may be NULL is computed whole, as IQ
+        // computes it, where its NULL guard merged before; a sum of them is held to the same growth
+        for (int n : new int[] {8 * f, 16 * f}) {
+            shapes.put("a sum of quotients by a column " + n, "SELECT id, " + "it / sm + ".repeat(n - 1) + "it / sm"
+                    + " AS v FROM t WHERE id = 1");
+        }
         return shapes;
     }
 
@@ -408,6 +419,7 @@ class IqFuzzTest {
         }
         StringBuilder report = new StringBuilder("shape\toutcome\tms\tduckdb sql chars\tsnowflake\tdetail\n");
         List<String> problems = new ArrayList<>();
+        Map<String, Long> sizes = new java.util.HashMap<>();
         try (Connection session = PLATFORM.open()) {
             IqParity.seed(PLATFORM, session, tables);
             QueryService service = new QueryService();
@@ -445,15 +457,28 @@ class IqFuzzTest {
                 if (o.kind().equals("CRASH") || o.kind().equals("DBERROR") || snow.startsWith("CRASH")) {
                     problems.add(e.getKey() + ": " + o.kind() + " " + detail + " / snowflake " + snow);
                 }
-                // the SQL grows with its island linearly: a hundredfold is a check or a guard copied per level
-                if (sql.length() > 100L * e.getValue().length()) {
+                // the SQL grows with its island linearly: a hundredfold is a check or a guard copied per level (a
+                // division by a column writes its zero check and its NULL guard, about 1 KB, at each: 250-fold, and
+                // its family is held to doubling as the island does, below)
+                long allowed = (e.getKey().startsWith("divisions by a column")
+                        || e.getKey().startsWith("a sum of quotients") ? 250L : 100L) * e.getValue().length();
+                if (sql.length() > allowed) {
                     problems.add(e.getKey() + ": the DuckDB SQL is " + sql.length() + " characters for an island of "
                             + e.getValue().length());
                 }
-                if (snowChars > 100L * e.getValue().length()) {
+                if (snowChars > allowed) {
                     problems.add(e.getKey() + ": the Snowflake SQL is " + snowChars + " characters for an island of "
                             + e.getValue().length());
                 }
+                sizes.put(e.getKey(), (long) sql.length());
+            }
+        }
+        // a chain twice as long writes SQL about twice as long (a check copying its operand would square it)
+        for (String family : List.of("divisions by a column", "a sum of quotients by a column")) {
+            Long eight = sizes.get(family + " " + 8 * f);
+            Long sixteen = sizes.get(family + " " + 16 * f);
+            if (eight != null && sixteen != null && sixteen > 3 * eight) {
+                problems.add(family + ": " + 16 * f + " write " + sixteen + " characters, " + 8 * f + " " + eight);
             }
         }
         System.out.println(report);

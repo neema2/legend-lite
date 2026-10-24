@@ -6299,6 +6299,17 @@ lite/natives/a_remainder_as_an_operand@sqla17-default	PASS	PASS	PASS
 lite/natives/a_remainder_as_an_operand@iq17-default	PASS	PASS	PASS
 lite/natives/a_remainder_under_the_iq_engine@iq16-default	PASS	PASS	PASS
 lite/natives/a_remainder_under_the_iq_engine@iq17-default	PASS	PASS	PASS
+lite/null_beside_a_raise/a_null_constant_beside_a_zero_divisor@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/null_beside_a_raise/a_computed_null_beside_a_zero_divisor@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/null_beside_a_raise/a_zero_divisor_beside_a_computed_null@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/null_beside_a_raise/a_computed_null_times_a_zero_divisor@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/null_beside_a_raise/a_null_quotient_beside_a_zero_divisor@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/null_beside_a_raise/a_null_column_beside_a_zero_divisor@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/null_beside_a_raise/a_function_of_a_null_beside_a_zero_divisor@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/null_beside_a_raise/a_null_beside_a_zero_divisor_in_a_condition@iq16-default	SKIP	SKIP	
+lite/null_beside_a_raise/a_null_beside_a_zero_divisor_in_a_condition@iq17-default	SKIP	SKIP	
+lite/null_beside_a_raise/a_computed_null_beside_a_zero_divisor_without_from@iq16-default	PASS	PASS	
+lite/null_beside_a_raise/a_computed_null_beside_a_zero_divisor_without_from@iq17-default	PASS	PASS	
 lite/options/ansi_substring/off_negative_starts@iq16-default	PASS	PASS	PASS
 lite/options/ansi_substring/off_negative_starts@sqla17-default	PASS	PASS	PASS
 lite/options/ansi_substring/off_negative_starts@iq17-default	PASS	PASS	PASS

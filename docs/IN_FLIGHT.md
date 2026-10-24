@@ -2198,6 +2198,15 @@ repros will be in the study's §9.
       of the folded predicate holds one of the grouped select's own no-column aggregates, and the isolation keeps the
       sort, `Sorts.isolateOrdered`; `GroupedFilterSubqueryTest`). Judged by both parity lanes of each island, the
       lowering and integration suites, and the relational corpus on DuckDB and H2.
+  - **The SQL islands' shared `protocol/sql/SqlToPure.java` and `InputDialect.java`, 2026-10-24 (Q27, Q30):**
+    - A new `strict` overload takes each operand's raise (the IQ dialect's arithmetic calls it). An operand that may
+      raise is tested whole where another operand's NULL could skip it: under IQ's engine first, under SQL
+      Anywhere's front end in its place. The Postgres island's `strict` is unchanged.
+    - `InputDialect.computesEveryOperand` (default true; IQ's engine only) gates the translator's early operand
+      hoist (`output`). An item past 2,000 Pure nodes and 50 times its SQL computes its long operands once, as
+      columns before it. The hoist was reverted on 10-23 and is back now that IQ 17.1 measured the raise it gives.
+    - Judged by both parity lanes of each island, the core suites, the relational corpus on DuckDB and H2, and the
+      scale probe.
   - **The compiler line's `lowering/Scalars.java` (`quotient`), 2026-10-23:** a literal divisor that is not zero has
     no zero guard, as `rem`'s had none (the guard's message copied the dividend, so nested divisions doubled a level).
   - **The dialect package, 2026-10-23:** a common render pass, `ConstantAggregateOrder` (`AnsiSqlRenderer.renderPasses`,
