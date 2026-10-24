@@ -143,6 +143,8 @@ public final class DeephavenMessages {
                     f("max", 11, Kind.MESSAGE, "AggSpec.AggSpecMax", Card.PRESENT),
                     f("median", 12, Kind.MESSAGE, "AggSpec.AggSpecMedian", Card.PRESENT),
                     f("min", 13, Kind.MESSAGE, "AggSpec.AggSpecMin", Card.PRESENT),
+                    f("sortedFirst", 15, Kind.MESSAGE, "AggSpec.AggSpecSorted", Card.PRESENT),
+                    f("sortedLast", 16, Kind.MESSAGE, "AggSpec.AggSpecSorted", Card.PRESENT),
                     f("std", 17, Kind.MESSAGE, "AggSpec.AggSpecStd", Card.PRESENT),
                     f("sum", 18, Kind.MESSAGE, "AggSpec.AggSpecSum", Card.PRESENT),
                     f("unique", 20, Kind.MESSAGE, "AggSpec.AggSpecUnique", Card.PRESENT),
@@ -155,6 +157,11 @@ public final class DeephavenMessages {
             m("AggSpec.AggSpecMedian",
                     f("averageEvenlyDivided", 1, Kind.BOOL, null, Card.SINGLE)),
             m("AggSpec.AggSpecMin"),
+            // a value at the first or last row of an order (ARG_MIN, ARG_MAX: a candle's open and close, K3a)
+            m("AggSpec.AggSpecSorted",
+                    f("columns", 1, Kind.MESSAGE, "AggSpec.AggSpecSortedColumn", Card.REPEATED)),
+            m("AggSpec.AggSpecSortedColumn",
+                    f("columnName", 1, Kind.STRING, null, Card.SINGLE)),
             m("AggSpec.AggSpecStd"),
             m("AggSpec.AggSpecSum"),
             // a group's one value, or null when it has more than one (G1: DataCube's unique column); its nulls are

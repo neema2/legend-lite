@@ -39,7 +39,7 @@ Database risk::Ref
                 year INTEGER, qty BIGINT, notional DOUBLE, pnl DOUBLE, instrument VARCHAR(16))
   Table instrument (iid VARCHAR(16) PRIMARY KEY, sector VARCHAR(16), ccy VARCHAR(3) NOT NULL)
   Table ticks (sym VARCHAR(8), px DOUBLE)
-  Table fills (fid INTEGER PRIMARY KEY, tm TIMESTAMP NOT NULL, ts TIMESTAMP, d DATE, px DOUBLE)
+  Table fills (fid INTEGER PRIMARY KEY, tm TIMESTAMP NOT NULL, ts TIMESTAMP, d DATE, px DOUBLE NOT NULL)
 )
 ###Connection
 RelationalDatabaseConnection risk::Conn
@@ -145,6 +145,7 @@ const KNOWN: readonly { readonly query: string; readonly rows: readonly (readonl
 ];
 
 const F = '#>{risk::Ref.fills}#';
+const RM = 'meta::pure::functions::math::mathUtility::rowMapper';
 
 /** DATES AND TIMES (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K1, DH29): each answer DuckDB's over the same five rows --
  *  the planner's DuckDB SQL for the query, run by DuckDB 1.4.4 (2026-10-24) -- so the server is held to the platform's
@@ -178,6 +179,10 @@ const TIMES: readonly { readonly query: string; readonly rows: readonly (readonl
     rows: [[3], [4]] },
   { query: `${F}->filter(x|$x.ts != %2026-01-01T00:00:00.000+0000)->select(~[fid])->sort(~fid->ascending())`,
     rows: [[1], [2], [4], [5]] },
+  // a day's candle (K3a): its open and close the price at its first and last fill (the server's sortedFirst and
+  // sortedLast by the fill's number), its high and low, its count
+  { query: `${F}->extend(~[b:x|$x.tm->timeBucket(1, DurationUnit.DAYS)])->groupBy(~[b], ~[o:x|${RM}($x.px, $x.fid):y|$y->minBy(), hi:x|$x.px:y|$y->max(), lo:x|$x.px:y|$y->min(), c:x|${RM}($x.px, $x.fid):y|$y->maxBy(), n:x|$x.fid:y|$y->count()])->sort(~b->ascending())`,
+    rows: [["1969-12-31T00:00:00", 14.0, 14.0, 14.0, 14.0, 1], ["2024-02-29T00:00:00", 13.0, 13.0, 13.0, 13.0, 1], ["2026-10-24T00:00:00", 10.0, 11.0, 10.0, 11.0, 2], ["2026-10-26T00:00:00", 12.0, 12.0, 12.0, 12.0, 1]] },
 ];
 
 /** DataCube's shapes, L2's eighteen (the two the compiler refuses, a string operation on a nullable column, are not

@@ -382,6 +382,22 @@ class DeephavenDialectTest {
                 + ").plusYears(1L))), " + UTC + ")");
     }
 
+    /** A candle's open and close (K3a): the value at the first and the last of an order, the server's sortedFirst
+     *  and sortedLast by the order's column; a value or an order that may be null refused, since SQL skips a null
+     *  order where the server sorts it first. */
+    @Test
+    void aValueAtTheFirstOrLastOfAnOrderIsTheServersSortedFirstOrLast() {
+        String rm = "meta::pure::functions::math::mathUtility::rowMapper";
+        String b = batch(F + "->groupBy(~[d], ~[o:x|" + rm + "($x.tm, $x.fid):y|$y->minBy(), c:x|" + rm
+                + "($x.tm, $x.fid):y|$y->maxBy()])");
+        assertTrue(b.contains("{\"columns\": {\"spec\": {\"sortedFirst\": {\"columns\": [{\"columnName\": \"t0__fid\"}]}},"
+                + " \"matchPairs\": [\"__r0=t0__tm\"]}}"), b);
+        assertTrue(b.contains("{\"sortedLast\": {\"columns\": [{\"columnName\": \"t0__fid\"}]}}"), b);
+        DialectCapability nullable = assertThrows(DialectCapability.class, () -> batch(F + "->groupBy(~[d], ~[o:x|"
+                + rm + "($x.px, $x.fid):y|$y->minBy()])"));
+        assertTrue(nullable.getMessage().contains("may be null"), nullable.getMessage());
+    }
+
     @Test
     void theTimeNowIsRefusedByNameUntilALiveWindowIsDesigned() {
         for (String now : List.of("now()", "today()")) {

@@ -35,6 +35,7 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 |---|---|---|
 | K1 | **built 2026-10-24** (§5). **Time on Deephaven** (DH29, DH30): a DateTime literal, in a formula and in a filter the server reads without compiling (DH25); `timeBucket` as `lowerBin`; a date-time's calendar parts (year to second, day of year, ISO day of week) in UTC; `datePart`; `firstDayOf...` and the truncations DataCube's time grains write; `adjust` by a fixed unit; the epoch conversions | the dialect's tests; answers worked out by hand on the pinned server (`datacube/test/deephaven/page.ts`) |
 | K2 | **the market world**: a realistic equity simulator and a crypto feed handler that gives way to it (DH28), as the server's startup scripts; a store, classes and mappings over their tables | the world's figures checked on the pinned server; the fallback taken when the feed is refused |
+| K3a | **built 2026-10-24** (§5). **A candle's open and close on Deephaven**: Pure's `minBy` and `maxBy` over a whole-number order (a trade's sequence number), SQL's `ARG_MIN` and `ARG_MAX`, as the server's `sortedFirst` and `sortedLast` | the dialect's tests; DuckDB's answer on the pinned server |
 | K3 | **a candlestick chart** in DataCube: open, high, low, close and volume by time bucket, drawn again at its grid's tick with its axes held (C2) | DataCube's chart tests; the chart ticking in a browser check |
 | K4 | **the ticker**: a watchlist (last, change, bid/ask, volume, day VWAP, high/low), the tape, time and sales, and a live candle chart for the symbol picked | a browser check of every part ticking; the speeds of §4 measured |
 | K5 | **the runtime error on Deephaven**: the lowering's guard (Pure fails on `sqrt` of a negative, on an Integer division by zero) writes an `ERROR` no Deephaven formula holds yet; a formula that fails by name, so `sqrt` and Integer `/` plan | the dialect's tests; a failing row failing the view, said, on the server |
@@ -90,4 +91,13 @@ tab's live reader did not read Pure's `Date` (what `datePart` and `adjust` answe
 form (`engine-client/src/deephaven-rows.ts`); the server's log is kept among a test's outputs, since a refusal says why
 only there (`EmbeddedDeephaven.keepLog`). Not built: `dateDiff` and the epoch conversions (they divide whole numbers,
 K5's), months and years in `timeBucket`, a date-time's fraction of a second as a part.
+
+**K3a, a candle's open and close (2026-10-24).** Pure's `minBy` and `maxBy` -- `rowMapper(price, sequence)`, the value
+at the least and the greatest of a whole-number order, lowered to SQL's `ARG_MIN` and `ARG_MAX` -- are the server's
+`sortedFirst` and `sortedLast` aggregations by the order's column (`Deephaven.sorted`; the group writer reads the
+order's column as it reads an argument, `DeephavenBatch.input`; the message table gains `AggSpec.AggSpecSorted` and
+its column, checked against Deephaven's definitions). SQL skips a row whose order is null where the server sorts it
+first, so a value or an order that may be null is refused by name. Measured: a day's candle -- open, high, low,
+close and count by `timeBucket` -- answers on the pinned server exactly DuckDB's answer (`page.ts`, 38 checks). Pure's
+`first()` in a group is SQL's `ANY_VALUE`, any row's: never a candle's open.
 

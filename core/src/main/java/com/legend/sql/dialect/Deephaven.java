@@ -1172,8 +1172,11 @@ public final class Deephaven extends AnsiSqlRenderer {
             case VAR_SAMP, VARIANCE -> columns(r, "{\"var\": {}}", pair);
             case MEDIAN -> columns(r, "{\"median\": {\"averageEvenlyDivided\": true}}", pair);
             case ANY_VALUE -> columns(r, "{\"first\": {}}", pair);
+            // the value at the first or the last of an order (a candle's open and close: K3a)
+            case ARG_MIN -> sorted(r, "sortedFirst", out, names);
+            case ARG_MAX -> sorted(r, "sortedLast", out, names);
             case STDDEV_POP, VAR_POP, MODE, STRING_AGG, LIST, QUANTILE_CONT, QUANTILE_DISC, CORR, COVAR_SAMP,
-                 COVAR_POP, ARG_MAX, ARG_MIN, BOOL_AND, BOOL_OR -> throw new DialectCapability("aggregate " + r.fn()
+                 COVAR_POP, BOOL_AND, BOOL_OR -> throw new DialectCapability("aggregate " + r.fn()
                     + " reached Deephaven: no shape yet");
             case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
             case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
@@ -1194,6 +1197,25 @@ public final class Deephaven extends AnsiSqlRenderer {
         }
         return "{\"countWhere\": {\"columnName\": \"" + out + "\", \"filters\": "
                 + DeephavenJson.strings(List.of(notNullFilter(arg))) + "}}";
+    }
+
+    /**
+     * ARG_MIN(v, k) and ARG_MAX(v, k): the value v of the row whose k is the least, or the greatest -- the server's
+     * {@code sortedFirst} and {@code sortedLast} by k (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K3a). SQL's skip a row
+     * whose k is null, where the server sorts a null first, so a v or a k that may be null is refused by name until
+     * measured; a tie is any of the tied rows on both.
+     */
+    private static String sorted(SqlAgg.Reducer r, String spec, String out, String[] names) {
+        if (r.distinct() || names.length < 3) {
+            throw new IllegalStateException("aggregate " + r.fn() + " reached Deephaven without its order's column");
+        }
+        if (nullable(r.args().get(0)) || nullable(r.args().get(1))) {
+            throw new DialectCapability("aggregate " + r.fn() + " over a value or an order that may be null reached"
+                    + " Deephaven: SQL skips a null order where the server sorts it first; no shape yet");
+        }
+        return "{\"columns\": {\"spec\": {\"" + spec + "\": {\"columns\": [{\"columnName\": "
+                + DeephavenJson.string(names[2]) + "}]}}, \"matchPairs\": "
+                + DeephavenJson.strings(List.of(out + "=" + names[1])) + "}}";
     }
 
     /** An aggregation over one column; a distinct one refused (only COUNT's is shaped). */

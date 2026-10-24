@@ -394,24 +394,24 @@ final class DeephavenBatch {
                 continue;
             }
             SqlExpr arg;
+            // the value's order for a value at the first or last of an order (ARG_MIN, ARG_MAX: K3a), else none
+            SqlExpr by = null;
             if (reducers.get(j) instanceof SqlAgg.Reducer r) {
-                if (r.args().size() > 1) {
+                boolean ordered = r.fn() == SqlAgg.Fn.ARG_MIN || r.fn() == SqlAgg.Fn.ARG_MAX;
+                if (r.args().size() > (ordered ? 2 : 1)) {
                     throw new DialectCapability("aggregate " + r.fn() + " over " + r.args().size()
                             + " arguments reached Deephaven: no shape yet");
                 }
                 arg = r.args().isEmpty() ? null : averaged(r.fn(), r.args().get(0));
+                by = ordered ? r.args().get(1) : null;
             } else {
                 arg = uniqueValueOf(reducers.get(j));
             }
-            String named = arg == null ? null : dialect.plainColumn(arg);
-            // a key is read back as a key, never aggregated: an argument that is one is copied first
-            String input = named != null && !keys.contains(named) ? named : "__a" + j;
-            if (arg != null && !input.equals(named)) {
-                pre.add(new Spec(input, arg));
-            }
+            String input = input(arg, "__a" + j, keys, pre);
             inputs.add(input);
             if (reducers.get(j) instanceof SqlAgg.Reducer r) {
-                scope.aggregates.put(r, new String[] {"__r" + j, input});
+                scope.aggregates.put(r, by == null ? new String[] {"__r" + j, input}
+                        : new String[] {"__r" + j, input, input(by, "__b" + j, keys, pre)});
             }
         }
         if (!pre.isEmpty()) {
@@ -461,6 +461,17 @@ final class DeephavenBatch {
         }
         scope.grouped = true;
         return grouped;
+    }
+
+    /** The column an aggregate reads {@code arg} from: a column as it is by its own name, anything computed (or a
+     *  group key, which is read back as a key, never aggregated) into {@code otherwise} first. */
+    private String input(@com.legend.base.Nullable SqlExpr arg, String otherwise, List<String> keys, List<Spec> pre) {
+        String named = arg == null ? null : dialect.plainColumn(arg);
+        String input = named != null && !keys.contains(named) ? named : otherwise;
+        if (arg != null && !input.equals(named)) {
+            pre.add(new Spec(input, arg));
+        }
+        return input;
     }
 
     /**
