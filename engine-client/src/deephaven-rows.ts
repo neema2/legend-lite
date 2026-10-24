@@ -12,7 +12,7 @@ import { decoderFor, type ArrowishVector, type Decode } from './duckdb.ts';
 import { QueryError, type RawTable } from './engine.ts';
 import type { Plan } from './relation-type.ts';
 import type { ResultTable, Scalar } from './result.ts';
-import { familyOf, hasTimeOfDay, isBoolean, isDay, isFractional, isNumeric, isTimeOfDay } from './types.ts';
+import { familyOf, hasTimeOfDay, isBoolean, isDay, isFractional, isNumeric, isTemporal, isTimeOfDay, plainType } from './types.ts';
 import { decimalText, exactInteger, timeText, timestampText } from './values.ts';
 import type { FollowedRows } from './deephaven-live.ts';
 
@@ -129,6 +129,14 @@ export function followedValue(v: unknown, type: string, column: string): Scalar 
   if (hasTimeOfDay(type)) return timestampText(BigInt(String(v)) / 1000n);
   if (isDay(type)) {
     if (/^-?\d{4,}-\d{2}-\d{2}$/.test(String(v))) return String(v);
+    throw refused();
+  }
+  // a Date -- Pure's either, what datePart and adjust answer -- by the value's own form: the library's day is its
+  // text, its instant its nanoseconds (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K1)
+  if (isTemporal(type) && plainType(type) === 'Date') {
+    const text = String(v);
+    if (/^-?\d{4,}-\d{2}-\d{2}$/.test(text)) return text;
+    if (/^-?\d+$/.test(text)) return timestampText(BigInt(text) / 1000n);
     throw refused();
   }
   if (isTimeOfDay(type)) {

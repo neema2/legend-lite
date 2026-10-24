@@ -31,6 +31,7 @@ class DeephavenDialectTest {
               Table trades (id INTEGER PRIMARY KEY, region VARCHAR(16), country VARCHAR(16), desk VARCHAR(16) NOT NULL,
                             year INTEGER, qty BIGINT, notional DOUBLE, pnl DOUBLE, instrument VARCHAR(16))
               Table instrument (iid VARCHAR(16) PRIMARY KEY, sector VARCHAR(16), ccy VARCHAR(3) NOT NULL)
+              Table fills (fid INTEGER PRIMARY KEY, tm TIMESTAMP NOT NULL, ts TIMESTAMP, d DATE, px DOUBLE)
             )
             ###Connection
             RelationalDatabaseConnection risk::Conn
@@ -131,7 +132,12 @@ class DeephavenDialectTest {
 
     /** {@code condition}'s filter list is {@code expected}. */
     private static void filters(String condition, String expected) {
-        String b = batch("#>{risk::Ref.trades}#->filter(x | " + condition + ")");
+        filters("#>{risk::Ref.trades}#", condition, expected);
+    }
+
+    /** {@code condition}'s filter list over {@code source} is {@code expected}. */
+    private static void filters(String source, String condition, String expected) {
+        String b = batch(source + "->filter(x | " + condition + ")");
         assertTrue(b.contains("\"filters\": [" + expected + "]"), condition + ": " + b);
     }
 
@@ -287,5 +293,101 @@ class DeephavenDialectTest {
         DialectCapability schema = assertThrows(DialectCapability.class, () -> new Deephaven().render(
                 new SqlDdl.CreateTable("ref", "t", com.legend.sql.NameQuoting.BARE, List.of())));
         assertTrue(schema.getMessage().contains("schema ref"), schema.getMessage());
+    }
+
+    // ==================================================================
+    // Dates and times (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K1, DH29, DH30)
+    // ==================================================================
+
+    private static final String F = "#>{risk::Ref.fills}#";
+    private static final String UTC = "timeZone(`UTC`)";
+
+    /** One formula of {@code F->extend(~r:x|lambda)}: the plan holds it as {@code r = formula}. */
+    private static void formula(String lambda, String expected) {
+        String b = batch(F + "->extend(~r:x|" + lambda + ")->select(~[fid, r])");
+        assertTrue(b.contains("\"r = " + expected.replace("\"", "\\\"") + "\""), b);
+    }
+
+    @Test
+    void aDateTimeLiteralIsTheInstantItsUtcWallClockNames() {
+        // Pure's DateTime is UTC wall-clock (DH29): the server parses the ISO instant
+        String b = batch(F + "->extend(~r:x|$x.tm > %2026-10-24T09:30:00.000+0000)->select(~[fid, r])");
+        assertTrue(b.contains("(t0__tm > parseInstant(`2026-10-24T09:30:00.000Z`))"), b);
+        // in a filter, compared with a column, the instant in quotes: a range filter the server reads without
+        // compiling (DH25), a nullable column's nulls filtered off first
+        filters(F, "$x.tm >= %2026-10-24T09:30:15.250+0000", "\"t0__tm >= '2026-10-24T09:30:15.250Z'\"");
+        filters(F, "$x.ts < %2026-06-01T00:00:00.000+0000", "\"t0__ts != null\", \"t0__ts < '2026-06-01T00:00:00.000Z'\"");
+        filters(F, "$x.d->toOne() == %2026-10-24", "\"t0__d == '2026-10-24'\"");
+        assertEquals("2026-10-24T09:30:00Z", Deephaven.isoInstant("2026-10-24 09:30"));
+        assertEquals("1970-01-01T00:00:00Z", Deephaven.isoInstant("1970-01-01 00:00:00"));
+        assertThrows(DialectCapability.class, () -> Deephaven.isoInstant("2026-10-24T09:30:00+0100"));
+    }
+
+    @Test
+    void aTimeBucketIsTheServersLowerBinFromTheEpoch() {
+        formula("$x.tm->timeBucket(5, DurationUnit.MINUTES)", "lowerBin(t0__tm, (5L * 60000000000L))");
+        formula("$x.tm->timeBucket(1, DurationUnit.HOURS)", "lowerBin(t0__tm, (1L * 3600000000000L))");
+        // a week's bucket from its Monday, 1969-12-29: three days before the epoch
+        formula("$x.tm->timeBucket(2, DurationUnit.WEEKS)",
+                "lowerBin(t0__tm, (2L * 604800000000000L), -259200000000000L)");
+        // a date's bucket: its UTC midnight binned, the date of the bin (the lowering casts it back)
+        formula("$x.d->toOne()->timeBucket(1, DurationUnit.DAYS)", "toLocalDate(lowerBin(toInstant(atMidnight(t0__d, "
+                + UTC + ")), (1L * 86400000000000L)), " + UTC + ")");
+        // a calendar unit is none of the server's bins
+        DialectCapability months = assertThrows(DialectCapability.class,
+                () -> batch(F + "->extend(~r:x|$x.tm->timeBucket(1, DurationUnit.MONTHS))"));
+        assertTrue(months.getMessage().contains("DH29"), months.getMessage());
+    }
+
+    @Test
+    void aDatePartIsReadInUtcAsAWholeNumberAndANullStaysNull() {
+        formula("$x.tm->year()", "((long) year(t0__tm, " + UTC + "))");
+        formula("$x.tm->hour()", "((long) hourOfDay(t0__tm, " + UTC + ", false))");
+        formula("$x.tm->minute()", "((long) minuteOfHour(t0__tm, " + UTC + "))");
+        formula("$x.tm->dayOfWeekNumber()", "((long) dayOfWeekValue(t0__tm, " + UTC + "))");
+        formula("$x.tm->quarter()", "((long) ((int) ((monthOfYear(t0__tm, " + UTC + ") - 1) / 3) + 1))");
+        formula("$x.tm->weekOfYear()", "((long) toLocalDate(t0__tm, " + UTC
+                + ").get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR))");
+        // a column that may be null: its null is the whole number's null, not the part of a null instant
+        formula("$x.ts->toOne()->second()", "(isNull(t0__ts) ? NULL_LONG : (long) secondOfMinute(t0__ts, " + UTC + "))");
+        // a date's own parts take no zone; it has no hour
+        formula("$x.d->toOne()->monthNumber()", "(isNull(t0__d) ? NULL_LONG : (long) monthOfYear(t0__d))");
+    }
+
+    @Test
+    void aDayAndATruncationAreTheirUtcStarts() {
+        formula("$x.tm->datePart()", "toLocalDate(t0__tm, " + UTC + ")");
+        // to a day or finer an instant (the epoch is a UTC midnight)
+        formula("$x.tm->firstMinuteOfHour()", "lowerBin(t0__tm, 3600000000000L)");
+        // to a week or coarser a date, as the platform's dialects answer it: a week's from its Monday
+        formula("$x.tm->firstDayOfWeek()", "toLocalDate(lowerBin(t0__tm, 604800000000000L, -259200000000000L), "
+                + UTC + ")");
+        formula("$x.tm->firstDayOfMonth()", "(toLocalDate(t0__tm, " + UTC + ").withDayOfMonth(1))");
+        // a quarter's first month: the month less its place in the quarter
+        formula("$x.tm->firstDayOfQuarter()", "(toLocalDate(t0__tm, " + UTC + ").withDayOfMonth(1).minusMonths(("
+                + "toLocalDate(t0__tm, " + UTC + ").getMonthValue() - 1) % 3))");
+        // a date that may be null: a method of a null date fails the operation, so its null is guarded
+        formula("$x.d->toOne()->firstDayOfYear()", "(isNull(t0__d) ? (java.time.LocalDate) null : t0__d.withDayOfYear(1))");
+    }
+
+    @Test
+    void anAdjustmentMovesByAFixedLengthOrOnTheUtcCalendar() {
+        formula("$x.tm->adjust(5, DurationUnit.MINUTES)", "plus(t0__tm, (5L * 60000000000L))");
+        formula("$x.tm->adjust(-3, DurationUnit.DAYS)", "plus(t0__tm, (-3L * 86400000000000L))");
+        formula("$x.tm->adjust(2, DurationUnit.MONTHS)", "(toInstant(toZonedDateTime(t0__tm, " + UTC
+                + ").plusMonths(2L)))");
+        // a date moved by a month: the date of its UTC midnight's move (the lowering casts it back)
+        formula("$x.d->toOne()->adjust(1, DurationUnit.YEARS)", "toLocalDate(((isNull(t0__d)) ? (java.time.Instant)"
+                + " null : toInstant(toZonedDateTime(toInstant(atMidnight(t0__d, " + UTC + ")), " + UTC
+                + ").plusYears(1L))), " + UTC + ")");
+    }
+
+    @Test
+    void theTimeNowIsRefusedByNameUntilALiveWindowIsDesigned() {
+        for (String now : List.of("now()", "today()")) {
+            DialectCapability e = assertThrows(DialectCapability.class,
+                    () -> batch(F + "->extend(~r:x|" + now + ")"));
+            assertTrue(e.getMessage().contains("DH30"), e.getMessage());
+        }
     }
 }

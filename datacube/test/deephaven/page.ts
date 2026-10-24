@@ -8,6 +8,9 @@
 
 import { DeephavenSession, type DeephavenServer } from '../../../engine-client/src/deephaven.ts';
 import { LiveClient, type Followed, type FollowedRows } from '../../../engine-client/src/deephaven-live.ts';
+import { followedTable } from '../../../engine-client/src/deephaven-rows.ts';
+import { relationColumns, type Plan } from '../../../engine-client/src/relation-type.ts';
+import { openServerLog } from '../../demo/deephaven/server-log.ts';
 // @ts-ignore the module's runtime, served beside the page from //wasm:planner
 import { load } from './wasm-gc-module-runtime.js';
 
@@ -36,6 +39,7 @@ Database risk::Ref
                 year INTEGER, qty BIGINT, notional DOUBLE, pnl DOUBLE, instrument VARCHAR(16))
   Table instrument (iid VARCHAR(16) PRIMARY KEY, sector VARCHAR(16), ccy VARCHAR(3) NOT NULL)
   Table ticks (sym VARCHAR(8), px DOUBLE)
+  Table fills (fid INTEGER PRIMARY KEY, tm TIMESTAMP NOT NULL, ts TIMESTAMP, d DATE, px DOUBLE)
 )
 ###Connection
 RelationalDatabaseConnection risk::Conn
@@ -69,6 +73,18 @@ instrument = newTable(
   stringCol("sector", "Tech", null, "Banks"),
   stringCol("ccy", "USD", "EUR", "JPY"))
 ticks = timeTable("PT0.2S").update("sym = \`S\` + (ii % 3)", "px = (double) (ii % 7)")
+// dates and times (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K1): a null date-time and a null date, a leap day, and an
+// instant just before the epoch, whose bucket is the one before it
+fills = newTable(
+  intCol("fid", 1, 2, 3, 4, 5),
+  instantCol("tm", java.time.Instant.parse("2026-10-24T09:30:15.250Z"), java.time.Instant.parse("2026-10-24T09:34:59.999Z"),
+    java.time.Instant.parse("2026-10-26T23:59:59Z"), java.time.Instant.parse("2024-02-29T12:00:00Z"),
+    java.time.Instant.parse("1969-12-31T23:59:30Z")),
+  instantCol("ts", java.time.Instant.parse("2026-10-24T09:30:15.250Z"), null, java.time.Instant.parse("2026-01-01T00:00:00Z"),
+    null, java.time.Instant.parse("2026-03-31T23:00:00Z")),
+  col("d", [java.time.LocalDate.parse("2026-10-24"), java.time.LocalDate.parse("2026-02-28"), null,
+    java.time.LocalDate.parse("2024-12-31"), java.time.LocalDate.parse("1969-12-31")] as java.time.LocalDate[]),
+  doubleCol("px", 10.0d, 11.0d, 12.0d, 13.0d, 14.0d))
 `;
 
 const T = '#>{risk::Ref.trades}#';
@@ -126,6 +142,42 @@ const KNOWN: readonly { readonly query: string; readonly rows: readonly (readonl
   // the null-safe != as a value, not a filter: a formula, its null half the desk's (a null desk differs from 'FX')
   { query: `${T}->extend(~[d:x|$x.desk != 'FX'])->select(~[id, d])->sort(~id->ascending())`,
     rows: [[1, true], [2, true], [3, false], [4, false], [5, true], [6, true]] },
+];
+
+const F = '#>{risk::Ref.fills}#';
+
+/** DATES AND TIMES (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K1, DH29): each answer DuckDB's over the same five rows --
+ *  the planner's DuckDB SQL for the query, run by DuckDB 1.4.4 (2026-10-24) -- so the server is held to the platform's
+ *  reference lane: an instant its UTC wall-clock, a date its day. */
+const TIMES: readonly { readonly query: string; readonly rows: readonly (readonly unknown[])[] }[] = [
+  { query: `${F}->extend(~[b5:x|$x.tm->timeBucket(5, DurationUnit.MINUTES), bw:x|$x.tm->timeBucket(1, DurationUnit.WEEKS), bd:x|$x.tm->timeBucket(1, DurationUnit.DAYS)])->select(~[fid, b5, bw, bd])->sort(~fid->ascending())`,
+    rows: [[1, "2026-10-24T09:30:00", "2026-10-19T00:00:00", "2026-10-24T00:00:00"], [2, "2026-10-24T09:30:00", "2026-10-19T00:00:00", "2026-10-24T00:00:00"], [3, "2026-10-26T23:55:00", "2026-10-26T00:00:00", "2026-10-26T00:00:00"], [4, "2024-02-29T12:00:00", "2024-02-26T00:00:00", "2024-02-29T00:00:00"], [5, "1969-12-31T23:55:00", "1969-12-29T00:00:00", "1969-12-31T00:00:00"]] },
+  { query: `${F}->extend(~[y:x|$x.tm->year(), m:x|$x.tm->monthNumber(), dd:x|$x.tm->dayOfMonth(), h:x|$x.tm->hour(), mi:x|$x.tm->minute(), s:x|$x.tm->second()])->select(~[fid, y, m, dd, h, mi, s])->sort(~fid->ascending())`,
+    rows: [[1, 2026, 10, 24, 9, 30, 15], [2, 2026, 10, 24, 9, 34, 59], [3, 2026, 10, 26, 23, 59, 59], [4, 2024, 2, 29, 12, 0, 0], [5, 1969, 12, 31, 23, 59, 30]] },
+  { query: `${F}->extend(~[w:x|$x.tm->dayOfWeekNumber(), q:x|$x.tm->quarterNumber(), doy:x|$x.tm->dayOfYear(), wk:x|$x.tm->weekOfYear(), th:x|$x.ts->toOne()->hour()])->select(~[fid, w, q, doy, wk, th])->sort(~fid->ascending())`,
+    rows: [[1, 6, 4, 297, 43, 9], [2, 6, 4, 297, 43, null], [3, 1, 4, 299, 44, 0], [4, 4, 1, 60, 9, null], [5, 3, 4, 365, 1, 23]] },
+  { query: `${F}->extend(~[dp:x|$x.tm->datePart(), fw:x|$x.tm->firstDayOfWeek(), fm:x|$x.tm->firstDayOfMonth(), fq:x|$x.tm->firstDayOfQuarter(), fy:x|$x.tm->firstDayOfYear(), fh:x|$x.tm->firstMinuteOfHour()])->select(~[fid, dp, fw, fm, fq, fy, fh])->sort(~fid->ascending())`,
+    rows: [[1, "2026-10-24", "2026-10-19", "2026-10-01", "2026-10-01", "2026-01-01", "2026-10-24T09:00:00"], [2, "2026-10-24", "2026-10-19", "2026-10-01", "2026-10-01", "2026-01-01", "2026-10-24T09:00:00"], [3, "2026-10-26", "2026-10-26", "2026-10-01", "2026-10-01", "2026-01-01", "2026-10-26T23:00:00"], [4, "2024-02-29", "2024-02-26", "2024-02-01", "2024-01-01", "2024-01-01", "2024-02-29T12:00:00"], [5, "1969-12-31", "1969-12-29", "1969-12-01", "1969-10-01", "1969-01-01", "1969-12-31T23:00:00"]] },
+  { query: `${F}->extend(~[dm:x|$x.d->toOne()->monthNumber(), dw:x|$x.d->toOne()->dayOfWeekNumber(), dfm:x|$x.d->toOne()->firstDayOfMonth(), dadj:x|$x.d->toOne()->adjust(1, DurationUnit.MONTHS), db:x|$x.d->toOne()->timeBucket(1, DurationUnit.WEEKS)])->select(~[fid, dm, dw, dfm, dadj, db])->sort(~fid->ascending())`,
+    rows: [[1, 10, 6, "2026-10-01", "2026-11-24", "2026-10-19"], [2, 2, 6, "2026-02-01", "2026-03-28", "2026-02-23"], [3, null, null, null, null, null], [4, 12, 2, "2024-12-01", "2025-01-31", "2024-12-30"], [5, 12, 3, "1969-12-01", "1970-01-31", "1969-12-29"]] },
+  { query: `${F}->extend(~[a5:x|$x.tm->adjust(5, DurationUnit.MINUTES), ad:x|$x.tm->adjust(3, DurationUnit.DAYS), am:x|$x.tm->adjust(1, DurationUnit.MONTHS), ay:x|$x.tm->adjust(-1, DurationUnit.YEARS)])->select(~[fid, a5, ad, am, ay])->sort(~fid->ascending())`,
+    rows: [[1, "2026-10-24T09:35:15.25", "2026-10-27T09:30:15.25", "2026-11-24T09:30:15.25", "2025-10-24T09:30:15.25"], [2, "2026-10-24T09:39:59.999", "2026-10-27T09:34:59.999", "2026-11-24T09:34:59.999", "2025-10-24T09:34:59.999"], [3, "2026-10-27T00:04:59", "2026-10-29T23:59:59", "2026-11-26T23:59:59", "2025-10-26T23:59:59"], [4, "2024-02-29T12:05:00", "2024-03-03T12:00:00", "2024-03-29T12:00:00", "2023-02-28T12:00:00"], [5, "1970-01-01T00:04:30", "1970-01-03T23:59:30", "1970-01-31T23:59:30", "1968-12-31T23:59:30"]] },
+  { query: `${F}->filter(x|$x.tm >= %2026-10-24T09:30:15.250+0000)->select(~[fid])->sort(~fid->ascending())`,
+    rows: [[1], [2], [3]] },
+  { query: `${F}->filter(x|$x.ts < %2026-06-01T00:00:00.000+0000)->select(~[fid])->sort(~fid->ascending())`,
+    rows: [[3], [5]] },
+  { query: `${F}->filter(x|$x.d->isNotEmpty() && ($x.d->toOne() > %2025-01-01))->select(~[fid])->sort(~fid->ascending())`,
+    rows: [[1], [2]] },
+  { query: `${F}->extend(~[b:x|$x.tm->timeBucket(1, DurationUnit.DAYS)])->groupBy(~[b], ~[n:x|$x.fid:y|$y->count(), hi:x|$x.px:y|$y->max()])->sort(~b->ascending())`,
+    rows: [["1969-12-31T00:00:00", 1, 14.0], ["2024-02-29T00:00:00", 1, 13.0], ["2026-10-24T00:00:00", 2, 11.0], ["2026-10-26T00:00:00", 1, 12.0]] },
+  // a match, a membership and Pure's null-safe != on a date and date-times: each in quotes, as the server's
+  // filter parser reads them
+  { query: `${F}->filter(x|$x.d->isNotEmpty() && ($x.d->toOne() == %2026-10-24))->select(~[fid])->sort(~fid->ascending())`,
+    rows: [[1]] },
+  { query: `${F}->filter(x|$x.tm->in([%2024-02-29T12:00:00.000+0000, %2026-10-26T23:59:59.000+0000]))->select(~[fid])->sort(~fid->ascending())`,
+    rows: [[3], [4]] },
+  { query: `${F}->filter(x|$x.ts != %2026-01-01T00:00:00.000+0000)->select(~[fid])->sort(~fid->ascending())`,
+    rows: [[1], [2], [4], [5]] },
 ];
 
 /** DataCube's shapes, L2's eighteen (the two the compiler refuses, a string operation on a nullable column, are not
@@ -201,15 +253,20 @@ try {
   const planner = async (op: string, args: Readonly<Record<string, unknown>>): Promise<string> =>
     exports.deephavenOrError(op, JSON.stringify(args));
   const session = await DeephavenSession.open(server, planner);
-  const planOf = (query: string): string => {
-    const planned = exports.planOrError(model, query, 'risk::RT');
-    if (!planned.startsWith('OK\n')) throw new Error(`the planner refused it: ${planned.replace(/\n/g, ' | ')}`);
-    return (JSON.parse(planned.slice(3)) as { sql: string }).sql;
+  const planned = (query: string): Plan => {
+    const plan = exports.planOrError(model, query, 'risk::RT');
+    if (!plan.startsWith('OK\n')) throw new Error(`the planner refused it: ${plan.replace(/\n/g, ' | ')}`);
+    // the module's answer, {sql, type}, as DataCube's planner reads it (lite-planner.ts): the SQL and the columns
+    const body = JSON.parse(plan.slice(3)) as { sql: string; type: Parameters<typeof relationColumns>[0] };
+    return { sql: body.sql, columns: relationColumns(body.type) };
   };
+  const planOf = (query: string): string => planned(query).sql;
   const live = await LiveClient.open(server, (why) => { verdict.setupError ??= `the live reader ended: ${why}`; });
-  /** A query's result kept alive and published, and its rows as the live reader first hands them over. */
-  const answer = async (query: string): Promise<unknown[][]> => {
-    const kept = await session.keepAlive(planOf(query));
+  /** A query's result kept alive and published, and its rows as the live reader first hands them over, each row as
+   *  `read` takes them. */
+  const answer = async (query: string, read: (rows: FollowedRows) => unknown[][] = byRow,
+    sql = planOf(query)): Promise<unknown[][]> => {
+    const kept = await session.keepAlive(sql);
     try {
       const name = await session.publishKept(kept.exportId);
       return await new Promise<unknown[][]>((resolve, reject) => {
@@ -218,7 +275,14 @@ try {
         const late = setTimeout(() => reject(new Error(`no rows in 10 s for ${query}`)), 10_000);
         live.follow(name, (rows) => {
           if (first) return;
-          first = byRow(rows);
+          try {
+            first = read(rows);
+          } catch (e) {
+            // a row the reader refuses fails the check, said, not a wait for rows
+            clearTimeout(late);
+            reject(e);
+            return;
+          }
           clearTimeout(late);
           followed?.close();
           resolve(first);
@@ -242,6 +306,35 @@ try {
         : `expected ${JSON.stringify(k.rows)}\n   got ${JSON.stringify(got)}`;
     });
   }
+  // a date or a date-time is read by its plan's column type, as DataCube's engine reads it (followedTable): an instant
+  // its nanoseconds' UTC wall-clock, a date its day
+  for (const k of TIMES) {
+    await check(`answers ${k.query}`, async () => {
+      const plan = planned(k.query);
+      const got = await answer(k.query, (rows) => {
+        const table = followedTable(rows, plan, 0, 0);
+        return Array.from({ length: table.rowCount }, (_, r) => table.columns.map((c) => c.values[r]));
+      }, plan.sql);
+      return JSON.stringify(got) === JSON.stringify(k.rows) ? null
+        : `expected ${JSON.stringify(k.rows)}\n   got ${JSON.stringify(got)}`;
+    });
+  }
+  // A FILTER ON A NEW DATE-TIME OR DATE COMPILES NOTHING (DH25, K1): each in quotes, a range or match filter the
+  // server reads as written, so a value never filtered on before costs the server no compile (a formula's literal,
+  // measured 240 ms each)
+  await check('a filter on a date-time or a date never filtered on before compiles nothing on the server', async () => {
+    const log = await openServerLog(config.url, config.psk);
+    const on = (tm: string, d: string): string => `${F}->filter(x|($x.tm >= %${tm}+0000) && $x.d->isNotEmpty()`
+      + ` && ($x.d->toOne() < %${d}))->select(~[fid])->sort(~fid->ascending())`;
+    // the filter's shape made once: its guards and its sort's
+    await answer(on('2024-01-01T00:00:00.000', '2026-12-31'));
+    const mark = Date.now();
+    const got = await answer(on('2024-03-01T12:34:56.789', '2026-10-01'));
+    const compiled = (await log.since(mark)).filter((op) => op.compiling);
+    if (JSON.stringify(got) !== JSON.stringify([[2]])) return `answered ${JSON.stringify(got)}, not [[2]]`;
+    return compiled.length === 0 ? null
+      : `${compiled.length} compilations: ${compiled.map((op) => op.description).join(' | ')}`;
+  });
   await check(`all ${SHAPES.length} DataCube shapes are created and answer`, async () => {
     const failed: string[] = [];
     for (const q of SHAPES) {

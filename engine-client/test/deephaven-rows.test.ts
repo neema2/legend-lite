@@ -104,6 +104,15 @@ describe("a followed table's rows (Deephaven's JS library)", () => {
     assert.equal(followedValue(wrapped('12.300'), 'Decimal', 'd'), '12.300');
   });
 
+  it("a Date, Pure's either, by the value's own form: a day its text, an instant its UTC wall-clock", () => {
+    // what datePart and adjust answer (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K1)
+    assert.equal(followedValue(wrapped('2026-10-24'), 'Date', 'd'), '2026-10-24');
+    assert.equal(followedValue(wrapped('1792834515250000000'), 'Date', 't'), '2026-10-24T09:35:15.25');
+    // before the epoch: its nanoseconds negative
+    assert.equal(followedValue(wrapped('-300000000000'), 'Date', 't'), '1969-12-31T23:55:00');
+    assert.throws(() => followedValue(wrapped('soon'), 'Date', 't'), /'t' \(Date\) holds object soon/);
+  });
+
   it('a value the plan does not type so is refused', () => {
     assert.throws(() => followedValue(42, 'String', 'desk'), /'desk' \(String\) holds number 42/);
     assert.throws(() => followedValue(wrapped('1.5'), 'Integer', 'n'), SyntaxError);

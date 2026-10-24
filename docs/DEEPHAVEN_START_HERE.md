@@ -114,7 +114,7 @@ operation Deephaven has for it:
 
 | Area | Refused on Deephaven | Deephaven's own | Blocks |
 |---|---|---|---|
-| Time | a DateTime literal; `now()->adjust`; `timeBucket`; `hour()` (EXTRACT); `datePart` (DATE_TRUNC_DAY); `firstDayOfMonth` (DATE_TRUNC); `dateDiff` | `lowerBin`, `now()`, calendar functions (a time zone each: a design point); a sliding window needs Deephaven's time-window helper, since `now()` in a filter is not evaluated again as time passes | candles, "the last 5 minutes", every DataCube time grain |
+| Time (**built: K1**, except `now()` and `dateDiff`) | a DateTime literal; `now()->adjust`; `timeBucket`; `hour()` (EXTRACT); `datePart` (DATE_TRUNC_DAY); `firstDayOfMonth` (DATE_TRUNC); `dateDiff` | `lowerBin`, `now()`, calendar functions (a time zone each: a design point); a sliding window needs Deephaven's time-window helper, since `now()` in a filter is not evaluated again as time passes | candles, "the last 5 minutes", every DataCube time grain |
 | Windows | every window function (`updateBy` shape not built), and a filter over one (QUALIFY) | `updateBy` (cumulative, rolling by rows or time, EMA, delta); `headBy` for top-N | moving averages, tick change, running totals; all 15 of DataCube's window functions and its 6 show-as |
 | As-of join | both forms | `aj` (DH20) | quote at trade time, markouts, TCA |
 | The runtime error | `sqrt` and Integer `/`: the lowering's guard (Pure fails on `sqrt` of a negative and on division by zero) writes an `ERROR`, which has no shape | a design: how a Deephaven formula fails by name | volatility, ratios, Black-Scholes |

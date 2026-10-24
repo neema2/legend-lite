@@ -248,6 +248,24 @@ public final class EmbeddedDeephaven implements AutoCloseable {
                 server.destroyForcibly();
             }
         }
+        keepLog();
+    }
+
+    /** The server's log kept among the test's outputs ({@code bazel-testlogs/.../test.outputs}): a refusal the server
+     *  answers with "Details Logged w/ID ..." says why only there, and the test's temporary directory is gone after
+     *  it (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K1). Nothing outside a test. */
+    private void keepLog() {
+        String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
+        Path log = data.resolve("server.log");
+        if (outputs == null || !Files.exists(log)) {
+            return;
+        }
+        try {
+            Files.copy(log, Path.of(outputs).resolve(data.getFileName() + "-server.log"),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            System.err.println("the Deephaven server's log was not kept: " + e);
+        }
     }
 
     /** For a browser test's driver: starts the server, prints {@code {"url", "psk", "certificate"}} on one line, and

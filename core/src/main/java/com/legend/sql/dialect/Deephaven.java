@@ -144,8 +144,9 @@ public final class Deephaven extends AnsiSqlRenderer {
             case SqlAgg.Reducer r -> reducer(writer, r);
             case SqlExpr.DecimalLit d -> throw new DialectCapability("a decimal literal (" + d.value()
                     + ") reached Deephaven: its BigDecimal arithmetic is not shaped yet");
-            case SqlExpr.TimestampLit t -> throw new DialectCapability("a date-time literal (" + t.iso()
-                    + ") reached Deephaven: not shaped yet");
+            // a date-time literal: the instant its UTC wall-clock names (DH29), parsed by the server
+            case SqlExpr.TimestampLit t -> writer.append("parseInstant(").append(stringLiteral(isoInstant(t.iso())))
+                    .append(")");
             case SqlExpr.TimeLit t -> throw new DialectCapability("a time-of-day literal (" + t.iso()
                     + ") reached Deephaven: not shaped yet");
             case SqlExpr.Star s -> throw new IllegalStateException("a star reached the formula writer: the"
@@ -723,14 +724,21 @@ public final class Deephaven extends AnsiSqlRenderer {
         if (e instanceof SqlExpr.BoolLit b && kind == SqlType.Scalar.BOOLEAN) {
             return b.value() ? "true" : "false";
         }
+        // a date-time and a date in quotes, as the server's filter parser reads them (K1: no compiling, DH25)
+        if (e instanceof SqlExpr.TimestampLit t && kind == SqlType.Scalar.TIMESTAMP) {
+            return "'" + isoInstant(t.iso()) + "'";
+        }
+        if (e instanceof SqlExpr.DateLit d && kind == SqlType.Scalar.DATE) {
+            return "'" + d.iso() + "'";
+        }
         return null;
     }
 
-    /** The kinds the bare forms compare: whole numbers, floats, strings, booleans. */
+    /** The kinds the bare forms compare: whole numbers, floats, strings, booleans, date-times and dates. */
     private static @com.legend.base.Nullable SqlType.Scalar bareKind(SqlExpr e) {
         if (e.type() instanceof TypeFact.Typed t && t.type() instanceof SqlType.Scalar s) {
             return switch (s) {
-                case INTEGER, BIGINT, DOUBLE, VARCHAR, BOOLEAN -> s;
+                case INTEGER, BIGINT, DOUBLE, VARCHAR, BOOLEAN, TIMESTAMP, DATE -> s;
                 default -> null;
             };
         }
@@ -774,6 +782,16 @@ public final class Deephaven extends AnsiSqlRenderer {
             case UPPER -> stringMethod(writer, c, "toUpperCase");
             case LOWER -> stringMethod(writer, c, "toLowerCase");
             case LENGTH -> stringMethod(writer, c, "length");
+            // dates and times (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md DH29): each read in UTC
+            case TIME_BUCKET -> timeBucket(writer, a);
+            case EXTRACT -> extract(writer, a);
+            case DATE_TRUNC_DAY -> asDate(writer, a.get(0), "datePart");
+            case DATE_TRUNC -> dateTrunc(writer, a);
+            case ADD_INTERVAL -> addInterval(writer, a);
+            case NOW, TODAY -> throw new DialectCapability("the time now (" + c.fn() + ") reached Deephaven: a live"
+                    + " view's rows are filtered when they change, not again as time passes, so a filter on the time"
+                    + " now would keep a row it has aged out; not shaped until a live window is designed"
+                    + " (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md DH30)");
             case MOD, REM, PARSE_INT, GREATEST, LEAST, CONCAT_JOIN, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT,
                  LIST_GET, LIST_POSITION, LIST_EXISTS, LIST_FOR_ALL, STRUCT_INSERT, UNNEST, LIST_FLATTEN,
                  JSON_MERGE_PATCH, CBRT, PI, ATAN2, SINH, COSH, TANH, ROUND, XOR, BIT_AND, BIT_OR, BIT_XOR,
@@ -781,8 +799,8 @@ public final class Deephaven extends AnsiSqlRenderer {
                  REGEXP_FULL_MATCH, MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT, MAP_KEYS, MAP_VALUES,
                  MAP_CONCAT, SUBSTRING, STRPOS, MATCHES, LEFT, RIGHT, LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE,
                  SPLIT, SPLIT_PART, TRANSLATE, PURE_SPLIT_PART, REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST,
-                 ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT, HASH, MD5, SHA1, SHA256, RANDOM, EXTRACT, TODAY, NOW,
-                 DATE_TRUNC_DAY, MAKE_DATE, MAKE_TIMESTAMP, DATE_TRUNC, ADD_INTERVAL, DATE_DIFF, TIME_BUCKET,
+                 ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT, HASH, MD5, SHA1, SHA256, RANDOM,
+                 MAKE_DATE, MAKE_TIMESTAMP, DATE_DIFF,
                  TIMEZONE, DATE_AT_TIME, EPOCH_NS, FROM_EPOCH_NS, ADD_INTERVAL_TEMPORAL, EPOCH_SECONDS, EPOCH_MS,
                  FROM_EPOCH_SECONDS, FROM_EPOCH_MS, DAYNAME, MONTHNAME, COT, RADIANS, DEGREES, INT_DIVIDE,
                  REPEAT_STR, JARO_WINKLER, DECODE_BASE64, CURRENT_USER_FN, LIST_LENGTH, LIST_ZIP, LIST_DISTINCT,
@@ -864,6 +882,207 @@ public final class Deephaven extends AnsiSqlRenderer {
     }
 
     // ==================================================================
+    // Dates and times (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md DH29)
+    // ==================================================================
+
+    /** The zone a calendar function reads an instant in: Pure's DateTime is UTC wall-clock, as on every SQL lane. */
+    private static final String UTC = "timeZone(`UTC`)";
+
+    /** Where a week starts: Monday 1969-12-29, three days before the epoch (the platform's origin, an ISO week). */
+    private static final long WEEK_OFFSET = -259_200_000_000_000L;
+
+    /** A fixed unit's length in nanoseconds, what an instant is binned and moved by; null for a calendar unit. */
+    private static @com.legend.base.Nullable Long nanos(com.legend.sql.DatePart p) {
+        return switch (p) {
+            case NANOSECOND -> 1L;
+            case MICROSECOND -> 1_000L;
+            case MILLISECOND -> 1_000_000L;
+            case SECOND -> 1_000_000_000L;
+            case MINUTE -> 60_000_000_000L;
+            case HOUR -> 3_600_000_000_000L;
+            case DAY -> 86_400_000_000_000L;
+            case WEEK -> 604_800_000_000_000L;
+            case YEAR, QUARTER, MONTH, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+        };
+    }
+
+    /** A date-time literal's text ({@code 2026-10-24T09:30:00.000}, or with a space) as the ISO instant the server
+     *  parses, in UTC ({@code ...Z}); a text of another form refused by name. */
+    static String isoInstant(String iso) {
+        String t = iso.replace(' ', 'T');
+        if (!t.matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?")) {
+            throw new DialectCapability("a date-time literal (" + iso + ") reached Deephaven in a form not shaped yet");
+        }
+        return (t.length() == 16 ? t + ":00" : t) + "Z";
+    }
+
+    /** Whether {@code e} is a date (a {@code LocalDate}) rather than a date-time (an {@code Instant}): what a
+     *  date-time function's spelling turns on. A value of any other type refused by name. */
+    private static boolean isDate(SqlExpr e, String what) {
+        // a time bucket is an instant whatever it buckets (timeBucket: the server's lowerBin), as on every dialect; the
+        // IR leaves its type unknown
+        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.TIME_BUCKET) {
+            return false;
+        }
+        if (!(e.type() instanceof TypeFact.Typed t) || !(t.type() instanceof SqlType.Scalar s)) {
+            throw new DialectCapability(what + " of a value of no known type reached Deephaven: no shape yet");
+        }
+        return switch (s) {
+            case DATE -> true;
+            case TIMESTAMP -> false;
+            case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, TIMESTAMPTZ, TIME, JSON, LITERAL, TEMPORAL_TEXT,
+                 DECIMAL_TEXT -> throw new DialectCapability(what + " of a " + s + " reached Deephaven: no shape yet");
+        };
+    }
+
+    /** {@code e} as an instant: a date-time as it is, a date at its UTC midnight. */
+    private SqlWriter asInstant(SqlWriter writer, SqlExpr e, String what) {
+        return isDate(e, what) ? writer.append("toInstant(atMidnight(").expr(e, 0).append(", " + UTC + "))")
+                : writer.expr(e, 0);
+    }
+
+    /** {@code e} as a date: a date as it is, a date-time's UTC date. */
+    private SqlWriter asDate(SqlWriter writer, SqlExpr e, String what) {
+        return isDate(e, what) ? writer.expr(e, 0) : writer.append("toLocalDate(").expr(e, 0).append(", " + UTC + ")");
+    }
+
+    /** TIME_BUCKET(unit, n, t): the start of t's bucket of n units, counted from the epoch -- a week's from its Monday
+     *  ({@link #WEEK_OFFSET}) -- as the server's {@code lowerBin}; an instant whatever t is (the lowering casts a
+     *  date's back). A calendar unit is none of the server's bins, refused by name (DH29). */
+    private SqlWriter timeBucket(SqlWriter writer, List<SqlExpr> a) {
+        com.legend.sql.DatePart unit = part(a.get(0));
+        Long length = nanos(unit);
+        if (length == null) {
+            throw new DialectCapability("a time bucket of " + unit + "S reached Deephaven: a calendar unit is none of"
+                    + " the server's bins (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md DH29)");
+        }
+        writer.append("lowerBin(");
+        asInstant(writer, a.get(2), "a time bucket").append(", (").expr(a.get(1), 0).append(" * " + length + "L)");
+        return writer.append(unit == com.legend.sql.DatePart.WEEK ? ", " + WEEK_OFFSET + "L)" : ")");
+    }
+
+    /** EXTRACT(part, t): a date's or a date-time's calendar part in UTC, a whole number (the IR's BIGINT), null when
+     *  t is. A part a date does not have, or a fraction of a second, refused by name. */
+    private SqlWriter extract(SqlWriter writer, List<SqlExpr> a) {
+        com.legend.sql.DatePart p = part(a.get(0));
+        SqlExpr t = a.get(1);
+        boolean date = isDate(t, "a date part");
+        String zone = date ? ")" : ", " + UTC + ")";
+        if (nullable(t)) {
+            writer.append("(isNull(").expr(t, 0).append(") ? NULL_LONG : (long) ");
+        } else {
+            writer.append("((long) ");
+        }
+        // an expression switch, so javac holds it to every part
+        SqlWriter done = switch (p) {
+            case YEAR -> writer.append("year(").expr(t, 0).append(zone);
+            case MONTH -> writer.append("monthOfYear(").expr(t, 0).append(zone);
+            case DAY -> writer.append("dayOfMonth(").expr(t, 0).append(zone);
+            case DAY_OF_YEAR -> writer.append("dayOfYear(").expr(t, 0).append(zone);
+            // ISO's: Monday 1 to Sunday 7 (the library's number: a DayOfWeek's own method is none the server's
+            // validator permits, DH33)
+            case ISO_DAY_OF_WEEK -> writer.append("dayOfWeekValue(").expr(t, 0).append(zone);
+            case QUARTER -> writer.append("((int) ((monthOfYear(").expr(t, 0).append(zone).append(" - 1) / 3) + 1)");
+            // ISO's week of its week-based year
+            case WEEK -> asDate(writer, t, "a week of the year")
+                    .append(".get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR)");
+            case HOUR -> timeOfDay(writer, t, date, p).append("hourOfDay(").expr(t, 0).append(", " + UTC + ", false)");
+            case MINUTE -> timeOfDay(writer, t, date, p).append("minuteOfHour(").expr(t, 0).append(zone);
+            case SECOND -> timeOfDay(writer, t, date, p).append("secondOfMinute(").expr(t, 0).append(zone);
+            case MILLISECOND, MICROSECOND, NANOSECOND -> throw new DialectCapability("a date-time's " + p
+                    + " reached Deephaven: no shape yet");
+        };
+        return done.append(")");
+    }
+
+    /** A time-of-day part's writer: a date has none, refused by name. */
+    private static SqlWriter timeOfDay(SqlWriter writer, SqlExpr t, boolean date, com.legend.sql.DatePart p) {
+        if (date) {
+            throw new DialectCapability("a date's " + p + " reached Deephaven: a date has none");
+        }
+        return writer;
+    }
+
+    /** DATE_TRUNC(part, t): where t's part starts, in UTC, as the platform's dialects answer it
+     *  ({@link AnsiSqlRenderer#dateTruncDateGrained}): to a day or finer an instant, the server's {@code lowerBin}
+     *  (the epoch is a UTC midnight); to a week, a month, a quarter or a year its first day, a date -- a week's from
+     *  its Monday. Null when t is. */
+    private SqlWriter dateTrunc(SqlWriter writer, List<SqlExpr> a) {
+        com.legend.sql.DatePart p = part(a.get(0));
+        SqlExpr t = a.get(1);
+        String first = switch (p) {
+            case NANOSECOND, MICROSECOND, MILLISECOND, SECOND, MINUTE, HOUR, DAY -> {
+                writer.append("lowerBin(");
+                asInstant(writer, t, "a date truncation").append(", " + nanos(p) + "L)");
+                yield null;
+            }
+            case WEEK -> {
+                writer.append("toLocalDate(lowerBin(");
+                asInstant(writer, t, "a date truncation").append(", " + nanos(p) + "L, " + WEEK_OFFSET + "L), " + UTC + ")");
+                yield null;
+            }
+            case MONTH -> ".withDayOfMonth(1)";
+            case YEAR -> ".withDayOfYear(1)";
+            case QUARTER -> "";
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("a date truncation to its " + p
+                    + " reached Deephaven: no shape yet");
+        };
+        if (first == null) {
+            return writer;
+        }
+        // a method of a null date fails the operation: a null t is a null date
+        writer.append("(");
+        if (nullable(t)) {
+            writer.append("isNull(").expr(t, 0).append(") ? (java.time.LocalDate) null : ");
+        }
+        asDate(writer, t, "a date truncation");
+        if (p == com.legend.sql.DatePart.QUARTER) {
+            // the quarter's first month: the month less its place in the quarter
+            writer.append(".withDayOfMonth(1).minusMonths((");
+            asDate(writer, t, "a date truncation").append(".getMonthValue() - 1) % 3)");
+        } else {
+            writer.append(first);
+        }
+        return writer.append(")");
+    }
+
+    /** ADD_INTERVAL(unit, n, t): t moved by n units, an instant (the IR's TIMESTAMP, a date included) -- a fixed unit
+     *  by its nanoseconds (a day is 24 hours in UTC), a month or a year on the UTC calendar (a day past the month's
+     *  end its last day, as java.time and the platform's lanes keep it); null when t or n is. */
+    private SqlWriter addInterval(SqlWriter writer, List<SqlExpr> a) {
+        com.legend.sql.DatePart unit = part(a.get(0));
+        SqlExpr n = a.get(1);
+        SqlExpr t = a.get(2);
+        Long length = nanos(unit);
+        if (length != null) {
+            writer.append("plus(");
+            asInstant(writer, t, "a date's adjustment").append(", (").expr(n, 0).append(" * " + length + "L)");
+            return writer.append(")");
+        }
+        String method = switch (unit) {
+            case MONTH -> ".plusMonths(";
+            case QUARTER -> ".plusMonths(3 * ";
+            case YEAR -> ".plusYears(";
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK, NANOSECOND, MICROSECOND, MILLISECOND, SECOND, MINUTE, HOUR, DAY, WEEK ->
+                    throw new DialectCapability("a date's adjustment by " + unit + " reached Deephaven: no shape yet");
+        };
+        writer.append("(");
+        if (nullable(t) || nullable(n)) {
+            writer.append("(");
+            if (nullable(t)) {
+                writer.append("isNull(").expr(t, 0).append(")").append(nullable(n) ? " || " : "");
+            }
+            if (nullable(n)) {
+                writer.append("isNull(").expr(n, 0).append(")");
+            }
+            writer.append(") ? (java.time.Instant) null : ");
+        }
+        writer.append("toInstant(toZonedDateTime(");
+        asInstant(writer, t, "a date's adjustment").append(", " + UTC + ")" + method).expr(n, 0);
+        return writer.append(")))");
+    }
+
+    // ==================================================================
     // CASE and casts
     // ==================================================================
 
@@ -892,10 +1111,17 @@ public final class Deephaven extends AnsiSqlRenderer {
         return writer.expr(e, 0);
     }
 
-    /** A numeric widening cast, a null kept null (a primitive cast of a null sentinel would answer a number). */
+    /** A numeric widening cast, a null kept null (a primitive cast of a null sentinel would answer a number); a
+     *  date-time to its UTC date and a date to its UTC midnight (DH29). */
     private SqlWriter cast(SqlWriter writer, SqlExpr.Cast c) {
         if (!(c.target() instanceof SqlType.Scalar target)) {
             throw new DialectCapability("a cast to " + c.target() + " reached Deephaven: no shape yet");
+        }
+        if (target == SqlType.Scalar.DATE) {
+            return asDate(writer, c.value(), "a cast to a date");
+        }
+        if (target == SqlType.Scalar.TIMESTAMP) {
+            return asInstant(writer, c.value(), "a cast to a date-time");
         }
         String primitive = switch (target) {
             case DOUBLE -> "double";

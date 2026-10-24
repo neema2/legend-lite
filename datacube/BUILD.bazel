@@ -2045,6 +2045,7 @@ esbuild_bundle(
     name = "deephaven_page",
     testonly = True,
     srcs = [
+        "demo/deephaven/server-log.ts",
         "test/deephaven/page.ts",
         "//engine-client:engine_client",
     ],
