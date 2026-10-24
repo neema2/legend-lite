@@ -279,14 +279,20 @@ _EXTRA_DATA = {
     "page-commands": ["test/fixtures/pages/make.ts"],
     "host-join-flow": ["test/fixtures/pages/make.ts"],
     "page-filters": ["test/fixtures/pages/make.ts"],
-    "page-state": ["test/fixtures/pages/make.ts"],
+    "page-state": ["test/fixtures/pages/make.ts", "test/page-same.ts"],
+    "page-hash": ["test/fixtures/pages/make.ts"],
     "live-follow": ["test/fixtures/pages/make.ts"],
+    # the diffs' property tests (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W1, W2) over the random grid and the page corpus
+    "page-between": ["test/fixtures/pages/make.ts", "test/page-same.ts"],
+    "grid-between": ["test/grid-random.ts"],
+    "cube-round-trip": ["test/grid-random.ts"],
     "page-rebase": ["test/fixtures/pages/make.ts"],
     # the tab's channel to the page's keeper, over a real page's grids (the page app's fixtures)
-    "live-channel": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts"],
-    "one-api-gestures": ["test/cube-fixture.ts", "test/gate.ts"],
+    "live-channel": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts", "test/fake-keeper.ts"],
+    "live-soak": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts", "test/fake-keeper.ts", "test/page-same.ts"],
+    "one-api-gestures": ["test/cube-fixture.ts", "test/gate.ts", "test/page-same.ts"],
     # DataCube's app on a page Python serves, over a stand-in editor (the S4 audit's 1, 4 and 5)
-    "datacube-app-live": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts"],
+    "datacube-app-live": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts", "test/fake-keeper.ts"],
     "one-api-ledger": ["test/one-api/scan.ts"],
     # S3's guardrail reads the board's and the page state's changes by the ledgers' scanner
     "state-guardrail": ["test/one-api/scan.ts"],
@@ -302,8 +308,8 @@ _EXTRA_DATA = {
     "cube-adhoc-shell": ["test/cube-fixture.ts", "test/gate.ts"],
     "multi-cube": ["test/cube-fixture.ts", "test/gate.ts"],
     "chart-tiles": ["test/cube-fixture.ts", "test/gate.ts"],
-    "page-app": ["test/cube-fixture.ts", "test/gate.ts"],
-    "cube-page-shell": ["test/cube-fixture.ts", "test/gate.ts"],
+    "page-app": ["test/cube-fixture.ts", "test/gate.ts", "test/theirs.ts"],
+    "cube-page-shell": ["test/cube-fixture.ts", "test/gate.ts", "test/page-same.ts", "test/theirs.ts"],
     # the headless lane's stand-ins for node:assert and node:test, held to Node's own here
     "headless-assert": ["test/headless/node-assert.ts"],
     "headless-test-runner": [
@@ -365,6 +371,14 @@ _WASM_TESTS = [
 _SLOW_DOM_TESTS = [
     "one-api-gestures",
     "cube-page-shell",
+    # three tabs and Python on one page, 24 seeds of 14 steps with the keeper's faults (2026-10-24): about 45 s on a desk
+    "live-soak",
+]
+
+# the page's total diff over the saved-page corpus (D19 W2, 2026-10-24): 60 seeds of 8 steps on three pages, every pair
+# of states both ways -- about a minute on a desk, past `small`'s 60 s under CI's load
+_SLOW_WALK_TESTS = [
+    "page-between",
 ]
 
 # node:test files, each its own node_test (tools/js/defs.bzl: types stripped, the spec and strict reporters, a
@@ -374,7 +388,7 @@ _SLOW_DOM_TESTS = [
     # The tests that load the WebAssembly planner compile it first: seconds on a desk (infer: 6 s), but past
     # `small`'s 60 s on CI's Windows runner while the same lane builds the native image (main's CI run
     # 37214692462, 2026-10-04). Those get `medium` (300 s); the rest stay `small`.
-    size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS + _SLOW_DOM_TESTS else "small",
+    size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS + _SLOW_DOM_TESTS + _SLOW_WALK_TESTS else "small",
     # a scanner reads every source; any other test, the files its imports reach (a test not yet in the generated
     # list takes them all until //datacube:update_generated adds it)
     data = [
@@ -423,11 +437,35 @@ esbuild_bundle(
     visibility = ["//python:__pkg__"],
 )
 
+# THE TAB'S OWN FUNCTIONS FOR THE PYTHON TEST (test/headless-tab.ts: the two total diffs and the planned apply a tab's
+# history is made of), one script the test loads into the headless engine it has, as the global `legendLiteHeadlessTab`.
+# Not the product's bundle: Python's product asks none of them (the one API ledger's L8_UNASKED stays empty).
+esbuild_bundle(
+    name = "headless_tab_bundle",
+    testonly = True,
+    srcs = ["test/headless-tab.ts", ":src"],
+    outs = ["headless-tab/legend-lite-headless-tab.js"],
+    args = [
+        "test/headless-tab.ts",
+        "--bundle",
+        "--format=iife",
+        "--global-name=legendLiteHeadlessTab",
+        "--platform=neutral",
+        "--main-fields=module,main",
+        "--target=es2022",
+        "--log-level=warning",
+        "--outfile=headless-tab/legend-lite-headless-tab.js",
+    ],
+    visibility = ["//python:__pkg__"],
+)
+
 # THE HEADLESS LANE's test files: the non-screen tests, each bundled to run in V8 as the product's bundle runs -- built
 # with the `headless` condition (#test-host: the host's planner and database), node:test and node:assert stood in for
 # by test/headless/ (held to Node's own by headless_test_runner_test and headless_assert_test), and jsdom, which
 # a few import for tests not run here, a stub that refuses its use. A new non-screen test file joins this list.
 _HEADLESS_TESTS = [
+    # the grid's total diff (D19 W1, 2026-10-24): pure, over the saved form
+    "grid-between",
     "adhoc-query",
     "adhoc-session",
     "adhoc-state",

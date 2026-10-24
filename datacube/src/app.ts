@@ -99,6 +99,11 @@ import type { HeatmapSpec } from './style.ts';
 import { TreeState, parsePathKey, pathKey, type TreeRow } from './tree.ts';
 import { CubeStateOwner, type ChangeOptions, type CubeState, type OwnerEvent, type Outcome } from './cube-state.ts';
 
+/** What a grid says while its page converges on its keeper's (hold): every way of changing it is refused with this --
+ *  a command, an undo or redo, Properties applied, a snap or going live (the D19 audit's third round's 1; its fourth
+ *  round's 4: the hold covered #apply alone). */
+const CATCHING_UP = 'the page is catching up with its keeper: a moment';
+
 /** What of the cube's state a host reads: never a way to change it (that is a command's: CubeApp.edit). */
 export type CubeStateView = Pick<CubeStateOwner, 'busy' | 'historyDepth'>;
 import { ColumnEditor, type ColumnEditorStart, type ColumnPreview } from './ui/column-editor.ts';
@@ -220,12 +225,6 @@ export interface CubeAppBaseOptions {
    * flight's when it lands. One refused or cancelled -- or carried by a change refused or cancelled -- is never told.
    */
   readonly onCommand?: (command: GridCommand) => void;
-  /**
-   * The cube put back by an undo or a redo (one landed with its change: OwnerEvent `moved`), which no command says: its
-   * page is written whole, a restore its keeper takes only at the version it was made at
-   * (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md N2, G12).
-   */
-  readonly onRestore?: () => void;
   /**
    * Each edit of the board around the cube -- its charts, their layout -- as the page commands it is
    * (page-commands.ts), applied to the board's state before it is drawn (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P13):
@@ -585,6 +584,8 @@ export class CubeApp {
    * holds that nothing outside cube-state.ts assigns cube state.
    */
   readonly #owner: CubeStateOwner;
+  /** How many converges of its page hold the grid (hold/release). */
+  #held = 0;
   /** What the title bar was last built from (`#paintState`). */
   #chrome = '';
   /** Stops the owner's events reaching this app: see `dispose`. */
@@ -963,8 +964,29 @@ export class CubeApp {
    * told to its host (onCommand). The refusal, in the commands' words or the planner's, or null. What a host or a test
    * edits the grid by: no change reaches its state but by a command (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md, G11).
    */
-  edit(commands: readonly GridCommand[], label: string): Promise<string | null> {
-    return this.#apply(commands, label);
+  /**
+   * The grid HELD while its page's channel converges on its keeper's page (live-converge.ts, with PageApp.hold): a
+   * person's edit meanwhile is refused, said -- the grid is being put back and replayed -- rather than laid over a state
+   * that is neither the keeper's nor kept and written as the person's (the D19 audit's third round, 1). The converge's
+   * own moves (applyGridCommands) pass. Held and released in pairs.
+   */
+  hold(): void {
+    this.#held += 1;
+  }
+
+  release(): void {
+    this.#held = Math.max(0, this.#held - 1);
+  }
+
+  get held(): boolean {
+    return this.#held > 0;
+  }
+
+  edit(commands: readonly GridCommand[], label: string, options: { readonly again?: boolean } = {}): Promise<string | null> {
+    // `again`: a pending edit made again after a converge put the grid back (live-converge.ts): told, as any edit, but
+    // no new step of the history -- its step is in it already (the D19 audit's second round, 3: recorded twice, an undo
+    // went forward)
+    return this.#apply(commands, label, options.again === true ? false : undefined);
   }
 
   // -- the cube's state, read ----------------------------------------------
@@ -1012,8 +1034,13 @@ export class CubeApp {
    * screen's controls offer only what its rules allow; a command they refuse is said, in their words, and changes
    * nothing. A host is told each command the cube kept (onCommand). The refusal, its words or the planner's, or null.
    */
-  async #apply(commands: readonly GridCommand[], label: string): Promise<string | null> {
-    const { refused, outcome } = await this.#applyCommands(commands, label);
+  async #apply(commands: readonly GridCommand[], label: string, record?: boolean): Promise<string | null> {
+    if (this.#held > 0) {
+      const why = CATCHING_UP;
+      this.#status(why, 'warn');
+      return why;
+    }
+    const { refused, outcome } = await this.#applyCommands(commands, label, 'mine', record);
     return refused ?? refusal(outcome);
   }
 
@@ -1021,15 +1048,19 @@ export class CubeApp {
    * ANOTHER EDITOR'S GRID COMMANDS (Python's, on a page it serves: docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md), applied
    * as the screen's own edits are: one change, named `label`. The refusal, in its words or the planner's, or null.
    */
-  async applyGridCommands(commands: readonly GridCommand[], label: string, own = false): Promise<string | null> {
+  async applyGridCommands(commands: readonly GridCommand[], label: string, own = false, keepHistory = false): Promise<string | null> {
     const { refused, outcome } = await this.#applyCommands(commands, label, own ? 'said' : 'theirs');
     const why = refused ?? refusal(outcome);
     // another editor's change is no step of this grid's own history, which starts again from it (an undo past it would
     // take it back unseen); `own`: what a page step of the person's own said already (removeTile's rule taking a
     // chart's selection off) -- told nothing, a step of the grid's history all the same, recorded, so an undo past it
     // lands where it was (the S7 confirmation audit's G2-2; its third round's 1: unrecorded, an undo put the selection
-    // back and took the edit before it away)
-    if (why === null && !own) this.#owner.clearHistory();
+    // back and took the edit before it away); `keepHistory`: its keeper's put-back of this grid for a converge's hash
+    // check (live-converge.ts), no other editor having touched it, its pending edits made again after -- no step, and
+    // the history stays (W13: it starts again only when another editor edits this grid)
+    // ... and a change that changed nothing restarts nothing (the fourth round's 6: this screen's own chart removal,
+    // replayed, took a condition already off and wiped the grid's history for it)
+    if (why === null && !own && !keepHistory && outcome.kind !== 'nothing') this.#owner.clearHistory();
     return why;
   }
 
@@ -1039,7 +1070,7 @@ export class CubeApp {
    *  are that editor's own already, never told back to it (T4) -- or (`said`) the person's own that a page step of
    *  theirs told already: a step of its history, told nothing. */
   async #applyCommands(commands: readonly GridCommand[], label: string,
-    by: 'mine' | 'theirs' | 'said' = 'mine'): Promise<{ refused: string | null; outcome: Outcome }> {
+    by: 'mine' | 'theirs' | 'said' = 'mine', record: boolean = by !== 'theirs'): Promise<{ refused: string | null; outcome: Outcome }> {
     let refused: string | null = null;
     // judged on the state the person sees (the change in flight's, else the committed one): a presentation change is
     // laid over the committed state too, and one that state cannot take (a setting of the column the change in flight
@@ -1059,7 +1090,7 @@ export class CubeApp {
           else if (s === this.#owner.committed) applying.onCommitted = false;
           return s;
         }
-      }, { label, record: by !== 'theirs' });
+      }, { label, record });
     } finally {
       this.#applying = null;
     }
@@ -1082,10 +1113,11 @@ export class CubeApp {
    * change in flight (pending) or are kept at once (a presentation change laid over the committed state; a deferred
    * one, committed with what was in flight). A presentation change laid over a change in flight too is told again after
    * that change's commands when it commits -- the committed state then takes them in that order -- and one the
-   * committed state could not take is told only then. A change in flight's commands are told when it commits, but for
-   * a transition an undo or a redo is part of (a change made on top of one), which no command says: none is told, and
-   * its page is written whole, a restore (onRestore, N2). Refused, they are kept for the change run again (signed in
-   * again); cancelled, dropped.
+   * committed state could not take is told only then. A change in flight's commands are told when it commits; a
+   * transition an undo or a redo is part of (a change made on top of one too) is told as the commands between the
+   * committed state before and the one landed (the owner's `edits`: grid-between.ts, through the cube's rules), which
+   * say the move and the change on top alike (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W3). Refused, they are kept for
+   * the change run again (signed in again); cancelled, dropped.
    */
   #followCommands(event: OwnerEvent): void {
     const applying = this.#applying;
@@ -1096,13 +1128,12 @@ export class CubeApp {
         if (applying) this.#untold.push(...applying.commands);
         return;
       case 'presentation':
-        // an undo or a redo of a presentation change (a width, a format): no command says it, so the page is written
-        // whole, a restore (N2), as a move that queries is when it commits (the S7 audit's G-1)
+        // an undo or a redo of a presentation change (a width, a format): told as the commands between, as a move that
+        // queries is when it commits (W3); what was kept to tell again after a change it laid over is in them, or undone
+        // with it (the S7 confirmation audit's G2-1)
         if (event.moved) {
-          // what was kept to tell again after a change it laid over is in the page written whole, or undone with it
-          // (the S7 confirmation audit's G2-1)
           this.#untold = [];
-          this.#options.onRestore?.();
+          this.#tell(event.edits ?? []);
           return;
         }
         if (!applying) return;
@@ -1114,8 +1145,9 @@ export class CubeApp {
         this.#untold = [];
         return;
       case 'committed':
-        if (event.moved) this.#options.onRestore?.();
-        else this.#tell(this.#untold);
+        // a move's transition: the commands between say it whole, a change made on top of it too (its own were put in
+        // #untold at pending, and are in the landed state the commands reach)
+        this.#tell(event.moved ? event.edits ?? [] : this.#untold);
         this.#untold = [];
         return;
       case 'refused':
@@ -3528,6 +3560,10 @@ export class CubeApp {
     // snapshot, configuration, tree, chrome -- repaints from what was on
     // screen. The commands apply again to the cube as it is when they are
     // sent, not as it was before the compile.
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return false;
+    }
     const { refused, outcome } = await this.#applyCommands(commands, 'Properties');
     return refused === null && (outcome.kind === 'applied' || outcome.kind === 'nothing');
   }
@@ -3989,6 +4025,11 @@ export class CubeApp {
       this.#paintSnap = paint;
       this.#planeToggle = () => snap.click();
       snap.addEventListener('click', () => {
+        // held while the page converges: the plane is the keeper's to put back, nothing moves
+        if (this.#held > 0) {
+          this.#status(CATCHING_UP, 'warn');
+          return;
+        }
         snap.disabled = true;
         // moved (its page tells it), or refused (nothing moved)
         const done = (moved: boolean): void => {
@@ -4261,6 +4302,10 @@ export class CubeApp {
    * throws: an engine outage is a refusal, said, not an unhandled promise.
    */
   async #undo(): Promise<void> {
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return;
+    }
     if (this.#adhoc) {
       await this.#adhoc.undo();
       return;
@@ -4269,6 +4314,10 @@ export class CubeApp {
   }
 
   async #redo(): Promise<void> {
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return;
+    }
     if (this.#adhoc) {
       await this.#adhoc.redo();
       return;

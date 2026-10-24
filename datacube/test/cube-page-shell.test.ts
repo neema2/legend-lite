@@ -29,7 +29,9 @@ import type { FilterNode } from '../src/snapshot.ts';
 import { getInstanceByDom } from 'echarts/core';
 
 import * as cube from './cube-fixture.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
+import { theirs } from './theirs.ts';
+import { differing, sameButIds } from './page-same.ts';
 
 /** jsdom has no canvas: a 2D context that draws nothing, so ECharts can mount (as chart-tiles.test.ts does). */
 function inertCanvas(window: JSDOM['window']): void {
@@ -723,9 +725,8 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     const sideBySide = bands();
     entry('Arrange…').click();
     await settle();
-    const stacked = host.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]');
-    assert.ok(stacked, 'the layouts');
-    stacked.click();
+    // the layouts are fetched when first opened: wait for them, not for a count of ticks (Windows' CI, 2026-10-24)
+    (await shown<HTMLButtonElement>(host, '.dc-layout-picker [data-preset="stacked"]')).click();
     await settle();
     assert.deepEqual(bands(), [[a], [chart]]);
     (host.querySelector('.dc-sheet-add') as HTMLElement).click();
@@ -746,14 +747,17 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     await settle();
     assert.ok(pg().empty, 'the page as it began');
     assert.equal(entry('Undo').getAttribute('aria-disabled'), 'true', 'nothing before it');
-    // and done again: the grid made again by its maker, under its id, its chart beside it, the arrangement and the sheet
+    // and done again: the grid made again by its maker -- a new tile, under a new id (B12) -- its chart beside it, the
+    // arrangement and the sheet
     for (const step of ['Redo Add Grid', 'Redo Add Chart', 'Redo Layout Change', 'Redo Add Sheet']) {
       entry(step).click();
       await settle();
     }
-    assert.deepEqual(pg().grids, [a]);
-    assert.ok(tile(chart), 'the chart back');
-    assert.deepEqual(bands(), [[a], [chart]]);
+    assert.equal(pg().grids.length, 1);
+    assert.notEqual(pg().grids[0], a);
+    const chartNow = pg().views().views.find((v) => v.kind === 'chart')!.id;
+    assert.ok(tile(chartNow), 'the chart back');
+    assert.deepEqual(bands(), [[pg().grids[0]!], [chartNow]]);
     assert.equal(pg().sheets.length, 2);
     assert.equal(entry('Redo').getAttribute('aria-disabled'), 'true');
   });
@@ -766,13 +770,21 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
   const viewsOf = (page: PageDocument) => ({ views: page.views, sheets: page.sheets });
   /** The page as it is saved: what the state must be, and what an undo must put back. */
   const saved = (): PageDocument => pg().document('Q3')!;
+  /** The page on screen the same as `page`, up to the ids an undo or a redo gave out afresh (B12: a tile brought back is a
+   *  new tile) -- which `ids` then follows, each handle the test keeps under the id the tile has now. */
+  function same(what: string, page: PageDocument, ids: Record<string, string>): void {
+    const now = sameButIds(page, saved());
+    assert.ok(now.same, `${what}: the page on screen differs (renamed ${JSON.stringify(now.renamed)}): ${differing(now.a, now.b).join('; ')}`);
+    for (const k of Object.keys(ids)) ids[k] = now.renamed[ids[k]!] ?? ids[k]!;
+  }
 
   /**
    * An edit as one step (docs/DATACUBE_PAGE_STATE_2026_10_18.md): made, the state is the page on screen and what the
    * screen told, applied to the page before it, is the page after it; undone, the page is as it was before it (its
-   * views, its sheets, its cubes); redone, as it was after it -- the state the page on screen at each.
+   * views, its sheets, its cubes); redone, as it was after it -- the state the page on screen at each. A tile the undo or
+   * the redo brings back is a new tile (D19, B12): `ids`, the handles the test keeps, follow its new id.
    */
-  async function step(what: string, told: PageCommand[], edit: () => Promise<void> | void, label: string): Promise<void> {
+  async function step(what: string, told: PageCommand[], edit: () => Promise<void> | void, label: string, ids: Record<string, string> = {}): Promise<void> {
     const before = saved();
     const n = told.length;
     const labelBefore = pg().undoLabel;
@@ -787,13 +799,11 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     pg().undo();
     await drawn();
     assert.equal(pg().undoLabel, labelBefore, `${what}, undone: one step, no other told with it`);
-    assert.deepEqual(viewsOf(saved()), viewsOf(before), `${what}, undone: the page as it was`);
-    assert.deepEqual(saved().cubes, before.cubes, `${what}, undone: its cubes as they were`);
+    same(`${what}, undone: the page as it was`, before, ids);
     assert.deepEqual(pg().state.page, saved(), `${what}, undone: the state is the page on screen`);
     pg().redo();
     await drawn();
-    assert.deepEqual(viewsOf(saved()), viewsOf(after), `${what}, redone`);
-    assert.deepEqual(saved().cubes, after.cubes, `${what}, redone: its cubes`);
+    same(`${what}, redone`, after, ids);
     assert.deepEqual(pg().state.page, saved(), `${what}, redone: the state is the page on screen`);
   }
 
@@ -809,51 +819,50 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
   it('every edit of its structure undone and redone: the page as it was, then as it is, the state the page on screen', async () => {
     const told: PageCommand[] = [];
     const { a, b } = await twoGrids({ confirm: () => true, onPageCommand: (c) => told.push(c) });
-    let chart = '';
-    await step('a chart added', told, async () => { chart = await chartOf(a); }, 'Add Chart');
-    let other = '';
-    await step('another added', told, async () => { other = await chartOf(b); }, 'Add Chart');
-    await step('a chart frozen', told, () => togglePill(other), 'Chart Change');
-    await step('a tile renamed', told, () => rename(chart, 'Desk mix'), 'Rename Tile');
-    await step('a grid renamed', told, () => rename(b, 'Orders'), 'Rename Tile');
-    await step('a sheet added', told, () => (host.querySelector('.dc-sheet-add') as HTMLElement).click(), 'Add Sheet');
+    // the tiles by the ids they have now: a tile an undo or a redo brings back is a new tile (B12), and `step` follows
+    const ids: Record<string, string> = { a, b };
+    await step('a chart added', told, async () => { ids['chart'] = await chartOf(ids['a']!); }, 'Add Chart', ids);
+    await step('another added', told, async () => { ids['other'] = await chartOf(ids['b']!); }, 'Add Chart', ids);
+    await step('a chart frozen', told, () => togglePill(ids['other']!), 'Chart Change', ids);
+    await step('a tile renamed', told, () => rename(ids['chart']!, 'Desk mix'), 'Rename Tile', ids);
+    await step('a grid renamed', told, () => rename(ids['b']!, 'Orders'), 'Rename Tile', ids);
+    await step('a sheet added', told, () => (host.querySelector('.dc-sheet-add') as HTMLElement).click(), 'Add Sheet', ids);
     clickTab('trades.csv');
     await settle();
-    await step('a grid moved to the sheet', told, () => gridMenuItem(b, 'Sheet 2').click(), 'Move to Sheet');
-    await step('a chart moved to a new sheet', told, () => chartMenu(chart).find((i) => label(i) === 'New Sheet')!.click(), 'Move to Sheet');
-    await step('a sheet moved', told, () => tabMenu('Sheet 3', 'Move Left'), 'Move Sheet');
+    await step('a grid moved to the sheet', told, () => gridMenuItem(ids['b']!, 'Sheet 2').click(), 'Move to Sheet', ids);
+    await step('a chart moved to a new sheet', told, () => chartMenu(ids['chart']!).find((i) => label(i) === 'New Sheet')!.click(), 'Move to Sheet', ids);
+    await step('a sheet moved', told, () => tabMenu('Sheet 3', 'Move Left'), 'Move Sheet', ids);
     await step('a sheet renamed', told, () => {
       tabOf('Sheet 2').dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
       const field = host.querySelector<HTMLInputElement>('.dc-sheet-tab input')!;
       field.value = 'Charts';
       field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
-    }, 'Rename Sheet');
+    }, 'Rename Sheet', ids);
     await step('a sheet arranged', told, async () => {
       clickTab('trades.csv');
       await settle();
       pageMenu().find((i) => label(i) === 'Arrange…')!.click();
       await settle();
-      host.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]')!.click();
-    }, 'Layout Change');
-    let copy = '';
+      (await shown<HTMLButtonElement>(host, '.dc-layout-picker [data-preset="stacked"]')).click();
+    }, 'Layout Change', ids);
     await step('a grid copied', told, async () => {
       const had = new Set(pg().grids);
-      gridMenuItem(a, 'Copy of This Grid').click();
+      gridMenuItem(ids['a']!, 'Copy of This Grid').click();
       await settle();
-      copy = pg().grids.find((g) => !had.has(g))!;
-    }, 'Add Grid');
-    // b, its frozen chart beside it: removed, the chart detached; undone, b made again and the chart following it
-    await step('a grid removed, its frozen chart detached', told, () => removeTile(b), 'Remove Orders');
-    assert.equal(pill(other), 'Detached', 'redone: its grid removed again, the chart detached');
+      ids['copy'] = pg().grids.find((g) => !had.has(g))!;
+    }, 'Add Grid', ids);
+    // b, its frozen chart beside it: removed, the chart detached; undone, b made again (a new tile) and the chart following it
+    await step('a grid removed, its frozen chart detached', told, () => removeTile(ids['b']!), 'Remove Orders', ids);
+    assert.equal(pill(ids['other']!), 'Detached', 'redone: its grid removed again, the chart detached');
     pg().undo();
     await drawn();
-    assert.equal(pill(other), 'Pinned', 'undone: its grid made again, and the chart reads it, not a kept copy');
+    assert.equal(pill(ids['other']!), 'Pinned', 'undone: its grid made again, and the chart reads it, not a kept copy');
     assert.deepEqual([...pg().cubes], pg().grids, 'no grid kept off the board any more');
     pg().redo();
     await drawn();
-    await step('a chart removed', told, () => removeTile(chart), 'Remove Desk mix');
-    await step('the copy moved to a named sheet', told, () => gridMenuItem(copy, 'Charts').click(), 'Move to Sheet');
-    await step('a sheet deleted with its tiles', told, () => tabMenu('Charts', 'Delete'), 'Delete Sheet');
+    await step('a chart removed', told, () => removeTile(ids['chart']!), 'Remove Desk mix', ids);
+    await step('the copy moved to a named sheet', told, () => gridMenuItem(ids['copy']!, 'Charts').click(), 'Move to Sheet', ids);
+    await step('a sheet deleted with its tiles', told, () => tabMenu('Charts', 'Delete'), 'Delete Sheet', ids);
   });
 
   it('a chart removed while it filters its grid: undone, its selection is back on the grid\'s filter', async () => {
@@ -869,7 +878,10 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     assert.equal(pg().grid(a)!.snapshot.filter, undefined, 'removed, it took its selection off');
     pg().undo();
     await drawn();
-    assert.deepEqual(chartView(chart)!.selection, selection, 'the chart back with its selection');
+    // the chart back is a new tile (B12), with its selection
+    const back = pg().views().views.find((v) => v.kind === 'chart')!.id;
+    assert.notEqual(back, chart);
+    assert.deepEqual(chartView(back)!.selection, selection, 'the chart back with its selection');
     assert.deepEqual(pg().grid(a)!.snapshot.filter, filtered, 'its selection back on the grid\'s filter, by the grid\'s own change');
     pg().redo();
     await drawn();
@@ -920,7 +932,8 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     assert.deepEqual([forgotten, disposed], [[], []], 'removed, its table and planner kept: an undo can bring it back');
     pg().undo();
     await drawn();
-    assert.deepEqual(pg().grids, [a, b]);
+    assert.deepEqual(pg().grids.length, 2, 'the grid back (a new tile: B12)');
+    assert.equal(pg().grids[0], a);
     pg().redo();
     await drawn();
     (host.querySelector('.dc-sheet-add') as HTMLElement).click();
@@ -1004,9 +1017,11 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     pg().undo();
     await drawn();
     assert.equal(pill(chart), 'Pinned');
-    assert.deepEqual(pg().document('Q3')!.views, before.views, 'its selection back, as before the removal');
+    const back = sameButIds(before, pg().document('Q3')!);
+    assert.ok(back.same, `its selection back, as before the removal: ${JSON.stringify(back.a)} vs ${JSON.stringify(back.b)}`);
     assert.equal((tile(chart).querySelector('.dc-tile-chip') as HTMLElement).hidden, false, 'its chip shown');
-    assert.deepEqual(pg().grid(b)!.snapshot.filter, before.cubes.find((c) => c.id === b)!.cube.query.filter, 'its grid filtered by it once');
+    const bNow = back.renamed[b] ?? b;
+    assert.deepEqual(pg().grid(bNow)!.snapshot.filter, before.cubes.find((c) => c.id === b)!.cube.query.filter, 'its grid filtered by it once');
   });
 
   it("a chart following its grid again takes the grid's grouping in the step it tells (the audit's 3)", async () => {
@@ -1039,8 +1054,10 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     await removeTile(b);
     pg().undo();
     await drawn();
-    assert.deepEqual(rowChips(b), ['region'], 'regrouped as it was');
-    assert.deepEqual(pg().document('Q3')!.cubes, before.cubes, 'its cube as it was, its open groups among it');
+    const back = sameButIds(before, pg().document('Q3')!);
+    const bNow = back.renamed[b] ?? b;
+    assert.deepEqual(rowChips(bNow), ['region'], 'regrouped as it was');
+    assert.ok(back.same, `its cube as it was, its open groups among it: ${JSON.stringify(back.a)} vs ${JSON.stringify(back.b)}`);
   });
 
   it("a detached chart's Show Grid, then its grid's removal, undone: it is frozen on its grid again (the audit's 5)", async () => {
@@ -1057,7 +1074,8 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     pg().undo();
     await drawn();
     assert.equal(pill(chart), 'Pinned');
-    assert.deepEqual(pg().views().views, frozen.views, 'the page as it was before its grid was removed');
+    const back = sameButIds(frozen, pg().document('Q3')!);
+    assert.ok(back.same, `the page as it was before its grid was removed: ${JSON.stringify(back.a)} vs ${JSON.stringify(back.b)}`);
     assert.deepEqual([...pg().cubes], pg().grids, 'the grid Show Grid made let go');
   });
 
@@ -1311,7 +1329,7 @@ describe('what is looked at survives an edit: the board put at the page keeps it
     await anEdit('Scrolled');
     assert.equal(board.scrollTop, 120, 'scrolled where it was');
     tile(chart).focus();
-    await pg().follow([{ kind: 'renameSheet', sheet: pg().sheets[0]!, name: 'Followed' }], new Map());
+    await theirs(pg(), [{ kind: 'renameSheet', sheet: pg().sheets[0]!, name: 'Followed' }], new Map());
     assert.equal(dom.window.document.activeElement, tile(chart), "another editor's edit: focus where it was");
     tile(a).querySelector<HTMLButtonElement>('.dc-tile-maximise')!.click();
     assert.ok(board.classList.contains('dc-bands-maximised'));
@@ -1321,7 +1339,7 @@ describe('what is looked at survives an edit: the board put at the page keeps it
 
   it("the tile a stack shows in front: its tab's, never the saved page's first", async () => {
     const { a, chart } = await aPage();
-    await pg().follow([{ kind: 'stack', tiles: [a, chart] }], new Map());
+    await theirs(pg(), [{ kind: 'stack', tiles: [a, chart] }], new Map());
     const shows = (id: string): boolean => !tile(id).hidden;
     assert.ok(shows(a) && !shows(chart), 'stacked: the first in front');
     const tab = [...host.querySelectorAll<HTMLElement>('.dc-tile-tab')].find((t) => t.dataset['tab'] === chart && !(t.closest('.dc-tile-tabs') as HTMLElement).hidden)!;
@@ -1571,7 +1589,7 @@ describe("the S3 audit's findings: a page of its own", () => {
     await togglePill(chart);
     const b = pg().addGrid(over('orders.csv'), { near: a });
     await settle();
-    await pg().follow([{ kind: 'layout', sheet: pg().sheets[0]!, layout: { kind: 'bands', fit: true, bands: [
+    await theirs(pg(), [{ kind: 'layout', sheet: pg().sheets[0]!, layout: { kind: 'bands', fit: true, bands: [
       { height: 1, node: { split: 'row', parts: [{ node: { tile: a }, size: 0.7 }, { node: { tile: chart }, size: 0.3 }] } },
       { height: 1, node: { tile: b } },
     ] } }], new Map());
@@ -1601,7 +1619,7 @@ describe("the S3 audit's findings: a page of its own", () => {
     (host.querySelector('.dc-page-bar .dc-titlebar-menu') as HTMLElement).click();
     menuItems().find((i) => label(i) === 'Arrange…')!.click();
     await settle();
-    host.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="focus-left"]')!.click();
+    (await shown<HTMLButtonElement>(host, '.dc-layout-picker [data-preset="focus-left"]')).click();
     await settle();
     assert.deepEqual(told.map((c) => c.kind), ['arrange']);
     assert.deepEqual(new Set(tilesOf(pg().views().sheets.find((s) => s.id === sheet)!.layout)), new Set([a, chart, b]));
@@ -1628,7 +1646,9 @@ describe("the S3 audit's findings: a page of its own", () => {
     assert.deepEqual(seen(), held(), 'undone: the board is the state');
     pg().redo();
     await settle();
-    assert.equal(chartView(chart)!.cube, own, 'redone: its own grid again');
+    // its own grid again -- a new tile (B12), so under a new id
+    assert.notEqual(chartView(chart)!.cube, b, 'redone: its own grid again');
+    assert.notEqual(chartView(chart)!.cube, own);
     assert.equal(pill(chart), 'Dynamic');
     assert.deepEqual(seen(), held(), 'redone: the board is the state');
   });
@@ -1645,7 +1665,7 @@ describe("the S3 audit's findings: a page of its own, again", () => {
     told.length = 0;
     pressOn(b);
     // the other editor renames the page while the tile is held
-    await pg().follow([{ kind: 'renamePage', name: 'Q4' }], new Map());
+    await theirs(pg(), [{ kind: 'renamePage', name: 'Q4' }], new Map());
     letGoOn(b, a, 'middle');
     await settle();
     assert.deepEqual(told.map((c) => c.kind), ['stack'], `the drop landed: told as its stack (${JSON.stringify(told)})`);
@@ -1705,7 +1725,7 @@ describe("the S3 audit's findings: a page of its own, again", () => {
     newPage();
     pg().addGrid(over('trades.csv'));
     await settle();
-    await pg().follow([{ kind: 'addSheet', id: 'sheet-5', name: 'Briefly' }, { kind: 'removeSheet', sheet: 'sheet-5' }], new Map());
+    await theirs(pg(), [{ kind: 'addSheet', id: 'sheet-5', name: 'Briefly' }, { kind: 'removeSheet', sheet: 'sheet-5' }], new Map());
     assert.ok(pg().state.held.includes('sheet-5'), 'held');
     (host.querySelector('.dc-sheet-add') as HTMLElement).click();
     await settle();

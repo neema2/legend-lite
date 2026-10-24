@@ -23,6 +23,7 @@ import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { applyPageCommands, idsOf, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
+import { theirs } from './theirs.ts';
 import { classRelation } from '../src/class-source.ts';
 import * as echarts from 'echarts/core';
 // the page fetches its filter bar when it first needs one (a dynamic import): loaded here, so that import finds it
@@ -253,6 +254,29 @@ describe('a page of its own', () => {
     (host.querySelector('.dc-sheet-add') as HTMLElement).click();
     await settle();
     assert.deepEqual(told.flatMap((c) => (c.kind === 'addSheet' ? [c.id] : [])), ['sheet-10']);
+  });
+
+  it("held while its channel converges (D19, the audit's 5): a gesture does nothing, neither applied nor told; released, it works again", async () => {
+    const told: PageCommand[] = [];
+    newPage({ onPageCommand: (c) => told.push(c) });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    const sheets = (): number => page.document('Q3')!.sheets.length;
+    page.hold();
+    assert.equal(page.held, true);
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    assert.equal(sheets(), 1, 'nothing applied');
+    assert.deepEqual(told.filter((c) => c.kind === 'addSheet'), [], 'nothing told');
+    page.undo();
+    await settle();
+    assert.equal(page.document('Q3')!.views.length, 1, 'nothing moves');
+    page.release();
+    assert.equal(page.held, false);
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    assert.equal(sheets(), 2, 'released: applied');
+    assert.equal(told.filter((c) => c.kind === 'addSheet').length, 1, 'and told');
   });
 
   it('a frozen chart whose grid is removed keeps reading that grid, kept off the board; saved, and reopened detached', async () => {
@@ -716,7 +740,7 @@ describe('a page of its own', () => {
     assert.deepEqual(replayed.cubes.map((c) => c.id), page.cubes, 'the grid that went took its cube');
   });
 
-  it('follows another editor\'s page commands: applied to the page as it is, a grid added by its maker and none made again, its history started again; refused, nothing changed', async () => {
+  it('follows another editor\'s page commands: applied to the page as it is, a grid added by its maker and none made again, its history kept (W13); refused, nothing changed', async () => {
     // (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md) Python's change, as the commands it was
     newPage({ confirm: () => true });
     const a = page.addGrid(over('trades.csv'));
@@ -734,17 +758,18 @@ describe('a page of its own', () => {
     ];
     const expected = applyPageCommands(page.state, commands).draft.page;
     const madeBefore = made.length;
-    await page.follow(commands, new Map([['grid-7', over('orders.csv')]]));
+    await theirs(page, commands, new Map([['grid-7', over('orders.csv')]]));
     await settle();
     assert.deepEqual(page.views(), { views: expected.views, sheets: expected.sheets });
     assert.deepEqual(made.slice(madeBefore), [['grid-7', false]], 'one grid made, the one added: none made again');
     assert.equal(tile('grid-7').querySelector('.dc-tile-title')?.textContent, 'Orders');
-    assert.equal(page.undoLabel, undefined, "its history starts again from the other editor's change");
+    // 2026-10-24 (D19 W13): a step is commands applied to the page as it is now (page-state.ts), so the history survives
+    assert.equal(page.undoLabel, 'Add Sheet', "its history survives the other editor's change");
     assert.equal(page.title, 'Q4', 'renamed as Python renamed it');
     assert.deepEqual(page.state.page, page.document('Q4'), 'the state is the page on screen');
     // a command naming a tile closed here: refused in its words, nothing changed
     const before = page.views();
-    await assert.rejects(page.follow([{ kind: 'removeTile', tile: 'grid-9' }], new Map()), CubeRefusal);
+    await assert.rejects(theirs(page, [{ kind: 'removeTile', tile: 'grid-9' }], new Map()), CubeRefusal);
     assert.deepEqual(page.views(), before);
   });
 
@@ -768,13 +793,13 @@ describe('a page of its own', () => {
     // a grid alone on its sheet has its header -- its plane's button -- in the page's bar
     const pill = (): string | null | undefined => host.querySelector('.dc-titlebar-toggle')?.textContent;
     const copy = gridCopyOf({ table: 'snap_1', rowCount: 9, takenAt: new Date('2026-10-20T14:02:00Z'), label: 'Snap 14:02' });
-    await page.follow([{ kind: 'snap', grid: a, copy }], new Map());
+    await theirs(page, [{ kind: 'snap', grid: a, copy }], new Map());
     await settle();
     assert.deepEqual(page.grid(a)?.copy, copy, 'its grid reads the copy, as the page wrote it down');
     assert.deepEqual(page.state.page.copies, { [a]: copy });
     assert.deepEqual(page.document('Q3')?.copies, { [a]: copy }, 'what the page reports to its other editor');
     assert.equal(pill(), 'Snapped');
-    await page.follow([{ kind: 'live', grid: a }], new Map());
+    await theirs(page, [{ kind: 'live', grid: a }], new Map());
     await settle();
     assert.equal(page.grid(a)?.copy, undefined);
     assert.equal(page.state.page.copies, undefined);
@@ -785,12 +810,12 @@ describe('a page of its own', () => {
     const stateCopies = (): PageDocument['copies'] => page.state.page.copies;
     assert.equal(stateCopies()?.[a]?.table, 'snap_2', "the screen's Snap is in the page's state");
     // gone live by the other editor, which let the copy go (it read the page first): nothing let go here
-    await page.follow([{ kind: 'live', grid: a }], new Map());
+    await theirs(page, [{ kind: 'live', grid: a }], new Map());
     await settle();
     assert.equal(pill(), 'Live');
     assert.deepEqual(released, [], "the other editor's live command lets nothing go here: the page no longer reads the copy, which its host lets go");
     // a snap command for a grid this page cannot read a host's copy for: refused, so the page opens again as it is there
-    await assert.rejects(page.follow([{ kind: 'snap', grid: 'grid-9', copy }], new Map()));
+    await assert.rejects(theirs(page, [{ kind: 'snap', grid: 'grid-9', copy }], new Map()));
   });
 
   /** A grid read through its host's runner, its host keeping copies -- `slow`: another editor's copy taken up only when
@@ -812,21 +837,27 @@ describe('a page of its own', () => {
     });
   };
 
-  it("F10: an edit made while another editor's snap is taken up is a step on top of the page the editor made", async () => {
+  it("F10: an edit made while another editor's snap is taken up does nothing; the next is a step on top of the page the editor made", async () => {
+    // (2026-10-24, the middle version: another editor's change reaches the page by the converge, which holds the page
+    // -- the D19 audit's 5 -- so a gesture meanwhile lands on no board that is being set)
     let release: () => void = () => {};
     newPage();
     const a = page.addGrid(hostedGrid({ file: 'trades.csv', slow: { taken: () => new Promise<void>((r) => { release = r; }) } }));
     await settle();
     const copy = gridCopyOf({ table: 'snap_1', rowCount: 9, takenAt: new Date('2026-10-20T14:02:00Z'), label: 'Snap 14:02' });
-    const following = page.follow([{ kind: 'snap', grid: a, copy }], new Map());
+    const following = theirs(page, [{ kind: 'snap', grid: a, copy }], new Map());
     await settle();
-    // the person adds a sheet while the follow waits for the copy
+    // the person adds a sheet while the converge waits for the copy: held, nothing
     (host.querySelector('.dc-sheet-add') as HTMLElement).click();
     await settle();
     release();
     await following;
     await settle();
-    assert.deepEqual(page.state.page.sheets.map((s) => s.id), page.sheets, 'the state holds the sheet added meanwhile');
+    assert.equal(page.sheets.length, 1, 'nothing added while the page was held');
+    assert.deepEqual(page.grid(a)?.copy, copy, "the editor's snap: its grid reads the copy");
+    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    assert.deepEqual(page.state.page.sheets.map((s) => s.id), page.sheets, 'the state holds the sheet added after');
     assert.ok(page.state.held.includes(page.sheets[1]!), 'and its id, held');
     assert.equal(page.undoLabel, 'Add Sheet', 'a step of its own, on top of the editor\'s page');
     // the next edit -- the first sheet renamed in its tab -- leaves it where it is
@@ -835,7 +866,7 @@ describe('a page of its own', () => {
     field.value = 'First';
     field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
     await settle();
-    assert.equal(page.sheets.length, 2, "the sheet added while the follow waited is the page's");
+    assert.equal(page.sheets.length, 2, "the sheet added after is the page's");
   });
 
   it("F13: a grid whose cube the page cannot hold snaps and goes live with no command of the page's, nothing refused", async () => {
@@ -923,7 +954,7 @@ describe("another editor's commands followed: nothing told back that the page di
     // the other editor's removal (Python's page.remove(chart)), as its keeper applies it
     const kept = applyPageCommands({ page: before, held: idsOf(before) }, [{ kind: 'removeTile', tile: chart }]).draft.page;
     told = [];
-    await page.follow([{ kind: 'removeTile', tile: chart }], new Map());
+    await theirs(page, [{ kind: 'removeTile', tile: chart }], new Map());
     await settle();
     assert.deepEqual(told, [], 'following tells nothing back: the removal took the selection off its grid already');
     assert.deepEqual(filterOf(page.document('Q3')!, a), filterOf(kept, a), 'the grid holds the filter its keeper holds');
@@ -1069,7 +1100,7 @@ describe("another editor's commands followed: nothing told back that the page di
     // Python's grid, its title bar shown (the default it writes)
     const doc = page.document('Q3')!.cubes[0]!.cube;
     const shown: CubeDocument = { ...doc, configuration: { ...doc.configuration, showTitleBar: true } };
-    await page.follow([{ kind: 'addGrid', id: 'grid-7', document: shown, sheet: page.sheets[0]!, near: null, title: null, columns: null }],
+    await theirs(page, [{ kind: 'addGrid', id: 'grid-7', document: shown, sheet: page.sheets[0]!, near: null, title: null, columns: null }],
       new Map([['grid-7', over('orders.csv', shown)]]));
     await settle();
     const cubeOf = (p: PageDocument): CubeDocument => p.cubes.find((c) => c.id === 'grid-7')!.cube;
@@ -1098,10 +1129,10 @@ describe("another editor's commands followed: nothing told back that the page di
     page.rename('Trades');
     assert.equal(pageTold.length, 2);
     // another editor's: followed by the same rule, no host keeping it beside the page
-    await page.follow([{ kind: 'savedAs', record: 'r-2' }, { kind: 'renamePage', name: 'Q5' }], new Map());
+    await theirs(page, [{ kind: 'savedAs', record: 'r-2' }, { kind: 'renamePage', name: 'Q5' }], new Map());
     assert.equal(page.record, 'r-2');
     assert.equal(page.title, 'Q5');
-    await page.follow([{ kind: 'savedAs', record: null }], new Map());
+    await theirs(page, [{ kind: 'savedAs', record: null }], new Map());
     assert.equal(page.record, undefined);
     // a page restored with its record holds it, and an edit keeps it
     const doc = { ...page.document('Q5')!, record: 'r-3' };
@@ -1231,7 +1262,8 @@ describe('a dashboard\'s page filters (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md 
     assert.ok(a.plans.length > 0 && !filtered(a.plans), 'undone: it ran again, unfiltered');
     page.redo();
     await settle();
-    assert.deepEqual(page.filters.map((f) => f.id), ['filter-1']);
+    // the filter back is a new one (B12: an id the page has held is never given out again, a page filter's too)
+    assert.deepEqual(page.filters.map((f) => f.id), ['filter-2']);
   });
 
   it('refused in words, nothing changed: a property the class has not', async () => {
@@ -1251,7 +1283,7 @@ describe('a dashboard\'s page filters (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md 
     const doc = page.document('Q3')!;
     const added = new Recording();
     const grid = `grid-${page.cubes.length + 1}`;
-    await page.follow([
+    await theirs(page, [
       { kind: 'addGrid', id: grid, document: doc.cubes[0]!.cube, sheet: doc.sheets[0]!.id, near: null, title: null, columns: null },
       { kind: 'setPageFilter', class: TRADE, condition: EMEA, from: null },
     ], new Map([[grid, overClass(added)]]));

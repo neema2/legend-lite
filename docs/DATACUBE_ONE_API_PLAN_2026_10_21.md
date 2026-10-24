@@ -87,6 +87,15 @@ item below has its `file:line` there.
   whole-page restore, N2; the tab keeps and re-applies the edits not yet confirmed).
 - **D22** (the user, 2026-10-22) A query over a table dropped since its read began is refused, in words: that is the
   rule, not a limit (F31). A call never reads rows the session no longer serves.
+- **D24** (the user, 2026-10-24: finish D19 "right", to the standard that live shared editing of a page would work, as
+  the proof it was done correctly) D19 is built in its full form, not D23's smaller one:
+  docs/DATACUBE_LIVE_EDITING_2026_10_24.md. Undo and redo are inverse commands produced by two total diffs
+  (`gridBetween`, `pageBetween`); the restore write goes and N2 retires when its item (W5) lands; the tab converges on
+  a combined or refused write by replaying the keeper's steps over its confirmed page, never by a reopen; a follow
+  writes pending edits first and waits for a gesture in flight; a gesture's commands are told on one schedule; every
+  write's answer carries the keeper's page hash, checked by the tab; the proof is a two-editor soak (two real tabs and
+  Python, undo in the mix) as a gate. Items W1-W18 (its §7), closed here as each lands. Out of scope, said there:
+  presence, CRDTs, a keeper outside Python, Python undo.
 
 ## 0. Why the nine attempts before this one did not finish
 
@@ -147,8 +156,11 @@ gaps the audit found, for the same six reasons:
 
 **Named exceptions** (allowed at the end; the user confirms them with this plan):
 - **N1** A page is *born* whole: `Page()`, `Page.load`, opening a saved page.
-- **N2** Undo and redo (grid and page) write the page whole as a *restore*, taken only at the current version. They
-  become commands only if the proper live-editing model (out of scope, §8) is built.
+- **N2** ~~Undo and redo (grid and page) write the page whole as a *restore*, taken only at the current version. They
+  become commands only if the proper live-editing model (out of scope, §8) is built.~~ **Retired 2026-10-24 (D19 W3-W5,
+  docs/DATACUBE_LIVE_EDITING_2026_10_24.md §3):** an undo or a redo is the commands between the step and the page as
+  it is now (`gridBetween`, `pageBetween`), told and applied as any edit; the restore write is gone from the tab, the
+  headless engine and `Engine._page_said`, which refuses a page written whole in words.
 - **N3** The snap row limit stays a value per host (the user and the DataCube + Python line, 2026-10-15); its refusal
   sentence comes from one TypeScript function.
 
@@ -224,7 +236,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
 - [x] **G12** grid undo / redo → N2 restore write — closed S4: an undo or a redo that lands (the owner's `moved`) is told
   as `onRestore`, and the page's channel writes the page whole, a restore its keeper takes only at the version it was
   made at (live-channel.test.ts, a real page: a grid's undo written whole, a stale one refused; test_one_api.py, a
-  restore behind the page refused); its L1 entries are item-less N2 entries
+  restore behind the page refused); its L1 entries are item-less N2 entries. **2026-10-24 (D19 W3, W5):** superseded --
+  a grid's undo is told as the commands between (`gridBetween`), the restore write deleted
 - [x] **G13** an edit retried after signing in again → its commands kept and told — closed S1: a refused change's
   commands are kept (app.ts `#refusedCommands`) and told when it is run again and lands (cube-transactions.test.ts)
 - [x] **G14** a grid made while the page bar is folded → `showTitleBar` in the `addGrid` document — closed S0: not a gap (the
@@ -259,7 +272,8 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   applied by `page-model.ts`'s functions — closed S1: `modelMade`, `modelPinned`, `modelKept` are the rules, in page-commands.ts
   beside the commands they apply (PageModel uses them; kept there, a lazy chunk, so the page loads none of them at start); the tab tells `modelCommands(before, after)` after each model action (page-commands.test.ts)
 - [x] **P5** page undo / redo → N2 restore write — closed S4 as G12: PageApp's `#move` tells `onRestore` (the gesture
-  ledger's undo and redo gestures write a restore and nothing else)
+  ledger's undo and redo gestures write a restore and nothing else). **2026-10-24 (D19 W4, W5):** superseded -- a page's
+  undo is its step's inverse commands (page-state.ts), told as any edit; the undo and redo gestures are told gestures
 - [x] **P6** chart options told before the chart re-follows → falls out of S2 — closed S2: `setChart`'s rule keeps a live
   chart followed (followedPage), so the spec told before the panel follows replays to the one it keeps
   (page-commands.test.ts)
@@ -698,7 +712,9 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   in As built) — the S4 audit's 5
 - [x] **F24** a write made more than STEPS_KEPT versions behind is refused, where before S4 it was made again on top —
   closed S4, declared: the keeper keeps the ids each version held only as far back as it keeps its steps, and a write
-  from further back cannot be told what it knew (test_keeper.py, pinned) — the S4 audit's 6
+  from further back cannot be told what it knew (test_keeper.py, pinned) — the S4 audit's 6. Lifted 2026-10-24 by the
+  middle version: a write needs nothing of its version now (each editor's ids are its own), so one from any version the
+  page had is made again on top
 - [x] **F25** an undo or a redo that lands while the tab follows the other editor is not written; edits made while a
   write is on its way are dropped when the keeper makes another page of it — closed S4: the dropped edits are said
   (live-channel.ts; live-channel.test.ts); the undo while following declared (the channel takes nothing done while
@@ -1058,6 +1074,144 @@ Every item, its step, its ledger. `[ ]` open, `[x]` closed (with the commit). Ev
   one more call for Show Grid's two steps, a moment's (its 8); the races, the ordering and Python's locking clean
 - [x] **A62** the columns panel's pick had no test through the app (S8's review) -- fixed: app-dom.test.ts
 
+### D19, the single writer's client side (D24; docs/DATACUBE_LIVE_EDITING_2026_10_24.md §7)
+- [x] **W1** `gridBetween`, total over a grid's saved form (src/grid-between.ts): the commands that take one state of a
+  grid to another, an undo's among them; the `tree` command (the open groups set whole, what puts a collapsed tree back);
+  `before` on `calculate` and `editCalculated` (a column back in its place); a kind and a pivot exclusion cleared by
+  `configure`; a removed calculated column's settings gone with it; a grouped calculated column keeps its kind and level
+  -- closed D19 slice 1: grid-between.test.ts (300 walks of every command kind, every pair of states both ways),
+  grid-commands.test.ts; Python's `grid.tree`, `calculate(before=)`, `edit_calculated(before=)` (test_page.py)
+- [x] **W2** `pageBetween`, total over a page in its `history` and `whole` scopes, and `applyPlanned` with fresh or
+  honoured ids (src/page-between.ts); a live chart follows its grid from the start (`addChart`, as every later change
+  follows it) -- closed D19 slice 1: page-between.test.ts (three corpus pages, 120 walks each of every page command kind,
+  every pair of states both ways, both scopes; an undo of a grid removal; what no command makes refused in words),
+  page-commands.test.ts. The D19 audit's W2 limit (2026-10-24), closed the same day: a detached chart over a snapped
+  kept cube, removed and brought back, came back over the cube live, no command setting a copy on a cube no grid shows;
+  `detach` carries the copy now (`copy?`: given, the copy; null, its live rows; the field absent, the cube's copy as it
+  is, so a detach that says nothing of it un-snaps nothing -- the third round's 4; Python's `page_detach(copy=)`
+  generated, absent or None), the diff says it always wherever it plans a `detach` and where a kept cube's copy changes
+  -- page-between.test.ts (the walk detaches with a copy at times; the case itself), page-commands.test.ts
+- [x] **W3** the grid's undo produced by commands (state-owner.ts `toward`: the history's states are what this kind's own
+  commands make), told as the commands between the state before and the one landed (`StateRules.between`:
+  `gridBetween`), by `onCommand` as a change is; T3 ends (a change landing with an undo is told with it) -- closed D19
+  slice 2: cube-transactions.test.ts (T3, G2-1: the commands told replay to the grid on screen), one-api-gestures.test.ts
+  (a grid's undo, Collapse All undone -- `tree` told -- a presentation edit undone and redone: told, read by the host,
+  replaying), live-channel.test.ts (a grid's undo made again on top of the other editor's write), one-api-ledger.test.ts
+  (`L1_GRID`'s `#undo` / `#redo` reasons)
+- [x] **W4** the page's history is commands (page-state.ts): a step `{label, forward, inverse}`, its inverse
+  `pageBetween(after, before, 'history')` made with the step; an undo applies the inverse to the page as it is now, a redo
+  the forward commands, each told as any edit (page-app.ts `#move`); a step whose target is gone is dead, dropped and
+  said; a tile brought back is a new tile (B12), its maker and kept document re-keyed to the id it was given, every
+  step's commands renamed to follow (`renamedCommand`, a maker's planned id too) -- closed D19 slice 2:
+  page-state.test.ts (set semantics past another editor's change, a dead step, a tile brought back, the keeper's
+  rename), cube-page-shell.test.ts (every structural edit undone and redone, the handles following the new ids),
+  page-app.test.ts, one-api-gestures.test.ts (a page edit undone, undone and redone)
+- [x] **W5** the restore write deleted end to end: `pageWritten` and `LiveWrite.restore` gone, `onRestore` gone,
+  `LiveChannel.restored` gone, `Engine._page_said` refuses `{restore}` in words (400: "never the page whole"); N2
+  retired; `L9_KEEPER` 6 -> 5 (keeper.py `restore` stays for N1, a page loaded) -- closed D19 slice 2: test_one_api.py
+  (H2/W5: a page written whole is no write), test_page.py (the Live tests write edits: an undo is its commands, a tile
+  brought back a new tile, a stale write made again on top), live-channel.test.ts, one-api-gestures.test.ts (the
+  `restores` gestures are told gestures)
+- [x] **W13** the page's history survives another editor's change (page-app.ts `follow` keeps the state: `keep`, no new
+  `PageState`); the grid's starts again when another editor edits that grid (declared, app.ts) -- closed D19 slice 2:
+  page-app.test.ts (follows another editor's page commands, its history kept), page-state.test.ts. The D19 audit's 4
+  (2026-10-24): a converge put every touched grid back at the confirmed cube as another editor's change, so the tab's
+  own combined write restarted its grid's history; now a grid only this screen's edits changed is put back at its sent
+  cube with its history kept (`keepHistory`), and only a grid the keeper's steps, the refused batch or a rename touch
+  starts again -- live-channel.test.ts (the follow's grid keeps its undo). The second round (below): a grid whose cube
+  a PAGE step of the keeper's changes starts again too; the grids kept are put back after the steps, at their sent
+  cube, their pending edits made again as no new step (`CubeApp.edit` `again`), so an undo never goes forward
+- [x] **W18** H-13 closed by W5: an undo is judged by every rule a write is (its commands applied by `rebaseEdits`, its
+  ids held) -- closed D19 slice 2 with W5
+- [x] **W19** `detach {chart, cube, document}`, the page command that makes a detached chart reachable (a chart over a
+  cube no grid shows, the id it had): the inverse of Show Grid on a detached chart (`detach`, then the grid's
+  `removeTile`: the chart keeps its id) and of a detached chart's removal (`addChart` of a grid here, or of one made for
+  it and taken off, then `detach`); `pageBetween` total over detached charts; Python's `page_detach` generated; no
+  gesture but an undo tells it -- closed D19 slice 2: page-between.test.ts (the three cases, and every walk), page-commands.test.ts,
+  one-api-gestures.test.ts (a detached chart shown in a grid of its own, undone), cube-page-shell.test.ts (D7's Show Grid
+  steps, F11), one-api-ledger.test.ts (`L8_KINDS`: Python makes none); `copy?` added 2026-10-24 (W2's row)
+- [x] **W6** the write's answer carries what the writer converges by: `Settled` gains `since` (the other editors' steps
+  between the writer's version and the one before its own, or None), `edits` (the writer's as applied) and `hash`
+  (keeper.py `page_hash`: SHA-256 of the page's canonical JSON, `_json.canonical`); the engine's 200 carries `hash`
+  always and `since`, `edits` when combined; `GET /page.json` carries `hash` too; the tab reads them (python-host.ts
+  `livePage`, services.ts `LiveSettled`, `LiveRead`, `LiveMoved`) -- closed D19 slice 3: test_keeper.py (Settle),
+  test_page.py (Live: a stale write's since and edits are what moved the page since; the hash with every answer),
+  test_engine.py, live-follow.test.ts (the host's answers read, a page said with no hash refused)
+- [x] **W7** the tab converges on a combined write without a read and without a reopen (live-channel.ts; live-converge.ts
+  `convergeOn`, the one rule DataCube's app and the tests use): the screen put back at the page as the keeper had it at
+  the version shown (PageApp.putBack: the board by `#syncTo`, the ids given out here since given back, the history kept),
+  the keeper's renames followed (PageApp.renamedBy: the grids' makers, the kept documents, every step of the history;
+  a renamed grid's old id keeps nothing when its tile drops), each grid the keeper's steps touched put back at the
+  keeper's cube by its own commands (`gridBetween`, as another editor's), the other editors' steps applied as theirs,
+  the screen's own as the keeper applied them (a grid's as steps said; a grid added here made again under the keeper's
+  id by its own maker: PageApp.knows), then the pending edits made again, renamed (`LiveScreen.reapply`: a page's and a
+  touched grid's through the ordinary edit path, told again; one on a grid the steps left alone told again only); a
+  history step's layout applied to the page as it is now keeps the tiles the step did not know (page-between.ts
+  `applyOne` by page-rebase.ts `rearranged`, the keeper's own rule) -- closed D19 slice 3: live-channel.test.ts (the
+  channel: a combined write converged, an id given out afresh with pending edits made again under it, a touched grid's
+  pending edit made again; a real page: converging on top of the other editor's write, on an id given out afresh, its
+  history following), datacube-app-live.test.ts
+- [x] **W8** a refused write converges the same way, over what moved the page since (`changes(shown)`), the refusal said;
+  the page whole (past what the keeper keeps) opens it again, said -- closed D19 slice 3: live-channel.test.ts. The D19
+  audit's 1 (2026-10-24, fixed with its test there): the refused batch's grids are put back too (`Converge.refused`),
+  nothing of the batch made again -- before, a refused grid edit stayed on screen and the hash check reopened the page
+- [x] **W9** one write per gesture: the channel writes only once the screen is quiet (no grid's change in flight:
+  `LiveScreen.busy`), so a gesture's page commands and its grid's are written together once they have all landed, and the
+  keeper never holds a selected chart whose grid's filter lacks the selection (F97) -- closed D19 slice 3 in this form
+  (the write waits for the gesture, in place of reordering what is told): live-channel.test.ts (waits for the screen to
+  be quiet before a write)
+- [x] **W10** a follow writes what is pending first and waits for the screen to be quiet (`LiveChannel.flush(true)`, in
+  the channel's own queue: datacube-app.ts followLive; F90) -- closed D19 slice 3: live-channel.test.ts (a flush writes
+  once quiet), datacube-app-live.test.ts (a follow after the flush). The D19 audit's 2 (2026-10-24, fixed with its test in
+  live-channel.test.ts): a follow is a converge with no edits of the screen's own (`LiveChannel.follow`): an edit made
+  while the keeper was asked is taken off for the hash check, kept pending and made again -- before, `opened` dropped
+  it and the hash check reopened the page, the edit unsaid
+- [x] **W11** Save on a served page writes first (datacube-app.ts saveTo: `channel.flush()`), then saves the page on
+  screen, which is the keeper's (H-5) -- closed D19 slice 3: the one call, held by the channel's flush test
+  (live-channel.test.ts); no app-level Save test on a served page (the harness drives none)
+- [x] **W12** no edit dropped unsaid before any reopen (H-11): a reopen says how many changes made meanwhile were not kept;
+  the two reopen causes that remain (a `rebuilt`, a write from further back than the keeper keeps), a converge that could
+  not be made, and the hash mismatch are each said -- closed D19 slice 3: live-channel.test.ts (says what it drops; the
+  page opened again when the keeper no longer keeps the steps), datacube-app.ts `reopen`; a follow drops nothing since
+  the D19 audit's 2 (W10)
+- [x] **W14** `rebaseEdits` applies a grid's run of consecutive commands in one `applyGrid` call (one open, one compile
+  per run), the same reduce, refused whole, each edit listed as applied -- closed D19 slice 3: page-rebase.test.ts
+- [x] **W16** a frame moved with the page is followed by its commands, then every grid over the frame refreshed, as a
+  frame that moved alone is (live-follow.ts `followBy` loses its `open` arm; datacube-app.ts `followed`) -- closed D19
+  slice 3: live-follow.test.ts
+- [x] **W17** the hash check at every write's answer and every follow (page-hash.ts: SHA-256 over the canonical JSON,
+  computed here, synchronously, held to the platform's digest; keeper.py `page_hash` the same over `_json.canonical`); a
+  mismatch is the one message that must never show (live-channel.ts `HASH_MISMATCH`): the page is opened again as the
+  keeper has it and the status line says so, once -- a second mismatch before a write hashes alike is said and opens
+  nothing (no reopen loop) -- closed D19 slice 3: page-hash.test.ts, live-channel.test.ts (the channel; a real page's
+  converge hashing to the keeper's), datacube-app-live.test.ts (a follow's hash). The D19 audit (2026-10-24): the follow's
+  mismatch is said once too, now that a follow is the channel's converge (W10); and the keeper's hash is the page's at
+  the version it answers for, read with the write under its lock (keeper.py `_write`; `moved`, `snapshot` for the
+  engine's answers) -- before, another writer's write between the write and the hash's read made a false mismatch and
+  a reopen (the audit's 3; test_keeper.py)
+- [x] **W15** the two-editor soak as a gate, three times over. TypeScript: live-soak.test.ts -- two real `PageApp`s
+  (jsdom, real `CubeApp`s over the fixture engine) on one keeper as Python's (test/fake-keeper.ts: every write applied
+  by `rebaseEdits`, the steps kept, `since` / `edits` / `renamed` / `hash` answered, a write that lands on a moved page
+  made again as keeper.py `settle` retries on `Stale`), Python's stand-in writing between them, grid edits, sheets and
+  grids added, tiles taken off, sheet renames, undo and redo on each tab, each tab's writes held at random so writes
+  combine and are refused; after every quiet point (every write landed, every tab followed to the keeper's version with
+  nothing pending) the three hold one page to the hash, no tab opened the page again, none said the message that must
+  never show; 6 seeds of 14 steps in the build (`LEGEND_LITE_SOAK_SEEDS` for more, `LEGEND_LITE_SOAK_SEED` for one
+  alone, its writes logged), 60 run green. Python: test_keeper.py `Converges` -- the `OpenPage` keeps a history as the
+  tab does (each step's inverse planned by `pageBetween` / `gridBetween` when it is made, Undo and Redo through
+  `pagePlanned`: fresh ids, B12 -- the tab's own functions, bundled for the test alone as `legendLiteHeadlessTab`,
+  datacube/test/headless-tab.ts and `//datacube:headless_tab_bundle`, loaded into the headless engine the test has;
+  Python's product asks none of them, so the product's bundle exports none and `L8_UNASKED` stays empty), a second
+  `OpenPage` joins Python and the first (edits alone, both at once, undo then redo), every open page followed after
+  every step, the `Intent` model grown by `removeSheet`, `addGrid`, `addChart` facts. The browser: python-engine.mjs -- two tabs on one `ll.Page`, a sheet renamed in one and added in the
+  other at once with Python's grouping between, then Undo through the first tab's menu; both tabs hold Python's page to
+  its keeper's hash (`window.__dataPageHash`, the harness's hook) and neither says the message that must never show.
+  The soak's catches, each fixed with its unit test: `LiveTarget.grids` and `cubes` read the board as each run of
+  commands is applied, so a grid a step added is on it when its own commands come (live-follow.test.ts), and the
+  converge puts every grid a pending edit changed back at the keeper's cube too, so the page on screen is the keeper's
+  to the hash before the pending edits are made again (`Converge.pending`; `reapply(pending)` makes every pending edit
+  again, the `touched` split gone) -- closed D19 slice 4
+
 ## 5. The steps
 
 Each step: the full local set green, one CI run, an independent audit against its items, "As built" appended here.
@@ -1213,7 +1367,7 @@ largest; S3 the riskiest.
 
 - **The proper live-editing model** (each view holding confirmed and pending edits, re-applying its own with
   `rebaseEdits`, no reopen on a collision; undo as inverse commands). This plan is its foundation; it is a separate
-  decision after S7.
+  decision after S7. **Decided 2026-10-24 (D24): built as D19, docs/DATACUBE_LIVE_EDITING_2026_10_24.md.**
 - **Graph mode, chart batches, the backlog PR** (task 79), **§18 steps 5-7** (blocked on the user's A4 decision).
 
 ## 9. Tracking
@@ -1870,7 +2024,170 @@ test, or a proof whose test is gone: each fails the build.
 
 **Gates.** The full local set, 205 of 205.
 
-**Next.** The PR (S8 and D23), then D19 in its smaller form (D23): the tab keeps the edits not yet confirmed and
-re-applies them, no reopen on a collision; Save on a served page saves the keeper's page (H-5); H-11, H-13, F90's race
-and F97; undo stays a whole-page restore (N2), said when another editor has moved the page since.
+**Next (as written 2026-10-23).** The PR (S8 and D23), then D19 in its smaller form (D23) -- superseded by D24: D19
+was built in its full form, below.
+
+## As built (D19, 2026-10-24)
+
+D19 in its full form (D24; the design `docs/DATACUBE_LIVE_EDITING_2026_10_24.md`, written from file:line homework
+before any code), built in four slices on `claude/datacube-d19` (c3c784d9 the note; b94d5cb9 slices 1 and 2; 1f58955b
+slice 3; 696d9867 slice 4), each green on the datacube and Python sets before the next. The register's rows W1-W19
+above say what each item is and which tests hold it; this is the whole.
+
+- **Undo and redo are commands (W1-W5, W18, W19).** Two total diffs, `grid-between.ts gridBetween` (over the saved
+  form: the query, the configuration, the tree; `tree` a command, `before` on `calculate` / `editCalculated`) and
+  `page-between.ts pageBetween` (the page's structure in two scopes, total over detached charts by the new `detach`
+  command); a step of either history is `{forward, inverse}` commands, planned when the step is made; an undo is told
+  as the commands between, which the keeper judges by every rule a write is; a tile brought back is a new tile (B12).
+  The restore write is gone end to end (`L9_KEEPER` 6 -> 5; N2 retired), so no editor ever writes the page whole.
+- **The tab converges (W6-W14, W16, W17).** A write's answer carries `since`, `edits`, `renamed`, `hash`; a combined or
+  refused write is converged on by one function (`live-converge.ts convergeOn`: the board put back at the confirmed
+  page, the keeper's renames followed, each touched grid put back by its own commands, the other editors' steps then
+  this screen's applied, the hash checked, the pending edits made again) -- no read, no reopen. The two reopen causes
+  that remain (a `rebuilt`, a write from further back than the keeper keeps) and the hash mismatch are each said, and
+  no edit is dropped unsaid. A follow and a Save write first; a write waits for the gesture in flight.
+- **The proof (W15).** Three soaks as gates: two real tabs on a keeper as Python's (`live-soak.test.ts`), Python with
+  two open pages undoing and redoing (test_keeper.py `Converges`), and two browser tabs on one `ll.Page`
+  (python-engine.mjs). The TypeScript soak caught two bugs in its first sixty seeds, both fixed with unit tests before
+  it landed (W15's row): the follow's board read once per move, and the converge's hash checked over a screen still
+  carrying pending edits.
+
+**Ledgers, before and after.** `L9_KEEPER` 6 -> 5 (shrink: the restore write). `L1_ROUTES` 5 -> 7 (two live-converge
+entries, dated: the converge's own path puts the board and the grids back, told nothing -- the keeper's page is what
+it makes), then 7 -> 6 (the audit's 2: the app's own follow route is gone, a follow being the channel's converge). `L8_KINDS` 0 -> 1 (`detach`: Python makes none; no gesture but an undo tells it). `L1_GRID`'s `#undo` /
+`#redo` reasons rewritten (the owner's moves are told). `SCREEN_OWN_MAKERS` gains `gridBetween`. `ITEM` gains `W`;
+`ALL` gains W1-W19, every one closed. `L8_UNASKED` stays empty: the three tab functions the Python soak undoes by are
+bundled for that test alone (`//datacube:headless_tab_bundle`), not exported by the product's headless. The gestures
+ledger's `restores` arm is gone (the five restore gestures are told gestures). `PAGE_STATE` (state-guardrail) gains
+`step | putBack | rename` with the sites that call them. No budget moved.
+
+**Out of scope, as the note says (§9):** presence, CRDTs, a keeper outside Python, Python's own undo (Python has no
+history; its undo would be `pageBetween` over two documents it holds, a program's to write), the mutation harness as a
+gate, the two-thread test with two open pages.
+
+**The independent audit (2026-10-24, after slice 4; an agent that wrote none of it, against the note's §7 and the
+rows above).** Thirteen items built as claimed, six with a difference, none not found. Its findings, each fixed the same
+day with a test that fails without the fix, are on the rows (W2, W8, W10, W12, W13, W17): a refused batch's grid edits
+left on screen, so the hash check reopened the page (1, HIGH); an edit made during a follow dropped unsaid, the same
+way (2, HIGH) -- a follow is now the channel's converge; the keeper's hash read after another writer's write, a false
+mismatch (3, MEDIUM-HIGH); a converge restarting a grid's history the other editor never touched (4, MEDIUM); the
+confirmed ids shrinking across a follow (6, LOW; gone with 2). Declared, not built: a gesture during an async converge
+is dropped by `edit()` as the other editor's (5, LOW; pre-existing, now visible as the never-show message), and W2's
+known limit. The audit also found no deadlock in the channel's queue, every ledger move dated and justified, and two
+doc nits (fixed: the note's `SCREEN_OWN_MAKERS` line, the guardrail's N2 wording).
+
+**The audit's second round (2026-10-24, on the commit that fixed the first: an agent that wrote none of it, with
+reproductions over the commit's own harness).** It found one regression and three defects in that commit, two older
+ones, and one design point; all but the design point are fixed the same day, each with a test in live-channel.test.ts
+that fails without the fix. (1, a regression) a grid only this screen's edits changed was put back at its SENT cube,
+but a PAGE step of the keeper's can change a grid's cube too -- a selected chart's removal takes its selection off its
+grid's filter -- and the two editors then held two pages, silently: the converge now applies the keeper's page steps to
+the confirmed page, purely, and any grid whose cube they change starts again (put back at the confirmed cube, the
+steps replayed). (2) the hash was read while a grid's change was still in flight (a chart's removal refilters its grid
+asynchronously; `page.ready()` waits for grids to open, not to settle), so the check could pass on a state passing: the
+converge waits for every grid to be quiet before it reads the page. (3) `keepHistory` with two or more pending edits
+on one grid recorded each again on top of its old step, and an undo went forward: a pending grid edit is made again as
+no new step (`CubeApp.edit(..., { again: true })`, its step being in the history still), a restarted grid's as new
+steps (`Converged.restarted`). (4, older) a grid added here with an edit pending at a combined write was remade from
+its current state, pending and all, so the screen held more than the keeper and reopened: the grids kept are now put
+back at their sent cube after the steps, remade or not. (6, older) a put-back synced the board as the person's own, so
+a chart taken off by the keeper recorded a step on its grid: it syncs as the keeper's. (7, older) a write that could
+not say its page left the confirmed page stale: it is none until the next write, and a converge meanwhile opens the
+page again, said. (5, design, kept) a second mismatch in a row keeps the page as opened rather than reopening again --
+the one reopen loop guard -- so a page that systematically differs is said, not chased; W17's row says so. The gesture
+during the converge itself (the first audit's 5), declared then, is built too: the page is held through a converge
+(`PageApp.hold`), a gesture meanwhile doing nothing, neither applied nor told, as a locked page's Undo does nothing --
+page-app.test.ts, live-channel.test.ts. And the second audit verified what held: a `rebuilt` step still reopens, the
+frame-moved check still applies, the saved-name bookkeeping runs only on a follow that succeeded, writes and follows
+are serialized in the channel's queue, the keeper's hash is read with the write everywhere, and the first round's
+tests fail without their fixes.
+
+**The audit's third round (2026-10-24, on the second round's fixes), and the mutation pass.** The third auditor found
+the hold covering the page only: a GRID gesture during a converge landed on a grid being put back, was told, written,
+and made the page reopen with the never-show message (1, HIGH) -- the converge holds every grid too (`CubeApp.hold`,
+a person's edit refused meanwhile, said: "the page is catching up with its keeper: a moment"; a grid made again by a
+step held as it appears); the put-back's drop of a chart added here refiltered its grid as another editor's and wiped
+the grid's history (2) -- the put-back drops without refiltering, the grid being put back whole by its own commands;
+a grid let go by the put-back and made again by a step is a new grid whose history was empty, its pending edits made
+again as no step (3) -- a remade grid counts as restarted, its pending edits steps of its new history; and a `detach`
+without a copy un-snapped a kept cube another chart read (4) -- the field absent leaves the copy as it is, null is its
+live rows, and the diff says it always. It verified the second round's fixes otherwise: the pure simulation is sound
+(the only page arms that change a grid's cube are `unselected`, `addGrid` and `rebuilt`), the remade grid is the one
+the converge sees, `record: false` leaves the redo branch and the stack sane, a grid's refilter is `busy` from before
+the put-back returns, the keeper's hash is read with the write everywhere. The mutation pass (the note's §6, run by
+hand in a scratch copy: each fix reverted, the channel suite and the thirty-seed chart soak against it) killed every
+mutant but one: the second round's regression test used an own edit that overwrote the very field the keeper's page
+step changed (the whole filter), so it passed without the fix, and the soak's mark clicks were too rare to reach the
+case -- the test groups instead now, and the soak clicks a mark on most charts it makes and has Python take a
+selected chart off first; the mutant is killed by both since. The quiet wait is killed by the soak alone (seed 6), the
+others by the channel suite; the control (pending grids not put back) by both. The table is the proof's: a test that
+has never failed against a known bug is not evidence. The rounds' budgets, each with a dated note for the user's
+sign-off (D9): the notebook module 341,000 -> 341,500 (the second round, measured 341,063) and the engine page
+322,500 -> 323,000 (the third, measured 322,567). Beside the round, main's CI on Windows went red on the second
+round's commit by one pre-existing test of cube-page-shell.test.ts (`the layouts` null): the layouts are fetched on
+the page's first Arrange..., and that first dynamic import outlasted `settle()`'s twenty ticks on the Windows runner;
+every test that opens the layouts now waits for them, bounded (cube-fixture's `shown`).
+
+**The audit's fourth round (2026-10-24, on the third's fixes), the faulted three-tab soak, and the long session.** The
+user asked whether the program was bulletproof enough to build on; the honest answer was that three rounds in a row had
+each found defects, so a fourth round was run with "nothing to fix" as its exit, and the soak was widened at the same
+time. Neither came back clean. The fourth auditor found six defects (two HIGH) and reproduced four against a real page:
+(1) a PENDING page step that changes a grid's cube (a selected chart removed while a write was on its way) was not put
+back -- the grid lacked the condition the confirmed cube holds, the hash differed, the page reopened and the removal
+was dropped; now the pending page steps are applied to the sent page purely and the grids they change join the own
+put-back; (2) a pending maker whose planned id another editor's tile got meanwhile was dropped at the reapply (its id
+"held already"), and its step left in the history then took the OTHER editor's tile off on Undo; now `PageApp.reapply`
+makes it again under a fresh id (page-between.ts `applyPlanned`, the keeper's own rule) and the history follows the
+rename, and a pending GRID maker that collides is moved to a fresh id before the keeper's steps are followed
+(`renamePending`, the converge's step 0, the renames back to the channel through `Converged.renamed`); (3) a grid the
+keeper renamed was made again from the screen's current state, not the keeper's `addGrid` document, so a non-idempotent
+sent command (a header sort) applied twice; now a page's sync makes a grid again from the cube the page holds for it;
+(4) a grid's undo and redo, Properties and the snap toggle bypassed the hold; now every way of changing a grid is
+refused while its page converges; (5) the grids the put-back made again, and those a step added, were unheld until after
+step 3; now held as they appear; (6) this screen's own chart removal, replayed as its sent edit, wiped an untouched
+grid's history (a no-op refilter applied as another editor's cleared it); now a sent page step is made again as the
+screen's own, and a change that changed nothing restarts nothing; and (7, LOW) a poll stale by the time its work ran
+converged on nothing, holds and all; now a follow with nothing moved since the version shown does nothing. The
+three-tab soak (a third tab, and the keeper's faults: a write it never sees, an answer lost, in the mix) found four
+more in its first forty seeds: a REFUSED batch's page step that changed a grid's cube was not put back either (seed 10:
+the same hole as the auditor's 1, for the refused batch); a grid only this screen's edits changed was put back at its
+sent cube but its charts' specs in the page's state stayed the confirmed grouping (seed 17: the state now follows the
+own cubes, page-commands.ts `followedPage`); a grid brought back by an undo took its old maker to its new id, and a
+converge that still needed the old id had none (seed 25: a grid of the keeper's page this page cannot make again is
+opened from its cube, as another editor's is); and a refused addition's id lingered as a maker the page "knows", so
+another editor's grid under that id was made from this page's maker over this page's source (seed 27: another
+editor's grid is never made from a maker this page keeps, and a refused batch's steps come off the history --
+PageState `dropSteps` -- so an undo of a refused addition never takes off what the keeper gave that id to since). A
+test-only finding beside them: the two harnesses opened another editor's grid from its source alone, at the fixture's
+default cube, never the document's (fixed in both). The long session (300 steps, one seed) found one more: another
+editor's mark on a chart and the grid's undo of its refilter, followed in ONE move, left the selection the keeper took
+off (the keeper judges a chart's selection where the filter moves, step by step; a run applied as one change shows the
+filter where it ends); now a run that moves the grid's filter twice is applied a command at a time (live-follow.ts).
+Every one of these has a test that failed before its fix (live-channel.test.ts, "the D19 audit's fourth round",
+tests 1-10, and "a real page and its keeper"). The soak runs 24 seeds in CI now (6 before; `medium`), three tabs, the
+faults in; forty seeds with and without faults and three 300-step sessions pass by hand. Beside the round, a page
+rename by another editor counted as a change of every grid's cube (each cube's `name` is the page's) and restarted
+every edited grid's history (W13); the converge compares cubes less the page's name now. Open, LOW, for the user: a
+pending chart removal made again after a converge records its grid's unselect as a step once more (the grid was put
+back at its sent cube, which holds the condition), so one Undo lands on a like state; and the words a tab says on a
+lost answer ("not kept") when the keeper kept the write. **What this round says about the program:** the defects are
+all interactions of the converge's own/whole put-back with pending edits, renames and refusals; each is small, each has
+its test, and the soak now reaches them, but four rounds finding defects is not a foundation proved sound. The user's
+question stands answered: not bulletproof yet; the next round, with the soak as it now is, decides.
+
+**The full local gate (`//gates:local`, 2026-10-24, in the cloud session after `tools/cloud-distdir.sh`).** 405 passed,
+11 failed: eight `initdb refuses root` (the seven core Postgres tests and `verify_app_test`: the container runs as root,
+docs/CLOUD_SESSIONS.md; CI runs as a user) and `browser_guard_test` (the proxy's certificate on extensions.duckdb.org:
+the session's, not the code's) are the environment's; two were this program's and are fixed: `headless_roster_test`
+(grid-between.test.ts joins `_HEADLESS_TESTS`) and `bundle_budget_test`, the budgets raised with dated notes for the
+user's sign-off (D9): the grid-only page 323,500 -> 332,000 (measured 331,197), the engine page 314,000 -> 322,500
+(measured 321,768), the notebook module 332,500 -> 341,000 (measured 340,482) -- the two total diffs, the converge and
+the synchronous SHA-256, about 8 KB gzipped each.
+
+**The middle version (2026-10-24, the user's decision on `docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md`).**
+Unique ids under each tab's tag (nothing renamed: the keeper refuses an id the page holds), the keeper answering a
+combined write with its page and the screen set to it in one pass (the six-step converge, the `since=` follow and the
+keeper's steps gone), and write ids taken once, a lost answer resolved by asking. Its As built is that note's §8.
+
+**Next.** The PR; the GATES entry at landing.
 

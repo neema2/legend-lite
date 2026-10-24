@@ -49,7 +49,9 @@ ALLOWED = ()  # an entry with no item: allowed for good, its reason beside it
 # 2026-10-22 (S5, Z12, D12): L6_FUNCTIONS 2 -> 0 -- a filter's shape and values are DataCube's reader's (readGivenFilter)
 # 2026-10-22 (S5, Z14, X3, D14): MARKERS 2 -> 1 -- Python's frames-only rule deleted: what a page on the host reads is
 # DataCube's one rule (host-tables.ts leafOnHost), frames, files and remote files
-CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 0, 'MARKERS': 1, 'L9_KEEPER': 6,
+# 2026-10-24 (D19, W5: docs/DATACUBE_LIVE_EDITING_2026_10_24.md): L9_KEEPER 6 -> 5 -- an open page's undo or redo is its
+# commands (the engine's restore branch deleted); N2 retired. The one write of a page whole left is Python's load (N1).
+CEILINGS = {'L4_WHOLE': 1, 'L4_FLAGS': 13, 'L5_DOCUMENT': 8, 'L6_FUNCTIONS': 0, 'MARKERS': 1, 'L9_KEEPER': 5,
             'BEHAVIOUR': 0}
 
 
@@ -271,7 +273,6 @@ L9_KEEPER = {
     'page.py:Page._commit:settle': (ALLOWED, 1),  # every Python write: its commands, the keeper keeping what they make
     'page.py:Page._commit:restore': (ALLOWED, 1),  # N1: a page loaded, written whole at the version it was made at
     'engine.py:Engine._page_said:settle': (ALLOWED, 1),  # an open page's write: its commands, applied (H1)
-    'engine.py:Engine._page_said:restore': (ALLOWED, 1),  # N2: an open page's undo or redo, at its version only
     'datacube.py:_Session.sweep:forget': (ALLOWED, 1),  # a page gone: no longer kept
 }
 
@@ -308,15 +309,16 @@ class Session(unittest.TestCase):
         return page, datacube._session.engine()
 
     def written(self, engine, page, write, version=None):
-        """An open page's write, as the tab sends it -- ``{edits}`` or ``{restore}`` -- at the version the keeper has now,
-        unless given."""
+        """An open page's write, as the tab sends it -- ``{edits, writer, seq}``: what it holds, with the write's id
+        (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md) -- at the version the keeper has now, unless given."""
         version = datacube._session.keeper.current(page._key)[0] if version is None else version
-        return engine._page_said(f'page={page._key}&version={version}', json.dumps(write))
+        self._seq = getattr(self, '_seq', 0) + 1
+        return engine._page_said(f'page={page._key}&version={version}', json.dumps({**write, 'writer': 'tab-1', 'seq': self._seq}))
 
 
 class HostApplies(Session):
     """L9 (closed in S4: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md H1-H3, B12): the page's keeper keeps what an open page's
-    commands make, never a page it sends -- but an undo or a redo, a restore kept at its version only (N2)."""
+    commands make, never a page it sends -- an undo or a redo too (D19, W5: no page is written whole)."""
 
     def test_h1_an_open_pages_write_is_kept_as_its_commands_make_it(self):
         page, engine = self.served('applied')
@@ -328,17 +330,13 @@ class HostApplies(Session):
         sent = self.written(engine, page, {'page': {**page.to_dict(), 'name': 'sent'}, 'edits': []})
         self.assertEqual(sent[0], 400, sent)
 
-    def test_h2_n2_a_restore_is_kept_at_its_version_only(self):
+    def test_h2_w5_a_page_written_whole_is_no_write_the_host_takes(self):
+        # an undo or a redo is its commands (D19, W5): a restore is refused as any write that is not edits is
         page, engine = self.served('restored')
-        at = datacube._session.keeper.current(page._key)[0]
         said = self.written(engine, page, {'restore': {**page.to_dict(), 'name': 'undone'}})
-        self.assertEqual(said[0], 200, said)
-        self.assertEqual(page.name, 'undone')
-        # behind the page (Python moved it since): refused, nothing kept
-        page.name = 'moved in Python'
-        stale = self.written(engine, page, {'restore': {**page.to_dict(), 'name': 'undone again'}}, version=at + 1)
-        self.assertEqual(stale[0], 409, stale)
-        self.assertEqual(page.name, 'moved in Python')
+        self.assertEqual(said[0], 400, said)
+        self.assertIn('never the page whole', said[2].decode('utf-8'))
+        self.assertNotEqual(page.name, 'undone')
 
     def test_h3_b12_an_id_given_and_taken_off_within_one_write_is_held_and_said(self):
         page, engine = self.served('held')

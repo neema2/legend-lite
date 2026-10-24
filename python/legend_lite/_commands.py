@@ -13,11 +13,11 @@ _ABSENT: Any = object()
 
 GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort',
                                'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate', 'editCalculated',
-                               'removeCalculated', 'open', 'collapseAll',)
+                               'removeCalculated', 'open', 'collapseAll', 'tree',)
 PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet',
-                               'renameTile', 'addGrid', 'addChart', 'setChart', 'followGrid', 'select', 'moveTile',
-                               'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap',
-                               'live', 'rebuilt', 'modelInto', 'modelPin', 'modelKeep',)
+                               'renameTile', 'addGrid', 'addChart', 'setChart', 'followGrid', 'detach', 'select',
+                               'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter',
+                               'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto', 'modelPin', 'modelKeep',)
 
 
 def grid_group(*, rows: Any) -> dict[str, Any]:
@@ -68,12 +68,13 @@ def grid_refilter(*, remove: Any, add: Any) -> dict[str, Any]:
     return {'kind': 'refilter', 'remove': remove, 'add': add}
 
 
-def grid_calculate(*, level: Any, column: Any) -> dict[str, Any]:
-    return {'kind': 'calculate', 'level': level, 'column': column}
+def grid_calculate(*, level: Any, column: Any, before: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'calculate', 'level': level, 'column': column, **({} if before is _ABSENT else {'before': before})}
 
 
-def grid_edit_calculated(*, name: Any, level: Any, column: Any) -> dict[str, Any]:
-    return {'kind': 'editCalculated', 'name': name, 'level': level, 'column': column}
+def grid_edit_calculated(*, name: Any, level: Any, column: Any, before: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'editCalculated', 'name': name, 'level': level, 'column': column,
+            **({} if before is _ABSENT else {'before': before})}
 
 
 def grid_remove_calculated(*, name: Any) -> dict[str, Any]:
@@ -86,6 +87,12 @@ def grid_open(*, path: Any, open: Any) -> dict[str, Any]:
 
 def grid_collapse_all() -> dict[str, Any]:
     return {'kind': 'collapseAll'}
+
+
+def grid_tree(*, open: Any, show_totals: Any, expand_to: Any = _ABSENT, closed: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'tree', 'open': open, 'showTotals': show_totals,
+            **({} if expand_to is _ABSENT else {'expandTo': expand_to}),
+            **({} if closed is _ABSENT else {'closed': closed})}
 
 
 def page_rename_page(*, name: Any) -> dict[str, Any]:
@@ -133,6 +140,11 @@ def page_set_chart(*, chart: Any, spec: Any) -> dict[str, Any]:
 
 def page_follow_grid(*, chart: Any, grid: Any) -> dict[str, Any]:
     return {'kind': 'followGrid', 'chart': chart, 'grid': grid}
+
+
+def page_detach(*, chart: Any, cube: Any, document: Any, copy: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'detach', 'chart': chart, 'cube': cube, 'document': document,
+            **({} if copy is _ABSENT else {'copy': copy})}
 
 
 def page_select(*, chart: Any, conditions: Any) -> dict[str, Any]:

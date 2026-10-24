@@ -86,6 +86,19 @@ export async function settle(): Promise<void> {
   for (let i = 0; i < 20; i += 1) await new Promise((r) => setTimeout(r, 0));
 }
 
+/** The element `selector` names under `root`, once it is there. A part of the app fetched when it is first wanted (the
+ *  layouts, ui/layout-picker.ts, behind the page's Arrange...) arrives after its dynamic import, and that first import
+ *  outlasted settle()'s ticks on Windows' CI (2026-10-24, PR #71: `the layouts` null once in cube-page-shell.test.ts),
+ *  so a test that opens such a part waits for it, bounded, instead of counting ticks. */
+export async function shown<E extends Element>(root: ParentNode, selector: string): Promise<E> {
+  for (let i = 0; i < 250; i += 1) {
+    const found = root.querySelector<E>(selector);
+    if (found) return found;
+    await settle();
+  }
+  throw new Error(`${selector} did not appear`);
+}
+
 /** The other half of setUp, from each test file's afterEach (Bazel workplan P3-10): the process's own
  *  unhandledRejection listeners come back, and a rejection nobody handled during the test fails it. */
 export async function tearDown(): Promise<void> {

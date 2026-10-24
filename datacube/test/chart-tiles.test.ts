@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { tiles } from '../src/layout/bands.ts';
 import type { PageCommand } from '../src/page-commands.ts';
 import type { ChartView } from '../src/page-document.ts';
-import { app, dom, GateEngine, remount, root, settle, setUp, SNAPSHOT, StubPlanner, tearDown } from './cube-fixture.ts';
+import { app, dom, GateEngine, remount, root, settle, setUp, shown, SNAPSHOT, StubPlanner, tearDown } from './cube-fixture.ts';
 
 // The fixture's cube is grouped by region, then desk: a following chart is region across, split
 // by desk; taking desk out of the row groups is a pivot it follows.
@@ -207,9 +207,8 @@ describe('the page\'s layout: placed under, arranged, undone, locked', () => {
     assert.equal(pick('Undo Layout').getAttribute('aria-disabled'), 'true', 'nothing arranged yet');
     pick('Arrange\u2026').click();
     await settle();
-    const stacked = root.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]');
-    assert.ok(stacked, 'the layouts, by the menu');
-    stacked.click();
+    // the layouts are fetched when first opened: wait for them, not for a count of ticks (Windows' CI, 2026-10-24)
+    (await shown<HTMLButtonElement>(root, '.dc-layout-picker [data-preset="stacked"]')).click();
     await settle();
     assert.deepEqual(bands(), [['grid'], [a], [b]]);
     pick('Undo Layout').click();
@@ -235,12 +234,12 @@ describe('the page\'s layout: placed under, arranged, undone, locked', () => {
     const copy = [...root.querySelectorAll<HTMLElement>('[data-tile^="grid-"]')][0]!.dataset['tile']!;
     pick('Arrange\u2026').click();
     await settle();
-    root.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]')!.click();
+    (await shown<HTMLButtonElement>(root, '.dc-layout-picker [data-preset="stacked"]')).click();
     await settle();
     // the user, 2026-10-09: from a tile of four, the layouts showed two tiles, and 2 x 2 came out 2, 1, 1
     (tile(b).querySelector('.dc-tile-layout') as HTMLElement).click();
     await settle();
-    const option = root.querySelector<HTMLElement>('.dc-layout-picker [data-preset="rows:2-2"]')!;
+    const option = await shown<HTMLElement>(root, '.dc-layout-picker [data-preset="rows:2-2"]');
     assert.equal(option.querySelectorAll('.dc-layout-cell').length, 4, 'the thumbnails show every tile on the page');
     assert.equal(option.querySelectorAll('.dc-layout-cell-mark').length, 1, 'the tile it was opened from marked');
     option.click();
@@ -252,7 +251,7 @@ describe('the page\'s layout: placed under, arranged, undone, locked', () => {
     await twoCharts();
     pick('Arrange\u2026').click();
     await settle();
-    root.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]')!.click();
+    (await shown<HTMLButtonElement>(root, '.dc-layout-picker [data-preset="stacked"]')).click();
     await settle();
     const arranged = bands();
     const board = root.querySelector<HTMLElement>('.dc-bands')!;

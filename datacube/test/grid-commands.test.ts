@@ -379,9 +379,13 @@ describe('a command read from JSON is the same command, and what DataCube does n
     { kind: 'calculate', level: 'group', column: { name: 'smallest', childAggregate: { fn: 'min', of: 'notional' }, kind: 'measure' } },
     { kind: 'calculate', level: 'row', column: { ...double, name: 'each', unnest: true } },
     { kind: 'editCalculated', name: 'double', level: 'group', column: { ...double, name: 'twice' } },
+    // in its place: before another of its level (an undo's: D19)
+    { kind: 'calculate', level: 'row', column: { ...double, name: 'first' }, before: 'double' },
+    { kind: 'editCalculated', name: 'double', level: 'row', column: double, before: 'twice' },
     { kind: 'removeCalculated', name: 'double' },
     { kind: 'open', path: ['EMEA', null], open: true },
     { kind: 'collapseAll' },
+    { kind: 'tree', open: [['EMEA'], ['EMEA', 'FX']], showTotals: true, expandTo: 1, closed: [['AMER']] },
   ];
 
   it('every kind, through JSON and back', () => {

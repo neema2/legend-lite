@@ -468,7 +468,7 @@ function viewJson(view: CubeView, configuration: CubeState['configuration'], que
 export async function gridColumn(spec: GridSpec, given: string): Promise<string> {
   const asked = JSON.parse(given) as {
     name?: unknown; replacing?: unknown; level?: unknown; kind?: ColumnKind | null; mode?: unknown;
-    expression?: unknown; explode?: unknown; window?: unknown; child?: unknown;
+    expression?: unknown; explode?: unknown; window?: unknown; child?: unknown; before?: unknown;
   };
   const kind = asked.kind ?? null;
   if (kind !== null && !COLUMN_KINDS.includes(kind)) {
@@ -508,6 +508,11 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
     return JSON.stringify({ problems: [`the calculated column edited is named by text, not ${JSON.stringify(asked.replacing)}`] });
   }
   const replacing = typeof asked.replacing === 'string' ? asked.replacing : null;
+  // the calculated column of its level the column goes before (Python's before=; D19), as the command carries it
+  if (asked.before !== undefined && typeof asked.before !== 'string') {
+    return JSON.stringify({ problems: [`the calculated column it goes before is named by text, not ${JSON.stringify(asked.before)}`] });
+  }
+  const before = typeof asked.before === 'string' ? { before: asked.before } : {};
   return using(spec, async (o) => {
     const { planner, state } = o;
     // an edit starts from the column as it is (Edit Column opens on it: its level, its explode), as told otherwise
@@ -540,8 +545,8 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
     // the column as the editor makes it (column-draft.ts draftColumn), by the command the editor's OK builds
     const column = draftColumn(draft, lambda);
     return applied(spec, o, [replacing === null
-      ? { kind: 'calculate', level: draftStage(draft), column }
-      : { kind: 'editCalculated', name: replacing, level: draftStage(draft), column }]);
+      ? { kind: 'calculate', level: draftStage(draft), column, ...before }
+      : { kind: 'editCalculated', name: replacing, level: draftStage(draft), column, ...before }]);
   });
 }
 

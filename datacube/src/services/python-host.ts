@@ -46,19 +46,19 @@ import type { PlannerWorker, Request, RequestKind, Response } from '../../../eng
 import { ExactNumber, fromJson, readValueSpecification, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { base64 } from '../headless/web.ts';
 import { CubeStoreClient } from '../cube-store.ts';
-import { pageToJson, readPage, type PageDocument } from '../page-document.ts';
+import { readPage } from '../page-document.ts';
 import { readCube } from '../cube-document.ts';
 import type { JoinHow, JoinSide } from '../join-how.ts';
 import type { JoinSummaryCounts } from '../join.ts';
 import { PlanAndRun, QueryFailure } from '../runner.ts';
-import { readGridCommand } from '../grid-commands.ts';
 import type { InferredModel } from '../infer.ts';
 import type { S3Credentials } from '../remote.ts';
 import { fileParts, type UploadResult } from '../upload.ts';
 import type {
-  BrowserService, DatabaseService, FrameModel, LiveCommand, LivePage, LiveWrite, ModelHomeService, PageService, Plane, PlaneService, PlaneWord,
+  BrowserService, DatabaseService, FrameModel, LivePage, LiveRead, LiveWrite, ModelHomeService, PageService, Plane, PlaneService, PlaneWord,
   QueryService, Services, Versions, WarehouseService, HostCopy, HostOpened,
 } from '../app/services.ts';
+import { LiveRefused } from '../app/services.ts';
 import type { CatalogObject, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
 import type { QueryReader } from '../../../query-store/src/index.ts';
 import { SessionExpired } from '../../../engine-client/src/warehouse-session.ts';
@@ -652,57 +652,50 @@ function pythonQueries(link: PythonLink, offers: PythonOffers): QueryService {
 export function livePage(link: PythonLink, key: string, follower?: string): LivePage {
   const at = `page.json?page=${encodeURIComponent(key)}`;
   const as = follower === undefined ? '' : `&follower=${follower}`;
-  /** The page as Python serves it now, read from the answer's exact JSON, and every id it has held. */
-  const read = (text: string): { version: number; page: PageDocument; held: readonly string[] } => {
+  const hashOf = (plain: { hash?: unknown }): string => {
+    if (typeof plain.hash !== 'string') throw new Error('the engine said no hash of the page');
+    return plain.hash;
+  };
+  /** The page as Python serves it now, read from the answer's exact JSON, every id it has held, and its hash. */
+  const read = (text: string): LiveRead => {
     const said = fromJson(text) as { version: unknown; page: unknown };
     const version = said.version instanceof ExactNumber && said.version.isInteger ? Number(said.version.text) : NaN;
     if (!Number.isSafeInteger(version)) throw new Error('the engine said no version of the page');
-    const { held } = JSON.parse(text) as { held?: unknown };
+    const plain = JSON.parse(text) as { held?: unknown; hash?: unknown };
+    const { held } = plain;
     if (!Array.isArray(held) || !held.every((id) => typeof id === 'string')) throw new Error('the engine said no ids the page has held');
     // a page of no grid too: one written live is a page (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md, known limit 5)
-    return { version, page: readPage(said.page, { empty: true }), held };
+    return { version, page: readPage(said.page, { empty: true }), held, hash: hashOf(plain) };
   };
   return {
-    read: async () => read(await asked(link, at)),
-    // what moved it since (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): each command read by its own reader, a grid
-    // added's cube and a calculated column's lambda from the answer's exact numbers (12.30 kept, an integer past 2^53
-    // every digit) -- the rest as the screen holds its own commands; the page's rules fetched with the first commands
-    changes: async (since) => {
-      const text = await asked(link, `${at}&since=${since}${as}`);
-      const plain = JSON.parse(text) as { version: number; commands?: unknown[] };
-      if (plain.commands === undefined) return read(text);
-      const exact = (fromJson(text) as { commands: Record<string, Record<string, unknown>>[] }).commands;
-      const { EXACT_FIELD, readPageCommand } = await lazily(() => import('../page-commands.ts'));
-      const commands = plain.commands.map((c, i): LiveCommand => {
-        const o = c as { page?: Record<string, unknown>; grid?: unknown; command?: unknown };
-        if (o.page !== undefined) {
-          const field = EXACT_FIELD[o.page['kind'] as keyof typeof EXACT_FIELD];
-          return { page: readPageCommand(field === undefined ? o.page : { ...o.page, [field]: exact[i]!['page']![field] }) };
-        }
-        if (typeof o.grid !== 'string') throw new Error(`the engine said a command of no page and no grid: ${JSON.stringify(c)}`);
-        const command = o.command as Record<string, unknown> | null;
-        const column = command?.['kind'] === 'calculate' ? command['column'] as Record<string, unknown> | null : null;
-        return {
-          grid: o.grid,
-          command: readGridCommand(column && typeof column === 'object'
-            ? { ...command, column: { ...column, lambda: (exact[i]!['command'] as Record<string, Record<string, unknown>>)['column']!['lambda'] } }
-            : command),
-        };
-      });
-      return { version: plain.version, commands };
+    read: async (writer?: string) => {
+      const text = await asked(link, `${at}${as}${writer === undefined ? '' : `&writer=${encodeURIComponent(writer)}`}`);
+      const page = read(text);
+      if (writer === undefined) return page;
+      // asked by a writer: the last of its writes the keeper took (0: none), never left unsaid
+      const taken = (JSON.parse(text) as { taken?: unknown }).taken;
+      if (typeof taken !== 'number' || !Number.isSafeInteger(taken)) throw new Error("the engine said not which of this page's writes it took");
+      return { ...page, taken };
     },
     report: async (version: number, write: LiveWrite) => {
       const answer = await link.fetch(`${link.baseUrl}/${at}&version=${version}${as}`, {
         method: 'POST',
         headers: { ...headers(link), 'Content-Type': 'application/json' },
-        // its edits as DataCube writes them (a grid's cube, a calculated column's, its numbers exact), or the page whole
-        body: 'restore' in write ? `{"restore":${pageToJson(write.restore)}}`
-          : `{"edits":[${write.edits.map((e) => toJson(e)).join(',')}]}`,
+        // its edits as DataCube writes them (a grid's cube, a calculated column's, its numbers exact), and its id
+        body: `{"edits":[${write.edits.map((e) => toJson(e)).join(',')}],"writer":${JSON.stringify(write.writer)},"seq":${write.seq}}`,
       });
-      if (!answer.ok) throw new Error(`the engine refused the page: ${answer.status} ${await answer.text()}`);
-      const said = JSON.parse(await answer.text()) as { version?: unknown; combined?: unknown };
+      // refused, in the keeper's words: nothing kept (any other failure is no refusal: the keeper is asked)
+      if (answer.status === 409) throw new LiveRefused(await answer.text());
+      if (!answer.ok) throw new Error(`the engine answered ${answer.status}: ${await answer.text()}`);
+      const text = await answer.text();
+      const said = JSON.parse(text) as { version?: unknown; hash?: unknown; page?: unknown };
       if (typeof said.version !== 'number' || !Number.isSafeInteger(said.version)) throw new Error('the engine said no version of the page');
-      return { version: said.version, combined: said.combined === true };
+      // the keeper made another page than this one sent: that page, which the screen is put at
+      if (said.page !== undefined && said.page !== null) {
+        const page = read(text);
+        return { version: said.version, hash: hashOf(said), page: page.page, held: page.held };
+      }
+      return { version: said.version, hash: hashOf(said) };
     },
   };
 }

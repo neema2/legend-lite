@@ -62,14 +62,17 @@ export interface ChangeOptions {
   readonly force?: boolean;
 }
 
-export type StateEvent<V> =
+export type StateEvent<V, E = never> =
   | { readonly kind: 'pending' }
-  /** `moved`: an undo or a redo landed with it (a change made on top of one in flight lands the move too). */
-  | { readonly kind: 'committed'; readonly view: V; readonly moved: boolean }
+  /** `moved`: an undo or a redo landed with it (a change made on top of one in flight lands the move too); `edits`: the
+   *  kind's own edits that take the committed state before to the one landed (`StateRules.between`), told as any edit's
+   *  are (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W3). */
+  | { readonly kind: 'committed'; readonly view: V; readonly moved: boolean; readonly edits?: readonly E[] }
   /** Committed WITHOUT a query (`StateRules.defer`): the view on screen is the old state's. */
   | { readonly kind: 'deferred' }
-  /** `moved`: an undo or a redo that differs from the committed state only in presentation (no query) landed. */
-  | { readonly kind: 'presentation'; readonly moved: boolean }
+  /** `moved`: an undo or a redo that differs from the committed state only in presentation (no query) landed; `edits` as
+   *  a committed move's. */
+  | { readonly kind: 'presentation'; readonly moved: boolean; readonly edits?: readonly E[] }
   /** `moved`: an undo or a redo was part of the change refused (a change made on top of one in flight). */
   | { readonly kind: 'refused'; readonly error: unknown; readonly reverted: readonly string[]; readonly moved: boolean }
   | { readonly kind: 'cancelled'; readonly reverted: readonly string[] };
@@ -85,9 +88,17 @@ export interface OwnerOptions {
  * What makes a kind of state a kind of state: the one owner (below) runs the same transaction
  * rules over the cube and over Ad Hoc Analysis mode's grid.
  */
-export interface StateRules<S, V> {
+export interface StateRules<S, V, E = never> {
   /** A state as the query sees it (the cube folds its configuration in). */
   fold(state: S): S;
+  /**
+   * The kind's own edits that take `from` to `to` (the cube's: grid-between.ts gridBetween), and the state reached by
+   * them (`toward`: what `from` becomes by those edits -- `to` as content, as the edits spell it). An undo or a redo
+   * then moves to what its edits make, and is told as them, so what the screen shows after it is what the same edits
+   * make elsewhere (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W3). Absent, a move puts the state back as it was.
+   */
+  between?(from: S, to: S): readonly E[];
+  toward?(from: S, to: S): S;
   /** What the query of a state IS: equal keys run the same queries; a change that keeps it is presentation. */
   queryKey(state: S): string;
   /** A state's identity for undo, presentation included. */
@@ -188,7 +199,7 @@ interface Pending<S> {
   readonly record: boolean;
 }
 
-export class StateOwner<S, V> {
+export class StateOwner<S, V, E = never> {
   #committed: S;
   #rendered: S;
   #view: V | null = null;
@@ -197,12 +208,12 @@ export class StateOwner<S, V> {
   #refused: Pending<S> | null = null;
   #seq = 0;
   readonly #run: Runner<S, V>;
-  readonly #rules: StateRules<S, V>;
+  readonly #rules: StateRules<S, V, E>;
   readonly #stack: UndoStack<S>;
   readonly #abort: (() => void) | undefined;
-  readonly #listeners = new Set<(event: StateEvent<V>) => void>();
+  readonly #listeners = new Set<(event: StateEvent<V, E>) => void>();
 
-  constructor(initial: S, run: Runner<S, V>, rules: StateRules<S, V>, options: OwnerOptions = {}) {
+  constructor(initial: S, run: Runner<S, V>, rules: StateRules<S, V, E>, options: OwnerOptions = {}) {
     this.#rules = rules;
     this.#committed = rules.fold(initial);
     this.#rendered = this.#committed;
@@ -255,7 +266,7 @@ export class StateOwner<S, V> {
   }
 
   /** Told of every change of state: pending, committed, presentation, refused, cancelled. */
-  subscribe(listener: (event: StateEvent<V>) => void): () => void {
+  subscribe(listener: (event: StateEvent<V, E>) => void): () => void {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
   }
@@ -337,17 +348,19 @@ export class StateOwner<S, V> {
       if (pendingMove.dir !== dir) return this.cancel();
       steps = pendingMove.steps + 1;
     }
-    const target = dir === 'undo' ? this.#stack.peekUndo(steps) : this.#stack.peekRedo(steps);
-    if (target === undefined) return { kind: 'nothing' };
+    const stacked = dir === 'undo' ? this.#stack.peekUndo(steps) : this.#stack.peekRedo(steps);
+    if (stacked === undefined) return { kind: 'nothing' };
+    // the state the kind's own edits make of the committed one toward the step's: the one the move lands (W3)
+    const target = this.#rules.toward ? this.#rules.toward(this.#committed, stacked) : stacked;
     const move: Move = { dir, steps };
     if (this.#rules.queryKey(target) !== this.#rules.queryKey(this.#committed)) {
       return this.#rules.defer?.(target) ? this.#defer(target, move, false) : this.#transact(target, dir, false, move);
     }
     // only presentation differs: no query (a move still in flight is dropped, its query stopped)
     this.#drop();
-    this.#land(target, move, false, this.#rules.queryKey(target) === this.#rules.queryKey(this.#rendered));
+    const edits = this.#land(target, move, false, this.#rules.queryKey(target) === this.#rules.queryKey(this.#rendered));
     this.#represent();
-    this.#emit({ kind: 'presentation', moved: true });
+    this.#emit({ kind: 'presentation', moved: true, ...(edits !== undefined ? { edits } : {}) });
     return { kind: 'applied' };
   }
 
@@ -376,8 +389,9 @@ export class StateOwner<S, V> {
     if (this.#rules.represent && this.#view !== null) this.#view = this.#rules.represent(this.#rendered, this.#view);
   }
 
-  /** The one place the committed state moves with the history: stacks first, then the state. */
-  #land(state: S, move: Pending<S>['move'], record = false, rendered = true): void {
+  /** The one place the committed state moves with the history: stacks first, then the state. For a move, the kind's own
+   *  edits from the committed state before to the one landed (`StateRules.between`), for the event to carry. */
+  #land(state: S, move: Pending<S>['move'], record = false, rendered = true): readonly E[] | undefined {
     const from = this.#committed;
     if (move) {
       if (move.dir === 'undo') this.#stack.undone(from, move.steps);
@@ -386,6 +400,7 @@ export class StateOwner<S, V> {
     if (record) this.#stack.record(move?.on ?? from);
     this.#committed = state;
     if (rendered) this.#rendered = state;
+    return move && this.#rules.between ? this.#rules.between(from, state) : undefined;
   }
 
   /**
@@ -458,14 +473,14 @@ export class StateOwner<S, V> {
     const view = this.#rules.represent && this.#rules.stateKey(pending.state) !== this.#rules.stateKey(next)
       ? this.#rules.represent(landed, out)
       : out;
-    this.#land(landed, pending.move, pending.record);
+    const edits = this.#land(landed, pending.move, pending.record);
     this.#view = view;
     this.#pending = null;
-    this.#emit({ kind: 'committed', view, moved: pending.move !== undefined });
+    this.#emit({ kind: 'committed', view, moved: pending.move !== undefined, ...(edits !== undefined ? { edits } : {}) });
     return { kind: 'applied', view };
   }
 
-  #emit(event: StateEvent<V>): void {
+  #emit(event: StateEvent<V, E>): void {
     for (const listener of [...this.#listeners]) listener(event);
   }
 }

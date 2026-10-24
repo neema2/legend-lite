@@ -136,7 +136,8 @@ const BOARD_SITES: Record<string, string | readonly [string, number]> = {
 };
 
 /** Every place a page's state changes, by its owner: the commands' step is page-commands.ts's (applyToState). */
-const PAGE_STATE = /(this\.#state(?:\.(?:keep|begin|undo|redo)\(| = )|\bstate\.(?:keep|begin)\()/g;
+// (dropSteps joined 2026-10-24: a refused batch's steps off the history, the D19 audit's fourth round)
+const PAGE_STATE = /(this\.#state(?:\.(?:keep|begin|step|undo|redo|putBack|rename|dropSteps)\(| = )|\bstate\.(?:keep|begin|step)\()/g;
 const STATE_SITES: Record<string, Record<string, string>> = {
   'src/page/page-app.ts': {
     'constructor:this.#state = ': 'a page made',
@@ -145,11 +146,23 @@ const STATE_SITES: Record<string, Record<string, string>> = {
     // as it starts, its first grid made, with no history behind it
     'started:this.#state = ': 'a page as it starts: its first grid made, no step to undo',
     'restore:this.#state = ': 'a saved page put back',
-    'follow:this.#state = ': "another editor's commands, applied by the rules: the page they made, whole",
+    // (follow:this.#state.keep went 2026-10-24 with PageApp.follow, the middle version: another editor's change reaches
+    // the page by the converge's put-back alone, below, its history kept -- docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md)
+    // 2026-10-24 (D19 W7, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): a screen converging on its keeper's page -- put back
+    // at the page as the keeper has it, its history kept (live-converge.ts). renamedBy went the same day (the middle
+    // version, docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md): every id an edit makes is its editor's own, so the
+    // keeper renames none and no step follows a rename of the keeper's
+    'putBack:this.#state.putBack(': "the keeper's page, put back under the screen (a converge's board), the history kept",
+    // 2026-10-24 (the D19 audit's fourth round, docs/DATACUBE_ONE_API_PLAN_2026_10_21.md As built): a refused batch's
+    // page steps never made the keeper's page, so their steps come off the history at the put-back (an undo of a refused
+    // addition took the OTHER editor's tile under that id off); the pending edits made again after a converge apply by
+    // the planned rule (page-between.ts applyPlanned: a fresh id when the keeper gave the planned one out), no step
+    'putBack:this.#state.dropSteps(': "a refused batch's steps off the history: they never made the keeper's page",
+    'reapply:this.#state.keep(': "the pending edits made again after a converge (their steps are in the history already), by the planned rule: an id given out meanwhile gives way to a fresh one",
     'setTitle:this.#state.keep(': "the page's name, its host's (no step): N1, a page opened named",
     'onChange:this.#state.keep(': "what its owners change (a grid's own edits), no step",
-    '#move:this.#state.undo(': 'Undo (N2, S4)',
-    '#move:this.#state.redo(': 'Redo (N2, S4)',
+    '#move:this.#state.undo(': 'Undo (S4; D19 W4: the step\'s inverse commands, told)',
+    '#move:this.#state.redo(': 'Redo (S4; D19 W4: the step\'s commands again, told)',
     '#move:this.#state.keep(': 'the screen put at a step: its grids made again write their own cubes',
     '#applyFilterCommand:this.#state.keep(': 'the page as its owners have it, before the filter command is applied',
     // 2026-10-22 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P15): a model action's record applied by the commands' one

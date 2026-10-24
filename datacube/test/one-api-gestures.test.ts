@@ -3,10 +3,9 @@
 // page another editor serves; each gesture made as a person makes it, on a page that is quiet first, and what the
 // channel then writes held to the tenet:
 //
-//   told    the change was told as commands: the channel wrote no page whole -- but an undo's or a redo's, a restore
-//           (N2) -- and the screen shows the page its writes make (L2)
-//   wire    the host reads them as Python's keeper reads a write (headless readEdits, pageRebase's; a restore by
-//           pageWritten), as sent (L3)
+//   told    the change was told as commands: the channel wrote no page whole -- an undo's or a redo's are the commands
+//           between (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W3, W4) -- and the screen shows the page its writes make (L2)
+//   wire    the host reads them as Python's keeper reads a write (headless readEdits, pageRebase's), as sent (L3)
 //   replays the commands as the host read them, applied to the page before by the shared functions (rebaseEdits:
 //           applyPageCommand, and a grid's applyGridCommands), make the page the screen shows (L2)
 //
@@ -26,16 +25,18 @@ import { applyToSnapshot, DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { fold } from '../src/cube-state.ts';
 import { configurationOf, cubeCopied, cubeToJson, treeOf, writeCube, type FileSource } from '../src/cube-document.ts';
 import { applyGridCommands, GRID_COMMAND_KINDS } from '../src/grid-commands.ts';
-import { LiveChannel } from '../src/app/live-channel.ts';
+import { LiveChannel, type LiveScreen } from '../src/app/live-channel.ts';
+import { pageHash } from '../src/page-hash.ts';
 import type { LivePage, LiveWrite } from '../src/app/services.ts';
 import { applyPageCommand, idsOf, PAGE_COMMAND_KINDS } from '../src/page-commands.ts';
 import { pageToJson, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { rebaseEdits, type GridApplier, type PageEdit } from '../src/page-rebase.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
-import { chartPick, pageWritten, readEdits } from '../src/headless/page.ts';
+import { chartPick, readEdits } from '../src/headless/page.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { toJson } from '../../pure-protocol/src/index.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
+import { sameButIds } from './page-same.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 
 // -- the page, as DataCube's app wires one another editor serves ----------------------------------------------------
@@ -48,7 +49,7 @@ let channel: LiveChannel | undefined;
 const cubes = new Map<string, CubeApp>();
 
 /** What the channel wrote, each write as the host was sent it -- and the page the screen showed as it was sent (the
- *  test's own look: no write carries the page but a restore). */
+ *  test's own look: no write carries the page). */
 interface Write { readonly at: number; readonly write: LiveWrite; readonly screen: PageDocument }
 const writes: Write[] = [];
 /** Every command kind some gesture told, across the run. */
@@ -57,12 +58,24 @@ const told = new Set<string>();
 /** The page's other editor (Python's host): each write recorded and taken. */
 const editor: LivePage = {
   read: () => { throw new Error('not opened here'); },
-  changes: () => { throw new Error('not followed here'); },
   report: async (at, write) => {
-    writes.push({ at, write, screen: onScreen() });
-    return { version: at + 1, combined: false };
+    const screen = onScreen();
+    writes.push({ at, write, screen });
+    // at its version: the page as the screen sent it is the keeper's, and hashes so (W17)
+    return { version: at + 1, hash: pageHash(screen) };
   },
 };
+
+/** The screen as the channel sees it here: the page, never busy (each gesture is settled before its write), converging
+ *  and reopening never (a write at its version) -- said so when one would. */
+const screenOf = (): LiveScreen => ({
+  page: onScreen,
+  busy: () => false,
+  converge: async () => { throw new Error('not converged here: every write is at its version'); },
+  reapply: async () => {},
+  reopen: async (why) => { throw new Error(`not reopened here: ${why}`); },
+  say: () => {},
+});
 
 const pg = (): PageApp => {
   assert.ok(page, 'the test made a page');
@@ -107,7 +120,6 @@ const over = (name: string): GridMaker => (gridHost, spawned, start) => {
     configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
     ...(page ? { windowHost: page.root } : {}), ...spawned,
     onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
-    onRestore: () => channel?.restored(),
   });
   if (spawned.id !== undefined) cubes.set(spawned.id, made);
   return made;
@@ -133,7 +145,6 @@ const snappable = (name: string): GridMaker => (gridHost, spawned, start) => {
     configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
     ...(page ? { windowHost: page.root } : {}), ...spawned,
     onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
-    onRestore: () => channel?.restored(),
   });
   if (spawned.id !== undefined) cubes.set(spawned.id, made);
   return made;
@@ -161,7 +172,6 @@ const overClass = (): GridMaker => (gridHost, spawned, start) => {
     configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: 'Trade' },
     ...(page ? { windowHost: page.root } : {}), ...spawned,
     onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
-    onRestore: () => channel?.restored(),
   });
   if (spawned.id !== undefined) cubes.set(spawned.id, made);
   return made;
@@ -181,7 +191,6 @@ function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
     host, title: 'Q3', confirm: () => true, empty: (slot) => { slot.textContent = 'empty'; },
     onChange: () => channel?.changed(),
     onPageCommand: (command) => channel?.edit({ page: command }),
-    onRestore: () => channel?.restored(),
     onRename: (name) => {
       pg().rename(name);
       channel?.changed();
@@ -391,20 +400,13 @@ type Check = 'told' | 'wire' | 'replays';
 /** How a check failed: in words, and -- a replay -- the parts of the page that differ. */
 interface Failed { readonly words: string; readonly paths?: readonly string[] }
 
-/** What a gesture made the channel write, held to the three checks: each failing one, how. `restores`: an undo or a
- *  redo, whose write is the page whole (N2). */
-async function judged(before: PageDocument, made: readonly Write[], restores: boolean): Promise<Partial<Record<Check, Failed>>> {
+/** What a gesture made the channel write, held to the three checks: each failing one, how. An undo or a redo is held
+ *  as any gesture is: its write is the commands between (D19 W3, W4). */
+async function judged(before: PageDocument, made: readonly Write[]): Promise<Partial<Record<Check, Failed>>> {
   assert.ok(made.length > 0, 'the gesture changed the page (the channel wrote)');
   const failed: Partial<Record<Check, Failed>> = {};
   let was = before;
   for (const w of made) {
-    if ('restore' in w.write) {
-      if (!restores) failed.told = { words: 'written whole: a restore by no undo or redo' };
-      const said = JSON.parse(pageWritten(pageToJson(w.write.restore))) as { problems?: string[] };
-      if (said.problems) failed.wire = { words: said.problems.join('; ') };
-      was = w.write.restore;
-      continue;
-    }
     for (const e of w.write.edits) told.add('page' in e ? e.page.kind : e.command.kind);
     const sent = `[${w.write.edits.map((e) => toJson(e)).join(',')}]`;
     // the commands as the host reads them, applied as the host applies them
@@ -437,8 +439,6 @@ interface Gesture {
   readonly name: string;
   /** A change of the view alone (no part of the saved page): it must write nothing. */
   readonly quiet?: true;
-  /** An undo or a redo: its write is the page whole, a restore (N2). */
-  readonly restores?: true;
   readonly setUp: () => Promise<Record<string, string>>;
   readonly make: (ids: Record<string, string>) => Promise<void> | void;
 }
@@ -518,7 +518,7 @@ const GESTURES: readonly Gesture[] = [
       (host.querySelector('.dc-page-bar .dc-titlebar-menu') as HTMLElement).click();
       entry('Arrange…').click();
       await settle();
-      host.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]')!.click();
+      (await shown<HTMLButtonElement>(host, '.dc-layout-picker [data-preset="stacked"]')).click();
     },
   },
   {
@@ -564,15 +564,15 @@ const GESTURES: readonly Gesture[] = [
   {
     name: 'a page edit undone',
     setUp: withSheet,
-    restores: true,
     make: () => pg().undo(),
   },
   {
     name: 'a page edit undone and redone',
     setUp: withSheet,
-    restores: true,
     make: () => { pg().undo(); pg().redo(); },
   },
+  // 2026-10-24 (D19 W3): a grid's undo is the commands between the step and the one before it (grid-between.ts), told as
+  // any edit is -- a move that queries, and a presentation change (no query) alike (the S7 audit's G-1 closed)
   {
     name: 'a grid edit undone',
     setUp: async () => {
@@ -581,11 +581,24 @@ const GESTURES: readonly Gesture[] = [
       await settle();
       return g;
     },
-    restores: true,
     make: async ({ a }) => { await cubes.get(a!)!.undo(); },
   },
-  // a presentation change (no query) undone and redone: written whole, as a move that queries is (the S7 audit's G-1:
-  // no command says it, and nothing was written)
+  {
+    name: "a grid's Collapse All undone (the tree put back whole: W1)",
+    setUp: async () => {
+      const g = await twoGrids();
+      assert.equal(await cubes.get(g.a!)!.edit([{ kind: 'group', rows: ['desk'] }], 'Group'), null);
+      await settle();
+      chevron(g.a!);
+      await drawn();
+      escape();
+      contextMenu(tile(g.a!).querySelector('.dc-row .dc-cell') as HTMLElement);
+      entry('Collapse All').click();
+      await drawn();
+      return g;
+    },
+    make: async ({ a }) => { await cubes.get(a!)!.undo(); },
+  },
   {
     name: "a grid's presentation edit undone",
     setUp: async () => {
@@ -594,7 +607,6 @@ const GESTURES: readonly Gesture[] = [
       await settle();
       return g;
     },
-    restores: true,
     make: async ({ a }) => { await cubes.get(a!)!.undo(); },
   },
   {
@@ -605,7 +617,6 @@ const GESTURES: readonly Gesture[] = [
       await settle();
       return g;
     },
-    restores: true,
     make: async ({ a }) => { const grid = cubes.get(a!)!; await grid.undo(); await grid.redo(); },
   },
   // charts
@@ -662,6 +673,21 @@ const GESTURES: readonly Gesture[] = [
       return { ...g, chart };
     },
     make: ({ chart }) => showGrid(chart!),
+  },
+  {
+    // 2026-10-24 (D19 W19): the chart back on the very cube it read, detached -- `detach`, the one command no gesture
+    // but an undo tells
+    name: 'a detached chart shown in a grid of its own, undone',
+    setUp: async () => {
+      const g = await twoGrids();
+      const chart = await chartOf(g.b);
+      await togglePill(chart);
+      await removeTile(g.b);
+      showGrid(chart);
+      await drawn();
+      return { ...g, chart };
+    },
+    make: () => pg().undo(),
   },
   { name: 'a grid with a following chart ungrouped', setUp: withChart, make: ({ a }) => ungroup(a!, 'desk') },
   // grids
@@ -824,7 +850,7 @@ describe('L2, L3: every gesture told as commands that replay to the page it made
   it('a page left alone writes nothing (the control)', async () => {
     await twoGrids();
     await drawn();
-    channel = new LiveChannel(editor, { page: onScreen, reopen: async () => {} }, 0);
+    channel = new LiveChannel(editor, screenOf(), 0);
     channel.opened(1);
     await drawn();
     await channel.idle();
@@ -835,7 +861,7 @@ describe('L2, L3: every gesture told as commands that replay to the page it made
     it(g.name, async () => {
       const ids = await g.setUp();
       await drawn();
-      channel = new LiveChannel(editor, { page: onScreen, reopen: async () => {} }, 0);
+      channel = new LiveChannel(editor, screenOf(), 0);
       channel.opened(1);
       const before = onScreen();
       // quiet first: what the set-up started has settled, and nothing is written before the gesture
@@ -856,7 +882,7 @@ describe('L2, L3: every gesture told as commands that replay to the page it made
         assert.equal(writes.length, 0, `${g.name}: a change of the view alone wrote the page`);
         return;
       }
-      const failed = await judged(before, writes, g.restores === true);
+      const failed = await judged(before, writes);
       const listed = L2_GAPS[g.name] ?? {};
       for (const check of ['told', 'wire', 'replays'] as const) {
         const f = failed[check];
@@ -889,7 +915,7 @@ describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy a
     // a group of the grid copied open first: the copy starts with none open, as a new grid does
     chevron(a);
     await drawn();
-    channel = new LiveChannel(editor, { page: onScreen, reopen: async () => {} }, 0);
+    channel = new LiveChannel(editor, screenOf(), 0);
     channel.opened(1);
     await drawn();
     await channel.idle();
@@ -900,7 +926,7 @@ describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy a
     await drawn();
     await channel.idle();
     await drawn();
-    const added = writes.flatMap((w) => ('restore' in w.write ? [] : w.write.edits))
+    const added = writes.flatMap((w) => w.write.edits)
       .flatMap((e) => ('page' in e && e.page.kind === 'addGrid' ? [e.page] : []));
     assert.equal(added.length, 1, 'one grid added');
     const copy = added[0]!.document;
@@ -913,7 +939,7 @@ describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy a
     const { a } = await twoGrids();
     assert.equal(await cubes.get(a)!.edit([{ kind: 'group', rows: ['desk'] }, { kind: 'configure', patch: { initialExpandToLevel: 1 } }], 'Level'), null);
     await drawn();
-    channel = new LiveChannel(editor, { page: onScreen, reopen: async () => {} }, 0);
+    channel = new LiveChannel(editor, screenOf(), 0);
     channel.opened(1);
     await drawn();
     await channel.idle();
@@ -924,7 +950,7 @@ describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy a
     await drawn();
     await channel.idle();
     await drawn();
-    const copy = writes.flatMap((w) => ('restore' in w.write ? [] : w.write.edits))
+    const copy = writes.flatMap((w) => w.write.edits)
       .flatMap((e) => ('page' in e && e.page.kind === 'addGrid' ? [e.page] : []))[0]?.document;
     assert.ok(copy, 'its document written');
     assert.equal(copy.tree.expandTo, 1, 'the screen\'s copy opened to its level');
@@ -936,7 +962,7 @@ describe("A chart's mark clicked selects it by the one rule Python's chart.selec
   it('the refilter and select the click tells are what chartPick makes of the mark named by its value', async () => {
     const ids = await withChart();
     await drawn();
-    channel = new LiveChannel(editor, { page: onScreen, reopen: async () => {} }, 0);
+    channel = new LiveChannel(editor, screenOf(), 0);
     channel.opened(1);
     await drawn();
     await channel.idle();
@@ -945,7 +971,7 @@ describe("A chart's mark clicked selects it by the one rule Python's chart.selec
     await drawn();
     await channel.idle();
     await drawn();
-    const edits = writes.flatMap((w) => ('restore' in w.write ? [] : w.write.edits));
+    const edits = writes.flatMap((w) => w.write.edits);
     const chart = was.views.find((v): v is ChartView => v.id === ids['chart'] && v.kind === 'chart')!;
     const selected = onScreen().views.find((v): v is ChartView => v.id === ids['chart'] && v.kind === 'chart')?.selection ?? [];
     // the mark as Python names it: its value across (and its series', on a split chart), as the click's selection says
@@ -1010,7 +1036,9 @@ describe('P9: a saved page opened keeps what it cannot open', () => {
     assert.equal(now.views.some((v) => v.id === chart), false, 'its following chart went with it');
     pg().undo();
     await settle();
-    const back = onScreen();
-    assert.deepEqual([back.views, back.cubes], [saved.views, saved.cubes], 'undone: kept again, as saved');
+    // kept again, as saved -- a new tile (B12), under the id its cube was given
+    const back = sameButIds(saved, onScreen());
+    assert.ok(back.same, `undone: kept again, as saved: ${JSON.stringify(back.a)} vs ${JSON.stringify(back.b)}`);
+    assert.deepEqual(Object.keys(back.renamed), [b, chart], 'the kept tile and its chart, brought back as new tiles');
   });
 });

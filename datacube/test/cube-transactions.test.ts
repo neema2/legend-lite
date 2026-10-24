@@ -5,7 +5,9 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
-import type { GridCommand } from '../src/grid-commands.ts';
+import { gridBetween } from '../src/grid-between.ts';
+import { applyGridCommands, type GridCommand } from '../src/grid-commands.ts';
+import type { GridDraft } from '../src/grid-edits.ts';
 import { stand } from './fake-planner.ts';
 import { setHeaderDrag } from '../src/ui/pivot-panel.ts';
 import {
@@ -356,6 +358,13 @@ describe('the commands told are the ones that landed, in the order they landed (
     await remount({ onCommand: (command) => told.push(command), signInAgain: async () => {} });
   });
   const kinds = (): string[] => told.map((c) => c.kind);
+  /** The grid as it is now, as its commands edit it. */
+  const now = (): GridDraft => ({ snapshot: app.snapshot, config: app.configuration, tree: app.tree });
+  /** The commands told, applied to the grid as it was, make the grid on screen: nothing is between the replay and it
+   *  (D19 W3: an undo is told as the commands between, as a change is). */
+  const replays = (before: GridDraft): void => {
+    assert.deepEqual(gridBetween(applyGridCommands(before, told), now()), [], `the commands told (${kinds().join(', ')}) replay to another grid than the screen's`);
+  };
   const release = async (): Promise<void> => {
     engine.gate.hold = false;
     engine.gate.releaseAll();
@@ -400,10 +409,11 @@ describe('the commands told are the ones that landed, in the order they landed (
     assert.deepEqual([pinned, maxRows], ['left', 50], `replayed in the order told (${JSON.stringify(told)})`);
   });
 
-  it('a change made while an Undo runs lands with it: no command says the undo, so none is told (T3)', async () => {
+  it('a change made while an Undo runs lands with it: told as the commands between the grid before and the one landed, the undo\'s among them (T3; D19 W3)', async () => {
     menu('EMEA', 'Ascending');
     await settle();
     told = [];
+    const before = now();
     engine.gate.hold = true;
     void app.undo();
     await settle();
@@ -411,13 +421,13 @@ describe('the commands told are the ones that landed, in the order they landed (
     await settle();
     await release();
     assert.deepEqual([app.snapshot.rows, app.snapshot.sorts], [['desk'], []], 'the undo AND the change landed');
-    // told the change alone, a host would keep the sort the undo took away: the grid is written whole instead
-    assert.deepEqual(kinds(), [], 'no command told for a transition an undo is part of');
+    // told the change alone, a host would keep the sort the undo took away: the undo is told too, as the commands between
+    assert.deepEqual([...new Set(kinds())].sort(), ['group', 'sorts'], 'the sort undone and the group removed, both told');
+    replays(before);
   });
 
-  it('a setting made while an undo runs, then an undo that lands with no query: the page written whole, the setting not told again on top of it (the S7 confirmation audit G2-1)', async () => {
-    let restores = 0;
-    await remount({ onCommand: (command) => told.push(command), onRestore: () => { restores += 1; }, signInAgain: async () => {} });
+  it('a setting made while an undo runs, then an undo that lands with no query: told as the commands between, the setting never told again on top of it (the S7 confirmation audit G2-1; D19 W3)', async () => {
+    const before = now();
     // two steps whose queries differ, the second's query the first's before it (no sort, a sort, none again)
     await app.edit([{ kind: 'sorts', sorts: [{ column: 'region', direction: 'asc' }] }], 'sort');
     await settle();
@@ -430,15 +440,16 @@ describe('the commands told are the ones that landed, in the order they landed (
     const pin: GridCommand = { kind: 'configure', patch: { columns: { desk: { pinned: 'left' } } } };
     await app.edit([pin], 'settings');
     await settle();
-    // a second undo: back to the start, whose query is the one on screen -- it lands at once, no query, a restore
+    // a second undo: back to the start, whose query is the one on screen -- it lands at once, no query, told as the
+    // commands between as any move is
     void app.undo();
     await settle();
     await release();
-    assert.ok(restores > 0, 'the undo written whole');
+    replays(before);
     told = [];
     await app.edit([{ kind: 'sorts', sorts: [{ column: 'desk', direction: 'desc' }] }], 'sort');
     await settle();
-    assert.deepEqual(kinds(), ['sorts'], 'the next change told alone: the setting is in the page written whole, or undone with it');
+    assert.deepEqual(kinds(), ['sorts'], 'the next change told alone: the setting was told once, with the move it rode or as the move took it away');
   });
 
   it("another editor's commands are that editor's own: never told back, the person's made meanwhile are (T4)", async () => {
