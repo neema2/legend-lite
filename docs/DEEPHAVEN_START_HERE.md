@@ -19,12 +19,22 @@ not.**
 |---|---|
 | `claude/deephaven-1-model` | L1: the database type, connection and pre-shared key auth |
 | `claude/deephaven-2-target` | L2: the dialect (`Deephaven.java`, `DeephavenBatch.java`) |
-| **`claude/deephaven-3-browser`** | **everything since, on top of both: work here.** Head `285126324` (2026-10-24), pushed |
+| **`claude/deephaven-3-browser`** | **everything since, on top of both: work here.** `main` merged in 2026-10-24, pushed |
 
-None is on `main`. On 2026-10-24 the browser branch was 22 commits behind `main` (other lines' DataCube PRs #65-#70); a
-trial merge conflicted only in `datacube/test/bundle-budget.test.ts` (both sides raised budgets: keep both dated notes,
-re-measure, set each budget to the merged measure). Merge `main` in (never rebase: the branch is pushed) before the next
-landing.
+None is on `main`, and **none goes there before the licence answer** (open decision 1; the rule below). `main` is merged
+INTO the browser branch, never the reverse, and never rebased (the branch is pushed): on 2026-10-24 at `18db1e9a` (PRs
+#65-#71), merge commit `5125f1d8`. Its one textual conflict was the bundle budgets (the grid-only page re-measured,
+334,805: 333,500 -> 335,000; the other two fit main's); one conflict the text did not show: D19 removed
+`PageApp.follow`, which `board.ts` used to add its charts (`PageApp.reapply` now).
+
+**Next from `main`: PR #72** (DataCube BI and Excel parity), not merged on 2026-10-24. Its trial merge with this branch
+conflicts in `app.ts`, `grid/grid.ts`, `test/app-dom.test.ts` and the budgets. The one that matters is `grid.ts`: this
+branch moved a cell's painting into `DataGrid.#cell` so a tick repaints a cell in place, and #72 added conditional
+formats (data bars, colour scales, icon sets, rules, a format code's colour) in the old inline painting. Their code moves
+into `#cell`, and the conditionals (`measureConditionals`, measured over the grid's rows as heatmaps are) must be measured
+again at a tick, or a ticking cell keeps a stale bar or colour; on a flat grid read by a window (V1) the rows are the
+window's, as a heatmap's are. #72 also adds DataCube features the Deephaven target refuses today (below): correlation,
+covariance, max-by and min-by; Top/Bottom N (a rank window); dates relative to today.
 
 ## What is built (the plan's §9 table; each row's paragraph says what it measured)
 
@@ -66,6 +76,10 @@ normally); `browser_guard_test` fails behind the session's proxy certificate.
 
 ## Rules this line keeps (beside AGENTS.md)
 
+- **Nothing reaches `main` before the licence answer** (the user, 2026-10-24: "worried about merging to main without
+  licensing discussion first"): no PR, no push to `main`, no release from the three Deephaven branches until open
+  decision 1 is answered, however green the gates. The demo's server-side scripts (Groovy against Deephaven's own API:
+  `risk.groovy`, and any simulator after it) are under the same question: listed for counsel, kept on the branch.
 - **No Deephaven code in the build (DH11):** every Deephaven jar is under the Deephaven Community License. Its JS library
   is loaded at run time from the user's own server, never bundled; the server and jars are fetched for tests only
   (testonly, never shipped).
@@ -89,13 +103,48 @@ normally); `browser_guard_test` fails behind the session's proxy certificate.
 3. **Sign-in and authorization for the whole system** (the user: "needs a bigger auth design"). The fact it must start
    from: Deephaven Community has no per-table permissions -- whoever signs in reads every table, and runs code if the
    console is on (the demo's key can) -- so restricting it means an authorization plugin, which is Deephaven-licensed code.
-4. **Merge `main`** (above).
+4. ~~Merge `main`~~: done 2026-10-24 (above); PR #72 next.
+
+## Gaps measured (2026-10-24)
+
+Seventy-four Pure queries of a trading desk's kind, each planned with this branch's planner on a DuckDB runtime and on a
+Deephaven runtime over the same store (a scratch probe, not committed). DuckDB plans every one but two (the write to a
+store table, and a first spelling of a join that a rewrite replaced); what Deephaven refuses, by name, each with the
+operation Deephaven has for it:
+
+| Area | Refused on Deephaven | Deephaven's own | Blocks |
+|---|---|---|---|
+| Time | a DateTime literal; `now()->adjust`; `timeBucket`; `hour()` (EXTRACT); `datePart` (DATE_TRUNC_DAY); `firstDayOfMonth` (DATE_TRUNC); `dateDiff` | `lowerBin`, `now()`, calendar functions (a time zone each: a design point); a sliding window needs Deephaven's time-window helper, since `now()` in a filter is not evaluated again as time passes | candles, "the last 5 minutes", every DataCube time grain |
+| Windows | every window function (`updateBy` shape not built), and a filter over one (QUALIFY) | `updateBy` (cumulative, rolling by rows or time, EMA, delta); `headBy` for top-N | moving averages, tick change, running totals; all 15 of DataCube's window functions and its 6 show-as |
+| As-of join | both forms | `aj` (DH20) | quote at trade time, markouts, TCA |
+| The runtime error | `sqrt` and Integer `/`: the lowering's guard (Pure fails on `sqrt` of a negative and on division by zero) writes an `ERROR`, which has no shape | a design: how a Deephaven formula fails by name | volatility, ratios, Black-Scholes |
+| Aggregates | percentile, `stdDevPopulation`, `variancePopulation`, `joinStrings`, `mode` (and #72's corr, covariance, max-by, min-by) | `pct`; the others computed or refused for good | 5 of DataCube's 15 aggregates |
+| Scalars | `round`, `mod`, `substring`, `contains` (STRPOS), a number to text, a decimal literal (audit R9) | Java's own | |
+| Relations | RIGHT and FULL joins, a join with no equality, the Relation API's `pivot()`, `drop` with no limit, `size()` | | DataCube's Join window offers right and full |
+
+Planned on both: grouping with sum, count, average, min, max, median, the sample deviations, `wavg`, distinct counts and
+`unique`; LEFT joins to a keyed table and INNER joins; `if`; sort and limit, slice, union, distinct, rename and select;
+filters by a list, `startsWith`, nulls and ranges; `log`, `exp`, `pow`, `abs`, Float division; class queries through a
+mapping. Refused on both: a write to a store table (the Cypher writes line, not on `main`).
+
+**And in the integration:** no server-side execution (`Connectors` answers `Unbuilt`: no Python, Studio or REST over
+Deephaven, and no semantic lanes to find the formula differences the register expects, L3s); the browser route trusts
+the store's declaration (DH16's check and DH19's refusal are L3s's: a wrong type surfaces late; a `NOT NULL` column that
+holds nulls loses the guards the lowering writes); tables are found by their query-scope name only (a Deephaven
+application's fields and a Python server's tables not tried); no check of the server's version at sign-in (42.7 only is
+tested); and this branch carries the MongoDB line's commits, which are not on `main` either.
 
 ## Next, as proposed to the user (2026-10-24; not yet chosen)
 
 Settle 1-3, then **make it real for one desk**: the person's own sign-in, a real Deephaven with its real tables through
 the model, counsel's review. Later, in the plan's order: the server-side sender (L3s); writes (W, Wr, X, L3w); the
 modelled publisher (L5); views shared between viewers (S1, which revisits the idle cache's cost, audit R3).
+
+Also proposed on 2026-10-24 (the user asked for them; order not yet chosen): **trader screens at realistic speeds** -- a
+stock ticker with a live candle chart first, then a market map, real-time P&L with limits, an execution blotter, an
+options desk, FX, TCA -- on the platform as far as it goes, anything bespoke (a market simulator as a startup script)
+written down as a thing to push into the platform. The ticker needs the time row of the gaps above; volatility and
+greeks the runtime error's; moving figures the windows'; TCA the as-of join's.
 
 ## Where the code is
 
