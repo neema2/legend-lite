@@ -1,0 +1,48 @@
+# The IQ scale program's Q30, its second batch (2026-10-24): where each engine reads an operand that raises beside a
+# NULL one. lite/null_beside_a_raise.yaml measured a + - * of numbers: IQ 17.1's engine computes every operand (its
+# divide-by-zero, -1001007, whichever side the NULL is on), SQL Anywhere 17's front end reads from the left to the
+# first NULL (its answers to that file's iq16 runs: NULL with the NULL to the left, -628 with the division first).
+# Here: the front end over tables (sqla17-default, a SQL Anywhere 17 database, every query in its front end; and IQ
+# 17.1's own front end, which GREATER moves a query over IQ's tables into, measured 2026-10-17), and IQ's engine on a
+# comparison's operands and a function's arguments, which lite still reads as before. Row 3 of t holds zeros
+# (sm, it, bg = 0). tools/iq-oracle's README.md has the keys.
+tests:
+
+  # ---- SQL Anywhere's front end over a table
+  - id: a_computed_null_beside_a_zero_divisor_in_the_front_end
+    sql: "SELECT id, NULLIF(sm, 0) + it / sm AS v FROM t WHERE id = 3"
+    profile: sqla17-default
+  - id: a_zero_divisor_beside_a_computed_null_in_the_front_end
+    sql: "SELECT id, it / sm + NULLIF(sm, 0) AS v FROM t WHERE id = 3"
+    profile: sqla17-default
+  - id: a_computed_null_times_a_zero_divisor_in_the_front_end
+    sql: "SELECT id, NULLIF(it, 0) * (bg / sm) AS v FROM t WHERE id = 3"
+    profile: sqla17-default
+  - id: a_zero_divisor_times_a_computed_null_in_the_front_end
+    sql: "SELECT id, (bg / sm) * NULLIF(it, 0) AS v FROM t WHERE id = 3"
+    profile: sqla17-default
+  - id: a_null_beside_a_zero_divisor_in_the_front_end
+    sql: "SELECT id, NULL + it / sm AS v FROM t WHERE id = 3"
+    profile: sqla17-default
+  - id: a_zero_divisor_beside_a_null_in_the_front_end
+    sql: "SELECT id, it / sm + NULL AS v FROM t WHERE id = 3"
+    profile: sqla17-default
+
+  # ---- IQ 17.1's front end, by GREATER
+  - id: a_computed_null_beside_a_zero_divisor_beside_greater
+    sql: "SELECT id, NULLIF(sm, 0) + it / sm AS v, GREATER(1, 2) AS g FROM t WHERE id = 3"
+    profile: iq17-default
+  - id: a_zero_divisor_beside_a_computed_null_beside_greater
+    sql: "SELECT id, it / sm + NULLIF(sm, 0) AS v, GREATER(1, 2) AS g FROM t WHERE id = 3"
+    profile: iq17-default
+
+  # ---- IQ's engine: a comparison's operands, a function's arguments
+  - id: a_computed_null_compared_with_a_zero_divisor
+    sql: "SELECT id, CASE WHEN NULLIF(sm, 0) < it / sm THEN 1 ELSE 0 END AS v FROM t WHERE id = 3"
+    profile: iq17-default
+  - id: a_zero_divisor_compared_with_a_computed_null
+    sql: "SELECT id, CASE WHEN it / sm < NULLIF(sm, 0) THEN 1 ELSE 0 END AS v FROM t WHERE id = 3"
+    profile: iq17-default
+  - id: a_string_function_of_a_null_and_a_zero_divisor
+    sql: "SELECT id, LEFT(NULLIF(vc, vc), it / sm) AS v FROM t WHERE id = 3"
+    profile: iq17-default
