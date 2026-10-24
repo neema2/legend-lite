@@ -432,6 +432,22 @@ public sealed interface SqlExpr
                     .orElseGet(() -> new Column(table, name));
         }
 
+        /** {@link #of(String, List, String)} for many names over one
+         * output list, the list indexed once (a relation of n columns
+         * read whole is n lookups, not n scans of n: Cypher's staged
+         * rows carry a column per element a clause creates). */
+        public static java.util.function.Function<String, Column> lookup(
+                @com.legend.base.Nullable String table, List<OutputCol> outs) {
+            java.util.Map<String, OutputCol> byName = new java.util.HashMap<>();
+            for (OutputCol oc : outs) {
+                byName.putIfAbsent(oc.name(), oc);
+            }
+            return name -> {
+                OutputCol oc = byName.get(name);
+                return oc == null ? new Column(table, name) : of(table, oc);
+            };
+        }
+
         /** §E3 M-N2 — the JOIN-PAD door: this reference with its fact
          * marked may-be-null (a read resolved from a NULL-padded join
          * side may be NULL regardless of the column's DDL). Identity

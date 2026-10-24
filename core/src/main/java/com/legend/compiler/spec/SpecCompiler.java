@@ -307,6 +307,7 @@ public final class SpecCompiler {
      * statement.
      */
     public List<TypedSpec> typeQueryBody(ValueSpecification query) {
+        query = withIslandPrograms(query);
         // A query's PARAMETERS ({minQty: Integer[1]|...}) are in scope at their declared types:
         // the query's value is its BODY's, as legend-engine types it (lambdaReturnType,
         // lambdaRelationType) -- not the lambda's own function type. Undeclared parameters stay loud.
@@ -354,6 +355,32 @@ public final class SpecCompiler {
             return body;
         }
         return List.of(typer.typeBody(query, Env.empty(), Expected.infer()));
+    }
+
+    /** {@code query} with each of its statements that is a Cypher statement updating the graph replaced by that
+     *  statement's program (docs/WRITES_DESIGN_2026_10_18.md §5: the staged rows' lets, the writes, the rows last;
+     *  {@link CypherIslands#statements}), and likewise each {@code #SQL{...}#} statement that returns the rows it
+     *  writes ({@link SqlIslands#statements}), as a lambda of the query's parameters; a query of none as it is. */
+    private ValueSpecification withIslandPrograms(ValueSpecification query) {
+        List<ValueSpecification> body = query instanceof com.legend.protocol.spec.LambdaFunction lf ? lf.body()
+                : List.of(query);
+        if (body.stream().noneMatch(s -> s instanceof com.legend.protocol.spec.SqlIsland si
+                && (CypherIslands.updates(si) || SqlIslands.returnsRows(si)))) {
+            return query;
+        }
+        List<ValueSpecification> out = new ArrayList<>();
+        for (ValueSpecification stmt : body) {
+            if (stmt instanceof com.legend.protocol.spec.SqlIsland si && CypherIslands.updates(si)) {
+                out.addAll(CypherIslands.statements(si, ctx));
+            } else if (stmt instanceof com.legend.protocol.spec.SqlIsland si && SqlIslands.returnsRows(si)) {
+                // a #SQL{...}# statement that returns the rows it writes (RETURNING; the writes design's leg 4)
+                out.addAll(SqlIslands.statements(si, source -> typer.synth(source, Env.empty()), ctx));
+            } else {
+                out.add(stmt);
+            }
+        }
+        return query instanceof com.legend.protocol.spec.LambdaFunction lf ? lf.withBody(out)
+                : com.legend.protocol.spec.LambdaFunction.of(out);
     }
 
     /**

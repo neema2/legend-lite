@@ -194,6 +194,7 @@ final class CollectionLanes {
             case TypedAsOfJoin ignored -> false;
             case TypedOver ignored -> false;
             case TypedWrite ignored -> false;
+            case com.legend.compiler.spec.typed.TypedStoreWrite ignored -> false;
             case TypedGraphFetch ignored -> false;
             case TypedSerialize ignored -> false;
             case TypedSerializeGraph ignored -> false;

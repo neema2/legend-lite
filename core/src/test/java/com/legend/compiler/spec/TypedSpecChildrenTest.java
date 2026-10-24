@@ -210,6 +210,18 @@ class TypedSpecChildrenTest {
         if (type == TypedFuncCol.class) {
             return new TypedFuncCol("c", (TypedLambda) dummy(TypedLambda.class, null));
         }
+        // the store writes (2026-10-18, the writes design's leg 2): the table a write names, the columns an update
+        // sets and the keys a merge reads, each a typed child of its node
+        if (type == com.legend.compiler.spec.typed.TypedTableReference.class) {
+            return new com.legend.compiler.spec.typed.TypedTableReference("test::DB", "T", one());
+        }
+        if (type == com.legend.compiler.spec.typed.TypedFuncColSpecArray.class) {
+            return new com.legend.compiler.spec.typed.TypedFuncColSpecArray(
+                    List.of((TypedFuncCol) dummy(TypedFuncCol.class, null)), one());
+        }
+        if (type == com.legend.compiler.spec.typed.TypedColSpecArray.class) {
+            return new com.legend.compiler.spec.typed.TypedColSpecArray(List.of("c"), one());
+        }
         if (type == com.legend.compiler.spec.typed
                 .TypedSerializeGraph.SubTypePatch.class) {
             // patch leaves + member witness surface through children()

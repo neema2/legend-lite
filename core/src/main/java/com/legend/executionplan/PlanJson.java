@@ -39,15 +39,16 @@ public final class PlanJson {
      *  2026-10-09: the planner's plans (step 2's landing 2) — a target's database (declared or the platform's), its
      *  server versions and session statements, and a text result's columns without a SQL type; 4 since 2026-10-09: the
      *  runner's plans (step 3) — each slot's binding (one value with its null's type and, where the statement names the
-     *  value's type, its type hole; or a list as one array). */
-    public static final int VERSION = 4;
+     *  value's type, its type hole; or a list as one array); 5 since 2026-10-20: write plans
+     *  (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7) -- the {@code update} and {@code check} nodes. */
+    public static final int VERSION = 5;
 
     private PlanJson() {
     }
 
     /** The {@code _type} tags of the lite format, one spelling for the writer and the reader: an exhaustive switch over
      *  each family, an unknown tag refused by name ({@link #tag}). */
-    enum NodeTag { sequence, tdsResult, textResult }
+    enum NodeTag { sequence, tdsResult, textResult, update, check }
 
     enum ResultTypeTag { relation, value }
 
@@ -118,6 +119,17 @@ public final class PlanJson {
                 o.put("format", x.format().name());
                 o.put("type", resultType(x.type()));
                 o.put("sql", sql(x.sql()));
+            }
+            case ExecutionPlan.Update u -> {
+                o.put("_type", NodeTag.update.name());
+                o.put("sql", sql(u.sql()));
+                if (u.count() != null) {
+                    o.put("count", u.count());
+                }
+            }
+            case ExecutionPlan.Check k -> {
+                o.put("_type", NodeTag.check.name());
+                o.put("sql", sql(k.sql()));
             }
         }
         return o;
@@ -307,6 +319,9 @@ public final class PlanJson {
             case tdsResult -> new TdsResult(readColumns(o.getArr("columns")), readSql(o.getObj("sql")));
             case textResult -> new TextResult(named(Format.class, o.getString("format"), "text result format"),
                     readResultType(o.getObj("type")), readSql(o.getObj("sql")));
+            case update -> new ExecutionPlan.Update(readSql(o.getObj("sql")), o.has("count") ? o.getString("count")
+                    : null);
+            case check -> new ExecutionPlan.Check(readSql(o.getObj("sql")));
         };
     }
 

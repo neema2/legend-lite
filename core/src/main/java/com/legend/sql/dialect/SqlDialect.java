@@ -74,6 +74,14 @@ public interface SqlDialect {
         return false;
     }
 
+    /** Whether a program's staged table ({@link com.legend.sql.SqlDml.CreateTempTableAs#staged}) is dropped by the
+     *  database as the program's transaction ends, committed or rolled back, so the program issues no drop of it.
+     *  Default: it is not, and the program's last step drops it, within the transaction (a database whose DDL is
+     *  transactional: a failed transaction takes the table back with its writes). */
+    default boolean dropsStagedTablesWithTheirTransaction() {
+        return false;
+    }
+
     /** Whether this dialect's driver re-fetches a timestamp cell as {@code java.time.LocalDateTime} and a date cell
      *  as {@code java.time.LocalDate} (the BC-faithful carriers the executor reads every timestamp and date as; dates
      *  since 2026-10-17, measured then on pgjdbc, DuckDB's and H2's drivers: the other drivers' JDBC 4.2 support
@@ -183,8 +191,14 @@ public interface SqlDialect {
     String render(com.legend.sql.SqlDdl ddl);
 
     /** Row writes rendered like DDL (2026-09-23): the dialect's identifier
-     *  rule and literal spelling. */
+     *  rule and literal spelling. A write whose values bind a plan's parameter is refused as text: it is a
+     *  statement ({@link #renderStatement(com.legend.sql.SqlDml)}). */
     String render(com.legend.sql.SqlDml dml);
+
+    /** A row write as a statement for execution with bound values (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): its
+     *  text with a {@code ?} for each bound parameter, and the parameters in placeholder order, as
+     *  {@link #renderStatement(SqlQuery)} writes a query's. A seed's rows, a copy and a table emptied bind none. */
+    RenderedStatement renderStatement(com.legend.sql.SqlDml dml);
 
     /** A store column's name in the column list of a row this dialect writes as TEXT (a seed's insert, the engine
      *  text's {@code setUpDataSQLs}): the rule its DDL names the column by, so the statement that fills a table names

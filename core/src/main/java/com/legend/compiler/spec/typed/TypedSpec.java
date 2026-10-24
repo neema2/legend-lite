@@ -56,7 +56,7 @@ public sealed interface TypedSpec permits
         TypedFlatten, TypedCollectionRelation,
         TypedGetAll, TypedMilestonedAccess,
         TypedFrom,
-        TypedWrite,
+        TypedWrite, TypedStoreWrite,
         TypedFold,
         TypedNavigate,
         TypedGraphFetch,

@@ -94,14 +94,209 @@ public final class SqlParser {
         if (t.is("with")) {
             return with();
         }
+        if (t.is("insert")) {
+            return insert();
+        }
+        if (t.is("update")) {
+            return update();
+        }
+        if (t.is("delete")) {
+            return delete();
+        }
         if (!t.is("select") && !t.is("values") && !t.is("table") && t.kind() != Kind.LPAREN) {
             if (t.kind() == Kind.EOF) {
                 throw error("syntax error at end of input");
             }
-            throw error("only queries are supported: a statement must begin with SELECT, not \"" + t.text() + "\"");
+            throw error("only queries and INSERT, UPDATE and DELETE are supported: a statement must begin with"
+                    + " SELECT, not \"" + t.text() + "\"");
         }
         SqlAst.Statement query = setExpression();
         return tail(query);
+    }
+
+    /** A query as a statement's own part (a subquery's, an INSERT's source): never one that writes, which Postgres
+     *  reads nowhere but as a WITH query ({@link #cteQuery}). */
+    private SqlAst.Statement query() {
+        if (writes(peek())) {
+            throw error("syntax error at or near \"" + peek().text() + "\"");
+        }
+        return statement();
+    }
+
+    /** A WITH query, or the statement a WITH clause heads: one that writes (a data-modifying WITH) refused by name. */
+    private SqlAst.Statement cteQuery() {
+        if (writes(peek())) {
+            throw unsupported("a statement that writes a table in a WITH clause is");
+        }
+        return statement();
+    }
+
+    private static boolean writes(Token t) {
+        return t.is("insert") || t.is("update") || t.is("delete");
+    }
+
+    // ------------------------------------------------------------------ INSERT, UPDATE, DELETE (writes leg 4)
+
+    /** {@code INSERT INTO target [AS alias] [(columns)] query [ON CONFLICT ...] [RETURNING ...]}. */
+    private SqlAst.Statement insert() {
+        SqlAst.Pos pos = expectWord("insert").pos();
+        expectWord("into");
+        SqlAst.FromItem target = dmlTarget(true);
+        List<SqlAst.Ident> columns = new ArrayList<>();
+        if (peek().kind() == Kind.LPAREN && !queryAhead(1)) {
+            at++;
+            do {
+                columns.add(ident(expectName()));
+            } while (accept(Kind.COMMA));
+            expect(Kind.RPAREN);
+        }
+        if (peek().is("default")) {
+            throw unsupported("INSERT ... DEFAULT VALUES is");
+        }
+        if (peek().is("overriding")) {
+            throw unsupported("INSERT ... OVERRIDING is");
+        }
+        // (a VALUES list's literals are typed by the columns they are written into: none read as text here)
+        boolean values = peek().is("values");
+        SqlAst.Statement source = values ? tail(values(false)) : query();
+        SqlAst.OnConflict onConflict = null;
+        if (peek().is("on") && peekAt(1).is("conflict")) {
+            Token on = next();
+            at++;
+            List<SqlAst.Ident> keys = new ArrayList<>();
+            if (peek().is("on") && peekAt(1).is("constraint")) {
+                throw unsupported("ON CONFLICT ON CONSTRAINT is");
+            }
+            if (accept(Kind.LPAREN)) {
+                do {
+                    keys.add(ident(expectName()));
+                } while (accept(Kind.COMMA));
+                expect(Kind.RPAREN);
+            }
+            if (peek().is("where")) {
+                throw unsupported("an ON CONFLICT target's WHERE is");
+            }
+            expectWord("do");
+            if (acceptWord("nothing")) {
+                onConflict = new SqlAst.OnConflict(keys, null, null, on.pos());
+            } else {
+                expectWord("update");
+                expectWord("set");
+                List<SqlAst.Assignment> sets = assignments();
+                SqlAst.Expr where = acceptWord("where") ? expr() : null;
+                onConflict = new SqlAst.OnConflict(keys, sets, where, on.pos());
+            }
+        }
+        return new SqlAst.Insert(target, columns, source, values, onConflict, returning(), pos);
+    }
+
+    /** {@code UPDATE [ONLY] target [[AS] alias] SET assignments [FROM ...] [WHERE] [RETURNING ...]}. */
+    private SqlAst.Statement update() {
+        SqlAst.Pos pos = expectWord("update").pos();
+        if (peek().is("only")) {
+            throw unsupported("UPDATE ONLY is");
+        }
+        SqlAst.FromItem target = dmlTarget(false);
+        expectWord("set");
+        List<SqlAst.Assignment> sets = assignments();
+        List<SqlAst.FromItem> from = new ArrayList<>();
+        if (acceptWord("from")) {
+            do {
+                from.add(fromItem());
+            } while (accept(Kind.COMMA));
+        }
+        SqlAst.Expr where = null;
+        if (acceptWord("where")) {
+            if (peek().is("current") && peekAt(1).is("of")) {
+                throw unsupported("WHERE CURRENT OF is");
+            }
+            where = expr();
+        }
+        return new SqlAst.Update(target, sets, from, where, returning(), pos);
+    }
+
+    /** {@code DELETE FROM [ONLY] target [[AS] alias] [USING ...] [WHERE] [RETURNING ...]}. */
+    private SqlAst.Statement delete() {
+        SqlAst.Pos pos = expectWord("delete").pos();
+        expectWord("from");
+        if (peek().is("only")) {
+            throw unsupported("ONLY before a DELETE's table is");
+        }
+        SqlAst.FromItem target = dmlTarget(false);
+        List<SqlAst.FromItem> using = new ArrayList<>();
+        if (acceptWord("using")) {
+            do {
+                using.add(fromItem());
+            } while (accept(Kind.COMMA));
+        }
+        SqlAst.Expr where = null;
+        if (acceptWord("where")) {
+            if (peek().is("current") && peekAt(1).is("of")) {
+                throw unsupported("WHERE CURRENT OF is");
+            }
+            where = expr();
+        }
+        return new SqlAst.Delete(target, using, where, returning(), pos);
+    }
+
+    /** A statement's table: a name, or the source function {@code tb('pkg::Database.schema.table')} (its string
+     *  the only argument, as FROM's); an INSERT's alias only after AS (its column list follows a bare name). */
+    private SqlAst.FromItem dmlTarget(boolean insert) {
+        Token t = peek();
+        List<SqlAst.Ident> name = qualifiedName();
+        List<SqlAst.Arg> args = null;
+        if (peek().kind() == Kind.LPAREN && peekAt(1).kind() == Kind.STRING) {
+            at++;
+            args = new ArrayList<>();
+            do {
+                args.add(arg());
+            } while (accept(Kind.COMMA));
+            expect(Kind.RPAREN);
+        }
+        SqlAst.Ident alias = null;
+        if (acceptWord("as")) {
+            alias = ident(expectName());
+        } else if (!insert && isName(peek()) && !isKeyword(peek()) && !peek().is("set") && !peek().is("where")
+                && !peek().is("using") && !peek().is("returning")) {
+            // (a bare alias, never the clause that follows it: SET is no reserved word)
+            alias = ident(next());
+        }
+        return args != null ? new SqlAst.TableFunction(name, args, alias, List.of(), t.pos())
+                : new SqlAst.TableName(name, alias, List.of(), t.pos());
+    }
+
+    /** {@code column = value, ...} of a SET; a row of columns or DEFAULT refused by name. */
+    private List<SqlAst.Assignment> assignments() {
+        List<SqlAst.Assignment> sets = new ArrayList<>();
+        do {
+            if (peek().kind() == Kind.LPAREN) {
+                throw unsupported("a SET of a row of columns is");
+            }
+            Token column = expectName();
+            if (peek().kind() == Kind.DOT || peek().kind() == Kind.LBRACKET) {
+                throw unsupported("a SET of a column's field or element is");
+            }
+            Token eq = next();
+            if (!eq.isOp("=")) {
+                throw new SqlSyntaxException("syntax error at or near \"" + eq.text() + "\"", eq.pos());
+            }
+            if (peek().is("default")) {
+                throw unsupported("SET column = DEFAULT is");
+            }
+            sets.add(new SqlAst.Assignment(ident(column), expr(), column.pos()));
+        } while (accept(Kind.COMMA));
+        return sets;
+    }
+
+    /** {@code RETURNING * | items}; none when absent. */
+    private List<SqlAst.SelectItem> returning() {
+        List<SqlAst.SelectItem> items = new ArrayList<>();
+        if (acceptWord("returning")) {
+            do {
+                items.add(selectItem());
+            } while (accept(Kind.COMMA));
+        }
+        return items;
     }
 
     private SqlAst.Statement with() {
@@ -125,11 +320,11 @@ public final class SqlParser {
                 acceptWord("materialized");
             }
             expect(Kind.LPAREN);
-            SqlAst.Statement query = statement();
+            SqlAst.Statement query = cteQuery();
             expect(Kind.RPAREN);
             ctes.add(new SqlAst.Cte(ident(name), columns, query, name.pos()));
         } while (accept(Kind.COMMA));
-        SqlAst.Statement body = statement();
+        SqlAst.Statement body = cteQuery();
         return new SqlAst.With(recursive, ctes, body, pos);
     }
 
@@ -168,7 +363,7 @@ public final class SqlParser {
         Token t = peek();
         if (t.kind() == Kind.LPAREN) {
             at++;
-            SqlAst.Statement inner = statement();
+            SqlAst.Statement inner = query();
             expect(Kind.RPAREN);
             return inner;
         }
@@ -234,6 +429,12 @@ public final class SqlParser {
      *  VALUES lists). The rows are combined as a balanced tree, of depth log n for the translator and the planner
      *  (UNION ALL is associative, and the rows keep their order). */
     private SqlAst.Statement values() {
+        return values(true);
+    }
+
+    /** {@code VALUES (...), ...}; {@code typed} false for an INSERT's, whose column of NULLs alone is the column's
+     *  type, not text. */
+    private SqlAst.Statement values(boolean typed) {
         expectWord("values");
         List<List<SqlAst.Expr>> cells = new ArrayList<>();
         List<SqlAst.Pos> opens = new ArrayList<>();
@@ -242,7 +443,9 @@ public final class SqlParser {
             List<SqlAst.Expr> row = new ArrayList<>();
             do {
                 if (peek().is("default")) {
-                    throw error("DEFAULT is not allowed in this context");
+                    // (an INSERT's VALUES may write a column's default, which no write here reads yet)
+                    throw typed ? error("DEFAULT is not allowed in this context")
+                            : unsupported("DEFAULT in an INSERT's VALUES is");
                 }
                 SqlAst.Expr cell = expr();
                 // a VALUES row is no select list: a set-returning function would not expand the rows, and an
@@ -263,7 +466,7 @@ public final class SqlParser {
         } while (accept(Kind.COMMA));
         // a column of NULLs alone is text, as Postgres types one (VALUES (NULL) UNION ALL SELECT 1 is its error);
         // a NULL beside a value takes the column's type, the rows typed together (SqlAst.SetOperation#values)
-        int width = cells.get(0).size();
+        int width = typed ? cells.get(0).size() : 0;
         for (int k = 0; k < width; k++) {
             int column = k;
             if (cells.stream().allMatch(row -> row.get(column) instanceof SqlAst.NullLit)) {
@@ -372,6 +575,7 @@ public final class SqlParser {
                         sawOffset ? offset : q.offset(), q.pos(), q.values());
             }
             case SqlAst.With w -> throw unsupported("ORDER BY or LIMIT after a parenthesized WITH query is");
+            case SqlAst.Write w -> throw new IllegalStateException("a statement that writes is never a query's operand");
         };
     }
 
@@ -544,7 +748,7 @@ public final class SqlParser {
             at++;
             if (peek().kind() == Kind.LPAREN && queryAhead(1)) {
                 Token open = next();
-                SqlAst.Statement query = statement();
+                SqlAst.Statement query = query();
                 expect(Kind.RPAREN);
                 Alias alias = alias();
                 return new SqlAst.SubqueryFrom(query, alias.name(), alias.columns(), true, open.pos());
@@ -561,7 +765,7 @@ public final class SqlParser {
         if (t.kind() == Kind.LPAREN) {
             if (queryAhead(1)) {
                 at++;
-                SqlAst.Statement query = statement();
+                SqlAst.Statement query = query();
                 expect(Kind.RPAREN);
                 Alias alias = alias();
                 return new SqlAst.SubqueryFrom(query, alias.name(), alias.columns(), false, t.pos());
@@ -800,7 +1004,7 @@ public final class SqlParser {
                 throw unsupported("ANY, SOME and ALL over an array are");
             }
             at++;
-            SqlAst.Statement query = statement();
+            SqlAst.Statement query = query();
             expect(Kind.RPAREN);
             SqlAst.Expr quantified = new SqlAst.Quantified(op, quantifier.is("all"), left, query, t.pos());
             if (comparisonOp(peek()) != null) {
@@ -855,7 +1059,7 @@ public final class SqlParser {
             at++;
             if (peek().kind() == Kind.LPAREN && queryAhead(1)) {
                 at++;
-                SqlAst.Statement query = statement();
+                SqlAst.Statement query = query();
                 expect(Kind.RPAREN);
                 return new SqlAst.InSubquery(left, query, negated, t.pos());
             }
@@ -992,7 +1196,7 @@ public final class SqlParser {
             case LPAREN -> {
                 if (queryAhead(1)) {
                     at++;
-                    SqlAst.Statement query = statement();
+                    SqlAst.Statement query = query();
                     expect(Kind.RPAREN);
                     return new SqlAst.ScalarSubquery(query, t.pos());
                 }
@@ -1042,7 +1246,7 @@ public final class SqlParser {
                     return nameOrCall();
                 }
                 at += 2;
-                SqlAst.Statement query = statement();
+                SqlAst.Statement query = query();
                 expect(Kind.RPAREN);
                 return new SqlAst.Exists(query, t.pos());
             }

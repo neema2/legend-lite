@@ -76,6 +76,17 @@ final class StatementExecutor {
                 && rlf.parameters().isEmpty()) {
             env = env.withProtocolBody(rlf.body());
         }
+        // a program that writes a store table runs in ONE transaction (docs/WRITES_DESIGN_2026_10_18.md §4): its
+        // writes all land or none do; a caller's open transaction is joined, not committed. So does one that stages
+        // rows: its staged tables are the transaction's (SqlDml.CreateTempTableAs.staged)
+        java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
+        if (typedBody.stream().anyMatch(s -> com.legend.resolver.StagedRows.rowsOf(s) != null
+                || com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo))) {
+            com.legend.resolver.StagedRows.refuseLetsTheWritesChange(typedBody, specs);
+            ExecEnv tx = env;
+            return com.legend.exec.Executor.inTransaction(connection,
+                    () -> executeStatements(typedBody, new java.util.ArrayList<>(), specs, tx));
+        }
         return executeStatements(typedBody, new java.util.ArrayList<>(), specs, env);
     }
 
@@ -303,7 +314,25 @@ final class StatementExecutor {
             java.util.List<TypedSpec> lets,
             @com.legend.base.Nullable ExecutionResult verdict,
             com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall contextOwner,
-            com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall forcedFrame) {
+            com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall forcedFrame,
+            /** the session's temporary table a staged let's rows are computed into (Pure.Lite.STAGE), null for
+             *  any other value */
+            @com.legend.base.Nullable String stagedInto) {
+        PreparedValue(java.util.List<TypedSpec> body, ExecEnv env, java.util.List<TypedSpec> lets,
+                @com.legend.base.Nullable ExecutionResult verdict,
+                com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall contextOwner,
+                com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall forcedFrame) {
+            this(body, env, lets, verdict, contextOwner, forcedFrame, null);
+        }
+
+        /** This relation's rows, run into the session's temporary table {@code table}. */
+        PreparedValue stagedInto(String table) {
+            if (verdict != null || contextOwner != null || forcedFrame != null) {
+                throw new com.legend.error.NotImplementedException("rows staged (stage) from a statement that is not a"
+                        + " query of the database");
+            }
+            return new PreparedValue(body, env, lets, null, null, null, table);
+        }
     }
 
     static PreparedValue prepareValue(TypedSpec stmt, TypedSpec bare,
@@ -385,6 +414,9 @@ final class StatementExecutor {
     /** Run a prepared value statement: the run phase only. */
     static @com.legend.base.Nullable ExecutionResult runValue(PreparedValue pv, SpecCompiler specs,
             java.util.Deque<String> frames) {
+        if (pv.stagedInto() != null) {
+            return stageRows(pv.body(), java.util.Objects.requireNonNull(pv.stagedInto()), pv.env());
+        }
         ExecutionResult verdict = pv.verdict();
         if (verdict != null) {
             return verdict;
@@ -2056,26 +2088,17 @@ final class StatementExecutor {
             java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection, boolean identity) {
-        // F13: identity-bearing layouts (keyless classes gain the __id
-        // field, minted per construction site) ride ONLY the verdict-
-        // side lane (canon rider) — golden-SQL text lanes and corpus
-        // value lanes keep the plain layout, unperturbed.
-        com.legend.lowering.Lowerer lowerer = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t,
-                        identity),
-                f -> ctx.findClass(f).isPresent(), ctx.implementations()).withEngineExistsJoinForm()
-                .withDbTimeZone(env.timeZone());
-        // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
-        // over keyed instances is the key relation on the execute path
-        // too (the structural fallback erased class identity and read
-        // non-key fields). Identity minting stays verdict-lane-only.
-        lowerer = lowerer.withInstanceKeys(t2 -> com.legend.compiler
-                .element.EqualityKeys.resolve(ctx, t2));
-        if (identity) {
-            lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf);
-        }
-        // the query's feature flags: a LOWERING concern (Lowerer.withFeatures)
-        lowerer = lowerer.withFeatures(featuresOf(env, body));
+        return lowerAndPrepare(body, env, ctx, dialect, connection, identity, false);
+    }
+
+    /** {@link #lowerAndPrepare(java.util.List, ExecEnv, ModelContext, com.legend.sql.dialect.SqlDialect,
+     *  java.sql.Connection, boolean)}; {@code named}: the query's columns named in its select, in its relation's
+     *  order (Lowerer.namedColumns: a staged table takes them by position). */
+    private static com.legend.sql.SqlQuery lowerAndPrepare(
+            java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
+            com.legend.sql.dialect.SqlDialect dialect,
+            java.sql.Connection connection, boolean identity, boolean named) {
+        com.legend.lowering.Lowerer lowerer = lowererFor(body, env, ctx, identity);
         com.legend.sql.SqlQuery plan =
                 lowerer.lower(com.legend.lowering.SeedableLets
                         .withSeedableLetPrefix(body, env.queryLets(), ctx));
@@ -2105,7 +2128,101 @@ final class StatementExecutor {
                             inner, fDialect, fConn),
                     com.legend.exec.Executor::pureOfSqlType);
         }
-        return plan;
+        return named ? lowerer.namedColumns(plan) : plan;
+    }
+
+    /** A write into a store table: its body lowered to the DML statement (Lowerer.lowerStoreWrite), rendered by the
+     *  dialect and run by the executor; its value the database's update count. A frame's post-processors rewrite a
+     *  query's text, and no write is designed under them: refused by name. */
+    private static ExecutionResult storeWrite(java.util.List<TypedSpec> body, TypedSpec write, ExecEnv env,
+            boolean identity) {
+        if (!env.tableReplace().isEmpty() || env.postProcessors().extractCtes()
+                || env.postProcessors().nonExecutable()) {
+            throw new com.legend.error.NotImplementedException("a write into a store table under the execution's"
+                    + " post-processors (tableReplace, extractCtes, nonExecutable) is not designed (the writes design's"
+                    + " leg 2 writes the table it names)");
+        }
+        java.util.List<TypedSpec> statements = new java.util.ArrayList<>(body.subList(0, body.size() - 1));
+        statements.add(write);
+        com.legend.sql.SqlDml dml = lowererFor(statements, env, env.ctx(), identity).lowerStoreWrite(
+                com.legend.lowering.SeedableLets.withSeedableLetPrefix(statements, env.queryLets(), env.ctx()));
+        String sql = env.dialect().render(dml);
+        record(env, sql, false);
+        long count = com.legend.exec.Executor.executeUpdate(env.connection(), sql);
+        return new ExecutionResult.Scalar(count, write.info().type());
+    }
+
+    /** The temporary table of the session a staged let's rows are held in (Pure.Lite.STAGE; StagedRows.table, which
+     *  a write plan's staging names too). */
+    static String stagedTable(String let) {
+        return com.legend.resolver.StagedRows.table(let);
+    }
+
+    /** A staged let's rows (Pure.Lite.STAGE, docs/WRITES_DESIGN_2026_10_18.md §8, leg 6): computed now, at the let's
+     *  turn among the program's statements, into the session's temporary table {@code table}, which every statement
+     *  after the let reads ({@link com.legend.resolver.StagedRows}). */
+    private static ExecutionResult stageRows(java.util.List<TypedSpec> body, String table, ExecEnv env) {
+        Prelude p = prelude(body, env, null, false);
+        if (p.answered() != null) {
+            throw new com.legend.error.NotImplementedException("rows staged (stage) from a statement the database does"
+                    + " not query");
+        }
+        ExecEnv planned = p.plannedEnv();
+        com.legend.sql.SqlQuery plan = lowerAndPrepare(p.body(), planned, planned.ctx(), planned.dialect(),
+                planned.connection(), false, true);
+        // (each column named as the staged relation names it: the statements after read it by those names)
+        String sql = planned.dialect().render(com.legend.sql.SqlDml.CreateTempTableAs.staged(table, plan,
+                com.legend.resolver.StagedRows.columns(p.plannedRoot().info())));
+        record(planned, sql, false);
+        com.legend.exec.Executor.executeUpdate(planned.connection(), sql);
+        return new ExecutionResult.Scalar(null, p.plannedRoot().info().type());
+    }
+
+    /** The store a staged let's table is read under (StagedRows.storeOf, which a write plan's staging reads too). */
+    static String storeOf(java.util.List<TypedSpec> body, ExecEnv env) {
+        return com.legend.resolver.StagedRows.storeOf(body, env.ctx(), env.runtimeFqn());
+    }
+
+    /** The staged lets' temporary tables dropped once the program has run (a failed program's transaction takes
+     *  them back with its writes), unless the database drops them as the transaction ends
+     *  (SqlDialect.dropsStagedTablesWithTheirTransaction). */
+    static void dropStaged(ExecEnv env, java.util.List<String> tables) {
+        if (env.dialect().dropsStagedTablesWithTheirTransaction()) {
+            return;
+        }
+        for (String t : tables) {
+            String sql = env.dialect().render(new com.legend.sql.SqlDdl.DropTable(null, t,
+                    com.legend.sql.NameQuoting.BARE));
+            record(env, sql, false);
+            com.legend.exec.Executor.executeUpdate(env.connection(), sql);
+        }
+    }
+
+    /** The Lowerer a statement's body lowers with (lowerAndPrepare's and the store write's): the model's layouts,
+     *  keys, time zone and the body's features. */
+    private static com.legend.lowering.Lowerer lowererFor(java.util.List<TypedSpec> body, ExecEnv env,
+            ModelContext ctx, boolean identity) {
+        // F13: identity-bearing layouts (keyless classes gain the __id
+        // field, minted per construction site) ride ONLY the verdict-
+        // side lane (canon rider) — golden-SQL text lanes and corpus
+        // value lanes keep the plain layout, unperturbed.
+        com.legend.lowering.Lowerer lowerer = new com.legend.lowering.Lowerer(
+                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t,
+                        identity),
+                f -> ctx.findClass(f).isPresent(), ctx.implementations()).withEngineExistsJoinForm()
+                .withDbTimeZone(env.timeZone());
+        // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
+        // over keyed instances is the key relation on the execute path
+        // too (the structural fallback erased class identity and read
+        // non-key fields). Identity minting stays verdict-lane-only.
+        lowerer = lowerer.withInstanceKeys(t2 -> com.legend.compiler
+                .element.EqualityKeys.resolve(ctx, t2));
+        if (identity) {
+            lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf);
+        }
+        // the query's feature flags: a LOWERING concern (Lowerer.withFeatures)
+        lowerer = lowerer.withFeatures(featuresOf(env, body));
+        return lowerer;
     }
 
     /** Leg 3.4 step 2: the SQL text of a plan for execution or prepare —
@@ -2337,6 +2454,17 @@ final class StatementExecutor {
                         + "' is EFFECT but no arm is registered");
             }
             return Prelude.answered(arm.run(body, nc, env));
+        }
+        // A WRITE INTO A STORE TABLE (docs/WRITES_DESIGN_2026_10_18.md §4, L1: write, delete, update, merge): the
+        // database runs the statement, and its update count is the write's value. It runs in the query's transaction
+        // (StatementExecutor.execute: Executor.inTransaction), never through the effect arms (an effect reseeds).
+        if (com.legend.compiler.spec.StatementEffects.isStoreWrite(root)) {
+            return Prelude.answered(storeWrite(body, root, env, rider != null || identityLane));
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall st
+                && com.legend.builtin.Pure.Lite.STAGE.equals(st.callee().qualifiedName())) {
+            throw new com.legend.error.NotImplementedException("stage(rows) holds rows for the statements after it:"
+                    + " it is a let's value (let s = rows->stage()), not a statement's");
         }
         // DDL STRING generators (toDDL deprecated forms): evaluated HERE —
         // the engine walks its Database metamodel, we render from the

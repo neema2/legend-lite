@@ -26,9 +26,10 @@ import java.util.Set;
 
 /**
  * Cypher's grammar, as Neo4j's manual for the pinned release spells it (docs/CYPHER_STUDY_2026_10_15.md §5.1), read
- * by recursive descent with Pratt precedence for expressions. Every clause keyword is recognised: the ones the
- * translator reads become their records, the others an {@link CypherAst.OtherClause} the translator refuses by name,
- * so that a write or a procedure call is refused as what it is, never as a syntax error. The token cursor {@code at}
+ * by recursive descent with Pratt precedence for expressions. Every clause keyword is recognised: the reading
+ * clauses, a procedure call and the clauses that update the graph ({@code CREATE}, {@code MERGE}, {@code SET},
+ * {@code REMOVE}, {@code [DETACH] DELETE}) become their records, the others an {@link CypherAst.OtherClause} the
+ * translator refuses by name, so that a clause is refused as what it is, never as a syntax error. The token cursor {@code at}
  * is the SqlParser's shape, scoped to one parse ({@code CodeShapeGuardrailTest}).
  *
  * <p>Precedence, from loosest: {@code OR}, {@code XOR}, {@code AND}, {@code NOT}, the comparisons (chained:
@@ -40,13 +41,12 @@ public final class CypherParser {
 
     /** The keywords that open a clause; a {@code WITH}, {@code RETURN} or {@code MATCH} item list ends at one. */
     private static final Set<String> CLAUSE_WORDS = Set.of("MATCH", "OPTIONAL", "WITH", "RETURN", "USE", "UNWIND",
-            "CREATE", "MERGE", "SET", "DELETE", "DETACH", "REMOVE", "CALL", "UNION", "FOREACH", "LOAD", "FILTER",
-            "LET", "NEXT", "FINISH", "SHOW", "INSERT", "WHERE", "ORDER", "SKIP", "LIMIT", "OFFSET");
+            "CREATE", "MERGE", "SET", "DELETE", "DETACH", "NODETACH", "REMOVE", "CALL", "UNION", "FOREACH", "LOAD",
+            "FILTER", "LET", "NEXT", "FINISH", "SHOW", "INSERT", "WHERE", "ORDER", "SKIP", "LIMIT", "OFFSET");
 
     /** The clause keywords the translator does not read yet, kept as {@link CypherAst.OtherClause}. */
-    private static final Set<String> OTHER_CLAUSE_WORDS = Set.of("UNWIND", "CREATE", "MERGE", "SET", "DELETE",
-            "DETACH", "REMOVE", "CALL", "UNION", "FOREACH", "LOAD", "FILTER", "LET", "NEXT", "FINISH", "SHOW",
-            "INSERT");
+    private static final Set<String> OTHER_CLAUSE_WORDS = Set.of("DETACH", "CALL", "UNION", "FOREACH", "LOAD",
+            "FILTER", "LET", "NEXT", "FINISH", "SHOW", "INSERT");
 
     /** The functions whose argument is a variable over a list ({@code all(x IN list WHERE ...)}), refused by name
      *  until lists land. */
@@ -226,11 +226,112 @@ public final class CypherParser {
             }
             return procedureCall(pos);
         }
+        if (atWord("CREATE")) {
+            advance();
+            List<PathPattern> patterns = new ArrayList<>();
+            do {
+                patterns.add(pathPattern());
+            } while (match(Type.COMMA));
+            return new CypherAst.Create(patterns, pos);
+        }
+        if (atWord("MERGE")) {
+            advance();
+            return merge(pos);
+        }
+        if (atWord("SET")) {
+            advance();
+            return new CypherAst.SetClause(setItems(), pos);
+        }
+        if (atWord("REMOVE")) {
+            advance();
+            List<CypherAst.RemoveItem> items = new ArrayList<>();
+            do {
+                items.add(removeItem());
+            } while (match(Type.COMMA));
+            return new CypherAst.Remove(items, pos);
+        }
+        if (atWord("DELETE") || atWord("DETACH") && peek(1).isWord("DELETE")
+                || atWord("NODETACH") && peek(1).isWord("DELETE")) {
+            boolean detach = atWord("DETACH");
+            if (!atWord("DELETE")) {
+                advance();
+            }
+            advance();
+            List<Expr> targets = new ArrayList<>();
+            do {
+                targets.add(expression());
+            } while (match(Type.COMMA));
+            return new CypherAst.Delete(detach, targets, pos);
+        }
         if (t.is(Type.IDENT) && !t.backticked()
                 && OTHER_CLAUSE_WORDS.contains(t.text().toUpperCase(java.util.Locale.ROOT))) {
             return otherClause(t);
         }
         throw error("expected a clause but found '" + t.text() + "'");
+    }
+
+    /** {@code MERGE pattern} and its actions, {@code ON CREATE SET items} and {@code ON MATCH SET items}, each kind
+     *  as many times as written, in any order. */
+    private Clause merge(Pos pos) {
+        PathPattern pattern = pathPattern();
+        List<CypherAst.SetItem> onCreate = new ArrayList<>();
+        List<CypherAst.SetItem> onMatch = new ArrayList<>();
+        while (atWord("ON")) {
+            advance();
+            boolean create = atWord("CREATE");
+            if (!create && !atWord("MATCH")) {
+                throw error("expected CREATE or MATCH after ON but found '" + peek().text() + "'");
+            }
+            advance();
+            expectWord("SET");
+            (create ? onCreate : onMatch).addAll(setItems());
+        }
+        return new CypherAst.Merge(pattern, onCreate, onMatch, pos);
+    }
+
+    /** A SET clause's items: {@code target.key = value}, {@code v = map}, {@code v += map}, {@code v:Label}. The
+     *  item's left side is read at the level of property access, so its {@code =} is the assignment, never a
+     *  comparison. */
+    private List<CypherAst.SetItem> setItems() {
+        List<CypherAst.SetItem> items = new ArrayList<>();
+        do {
+            Pos at = peek().pos();
+            Expr left = postfix();
+            if (match(Type.EQ)) {
+                Expr value = expression();
+                if (left instanceof CypherAst.Prop p) {
+                    items.add(new CypherAst.SetProperty(p.target(), p.name(), value, at));
+                } else if (left instanceof CypherAst.Var v) {
+                    items.add(new CypherAst.SetProperties(v.name(), value, false, at));
+                } else {
+                    throw CypherErrors.syntax("a SET item sets a property (n.key = value) or a variable's"
+                            + " properties (n = map)", at);
+                }
+            } else if (match(Type.PLUS_EQ)) {
+                if (!(left instanceof CypherAst.Var v)) {
+                    throw CypherErrors.syntax("+= sets the properties of a variable (n += map)", at);
+                }
+                items.add(new CypherAst.SetProperties(v.name(), expression(), true, at));
+            } else if (left instanceof CypherAst.LabelPredicate lp && lp.target() instanceof CypherAst.Var v) {
+                items.add(new CypherAst.SetLabels(v.name(), lp.labels(), at));
+            } else {
+                throw error("expected = or += in a SET item but found '" + peek().text() + "'");
+            }
+        } while (match(Type.COMMA));
+        return items;
+    }
+
+    /** A REMOVE clause's item: {@code target.key} or {@code v:Label}. */
+    private CypherAst.RemoveItem removeItem() {
+        Pos at = peek().pos();
+        Expr e = postfix();
+        if (e instanceof CypherAst.Prop p) {
+            return new CypherAst.RemoveProperty(p.target(), p.name(), at);
+        }
+        if (e instanceof CypherAst.LabelPredicate lp && lp.target() instanceof CypherAst.Var v) {
+            return new CypherAst.RemoveLabels(v.name(), lp.labels(), at);
+        }
+        throw CypherErrors.syntax("a REMOVE item removes a property (n.key) or labels (n:Label)", at);
     }
 
     /** {@code CALL name[(args)] [YIELD * | item [AS alias], ...]}: the procedure's dotted name, its arguments when
@@ -435,12 +536,13 @@ public final class CypherParser {
         if (peek().is(Type.PERCENT)) {
             throw CypherErrors.unsupported("a label expression (|, &, !, %) is not supported yet", pos);
         }
-        Map<String, Expr> properties = peek().is(Type.LBRACE) ? mapLiteral().entries() : Map.of();
+        boolean mapped = peek().is(Type.LBRACE);
+        Map<String, Expr> properties = mapped ? mapLiteral().entries() : Map.of();
         if (atWord("WHERE")) {
             throw CypherErrors.unsupported("a WHERE inside a node pattern is not supported yet", pos);
         }
         expect(Type.RPAREN, "')'");
-        return new NodePattern(variable, labels, properties, pos);
+        return new NodePattern(variable, labels, properties, pos, mapped);
     }
 
     private String labelName() {

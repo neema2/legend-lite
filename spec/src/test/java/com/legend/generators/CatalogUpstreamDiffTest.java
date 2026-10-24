@@ -207,11 +207,18 @@ class CatalogUpstreamDiffTest {
      *  W11). The W3 leg's lite random left in the same repair: rand() is upstream's meta::pure::functions::math::random.
      *  56 on 2026-10-18 (the user's decision of that day, the plan's W13 leg 1, docs/CYPHER_STUDY_2026_10_15.md
      *  §12.85): dateTimeOfText and timeOfText, a temporal value in text carriage -- what a nanosecond value leaves
-     *  the database as; ours alone, legend-engine carries a date-time in the database's own type. 57 on 2026-10-18 (merging main into
-     *  the IQ island's landing 5, docs/IQ_CENSUS_CHECKLIST.md): meta::legend::lite::quotient, an integer quotient cut
-     *  toward zero, the database's own integer division -- upstream has none (legend-pure's divide of integers is a
-     *  Float). */
-    private static final int NOT_UPSTREAM_MAX = 57;
+     *  the database as; ours alone, legend-engine carries a date-time in the database's own type. 59 on 2026-10-18 (the
+     *  writes design's leg 2, docs/WRITES_DESIGN_2026_10_18.md §4, L1): delete, update and merge, the store writes
+     *  beside upstream's write -- lite's user-facing DML over a store table (NativeCatalogGovernanceTest's
+     *  LITE_SURFACE); upstream declares no write but write itself. 60 on 2026-10-20 (the writes design's leg 6, §8):
+     *  meta::legend::lite::stage, rows computed once into a temporary table of the session for the statements after
+     *  (the Cypher island's writes); a lite-internal native, ours alone. 65 on 2026-10-20 (the writes design's leg 5,
+     *  §4 L2): writeInstances, mergeInstances, deleteInstances, link and unlink, the class writes over a direct
+     *  mapping, which the store resolver writes as L1's statements; ours alone. 66 on 2026-10-22 (merging main into the
+     *  Cypher writes branch): main's meta::legend::lite::quotient (57 on 2026-10-18 on main, merging the IQ island's
+     *  landing 5), an integer quotient cut toward zero, the database's own integer division -- upstream has none
+     *  (legend-pure's divide of integers is a Float). */
+    private static final int NOT_UPSTREAM_MAX = 66;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

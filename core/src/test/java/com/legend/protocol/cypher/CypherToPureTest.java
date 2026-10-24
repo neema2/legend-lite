@@ -1082,8 +1082,15 @@ class CypherToPureTest {
                 pure("RETURN [1, 2] < [3, 4] AS a, [1, 2] < true AS b, ([1, 2] < [3, 4]) IN [[3, 4], false] AS c"));
         assertEquals("demo::Person.all()->project(~[a:p|if((($p.age->isNotEmpty() && ($p.age->toOne() == 2)) && (((1 == 1) && false) || ((1 != 1) && (1 < 1)))) || (($p.age->isNotEmpty() && ($p.age->toOne() != 2)) && ($p.age->isNotEmpty() && ($p.age->toOne() < 2))), |true, |if((($p.age->isNotEmpty() && ($p.age->toOne() == 2)) && (((1 == 1) && true) || ((1 != 1) && !(1 < 1)))) || (($p.age->isNotEmpty() && ($p.age->toOne() != 2)) && ($p.age->isNotEmpty() && !($p.age->toOne() < 2))), |false, |[]))])",
                 pure("MATCH (p:Person) RETURN [p.age, 1] < [2, 1] AS a"));
-        unsupported("RETURN [[1]] < [[2]] AS a", "ordering lists holding lists or maps");
-        unsupported("RETURN {a: 1} < {a: 2} AS a", "ordering maps");
+        // a list or map inside a list ordered as its own value, recursively (measured, Neo4j 2026.09.0)
+        String nested = pure("RETURN [[1]] < [[2]] AS a");
+        assertTrue(nested.contains("(1 < 2)"), nested);
+        // two maps (measured, Neo4j 2026.09.0): the fewer keys first, then the keys in order, then the values in the
+        // keys' order -- the spelled keys compared here, the values by the database
+        String bySize = pure("RETURN {b: 1} < {a: 1, c: 0} AS a");
+        assertTrue(bySize.contains("a:r|true"), bySize);
+        String byValues = pure("RETURN {a: 1, b: 2} < {b: 3, a: 1} AS a");
+        assertTrue(byValues.contains("(2 < 3)"), byValues);
     }
 
     @Test
@@ -1121,8 +1128,10 @@ class CypherToPureTest {
         String anchored = pure("MATCH (f:Firm) WITH f.legalName AS l, f MATCH (f)-->(x) RETURN l");
         assertTrue(anchored.contains("->join(demo::Firm.all()") && anchored.contains("JoinKind.INNER, {l, r|$l._cypher_3"
                 + " == $r._cypher_"), anchored);
-        unsupported("MATCH (f:Firm)-[:employees]->(p:Person) MATCH (f)-->(p) RETURN p.name",
-                "two ends are both bound already");
+        // both ends bound already: the pattern re-anchored over the graph's rows, joined back on both identities
+        // (the study's §12.96)
+        String both = pure("MATCH (f:Firm)-[:employees]->(p:Person) MATCH (f)-->(p) RETURN p.name");
+        assertTrue(both.contains("->join(") && both.contains("JoinKind.INNER"), both);
         // no way of the model leaves Firm to a Person (the study's §12.36): the rows in hand limited to none, x
         // an absent node (its labels column null)
         assertEquals("demo::Firm.all()->project(~[_cypher_1:f|'[\"Firm\"]', _cypher_2:f|$f.legalName, _cypher_3:f|$f->meta::legend::lite::elementId()])->limit(0)->extend(~[_cypher_4:r|[]->cast(@String)])->extend(~[n:r|[]])->select(~[n])",
@@ -1157,8 +1166,10 @@ class CypherToPureTest {
         // the WHERE is still read: a variable it names must exist
         invalid("MATCH (p:Person) OPTIONAL MATCH (p)-[:nothing]->(x) WITH x, 1 AS one MATCH (x)-->(b) WHERE q.x = 1"
                 + " RETURN b", "not defined");
-        unsupported("MATCH (p:Person) OPTIONAL MATCH (p)-[:nothing]->(x) WITH x, 1 AS one MATCH (x)-->(x) RETURN x",
-                "binding x again");
+        // a cycle back to the absent node: x named again is the node the rows hold, so it reads no row either
+        // (the study's §12.96)
+        assertTrue(pure("MATCH (p:Person) OPTIONAL MATCH (p)-[:nothing]->(x) WITH x, 1 AS one MATCH (x)-->(x)"
+                + " RETURN x").contains("->limit(0)"));
     }
 
     @Test

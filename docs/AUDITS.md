@@ -8,6 +8,12 @@ two executed.
 > corpus figure in this file predates the current ledger — **2,398 pass of 2,798** (2,298 of the
 > 2,575 runnable). Take numbers from `docs/GATES.md` and `docs/RELATIONAL_CORPUS.md`, not from here.
 
+### The 2026-10 writes round
+
+| Doc | Covers |
+|---|---|
+| [`PR67_REVIEW_2026_10_22.md`](PR67_REVIEW_2026_10_22.md) | PR #67 (Cypher writes, store and class writes, `#SQL` DML, write plans): two independent reviews, every finding probed on DuckDB, H2, Postgres and Neo4j; 14 fixed and pinned, 3 registered, 9 decisions for the user |
+
 ### The 2026-10 build round
 
 | Doc | Covers |

@@ -5717,3 +5717,145 @@ values beyond 1678 to 2261 (leg 5); the 2 signed years on both (beyond every dat
   tests' pins of the translator's text moved with the year-range texts and the delayed egress, `CypherToPureTest`; `projectArm`
   back under the 250-line ceiling by its ungrouped projection, `ungroupedProjection`; the native claims regenerated,
   `UserCallInliner` reading `random` and `generateGuid`).
+
+### 12.94 Writes, leg 1: the judge (2026-10-18)
+
+- **What it is.** The first leg of the writes (`docs/WRITES_DESIGN_2026_10_18.md` §6 and §8): before any write
+  runs, the harness judges one on four counts, so that a write case cannot pass by doing nothing. It is harness-only,
+  but for four island fixes the judge's own check found (below). The island still refuses every write clause.
+- **The oracle** (`tools/neo4j-oracle/snap.py`). Each case's query runs in an explicit transaction that is
+  committed: Neo4j checks some writes only at commit (a node deleted with its relationships left raises then, the
+  error the DELETE scenarios expect; a rolled-back draft missed it, measured), and the next case empties the graph.
+  For a query Neo4j's result summary marks as writing, the graph is dumped again after it (`after`), each element the
+  first dump held keeping its ordinal there; a case's control query then runs over it (`control`).
+  - **The side effects** are the diff of the two dumps, the TCK's way: nodes and relationships created and deleted,
+    label names gained and lost (distinct names, not per node), and (element, key, value) triples gained and lost (an
+    overwrite one of each). `snap.sh --check` holds that diff to every TCK table: all 248 tables of counts agree, and
+    the 2935 "no side effects". `CypherParityTest.theJudgesDiffIsTheTcksSideEffects` holds the Java diff to the same
+    248.
+  - **The answers:** 276 writes carry their graph after, 31 their control query's answer. Every other answer is
+    unchanged up to Neo4j's row order and ordinals (measured against the file before), and `--write` now keeps an
+    answer that agrees with the live one, so a re-snap moves only what moved. The check: 0 problems over 5062 cases.
+- **The reader** (`CypherTck`) reads a scenario's control query and its side-effect table; the control query's own
+  expectation is not read (Neo4j's answer to it judges). The 33 SKIPs run: 31 REFUSED at their write clause, and 2
+  BOTH_ERROR.
+- **The verdict** (`CypherParity`). A case Neo4j marks as writing, or with a control query, runs in a transaction the
+  harness owns (`Lane.begin`, `Lane.rollback`), rolled back after, so that no case's writes reach the next case over
+  the same seeded tables. It passes only on all four counts:
+  - the rows, as before;
+  - the graph it left, read back through the island by the oracle's own two dump queries
+    (`MATCH (n) RETURN elementId(n), labels(n), properties(n)` and its relationships' twin), against Neo4j's `after`
+    by shape;
+  - the side effects, lite's diff of its two reads against Neo4j's diff of its two dumps;
+  - the control query's rows.
+
+  The graph before is read back once per seeded graph and must be Neo4j's dump, or the judge is broken there: a JUDGE
+  problem, which fails the lane. Every graph a write case runs over reads back as Neo4j's on DuckDB.
+- **What the check found.** The first run read back none of the 76 graphs. Four fixes, each a reading the TCK's reads
+  never reached:
+  - `elementId(x)` in a query was refused (the island used identities only inside comparisons): it returns lite's
+    identity, `'<class>:<key>'` of a node or edge instance, an association relationship's ordered pair of its ends
+    (S74), null for an absent node (S76 amended; `CypherIslandIntegrationTest`);
+  - a relationship a hop that finds nothing binds (a pattern no way of the model reads) had no identity: it is marked
+    absent and its identity is null, as an absent node's;
+  - an untyped pattern over a node holding a Variant property read the property as a relationship to a class named
+    Variant, a TypeInferenceException where Neo4j answers no rows (Merge1/[8]'s graph): the model adapter no longer
+    reports a Variant as an end, as its `report` already read it as a value;
+  - two links of one association between the same two nodes share their identity (S74) and nothing else tells them
+    apart (no property: that would be an edge class, keyed by its row): the read-back numbers them by occurrence.
+- **The measured groups** (§8: what a graph over a domain model needs; `CypherParity.writeGroups`, printed by both
+  lanes). Of the 276 cases Neo4j marks as writing: 111 leave a graph inside the schema the harness infers from the
+  graph before (the two graphs together imply the same model); 127 leave one outside it (a label, type or property the
+  graph before lacks, a value of another type, more links than a storage chosen from the graph before holds); 26
+  change a node's labels (on A a label is the class: refused there, run on B); and 12 are graphs the harness cannot
+  model at all.
+- **Moved to leg 5:** A's schema from the query's typed writes (§6). The parser refuses a write clause before it
+  builds one, so there is nothing typed to infer from yet; it lands with the clauses.
+- **The lanes.** Both in update mode: FAIL, BUG and ERROR at zero, no JUDGE problem, the same census on both (PASS
+  3997 / REFUSED 291 / BOTH_ERROR 774 / SKIP 0, of 5062 cases), and no case moved but the 33 former SKIPs (31
+  REFUSED, 2 BOTH_ERROR, the same on both). The TCK: 3602 of 3880 agree on both, the 2 new BOTH_ERROR being write
+  scenarios Neo4j raises on and lite refuses the clause of (§1 of the design: agreement by refusal, until leg 5). The
+  oracle check 0 problems over 5062 cases; the local gate below (GATES, the ninety-second landing).
+
+### 12.95 A pattern past the graph's navigation, re-anchored over its rows (2026-10-20)
+
+On the native store every relationship is an edge class, and the resolver reads no association end past an edge's
+far end. So a continuation MATCH from a node the graph binds could read one edge hop and no more. Five cases were
+refused on the native lane, the last ones the domain lane passed:
+- `MATCH (a:A) MATCH (a)-->(b)-->(c)`;
+- a deep typed pattern after `WITH a` and in a second MATCH;
+- `OPTIONAL MATCH (a)-[:T]->(b)-[:V]->(c)`;
+- an OPTIONAL MATCH over a type joining several class pairs from the node's class (refused on both lanes).
+
+Such a pattern (`pastTheGraphsNavigation`: a hop on past an edge hop, or, optionally, a type of several ways from
+the node's class) is now read as §12.49 reads a pattern after rows. The graph is materialized, and the pattern is a
+MATCH of its own: a first MATCH, where the cut (§12.54), the arms (§12.35) and the edge hops already read it. It is
+joined back on the bound node's identity; an OPTIONAL MATCH uses a left join. The lanes in update mode: the native
+lane PASS 4271 → 4276, REFUSED 17 → 12; the domain lanes PASS 4244 → 4245, REFUSED 44 → 43 on DuckDB and Postgres;
+nothing else moved. The native lane now passes every case the domain lane passes. What it still refuses is the TCK's
+two signed years and lite's own pinned refusals; the domain lane's are those, and the label changes (S102).
+
+### 12.96 Lite's pinned refusals that were gaps, not decisions (2026-10-20)
+
+Of lite's own pinned refusals, two were gaps of the routes rather than deliberate refusals:
+- `MATCH (a:A)-[:REL]->(b:B) MATCH (a)-->(b)`, an untyped hop between two nodes the graph binds. The untyped-arms
+  route reads the hop from one bound end, and the other end's binding was not joined. Such a pattern
+  (`pastTheGraphsNavigation`: an untyped hop whose far end the graph also binds, present) is now re-anchored over the
+  graph's rows, as §12.95's patterns are: a first MATCH of its own, joined back on both nodes' identities.
+- `OPTIONAL MATCH (a) WITH a MATCH (a)-->(a)`, a cycle back to a node an absent row may hold. The absent pattern
+  refused a node variable the rows already carry. A node the rows hold, named again, is that node: the cycle needs
+  no column of its own, since a row whose node is absent matches nothing. (A variable of another kind named as a
+  node is Neo4j's VariableTypeConflict, raised before any clause is read, §12.63.)
+
+The lanes in update mode: the domain lanes PASS 4245 → 4247, REFUSED 43 → 41 on DuckDB and Postgres; the native lane
+PASS 4276 → 4277, REFUSED 12 → 11 (the cycle; the untyped hop passed there already); nothing else moved.
+
+Three more were refusals of things Neo4j's own answers define, each now read as Neo4j answers:
+- `MATCH (a:A)-[:T*1..2 {w: 1}]->(x)`: a property map on a variable-length relationship holds of every relationship
+  walked. Each relationship of an unrolled chain carries the map (a chain of length zero walks none).
+- `duration({days: 1}) < duration({days: 2})`: null. Durations do not order (a month is no fixed number of days).
+  Measured on Neo4j 2026.09.0 with its local server: `<` and `>` are null, and `<=` and `>=` are true where the two
+  durations are equal and null otherwise (`duration({days: 1}) >= duration({days: 1})` is true;
+  `duration({days: 1}) <= duration({hours: 24})` is null, the two unequal). Inside a list's comparison, an equal
+  pair passes on to the next and an unequal one decides null. (The first reading, null for every operator, was
+  wrong for an equal pair under `<=` and `>=`, and the new cases caught it.)
+- `date('+2015-07-21')`: a year of four digits after `+` is that year, the text read without its sign. A longer
+  signed year, beyond every database's calendar (Temporal10 [9], [10]), and a negative year stay refused by name.
+
+The lanes in update mode: the domain lanes PASS 4247 → 4250, REFUSED 41 → 38; the native lane PASS 4277 → 4280,
+REFUSED 11 → 8; nothing else moved. Five lite cases, their answers snapped from that server, pin the readings:
+- a map holding of every hop, so a later hop it excludes ends the chain; zero length included
+  (`a_property_map_on_a_variable_length_holds_of_every_hop`);
+- a fixed length of two with a map (`a_property_map_on_a_fixed_variable_length`);
+- the four operators over equal and unequal durations (`durations_compared_by_each_operator`);
+- lists of durations compared (`lists_of_durations_compared`);
+- a `+`-signed year in a local date-time, a zoned date-time and a week date
+  (`signed_four_digit_years_in_date_time_texts`). The native lane now refuses the TCK's two signed years and lite's six deliberate
+pins: ORDER BY a node, ordering nested lists, a CASE choosing by `rand()`, `percentileCont` over integers, a time's
+named-zone component, and a printed text parsed after a WITH.
+
+### 12.97 Lists inside lists, and maps, ordered as Neo4j measures (2026-10-20)
+
+Lite pinned two refusals, comparing lists holding lists or maps (`[[1]] < [[2]]`) and comparing two maps
+(`{a: 1} < {a: 2}`), with the note "not supported yet". Neither is a decision: Neo4j 2026.09.0 answers both. Its
+rules, measured on the local server:
+- **A list inside a list** orders as its own value, element by element, as §12.34's lists do: `[[1, 2]] < [[1, 3]]`
+  and `[[1]] < [[1, 0]]` are true. A list beside a number is null, and so is a null inside (`[[null]] < [[1]]`).
+- **Two maps:** the map of fewer keys orders first (`{b: 1} < {a: 1, c: 0}` is true). Maps of one size compare their
+  sorted keys, the first that differs deciding (`{a: 2, b: 0} < {a: 1, c: 5}` is true, b before c). Maps of the same
+  keys compare their values in the keys' order, as a list's elements are. A value of another type, or a null, makes
+  the comparison null (`{a: 'x'} < {a: 1}`), and `{a: 1} <= {a: 1.0}` is true.
+
+`orderedVal` now reads a list or map element as its own value, recursively, and two maps of known shape go through
+`orderedMaps`. The sizes and the keys are the spelling's, so they compare at translation, as a list's lengths do
+(comparing spelled tokens, the world map's rule). The values are the database's to compare, through the same
+conditions as a list's elements. A map the database holds as a Variant still orders by its text (S81).
+
+Three lite cases, snapped from that server, pin the rules: `lists_inside_lists_ordered`,
+`maps_ordered_by_size_keys_and_values`, and `maps_of_row_values_ordered` (maps of a row's values). The pinned
+`ordering_nested_lists_refused` now passes. Lite's deliberate pins are five:
+- ORDER BY a node (Neo4j orders by its internal id);
+- a CASE choosing by `rand()`;
+- `percentileCont` over integers;
+- a time's named-zone component (the clock decides the offset);
+- a printed text parsed after a WITH.

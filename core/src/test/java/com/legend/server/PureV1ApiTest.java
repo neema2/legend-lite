@@ -450,6 +450,40 @@ class PureV1ApiTest {
         }
     }
 
+    /** A program that writes executes from its plan (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): its staged rows are
+     *  its answer, in the engine's TDS shape, and the write runs on a database of its own -- the in-memory database the
+     *  runner shares by the target is never changed, so the next read answers as the test data has it (decision A). */
+    @Test
+    void e8_execute_aProgramThatWrites_runsFromItsPlan() {
+        String code = """
+                ###Relational
+                Database w::DB ( Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20)) )
+                ###Connection
+                RelationalDatabaseConnection w::Conn {
+                  store: w::DB;
+                  type: H2;
+                  specification: LocalH2 { testDataSetupCSV: 'default\\nT\\nID,NAME\\n1,a\\n2,b\\n'; };
+                  auth: DefaultH2;
+                }
+                ###Runtime
+                Runtime w::RT { mappings: [ ]; connections: [ w::DB: [ c: w::Conn ] ]; }
+                """;
+        String modelContext = Json.toCompact(Map.of("_type", "text", "code", code));
+        String write = PureV1Api.grammarToJsonLambda("{|let s = #>{w::DB.T}#->filter(r|$r.ID == 1)"
+                + "->meta::legend::lite::stage(); #>{w::DB.T}#->delete(r|$r.ID == 1); $s->select(~[NAME])"
+                + "->from(w::RT);}", false).json();
+        PureV1Api.Answer a = execute("{\"function\":" + write + ",\"model\":" + modelContext + "}");
+        assertEquals(200, a.status(), a.json());
+        Json.Arr rows = Json.parseObject(a.json()).getObj("result").getArr("rows");
+        assertEquals(1, rows.items().size(), a.json());
+        assertEquals("a", ((Json.Str) ((Json.Obj) rows.items().get(0)).getArr("values").items().get(0)).value());
+        String read = PureV1Api.grammarToJsonLambda("|#>{w::DB.T}#->select(~[NAME])->sort(~NAME->ascending())"
+                + "->from(w::RT)", false).json();
+        PureV1Api.Answer after = execute("{\"function\":" + read + ",\"model\":" + modelContext + "}");
+        assertEquals(200, after.status(), after.json());
+        assertEquals(2, Json.parseObject(after.json()).getObj("result").getArr("rows").items().size(), after.json());
+    }
+
     /** An enumeration column executes as the engine answers it: typed String in the TDS builder (measured, 4.145.0). */
     @Test
     void e8_execute_anEnumerationColumn_isAStringInTheBuilder() throws IOException {

@@ -55,6 +55,8 @@ public final class BodyCompiler {
         Segments seg = new Segments(env0, specs);
         Map<String, StatementExecutor.ExecFrame> execFrames = new java.util.LinkedHashMap<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
+        // the staged lets' temporary tables (Pure.Lite.STAGE), dropped once the body has run
+        List<String> staged = new java.util.ArrayList<>();
         for (int i = 0; i < stmts.size(); i++) {
             boolean effect = com.legend.compiler.spec.StatementEffects.containsEffect(stmts.get(i), specs, effectMemo);
             boolean generator = com.legend.compiler.spec.StatementEffects.containsTdgGenerator(stmts.get(i));
@@ -85,6 +87,21 @@ public final class BodyCompiler {
                 TypedSpec rhs = let.value();
                 while (rhs instanceof com.legend.compiler.spec.typed.TypedFrom rf) {
                     rhs = rf.source();
+                }
+                if (rhs instanceof TypedNativeCall sc
+                        && com.legend.builtin.Pure.Lite.STAGE.equals(sc.callee().qualifiedName())) {
+                    // STAGED ROWS (the writes design's leg 6): computed at this statement's turn into a temporary
+                    // table of the session, which the statements after read by name: the writes between read the
+                    // rows as they were
+                    String table = StatementExecutor.stagedTable(let.name());
+                    TypedSpec rows = sc.args().get(0);
+                    StatementExecutor.PreparedValue pv = StatementExecutor.prepareValue(
+                            rows, rows, letPrefix, execFrames, specs, seg.env()).stagedInto(table);
+                    seg.value(pv);
+                    staged.add(table);
+                    letPrefix.add(com.legend.resolver.StagedRows.boundTo(let.name(), table, rows.info(),
+                            StatementExecutor.storeOf(pv.body(), seg.env()), let.info()));
+                    continue;
                 }
                 if (rhs instanceof TypedNativeCall ec
                         && (com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())
@@ -147,6 +164,7 @@ public final class BodyCompiler {
         }
         seg.closeEffects();
         seg.closeVerdicts();
+        StatementExecutor.dropStaged(env0, staged);
         return seg.last;
     }
 

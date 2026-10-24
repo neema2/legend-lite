@@ -489,7 +489,7 @@ final class PostgresFunctions {
     /** {@code x} to {@code places} decimal places (negative: to tens, hundreds...), exactly: the scaled value rounded
      *  half away from zero (Postgres's numeric round) or truncated (trunc), then scaled back by a decimal constant --
      *  decimal multiplication, exact on every database (a divide would go through a double). */
-    private static ValueSpecification toPlaces(ValueSpecification x, long places, boolean halfAway) {
+    static ValueSpecification toPlaces(ValueSpecification x, long places, boolean halfAway) {
         BigDecimal up = BigDecimal.ONE.scaleByPowerOfTen((int) places);
         ValueSpecification scaled = places == 0 ? x : places > 0
                 ? AppliedFunction.infixRun("times", List.of(x, integer(up.toBigIntegerExact())))

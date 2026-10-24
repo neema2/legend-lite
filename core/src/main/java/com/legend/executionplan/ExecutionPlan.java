@@ -55,16 +55,47 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /** A node of the plan. */
-    public sealed interface Node permits Sequence, TdsResult, TextResult {
+    public sealed interface Node permits Sequence, TdsResult, TextResult, Update, Check {
     }
 
-    /** Runs its steps in order; the plan's answer is the last step's. */
+    /**
+     * Runs its steps in order, on one session. A sequence holding an {@link Update} runs in ONE transaction of its
+     * session (docs/WRITES_DESIGN_2026_10_18.md §7, D7, and §8, leg 7): its changes all land or none do, and a
+     * caller's open transaction is joined, never committed. Its answer is its one result step's (the steps after it
+     * drop what the steps before it staged), passed on once its changes have committed: no answer leaves for a change
+     * rolled back.
+     */
     public record Sequence(List<Node> steps) implements Node {
         public Sequence {
             steps = List.copyOf(steps);
             if (steps.isEmpty()) {
                 throw new IllegalArgumentException("a sequence has at least one step");
             }
+        }
+    }
+
+    /** The name a write's count is bound by in the steps after it ({@link Update#count}): no declared parameter can
+     *  be named so (a Pure parameter's name is an identifier). */
+    public static final String COUNT = "#count";
+
+    /**
+     * A statement run for the change it makes -- a write into a store table, a staged table created or dropped -- its
+     * answer the count of rows the database reports (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7).
+     *
+     * @param count where a later step reads that count (a write that is the program's value), the name its slots bind
+     *              it by ({@link #COUNT}); null where none does
+     */
+    public record Update(Sql sql, @com.legend.base.Nullable String count) implements Node {
+        public Update {
+            Objects.requireNonNull(sql, "sql");
+        }
+    }
+
+    /** A query run for the error its database may raise -- a Cypher write's guard (Neo4j's DeleteConnectedNode) -- its
+     *  rows read and dropped: a program's statement whose value no step keeps. */
+    public record Check(Sql sql) implements Node {
+        public Check {
+            Objects.requireNonNull(sql, "sql");
         }
     }
 

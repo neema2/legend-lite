@@ -57,9 +57,63 @@ class TempTableAsTest {
         }
     }
 
+    /** Postgres spells it too (the writes design's leg 6, 2026-10-19: a Cypher statement's staged rows, its run measured
+     *  on the embedded Postgres 16 by //core:cypher_parity_postgres_test), the table's name as a query reads a bare
+     *  name: folded (PR #67's review, 2026-10-22: {@code "legend_stage_rowsA"} was made, {@code legend_stage_rowsa}
+     *  read). */
+    @Test
+    void postgresSpellsItToo() {
+        String create = new Postgres().render(new SqlDml.CreateTempTableAs("tdg_t", values("a")));
+        assertEquals("CREATE TEMPORARY TABLE tdg_t AS SELECT 'a' AS \"v0\";", create);
+        String staged = new Postgres().render(SqlDml.CreateTempTableAs.staged("legend_stage_rowsA", values("a"),
+                List.of("v0")));
+        assertEquals("CREATE TEMPORARY TABLE legend_stage_rowsa (\"v0\") AS SELECT 'a' AS \"v0\";", staged);
+        assertEquals("legend_stage_rowsa", new Postgres().tableName("legend_stage_rowsA",
+                com.legend.sql.NameQuoting.BARE), "the name a query reads");
+    }
+
+    /** A program's staged rows on H2 are its transaction's (PR #67's review, 2026-10-22, measured on H2 2.1.214):
+     *  made without committing what the program wrote before them, seen by no other session, and gone when the
+     *  transaction ends, committed or rolled back, with no DROP (which would commit). */
+    @Test
+    void h2StagesRowsInTheProgramsTransaction() throws Exception {
+        for (H2 d : List.of(new H2(), new H2Modern())) {
+            String name = d.getClass().getSimpleName();
+            assertTrue(d.dropsStagedTablesWithTheirTransaction(), name);
+            String url = "jdbc:h2:mem:staged_" + name;
+            try (Connection c = DriverManager.getConnection(url); Connection other = DriverManager.getConnection(url);
+                    Statement st = c.createStatement()) {
+                st.execute("CREATE TABLE T (ID INTEGER)");
+                c.setAutoCommit(false);
+                st.execute("INSERT INTO T VALUES (1)");
+                String create = d.render(SqlDml.CreateTempTableAs.staged("legend_stage_s", values("a"),
+                        List.of("v0")));
+                assertTrue(create.startsWith("CREATE LOCAL TEMPORARY TABLE legend_stage_s ON COMMIT DROP"
+                        + " TRANSACTIONAL AS "), name + ": " + create);
+                st.execute(create);
+                try (ResultSet rs = st.executeQuery("SELECT * FROM legend_stage_s")) {
+                    assertTrue(rs.next(), name);
+                }
+                try (Statement o = other.createStatement(); ResultSet rs = o.executeQuery("SELECT count(*) FROM T")) {
+                    assertTrue(rs.next());
+                    assertEquals(0, rs.getInt(1), name + ": the staged table committed the program's write");
+                }
+                assertThrows(java.sql.SQLException.class,
+                        () -> other.createStatement().executeQuery("SELECT * FROM legend_stage_s"), name);
+                c.rollback();
+                try (ResultSet rs = st.executeQuery("SELECT count(*) FROM T")) {
+                    assertTrue(rs.next());
+                    assertEquals(0, rs.getInt(1), name);
+                }
+                assertThrows(java.sql.SQLException.class, () -> st.executeQuery("SELECT * FROM legend_stage_s"),
+                        name + ": the staged table outlived its transaction");
+            }
+        }
+    }
+
     @Test
     void everyOtherDialectRefusesIt() {
-        for (SqlDialect d : List.<SqlDialect>of(new Postgres(), new MariaDb(), new MySql(), new Trino(),
+        for (SqlDialect d : List.<SqlDialect>of(new MariaDb(), new MySql(), new Trino(),
                 new ClickHouse(), new Snowflake(), new Databricks(), new BigQuery(), new EngineStyleH2(),
                 new EngineStyleDB2(), new EngineStyleComposite())) {
             DialectCapability refusal = assertThrows(DialectCapability.class,

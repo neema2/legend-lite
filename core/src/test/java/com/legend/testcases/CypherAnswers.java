@@ -23,8 +23,9 @@ import java.util.TreeMap;
  * {@code tools/neo4j-oracle/snap.py}; docs/CYPHER_STUDY_2026_10_15.md §3.3, §8): one line of metadata (the server
  * version the answers were snapped on), then one line per case: the Cypher version it ran under, the sha of what
  * the answer is for, the graph the case set up (what the lanes seed from), and its rows in the TCK's value grammar
- * or Neo4j's error. The guards: a case with no answer is UNSNAPPED, one whose sha moved is STALE, an answer with no
- * case is GONE, and answers from another server version than the pinned one are a VERSION problem.
+ * or Neo4j's error; for a write, the graph it left and its control query's answer. The guards: a case with no
+ * answer is UNSNAPPED, one whose sha moved is STALE, an answer with no case is GONE, and answers from another server
+ * version than the pinned one are a VERSION problem.
  */
 public final class CypherAnswers {
 
@@ -50,11 +51,20 @@ public final class CypherAnswers {
 
     /**
      * One case's answer: its rows ({@code columns} and {@code rows}, each cell in the value grammar), or Neo4j's
-     * {@code error}; a {@code setupError} when Neo4j refused the case's setup (then nothing else ran).
+     * {@code error}; a {@code setupError} when Neo4j refused the case's setup (then nothing else ran). For a query
+     * Neo4j's summary marks as writing, {@code after}: the graph it left, each element {@code graph} held keeping its
+     * ordinal there (the side effects are the two graphs' diff, {@link CypherParity#sideEffects}); and for a case
+     * with a control query, {@code control}: Neo4j's answer to it, over that graph (the writes design's §6).
      */
     public record Answer(String id, String cypher, String sha, @com.legend.base.Nullable List<String> columns,
             @com.legend.base.Nullable List<List<String>> rows, @com.legend.base.Nullable Error error,
-            @com.legend.base.Nullable Error setupError, @com.legend.base.Nullable Graph graph) {
+            @com.legend.base.Nullable Error setupError, @com.legend.base.Nullable Graph graph,
+            @com.legend.base.Nullable Graph after, @com.legend.base.Nullable Control control) {
+    }
+
+    /** Neo4j's answer to a control query: its rows, or its error. */
+    public record Control(@com.legend.base.Nullable List<String> columns,
+            @com.legend.base.Nullable List<List<String>> rows, @com.legend.base.Nullable Error error) {
     }
 
     public record File(@com.legend.base.Nullable Meta meta, Map<String, Answer> answers) {
@@ -75,7 +85,8 @@ public final class CypherAnswers {
             }
             Answer a = new Answer(string(o, "id"), string(o, "cypher"), string(o, "sha"), strings(o.getArrOr("columns",
                     null)), rows(o.getArrOr("rows", null)), error(o.getObjOr("error", null)),
-                    error(o.getObjOr("setupError", null)), graph(o.getObjOr("graph", null)));
+                    error(o.getObjOr("setupError", null)), graph(o.getObjOr("graph", null)),
+                    graph(o.getObjOr("after", null)), control(o.getObjOr("control", null)));
             answers.put(a.id(), a);
         }
         return new File(meta, answers);
@@ -115,6 +126,11 @@ public final class CypherAnswers {
         return o == null ? null : new Error(string(o, "code"), string(o, "message"));
     }
 
+    private static @com.legend.base.Nullable Control control(Json.@com.legend.base.Nullable Obj o) {
+        return o == null ? null : new Control(strings(o.getArrOr("columns", null)), rows(o.getArrOr("rows", null)),
+                error(o.getObjOr("error", null)));
+    }
+
     private static @com.legend.base.Nullable Graph graph(Json.@com.legend.base.Nullable Obj o) {
         if (o == null) {
             return null;
@@ -147,14 +163,18 @@ public final class CypherAnswers {
     // ------------------------------------------------------------------ the sha
 
     /** What an answer is for, hashed as the oracle hashes it ({@code snap.py}, {@code sha}): the query, its Cypher
-     *  version, the setup statements, the parameters as written, and a lite case's decision and expect. */
+     *  version, the setup statements, the parameters as written, a lite case's decision and expect, the procedures
+     *  a case declares, and its control query. */
     public static String sha(String query, String version, List<String> setup, String paramsText,
             @com.legend.base.Nullable String decision, @com.legend.base.Nullable String expectText,
-            String proceduresText) {
+            String proceduresText, @com.legend.base.Nullable String control) {
         String text = String.join("\n\0\n", query, version, String.join("\n;\n", setup), paramsText,
                 decision == null ? "" : decision, expectText == null ? "" : expectText);
         if (!proceduresText.isEmpty()) {
             text += "\n\0\n" + proceduresText;   // (a case declaring procedures, the study's §12.60)
+        }
+        if (control != null) {
+            text += "\n\0\ncontrol:\n" + control;   // (a write case's control query, the writes design's §6)
         }
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(

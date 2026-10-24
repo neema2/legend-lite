@@ -53,6 +53,17 @@ public record LambdaFunction(
         this(parameters, body, null);
     }
 
+    /** This lambda with the statements {@code body} (its parameters and position kept): a body spliced where the
+     *  query stood (the Cypher island's program of a statement that updates the graph, 2026-10-20). */
+    public LambdaFunction withBody(List<ValueSpecification> body) {
+        return new LambdaFunction(parameters, body, pos);
+    }
+
+    /** A lambda of no parameter over the statements {@code body}. */
+    public static LambdaFunction of(List<ValueSpecification> body) {
+        return new LambdaFunction(List.of(), body, null);
+    }
+
     /** Position is excluded from equality — see {@code ValueSpecEqualityTest}. */
     @Override
     public boolean equals(Object o) {

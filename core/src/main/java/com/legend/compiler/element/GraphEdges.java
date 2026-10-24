@@ -370,11 +370,17 @@ public record GraphEdges(List<Edge> edges) {
      *  superclasses' labels alone; the Cypher seam reads it, this reader only checks the declaration) and
      *  {@code nanoseconds}, {@code timeOfDay} (2026-10-17, §12.64: on a DateTime property, its values of
      *  nanosecond precision, the store's TIMESTAMP_NS; a time of day held as the date-time at it on the epoch day;
-     *  the Cypher seam reads them, this reader only checks the declaration). */
-    public static final List<String> STEREOTYPES = List.of("Anonymous", "Edge", "Open", "from", "to", "type",
-            "nanoseconds", "timeOfDay");
+     *  the Cypher seam reads them, this reader only checks the declaration) and {@code Native} (2026-10-19,
+     *  docs/WRITES_DESIGN_2026_10_18.md §3 B: on a DataSpace, the graph a native graph store holds, which a Cypher
+     *  statement that updates the graph writes; the Cypher seam reads it, this reader only checks the declaration)
+     *  and the six list marks {@code listOfDate} ... {@code listOfDuration} (2026-10-20, the writes design's §5: on
+     *  a Variant property, a list of values of that temporal kind, each element its text; the Cypher seam reads
+     *  them, this reader only checks the declaration). */
+    public static final List<String> STEREOTYPES = List.of("Anonymous", "Edge", "Open", "Native", "from", "to",
+            "type", "nanoseconds", "timeOfDay", "listOfDate", "listOfLocalTime", "listOfZonedTime",
+            "listOfLocalDateTime", "listOfZonedDateTime", "listOfDuration");
 
-    /** The profile at its path, declaring exactly the eight stereotypes and no tag: checked for each edge class
+    /** The profile at its path, declaring exactly the fifteen stereotypes and no tag: checked for each edge class
      *  (the island reads the stereotypes by the profile's full name). Exactly, not at least (the independent review
      *  asked, 2026-10-18; kept): the path names the graph project's one profile, so a declaration with fewer is an
      *  older one, refused by name until the model declares the current one, and a stereotype beyond these would be

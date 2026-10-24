@@ -236,7 +236,8 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/*.java"], exclude = _PLANNER_SRCS),
     deps = [
         "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
-        ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner", ":platform",
+        ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner",
+        ":platform",
         ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
 )
@@ -408,7 +409,14 @@ legend_java_library(
             "src/test/java/com/legend/integration/PostgresRegressCorpusTest.java",
             # the #Cypher{...}# island's parity lanes are :cypher_parity_test's and :cypher_parity_postgres_test's
             "src/test/java/com/legend/integration/CypherParityTest.java",
+            "src/test/java/com/legend/integration/CypherParityNativeTest.java",
             "src/test/java/com/legend/server/CypherParityPostgresTest.java",
+            # the store writes on Postgres are :store_writes_postgres_test's (the writes design's leg 2), and the
+            # #SQL{...}# island's writes on Postgres (leg 4)
+            "src/test/java/com/legend/integration/StoreWritesPostgresTest.java",
+            "src/test/java/com/legend/integration/SqlWritesPostgresTest.java",
+            # and the write plans on Postgres (leg 7)
+            "src/test/java/com/legend/integration/WritePlansPostgresTest.java",
             "src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java",
             # the shared test cases are :test_cases's
             "src/test/java/com/legend/testcases/*.java",
@@ -1002,6 +1010,29 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# the corpus over the native store (docs/WRITES_DESIGN_2026_10_18.md §3 B, leg 3): each graph in the native store's
+# fixed tables, read through views that are the model's tables; each case's status compared with the domain lane's
+junit_test(
+    name = "cypher_parity_native_test",
+    memory_mb = 1536,
+    size = "large",
+    srcs = ["src/test/java/com/legend/integration/CypherParityNativeTest.java"],
+    data = _CYPHER_PARITY_DATA + ["src/test/resources/cypher-parity/native-ledger.tsv"],
+    jvm_flags = _CYPHER_PARITY_FLAGS + [
+        "-Dcypher.parity.native.ledger=$(rlocationpath src/test/resources/cypher-parity/native-ledger.tsv)",
+    ],
+    select = ["--select-class=com.legend.integration.CypherParityNativeTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
 junit_test(
     name = "cypher_parity_postgres_test",
     # live peak 840 MB, 1021 MB before a collection, at 1024 (measured 2026-10-18, 5062 cases): the rule's half again
@@ -1021,6 +1052,43 @@ junit_test(
         ":core",
         ":test_cases",
         "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE STORE WRITES ON POSTGRES (docs/WRITES_DESIGN_2026_10_18.md §4, L1): StoreWritesExecutionTest's writes (a
+# relation's rows into a table, the update count, one transaction per program, a caller's transaction joined) on the
+# embedded Postgres 16, and SqlWritesExecutionTest's (the #SQL{...}# island's INSERT, UPDATE, DELETE, ON CONFLICT and
+# RETURNING over a keyed table: leg 4), and WritePlansTest's (the writes planned and run by the plan runner: leg 7);
+# the same checks run on DuckDB and H2 in core_tests_integration
+junit_test(
+    name = "store_writes_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/integration/SqlWritesExecutionTest.java",
+        "src/test/java/com/legend/integration/SqlWritesPostgresTest.java",
+        "src/test/java/com/legend/integration/StoreWritesExecutionTest.java",
+        "src/test/java/com/legend/integration/StoreWritesPostgresTest.java",
+        "src/test/java/com/legend/integration/WritePlansPostgresTest.java",
+        "src/test/java/com/legend/integration/WritePlansTest.java",
+    ],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = [
+        "--select-class=com.legend.integration.StoreWritesPostgresTest",
+        "--select-class=com.legend.integration.SqlWritesPostgresTest",
+        "--select-class=com.legend.integration.WritePlansPostgresTest",
+    ],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],

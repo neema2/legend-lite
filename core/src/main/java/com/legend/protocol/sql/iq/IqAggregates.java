@@ -340,6 +340,7 @@ final class IqAggregates {
                 }
             }
             case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+            case SqlAst.Write w -> throw new IllegalStateException("IQ's reader makes no write");
         }
     }
 
@@ -380,6 +381,7 @@ final class IqAggregates {
                 }
             }
             case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+            case SqlAst.Write w -> throw new IllegalStateException("IQ's reader makes no write");
         }
     }
 

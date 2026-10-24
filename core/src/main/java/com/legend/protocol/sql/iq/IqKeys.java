@@ -321,6 +321,7 @@ final class IqKeys {
                 branches(o.right(), out);
             }
             case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+            case SqlAst.Write w -> throw new IllegalStateException("IQ's reader makes no write");
         }
     }
 

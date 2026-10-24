@@ -27,6 +27,12 @@ public final class PlanSessions {
     @FunctionalInterface
     public interface Source {
         Sessions.Session open(ExecutionPlan.Target target);
+
+        /** The session for a plan that CHANGES its target's database (a write plan, docs/WRITES_DESIGN_2026_10_18.md
+         *  §8, leg 7): by default the one {@link #open} gives -- a caller's own database keeps the change. */
+        default Sessions.Session openToChange(ExecutionPlan.Target target) {
+            return open(target);
+        }
     }
 
     /** The shared in-memory databases held by their one connection, by their target's content: a database lives as long
@@ -45,10 +51,22 @@ public final class PlanSessions {
      *  attempt left (one whose keeper some other run still holds open). */
     private static final java.util.concurrent.atomic.AtomicLong ATTEMPTS = new java.util.concurrent.atomic.AtomicLong();
 
-    /** The process's sessions, shared by target (decision A). A plan of phase 1 only reads, so a shared database is
-     *  never changed by a run (a plan that writes is phase 2's, and throws its database away). */
+    /** The process's sessions, shared by target (decision A). A shared database is never changed by a run: a plan that
+     *  changes its database (a write plan) runs on one of its own, opened and set up from the target for that run and
+     *  closed after it (decision A's second rule: a database a run changed is thrown away, so the next run reads one as
+     *  set up); a database the user names, or one a URL reaches, is the user's and keeps the change. */
     public static Source shared() {
-        return PlanSessions::openShared;
+        return new Source() {
+            @Override
+            public Sessions.Session open(ExecutionPlan.Target target) {
+                return openShared(target);
+            }
+
+            @Override
+            public Sessions.Session openToChange(ExecutionPlan.Target target) {
+                return openOwn(target);
+            }
+        };
     }
 
     /** A caller's own connection — its database the caller's, set up by the caller — checked by the runner against the
@@ -102,6 +120,30 @@ public final class PlanSessions {
                         refuseSetup(target, d, "a database reached by a URL");
                         yield owned(Sessions.open(u));
                     }
+                };
+            };
+        } catch (SQLException e) {
+            throw dataError(e);
+        }
+    }
+
+    /** A database of the run's own for {@code target}, set up from it and closed after the run (a write plan's, on a
+     *  database the source would share); the user's own databases as {@link #openShared} opens them. */
+    private static Sessions.Session openOwn(ExecutionPlan.Target target) {
+        try {
+            return switch (target.database()) {
+                case ExecutionPlan.Database.Platform p -> owned(setUpOpened(Sessions.openPrivate(p.type()), target));
+                case ExecutionPlan.Database.Declared d -> switch (Sessions.openingFor(d.connection())) {
+                    case Sessions.Opening.Held h -> owned(setUpOpened(Sessions.openHeld(h), target));
+                    case Sessions.Opening.Named n -> {
+                        if (n.name() != null) {
+                            yield openShared(target);
+                        }
+                        // named afresh, never shared: the database lives while this, its keeper, is open
+                        String name = "plan_own_" + ATTEMPTS.incrementAndGet();
+                        yield owned(setUpOpened(Sessions.openKept(n, name), target));
+                    }
+                    case Sessions.Opening.Url u -> openShared(target);
                 };
             };
         } catch (SQLException e) {

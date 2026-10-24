@@ -126,6 +126,74 @@ public final class Executor {
         }
     }
 
+    /** One store write (an INSERT, UPDATE, DELETE or MERGE the dialect wrote): the rows it affected, the database's
+     *  count (a value it produced, the charter's C1.2; docs/WRITES_DESIGN_2026_10_18.md §4, L1). */
+    public static long executeUpdate(Connection connection, String statement) {
+        try (Statement st = connection.createStatement()) {
+            Census.inc(Census.Key.SQL_ROUND_TRIPS);
+            StatementOrigin.count();
+            Census.add(Census.Key.SQL_CHARS, statement.length());
+            if (com.legend.diagnostics.Diagnostics.dumpSql()) {
+                System.err.println("[write] " + statement);
+            }
+            return st.executeLargeUpdate(statement);
+        } catch (SQLException e) {
+            java.sql.SQLException un = RaisedErrors.unwrapped(e, connection);
+            throw new DataError(String.valueOf(un.getMessage()), un);
+        }
+    }
+
+    /**
+     * {@code work} in one transaction (the writes design's L0, §4): when the connection commits each statement itself,
+     * autocommit is turned off, the work's statements commit together, and on any failure they roll back, autocommit
+     * restored either way; when the caller turned autocommit off, the transaction is the caller's: joined, neither
+     * committed nor rolled back here (the parity harnesses roll every write case back).
+     */
+    public static <T> T inTransaction(Connection connection, java.util.function.Supplier<T> work) {
+        if (!ownsTransaction(connection)) {
+            return work.get();
+        }
+        try {
+            connection.setAutoCommit(false);
+        } catch (SQLException e) {
+            throw new DataError(String.valueOf(e.getMessage()), e);
+        }
+        T out;
+        try {
+            out = work.get();
+            connection.commit();
+        } catch (RuntimeException | Error failure) {
+            unwind(connection, failure);
+            throw failure;
+        } catch (SQLException e) {
+            java.sql.SQLException un = RaisedErrors.unwrapped(e, connection);
+            DataError failure = new DataError(String.valueOf(un.getMessage()), un);
+            unwind(connection, failure);
+            throw failure;
+        }
+        try {
+            connection.setAutoCommit(true);
+        } catch (SQLException e) {
+            throw new DataError(String.valueOf(e.getMessage()), e);
+        }
+        return out;
+    }
+
+    /** The transaction rolled back and autocommit restored after {@code failure}; a failure of either is suppressed
+     *  into it, so the work's own failure is the one reported. */
+    private static void unwind(Connection connection, Throwable failure) {
+        try {
+            connection.rollback();
+        } catch (SQLException e) {
+            failure.addSuppressed(e);
+        }
+        try {
+            connection.setAutoCommit(true);
+        } catch (SQLException e) {
+            failure.addSuppressed(e);
+        }
+    }
+
     public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
                                           Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect,

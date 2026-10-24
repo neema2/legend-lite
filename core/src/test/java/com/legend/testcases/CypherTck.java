@@ -49,12 +49,17 @@ public final class CypherTck {
     /**
      * A scenario: its key ({@code tck/<feature path>/<name>}, {@code #<row>} appended for an outline's row), its
      * query, its setup statements (a named graph's, the {@code having executed} blocks), its parameters as written
-     * (one {@code name=value} per line) and parsed, what it expects (null when it says nothing), and why the harness
-     * does not run it (a control query, a procedure, a step it does not read; null when it runs).
+     * (one {@code name=value} per line) and parsed, what it expects (null when it says nothing), why the harness
+     * does not run it (a step it does not read; null when it runs), the procedures it declares, and its control
+     * query (null when none): a query a write scenario runs after its own, reading back the graph it left (the
+     * writes design's §6; Neo4j's answer to it judges, as Neo4j's answer to the query does), and its side effects
+     * ({@code +nodes}, {@code -properties}, ... to their counts, the zeros dropped; empty for {@code no side effects},
+     * null when it says neither): the TCK's table, which Neo4j's own diff of its graphs is checked against.
      */
     public record Scenario(String key, String query, List<String> setup, String paramsText,
             Map<String, String> params, @com.legend.base.Nullable Expect expect,
-            @com.legend.base.Nullable String skip, List<Procedure> procedures) {
+            @com.legend.base.Nullable String skip, List<Procedure> procedures,
+            @com.legend.base.Nullable String control, @com.legend.base.Nullable Map<String, Integer> sideEffects) {
     }
 
     /** A procedure the scenario declares ({@code there exists a procedure test.my.proc(in :: INTEGER?) :: (out ::
@@ -347,11 +352,16 @@ public final class CypherTck {
         String query = null;
         Expect expect = null;
         String skip = null;
+        String control = null;
+        Map<String, Integer> sideEffects = null;
         for (Step st : steps) {
             String text = st.text();
             Matcher g = NAMED_GRAPH.matcher(text);
             if (text.equals("an empty graph") || text.equals("any graph")) {
                 continue;
+            }
+            if (control != null && (text.startsWith("the result should be") || ERROR.matcher(text).matches())) {
+                continue;   // the control query's expectation: Neo4j's answer to the control query judges it
             }
             if (g.matches()) {
                 String graph = graphs.get(g.group(1));
@@ -373,7 +383,10 @@ public final class CypherTck {
                 }
                 query = st.doc();
             } else if (text.equals("executing control query:")) {
-                skip = skip == null ? "a control query" : skip;
+                if (control != null) {
+                    skip = skip == null ? "two control queries" : skip;
+                }
+                control = st.doc();
             } else if (text.startsWith("the result should be, in any order") || text.startsWith(
                     "the result should be, in order") || text.startsWith("the result should be (ignoring")) {
                 List<List<String>> table = st.table() == null ? List.of() : st.table();
@@ -390,8 +403,16 @@ public final class CypherTck {
                 procedures.add(Procedure.parse(text, st.table()));
             } else if (text.startsWith("having defined")) {
                 skip = skip == null ? "a defined function" : skip;
-            } else if (text.equals("no side effects") || text.startsWith("the side effects should be")) {
-                continue;
+            } else if (text.equals("no side effects")) {
+                sideEffects = Map.of();
+            } else if (text.startsWith("the side effects should be")) {
+                sideEffects = new TreeMap<>();
+                for (List<String> row : st.table() == null ? List.<List<String>>of() : st.table()) {
+                    int n = Integer.parseInt(row.get(1));
+                    if (n != 0) {
+                        sideEffects.put(row.get(0), n);
+                    }
+                }
             } else {
                 skip = skip == null ? "an unread step: " + text : skip;
             }
@@ -400,7 +421,8 @@ public final class CypherTck {
             skip = skip == null ? "no query" : skip;
         }
         return new Scenario(prefix + "/" + name, query == null ? "" : query, List.copyOf(setup),
-                String.join("\n", paramsText), params, expect, skip, List.copyOf(procedures));
+                String.join("\n", paramsText), params, expect, skip, List.copyOf(procedures), control,
+                sideEffects == null ? null : Map.copyOf(sideEffects));
     }
 
     /** A setup block as one statement: trailing whitespace and a trailing semicolon dropped, as the oracle does. */

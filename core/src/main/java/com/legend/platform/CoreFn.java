@@ -162,6 +162,15 @@ public enum CoreFn {
     FROM("from"),
     /** Relation {@code write([target])} &mdash; persist; {@code Integer[1]} row count. */
     WRITE("write"),
+    /** {@code #>{db.t}#->delete(r | pred)} &mdash; the table's rows the predicate holds for deleted; {@code Integer[1]}
+     *  the rows the database deleted (Pure.Lite.DELETE, the writes design's L1). */
+    DELETE("delete"),
+    /** {@code #>{db.t}#->update(r | pred, ~[c: r | expr])} &mdash; their columns set; {@code Integer[1]} the rows the
+     *  database updated (Pure.Lite.UPDATE). */
+    UPDATE("update"),
+    /** {@code rel->merge(#>{db.t}#, ~[keys])} &mdash; the relation's rows upserted by key; {@code Integer[1]} the rows
+     *  the database merged (Pure.Lite.MERGE). */
+    MERGE("merge"),
     /** {@code fold({e,acc|…}, init)} &mdash; reduction, classified into a lowering strategy. */
     FOLD("fold"),
     /** {@code navigate} &mdash; the clean-sheet graph-traversal primitive (pre-map/post-map/inline). */
@@ -175,6 +184,10 @@ public enum CoreFn {
     /** {@code recurse(base, r | step)} &mdash; a recursion over a relation, the database's recursive CTE (lite-internal;
      *  Pure.Lite.RECURSE, the Cypher island's unbounded variable-length patterns). */
     RECURSE("recurse"),
+    /** {@code let s = rows->stage()} &mdash; rows computed once into a temporary table of the session and read from it
+     *  by the statements after (lite-internal; Pure.Lite.STAGE, the Cypher island's writes, 2026-10-20); types as its
+     *  relation. */
+    STAGE("stage"),
     /** {@code isDistinct(collection, #{Class{a, b}}#)} &mdash; no duplicates comparing by the tree's leaves (the 1-arg collection form types generically). */
     IS_DISTINCT("isDistinct"),
     /** {@code graphFetch(#{Class{…}}#)} &mdash; object-graph projection; result = source type. */
@@ -373,6 +386,12 @@ public enum CoreFn {
                 "meta::pure::mapping::from"));
         m.put(WRITE, java.util.Set.of(
                 "meta::pure::functions::relation::write"));
+        m.put(DELETE, java.util.Set.of(
+                "meta::legend::lite::delete"));
+        m.put(UPDATE, java.util.Set.of(
+                "meta::legend::lite::update"));
+        m.put(MERGE, java.util.Set.of(
+                "meta::legend::lite::merge"));
         m.put(FOLD, java.util.Set.of(
                 "meta::pure::functions::collection::fold"));
         m.put(NAVIGATE, java.util.Set.of(
@@ -385,6 +404,8 @@ public enum CoreFn {
                 "meta::legend::lite::inlineView"));
         m.put(RECURSE, java.util.Set.of(
                 "meta::legend::lite::recurse"));
+        m.put(STAGE, java.util.Set.of(
+                "meta::legend::lite::stage"));
         m.put(IS_DISTINCT, java.util.Set.of(
                 "meta::pure::functions::collection::isDistinct"));
         m.put(GRAPH_FETCH, java.util.Set.of(

@@ -146,6 +146,14 @@ cases:
     graph: |
       CREATE (:A {name: 'a'})-[:T {w: 1}]->(:A {name: 'b'})
     cypher: "MATCH (a:A)-[:T*1..2 {w: 1}]->(x) RETURN x.name AS x"
+  - id: a_property_map_on_a_variable_length_holds_of_every_hop
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {w: 1}]->(:A {name: 'b'})-[:T {w: 1}]->(:A {name: 'c'})-[:T {w: 2}]->(:A {name: 'd'})
+    cypher: "MATCH (a:A {name: 'a'})-[:T*0..3 {w: 1}]->(x) RETURN x.name AS x ORDER BY x"
+  - id: a_property_map_on_a_fixed_variable_length
+    graph: |
+      CREATE (:A {name: 'a'})-[:T {w: 1}]->(:A {name: 'b'})-[:T {w: 1}]->(:A {name: 'c'})-[:T {w: 2}]->(:A {name: 'd'})
+    cypher: "MATCH (a:A)-[r:T*2 {w: 1}]->(x) RETURN a.name AS a, x.name AS x, size(r) AS n"
   - id: a_bounded_variable_length_after_a_match
     graph: |
       CREATE (:A {name: 'a'})-[:T]->(:B {name: 'b'})-[:T]->(:C {name: 'c'})

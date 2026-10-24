@@ -1,0 +1,25 @@
+# The #Cypher{...}# island's writes, the cases PR #67's review raised (2026-10-22, docs/WRITES_DESIGN_2026_10_18.md
+# §8): an undirected MERGE over both orders of a pair, a write after a DELETE in the same statement, several rows
+# writing one property. Each case is judged by Neo4j's answer in neo4j-answers.jsonl (its rows, the graph after and
+# the side effects; tools/neo4j-oracle/snap.sh --write --only 'lite/writes/*'), keyed lite/writes/<id>.
+tests:
+  - id: an_undirected_merge_over_both_orders_creates_one
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "MATCH (a:P), (b:P) WHERE a.name <> b.name MERGE (a)-[:KNOWS]-(b)"
+  - id: an_undirected_merge_binds_the_one_relationship_on_both_rows
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "MATCH (a:P), (b:P) WHERE a.name <> b.name MERGE (a)-[r:KNOWS]-(b) RETURN a.name AS a, b.name AS b, startNode(r).name AS s ORDER BY a"
+  - id: a_set_after_a_delete_writes_nothing_back
+    graph: |
+      CREATE (:P {name: 'a', x: 0}), (:P {name: 'b', x: 0})
+    cypher: "MATCH (n:P {name: 'a'}) DELETE n SET n.x = 1"
+  - id: a_relationship_from_a_deleted_node_is_neo4js_error
+    graph: |
+      CREATE (:P {name: 'a'}), (:P {name: 'b'})
+    cypher: "MATCH (n:P {name: 'a'}), (m:P {name: 'b'}) DELETE n CREATE (n)-[:T]->(m)"
+  - id: several_rows_setting_one_property_from_itself
+    graph: |
+      CREATE (:P {name: 'a', c: 0}), (:P {name: 'b', c: 0})
+    cypher: "UNWIND [1, 2, 3] AS i MATCH (n:P {name: 'a'}) SET n.c = n.c + 1 RETURN n.c AS c"

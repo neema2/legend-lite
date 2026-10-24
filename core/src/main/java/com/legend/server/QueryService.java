@@ -108,13 +108,17 @@ public class QueryService {
 
     /**
      * Upstream {@code pure/v1/execution/execute} (E8): the runtime's connection leased, the
-     * already-parsed query run on it ({@code Compiler.executeWire}), the database's JSON rows
-     * written to {@code rows}. A database failure is a {@link com.legend.error.DataError}.
+     * already-parsed query run on it ({@code Execution.executeUpstream}: a program that writes from its plan), the
+     * database's JSON rows written to {@code rows}. A database failure is a {@link com.legend.error.DataError}.
      */
     public com.legend.plan.QueryPlan executeUpstream(com.legend.compiler.element.ModelContext model,
             com.legend.protocol.spec.ValueSpecification query, String runtimeName, Writer rows) {
         try {
-            return com.legend.Execution.executeWire(model, query, runtimeName, ConnectionResolver.SOURCE, rows);
+            // a program that writes runs from its plan (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7), on the plan's
+            // sessions: an in-memory database they share is never changed (decision A; the write runs on one of its
+            // own), and a database a URL reaches keeps the write
+            return com.legend.Execution.executeUpstream(model, query, runtimeName, ConnectionResolver.SOURCE,
+                    com.legend.exec.PlanSessions.shared(), rows);
         } catch (IOException e) {
             throw new java.io.UncheckedIOException(e);
         }

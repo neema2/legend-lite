@@ -1694,6 +1694,110 @@
 {"id":"lite/dates/dow_in_a_group","columns":["dow","n"],"rows":[["d0","i1"],["d1","i2"],["d2","i1"],["d3","i2"],["d4","i1"],["d5","i1"],["d6","i1"],[null,"i1"]]}
 {"id":"lite/dates/isfinite_of_dates_and_timestamps","columns":["id","a","b"],"rows":[["i1","btrue","btrue"],["i2","btrue","btrue"],["i3","btrue","btrue"],["i4","btrue","btrue"],["i5",null,null],["i6","btrue","btrue"],["i7","btrue","btrue"],["i8","btrue","btrue"],["i9","btrue","btrue"],["i10","btrue","btrue"]]}
 {"id":"lite/dates/a_date_before_the_year_1000_is_refused","columns":["a"],"rows":[["s0050-03-04"]]}
+{"id":"lite/dml/insert_one_row_every_column","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_one_row_every_column#check","columns":["id","name","age","salary","hire_date","active","dept_id"],"rows":[["i100","sZed","i41","d52000.00","s2020-03-01","btrue","i1"]]}
+{"id":"lite/dml/insert_rows_some_columns","columns":["count"],"rows":[["i2"]]}
+{"id":"lite/dml/insert_rows_some_columns#check","columns":["id","name","age","salary","active"],"rows":[["i101","sAmy",null,null,null],["i102","sBo",null,null,null]]}
+{"id":"lite/dml/insert_no_column_list","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_no_column_list#check","columns":["id","name","budget","created_at"],"rows":[["i50","sOps","d1000.50","s2021-01-02 03:04:05"]]}
+{"id":"lite/dml/insert_columns_in_another_order","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_columns_in_another_order#check","columns":["id","person_id","amount","order_date","status"],"rows":[["i200","i3","d10.25",null,"snew"]]}
+{"id":"lite/dml/insert_null_value","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_null_value#check","columns":["id","val","nullable_val","unicode_val"],"rows":[["i900","sx",null,null]]}
+{"id":"lite/dml/insert_null_into_a_number","columns":["count"],"rows":[["i2"]]}
+{"id":"lite/dml/insert_null_into_a_number#check","columns":["id","int_val","float_val"],"rows":[["i900",null,null],["i901","i5",null]]}
+{"id":"lite/dml/insert_from_a_query","columns":["count"],"rows":[["i3"]]}
+{"id":"lite/dml/insert_from_a_query#check","columns":["id","person_id","amount","status"],"rows":[["i1001","i1","d100000.00","scopied"],["i1002","i2","d120001.00","scopied"],["i1008","i8",null,"scopied"]]}
+{"id":"lite/dml/insert_from_a_query_of_no_rows","columns":["count"],"rows":[["i0"]]}
+{"id":"lite/dml/insert_from_a_query_of_no_rows#check","columns":["n"],"rows":[["i10"]]}
+{"id":"lite/dml/insert_computed_values","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_computed_values#check","columns":["id","int_val","small_val"],"rows":[["i910","i5","i42"]]}
+{"id":"lite/dml/insert_a_date_and_a_timestamp","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_a_date_and_a_timestamp#check","columns":["id","d","ts"],"rows":[["i20","s2001-02-03","s2001-02-03 04:05:06"]]}
+{"id":"lite/dml/insert_more_values_than_columns","error":{"state":"42601","message":"ERROR: INSERT has more expressions than target columns"}}
+{"id":"lite/dml/insert_more_columns_than_values","error":{"state":"42601","message":"ERROR: INSERT has more target columns than expressions"}}
+{"id":"lite/dml/insert_an_unknown_column","error":{"state":"42703","message":"ERROR: column \"nope\" of relation \"persons\" does not exist"}}
+{"id":"lite/dml/insert_a_column_twice","error":{"state":"42701","message":"ERROR: column \"id\" specified more than once"}}
+{"id":"lite/dml/insert_text_into_a_number","error":{"state":"42804","message":"ERROR: column \"age\" is of type integer but expression is of type character varying"}}
+{"id":"lite/dml/insert_on_conflict_with_no_key","error":{"state":"42P10","message":"ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification"}}
+{"id":"lite/dml/insert_returning","columns":["id"],"rows":[["i300"]]}
+{"id":"lite/dml/insert_returning#check","columns":["id","name"],"rows":[["i300","sR"]]}
+{"id":"lite/dml/update_where","columns":["count"],"rows":[["i3"]]}
+{"id":"lite/dml/update_where#check","columns":["id","age"],"rows":[["i1","i30"],["i2","i25"],["i3","i36"],["i4","i29"],["i5","i45"],["i6","i32"],["i7",null],["i8","i50"],["i9","i23"],["i10","i38"]]}
+{"id":"lite/dml/update_every_row","columns":["count"],"rows":[["i10"]]}
+{"id":"lite/dml/update_every_row#check","columns":["id","empty_val"],"rows":[["i1","sfilled"],["i2","sfilled"],["i3","sfilled"],["i4","sfilled"],["i5","sfilled"],["i6","sfilled"],["i7","sfilled"],["i8","sfilled"],["i9","sfilled"],["i10","sfilled"]]}
+{"id":"lite/dml/update_two_columns","columns":["count"],"rows":[["i3"]]}
+{"id":"lite/dml/update_two_columns#check","columns":["id","name","active"],"rows":[["i1","sALICE","bfalse"],["i2","sBOB","bfalse"],["i3","sCHARLIE","btrue"],["i4","sDiana","btrue"],["i5","sEve","btrue"],["i6","sFrank","bfalse"],["i7","sGrace","btrue"],["i8","sHank",null],["i9","sIvy","btrue"],["i10","sJack","btrue"]]}
+{"id":"lite/dml/update_to_null","columns":["count"],"rows":[["i2"]]}
+{"id":"lite/dml/update_to_null#check","columns":["id","dept_id"],"rows":[["i1","i1"],["i2","i1"],["i3","i2"],["i4","i2"],["i5",null],["i6","i3"],["i7",null],["i8",null],["i9","i2"],["i10","i3"]]}
+{"id":"lite/dml/update_reads_the_old_values","columns":["count"],"rows":[["i3"]]}
+{"id":"lite/dml/update_reads_the_old_values#check","columns":["id","int_val","small_val"],"rows":[["i1","i1","i42"],["i2","i-128","i-10"],["i3","i0","i0"],["i4","i2147483647","i127"],["i5",null,null],["i6","i1","i1"],["i7","i-1","i-1"],["i8","i100","i50"],["i9","i7","i7"],["i10","i-999","i-99"]]}
+{"id":"lite/dml/update_through_an_alias","columns":["count"],"rows":[["i7"]]}
+{"id":"lite/dml/update_through_an_alias#check","columns":["id","salary"],"rows":[["i1","d100000.00"],["i2","d120001.00"],["i3","d75000.75"],["i4","d160000.50"],["i5","d190000.00"],["i6","d55000.00"],["i7","d140000.00"],["i8",null],["i9","d90000.00"],["i10","d240000.00"]]}
+{"id":"lite/dml/update_a_date_from_text","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/update_a_date_from_text#check","columns":["id","d"],"rows":[["i1","s2000-01-01"],["i2","s2020-02-29"],["i3","s2000-01-01"],["i4","s1999-12-31"],["i5",null],["i6","s2024-06-15"],["i7","s2025-12-25"],["i8","s1970-01-01"],["i9","s2023-07-04"],["i10","s2026-01-01"]]}
+{"id":"lite/dml/update_no_row","columns":["count"],"rows":[["i0"]]}
+{"id":"lite/dml/update_no_row#check","columns":["id","age"],"rows":[["i1","i30"],["i2","i25"],["i3","i35"],["i4","i28"],["i5","i45"],["i6","i32"],["i7",null],["i8","i50"],["i9","i22"],["i10","i38"]]}
+{"id":"lite/dml/update_with_a_subquery","columns":["count"],"rows":[["i6"]]}
+{"id":"lite/dml/update_with_a_subquery#check","columns":["id","salary"],"rows":[["i1","d1.00"],["i2","d1.00"],["i3","d75000.75"],["i4","d80000.25"],["i5","d1.00"],["i6","d1.00"],["i7","d70000.00"],["i8","d1.00"],["i9","d45000.00"],["i10","d1.00"]]}
+{"id":"lite/dml/update_a_case_value","columns":["count"],"rows":[["i10"]]}
+{"id":"lite/dml/update_a_case_value#check","columns":["id","status"],"rows":[["i1","ssmall"],["i2","ssmall"],["i3","ssmall"],["i4","sbig"],["i5","sbig"],["i6","ssmall"],["i7","ssmall"],["i8","sbig"],["i9","ssmall"],["i10","sbig"]]}
+{"id":"lite/dml/update_an_unknown_column","error":{"state":"42703","message":"ERROR: column \"nope\" of relation \"persons\" does not exist"}}
+{"id":"lite/dml/update_a_column_twice","error":{"state":"42601","message":"ERROR: multiple assignments to same column \"age\""}}
+{"id":"lite/dml/update_from","columns":["count"],"rows":[["i9"]]}
+{"id":"lite/dml/update_from#check","columns":["id","salary"],"rows":[["i1","d1000000.00"],["i2","d1000000.00"],["i3","d500000.00"],["i4","d500000.00"],["i5","d750000.00"],["i6","d750000.00"],["i7","d70000.00"],["i8","d1000000.00"],["i9","d500000.00"],["i10","d750000.00"]]}
+{"id":"lite/dml/delete_where","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/delete_where#check","columns":["id","status"],"rows":[["i1","scompleted"],["i2","scompleted"],["i3","spending"],["i4","scompleted"],["i6","scompleted"],["i7","spending"],["i8","scompleted"],["i9","spending"],["i10","scompleted"]]}
+{"id":"lite/dml/delete_every_row","columns":["count"],"rows":[["i10"]]}
+{"id":"lite/dml/delete_every_row#check","columns":["n"],"rows":[["i0"]]}
+{"id":"lite/dml/delete_of_an_empty_table","columns":["count"],"rows":[["i0"]]}
+{"id":"lite/dml/delete_of_an_empty_table#check","columns":["n"],"rows":[["i0"]]}
+{"id":"lite/dml/delete_with_a_subquery","columns":["count"],"rows":[["i3"]]}
+{"id":"lite/dml/delete_with_a_subquery#check","columns":["id"],"rows":[["i1"],["i2"],["i5"],["i6"],["i7"],["i8"],["i10"]]}
+{"id":"lite/dml/delete_through_an_alias","columns":["count"],"rows":[["i2"]]}
+{"id":"lite/dml/delete_through_an_alias#check","columns":["id"],"rows":[["i1"],["i2"],["i3"],["i4"],["i5"],["i6"],["i9"],["i10"]]}
+{"id":"lite/dml/delete_a_null_condition","columns":["count"],"rows":[["i7"]]}
+{"id":"lite/dml/delete_a_null_condition#check","columns":["id","active"],"rows":[["i3","bfalse"],["i6","bfalse"],["i8",null]]}
+{"id":"lite/dml/delete_no_row","columns":["count"],"rows":[["i0"]]}
+{"id":"lite/dml/delete_no_row#check","columns":["n"],"rows":[["i10"]]}
+{"id":"lite/dml/delete_returning","columns":["id"],"rows":[["i1"]]}
+{"id":"lite/dml/delete_returning#check","columns":["n"],"rows":[["i9"]]}
+{"id":"lite/dml/insert_select_of_an_unknown_literal","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_select_of_an_unknown_literal#check","columns":["id","int_val"],"rows":[["i920","i5"]]}
+{"id":"lite/dml/insert_values_text_into_a_number","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_values_text_into_a_number#check","columns":["id","int_val","float_val"],"rows":[["i930","i7","f1.5"]]}
+{"id":"lite/dml/insert_a_decimal_into_an_integer","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_a_decimal_into_an_integer#check","columns":["id","int_val","small_val"],"rows":[["i940","i3","i-4"]]}
+{"id":"lite/dml/insert_from_a_union","columns":["count"],"rows":[["i2"]]}
+{"id":"lite/dml/insert_from_a_union#check","columns":["id","person_id","status"],"rows":[["i300","i1","sa"],["i301","i2","sb"]]}
+{"id":"lite/dml/insert_default_values","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_default_values#check","columns":["id","val"],"rows":[[null,null]]}
+{"id":"lite/dml/insert_a_default","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_a_default#check","columns":["id","val"],"rows":[["i1",null]]}
+{"id":"lite/dml/update_a_number_from_text","columns":["count"],"rows":[["i1"]]}
+{"id":"lite/dml/update_a_number_from_text#check","columns":["id","int_val"],"rows":[["i1","i8"],["i2","i-10"],["i3","i0"],["i4","i2147483647"],["i5",null],["i6","i1"],["i7","i-1"],["i8","i100"],["i9","i7"],["i10","i-999"]]}
+{"id":"lite/dml/update_with_a_correlated_subquery","columns":["count"],"rows":[["i10"]]}
+{"id":"lite/dml/update_with_a_correlated_subquery#check","columns":["id","salary"],"rows":[["i1","d1000000.00"],["i2","d1000000.00"],["i3","d500000.00"],["i4","d500000.00"],["i5","d750000.00"],["i6","d750000.00"],["i7",null],["i8","d1000000.00"],["i9","d500000.00"],["i10","d750000.00"]]}
+{"id":"lite/dml/update_returning","columns":["id","age"],"rows":[["i1","i1"]]}
+{"id":"lite/dml/update_returning#check","columns":["id","age"],"rows":[["i1","i1"]]}
+{"id":"lite/dml/delete_with_not_exists","columns":["count"],"rows":[["i7"]]}
+{"id":"lite/dml/delete_with_not_exists#check","columns":["id"],"rows":[["i1"],["i2"],["i3"]]}
+{"id":"lite/dml/delete_using","columns":["count"],"rows":[["i8"]]}
+{"id":"lite/dml/delete_using#check","columns":["id"],"rows":[["i4"],["i9"]]}
+{"id":"lite/dml/with_an_insert","columns":["id"],"rows":[["i1"]]}
+{"id":"lite/dml/with_an_insert#check","columns":["id"],"rows":[["i1"]]}
+{"id":"lite/dml/insert_returning_every_column","columns":["id","name","age","salary","hire_date","active","dept_id"],"rows":[["i310","sS",null,"d1234.57",null,null,null]]}
+{"id":"lite/dml/insert_returning_every_column#check","columns":["id","name","salary"],"rows":[["i310","sS","d1234.57"]]}
+{"id":"lite/dml/insert_returning_an_expression","columns":["id","doubled"],"rows":[["i311","i6"]]}
+{"id":"lite/dml/insert_returning_an_expression#check","columns":["id","int_val"],"rows":[["i311","i3"]]}
+{"id":"lite/dml/insert_select_returning","columns":["id","amount"],"rows":[["i501","d50000.00"],["i502","d60000.50"]]}
+{"id":"lite/dml/insert_select_returning#check","columns":["id","amount"],"rows":[["i501","d50000.00"],["i502","d60000.50"]]}
+{"id":"lite/dml/update_returning_a_null","columns":["id","dept_id","name"],"rows":[["i2",null,"sBob"]]}
+{"id":"lite/dml/update_returning_a_null#check","columns":["id","dept_id"],"rows":[["i1","i1"],["i2",null],["i3","i2"],["i4","i2"],["i5","i3"],["i6","i3"],["i7",null],["i8","i1"],["i9","i2"],["i10","i3"]]}
+{"id":"lite/dml/update_returning_a_rounded_value","columns":["id","salary"],"rows":[["i1","d50250.00"],["i2","d60300.50"]]}
+{"id":"lite/dml/update_returning_a_rounded_value#check","columns":["id","salary"],"rows":[["i1","d50250.00"],["i2","d60300.50"],["i3","d75000.75"],["i4","d80000.25"],["i5","d95000.00"],["i6","d55000.00"],["i7","d70000.00"],["i8",null],["i9","d45000.00"],["i10","d120000.00"]]}
+{"id":"lite/dml/delete_returning_star","columns":["id","val","nullable_val","unicode_val","empty_val"],"rows":[["i1","shello","sworld","shéllo","s"],["i2","sWORLD","stest","s日本語","s"]]}
+{"id":"lite/dml/delete_returning_star#check","columns":["id"],"rows":[["i3"],["i4"],["i5"],["i6"],["i7"],["i8"],["i9"],["i10"]]}
 {"id":"lite/functions/sqrt_exp_ln_log","columns":["id","r","e","l","g"],"rows":[["i1","f6.48074069840786","f2.718281828459045","f1.1447290411851783","f9.99999999995657"],["i4","f46340.950001051984","f1.4302079958348105E55","f0.586504231825119","f18.964889726830815"],["i6","f1.0","f2.718281828459045","f-2.3025850929940455","f0.0"],["i8","f10.0","f5.184705528587072E21","f4.605070180987758","f6.0"],["i9","f2.6457513110645907","f1096.6331584284585","f0.804719860706232","f1.6901960800285136"]]}
 {"id":"lite/functions/trigonometry","columns":["id","s","c","a","a2","d","r"],"rows":[["i1","f2.65358979335273E-6","f-0.9999999999964793","f1.2626270115493434","f1.0038844392054265","f179.9998479605043","f0.05483108924772866"],["i2","f-0.41078295757034533","f-0.9117331636886747","f-1.2182826870594876","f-0.9364716864758501","f-155.74597153482142","f-0.04744293599111146"],["i3","f0.0","f1.0","f0.0","f0.0","f0.0","f0.0"],["i4","f0.974369171621577","f-0.22495492302566278","f1.063153208903525","f0.7321774709735704","f103.00022748978945","f0.03137566353538367"],["i5",null,null,null,null,null,null],["i6","f0.09983341664682815","f0.9950041652780258","f0.09966865249116204","f0.049958395721942765","f5.729577951308232","f0.0017453292519943296"],["i7","f-0.09983341664682815","f0.9950041652780258","f-0.09966865249116204","f-0.049958395721942765","f-5.729577951308232","f-0.0017453292519943296"],["i8","f-0.5149633680424761","f0.8572121846861193","f1.5607956601082313","f1.5507969934215662","f5729.004993513101","f1.7451547190691301"],["i9","f0.7867478831110827","f-0.617274467656188","f1.1502623285940459","f0.8410691200121956","f128.11737369581797","f0.039026783805069604"],["i10","f-9.999999999833334E-6","f0.99999999995","f-9.999999999666668E-6","f-4.999999999958334E-6","f-5.729577951308233E-4","f-1.7453292519943297E-7"]]}
 {"id":"lite/functions/pi_and_cbrt","columns":["id","c","p"],"rows":[["i1","f3.4760266448864496","f3.141592653589793"],["i2","f-2.1544346900318834","f-402.1238596594935"],["i3","f0.0","f0.0"],["i4","f1290.1591548920912","f398.98226700590374"],["i5",null,null],["i6","f1.0","f3.141592653589793"],["i7","f-1.0","f-3.141592653589793"],["i8","f4.641588833612778","f157.07963267948966"],["i9","f1.9129311827723894","f21.991148575128552"],["i10","f-9.996665554937861","f-311.01767270538954"]]}

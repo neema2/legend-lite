@@ -33,6 +33,11 @@ public final class TypedQuery {
         return ctx;
     }
 
+    /** The spec compiler the query's statements are typed by (a user function's body is compiled through it). */
+    SpecCompiler specs() {
+        return specs;
+    }
+
     /** The query's statements typed as a query body (Phase G), once. */
     public List<TypedSpec> body() {
         List<TypedSpec> b = body;
@@ -110,19 +115,42 @@ public final class TypedQuery {
      *  §9, step 2's landing 2). */
     Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming,
             List<com.legend.sql.SqlExpr.PlanParam> slots) {
+        Resolved r = resolve(new java.util.ArrayList<>(body()), runtime);
+        return new Compiler.LoweredQuery(lowerer(r.temporal(), streaming, slots).lower(r.body()), r.root(), ctx);
+    }
+
+    /** Statements inlined (G½) and resolved (H) for a runtime, every store they touch bound to it: what a lowering
+     *  reads. {@code temporal}: whether a temporal class is read (the exists-join form is the engine's otherwise). */
+    record Resolved(List<TypedSpec> body, boolean temporal) {
+        TypedSpec root() {
+            return body.get(body.size() - 1);
+        }
+    }
+
+    /** {@code statements} (a query's body, or one statement of a program with the lets before it: a write plan's step,
+     *  docs/WRITES_DESIGN_2026_10_18.md §8, leg 7) inlined, resolved against {@code runtime}, every touched store
+     *  checked against its connections -- every planning step before the lowering, no database. */
+    Resolved resolve(List<TypedSpec> statements, @com.legend.base.Nullable String runtime) {
         List<TypedSpec> b = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(
-                new java.util.ArrayList<>(body()));   // Phase G½
+                new java.util.ArrayList<>(statements));   // Phase G½
         boolean temporalRoot = com.legend.compiler.element.Temporal.anyTemporalGetAll(b, ctx);
         b = new com.legend.resolver.StoreResolver(ctx, specs).resolve(b, runtime);   // Phase H
         // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by
         // name), then every store the query touches must be bound to it (C3b)
         Compiler.executesOn(ctx, runtime);
         CrossStoreGuard.check(b, ctx, runtime);
-        TypedSpec root = b.get(b.size() - 1);
+        return new Resolved(b, temporalRoot);
+    }
+
+    /** The Lowerer a planned statement lowers with (the wire path's): the model's layouts, the engine's exists-join
+     *  form unless a temporal class is read ({@code temporal}), the streaming graph root if asked, each slot a value
+     *  the statement binds. */
+    com.legend.lowering.Lowerer lowerer(boolean temporal, boolean streaming,
+            List<com.legend.sql.SqlExpr.PlanParam> slots) {
         com.legend.lowering.Lowerer planLw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations());
-        if (!temporalRoot) {
+        if (!temporal) {
             planLw = planLw.withEngineExistsJoinForm();
         }
         if (streaming) {
@@ -131,7 +159,20 @@ public final class TypedQuery {
         for (com.legend.sql.SqlExpr.PlanParam slot : slots) {
             planLw.bindPlanParam(slot);
         }
-        return new Compiler.LoweredQuery(planLw.lower(b), root, ctx);
+        return planLw;
+    }
+
+    /** Whether the query is a program that changes a store (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): a statement
+     *  writes a store table ({@code StatementEffects.writesStore}), or a let stages rows for the writes after it. */
+    boolean writes() {
+        java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
+        for (TypedSpec s : body()) {
+            if (com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo)
+                    || com.legend.resolver.StagedRows.rowsOf(s) != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The query planned for {@code runtime}: the SQL in the runtime's dialect, the root's type and its result shape —

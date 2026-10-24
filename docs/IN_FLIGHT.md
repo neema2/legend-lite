@@ -123,6 +123,19 @@ with the compiler's plan/execution split**, in this order:
    `exec/PlanRunner.java`; `server/PureV1Api.java`; `Execution.java`; a new output-matrix test in `core/src/test/`, and
    `ParkedWorkLedgerTest.java`. DataCube's engine client (`parseExact`, `timestampFromText`) only if the new text needs
    it, asked of the DataCube line first.
+   **Announced 2026-10-20 by the writes line (docs/WRITES_DESIGN_2026_10_18.md §7, D10: it builds in this line's
+   files and says so here) -- write plans, the writes design's leg 7, branch `claude/keen-noether-v5mis0`.** The
+   output-layer branch has not moved since 2026-10-13, and none of its files overlap but `PlanRunner`'s run method.
+   Files: `executionplan/ExecutionPlan.java` (`Update`, `Check`, `COUNT`; a `Sequence`'s transaction and answer),
+   `PlanJson.java` (version 5), `exec/PlanRunner.java` (a `Sequence` run on one session, in one transaction where
+   it changes the database, its answer held to the commit; no broad catch), `exec/PlanSessions.java`
+   (`Source.openToChange`: a write never changes a shared database), `PlanMaker.java` (`program`: a program that
+   writes, statement by statement), `TypedQuery.java` (`resolve` and `lowerer` split out of `lower`, `writes`),
+   `Execution.java` (`executeUpstream`), `server/QueryService.java`, the dialects' DML render methods
+   (`SqlDialect.renderStatement(SqlDml)`), `lowering/Lowerer.java` (`lowerPlanParam`), `resolver/StagedRows.java`
+   (the staged table's name and store, shared with `StatementExecutor`), `core/BUILD.bazel` (the driver's
+   `:execution_plan` dep, the Postgres target's tests). Tests: `WritePlansTest` and its DuckDB, H2 and Postgres
+   runners, `CypherWritePlansTest`, `PlanJsonTest`, `StoreWritesTest`, `PureV1ApiTest`.
 4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch
    `datacube-m1`. `native/`, `python/` and, since 2026-10-09, all of `datacube/`. Landed: the compiler as a native
    library (`bc8107c4e`), `ll.show(df)` and the notebook cube on every platform, a real JupyterLab test and marimo
@@ -2595,3 +2608,106 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   literal whose leading field has fewer than three digits as no year (`DATE '5-01-01'` is 2001-05-01, measured): this
   line writes four digits where it builds the literal (`MatchFold`, `Scalars.dateArg`); a TDS cell `%5-01-01` lowered
   by `Scalars`' cell reader would still be written as Pure spells it.
+- **Landed, 2026-10-18:** neema2/legend-lite#58 (the TCK at 3600 of 3880 on both lanes; the review's fixes).
+- **Next on this line, announced 2026-10-18: writes** (`docs/WRITES_DESIGN_2026_10_18.md`, the design agreed with the
+  user). There are two kinds of graph:
+  - a domain model, written through direct (1-1) mappings only;
+  - a native graph store, a platform-owned schema of node, label, property and relationship rows, schemaless as
+    Neo4j is.
+
+  The design puts store writes (`write`, `update`, `delete`, `merge`) under both, and the `#SQL` island's DML lands
+  on the store writes directly.
+- **Files of other lines it will touch, each announced here as it lands:**
+  - the database owner's: `sql/SqlDml.java` (`InsertSelect`, `Update`, `DeleteWhere`, `Merge`), `sql/SqlDdl.java`
+    (an identity column), every dialect's `render(SqlDml)` and a new `renderStatement(SqlDml)` (DuckDB, Postgres and
+    H2 first, the others refusing by name), and the lowering (`write` lowered for real; a `LoweredStatement`);
+  - the execution seam: `Execution.executeWrite` and `exec/` (one transaction per statement, rollback on error);
+  - the `#SQL` island's parser and translator, for INSERT, UPDATE, DELETE, ON CONFLICT and RETURNING (the seventh
+    line's; asked before it lands).
+
+  Leg 1 is harness-only: the judge (`tools/neo4j-oracle/snap.py`, `testcases/CypherParity`, `CypherTck` and
+  `CypherGraph`).
+- **Landed on the branch, 2026-10-18: writes leg 1, the judge** (the study's §12.94). The oracle records a write's
+  graph after it and its control query's answer; the side effects are the two graphs' diff, which agrees with every
+  TCK table; a write case is judged in a transaction the harness rolls back, on its rows, the graph it left, its side
+  effects and its control query. The island gained `elementId(x)` in a query (S76 amended), a null identity for an
+  absent relationship, and no longer reads a Variant property as a relationship end. No file of another line.
+- **Landed on the branch, 2026-10-18: writes leg 2, the store writes** (GATES' ninety-third landing; the design's §8).
+  `rel->write(#>{db.t}#)` lowered for real, and lite's `delete`, `update` and `merge` over a store table, each the
+  database's statement, its value the update count, a program that writes in one transaction. Files of other lines,
+  as announced, with what differs:
+  - the database owner's: `sql/SqlDml.java` (the four records), `sql/dialect/AnsiSqlRenderer.java` (the base refuses
+    each by name; the standard spellings), `DuckDb.java`, `H2.java`, `Postgres.java` (opting in), `SQLite.java` and
+    `EngineStyleH2.java` (their switches' new arms delegate to the refusal). No `SqlDdl` identity column (leg 5's) and
+    no `renderStatement(SqlDml)` (deferred to write plans, leg 7: a DML statement runs as text);
+  - the execution seam: `exec/Executor.java` (`executeUpdate`, `inTransaction`; one transaction per PROGRAM, not per
+    statement) and `StatementExecutor.java` (the store-write arm, the transaction around a program that writes; no
+    separate `Execution.executeWrite`);
+  - the compiler's: `compiler/spec/WriteChecker.java`, `StatementEffects.java` (`isStoreWrite`, `writesStore`),
+    `Typer.java` (three routes), `typed/TypedSpec.java` (the `TypedStoreWrite` family), `platform/CoreFn.java`,
+    `builtin/Pure.java` (the natives, `LITE_SURFACE`), `resolver/StoreResolver.java` (a write's rows resolved),
+    `lowering/Lowerer.java` (`lowerStoreWrite`; no `LoweredStatement`), `lowering/CollectionLanes.java`;
+  - guards and generated files: the governance, not-upstream, implementation-kind, broad-catch and Java-evaluation
+    pins (each dated), the native claims, `core/BUILD.bazel` and `gates/BUILD.bazel` (`//core:store_writes_postgres_test`).
+  The `#SQL` island's DML is leg 4's, asked of the seventh line before it lands.
+- **Landed on the branch, 2026-10-20: writes leg 6, Cypher's writes on the native graph store** (GATES' ninety-fourth
+  landing; the design's §8, leg 6). A Cypher statement that updates the graph is a program over the native store's
+  tables (`nodes`, `node_props`, `rels`, `rel_props`): the rows in hand staged before each write clause into a temporary
+  table of the session, the clauses L1's `write`, `update` and `delete`, the touched elements read back by id. Files of
+  other lines:
+  - the compiler's: `builtin/Pure.java` (`meta::legend::lite::stage`, lite-internal), `platform/CoreFn.java` and
+    `compiler/spec/Typer.java` (`STAGE`, typed by its signature), `compiler/spec/SpecCompiler.java` and
+    `compiler/spec/CypherIslands.java` (an island that updates the graph spliced in as its program's statements),
+    `compiler/element/GraphEdges.java` (the graph profile's `Native` stereotype), `protocol/spec/LambdaFunction.java`
+    (`withBody`, `of`), `resolver/StagedRows.java` (new: a staged let read as its temporary table);
+  - the execution seam: `StatementExecutor.java` (`stageRows`, `storeOf`, `dropStaged`; the Java-evaluation pin moved,
+    dated) and `BodyCompiler.java` (a staged let's table, dropped once the body has run);
+  - the database owner's: `sql/dialect/Postgres.java` (`CREATE TEMPORARY TABLE ... AS`);
+  - `projects/graph/model.pure` (the profile's `Native`), `core/BUILD.bazel` (`//core:cypher_parity_native_test`);
+  - guards and generated files: the code-shape allowlist, the FQN-literal ceiling, the not-upstream pin, the native
+    claims and the implementation kinds (each dated or regenerated).
+- **Landed on the branch, 2026-10-20: writes leg 5, the class writes (L2) and Cypher's writes on a domain model**
+  (GATES' ninety-fifth landing; the design's §8, leg 5; register row S102). Five lite natives write a class's instances
+  through its direct mapping (`writeInstances`, `mergeInstances`, `deleteInstances`, `link`, `unlink`), the store
+  resolver rewriting each into L1's statement over the mapping's table; Cypher's writer over a domain model reads the
+  graph as unions over the classes' extents and writes it through them. Files of other lines:
+  - the compiler's: `builtin/Pure.java` (the five natives, lite-internal), `builtin/NativeFn.java` (their resolver
+    forms), `compiler/spec/StatementEffects.java` (a class write is a store write);
+  - the resolver's: `resolver/ClassWrites.java` (new: the direct-mapping check and the rewrite),
+    `resolver/StoreResolver.java` (a class write rewritten before any space dispatch; a relation operator whose rows
+    no class chain feeds; a data lambda's closed class queries), `resolver/SubQueryLift.java`
+    (`resolveClosedQueries`);
+  - the lowering's and the SQL tree's: `lowering/ValueCollections.java` and `sql/SqlExpr.java` (`Column.lookup`: a
+    relation read whole as a value indexes its columns once, not a scan per column);
+  - the database owner's: `sql/dialect/Postgres.java` (`doubleJsonb`: a whole double into jsonb keeps its fraction);
+  - guards and generated files: the governance, not-upstream and FQN-literal pins, the code-shape allowlist (each
+    dated), the native claims and the implementation kinds (regenerated).
+- **Landed on the branch, 2026-10-20: writes leg 4, `#SQL{...}#` statements that write a table** (GATES' ninety-sixth
+  landing; the design's §8, leg 4; register row S103). INSERT (VALUES or a query, ON CONFLICT DO NOTHING / DO UPDATE),
+  UPDATE (with FROM) and DELETE (with USING) as L1's writes, RETURNING as a program of the staged rows, the write and
+  the rows; judged by Postgres 16 on both SQL lanes (`sql-parity/lite/dml.yaml`, with a check query per case). Files of
+  other lines:
+  - the protocol's: `protocol/sql/SqlAst.java` (`Write`: `Insert`, `Update`, `Delete`), `protocol/sql/SqlParser.java`,
+    `protocol/sql/SqlToPure.java` (the writes section; `Sources.primaryKey`), `protocol/sql/PostgresCasts.java`
+    (`numeric(p, s)`), `protocol/sql/PostgresFunctions.java` (`toPlaces` visible to the casts),
+    `protocol/sql/PostgresDialect.java` and the IQ reader's switches (`iq/IqParser`, `IqAliases`, `IqDialect`,
+    `IqAggregates`, `IqKeys`: a write is never IQ's);
+  - the compiler's: `compiler/spec/SqlIslands.java` (the primary key, a RETURNING island's statements),
+    `compiler/spec/SpecCompiler.java` (spliced in as a Cypher write's program is);
+  - the SQL tree's and the database owners': `sql/SqlDml.java` (`CreateTempTableAs` names its columns),
+    `sql/dialect/AnsiSqlRenderer.java` and `sql/dialect/Postgres.java` (the named form on Postgres),
+    `StatementExecutor.java` (`stageRows` names them);
+  - the harnesses: `testcases/SqlParity.java` (a case's check, a writing case in a rolled-back transaction, INTO,
+    UPDATE and USING tables rewritten), `integration/SqlParityTest.java`, `server/SqlParityPostgresTest.java`,
+    `testcases/IqParity.java`, `integration/PostgresRegressCorpusTest.java`; `core/BUILD.bazel`
+    (`//core:store_writes_postgres_test` runs `SqlWritesPostgresTest` too).
+- **Landed on the branch, 2026-10-20: temporal values written as properties** (GATES' ninety-seventh landing; the
+  design's §5 and §8, leg 6). On the native store a zoned value is its instant and offset slot rows, a duration its four
+  slots; a list of temporals the Variant of each element's text, its kind the graph profile's new list marks
+  (`listOfDate` ... `listOfDuration`). Files of other lines:
+  - the graph project's: `projects/graph/model.pure` (fifteen stereotypes), `compiler/element/GraphEdges.java`
+    (`STEREOTYPES`), and every copy of the profile (`GraphEdgesTest`, `CypherIslandIntegrationTest`, the showcase
+    models, `testcases/CypherGraph.java`);
+  - the resolver's: `resolver/Substitution.java` (a collection's drop, take or slice over values substitutes in
+    object space), and, in the ninety-ninth landing, `resolver/ClassWrites.java` (an embedded property's
+    sub-property written as the column its mapping reads it from, the rows' column `p.sub`).

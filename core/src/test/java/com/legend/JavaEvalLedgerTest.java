@@ -700,7 +700,29 @@ class JavaEvalLedgerTest {
             // 2296 -> 2298 (2026-10-18, the Cypher line's W5 legs 1 and 2a, found by the merge of main for its PR): the
             // datatype-to-store-type table gains the relational grammar's TIME and TIMESTAMP_NS column types (one entry
             // each); a type mapped, nothing evaluated
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2298),
+            // 2298 -> 2329 (2026-10-18, the writes design's leg 2, docs/WRITES_DESIGN_2026_10_18.md §4, L1): a store
+            // write at the statement's root is lowered to its DML statement, rendered by the dialect and handed to the
+            // database (storeWrite; its value the database's update count), the Lowerer's construction shared with
+            // lowerAndPrepare (lowererFor), and a program that writes a store runs inside one transaction
+            // (Executor.inTransaction); dispatch and sequencing, nothing evaluated in Java
+            // 2329 -> 2393 (2026-10-20, the writes design's leg 6, §8): a staged let (Pure.Lite.STAGE) is run at its
+            // turn into a temporary table of the session (stageRows: the let's rows lowered and rendered as the
+            // dialect's CREATE TEMPORARY TABLE ... AS, handed to the database), the store its table is read under
+            // (storeOf), the tables dropped once the program has run (dropStaged), and stage refused by name as a
+            // statement's value; the database computes the rows, Java sequences them
+            // 2393 -> 2394 (2026-10-20, the writes design's leg 4, §8: #SQL{...}# RETURNING): a staged let's temporary
+            // table names its columns as the staged relation does (StagedRows.columns), Postgres folding a stored
+            // column's name otherwise; one wrapped argument, a name passed, nothing evaluated
+            // 2394 -> 2380 (2026-10-20, the writes design's leg 7, §8: write plans): the staged table's name and the
+            // store it is read under moved to StagedRows (table, storeOf), which a write plan's staging names too;
+            // the executor delegates; nothing evaluated
+            // 2380 -> 2391 (2026-10-22, PR #67's review, docs/PR67_REVIEW_2026_10_22.md fixes 2, 4 and 5): a program
+            // that stages rows runs in one transaction, as one that writes does; a staged table is not dropped where
+            // the database drops it as the transaction ends (H2, SqlDialect.dropsStagedTablesWithTheirTransaction);
+            // the staged query names its columns (lowerAndPrepare's named overload, Lowerer.namedColumns); the lets
+            // around the writes are checked before the transaction opens (StagedRows.refuseLetsTheWritesChange);
+            // sequencing and one delegated check, nothing evaluated
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2391),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

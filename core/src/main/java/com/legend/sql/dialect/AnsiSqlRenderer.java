@@ -1647,30 +1647,185 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da ->
                     "DELETE FROM " + ddlQualified(da.schema(), da.table(), da.quoting()) + ";";
-            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct);
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).text();
+            case com.legend.sql.SqlDml.InsertSelect is -> insertSelect(is).text();
+            case com.legend.sql.SqlDml.Update u -> update(u).text();
+            case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).text();
+            case com.legend.sql.SqlDml.Merge m -> merge(m).text();
         };
+    }
+
+    @Override
+    public RenderedStatement renderStatement(com.legend.sql.SqlDml dml) {
+        return switch (dml) {
+            // a seed's rows, a copy, a table emptied: setup's statements, which bind no value (their text, as this
+            // dialect renders it)
+            case com.legend.sql.SqlDml.InsertValues iv -> new RenderedStatement(render(iv), List.of());
+            case com.legend.sql.SqlDml.InsertFromTable it -> new RenderedStatement(render(it), List.of());
+            case com.legend.sql.SqlDml.DeleteAll da -> new RenderedStatement(render(da), List.of());
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).statement();
+            case com.legend.sql.SqlDml.InsertSelect is -> insertSelect(is).statement();
+            case com.legend.sql.SqlDml.Update u -> update(u).statement();
+            case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).statement();
+            case com.legend.sql.SqlDml.Merge m -> merge(m).statement();
+        };
+    }
+
+    // ------------------------------------------------------------------ the store writes (docs/WRITES_DESIGN_2026_10_18.md §4)
+
+    /** A query's rows into a table: refused unless the dialect's database is measured to run
+     *  {@link #standardInsertSelect}, as every spelling is its dialect's (D1). Measured on DuckDB, H2 and Postgres 16,
+     *  2026-10-18 (the writes' leg 2); the others refuse by name until each is. */
+    protected SqlWriter insertSelect(com.legend.sql.SqlDml.InsertSelect is) {
+        throw unmeasuredWrite("an INSERT of a query's rows");
+    }
+
+    /** An UPDATE of a table's rows: refused unless measured ({@link #standardUpdate}). */
+    protected SqlWriter update(com.legend.sql.SqlDml.Update u) {
+        throw unmeasuredWrite("an UPDATE");
+    }
+
+    /** A DELETE of the rows a condition holds for: refused unless measured ({@link #standardDeleteWhere}). */
+    protected SqlWriter deleteWhere(com.legend.sql.SqlDml.DeleteWhere dw) {
+        throw unmeasuredWrite("a DELETE ... WHERE");
+    }
+
+    /** An upsert by key: refused unless measured ({@link #standardMerge}). */
+    protected SqlWriter merge(com.legend.sql.SqlDml.Merge m) {
+        throw unmeasuredWrite("a MERGE");
+    }
+
+    private DialectCapability unmeasuredWrite(String what) {
+        return new DialectCapability(what + " on " + getClass().getSimpleName() + ": no spelling measured on its"
+                + " database (the store writes run on DuckDB, H2 and Postgres, the writes design's leg 2)");
+    }
+
+    /** The standard {@code INSERT INTO t (columns) query}, the query written as this dialect writes one, its passes
+     *  applied. */
+    protected final SqlWriter standardInsertSelect(com.legend.sql.SqlDml.InsertSelect is) {
+        SqlWriter writer = newWriter().append("INSERT INTO ").append(ddlQualified(is.schema(), is.table(), is.quoting()))
+                .append(dmlColumns(is.columns(), is.quotedColumns())).append(" ");
+        return query(writer, passed(is.query()), 0).append(";");
+    }
+
+    /** The standard {@code UPDATE t AS alias SET c = value, ... [WHERE condition]} (an assigned column unqualified,
+     *  as every measured database requires; the values and the condition read the row through the alias). */
+    protected final SqlWriter standardUpdate(com.legend.sql.SqlDml.Update u) {
+        SqlSelect read = storedReadsOver(u.table(), u.alias(), u.storedTypes(),
+                u.assignments().stream().map(com.legend.sql.SqlDml.Update.Assignment::value).toList(), u.where());
+        SqlWriter writer = newWriter().append("UPDATE ").append(ddlQualified(u.schema(), u.table(), u.quoting()))
+                .append(" AS ").append(aliasIdent(u.alias())).append(" SET ");
+        for (int i = 0; i < u.assignments().size(); i++) {
+            com.legend.sql.SqlDml.Update.Assignment a = u.assignments().get(i);
+            writer.append(i == 0 ? "" : ", ").append(storedName(a.column(), a.quoted())).append(" = ")
+                    .expr(read.projections().get(i).expr(), 0);
+        }
+        if (read.where() != null) {
+            writer.append(" WHERE ").expr(read.where(), 0);
+        }
+        return writer.append(";");
+    }
+
+    /** The standard {@code DELETE FROM t AS alias [WHERE condition]}. */
+    protected final SqlWriter standardDeleteWhere(com.legend.sql.SqlDml.DeleteWhere dw) {
+        SqlSelect read = storedReadsOver(dw.table(), dw.alias(), dw.storedTypes(), List.of(), dw.where());
+        SqlWriter writer = newWriter().append("DELETE FROM ").append(ddlQualified(dw.schema(), dw.table(), dw.quoting()))
+                .append(" AS ").append(aliasIdent(dw.alias()));
+        if (read.where() != null) {
+            writer.append(" WHERE ").expr(read.where(), 0);
+        }
+        return writer.append(";");
+    }
+
+    /** An UPDATE's or a DELETE's expressions in the scope of their one table, read as a query reads it: the
+     *  {@link StoredReads} pass over {@code SELECT values FROM table AS alias WHERE where} (a column this dialect reads
+     *  other than as held is read so at every reference, as in a query; the other passes rewrite a query's shape and
+     *  have nothing to rewrite in a column's value or a row's condition), its projections and condition read back in
+     *  order. */
+    private SqlSelect storedReadsOver(String table, String alias,
+            java.util.Map<String, com.legend.sql.SqlDdl.ColumnType> storedTypes, List<SqlExpr> values,
+            @com.legend.base.Nullable SqlExpr where) {
+        List<SqlSelect.Projection> ps = new java.util.ArrayList<>();
+        for (int i = 0; i < values.size(); i++) {
+            ps.add(new SqlSelect.Projection(values.get(i), "__v" + i, null));
+        }
+        if (ps.isEmpty()) {
+            ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__v", null));
+        }
+        SqlSelect scope = SqlSelect.starOf(new com.legend.sql.SqlSource.Table(table, alias, List.of(), false, storedTypes,
+                com.legend.sql.NameQuoting.BARE)).withProjections(ps).withWhere(where);
+        return (SqlSelect) new StoredReads(this::readsStored).rewriteRoot(scope);
+    }
+
+    /** The standard {@code MERGE INTO t AS alias USING (query) AS source ON ... WHEN MATCHED THEN UPDATE SET ... WHEN
+     *  NOT MATCHED THEN INSERT (...) VALUES (...)}: each column read from the source as a query reads a derived
+     *  table's column ({@link #columnRef} under the query output's origin: a stored column's name folded where its
+     *  database folds it), written into the table's column as its store declared it. */
+    protected final SqlWriter standardMerge(com.legend.sql.SqlDml.Merge m) {
+        String target = aliasIdent(m.alias());
+        java.util.function.Function<String, String> read = name -> columnRef(SqlExpr.Column.of(m.sourceAlias(),
+                m.query().outputs().stream().filter(o -> o.name().equals(name)).findFirst()
+                        .orElseThrow(() -> new IllegalStateException("a MERGE's source has no column '" + name + "' "
+                                + m.query().outputs()))));
+        SqlWriter writer = newWriter().append("MERGE INTO ").append(ddlQualified(m.schema(), m.table(), m.quoting()))
+                .append(" AS ").append(target).append(" USING (");
+        query(writer, passed(m.query()), 0).append(") AS ").append(aliasIdent(m.sourceAlias())).append(" ON ");
+        for (int i = 0; i < m.keys().size(); i++) {
+            String k = m.keys().get(i);
+            writer.append(i == 0 ? "" : " AND ").append(target).append(".").append(storedName(k, m.quotedColumns()
+                    .contains(k))).append(" = ").append(read.apply(k));
+        }
+        java.util.List<String> others = m.columns().stream().filter(c -> !m.keys().contains(c)).toList();
+        if (!others.isEmpty()) {
+            writer.append(" WHEN MATCHED THEN UPDATE SET ");
+            for (int i = 0; i < others.size(); i++) {
+                String c = others.get(i);
+                writer.append(i == 0 ? "" : ", ").append(storedName(c, m.quotedColumns().contains(c))).append(" = ")
+                        .append(read.apply(c));
+            }
+        }
+        writer.append(" WHEN NOT MATCHED THEN INSERT").append(dmlColumns(m.columns(), m.quotedColumns()))
+                .append(" VALUES (");
+        for (int i = 0; i < m.columns().size(); i++) {
+            writer.append(i == 0 ? "" : ", ").append(read.apply(m.columns().get(i)));
+        }
+        return writer.append(");");
     }
 
     /** A temporary table holding a query's rows (the test-data generator's): refused unless the dialect's database is
      *  measured to run {@link #createTemporaryTableAs}, as every spelling is its dialect's (D1). Until the PR audit of
      *  2026-10-16 every dialect inherited the standard spelling. */
-    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+    protected SqlWriter tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
         throw new DialectCapability("a temporary table from a query (CREATE TEMPORARY TABLE ... AS) on "
                 + getClass().getSimpleName() + ": no spelling measured on its database (the test-data generator's"
                 + " sessions are H2, DuckDB and SQLite)");
     }
 
     /** The standard {@code CREATE TEMPORARY TABLE t AS <query>}, for a dialect whose database runs it: the query
-     *  written as this dialect writes a query, its passes applied. A query with plan parameters is refused: the
-     *  statement is text. */
-    protected final String createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
-        RenderedStatement create = query(newWriter().append("CREATE TEMPORARY TABLE ").append(ident(ct.table()))
-                .append(" AS "), passed(ct.query()), 0).append(";").statement();
-        if (!create.binds().isEmpty()) {
-            throw new DialectCapability("plan parameters " + create.binds() + " in a temporary table's query:"
-                    + " a DML statement is text");
+     *  written as this dialect writes a query, its passes applied, each plan parameter bound where it is written. */
+    protected final SqlWriter createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        return createTemporaryTableAs(ct, false);
+    }
+
+    /** {@link #createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs)}; {@code named}: its columns named
+     *  ({@code CREATE TEMPORARY TABLE t ("a", ...) AS <query>}), each delimited, when the statement names them. */
+    protected final SqlWriter createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct, boolean named) {
+        return createTemporaryTableAs(ct, named, "CREATE TEMPORARY TABLE ", "");
+    }
+
+    /** {@link #createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs, boolean)}, the statement opened by
+     *  {@code create} and {@code options} written before its {@code AS}. The table's name is spelled as a query
+     *  reads a bare name ({@link #tableName}), so the statement that makes it, the queries that read it and its
+     *  drop name one table (PR #67's review, 2026-10-22: Postgres made {@code "legend_stage_rowsA"} and read
+     *  {@code legend_stage_rowsa}). */
+    protected final SqlWriter createTemporaryTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct, boolean named,
+            String create, String options) {
+        SqlWriter head = newWriter().append(create).append(tableName(ct.table(), com.legend.sql.NameQuoting.BARE));
+        if (named && !ct.columns().isEmpty()) {
+            head.append(" (").append(String.join(", ", ct.columns().stream().map(this::delimited).toList()))
+                    .append(")");
         }
-        return create.sql();
+        return query(head.append(options).append(" AS "), passed(ct.query()), 0).append(";");
     }
 
     /** {@code " (a, b)"}, each column a {@link #storedName} (as the queries reference it), or empty for every

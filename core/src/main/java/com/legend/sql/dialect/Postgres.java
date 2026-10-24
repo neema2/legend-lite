@@ -1502,7 +1502,29 @@ public final class Postgres extends AnsiSqlRenderer {
             // a quoted literal is of no type yet, which to_jsonb refuses (asJsonb)
             return writer.piece(asJsonb(w -> w.expr(a.get(0), 0), SqlType.Scalar.VARCHAR));
         }
+        if (isDouble(a.get(0))) {
+            return writer.piece(doubleJsonb(w -> w.expr(a.get(0), 0)));
+        }
+        if (a.get(0).type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array arr
+                && arr.element() == SqlType.Scalar.DOUBLE) {
+            // a list of doubles, each element so (in order; a null list null, an empty one [])
+            SqlWriter.Piece xs = w -> w.expr(a.get(0), 0);
+            return writer.append("(CASE WHEN ").piece(xs).append(" IS NULL THEN NULL ELSE COALESCE((SELECT"
+                    + " jsonb_agg(").piece(doubleJsonb(w -> w.append("__ve"))).append(" ORDER BY __vo) FROM unnest(")
+                    .piece(xs).append(") WITH ORDINALITY AS __v(__ve, __vo)), CAST('[]' AS JSONB)) END)");
+        }
         return writer.append("to_jsonb(").expr(a.get(0), 0).append(")");
+    }
+
+    /** A double as jsonb, a Float still: Postgres's jsonb holds a numeric, and {@code to_jsonb} of a whole double
+     *  spells it with no fraction ({@code 1}, which a reader takes for an integer), so a whole finite one is written
+     *  as the numeric of its value with one decimal place ({@code 1.0}); a fraction, an infinity, NaN and null as
+     *  {@code to_jsonb} writes them (measured on Postgres 16, 2026-10-20: the TCK's Set1 [5] reads
+     *  {@code [i IN n.numbers | i / 2.0]}, [0.5, 1.0, 1.5]). */
+    private static SqlWriter.Piece doubleJsonb(SqlWriter.Piece x) {
+        return w -> w.append("(CASE WHEN ").piece(x).append(" = trunc(").piece(x).append(") AND abs(").piece(x)
+                .append(") < CAST('Infinity' AS DOUBLE PRECISION) THEN to_jsonb(round(CAST(").piece(x)
+                .append(" AS NUMERIC), 1)) ELSE to_jsonb(").piece(x).append(") END)");
     }
 
     // ==================================================================
@@ -2470,5 +2492,37 @@ public final class Postgres extends AnsiSqlRenderer {
     @Override
     public boolean deliversOwn(SqlType label, String wire) {
         return label instanceof SqlType.Map && wire.equals("ARRAY");
+    }
+
+    /** {@inheritDoc} Measured on Postgres 16 (2026-10-18, the writes' leg 2): the standard spellings, an alias written with
+     *  {@code AS}; each statement atomic on an error (a key or NOT NULL violation leaves the table as it was). */
+    @Override
+    protected SqlWriter insertSelect(com.legend.sql.SqlDml.InsertSelect is) {
+        return standardInsertSelect(is);
+    }
+
+    @Override
+    protected SqlWriter update(com.legend.sql.SqlDml.Update u) {
+        return standardUpdate(u);
+    }
+
+    @Override
+    protected SqlWriter deleteWhere(com.legend.sql.SqlDml.DeleteWhere dw) {
+        return standardDeleteWhere(dw);
+    }
+
+    @Override
+    protected SqlWriter merge(com.legend.sql.SqlDml.Merge m) {
+        return standardMerge(m);
+    }
+
+    /** {@inheritDoc} Postgres 16 runs the standard spelling (the Cypher island's staged rows, the writes design's
+     *  leg 6, measured 2026-10-19 on the embedded Postgres 16): a temporary table of the session, inside the
+     *  statement's transaction, so a rollback takes it back. Its columns named, each delimited (2026-10-20, the writes
+     *  design's leg 4): a stored column the store declared bare is read folded ({@link #columnName}), and the staged
+     *  rows are read after by their relation's names. */
+    @Override
+    protected SqlWriter tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        return createTemporaryTableAs(ct, true);
     }
 }

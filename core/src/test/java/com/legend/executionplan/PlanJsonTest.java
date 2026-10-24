@@ -81,7 +81,13 @@ class PlanJsonTest {
                         new TextResult(Format.CSV, new Relation(List.of(new Column("name", "String"))),
                                 new Sql("select ... from T", List.of(), t, null)),
                         new TextResult(Format.JSON_PER_ROW, new Relation(List.of()),
-                                new Sql("select ... from T", List.of(), t, null)))));
+                                new Sql("select ... from T", List.of(), t, null)),
+                        // a write plan's steps (the writes design's leg 7): a change whose count a later slot binds,
+                        // one whose count none reads, and a check
+                        new ExecutionPlan.Update(new Sql("update T set ID = ? where ID > 0", List.of(new Slot("id",
+                                new ExecutionPlan.Binding.One("BIGINT", null))), t, null), ExecutionPlan.COUNT),
+                        new ExecutionPlan.Update(new Sql("drop table if exists S;", List.of(), t, null), null),
+                        new ExecutionPlan.Check(new Sql("select 1 from T", List.of(), t, null)))));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
     }
 
@@ -128,14 +134,14 @@ class PlanJsonTest {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
         String json = PlanJson.write(new ExecutionPlan(List.of(), new TdsResult(List.of(),
                 new Sql("select 1", List.of(), t, null))));
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":4,"), json);
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":5,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v4 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v5 plan"), refused.getMessage());
     }
 
     @Test
@@ -149,7 +155,7 @@ class PlanJsonTest {
 
     @Test
     void anEarlierVersionIsRefused() {
-        for (int version = 1; version <= 3; version++) {
+        for (int version = 1; version <= 4; version++) {
             int v = version;
             var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(
                     "{\"format\":\"legend-lite-plan\",\"version\":" + v + ",\"parameters\":[],\"root\":{}}"));

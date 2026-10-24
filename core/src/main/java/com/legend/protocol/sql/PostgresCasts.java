@@ -76,6 +76,9 @@ final class PostgresCasts {
                         c.pos()), scope, row);
                 return strict(Kind.STRING, List.of(text), v -> call("left", v.get(0), new CInteger(n)));
             }
+            if (target == Kind.DECIMAL && c.type().modifiers().size() <= 2) {
+                return toScale(translator, c, scope, row);
+            }
             throw SqlTranslationException.unsupported("casts to " + type + " with a type modifier are not supported"
                     + " yet", c.pos());
         }
@@ -370,6 +373,37 @@ final class PostgresCasts {
             return 4;
         }
         return WIDE_INTEGERS.contains(type) ? Integer.valueOf(8) : null;
+    }
+
+    /** {@code numeric(p, s)} (writes leg 4, 2026-10-20: a value as a column of that type holds it): the value as
+     *  numeric, rounded to {@code s} places half away from zero, as Postgres rounds it; one of {@code p - s} or more
+     *  digits before the point is Postgres's error ("numeric field overflow"), the database's to raise. */
+    private static Tx toScale(SqlToPure translator, SqlAst.Cast c, Scope scope, String row) {
+        List<Integer> modifiers = c.type().modifiers();
+        int precision = modifiers.get(0);
+        int scale = modifiers.size() > 1 ? modifiers.get(1) : 0;
+        if (precision < 1 || precision > 1000) {
+            throw SqlTranslationException.invalid("NUMERIC precision " + precision + " must be between 1 and 1000",
+                    c.pos());
+        }
+        if (scale < 0 || scale > precision || scale > 18) {
+            throw SqlTranslationException.unsupported("casts to numeric(p, s) of a scale below 0, above the precision"
+                    + " or above 18 are not supported yet", c.pos());
+        }
+        Tx x = cast(translator, new SqlAst.Cast(c.operand(), new SqlAst.TypeName(c.type().name(), List.of(),
+                c.type().pos()), c.pos()), scope, row);
+        if (x.kind() == Kind.NULL || isNullConstant(x)) {
+            return nullOf(Kind.DECIMAL);
+        }
+        inexact(x, "a cast to numeric(p, s)", c.pos());
+        boolean whole = x.kind() == Kind.INTEGER || x.kind() == Kind.WHOLE;
+        BigDecimal limit = BigDecimal.TEN.pow(precision - scale);
+        return strict(Kind.DECIMAL, List.of(x), v -> {
+            com.legend.protocol.spec.ValueSpecification rounded = PostgresFunctions.toPlaces(whole ? call("toDecimal", v.get(0)) : v.get(0),
+                    scale, true);
+            return call("if", call("greaterThanEqual", call("abs", rounded), new CDecimal(limit)),
+                    thunk(call("toOne", call("cast", empty(), typeArg("Decimal")))), thunk(rounded));
+        });
     }
 
     /** An integer that a narrower Postgres integer must hold: past its range, Postgres's error -- an empty value

@@ -376,6 +376,13 @@ public final class StoreResolver {
                 && Type.isRelation(mk.source().info().type())) {
             return resolveNode(mk.source(), context);
         }
+        // a CLASS WRITE over a direct mapping (docs/WRITES_DESIGN_2026_10_18.md §4, L2; 2026-10-20), in any space
+        // (its rows are often a literal's or a staged let's, no class chain): L1's statement over the class's mapped
+        // table, its properties renamed to their columns (ClassWrites), then resolved as an L1 write is
+        if (n instanceof TypedNativeCall cw && com.legend.builtin.NativeFn.ResolverForm.of(cw.callee().id())
+                .map(com.legend.builtin.NativeFn.ResolverForm::classWrite).orElse(false)) {
+            return resolveNode(classWrite(cw, context), context);
+        }
         return switch (anchors.spaceOf(n)) {
             case OBJECT -> objectNode(n, context);
             case ANCHORED -> anchoredNode(n, context);
@@ -562,12 +569,20 @@ public final class StoreResolver {
             // once (TypedRelationOp), so none can be missed (TypedPivot was)
             case com.legend.compiler.spec.typed.TypedRelationOp op when anchored(op.source()) ->
                     structural(op, context);
+            // a relation operator over rows no class chain feeds, a class query only in its lambdas (a closed one,
+            // SubQueryLift.resolveClosedQueries: the Cypher island's writes over a domain model, 2026-10-20): the same
+            // relation-space wrapper
+            case com.legend.compiler.spec.typed.TypedRelationOp op -> structural(op, context);
             case TypedSpec js when com.legend.compiler.spec.typed.TypedJsonAccess.isJsonNode(js) -> structural(js, context);
             case TypedCast c
                     when anchored(c.source())
                     && Type.isRelation(c.info().type()) ->
                     structural(c, context);
             case TypedConcatenate c -> structural(c, context);
+            // a WRITE of a class query's rows into a store table (docs/WRITES_DESIGN_2026_10_18.md §4, L1): the rows
+            // resolve, the table is physical already
+            case com.legend.compiler.spec.typed.TypedWrite w -> structural(w, context);
+            case com.legend.compiler.spec.typed.TypedStoreWrite sw -> structural(sw, context);
             // navigate keeps its TARGET verbatim (the navigation pipeline
             // is resolver OUTPUT vocabulary) — only the source resolves
             case TypedNavigate nav
@@ -643,11 +658,13 @@ public final class StoreResolver {
             }
             // a BARE lambda VALUE is DATA — but a SELF-CONTAINED query
             // beneath it has no other owner (SubQueryLift.resolveClosed
-            // javadoc): resolve those, leave param-dependent reads as data
+            // javadoc): resolve those, and the closed class queries
+            // (SubQueryLift.resolveClosedQueries); leave param-dependent
+            // reads as data
             case com.legend.compiler.spec.typed.TypedLambda l ->
-                    l.mapChildren(b -> SubQueryLift.resolveClosed(b,
+                    l.mapChildren(b -> SubQueryLift.resolveClosedQueries(SubQueryLift.resolveClosed(b,
                             new java.util.LinkedHashSet<>(l.parameters()),
-                            r -> resolveNode(r, context)));
+                            r -> resolveNode(r, context)), r -> resolveNode(r, context)));
             case com.legend.compiler.spec.typed.TypedFrameRef fr -> fr;   // leg 3.4 step 2: a planned frame's reference is resolved already
             // The NAMED wall: an ANCHORED variant with no arm — loud, never
             // a silent pass-through; a USER CALL wrapper names its CALLEE
@@ -1282,6 +1299,16 @@ public final class StoreResolver {
             return elementIdRead(nc, context);
         }
         return rw;
+    }
+
+    /** A class write ({@code writeInstances}, {@code mergeInstances}, {@code deleteInstances}, {@code link},
+     *  {@code unlink}) as L1's statement over the table its class's mapping reads (ClassWrites). */
+    private TypedSpec classWrite(TypedNativeCall nc, Context context) {
+        var form = com.legend.builtin.NativeFn.ResolverForm.of(nc.callee().id()).orElseThrow();
+        String classFqn = ClassWrites.classOf(nc);
+        ClassSource cs = sources.get(dispatch(context, classFqn), classFqn, null);
+        return ClassWrites.lower(nc, form, cs, c -> sources.get(dispatch(context, c), c, null), ctx, callees,
+                assocMaterial);
     }
 
     /** {@code elementId($instance)} as the read of the instance's identity: its class's one primary-key

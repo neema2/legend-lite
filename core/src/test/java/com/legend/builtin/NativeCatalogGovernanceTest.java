@@ -149,7 +149,21 @@ class NativeCatalogGovernanceTest {
         // so the SQL islands wrote one as a Float estimate corrected by remainders, reading each operand about
         // fourteen times; nested quotients made statements of megabytes (44 corpus queries refused by the
         // translation-size bound). Emitted by the SQL islands only, by FQN. 28 -> 29 (merging main, 2026-10-18).
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 29,
+        // +1 2026-10-20 (the writes design's leg 6, docs/WRITES_DESIGN_2026_10_18.md §8: Cypher's writes on the native
+        // graph store): stage -- let s = rows->stage(), the rows computed once at the let's turn into a temporary table
+        // of the session, which the statements after read, so the writes between read the rows as they were (a
+        // relation expression is recomputed at each read, and a write changes what it finds). legend-pure's lets bind
+        // values, not a relation's rows at a point of a program's writes; legend-engine has no counterpart. Emitted by
+        // the Cypher translator only, by FQN, a let's value only. 28 -> 29.
+        // +5 2026-10-20 (the writes design's leg 5, §4 L2: Cypher's writes on a graph of a domain model):
+        // writeInstances / mergeInstances / deleteInstances / link / unlink -- the class writes over a direct mapping,
+        // each a relation of rows and a class (the rows' key column each instance's key, the others its properties),
+        // which the store resolver writes as L1's statement over the class's mapped table (resolver/ClassWrites).
+        // legend-pure has no write through a mapping; legend-engine's is mutation::save, an upsert of one object.
+        // Emitted by the Cypher translator only, by FQN (GraphQL's mutations will be their second emitter). 29 -> 34.
+        // 34 -> 35 (2026-10-22, merging main into the Cypher writes branch): main's quotient (+1, above) beside this
+        // branch's stage and the five class writes (+6).
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 35,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering
@@ -176,7 +190,11 @@ class NativeCatalogGovernanceTest {
         // asOfJoinWithPrefix — the relation join with a right-column PREFIX, a
         // lite-dialect feature kept on purpose (upstream resolves collisions by
         // rename before the join); the user spelling join(…, 'p_') routes by arity.
-        assertTrue(Pure.LITE_SURFACE.size() <= 4,
+        // +3 2026-10-18 (the writes design's leg 2, docs/WRITES_DESIGN_2026_10_18.md §4, L1): delete / update /
+        // merge, the store writes beside upstream's write -- legend-pure has no DML over a relation accessor and
+        // legend-engine's only write through a mapping is mutation::save (an H2/MemSQL upsert of one object); each
+        // is the database's statement over a store table, user-facing by design (the design's D2)
+        assertTrue(Pure.LITE_SURFACE.size() <= 7,
                 "LITE_SURFACE grew: " + Pure.LITE_SURFACE);
     }
 

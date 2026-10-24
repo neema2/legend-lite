@@ -47,9 +47,25 @@ class SqlParityTest {
         try (Connection session = platform.open()) {
             SqlParity.seed(platform, session, tables);
             QueryService service = new QueryService();
+            SqlParity.Legend legend = new SqlParity.Legend() {
+                @Override
+                public com.legend.exec.ExecutionResult run(String island) throws Exception {
+                    return service.execute(model, island, SqlParity.RUNTIME, session);
+                }
+
+                @Override
+                public void begin() throws Exception {
+                    session.setAutoCommit(false);
+                }
+
+                @Override
+                public void rollback() throws Exception {
+                    session.rollback();
+                    session.setAutoCommit(true);
+                }
+            };
             for (SqlParity.Case c : cases) {
-                outcomes.put(SqlParity.key(c), SqlParity.outcome(c, answers.get(SqlParity.key(c)), names,
-                        island -> service.execute(model, island, SqlParity.RUNTIME, session)));
+                outcomes.put(SqlParity.key(c), SqlParity.outcome(c, answers, names, legend));
             }
         }
         String update = System.getProperty("sql.parity.update");

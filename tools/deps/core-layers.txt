@@ -48,6 +48,9 @@
 # 2026-10-21, the protocol program's leg 8, last step (docs/PROTOCOL_PROGRAM_2026_10_05.md): `door` (door/ModelFromText:
 # a text's records made the compiler's model); `parser` no longer reaches `model` (it builds records only); builtin,
 # planner and ide reach `door` (their texts' parses).
+# 2026-10-20 (the writes design's leg 7, docs/WRITES_DESIGN_2026_10_18.md §8; the plan program's step 4, the callers
+# switching to plans, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): driver reaches `execution_plan` -- Execution runs
+# a program that writes from its plan (executeUpstream: the plan made, run by PlanRunner, its answer's SQL reported).
 spi	
 cache	base
 values	base
@@ -78,7 +81,7 @@ testdatagen	base builtin compiler compiler_element_type error exec lineage model
 execution_plan	base json model sql
 planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
 pure_v1	base compiler compiler_element_type database error json parser plan planner protocol sql_dialect
-driver	base builtin cache compiler compiler_element_type database diagnostics error exec lineage lowering model normalizer parser plan planner platform protocol resolver setup sql sql_dialect testdatagen validation values
+driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan lineage lowering model normalizer parser plan planner platform protocol resolver setup sql sql_dialect testdatagen validation values
 ide	base door lexer model parser
 test	base compiler driver error exec model planner protocol sql values
 saved_queries	base json

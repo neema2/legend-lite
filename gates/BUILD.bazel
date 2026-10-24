@@ -47,6 +47,11 @@ test_suite(
         # the #Cypher{...}# island's parity lanes (docs/CYPHER_STUDY_2026_10_15.md §8.4)
         "//core:cypher_parity_test",
         "//core:cypher_parity_postgres_test",
+        # the same corpus over the native graph store (graph B, docs/WRITES_DESIGN_2026_10_18.md §3; 2026-10-22, PR
+        # #67's audit: the one test judging B's writes was in no lane, so the lane guard would have failed the push)
+        "//core:cypher_parity_native_test",
+        # the store writes on the embedded Postgres 16 (the writes design's leg 2)
+        "//core:store_writes_postgres_test",
         # the #IQ{...}# island's syntax-case ratchet: the research's derived syntax cases through the island's reader,
         # held by iq-parity/syntax-pins.tsv
         "//core:iq_syntax_cases_test",

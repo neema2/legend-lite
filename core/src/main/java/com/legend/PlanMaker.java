@@ -41,15 +41,127 @@ final class PlanMaker {
             // one value, an optional one's absence, or a list as one array (Declared.slot)
             slots.add(p.slot());
         }
+        if (query.writes()) {
+            return new ExecutionPlan(declared.stream().map(p -> p.declaration(query.context())).toList(),
+                    program(query, runtime, output, slots));
+        }
         Compiler.LoweredQuery l = query.lower(runtime, output == TypedQuery.Output.STREAMED_JSON, slots);
         // the runtime decided: a null one is refused there, by name
         com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
         SqlDialect dialect = Databases.dialect(decided.type());
-        ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l, dialect);
-        ExprType root = l.root().info();
+        ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l.ctx(), dialect);
         // an enumeration parameter compared with a mapped column: through that place's value table
         SqlQuery lowered = com.legend.sql.EnumValueTables.apply(l.plan());
-        ExecutionPlan.Node node = switch (com.legend.plan.ResultShape.of(l.root())) {
+        return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(),
+                result(l.root(), lowered, output, dialect, target));
+    }
+
+    /**
+     * A program that changes a store, planned as the steps of one {@link ExecutionPlan.Sequence}
+     * (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): each statement at its turn with the lets before it, as the
+     * execution's body compiler takes them, every one inlined, resolved and lowered as a query is
+     * ({@link TypedQuery#resolve}), each declared parameter a value its statement binds. A staged let
+     * ({@code let s = rows->stage()}) creates its temporary table, which the statements after read, and is dropped
+     * after the result; another let rides the lets of the statements after; a write into a store table is an update;
+     * any other statement before the last a check (its rows dropped: a Cypher write's guard raises). The last
+     * statement's value is the plan's answer: a query's text in the form {@code output} asks for, or a write's count,
+     * which the database writes as a value bound in a query of its own.
+     */
+    private static ExecutionPlan.Node program(TypedQuery query, @com.legend.base.Nullable String runtime,
+            TypedQuery.Output output, List<com.legend.sql.SqlExpr.PlanParam> slots) {
+        com.legend.compiler.element.ModelContext ctx = query.context();
+        // the runtime decided: a null one is refused there, by name
+        com.legend.database.Target decided = Compiler.executesOn(ctx, runtime);
+        SqlDialect dialect = Databases.dialect(decided.type());
+        ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), ctx, dialect);
+        boolean streaming = output == TypedQuery.Output.STREAMED_JSON;
+        List<com.legend.compiler.spec.typed.TypedSpec> body = query.body();
+        com.legend.resolver.StagedRows.refuseLetsTheWritesChange(body, query.specs());
+        List<com.legend.compiler.spec.typed.TypedSpec> lets = new ArrayList<>();
+        List<ExecutionPlan.Node> steps = new ArrayList<>();
+        List<String> staged = new ArrayList<>();
+        for (int i = 0; i < body.size(); i++) {
+            com.legend.compiler.spec.typed.TypedSpec stmt = body.get(i);
+            boolean last = i == body.size() - 1;
+            if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
+                com.legend.compiler.spec.typed.TypedSpec rows = com.legend.resolver.StagedRows.rowsOf(let);
+                if (rows == null) {
+                    lets.add(let);
+                    continue;
+                }
+                // STAGED ROWS: computed at this statement's turn into a temporary table of the session, which the
+                // statements after read by name (the writes between read the rows as they were)
+                String table = com.legend.resolver.StagedRows.table(let.name());
+                TypedQuery.Resolved r = query.resolve(with(lets, rows), runtime);
+                com.legend.lowering.Lowerer lowerer = query.lowerer(r.temporal(), false, slots);
+                SqlQuery q = com.legend.sql.EnumValueTables.apply(lowerer.namedColumns(lowerer.lower(r.body())));
+                steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(com.legend.sql.SqlDml.CreateTempTableAs
+                        .staged(table, q, com.legend.resolver.StagedRows.columns(r.root().info()))), target, null),
+                        null));
+                staged.add(table);
+                lets.add(com.legend.resolver.StagedRows.boundTo(let.name(), table, rows.info(),
+                        com.legend.resolver.StagedRows.storeOf(r.body(), ctx, runtime), let.info()));
+                continue;
+            }
+            TypedQuery.Resolved r = query.resolve(with(lets, stmt), runtime);
+            com.legend.compiler.spec.typed.TypedSpec root = com.legend.compiler.spec.typed.Lets.bare(r.root());
+            while (root instanceof com.legend.compiler.spec.typed.TypedFrom f) {
+                root = f.source();
+            }
+            if (com.legend.compiler.spec.StatementEffects.isStoreWrite(root)) {
+                List<com.legend.compiler.spec.typed.TypedSpec> write = new ArrayList<>(r.body().subList(0,
+                        r.body().size() - 1));
+                write.add(root);
+                com.legend.sql.SqlDml dml = query.lowerer(r.temporal(), false, slots).lowerStoreWrite(write);
+                steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null),
+                        last ? ExecutionPlan.COUNT : null));
+                if (last) {
+                    steps.add(count(query, root, output, dialect, target));
+                }
+                continue;
+            }
+            SqlQuery q = com.legend.sql.EnumValueTables.apply(query.lowerer(r.temporal(), last && streaming, slots)
+                    .lower(r.body()));
+            steps.add(last ? result(r.root(), q, output, dialect, target)
+                    : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)));
+        }
+        for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : staged) {
+            // (a failed program's transaction takes its tables back with its writes)
+            steps.add(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(new com.legend.sql.SqlDdl.DropTable(
+                    null, table, com.legend.sql.NameQuoting.BARE)), List.of(), target, null), null));
+        }
+        return new ExecutionPlan.Sequence(steps);
+    }
+
+    /** {@code statement} after {@code lets}. */
+    private static List<com.legend.compiler.spec.typed.TypedSpec> with(
+            List<com.legend.compiler.spec.typed.TypedSpec> lets, com.legend.compiler.spec.typed.TypedSpec statement) {
+        List<com.legend.compiler.spec.typed.TypedSpec> out = new ArrayList<>(lets);
+        out.add(statement);
+        return out;
+    }
+
+    /** The answer of a program whose last statement is the write {@code write}: its count, which the step before
+     *  binds ({@link ExecutionPlan#COUNT}), as the database writes an {@code Integer[1]} value's text (a value's text
+     *  is the one-column relation {@code value}, whole: no row to stream). */
+    private static ExecutionPlan.Node count(TypedQuery query, com.legend.compiler.spec.typed.TypedSpec write,
+            TypedQuery.Output output, SqlDialect dialect, ExecutionPlan.Target target) {
+        ExprType type = new ExprType(write.info().type(), com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        QueryParameters.Declared count = new QueryParameters.Declared(ExecutionPlan.COUNT, type.type(),
+                type.multiplicity());
+        SqlQuery q = query.lowerer(false, false, List.of(count.slot())).lowerPlanParam(ExecutionPlan.COUNT, type);
+        return switch (output) {
+            case CSV -> wire(WireRender.Format.CSV, q, type, dialect, target);
+            case JSON, STREAMED_JSON -> wire(WireRender.Format.JSON, q, type, dialect, target);
+        };
+    }
+
+    /** The plan's answer to {@code root}, lowered to {@code lowered}: the text the database writes in the form
+     *  {@code output} asks for. */
+    private static ExecutionPlan.Node result(com.legend.compiler.spec.typed.TypedSpec rootSpec, SqlQuery lowered,
+            TypedQuery.Output output, SqlDialect dialect, ExecutionPlan.Target target) {
+        ExprType root = rootSpec.info();
+        return switch (com.legend.plan.ResultShape.of(rootSpec)) {
             case GRAPH -> switch (output) {
                 case CSV -> throw new com.legend.error.NotImplementedException("graph results have no CSV wire");
                 case JSON -> text(ExecutionPlan.Format.JSON, objects(root), lowered, dialect, target);
@@ -67,7 +179,14 @@ final class PlanMaker {
                 case JSON, STREAMED_JSON -> wire(WireRender.Format.JSON, lowered, root, dialect, target);
             };
         };
-        return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(), node);
+    }
+
+    /** A rendered statement as the plan's, on {@code target}. */
+    private static ExecutionPlan.Sql sql(RenderedStatement rendered, ExecutionPlan.Target target,
+            @com.legend.base.Nullable SqlQuery tree) {
+        List<ExecutionPlan.Slot> slots = rendered.binds().stream()
+                .map(b -> new ExecutionPlan.Slot(b.parameter(), binding(b.binding()))).toList();
+        return new ExecutionPlan.Sql(rendered.sql(), slots, target, tree);
     }
 
     /** The whole result as one text of {@code format}: the lowered query, of {@code root}'s type, wrapped by the wire. */
@@ -83,11 +202,7 @@ final class PlanMaker {
 
     private static ExecutionPlan.TextResult text(ExecutionPlan.Format format, ExecutionPlan.ResultType type,
             SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
-        RenderedStatement rendered = dialect.renderStatement(statement);
-        List<ExecutionPlan.Slot> slots = rendered.binds().stream()
-                .map(b -> new ExecutionPlan.Slot(b.parameter(), binding(b.binding()))).toList();
-        return new ExecutionPlan.TextResult(format, type, new ExecutionPlan.Sql(rendered.sql(), slots, target,
-                statement));
+        return new ExecutionPlan.TextResult(format, type, sql(dialect.renderStatement(statement), target, statement));
     }
 
     /** A placeholder's binding, as the dialect decided it, in the plan's own terms. */
@@ -138,7 +253,7 @@ final class PlanMaker {
     /** Where the plan runs: the database {@code decided}, the server versions and session statements of its dialect,
      *  and the setup its runtime's connections declare, every statement final for that database. */
     private static ExecutionPlan.Target target(com.legend.database.Target decided, String runtime,
-            Compiler.LoweredQuery l, SqlDialect dialect) {
+            com.legend.compiler.element.ModelContext ctx, SqlDialect dialect) {
         ExecutionPlan.Database database = switch (decided) {
             case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
             case com.legend.database.Target.Declared d -> new ExecutionPlan.Database.Declared(oneDefinition(d));
@@ -146,7 +261,7 @@ final class PlanMaker {
         List<String> versions = dialect.serverVersions();
         return new ExecutionPlan.Target(database, versions == null ? new ExecutionPlan.Servers.Every()
                 : new ExecutionPlan.Servers.Versions(versions), dialect.sessionSetup(),
-                setup(CsvSeed.declaredSteps(runtime, l.ctx(), dialect), dialect));
+                setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect));
     }
 
     /** The one definition a declared target opens: its connections may differ in name, not in database —

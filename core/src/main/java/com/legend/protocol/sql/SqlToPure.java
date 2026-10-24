@@ -59,6 +59,15 @@ public final class SqlToPure {
         /** Reports the columns of {@code source}, an unresolved relation expression, to {@code column}, in order. */
         void columns(ValueSpecification source, Column column);
 
+        /** The writes design's leg 4 (2026-10-20): the columns of the primary key of the table {@code table} of the
+         *  Database {@code database} ({@code schema.table}, or a table of its default schema), as the store declares
+         *  them (none where it declares none); null where the table is not known (the caller compiles against no
+         *  model, or its model declares no such table: PR #67's review, 2026-10-22, an unknown table had read as one
+         *  of no key). */
+        default @com.legend.base.Nullable List<String> primaryKey(String database, String table) {
+            return null;
+        }
+
         /** IQ island, 2026-10-14 (M1e): reports the model's tables a dialect may name without a source function
          *  ({@link InputDialect#table}) to {@code table}: none unless the caller compiles against a model. */
         default void tables(Table table) {
@@ -237,17 +246,22 @@ public final class SqlToPure {
 
     /** The Pure relation expression {@code sql}, a query in {@code dialect}, means: read by the dialect's parse and
      *  its rules; {@link SqlTranslationException} when it has none (its kind says whether the text is not SQL, the
-     *  translation is not built yet, or the dialect's database rejects the query too). */
+     *  translation is not built yet, or the dialect's database rejects the query too). A statement that writes a table
+     *  (the writes design's leg 4, docs/WRITES_DESIGN_2026_10_18.md §5) means L1's write, update, delete or merge, its
+     *  value the database's count of the rows it wrote; one that returns them (RETURNING) is a program of statements,
+     *  {@link #program}, which no expression is. */
     public static ValueSpecification translate(String sql, Sources sources, InputDialect dialect) {
-        SqlAst.Statement statement;
-        try {
-            statement = dialect.parse(sql);
-        } catch (SqlSyntaxException e) {
-            throw new SqlTranslationException(e.unsupported() ? SqlTranslationException.Kind.UNSUPPORTED
-                    : SqlTranslationException.Kind.SYNTAX, e.reason(), e.line(), e.column());
-        }
+        SqlAst.Statement statement = parsed(sql, dialect);
         InputDialect reading = dialect.reading(statement);
         SqlToPure translation = new SqlToPure(sources, reading, new Env(Map.of(), null, null, 0));
+        if (statement instanceof SqlAst.Write w) {
+            List<ValueSpecification> program = translation.write(w);
+            if (program.size() != 1) {
+                throw SqlTranslationException.unsupported("a statement that returns the rows it writes (RETURNING) is"
+                        + " a query's own statement, not a value inside one", w.pos());
+            }
+            return program.get(0);
+        }
         Rel translated;
         try {
             translated = translation.statement(statement);
@@ -260,11 +274,537 @@ public final class SqlToPure {
         return translation.inlineView(translated, statement).vs();
     }
 
+    /** Whether {@code sql} is a statement that writes a table and returns the rows it wrote (RETURNING): a program of
+     *  statements ({@link #program}). One that does not parse is none: its error is {@link #translate}'s. */
+    public static boolean returnsRows(String sql, InputDialect dialect) {
+        try {
+            return dialect.parse(sql) instanceof SqlAst.Write w && !returning(w).isEmpty();
+        } catch (SqlSyntaxException e) {
+            return false;
+        }
+    }
+
+    /** The statements {@code sql}, a statement that writes a table, means: the rows it writes staged
+     *  ({@code let s = rows->stage()}, computed once before the write), the write, and last the rows it returns, read
+     *  from the staged rows. */
+    public static List<ValueSpecification> program(String sql, Sources sources, InputDialect dialect) {
+        SqlAst.Statement statement = parsed(sql, dialect);
+        if (!(statement instanceof SqlAst.Write w)) {
+            throw new IllegalStateException("a program of statements is a statement that writes a table's");
+        }
+        return new SqlToPure(sources, dialect.reading(statement), new Env(Map.of(), null, null, 0)).write(w);
+    }
+
+    private static SqlAst.Statement parsed(String sql, InputDialect dialect) {
+        try {
+            return dialect.parse(sql);
+        } catch (SqlSyntaxException e) {
+            throw new SqlTranslationException(e.unsupported() ? SqlTranslationException.Kind.UNSUPPORTED
+                    : SqlTranslationException.Kind.SYNTAX, e.reason(), e.line(), e.column());
+        }
+    }
+
+    // ------------------------------------------------------------------ INSERT, UPDATE, DELETE (writes leg 4)
+
+    /** Lite's store writes (docs/WRITES_DESIGN_2026_10_18.md §4, L1), beside upstream's {@code write}, and the rows
+     *  staged once ({@code stage}: a temporary table of the session): the islands' translators' (the protocol layer
+     *  reads no catalog, so each name is spelled once here, the Cypher writer's too). */
+    public static final String UPDATE = "meta::legend::lite::update";
+    public static final String DELETE = "meta::legend::lite::delete";
+    public static final String MERGE = "meta::legend::lite::merge";
+    public static final String STAGE = "meta::legend::lite::stage";
+
+    private static List<SqlAst.SelectItem> returning(SqlAst.Write w) {
+        return switch (w) {
+            case SqlAst.Insert i -> i.returning();
+            case SqlAst.Update u -> u.returning();
+            case SqlAst.Delete d -> d.returning();
+        };
+    }
+
+    /** The statements {@code w} means: its write alone, or (RETURNING) the staged rows, the write and the rows. */
+    private List<ValueSpecification> write(SqlAst.Write w) {
+        return switch (w) {
+            case SqlAst.Insert i -> insert(i);
+            case SqlAst.Update u -> update(u);
+            case SqlAst.Delete d -> delete(d);
+        };
+    }
+
+    /** A statement's table: the store's table its source function names, its columns as they are declared (each one's
+     *  Pure type and store type beside, as the source reports them), the FROM-like source its own clauses read (under
+     *  its qualifier: its alias, else the function's name). */
+    private record Target(ValueSpecification table, List<OutCol> columns, List<String> pureTypes,
+            List<@com.legend.base.Nullable String> storeTypes, Source source, SqlAst.Ident qualifier, String name,
+            String database, String path) {
+
+        @com.legend.base.Nullable OutCol column(String name) {
+            for (OutCol c : columns) {
+                if (c.name().equals(name)) {
+                    return c;
+                }
+            }
+            return null;
+        }
+
+    }
+
+    /** The column of {@code t} {@code id} names, by the dialect's rule for names (Postgres's: the folded name, else the
+     *  one name equal ignoring case); null for none. */
+    private @com.legend.base.Nullable OutCol column(Target t, SqlAst.Ident id) {
+        String name = dialect.resolve(id, t.columns().stream().map(OutCol::name).toList(), "column");
+        return name == null ? null : t.column(name);
+    }
+
+    private Target target(SqlAst.FromItem item, String statement) {
+        if (!(item instanceof SqlAst.TableFunction f) || !isSourceFunction(f)) {
+            throw SqlTranslationException.unsupported(statement + " names its table by the source function for now:"
+                    + " write " + TABLE_FUNCTION + "('pkg::Database.schema.table')", item.pos());
+        }
+        ValueSpecification table = tableFunction(f);
+        List<OutCol> columns = new ArrayList<>();
+        List<String> pureTypes = new ArrayList<>();
+        List<@com.legend.base.Nullable String> storeTypes = new ArrayList<>();
+        sources.columns(table, (name, type, nullable, storeType) -> {
+            columns.add(new OutCol(name, dialect.kindOf(type, storeType), nullable, dialect.detailOf(type, storeType)));
+            pureTypes.add(type);
+            storeTypes.add(storeType);
+        });
+        Rel raw = new Rel(table, columns);
+        if (read(raw, f.pos()) != raw) {
+            // (a column the dialect reads as another type than the store holds: written as it is held, never so)
+            throw SqlTranslationException.unsupported(statement + " of a table with a column the dialect reads"
+                    + " as another type is not supported yet", item.pos());
+        }
+        String name = ((SqlAst.StringLit) java.util.Objects.requireNonNull(f.args().get(0).value())).value();
+        SqlAst.Ident qualifier = f.alias() != null ? f.alias() : dialect.functionName(f);
+        int dot = name.indexOf('.');
+        return new Target(table, columns, pureTypes, storeTypes, bound(raw, qualifier, List.of(), f.pos()), qualifier,
+                name.substring(name.lastIndexOf('.') + 1), name.substring(0, dot), name.substring(dot + 1));
+    }
+
+    /** {@code INSERT INTO t [(columns)] query}: L1's write of the query's rows, each column the one of t its place
+     *  names (as Postgres assigns them: a VALUES list's literal typed by its column). ON CONFLICT (keys) DO NOTHING
+     *  writes the rows no row of t holds the keys of; DO UPDATE SET of each other column to its EXCLUDED value is L1's
+     *  merge by the keys. RETURNING reads the rows staged before the write, a column the INSERT does not write as
+     *  none (the store declares no defaults). */
+    private List<ValueSpecification> insert(SqlAst.Insert ins) {
+        Target t = target(ins.target(), "INSERT");
+        List<OutCol> into = new ArrayList<>();
+        if (ins.columns().isEmpty()) {
+            into.addAll(t.columns());
+        } else {
+            for (SqlAst.Ident c : ins.columns()) {
+                OutCol col = column(t, c);
+                if (col == null) {
+                    throw SqlTranslationException.invalid("column \"" + c.text() + "\" of relation \"" + t.name()
+                            + "\" does not exist", c.pos());
+                }
+                if (into.contains(col)) {
+                    throw SqlTranslationException.invalid("column \"" + c.text() + "\" specified more than once",
+                            c.pos());
+                }
+                into.add(col);
+            }
+        }
+        // (the source's columns are read by their places, never their names: two of one name are written so too)
+        SqlAst.Statement source = positional(ins.source());
+        // (a VALUES list's literals, and a plain SELECT's own, are typed by the columns they are written into, as
+        // Postgres leaves them unknown there; a set operation's are text)
+        if (ins.values() || source instanceof SqlAst.Select) {
+            source = typedValues(source, into);
+        }
+        Rel rows = statement(source);
+        if (rows.columns().size() > into.size()) {
+            throw SqlTranslationException.invalid("INSERT has more expressions than target columns", ins.pos());
+        }
+        if (rows.columns().size() < into.size() && !ins.columns().isEmpty()) {
+            throw SqlTranslationException.invalid("INSERT has more target columns than expressions", ins.pos());
+        }
+        List<ColSpec> written = new ArrayList<>();
+        List<OutCol> staged = new ArrayList<>();
+        for (int i = 0; i < rows.columns().size(); i++) {
+            OutCol from = rows.columns().get(i);
+            OutCol to = into.get(i);
+            Tx value = assigned(columnValue(row, Col.of(from.name(), from.kind(), from.nullable(), from.detail())), to,
+                    ins.pos());
+            written.add(new ColSpec(to.name(), lambda(row, held(value)), null, null));
+            staged.add(new OutCol(to.name(), value.kind(), value.nullable(), value.detail()));
+        }
+        ValueSpecification values = call("project", rows.vs(), new ColSpecArray(written));
+        List<String> keys = null;
+        SqlAst.OnConflict conflict = ins.onConflict();
+        if (conflict != null) {
+            keys = conflictKeys(conflict, t, written);
+            if (conflict.update() == null) {
+                // (DO NOTHING: the rows whose keys no row of the table holds)
+                ValueSpecification same = null;
+                for (String k : keys) {
+                    ValueSpecification eq = call("equal", property(sub, k), property(row, k));
+                    same = same == null ? eq : call("and", same, eq);
+                }
+                ValueSpecification held = call("exists", t.table(), lambda(sub, java.util.Objects.requireNonNull(
+                        same)));
+                values = call("filter", values, lambda(row, call("not", held)));
+                keys = null;
+            } else {
+                mergedByKeys(conflict, t, keys, written);
+            }
+        }
+        if (ins.returning().isEmpty()) {
+            return List.of(keys == null ? call("write", values, t.table())
+                    : call(MERGE, values, t.table(), new ColSpecArray(keys.stream().map(SqlToPure::colSpec).toList())));
+        }
+        if (keys != null) {
+            throw SqlTranslationException.unsupported("INSERT ... ON CONFLICT DO UPDATE ... RETURNING is not supported"
+                    + " yet", ins.pos());
+        }
+        // the rows as written: each column the INSERT does not write as none
+        List<ColSpec> unwritten = new ArrayList<>();
+        for (OutCol c : t.columns()) {
+            if (written.stream().noneMatch(w -> w.name().equals(c.name()))) {
+                unwritten.add(new ColSpec(c.name(), lambda(row, held(nullOf(c.kind()))), null, null));
+                staged.add(new OutCol(c.name(), c.kind(), true, c.detail()));
+            }
+        }
+        String stage = SYNTHETIC + "written";
+        ValueSpecification rowsWritten = unwritten.isEmpty() ? values : call("extend", values,
+                new ColSpecArray(unwritten));
+        List<ColSpec> writtenNames = written.stream().map(w -> colSpec(w.name())).toList();
+        return List.of(call("letFunction", new CString(stage), call(STAGE, rowsWritten)),
+                call("write", call("select", new Variable(stage), new ColSpecArray(writtenNames)), t.table()),
+                returned(stage, staged, t, ins.returning(), ins.pos()));
+    }
+
+    /** The keys an ON CONFLICT reads: the table's primary key, as the store declares it, which Postgres's unique index
+     *  is (any other, Postgres's error), each a column the INSERT writes. */
+    private List<String> conflictKeys(SqlAst.OnConflict conflict, Target t, List<ColSpec> written) {
+        if (conflict.keys().isEmpty()) {
+            throw SqlTranslationException.unsupported("ON CONFLICT with no columns of a unique index is not supported"
+                    + " yet: name them, ON CONFLICT (key, ...)", conflict.pos());
+        }
+        List<String> keys = new ArrayList<>();
+        for (SqlAst.Ident k : conflict.keys()) {
+            OutCol key = column(t, k);
+            if (key == null) {
+                throw SqlTranslationException.invalid("column \"" + k.text() + "\" does not exist", k.pos());
+            }
+            keys.add(key.name());
+        }
+        List<String> declared = sources.primaryKey(t.database(), t.path());
+        if (declared == null) {
+            throw SqlTranslationException.unsupported("ON CONFLICT over a table whose primary key no model declares"
+                    + " is not supported (" + t.database() + "." + t.path() + ")", conflict.pos());
+        }
+        if (!new HashSet<>(declared).equals(new HashSet<>(keys))) {
+            throw SqlTranslationException.invalid("there is no unique or exclusion constraint matching the ON"
+                    + " CONFLICT specification", conflict.pos());
+        }
+        for (int i = 0; i < keys.size(); i++) {
+            String key = keys.get(i);
+            if (written.stream().noneMatch(w -> w.name().equals(key))) {
+                throw SqlTranslationException.unsupported("ON CONFLICT on a column the INSERT does not write is not"
+                        + " supported yet", conflict.keys().get(i).pos());
+            }
+        }
+        return keys;
+    }
+
+    /** DO UPDATE: each column the INSERT writes, but the keys, set to its EXCLUDED value (L1's merge); any other
+     *  update refused by name. */
+    private void mergedByKeys(SqlAst.OnConflict conflict, Target t, List<String> keys, List<ColSpec> written) {
+        if (conflict.where() != null) {
+            throw SqlTranslationException.unsupported("ON CONFLICT DO UPDATE ... WHERE is not supported yet",
+                    conflict.pos());
+        }
+        Set<String> set = new java.util.LinkedHashSet<>();
+        for (SqlAst.Assignment a : java.util.Objects.requireNonNull(conflict.update())) {
+            OutCol to = column(t, a.column());
+            if (to == null) {
+                throw SqlTranslationException.invalid("column \"" + a.column().text() + "\" of relation \""
+                        + t.name() + "\" does not exist", a.pos());
+            }
+            SqlAst.Ident excluded = a.value() instanceof SqlAst.ColumnRef ref && ref.parts().size() == 2
+                    ? ref.parts().get(0) : null;
+            OutCol from = excluded != null && "excluded".equals(excluded.quoted() ? excluded.text()
+                    : fold(excluded.text())) ? column(t, ((SqlAst.ColumnRef) a.value()).parts().get(1)) : null;
+            if (from == null || !from.name().equals(to.name())) {
+                throw SqlTranslationException.unsupported("ON CONFLICT DO UPDATE SET of a value but the column's"
+                        + " EXCLUDED one is not supported yet", a.pos());
+            }
+            set.add(to.name());
+        }
+        Set<String> others = new java.util.LinkedHashSet<>();
+        written.forEach(w -> others.add(w.name()));
+        keys.forEach(others::remove);
+        if (!set.equals(others)) {
+            throw SqlTranslationException.unsupported("ON CONFLICT DO UPDATE that sets other columns than the ones the"
+                    + " INSERT writes is not supported yet", conflict.pos());
+        }
+    }
+
+    /** An INSERT's source with each select list item its place's name: Postgres writes the source's columns by place,
+     *  so two of one name (two {@code ?column?}s, a column read twice) are written too. A column already named keeps
+     *  its name; a VALUES list's are named by their places already. */
+    private static SqlAst.Statement positional(SqlAst.Statement source) {
+        return switch (source) {
+            case SqlAst.SetOperation o when o.values() -> o;
+            case SqlAst.SetOperation o -> new SqlAst.SetOperation(o.op(), o.all(), positional(o.left()),
+                    positional(o.right()), o.orderBy(), o.limit(), o.offset(), o.pos(), o.values());
+            case SqlAst.Select s -> {
+                List<SqlAst.SelectItem> items = new ArrayList<>();
+                for (int i = 0; i < s.items().size(); i++) {
+                    SqlAst.SelectItem item = s.items().get(i);
+                    items.add(item instanceof SqlAst.SelectExpr x && x.alias() == null ? new SqlAst.SelectExpr(x.expr(),
+                            new SqlAst.Ident(SYNTHETIC + "c" + (i + 1), true, x.pos()), x.pos(), x.text()) : item);
+                }
+                yield new SqlAst.Select(s.distinct(), items, s.from(), s.where(), s.groupBy(), s.having(),
+                        s.windows(), s.orderBy(), s.limit(), s.offset(), s.pos());
+            }
+            case SqlAst.With w -> new SqlAst.With(w.recursive(), w.ctes(), positional(w.body()), w.pos());
+            case SqlAst.Write w -> w;
+        };
+    }
+
+    /** A VALUES list written into {@code into}: each literal of no type yet (a string, a NULL) cast to its
+     *  column's type, as Postgres types an INSERT's VALUES by the columns they are written into. */
+    private static SqlAst.Statement typedValues(SqlAst.Statement source, List<OutCol> into) {
+        return switch (source) {
+            case SqlAst.SetOperation o -> new SqlAst.SetOperation(o.op(), o.all(), typedValues(o.left(), into),
+                    typedValues(o.right(), into), o.orderBy(), o.limit(), o.offset(), o.pos(), o.values());
+            case SqlAst.Select row -> {
+                List<SqlAst.SelectItem> items = new ArrayList<>();
+                for (int i = 0; i < row.items().size(); i++) {
+                    SqlAst.SelectItem item = row.items().get(i);
+                    if (i < into.size() && item instanceof SqlAst.SelectExpr x) {
+                        SqlAst.Expr typed = typedLiteral(x.expr(), into.get(i));
+                        if (typed != x.expr()) {
+                            item = new SqlAst.SelectExpr(typed, x.alias(), x.pos(), x.text());
+                        }
+                    }
+                    items.add(item);
+                }
+                yield new SqlAst.Select(row.distinct(), items, row.from(), row.where(), row.groupBy(), row.having(),
+                        row.windows(), row.orderBy(), row.limit(), row.offset(), row.pos());
+            }
+            case SqlAst.With w -> w;
+            case SqlAst.Write w -> w;
+        };
+    }
+
+    /** A literal of no type yet (a NULL, a string into a column of another type) as a value of the column's type, as
+     *  Postgres assigns it; any other expression as it is. */
+    private static SqlAst.Expr typedLiteral(SqlAst.Expr e, OutCol to) {
+        if (e instanceof SqlAst.NullLit || e instanceof SqlAst.StringLit && to.kind() != Kind.STRING) {
+            String type = typeName(to.kind());
+            if (type != null) {
+                return new SqlAst.Cast(e, new SqlAst.TypeName(type, List.of(), e.pos()), e.pos());
+            }
+        }
+        return e;
+    }
+
+    /** The Postgres type a column of {@code kind} is spelled as in a cast; null for a kind none names. */
+    private static @com.legend.base.Nullable String typeName(Kind kind) {
+        return switch (kind) {
+            case INTEGER, WHOLE -> "bigint";
+            case FLOAT, INEXACT -> "float8";
+            case DECIMAL, NUMBER -> "numeric";
+            case STRING -> "text";
+            case BOOLEAN -> "boolean";
+            case DATE -> "date";
+            case DATETIME -> "timestamp";
+            case TIME -> "time";
+            case JSON -> "jsonb";
+            case ZONED, ZONED_TIME, DURATION, NULL, OTHER -> null;
+        };
+    }
+
+    /** A value written into the column {@code to} (an INSERT's or an UPDATE's): a NULL as the column's; a value of
+     *  the column's kind, or a number into a number column (the database's assignment cast), as it is. Any other
+     *  is Postgres's error. */
+    private static Tx assigned(Tx value, OutCol to, SqlAst.Pos pos) {
+        if (value.kind() == Kind.NULL) {
+            return nullOf(to.kind());
+        }
+        if (value.kind() == to.kind() || value.kind().numeric() && to.kind().numeric()) {
+            return value;
+        }
+        throw SqlTranslationException.invalid("column \"" + to.name() + "\" is of type " + typeNameOr(to.kind())
+                + " but expression is of type " + typeNameOr(value.kind()), pos);
+    }
+
+    private static String typeNameOr(Kind kind) {
+        String name = typeName(kind);
+        return name != null ? name : kind.name().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** {@code UPDATE t SET column = value, ... [FROM items] [WHERE]}: L1's update of the rows the condition holds for,
+     *  each value read from the row as it was. With FROM, a row is updated when some row of the items meets the
+     *  condition with it, from that row ({@code EXISTS} and a scalar subquery over it; several such rows are the
+     *  scalar subquery's error, where Postgres updates from an unspecified one). RETURNING reads the rows staged
+     *  before the write, each set to its value. */
+    private List<ValueSpecification> update(SqlAst.Update upd) {
+        Target t = target(upd.target(), "UPDATE");
+        if (!upd.from().isEmpty() && !upd.returning().isEmpty()) {
+            throw SqlTranslationException.unsupported("UPDATE ... FROM ... RETURNING is not supported yet", upd.pos());
+        }
+        Input input = new Input(t.source().bindings(), t.source().star(), "WHERE");
+        SqlAst.Expr cond = upd.from().isEmpty() ? upd.where() : exists(upd.from(), upd.where(), upd.pos());
+        ValueSpecification where = cond == null ? new CBoolean(true) : condition(cond, input, "WHERE");
+        List<ColSpec> sets = new ArrayList<>();
+        Map<String, Tx> values = new LinkedHashMap<>();
+        for (SqlAst.Assignment a : upd.sets()) {
+            OutCol to = column(t, a.column());
+            if (to == null) {
+                throw SqlTranslationException.invalid("column \"" + a.column().text() + "\" of relation \""
+                        + t.name() + "\" does not exist", a.pos());
+            }
+            if (values.containsKey(to.name())) {
+                throw SqlTranslationException.invalid("multiple assignments to same column \"" + to.name() + "\"",
+                        a.pos());
+            }
+            SqlAst.Expr e = typedLiteral(a.value(), to);
+            if (!upd.from().isEmpty()) {
+                e = new SqlAst.ScalarSubquery(valueOver(e, upd.from(), upd.where(), e.pos()), e.pos());
+            }
+            Tx value = assigned(tx(e, input.in("UPDATE"), row), to, a.pos());
+            values.put(to.name(), value);
+            sets.add(new ColSpec(to.name(), lambda(row, valueOf(value)), null, null));
+        }
+        ValueSpecification update = call(UPDATE, t.table(), lambda(row, where), new ColSpecArray(sets));
+        if (upd.returning().isEmpty()) {
+            return List.of(update);
+        }
+        // the rows as they will be: the table's rows the condition holds for, each column set its value
+        List<ColSpec> after = new ArrayList<>();
+        List<OutCol> staged = new ArrayList<>();
+        for (OutCol c : t.columns()) {
+            Tx set = values.get(c.name());
+            Tx value = set != null ? set : columnValue(row, Col.of(c.name(), c.kind(), c.nullable(), c.detail()));
+            after.add(new ColSpec(c.name(), lambda(row, held(value)), null, null));
+            staged.add(set != null ? new OutCol(c.name(), set.kind(), set.nullable(), set.detail()) : c);
+        }
+        String stage = SYNTHETIC + "updated";
+        return List.of(call("letFunction", new CString(stage), call(STAGE, call("project", call("filter", t.table(),
+                lambda(row, where)), new ColSpecArray(after)))), update, returned(stage, staged, t, upd.returning(),
+                upd.pos()));
+    }
+
+    /** {@code DELETE FROM t [USING items] [WHERE]}: L1's delete of the rows the condition holds for (every row without
+     *  one); with USING, of the rows some row of the items meets the condition with ({@code EXISTS}). RETURNING reads
+     *  the rows staged before the delete. */
+    private List<ValueSpecification> delete(SqlAst.Delete del) {
+        Target t = target(del.target(), "DELETE");
+        if (!del.using().isEmpty() && !del.returning().isEmpty()) {
+            throw SqlTranslationException.unsupported("DELETE ... USING ... RETURNING is not supported yet",
+                    del.pos());
+        }
+        Input input = new Input(t.source().bindings(), t.source().star(), "WHERE");
+        SqlAst.Expr cond = del.using().isEmpty() ? del.where() : exists(del.using(), del.where(), del.pos());
+        ValueSpecification where = cond == null ? new CBoolean(true) : condition(cond, input, "WHERE");
+        ValueSpecification delete = call(DELETE, t.table(), lambda(row, where));
+        if (del.returning().isEmpty()) {
+            return List.of(delete);
+        }
+        String stage = SYNTHETIC + "deleted";
+        return List.of(call("letFunction", new CString(stage), call(STAGE, call("filter", t.table(), lambda(row,
+                where)))), delete, returned(stage, t.columns(), t, del.returning(), del.pos()));
+    }
+
+    /** A value as a column of rows that are read after (staged, written): a NULL constant as a NULL its kind's type
+     *  types, one that may be none ({@code if(false, |zero, |[])}: of multiplicity [0..1], where a NULL of [0] would
+     *  raise wherever it is read, and a staged column of it would be of no type); any other as it is. */
+    private static ValueSpecification held(Tx value) {
+        if (!isNullConstant(value) || value.kind() == Kind.BOOLEAN) {
+            return valueOf(value);
+        }
+        ValueSpecification zero = switch (value.kind()) {
+            case INTEGER, WHOLE -> new CInteger(0L);
+            case FLOAT, INEXACT -> new com.legend.protocol.spec.CFloat(0.0);
+            case DECIMAL, NUMBER -> new CDecimal(BigDecimal.ZERO);
+            case STRING, NULL -> new CString("");
+            case DATE -> new com.legend.protocol.spec.CDate(com.legend.values.PureDateLiteral.parse("1970-01-01"),
+                    "1970-01-01", null);
+            case DATETIME -> new com.legend.protocol.spec.CDate(com.legend.values.PureDateLiteral.parse(
+                    "1970-01-01T00:00:00"), "1970-01-01T00:00:00", null);
+            case BOOLEAN, TIME, ZONED, ZONED_TIME, DURATION, JSON, OTHER -> null;
+        };
+        return zero == null ? valueOf(value) : call("if", new CBoolean(false), thunk(zero), thunk(valueOf(value)));
+    }
+
+    /** {@code EXISTS (SELECT 1 FROM items [WHERE condition])}: a row of the items meets the condition. */
+    private static SqlAst.Expr exists(List<SqlAst.FromItem> items, SqlAst.@com.legend.base.Nullable Expr condition,
+            SqlAst.Pos pos) {
+        return new SqlAst.Exists(new SqlAst.Select(false, List.of(new SqlAst.SelectExpr(new SqlAst.IntegerLit(
+                java.math.BigInteger.ONE, pos), null, pos)), items, condition, List.of(), null, List.of(), List.of(),
+                null, null, pos), pos);
+    }
+
+    /** {@code SELECT value FROM items [WHERE condition]}: the value over the row of the items that meets the
+     *  condition (several such rows, a scalar subquery's error: Postgres updates from an unspecified one of them). */
+    private static SqlAst.Statement valueOver(SqlAst.Expr value, List<SqlAst.FromItem> items,
+            SqlAst.@com.legend.base.Nullable Expr condition, SqlAst.Pos pos) {
+        return new SqlAst.Select(false, List.of(new SqlAst.SelectExpr(value, null, pos)), items, condition, List.of(),
+                null, List.of(), List.of(), null, null, pos);
+    }
+
+    /** {@code RETURNING items} over the rows a statement wrote ({@code stage}, of the columns {@code staged}): a select
+     *  list over them under the table's qualifier, each column as the table holds it (a value of another type cast to
+     *  the column's, as the database assigns it). */
+    private ValueSpecification returned(String stage, List<OutCol> staged, Target t, List<SqlAst.SelectItem> items,
+            SqlAst.Pos pos) {
+        String rows = SYNTHETIC + "returned";
+        List<SqlAst.SelectItem> stored = new ArrayList<>();
+        // (in the table's order: RETURNING * reads its columns so)
+        for (int i = 0; i < t.columns().size(); i++) {
+            String column = t.columns().get(i).name();
+            OutCol s = staged.stream().filter(c -> c.name().equals(column)).findFirst().orElseThrow();
+            SqlAst.Ident name = new SqlAst.Ident(s.name(), true, pos);
+            SqlAst.Expr ref = new SqlAst.ColumnRef(List.of(name), pos);
+            SqlAst.TypeName type = declared(t.columns().get(i), s, t.pureTypes().get(i), t.storeTypes().get(i), pos);
+            stored.add(new SqlAst.SelectExpr(type == null ? ref : new SqlAst.Cast(ref, type, pos), name, pos));
+        }
+        SqlAst.Select held = new SqlAst.Select(false, stored, List.of(new SqlAst.TableName(List.of(new SqlAst.Ident(
+                rows, true, pos)), null, List.of(), pos)), null, List.of(), null, List.of(), List.of(), null, null,
+                pos);
+        SqlAst.Select returned = new SqlAst.Select(false, items, List.of(new SqlAst.SubqueryFrom(held, t.qualifier(),
+                List.of(), false, pos)), null, List.of(), null, List.of(), List.of(), null, null, pos);
+        Map<String, Rel> ctes = new LinkedHashMap<>(env.ctes());
+        ctes.put(rows, new Rel(new Variable(stage), staged));
+        return new SqlToPure(sources, dialect, env.with(ctes)).statement(returned).vs();
+    }
+
+    /** The type a value written into the column {@code column} is cast to as the table holds it: a numeric of a
+     *  precision and scale its own ({@code numeric(p, s)}: rounded to its places); another number type, a value of
+     *  another kind (an integer column's rounding); none for a value of the column's kind. */
+    private static SqlAst.@com.legend.base.Nullable TypeName declared(OutCol column, OutCol value, String pureType,
+            @com.legend.base.Nullable String storeType, SqlAst.Pos pos) {
+        // (the Pure type's own spelling, Decimal(p,s), its two modifiers read between its parentheses)
+        String spelled = pureType.replace(" ", "");
+        int comma = spelled.indexOf(',');
+        if (spelled.startsWith("Decimal(") && spelled.endsWith(")") && comma > 0) {
+            return new SqlAst.TypeName("numeric", List.of(Integer.parseInt(spelled.substring("Decimal(".length(),
+                    comma)), Integer.parseInt(spelled.substring(comma + 1, spelled.length() - 1))), pos);
+        }
+        if (value.kind() == column.kind() && !"REAL".equals(storeType)) {
+            return null;
+        }
+        String type = "REAL".equals(storeType) ? "real" : typeName(column.kind());
+        if (type == null) {
+            throw SqlTranslationException.unsupported("RETURNING a value written into a column of type " + pureType
+                    + " is not supported yet", pos);
+        }
+        return new SqlAst.TypeName(type, List.of(), pos);
+    }
+
     private Rel statement(SqlAst.Statement statement) {
         return switch (statement) {
             case SqlAst.Select s -> select(s);
             case SqlAst.SetOperation s -> setOperation(s);
             case SqlAst.With w -> with(w);
+            // (the island's own statement alone may write a table: SqlParser reads no write inside a query)
+            case SqlAst.Write w -> throw new IllegalStateException("a statement that writes a table read as a query");
         };
     }
 
@@ -1781,6 +2321,7 @@ public final class SqlToPure {
             case SqlAst.Select s -> hasWindow(s);
             case SqlAst.SetOperation o -> computesWindows(o.left()) || computesWindows(o.right());
             case SqlAst.With w -> computesWindows(w.body());
+            case SqlAst.Write w -> false;
         };
     }
 

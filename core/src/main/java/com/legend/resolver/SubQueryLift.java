@@ -145,6 +145,26 @@ final class SubQueryLift {
         return n.mapChildren(c -> resolveClosed(c, bound, resolveFrom));
     }
 
+    /** Resolve the CLOSED class queries under a DATA lambda: a query over
+     * a class's instances that reads no variable it does not bind itself
+     * (no lambda's row, no let) and is a relation or a value, never the
+     * instances themselves, resolved where it stands; what reads the
+     * lambda's row around it (a correlated filter, a count) stays data,
+     * a correlated subquery over the resolved rows. The Cypher island's
+     * writes over a domain model (docs/WRITES_DESIGN_2026_10_18.md §8, leg
+     * 5, 2026-10-20) read the graph so: a delete's predicate naming the
+     * instances a clause matched, a merge's rows that match no node. */
+    static TypedSpec resolveClosedQueries(TypedSpec n,
+            java.util.function.UnaryOperator<TypedSpec> resolve) {
+        if (!(n instanceof TypedLambda)
+                && Type.asClassType(n.info().type()) == null
+                && Anchors.containsGetAll(n)
+                && uncorrelated(n, java.util.Set.of())) {
+            return resolve.apply(n);
+        }
+        return n.mapChildren(c -> resolveClosedQueries(c, resolve));
+    }
+
     /** UNCORRELATED check, SHADOW-AWARE: every variable read is either
      * bound by a lambda INSIDE the chain (a filter predicate's own
      * parameter — {@code FiscalCalendarDate.all()->filter(d|$d.date ==

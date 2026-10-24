@@ -1,0 +1,173 @@
+# legend-lite's own Postgres-judged statements that write a table (the writes design's leg 4,
+# docs/WRITES_DESIGN_2026_10_18.md §5): each case's statement runs in a transaction rolled back after, its count of
+# rows and its check query's rows (the table after it) each snapped from Postgres 16 (postgres-answers.jsonl, keys
+# lite/dml/<id> and lite/dml/<id>#check).
+tests:
+  - id: insert_one_row_every_column
+    sql: "INSERT INTO persons (id, name, age, salary, hire_date, active, dept_id) VALUES (100, 'Zed', 41, 52000.00, '2020-03-01', true, 1)"
+    check: "SELECT id, name, age, salary, hire_date, active, dept_id FROM persons WHERE id >= 100 ORDER BY id"
+  - id: insert_rows_some_columns
+    sql: "INSERT INTO persons (id, name) VALUES (101, 'Amy'), (102, 'Bo')"
+    check: "SELECT id, name, age, salary, active FROM persons WHERE id > 100 ORDER BY id"
+  - id: insert_no_column_list
+    sql: "INSERT INTO departments VALUES (50, 'Ops', 1000.50, '2021-01-02 03:04:05')"
+    check: "SELECT id, name, budget, created_at FROM departments WHERE id >= 50 ORDER BY id"
+  - id: insert_columns_in_another_order
+    sql: "INSERT INTO orders (status, amount, id, person_id) VALUES ('new', 10.25, 200, 3)"
+    check: "SELECT id, person_id, amount, order_date, status FROM orders WHERE id >= 200 ORDER BY id"
+  - id: insert_null_value
+    sql: "INSERT INTO strings (id, val, nullable_val) VALUES (900, 'x', NULL)"
+    check: "SELECT id, val, nullable_val, unicode_val FROM strings WHERE id = 900"
+  - id: insert_null_into_a_number
+    sql: "INSERT INTO numbers (id, int_val) VALUES (900, NULL), (901, 5)"
+    check: "SELECT id, int_val, float_val FROM numbers WHERE id >= 900 ORDER BY id"
+  - id: insert_from_a_query
+    sql: "INSERT INTO orders (id, person_id, amount, status) SELECT id + 1000, id, salary * 2, 'copied' FROM persons WHERE dept_id = 1"
+    check: "SELECT id, person_id, amount, status FROM orders WHERE id > 1000 ORDER BY id"
+  - id: insert_from_a_query_of_no_rows
+    sql: "INSERT INTO orders (id, person_id) SELECT id, id FROM persons WHERE id < 0"
+    check: "SELECT count(*) AS n FROM orders"
+  - id: insert_computed_values
+    sql: "INSERT INTO numbers (id, int_val, small_val) VALUES (910, 2 + 3, 7 * 6)"
+    check: "SELECT id, int_val, small_val FROM numbers WHERE id = 910"
+  - id: insert_a_date_and_a_timestamp
+    sql: "INSERT INTO dates (id, d, ts) VALUES (20, '2001-02-03', '2001-02-03 04:05:06')"
+    check: "SELECT id, d, ts FROM dates WHERE id = 20"
+  - id: insert_more_values_than_columns
+    sql: "INSERT INTO persons (id) VALUES (300, 'x')"
+    check: "SELECT count(*) AS n FROM persons"
+  - id: insert_more_columns_than_values
+    sql: "INSERT INTO persons (id, name) VALUES (300)"
+    check: "SELECT count(*) AS n FROM persons"
+  - id: insert_an_unknown_column
+    sql: "INSERT INTO persons (id, nope) VALUES (300, 1)"
+    check: "SELECT count(*) AS n FROM persons"
+  - id: insert_a_column_twice
+    sql: "INSERT INTO persons (id, id) VALUES (300, 301)"
+    check: "SELECT count(*) AS n FROM persons"
+  - id: insert_text_into_a_number
+    sql: "INSERT INTO persons (id, age) SELECT 300, name FROM persons WHERE id = 1"
+    check: "SELECT count(*) AS n FROM persons"
+  - id: insert_on_conflict_with_no_key
+    sql: "INSERT INTO persons (id, name) VALUES (1, 'again') ON CONFLICT (id) DO NOTHING"
+    check: "SELECT id, name FROM persons WHERE id = 1"
+  - id: insert_returning
+    sql: "INSERT INTO persons (id, name) VALUES (300, 'R') RETURNING id"
+    check: "SELECT id, name FROM persons WHERE id = 300"
+  - id: update_where
+    sql: "UPDATE persons SET age = age + 1 WHERE dept_id = 2"
+    check: "SELECT id, age FROM persons ORDER BY id"
+  - id: update_every_row
+    sql: "UPDATE strings SET empty_val = 'filled'"
+    check: "SELECT id, empty_val FROM strings ORDER BY id"
+  - id: update_two_columns
+    sql: "UPDATE persons SET name = upper(name), active = NOT active WHERE id <= 3"
+    check: "SELECT id, name, active FROM persons ORDER BY id"
+  - id: update_to_null
+    sql: "UPDATE persons SET dept_id = NULL WHERE age > 40"
+    check: "SELECT id, dept_id FROM persons ORDER BY id"
+  - id: update_reads_the_old_values
+    sql: "UPDATE numbers SET int_val = small_val, small_val = int_val WHERE id <= 3"
+    check: "SELECT id, int_val, small_val FROM numbers ORDER BY id"
+  - id: update_through_an_alias
+    sql: "UPDATE persons AS p SET salary = p.salary * 2 WHERE p.active"
+    check: "SELECT id, salary FROM persons ORDER BY id"
+  - id: update_a_date_from_text
+    sql: "UPDATE dates SET d = '2000-01-01' WHERE id = 1"
+    check: "SELECT id, d FROM dates ORDER BY id"
+  - id: update_no_row
+    sql: "UPDATE persons SET age = 0 WHERE id < 0"
+    check: "SELECT id, age FROM persons ORDER BY id"
+  - id: update_with_a_subquery
+    sql: "UPDATE persons SET salary = 1 WHERE dept_id IN (SELECT id FROM departments WHERE budget > 700000)"
+    check: "SELECT id, salary FROM persons ORDER BY id"
+  - id: update_a_case_value
+    sql: "UPDATE orders SET status = CASE WHEN amount > 300 THEN 'big' ELSE 'small' END"
+    check: "SELECT id, status FROM orders ORDER BY id"
+  - id: update_an_unknown_column
+    sql: "UPDATE persons SET nope = 1"
+    check: "SELECT count(*) AS n FROM persons"
+  - id: update_a_column_twice
+    sql: "UPDATE persons SET age = 1, age = 2"
+    check: "SELECT count(*) AS n FROM persons"
+  - id: update_from
+    sql: "UPDATE persons SET salary = d.budget FROM departments d WHERE d.id = persons.dept_id"
+    check: "SELECT id, salary FROM persons ORDER BY id"
+  - id: delete_where
+    sql: "DELETE FROM orders WHERE status = 'cancelled'"
+    check: "SELECT id, status FROM orders ORDER BY id"
+  - id: delete_every_row
+    sql: "DELETE FROM strings"
+    check: "SELECT count(*) AS n FROM strings"
+  - id: delete_of_an_empty_table
+    sql: "DELETE FROM empty_table"
+    check: "SELECT count(*) AS n FROM empty_table"
+  - id: delete_with_a_subquery
+    sql: "DELETE FROM persons WHERE dept_id IN (SELECT id FROM departments WHERE budget < 600000)"
+    check: "SELECT id FROM persons ORDER BY id"
+  - id: delete_through_an_alias
+    sql: "DELETE FROM persons p WHERE p.age IS NULL OR p.salary IS NULL"
+    check: "SELECT id FROM persons ORDER BY id"
+  - id: delete_a_null_condition
+    sql: "DELETE FROM persons WHERE active"
+    check: "SELECT id, active FROM persons ORDER BY id"
+  - id: delete_no_row
+    sql: "DELETE FROM orders WHERE amount < 0"
+    check: "SELECT count(*) AS n FROM orders"
+  - id: delete_returning
+    sql: "DELETE FROM orders WHERE id = 1 RETURNING id"
+    check: "SELECT count(*) AS n FROM orders"
+  - id: insert_select_of_an_unknown_literal
+    sql: "INSERT INTO numbers (id, int_val) SELECT 920, '5'"
+    check: "SELECT id, int_val FROM numbers WHERE id = 920"
+  - id: insert_values_text_into_a_number
+    sql: "INSERT INTO numbers (id, int_val, float_val) VALUES (930, '7', '1.5')"
+    check: "SELECT id, int_val, float_val FROM numbers WHERE id = 930"
+  - id: insert_a_decimal_into_an_integer
+    sql: "INSERT INTO numbers (id, int_val, small_val) VALUES (940, 2.5, -3.5)"
+    check: "SELECT id, int_val, small_val FROM numbers WHERE id = 940"
+  - id: insert_from_a_union
+    sql: "INSERT INTO orders (id, person_id, status) SELECT 300, 1, 'a' UNION ALL SELECT 301, 2, 'b'"
+    check: "SELECT id, person_id, status FROM orders WHERE id >= 300 ORDER BY id"
+  - id: insert_default_values
+    sql: "INSERT INTO empty_table DEFAULT VALUES"
+    check: "SELECT id, val FROM empty_table"
+  - id: insert_a_default
+    sql: "INSERT INTO empty_table (id, val) VALUES (1, DEFAULT)"
+    check: "SELECT id, val FROM empty_table"
+  - id: update_a_number_from_text
+    sql: "UPDATE numbers SET int_val = '8' WHERE id = 1"
+    check: "SELECT id, int_val FROM numbers ORDER BY id"
+  - id: update_with_a_correlated_subquery
+    sql: "UPDATE persons SET salary = (SELECT budget FROM departments d WHERE d.id = persons.dept_id)"
+    check: "SELECT id, salary FROM persons ORDER BY id"
+  - id: update_returning
+    sql: "UPDATE persons SET age = 1 WHERE id = 1 RETURNING id, age"
+    check: "SELECT id, age FROM persons WHERE id = 1"
+  - id: delete_with_not_exists
+    sql: "DELETE FROM departments d WHERE NOT EXISTS (SELECT 1 FROM persons p WHERE p.dept_id = d.id)"
+    check: "SELECT id FROM departments ORDER BY id"
+  - id: delete_using
+    sql: "DELETE FROM orders USING persons WHERE orders.person_id = persons.id AND persons.active"
+    check: "SELECT id FROM orders ORDER BY id"
+  - id: with_an_insert
+    sql: "WITH w AS (INSERT INTO empty_table (id) VALUES (1) RETURNING id) SELECT id FROM w"
+    check: "SELECT id FROM empty_table"
+  - id: insert_returning_every_column
+    sql: "INSERT INTO persons (id, name, salary) VALUES (310, 'S', 1234.565) RETURNING *"
+    check: "SELECT id, name, salary FROM persons WHERE id = 310"
+  - id: insert_returning_an_expression
+    sql: "INSERT INTO numbers (id, int_val) VALUES (311, 2.5) RETURNING id, int_val * 2 AS doubled"
+    check: "SELECT id, int_val FROM numbers WHERE id = 311"
+  - id: insert_select_returning
+    sql: "INSERT INTO orders (id, person_id, amount) SELECT id + 500, id, salary FROM persons WHERE id <= 2 RETURNING id, amount"
+    check: "SELECT id, amount FROM orders WHERE id > 500 ORDER BY id"
+  - id: update_returning_a_null
+    sql: "UPDATE persons SET dept_id = NULL WHERE id = 2 RETURNING id, dept_id, name"
+    check: "SELECT id, dept_id FROM persons ORDER BY id"
+  - id: update_returning_a_rounded_value
+    sql: "UPDATE persons SET salary = salary * 1.005 WHERE id <= 2 RETURNING id, salary"
+    check: "SELECT id, salary FROM persons ORDER BY id"
+  - id: delete_returning_star
+    sql: "DELETE FROM strings WHERE id <= 2 RETURNING *"
+    check: "SELECT id FROM strings ORDER BY id"
