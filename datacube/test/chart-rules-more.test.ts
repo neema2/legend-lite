@@ -165,7 +165,7 @@ describe('the reader refuses a chart it cannot read, in words', () => {
   });
 
   it('a grain it does not know, and bins that are no width or count of a number', () => {
-    assert.equal(refusal({ grain: 'hour' }), 'its grain "hour" is not one of day, week, month, quarter, year');
+    assert.equal(refusal({ grain: 'fortnight' }), 'its grain "fortnight" is not one of second, minute, minute5, minute15, minute30, hour, day, week, month, quarter, year');
     for (const bins of [{}, 10, { width: 'wide' }]) {
       assert.equal(refusal({ bins }), 'its bins have neither a width nor a count', JSON.stringify(bins));
     }
@@ -287,6 +287,12 @@ describe('a change by hand (editChart): a new column across, a kind, options, an
     // the grain moved to a text column is judged, never quietly dropped
     assert.deepEqual(chartProblems(editChart(BY_MONTH, { x: 'region', grain: 'month' }, CUBE), CUBE),
       ['\'region\' is not a date: it has no month.']);
+  });
+
+  it('a date-time by 5 minutes runs in time; a date has no time of day to take to it (K3)', () => {
+    assert.deepEqual(chartProblems(editChart(BAR, { x: 'booked_at', grain: 'minute5' }, CUBE), CUBE), []);
+    assert.deepEqual(chartProblems(editChart(BAR, { x: 'trade_date', grain: 'minute5' }, CUBE), CUBE),
+      ['\'trade_date\' is a date, with no time of day: a period of 5 minutes is a date-time\'s.']);
   });
 
   it('the column across taken away takes its grain with it, and the chart asks for one -- none is made up', () => {

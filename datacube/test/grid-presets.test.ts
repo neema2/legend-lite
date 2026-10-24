@@ -64,7 +64,10 @@ describe("the grid's presets: one rule for the header menu and Python (grid-pres
 
   it('refused in words: a period, a Show As or bins DataCube has not', () => {
     refused(() => presetCommands(CUBE, { kind: 'grain', column: 'traded', grain: 'fortnight' as 'month' }),
-      /a period is day, week, month, quarter, year, not "fortnight"/);
+      /a period is second, minute, minute5, minute15, minute30, hour, day, week, month, quarter, year, not "fortnight"/);
+    // a date has no time of day: a period finer than a day is a date-time's (K3)
+    refused(() => presetCommands(CUBE, { kind: 'grain', column: 'traded', grain: 'minute5' }),
+      /'traded' is a date, with no time of day: it has no minute5/);
     refused(() => presetCommands(CUBE, { kind: 'showAs', column: 'notional', showAs: 'median' as 'rank' }), /a Show As is .*, not "median"/);
     refused(() => presetCommands(CUBE, { kind: 'bins', column: 'notional', bins: {} }), /bins are a width or a count, one of them/);
     refused(() => presetCommands(CUBE, { kind: 'bins', column: 'notional', bins: { width: 10, count: 3 } }), /one of them/);

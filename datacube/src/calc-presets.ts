@@ -39,8 +39,11 @@ const number = (n: number): ValueSpecification => (Number.isInteger(n) ? lit.int
 
 // ---------------------------------------------------------------- grain
 
-/** The compiler's function taking a date to its period's first day; `day` of a date is the date itself. */
+/** The compiler's function taking a date to its period's first day; `day` of a date is the date itself; a period finer
+ *  than a day the date-time's bucket from the epoch (`timeBucket`, its step GRAIN_STEP's). */
 const GRAIN_FUNCTION: Readonly<Record<TimeGrain, string>> = {
+  second: 'timeBucket', minute: 'timeBucket', minute5: 'timeBucket', minute15: 'timeBucket', minute30: 'timeBucket',
+  hour: 'timeBucket',
   day: 'datePart',
   week: 'firstDayOfWeek',
   month: 'firstDayOfMonth',
@@ -50,6 +53,7 @@ const GRAIN_FUNCTION: Readonly<Record<TimeGrain, string>> = {
 
 /** Words for a grain, as a menu says them. */
 export const GRAIN_LABELS: Readonly<Record<TimeGrain, string>> = {
+  second: 'Second', minute: 'Minute', minute5: '5 minutes', minute15: '15 minutes', minute30: '30 minutes', hour: 'Hour',
   day: 'Day', week: 'Week', month: 'Month', quarter: 'Quarter', year: 'Year',
 };
 
@@ -63,11 +67,21 @@ export function grainName(column: string, grain: TimeGrain): string {
  * (a DateTime's day; a StrictDate's itself).
  */
 export function grainColumn(column: string, grain: TimeGrain, name = grainName(column, grain)): DerivedColumn {
-  return { name, lambda: row(fn(GRAIN_FUNCTION[grain], one(column))), kind: 'dimension' };
+  return { name, lambda: row(grainStart(column, grain)), kind: 'dimension' };
+}
+
+/** `column`'s period's start: its first day by the compiler's function, or a date-time's bucket of the grain's step. */
+function grainStart(column: string, grain: TimeGrain): ValueSpecification {
+  const f = GRAIN_FUNCTION[grain];
+  if (f !== 'timeBucket') return fn(f, one(column));
+  const [n, unit] = GRAIN_STEP[grain];
+  return fn(f, one(column), lit.integer(n), enumValue('meta::pure::functions::date::DurationUnit', unit));
 }
 
 /** One period of each grain, as the compiler's `adjust` takes it: how many of which DurationUnit. */
 const GRAIN_STEP: Readonly<Record<TimeGrain, readonly [number, string]>> = {
+  second: [1, 'SECONDS'], minute: [1, 'MINUTES'], minute5: [5, 'MINUTES'], minute15: [15, 'MINUTES'],
+  minute30: [30, 'MINUTES'], hour: [1, 'HOURS'],
   day: [1, 'DAYS'], week: [7, 'DAYS'], month: [1, 'MONTHS'], quarter: [3, 'MONTHS'], year: [1, 'YEARS'],
 };
 
@@ -83,7 +97,7 @@ export function upperName(axis: string): string {
  */
 export function grainEndColumn(column: string, grain: TimeGrain, name: string): DerivedColumn {
   const [n, unit] = GRAIN_STEP[grain];
-  const start = fn(GRAIN_FUNCTION[grain], one(column));
+  const start = grainStart(column, grain);
   return {
     name: upperName(name),
     lambda: row(fn('adjust', start, lit.integer(n), enumValue('meta::pure::functions::date::DurationUnit', unit))),

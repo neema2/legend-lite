@@ -1032,6 +1032,12 @@ describe('a period is named as one', () => {
     assert.equal(periodText('2024-03-04', 'week'), 'w/c 2024-03-04');
   });
 
+  it('a period finer than a day by its start\'s time of day (K3)', () => {
+    assert.equal(periodText('2026-10-24T09:35:00', 'minute5'), '09:35');
+    assert.equal(periodText('2026-10-24T09:00:00', 'hour'), '09:00');
+    assert.equal(periodText('2026-10-24T09:35:12', 'second'), '09:35:12');
+  });
+
   it('bars by quarter are categories named by their quarter; a line by quarter keeps the time scale', () => {
     const rows = table([
       { name: 'trade_date__quarter', type: 'StrictDate', values: ['2024-01-01', '2024-04-01'] },

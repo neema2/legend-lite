@@ -855,12 +855,15 @@ function downloadText(name: string, type: string, text: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-/** A period by its first day, as a reader names it: a week "w/c 2024-03-04", a month "Mar 2024", "2024 Q1", "2024". */
+/** A period by its first day, as a reader names it: a week "w/c 2024-03-04", a month "Mar 2024", "2024 Q1", "2024";
+ *  a period finer than a day by its start's time of day, "09:35" (a second's "09:35:12"). */
 export function periodText(day: string, grain: NonNullable<ChartSpec['grain']>): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(day);
   if (!m) return day;
   const [, y, mo] = m;
   switch (grain) {
+    case 'second': return day.slice(11, 19);
+    case 'minute': case 'minute5': case 'minute15': case 'minute30': case 'hour': return day.slice(11, 16);
     case 'year': return y!;
     case 'quarter': return `${y} Q${Math.floor((Number(mo) - 1) / 3) + 1}`;
     case 'month': return `${new Date(Date.UTC(Number(y), Number(mo) - 1, 1)).toLocaleString(UI_LOCALE, { month: 'short', timeZone: 'UTC' })} ${y}`;

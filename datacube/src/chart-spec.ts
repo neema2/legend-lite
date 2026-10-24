@@ -14,7 +14,7 @@
 
 import { allColumns, copiedColumn, measuresAsColumns, type GridDraft } from './grid-edits.ts';
 import { columnSpecs, defaultMeasure, levelLambda, type LevelScope } from './query.ts';
-import { binColumns, binName, grainColumn, grainEndColumn, grainName, marimekkoColumns, paretoColumns, rangeConditions, ringTotalColumn, showAsColumns, showAsName, statColumn, upperName, waffleColumns, waterfallColumns } from './calc-presets.ts';
+import { GRAIN_LABELS, binColumns, binName, grainColumn, grainEndColumn, grainName, marimekkoColumns, paretoColumns, rangeConditions, ringTotalColumn, showAsColumns, showAsName, statColumn, upperName, waffleColumns, waterfallColumns } from './calc-presets.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 import {
   AGGREGATE_FNS,
@@ -160,7 +160,10 @@ export interface ChartMeasure {
 }
 
 /** A date across, taken to its period: the grain's first day (the compiler's `firstDayOf...`), or its year. */
-export type TimeGrain = 'day' | 'week' | 'month' | 'quarter' | 'year';
+/** A date's period: a date-time's to the second, minute, 5, 15 or 30 minutes or hour (a bucket from the epoch, K3:
+ *  docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md), or any date's day, week, month, quarter or year. */
+export type TimeGrain = 'second' | 'minute' | 'minute5' | 'minute15' | 'minute30' | 'hour'
+  | 'day' | 'week' | 'month' | 'quarter' | 'year';
 
 /** A number across, taken to its bin: `width` wide, or `count` bins over the column's range. */
 export interface Bins {
@@ -329,7 +332,10 @@ const AXIS_WORDS: Readonly<Record<MeasureAxis, true>> = { left: true, right: tru
 const SHOW_AS_WORDS: Readonly<Record<ShowAsKind, true>> = {
   runningTotal: true, percentOfTotal: true, difference: true, percentChange: true, movingAverage: true, rank: true,
 };
-const GRAIN_WORDS: Readonly<Record<TimeGrain, true>> = { day: true, week: true, month: true, quarter: true, year: true };
+const GRAIN_WORDS: Readonly<Record<TimeGrain, true>> = {
+  second: true, minute: true, minute5: true, minute15: true, minute30: true, hour: true,
+  day: true, week: true, month: true, quarter: true, year: true,
+};
 const LAYER_WORDS: Readonly<Record<ChartLayerKind, true>> = {
   line: true, stat: true, band: true, threshold: true, extremes: true,
 };
@@ -337,6 +343,14 @@ const STAT_WORDS: Readonly<Record<LayerStat, true>> = { average: true, min: true
 
 export const SHOW_AS_KINDS = Object.keys(SHOW_AS_WORDS) as ShowAsKind[];
 export const TIME_GRAINS = Object.keys(GRAIN_WORDS) as TimeGrain[];
+
+/** The periods finer than a day: a date-time's, never a date's (a date has no time of day). */
+export const INTRADAY_GRAINS: ReadonlySet<TimeGrain> = new Set(['second', 'minute', 'minute5', 'minute15', 'minute30', 'hour']);
+
+/** The periods a column of `type` is taken to: a date's the calendar's, a date-time's every one. */
+export function grainsOf(type: string | undefined): TimeGrain[] {
+  return isDay(type) ? TIME_GRAINS.filter((g) => !INTRADAY_GRAINS.has(g)) : [...TIME_GRAINS];
+}
 export const LAYER_STATS = Object.keys(STAT_WORDS) as LayerStat[];
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -1469,6 +1483,8 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   const isDate = (type: string | undefined): boolean => isTemporal(type) && !isTimeOfDay(type);
   if (spec.grain !== undefined && spec.x !== undefined && known.has(spec.x) && !isDate(xType)) {
     out.push(`'${spec.x}' is not a date: it has no ${spec.grain}.`);
+  } else if (spec.grain !== undefined && INTRADAY_GRAINS.has(spec.grain) && spec.x !== undefined && known.has(spec.x) && isDay(xType)) {
+    out.push(`'${spec.x}' is a date, with no time of day: a period of ${GRAIN_LABELS[spec.grain].toLowerCase()} is a date-time's.`);
   }
   if (spec.bins !== undefined && spec.x !== undefined && known.has(spec.x) && !isNumeric(xType)) {
     out.push(`'${spec.x}' is not a number: it has no bins.`);

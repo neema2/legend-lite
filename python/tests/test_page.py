@@ -1495,7 +1495,7 @@ class Abilities(Paged):
         self.assertIn('notional_runningTotal', [d['name'] for d in grid._query['groupDerived']])
         grid.bins('notional', width=100)
         self.assertEqual([d['name'] for d in grid._query['derived']][-2:], ['notional_bins', 'notional_bins__upper'])
-        with self.assertRaisesRegex(ValueError, 'a period is day, week, month, quarter, year, not "fortnight"'):
+        with self.assertRaisesRegex(ValueError, 'a period is second, minute, minute5, minute15, minute30, hour, day, week, month, quarter, year, not "fortnight"'):
             grid.grain('traded', 'fortnight')
         with self.assertRaisesRegex(ValueError, 'bins are a width or a count, one of them'):
             grid.bins('notional')

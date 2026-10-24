@@ -469,3 +469,44 @@ describe('batch 3\'s leftovers, planned and run: the database lays out each cell
     assert.deepEqual(values(t, 'max_sold').map((d) => String(d).slice(0, 10)), ['2024-03-30', '2024-03-05']);
   });
 });
+
+// A DATE-TIME BY A PERIOD FINER THAN A DAY (K3: docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md): four prints, three five-minute
+// buckets -- the bucket from the epoch, as the platform's timeBucket takes it, and its end
+describe('a date-time by 5 minutes, planned and run: its buckets and their ends', () => {
+  const PRINTS = ['sym,ts,px', 'A,2024-01-15 09:31:10,10', 'A,2024-01-15 09:33:59,11', 'A,2024-01-15 09:35:00,12',
+    'A,2024-01-15 09:41:30,13'].join('\n');
+  let prints: CubeSnapshot;
+  let printsPlanner: LitePlanner;
+
+  before(async () => {
+    const db = await openDatabase();
+    const e = new DuckDbEngine(db.connection);
+    const r = await ingestFile(e, db.files, new File([PRINTS], 'prints.csv'), writer);
+    printsPlanner = plannerFor(r.model, r.runtime);
+    engine2 = e;
+    prints = {
+      source: { query: r.source },
+      columns: [{ name: 'sym', type: 'String' }, { name: 'ts', type: 'DateTime' }, { name: 'px', type: 'Integer', kind: 'measure' }],
+      derived: [], rows: ['sym'], pivotOn: [], sorts: [], epoch: 1,
+    };
+  });
+  let engine2: DuckDbEngine;
+  after(async () => {
+    await engine2?.close();
+  });
+
+  it('each print in the 5-minute bucket it starts in, the bucket\'s end five minutes on', async () => {
+    const { grainColumn, grainEndColumn } = await import('../src/calc-presets.ts');
+    const { levelLambda } = await import('../src/query.ts');
+    const s: CubeSnapshot = {
+      ...prints,
+      derived: [grainColumn('ts', 'minute5', 'ts_minute5'), grainEndColumn('ts', 'minute5', 'ts_minute5')],
+      rows: ['ts_minute5'],
+      sorts: [{ column: 'ts_minute5', direction: 'asc' }],
+    };
+    const t = await engine2.execute(await printsPlanner.plan(levelLambda(s, { level: 1, parent: [] })), 0);
+    assert.deepEqual(values(t, 'ts_minute5').map(String), ['2024-01-15T09:30:00', '2024-01-15T09:35:00', '2024-01-15T09:40:00']);
+    assert.deepEqual(values(t, 'px'), [21, 12, 13]);
+  });
+});
+

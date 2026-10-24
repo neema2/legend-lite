@@ -13,7 +13,7 @@ import {
   NO_CHART,
   SHOW_AS_KINDS,
   SPLIT_NEEDED,
-  TIME_GRAINS,
+  grainsOf,
   UNSPLIT,
   type ChartChange,
   type ChartLayer,
@@ -440,7 +440,7 @@ function presetFields(h: FormHost, spec: ChartSpec, xType: string | undefined): 
   const out: HTMLElement[] = [];
   if (isTemporal(xType)) {
     out.push(field(doc, 'By:', dropdown<TimeGrain>(doc, spec.grain,
-      TIME_GRAINS.map((g) => ({ value: g, label: GRAIN_LABELS[g] })), (v) => h.set({ grain: v ?? null }),
+      grainsOf(xType).map((g) => ({ value: g, label: GRAIN_LABELS[g] })), (v) => h.set({ grain: v ?? null }),
       { allowNone: true })));
   } else if (isNumeric(xType)) {
     out.push(field(doc, 'Bin width:', numberInput(doc, spec.bins?.width,

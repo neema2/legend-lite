@@ -40,7 +40,7 @@ import type {
 } from '../snapshot.ts';
 import type { CalcStage } from '../calc.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
-import { SHOW_AS_KINDS, TIME_GRAINS, type ShowAsKind, type TimeGrain } from '../chart-spec.ts';
+import { SHOW_AS_KINDS, grainsOf, type ShowAsKind, type TimeGrain } from '../chart-spec.ts';
 import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
 import { PIVOT_TOTAL_KEY, isJsonValue, isRelativeDate, rowColumns } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
@@ -462,7 +462,7 @@ function presetItems(ctx: MenuContext, column: string | undefined, named: string
   const type = rowColumns(s).find((c) => c.name === column)?.type;
   const out: MenuItem[] = [];
   if (ctx.extendable && isTemporal(type)) {
-    out.push({ label: `${named} by Period`, submenu: TIME_GRAINS.map((g) => ({
+    out.push({ label: `${named} by Period`, submenu: grainsOf(type).map((g) => ({
       id: 'calc.grain' as const, label: GRAIN_LABELS[g], column, grain: g,
     })) });
   }

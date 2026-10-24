@@ -628,7 +628,8 @@ class Grid(Tile):
         return self._column({'name': name, 'mode': 'children', 'level': 'group', 'child': {'fn': fn, 'of': of}})
 
     def grain(self, column: str, grain: str) -> Grid:
-        """The date ``column`` taken to its period (``'day'``, ``'week'``, ``'month'``, ``'quarter'``, ``'year'``), a new
+        """The date ``column`` taken to its period (``'day'``, ``'week'``, ``'month'``, ``'quarter'``, ``'year'``; a
+        date-time's also ``'second'``, ``'minute'``, ``'minute5'``, ``'minute15'``, ``'minute30'``, ``'hour'``), a new
         dimension, as the header menu's By Month adds one (DataCube's code: grid-presets.ts presetCommands) -- named
         ``<column>_<grain>``, or that with ``_2``... where the grid has a column of the name."""
         return self._preset({'kind': 'grain', 'column': column, 'grain': grain})

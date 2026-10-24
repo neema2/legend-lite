@@ -5,7 +5,7 @@
 // editor on the same expression for a person to name and change.
 
 import { binColumns, grainColumn, showAsColumns } from './calc-presets.ts';
-import { SHOW_AS_KINDS, TIME_GRAINS, type Bins, type ShowAsKind, type TimeGrain } from './chart-spec.ts';
+import { SHOW_AS_KINDS, TIME_GRAINS, grainsOf, type Bins, type ShowAsKind, type TimeGrain } from './chart-spec.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn } from './snapshot.ts';
 
@@ -36,6 +36,9 @@ function shaped(s: CubeSnapshot, preset: GridPreset):
     case 'grain':
       if (!TIME_GRAINS.includes(preset.grain)) {
         throw new CubeRefusal(`a period is ${TIME_GRAINS.join(', ')}, not ${JSON.stringify(preset.grain)}`);
+      }
+      if (!grainsOf(rowColumns(s).find((c) => c.name === preset.column)?.type).includes(preset.grain)) {
+        throw new CubeRefusal(`'${preset.column}' is a date, with no time of day: it has no ${preset.grain}`);
       }
       return { level: 'row', base: `${preset.column}_${preset.grain}`, make: (n) => [grainColumn(preset.column, preset.grain, n)] };
     case 'showAs': {

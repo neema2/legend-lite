@@ -36,7 +36,7 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | K1 | **built 2026-10-24** (§5). **Time on Deephaven** (DH29, DH30): a DateTime literal, in a formula and in a filter the server reads without compiling (DH25); `timeBucket` as `lowerBin`; a date-time's calendar parts (year to second, day of year, ISO day of week) in UTC; `datePart`; `firstDayOf...` and the truncations DataCube's time grains write; `adjust` by a fixed unit; the epoch conversions | the dialect's tests; answers worked out by hand on the pinned server (`datacube/test/deephaven/page.ts`) |
 | K2 | **built 2026-10-24** (§5). **The market world**: a realistic equity simulator and a crypto feed handler that gives way to it (DH28), as the server's startup scripts; a store, classes and mappings over their tables | the world's figures checked on the pinned server; the fallback taken when the feed is refused |
 | K3a | **built 2026-10-24** (§5). **A candle's open and close on Deephaven**: Pure's `minBy` and `maxBy` over a whole-number order (a trade's sequence number), SQL's `ARG_MIN` and `ARG_MAX`, as the server's `sortedFirst` and `sortedLast` | the dialect's tests; DuckDB's answer on the pinned server |
-| K3 | **a candlestick chart** in DataCube: open, high, low, close and volume by time bucket, drawn again at its grid's tick with its axes held (C2) | DataCube's chart tests; the chart ticking in a browser check |
+| K3 | **intraday grains built 2026-10-24** (§5); the candlestick kind waits on PR #72's `minBy` and `maxBy` aggregates (its open and close). **A candlestick chart** in DataCube: open, high, low, close and volume by time bucket, drawn again at its grid's tick with its axes held (C2) | DataCube's chart tests; the chart ticking in a browser check |
 | K4 | **the ticker**: a watchlist (last, change, bid/ask, volume, day VWAP, high/low), the tape, time and sales, and a live candle chart for the symbol picked | a browser check of every part ticking; the speeds of §4 measured |
 | K5 | **the runtime error on Deephaven**: the lowering's guard (Pure fails on `sqrt` of a negative, on an Integer division by zero) writes an `ERROR` no Deephaven formula holds yet; a formula that fails by name, so `sqrt` and Integer `/` plan | the dialect's tests; a failing row failing the view, said, on the server |
 | K6 | **windows as `updateBy`**: running and moving figures (by rows and by time), lag and lead, first and last; top-N per group as `headBy`; DataCube's window functions and show-as | each against DuckDB's answer |
@@ -122,4 +122,13 @@ and high; every coin traded by the simulator; the busiest quote ticking -- each 
 answered by the server. By hand, the server started with this cloud session's proxy: "the market world's crypto is
 live: Coinbase Exchange" (the server's log). Found on the way: the server's log is kept when it fails to start too
 (a Groovy compile error said why only there); a Groovy decimal is a `BigDecimal` unless written `1.5d`.
+
+**K3, its first part: a date-time by a period finer than a day (2026-10-24).** DataCube's periods (`TimeGrain`) gain a
+date-time's second, minute, 5, 15 and 30 minutes and hour: its bucket from the epoch, the platform's `timeBucket`
+(`calc-presets.ts` grainStart), its end the bucket `adjust`ed by its step (a click filters to the bucket the database
+meant); named by its start's time of day ("09:35"). A date (no time of day) is offered none of them -- the header
+menu and the chart's form list `grainsOf(type)` -- and is refused one by name, by the chart's rules and the grid's
+preset alike. Measured: four prints in three five-minute buckets, planned and run on DuckDB (`chart-queries.test.ts`);
+K1 ran the same buckets on the pinned Deephaven. The candlestick kind follows PR #72: its open and close are #72's
+`minBy` and `maxBy` over an order (DataCube's own aggregates, not a copy of them here; K3a made Deephaven run them).
 
