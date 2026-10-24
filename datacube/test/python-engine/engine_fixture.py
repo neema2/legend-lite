@@ -130,14 +130,14 @@ def main() -> None:
 
     def serve_whole(doc: dict) -> None:
         # the test's page written whole into the session's keeper and served, as no Python page writes one (a page
-        # replaced whole, by no command): what a tab open on it follows by opening it again
+        # replaced whole, by no command): what a tab open on it follows by reading it whole, as it follows every move
         keeper = web.engine.keeper
         reads = {'frames': served_frames(doc), 'copies': [], 'ids': []}
         kept = keeper.current('q3')
         if kept is None:
             keeper.keep('q3', doc, reads, [])
         else:
-            keeper.write('q3', kept[0], doc, reads, None, [])
+            keeper.write('q3', kept[0], doc, reads, [])
         keeper.serve('q3', True)
     # a remote file a page reads from Python (step 2b): a Parquet file served by a server on this machine, read by
     # Python's DuckDB through the httpfs extension the wheel carries -- nothing leaves the machine
@@ -281,6 +281,9 @@ def main() -> None:
             elif command == 'py-page-desks-columns':
                 held = next(c['cube'] for c in pypage.to_dict()['cubes'] if c['cube']['source']['name'] == 'pydesks')
                 command = f"py-page-desks-columns {json.dumps([c['name'] for c in held['source']['columns']])}"
+            elif command == 'py-page-hash':
+                # the keeper's hash of the page (W17): what every tab open on it must hash to
+                command = f'py-page-hash {json.dumps(datacube._session.keeper.hash_of(pypage._key))}'
             elif command == 'py-page-version':
                 command = f'py-page-version {json.dumps(datacube._session.keeper.current(pypage._key)[0])}'
             elif command == 'py-page-read':

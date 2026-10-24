@@ -54,13 +54,14 @@ import { pickSource, type DatabaseSession, type PickerSections, type RemoteCrede
 import { formatOf, modelLanded, tableNameOf } from '../upload.ts';
 import type { JoinRead } from './join-sources.ts';
 import type { ConfiguredProject, GridRows, LocalEngine, QueryService, Services, WarehouseService } from './services.ts';
+import { lazily } from '../lazily.ts';
 
 // saved queries' code, fetched the first time it is needed -- the Saved queries section, a query link -- as charts
 // are: a grid-only page never downloads it (test/bundle-budget.test.ts)
-const savedQueries = () => import('../saved-queries.ts');
-const queryStores = () => import('../../../query-store/src/index.ts');
+const savedQueries = () => lazily(() => import('../saved-queries.ts'));
+const queryStores = () => lazily(() => import('../../../query-store/src/index.ts'));
 // a join's opener, fetched the first time a grid joins: a page with no join never downloads it (test/bundle-budget.test.ts)
-const joinSources = () => import('./join-app.ts');
+const joinSources = () => lazily(() => import('./join-app.ts'));
 
 /** A grid's place, as a maker takes it: where its rows are and how it is written down. */
 export type GridPlace = {
@@ -989,7 +990,7 @@ export function pageSources(d: SourcesOf): PageSources {
     // the page's own project (config.json projects[]), else the version opened by name from Depot (design Phase 3)
     const model = await once(projectModels, key, async () => (project
       ? (await Promise.all(project.models.map((url) => queries.fetchText(url)))).join('\n')
-      : (await import('../../../depot-client/src/model-text.ts')).modelText((await modelHome!.connect()).depot, q.groupId, q.artifactId, q.versionId)));
+      : (await lazily(() => import('../../../depot-client/src/model-text.ts'))).modelText((await modelHome!.connect()).depot, q.groupId, q.artifactId, q.versionId)));
     // in the tab, a project brings its own rows: its Data elements' tables, in a database of the version's own inside
     // the tab's DuckDB (C5, engine-client's project-data.ts) -- another version may be on the page beside it, in its
     // own. On Python, Python runs a project's model in its own (the host's runner).
@@ -1036,7 +1037,7 @@ export function pageSources(d: SourcesOf): PageSources {
     const name = at.class.slice(at.class.lastIndexOf(':') + 1);
     if (!modelHome) throw new Error(`“${name}” is a class of ${at.project}: this page reaches no model home`);
     // fetched the first time a class is opened: a page with no class grid never downloads them
-    const [{ classOpened }, home] = await Promise.all([import('../class-source.ts'), modelHome.connect()]);
+    const [{ classOpened }, home] = await Promise.all([lazily(() => import('../class-source.ts')), modelHome.connect()]);
     const { model, left, source } = await classOpened(at,
       await home.client.pure({ project: at.project, workspace: at.workspace, revision: at.revision }),
       async (text) => await services.engine.reading.elements(text) as ClassElement[]);
@@ -1084,7 +1085,7 @@ export function pageSources(d: SourcesOf): PageSources {
     if (local) {
       const writing = services.engine.modelWriting;
       if (!writing) throw new Error('this page writes no model: a class is read through the runtime its place writes');
-      const { classGiven } = await import('../class-source.ts');
+      const { classGiven } = await lazily(() => import('../class-source.ts'));
       const at = classGiven(model, given, writing.place);
       if (typeof at === 'string') throw new Error(at);
       return openedClass(at, undefined, capped);

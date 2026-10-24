@@ -68,40 +68,66 @@ const sound = (layout: Bands): Bands => {
 const page = (...ids: string[]): Bands =>
   ({ fit: false, bands: ids.map((tile) => ({ height: BAND_HEIGHT, node: { tile } })) });
 
+/** One band of `ids` side by side (a fixture: add puts a new tile under the one it came from, never beside it). */
+const row = (...ids: string[]): Bands => arrange(EMPTY, 'side-by-side', ids);
+
 describe('adding a tile places it where it is wanted', () => {
-  it('beside the tile it came from, while that band has room', () => {
-    let layout = add(EMPTY, 'grid');
-    layout = add(layout, 'chart-1', 'grid');
-    layout = add(layout, 'chart-2', 'grid');
-    assert.deepEqual(picture(sound(layout)), ['[grid:33 | chart-1:33 | chart-2:33]']);
+  // under the tile it came from, never beside it (the user, 2026-10-23: "when have 1 grid and add chart or new grid I
+  // think it should go to the bottom as default instead of side"): a grid is a table, and wants the page's width
+  const charts = (ids: readonly string[]): boolean => ids.every((t) => t.startsWith('chart'));
+
+  it('under the tile it came from; a page of one whole-screen grid shares the screen with it, so both are in view', () => {
+    const layout = add(add(EMPTY, 'grid'), 'chart-1', 'grid', MAX_COLUMNS, charts);
+    assert.deepEqual(picture(sound(layout)), ['grid', 'chart-1']);
+    assert.deepEqual(layout.bands.map((b) => b.height), [BAND_HEIGHT, BAND_HEIGHT]);
   });
 
-  it('in a band of its own below, once that band is full', () => {
-    let layout = add(EMPTY, 'a');
-    for (let i = 1; i < MAX_COLUMNS; i += 1) layout = add(layout, `t${i}`, 'a');
-    layout = add(layout, 'next', 'a');
-    assert.equal(sound(layout).bands.length, 2);
-    assert.deepEqual(picture(layout)[1], 'next');
+  it('a chart beside its grid\'s other charts under it, while that row has room; then a band of its own under the grid', () => {
+    let layout = add(EMPTY, 'grid');
+    for (let i = 1; i <= MAX_COLUMNS + 1; i += 1) layout = add(layout, `chart-${i}`, 'grid', MAX_COLUMNS, charts);
+    const full = Array.from({ length: MAX_COLUMNS }, (_, i) => `chart-${i + 1}:${Math.round(100 / MAX_COLUMNS)}`);
+    assert.deepEqual(picture(sound(layout)), ['grid', `chart-${MAX_COLUMNS + 1}`, `[${full.join(' | ')}]`]);
+  });
+
+  it('never into a band under it that it does not join: a grid under a grid is a band of its own', () => {
+    let layout = add(add(EMPTY, 'grid-1'), 'grid-2', 'grid-1');
+    layout = add(layout, 'grid-3', 'grid-1');
+    assert.deepEqual(picture(sound(layout)), ['grid-1', 'grid-3', 'grid-2']);
+    // a chart of grid-1 does not join grid-3's band, which holds no chart
+    assert.deepEqual(picture(add(layout, 'chart-1', 'grid-1', MAX_COLUMNS, charts)), ['grid-1', 'chart-1', 'grid-3', 'grid-2']);
+  });
+
+  it('fewer columns where the board is too narrow for them: a full row of charts makes a band of its own', () => {
+    let layout = add(EMPTY, 'grid');
+    layout = add(layout, 'chart-1', 'grid', 2, charts);
+    layout = add(layout, 'chart-2', 'grid', 2, charts);
+    layout = add(layout, 'chart-3', 'grid', 2, charts);
+    assert.deepEqual(picture(sound(layout)), ['grid', 'chart-3', '[chart-1:50 | chart-2:50]']);
   });
 
   it('on a board with no band, as the page\'s first band: the whole screen, as a page starts', () => {
     assert.deepEqual(add({ fit: true, bands: [] }, 'grid'),
       { fit: true, bands: [{ height: FIRST_BAND_HEIGHT, node: { tile: 'grid' } }] });
     assert.equal(FIRST_BAND_HEIGHT, 1);
-    // the next band is a new band's height, so a second grid of its own takes a third of a fitted page
-    assert.deepEqual(add(add(EMPTY, 'a'), 'b').bands.map((b) => b.height), [FIRST_BAND_HEIGHT, BAND_HEIGHT]);
+    // the next band shares the screen with it: each a new band's height
+    assert.deepEqual(add(add(EMPTY, 'a'), 'b').bands.map((b) => b.height), [BAND_HEIGHT, BAND_HEIGHT]);
+    // a page of more bands, or one band someone made shorter, keeps its heights
+    assert.deepEqual(add(page('a', 'b'), 'c').bands.map((b) => b.height), [BAND_HEIGHT, BAND_HEIGHT, BAND_HEIGHT]);
+    const short = { fit: false, bands: [{ height: 0.7, node: { tile: 'a' } }] };
+    assert.deepEqual(add(short, 'b').bands.map((b) => b.height), [0.7, BAND_HEIGHT]);
   });
 
-  it('at the bottom of the page when it comes from nowhere; and a tile already there stays as it is', () => {
+  it('at the bottom of the page when it comes from nowhere, or from a tile not on it; a tile already there stays as it is', () => {
     const layout = add(add(EMPTY, 'a'), 'b');
     assert.deepEqual(picture(sound(layout)), ['a', 'b']);
+    assert.deepEqual(picture(add(layout, 'c', 'gone')), ['a', 'b', 'c']);
     assert.equal(add(layout, 'a'), layout);
   });
 });
 
 describe('removing a tile closes its place', () => {
   it('its neighbours take its share; a split of one is that one; an emptied band goes', () => {
-    let layout = add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'a');
+    let layout = row('a', 'b', 'c');
     layout = remove(layout, 'b');
     assert.deepEqual(picture(sound(layout)), ['[a:50 | c:50]']);
     layout = remove(layout, 'c');
@@ -140,7 +166,7 @@ describe('a dragged tile let go', () => {
   });
 
   it('on a tile swaps the two', () => {
-    const layout = drop(add(add(EMPTY, 'a'), 'b', 'a'), 'a', { swap: 'b' });
+    const layout = drop(row('a', 'b'), 'a', { swap: 'b' });
     assert.deepEqual(picture(sound(layout)), ['[b:50 | a:50]']);
   });
 
@@ -149,7 +175,7 @@ describe('a dragged tile let go', () => {
     assert.deepEqual(picture(sound(drop(layout, 'c', { band: 0 }))), ['c', 'a', 'b']);
     assert.deepEqual(picture(sound(drop(layout, 'a', { band: 3 }))), ['b', 'c', 'a']);
     // out of a band it shared: the band keeps the rest
-    const shared = add(add(EMPTY, 'x'), 'y', 'x');
+    const shared = row('x', 'y');
     assert.deepEqual(picture(sound(drop(shared, 'y', { band: 1 }))), ['x', 'y']);
   });
 
@@ -164,7 +190,7 @@ describe('a dragged tile let go', () => {
 
 describe('dividers and band heights', () => {
   it('a divider trades share between its two parts, never below the least share', () => {
-    const layout = add(add(EMPTY, 'a'), 'b', 'a');
+    const layout = row('a', 'b');
     assert.deepEqual(picture(sound(resize(layout, [0], 0, 0.2))), ['[a:70 | b:30]']);
     const far = sound(resize(layout, [0], 0, 5)).bands[0]!.node;
     assert.ok('parts' in far && Math.abs(far.parts[1]!.size - MIN_SHARE) < 1e-9, 'the right part keeps its least share');
@@ -177,7 +203,7 @@ describe('dividers and band heights', () => {
   });
 
   it('even out: a split\'s parts share alike', () => {
-    const layout = resize(add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'a'), [0], 0, 0.2);
+    const layout = resize(row('a', 'b', 'c'), [0], 0, 0.2);
     assert.deepEqual(picture(sound(evenOut(layout, [0]))), ['[a:33 | b:33 | c:33]']);
   });
 
@@ -390,10 +416,10 @@ describe('a fuzz of gestures keeps every rule', () => {
 });
 
 describe('a stack: tiles in one place, one shown', () => {
-  const three = (): Bands => drop(add(add(EMPTY, 'a'), 'b', 'a'), 'c', { band: 1 });
+  const three = (): Bands => drop(row('a', 'b'), 'c', { band: 1 });
   const base = (): Bands => add(three(), 'c', 'b');
   it('is made by a drop on a tile\'s middle, in that tile\'s place, the dropped tile in front', () => {
-    const layout = sound(drop(add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'b'), 'c', { stack: 'a' }));
+    const layout = sound(drop(row('a', 'b', 'c'), 'c', { stack: 'a' }));
     assert.deepEqual(picture(layout), ['[{a,c*}:50 | b:50]']);
     assert.deepEqual(stackOf(layout, 'a'), ['a', 'c']);
     assert.deepEqual(places(layout), ['c', 'b'], 'one place, its tile in front naming it');
@@ -412,7 +438,7 @@ describe('a stack: tiles in one place, one shown', () => {
     assert.deepEqual(picture(sound(drop(stack, 'a', { band: 1 }))), ['{b,c*}', 'a']);
   });
   it('moves as one place: an edge of a stacked tile divides the stack\'s place, a swap moves the whole stack', () => {
-    const layout = drop(add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'b'), 'c', { stack: 'a' });
+    const layout = drop(row('a', 'b', 'c'), 'c', { stack: 'a' });
     assert.deepEqual(picture(sound(drop(layout, 'b', { onto: 'a', edge: 'bottom' }))), ['({a,c*}:50 / b:50)']);
     assert.deepEqual(picture(sound(drop(layout, 'b', { swap: 'a' }))), ['[b:50 | {a,c*}:50]']);
     assert.equal(drop(layout, 'a', { swap: 'c' }), layout, 'two tiles of one stack: one place');
@@ -426,30 +452,30 @@ describe('a stack: tiles in one place, one shown', () => {
     assert.deepEqual(asSaved(front), { fit: front.fit, bands: [{ height: front.bands[0]!.height, node: { stack: ['a', 'b', 'c'] } }] });
   });
   it('is made in code by drops onto the first tile (stackTiles): its tabs, the rest as given, it in front', () => {
-    const row = (): Bands => add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'b');
-    assert.deepEqual(picture(sound(stackTiles(row(), ['b', 'a', 'c']))), ['{b*,a,c}']);
+    const abc = (): Bands => row('a', 'b', 'c');
+    assert.deepEqual(picture(sound(stackTiles(abc(), ['b', 'a', 'c']))), ['{b*,a,c}']);
     // the first already stacked: its place keeps its tabs first
-    assert.deepEqual(picture(sound(stackTiles(drop(row(), 'c', { stack: 'a' }), ['a', 'b']))), ['{a*,c,b}']);
+    assert.deepEqual(picture(sound(stackTiles(drop(abc(), 'c', { stack: 'a' }), ['a', 'b']))), ['{a*,c,b}']);
     // a given tile brings the tiles stacked with it, after those given; a band it empties goes
-    const four = drop(add(row(), 'd', 'c'), 'd', { stack: 'b' });
+    const four = drop(row('a', 'b', 'c', 'd'), 'd', { stack: 'b' });
     assert.deepEqual(picture(four), ['[a:33 | {b,d*}:33 | c:33]']);
     assert.deepEqual(picture(sound(stackTiles(four, ['a', 'b', 'c']))), ['{a*,b,c,d}']);
-    const banded = drop(row(), 'c', { band: 1 });
+    const banded = drop(abc(), 'c', { band: 1 });
     assert.deepEqual(picture(sound(stackTiles(banded, ['a', 'c']))), ['[{a*,c}:50 | b:50]']);
     // a tile not in the layout is passed over; one tile, or none, changes nothing
-    assert.deepEqual(picture(sound(stackTiles(row(), ['a', 'x', 'b']))), ['[{a*,b}:50 | c:50]']);
-    const one = row();
+    assert.deepEqual(picture(sound(stackTiles(abc(), ['a', 'x', 'b']))), ['[{a*,b}:50 | c:50]']);
+    const one = abc();
     assert.equal(stackTiles(one, ['a']), one);
     assert.equal(stackTiles(one, []), one);
   });
   it('is one place to Arrange, and stays a stack', () => {
-    const layout = drop(add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'b'), 'c', { stack: 'a' });
+    const layout = drop(row('a', 'b', 'c'), 'c', { stack: 'a' });
     assert.deepEqual(picture(sound(arrange(layout, 'stacked'))), ['{a,c*}', 'b']);
     assert.deepEqual(picture(sound(arrange(layout, 'side-by-side', ['b', 'a']))), ['[b:50 | {a,c*}:50]']);
     assert.equal(layoutsFor(places(layout).length).length > 0, true);
   });
   it('is drawn as its tile in front, in the place\'s box; exported as that tile; refused when it breaks a rule', () => {
-    const layout = drop(add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'b'), 'c', { stack: 'a' });
+    const layout = drop(row('a', 'b', 'c'), 'c', { stack: 'a' });
     const drawn = draw(layout, 1000, 800, 8);
     assert.deepEqual([...drawn.tiles.keys()].sort(), ['b', 'c']);
     assert.deepEqual(drawn.stacks.get('c'), ['a', 'c']);
@@ -482,7 +508,7 @@ describe('drawn in pixels', () => {
   });
 
   it('three columns of an uneven width still meet: rounded at the edges', () => {
-    const layout = add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'a');
+    const layout = row('a', 'b', 'c');
     const boxes = [...draw(layout, 1001, 600, 8).tiles.values()];
     assert.equal(boxes[0]!.x, 0);
     assert.equal(boxes[1]!.x, boxes[0]!.x + boxes[0]!.w + 8);
@@ -573,7 +599,8 @@ describe('evening out the whole page', () => {
     const column = top.parts[1]!.node as Extract<Node, { split: unknown }>;
     assert.deepEqual(column.parts.map((p) => p.size), [0.5, 0.5]);
     assert.equal(even.bands[0]!.height, even.bands[1]!.height);
-    assert.ok(Math.abs(even.bands[0]!.height + even.bands[1]!.height - (1 + 0.9)) < 1e-9);
+    // the first band shared the screen with 'd' when it came (add), then the second was made 0.9
+    assert.ok(Math.abs(even.bands[0]!.height + even.bands[1]!.height - (BAND_HEIGHT + 0.9)) < 1e-9);
     assert.deepEqual(tiles(even), tiles(layout));
   });
 });

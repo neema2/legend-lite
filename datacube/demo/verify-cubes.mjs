@@ -373,8 +373,8 @@ try {
     await landed(before);
     // Insert > Visualization, from a cell's right-click menu: the page gets a board, the chart beside the grid
     await page.locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("Visualization"))').first().click();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create"))').first().hover();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create")) .dc-menu-item:has(> .dc-menu-label:text-is("Visualization"))').first().click();
     await page.locator('[data-tile^="chart-"]').first().waitFor({ timeout: 20_000 });
     const layout = await page.evaluate(() => JSON.stringify(window.__dataPage.views().sheets));
     const { url } = await copyLink();
@@ -481,11 +481,11 @@ try {
 
   // A PAGE OF ITS OWN (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §6): several sources on one page, every grid alike --
   // the first one removable -- and the page saved and reopened as one thing.
-  /** Insert > `what` (Visualization, Copy of Grid), from a cell's right-click menu in the grid `tile`. */
+  /** Create > `what` (Visualization, Copy of This Grid), from a cell's right-click menu in the grid `tile`. */
   const insertIn = async (tile, what) => {
     await page.locator(`[data-tile="${tile}"] .dc-row`).nth(1).locator('.dc-cell').nth(1).click({ button: 'right' });
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
-    await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create"))').first().hover();
+    await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Create")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
   };
   const chartOf = (tile) => insertIn(tile, 'Visualization');
   /** Reload, open the saved page `name`, and wait for its grids `grids` to show rows. */
@@ -594,8 +594,8 @@ try {
     return `${heads.join(' and ')}; not marked as changed`;
   });
 
-  await check('Copy of Grid, then Save: the copy is saved with the page and reopens over the same source', async () => {
-    await insertIn('grid-1', 'Copy of Grid');
+  await check('Copy of This Grid, then Save: the copy is saved with the page and reopens over the same source', async () => {
+    await insertIn('grid-1', 'Copy of This Grid');
     await page.locator('[data-tile="grid-3"] .dc-row').first().waitFor({ timeout: 60_000 });
     await saveAs('With a copy');
     const doc = await page.evaluate(() => window.__dataPage.document('With a copy'));
@@ -615,7 +615,9 @@ try {
     const chart = page.locator('[data-tile^="chart-"]').first();
     await chart.waitFor({ timeout: 20_000 });
     const id = await chart.getAttribute('data-tile');
+    // pinned through its pill's menu (Dynamic / Pinned / Frozen): a chart that keeps its grouping outlives its grid
     await chart.locator('.dc-tile-actions .dc-titlebar-toggle').click();
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: /^Pinned \u2014 / }) }).first().click();
     await page.locator('[data-tile="grid-2"] .dc-tile-remove').click();
     await page.locator('[data-tile="grid-2"]').waitFor({ state: 'detached', timeout: 10_000 });
     const pill = () => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`).textContent();
@@ -646,8 +648,9 @@ try {
     const chart = page.locator('[data-tile^="chart-"]').first();
     await chart.waitFor({ timeout: 20_000 });
     const chartId = await chart.getAttribute('data-tile');
-    // the grid onto a new sheet, from its own menu: its chart stays on the first
-    await page.locator('[data-tile="grid-1"] .dc-tile-menu').click();
+    // the grid onto a new sheet, from its right-click's Tile ▸ Move to Sheet: its chart stays on the first
+    await page.locator('[data-tile="grid-1"] .dc-row .dc-cell').first().click({ button: 'right' });
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Tile"))').first().hover();
     const moveTo = '.dc-menu-item:has(> .dc-menu-label:text-is("Move to Sheet"))';
     await page.locator(moveTo).first().hover();
     await page.locator(`${moveTo} .dc-menu-item:has(> .dc-menu-label:text-is("New Sheet"))`).first().click();

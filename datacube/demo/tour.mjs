@@ -147,10 +147,9 @@ async function burger(label) {
   }
   await item.click();
 }
-/** The first grid's own menu (Undo, Redo, Export, Properties): in its tile's header beside other tiles. */
+/** The first grid's Edit ▸ entry (Undo, Redo), from its right-click: its menu button went (the user, 2026-10-23). */
 async function gridMenu(label) {
-  await page.locator(`${FIRST} .dc-tile-menu, .dc-tile-menu`).first().click();
-  await entry(label).click();
+  await cellMenu(['Edit', label]);
   await settle();
 }
 /** A row group (`zone` rows) or pivot (columns) of the first grid taken off by its chip's ×, never an editing grid's. */
@@ -160,8 +159,14 @@ async function takeOff(zone, column) {
     .first().locator('.dc-chip-remove').click();
   await settle();
 }
-/** A chart's Dynamic / Frozen / Detached pill, and its right-click menu. */
+/** A chart's Dynamic / Pinned / Frozen / Detached pill, and its right-click menu. */
 const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`);
+/** A chart put in a state as a person does: its pill clicked, the state picked from the menu it opens. */
+async function choose(id, state) {
+  await pill(id).click();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state} \u2014 `) }) })
+    .first().click();
+}
 async function chartMenu(id, label) {
   await page.locator(`[data-tile="${id}"] .dc-chart-tile`).click({ button: 'right' });
   await entry(label).click();
@@ -311,8 +316,8 @@ try {
   });
 
   let chart;
-  await step('Insert > Visualization: a chart that follows the grid', async () => {
-    await cellMenu(['Insert', 'Visualization']);
+  await step('Create > Visualization: a chart that follows the grid', async () => {
+    await cellMenu(['Create', 'Visualization']);
     await settle();
     await drawn();
     const list = await charts();
@@ -334,15 +339,15 @@ try {
     return `${fn} of ${column} -> ${next} of ${column}`;
   });
 
-  await step('Two values of one column: frozen, a second value added, made Dynamic again -- both kept', async (shot) => {
+  await step('Two values of one column: pinned, a second value added, made Dynamic again -- both kept', async (shot) => {
     if (!chart) throw new Error('no chart');
     // grouped by one column only, nothing pivoted: a split draws one value per series, so values are added unsplit
     const grid = await snapshot();
     for (const column of grid.pivotOn.toReversed()) await takeOff('columns', column);
     for (const column of grid.rows.slice(1).toReversed()) await takeOff('rows', column);
-    await pill(chart.id).click();
+    await choose(chart.id, 'Pinned');
     await settle();
-    if ((await pill(chart.id).textContent()) !== 'Frozen') throw new Error(`the pill says ${await pill(chart.id).textContent()}`);
+    if ((await pill(chart.id).textContent()) !== 'Pinned') throw new Error(`the pill says ${await pill(chart.id).textContent()}`);
     const [column, fn] = (await charts()).find((c) => c.id === chart.id).y[0];
     const other = fn === 'min' ? 'max' : 'min';
     await chartMenu(chart.id, 'Options...');
@@ -358,7 +363,7 @@ try {
     // Options... again puts the form away
     await chartMenu(chart.id, 'Options...');
     await form.waitFor({ state: 'hidden' });
-    await pill(chart.id).click();
+    await choose(chart.id, 'Dynamic');
     await settle();
     await drawn();
     const now = (await charts()).find((c) => c.id === chart.id);
@@ -373,7 +378,7 @@ try {
 
   await step('Show Grid on a frozen chart: a grid of its own grouping it follows, the same values', async (shot) => {
     if (!chart) throw new Error('no chart');
-    await pill(chart.id).click();
+    await choose(chart.id, 'Pinned');
     await settle();
     const before = (await charts()).find((c) => c.id === chart.id);
     const rowsBefore = (await snapshot()).rows;

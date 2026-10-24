@@ -1,6 +1,6 @@
-// JOIN… (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.5), a window of its own in the Create a Class window's style: their
-// grid (another of the page's), how the two combine (four kinds, as of, keep the rows with a match or with none,
-// append), the condition -- rows of my column, a comparison, their column, a key suggested when one is plain, or the
+// JOIN… (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.5), a window of its own in the Create a Class window's style: mine
+// and their grid (another of the page's), how the two combine -- a tile each, its picture and what it does (four kinds,
+// as of, keep the rows with a match or with none, append) --, the condition -- rows of my column, a comparison, their column, a key suggested when one is plain, or the
 // condition written in Pure -- their columns brought over and the prefix for names both have, and, before it is applied,
 // what it will do: how many of my rows find a match, the rows after it, their keys that repeat. It builds a join's `how`
 // (join.ts) and shows; the HOST opens the inputs, answers the questions and makes the grid. What is wrong with a name or
@@ -32,19 +32,28 @@ export interface JoinDialogOptions {
   summary(their: string, how: JoinHow): Promise<JoinSummaryCounts>;
   /** The join made a grid of the page. */
   apply(their: string, how: JoinHow): Promise<void>;
+  /**
+   * Where the window starts (a right-click's Join ▸: the column clicked, or a quick join that would repeat rows of mine):
+   * their grid, the key it starts on in place of a suggestion, and the form chosen.
+   */
+  readonly start?: { readonly their?: string; readonly row?: JoinRow; readonly form?: Choice };
 }
 
 /** What the window's form offers, each a form of join.ts's `how`. */
-type Choice = JoinKindWord | 'asOf' | 'semi' | 'anti' | 'append';
-const CHOICES: readonly { readonly value: Choice; readonly label: string }[] = [
-  { value: 'left', label: 'All of mine, theirs where they match' },
-  { value: 'inner', label: 'Matching rows only' },
-  { value: 'right', label: 'All of theirs, mine where they match' },
-  { value: 'full', label: 'Everything, matched where they match' },
-  { value: 'asOf', label: 'The nearest of theirs (as of)' },
-  { value: 'semi', label: 'My rows that have a match' },
-  { value: 'anti', label: 'My rows that have none' },
-  { value: 'append', label: 'Their rows appended to mine' },
+export type Choice = JoinKindWord | 'asOf' | 'semi' | 'anti' | 'append';
+/**
+ * Each form as its tile says it (the user, 2026-10-23: the window was messy beside Create a Class's): a short name, a
+ * picture of what it keeps of the two (`picture`, below), and what it does, in a line.
+ */
+const CHOICES: readonly { readonly value: Choice; readonly label: string; readonly says: string }[] = [
+  { value: 'left', label: 'All of mine', says: 'Every row of mine, with theirs where the condition matches -- theirs left empty where none does.' },
+  { value: 'inner', label: 'Matching only', says: 'Only the rows of mine that match one of theirs, side by side.' },
+  { value: 'right', label: 'All of theirs', says: 'Every row of theirs, with mine where the condition matches.' },
+  { value: 'full', label: 'Everything', says: 'Every row of both, side by side where they match.' },
+  { value: 'asOf', label: 'Nearest (as of)', says: 'Each row of mine with the nearest of theirs by a date or a number -- a price as of a trade\'s time.' },
+  { value: 'semi', label: 'Mine with a match', says: 'The rows of mine that have a match: mine alone, each once.' },
+  { value: 'anti', label: 'Mine with none', says: 'The rows of mine that have no match: mine alone, each once.' },
+  { value: 'append', label: 'Append theirs', says: 'Their rows under mine, column by column: no condition.' },
 ];
 const OP_WORDS: Readonly<Record<JoinOp, string>> = { '==': '=', '!=': '≠', '<': '<', '<=': '≤', '>': '>', '>=': '≥' };
 
@@ -61,6 +70,37 @@ function select(doc: Document, cls: string, parent: Element, aria: string, optio
   s.setAttribute('aria-label', aria);
   for (const o of options) (el(doc, 'option', '', s, o.label) as HTMLOptionElement).value = o.value;
   return s;
+}
+
+// A FORM'S PICTURE: mine the left circle, theirs the right, what it keeps filled -- or, appended, theirs under mine
+const SVG = 'http://www.w3.org/2000/svg';
+const MINE = 'M11 2a7 7 0 1 0 0 14a7 7 0 1 0 0-14Z';
+const THEIRS = 'M19 2a7 7 0 1 0 0 14a7 7 0 1 0 0-14Z';
+const BOTH = 'M15 3.26A7 7 0 0 1 15 14.74A7 7 0 0 1 15 3.26Z';
+const MINE_ALONE = 'M15 3.26A7 7 0 1 0 15 14.74A7 7 0 0 1 15 3.26Z';
+const PICTURES: Readonly<Record<Choice, readonly { readonly d: string; readonly filled: boolean; readonly dashed?: boolean }[]>> = {
+  left: [{ d: MINE, filled: true }, { d: THEIRS, filled: false }],
+  inner: [{ d: BOTH, filled: true }, { d: MINE, filled: false }, { d: THEIRS, filled: false }],
+  right: [{ d: THEIRS, filled: true }, { d: MINE, filled: false }],
+  full: [{ d: MINE, filled: true }, { d: THEIRS, filled: true }],
+  asOf: [{ d: MINE, filled: true }, { d: THEIRS, filled: false, dashed: true }],
+  semi: [{ d: BOTH, filled: true }, { d: MINE, filled: false }],
+  anti: [{ d: MINE_ALONE, filled: true }, { d: MINE, filled: false }],
+  append: [{ d: 'M8 2h14v6H8Z', filled: true }, { d: 'M8 10h14v6H8Z', filled: false }],
+};
+
+function picture(doc: Document, choice: Choice): SVGSVGElement {
+  const svg = doc.createElementNS(SVG, 'svg');
+  svg.setAttribute('viewBox', '0 0 30 18');
+  svg.setAttribute('class', 'dc-join-picture');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const part of PICTURES[choice]) {
+    const path = doc.createElementNS(SVG, 'path');
+    path.setAttribute('d', part.d);
+    path.setAttribute('class', `${part.filled ? 'dc-join-fill' : 'dc-join-line'}${part.dashed ? ' dc-join-dashed' : ''}`);
+    svg.append(path);
+  }
+  return svg;
 }
 
 /** Open the window. Resolves true when a join was made, false when it was closed without one. */
@@ -92,51 +132,101 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     const head = el(doc, 'div', 'dc-picker-head', win);
     const titles = el(doc, 'div', 'dc-picker-titles', head);
     el(doc, 'h2', 'dc-picker-title', titles, 'Join').id = 'dc-join-title';
-    el(doc, 'p', 'dc-picker-subtitle', titles, `${o.mine} with another grid of the page: a new grid of the rows they make together.`);
+    el(doc, 'p', 'dc-picker-subtitle', titles, `Combine ${o.mine} with another grid of the page: a new grid of the rows they make together.`);
     const close = el(doc, 'button', 'dc-picker-close', head, '×');
     close.type = 'button';
     close.setAttribute('aria-label', 'Close');
     close.addEventListener('click', () => { if (!busy) finish(); });
 
     const body = el(doc, 'div', 'dc-save-body', win);
-    const top = el(doc, 'div', 'dc-save-card dc-join-what', body);
-    el(doc, 'span', 'dc-picker-field-label', top, 'Their grid');
-    const their = select(doc, 'dc-join-their', top, 'Their grid', o.others.map((c) => ({ value: c.id, label: c.name })));
-    el(doc, 'span', 'dc-picker-field-label', top, 'Keep');
-    const choice = select(doc, 'dc-join-form', top, 'How they combine', CHOICES);
+    // THE TWO GRIDS: mine, and theirs chosen among the page's
+    const grids = el(doc, 'div', 'dc-join-grids', body);
+    const mineSide = el(doc, 'div', 'dc-join-side', grids);
+    el(doc, 'span', 'dc-picker-field-label', mineSide, 'Mine');
+    el(doc, 'div', 'dc-join-name', mineSide, o.mine);
+    const mineCount = el(doc, 'div', 'dc-join-count', mineSide);
+    el(doc, 'div', 'dc-join-between', grids, '⋈').setAttribute('aria-hidden', 'true');
+    const theirSide = el(doc, 'label', 'dc-join-side', grids);
+    el(doc, 'span', 'dc-picker-field-label', theirSide, 'Theirs');
+    const their = select(doc, 'dc-join-their', theirSide, 'Their grid', o.others.map((c) => ({ value: c.id, label: c.name })));
+    if (o.start?.their !== undefined && o.others.some((c) => c.id === o.start!.their)) their.value = o.start.their;
+    const theirCount = el(doc, 'div', 'dc-join-count', theirSide);
 
-    // THE CONDITION: rows, or Pure
+    // HOW THEY COMBINE: a tile a form, each a picture and a name, what the chosen one does said under them
+    const kindsCard = el(doc, 'div', 'dc-join-how', body);
+    el(doc, 'div', 'dc-save-card-title', kindsCard, 'How they combine');
+    const kinds = el(doc, 'div', 'dc-join-kinds', kindsCard);
+    kinds.setAttribute('role', 'radiogroup');
+    kinds.setAttribute('aria-label', 'How they combine');
+    let chosen: Choice = 'left';
+    const tiles = CHOICES.map((c) => {
+      const tile = el(doc, 'button', 'dc-join-kind', kinds);
+      tile.type = 'button';
+      tile.dataset['kind'] = c.value;
+      tile.setAttribute('role', 'radio');
+      tile.title = c.says;
+      tile.append(picture(doc, c.value));
+      el(doc, 'span', 'dc-join-kind-label', tile, c.label);
+      tile.addEventListener('click', () => choose(c.value));
+      return tile;
+    });
+    const kindSays = el(doc, 'p', 'dc-join-kind-says', kindsCard);
+    // the arrow keys move along the tiles, as a group of radio buttons does
+    kinds.addEventListener('keydown', (e) => {
+      const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+      if (step === 0) return;
+      e.preventDefault();
+      const at = CHOICES.findIndex((c) => c.value === chosen);
+      const next = CHOICES[(at + step + CHOICES.length) % CHOICES.length]!.value;
+      choose(next);
+      tiles.find((t) => t.dataset['kind'] === next)?.focus();
+    });
+
+    // THE CONDITION: rows of my column, a comparison, their column -- or Pure
     const condition = el(doc, 'div', 'dc-save-card dc-join-condition', body);
-    el(doc, 'div', 'dc-save-card-title', condition, 'Where');
-    const suggested = el(doc, 'div', 'dc-join-suggested', condition);
-    const matchLine = el(doc, 'div', 'dc-join-row dc-join-match', condition);
-    const rowsBox = el(doc, 'div', 'dc-join-rows', condition);
-    const addRow = el(doc, 'button', 'dc-picker-button dc-quiet dc-join-add', condition, '+ Condition');
-    addRow.type = 'button';
-    const pureLabel = el(doc, 'label', 'dc-join-pure-label', condition);
+    const conditionHead = el(doc, 'div', 'dc-join-card-head', condition);
+    el(doc, 'div', 'dc-save-card-title', conditionHead, 'Match rows where');
+    const pureLabel = el(doc, 'label', 'dc-join-pure-label', conditionHead);
     const pureOn = el(doc, 'input', 'dc-join-pure-on', pureLabel);
     pureOn.type = 'checkbox';
     pureLabel.append(' Write it in Pure');
+    const suggested = el(doc, 'div', 'dc-join-suggested', condition);
+    const rowsHead = el(doc, 'div', 'dc-join-row dc-join-row-head', condition);
+    for (const h of ['My column', '', 'Their column']) el(doc, 'span', 'dc-picker-field-label', rowsHead, h);
+    const rowsBox = el(doc, 'div', 'dc-join-rows', condition);
+    const addRow = el(doc, 'button', 'dc-picker-button dc-quiet dc-join-add', condition, '+ Add a condition');
+    addRow.type = 'button';
     const pure = el(doc, 'textarea', 'dc-picker-input dc-join-pure', condition);
     pure.setAttribute('aria-label', 'The condition in Pure');
     pure.spellcheck = false;
     pure.hidden = true;
     const pureHint = el(doc, 'p', 'dc-join-hint', condition);
     pureHint.hidden = true;
+    // as of: the column the nearest of theirs is found by, besides the condition
+    const matchBlock = el(doc, 'div', 'dc-join-match-block', condition);
+    el(doc, 'span', 'dc-picker-field-label', matchBlock, 'Nearest by');
+    const matchLine = el(doc, 'div', 'dc-join-row dc-join-match', matchBlock);
 
     // THEIR COLUMNS: brought over, and the prefix for names both have
     const columnsCard = el(doc, 'div', 'dc-save-card dc-join-columns', body);
-    el(doc, 'div', 'dc-save-card-title', columnsCard, 'Their columns brought over');
+    const columnsHead = el(doc, 'div', 'dc-join-card-head', columnsCard);
+    el(doc, 'div', 'dc-save-card-title', columnsHead, 'Their columns brought over');
+    const columnCount = el(doc, 'span', 'dc-join-column-count', columnsHead);
     const columnList = el(doc, 'div', 'dc-join-column-list', columnsCard);
     const prefixLine = el(doc, 'label', 'dc-join-prefix-line', columnsCard);
-    prefixLine.append('Before their names that mine has: ');
+    el(doc, 'span', 'dc-picker-field-label', prefixLine, 'Before their names that mine has');
     const prefix = el(doc, 'input', 'dc-picker-input dc-join-prefix', prefixLine);
     prefix.type = 'text';
     prefix.value = DEFAULT_PREFIX;
     prefix.spellcheck = false;
 
+    // WHAT IT WILL DO: how many of my rows match, as a bar, and in words
     const will = el(doc, 'div', 'dc-save-card dc-join-will', body);
     el(doc, 'div', 'dc-save-card-title', will, 'What it will do');
+    const meter = el(doc, 'div', 'dc-join-meter', will);
+    meter.setAttribute('aria-hidden', 'true');
+    meter.hidden = true;
+    const meterFill = el(doc, 'div', 'dc-join-meter-fill', meter);
     const willList = el(doc, 'ul', 'dc-join-will-list', will);
 
     const status = el(doc, 'div', 'dc-picker-status', win);
@@ -153,6 +243,18 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       status.className = `dc-picker-status${kind ? ` dc-${kind}` : ''}`;
       status.textContent = text;
     };
+    /** The form chosen: its tile checked, what it does said. */
+    function choose(c: Choice): void {
+      chosen = c;
+      for (const t of tiles) {
+        const on = t.dataset['kind'] === c;
+        t.setAttribute('aria-checked', String(on));
+        t.tabIndex = on ? 0 : -1;
+        t.classList.toggle('dc-chosen', on);
+      }
+      kindSays.textContent = CHOICES.find((x) => x.value === c)!.says;
+      changed();
+    }
 
     let inputs: { left: JoinSide; right: JoinSide } | undefined;
     const mineOptions = (): { value: string; label: string }[] => (inputs?.left.columns ?? []).map((c) => ({ value: c.name, label: c.name }));
@@ -184,23 +286,29 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
 
     /** The window's parts shown as the form chosen asks. */
     const shape = (): void => {
-      const c = choice.value as Choice;
+      const c = chosen;
       condition.hidden = c === 'append';
-      matchLine.hidden = c !== 'asOf';
+      matchBlock.hidden = c !== 'asOf';
       columnsCard.hidden = c === 'semi' || c === 'anti' || c === 'append';
       pure.hidden = !pureOn.checked;
       pureHint.hidden = !pureOn.checked;
       rowsBox.hidden = pureOn.checked;
+      rowsHead.hidden = pureOn.checked || rowsBox.children.length === 0;
+      suggested.hidden = pureOn.checked || suggested.children.length === 0;
       addRow.hidden = pureOn.checked;
       const renamed = c === 'semi' || c === 'anti' ? 'by their own names' : 'as they come out (a name mine has, prefixed)';
       pureHint.textContent = `Two rows, mine and theirs, their columns named ${renamed}: {a, b | $a.cust == $b.id}`;
-      // the prefix said on their names that mine has
+      // the prefix said on their names that mine has, and how many of theirs come
       if (inputs) {
         const names = theirNames(inputs.left.columns.map((x) => x.name), inputs.right.columns.map((x) => x.name), prefix.value);
-        for (const box of columnList.querySelectorAll<HTMLInputElement>('input')) {
+        const boxes = [...columnList.querySelectorAll<HTMLInputElement>('input')];
+        for (const box of boxes) {
           const out = names.get(box.value) ?? box.value;
-          (box.nextSibling as Text).textContent = out === box.value ? ` ${box.value}` : ` ${box.value} → ${out}`;
+          const as = box.parentElement!.querySelector('.dc-join-column-out')!;
+          as.textContent = out === box.value ? '' : ` → ${out}`;
+          box.parentElement!.classList.toggle('dc-join-column-off', !box.checked);
         }
+        columnCount.textContent = `${boxes.filter((b) => b.checked).length} of ${boxes.length}`;
       }
     };
 
@@ -224,6 +332,9 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       }
       if (done || mine !== loads) return;
       inputs = got;
+      const columns = (n: number): string => `${n} column${n === 1 ? '' : 's'}`;
+      mineCount.textContent = columns(inputs.left.columns.length);
+      theirCount.textContent = columns(inputs.right.columns.length);
       suggested.replaceChildren();
       const keys = suggestedKeys(inputs.left, inputs.right);
       if (keys.length > 0) el(doc, 'span', 'dc-picker-field-label', suggested, 'Suggested');
@@ -238,8 +349,9 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
         });
       }
       rowsBox.replaceChildren();
-      // one plain key: the condition it starts with; else a row to fill
-      rowLine(rowsBox, JOIN_OPS, keys.length === 1 ? keys[0]!.row : { op: '==' }, true);
+      // the key it was opened on, while their grid is the one it was opened at; else one plain key; else a row to fill
+      const given = o.start?.row !== undefined && their.value === o.start.their ? o.start.row : undefined;
+      rowLine(rowsBox, JOIN_OPS, given ?? (keys.length === 1 ? keys[0]!.row : { op: '==' }), true);
       rowLine(matchLine, AS_OF_OPS, { op: '>=' }, false);
       columnList.replaceChildren();
       for (const c of inputs.right.columns) {
@@ -248,7 +360,9 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
         box.type = 'checkbox';
         box.value = c.name;
         box.checked = true;
-        label.append(` ${c.name}`);
+        el(doc, 'span', 'dc-join-column-name', label, c.name);
+        el(doc, 'span', 'dc-join-column-out', label);
+        el(doc, 'span', 'dc-join-column-type', label, c.type);
         box.addEventListener('change', changed);
       }
       shape();
@@ -257,7 +371,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
 
     /** The `how` the window says now, or what it still needs. */
     const how = async (): Promise<JoinHow | string> => {
-      const c = choice.value as Choice;
+      const c = chosen;
       if (c === 'append') return { form: 'append' };
       let on: JoinCondition;
       if (pureOn.checked) {
@@ -287,6 +401,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       if (busy || done || !inputs) return;
       const mine = (asked += 1);
       willList.replaceChildren();
+      meter.hidden = true;
       primary.disabled = true;
       try {
         const h = await how();
@@ -299,6 +414,11 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
         const counts = await o.summary(their.value, h);
         if (mine !== asked || done) return;
         for (const line of summaryWords(h, counts)) el(doc, 'li', 'dc-join-will-line', willList, line);
+        // how many of my rows find a match (or a nearest row): the bar's filled part
+        if (h.form !== 'append' && counts.matched !== undefined && counts.mine > 0) {
+          meter.hidden = false;
+          meterFill.style.width = `${Math.round((100 * counts.matched) / counts.mine)}%`;
+        }
         primary.disabled = false;
         say('', '');
       } catch (e) {
@@ -313,7 +433,6 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       timer = setTimeout(() => void ask(), 250);
     }
     their.addEventListener('change', () => void load());
-    choice.addEventListener('change', changed);
     pureOn.addEventListener('change', changed);
     pure.addEventListener('input', changed);
     prefix.addEventListener('input', changed);
@@ -345,7 +464,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       }
     })());
 
-    shape();
+    choose(o.start?.form ?? 'left');
     void load();
   });
 }

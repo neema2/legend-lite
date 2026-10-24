@@ -2,16 +2,23 @@
 // 200,000 and every column's type the same as DuckDB's own `range()` made them, put in by DuckDB's Arrow reader.
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
-import { SAMPLE_TRADES, sampleTrades } from '../src/sample-trades.ts';
+import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTrades, sampleTradesCsv } from '../src/sample-trades.ts';
+import { sampleById, sampleFileName } from '../src/samples.ts';
+import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
+import { plannerFor } from './catalog-builder.ts';
 
 let engine: DuckDbEngine;
+let files: DuckDbFiles;
 
 before(async () => {
-  engine = new DuckDbEngine((await openDatabase()).connection);
+  const db = await openDatabase();
+  engine = new DuckDbEngine(db.connection);
+  files = db.files;
 });
 
 after(async () => {
@@ -48,5 +55,30 @@ describe("the demo's sample trades", () => {
     // both ways, every row counted (EXCEPT ALL keeps duplicates)
     assert.equal(Number(await one(`SELECT count(*) FROM ((SELECT * FROM made EXCEPT ALL SELECT * FROM before)
       UNION ALL (SELECT * FROM before EXCEPT ALL SELECT * FROM made))`)), 0);
+  });
+});
+
+describe("the start's grid written down as the sample file of its rows (the user, 2026-10-23: the start page could not be saved)", () => {
+  it('the file is the same rows, every column read as the same type: what a page saved over the start reopens', async () => {
+    await engine.loadArrow({ table: 'arrow_made' }, (async function* () { yield sampleTrades(); })());
+    // read in as the tab reads a sample it rebuilds (sources.ts fileFor, then upload.ts ingestFile)
+    const read = await ingestFile(engine, files, new File([sampleTradesCsv()], DESK_TRADES_FILE.name), plannerFor('', 'local::RT'));
+    assert.deepEqual(await columns(read.table), await columns('arrow_made'));
+    assert.equal(Number(await one(`SELECT count(*) FROM ((SELECT * FROM "${read.table}" EXCEPT ALL SELECT * FROM arrow_made)
+      UNION ALL (SELECT * FROM arrow_made EXCEPT ALL SELECT * FROM "${read.table}"))`)), 0);
+  });
+
+  it('its record is that file\'s name, size and SHA-256, known without making it as the page starts', () => {
+    const bytes = new TextEncoder().encode(sampleTradesCsv(SAMPLE_TRADES));
+    assert.deepEqual(DESK_TRADES_FILE, {
+      name: DESK_TRADES_FILE.name, size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'),
+    });
+  });
+
+  it('a sample the page rebuilds: the same file, under the name its record has', () => {
+    const sample = sampleById(DESK_TRADES);
+    assert.ok(sample, 'a sample of the same rows');
+    assert.equal(sample.build(1000), sampleTradesCsv(1000));
+    assert.equal(sampleFileName(sample), DESK_TRADES_FILE.name);
   });
 });

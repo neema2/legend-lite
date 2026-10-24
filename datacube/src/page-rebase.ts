@@ -8,7 +8,7 @@ import type { CubeDocument } from './cube-document.ts';
 import { leavesOf } from './cube-document.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { add, asSaved, remove, tiles, type Bands } from './layout/bands.ts';
-import { applyPageCommand, followedPage, idsOf, takenIds, type PageCommand, type PageDraft } from './page-commands.ts';
+import { applyPageCommand, followedPage, idsOf, type PageCommand, type PageDraft } from './page-commands.ts';
 import type { PageDocument, PageLayout } from './page-document.ts';
 import { CubeRefusal } from './snapshot.ts';
 
@@ -25,17 +25,12 @@ export type PageEdit =
 export type GridApplier = (page: PageDocument, cube: CubeDocument, id: string, commands: readonly GridCommand[]) =>
   Promise<CubeDocument>;
 
-/** Edits made again on top: the page they make, the ids it has held, the edits as applied there, and each id an edit
- *  gave out that the page had held since, as it was given out afresh (its writer's name for it -> the page's). */
+/** Edits made again on top: the page they make, the ids it has held, and the edits as applied there. */
 export interface Rebased {
   readonly page: PageDocument;
   readonly held: readonly string[];
   readonly edits: readonly PageEdit[];
-  readonly renamed: Readonly<Record<string, string>>;
 }
-
-/** The commands that make a tile or a sheet: their id is theirs, given out afresh when the page has held it since. */
-const MAKERS = new Set<PageCommand['kind']>(['addSheet', 'addGrid', 'addChart']);
 
 /** `id` as the edits made again call it: its new name when an edit before gave it out afresh. */
 const named = (id: string, renamed: ReadonlyMap<string, string>): string => renamed.get(id) ?? id;
@@ -58,10 +53,13 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
   switch (command.kind) {
     case 'renamePage':
     case 'savedAs':
-    case 'addSheet':
     case 'modelInto':
     case 'modelPin':
       return command;
+    // a maker's planned id follows too (page-state.ts rename: a tile brought back under a new id is that tile in every
+    // later step; the keeper gives a taken one out afresh either way)
+    case 'addSheet':
+      return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}) };
     case 'modelKeep':
     case 'rebuilt':
       return { ...command, cube: n(command.cube) };
@@ -73,14 +71,16 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'removeTile':
       return { ...command, tile: n(command.tile) };
     case 'addGrid':
-      return { ...command, sheet: n(command.sheet), near: command.near === null ? null : n(command.near) };
+      return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), sheet: n(command.sheet), near: command.near === null ? null : n(command.near) };
     case 'addChart':
-      return { ...command, near: n(command.near) };
+      return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), near: n(command.near) };
     case 'setChart':
     case 'select':
       return { ...command, chart: n(command.chart) };
     case 'followGrid':
       return { ...command, chart: n(command.chart), grid: n(command.grid) };
+    case 'detach':
+      return { ...command, chart: n(command.chart), cube: n(command.cube) };
     case 'moveTile':
       return { ...command, tile: n(command.tile), sheet: n(command.sheet) };
     case 'stack':
@@ -105,7 +105,7 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
  * moved there by the other writer) placed as adding places one; one it knew that is no longer there (taken off or moved
  * away) left out -- so the other writer's tiles keep their sheet, and neither writer's arrangement is refused for them.
  */
-function rearranged(command: PageCommand, page: PageDocument): PageCommand {
+export function rearranged(command: PageCommand, page: PageDocument): PageCommand {
   if (command.kind !== 'layout' && command.kind !== 'arrange') return command;
   const sheet = page.sheets.find((s) => s.id === command.sheet);
   if (sheet === undefined) return command;
@@ -135,52 +135,38 @@ export function withCube(page: PageDocument, id: string, cube: CubeDocument): Pa
 /**
  * EDITS MADE AGAIN ON TOP: `edits`, made by one writer against a version of the page it has moved on from, applied in
  * order to `draft` (the page as it is now, and every id it has held) -- each page command by the page commands' own
- * function, each grid's by `applyGrid`. An id a command made (a sheet, a grid, a chart) that the page has held since is
- * given out afresh, and every later edit naming it renamed to match (a writer's handle, or its next edit, follows the
- * rename it is told). One that no longer applies -- its tile or sheet taken off there, a column gone -- refuses them
- * all, in DataCube's words (CubeRefusal): a writer's edits are one change, applied whole or not at all. A sheet's
- * arrangement keeps the other writer's tiles on it (rearranged). A page filter set by its id is set (the id's filter
- * replaced, else made), as the command says -- but, given `known` (every id the page had held at the version the
- * writer made its edits at), one by an id it did not know and no edit before made is a filter the writer made: given
- * out afresh when the page has held its id since (another writer's filter made under it), never put in its place (H3,
- * docs/DATACUBE_ONE_API_PLAN_2026_10_21.md).
+ * function, each grid's by `applyGrid`. Every id a command makes is its editor's own (page-ids.ts nextPageId: an editor's
+ * tag), so none is given out afresh and nothing is renamed (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the
+ * middle version): one the page holds already is refused, by the command's own rule. One that no longer applies -- its
+ * tile or sheet taken off there, a column gone -- refuses them all, in DataCube's words (CubeRefusal): a writer's edits
+ * are one change, applied whole or not at all. A sheet's arrangement keeps the other writer's tiles on it (rearranged).
  */
-export async function rebaseEdits(draft: PageDraft, edits: readonly PageEdit[], applyGrid: GridApplier,
-  known?: readonly string[]): Promise<Rebased> {
+export async function rebaseEdits(draft: PageDraft, edits: readonly PageEdit[], applyGrid: GridApplier): Promise<Rebased> {
   let d = draft;
-  const renamed = new Map<string, string>();
   const applied: PageEdit[] = [];
-  // each page filter the writer made, by its name for it: set again, it is set where it was made
-  const filters = new Set<string>();
-  for (const edit of edits) {
+  for (let i = 0; i < edits.length;) {
+    const edit = edits[i]!;
     if ('grid' in edit) {
-      const grid = named(edit.grid, renamed);
+      const grid = edit.grid;
       const view = d.page.views.find((v) => v.id === grid);
       if (view === undefined || view.kind !== 'grid') throw new CubeRefusal(`${grid} is no longer on the page`);
       const held = d.page.cubes.find((c) => c.id === view.cube);
       if (held === undefined) throw new CubeRefusal(`${grid} shows no cube the page holds`);
-      // the cube as the grid's edit leaves it, its charts following it (page-commands.ts followedPage: V1, V2)
-      d = { ...d, page: followedPage(withCube(d.page, view.cube, await applyGrid(d.page, held.cube, view.cube, [edit.command])), view.cube, d.page) };
-      applied.push({ grid, command: edit.command });
+      // the grid's run of commands (an undo's few, a gesture's), applied in one call -- one open of its cube, one compile
+      // (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W14) -- the same reduce, refused whole, each listed as applied
+      const run: GridCommand[] = [];
+      for (let c = edits[i]; c !== undefined && 'grid' in c && c.grid === grid; c = edits[++i]) run.push(c.command);
+      // the cube as the grid's edits leave it, its charts following it (page-commands.ts followedPage: V1, V2)
+      d = { ...d, page: followedPage(withCube(d.page, view.cube, await applyGrid(d.page, held.cube, view.cube, run)), view.cube, d.page) };
+      for (const command of run) applied.push({ grid, command });
       continue;
     }
-    let command = rearranged(renamedCommand(edit.page, renamed), d.page);
-    const mine = edit.page.kind === 'setPageFilter' ? edit.page.id : undefined;
-    const filter = mine !== undefined && known !== undefined && !known.includes(mine) && !filters.has(mine);
-    if (filter) filters.add(mine);
-    const made = MAKERS.has(command.kind) || filter ? (command as { readonly id?: string }).id : undefined;
-    if (made !== undefined && takenIds(d).includes(made)) {
-      // given out on the other side meanwhile: this one is given out afresh
-      const { id: _taken, ...fresh } = command as PageCommand & { id?: string };
-      command = fresh as PageCommand;
-    }
-    const one = applyPageCommand(d, command);
-    const given = (one.command as { readonly id?: string }).id;
-    if (made !== undefined && given !== undefined && given !== made) renamed.set(made, given);
+    i += 1;
+    const one = applyPageCommand(d, rearranged(edit.page, d.page));
     d = one.draft;
     applied.push({ page: one.command });
   }
-  return { page: d.page, held: d.held, edits: applied, renamed: Object.fromEntries(renamed) };
+  return { page: d.page, held: d.held, edits: applied };
 }
 
 /**

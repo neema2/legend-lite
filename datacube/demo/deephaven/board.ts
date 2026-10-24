@@ -341,12 +341,14 @@ async function main(): Promise<void> {
   for (const [n, [name, snapshot]] of ([['Desks', desks], ['Sectors', sectors]] as const).entries()) {
     const spec = defaultChart(snapshot);
     if (spec === null) throw new Error(`no chart of ${name}`);
-    // a chart's id is the page's kind: chart-N
+    // a chart's id is the page's kind: chart-N, applied as the page's own command under that id, no step of its
+    // history (PageApp.reapply: main's D19 removed PageApp.follow, which this used)
     const id = `chart-${n + 1}`;
-    await page.follow([{
+    const added = page.reapply([{
       kind: 'addChart', id, near: ids[name], spec: { ...spec, y: [{ column: 'mv', fn: 'sum' }] },
       title: `${name}: market value`, columns: null,
-    }], new Map());
+    }], 'Add Chart');
+    if (!added) throw new Error(`the page refused the chart of ${name}`);
     shown.charts[id] = { grid: name, draws: 0, tickToDraw: [], values: [], axes: [] };
   }
   await watchCharts();

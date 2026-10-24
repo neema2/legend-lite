@@ -111,9 +111,26 @@
             background: color-mix(in srgb, crimson 10%, #fff);
             border-color: color-mix(in srgb, crimson 45%, transparent);"></p>
 
+  <!-- A START THAT DID NOT DOWNLOAD (seen on the published site, 2026-10-23): a part of the bundle not found -- a deploy
+       landing while the page loads, a browser's cached bundle naming parts the deploy replaced -- fails the module
+       before any of DataCube's code runs, so main.ts cannot say it, and the status above is offstage. Said here, on the
+       page, by the script's own error event: never a blank page. -->
+  <p class="warn" id="startfailed" hidden
+     style="position: fixed; z-index: 30; inset: 12px 12px auto;
+            background: color-mix(in srgb, crimson 10%, #fff);
+            border-color: color-mix(in srgb, crimson 45%, transparent);"></p>
+
   <!-- The app's windows (Open…, Share, the Generated Pure & SQL) are the app's own: src/app/datacube-app.ts builds
        them. -->
 
-  <script type="module" src="./bundle.js"></script>
+  <script type="module" src="./bundle.js" onerror="
+    var said = 'DataCube did not finish downloading: a part of it was not found (the site may have just been updated). Reload the page.';
+    var box = document.getElementById('startfailed');
+    box.textContent = said;
+    box.hidden = false;
+    var status = document.getElementById('status');
+    status.textContent = 'failed to start: ' + said;
+    status.classList.add('bad');
+  "></script>
 </body>
 </html>

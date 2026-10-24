@@ -50,7 +50,7 @@ export function mapOption(
   const notes: string[] = [];
   const base = {
     backgroundColor: 'transparent',
-    textStyle: { color: theme.inkSecondary, fontFamily: 'inherit' },
+    textStyle: { color: theme.inkSecondary, fontFamily: theme.font },
     aria: { enabled: true, label: { enabled: false } },
     ...toolboxOf(spec, rows, theme),
   };

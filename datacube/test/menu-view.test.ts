@@ -46,6 +46,16 @@ describe('MenuView', () => {
     assert.equal(doc.querySelectorAll('[role="separator"]').length, 1);
   });
 
+  it('a disabled entry with a hint says why on hover; one without says nothing', () => {
+    view.show([{ label: 'Tile', items: [
+      { id: 'tile.grid', label: 'Show Grid', disabled: true, hint: 'needs a page' },
+      { id: 'tile.remove', label: 'Remove' },
+    ] }], 10, 10);
+    const [grid, remove] = view.items;
+    assert.equal(grid!.title, 'needs a page');
+    assert.equal(remove!.title, '');
+  });
+
   it('opens nothing for an empty menu', () => {
     view.show([], 10, 10);
     assert.equal(view.open, false);

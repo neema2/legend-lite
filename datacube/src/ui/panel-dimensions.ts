@@ -12,6 +12,11 @@
 // hierarchy whose next level is a notional is not a hierarchy, and
 // discovering that by drilling into one group per distinct amount is
 // an expensive way to find out.
+//
+// WHAT IS DONE WITH THEM starts here too, not from a menu (the user,
+// 2026-10-23): the grid's rows grouped by a dimension, and Ad Hoc
+// Analysis -- the cube worked member by member down these hierarchies.
+// Each applies the draft first, so it acts on what the tab shows.
 
 import type { Dimension } from '../dimensions.ts';
 import { groupableColumns } from '../grid-edits.ts';
@@ -171,11 +176,38 @@ export const dimensionsPanel: PanelBuilder = (ctx) => {
     );
 
     right.append(rename, hint, selector);
+    // the grid's rows grouped by its first level -- the draft applied first, so a dimension just made can be used
+    if (ctx.useDimension) {
+      const use = ctx.useDimension;
+      const row = doc.createElement('div');
+      row.className = 'dc-dimension-use';
+      row.append(button(doc, `Group Rows by ${active.name}`, () => use(live()[cursor.index]?.name ?? active.name), {
+        disabled: active.columns.length === 0,
+        title: 'Apply, close, and group the grid\'s rows by this dimension\'s first level',
+      }));
+      right.append(row);
+    }
   }
 
   const body = doc.createElement('div');
   body.className = 'dc-dimension-body';
   body.append(left, right);
 
-  return panelShell(doc, 'Dimensions', body);
+  // AD HOC ANALYSIS: the other way to work the cube, down these hierarchies -- left by its own bar's Exit
+  const parts: HTMLElement[] = [body];
+  if (ctx.adHoc) {
+    const adHoc = ctx.adHoc;
+    const strip = doc.createElement('div');
+    strip.className = 'dc-dimension-adhoc';
+    const note = doc.createElement('div');
+    note.className = 'dc-note';
+    note.textContent = 'Ad Hoc Analysis works the cube member by member: double-click a member to zoom into its next '
+      + 'level, keep or remove members, and move dimensions between rows, columns and the point of view.';
+    strip.append(note, button(doc, 'Start Ad Hoc Analysis', () => adHoc(), {
+      title: 'Apply, close, and switch the grid to Ad Hoc Analysis (its Exit button comes back)',
+    }));
+    parts.push(strip);
+  }
+
+  return panelShell(doc, 'Dimensions', ...parts);
 };

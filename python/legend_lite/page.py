@@ -574,7 +574,20 @@ class Grid(Tile):
         """Every group closed, the expand level's too, as the menu's Collapse All closes them."""
         return self._apply([_commands.grid_collapse_all()])
 
-    def calculate(self, name: str, expression: str, *, kind: str | None = None, level: str = 'row') -> Grid:
+    def tree(self, *open: Sequence[str | None], totals: bool = False, expand_to: int | None = None,
+             closed: Sequence[Sequence[str | None]] = ()) -> Grid:
+        """The open groups set whole, in the saved tree's own shape (a ``tree`` command; docs/DATACUBE_LIVE_EDITING_2026_10_24.md
+        W1): each path in ``open`` a group open (its keys from the top group down, as ``expand`` takes them), ``totals``
+        whether the grand total shows, ``expand_to`` the level the groups open to (0 or none: by hand only), ``closed`` the
+        groups closed under that level. What puts a collapsed tree back -- an undo of Collapse All on the screen -- which
+        ``expand`` and ``collapse`` cannot: Collapse All forgets the level and the closes."""
+        return self._apply([_commands.grid_tree(
+            open=[list(p) for p in open], show_totals=totals,
+            **({} if expand_to is None else {'expand_to': expand_to}),
+            **({} if len(closed) == 0 else {'closed': [list(p) for p in closed]}))])
+
+    def calculate(self, name: str, expression: str, *, kind: str | None = None, level: str = 'row',
+                  before: str | None = None) -> Grid:
         """A calculated column computed per row, in Pure over the row ``$x`` (``'$x.qty * 2'``; a column that can be
         empty, as a dataframe's can, ``->toOne()`` first for arithmetic), added as the grid's own column editor adds one
         (DataCube's code, headless: gridColumn): its name as DataCube takes one, ``kind`` ``'measure'`` or
@@ -582,9 +595,11 @@ class Grid(Tile):
         is a number, its unique value if not), and the grid with it compiled as DataCube would run it -- reading any of
         the grid's columns before it, a window column's too. ``level='group'``: computed after the grouping instead, over
         each group's row (the editor's Group level: no kind), reading the grid's measures as each level aggregates them.
-        A mistake fails at this line, in DataCube's and the compiler's words."""
+        A mistake fails at this line, in DataCube's and the compiler's words. ``before``: the calculated column of
+        its level the new one goes before (left out: last of its level, as the editor adds one)."""
         _expression(expression)
-        return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'level': level})
+        return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'level': level,
+                             **({} if before is None else {'before': before})})
 
     def explode(self, name: str, expression: str, *, kind: str | None = None) -> Grid:
         """A calculated column whose expression gives a list, each row repeated once per element of it, the column that
@@ -633,8 +648,8 @@ class Grid(Tile):
 
     def dimension(self, name: str) -> Grid:
         """Grouped by the named dimension ``name``'s first level (its configuration's ``dimensions``: a name and its
-        columns, coarsest first), as the menu's View > Dimensions uses one (the gesture ``view.dimension``:
-        dimensions.ts useDimension)."""
+        columns, coarsest first), as Properties' Dimensions tab's Group Rows by uses one (the gesture
+        ``view.dimension``: dimensions.ts useDimension)."""
         return self._gesture('view.dimension', {'name': name, 'move': 'use'})
 
     def drill(self, name: str) -> Grid:
@@ -645,21 +660,25 @@ class Grid(Tile):
         """One level back out of the named dimension ``name`` (dimensions.ts drillUp); out of its first, not grouped."""
         return self._gesture('view.dimension', {'name': name, 'move': 'up'})
 
-    def edit_calculated(self, name: str, expression: str, *, rename: str | None = None, kind: str | None = None) -> Grid:
+    def edit_calculated(self, name: str, expression: str, *, rename: str | None = None, kind: str | None = None,
+                        before: str | None = None) -> Grid:
         """The calculated column ``name`` computed per row by ``expression`` instead, as its Edit Column window's OK
         changes it (an ``editCalculated`` command, built headless as the editor builds it: gridColumn): ``rename`` its
         new name -- what read it (the groups, the pivot, the sorts, the filter, the columns computed from it, its
-        settings) reads it by that -- and ``kind`` as for ``calculate``. In its place among the grid's columns."""
-        return self._calculated(name if rename is None else rename, expression, kind, name)
+        settings) reads it by that -- and ``kind`` as for ``calculate``. In its place among the grid's columns, or
+        ``before`` the calculated column named."""
+        return self._calculated(name if rename is None else rename, expression, kind, name, before)
 
     def remove_calculated(self, name: str) -> Grid:
         """The calculated column ``name`` taken out, as Edit Column's Delete takes it (a ``removeCalculated`` command):
         refused, in the compiler's words, while another column reads it."""
         return self._apply([_commands.grid_remove_calculated(name=name)])
 
-    def _calculated(self, name: str, expression: str, kind: str | None, replacing: str | None) -> Grid:
+    def _calculated(self, name: str, expression: str, kind: str | None, replacing: str | None,
+                    before: str | None = None) -> Grid:
         _expression(expression)
-        return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'replacing': replacing})
+        return self._column({'name': name, 'expression': f'x|{expression}', 'kind': kind, 'replacing': replacing,
+                             **({} if before is None else {'before': before})})
 
     def _column(self, given: Mapping[str, Any]) -> Grid:
         """A column made as the column editor makes one (headless gridColumn: ``given`` its form), the cube with it kept
@@ -701,8 +720,9 @@ class Grid(Tile):
         """A chart of this grid, beside it: ``mark`` (a mark DataCube draws), its category ``x``, what it plots ``y`` --
         ``[(column, aggregate), ...]``, the measure DataCube's own new chart would plot unless given -- and a ``split``
         (one series per value), each DataCube's own new chart's unless given (None: none); ``frozen`` keeps its own
-        grouping rather than following the grid's (and stays when the grid is removed, as in DataCube) -- unless told, a
-        chart told its ``x``, ``y`` or ``split`` keeps them, as a hand on them in DataCube's options freezes the chart,
+        grouping rather than following the grid's -- its state 'pinned' (``Chart.state``; 'frozen' keeps the grid's
+        filter too) -- and stays when the grid is removed, as in DataCube; unless told, a
+        chart told its ``x``, ``y`` or ``split`` keeps them, as a hand on them in DataCube's options pins the chart,
         and one told none of them follows the grid (told them and ``frozen=False``, one the grid would replace is
         refused); ``options``: the chart's Options, in its spec's own keys (one left out is its default).
 
@@ -956,18 +976,37 @@ class GridView:
 
 @_operations
 class Chart(Tile):
-    """A chart of a grid: its mark, what it plots, its options; following its grid unless frozen."""
+    """A chart of a grid: its mark, what it plots, its options; following its grid unless pinned or frozen (``state``)."""
 
     _kind = 'chart'
 
+    @property
+    def state(self) -> str:
+        """Its state, as its pill says it: ``'dynamic'`` (it follows its grid: its grouping, its filter, the page's
+        clicks), ``'pinned'`` (its grouping its own; the grid's filter followed) or ``'frozen'`` (its grouping and the
+        grid's filter as they were when it was frozen, kept with it) -- read off the chart as DataCube writes it."""
+        spec = self._view['spec']
+        return 'frozen' if 'kept' in spec else 'pinned' if spec.get('frozen') else 'dynamic'
+
+    @state.setter
+    def state(self, state: str) -> None:
+        """The chart put in a state as its pill puts it (chart-spec.ts chartState, through editChart): dynamic, regrouped
+        the way its grid is now; pinned, its grouping kept; frozen, the grid's filter as it is now kept too. Refused in
+        DataCube's words: a state that is none, or a detached chart (its grid removed) told to follow."""
+        view = self._view
+        self._page._apply_page([_commands.page_set_chart(chart=self._id,
+                                                         spec=_made(self._page, view['cube'], {'state': state}, view['spec']))])
+
     def grid(self) -> Grid:
         """Its grid, as DataCube's Show Grid shows it (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D7; DataCube's code,
-        headless chartOwnGrid: chart-spec.ts chartGrid, the screen's rule): the grid it follows; or -- frozen, or detached
-        (its grid removed) -- a grid of its own grouping and query, made beside it, which it follows from then on, drawn
-        as it was: its column across and its split the grid's rows, its values the grid's Column Properties, its
-        selection, and on a grid over a class its page filter, taken off as ``select(None)`` would (followGrid's own
-        rule, the screen's Show Grid's too). Refused in DataCube's words for a
-        chart with no grouping of its own (a scatter, a treemap, a map, a gauge)."""
+        headless chartOwnGrid: chart-spec.ts showGridWay and chartGrid, the screen's rule): the grid it reads, when that
+        grid holds what it draws (it follows it; or it draws it as shown, a treemap; or, pinned, it takes nothing of its
+        grouping, a scatter, a map, a gauge); else -- its grouping or its filter its own, or its grid removed -- a grid of
+        its own query, made beside it, which it follows from then on, drawn as it was: grouped as the chart groups it (its
+        column across and its split; a scatter's rows as they are, its plotted columns shown; a map by its places; a
+        gauge's one figure the grid's total), its values the grid's Column Properties, its selection, and on a grid over
+        a class its page filter, taken off as ``select(None)`` would (followGrid's own rule, the screen's Show Grid's
+        too)."""
         view = self._view
         page, cube = self._page, view['cube']
         page._current(cube, 3)
@@ -1238,8 +1277,6 @@ class Page:
         self._unserved: list[dict[str, Any]] | None = []
         # each handle given, by its kind and id: the same object each time it is asked for
         self._handles: dict[tuple[type[Any], str], Any] = {}
-        # the ids the last commit gave out afresh, old to new (its edits made again on top of an open page's write)
-        self._regiven: dict[str, str] = {}
         # every id the page has held, as its keeper has them (DataCube's: pageReads): none is given out again, so no
         # handle meets a new tile under its old one's id
         self._ids: set[str] = set(self._session.keeper.held(self._key_name))
@@ -1317,7 +1354,8 @@ class Page:
         version its call started at, settled by the page's keeper as every editor's write is (keeper.py ``settle``):
         DataCube applies them to the page as it is now (headless pageRebase) and the keeper keeps what they make -- the
         page this call made, when it had not moved on; else the commands made again on top, the page then taken as the
-        keeper has it, a handle of a tile or a sheet whose id was given out afresh following it. One that no longer
+        keeper has it (every id an edit makes is its editor's own, so no handle is renamed:
+        docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md). One that no longer
         applies there (a tile closed there) is refused in words, nothing changed. A page loaded (N1) is written whole, a
         restore, at the version it was made at."""
         keeper = self._session.keeper
@@ -1330,7 +1368,7 @@ class Page:
                 if refused is not None:
                     raise Refused(refused)
                 settled = Settled(keeper.restore(self._key_name, self._version, self._document, reads,
-                                                 sorted(self._ids | set(reads['ids']))), False, {})
+                                                 sorted(self._ids | set(reads['ids']))), False)
             else:
                 # admitted as a tab's write is, by the frames this host serves (Frames.unadmitted: the S7 audit's Y-10)
                 settled = keeper.settle(self._key_name, self._version, self._unserved, self._session.frames.unadmitted)
@@ -1340,24 +1378,11 @@ class Page:
         self._dirty = False
         self._unserved = []
         if settled.combined:
-            self._renamed(settled.renamed)
             # the keeper's page, the open page's write and this change on top of it
             self._version = 0
             self._pull()
         else:
             self._version = settled.version
-
-    def _renamed(self, renamed: Mapping[str, str]) -> None:
-        """Each handle of a tile or a sheet whose id was given out afresh (its change made again on top of the page as it
-        was then), under its new one."""
-        self._regiven = {**self._regiven, **renamed}
-        # every handle that moves taken off first: in a chain (sheet-2 -> sheet-3, sheet-3 -> sheet-4) each goes where its
-        # own new id says, never onto another's place (the S2 audit's 6, F4)
-        moving = [(key, self._handles.pop(key)) for key in [k for k in self._handles if k[1] in renamed]]
-        for (kind, old), handle in moving:
-            handle._id = renamed[old]
-            self._handles[(kind, renamed[old])] = handle
-        self._ids.update(renamed.values())
 
     # -- the page's model (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4): its classes, into a project ----------------------
 
@@ -1965,11 +1990,8 @@ class Page:
         applied = [_plain(c) for c in said['commands']]
         self._page_commands.extend(applied)
         self._note([{'page': c} for c in applied])
-        self._regiven = {}
         self._changed()
-        # an id a command made, given out afresh as the write was made again on top of an open page's (_renamed): the
-        # caller's handle is made under the id the page gives it, never the one taken
-        return [{**c, 'id': self._regiven.get(c['id'], c['id'])} if isinstance(c.get('id'), str) else c for c in applied]
+        return applied
 
     def _note(self, commands: list[dict[str, Any]]) -> None:
         """Commands that changed the page, for a page open on it to apply (``_changed`` serves them)."""

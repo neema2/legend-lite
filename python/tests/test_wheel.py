@@ -75,10 +75,13 @@ widget = ll.DataCube(pd.DataFrame({"desk": ["FX"], "qty": [1.0]}), name="nb")
 sent = []
 widget.send = lambda content, buffers=None: sent.append((content, buffers))
 # and a lazy chunk of it, the chart's code, as the loader asks for it the first time a chart draws
-chunks = __import__("pathlib").Path(ll.__file__).parent / "_site" / "widget-chunks"
-for name in ("widget.js", "widget.css", "widget-chunks/" + next(f.name for f in chunks.iterdir() if f.name.startswith("chart-render-"))):
+site = __import__("pathlib").Path(ll.__file__).parent / "_site"
+names = ("widget.js", "widget.css",
+         "widget-chunks/" + next(f.name for f in (site / "widget-chunks").iterdir() if f.name.startswith("chart-render-")))
+for name in names:
     widget._answer({"kind": "call", "id": name, "method": "GET", "path": "/" + name, "query": "", "body": None})
-notebook = {"loader": " as default" in widget._esm, "answers": [(c["status"], len(b[0])) for c, b in sent]}
+notebook = {"loader": " as default" in widget._esm, "answers": [(c["status"], len(b[0])) for c, b in sent],
+            "files": [(site / name).stat().st_size for name in names]}
 widget.close()
 # the datacube extra: a page's grid run by DataCube's own code in V8, from the wheel alone (its bundle inside it)
 grid = ll.Page("headless").grid(pd.DataFrame({"desk": ["FX", "EQ", "FX"], "qty": [1.5, 2.5, 4.0]}), name="hl",
@@ -389,10 +392,13 @@ class Installed(unittest.TestCase):
         self.assertTrue(Path(out['library']).is_relative_to(venv), out['library'])
         self.assertEqual((out['page'], out['cube']), (200, ['model', 'runtime', 'source', 'title', 'version']))
         self.assertEqual(out['rows'], [{'desk': 'EQ', 'q': 2.5}, {'desk': 'FX', 'q': 5.5}])
-        # the notebook extra installed: the cube's loader, and DataCube's module (about 1.3 MB) and styles, from the wheel
+        # the notebook extra installed: the cube's loader, and DataCube's module, its styles and a chart chunk, each the
+        # wheel's file whole (2026-10-23: checked against the files, not a size floor -- the module is about 400 KB since
+        # code it shares with a lazy chunk went to a chunk it imports; what it fetches at start is bundle-budget's)
         self.assertTrue(out['notebook']['loader'], out['notebook'])
         self.assertEqual([status for status, _ in out['notebook']['answers']], [200, 200, 200], out['notebook'])
-        self.assertGreater(out['notebook']['answers'][0][1], 500_000, out['notebook'])
+        self.assertEqual([size for _, size in out['notebook']['answers']], out['notebook']['files'], out['notebook'])
+        self.assertGreater(out['notebook']['answers'][0][1], 100_000, f"the module, not a stub: {out['notebook']}")
         # the datacube extra installed: a grid viewed by DataCube's own code, its bundle the wheel's
         self.assertEqual(out['headless']['groups'], [['EQ', 2.5], ['FX', 5.5]], out['headless'])
         # a remote file read through the httpfs extension inside the wheel, none downloaded

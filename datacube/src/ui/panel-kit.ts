@@ -43,6 +43,9 @@ export interface PanelContext {
    * must.
    */
   refresh(): void;
+  /** The Dimensions tab's actions, the draft applied first (EditorOptions.onUseDimension, onAdHoc); absent, not offered. */
+  readonly useDimension?: (name: string) => void;
+  readonly adHoc?: () => void;
 }
 
 export type PanelBuilder = (ctx: PanelContext) => HTMLElement;

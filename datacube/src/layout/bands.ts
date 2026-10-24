@@ -290,25 +290,32 @@ export function remove(layout: Bands, tile: string): Bands {
 }
 
 /**
- * A NEW TILE, placed where it is wanted (smart placement): beside `near` -- the tile it came from -- while `near`'s band
- * is a row of fewer than `columns` columns (MAX_COLUMNS, or fewer where the board is too narrow for them to be
- * readable), otherwise as a band of its own below `near`'s; with no `near`, a band at the bottom of the page. On a board
- * with no band, the page's first band: the whole screen (FIRST_BAND_HEIGHT).
+ * A NEW TILE, placed where it is wanted -- BELOW `near`, the tile it came from, never beside it (the user, 2026-10-23: a
+ * grid is a table, which wants the page's width; a tile put beside it took half of it): into the band right under
+ * `near`'s when `joins` takes that band's tiles and it is a row of fewer than `columns` columns (MAX_COLUMNS, or fewer
+ * where the board is too narrow for them to be readable) -- a chart beside its grid's other charts --, otherwise a band
+ * of its own right under `near`'s; with no `near`, a band at the bottom of the page. A page of one band that is the whole
+ * screen (FIRST_BAND_HEIGHT) shares the screen with the new band, so both are in view. On a board with no band, the
+ * page's first band: the whole screen.
  */
-export function add(layout: Bands, tile: string, near?: string, columns = MAX_COLUMNS): Bands {
+export function add(layout: Bands, tile: string, near?: string, columns = MAX_COLUMNS,
+  joins: (tiles: readonly string[]) => boolean = () => false): Bands {
   if (tiles(layout).includes(tile)) return layout;
   if (layout.bands.length === 0) return { fit: layout.fit, bands: [{ height: FIRST_BAND_HEIGHT, node: { tile } }] };
-  const at = near === undefined ? -1 : bandOf(layout, near);
-  if (at < 0) return { fit: layout.fit, bands: [...layout.bands, { height: BAND_HEIGHT, node: { tile } }] };
-  const band = layout.bands[at]!;
-  const has = isLeaf(band.node) ? 1 : band.node.split === 'row' ? band.node.parts.length : 1;
-  if (has < Math.min(columns, MAX_COLUMNS)) {
-    const node = isLeaf(band.node) || band.node.split !== 'row'
-      ? split('row', [band.node, { tile }])
-      : split('row', [...band.node.parts.map((part) => part.node), { tile }]);
-    return withBand(layout, at, { height: band.height, node });
+  const found = near === undefined ? -1 : bandOf(layout, near);
+  const at = found < 0 ? layout.bands.length - 1 : found;
+  const under = found < 0 ? undefined : layout.bands[at + 1];
+  if (under !== undefined && joins(tiles({ fit: layout.fit, bands: [under] }))) {
+    const has = isLeaf(under.node) ? 1 : under.node.split === 'row' ? under.node.parts.length : 1;
+    if (has < Math.min(columns, MAX_COLUMNS)) {
+      const node = isLeaf(under.node) || under.node.split !== 'row'
+        ? split('row', [under.node, { tile }])
+        : split('row', [...under.node.parts.map((part) => part.node), { tile }]);
+      return withBand(layout, at + 1, { height: under.height, node });
+    }
   }
-  const bands = [...layout.bands];
+  const alone = layout.bands.length === 1 && layout.bands[0]!.height === FIRST_BAND_HEIGHT;
+  const bands = alone ? [{ height: BAND_HEIGHT, node: layout.bands[0]!.node }] : [...layout.bands];
   bands.splice(at + 1, 0, { height: BAND_HEIGHT, node: { tile } });
   return { fit: layout.fit, bands };
 }

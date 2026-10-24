@@ -25,6 +25,7 @@ import pyarrow.ipc
 
 import legend_lite as ll
 from legend_lite.engine import Engine, NativePlanner, WebServer
+from legend_lite.keeper import page_hash
 from legend_lite._home import THIS_USER, locked
 
 GROUP = "->filter(x|$x.qty > 5)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())"
@@ -988,15 +989,14 @@ class Page(Cube):
            'cubes': [{'id': 'grid-1', 'cube': {'source': {'_type': 'frame', 'name': 'trades', 'columns': []}}}],
            'views': [], 'sheets': []}
 
-    def serve_page(self, name, document, commands=None):
+    def serve_page(self, name, document):
         """``document`` served as page ``name`` over the frame trades, as the session serves a Python page (its keeper,
-        told to serve it), written whole -- moved by ``commands``, when they say what moved it: what these routes answer
-        from, whoever wrote it. Returns its version."""
+        told to serve it), written whole: what these routes answer from, whoever wrote it. Returns its version."""
         keeper = self.server.engine.keeper
         reads = {'frames': ['trades'], 'copies': [], 'ids': []}
         kept = keeper.current(name)
         version = (keeper.keep(name, document, reads, []) if kept is None
-                   else keeper.write(name, kept[0], document, reads, commands, []))
+                   else keeper.write(name, kept[0], document, reads, []))
         keeper.serve(name, True)
         return version
 
@@ -1006,7 +1006,7 @@ class Page(Cube):
         self.assertEqual(self.serve_page('q3', self.DOC), 1)
         status, content_type, body = self.get('/page.json?page=q3', auth)
         self.assertEqual((status, content_type), (200, 'application/json'))
-        self.assertEqual(json.loads(body), {'version': 1, 'page': self.DOC, 'held': []})
+        self.assertEqual(json.loads(body), {'version': 1, 'page': self.DOC, 'held': [], 'hash': page_hash(self.DOC)})
         self.assertEqual(json.loads(self.get('/version.json?page=q3', auth)[2]), {'version': 1, 'frames': {'trades': 0}})
         # its frame changed: the frame's version moves, the page's not
         self.server.engine.changed('trades')
@@ -1017,39 +1017,29 @@ class Page(Cube):
         self.server.engine.keeper.serve('q3', False)
         self.assertEqual(self.get('/version.json?page=q3', auth)[0], 404)
 
-    def test_a_page_open_at_a_version_asks_what_moved_it_since_and_is_told_the_commands_or_the_page(self):
-        # (docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md) each serve keeps the commands that moved the page from the version
-        # before; a page open at version v asks since=v: the commands while every version since has them, else the page
+    def test_a_page_open_on_it_reads_it_whole_and_a_writer_the_last_of_its_writes_taken(self):
+        # (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version) a page open on it follows by reading it
+        # whole; asked by a writer, the last of its writes the keeper took comes with the page, read under one lock
         auth = {'Authorization': self.server.authorization}
-        engine = self.server.engine
-        asked = lambda since: json.loads(self.get(f'/page.json?page=q3&since={since}', auth)[2])
+        keeper = self.server.engine.keeper
         self.serve_page('q3', self.DOC)
-        self.assertEqual(asked(1), {'version': 1, 'commands': []}, 'nothing moved it')
-        self.assertEqual(asked(0), {'version': 1, 'page': self.DOC, 'held': []},
-                         'first served: no version before it it was moved from')
-        sheet = {'page': {'kind': 'addSheet', 'id': 'sheet-2', 'name': None}}
-        group = {'grid': 'grid-1', 'command': {'kind': 'group', 'rows': ['desk']}}
-        self.serve_page('q3', {**self.DOC, 'name': 'Q4'}, [sheet])
-        self.serve_page('q3', {**self.DOC, 'name': 'Q5'}, [group])
-        self.assertEqual(asked(1), {'version': 3, 'commands': [sheet, group]}, "each version's commands, in order")
-        self.assertEqual(asked(2), {'version': 3, 'commands': [group]})
-        # a change by no command: a page open before it opens the page again
-        self.serve_page('q3', {**self.DOC, 'name': 'Q6'})
-        self.assertEqual(asked(2)['page']['name'], 'Q6')
-        self.assertEqual(asked(4), {'version': 4, 'commands': []})
-        self.assertEqual(self.get('/page.json?page=q3&since=x', auth)[0], 400)
-        # closed and shown again: kept as it was (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md), so a tab still open on its
-        # earlier showing follows by the commands since; served again unchanged, no new version
+        q4 = {**self.DOC, 'name': 'Q4'}
+        self.serve_page('q3', q4)
+        said = json.loads(self.get('/page.json?page=q3&follower=tab-1', auth)[2])
+        self.assertEqual(said, {'version': 2, 'page': q4, 'held': [], 'hash': page_hash(q4)}, 'no writer asking: none said')
+        keeper.combine = lambda page, held, edits: {'page': {**page, 'name': 'Q5'}, 'held': held, 'edits': edits,
+                                                    'reads': {'frames': ['trades'], 'copies': [], 'ids': []}}
+        keeper.settle('q3', 2, [{'page': {'kind': 'renamePage', 'name': 'Q5'}}], writer='w1', seq=3)
+        taken = lambda writer: json.loads(self.get(f'/page.json?page=q3&writer={writer}', auth)[2])['taken']
+        self.assertEqual([taken('w1'), taken('w2')], [3, 0], 'its own last write; none of another\'s')
+        self.assertEqual(self.get('/page.json?page=q3&writer=a%20b', auth)[0], 400, 'a writer said right or refused')
+        # a fence (the middle version's audit's 4): answered as the writes were, its writes up to it taken no more
+        self.assertEqual(json.loads(self.get('/page.json?page=q3&writer=w2&fence=4', auth)[2])['taken'], 0)
+        self.assertEqual(taken('w2'), 4, 'fenced')
+        for bad in ('writer=w2&fence=0', 'writer=w2&fence=x', 'fence=4', 'writer=w2&fence=%C2%B2'):
+            self.assertEqual(self.get(f'/page.json?page=q3&{bad}', auth)[0], 400, bad)
         self.server.engine.keeper.serve('q3', False)
-        self.assertEqual(self.get('/page.json?page=q3&since=4', auth)[0], 404, 'closed: served no more')
-        self.serve_page('q3', self.DOC, [sheet])
-        self.assertEqual(asked(4), {'version': 5, 'commands': [sheet]})
-        self.assertEqual(self.serve_page('q3', self.DOC, [sheet]), 5)
-        # the commands of its last 64 versions are kept: a page open at an older one opens it again
-        for n in range(70):
-            self.serve_page('q3', {**self.DOC, 'name': f'Q{n}'}, [sheet])
-        self.assertIn('page', asked(5))
-        self.assertEqual(len(asked(75 - 63)['commands']), 63)
+        self.assertEqual(self.get('/page.json?page=q3', auth)[0], 404, 'closed: served no more')
 
     def test_a_page_asked_with_the_token_only(self):
         self.serve_page('q3', self.DOC)
@@ -1264,7 +1254,7 @@ class WarehouseOnPython(unittest.TestCase):
         self.engine.keeper.forget('p')
         self.engine.sweep()
         self.assertEqual(self.call({'op': 'held', 'table': 'snap_2'}, '/snap.json')[0], 200, 'another page reads it')
-        self.engine.keeper.write('q', 1, {'name': 'q, live'}, {'frames': [], 'copies': [], 'ids': []}, None, [])
+        self.engine.keeper.write('q', 1, {'name': 'q, live'}, {'frames': [], 'copies': [], 'ids': []}, [])
         self.engine.sweep()
         self.assertEqual(self.call({'op': 'held', 'table': 'snap_2'}, '/snap.json')[0], 404, 'let go with the last page')
 
@@ -1286,21 +1276,21 @@ class WarehouseOnPython(unittest.TestCase):
 
         self.assertEqual(asked('/version.json', 'page=p&follower=tab-1&at=1'), 200)
         # Python goes live: version 2 reads no copy
-        keeper.write('p', 1, {'name': 'p, live'}, {'frames': [], 'copies': [], 'ids': []}, None, [])
+        keeper.write('p', 1, {'name': 'p, live'}, {'frames': [], 'copies': [], 'ids': []}, [])
         self.engine.sweep()
         self.assertEqual(held(), 200, 'the open page shows version 1, which reads it')
         self.assertEqual(asked('/version.json', 'page=p&follower=tab-1'), 200, 'following: no version said')
         self.assertEqual(self.call({'op': 'release', 'table': copy}, '/snap.json')[0], 200)
         self.assertEqual(held(), 200, "its maker's release keeps it: the keeper's")
-        self.assertEqual(asked('/page.json', 'page=p&since=1&follower=tab-1'), 200)
-        self.assertEqual(held(), 200, 'following from version 1')
+        self.assertEqual(asked('/page.json', 'page=p&follower=tab-1'), 200)
+        self.assertEqual(held(), 200, 'reading the page: the version it said last stands')
         self.assertEqual(asked('/version.json', 'page=p&follower=tab-1&at=2'), 200)
         self.assertEqual(held(), 404, 'moved past it: let go as it said so')
         # who it is, and the version it shows, said right or refused
         self.assertEqual(asked('/version.json', 'page=p&at=2'), 400)
         self.assertEqual(asked('/version.json', 'page=p&follower=a%20b&at=2'), 400)
         self.assertEqual(asked('/version.json', 'page=p&follower=tab-1&at=two'), 400)
-        self.assertEqual(asked('/page.json', 'page=p&since=2'), 200, 'a request that names no follower says nothing')
+        self.assertEqual(asked('/page.json', 'page=p'), 200, 'a request that names no follower says nothing')
 
     def test_the_dry_run_plans_a_table_as_its_run_does_and_refuses_the_runtime_its_run_refuses(self):
         # plan.json, plan-and-run's planning half (the one-app design §15.10): never run, the run's plan, and the run's

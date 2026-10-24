@@ -8,8 +8,9 @@
 //   with per-column Aggregations, a weighted average, a sort, a filter, a width and an appearance setting; pivoted with
 //   totals, a total's own heatmap, a sort on the total, a hidden column), a live chart and a frozen one stacked, two
 //   sheets.
-// - charts-dashboard.page.json, charts-kinds.page.json: the site's example pages (src/examples/), every chart kind and
-//   preset over the sales sample, calculated columns at each level among them.
+// - charts-dashboard.page.json, charts-kinds.page.json, charts-gallery.page.json: the site's example pages
+//   (src/examples/), every chart kind and preset over the sales sample, calculated columns at each level among them.
+// - prep-joins.page.json: the site's join example -- two samples, a left join and an anti join of them, a chart of one.
 
 import { writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -21,6 +22,8 @@ import { frameSource, rawRows, writeCube } from '../../../src/cube-document.ts';
 import { openedState } from '../../../src/cube-state.ts';
 import { chartsDashboardPage } from '../../../src/examples/charts-dashboard.ts';
 import { chartsKindsPage } from '../../../src/examples/charts-kinds.ts';
+import { chartsGalleryPage } from '../../../src/examples/charts-gallery.ts';
+import { prepJoinsPage } from '../../../src/examples/prep-joins.ts';
 import { clickSort, setColumn, setGrouping, setPivot, type GridDraft } from '../../../src/grid-edits.ts';
 import { NEW_SHEET, add, asSaved, stackTiles } from '../../../src/layout/bands.ts';
 import { pageToJson, writePageOf, type PageDocument, type PageView } from '../../../src/page-document.ts';
@@ -97,6 +100,8 @@ export async function corpus(): Promise<Record<string, PageDocument>> {
     'trades.page.json': tradesPage(),
     'charts-dashboard.page.json': await chartsDashboardPage(),
     'charts-kinds.page.json': await chartsKindsPage(),
+    'charts-gallery.page.json': await chartsGalleryPage(),
+    'prep-joins.page.json': await prepJoinsPage(),
   };
 }
 

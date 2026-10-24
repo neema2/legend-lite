@@ -476,7 +476,10 @@ describe('nothing is built and left unreachable', () => {
       'drillLambda(',
       'selectionStats(',
       'writeCube(',
-      'availableDimensions(',
+      // named dimensions used (2026-10-23, the user: the grid's menu button and its Dimensions ▸ went): from Properties ▸
+      // Dimensions' Group Rows by, through the view.dimension gesture, which asks availableDimensions itself
+      // (grid-gestures.ts) -- the app's own call of it went with the menu
+      'this.#useDimension(',
       'new CubeEditor(',
       'new FilterEditor(',
       'new PivotPanel(',

@@ -529,6 +529,12 @@ describe('a KPI (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, batch 1)', () => {
     assert.deepEqual(withTrend.trend!.snapshot.sorts, [{ column: 'trade_date', direction: 'desc' }], 'the latest first');
     assert.equal(withTrend.trend!.scope.limit, KPI_TREND_LIMIT + 1, 'one past the most it draws: it says when there were more');
     assert.deepEqual(withTrend.total.snapshot.rows, [], 'its value is still the whole');
+    // beside the trend, each period's change from the one before: the database's lag window along the column across
+    const derived = (withTrend.trend!.snapshot.groupDerived ?? []).map((d) => d.name);
+    assert.deepEqual(derived.filter((n) => n.startsWith('percentChange_')), ['percentChange_sum_notional__previous', 'percentChange_sum_notional']);
+    assert.ok(!(withTrend.total.snapshot.groupDerived ?? []).some((d) => d.name.startsWith('percentChange_')), 'not on its value');
+    const shown = kpiQueries(CUBE, { ...kpi, x: 'trade_date', y: [{ column: 'notional', fn: 'sum', showAs: { kind: 'runningTotal' } }] });
+    assert.ok(!(shown.trend!.snapshot.groupDerived ?? []).some((d) => d.name.startsWith('percentChange_')), 'a measure shown as something: no change');
   });
 
   it('needs no column across; follows the cube\'s measure, never its grouping', () => {
@@ -544,16 +550,72 @@ describe('a KPI (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, batch 1)', () => {
     assert.equal(kpiDrawing(kpi, total, null, undefined, write).value, '$1500');
     assert.equal(kpiDrawing(kpi, total, null).target, undefined, 'no target, nothing against it');
     const above = kpiDrawing({ ...kpi, options: { ...kpi.options, target: 1000 } }, total, null, undefined, write);
-    assert.deepEqual(above.target, { text: '▲ 50% above target ($1000)', good: true });
+    assert.deepEqual(above.target, { text: '▲ 50% above target ($1000)', delta: '▲ 50%', words: 'above target', goal: '$1000', good: true, reached: 1 });
     const lower = kpiDrawing({ ...kpi, options: { ...kpi.options, target: 1000, better: 'lower' } }, total, null);
     assert.equal(lower.target!.good, false, 'above a target that should not be passed is bad');
     const below = kpiDrawing({ ...kpi, options: { ...kpi.options, target: 1600 } }, total, null);
-    assert.deepEqual(below.target, { text: '▼ 6.3% below target (1600)', good: false });
+    assert.deepEqual(below.target, { text: '▼ 6.3% below target (1600)', delta: '▼ 6.3%', words: 'below target', goal: '1600', good: false, reached: 1500 / 1600 });
     assert.equal(kpiDrawing({ ...kpi, options: { ...kpi.options, target: 1500 } }, total, null).target!.text, 'On target (1500)');
     assert.equal(kpiDrawing({ ...kpi, options: { ...kpi.options, target: 1 } }, total, null).target!.text, '\u25B2 1,500\u00D7 the target (1)',
       'far above: how many times the target');
     assert.equal(kpiDrawing(kpi, table([{ name: 'sum_notional', type: 'Float', values: [null] }]), null).value, '—');
-    assert.match(above.description, /^KPI: sum of notional is \$1500; ▲ 50% above target/);
+    assert.match(above.description, /^KPI: sum of notional is \$1500; ▲ 50% above target \(\$1000\)/);
+  });
+
+  // the user, 2026-10-23: KPIs "nicer, more sleek" -- a stat tile's headline, scaled; in full on a hover
+  it('its number and its target as headlines (the grid\'s format, asked for one); the number in full beside it', () => {
+    const asked: [unknown, boolean | undefined][] = [];
+    // as the grid's format writes a headline: scaled from 100,000 (format.ts headlineFormat), in full below it
+    const write: LabelOf = (v, _c, _t, headline) => {
+      asked.push([v, headline]);
+      return headline && Number(v) >= 100_000 ? `$${(Number(v) / 1e6).toFixed(1)}m` : `$${Number(v).toLocaleString('en-US')}`;
+    };
+    const big = kpiDrawing({ ...kpi, options: { ...kpi.options, target: 40_000_000 } },
+      table([{ name: 'sum_notional', type: 'Float', values: [35_732_015] }]), null, undefined, write);
+    assert.deepEqual([big.value, big.exact], ['$35.7m', '$35,732,015']);
+    assert.equal(big.target!.goal, '$40.0m', 'its target a headline too');
+    assert.ok(Math.abs(big.target!.reached - 35_732_015 / 40_000_000) < 1e-9, 'the meter: the share of the target reached');
+    const small = kpiDrawing(kpi, table([{ name: 'sum_notional', type: 'Float', values: [5955] }]), null, undefined, write);
+    assert.deepEqual([small.value, small.exact], ['$5,955', '$5,955'], 'below 100,000 the format writes it in full');
+    assert.deepEqual(asked.filter(([v]) => v === 5955), [[5955, true], [5955, false]], 'a headline and the number in full, each asked');
+    // a count is a count, never its column's format (an id's)
+    const counted = kpiDrawing({ ...kpi, y: [{ column: 'id', fn: 'count' }] },
+      table([{ name: 'count', type: 'Integer', values: [6000] }]), null, undefined, () => 'an id');
+    assert.equal(counted.value, '6,000');
+    // past the target the meter is full; a target of nothing is reached by anything at or above it
+    assert.equal(kpiDrawing({ ...kpi, options: { ...kpi.options, target: 0 } }, table([{ name: 'sum_notional', type: 'Float', values: [-3] }]), null).target!.reached, 0);
+  });
+
+  it('its latest period against the one before, as the database answered it: up or down, good the way it should go, said with both periods', () => {
+    const total = table([{ name: 'sum_notional', type: 'Float', values: [6] }]);
+    // as the trend is answered: the latest first, each period's change from the one before beside it (kpiQueries)
+    const trend = (values: number[], change: (number | null)[]) => table([
+      { name: 'trade_date', type: 'StrictDate', values: ['2024-01-03', '2024-01-02', '2024-01-01'] },
+      { name: 'sum_notional', type: 'Float', values },
+      { name: 'percentChange_sum_notional', type: 'Float', values: change },
+    ]);
+    const up = kpiDrawing({ ...kpi, x: 'trade_date' }, total, trend([4, 3, 1], [1 / 3, 2, null]));
+    assert.deepEqual(up.change, { text: '▲ 33% 2024-01-03 vs 2024-01-02', delta: '▲ 33%', words: '2024-01-03 vs 2024-01-02', good: true });
+    assert.match(up.description, /; ▲ 33% 2024-01-03 vs 2024-01-02\.$/);
+    const costs = kpiDrawing({ ...kpi, x: 'trade_date', options: { ...kpi.options, better: 'lower' } }, total, trend([4, 3, 1], [1 / 3, 2, null]));
+    assert.equal(costs.change!.good, false, 'up, where lower is better, is bad');
+    assert.deepEqual(kpiDrawing({ ...kpi, x: 'trade_date' }, total, trend([2, 4, 1], [-0.5, 3, null])).change!.delta, '▼ 50%');
+    assert.equal(kpiDrawing({ ...kpi, x: 'trade_date' }, total, trend([3, 3, 1], [0, 2, null])).change!.good, null, 'no move, neither');
+    assert.equal(kpiDrawing({ ...kpi, x: 'trade_date' }, total, trend([3, 0, 1], [null, -1, null])).change, undefined,
+      'from nothing the database answers no change: none said');
+    assert.equal(kpiDrawing({ ...kpi, x: 'trade_date' }, total, table([
+      { name: 'trade_date', type: 'StrictDate', values: ['2024-01-03'] },
+      { name: 'sum_notional', type: 'Float', values: [3] },
+      { name: 'percentChange_sum_notional', type: 'Float', values: [null] },
+    ])).change, undefined, 'one period: nothing before it');
+    // by month: the periods named as periods, a year both share said once
+    const monthly = (values: string[]) => kpiDrawing({ ...kpi, x: 'trade_date', grain: 'month' }, total, table([
+      { name: 'trade_date__month', type: 'StrictDate', values },
+      { name: 'sum_notional', type: 'Float', values: [105, 100] },
+      { name: 'percentChange_sum_notional', type: 'Float', values: [0.05, null] },
+    ]));
+    assert.equal(monthly(['2025-12-01', '2025-11-01']).change!.words, 'Dec vs Nov 2025');
+    assert.equal(monthly(['2026-01-01', '2025-12-01']).change!.words, 'Jan 2026 vs Dec 2025');
   });
 
   it('draws its trend as a line and nothing else, oldest first', () => {
@@ -569,6 +631,9 @@ describe('a KPI (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, batch 1)', () => {
     assert.deepEqual(option.series[0]!.data, [1, 3, 2]);
     assert.deepEqual(option.xAxis.data, ['2024-01-01', '2024-01-02', '2024-01-03']);
     assert.equal(option.xAxis.show, false);
+    // its latest point, and only it, marked
+    const size = (option.series[0] as unknown as { symbolSize: (v: unknown, p: { dataIndex: number }) => number }).symbolSize;
+    assert.deepEqual([0, 1, 2].map((i) => size(null, { dataIndex: i })), [0, 0, 8]);
     assert.deepEqual(drawn.notes, []);
     assert.match(chartSvg(drawn.trend!, 200, 60), /<path/);
   });

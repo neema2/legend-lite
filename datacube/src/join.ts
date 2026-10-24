@@ -284,25 +284,9 @@ export function joinWords(how: JoinHow): string {
 }
 
 /**
- * Keys to suggest, each with why: their name's `_id` among mine (`customers` → `customer_id`, `customers_id`) against
- * their `id`, then a name both inputs have, of one type -- but `id`, each table's own key far more often than the
- * other's. The row a new join starts with when exactly one is found.
+ * Whether a join would repeat rows of mine -- more rows after it than mine, where only mine are kept (all of mine, or
+ * matching only): a quick join that would opens the window on it instead, its warning shown before anything is made.
  */
-export function suggestedKeys(left: JoinSide, right: JoinSide): { readonly row: JoinRow; readonly why: string }[] {
-  const mine = new Map(left.columns.map((c) => [c.name.toLowerCase(), c]));
-  const out: { row: JoinRow; why: string }[] = [];
-  const base = right.name.toLowerCase().replace(/\.[a-z0-9]+$/, '').replace(/[^a-z0-9_]/g, '_');
-  const singular = base.endsWith('s') ? base.slice(0, -1) : base;
-  const id = right.columns.find((c) => c.name.toLowerCase() === 'id');
-  if (id) {
-    for (const n of new Set([`${singular}_id`, `${base}_id`])) {
-      const m = mine.get(n);
-      if (m) out.push({ row: { left: m.name, op: '==', right: id.name }, why: `${right.name}'s id` });
-    }
-  }
-  for (const c of right.columns) {
-    const same = mine.get(c.name.toLowerCase());
-    if (same && same.type === c.type && c.name.toLowerCase() !== 'id') out.push({ row: { left: same.name, op: '==', right: c.name }, why: 'the same name' });
-  }
-  return out;
+export function joinRepeats(how: JoinHow, c: JoinSummaryCounts): boolean {
+  return how.form === 'join' && (how.kind === 'left' || how.kind === 'inner') && (c.joined ?? 0) > c.mine;
 }

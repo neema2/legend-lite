@@ -241,15 +241,16 @@ export class BandBoard {
   }
 
   /**
-   * Add a tile, placed where it is wanted (bands.ts `add`): beside `near` while its band has room for one more at a
-   * readable width, else below it; with no `near`, at the bottom.
+   * Add a tile, placed where it is wanted (bands.ts `add`): under `near` -- into the band under it when `joins` takes
+   * that band's tiles and it has room for one more at a readable width, else a band of its own --; with no `near`, at
+   * the bottom.
    */
-  add(tile: BandTile, near?: string): void {
+  add(tile: BandTile, near?: string, joins?: (tiles: readonly string[]) => boolean): void {
     if (this.#tiles.has(tile.id)) throw new Error(`a tile ${tile.id} is already on the board`);
     // a divider's or an edge's drag ends first (undone): it would end on a layout from before this tile
     this.#gesture?.end(false);
     this.#tiles.set(tile.id, this.#make(tile));
-    this.#commit(add(this.#layout, tile.id, near, this.columns));
+    this.#commit(add(this.#layout, tile.id, near, this.columns, joins));
   }
 
   /** How many tiles fit side by side at a readable width, as wide as the board is now; undefined while it has no width

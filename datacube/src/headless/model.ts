@@ -201,7 +201,7 @@ export async function modelAssociation(page: string, given: unknown): Promise<st
     const association = readAssociation({ ...(name !== undefined ? { name } : {}), ends: g['ends'] });
     const doc = readPage(page, { empty: true });
     if (!doc.model) {
-      throw new ModelInputError("an association relates two of the page's classes: make them first (Create a Class…, or Create a Data Space… for the whole page)");
+      throw new ModelInputError("an association relates two of the page's classes: make them first (Create ▸ Class…, or Create ▸ Data Space… for the whole page)");
     }
     model = new PageModel(doc.model);
     const pkg = doc.model.package;

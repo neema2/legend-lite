@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   buildMenu,
+  createItems,
   menuGesture,
   menuItems,
   valueLabel,
@@ -109,8 +110,8 @@ describe('buildMenu', () => {
     const withSub = top.filter((i) => i.submenu);
     assert.deepEqual(
       withSub.map((i) => i.label),
-      ['Export', 'Email', 'Copy', 'Sort', 'Filter', 'Pivot',
-        'Extended Columns', 'Resize', 'Pin', 'Heatmap', 'Insert'],
+      ['Export', 'Email', 'Edit', 'Sort', 'Filter', 'Pivot',
+        'Extended Columns', 'Resize', 'Pin', 'Heatmap', 'Create'],
     );
     // A submenu parent does nothing itself.
     assert.ok(withSub.every((i) => i.id === undefined));
@@ -126,6 +127,25 @@ describe('buildMenu', () => {
     const shown = top(false);
     assert.deepEqual(shown.slice(-2), ['Properties...', 'Hide Controls']);
     assert.deepEqual(top(true).slice(-2), ['Properties...', 'Show Controls']);
+  });
+
+  // the user, 2026-10-23: the grid's menu button gone, its Move to Sheet and Remove from Page "nested with Hide Controls"
+  it('on a page, ends with Tile ▸: the controls, Move to Sheet, Remove from Page', () => {
+    const tile = (ctx: Partial<Parameters<typeof buildMenu>[0]>) => {
+      const items = buildMenu({ snapshot: CUBE, column: 'desk', ...ctx }).flatMap((g) => g.items);
+      return items[items.length - 1]!;
+    };
+    const sheets: MenuItem[] = [{ id: 'sheet.to.s2', label: 'Sheet 2' }, { id: 'sheet.toNew', label: 'New Sheet', separated: true }];
+    const both = tile({ sheets, canRemove: true });
+    assert.equal(both.label, 'Tile');
+    assert.deepEqual(both.submenu?.map((i) => `${i.separated ? '| ' : ''}${i.label}${i.disabled ? ' [off]' : ''}`),
+      ['Hide Controls', 'Move to Sheet', '| Remove from Page']);
+    assert.equal(both.submenu?.[1]?.submenu, sheets, 'Move to Sheet: the other sheets, then a new one');
+    assert.equal(both.submenu?.[2]?.id, 'grid.remove');
+    assert.deepEqual(tile({ sheets: 'locked', controlsHidden: true }).submenu?.map((i) => `${i.label}${i.disabled ? ' [off]' : ''}`),
+      ['Show Controls', 'Move to Sheet [off]'], 'locked: offered, disabled, nothing under it');
+    assert.deepEqual(tile({ canRemove: true }).submenu?.map((i) => i.label), ['Hide Controls', 'Remove from Page']);
+    assert.equal(tile({}).id, 'view.controls', 'off a page: the switch alone, no Tile ▸ of one entry');
   });
 
   it('disables Email when the host cannot send it', () => {
@@ -503,10 +523,22 @@ describe("upstream's remaining entries", () => {
   const labels = (ctx: Parameters<typeof buildMenu>[0]) =>
     menuItems(buildMenu(ctx)).map((i) => `${i.label}${i.disabled ? ' [off]' : ''}`);
 
-  it('Copy > Selected Rows, disabled with no selection', () => {
-    assert.ok(labels({ snapshot: CUBE, column: 'desk' }).includes('Selected Rows as Plain Text [off]'));
+  it('Edit > Copy Selected Rows, disabled with no selection', () => {
+    assert.ok(labels({ snapshot: CUBE, column: 'desk' }).includes('Copy Selected Rows [off]'));
     assert.ok(labels({ snapshot: CUBE, column: 'desk', hasSelection: true })
-      .includes('Selected Rows as Plain Text'));
+      .includes('Copy Selected Rows'));
+  });
+
+  // the user, 2026-10-23: Copy ▸ became "Edit with undo/redo and copy" -- the grid's own history, its menu button gone
+  it('Edit ▸: Undo and Redo (disabled with nothing to undo or redo), then the copies', () => {
+    const edit = (ctx: Partial<Parameters<typeof buildMenu>[0]>) => (buildMenu({ snapshot: CUBE, column: 'desk', ...ctx })
+      .flatMap((g) => g.items).find((i) => i.label === 'Edit')?.submenu ?? [])
+      .map((i) => `${i.separated ? '| ' : ''}${i.id}:${i.label}${i.disabled ? ' [off]' : ''}`);
+    assert.deepEqual(edit({ hasSelection: true }), [
+      'view.undo:Undo [off]', 'view.redo:Redo [off]', '| copy.selection:Copy Selected Cells', 'copy.rows:Copy Selected Rows',
+      'copy.column:Copy Column desk',
+    ]);
+    assert.deepEqual(edit({ canUndo: true, canRedo: true }).slice(0, 2), ['view.undo:Undo', 'view.redo:Redo']);
   });
 
   it('Resize > Minimize, All, and Size Grid to Fit; Minimize spares a fixed width', () => {
@@ -641,5 +673,30 @@ describe('the chart\'s presets in the grid\'s Extended Columns (docs/DATACUBE_CH
       ['runningTotal', 'percentOfTotal', 'difference', 'percentChange', 'movingAverage', 'rank']);
     assert.ok(!items({ snapshot: CUBE, column: 'notional', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
     assert.ok(!items({ snapshot: { ...DATED, rows: [] }, column: 'notional', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
+  });
+});
+
+// the user, 2026-10-23: "Insert" became "Create", one word in every menu; a Join ▸ beside Filter
+describe('Create ▸ and Join ▸', () => {
+  const labels = (items: readonly MenuItem[]) => items.map((i) => `${i.separated ? '| ' : ''}${i.label}`);
+
+  it('Create ▸ is the same everywhere: a data source, a copy of this grid, a chart; the host\'s a line apart', () => {
+    const host: MenuItem[] = [{ id: 'host.createClass', label: 'Class\u2026' }, { id: 'host.createDataSpace', label: 'Data Space\u2026' }];
+    assert.deepEqual(labels(createItems({ source: true, host })), ['Data Source\u2026', 'Copy of This Grid', 'Visualization', '| Class\u2026', 'Data Space\u2026']);
+    assert.deepEqual(labels(createItems({ source: false, host: [] })), ['Copy of This Grid', 'Visualization']);
+    assert.ok(createItems({ source: true, host, disabled: true }).slice(0, 3).every((i) => i.disabled), 'the grid\'s own off in Ad Hoc');
+    assert.ok(createItems({ source: true, host, disabled: true }).slice(3).every((i) => !i.disabled), 'the host\'s its own to say');
+    const create = buildMenu({ snapshot: CUBE, column: 'desk', canOpenSource: true, create: host }).flatMap((g) => g.items).find((i) => i.label === 'Create');
+    assert.deepEqual(labels(create?.submenu ?? []), labels(createItems({ source: true, host })), 'the right-click\'s, the same');
+  });
+
+  it("Join ▸ is the host's, beside Filter, only when it gives entries", () => {
+    const join: MenuItem[] = [{ id: 'host.join.with.0', label: 'With customers on desk' }];
+    const top = (ctx: Parameters<typeof buildMenu>[0]) => buildMenu(ctx).flatMap((g) => g.items).map((i) => i.label);
+    const withJoin = top({ snapshot: CUBE, column: 'desk', join });
+    assert.equal(withJoin.indexOf('Join'), withJoin.indexOf('Filter') + 1);
+    assert.equal(buildMenu({ snapshot: CUBE, column: 'desk', join }).flatMap((g) => g.items).find((i) => i.label === 'Join')?.submenu, join);
+    assert.ok(!top({ snapshot: CUBE, column: 'desk' }).includes('Join'));
+    assert.ok(!top({ snapshot: CUBE, column: 'desk', join: [] }).includes('Join'));
   });
 });

@@ -51,7 +51,8 @@ const MADE: CubeDocument = trades.cubes[0]!.cube;
 const MAKE = { made: true } as unknown as Opened['make'];
 
 /** The flow over a page and a host that record what they were asked and what was added. */
-function over(page: PageDocument, sourceOf: (id: string) => CubeSource | undefined = (id) => page.cubes.find((c) => c.id === id)?.cube.source) {
+function over(page: PageDocument, sourceOf: (id: string) => CubeSource | undefined = (id) => page.cubes.find((c) => c.id === id)?.cube.source,
+  counts: JoinSummaryCounts = COUNTS) {
   const asked: string[] = [];
   const pages: string[] = [];
   const added: { make: unknown; near: string | undefined }[] = [];
@@ -59,7 +60,7 @@ function over(page: PageDocument, sourceOf: (id: string) => CubeSource | undefin
   const said: string[] = [];
   const join: HostJoin = {
     sides: async (p, mine, theirs) => { pages.push(p); asked.push(`sides ${mine} ${theirs}`); return { left: MINE, right: THEIRS, notes: [] }; },
-    questions: async (p, mine, theirs, how) => { pages.push(p); asked.push(`questions ${mine} ${theirs} ${how.form}`); return COUNTS; },
+    questions: async (p, mine, theirs, how) => { pages.push(p); asked.push(`questions ${mine} ${theirs} ${how.form}`); return counts; },
     cube: async (p, mine, theirs, how, sheet) => { pages.push(p); asked.push(`cube ${mine} ${theirs} ${how.form} ${sheet}`); return MADE; },
   };
   const app = {
@@ -69,6 +70,8 @@ function over(page: PageDocument, sourceOf: (id: string) => CubeSource | undefin
     shownSheet: page.sheets[0]!.id,
     document: () => page,
     addGrid: (make: unknown, how: { near?: string }) => { added.push({ make, near: how.near }); return 'grid-9'; },
+    // what the grid made is told: on its own status bar
+    grid: (id: string) => ({ note: (text: string) => said.push(`${id}: ${text}`) }),
   } as unknown as PageApp;
   const sources = {
     place: (id: string) => ({ cubeSource: sourceOf(id) }),
@@ -81,7 +84,7 @@ function over(page: PageDocument, sourceOf: (id: string) => CubeSource | undefin
   } as unknown as PageSources;
   const o: HostJoinFlowOf = {
     cube: 'grid', page: app, sources, join, parse: async () => { throw new Error('no Pure here'); },
-    stillShown: () => true, say: (text) => said.push(text),
+    stillShown: () => true,
   };
   return { o, asked, pages, added, reopened, said };
 }
@@ -100,7 +103,35 @@ describe("Join… on a host's page: each of the window's answers the host's (B11
     assert.ok(pages.every((p) => p === pageToJson(trades)), 'the page as the tab holds it, with every ask');
     assert.deepEqual(reopened, [MADE], 'opened as a saved join of the page is');
     assert.deepEqual(added, [{ make: MAKE, near: 'grid' }]);
-    assert.deepEqual(said, ['trades: a column gone']);
+    assert.deepEqual(said, ['grid-9: trades: a column gone'], 'what opening it left out, on the grid made');
+  });
+
+  // the user, 2026-10-23: a right-click's Join ▸ joins at once to a grid sharing a column
+  it('a quick join is made at once, what it did noted on its grid -- no window', async () => {
+    const clean: JoinSummaryCounts = { mine: 5, matched: 3, joined: 5 };
+    const { o, asked, added, said } = over(trades, undefined, clean);
+    await hostJoinFlow({ ...o, ask: { their: 'grid-2', row: { left: 'customer_id', op: '==', right: 'id' }, quick: 'left' } });
+    assert.equal(doc.querySelector('.dc-join'), null, 'no window');
+    assert.deepEqual(asked, ['questions grid grid-2 join', 'cube grid grid-2 join null']);
+    assert.deepEqual(added, [{ make: MAKE, near: 'grid' }]);
+    assert.deepEqual(said, ['grid-9: 3 rows of my 5 rows find a match, 2 rows do not. trades: a column gone']);
+  });
+
+  it('a quick join that would repeat rows of mine opens the window on it, its key and form as asked', async () => {
+    const { o, asked, added } = over(trades);
+    const flow = hostJoinFlow({ ...o, ask: { their: 'grid-2', row: { left: 'customer_id', op: '==', right: 'id' }, quick: 'inner' } });
+    await settle();
+    await debounce();
+    assert.ok(doc.querySelector('.dc-join'), 'the window, to show why');
+    assert.deepEqual(added, [], 'nothing made yet');
+    assert.equal(doc.querySelector<HTMLSelectElement>('.dc-join-their')!.value, 'grid-2');
+    assert.deepEqual([...doc.querySelectorAll<HTMLSelectElement>('.dc-join-rows .dc-join-row select')].map((x) => x.value),
+      ['customer_id', '==', 'id'], 'the key it was asked on');
+    assert.equal(doc.querySelector('.dc-join-kind[aria-checked="true"]')?.getAttribute('data-kind'), 'inner');
+    assert.match([...doc.querySelectorAll('.dc-join-will-line')].map((l) => l.textContent).join(' '), /appears more than once/);
+    assert.ok(asked.includes('questions grid grid-2 join'));
+    doc.querySelector<HTMLButtonElement>('.dc-join .dc-picker-close')!.click();
+    await flow;
   });
 
   it('refuses a grid whose rows are read elsewhere, and one with no other grid to join, before the window opens', async () => {

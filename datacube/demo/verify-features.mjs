@@ -541,14 +541,25 @@ async function burger(label) {
   await settle();
 }
 /**
- * The first GRID's own menu: Undo, Redo, Export, Properties, Ad Hoc Analysis -- in the page bar's strip while the grid
- * is alone on the page, in its tile's header beside other tiles.
+ * An entry of the first GRID's right-click, through its submenus: Edit ▸ Undo and Redo, Properties... -- its menu button
+ * went (the user, 2026-10-23: the right-click has all it had).
  */
 async function gridMenu(label) {
-  await page.locator('.dc-tile-menu').first().click();
+  await reset();
+  await page.evaluate(() => {
+    const sc = document.querySelector('.dc-scroller');
+    if (sc) sc.scrollLeft = 0;
+  });
+  await page.locator('.dc-row').first().locator('.dc-cell').first().click({ button: 'right', timeout: 8000 });
   await page.waitForSelector('.dc-menu', { timeout: 5000 });
   await pickEntry(label);
   await settle();
+}
+/** Ad Hoc Analysis, started from Properties ▸ Dimensions (the user, 2026-10-23: no menu entry of its own). */
+async function startAdHoc() {
+  await gridMenu('Properties...');
+  await page.locator('.dc-editor-tab', { hasText: 'Dimensions' }).click();
+  await page.locator('.dc-dimension-adhoc button', { hasText: 'Start Ad Hoc Analysis' }).click();
 }
 
 // -- load ---------------------------------------------------------------
@@ -606,7 +617,7 @@ async function openThroughPicker(file) {
   }
   // in place of the page: New ▸ Blank Page, then "Add a data source"
   await page.click('.dc-titlebar-menu');
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
@@ -1971,7 +1982,7 @@ try {
   });
 
   await check('copy a column to the clipboard', async () => {
-    await menu(['Copy', /^Column .* as Plain Text$/], { requery: false });
+    await menu(['Edit', /^Copy Column /], { requery: false });
     // the copy is asynchronous (the clipboard API is a promise): read until it lands
     let text = '';
     for (const until = Date.now() + 5_000; Date.now() < until && !text.trim(); await frames(page)) {
@@ -2056,10 +2067,8 @@ try {
   /** Turn a General Properties checkbox on or off, by its label. */
   const setGeneralCheck = async (label, on) => {
     await reset();
-    // the grid's own menu (its Properties), in the page bar's strip while it is alone
-    await page.locator('.dc-tile-menu').first().click();
-    await page.waitForSelector('.dc-menu', { timeout: 10_000 });
-    await pickEntry('Properties...');
+    // the grid's Properties..., from its right-click
+    await gridMenu('Properties...');
     await settle();
     await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
       .click();
@@ -2081,10 +2090,8 @@ try {
   /** Turn "keep grouped columns in the grid" on or off. */
   const setKeepGrouped = async (on) => {
     await reset();
-    // the grid's own menu (its Properties), in the page bar's strip while it is alone
-    await page.locator('.dc-tile-menu').first().click();
-    await page.waitForSelector('.dc-menu', { timeout: 10_000 });
-    await pickEntry('Properties...');
+    // the grid's Properties..., from its right-click
+    await gridMenu('Properties...');
     await settle();
     await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
       .click();
@@ -5008,7 +5015,7 @@ try {
     }).first();
     const enter = async () => {
       await freshCube();
-      await gridMenu('Ad Hoc Analysis');
+      await startAdHoc();
       await page.waitForFunction(() => {
         const a = window.__dataCube?.adhoc;
         return a && !a.busy && a.view;
@@ -5034,7 +5041,7 @@ try {
       if (!on) throw new Error(`no low-cardinality dimension in ${dims}`);
       await menu(['Pivot', /^Vertical Pivot on/], { col: await needCol(on) });
       const cubeRows = (await state()).rows.length;
-      await gridMenu('Ad Hoc Analysis');
+      await startAdHoc();
       await page.waitForFunction(() => {
         const a = window.__dataCube?.adhoc;
         return a && !a.busy && a.view;
@@ -5142,7 +5149,7 @@ try {
   // LAST: it turns the page into a board, which every check above assumes it is not.
   await check('New > Source: an example opens as a grid of its own, at the row limit, said "the first 1,000 of N"', async () => {
     await page.click('.dc-titlebar-menu');
-    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
     await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Data Source\u2026")') }).click();
     await page.locator('.dc-picker').waitFor({ timeout: 5000 });
     await page.locator('.dc-picker-tab[data-section="examples"]').click();
@@ -5168,7 +5175,7 @@ try {
   await check('New > Data Source > Saved queries: a data space query opens as a grid, its enumeration as names', async () => {
     const pick = async () => {
       await page.click('.dc-titlebar-menu');
-      await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+      await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
       await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Data Source\u2026")') }).click();
       await page.locator('.dc-picker').waitFor({ timeout: 5000 });
       await page.locator('.dc-picker-tab[data-section="saved"]').click();

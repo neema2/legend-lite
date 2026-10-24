@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { NEW_SHEET, add, tiles, type Bands } from '../src/layout/bands.ts';
+import { NEW_SHEET, arrange, tiles, type Bands } from '../src/layout/bands.ts';
 import {
   PAGE_GESTURES, isPageGesture, layoutCommand, moveSheetCommand, moveToSheetCommands, movedCommand, pageCommand,
   renameSheetCommand, savedLayout, showGridCommands,
@@ -15,7 +15,7 @@ import { CubeRefusal } from '../src/snapshot.ts';
 import type { ChartSpec } from '../src/chart-spec.ts';
 
 // a sheet of three tiles side by side, the middle one an editing grid the page does not save
-const BOARD: Bands = ['g1', 'edit', 'c1'].reduce<Bands>((at, id, i) => add(at, id, i === 0 ? undefined : 'g1'), NEW_SHEET);
+const BOARD: Bands = arrange(NEW_SHEET, 'side-by-side', ['g1', 'edit', 'c1']);
 const SAVED: ReadonlySet<string> = new Set(['g1', 'c1']);
 const SPEC = { mark: 'bar' } as unknown as ChartSpec;
 

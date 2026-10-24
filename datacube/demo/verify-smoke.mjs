@@ -87,7 +87,7 @@ page.on('pageerror', (e) => pageErrors.push(e.message));
  */
 async function openThroughPicker(file) {
   await page.click('.dc-titlebar-menu');
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
@@ -115,6 +115,43 @@ async function invariants(sample, where) {
 
 const summary = [];
 try {
+  // A START THAT DID NOT DOWNLOAD (seen on the published site, 2026-10-23): a part of the bundle not found -- a deploy
+  // landing while the page loads, a browser's cached bundle naming parts the deploy replaced -- said on the page, where a
+  // person sees it, never a blank page whose "loading..." is offstage (demo/index.html #startfailed). Once, on the first
+  // shard.
+  if (SHARD === 0) {
+    const broken = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+    try {
+      await broken.route(/\/chunks-bundle\/chunk-[^/]+\.js$/, (route) => route.fulfill({ status: 404, body: 'not found' }));
+      const start = await broken.newPage();
+      await start.goto(`http://127.0.0.1:${port}/demo/index.html`);
+      const said = await start.locator('#startfailed', { hasText: 'DataCube did not finish downloading' })
+        .waitFor({ state: 'visible', timeout: 30_000 }).then(() => true, () => false);
+      if (said) console.log('a start whose bundle did not finish downloading: said on the page');
+      else fail('the start', 'a part of the bundle not found', 'the page said nothing a person can see');
+    } finally {
+      await broken.close();
+    }
+    // THE SITE UPDATED UNDER AN OPEN PAGE (the user, 2026-10-23: "a cryptic error on the open dialog, had to refresh
+    // browser"): a part fetched when first wanted -- an example page, here -- whose file is gone says so in words
+    // (src/lazily.ts), never the browser's "Failed to fetch dynamically imported module: .../charts-dashboard-....js"
+    const updated = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+    try {
+      const open = await updated.newPage();
+      await open.goto(`http://127.0.0.1:${port}/demo/index.html`);
+      await open.waitForSelector('.dc-row', { timeout: 90_000 });
+      await updated.route(/\/chunks-bundle\/[^/]+\.js$/, (route) => route.fulfill({ status: 404, body: 'not found' }));
+      await open.click('.dc-titlebar-menu');
+      await open.locator('.dc-menu .dc-menu-item', { has: open.locator(':scope > .dc-menu-label:text-is("Open…")') }).first().click();
+      await open.locator('#cubeswin').getByText('Charts: dashboard-grade', { exact: true }).click();
+      const words = await open.locator('#cubelib .dc-lib-message', { hasText: 'DataCube was updated since this page was opened' })
+        .waitFor({ state: 'visible', timeout: 30_000 }).then(() => true, () => false);
+      if (words) console.log('a part gone since the page opened: said as the site updated, a reload asked for');
+      else fail('the Open window', 'an example whose file the site no longer has', `it said: ${await open.locator('#cubelib .dc-lib-message').textContent()}`);
+    } finally {
+      await updated.close();
+    }
+  }
   for (const sample of wanted) {
     // under its OWN format: a JSONL sample written as .csv was sniffed as CSV, so the shape
     // under test was not the one the picker offers

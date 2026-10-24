@@ -12,6 +12,8 @@ import {
   brushConditions,
   chartProblems,
   chartQuery,
+  chartState,
+  chartStateOf,
   defaultChart,
   drilledView,
   drillDown,
@@ -29,6 +31,7 @@ import {
   type ChartChange,
   type ChartMark,
   type ChartSpec,
+  type ChartState,
 } from '../chart-spec.ts';
 import type { FormHost } from './chart-form.ts';
 // the drawing (chart-option.ts) comes with ECharts, the first time a chart draws: a grid alone fetches neither
@@ -38,6 +41,7 @@ import type { ChartPicture, MountedChart } from '../chart-render.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { CubeSnapshot, FilterNode } from '../snapshot.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
+import { lazily } from '../lazily.ts';
 
 /** The kinds with an axis of categories or time across, whose pointer a page's other charts follow (a crosshair). */
 const CROSSHAIRED: ReadonlySet<ChartMark> = new Set(['bar', 'line', 'area', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto']);
@@ -69,8 +73,8 @@ export interface ChartPanelOptions {
   readonly debounceMs?: number;
   /** Whether the options start open (a chart tile starts with the chart alone). */
   readonly formOpen?: boolean;
-  /** The chart froze or went live (by the Freeze button, or by an edit to its grouping). */
-  readonly onFrozen?: (frozen: boolean) => void;
+  /** The chart's state changed (ChartState: by its pill, or pinned by an edit to its grouping). */
+  readonly onState?: (state: ChartState) => void;
   /** The user changed the chart (an option in its form). */
   readonly onSpec?: () => void;
   /** What the grid shows now: a treemap draws exactly that, not a query of its own. */
@@ -124,27 +128,33 @@ export class ChartPanel {
     return this.#spec;
   }
 
-  /** Whether the chart keeps its own grouping, or follows the cube's pivots. */
+  /** Whether the chart keeps its own grouping (pinned or frozen), or follows the cube's pivots (dynamic). */
   get frozen(): boolean {
     return this.#spec?.frozen === true;
   }
 
-  /** Freeze the chart's grouping, or make it live again (it regroups the way the cube is now). */
-  setFrozen(frozen: boolean): void {
-    if (!this.#spec || this.frozen === frozen) return;
-    const { frozen: _was, ...rest } = this.#spec;
-    // following again, it takes the grid's grouping now -- before it says so, so what it says is what it draws
-    this.#spec = frozen ? { ...rest, frozen: true } : followCube(rest, this.#options.snapshot());
-    this.#options.onFrozen?.(frozen);
+  /** Its state, as its pill says it: dynamic, pinned or frozen (chart-spec.ts chartStateOf). */
+  get state(): ChartState {
+    return this.#spec ? chartStateOf(this.#spec) : 'dynamic';
+  }
+
+  /**
+   * Put the chart in a state (chart-spec.ts chartState): dynamic, it regroups the way the cube is now -- before it says
+   * so, so what it says is what it draws --; pinned, its grouping its own; frozen, the grid's filter now kept too.
+   */
+  setState(state: ChartState): void {
+    if (!this.#spec || this.state === state) return;
+    this.#spec = chartState(this.#spec, state, this.#options.snapshot());
+    this.#options.onState?.(state);
     this.refresh(0);
   }
 
   /** Draw `spec` instead (a pinned chart updated from the live one): its form follows. */
   setSpec(spec: ChartSpec): void {
-    const wasFrozen = this.frozen;
+    const was = this.state;
     this.#spec = spec;
     this.#paintForm();
-    if (this.frozen !== wasFrozen) this.#options.onFrozen?.(this.frozen);
+    if (this.state !== was) this.#options.onState?.(this.state);
     this.refresh(0);
   }
 
@@ -237,9 +247,9 @@ export class ChartPanel {
     if (!this.#spec) return;
     // changed by hand as a chart Python makes is (chart-spec.ts editChart): a hand on the grouping of a live chart
     // freezes it, as the next pivot change would otherwise undo the choice
-    const wasFrozen = this.frozen;
+    const was = this.state;
     this.#spec = editChart(this.#spec, change, this.#options.snapshot());
-    if (this.frozen && !wasFrozen) this.#options.onFrozen?.(true);
+    if (this.state !== was) this.#options.onState?.(this.state);
     this.#options.onSpec?.();
     if (redrawForm) this.#paintForm();
     this.refresh();
@@ -260,7 +270,7 @@ export class ChartPanel {
       return;
     }
     this.#formStale = false;
-    void import('./chart-form.ts').then(({ paintChartForm }) => {
+    void lazily(() => import('./chart-form.ts')).then(({ paintChartForm }) => {
       if (this.#disposed || this.#form.hidden) return;
       paintChartForm(this.#formHost, this.#form);
     });
@@ -306,12 +316,12 @@ export class ChartPanel {
       this.#shownKept = now;
       const chart = await this.#mount(spec.mark !== 'treemap');
       if (this.#disposed || !chart) return;
-      const { treemapOfGrid, themeOf } = await import('../chart-option.ts');
+      const { treemapOfGrid, themeOf } = await lazily(() => import('../chart-option.ts'));
       if (this.#disposed) return;
       const mark = spec.mark;
       let drawing;
       if (mark === 'sunburst' || mark === 'tree') {
-        const { gridKindOption } = await import('../chart-kinds.ts');
+        const { gridKindOption } = await lazily(() => import('../chart-kinds.ts'));
         if (this.#disposed) return;
         drawing = gridKindOption(mark, now, themeOf(this.#canvas), this.#options.label);
       } else {
@@ -339,17 +349,17 @@ export class ChartPanel {
       const maps = MAP_MARKS.has(spec.mark);
       const chart = await this.#mount(kinds, maps);
       if (abort.signal.aborted || this.#disposed || !chart) return;
-      const { chartOption, themeOf } = await import('../chart-option.ts');
+      const { chartOption, themeOf } = await lazily(() => import('../chart-option.ts'));
       if (abort.signal.aborted || this.#disposed) return;
       let drawing;
       if (maps) {
         // batch 5's maps: their drawing and the world's countries, fetched with the first of them
-        const { mapOption } = await import('../chart-maps.ts');
+        const { mapOption } = await lazily(() => import('../chart-maps.ts'));
         if (abort.signal.aborted || this.#disposed) return;
         drawing = mapOption(spec, rows, themeOf(this.#canvas), this.#options.label);
       } else if (kinds) {
         // batch 3's kinds and small multiples: their drawing and the rarer ECharts charts, fetched with the first of them
-        const { kindOption, facetOption } = await import('../chart-kinds.ts');
+        const { kindOption, facetOption } = await lazily(() => import('../chart-kinds.ts'));
         if (abort.signal.aborted || this.#disposed) return;
         drawing = spec.facet !== undefined
           ? facetOption(spec, rows, themeOf(this.#canvas), this.#options.label, this.#options.unit)
@@ -387,7 +397,7 @@ export class ChartPanel {
    */
   async #mount(kinds: boolean, maps = false): Promise<MountedChart | null> {
     if (kinds) {
-      await import('../chart-render-kinds.ts');
+      await lazily(() => import('../chart-render-kinds.ts'));
       kindsRegistered = true;
       if (this.#chart && !this.#chartKnowsKinds) {
         this.#chart.dispose();
@@ -397,7 +407,7 @@ export class ChartPanel {
     // the maps likewise: an instance made before the map chart was registered cannot lay a map out; the shapes come
     // with the drawing (chart-maps.ts), registered once
     if (maps && !mapsRegistered) {
-      const [{ registerWorld }, { WORLD }] = await Promise.all([import('../chart-render-maps.ts'), import('../chart-maps.ts')]);
+      const [{ registerWorld }, { WORLD }] = await Promise.all([lazily(() => import('../chart-render-maps.ts')), lazily(() => import('../chart-maps.ts'))]);
       registerWorld(WORLD.name, WORLD.shapes);
       mapsRegistered = true;
     }
@@ -408,7 +418,7 @@ export class ChartPanel {
       }
     }
     if (!this.#chart) {
-      const { mountChart } = await import('../chart-render.ts');
+      const { mountChart } = await lazily(() => import('../chart-render.ts'));
       if (this.#disposed) return null;
       this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key), onBrush: (took) => this.#brush(took), onKind: (mark) => this.#kind(mark) });
       this.#chartKnowsKinds = kindsRegistered;
@@ -433,7 +443,7 @@ export class ChartPanel {
         trend ? this.#options.run(trend.query, trend.snapshot, abort.signal) : Promise.resolve(null),
       ]);
       if (abort.signal.aborted || this.#disposed) return;
-      const { kpiDrawing, themeOf } = await import('../chart-option.ts');
+      const { kpiDrawing, themeOf } = await lazily(() => import('../chart-option.ts'));
       if (abort.signal.aborted || this.#disposed) return;
       const drawing = kpiDrawing(spec, rows, line, themeOf(this.#canvas), this.#options.label);
       // a chart drawn before (another kind) gives way to the number
@@ -442,26 +452,47 @@ export class ChartPanel {
       this.#trend?.dispose();
       this.#trend = null;
       const doc = this.#doc;
-      const box = doc.createElement('div');
-      box.className = 'dc-kpi';
-      const value = doc.createElement('div');
-      value.className = 'dc-kpi-value';
-      value.textContent = drawing.value;
+      const div = (className: string, text?: string): HTMLDivElement => {
+        const el = doc.createElement('div');
+        el.className = className;
+        if (text !== undefined) el.textContent = text;
+        return el;
+      };
+      // a stat tile: the headline (in full on a hover); against its target, said and metered; its latest period
+      // against the one before; its trend's line
+      const box = div('dc-kpi');
+      const value = div('dc-kpi-value', drawing.value);
+      if (drawing.exact !== drawing.value) value.title = drawing.exact;
       box.append(value);
+      /** A line of the tile: its difference, coloured by good or bad (and said by its arrow), then the rest in words. */
+      const said = (className: string, delta: string, words: string, good: boolean | null): HTMLDivElement => {
+        const line = div(className);
+        if (delta) line.append(div(`dc-kpi-delta${good === null ? '' : good ? ' dc-kpi-good' : ' dc-kpi-bad'}`, delta));
+        line.append(div('dc-kpi-words', words));
+        return line;
+      };
       if (drawing.target) {
-        const against = doc.createElement('div');
-        against.className = `dc-kpi-target ${drawing.target.good ? 'dc-kpi-good' : 'dc-kpi-bad'}`;
-        against.textContent = drawing.target.text;
-        box.append(against);
+        const { delta, words, goal, good, reached } = drawing.target;
+        box.append(said('dc-kpi-target', delta, words, good));
+        // how much of the target is reached, the target at the meter's end
+        const meter = div(`dc-kpi-meter ${good ? 'dc-kpi-good' : 'dc-kpi-bad'}`);
+        meter.setAttribute('role', 'img');
+        meter.setAttribute('aria-label', `${Math.round(reached * 100)}% of the target, ${goal}`);
+        const track = div('dc-kpi-meter-track');
+        const fill = div('dc-kpi-meter-fill');
+        fill.style.width = `${(reached * 100).toFixed(1)}%`;
+        track.append(fill);
+        meter.append(track, div('dc-kpi-goal', goal));
+        box.append(meter);
       }
-      const place = doc.createElement('div');
-      place.className = 'dc-kpi-trend';
+      if (drawing.change) box.append(said('dc-kpi-change', drawing.change.delta, drawing.change.words, drawing.change.good));
+      const place = div('dc-kpi-trend');
       if (drawing.trend) box.append(place);
       this.#canvas.replaceChildren(box);
       this.#canvas.setAttribute('aria-label', drawing.description);
       this.#canvas.classList.add('dc-chartpanel-kpi');
       if (drawing.trend) {
-        const { mountChart } = await import('../chart-render.ts');
+        const { mountChart } = await lazily(() => import('../chart-render.ts'));
         if (abort.signal.aborted || this.#disposed) return;
         this.#trend = mountChart(place);
         this.#trend.show(drawing.trend);

@@ -33,16 +33,17 @@ import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
 import {
-  filtersFor, keptFor, modelAcross, newPage, NOTHING_TO_SAVE, pageFile, sheetLabel, writePageOf, type PageDocument, type PageView,
+  filtersFor, keptFor, newPage, NOTHING_TO_SAVE, pageFile, sheetLabel, writePageOf, type PageDocument, type PageView,
   type PageViews,
 } from '../page-document.ts';
 import { conditionWords, filterWords, gridLens, type PageFilter } from '../page-filters.ts';
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
 import type { QueryLens } from '../runner.ts';
-import { CubeRefusal, type FilterNode } from '../snapshot.ts';
+import { CubeRefusal, sameValue, type FilterNode } from '../snapshot.ts';
 import {
-  applyPageCommands, applyToState, idsOf, selectionRefilters, takenIds, type PageCommand, type PageDraft,
+  applyToState, idsOf, selectionRefilters, takenIds, type PageCommand, type PageDraft,
 } from '../page-commands.ts';
+import { applyPlanned, namedUnder } from '../page-between.ts';
 import { pageCommand } from '../page-gestures.ts';
 import { PageState } from '../page-state.ts';
 import { givenName } from '../page-names.ts';
@@ -54,6 +55,8 @@ import type { CubeConfiguration } from '../config.ts';
 import type { SettingValues } from '../settings.ts';
 import type { TreeState } from '../tree.ts';
 import type { GridCommand } from '../grid-commands.ts';
+import { lazily } from '../lazily.ts';
+import { longPressMenus } from '../ui/long-press.ts';
 
 /** What the page needs of a grid on it (a CubeApp in a tile). */
 export interface PageGrid extends SpawnedGrid {
@@ -71,6 +74,8 @@ export interface PageGrid extends SpawnedGrid {
   setChrome(patch: { readonly showTitleBar?: boolean }): void;
   /** Its status bar's readout from the host asked for again: the page's first grid changed. */
   refreshHostStatus(): void;
+  /** A note on its status bar until it is put away (what a quick join did); undefined: none. */
+  note(text: string | undefined): void;
   /** Where its rows come from, as it is saved: a class's grid is one the page's filters reach. */
   readonly cubeSource?: CubeSource | undefined;
   /** Every query it runs rewritten by the page (its filters on the grid's class), `said` in words; `run`: run again now. */
@@ -115,9 +120,6 @@ export interface PageAppOptions {
   readonly confirm?: (question: string) => boolean;
   /** Each edit of the page's structure as its page commands (page/cube-page.ts onPageEdit; page-commands.ts). */
   readonly onPageCommand?: (command: PageCommand) => void;
-  /** The page put back whole by an undo or a redo, which no command says: written whole, a restore its keeper takes only
-   *  at the version it was made at (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md N2, P5). */
-  readonly onRestore?: () => void;
   /** The host's own menu entries (Save, Open, Share, where the planner runs), by their `section`. */
   readonly hostMenu?: () => readonly MenuItem[];
   readonly onHostMenu?: (item: MenuItem) => void;
@@ -179,6 +181,12 @@ export class PageApp {
   #syncing = false;
   /** Each grid the page let go, by its id: its maker, and where it was when it went -- made again by an undo. */
   readonly #gone = new Map<string, { readonly make: GridMaker; readonly start: GridStart }>();
+  /** Grids whose maker moved to a new id (#renamed) while their tile was still on the board: when the tile drops, the
+   *  old id keeps nothing (another editor's tile may come under it). */
+  readonly #movedAway = new Set<string>();
+  #idTag: string | undefined;
+  /** How many converges hold the page (hold/release). */
+  #held = 0;
   #name: string;
   #disposed = false;
   /** The grid whose status bar holds the host's readout. */
@@ -285,13 +293,15 @@ export class PageApp {
     root.append(bar, this.#filterSlot, this.#boardHost, this.#emptySheet, this.#empty);
     options.host.replaceChildren(root);
     this.#root = root;
+    // a sheet tab's and a chart's right-click menus, on a touch screen: a long press (an empty page has no grid to do it)
+    longPressMenus(doc);
     this.#menu = new MenuView(doc, {
       onSelect: (item) => this.#onMenu(item),
       onClose: () => this.#burger.setAttribute('aria-expanded', 'false'),
     });
     options.empty(this.#empty);
     this.#page = this.#newBoard();
-    this.#state = new PageState(this.#seen(undefined));
+    this.#state = this.#stateOf(this.#seen(undefined));
     this.#paintTitle();
     this.#paintSheets();
     this.#paintEmpty();
@@ -660,10 +670,64 @@ export class PageApp {
     this.#page.setSheets(fresh.sheets);
     this.#name = fresh.name;
     this.#paintTitle();
-    this.#state = new PageState(this.#seen(undefined));
+    this.#state = this.#stateOf(this.#seen(undefined));
     this.#paintSheets();
     this.#paintEmpty();
     this.#options.onChange?.();
+  }
+
+  /**
+   * The page as it is now, the start of its history, as a page opened has none (`restore`): the grids its host made it
+   * with -- the app's start's sample -- are no step a person undoes (a fresh page offered "Undo Add Grid", which left it
+   * blank: 2026-10-23).
+   */
+  started(): void {
+    this.#state = this.#stateOf(this.#state.draft);
+    this.#options.onChange?.();
+  }
+
+  /**
+   * The page HELD while its channel converges on its keeper's page (live-converge.ts; docs/DATACUBE_LIVE_EDITING_2026_10_24.md
+   * §2): the board is being put back and replayed, so a gesture meanwhile does nothing -- neither applied nor told, as a
+   * locked page's Undo does nothing -- rather than land on a board that is neither the keeper's nor kept (the D19
+   * audit's 5). Held and released in pairs; the converge's own moves (putBack, and reapply after the release) are not
+   * gestures.
+   */
+  hold(): void {
+    this.#held += 1;
+  }
+
+  /** The tag of the ids this page makes (page-ids.ts nextPageId): set while the page is open on a keeper, so no other
+   *  editor of it makes the same id and nothing is ever given out afresh (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md,
+   *  the middle version); undefined, plain ids. */
+  get idTag(): string | undefined {
+    return this.#idTag;
+  }
+
+  set idTag(tag: string | undefined) {
+    this.#idTag = tag;
+    this.#state.tag = tag;
+  }
+
+  /** A page state over `draft`, its new ids under this page's tag. */
+  #stateOf(draft: PageDraft): PageState {
+    const state = new PageState(draft);
+    state.tag = this.#idTag;
+    return state;
+  }
+
+  /** `commands` with an id given to each that makes something and names none (a page filter a chart's click makes),
+   *  under this page's tag -- none, while the page has no tag: the commands' own rule gives one out. */
+  #named(commands: readonly PageCommand[]): readonly PageCommand[] {
+    return namedUnder(this.#state.draft, commands, this.#idTag);
+  }
+
+  release(): void {
+    this.#held = Math.max(0, this.#held - 1);
+  }
+
+  get held(): boolean {
+    return this.#held > 0;
   }
 
   /** The page's layout editable (tiles move, dividers drag) or locked (view mode); a shared page opens locked. */
@@ -821,7 +885,7 @@ export class PageApp {
     this.#applyLenses();
     // a page opened has no history: its first step is the first edit made on it
     const seen = this.#seen(page.record);
-    this.#state = new PageState({ ...seen, held: [...new Set([...seen.held, ...held])] });
+    this.#state = this.#stateOf({ ...seen, held: [...new Set([...seen.held, ...held])] });
     this.#paintSheets();
     this.#paintEmpty();
     this.#onGridChange();
@@ -882,6 +946,7 @@ export class PageApp {
       // it makes; its commands told
       onPageEdit: (edit) => this.#edit(edit),
       taken: () => takenIds(this.#state.draft),
+      idTag: () => this.#idTag,
       // any grid it made: one the board waits to place too
       documentOf: (grid) => this.#grids.get(grid)?.grid.cubeDocument(this.#name),
       onUndo: (redo) => (redo ? this.redo() : this.undo()),
@@ -915,10 +980,12 @@ export class PageApp {
    * as applied told, and the board put at the page they make (`#syncTo`). True when applied.
    */
   #edit(edit: PageEdit): boolean {
+    // held: the board is its keeper's to put back (hold); nothing applied, nothing told
+    if (this.#held > 0) return false;
     const from = this.#state.draft.page;
     let applied: PageCommand[];
     try {
-      applied = applyToState(this.#state, edit.commands, edit.label, edit.step !== false);
+      applied = applyToState(this.#state, this.#named(edit.commands), edit.label, edit.step !== false);
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       this.#refused(e);
@@ -934,7 +1001,8 @@ export class PageApp {
    * has them (a grid it makes opens with them), a grid it makes made by its maker -- the one that made it, or `makers`'
    * (another editor's) -- and each grid's lens given it again.
    */
-  #syncTo(to: PageDocument, from: PageDocument, makers: ReadonlyMap<string, GridMaker> = new Map(), theirs = false): void {
+  #syncTo(to: PageDocument, from: PageDocument, makers: ReadonlyMap<string, GridMaker> = new Map(), theirs = false, refilter = true,
+    fromDocument = false): void {
     // its name as the step has it (a renamePage: its editor's, or another's)
     if (to.name !== this.#name) {
       this.#name = to.name;
@@ -947,8 +1015,12 @@ export class PageApp {
     try {
       this.#page.sync({ views: to.views, sheets: to.sheets, cubes: to.cubes }, { views: from.views, sheets: from.sheets }, (grid, document) => {
         const make = makers.get(grid);
-        return this.#remake(grid, document) ?? (make ? this.#maker(make, undefined, false) : undefined);
-      }, (cube) => this.#unopenedWhy(cube), theirs);
+        // another editor's grid (`theirs`, a maker given): theirs, never made again from a maker this page keeps under
+        // that id (a refused or undone addition's); `fromDocument`: made again from the cube `to` holds for it (its
+        // keeper's step or put-back); else from where it was when it was let go (a step of this page's own, B12)
+        if (theirs && make) return this.#maker(make, undefined, false);
+        return this.#remake(grid, fromDocument ? document : undefined) ?? (make ? this.#maker(make, undefined, false) : undefined);
+      }, (cube) => this.#unopenedWhy(cube), theirs, refilter);
     } finally {
       this.#syncing = false;
       this.#restoring = undefined;
@@ -995,58 +1067,107 @@ export class PageApp {
   }
 
   /**
-   * ANOTHER EDITOR'S CHANGE (Python's, on a page it serves: docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md): its page commands
-   * applied to the page as it is open -- what was changed here meanwhile kept -- and the screen put at the page they
-   * make, a grid they add made by its maker in `makers` (its host's, for its cube document). The editor's change is no
-   * step of this page's own: its history starts again from it (an undo past it would take it back unseen). Refused in
-   * the commands' words (CubeRefusal) when they do not apply here -- a tile closed meanwhile, an id given since -- with
-   * nothing changed.
+   * AN UNDO OR A REDO, AS AN EDIT (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W4): the step's inverse (or its commands
+   * again) applied to the page as it is now by the state (page-state.ts), told as any edit's commands are, and the board
+   * put at the page they make -- the one path every edit takes (#edit). The page's name, its saved record and its
+   * model are no part of a step (D5; the S7 confirmation audit's H2-2), so they stay. A grid brought back is a new tile
+   * (B12), made again by the maker that made it, starting where it was: known to the board by the id it had (#gone),
+   * now by the one it was given. A step whose target is gone (another editor's removal since) is dead: dropped, said.
    */
-  async follow(commands: readonly PageCommand[], makers: ReadonlyMap<string, GridMaker>): Promise<void> {
-    if (this.#disposed) return;
-    const from = this.#state.draft.page;
-    const made = applyPageCommands(this.#state.draft, commands).draft;
-    const to = made.page;
-    // its name too (a page renamed in Python), by #syncTo: the host reads it back (`title`)
-    this.#syncTo(to, from, makers, true);
-    // the page the commands made, whole -- the ids it has held, its cubes -- the start of its history again: before the
-    // grids read their rows where the commands say, so an edit made meanwhile is a step on top of it (the S3 audit's 5)
-    this.#state = new PageState(made);
-    // where each grid's rows are as the commands leave them (§18.8), in their order: a snap made by the other editor
-    // read from its host, a live command its live rows again
-    for (const command of commands) {
-      if (command.kind !== 'snap' && command.kind !== 'live') continue;
-      const cube = to.views.find((v) => v.id === command.grid)?.cube;
-      const grid = cube === undefined ? undefined : this.grid(cube);
-      if (!grid?.followSnap || !grid.followLive) throw new Error(`${command.grid} cannot read its other editor's copy here`);
-      if (command.kind === 'snap') await grid.followSnap(command.copy);
-      else await grid.followLive();
-      if (this.#disposed) return;
-    }
-  }
-
   #move(way: 'undo' | 'redo'): void {
-    // a locked page: nothing moves
-    if (!this.#page.editing || this.#disposed) return;
+    // a locked page, or one held while its channel converges: nothing moves
+    if (!this.#page.editing || this.#disposed || this.#held > 0) return;
     const from = this.#state.draft.page;
-    const step = way === 'undo' ? this.#state.undo() : this.#state.redo();
-    if (!step) return;
-    this.#options.onRestore?.();
-    // what the page's model actions wrote stays, no step of its history (D5): a grid brought back brings its own; and
-    // its name and the saved page it is (renamePage, savedAs: no steps either) -- an undo past a Save saves over the
-    // same record, under the name it has (the S7 confirmation audit's H2-2)
-    const { model: was, name: _named, record: _saved, ...back } = step.draft.page;
-    const model = modelAcross(was, from.model, back.cubes);
-    const across = { ...back, name: from.name, ...(from.record !== undefined ? { record: from.record } : {}) };
-    this.#syncTo(model ? { ...across, model } : across, from);
+    const moved = way === 'undo' ? this.#state.undo() : this.#state.redo();
+    if (!moved) return;
+    if ('dead' in moved) {
+      this.#page.say(`Cannot ${way} ${moved.label}: ${moved.dead}`);
+      return;
+    }
+    this.#renamed(moved.renamed);
+    // a tile the page could not open, brought back: kept as saved, under the id its cube was given (its document is the
+    // one kept, under the id it had)
+    for (const c of moved.applied) {
+      if (c.kind !== 'addGrid' || c.id === undefined || c.document === null || this.#gone.has(c.id) || this.#grids.has(c.id)) continue;
+      const kept = [...this.#unopened].find(([cube, doc]) => cube !== c.id && sameValue(doc, c.document));
+      if (kept !== undefined) this.#unopened.set(c.id, kept[1]);
+    }
+    for (const command of moved.applied) this.#options.onPageCommand?.(command);
+    this.#syncTo(this.#state.draft.page, from);
     // its grids keep their own history (G8): a chart brought back with a selection its grid's filter lost meanwhile has
     // it put back by that grid's own refilter, as a click puts it there
-    for (const { grid, command } of selectionRefilters(step.draft.page, (cube) => this.grid(cube)?.snapshot.filter)) {
+    for (const { grid, command } of selectionRefilters(this.#state.draft.page, (cube) => this.grid(cube)?.snapshot.filter)) {
       void this.grid(grid)?.edit([command], 'filter to chart mark');
     }
     // the screen is the page: what it now shows is the state's (a grid made again writes its own cube)
     this.#state.keep(this.#seen(from.record));
-    this.#page.say(`${way === 'undo' ? 'Undone' : 'Redone'}: ${step.label}.`);
+    this.#page.say(`${way === 'undo' ? 'Undone' : 'Redone'}: ${moved.label}.`);
+  }
+
+  /** Ids given out afresh for this page's (planned -> given): a grid known here under the old id is known from now by
+   *  the new -- made again by the maker that made it, let go (#gone) or still here, kept off the board for a detached
+   *  chart (#grids) -- and a kept-as-saved tile's document follows too. */
+  #renamed(renamed: Readonly<Record<string, string>>): void {
+    for (const [was, now] of Object.entries(renamed)) {
+      const live = this.#grids.get(was);
+      const gone = live ? { make: live.make, start: startOf(live.grid) } : this.#gone.get(was);
+      if (gone !== undefined) {
+        this.#gone.delete(was);
+        this.#gone.set(now, gone);
+      }
+      if (live) this.#movedAway.add(was);
+      const unopened = this.#unopened.get(was);
+      if (unopened !== undefined && !this.#unopened.has(now)) this.#unopened.set(now, unopened);
+    }
+  }
+
+  /**
+   * THE PAGE PUT AT ITS KEEPER'S (live-converge.ts, step 1; docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md): the board
+   * put at `page` -- a tile taken off here made again by its maker from its cube there, one added here let go, kept to be
+   * made again (#gone), another editor's opened by `makers` -- and the state kept there with the ids exactly `held`; the
+   * history kept, less the refused batch's steps. The grids' own states are left as they are: the caller puts each at
+   * its cube there by its own commands.
+   */
+  putBack(page: PageDocument, held: readonly string[], makers: ReadonlyMap<string, GridMaker> = new Map(), refused: readonly PageCommand[] = []): void {
+    if (this.#disposed) return;
+    const from = this.#state.draft.page;
+    // a refused batch's page steps were never the keeper's page: no step of this one either -- left in the history, an
+    // undo of a refused addition would take off whatever the keeper gave that id to since (the faulted soak, seed 27)
+    this.#state.dropSteps(refused);
+    // the keeper's page: a chart taken off by it is no step of its grid's history (the D19 audit's second round, 6),
+    // and its selection is not taken off its grid here -- the grid is put back at the keeper's cube by its own commands
+    // (live-converge.ts), and a refilter would start its history again (the third round, 2); a grid of it this page has
+    // never had is opened by `makers`', from its cube
+    this.#syncTo(page, from, makers, true, false, true);
+    this.#state.putBack({ page, held });
+  }
+
+  /** Commands of the page's own made again (pending edits, once the screen is at its keeper's page: live-channel.ts),
+   *  by the one function and told, no new step of the history (their steps are in it already) -- under the ids they
+   *  planned, which are this editor's own (page-ids.ts nextPageId: its tag), a sheet's arrangement keeping the tiles
+   *  another editor put on it (page-between.ts applyPlanned, the keeper's rule), a grid one adds made from the cube it
+   *  added it with. Refused in their words: false, nothing changed. */
+  reapply(commands: readonly PageCommand[], label: string): boolean {
+    if (this.#disposed || this.#held > 0) return false;
+    const from = this.#state.draft.page;
+    let done: ReturnType<typeof applyPlanned>;
+    try {
+      done = applyPlanned(this.#state.draft, commands, false);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#refused(e);
+      return false;
+    }
+    void label;
+    this.#state.keep(done.draft);
+    for (const command of done.applied) this.#options.onPageCommand?.(command);
+    this.#syncTo(this.#state.draft.page, from, new Map(), false, true, true);
+    return true;
+  }
+
+  /** Whether a grid is known here by `id` -- on the board, or let go and kept to be made again by its maker. */
+  knows(id: string): boolean {
+    return this.#grids.has(id) || this.#gone.has(id);
   }
 
   /** A grid made again, by the maker that made it, starting where it was (on the board, kept, or let go) -- or, a
@@ -1066,9 +1187,11 @@ export class PageApp {
     const live = new Set(this.cubes);
     for (const [id, { grid, make }] of [...this.#grids]) {
       if (live.has(id)) continue;
+      this.#grids.delete(id);
+      // its maker moved to the id its keeper gave it (#renamed): nothing kept under the old one
+      if (this.#movedAway.delete(id)) continue;
       // let go: kept to be made again by an undo, starting where it was
       this.#gone.set(id, { make, start: startOf(grid) });
-      this.#grids.delete(id);
     }
     this.#paintEmpty();
     this.#onGridChange();
@@ -1133,7 +1256,9 @@ export class PageApp {
     const command = make();
     if (command === undefined) return [];
     this.#state.keep(this.#seen());
-    const applied = applyToState(this.#state, [command], label);
+    // a filter it makes named under this page's tag, as every command made here is (#named): an untagged one would set
+    // another editor's filter of that id in its place (the middle version's audit's 2)
+    const applied = applyToState(this.#state, this.#named([command]), label);
     this.#filters = this.#state.draft.page.filters ?? [];
     this.#applyLenses();
     this.#paintFilters();
@@ -1206,7 +1331,7 @@ export class PageApp {
     if (shown.length === 0 && classes.size === 0) return;
     if (this.#filterBarLoading) return;
     this.#filterBarLoading = true;
-    void import('../ui/page-filter-bar.ts').then(({ PageFilterBar: Bar }) => {
+    void lazily(() => import('../ui/page-filter-bar.ts')).then(({ PageFilterBar: Bar }) => {
       if (this.#disposed) return;
       const made = new Bar(this.#doc, {
         // its x clicked twice before it was painted again: the second finds nothing to take off
@@ -1239,22 +1364,26 @@ export class PageApp {
   }
 
   /** A host's entries for one place (`MenuItem.section`, the file group unless named). */
-  #hostItems(section: 'file' | 'view' | 'data'): MenuItem[] {
+  #hostItems(section: 'file' | 'view' | 'data' | 'create'): MenuItem[] {
     return (this.#options.hostMenu?.() ?? []).filter((i) => (i.section ?? 'file') === section);
   }
 
   /**
-   * THE PAGE'S MENU: the page's things only -- New (a data source, a blank page), the host's data entries, the page's
-   * layout, the host's file entries (Save, Open, Share) and Export of the page, the host's View entries, Settings.
+   * THE PAGE'S MENU: the page's things only -- Create (a data source, a sheet, the host's model entries, a blank page),
+   * the host's data entries, the page's layout, the host's file entries (Save, Open, Share) and Export of the page, the
+   * host's View entries, Settings.
    */
   #menuGroups(): MenuGroup[] {
     const page = this.#page;
     const arranged = !this.empty && page.editing;
     const submenu = (label: string, items: MenuItem[]): MenuItem[] => (items.length > 0 ? [{ label, submenu: items }] : []);
     const groups: MenuGroup[] = [
-      { label: '', items: submenu('New', [
+      // CREATE, the word of every menu (the user, 2026-10-23; menu.ts createItems): what the page makes beside what it
+      // has, the host's model entries a line apart, and a blank page, apart, which replaces everything
+      { label: '', items: submenu('Create', [
         ...(this.#options.openSource ? [{ id: 'source.new' as const, label: 'Data Source…' }] : []),
         { id: 'sheet.new' as const, label: 'Sheet', ...(page.editing ? {} : { disabled: true }) },
+        ...this.#hostItems('create').map((h, i) => (i === 0 ? { ...h, separated: true } : h)),
         ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'Blank Page', separated: true }] : []),
       ]) },
       { label: '', items: this.#hostItems('data') },

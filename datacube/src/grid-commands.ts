@@ -7,7 +7,7 @@
 import { nameProblem } from './calc.ts';
 import { fieldNames, type CommandFields, type MissingFields } from './command-fields.ts';
 import {
-  APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, columnConfig, renameColumnConfig, withConfiguration,
+  APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, columnConfig, renameColumnConfig, withColumn, withConfiguration,
   type CubeConfiguration, type Patch,
 } from './config.ts';
 import {
@@ -15,6 +15,7 @@ import {
   setSorts, spreadMeasureNames, type ColumnChange, type GridDraft,
 } from './grid-edits.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
+import { defaultKind } from '../../engine-client/src/types.ts';
 import { operandKind } from './filter-operators.ts';
 import {
   AGGREGATE_FNS, CHILD_AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, SORT_DIRECTIONS, WINDOW_FUNCTIONS, isJsonValue,
@@ -23,7 +24,7 @@ import {
   type FilterValue, type Measure, type SortDirection, type SortSpec, type WindowFrame, type WindowFunction, type WindowSpec,
 } from './snapshot.ts';
 import { TREE_COLUMN } from './treeview.ts';
-import { isDetailPath, type RowPath, type TreeState } from './tree.ts';
+import { isDetailPath, TreeState, type RowPath } from './tree.ts';
 
 /** Settings by their document's own keys, each cleared by null (a value JSON can carry, as undefined is not). */
 export type SettingsPatch = Readonly<Record<string, unknown>>;
@@ -60,32 +61,48 @@ export type GridCommand =
   /** Conditions taken off the filter and others ANDed on, as one change (a chart's mark clicked: the selection it had
    *  for the one it has now) -- each condition taken off where it stands, the rest of the filter kept as it is. */
   | { readonly kind: 'refilter'; readonly remove: readonly FilterNode[]; readonly add: readonly FilterNode[] }
-  | { readonly kind: 'calculate'; readonly level: 'row' | 'group'; readonly column: DerivedColumn }
+  /** `before`: the calculated column of its level the new one goes before (an undo putting a column back in its place:
+   *  grid-between.ts); left out, last of its level, as the editor adds one (D19, 2026-10-24). */
+  | { readonly kind: 'calculate'; readonly level: 'row' | 'group'; readonly column: DerivedColumn; readonly before?: string }
   /** A calculated column edited (Edit Column's OK): the column `name` replaced by `column`, computed at `level` -- in its
-   *  place when it stays at its level, else last of its new one; renamed, what read it (the groups, the pivot, the sorts,
-   *  the filter, the columns computed from it, its settings) reads it by its new name. */
-  | { readonly kind: 'editCalculated'; readonly name: string; readonly level: 'row' | 'group'; readonly column: DerivedColumn }
-  /** A calculated column taken out, whichever level it is at (Edit Column's Delete, the header menu's). */
+   *  place when it stays at its level, else last of its new one, or before `before` (D19); renamed, what read it (the
+   *  groups, the pivot, the sorts, the filter, the columns computed from it, its settings) reads it by its new name. */
+  | {
+    readonly kind: 'editCalculated'; readonly name: string; readonly level: 'row' | 'group'; readonly column: DerivedColumn;
+    readonly before?: string;
+  }
+  /** A calculated column taken out, whichever level it is at (Edit Column's Delete, the header menu's), its settings with
+   *  it: nothing is kept where nothing reads it (D19, 2026-10-24). */
   | { readonly kind: 'removeCalculated'; readonly name: string }
   /** A group opened or closed (its chevron): its path, the group keys from the top down -- SET, never toggled, so a
    *  click repeated while a query runs asks the same thing twice (P2-127). Saved with the page, so a page shared or
    *  reopened shows the groups its maker had open. */
   | { readonly kind: 'open'; readonly path: RowPath; readonly open: boolean }
   /** Every group closed, the expand level's too (the menu's Collapse All). */
-  | { readonly kind: 'collapseAll' };
+  | { readonly kind: 'collapseAll' }
+  /**
+   * The open groups set whole, in the saved tree's own shape (cube-document.ts CubeDocument.tree): the groups open, the
+   * grand total shown, the level the groups open to and the groups closed under it. What puts a collapsed tree back --
+   * an undo of Collapse All (grid-between.ts), Python's grid.tree -- which no other command can: `collapseAll` forgets
+   * the level and the closes, and a `configure` of the same level moves nothing (D19, 2026-10-24).
+   */
+  | {
+    readonly kind: 'tree'; readonly open: readonly RowPath[]; readonly showTotals: boolean; readonly expandTo?: number;
+    readonly closed?: readonly RowPath[];
+  };
 
 export const GRID_COMMAND_KINDS = [
   'group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort', 'column', 'configure', 'filter', 'addFilter',
-  'refilter', 'calculate', 'editCalculated', 'removeCalculated', 'open', 'collapseAll',
+  'refilter', 'calculate', 'editCalculated', 'removeCalculated', 'open', 'collapseAll', 'tree',
 ] as const satisfies readonly GridCommand['kind'][];
 
 /** Each grid command's fields, by kind: what readGridCommand takes, and what Python's generated builders write (D17). */
 export const GRID_COMMAND_FIELDS = {
   group: ['rows'], pivot: ['columns'], sorts: ['sorts'], addSort: ['column', 'direction'], clearSort: ['column'],
   clickSort: ['column', 'first', 'chained'], clickTreeSort: ['chained'], column: ['name', 'change'], configure: ['patch'],
-  filter: ['filter'], addFilter: ['condition'], refilter: ['remove', 'add'], calculate: ['level', 'column'],
-  editCalculated: ['name', 'level', 'column'], removeCalculated: ['name'], open: ['path', 'open'],
-  collapseAll: [],
+  filter: ['filter'], addFilter: ['condition'], refilter: ['remove', 'add'], calculate: ['level', 'column', 'before?'],
+  editCalculated: ['name', 'level', 'column', 'before?'], removeCalculated: ['name'], open: ['path', 'open'],
+  collapseAll: [], tree: ['open', 'showTotals', 'expandTo?', 'closed?'],
 } as const satisfies CommandFields<GridCommand>;
 // every field of every kind listed: a field the list leaves out is a type error naming it
 const gridFieldsWhole: [MissingFields<GridCommand, typeof GRID_COMMAND_FIELDS>] extends [never] ? true
@@ -137,16 +154,26 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
     case 'calculate': {
       const problem = nameProblem(draft.snapshot, command.level, command.column.name);
       if (problem !== null) throw new CubeRefusal(problem);
-      return { ...draft, snapshot: withCalculated(draft.snapshot, undefined, command.level, command.column) };
+      return { ...draft, snapshot: withCalculated(draft.snapshot, undefined, command.level, command.column, command.before) };
     }
     case 'editCalculated': {
-      calculatedNamed(draft, command.name);
+      const was = calculatedNamed(draft, command.name);
       const problem = nameProblem(draft.snapshot, command.level, command.column.name, command.name);
       if (problem !== null) throw new CubeRefusal(problem);
+      if (command.before === command.name) throw new CubeRefusal(`'${command.name}' cannot go before itself`);
+      // one grouped or pivoted on keeps its kind and its level, as Column Properties locks a source column's (grid-edits.ts
+      // setColumn): a grid grouped by a measure, or by a column computed after the grouping, is no grid (D19, 2026-10-24)
+      if (draft.snapshot.rows.includes(command.name) || draft.snapshot.pivotOn.includes(command.name)) {
+        const level = draft.snapshot.derived.includes(was) ? 'row' : 'group';
+        const kind = (d: DerivedColumn): ColumnKind => d.kind ?? defaultKind(d.type);
+        if (level !== command.level || kind(was) !== kind(command.column)) {
+          throw new CubeRefusal(`'${command.name}' is grouped or pivoted on: its kind and level cannot change while it is`);
+        }
+      }
       const renamed = command.column.name !== command.name;
       return {
         ...draft,
-        snapshot: withCalculated(draft.snapshot, command.name, command.level, command.column),
+        snapshot: withCalculated(draft.snapshot, command.name, command.level, command.column, command.before),
         // its settings (a format, a width, a display name) follow it
         ...(renamed ? { config: renameColumnConfig(draft.config, command.name, command.column.name) } : {}),
       };
@@ -154,9 +181,11 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
     case 'removeCalculated': {
       calculatedNamed(draft, command.name);
       const s = draft.snapshot;
-      // another column reading it: the compiler refuses the grid, in its words, when the change is planned
+      // another column reading it: the compiler refuses the grid, in its words, when the change is planned. Its settings
+      // go with it: a column made again under its name starts as a new column does (D19)
+      const { [command.name]: _gone, ...columns } = draft.config.columns;
       return { ...draft, snapshot: { ...s, derived: s.derived.filter((d) => d.name !== command.name),
-        groupDerived: (s.groupDerived ?? []).filter((d) => d.name !== command.name) } };
+        groupDerived: (s.groupDerived ?? []).filter((d) => d.name !== command.name) }, config: { ...draft.config, columns } };
     }
     case 'open': {
       if (command.path.length === 0) throw new CubeRefusal('the grand total is no group to open: it is shown or not (Show Root Aggregation)');
@@ -168,16 +197,28 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
     }
     case 'collapseAll':
       return { ...draft, tree: shownTree(draft).collapseAll() };
+    case 'tree': {
+      shownTree(draft);
+      for (const path of [...command.open, ...(command.closed ?? [])]) {
+        if (path.length === 0) throw new CubeRefusal('the grand total is no group to open: it is shown or not (showTotals)');
+        if (isDetailPath(path)) throw new CubeRefusal('a detail row is a source row, not a group: it does not open');
+      }
+      const expandTo = command.expandTo ?? 0;
+      if (!Number.isInteger(expandTo) || expandTo < 0) throw new CubeRefusal(`the level the groups open to is a whole number, 0 or more, not ${JSON.stringify(expandTo)}`);
+      return { ...draft, tree: TreeState.saved(command.open, command.showTotals, expandTo, command.closed ?? []) };
+    }
   }
 }
 
-/** Refused, in words, when `name` is no calculated column of the grid (a source's column is edited in Column
- *  Properties, not in the column editor). */
-function calculatedNamed(draft: GridDraft, name: string): void {
-  const calculated = [...draft.snapshot.derived, ...(draft.snapshot.groupDerived ?? [])].map((d) => d.name);
-  if (!calculated.includes(name)) {
-    throw new CubeRefusal(`'${name}' is not a calculated column of the grid (${calculated.join(', ') || 'it has none'})`);
+/** The calculated column `name` of the grid, or refused in words (a source's column is edited in Column Properties, not
+ *  in the column editor). */
+function calculatedNamed(draft: GridDraft, name: string): DerivedColumn {
+  const calculated = [...draft.snapshot.derived, ...(draft.snapshot.groupDerived ?? [])];
+  const column = calculated.find((d) => d.name === name);
+  if (column === undefined) {
+    throw new CubeRefusal(`'${name}' is not a calculated column of the grid (${calculated.map((d) => d.name).join(', ') || 'it has none'})`);
   }
+  return column;
 }
 
 /** The open groups of a grid as it shows: an editor's draft has none to open (no screen builds it such a command). */
@@ -236,7 +277,7 @@ export function draftCommands(base: GridDraft, edited: GridDraft): GridCommand[]
 }
 
 /** What `to` sets that `from` has not, as a configure command's patch (null clears a setting), or undefined: nothing. */
-function settingsPatch(from: CubeConfiguration, to: CubeConfiguration): SettingsPatch | undefined {
+export function settingsPatch(from: CubeConfiguration, to: CubeConfiguration): SettingsPatch | undefined {
   const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
   const changed = (a: object, b: object): Record<string, unknown> | undefined => {
     const was = a as Record<string, unknown>;
@@ -309,6 +350,12 @@ function configured<D extends GridDraft>(draft: D, given: SettingsPatch): D {
     const tree = !own && name === TREE_COLUMN;
     const totalled = total !== undefined && (named.includes(total) || spread.includes(total));
     if (!own && !filled && !totalled && header === undefined && !tree) {
+      // settings of a column the grid has not, each CLEARED (every value null): taken off, as nothing reads them -- a
+      // page saved before 2026-10-24 kept a calculated column's settings past its removal (D19); anything set is refused
+      if (isObject(c) && Object.keys(c).length > 0 && Object.values(c).every((v) => v === null)) {
+        d = patched(d, { columns: { [name]: cleared(c) } });
+        continue;
+      }
       throw new CubeRefusal(`'${name}' is not a column of the grid (${named.join(', ')})`);
     }
     if (!isObject(c)) throw new CubeRefusal(`a column's settings are an object, not ${JSON.stringify(c)}`);
@@ -323,19 +370,35 @@ function configured<D extends GridDraft>(draft: D, given: SettingsPatch): D {
           + 'Aggregation or pivot exclusion');
     }
     if (kind === null) {
-      throw new CubeRefusal(`${name}'s kind is set, never cleared: 'dimension' or 'measure' (Column Properties > Column Kind)`);
+      // a kind CLEARED (D19, 2026-10-24: what an undo puts back for a column that had none): the column's as its source
+      // gives it, from its configuration and its query both -- the query keeps a kind the configuration has none for
+      // (config.ts applyToSnapshot), so the one cleared leaves both. A calculated column's kind is its editor's; one
+      // grouped or pivoted on keeps its kind, as Column Properties locks it (grid-edits.ts setColumn)
+      if (!d.snapshot.columns.some((x) => x.name === name)) {
+        throw new CubeRefusal(`'${name}' is a calculated column: its kind is set in its editor (Edit Column)`);
+      }
+      if (d.snapshot.rows.includes(name) || d.snapshot.pivotOn.includes(name)) {
+        throw new CubeRefusal(`'${name}' is grouped or pivoted on: its kind cannot change while it is`);
+      }
+      const columns = d.snapshot.columns.map((x) => {
+        if (x.name !== name) return x;
+        const { kind: _was, excludedFromPivot: _kept, ...rest } = x;
+        return rest;
+      });
+      d = { ...d, snapshot: { ...d.snapshot, columns }, config: withColumn(d.config, name, { kind: undefined, excludedFromPivot: undefined }) };
     }
-    if (excludedFromPivot !== undefined && typeof excludedFromPivot !== 'boolean') {
+    if (excludedFromPivot !== undefined && excludedFromPivot !== null && typeof excludedFromPivot !== 'boolean') {
       throw new CubeRefusal(`${name}'s excludedFromPivot is true or false, not ${JSON.stringify(excludedFromPivot)}`);
     }
-    if (kind !== undefined || aggregateFn !== undefined || aggregationParameters !== undefined) {
+    if ((kind !== undefined && kind !== null) || aggregateFn !== undefined || aggregationParameters !== undefined) {
       d = setColumn(d, name, {
-        ...(kind !== undefined ? { kind: kindFrom(kind) } : {}),
+        ...(kind !== undefined && kind !== null ? { kind: kindFrom(kind) } : {}),
         ...(aggregateFn !== undefined ? { aggregate: aggregateFn === null ? null : aggregateFrom(aggregateFn) } : {}),
         ...(aggregationParameters !== undefined ? { weight: weightFrom(aggregationParameters, name) } : {}),
       });
     }
-    d = patched(d, { columns: { [name]: { ...cleared(presentation), ...(excludedFromPivot !== undefined ? { excludedFromPivot } : {}) } } });
+    // an exclusion cleared (null) is one taken off: the configuration's alone, which the fold reads (D19)
+    d = patched(d, { columns: { [name]: { ...cleared(presentation), ...(excludedFromPivot !== undefined ? { excludedFromPivot: excludedFromPivot ?? undefined } : {}) } } });
   }
   return d;
 }
@@ -464,6 +527,19 @@ export function readFilterNode(v: unknown): FilterNode {
     default:
       throw new CubeRefusal(`a filter is a condition, an and, an or or a not, not ${JSON.stringify(v['kind'])}`);
   }
+}
+
+/** A group's path -- its keys from the top down, each text or null -- or why not. */
+function pathFrom(v: unknown): RowPath {
+  if (!Array.isArray(v) || !v.every((k) => k === null || typeof k === 'string')) {
+    throw new CubeRefusal(`a group's path is its keys from the top down, each text or null, not ${JSON.stringify(v)}`);
+  }
+  return v as RowPath;
+}
+
+/** The calculated column a new or edited one goes before (`before`), as given, or nothing. */
+function beforeFrom(v: unknown): { before?: string } {
+  return v === undefined ? {} : { before: textFrom(v, 'the calculated column it goes before') };
 }
 
 /** A whole number of 1 or more (a window's offset, buckets, rows), or why not. */
@@ -643,26 +719,39 @@ export function readGridCommand(given: unknown): GridCommand {
     case 'calculate':
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       if (o['level'] !== 'row' && o['level'] !== 'group') throw new CubeRefusal(`a calculated column's level is 'row' or 'group', not ${JSON.stringify(o['level'])}`);
-      return { kind, level: o['level'], column: calculatedFrom(o['column']) };
+      return { kind, level: o['level'], column: calculatedFrom(o['column']), ...beforeFrom(o['before']) };
     case 'editCalculated':
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       if (o['level'] !== 'row' && o['level'] !== 'group') throw new CubeRefusal(`a calculated column's level is 'row' or 'group', not ${JSON.stringify(o['level'])}`);
-      return { kind, name: textFrom(o['name'], "the calculated column's name"), level: o['level'], column: calculatedFrom(o['column']) };
+      return { kind, name: textFrom(o['name'], "the calculated column's name"), level: o['level'], column: calculatedFrom(o['column']), ...beforeFrom(o['before']) };
     case 'removeCalculated':
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind, name: textFrom(o['name'], "the calculated column's name") };
     case 'open': {
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
-      const path = o['path'];
-      if (!Array.isArray(path) || !path.every((k) => k === null || typeof k === 'string')) {
-        throw new CubeRefusal(`a group's path is its keys from the top down, each text or null, not ${JSON.stringify(path)}`);
-      }
       if (typeof o['open'] !== 'boolean') throw new CubeRefusal('a group is opened or closed: open is true or false');
-      return { kind, path: path as RowPath, open: o['open'] };
+      return { kind, path: pathFrom(o['path']), open: o['open'] };
     }
     case 'collapseAll':
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind };
+    case 'tree': {
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
+      const paths = (v: unknown, what: string): RowPath[] => {
+        if (!Array.isArray(v)) throw new CubeRefusal(`${what} is a list of groups' paths, not ${JSON.stringify(v)}`);
+        return v.map(pathFrom);
+      };
+      if (typeof o['showTotals'] !== 'boolean') throw new CubeRefusal('the grand total is shown or not: showTotals is true or false');
+      const expandTo = o['expandTo'];
+      if (expandTo !== undefined && (typeof expandTo !== 'number' || !Number.isInteger(expandTo) || expandTo < 0)) {
+        throw new CubeRefusal(`the level the groups open to is a whole number, 0 or more, not ${JSON.stringify(expandTo)}`);
+      }
+      return {
+        kind, open: paths(o['open'], 'the groups open'), showTotals: o['showTotals'],
+        ...(expandTo !== undefined ? { expandTo } : {}),
+        ...(o['closed'] !== undefined ? { closed: paths(o['closed'], 'the groups closed under the level') } : {}),
+      };
+    }
     default:
       throw new CubeRefusal(`'${kind}' is not a grid's command: ${GRID_COMMAND_KINDS.join(', ')}`);
   }

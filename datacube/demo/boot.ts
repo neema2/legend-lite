@@ -13,7 +13,7 @@ import type { Planner } from '../src/cube.ts';
 import type { ModelOptions } from '../src/planner.ts';
 import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
-import { SAMPLE_TRADES, sampleTrades } from '../src/sample-trades.ts';
+import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTrades } from '../src/sample-trades.ts';
 import type { HostOperationsSource } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataSource } from '../../engine-client/src/project-data.ts';
 import { mountRemote } from '../src/remote.ts';
@@ -22,9 +22,10 @@ import type { TableModels } from '../src/infer.ts';
 import { pageConfig } from './page-config.ts';
 import { browserServices } from '../src/services/browser.ts';
 import { openDataCube } from '../src/app/datacube-app.ts';
-import type { PlaneService, PlaneWord, Services } from '../src/app/services.ts';
+import type { PlaneService, PlaneWord, Sample, Services } from '../src/app/services.ts';
 import type { ColumnFormat } from '../src/format.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
+import { fileSourceOf } from '../src/cube-document.ts';
 import { sourceColumns } from '../src/source-columns.ts';
 import { accessor, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 
@@ -373,6 +374,19 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
     epoch: 1,
   });
 
+  /** The sample's opening view, made once: its columns are its record's too. */
+  let opening: Promise<CubeSnapshot> | undefined;
+  const startSnapshot = (): Promise<CubeSnapshot> => (opening ??= sampleSnapshot());
+  /**
+   * The generated trades written down as the sample file of the same rows (src/sample-trades.ts DESK_TRADES_FILE): the
+   * page the start's grid is on is then saved, shared and joined as an example's is, and reopens over that file rebuilt.
+   * A remote file named in the address has no such record (the page says it cannot be saved).
+   */
+  const sampleSource = async (): Promise<NonNullable<Sample['source']> | undefined> => (generated
+    ? { cube: fileSourceOf(DESK_TRADES_FILE, 'csv', (await startSnapshot()).columns, { id: DESK_TRADES, rows: SAMPLE_TRADES }), tables: ['trades'] }
+    : undefined);
+  const written = start.kind === 'sample' ? await sampleSource() : undefined;
+
   // THE APP (src/app/datacube-app.ts), opened over the tab's services: what the address asks for first -- the sample
   // (the generated trades, or a `?remote=` file read through the same model), a link, or the launch key
   await openDataCube({
@@ -384,8 +398,9 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
       ? {
         kind: 'sample',
         sample: {
-          snapshot: sampleSnapshot,
+          snapshot: startSnapshot,
           ...(generated ? { heldCopy: generated } : {}),
+          ...(written ? { source: written } : {}),
           // the host knows what the snapshot cannot: that notional and pnl are money and qty is a count
           configuration: demoConfiguration('Trades'),
           dimensions: DEMO_DIMENSIONS.map((d) => ({ name: d.name, columns: [...d.columns] })),

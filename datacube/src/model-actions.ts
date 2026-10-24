@@ -108,7 +108,7 @@ function projectRows(o: ModelActionsOf, project: string, pkg: string): PlanAndRu
  * Refused in words when the page has fewer than two classes.
  */
 export async function createAssociationOf(o: ModelActionsOf, first?: string): Promise<readonly PageCommand[]> {
-  if (!o.model) throw new NotYet('An association relates two of the page\'s classes: make them first (Create a Class…, or Create a Data Space… for the whole page).');
+  if (!o.model) throw new NotYet('An association relates two of the page\'s classes: make them first (Create ▸ Class…, or Create ▸ Data Space… for the whole page).');
   const model = new PageModel(o.model);
   const pkg = o.model.package;
   const state = await projectState(o.client, o.model);

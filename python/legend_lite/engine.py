@@ -62,7 +62,7 @@ from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, Reading, UntypedColumn, typed_by_plan
-from .keeper import PageKeeper, Refused, Settled
+from .keeper import PageKeeper, Refused
 from .projects import ProjectDatabases
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
 
@@ -87,6 +87,13 @@ _WAREHOUSE = '/warehouse.json'
 _SNAP = '/snap.json'
 # the id a page open on another asks by (follower=): a tab's or a notebook widget's, made by DataCube's code
 _FOLLOWER = re.compile(r'[A-Za-z0-9-]{1,64}')
+
+
+def _whole(text: str) -> bool:
+    """Whether ``text`` is a whole number written in ASCII digits (``str.isdigit`` takes ``'²'``, which ``int`` refuses)."""
+    return text.isascii() and text.isdigit()
+
+
 # a saved query's rows are its project's own Data rows (C5): one whose project has none is refused in these words
 _NO_PROJECT_ROWS = 'a saved query\'s rows are its project\'s own Data rows: this model has none'
 # a saved grid of a page Python serves, opened by Python over its frames as they are now (§18.3): a join of frames, which
@@ -1630,46 +1637,55 @@ class Engine:
         return Answer(200, 'application/json', json.dumps(versions).encode('utf-8'))
 
     def _page(self, query: str) -> Answer:
-        """A page it serves (keeper.py: shown somewhere) as it is now: ``{"version": n, "page": <its document>, "held": [<every
-        id it has held>]}``, or 404.
-        Asked ``since=v`` by a page open at version ``v``: what moved it from there, ``{"version": n, "commands":
-        [...]}``, when every version since was moved by commands (Python's or an open page's) -- else the page, as asked
-        without."""
+        """A page it serves (keeper.py: shown somewhere) as it is now: ``{"version": n, "page": <its document>, "held":
+        [<every id it has held>], "hash": <its hash>}``, or 404 -- what a page open on it follows by, read whole
+        (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version). Asked by a writer (``writer``, the id its
+        writes carry), ``taken`` too: the last of its writes the keeper took (0: none), read with the page, so a write
+        whose answer was lost is in the page read when it is taken; and with ``fence`` (that write's number), the
+        writer's writes up to it are taken no more (keeper.py ``snapshot``)."""
         asked = parse_qs(query)
         name = asked.get('page', [''])[0]
-        since = asked.get('since', [''])[0]
-        if since and not since.isdigit():
-            return _said(400, 'a page asks what moved it since the version it opened (since=n)')
-        kept = self.keeper.current(name) if self.keeper.served(name) else None
-        if kept is None:
+        if not self.keeper.served(name):
             return _said(404, f'this engine serves no page named {name!r}')
-        refused = self._followed(name, asked, since)
+        refused = self._followed(name, asked, '')
         if refused is not None:
             return refused
-        if since:
-            version, commands = self.keeper.changes(name, int(since))
-            if commands is not None:
-                return Answer(200, 'application/json',
-                              _json.dumps({'version': version, 'commands': commands}).encode('utf-8'))
-            kept = self.keeper.current(name) or kept
-        # every id it has held with it: an open page gives none of them out again (B12)
-        return Answer(200, 'application/json', _json.dumps({'version': kept[0], 'page': kept[1],
-                                                            'held': self.keeper.held(name)}).encode('utf-8'))
+        writer = asked.get('writer', [''])[0]
+        if 'writer' in asked and not _FOLLOWER.fullmatch(writer):
+            return _said(400, 'a page asks which of its writes were taken by the id they carry (writer=<letters, digits and '
+                              '-, at most 64>)')
+        fence = asked.get('fence', [''])[0]
+        if 'fence' in asked and (not writer or not _whole(fence) or int(fence) < 1):
+            return _said(400, 'a page fences off its writes by their writer and a number (writer=<its id>&fence=n)')
+        # read under one lock of the keeper's (snapshot): its hash is the page's at the version it names, never a later
+        # one's (the D19 audit's 3), and a write taken is in the page read with it
+        whole = self.keeper.snapshot(name, writer or None, int(fence) if fence else None)
+        if whole is None:
+            return _said(404, f'this engine serves no page named {name!r}')
+        version, doc, held, page_hash_now, taken = whole
+        # every id it has held with it: an open page gives none of them out again (B12); its hash, which the page open on
+        # it checks its own by (W17)
+        answer: dict[str, Any] = {'version': version, 'page': doc, 'held': held, 'hash': page_hash_now}
+        if writer:
+            answer['taken'] = taken
+        return Answer(200, 'application/json', _json.dumps(answer).encode('utf-8'))
 
     def _page_said(self, query: str, body: str) -> Answer:
-        """AN OPEN PAGE'S WRITE (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4: the host applies the commands): ``{"edits"}``,
-        the edits it made at the version it is at, which the page's keeper has DataCube apply to the page as it is now
-        and keeps what they make (keeper.py ``settle``) -- or ``{"restore"}``, the page whole (an undo, a redo: the plan's
-        N2), read by DataCube's own reader (headless pageWritten: a page of no grid too) and kept only at the version it
-        was made at (``restore``). Every frame the page then reads is one this engine serves. ``{"version", "combined",
-        "renamed"}``: the page's version now, whether the keeper made another page than the writer's (its edits made again
-        on top, or an id given out afresh: the page then opens what the keeper made), each id given out afresh. Refused
-        -- an edit that does not apply there, a restore made against a version moved on from, a frame not served -- 409,
-        and the page opens what the keeper has. Copies no page reads any more are let go."""
+        """AN OPEN PAGE'S WRITE (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4: the host applies the commands): ``{"edits",
+        "writer", "seq"}``, the edits it made at the version it is at -- an undo or a redo among them, as the commands
+        between (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W5: no page is written whole) -- and the write's id, the
+        writer's and its number, which the page's keeper takes once; the keeper has DataCube apply the edits to the page
+        as it is now and keeps what they make (keeper.py ``settle``). Every frame the page then reads is one this engine
+        serves. ``{"version", "hash"}``: the page's version now and its hash (keeper.py ``page_hash``: what the writer's
+        own page must hash to, W17); and, when the keeper made another page than the writer's (its edits made again on
+        top, or the write taken already), ``page`` and ``held`` too -- that page and every id it has held, which the
+        writer's screen is set to (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version). Refused -- an
+        edit that does not apply there, a frame not served -- 409, in the keeper's words, and the writer reads the page.
+        Copies no page reads any more are let go."""
         asked = parse_qs(query)
         name = asked.get('page', [''])[0]
         version = asked.get('version', [''])[0]
-        if not version.isdigit():
+        if not _whole(version):
             return _said(400, 'a page says what it is with the version it opened (version=n)')
         if not self.keeper.served(name):
             return _said(404, f'this engine serves no page named {name!r}')
@@ -1682,34 +1698,27 @@ class Engine:
         try:
             written = _json.loads(body)
         except ValueError:
-            return _said(400, 'a page\'s write is JSON: {"edits"} or {"restore"}')
-        if not isinstance(written, dict) or sorted(written) not in (['edits'], ['restore']) \
-                or ('edits' in written and not isinstance(written['edits'], list)):
-            return _said(400, 'a page\'s write is {"edits": [<its edits>]} -- or, an undo or a redo, {"restore": <the page>}')
-
+            return _said(400, 'a page\'s write is JSON: {"edits": [<its edits>], "writer": <its id>, "seq": <its number>}')
+        if not isinstance(written, dict) or sorted(written) != ['edits', 'seq', 'writer'] or not isinstance(written['edits'], list):
+            return _said(400, 'a page\'s write is {"edits": [<its edits>], "writer": <its id>, "seq": <its number>}: an undo '
+                              'or a redo is its commands too, never the page whole')
+        writer, seq = written['writer'], written['seq']
+        if (not isinstance(writer, str) or not _FOLLOWER.fullmatch(writer) or isinstance(seq, bool) or not isinstance(seq, int)
+                or seq < 1):
+            return _said(400, 'a page\'s write says its writer (letters, digits and -, at most 64) and its number (1, 2, ...)')
         try:
-            if 'restore' in written:
-                # asked for holding nothing (the session's lock first, then the frames')
-                said = _json.loads(self._headless().call('pageWritten', _json.dumps(written['restore'])))
-                if 'problems' in said:
-                    return _said(422, '; '.join(said['problems']))
-                reads = said['reads']
-                # the keeper's admission of a page by what it reads: the one rule Python's own writes are admitted by too
-                refused = self.frames.unadmitted(reads)
-                if refused is not None:
-                    return _said(422, refused)
-                settled = Settled(self.keeper.restore(name, int(version), _json.loads(said['page']), reads, reads['ids']),
-                                  False, {})
-            else:
-                settled = self.keeper.settle(name, int(version), written['edits'], self.frames.unadmitted)
+            settled = self.keeper.settle(name, int(version), written['edits'], self.frames.unadmitted, writer, seq)
         except Refused as refused:
             return _said(409, str(refused))
         except Exception as failure:
             # a failure of the library's, said as one (as the API's are) -- never taken for a refusal or a page not served
             return _said(500, f'{type(failure).__name__}: {failure}')
         self.sweep()
-        return Answer(200, 'application/json', json.dumps({'version': settled.version, 'combined': settled.combined,
-                                                           'renamed': settled.renamed}).encode('utf-8'))
+        answer: dict[str, Any] = {'version': settled.version, 'hash': settled.hash}
+        if settled.combined:
+            answer['page'] = settled.page
+            answer['held'] = settled.held
+        return Answer(200, 'application/json', _json.dumps(answer).encode('utf-8'))
 
     def _followed(self, name: str, asked: Mapping[str, list[str]], at: str) -> Answer | None:
         """A PAGE OPEN ON ``name`` SAYS WHERE IT IS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17): ``follower``, the id it
@@ -1719,7 +1728,7 @@ class Engine:
         follower = asked.get('follower', [''])[0]
         if not follower:
             return None if 'at' not in asked else _said(400, 'a page says the version it shows with who it is (follower=<its id>)')
-        if not _FOLLOWER.fullmatch(follower) or (at and not at.isdigit()):
+        if not _FOLLOWER.fullmatch(follower) or (at and not _whole(at)):
             return _said(400, 'a page open on another says who it is (follower=<letters, digits and -, at most 64>) and '
                               'the version it shows (a whole number)')
         if self.keeper.follow(name, follower, int(at) if at else None):

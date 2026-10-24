@@ -19,7 +19,7 @@ import {
 } from './page-document.ts';
 import { givenName } from './page-names.ts';
 import type { PageModelRef } from './page-model.ts';
-import { chartTitle, gridTitle, nextPageId } from './page-ids.ts';
+import { chartTitle, gridTitle, idShape, nextPageId } from './page-ids.ts';
 import { namedProperties, type PageFilter } from './page-filters.ts';
 import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageState } from './page-state.ts';
@@ -76,7 +76,8 @@ export type PageCommand =
   | { readonly kind: 'removeSheet'; readonly sheet: string }
   | { readonly kind: 'renameTile'; readonly tile: string; readonly title: string | null }
   /**
-   * A grid of a cube of its own (its document made first), on `sheet` -- beside `near` while that band has room. Its
+   * A grid of a cube of its own (its document made first), on `sheet` -- a band of its own at the sheet's bottom (since
+   * 2026-10-23 `near`, the tile it came from, no longer places it: kept on the wire, which every editor writes). Its
    * document null: a grid whose source the page cannot write down (the screen's, over rows it cannot name), its view
    * held with no cube -- a page that cannot be saved, as the screen's Save says.
    */
@@ -84,7 +85,8 @@ export type PageCommand =
     readonly kind: 'addGrid'; readonly id?: string; readonly document: CubeDocument | null; readonly sheet: string;
     readonly near: string | null; readonly title: string | null; readonly columns: number | null;
   }
-  /** A chart of grid `near`'s cube (its spec made first, chart-spec.ts chartFrom), beside that grid. */
+  /** A chart of grid `near`'s cube (its spec made first, chart-spec.ts chartFrom), under that grid, beside the charts
+   *  already there while that row has room. */
   | {
     readonly kind: 'addChart'; readonly id?: string; readonly near: string; readonly spec: ChartSpec;
     readonly title: string | null; readonly columns: number | null;
@@ -94,6 +96,13 @@ export type PageCommand =
   /** A chart reading another grid's cube from now on (D7: Show Grid made the grid of its own grouping) -- its selection
    *  taken off the cube it read, and that cube let go when no view reads it any more (a detached chart's). */
   | { readonly kind: 'followGrid'; readonly chart: string; readonly grid: string }
+  /** A chart reading a cube of its own from now on -- detached, as a frozen chart whose grid went is (its selection and
+   *  its page filter off, as followGrid takes them; frozen, as a detached chart is): `cube`, the kept cube's id -- one no
+   *  grid shows: made, or replaced with `document`, which its other charts then read too -- the id it had, so an undo
+   *  puts the chart back on the very cube it read (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W19, 2026-10-24: the inverse
+   *  of Show Grid on a detached chart, and of a detached chart's removal). The cube it read is let go when no view reads
+   *  it any more. */
+  | { readonly kind: 'detach'; readonly chart: string; readonly cube: string; readonly document: CubeDocument; readonly copy?: GridCopy | null }
   /** A chart's selection, the mark clicked last as its conditions (none: cleared) -- the chart's alone: the conditions
    *  on its grid's filter are that grid's `refilter`, told with it (grid-commands.ts). */
   | { readonly kind: 'select'; readonly chart: string; readonly conditions: readonly FilterNode[] }
@@ -137,8 +146,8 @@ export type PageCommand =
 
 export const PAGE_COMMAND_KINDS = [
   'renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
-  'followGrid', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live',
-  'rebuilt', 'modelInto', 'modelPin', 'modelKeep',
+  'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap',
+  'live', 'rebuilt', 'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
 /** Each page command's fields, by kind (`?` one it may leave out): what readPageCommand takes, and what Python's generated
@@ -147,6 +156,7 @@ export const PAGE_COMMAND_FIELDS = {
   renamePage: ['name'], savedAs: ['record'], addSheet: ['id?', 'name'], renameSheet: ['sheet', 'name'], moveSheet: ['sheet', 'to'],
   removeSheet: ['sheet'], renameTile: ['tile', 'title'], addGrid: ['id?', 'document', 'sheet', 'near', 'title', 'columns'],
   addChart: ['id?', 'near', 'spec', 'title', 'columns'], setChart: ['chart', 'spec'], followGrid: ['chart', 'grid'],
+  detach: ['chart', 'cube', 'document', 'copy?'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
   removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'],
@@ -165,7 +175,7 @@ export interface PageApplied {
 
 // ---------------------------------------------------------------- ids and titles (page-ids.ts: the screen's too)
 
-export { chartTitle, gridTitle, nextPageId } from './page-ids.ts';
+export { chartTitle, gridTitle, idTag, nextPageId } from './page-ids.ts';
 
 // ---------------------------------------------------------------- applying
 
@@ -223,7 +233,7 @@ const withSheet = (page: PageDocument, id: string, change: (s: PageSheet) => Pag
 /**
  * The ids no command may give out: every one the page has held, its cubes' (a cube kept for a detached chart has no
  * view of its own: its id is taken all the same), and its filters' while it has them, whatever `held` lost (a page
- * opened again holds its tiles' ids only). page-rebase.ts asks it too, before a writer's id is given out on top.
+ * opened again holds its tiles' ids only). page-between.ts asks it too, as it names a tab's commands under its tag.
  */
 export function takenIds(draft: PageDraft): string[] {
   return [...draft.held, ...draft.page.cubes.map((c) => c.id), ...(draft.page.filters ?? []).map((f) => f.id)];
@@ -236,7 +246,7 @@ function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'ch
   const taken = takenIds(draft);
   if (given === undefined) return nextPageId(taken, kind);
   if (taken.includes(given)) throw new CubeRefusal(`'${given}' is an id the page has held already`);
-  if (!new RegExp(`^${kind}-\\d+$`).test(given)) throw new CubeRefusal(`a ${kind}'s id is ${kind}-N, not '${given}'`);
+  if (!idShape(kind).test(given)) throw new CubeRefusal(`a ${kind}'s id is ${kind}-N or ${kind}-<tag>-N, not '${given}'`);
   return given;
 }
 
@@ -336,7 +346,7 @@ function withoutTile(page: PageDocument, tile: string): PageDocument {
  * the cubes of the grids in their order, then those kept for detached charts. A page Python edits is written as the
  * screen writes it.
  */
-function inScreenOrder(page: PageDocument): PageDocument {
+export function inScreenOrder(page: PageDocument): PageDocument {
   const reading = page.sheets.flatMap((s) => tiles(s.layout));
   const at = (id: string): number => (reading.includes(id) ? reading.indexOf(id) : reading.length);
   const grids = page.views.filter((v) => v.kind === 'grid');
@@ -415,9 +425,10 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const id = freshId(draft, command.id, 'grid');
       const sheet = sheetNamed(page, command.sheet);
       const title = command.title === null ? undefined : named('tile', command.title);
-      const near = command.near !== null && tiles(sheet.layout).includes(command.near) ? command.near : undefined;
       const view: PageView = { id, kind: 'grid', cube: id, ...(title !== undefined ? { title } : {}) };
-      const placed = withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => add(s.layout, id, near, command.columns ?? MAX_COLUMNS)) }));
+      // a grid is a table, which wants the page's width: a band of its own at the bottom of its sheet, never beside the
+      // tile it came from, nor between that tile and its charts (the user, 2026-10-23: bands.ts add)
+      const placed = withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => add(s.layout, id, undefined, command.columns ?? MAX_COLUMNS)) }));
       const cubes = command.document === null ? page.cubes : [...page.cubes, { id, cube: command.document }];
       return done(rewritten(placed, { cubes, views: [...page.views, view] }),
         [...draft.held, id], { ...command, id });
@@ -432,8 +443,15 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const view: ChartView = { id, kind: 'chart', cube: grid.cube, title, spec };
       const sheet = sheetOf(page, grid.id);
       if (!sheet) throw new CubeRefusal(`'${grid.id}' is on no sheet`);
-      const placed = withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => add(s.layout, id, grid.id, command.columns ?? MAX_COLUMNS)) }));
-      return done({ ...placed, views: [...page.views, view] }, [...draft.held, id], { ...command, id });
+      // under its grid, beside the charts already there while that row has room (bands.ts add)
+      const charts = (ids: readonly string[]): boolean => ids.every((t) => page.views.find((v) => v.id === t)?.kind === 'chart');
+      const placed = withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => add(s.layout, id, grid.id, command.columns ?? MAX_COLUMNS, charts)) }));
+      // a live chart follows its grid from the start, by the one rule every change of the cube follows it by (V1, P6):
+      // a spec made for the grid is where following leaves it; one made for another grid (Python's, a page's own) is
+      // regrouped as the grid is, as the next change of the grid would regroup it (D19, 2026-10-24)
+      // as applied, its title is the one written (a new chart's number): a redo or a write made again on top, giving the
+      // chart a new id, keeps the title the person saw (D19, B12)
+      return done(followedPage({ ...placed, views: [...page.views, view] }, grid.cube, page), [...draft.held, id], { ...command, id, title });
     }
     case 'setChart': {
       const view = viewNamed(page, command.chart);
@@ -468,6 +486,45 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const cubes = unpicked.cubes.filter((c) => views.some((v) => v.cube === c.id));
       const kept = rewritten({ ...unpicked, ...(unpicked.model ? { model: keptFor(unpicked.model, cubes) } : {}) }, { views, cubes });
       return done(followedPage(kept, grid.cube, page));
+    }
+    case 'detach': {
+      const view = viewNamed(page, command.chart);
+      if (view.kind !== 'chart') throw new CubeRefusal(`'${command.chart}' is a grid, not a chart`);
+      if (page.views.some((v) => v.kind === 'grid' && v.cube === command.cube)) {
+        throw new CubeRefusal(`a grid shows ${command.cube}: a chart beside a grid follows it (followGrid), a detached one reads a cube of its own`);
+      }
+      if (page.views.some((v) => v.id === command.cube) || page.sheets.some((s) => s.id === command.cube)) {
+        throw new CubeRefusal(`'${command.cube}' is a tile or a sheet of the page, not a cube`);
+      }
+      // its selection off the cube it read and its page filter off, as followGrid takes them (a click on nothing), then the
+      // chart on its own cube, frozen (a detached chart has no grid to follow: setChart's rule); that cube made under its
+      // id, or the one of that id replaced; the cube it read let go when no view reads it any more; the model kept for
+      // what is left
+      const picked = unselected(page, view);
+      const unpicked = picked.filters?.some((f) => f.from === view.id)
+        ? { ...picked, filters: picked.filters.filter((f) => f.from !== view.id) } : picked;
+      const views = unpicked.views.map((v) => {
+        if (v.id !== view.id || v.kind !== 'chart') return v;
+        const { selection: _was, ...rest } = v;
+        return { ...rest, cube: command.cube, spec: v.spec.frozen === true ? v.spec : { ...v.spec, frozen: true } };
+      });
+      const read = unpicked.cubes.filter((c) => views.some((v) => v.cube === c.id));
+      const cubes = read.some((c) => c.id === command.cube)
+        ? read.map((c) => (c.id === command.cube ? { id: c.id, cube: command.document } : c))
+        : [...read, { id: command.cube, cube: command.document }];
+      // the copy the cube reads, as given (null: its live rows; the field absent: as it is, so another chart's cube is
+      // not un-snapped by a detach that says nothing of it) -- a detached chart's cube has no grid to snap or go live
+      // for it, so the command carries it (the D19 audit's W2 limit, closed; its third round's 4) -- and no copy of a
+      // cube let go
+      const copies = Object.fromEntries(Object.entries(unpicked.copies ?? {}).filter(([id]) => cubes.some((c) => c.id === id)));
+      if (command.copy === null) delete copies[command.cube];
+      else if (command.copy !== undefined) copies[command.cube] = command.copy;
+      const { copies: _had, ...bare } = unpicked;
+      const kept = rewritten({ ...bare, ...(unpicked.model ? { model: keptFor(unpicked.model, cubes) } : {}) },
+        { views, cubes, ...(Object.keys(copies).length > 0 ? { copies } : {}) });
+      // the cube it read, judged for its other charts (its selection came off that cube's filter), and the cube it reads
+      // now followed by every chart on it (the document given is theirs now)
+      return done(followedPage(followedPage(kept, view.cube, page), command.cube, page), [...new Set([...draft.held, command.cube])]);
     }
     case 'select': {
       const view = viewNamed(page, command.chart);
@@ -585,9 +642,10 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
  * alone's in app.ts).
  */
 export function applyToState(state: PageState, commands: readonly PageCommand[], label: string, step = true): PageCommand[] {
-  const { draft, applied } = applyPageCommands(state.draft, commands);
-  if (step) state.begin(label);
-  state.keep(draft);
+  const before = state.draft;
+  const { draft, applied } = applyPageCommands(before, commands);
+  if (step) state.step(label, applied, before, draft);
+  else state.keep(draft);
   return applied;
 }
 
@@ -794,6 +852,21 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'followGrid':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, chart: text(o['chart'], 'a chart'), grid: text(o['grid'], 'a grid') };
+    case 'detach': {
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      const document = cubeOf(o['document']);
+      if (document === null) throw new CubeRefusal("a detached chart's cube is a document, never null");
+      let copy: GridCopy | null | undefined;
+      if (o['copy'] === null) copy = null;
+      else if (o['copy'] !== undefined) {
+        try {
+          copy = readGridCopy(o['copy']);
+        } catch (e) {
+          throw new CubeRefusal(e instanceof Error ? e.message : String(e));
+        }
+      }
+      return { kind, chart: text(o['chart'], 'a chart'), cube: text(o['cube'], 'a cube'), document, ...(copy !== undefined ? { copy } : {}) };
+    }
     case 'select':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       if (!Array.isArray(o['conditions'])) throw new CubeRefusal("a chart's selection is a list of conditions");

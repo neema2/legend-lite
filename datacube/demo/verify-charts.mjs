@@ -66,21 +66,29 @@ try {
   await settle();
   const before = await rows();
 
-  /** Right-click > Insert > `what` (Visualization or Copy of Grid), on a cell of the grid in `scope`. */
+  /** Right-click > Create > `what` (Visualization or Copy of This Grid), on a cell of the grid in `scope`. */
   /** The page's first grid: every grid on a page is numbered alike, the first grid-1. */
   const FIRST = '[data-tile="grid-1"]';
   const insert = async (what, scope = `${FIRST}, .dc-app`) => {
     await page.locator(scope).first().locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
-    await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create"))').first().hover();
+    await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Create")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
     await settle();
   };
   const addChart = async () => {
     await insert('Visualization');
     await drawn();
   };
-  /** A chart's Dynamic / Frozen / Detached pill. */
+  /** A chart's Dynamic / Pinned / Frozen / Detached pill. */
   const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`);
+  /** A chart put in a state as a person does: its pill clicked, the state picked from the menu it opens. */
+  const choose = async (id, state) => {
+    await pill(id).click();
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state} \u2014 `) }) })
+      .first().click();
+    await page.waitForFunction(([c, s]) => document.querySelector(`[data-tile="${c}"] .dc-tile-actions .dc-titlebar-toggle`)?.textContent === s,
+      [id, state], { timeout: 5_000 });
+  };
   /** A chart's right-click menu entry. */
   const chartMenu = async (id, label) => {
     await page.locator(`[data-tile="${id}"] .dc-chart-tile`).click({ button: 'right' });
@@ -102,9 +110,9 @@ try {
     return list.map((c) => `${c.title}: ${c.x} by ${c.split}`).join('; ');
   });
 
-  await check('Freeze keeps one chart\'s grouping while the other follows a pivot', async () => {
+  await check('Pinned keeps one chart\'s grouping while the other follows a pivot', async () => {
     const [a, b] = await charts();
-    await pill(a.id).click();
+    await choose(a.id, 'Pinned');
     await settle();
     await mainChip(before[1]).click();
     await settle();
@@ -188,9 +196,9 @@ try {
     return `following: ${next} of ${column}; frozen kept ${JSON.stringify(frozen.y)}, and through Show Grid`;
   });
 
-  await check('Insert > Grid adds a grid tile of its own; its Insert > Chart charts it; removing it detaches a frozen chart', async () => {
+  await check('Create > Copy of This Grid adds a grid tile of its own; its Create > Visualization charts it; removing it detaches a frozen chart', async () => {
     const tilesBefore = await page.locator('[data-tile^="chart-"]').count();
-    await insert('Copy of Grid', FIRST);
+    await insert('Copy of This Grid', FIRST);
     // the copy: a grid beside the first, every grid on the page alike
     const grid = page.locator('[data-tile^="grid-"]:not([data-tile="grid-1"])').first();
     await grid.locator('.dc-row').first().waitFor({ timeout: 20_000 });
@@ -202,7 +210,7 @@ try {
     await drawn();
     const ids = await page.locator('[data-tile^="chart-"]').evaluateAll((els) => els.map((e) => e.dataset.tile));
     const [frozenId, followingId] = ids.slice(-2);
-    await pill(frozenId).click();
+    await choose(frozenId, 'Pinned');
     if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath('grids.png') }); }
     await page.locator(`[data-tile="${gridId}"] .dc-tile-remove`).click();
     await settle();
@@ -227,9 +235,13 @@ try {
     // a target of 1: the total is above it, which is good
     await fieldNamed('Target:').locator('input').fill('1');
     await fieldNamed('Target:').locator('input').dispatchEvent('change');
+    // a stat tile (2026-10-23): the difference from the target coloured good or bad, then in words; a meter of it
     const target = page.locator(`[data-tile="${id}"] .dc-kpi-target`);
     await target.waitFor({ timeout: 20_000 });
-    if (!(await target.getAttribute('class')).includes('dc-kpi-good')) throw new Error(`the target says ${await target.textContent()}, not good`);
+    const delta = target.locator('.dc-kpi-delta');
+    const said = `${await delta.textContent()} ${await target.locator('.dc-kpi-words').textContent()}`;
+    if (!(await delta.getAttribute('class')).includes('dc-kpi-good')) throw new Error(`the target says ${said}, not good`);
+    if (!(await page.locator(`[data-tile="${id}"] .dc-kpi-meter.dc-kpi-good`).count())) throw new Error('no meter of the target, good');
     // its trend by the grid's first row group: a line drawn under the number
     const across = await fieldNamed('Trend by:').locator('option').nth(1).getAttribute('value');
     await fieldNamed('Trend by:').locator('select').selectOption(across);
@@ -237,12 +249,13 @@ try {
     const saved = await page.evaluate((c) => window.__dataPage.views().views.find((v) => v.id === c)?.spec, id);
     if (saved.mark !== 'kpi' || saved.options.target !== 1 || saved.x !== across) throw new Error(`saved as ${JSON.stringify(saved)}`);
     if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath('kpi.png') }); }
-    return `${id}: ${value}, ${await target.textContent()}, its trend by ${across}`;
+    return `${id}: ${value}, ${said}, its trend by ${across}`;
   });
 
   // THE EXAMPLE PAGES (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3): each opened from Open…'s Examples, over the
   // sales sample it makes itself; on each of its sheets every chart draws -- batch 2's, then batch 3's kinds
-  for (const [example, marker, least] of [['charts-dashboard', 'c-bars', 20], ['charts-kinds', 'k-lollipop', 20]]) {
+  // the gallery too (the user, 2026-10-23): one of each kind, every sheet fitting its window
+  for (const [example, marker, least] of [['charts-gallery', 'g-bar', 32], ['charts-dashboard', 'c-bars', 20], ['charts-kinds', 'k-lollipop', 20]]) {
     await check(`the example page ${example} opens from Open…, and every chart on every sheet draws`, async () => {
       await page.click('.dc-titlebar-menu');
       const open = page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Open\u2026"))').first();

@@ -256,15 +256,38 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  refusals in words, about 2.8 KB gzipped, and page-gestures.ts, 0.8 KB -- app.ts and the menu losing their copies,
  *  about 1 KB; making the gestures load later would put the selection-off path behind an await, F93's order). Measured
  *  318,627.
- *  319,000 -> 321,000 (2026-10-23, the Deephaven line's V1-V3, docs/DEEPHAVEN_PLAN_2026_10_22.md DH27, "a change may
- *  take time; a tick may not": a flat cube read by a window -- the controller's, the runners' and the app's part, the
- *  grid painting a block of the whole and saying the rows on screen -- a tick drawn in place, the changed cells of the
- *  rows on screen only (DataGrid.tickRows), and a grid's charts drawn again at its tick; about 2 KB gzipped, in the
- *  grid's own paths, which every tick and every scroll run). Measured 320,660.
- *  321,000 -> 322,000 (2026-10-23, the Deephaven line's A1, the user's "a visual of the cell color changing": a ticked
+ *  319,000 -> 321,000 (2026-10-23, the user's bulletproofing round: a chart's three states -- Dynamic, Pinned, Frozen --
+ *  and the filter a frozen chart keeps (chart-spec.ts chartState, ChartSpec.kept, its pill's menu), a part fetched after
+ *  the site updated said in words (lazily.ts), a tile added under the one it came from (bands.ts add), and the samples
+ *  the start page and the join example are written down as (sample-trades.ts sampleTradesCsv, samples.ts's desk trades
+ *  and countries) -- the samples are the source picker's, which every page carries). Measured 320,489.
+ *  321,000 -> 322,500 (2026-10-23, the user's right-click Join ▸ and one Create ▸ in every menu: the quick joins built as
+ *  the menu opens -- each grid's keys suggested (join-how.ts suggestedKeys and quickJoins, moved from the join's own
+ *  chunk), the menu's entries (app/join-menu.ts) -- Create ▸'s one list (menu.ts createItems), a grid's status-bar note
+ *  (app.ts note); the join itself, its window and its flow still fetched with the first join). Measured 321,971.
+ *  322,500 -> 323,500 (2026-10-23, the grid's menu button gone, its right-click its menu -- Edit ▸, Tile ▸, Properties'
+ *  Dimensions tab's Group Rows by and Start Ad Hoc Analysis -- and a long press as the right-click on a touch screen,
+ *  an iPad's Safari firing none (ui/long-press.ts), installed with every grid and page). Measured 322,712.
+ *  323,500 -> 332,000 (2026-10-24, D19 in its full form, docs/DATACUBE_LIVE_EDITING_2026_10_24.md: the grid's and the
+ *  page's total diffs (grid-between.ts, page-between.ts: undo and redo as the commands between), the converge on the
+ *  keeper's page (live-converge.ts, the rebase's rearranging and renaming it shares), and the page hash checked at every
+ *  write (page-hash.ts: a synchronous SHA-256 over the canonical JSON). The note said this budget would move if the
+ *  diffs pushed it over, with the number, for the user's sign-off (D9). Measured 331,197.
+ *  332,000 -> 333,500 (2026-10-24, the D19 audit's fourth round: pending and refused page steps counted for the put-back,
+ *  a pending maker made again under a fresh id and a colliding pending grid moved first, a grid made again from the
+ *  page's own cube, every way of changing a grid refused while its page converges, a refused batch's steps off the
+ *  history, another editor's filter-moving run applied a command at a time; for the user's sign-off, D9). Measured
+ *  332,801.
+ *  333,500 -> 335,000 (2026-10-24, main (PRs #65-#71) merged into the Deephaven line, docs/DEEPHAVEN_START_HERE.md: the line's
+ *  own growth on its branch carried onto main's 333,500 -- 319,000 -> 321,000 (2026-10-23, V1-V3,
+ *  docs/DEEPHAVEN_PLAN_2026_10_22.md DH27, "a change may take time; a tick may not": a flat cube read by a window -- the
+ *  controller's, the runners' and the app's part, the grid painting a block of the whole and saying the rows on screen --
+ *  a tick drawn in place, the changed cells of the rows on screen only (DataGrid.tickRows), and a grid's charts drawn
+ *  again at its tick; about 2 KB gzipped, in the grid's own paths, which every tick and every scroll run; measured
+ *  320,660 there) and 321,000 -> 322,000 (2026-10-23, A1, the user's "a visual of the cell color changing": a ticked
  *  number flashes green or red where its row is the same row (DataGrid.tickRows `flash`), a refused tick said once, the
- *  status bar's count drawn again when a tick brings or takes rows). Measured 321,067. */
-const BUDGET = 322_000;
+ *  status bar's count drawn again when a tick brings or takes rows; measured 321,067 there)). Measured 334,805. */
+const BUDGET = 335_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -345,11 +368,22 @@ const BUDGET = 322_000;
  *  the saved page it is kept with the page and told (savedAs), so either editor saves over one record). Measured
  *  306,214.
  *  306,500 -> 310,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 309,694.
- *  310,000 -> 312,000 (2026-10-23, the Deephaven line's V1-V3 -- the grid's note of the same date). Measured 311,541.
- *  312,000 -> 313,000 (2026-10-24, the Deephaven line's A1, docs/DEEPHAVEN_SINGLE_USER_AUDIT_2026_10_24.md: a window
- *  takes the keyboard as it opens, the selection's figures drawn again at a tick, the grid's note of 2026-10-23's
- *  flash). Measured 312,012. */
-const ENGINE_BUDGET = 313_000;
+ *  310,000 -> 311,000 (2026-10-23, the bulletproofing round -- the grid's note of the same date). Measured 310,535.
+ *  311,000 -> 312,500 (2026-10-23, the right-click Join ▸ and Create ▸ -- the grid's note of the same date). Measured
+ *  312,050.
+ *  312,500 -> 313,500 (2026-10-23, the grid's menu button gone and a long press as the right-click -- the grid's note of
+ *  the same date). Measured 312,770.
+ *  313,500 -> 314,000 (2026-10-23, KPIs as stat tiles, with Show Grid on every chart kind (PR #69) merged beside them:
+ *  the tile's lines and the headline format the grid's formatter writes -- the notebook widget's note of the same
+ *  date). Measured 313,533.
+ *  314,000 -> 322,500 (2026-10-24, D19 in its full form: the two total diffs, the converge and the page hash, as the
+ *  grid-only page's note of the same date says; for the user's sign-off, D9). Measured 321,768.
+ *  322,500 -> 323,000 (2026-10-24, the D19 audit's third round: the page and its grids held while the converge runs (a
+ *  gesture meanwhile is refused in words), a detach's copy said in the page command, a grid remade by the converge
+ *  restarted; for the user's sign-off, D9). Measured 322,567.
+ *  323,000 -> 324,000 (2026-10-24, the D19 audit's fourth round -- the grid-only page's note of the same date; for the
+ *  user's sign-off, D9). Measured 323,385. */
+const ENGINE_BUDGET = 324_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -484,8 +518,22 @@ const EXAMPLE_BUDGET = 4_000;
  *  324,000 -> 324,500 (2026-10-22, step S5's B5, Z18, B4 and B13 -- the engine page's note of the same date). Measured
  *  324,039.
  *  324,500 -> 328,000 (2026-10-22, step S8 -- the grid's note of the same date). Measured 327,491.
- *  328,000 -> 330,000 (2026-10-23, the Deephaven line's V1-V3 -- the grid's note of the same date). Measured 329,296. */
-const WIDGET_BUDGET = 330_000;
+ *  328,000 -> 329,500 (2026-10-23, the bulletproofing round -- the grid's note of the same date). Measured 328,843.
+ *  329,500 -> 331,000 (2026-10-23, the right-click Join ▸ and Create ▸ -- the grid's note of the same date). Measured
+ *  330,421.
+ *  331,000 -> 332,000 (2026-10-23, the grid's menu button gone and a long press as the right-click -- the grid's note of
+ *  the same date). Measured 331,244.
+ *  332,000 -> 332,500 (2026-10-23, KPIs as stat tiles: the tile's headline, meter and change lines in the chart panel,
+ *  their styles, and the headline format the grid's formatter writes -- the drawing itself is the chart chunk's).
+ *  Measured 332,006.
+ *  332,500 -> 341,000 (2026-10-24, D19 in its full form: the two total diffs, the converge and the page hash, as the
+ *  grid-only page's note of the same date says; for the user's sign-off, D9). Measured 340,482.
+ *  341,000 -> 341,500 (2026-10-24, the D19 audit's second round: the converge applies the keeper's page steps to the
+ *  confirmed page to find the grids they change, and waits for every grid's change in flight before the hash; the page
+ *  held through it). Measured 341,063.
+ *  341,500 -> 342,500 (2026-10-24, the D19 audit's fourth round -- the grid-only page's note of the same date; for the
+ *  user's sign-off, D9). Measured 342,085. */
+const WIDGET_BUDGET = 342_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -352,14 +352,17 @@ py_test(
     data = [
         ":wheel_duckdb",
         "//datacube:headless_bundle",
+        "//datacube:headless_tab_bundle",
         "//datacube:test/fixtures/chart-rules.json",
         "//datacube:test/fixtures/pages/trades.page.json",
         "//native:compiler",
         "//warehouse:sqlapi_corpus",
     ],
     # the warehouse's driver (legend_lite/warehouse.py), held to the one corpus its binding is (C3); a page's charts
-    # judged by DataCube's own rules, headless (its bundle), and answered as chart-spec.ts is held to (test_page.py)
+    # judged by DataCube's own rules, headless (its bundle), and answered as chart-spec.ts is held to (test_page.py);
+    # the tab's own functions (its history's diffs), which test_keeper.py's open page undoes by
     env = _ENV | _HEADLESS_ENV | {
+        "LEGEND_LITE_TAB_HEADLESS": "$(rlocationpath //datacube:headless_tab_bundle)",
         "LEGEND_LITE_CHART_RULES": "$(rlocationpath //datacube:test/fixtures/chart-rules.json)",
         # the saved-page corpus's frame page, which Python loads and writes as DataCube does (test_page.py CorpusPage)
         "LEGEND_LITE_CORPUS_PAGE": "$(rlocationpath //datacube:test/fixtures/pages/trades.page.json)",

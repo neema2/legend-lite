@@ -6,10 +6,13 @@ edit that went through said (a name, a sheet, a grid's groups, a tile, a Snap) i
 written; an edit is refused only for a real conflict; and the copies held are exactly those the kept pages read.
 
 The open page here is DataCube's own functions run headless (pageApply, gridApply: what the tab runs), writing as the
-tab writes (page.json, against the version it holds, its edits as commands, which the keeper applies -- refused, it
-opens the page as the keeper has it) and following as it follows (page.json?since=: the
-commands, or the page). The intent each edit carries is kept apart, in a model of its own (``Intent``), never read back
-from the mechanism it checks."""
+tab writes (page.json, against the version it holds, its edits as commands under its own ids -- its tag's, as the tab
+names them -- with the write's id, which the keeper applies; refused, or made another page of, it takes the page as the
+keeper has it) and following as it follows (page.json: the page whole; docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md,
+the middle version); it keeps a history as the tab keeps one and undoes by it, each step's inverse planned by
+DataCube's total diffs (headless pageBetween, gridBetween: docs/DATACUBE_LIVE_EDITING_2026_10_24.md §3, W15). Two of
+them edit the page beside Python (``Converges``). The intent each edit carries is kept apart, in a model of its own
+(``Intent``), never read back from the mechanism it checks."""
 
 import json
 import os
@@ -24,7 +27,7 @@ import pandas as pd
 import legend_lite as ll
 from legend_lite import _json, datacube
 from legend_lite import keeper as keeper_module
-from legend_lite.keeper import PageKeeper, Refused, Stale
+from legend_lite.keeper import PageKeeper, Refused, Stale, page_hash
 
 # how many interleavings, and of how many steps: the seed of a failure is printed, so it can be run alone (a long soak:
 # LEGEND_LITE_KEEPER_SEEDS=500)
@@ -49,47 +52,26 @@ class Keeper(unittest.TestCase):
         told = []
         keeper = PageKeeper(on_write=lambda key, version: told.append((key, version)))
         self.assertEqual(keeper.keep('p', {'name': 'a'}, reads(['f']), []), 1)
-        self.assertEqual(keeper.write('p', 1, {'name': 'b'}, reads(['f']), [{'page': 'x'}], []), 2)
+        self.assertEqual(keeper.write('p', 1, {'name': 'b'}, reads(['f']), []), 2)
         with self.assertRaises(Stale) as stale:
-            keeper.write('p', 1, {'name': 'c'}, reads(['f']), None, [])
+            keeper.write('p', 1, {'name': 'c'}, reads(['f']), [])
         self.assertEqual(stale.exception.version, 2)
         self.assertEqual(keeper.current('p'), (2, {'name': 'b'}))
         # a write that changes nothing is no version, and told to nobody
-        self.assertEqual(keeper.write('p', 2, {'name': 'b'}, reads(['f']), [{'page': 'y'}], []), 2)
+        self.assertEqual(keeper.write('p', 2, {'name': 'b'}, reads(['f']), []), 2)
         self.assertEqual(told, [('p', 2)])
         # what it reads is part of what it is: the same page over other frames is a version
-        self.assertEqual(keeper.write('p', 2, {'name': 'b'}, reads(['f', 'g']), None, []), 3)
+        self.assertEqual(keeper.write('p', 2, {'name': 'b'}, reads(['f', 'g']), []), 3)
         self.assertEqual(keeper.frames('p'), ['f', 'g'])
         with self.assertRaises(KeyError):
-            keeper.write('nope', 1, {}, NOTHING, None, [])
+            keeper.write('nope', 1, {}, NOTHING, [])
 
     def test_every_id_it_has_held_stays_held(self):
         keeper = PageKeeper()
         keeper.keep('p', {'n': 0}, reads(ids=['grid-1']), ['grid-1'])
-        keeper.write('p', 1, {'n': 1}, reads(ids=['grid-2']), None, ['grid-2'])
-        keeper.write('p', 2, {'n': 2}, reads(ids=['sheet-1']), None, [])
+        keeper.write('p', 1, {'n': 1}, reads(ids=['grid-2']), ['grid-2'])
+        keeper.write('p', 2, {'n': 2}, reads(ids=['sheet-1']), [])
         self.assertEqual(keeper.held('p'), ['grid-1', 'grid-2', 'sheet-1'], 'a grid taken off: its id held all the same')
-
-    def test_what_moved_it_since_a_version_is_its_edits_or_none(self):
-        keeper = PageKeeper()
-        keeper.keep('p', {'n': 0}, NOTHING, [])
-        self.assertEqual(keeper.changes('p', 1), (1, []))
-        self.assertEqual(keeper.changes('p', 0), (1, None), 'kept from version 1: nothing moved it there')
-        keeper.write('p', 1, {'n': 1}, NOTHING, ['a'], [])
-        keeper.write('p', 2, {'n': 2}, NOTHING, ['b', 'c'], [])
-        self.assertEqual(keeper.changes('p', 1), (3, ['a', 'b', 'c']))
-        keeper.write('p', 3, {'n': 3}, NOTHING, None, [])
-        self.assertEqual(keeper.changes('p', 2), (4, None), 'a change by no command since')
-        self.assertEqual(keeper.changes('p', 4), (4, []))
-        self.assertEqual(keeper.changes('p', 9), (4, None), 'a version it never had')
-
-    def test_only_its_last_versions_keep_their_edits(self):
-        keeper = PageKeeper()
-        keeper.keep('p', {'n': 0}, NOTHING, [])
-        for n in range(1, 70):
-            keeper.write('p', n, {'n': n}, NOTHING, [n], [])
-        self.assertEqual(keeper.changes('p', 69 - 63 + 1)[1], list(range(69 - 63 + 1, 70)), 'the last 63 moves')
-        self.assertEqual(keeper.changes('p', 2), (70, None), 'older: the page opened again')
 
     def test_its_document_is_its_own(self):
         keeper = PageKeeper()
@@ -98,12 +80,9 @@ class Keeper(unittest.TestCase):
         doc['views'].append({'id': 'grid-2'})
         self.assertEqual(keeper.current('p')[1], {'views': [{'id': 'grid-1'}]}, 'kept: copied in')
         written = {'views': [{'id': 'grid-3'}]}
-        edits = [{'page': {'kind': 'x'}}]
-        keeper.write('p', 1, written, NOTHING, edits, [])
+        keeper.write('p', 1, written, NOTHING, [])
         written['views'].clear()
-        edits[0]['page']['kind'] = 'y'
         self.assertEqual(keeper.current('p')[1], {'views': [{'id': 'grid-3'}]}, 'written: copied in')
-        self.assertEqual(keeper.changes('p', 1)[1], [{'page': {'kind': 'x'}}], 'its edits too')
 
     def test_each_copy_a_page_read_is_the_keepers_and_goes_when_nothing_reads_it(self):
         # docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z17: one model of whose a copy is -- its maker's until a page reads it
@@ -115,7 +94,7 @@ class Keeper(unittest.TestCase):
         self.assertEqual(keeper.letting_go(['snap', 'snap_2', 'snap_3']), [], "each read now, or its maker's")
         keeper.forget('q')
         self.assertEqual(keeper.letting_go(['snap', 'snap_2', 'snap_3']), ['snap_2'], 'read by a page collected only')
-        keeper.write('p', 1, {'live': True}, NOTHING, None, [])
+        keeper.write('p', 1, {'live': True}, NOTHING, [])
         self.assertEqual(keeper.letting_go(['snap', 'snap_3']), ['snap'], 'read by the page as it was only')
         keeper.gone('snap')
         self.assertFalse(keeper.has_read('snap'), 'let go: no longer the keeper\'s')
@@ -134,7 +113,7 @@ class Keeper(unittest.TestCase):
         self.assertEqual([keeper.has_read('abc', 'files'), keeper.has_read('abc'), keeper.has_read('https://x/y.csv', 'remotes')],
                          [True, False, True], 'each kind by its own key')
         self.assertEqual(keeper.letting_go(['abc', 'def'], 'files'), [], 'read now, or its reader\'s')
-        keeper.write('p', 1, {'v': 2}, reads(copies=['snap']), None, [])
+        keeper.write('p', 1, {'v': 2}, reads(copies=['snap']), [])
         self.assertEqual(keeper.letting_go(['abc'], 'files'), ['abc'], 'read by the page as it was only')
         self.assertEqual(keeper.letting_go(['snap']), [], 'the copy is still read')
         keeper.gone('abc', 'files')
@@ -147,8 +126,8 @@ class Keeper(unittest.TestCase):
         keeper.keep('p', {'v': 1}, reads(copies=['snap']), [])
         keeper.serve('p', True)
         self.assertFalse(keeper.follow('p', 'tab', 1), 'a page open: nothing it moved past')
-        keeper.write('p', 1, {'v': 2}, reads(copies=['snap_2']), None, [])
-        keeper.write('p', 2, {'v': 3}, NOTHING, None, [])
+        keeper.write('p', 1, {'v': 2}, reads(copies=['snap_2']), [])
+        keeper.write('p', 2, {'v': 3}, NOTHING, [])
         both = ['snap', 'snap_2']
         self.assertEqual(keeper.letting_go(both), [], 'the tab shows version 1, and follows through 2')
         self.assertFalse(keeper.follow('p', 'tab', None), 'following: the version it said last stands')
@@ -178,97 +157,175 @@ class Settle(unittest.TestCase):
     """A write settled (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4): its edits applied to the page as it is now by the
     combine its host gives (DataCube's pageRebase: at the writer's version nothing to combine, past it made again on
     top) and what they make kept -- the keeper itself applies nothing; a page written whole only as a restore, at its
-    version."""
+    version; a tab's write, by its id, taken once (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle
+    version)."""
 
     def combining(self, answers):
         """A combine answering ``answers`` in turn (each a dict, or a function of what it was asked), and what it was
         asked."""
         asked = []
 
-        def combine(page, held, edits, known):
-            asked.append((page, held, edits, known))
+        def combine(page, held, edits):
+            asked.append((page, held, edits))
             answer = answers.pop(0)
-            return answer(page, held, edits, known) if callable(answer) else answer
+            return answer(page, held, edits) if callable(answer) else answer
         return combine, asked
 
     def test_at_its_version_its_edits_are_applied_and_what_they_make_kept(self):
-        made = {'page': {'n': 1}, 'held': ['sheet-9'], 'edits': [{'page': 'x, as applied'}], 'renamed': {}, 'reads': NOTHING}
+        made = {'page': {'n': 1}, 'held': ['sheet-9'], 'edits': [{'page': 'x, as applied'}], 'reads': NOTHING}
         combine, asked = self.combining([made])
         keeper = PageKeeper(combine=combine)
         keeper.keep('p', {'n': 0}, NOTHING, ['sheet-1'])
         settled = keeper.settle('p', 1, [{'page': 'x'}])
-        self.assertEqual((settled.version, settled.combined, dict(settled.renamed)), (2, False, {}))
-        self.assertEqual(asked, [({'n': 0}, ['sheet-1'], [{'page': 'x'}], ['sheet-1'])], 'the page as it is, what it knew')
+        self.assertEqual((settled.version, settled.combined, settled.page, settled.held), (2, False, None, None),
+                         'the writer\'s own page: no page in the answer')
+        self.assertEqual(asked, [({'n': 0}, ['sheet-1'], [{'page': 'x'}])], 'the page as it is, every id it holds')
         self.assertEqual(keeper.current('p'), (2, {'n': 1}), 'what the commands made')
         self.assertEqual(keeper.held('p'), ['sheet-1', 'sheet-9'], 'every id they gave out, held (H3)')
-        self.assertEqual(keeper.changes('p', 1), (2, [{'page': 'x, as applied'}]), 'the edits as applied')
 
-    def test_an_id_given_out_afresh_at_its_version_has_the_writer_take_the_keepers_page(self):
-        made = {'page': {'n': 1}, 'held': ['sheet-3'], 'edits': [], 'renamed': {'sheet-2': 'sheet-3'}, 'reads': NOTHING}
+    def test_its_hash_is_of_the_version_its_own_write_made_though_another_wrote_meanwhile(self):
+        # (the D19 audit's 3) told of the write (on_write, outside the lock), another writer moves the page before the
+        # settled answer is made up: the hash answered is the page's at the writer's own version, never the later one --
+        # the page open on it would otherwise differ from "its keeper's" and open again for nothing
+        made = {'page': {'n': 1}, 'held': [], 'edits': [{'page': 'x'}], 'reads': NOTHING}
         keeper = PageKeeper(combine=self.combining([made])[0])
+
+        def another(key, version):
+            if version == 2:
+                keeper.write(key, 2, {'n': 2}, NOTHING, [])
+        keeper.on_write = another
         keeper.keep('p', {'n': 0}, NOTHING, [])
         settled = keeper.settle('p', 1, [{'page': 'x'}])
-        self.assertEqual((settled.combined, dict(settled.renamed)), (True, {'sheet-2': 'sheet-3'}))
+        self.assertEqual((settled.version, settled.hash), (2, page_hash({'n': 1})))
+        self.assertEqual(keeper.current('p'), (3, {'n': 2}))
+        # what a page open on it reads, under one lock: the version, the page, its ids, its hash and its writes taken
+        self.assertEqual(keeper.snapshot('p'), (3, {'n': 2}, [], page_hash({'n': 2}), 0))
 
-    def test_behind_its_edits_are_made_again_on_top_with_the_ids_it_knew_then(self):
-        made = {'page': {'n': 'both'}, 'held': ['sheet-3', 'sheet-4'], 'edits': [{'page': 'x, as applied'}],
-                'renamed': {'sheet-3': 'sheet-4'}, 'reads': reads(ids=['sheet-4'])}
+    def test_behind_its_edits_are_made_again_on_top_and_answered_with_the_page_they_made(self):
+        made = {'page': {'n': 'both'}, 'held': ['sheet-1', 'sheet-3', 'sheet-ta-3'], 'edits': [{'page': 'x, as applied'}],
+                'reads': reads(ids=['sheet-3', 'sheet-ta-3'])}
         combine, asked = self.combining([made])
         keeper = PageKeeper(combine=combine)
         keeper.keep('p', {'n': 0}, NOTHING, ['sheet-1'])
-        keeper.write('p', 1, {'n': 'theirs'}, NOTHING, [{'page': 'y'}], ['sheet-3'])
+        keeper.write('p', 1, {'n': 'theirs'}, NOTHING, ['sheet-3'])
         settled = keeper.settle('p', 1, [{'page': 'x'}])
-        self.assertEqual((settled.version, settled.combined, dict(settled.renamed)), (3, True, {'sheet-3': 'sheet-4'}))
-        self.assertEqual(asked, [({'n': 'theirs'}, ['sheet-1', 'sheet-3'], [{'page': 'x'}], ['sheet-1'])],
-                         'on the page as it is, every id it holds -- and the ids it held at the writer\'s version')
+        # what the writer's screen is set to (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md): the page the keeper
+        # made, every id it has held, and its hash -- read with the version
+        self.assertEqual((settled.version, settled.combined, settled.page), (3, True, {'n': 'both'}))
+        self.assertEqual(settled.held, ['sheet-1', 'sheet-3', 'sheet-ta-3'])
+        self.assertEqual(settled.hash, page_hash({'n': 'both'}))
+        self.assertEqual(keeper.hash_of('p'), settled.hash)
+        self.assertEqual(asked, [({'n': 'theirs'}, ['sheet-1', 'sheet-3'], [{'page': 'x'}])], 'on the page as it is now')
         self.assertEqual(keeper.current('p'), (3, {'n': 'both'}))
-        self.assertEqual(keeper.changes('p', 2), (3, [{'page': 'x, as applied'}]), 'the edits as made again')
 
     def test_combined_while_another_wrote_it_is_combined_again_on_that(self):
         keeper = PageKeeper()
 
-        def racing(page, held, edits, known):
+        def racing(page, held, edits):
             # another writer lands while this one is being made again
-            keeper.write('p', 2, {'n': 'third'}, NOTHING, [{'page': 'z'}], [])
-            return {'page': {'n': 'lost'}, 'held': [], 'edits': edits, 'renamed': {}, 'reads': NOTHING}
-        made = {'page': {'n': 'on the third'}, 'held': [], 'edits': [{'page': 'x'}], 'renamed': {}, 'reads': NOTHING}
+            keeper.write('p', 2, {'n': 'third'}, NOTHING, [])
+            return {'page': {'n': 'lost'}, 'held': [], 'edits': edits, 'reads': NOTHING}
+        made = {'page': {'n': 'on the third'}, 'held': [], 'edits': [{'page': 'x'}], 'reads': NOTHING}
         keeper.combine, asked = self.combining([racing, made])
         keeper.keep('p', {'n': 0}, NOTHING, [])
-        keeper.write('p', 1, {'n': 'theirs'}, NOTHING, [{'page': 'y'}], [])
+        keeper.write('p', 1, {'n': 'theirs'}, NOTHING, [])
         settled = keeper.settle('p', 1, [{'page': 'x'}])
         self.assertEqual([a[0] for a in asked], [{'n': 'theirs'}, {'n': 'third'}])
-        self.assertEqual((settled.version, keeper.current('p')[1]), (4, {'n': 'on the third'}))
+        self.assertEqual((settled.version, settled.page, keeper.current('p')[1]), (4, {'n': 'on the third'}, {'n': 'on the third'}))
+
+    def test_a_write_by_its_id_is_taken_once_and_said_taken_with_the_page(self):
+        # docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version: a tab's write whose answer was lost is
+        # resolved by asking which of its writes the keeper took -- and one sent again is applied once
+        made = {'page': {'n': 1}, 'held': [], 'edits': [{'page': 'x'}], 'reads': NOTHING}
+        combine, asked = self.combining([made])
+        keeper = PageKeeper(combine=combine)
+        keeper.keep('p', {'n': 0}, NOTHING, [])
+        self.assertEqual(keeper.snapshot('p', 'w1')[4], 0, 'none of its writes taken yet')
+        self.assertEqual(keeper.settle('p', 1, [{'page': 'x'}], writer='w1', seq=1).version, 2)
+        self.assertEqual([keeper.snapshot('p', 'w1')[4], keeper.snapshot('p', 'w2')[4], keeper.snapshot('p')[4]], [1, 0, 0],
+                         'taken: its own, said to it alone')
+        again = keeper.settle('p', 1, [{'page': 'x'}], writer='w1', seq=1)
+        self.assertEqual((again.version, again.combined, again.page), (2, True, {'n': 1}),
+                         'sent again: no new version, answered with the page as it is, which holds it')
+        self.assertEqual(len(asked), 1, 'applied once')
+
+    def test_a_writers_ask_fences_its_write_off(self):
+        # (the middle version's audit's 4) a tab whose answer was lost asks, fencing that write: answered 0, the write --
+        # still on its way here, a slow combine -- is never kept after; the tab sends its edits again under a new number
+        made = {'page': {'n': 1}, 'held': [], 'edits': [{'page': 'x'}], 'reads': NOTHING}
+        combine, asked = self.combining([made, made])
+        keeper = PageKeeper(combine=combine)
+        keeper.keep('p', {'n': 0}, NOTHING, [])
+        self.assertEqual(keeper.snapshot('p', 'w1', 1)[4], 0, 'not taken when asked')
+        late = keeper.settle('p', 1, [{'page': 'x'}], writer='w1', seq=1)
+        self.assertEqual((late.version, late.combined, late.page), (1, True, {'n': 0}), 'fenced: not kept, the page as it is')
+        self.assertEqual(asked, [], 'never combined')
+        self.assertEqual(keeper.settle('p', 1, [{'page': 'x'}], writer='w1', seq=2).version, 2, 'sent again: kept')
+        self.assertEqual(keeper.snapshot('p', 'w1', 1)[4], 2, 'a fence behind what was taken moves nothing')
+
+    def test_a_write_kept_is_answered_kept_though_a_watcher_fails(self):
+        # (the confirmation audit's 2) told of the write after it is kept, where the page is shown fails: the write stays
+        # kept and is answered so -- never a failure the writer would take for a refusal
+        made = {'page': {'n': 1}, 'held': [], 'edits': [{'page': 'x'}], 'reads': NOTHING}
+        keeper = PageKeeper(combine=self.combining([made])[0])
+
+        def failing(_key, _version):
+            raise RuntimeError('a notebook view could not be told')
+        keeper.on_write = failing
+        keeper.keep('p', {'n': 0}, NOTHING, [])
+        with mock.patch('traceback.print_exc') as said:
+            settled = keeper.settle('p', 1, [{'page': 'x'}], writer='w1', seq=1)
+        self.assertEqual((settled.version, keeper.current('p')), (2, (2, {'n': 1})))
+        self.assertEqual(keeper.snapshot('p', 'w1')[4], 1, 'taken')
+        said.assert_called_once()
+
+    def test_a_write_sent_twice_at_once_is_kept_once(self):
+        # the two sends both made again before either is kept (the combine is asked outside the lock): the second to be
+        # kept finds the first taken, and answers the page as it is
+        keeper = PageKeeper()
+        answers = []
+
+        def combine(page, held, edits):
+            # the first send, as it is made again, meets the second, which is kept first
+            if not answers:
+                answers.append(None)
+                answers[0] = keeper.settle('p', 1, edits, writer='w1', seq=1)
+            return {'page': {'n': 1}, 'held': [], 'edits': edits, 'reads': NOTHING}
+        keeper.combine = combine
+        keeper.keep('p', {'n': 0}, NOTHING, [])
+        first = keeper.settle('p', 1, [{'page': 'x'}], writer='w1', seq=1)
+        self.assertEqual((answers[0].version, answers[0].combined), (2, False), 'the second send kept, at its version')
+        self.assertEqual((first.version, first.combined, first.page), (2, True, {'n': 1}), 'the first: taken already')
+        self.assertEqual(keeper.current('p'), (2, {'n': 1}), 'one version: kept once')
 
     def test_refused_when_its_edits_do_not_apply_or_the_host_refuses_what_they_make(self):
         combine, _ = self.combining([{'problems': ['grid-2 is no longer on the page']},
-                                     {'page': {'n': 'reads x'}, 'held': [], 'edits': [], 'renamed': {}, 'reads': reads(['x'])}])
+                                     {'page': {'n': 'reads x'}, 'held': [], 'edits': [], 'reads': reads(['x'])}])
         keeper = PageKeeper(combine=combine)
         keeper.keep('p', {'n': 0}, NOTHING, [])
-        keeper.write('p', 1, {'n': 1}, NOTHING, None, [])
+        keeper.write('p', 1, {'n': 1}, NOTHING, [])
         with self.assertRaisesRegex(Refused, 'grid-2 is no longer on the page'):
-            keeper.settle('p', 1, [{'grid': 'grid-2', 'command': {}}])
+            keeper.settle('p', 1, [{'grid': 'grid-2', 'command': {}}], writer='w1', seq=1)
         with self.assertRaisesRegex(Refused, 'x is not served'):
             keeper.settle('p', 2, [{'page': 'x'}], lambda r: 'x is not served' if 'x' in r['frames'] else None)
         self.assertEqual(keeper.current('p'), (2, {'n': 1}), 'nothing changed')
+        self.assertEqual(keeper.snapshot('p', 'w1')[4], 0, 'a write refused is not taken')
 
     def test_a_restore_is_kept_whole_at_its_version_only(self):
         keeper = PageKeeper(combine=self.combining([])[0])
         keeper.keep('p', {'n': 0}, NOTHING, [])
-        self.assertEqual(keeper.restore('p', 1, {'n': 'undone'}, NOTHING, ['grid-1']), 2)
-        self.assertEqual(keeper.changes('p', 1), (2, None), 'whole: an open page opens it again')
-        keeper.write('p', 2, {'n': 'moved'}, NOTHING, [{'page': 'y'}], [])
-        with self.assertRaisesRegex(Refused, 'undone or redone'):
-            keeper.restore('p', 2, {'n': 'undone again'}, NOTHING, [])
+        self.assertEqual(keeper.restore('p', 1, {'n': 'loaded'}, NOTHING, ['grid-1']), 2)
+        self.assertEqual(keeper.hash_of('p'), page_hash({'n': 'loaded'}), 'the hash of every version, a whole one too')
+        keeper.write('p', 2, {'n': 'moved'}, NOTHING, [])
+        with self.assertRaisesRegex(Refused, 'while this was loaded'):
+            keeper.restore('p', 2, {'n': 'loaded again'}, NOTHING, [])
         self.assertEqual(keeper.current('p'), (3, {'n': 'moved'}), 'nothing kept')
 
-    def test_a_write_from_further_back_than_it_keeps_is_refused(self):
-        from legend_lite.keeper import STEPS_KEPT
+    def test_a_write_at_a_version_the_page_never_had_is_refused(self):
         keeper = PageKeeper(combine=self.combining([])[0])
         keeper.keep('p', {'n': 0}, NOTHING, [])
-        for n in range(1, STEPS_KEPT + 2):
-            keeper.write('p', n, {'n': n}, NOTHING, [n], [])
-        with self.assertRaisesRegex(Refused, 'further than it keeps'):
-            keeper.settle('p', 1, [{'page': 'x'}])
+        with self.assertRaisesRegex(Refused, 'is at version 1, not 5'):
+            keeper.settle('p', 5, [{'page': 'x'}])
 
 
 def trades():
@@ -314,6 +371,8 @@ class Intent:
             self.grids[rest[0]] = {'cube': rest[1], 'rows': list(rest[2]), 'snapped': False}
         elif what == 'chart':
             self.charts[rest[0]] = {'cube': rest[1], 'frozen': rest[2]}
+        elif what == 'removeSheet':
+            self.sheets.pop(rest[0], None)
         elif what == 'remove':
             tile = rest[0]
             gone = {tile}
@@ -340,30 +399,62 @@ class Intent:
             test.assertEqual(views[id].get('title'), title, f'{where}: {id} titled')
 
 
+def tab_functions(headless):
+    """The tab's own functions -- the two total diffs its history is made of and its planned apply (gridBetween,
+    pageBetween, pagePlanned: datacube/test/headless-tab.ts, bundled for this test alone as `legendLiteHeadlessTab`) --
+    loaded into the headless engine the open page has, once. Python's product asks none of them (the one API ledger's
+    L8_UNASKED), so the product's bundle carries none."""
+    if getattr(headless, '_tab_functions', False):
+        return
+    from pathlib import Path
+    headless.execute(Path(os.environ['LEGEND_LITE_TAB_HEADLESS']).read_text(encoding='utf-8'))
+    headless._tab_functions = True
+
+
 class OpenPage:
     """A page open on a Python page, as DataCube's app is to hold one: the page at the version it is at (``base``), what
     is on its screen (``doc``: the base with its own edits not yet written, ``pending``), edited by DataCube's own
-    functions (headless), written against its version as commands; refused, it follows what moved the page since and makes
-    its own edits again on top."""
+    functions (headless), every id it makes under its ``tag`` (page-ids.ts nextPageId), written against its version as
+    commands with the write's id (its ``writer``, its number); refused, or made another page of, it takes the page as the
+    keeper has it."""
 
-    def __init__(self, page):
+    def __init__(self, page, tag):
         self.page = page
+        self.tag = tag
+        # the id its writes carry, and the last one's number: each taken once (keeper.py settle)
+        self.writer = f'writer-{tag}'
+        self.seq = 0
         self.engine = datacube._session.engine()
         self.headless = datacube._session.headless()
-        said = self.get('')
+        tab_functions(self.headless)
+        said = self.get()
         self.version, self.base = said['version'], said['page']
         self.doc = self.base
+        # every id the page has held, as the tab's page holds them (page-state.ts: the keeper's, and every one it gave out
+        # since): what it names a tile it makes, or brings back, past (B12)
+        self.held = set(said['held'])
         # each edit not yet written: (its entry -- a page command, or a grid's -- its kind, what it said)
         self.pending = []
         # how many of its writes the keeper made again on top of a page that had moved on; how many times it opened the
         # page again whole for commands that did not apply here
         self.combined = 0
-        self.reopened = 0
         # the version its last write made
         self.written = self.version
+        # its history, as the tab keeps one (page-state.ts; docs/DATACUBE_LIVE_EDITING_2026_10_24.md §3): each step's
+        # commands forward (as applied) and inverse (planned when the step was made, by DataCube's total diffs), `at` of
+        # them done. Undo applies a step's inverse, Redo its forward again, each page command planned with a fresh id
+        # under its tag where the page has held the planned one since (headless pagePlanned: B12). A step whose commands
+        # no longer apply -- the other editor took off what they name -- is dead and undoes nothing. Made another page of,
+        # the history is gone (the tab's keeps its page steps: this model is the stricter).
+        self.history = []
+        self.at = 0
 
-    def get(self, since):
-        answer = self.engine.answer('GET', '/page.json', f'page={self.page._key}{since}', None)
+    def tab(self, function, *args):
+        """One of the tab's own functions (tab_functions), called as the headless engine's are."""
+        return self.headless.evaluate(f'legendLiteHeadlessTab.{function}(...{json.dumps(list(args))})')
+
+    def get(self, asked=''):
+        answer = self.engine.answer('GET', '/page.json', f'page={self.page._key}{asked}', None)
         if answer.status != 200:
             raise AssertionError(f'the page was not read: {answer.status} {answer.body!r}')
         return _json.loads(answer.body)
@@ -371,13 +462,21 @@ class OpenPage:
     def applied(self, doc, command):
         return self.applied_as(doc, command)[0]
 
+    def held_with(self, doc):
+        """Every id the page has held, with the ones ``doc`` holds."""
+        return sorted(self.held | {v['id'] for v in doc['views']} | {s['id'] for s in doc['sheets']} | {c['id'] for c in doc['cubes']})
+
     def applied_as(self, doc, command):
-        """``command`` applied by DataCube's function (pageApply): the page it makes, and the command as applied (an id
-        it made given), which is what the app writes."""
-        held = sorted({v['id'] for v in doc['views']} | {s['id'] for s in doc['sheets']} | {c['id'] for c in doc['cubes']})
-        said = _json.loads(self.headless.call('pageApply', _json.dumps(doc), json.dumps(held), _json.dumps([command])))
+        """``command`` applied by DataCube's function (pageApply), named first as the tab names what it makes (headless
+        pageNamed: an id under its tag): the page it makes, and the command as applied, which is what the app writes."""
+        held = self.held_with(doc)
+        named = _json.loads(self.tab('pageNamed', _json.dumps(doc), json.dumps(held), _json.dumps([command]), self.tag))
+        if 'problems' in named:
+            raise ValueError('; '.join(named['problems']))
+        said = _json.loads(self.headless.call('pageApply', _json.dumps(doc), json.dumps(held), _json.dumps(named['commands'])))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
+        self.held |= set(said['held'])
         return _json.loads(said['page']), said['commands'][0]
 
     def grid_applied(self, doc, grid, command):
@@ -419,34 +518,125 @@ class OpenPage:
             return [('title', command['tile'], command['title'])]
         if kind == 'removeTile':
             return [('remove', command['tile'])]
+        if kind == 'removeSheet':
+            return [('removeSheet', command['sheet'])]
+        if kind == 'addGrid':
+            # a grid brought back by an undo: a new tile, under a new id, showing a cube of its own id
+            facts = [('grid', command['id'], command['id'], command['document']['query'].get('rows', []))]
+            if command.get('title'):
+                facts.append(('title', command['id'], command['title']))
+            return facts
+        if kind == 'addChart':
+            view = next(v for v in after['views'] if v['id'] == command['id'])
+            facts = [('chart', command['id'], view['cube'], bool(view['spec'].get('frozen')))]
+            if command.get('title'):
+                facts.append(('title', command['id'], command['title']))
+            return facts
         return []
 
-    def follow(self):
-        """What moved the page since its version, applied as the app applies it -- the commands, by DataCube's functions,
-        or the page whole (and whole too when they do not apply here: a copy a page between read let go meanwhile, known
-        limit 6 of the note). Only with nothing pending: its own edits are the keeper's to make again on top."""
-        assert not self.pending, 'an open page follows with its own edits written'
-        said = self.get(f'&since={self.version}')
-        if 'commands' in said:
-            try:
-                base = self.base
-                for entry in said['commands']:
-                    base = (self.applied(base, entry['page']) if 'page' in entry
-                            else self.grid_applied(base, entry['grid'], entry['command']))
-                self.base = base
-            except ValueError:
-                self.reopened += 1
-                said = self.get('')
-        if 'page' in said:
-            self.base = said['page']
-        self.version = said['version']
-        self.doc = self.base
+    def stepped(self, before, after, forward):
+        """A step of the history: ``forward``, its commands as applied, and its inverse, planned now as the tab plans one
+        (page-state.ts): a grid's step by its grid's total diff (gridBetween: the grid's own, its charts following), a
+        page's by the page's in the history's scope (pageBetween), a click's (a chart's select and its grid's refilter)
+        by both. No inverse (a diff refused): a step that undoes nothing."""
+        grids = {v['id']: v['cube'] for v in after['views'] if v['kind'] == 'grid'}
+        cubes_before = {c['id']: c['cube'] for c in before['cubes']}
+        cubes_after = {c['id']: c['cube'] for c in after['cubes']}
+        inverse = []
+        try:
+            if any('grid' in entry for entry in forward):
+                for grid, cube in grids.items():
+                    if cube in cubes_before and _json.dumps(cubes_after[cube]) != _json.dumps(cubes_before[cube]):
+                        said = _json.loads(self.tab('gridBetween', _json.dumps(cubes_after[cube]), _json.dumps(cubes_before[cube])))
+                        if 'problems' in said:
+                            raise ValueError('; '.join(said['problems']))
+                        inverse.extend({'grid': grid, 'command': c} for c in said['commands'])
+            if any('page' in entry for entry in forward):
+                said = _json.loads(self.tab('pageBetween', _json.dumps(after), _json.dumps(before), 'history'))
+                if 'problems' in said:
+                    raise ValueError('; '.join(said['problems']))
+                inverse.extend({'page': c} for c in said['commands'])
+        except ValueError:
+            inverse = None
+        del self.history[self.at:]
+        self.history.append({'forward': forward, 'inverse': inverse})
+        self.at += 1
 
-    def reopen(self):
-        """The page opened again whole, as the keeper has it (what the app does when its write was made again on top,
-        or refused)."""
-        said = self.get('')
+    def toward(self, entries, label):
+        """A step's ``entries`` (its inverse, or its forward again) applied to the screen as Undo and Redo apply one: each
+        grid's command by the grid's function, each run of page commands planned (pagePlanned: an id the page has held
+        since given out afresh, B12), pending, each fact said. ``label``, or None when one no longer applies (a dead step:
+        the screen unchanged)."""
+        if entries is None:
+            return None
+        doc = self.doc
+        made = []
+        try:
+            i = 0
+            while i < len(entries):
+                entry = entries[i]
+                if 'grid' in entry:
+                    doc = self.grid_applied(doc, entry['grid'], entry['command'])
+                    command = entry['command']
+                    made.append((entry, label, [('rows', entry['grid'], command['rows'])] if command['kind'] == 'group' else []))
+                    i += 1
+                    continue
+                run = []
+                while i < len(entries) and 'page' in entries[i]:
+                    run.append(entries[i]['page'])
+                    i += 1
+                said = _json.loads(self.tab('pagePlanned', _json.dumps(doc), json.dumps(self.held_with(doc)), _json.dumps(run), self.tag))
+                if 'problems' in said:
+                    raise ValueError('; '.join(said['problems']))
+                self.held |= set(said['held'])
+                after = _json.loads(said['page'])
+                for command in said['commands']:
+                    made.append(({'page': command}, label, self.said(doc, after, command)))
+                doc = after
+        except ValueError:
+            return None
+        self.doc = doc
+        self.pending.extend(made)
+        return label
+
+    def undo(self):
+        """Undo, as the page's menu does it: the last step done, its inverse onto the screen, pending; 'undo', or None
+        (nothing to undo; a dead step, dropped)."""
+        if self.at == 0:
+            return None
+        step = self.history[self.at - 1]
+        if self.toward(step['inverse'], 'undo') is None:
+            del self.history[self.at - 1]
+            self.at -= 1
+            return None
+        self.at -= 1
+        return 'undo'
+
+    def redo(self):
+        """Redo: the last step undone, its commands again, pending; 'redo', or None."""
+        if self.at == len(self.history):
+            return None
+        step = self.history[self.at]
+        if self.toward(step['forward'], 'redo') is None:
+            del self.history[self.at]
+            return None
+        self.at += 1
+        return 'redo'
+
+    def follow(self):
+        """The page read whole, as the app follows it (live-follow.ts: the screen put at the keeper's page). Only with
+        nothing pending: its own edits are the keeper's to make again on top."""
+        assert not self.pending, 'an open page follows with its own edits written'
+        said = self.get()
         self.version, self.base, self.doc = said['version'], said['page'], said['page']
+        self.held |= set(said['held'])
+
+    def take(self, said):
+        """The page as the keeper has it -- ``said``, a read or a write's answer that carries it -- taken whole (what the app
+        does when its write was made another page of, or refused): its history gone."""
+        self.version, self.base, self.doc = said['version'], said['page'], said['page']
+        self.held |= set(said['held'])
+        self.history, self.at = [], 0
 
     def edit(self, rng):
         """One edit as a person makes one on the page, onto its screen, not yet written: its kind, or None when there was
@@ -488,6 +678,7 @@ class OpenPage:
         if not entries:
             return None
         made = []
+        before = self.doc
         try:
             doc = self.doc
             for entry in entries if isinstance(entries, list) else [entries]:
@@ -497,6 +688,7 @@ class OpenPage:
             return None
         self.doc = doc
         self.pending.extend(made)
+        self.stepped(before, doc, [entry for entry, _, _ in made])
         return kind
 
     def click(self, doc, rng):
@@ -514,30 +706,30 @@ class OpenPage:
                 {'grid': grid_of[chart['cube']], 'command': {'kind': 'refilter', 'remove': old, 'add': add}}]
 
     def write(self):
-        """Its edits written as the app writes them: the edits it made, against the version it is at -- the keeper applying
-        them, made again on top of the page as it is now when it moved on (the page then opened as the keeper made it). What they said, in the order written (each id renamed as the keeper
-        gave it out afresh), and the kinds of those let go -- all of them, refused as no longer applying there."""
+        """Its edits written as the app writes them: the edits it made, against the version it is at, with the write's id
+        -- the keeper applying them, made again on top of the page as it is now when it moved on (the page it made then
+        answered, and taken). What they said, in the order written (each id its own: nothing renamed), and the kinds of
+        those let go -- all of them, refused as no longer applying there (the page then read, and taken)."""
         if not self.pending:
             return [], []
         edits = [entry for entry, _, _ in self.pending]
+        self.seq += 1
         answer = self.engine.answer('POST', '/page.json', f'page={self.page._key}&version={self.version}',
-                                    _json.dumps({'edits': edits}))
+                                    _json.dumps({'edits': edits, 'writer': self.writer, 'seq': self.seq}))
         if answer.status == 409:
             kinds = [kind for _, kind, _ in self.pending]
             self.pending = []
-            self.reopen()
+            self.take(self.get())
             return [], kinds
         if answer.status != 200:
             raise AssertionError(f'the write was refused: {answer.status} {answer.body!r}')
-        said = json.loads(answer.body)
+        said = _json.loads(answer.body)
         self.written = said['version']
-        renamed = said['renamed']
-        facts = [(f[0], renamed.get(f[1], f[1]), *f[2:]) if len(f) > 1 and isinstance(f[1], str) else f
-                 for _, _, made in self.pending for f in made]
+        facts = [f for _, _, made in self.pending for f in made]
         self.pending = []
-        if said['combined']:
+        if 'page' in said:
             self.combined += 1
-            self.reopen()
+            self.take(said)
         else:
             self.version, self.base = said['version'], self.doc
         return facts, []
@@ -548,8 +740,7 @@ PYTHON_KINDS = ('sheet', 'group', 'name', 'snap', 'live', 'renameSheet', 'sort',
 
 
 def made(fact):
-    """A fact about a tile or a sheet Python made, said with its id when it is said (made inside a call an open page
-    wrote under, its id is given out afresh and its handle follows) -- or, taken off by then, as it was made."""
+    """A fact about a tile or a sheet Python made, said when it is said -- or, taken off by then, as it was made."""
     then = fact()
 
     def said():
@@ -673,13 +864,14 @@ class Converged(unittest.TestCase):
         self.assertEqual(reads - set(engine._copies), set(), f'{where}: every copy read is held')
         self.assertEqual(set(engine._copies) - reads, set(), f'{where}: no copy held that no page reads')
 
-    def one(self, page, open_page, intent, where):
-        """Python, the open page and the keeper hold one page, which says what every edit written said; the copies held
-        are the ones read."""
+    def one(self, page, open_pages, intent, where):
+        """Python, every open page and the keeper hold one page, which says what every edit written said; the copies
+        held are the ones read."""
         kept = datacube._session.keeper.current(page._key)
-        open_page.follow()
-        self.assertEqual(open_page.version, kept[0], where)
-        self.assertEqual(_json.dumps(open_page.doc), _json.dumps(kept[1]), f'{where}: the open page holds the keeper\'s')
+        for n, open_page in enumerate(open_pages):
+            open_page.follow()
+            self.assertEqual(open_page.version, kept[0], f'{where}: open page {n}')
+            self.assertEqual(_json.dumps(open_page.doc), _json.dumps(kept[1]), f'{where}: open page {n} holds the keeper\'s')
         self.assertEqual(_json.dumps(page.to_dict()), _json.dumps(kept[1]), f'{where}: Python holds the keeper\'s')
         intent.check(self, kept[1], where)
         self.followed(kept[1], where)
@@ -746,7 +938,7 @@ class EmptyPage(Converged):
         page, _ = self.built(0)
         tab = ll.show(page, browser=False)
         try:
-            open_page = OpenPage(page)
+            open_page = OpenPage(page, 'ta')
             for grid in [v['id'] for v in open_page.doc['views'] if v['kind'] == 'grid']:
                 open_page.doc, facts, entry = open_page.made(open_page.doc, {'page': {'kind': 'removeTile', 'tile': grid}})
                 open_page.pending.append((entry, 'removeTile', facts))
@@ -757,20 +949,30 @@ class EmptyPage(Converged):
 
 
 class Converges(Converged):
-    """A page Python edits and an open page edits, interleaved at random: one page, every edit's intent on it."""
+    """A page Python edits and two open pages edit -- each one's edits, and its undo and redo of them -- interleaved at
+    random: one page, every edit's intent on it (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W15, the Python side of the
+    soak; the two tabs' side is datacube/test/live-soak.test.ts)."""
 
-    def test_python_and_an_open_page_edit_one_page_in_any_order_and_never_hold_two(self):
+    def test_python_and_two_open_pages_edit_one_page_in_any_order_and_never_hold_two(self):
         made = {k: 0 for k in PYTHON_KINDS}
         made_there = {}
+
+        def there(kind):
+            if kind:
+                made_there[kind] = made_there.get(kind, 0) + 1
+
         for seed in range(SEEDS):
             rng = random.Random(seed)
             page, frame = self.built(seed)
             tab = ll.show(page, browser=False)
-            open_page = OpenPage(page)
+            open_pages = [OpenPage(page, 'ta'), OpenPage(page, 'tb')]
+            open_page, other = open_pages
             intent = Intent(page.to_dict())
             for step in range(STEPS):
                 where = f'seed {seed}, step {step}'
-                who = rng.randrange(4)
+                # Python edits in three of five steps, as it did with one open page (its kinds each tried); the open
+                # pages' own branches share the rest
+                who = rng.choice((0, 0, 1, 2, 2, 3, 3, 4, 5, 6))
                 if who == 0:
                     # Python alone
                     kind, said = python_edit(page, rng, frame)
@@ -807,10 +1009,10 @@ class Converges(Converged):
                         for fact in said:
                             intent.said(fact)
                     elif said is not None and CONFLICT in str(said):
-                        # refused only for a real conflict: the tile taken off there (an id given out on both sides is
-                        # given out afresh, never refused)
+                        # refused only for a real conflict: the tile taken off there (each side's ids its own: none is
+                        # made on both)
                         self.assertEqual(theirs, 'removeTile', f'{where}: {kind} refused for no conflict: {said}')
-                else:
+                elif who == 3:
                     # Python writes while the open page holds an edit not yet written: refused, the open page follows
                     # and makes its edit again on top
                     theirs = open_page.edit(rng)
@@ -829,12 +1031,54 @@ class Converges(Converged):
                         made_there[theirs] = made_there.get(theirs, 0) + 1
                     for fact in facts:
                         intent.said(fact)
-                self.one(page, open_page, intent, where)
+                elif who == 4:
+                    # the other open page alone: the first follows it
+                    theirs = other.edit(rng)
+                    facts, refused = other.write()
+                    self.assertEqual(refused, [], f'{where}: nothing moved the page: {theirs} let go')
+                    there(theirs)
+                    for fact in facts:
+                        intent.said(fact)
+                elif who == 5:
+                    # both open pages edit, then write in turn: the second's write is made again on top of the first's,
+                    # refused only where the first took off what the second edited
+                    first, second = (open_page, other) if rng.random() < 0.5 else (other, open_page)
+                    mine, theirs = first.edit(rng), second.edit(rng)
+                    facts, refused = first.write()
+                    self.assertEqual(refused, [], f'{where}: nothing moved the page: {mine} let go')
+                    there(mine)
+                    for fact in facts:
+                        intent.said(fact)
+                    facts, refused = second.write()
+                    if refused:
+                        self.assertEqual(mine, 'removeTile', f'{where}: {theirs} let go for no conflict after {mine}')
+                    else:
+                        there(theirs)
+                    for fact in facts:
+                        intent.said(fact)
+                else:
+                    # Undo on one open page, written as the commands between (its step's inverse) -- and, at times, Redo
+                    # after it, written as the step's commands again
+                    undoing = rng.choice(open_pages)
+                    kind = undoing.undo()
+                    facts, refused = undoing.write()
+                    self.assertEqual(refused, [], f'{where}: nothing moved the page: {kind} let go')
+                    there(kind)
+                    for fact in facts:
+                        intent.said(fact)
+                    if kind and rng.random() < 0.4:
+                        kind = undoing.redo()
+                        facts, refused = undoing.write()
+                        self.assertEqual(refused, [], f'{where}: nothing moved the page: {kind} let go')
+                        there(kind)
+                        for fact in facts:
+                            intent.said(fact)
+                self.one(page, open_pages, intent, where)
             tab.close()
         # every kind of edit went through somewhere, on each side: none of them is never tried
         self.assertEqual([k for k, n in made.items() if n == 0], [], f'Python edits made: {made}')
         there = ('renamePage', 'addSheet', 'renameSheet', 'moveSheet', 'renameTile', 'removeTile', 'group', 'addSort', 'pivot',
-                 'click', 'open', 'collapseAll', 'level')
+                 'click', 'open', 'collapseAll', 'level', 'undo', 'redo')
         self.assertEqual([k for k in there if not made_there.get(k)], [], f'open page edits made: {made_there}')
 
 
@@ -847,7 +1091,7 @@ class Threads(Converged):
         tab = ll.show(page, browser=False)
         start = page.to_dict()
         written, failures = [], []
-        open_page = OpenPage(page)
+        open_page = OpenPage(page, 'ta')
 
         def there():
             rng = random.Random(1)

@@ -446,17 +446,36 @@ describe('the app', () => {
     assert.equal(labels.some((l) => /Drag Zones|Title Bar/.test(l)), false, labels.join(', '));
   });
 
-  it('switches to Ad Hoc Analysis from the hamburger, and back as it was', async () => {
+  // the user, 2026-10-23: Ad Hoc Analysis and a dimension's grouping are started from Properties' Dimensions tab, not a
+  // menu entry
+  /** Properties ▸ Dimensions, picked from the open hamburger: the editor's window. */
+  const dimensionsTab = (): HTMLElement => {
+    pick('Properties...');
+    const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
+    [...overlay.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Dimensions')!
+      .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    return overlay;
+  };
+  const buttonIn = (where: Element, text: string): HTMLButtonElement => {
+    const found = [...where.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text);
+    assert.ok(found, `a ${text} button; saw ${[...where.querySelectorAll('button')].map((b) => b.textContent).join(', ')}`);
+    return found;
+  };
+  /** Apply compiles the draft first, so the cube answers some ticks later; Ad Hoc's first answer after that. */
+  const settled = async (): Promise<void> => {
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    for (let i = 0; i < 20 && (app.adhoc?.busy ?? false); i++) await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+  };
+
+  it('switches to Ad Hoc Analysis from Properties ▸ Dimensions (no menu entry), and back by its own Exit, as it was', async () => {
     hamburger();
-    pick('Ad Hoc Analysis');
-    const settle = async (): Promise<void> => {
-      for (let i = 0; i < 20 && (app.adhoc?.busy ?? false); i++) {
-        await new Promise((r) => setTimeout(r, 0));
-      }
-      await new Promise((r) => setTimeout(r, 0));
-    };
-    await settle();
+    const labels = menuItems().map((i) => i.querySelector('.dc-menu-label')?.textContent ?? '');
+    assert.ok(!labels.some((l) => /Ad Hoc|^Dimensions$/.test(l)), `no menu entry of its own: ${labels.join(', ')}`);
+    buttonIn(dimensionsTab(), 'Start Ad Hoc Analysis').click();
+    await settled();
     assert.ok(app.adhoc, 'the mode is on');
+    assert.equal(root.querySelector('.dc-app-overlay:not([hidden]) .dc-editor'), null, 'Properties closed');
     const middle = root.querySelector('.dc-app-middle') as HTMLElement;
     assert.equal(middle.hidden, true, "the cube's grid waits");
     assert.equal((root.querySelector('.dc-zone-bar') as HTMLElement).hidden, true);
@@ -464,16 +483,56 @@ describe('the app', () => {
     // The host's hierarchy is the outline; the opening grid is its top.
     assert.deepEqual(app.adhoc.session.grid.rows.map((a) => a.dimension), ['Geography']);
     assert.deepEqual(app.adhoc.view?.table.columns[0]?.values, ['Geography']);
-    // Checked while on; choosing it again leaves.
-    hamburger();
-    // by its own label: View's entry holds the submenu's words too
-    const entry = menuItems().find((i) => i.querySelector('.dc-menu-label')?.textContent === 'Ad Hoc Analysis');
-    assert.equal(entry?.getAttribute('aria-checked'), 'true');
-    pick('Ad Hoc Analysis');
+    // its own bar's Exit leaves
+    buttonIn(root.querySelector('.dc-adhoc') as HTMLElement, 'Exit').click();
     assert.equal(app.adhoc, null);
     assert.equal(root.querySelector('.dc-adhoc'), null);
     assert.equal(middle.hidden, false);
     assert.equal((root.querySelector('.dc-zone-bar') as HTMLElement).hidden, false);
+  });
+
+  it('groups the rows by a dimension from Properties ▸ Dimensions, the draft applied first', async () => {
+    // its own app, whose dimension starts at a column the grid is not grouped by
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const own = new CubeApp(host, SNAPSHOT, { engine, planner, dimensions: [{ name: 'Desks', columns: ['desk', 'region'] }] });
+    await own.open();
+    (host.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
+    pick('Properties...');
+    const tab = host.querySelector('.dc-app-overlay') as HTMLElement;
+    [...tab.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Dimensions')!
+      .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    // a hierarchy made in the draft, not applied yet: Group Rows applies it too
+    buttonIn(tab, 'Add').click();
+    assert.deepEqual([...tab.querySelectorAll('.dc-dimension-name')].map((n) => n.textContent), ['Desks', 'Dimension 1']);
+    assert.equal(buttonIn(tab, 'Group Rows by Dimension 1').disabled, true, 'a dimension of no columns groups nothing');
+    [...tab.querySelectorAll<HTMLElement>('.dc-dimension-row')][0]!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    buttonIn(tab, 'Group Rows by Desks').click();
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(own.snapshot.rows, ['desk'], "grouped by Desks' first level");
+    assert.deepEqual(own.configuration.dimensions?.map((d) => d.name), ['Desks', 'Dimension 1'], 'the draft applied');
+    assert.equal(host.querySelector('.dc-editor'), null, 'Properties closed');
+    own.dispose();
+  });
+
+  it('Group Rows by a dimension naming a column the grid lacks: refused in words, the rows as they were', async () => {
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const said: string[] = [];
+    const own = new CubeApp(host, SNAPSHOT, {
+      engine, planner, dimensions: [{ name: 'Ghost', columns: ['nope'] }], onStatus: (text) => said.push(text),
+    });
+    await own.open();
+    (host.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
+    pick('Properties...');
+    const tab = host.querySelector('.dc-app-overlay') as HTMLElement;
+    [...tab.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Dimensions')!
+      .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    buttonIn(tab, 'Group Rows by Ghost').click();
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(own.snapshot.rows, ['region'], 'the rows as they were');
+    assert.ok(said.some((t) => /Ghost' names nope, which the grid does not have/.test(t)), `said: ${said.join(' | ')}`);
+    own.dispose();
   });
 
   it('a disposed app no longer answers the shortcuts', () => {
@@ -884,12 +943,10 @@ describe('the app', () => {
       'the panel must read in the order the grid does');
   });
 
-  it('offers each named dimension in the title bar menu', () => {
+  it('offers no named dimension in the title bar menu: Properties ▸ Dimensions groups by one (the user, 2026-10-23)', () => {
     hamburger();
-    pick('Geography');
-    // Starts at ONE level: opening it fully would fetch desk-level
-    // groups for every region before anyone asked.
-    assert.deepEqual(app.snapshot.rows, ['region']);
+    const labels = menuItems().map((i) => i.querySelector('.dc-menu-label')?.textContent ?? '');
+    assert.ok(labels.includes('Properties...') && !labels.includes('Geography'), labels.join(', '));
   });
 
   it('opens the editor, and Cancel closes it', () => {

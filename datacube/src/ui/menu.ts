@@ -66,6 +66,9 @@ export interface MenuContext {
   readonly isRowDimension?: boolean;
   /** Whether a selection exists, which gates the copy entries. */
   readonly hasSelection?: boolean;
+  /** Whether the grid has a step to undo, and one to redo: Edit ▸ Undo and Redo, disabled without. */
+  readonly canUndo?: boolean;
+  readonly canRedo?: boolean;
   /** Whether any group is currently open, which gates Collapse All. */
   readonly hasExpanded?: boolean;
   /** Whether the column under the pointer already has a heatmap. */
@@ -130,6 +133,37 @@ export interface MenuContext {
   readonly fixedWidth?: boolean;
   /** The cube's controls are hidden (the grid alone): the last entry brings them back. */
   readonly controlsHidden?: boolean;
+  /**
+   * A grid on a page of sheets: Tile ▸ Move to Sheet's entries (each other sheet, then a new one), or `locked` -- the
+   * page locked, the entry offered disabled. Absent off such a page.
+   */
+  readonly sheets?: readonly MenuItem[] | 'locked';
+  /** A grid on a page of its own: Tile ▸ Remove from Page. */
+  readonly canRemove?: boolean;
+  /**
+   * The host's Join ▸ on the column clicked (the user, 2026-10-23): a quick join to each grid sharing a column, the
+   * other ways, the window. Absent where the grid cannot be joined.
+   */
+  readonly join?: readonly MenuItem[];
+  /** The host's own Create ▸ entries (Class…, Association…, Data Space…), after the grid's. */
+  readonly create?: readonly MenuItem[];
+  /** Whether a data source can be opened beside the grid: Create ▸ Data Source…. */
+  readonly canOpenSource?: boolean;
+}
+
+/**
+ * CREATE ▸, the same in every menu -- the right-click, a grid's own menu, the title bar's (the user, 2026-10-23: "Insert"
+ * became "Create", one word for all three): a grid over another source, a copy of this one, a chart of it; then, a line
+ * above them, the host's (Class…, Association…, Data Space…).
+ */
+export function createItems(o: { readonly source: boolean; readonly host: readonly MenuItem[]; readonly disabled?: boolean }): MenuItem[] {
+  const off = o.disabled === true ? { disabled: true } : {};
+  return [
+    ...(o.source ? [{ id: 'source.new' as const, label: 'Data Source\u2026', ...off }] : []),
+    { id: 'grid.new', label: 'Copy of This Grid', ...off },
+    { id: 'chart.plot', label: 'Visualization', ...off },
+    ...o.host.map((h, i) => (i === 0 ? { ...h, separated: true } : h)),
+  ];
 }
 
 /**
@@ -212,7 +246,7 @@ export type MenuActionId =
   | 'page.blank'
   // the page's layouts (ui/layout-picker.ts), and edit or view mode (nothing moves)
   | 'page.arrange'
-  // a grid on a page of its own, taken off it from its own menu
+  // a grid on a page of its own, taken off it from its right-click's Tile ▸
   | 'grid.remove'
   // a page of its own as a file (page/page-app.ts)
   | 'page.export'
@@ -246,14 +280,11 @@ export type MenuActionId =
   // change and not a column operation: what is on SCREEN. It left the
   // grid's menu by the user's direction (2026-09-25); a folded title
   // bar leaves a lip that restores it.
-  // Host-level entries, which live in the title bar's menu rather
-  // than the grid's. DataCube reserves that menu for the embedding
-  // application the same way.
-  | 'view.dimension'
+  // The grid's history, in the title bar's menu and the right-click's Edit ▸, and the
+  // title bar's Settings.
   | 'view.undo'
   | 'view.redo'
   | 'view.settings'
-  | 'view.adhoc'
   | 'adhoc.zoomNext'
   | 'adhoc.zoomAll'
   | 'adhoc.zoomBottom'
@@ -277,9 +308,10 @@ export interface MenuItem {
   readonly label: string;
   /**
    * A host's entry: where it goes -- the main menu's file group (the default), its View, its
-   * top-level data entries, or the status bar's planner readout (`plane`: where the planner runs).
+   * top-level data entries, its Create ▸ (Class…, Association…, Data Space…), or the status bar's planner readout
+   * (`plane`: where the planner runs).
    */
-  readonly section?: 'file' | 'view' | 'data' | 'plane';
+  readonly section?: 'file' | 'view' | 'data' | 'create' | 'plane';
   /** Column the action applies to, when it is column-specific. */
   readonly column?: string;
   readonly direction?: SortDirection;
@@ -307,6 +339,8 @@ export interface MenuItem {
   readonly showAs?: ShowAsKind;
   /** A line above it: what follows is apart from what precedes (New ▸ Blank Page, which replaces everything). */
   readonly separated?: boolean;
+  /** Said on hover: why a disabled entry is off (Show Grid on a cube on its own). */
+  readonly hint?: string;
 }
 
 export interface MenuGroup {
@@ -462,28 +496,33 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
   const isHorizontal = column ? s.pivotOn.includes(column) : false;
   const groupable = column !== undefined && ctx.canGroup !== false;
 
-  // ---- Export / Copy ----------------------------------------------
+  // ---- Export / Edit ----------------------------------------------
+  // EDIT ▸ where Copy ▸ was (the user, 2026-10-23: "change it to Edit with undo/redo and copy"): the grid's own Undo
+  // and Redo -- its menu's, before the grid's menu button went -- then its copies, as plain text
   push('', [
     { label: 'Export', submenu: exportItems(ctx.canSaveCube === true) },
     { label: 'Email', submenu: emailItems(ctx.canEmail === true) },
     {
-      label: 'Copy',
+      label: 'Edit',
       submenu: [
+        { id: 'view.undo', label: 'Undo', disabled: ctx.canUndo !== true },
+        { id: 'view.redo', label: 'Redo', disabled: ctx.canRedo !== true },
         {
           id: 'copy.selection',
-          label: 'Selected Cells as Plain Text',
+          label: 'Copy Selected Cells',
           disabled: !ctx.hasSelection,
+          separated: true,
         },
         {
           id: 'copy.rows',
-          label: 'Selected Rows as Plain Text',
+          label: 'Copy Selected Rows',
           disabled: !ctx.hasSelection,
         },
         {
           id: 'copy.column',
           label: column
-            ? `Column ${columnLabel(column, ctx.totalLabel)} as Plain Text`
-            : 'Selected Column as Plain Text',
+            ? `Copy Column ${columnLabel(column, ctx.totalLabel)}`
+            : 'Copy Column',
           disabled: !column,
           ...(column ? { column } : {}),
         },
@@ -535,6 +574,8 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       ],
     },
     { label: 'Filter', submenu: filterSubmenu(ctx) },
+    // JOIN, beside Filter (the user, 2026-10-23): the host's -- a quick join to each grid sharing a column, the window
+    ctx.join !== undefined && ctx.join.length > 0 ? { label: 'Join', submenu: ctx.join } : null,
     {
       label: 'Pivot',
       submenu: [
@@ -740,16 +781,10 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     },
   ]);
 
-  // INSERT sits beside Properties, as plot and treemap did: a chart or another grid is a view OF
-  // the cube rather than an operation ON a column. A treemap is one of the chart's types now
-  // (the user, 2026-09-30); the grid starts as this one is (page/cube-page.ts).
-  push('', [{
-    label: 'Insert',
-    submenu: [
-      { id: 'chart.plot', label: 'Visualization' },
-      { id: 'grid.new', label: 'Copy of Grid' },
-    ],
-  }]);
+  // CREATE sits beside Properties, as Insert did: a chart, another grid, a class is made OF the cube rather than an
+  // operation ON a column (createItems: the same in every menu). A treemap is one of the chart's types (the user,
+  // 2026-09-30); a copy starts as this grid is (page/cube-page.ts).
+  push('', [{ label: 'Create', submenu: createItems({ source: ctx.canOpenSource === true, host: ctx.create ?? [] }) }]);
 
   push('', [{
     id: 'view.properties',
@@ -760,8 +795,17 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
   // LAST, after every entry people know by its place (the user: the right-click order stays as it
   // is): the one switch for the cube's controls -- title bar, drag zones, columns panel, status
   // bar -- hidden together for the grid alone, and the way back. The right-click menu is the only
-  // way back (the user, 2026-10-01: "right click only").
-  push('', [{ id: 'view.controls', label: ctx.controlsHidden ? 'Show Controls' : 'Hide Controls' }]);
+  // way back (the user, 2026-10-01: "right click only"). On a page, TILE ▸ holds it with what is
+  // done to the grid's tile -- onto another sheet, off the page (the user, 2026-10-23: the grid's
+  // menu button gone, "nested with Hide Controls and Move to Sheet").
+  const controls: MenuItem = { id: 'view.controls', label: ctx.controlsHidden ? 'Show Controls' : 'Hide Controls' };
+  const tile: MenuItem[] = [
+    controls,
+    ...(ctx.sheets === undefined ? []
+      : [{ label: 'Move to Sheet', ...(ctx.sheets === 'locked' ? { disabled: true } : { submenu: ctx.sheets }) }]),
+    ...(ctx.canRemove === true ? [{ id: 'grid.remove' as const, label: 'Remove from Page', separated: true }] : []),
+  ];
+  push('', [tile.length > 1 ? { label: 'Tile', submenu: tile } : controls]);
 
   return groups;
 }

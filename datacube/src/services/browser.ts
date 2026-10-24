@@ -33,10 +33,11 @@ import type {
   Services,
   WarehouseService,
 } from '../app/services.ts';
+import { lazily } from '../lazily.ts';
 
 // the saved queries' code, fetched the first time it is needed -- the Saved queries section, a query link -- as charts
 // are: a grid-only page never downloads it (test/bundle-budget.test.ts)
-const queryStores = () => import('../../../query-store/src/index.ts');
+const queryStores = () => lazily(() => import('../../../query-store/src/index.ts'));
 
 /** The tab's planner, as its plane builds it (demo/planners.ts). */
 export interface TabPlanner {
@@ -105,7 +106,7 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
         tables: o.planner.tables,
         // a project's own rows, in a database of their own inside this tab's DuckDB (C5): the keeper fetched with the
         // first saved query a page opens by name, never with the grid's start
-        projects: () => (projectKeeper ??= import('../../../engine-client/src/project-data.ts').then(({ ProjectDatabases: Keeper }) =>
+        projects: () => (projectKeeper ??= lazily(() => import('../../../engine-client/src/project-data.ts')).then(({ ProjectDatabases: Keeper }) =>
           new Keeper({
             databaseType: o.duckdb.engine.databaseType,
             run: (sql) => o.duckdb.engine.run(sql, 0),
@@ -214,7 +215,7 @@ function hostOf(url: string): string {
 function depotHome(sdlc: string, vendor: string, location: { readonly href: string }): ModelHomeService {
   let home: ReturnType<ModelHomeService['connect']> | undefined;
   return {
-    connect: () => (home ??= import('../../../depot-client/src/model-home.ts')
+    connect: () => (home ??= lazily(() => import('../../../depot-client/src/model-home.ts'))
       .then(({ connectModelHome }) => connectModelHome({ sdlc, vendor }))),
     // beside this page, as the one site lays the apps out (<site>/datacube/demo/, <site>/studio/demo/), wherever the site
     // is served -- under a path on GitHub Pages; at the root, where `..` stops, as before
@@ -236,7 +237,7 @@ function warehouseService(config: TabConfig, location: { readonly href: string }
   let ready: { readonly driver: Driver; readonly binding: WarehouseBinding } | undefined;
   let loading: Promise<{ readonly driver: Driver; readonly binding: WarehouseBinding }> | undefined;
   const loaded = (): Promise<{ readonly driver: Driver; readonly binding: WarehouseBinding }> => (loading ??=
-    import('../../../engine-client/src/warehouse.ts')
+    lazily(() => import('../../../engine-client/src/warehouse.ts'))
       .then(async (driver) => (ready = {
         driver, binding: await driver.loadWarehouseBinding(new URL(`${config.vendor}warehouse/`, location.href).href),
       }))

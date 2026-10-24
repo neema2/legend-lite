@@ -14,7 +14,7 @@ import { snapRefusal } from '../../../engine-client/src/snap.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { nameProblem } from '../calc.ts';
-import { chartFrom, chartGrid, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
+import { chartFrom, chartGrid, chartProblems, followCube, followRefusal, readChart, showGridWay } from '../chart-spec.ts';
 import { draftColumn, draftStage, existingDraft, newDraft, type ColumnDraft } from '../column-draft.ts';
 import { presetCommands, readGridPreset, type GridPreset } from '../grid-presets.ts';
 import {
@@ -468,7 +468,7 @@ function viewJson(view: CubeView, configuration: CubeState['configuration'], que
 export async function gridColumn(spec: GridSpec, given: string): Promise<string> {
   const asked = JSON.parse(given) as {
     name?: unknown; replacing?: unknown; level?: unknown; kind?: ColumnKind | null; mode?: unknown;
-    expression?: unknown; explode?: unknown; window?: unknown; child?: unknown;
+    expression?: unknown; explode?: unknown; window?: unknown; child?: unknown; before?: unknown;
   };
   const kind = asked.kind ?? null;
   if (kind !== null && !COLUMN_KINDS.includes(kind)) {
@@ -508,6 +508,11 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
     return JSON.stringify({ problems: [`the calculated column edited is named by text, not ${JSON.stringify(asked.replacing)}`] });
   }
   const replacing = typeof asked.replacing === 'string' ? asked.replacing : null;
+  // the calculated column of its level the column goes before (Python's before=; D19), as the command carries it
+  if (asked.before !== undefined && typeof asked.before !== 'string') {
+    return JSON.stringify({ problems: [`the calculated column it goes before is named by text, not ${JSON.stringify(asked.before)}`] });
+  }
+  const before = typeof asked.before === 'string' ? { before: asked.before } : {};
   return using(spec, async (o) => {
     const { planner, state } = o;
     // an edit starts from the column as it is (Edit Column opens on it: its level, its explode), as told otherwise
@@ -540,8 +545,8 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
     // the column as the editor makes it (column-draft.ts draftColumn), by the command the editor's OK builds
     const column = draftColumn(draft, lambda);
     return applied(spec, o, [replacing === null
-      ? { kind: 'calculate', level: draftStage(draft), column }
-      : { kind: 'editCalculated', name: replacing, level: draftStage(draft), column }]);
+      ? { kind: 'calculate', level: draftStage(draft), column, ...before }
+      : { kind: 'editCalculated', name: replacing, level: draftStage(draft), column, ...before }]);
   });
 }
 
@@ -1117,8 +1122,8 @@ export async function gridExport(spec: GridSpec, kind: string): Promise<string> 
 /**
  * A CHART'S GRID AS PYTHON ASKS FOR IT (chart.grid(); docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D7, the screen's Show
  * Grid): `page`, the page as Python holds it, and its chart `chart`; `spec`, the chart's cube over its base, as gridChart
- * takes it. A chart following its grid answers that grid (`{grid}`: shown, the page as it is); a frozen or a detached
- * one the grid of its own grouping and query (chart-spec.ts chartGrid, the screen's rule) -- `{cube, spec, notes}`, the
+ * takes it. A chart whose grid holds what it draws answers that grid (`{grid}`: shown, the page as it is; chart-spec.ts
+ * showGridWay); any other the grid of its own query (chart-spec.ts chartGrid, the screen's rule) -- `{cube, spec, notes}`, the
  * new grid's document as the screen's new grid writes itself (opened over the source as the compiler types it now,
  * folded, no group open) and the chart following it, for Python's addGrid, followGrid and setChart -- or `{problems}`,
  * in DataCube's words.
@@ -1127,13 +1132,13 @@ export async function chartOwnGrid(spec: GridSpec, page: string, chart: string):
   const views = (JSON.parse(page) as { views: readonly PageView[] }).views;
   const view = views.find((v) => v.id === chart);
   if (view?.kind !== 'chart') return JSON.stringify({ problems: [`'${chart}' is no chart of the page`] });
+  // the grid it reads shown, or one of its own made: the screen's Show Grid's rule (chart-spec.ts showGridWay)
   const grid = views.find((v) => v.kind === 'grid' && v.cube === view.cube);
-  if (grid !== undefined && view.spec.frozen !== true) return JSON.stringify({ grid: grid.id });
+  if (grid !== undefined && showGridWay(view.spec, true) === 'reveal') return JSON.stringify({ grid: grid.id });
   return using(spec, async ({ runner, state }) => {
     // the chart's cube as the screen's chart reads it: its grid's columns as the compiler types them now
     const snapshot = await typedColumns(runner, state.snapshot);
     const made = chartGrid({ snapshot, config: state.configuration }, view.spec, view.selection ?? []);
-    if (typeof made === 'string') return JSON.stringify({ problems: [made] });
     // the tree a new grid starts with, as the screen's Show Grid's grid opens (the S7 audit's G-2)
     const tree = newGridTree(made.configuration);
     const landed = fold({ snapshot: await typedColumns(runner, made.snapshot), configuration: made.configuration, tree });

@@ -111,11 +111,11 @@ async function titleMenu(label) {
   await page.locator(`.dc-menu [role^="menuitem"]:has(> .dc-menu-label:text-is("${label}"))`).first().click();
 }
 
-/** Right-click > Insert > `what`, on a cell of the grid in `scope`. */
+/** Right-click > Create > `what`, on a cell of the grid in `scope`. */
 async function insert(what, scope) {
   await page.locator(scope).first().locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
-  await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
-  await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
+  await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create"))').first().hover();
+  await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Create")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
   await settle();
 }
 
@@ -125,22 +125,24 @@ try {
   await settle();
 
   let ids = {};
-  await check('a new tile goes beside the tile it came from while each stays readable, else in a band below', async () => {
+  // the user, 2026-10-23: a tile added to a page of one grid goes under it, not beside it -- charts in a row of their own
+  // under their grid, a new grid in a band of its own
+  await check('a chart goes in a row under the grid it charts, the charts side by side; a new grid in a band below them', async () => {
     // the page's first grid is grid-1: every grid on a page is numbered alike
     await insert('Visualization', '.dc-app');
     await insert('Visualization', tile('grid-1'));
-    await insert('Copy of Grid', tile('grid-1'));
+    await insert('Copy of This Grid', tile('grid-1'));
     await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 20_000 });
     await settle();
     const all = await page.locator('.dc-band-tile').evaluateAll((els) => els.map((e) => e.dataset.tile));
     const charts = all.filter((id) => id.startsWith('chart-'));
     ids = { grid: 'grid-1', a: charts[0], b: charts[1], copy: 'grid-2' };
     const b = await boxes();
-    if (!(b[ids.a].y === b[ids.grid].y && b[ids.b].y === b[ids.grid].y && b[ids.a].x > b[ids.grid].x && b[ids.b].x > b[ids.a].x)) {
-      throw new Error(`the charts are not beside the grid: ${JSON.stringify(b)}`);
+    if (!(b[ids.a].y >= b[ids.grid].y + b[ids.grid].h && b[ids.b].y === b[ids.a].y && b[ids.b].x > b[ids.a].x)) {
+      throw new Error(`the charts are not side by side under the grid: ${JSON.stringify(b)}`);
     }
-    if (!(b[ids.copy].y > b[ids.grid].y + b[ids.grid].h)) throw new Error(`the copy is not below: ${JSON.stringify(b)}`);
-    return `${ids.a} and ${ids.b} beside the grid (three at 1400px), ${ids.copy} below`;
+    if (!(b[ids.copy].y >= b[ids.a].y + b[ids.a].h)) throw new Error(`the copy is not below the charts: ${JSON.stringify(b)}`);
+    return `${ids.a} and ${ids.b} side by side under the grid, ${ids.copy} below them`;
   });
 
   await check('Arrange... previews 2 x 2 while pointed at, the page as it was when the pointer leaves, and applies it on a click', async () => {

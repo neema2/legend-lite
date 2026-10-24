@@ -1,7 +1,8 @@
 // ONE WRITER'S EDITS MADE AGAIN ON TOP OF A PAGE THAT MOVED ON (src/page-rebase.ts;
 // docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): each edit applied in order to the page as it is now, the other writer's
-// changes kept; an id given out on both sides given out afresh, every later edit naming it following; one that no
-// longer applies refusing them all; a grid's edit applied over the page as the edits before left it (snapped or not);
+// changes kept; each editor's ids its own (page-ids.ts: under its tag), so nothing is renamed, and an id the page holds
+// already refused (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version); one that no longer applies
+// refusing them all; a grid's edit applied over the page as the edits before left it (snapped or not);
 // and -- the guard -- two writers' random edits, one made again on top of the other's, keep what both said.
 
 import assert from 'node:assert/strict';
@@ -12,6 +13,7 @@ import { tiles } from '../src/layout/bands.ts';
 import { applyPageCommands, idsOf, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import { gridCopyOf, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { pageReads, rebaseEdits, renamedCommand, type GridApplier, type PageEdit } from '../src/page-rebase.ts';
+import { namedUnder } from '../src/page-between.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
 import { pageRebase } from '../src/headless/page.ts';
 import { pageToJson } from '../src/page-document.ts';
@@ -40,9 +42,10 @@ function applier(): { apply: GridApplier; asked: { id: string; snapped: boolean 
   return { apply, asked };
 }
 
-/** The page `commands` make of `page`, and the commands as applied (their ids given out): one writer's edit. */
-function made(page: PageDocument, commands: readonly PageCommand[]): { page: PageDocument; edits: PageEdit[] } {
-  const done = applyPageCommands(draft(page), commands);
+/** The page `commands` make of `page`, and the commands as applied (their ids given out, under `tag` when one is given:
+ *  a tab's, page-app.ts #named): one writer's edit. */
+function made(page: PageDocument, commands: readonly PageCommand[], tag?: string): { page: PageDocument; edits: PageEdit[] } {
+  const done = applyPageCommands(draft(page), namedUnder(draft(page), commands, tag));
   return { page: done.draft.page, edits: done.applied.map((c) => ({ page: c })) };
 }
 
@@ -62,48 +65,77 @@ describe('edits made again on top of a page that moved on', () => {
     assert.equal(sheetName(done.page, 'sheet-3'), 'Mine');
     assert.equal(done.page.views.find((v) => v.id === 'grid')!.title, 'Mine too');
     assert.deepEqual(rows(done.page, 'grid-2'), ['desk']);
-    assert.deepEqual(done.renamed, {}, 'no id given out on both sides');
     assert.deepEqual(done.edits.map((e) => ('page' in e ? e.page.kind : e.command.kind)), ['addSheet', 'renameTile', 'group']);
   });
 
-  it('an id given out on both sides: the writer\'s given out afresh, every later edit naming it following', async () => {
+  it("each editor's ids its own: a sheet both made, the writer's kept under its tag, every later edit naming it as given", async () => {
     const theirs = made(trades, [{ kind: 'addSheet', name: 'Theirs' }]).page;
     const mine = made(trades, [
       { kind: 'addSheet', name: 'Mine' },
-      { kind: 'renameSheet', sheet: 'sheet-3', name: 'Mine, renamed' },
-      { kind: 'moveTile', tile: 'grid-2', sheet: 'sheet-3', columns: null },
-    ]);
-    assert.equal((mine.edits[0] as { page: { id: string } }).page.id, 'sheet-3', 'given sheet-3 on its side');
+      { kind: 'renameSheet', sheet: 'sheet-ta-3', name: 'Mine, renamed' },
+      { kind: 'moveTile', tile: 'grid-2', sheet: 'sheet-ta-3', columns: null },
+    ], 'ta');
+    assert.equal((mine.edits[0] as { page: { id: string } }).page.id, 'sheet-ta-3', 'given sheet-ta-3 on its side, under its tag');
     const done = await rebaseEdits(draft(theirs), mine.edits, applier().apply);
-    assert.deepEqual(done.renamed, { 'sheet-3': 'sheet-4' });
+    assert.deepEqual(done.edits, mine.edits, 'the edits applied as given: nothing renamed');
     assert.equal(sheetName(done.page, 'sheet-3'), 'Theirs', 'theirs untouched');
-    assert.equal(sheetName(done.page, 'sheet-4'), 'Mine, renamed');
-    assert.ok(tiles(done.page.sheets.find((s) => s.id === 'sheet-4')!.layout).includes('grid-2'), 'moved onto its own sheet');
-    assert.equal((done.edits[1] as { page: { sheet: string } }).page.sheet, 'sheet-4', 'the edits as applied name it so');
+    assert.equal(sheetName(done.page, 'sheet-ta-3'), 'Mine, renamed');
+    assert.ok(tiles(done.page.sheets.find((s) => s.id === 'sheet-ta-3')!.layout).includes('grid-2'), 'moved onto its own sheet');
   });
 
-  it('a grid made on both sides: the writer\'s renamed, and its grid edit, its chart and its layout follow', async () => {
+  it('an id the page holds already, made again: refused in words, never given out afresh', async () => {
+    // two editors with no tag (the page's own keeper is the one: Python) never write at once; this is the rule's floor
+    const theirs = made(trades, [{ kind: 'addSheet', name: 'Theirs' }]).page;
+    const mine = made(trades, [{ kind: 'addSheet', name: 'Mine' }]);
+    await assert.rejects(rebaseEdits(draft(theirs), mine.edits, applier().apply), /'sheet-3' is an id the page has held already/);
+  });
+
+  it("a grid made on both sides: each under its editor's id, the writer's grid edit, chart and layout on its own", async () => {
     const doc = trades.cubes[0]!.cube;
     const add = (title: string): PageCommand => ({ kind: 'addGrid', document: doc, sheet: 'sheet-2', near: null, title, columns: null });
     const theirs = made(trades, [add('Theirs')]).page;
-    const mineAt = made(trades, [add('Mine')]);
+    const mineAt = made(trades, [add('Mine')], 'ta');
     const spec = (trades.views.find((v) => v.id === 'chart') as ChartView).spec;
-    const withChart = applyPageCommands(draft(mineAt.page), [{ kind: 'addChart', near: 'grid-3', spec, title: null, columns: null }]);
+    const charting: PageCommand[] = [{ kind: 'addChart', near: 'grid-ta-3', spec, title: null, columns: null }];
+    const withChart = applyPageCommands(draft(mineAt.page), namedUnder(draft(mineAt.page), charting, 'ta'));
     const layout = withChart.draft.page.sheets.find((s) => s.id === 'sheet-2')!.layout;
     const edits: PageEdit[] = [
-      ...mineAt.edits, { grid: 'grid-3', command: { kind: 'group', rows: ['region'] } },
+      ...mineAt.edits, { grid: 'grid-ta-3', command: { kind: 'group', rows: ['region'] } },
       ...withChart.applied.map((c) => ({ page: c })), { page: { kind: 'layout', sheet: 'sheet-2', layout } },
     ];
     const { apply, asked } = applier();
     const done = await rebaseEdits(draft(theirs), edits, apply);
-    assert.equal(done.renamed['grid-3'], 'grid-4');
-    assert.deepEqual(asked, [{ id: 'grid-4', snapped: false }], 'the grid edit applied to the writer\'s grid, under its new id');
-    assert.deepEqual(rows(done.page, 'grid-4'), ['region']);
+    assert.deepEqual(asked, [{ id: 'grid-ta-3', snapped: false }], "the grid edit applied to the writer's grid, under its own id");
+    assert.deepEqual(rows(done.page, 'grid-ta-3'), ['region']);
     assert.equal(done.page.views.find((v) => v.id === 'grid-3')!.title, 'Theirs');
-    const chart = done.page.views.find((v) => v.kind === 'chart' && v.id === 'chart-3') as ChartView;
-    assert.equal(chart.cube, 'grid-4', 'the chart is of the writer\'s grid');
+    const chart = done.page.views.find((v) => v.kind === 'chart' && v.id === 'chart-ta-3') as ChartView;
+    assert.equal(chart.cube, 'grid-ta-3', "the chart is of the writer's grid");
     const placed = tiles(done.page.sheets.find((s) => s.id === 'sheet-2')!.layout);
-    assert.ok(placed.includes('grid-3') && placed.includes('grid-4'), `both grids placed: ${placed.join(', ')}`);
+    assert.ok(placed.includes('grid-3') && placed.includes('grid-ta-3'), `both grids placed: ${placed.join(', ')}`);
+  });
+
+  it("a grid's run of consecutive commands is applied in one call, each listed as applied, refused whole (W14)", async () => {
+    const { apply, asked } = applier();
+    const run: PageEdit[] = [
+      { grid: 'grid', command: { kind: 'group', rows: ['desk'] } },
+      { grid: 'grid', command: { kind: 'group', rows: ['region'] } },
+      { page: { kind: 'renamePage', name: 'Between' } },
+      { grid: 'grid', command: { kind: 'group', rows: ['desk', 'region'] } },
+      { grid: 'grid-2', command: { kind: 'group', rows: ['desk'] } },
+    ];
+    const done = await rebaseEdits(draft(trades), run, apply);
+    assert.deepEqual(asked.map((a) => a.id), ['grid', 'grid', 'grid-2'], 'one call per run: the two groups of grid together, then the one after the page command, then grid-2');
+    assert.deepEqual(done.edits, run, 'each edit listed as applied, in order');
+    assert.deepEqual([rows(done.page, 'grid'), rows(done.page, 'grid-2')], [['desk', 'region'], ['desk']]);
+    // one command of a run refused refuses them all: nothing of the run applied
+    const refusing: GridApplier = async (page, cube, id, commands) => {
+      if (commands.some((c) => c.kind === 'sorts')) throw new CubeRefusal('no sorts here');
+      return apply(page, cube, id, commands);
+    };
+    await assert.rejects(rebaseEdits(draft(trades), [
+      { grid: 'grid', command: { kind: 'group', rows: ['desk'] } },
+      { grid: 'grid', command: { kind: 'sorts', sorts: [] } },
+    ], refusing), /no sorts here/);
   });
 
   it('one that no longer applies refuses them all, in DataCube\'s words', async () => {
@@ -116,7 +148,7 @@ describe('edits made again on top of a page that moved on', () => {
       /grid-2 is no longer on the page/);
   });
 
-  it('a page filter both writers made under one id: the writer\'s made afresh, never put in place of the other\'s (H3)', async () => {
+  it("a page filter both writers made: each under its editor's id, never put in place of the other's (H3)", async () => {
     // the corpus's page, its grids' cubes over a class (a page filter's class is one a grid reads)
     const over = (c: PageDocument['cubes'][number]) => ({ ...c, cube: { ...c.cube, source: { _type: 'class' as const, name: 'Trade',
       class: 'trades::domain::Trade', project: 'datacube:trades', workspace: 'datacube', revision: '3', mapping: 'trades::mapping::Model',
@@ -124,17 +156,15 @@ describe('edits made again on top of a page that moved on', () => {
     const classPage: PageDocument = { ...trades, cubes: trades.cubes.map(over) };
     const filter = (value: string): PageCommand => ({ kind: 'setPageFilter', class: 'trades::domain::Trade',
       condition: { kind: 'condition', column: 'region', operator: 'equal', value }, from: null });
-    // each writer made its filter at the same version: each given filter-1
+    // each writer made its filter at the same version: theirs filter-1, mine under its tag
     const theirs = applyPageCommands(draft(classPage), [filter('AMER')]).draft;
-    const mine = made(classPage, [filter('EMEA'), { kind: 'removePageFilter', filter: 'filter-1' }, filter('APAC')]);
-    assert.equal((mine.edits[0] as { page: { id: string } }).page.id, 'filter-1');
-    // the ids the page held at the writer's version: what it knew
-    const done = await rebaseEdits(theirs, mine.edits, applier().apply, idsOf(classPage));
+    const mine = made(classPage, [filter('EMEA'), { kind: 'removePageFilter', filter: 'filter-ta-1' }, filter('APAC')], 'ta');
+    assert.equal((mine.edits[0] as { page: { id: string } }).page.id, 'filter-ta-1');
+    const done = await rebaseEdits(theirs, mine.edits, applier().apply);
     const values = (done.page.filters ?? []).map((f) => [f.id, (f.condition as { value: string }).value]);
-    assert.deepEqual(values, [['filter-1', 'AMER'], ['filter-3', 'APAC']], 'theirs kept; mine made afresh, taken off, made again');
-    assert.equal(done.renamed['filter-1'], 'filter-2');
-    // a filter the writer knew (held at its version) is set where it is, as the command says
-    const known = await rebaseEdits(theirs, [{ page: { ...filter('LATAM'), id: 'filter-1' } as PageCommand }], applier().apply, theirs.held);
+    assert.deepEqual(values, [['filter-1', 'AMER'], ['filter-ta-2', 'APAC']], 'theirs kept; mine made, taken off, made again');
+    // a filter the page holds, set by its id: set where it is, as the command says
+    const known = await rebaseEdits(theirs, [{ page: { ...filter('LATAM'), id: 'filter-1' } as PageCommand }], applier().apply);
     assert.deepEqual((known.page.filters ?? []).map((f) => (f.condition as { value: string }).value), ['LATAM']);
   });
 
@@ -148,9 +178,8 @@ describe('edits made again on top of a page that moved on', () => {
     const loaded = applyPageCommands(draft({ ...trades, cubes: trades.cubes.map(over) }), [filter('EMEA')]).draft.page;
     const known = pageReads(loaded).ids;
     // the tab sets that filter again (a chart click on another mark), at the keeper's own version
-    const done = await rebaseEdits({ page: loaded, held: known }, [{ page: filter('AMER', 'filter-1') }], applier().apply, known);
+    const done = await rebaseEdits({ page: loaded, held: known }, [{ page: filter('AMER', 'filter-1') }], applier().apply);
     assert.deepEqual((done.page.filters ?? []).map((f) => [f.id, (f.condition as { value: string }).value]), [['filter-1', 'AMER']]);
-    assert.deepEqual(done.renamed, {});
   });
 
   it('a grid\'s edit is applied over the page as the edits before it left it: snapped, or live again', async () => {
@@ -206,15 +235,15 @@ describe("what a page on its host holds (headless pageRebase: the S4 audit's 2)"
       `[${toJson({ page: { kind: 'addGrid', document, sheet: 'sheet-1', near: null, title: null, columns: null } })}]`;
     const file = files.cubes[0]!.cube;
     assert.equal(file.source._type, 'file');
-    const refused = JSON.parse(await pageRebase(pageToJson(trades), ids, adding(file), ids, host, {})) as { problems?: string[] };
+    const refused = JSON.parse(await pageRebase(pageToJson(trades), ids, adding(file), host, {})) as { problems?: string[] };
     assert.match((refused.problems ?? []).join('; '), /the file .* is not read here: the page is given its file as it opens/);
     // one over a frame the host serves is kept, and one over a file it read in (by the file's bytes' hash: X1, X3)
-    const kept = JSON.parse(await pageRebase(pageToJson(trades), ids, adding(trades.cubes[0]!.cube), ids, host, {})) as { problems?: string[] };
+    const kept = JSON.parse(await pageRebase(pageToJson(trades), ids, adding(trades.cubes[0]!.cube), host, {})) as { problems?: string[] };
     assert.equal(kept.problems, undefined);
     if (file.source._type !== 'file') throw new Error('unreachable');
     const leaf = { _type: 'file' as const, name: file.source.name, size: file.source.size, sha256: file.source.sha256 };
     const read = { ...host, files: { [file.source.sha256]: { model: '', runtime: '', source: {}, table: 'trades', leaf } } };
-    const fileKept = JSON.parse(await pageRebase(pageToJson(trades), ids, adding(file), ids, read, {})) as { problems?: string[] };
+    const fileKept = JSON.parse(await pageRebase(pageToJson(trades), ids, adding(file), read, {})) as { problems?: string[] };
     assert.equal(fileKept.problems, undefined);
   });
 });
@@ -257,8 +286,9 @@ describe('two writers\' edits, one made again on top of the other\'s, keep what 
     for (let seed = 0; seed < SEEDS; seed++) {
       const rnd = random(seed);
       const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)]!;
-      /** One writer's edits at `base`, as it made them, and what each said (later sayings win). */
-      const write = (base: PageDocument, who: string) => {
+      /** One writer's edits at `base`, as it made them (its ids under `tag`: a tab's), and what each said (later sayings
+       *  win). */
+      const write = (base: PageDocument, who: string, tag?: string) => {
         let d = draft(base);
         const edits: PageEdit[] = [];
         const said = { name: undefined as string | undefined, sheets: [] as string[], titles: new Map<string, string>(),
@@ -281,7 +311,7 @@ describe('two writers\' edits, one made again on top of the other\'s, keep what 
               : kind === 'renameSheet' ? { kind, sheet: pick(base.sheets.map((s) => s.id)), name: `${who} renamed ${seed}-${n}` }
                 : kind === 'addGrid' ? { kind, document: trades.cubes[0]!.cube, sheet: 'sheet-1', near: null, title: `${who} grid ${n}`, columns: null }
                   : { kind, tile: pick(grids), title: `${who} title ${seed}-${n}` };
-          const one = applyPageCommands(d, [command]);
+          const one = applyPageCommands(d, namedUnder(d, [command], tag));
           d = one.draft;
           edits.push({ page: one.applied[0]! });
           if (command.kind === 'renamePage') said.name = command.name;
@@ -292,11 +322,10 @@ describe('two writers\' edits, one made again on top of the other\'s, keep what 
         return { page: d.page, edits, said };
       };
       const a = write(trades, 'A');
-      const b = write(trades, 'B');
+      const b = write(trades, 'B', 'tb');
       const where = `seed ${seed}`;
       const done = await rebaseEdits(draft(a.page), b.edits, applier().apply);
       const p = done.page;
-      const ren = (id: string): string => done.renamed[id] ?? id;
       // what B said wins where both said it (B's edits came last); what only A said stands
       assert.equal(p.name, b.said.name ?? a.said.name ?? trades.name, `${where}: the page's name`);
       const names = p.sheets.map((s) => s.name);
@@ -304,9 +333,9 @@ describe('two writers\' edits, one made again on top of the other\'s, keep what 
       for (const [id, name] of a.said.renamedSheets) if (!b.said.renamedSheets.has(id)) assert.equal(sheetName(p, id), name, `${where}: ${id}`);
       for (const [id, name] of b.said.renamedSheets) assert.equal(sheetName(p, id), name, `${where}: ${id}`);
       for (const [grid, r] of a.said.rows) if (!b.said.rows.has(grid)) assert.deepEqual(rows(p, grid), r, `${where}: ${grid} grouped`);
-      for (const [grid, r] of b.said.rows) assert.deepEqual(rows(p, ren(grid)), r, `${where}: ${grid} grouped`);
+      for (const [grid, r] of b.said.rows) assert.deepEqual(rows(p, grid), r, `${where}: ${grid} grouped`);
       for (const [tile, t] of a.said.titles) if (!b.said.titles.has(tile)) assert.equal(p.views.find((v) => v.id === tile)!.title, t, `${where}: ${tile}`);
-      for (const [tile, t] of b.said.titles) assert.equal(p.views.find((v) => v.id === ren(tile))!.title, t, `${where}: ${tile}`);
+      for (const [tile, t] of b.said.titles) assert.equal(p.views.find((v) => v.id === tile)!.title, t, `${where}: ${tile}`);
       // every grid either writer made is on the page, each once, each placed on a sheet, its id held
       const grids = (page: PageDocument): number => page.views.filter((v) => v.kind === 'grid').length;
       const wanted = [a, b].flatMap((w) => w.edits).filter((e) => 'page' in e && e.page.kind === 'addGrid').length;

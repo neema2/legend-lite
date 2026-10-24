@@ -124,7 +124,7 @@ describe('the reader refuses a chart it cannot read, in words', () => {
   });
 
   it('a key it has no place for -- a newer DataCube\'s, or one misspelt -- is refused by name, with what it does say', () => {
-    assert.match(refusal({ colour: 'red' }), /^there is no "colour" in a chart \(it says version, mark, x, .*, frozen\)$/);
+    assert.match(refusal({ colour: 'red' }), /^there is no "colour" in a chart \(it says version, mark, x, .*, frozen, kept\)$/);
     assert.match(optionRefusal({ animate: true }), /^there is no "animate" in its options \(it says orientation, stack, .*, ring\)$/);
   });
 

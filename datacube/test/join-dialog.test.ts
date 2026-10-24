@@ -53,6 +53,8 @@ const choose = (selector: string, value: string): void => {
   s.dispatchEvent(new doc.defaultView!.Event('change'));
 };
 const status = (): string => $('.dc-join .dc-picker-status').textContent ?? '';
+/** A form chosen by its tile, as a click does. */
+const form = (kind: string): void => $<HTMLButtonElement>(`.dc-join-kind[data-kind="${kind}"]`).click();
 const will = (): string[] => [...doc.querySelectorAll('.dc-join-will-line')].map((l) => l.textContent ?? '');
 
 describe('the Join window', () => {
@@ -94,8 +96,10 @@ describe('the Join window', () => {
   it('shapes itself to each form: as of asks its match, semi and anti no columns, append nothing more', async () => {
     const { asked } = open();
     await settle();
-    choose('.dc-join-form', 'asOf');
-    assert.equal($<HTMLElement>('.dc-join-match').hidden, false);
+    // the nearest row's columns are asked of as of alone (the row showed under every form, 2026-10-23)
+    assert.equal($<HTMLElement>('.dc-join-match-block').hidden, true);
+    form('asOf');
+    assert.equal($<HTMLElement>('.dc-join-match-block').hidden, false);
     choose('.dc-join-match .dc-join-left', 'id');
     choose('.dc-join-match .dc-join-op', '<=');
     choose('.dc-join-match .dc-join-right', 'id');
@@ -103,15 +107,34 @@ describe('the Join window', () => {
     assert.deepEqual(asked.at(-1), {
       form: 'asOf', match: { left: 'id', op: '<=', right: 'id' }, on: { rows: [{ left: 'customer_id', op: '==', right: 'id' }] }, prefix: 'their_', keep: null,
     });
-    choose('.dc-join-form', 'anti');
+    form('anti');
     assert.equal($<HTMLElement>('.dc-join-columns').hidden, true);
     await debounce();
     assert.deepEqual(asked.at(-1), { form: 'anti', on: { rows: [{ left: 'customer_id', op: '==', right: 'id' }] } });
     assert.deepEqual(will(), ['3 rows of my 5 rows have a match, 2 rows none.', 'It keeps 2 rows, each once.']);
-    choose('.dc-join-form', 'append');
+    form('append');
     assert.equal($<HTMLElement>('.dc-join-condition').hidden, true);
     await debounce();
     assert.deepEqual(asked.at(-1), { form: 'append' });
+  });
+
+  // the user, 2026-10-23: the window was messy beside Create a Class's -- its forms are tiles now, each said
+  it('offers each form as a tile, the chosen one checked and said in a line, the arrow keys moving along them', async () => {
+    open();
+    await settle();
+    const tiles = [...doc.querySelectorAll<HTMLButtonElement>('.dc-join-kind')];
+    assert.deepEqual(tiles.map((t) => t.dataset['kind']), ['left', 'inner', 'right', 'full', 'asOf', 'semi', 'anti', 'append']);
+    const checked = (): string[] => tiles.filter((t) => t.getAttribute('aria-checked') === 'true').map((t) => t.dataset['kind']!);
+    assert.deepEqual(checked(), ['left'], 'all of mine, to start');
+    assert.match($('.dc-join-kind-says').textContent ?? '', /Every row of mine/);
+    form('inner');
+    assert.deepEqual(checked(), ['inner']);
+    assert.match($('.dc-join-kind-says').textContent ?? '', /Only the rows of mine that match/);
+    $('.dc-join-kinds').dispatchEvent(new doc.defaultView!.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    assert.deepEqual(checked(), ['right']);
+    // each grid said with its columns, mine and theirs
+    assert.deepEqual([...doc.querySelectorAll('.dc-join-count')].map((c) => c.textContent), ['3 columns', '2 columns']);
+    assert.equal($('.dc-join-column-count').textContent, '2 of 2');
   });
 
   it('asks nothing while a condition lacks a column, and says what it needs', async () => {

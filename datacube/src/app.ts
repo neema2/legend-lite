@@ -41,7 +41,6 @@ import {
   type CubeConfiguration,
 } from './config.ts';
 import type { Dimension } from './dimensions.ts';
-import { availableDimensions } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
 import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
@@ -80,7 +79,7 @@ import type { PageState } from './page-state.ts';
 import {
   PAGE_CUBE, gridCopyOf, pageFile, startingViews, writePage, writePageOf, type ChartView, type GridCopy, type PageDocument, type PageViews,
 } from './page-document.ts';
-import { FormatterCache, type ColumnFormat } from './format.ts';
+import { FormatterCache, headlineFormat, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
 import {
   TREE_COLUMN,
@@ -103,6 +102,11 @@ import type { HeatmapSpec } from './style.ts';
 import { TreeState, parsePathKey, pathKey, type TreeRow } from './tree.ts';
 import { CubeStateOwner, type ChangeOptions, type CubeState, type OwnerEvent, type Outcome } from './cube-state.ts';
 
+/** What a grid says while its page converges on its keeper's (hold): every way of changing it is refused with this --
+ *  a command, an undo or redo, Properties applied, a snap or going live (the D19 audit's third round's 1; its fourth
+ *  round's 4: the hold covered #apply alone). */
+const CATCHING_UP = 'the page is catching up with its keeper: a moment';
+
 /** What of the cube's state a host reads: never a way to change it (that is a command's: CubeApp.edit). */
 export type CubeStateView = Pick<CubeStateOwner, 'busy' | 'historyDepth'>;
 import { ColumnEditor, type ColumnEditorStart, type ColumnPreview } from './ui/column-editor.ts';
@@ -123,7 +127,9 @@ import { FilterEditor } from './ui/filter-editor.ts';
 import {
   buildMenu,
   calcStageOf,
+  createItems,
   menuGesture,
+  menuItems,
   columnLabel,
   emailItems,
   exportItems,
@@ -131,6 +137,7 @@ import {
   type MenuItem,
 } from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
+import { longPressMenus } from './ui/long-press.ts';
 import { makeWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
 import {
   PivotPanel,
@@ -142,6 +149,7 @@ import {
   type ColumnsPanelChild,
 } from './ui/columns-panel.ts';
 import { isVariant } from '../../engine-client/src/types.ts';
+import { lazily } from './lazily.ts';
 
 
 /** Rows sampled to infer what a JSON column holds. */
@@ -223,12 +231,6 @@ export interface CubeAppBaseOptions {
    */
   readonly onCommand?: (command: GridCommand) => void;
   /**
-   * The cube put back by an undo or a redo (one landed with its change: OwnerEvent `moved`), which no command says: its
-   * page is written whole, a restore its keeper takes only at the version it was made at
-   * (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md N2, G12).
-   */
-  readonly onRestore?: () => void;
-  /**
    * Each edit of the board around the cube -- its charts, their layout -- as the page commands it is
    * (page-commands.ts), applied to the board's state before it is drawn (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P13):
    * the same state and commands as a page of its own's.
@@ -259,6 +261,11 @@ export interface CubeAppBaseOptions {
    */
   readonly hostMenu?: () => readonly MenuItem[];
   readonly onHostMenu?: (item: MenuItem) => void;
+  /**
+   * The host's Join ▸ for the right-click on `column` (the user, 2026-10-23): a quick join to each grid sharing a column,
+   * the other ways, the window -- each entry the host's, given back through `onHostMenu`. Absent, or empty: no Join ▸.
+   */
+  readonly joinMenu?: (column: string | undefined) => readonly MenuItem[];
   /**
    * Where the cube's rows come from, as a saved cube names it (a file by its fingerprint).
    * Given, the cube can write itself down (`cubeDocument`, Export > Cube File); absent, it
@@ -292,6 +299,12 @@ export interface CubeAppBaseOptions {
   readonly onBlankPage?: () => void;
   /** A grid on a page: its New ▸ Data Source… goes to the page, as `onNewGrid` does. */
   readonly onNewSource?: (make: (host: HTMLElement, options: SpawnOptions) => SpawnedGrid) => void;
+  /**
+   * A grid on a page whose host picks sources itself (DataCube's app: PageApp.addSource): its Create ▸ Data Source…
+   * asks the host, which adds the grid beside this one -- in place of `openSource`, which answers a source for the cube
+   * to place.
+   */
+  readonly onOpenSource?: () => void;
   /** A grid on a page of its own: its menu's Remove from Page, the page taking its tile off. */
   readonly onRemove?: () => void;
   /**
@@ -457,7 +470,7 @@ function refusal(out: Outcome): string | null {
  */
 let pageModule: Promise<typeof import('./page/cube-page.ts')> | undefined;
 function loadPage(): Promise<typeof import('./page/cube-page.ts')> {
-  pageModule ??= import('./page/cube-page.ts');
+  pageModule ??= lazily(() => import('./page/cube-page.ts'));
   return pageModule;
 }
 
@@ -474,6 +487,15 @@ export class CubeApp {
   /** The page's filters on it (setLens), and in words: said in its status bar. */
   #lens: QueryLens | undefined;
   #lensSaid: string | undefined;
+  /** What its status bar says beside its rows until it is put away (`note`): what a quick join did, say. */
+  #note: string | undefined;
+  /** Whether its Create ▸ offers Data Source…: its host answers a source, or adds one beside it. */
+  get #canOpenSource(): boolean {
+    return this.#options.openSource !== undefined || this.#options.onOpenSource !== undefined;
+  }
+
+  /** The host's entries of the last right-click (its Join ▸): given back through `onHostMenu` when picked. */
+  #cellHost: readonly MenuItem[] = [];
   /** The grids it spawned (Copy of Grid, a chart's Show Grid on a cube alone's board): given its lens whenever it is given one. */
   readonly #spawnedGrids = new Set<CubeApp>();
   readonly #grid: DataGrid;
@@ -584,6 +606,8 @@ export class CubeApp {
    * holds that nothing outside cube-state.ts assigns cube state.
    */
   readonly #owner: CubeStateOwner;
+  /** How many converges of its page hold the grid (hold/release). */
+  #held = 0;
   /** What the title bar was last built from (`#paintState`). */
   #chrome = '';
   /** Stops the owner's events reaching this app: see `dispose`. */
@@ -828,6 +852,8 @@ export class CubeApp {
     this.#listenForKeys();
 
     this.#wireContextMenu();
+    // on a touch screen a long press is the right-click (an iPad fires none of its own): once for the document
+    longPressMenus(this.#doc);
     this.#buildToolbar();
     this.#applyChrome();
     // A DRAG BRINGS THE ZONES BACK. Both listeners are on the app's
@@ -1049,8 +1075,29 @@ export class CubeApp {
    * told to its host (onCommand). The refusal, in the commands' words or the planner's, or null. What a host or a test
    * edits the grid by: no change reaches its state but by a command (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md, G11).
    */
-  edit(commands: readonly GridCommand[], label: string): Promise<string | null> {
-    return this.#apply(commands, label);
+  /**
+   * The grid HELD while its page's channel converges on its keeper's page (live-converge.ts, with PageApp.hold): a
+   * person's edit meanwhile is refused, said -- the grid is being put back and replayed -- rather than laid over a state
+   * that is neither the keeper's nor kept and written as the person's (the D19 audit's third round, 1). The converge's
+   * own moves (applyGridCommands) pass. Held and released in pairs.
+   */
+  hold(): void {
+    this.#held += 1;
+  }
+
+  release(): void {
+    this.#held = Math.max(0, this.#held - 1);
+  }
+
+  get held(): boolean {
+    return this.#held > 0;
+  }
+
+  edit(commands: readonly GridCommand[], label: string, options: { readonly again?: boolean } = {}): Promise<string | null> {
+    // `again`: a pending edit made again after a converge put the grid back (live-converge.ts): told, as any edit, but
+    // no new step of the history -- its step is in it already (the D19 audit's second round, 3: recorded twice, an undo
+    // went forward)
+    return this.#apply(commands, label, options.again === true ? false : undefined);
   }
 
   // -- the cube's state, read ----------------------------------------------
@@ -1100,8 +1147,13 @@ export class CubeApp {
    * screen's controls offer only what its rules allow; a command they refuse is said, in their words, and changes
    * nothing. A host is told each command the cube kept (onCommand). The refusal, its words or the planner's, or null.
    */
-  async #apply(commands: readonly GridCommand[], label: string): Promise<string | null> {
-    const { refused, outcome } = await this.#applyCommands(commands, label);
+  async #apply(commands: readonly GridCommand[], label: string, record?: boolean): Promise<string | null> {
+    if (this.#held > 0) {
+      const why = CATCHING_UP;
+      this.#status(why, 'warn');
+      return why;
+    }
+    const { refused, outcome } = await this.#applyCommands(commands, label, 'mine', record);
     return refused ?? refusal(outcome);
   }
 
@@ -1109,15 +1161,19 @@ export class CubeApp {
    * ANOTHER EDITOR'S GRID COMMANDS (Python's, on a page it serves: docs/DATACUBE_LIVE_COMMANDS_2026_10_18.md), applied
    * as the screen's own edits are: one change, named `label`. The refusal, in its words or the planner's, or null.
    */
-  async applyGridCommands(commands: readonly GridCommand[], label: string, own = false): Promise<string | null> {
+  async applyGridCommands(commands: readonly GridCommand[], label: string, own = false, keepHistory = false): Promise<string | null> {
     const { refused, outcome } = await this.#applyCommands(commands, label, own ? 'said' : 'theirs');
     const why = refused ?? refusal(outcome);
     // another editor's change is no step of this grid's own history, which starts again from it (an undo past it would
     // take it back unseen); `own`: what a page step of the person's own said already (removeTile's rule taking a
     // chart's selection off) -- told nothing, a step of the grid's history all the same, recorded, so an undo past it
     // lands where it was (the S7 confirmation audit's G2-2; its third round's 1: unrecorded, an undo put the selection
-    // back and took the edit before it away)
-    if (why === null && !own) this.#owner.clearHistory();
+    // back and took the edit before it away); `keepHistory`: its keeper's put-back of this grid for a converge's hash
+    // check (live-converge.ts), no other editor having touched it, its pending edits made again after -- no step, and
+    // the history stays (W13: it starts again only when another editor edits this grid)
+    // ... and a change that changed nothing restarts nothing (the fourth round's 6: this screen's own chart removal,
+    // replayed, took a condition already off and wiped the grid's history for it)
+    if (why === null && !own && !keepHistory && outcome.kind !== 'nothing') this.#owner.clearHistory();
     return why;
   }
 
@@ -1127,7 +1183,7 @@ export class CubeApp {
    *  are that editor's own already, never told back to it (T4) -- or (`said`) the person's own that a page step of
    *  theirs told already: a step of its history, told nothing. */
   async #applyCommands(commands: readonly GridCommand[], label: string,
-    by: 'mine' | 'theirs' | 'said' = 'mine'): Promise<{ refused: string | null; outcome: Outcome }> {
+    by: 'mine' | 'theirs' | 'said' = 'mine', record: boolean = by !== 'theirs'): Promise<{ refused: string | null; outcome: Outcome }> {
     let refused: string | null = null;
     // judged on the state the person sees (the change in flight's, else the committed one): a presentation change is
     // laid over the committed state too, and one that state cannot take (a setting of the column the change in flight
@@ -1147,7 +1203,7 @@ export class CubeApp {
           else if (s === this.#owner.committed) applying.onCommitted = false;
           return s;
         }
-      }, { label, record: by !== 'theirs' });
+      }, { label, record });
     } finally {
       this.#applying = null;
     }
@@ -1170,10 +1226,11 @@ export class CubeApp {
    * change in flight (pending) or are kept at once (a presentation change laid over the committed state; a deferred
    * one, committed with what was in flight). A presentation change laid over a change in flight too is told again after
    * that change's commands when it commits -- the committed state then takes them in that order -- and one the
-   * committed state could not take is told only then. A change in flight's commands are told when it commits, but for
-   * a transition an undo or a redo is part of (a change made on top of one), which no command says: none is told, and
-   * its page is written whole, a restore (onRestore, N2). Refused, they are kept for the change run again (signed in
-   * again); cancelled, dropped.
+   * committed state could not take is told only then. A change in flight's commands are told when it commits; a
+   * transition an undo or a redo is part of (a change made on top of one too) is told as the commands between the
+   * committed state before and the one landed (the owner's `edits`: grid-between.ts, through the cube's rules), which
+   * say the move and the change on top alike (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W3). Refused, they are kept for
+   * the change run again (signed in again); cancelled, dropped.
    */
   #followCommands(event: OwnerEvent): void {
     const applying = this.#applying;
@@ -1184,13 +1241,12 @@ export class CubeApp {
         if (applying) this.#untold.push(...applying.commands);
         return;
       case 'presentation':
-        // an undo or a redo of a presentation change (a width, a format): no command says it, so the page is written
-        // whole, a restore (N2), as a move that queries is when it commits (the S7 audit's G-1)
+        // an undo or a redo of a presentation change (a width, a format): told as the commands between, as a move that
+        // queries is when it commits (W3); what was kept to tell again after a change it laid over is in them, or undone
+        // with it (the S7 confirmation audit's G2-1)
         if (event.moved) {
-          // what was kept to tell again after a change it laid over is in the page written whole, or undone with it
-          // (the S7 confirmation audit's G2-1)
           this.#untold = [];
-          this.#options.onRestore?.();
+          this.#tell(event.edits ?? []);
           return;
         }
         if (!applying) return;
@@ -1202,8 +1258,9 @@ export class CubeApp {
         this.#untold = [];
         return;
       case 'committed':
-        if (event.moved) this.#options.onRestore?.();
-        else this.#tell(this.#untold);
+        // a move's transition: the commands between say it whole, a change made on top of it too (its own were put in
+        // #untold at pending, and are in the landed state the commands reach)
+        this.#tell(event.moved ? event.edits ?? [] : this.#untold);
         this.#untold = [];
         return;
       case 'refused':
@@ -1602,6 +1659,25 @@ export class CubeApp {
       + 'query took.';
     this.#receiptChip(right, view);
 
+    if (this.#note !== undefined) {
+      right.append(this.#statusSeparator());
+      const note = doc.createElement('div');
+      note.className = 'dc-status-note';
+      note.setAttribute('role', 'status');
+      const said = doc.createElement('span');
+      said.className = 'dc-status-note-text';
+      said.textContent = this.#note;
+      said.title = this.#note;
+      const away = doc.createElement('button');
+      away.type = 'button';
+      away.className = 'dc-status-note-close';
+      away.textContent = '×';
+      away.setAttribute('aria-label', 'Put the note away');
+      away.addEventListener('click', () => this.note(undefined));
+      note.append(said, away);
+      right.append(note);
+    }
+
     if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
       right.append(this.#statusSeparator());
       const warn = doc.createElement('div');
@@ -1858,6 +1934,17 @@ export class CubeApp {
       'dc-collapsed',
       !this.#config.showTitleBar,
     );
+  }
+
+  /**
+   * A NOTE on its status bar, beside its rows, until it is put away (its ×) or another replaces it: what a quick join
+   * did, what opening it left out (app/join-flow.ts) -- said where the grid is, not in a window that may be closed.
+   * Undefined: none.
+   */
+  note(text: string | undefined): void {
+    this.#note = text;
+    const view = this.#view;
+    if (view) this.#renderStatusBar(view, view.columns.leaves.length);
   }
 
   /**
@@ -2151,14 +2238,26 @@ export class CubeApp {
         && column !== TREE_COLUMN
         ? facts.pivotBase ?? column
         : undefined;
+      // the host's Join ▸ on the column clicked, and its Create ▸ entries: theirs to answer (#onHostAction)
+      const join = this.#options.joinMenu?.(column !== TREE_COLUMN ? column : undefined) ?? [];
+      this.#cellHost = join;
       const groups = buildMenu({
         snapshot: this.#shown,
+        ...(join.length > 0 && !this.#adhoc ? { join } : {}),
+        create: this.#hostItems('create'),
+        canOpenSource: this.#canOpenSource,
         ...(propertiesColumn !== undefined ? { propertiesColumn } : {}),
         ...(column !== undefined ? { column } : {}),
         isRowDimension: column
           ? this.#shown.rows.includes(column)
           : false,
         hasSelection: this.#selection !== null,
+        // Edit ▸ Undo and Redo: the grid's own history (Ad Hoc's right-click is its own)
+        ...(this.#owner.canUndo ? { canUndo: true } : {}),
+        ...(this.#owner.canRedo ? { canRedo: true } : {}),
+        // Tile ▸, on a page: Move to Sheet (disabled while the page is locked) and Remove from Page
+        ...(this.#options.onMoveToSheet ? { sheets: this.#options.sheets?.().locked ? 'locked' as const : this.#sheetItems() } : {}),
+        ...(this.#options.onRemove ? { canRemove: true } : {}),
         // a group open by hand, or by the level its settings open it to: Collapse All closes both (the S7 audit's G-5)
         hasExpanded: this.#owner.current.tree.opensAny(this.#shown.rows.length),
         hasHeatmap:
@@ -2681,6 +2780,10 @@ export class CubeApp {
    * cube's board, or the page this grid is on.
    */
   async newSource(): Promise<void> {
+    if (this.#options.onOpenSource) {
+      this.#options.onOpenSource();
+      return;
+    }
     const source = await this.#options.openSource?.();
     if (source === undefined) return;
     const make = this.#gridOver(source);
@@ -2781,7 +2884,8 @@ export class CubeApp {
       get configuration() { return app.#config; },
       run: async (query, snapshot, signal) =>
         (await this.#controller.runQuery(query, snapshot, undefined, signal)).rows,
-      format: (value, column, type) => this.#formatters.format(value, this.#formats[column], type),
+      format: (value, column, type, headline) =>
+        this.#formatters.format(value, headline ? headlineFormat(this.#formats[column], type, value) : this.#formats[column], type),
       unit: (column) => {
         const f = this.#formats[column];
         return f ? `${f.kind}|${f.currency ?? ''}|${f.unit ?? ''}` : undefined;
@@ -3326,11 +3430,12 @@ export class CubeApp {
 
   // -- dimensions ----------------------------------------------------------
 
-  /** A named dimension used (the Dimensions tab, a host's): the grid grouped by its first level (grid-gestures.ts
-   *  view.dimension), by the command the Rows zone builds. */
-  #useDimension(dimension: Dimension): void {
+  /** A named dimension used (the Dimensions tab's Group Rows by): the grid grouped by its first level (grid-gestures.ts
+   *  view.dimension, which refuses in words a dimension the grid lacks or whose columns it lacks), by the command the
+   *  Rows zone builds. */
+  #useDimension(name: string): void {
     if (this.#cubeOnly()) return;
-    void this.#gesture('view.dimension', { name: dimension.name, move: 'use' }, `dimension ${dimension.name}`);
+    void this.#gesture('view.dimension', { name, move: 'use' }, `dimension ${name}`);
   }
 
   // -- the dialogs ----------------------------------------------------------
@@ -3377,6 +3482,9 @@ export class CubeApp {
         {
           onApply: (draft, base) => this.#applyDraft(draft, base),
           onClose: close,
+          // the Dimensions tab's own: once the draft is applied, the rows grouped by a dimension, or Ad Hoc Analysis
+          onUseDimension: (name) => this.#useDimension(name),
+          onAdHoc: () => void this.enterAdHoc(),
           ...(column !== undefined ? { initialColumn: column } : {}),
         },
       );
@@ -3627,6 +3735,10 @@ export class CubeApp {
     // snapshot, configuration, tree, chrome -- repaints from what was on
     // screen. The commands apply again to the cube as it is when they are
     // sent, not as it was before the compile.
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return false;
+    }
     const { refused, outcome } = await this.#applyCommands(commands, 'Properties');
     return refused === null && (outcome.kind === 'applied' || outcome.kind === 'nothing');
   }
@@ -4094,6 +4206,11 @@ export class CubeApp {
       this.#paintSnap = paint;
       this.#planeToggle = () => snap.click();
       snap.addEventListener('click', () => {
+        // held while the page converges: the plane is the keeper's to put back, nothing moves
+        if (this.#held > 0) {
+          this.#status(CATCHING_UP, 'warn');
+          return;
+        }
         snap.disabled = true;
         // moved (its page tells it), or refused (nothing moved)
         const done = (moved: boolean): void => {
@@ -4166,23 +4283,10 @@ export class CubeApp {
     if (!this.#inTile) return;
     const source = this.#sourceName();
     if (source !== undefined) head.append(this.#sourceTag(source));
-    head.append(this.#snapPill(), this.#gridMenuButton());
+    // no menu button of its own (the user, 2026-10-23): its right-click has all a grid's menu had
+    head.append(this.#snapPill());
     // the zones' way back LAST: in a page's bar, a lone grid's header ends the strip, above the zone bar's own fold
     if (!this.#config.showDragZones) head.append(this.#zonesBack());
-  }
-
-  /** The grid's own menu button, in its tile's header (`#gridMenu`); a second press shuts the menu, as the bar's does. */
-  #gridMenuButton(): HTMLElement {
-    const button = this.#doc.createElement('button');
-    button.type = 'button';
-    button.className = 'dc-tile-button dc-tile-menu';
-    button.textContent = '\u2261';
-    button.title = 'This grid\'s menu';
-    button.setAttribute('aria-label', 'Grid menu');
-    button.setAttribute('aria-haspopup', 'menu');
-    button.setAttribute('aria-expanded', 'false');
-    button.addEventListener('click', () => this.#toggleMenu(button, () => this.#gridMenu()));
-    return button;
   }
 
   /**
@@ -4210,7 +4314,7 @@ export class CubeApp {
    * named; an empty group or submenu is not shown.
    */
   /** A host's entries for one place (`MenuItem.section`, the file group unless named). */
-  #hostItems(section: 'file' | 'view' | 'data' | 'plane'): MenuItem[] {
+  #hostItems(section: 'file' | 'view' | 'data' | 'create' | 'plane'): MenuItem[] {
     return (this.#options.hostMenu?.() ?? []).filter((i) => (i.section ?? 'file') === section);
   }
 
@@ -4218,17 +4322,15 @@ export class CubeApp {
     const host = (section: 'file' | 'view' | 'data'): MenuItem[] => this.#hostItems(section);
     // The cube's own entries are not offered while Ad Hoc is on: they changed the hidden cube
     // and nothing visible (P2-289).
-    const cubeOnly = this.#adhoc ? { disabled: true } : {};
+    const adhoc = this.#adhoc !== null;
     const submenu = (label: string, items: MenuItem[]): MenuItem[] =>
       (items.length > 0 ? [{ label, submenu: items }] : []);
     const groups: MenuGroup[] = [
-      // NEW, first (the user, 2026-10-01): a data source -- through the host's picker -- a
-      // visualization or a copy of this grid, all beside what is there; or a blank page, apart,
-      // which replaces everything
-      { label: '', items: submenu('New', [
-        ...(this.#options.openSource ? [{ id: 'source.new' as const, label: 'Data Source\u2026', ...cubeOnly }] : []),
-        { id: 'chart.plot', label: 'Visualization', ...cubeOnly },
-        { id: 'grid.new', label: 'Copy of Grid', ...cubeOnly },
+      // CREATE, first (the user, 2026-10-01; "Create", not "New", 2026-10-23): a data source -- through the host's
+      // picker -- a copy of this grid or a chart of it, all beside what is there, and the host's (a class...); or a
+      // blank page, apart, which replaces everything
+      { label: '', items: submenu('Create', [
+        ...createItems({ source: this.#canOpenSource, host: this.#hostItems('create'), disabled: adhoc }),
         ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'Blank Page', separated: true }] : []),
       ]) },
       // THE PAGE'S LAYOUT, while there is a page of tiles: its layouts, and locking it so nothing moves by accident
@@ -4245,33 +4347,6 @@ export class CubeApp {
       { label: '', items: [{ id: 'view.settings', label: 'Settings...' }] },
     ];
     return groups.filter((g) => g.items.length > 0);
-  }
-
-  /**
-   * A GRID'S OWN MENU, under the menu button in its tile's header on a page (the design's §3.1: each grid's header
-   * carries only that grid's things, the same for the first grid and the fifth): a chart or a copy of it, its Undo,
-   * its Export and Email, its Properties, Ad Hoc and Dimensions.
-   */
-  #gridMenu(): MenuGroup[] {
-    const cubeOnly = this.#adhoc ? { disabled: true } : {};
-    return [
-      { label: '', items: [{ label: 'New', submenu: [
-        { id: 'chart.plot', label: 'Visualization', ...cubeOnly },
-        { id: 'grid.new', label: 'Copy of Grid', ...cubeOnly },
-      ] }] },
-      // a host's entries on this grid's rows (Create a Class…): a group only when there are some -- each group is
-      // drawn with its separator
-      ...(this.#hostItems('data').length > 0 ? [{ label: '', items: this.#hostItems('data') }] : []),
-      { label: '', items: this.#undoItems() },
-      { label: '', items: this.#outputItems() },
-      { label: '', items: this.#viewItems() },
-      // on a page of its own: onto another sheet (its charts stay where they are, following it), and taken off it, as
-      // its tile's x does (and as the one way when it is alone in the bar)
-      // locked: offered disabled, with nothing under it
-      ...(this.#options.onMoveToSheet ? [{ label: '', items: [{ label: 'Move to Sheet',
-        ...(this.#options.sheets?.().locked ? { disabled: true } : { submenu: this.#sheetItems() }) }] }] : []),
-      ...(this.#options.onRemove ? [{ label: '', items: [{ id: 'grid.remove' as const, label: 'Remove from Page' }] }] : []),
-    ];
   }
 
   /** Move to Sheet's entries: each other sheet, then a new one. */
@@ -4305,19 +4380,14 @@ export class CubeApp {
     ];
   }
 
-  /** Properties, Ad Hoc Analysis, and the named hierarchies (Dimensions) when there are any. */
+  /**
+   * Properties. Ad Hoc Analysis and a named dimension's grouping are started from its Dimensions tab, not a menu (the
+   * user, 2026-10-23); Ad Hoc is left by its own bar's Exit, or its right-click's.
+   */
   #viewItems(): MenuItem[] {
     // The cube's own entries are not offered while Ad Hoc is on: they changed the hidden cube
     // and nothing visible (P2-289).
-    const cubeOnly = this.#adhoc ? { disabled: true } : {};
-    const dimensions = availableDimensions(this.#snapshot, this.#dimensions())
-      .map((d): MenuItem => ({ id: 'view.dimension', label: d.name, column: d.name, ...cubeOnly }));
-    return [
-      { id: 'view.properties', label: 'Properties...', ...cubeOnly },
-      // the other way to work the cube: checked while it is on; choosing it again leaves
-      { id: 'view.adhoc', label: 'Ad Hoc Analysis', ...(this.#adhoc ? { checked: true } : {}) },
-      ...(dimensions.length > 0 ? [{ label: 'Dimensions', submenu: dimensions }] : []),
-    ];
+    return [{ id: 'view.properties', label: 'Properties...', ...(this.#adhoc ? { disabled: true } : {}) }];
   }
 
   /**
@@ -4414,6 +4484,10 @@ export class CubeApp {
    * throws: an engine outage is a refusal, said, not an unhandled promise.
    */
   async #undo(): Promise<void> {
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return;
+    }
     if (this.#adhoc) {
       await this.#adhoc.undo();
       return;
@@ -4422,6 +4496,10 @@ export class CubeApp {
   }
 
   async #redo(): Promise<void> {
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return;
+    }
     if (this.#adhoc) {
       await this.#adhoc.redo();
       return;
@@ -4447,22 +4525,14 @@ export class CubeApp {
       case 'view.settings':
         this.openSettings();
         return true;
-      case 'view.adhoc':
-        if (this.#adhoc) this.exitAdHoc();
-        else void this.enterAdHoc();
-        return true;
-      case 'view.dimension': {
-        const found = this.#dimensions().find((d) => d.name === item.column);
-        if (found) this.#useDimension(found);
-        return true;
-      }
       default: {
         // ANYTHING THE CUBE DOES NOT KNOW belongs to whoever put it
         // there. Without this a host could add an entry to the menu
         // and watch it do nothing, which is the dead-button fault
         // `menu-ids.test.ts` exists to prevent -- one layer up.
         const host = this.#options.onHostMenu;
-        const mine = this.#options.hostMenu?.() ?? [];
+        // the host's entries, a submenu's too (Create ▸, Model ▸), and those of the last right-click (its Join ▸)
+        const mine = menuItems([{ label: '', items: [...(this.#options.hostMenu?.() ?? []), ...this.#cellHost] }]);
         if (host && item.id !== undefined
           && mine.some((m) => m.id === item.id)) {
           host(item);

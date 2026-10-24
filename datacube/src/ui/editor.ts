@@ -96,6 +96,13 @@ export interface EditorOptions {
    */
   readonly onApply: (draft: CubeDraft, base: CubeDraft) => boolean | Promise<boolean>;
   readonly onClose: () => void;
+  /**
+   * The Dimensions tab's own actions (the user, 2026-10-23: started here, not from a menu), each once the draft is
+   * applied and the editor closed -- a refused draft starts neither: the grid's rows grouped by dimension `name`
+   * (its first level), and Ad Hoc Analysis of the cube. Absent, the tab does not offer them.
+   */
+  readonly onUseDimension?: (name: string) => void;
+  readonly onAdHoc?: () => void;
   readonly initialTab?: EditorTab;
   /** Open Column Properties on this column (from its header's menu). */
   readonly initialColumn?: string;
@@ -233,7 +240,16 @@ export class CubeEditor {
         this.#draft = { ...this.#draft, dimensions };
       },
       refresh: () => this.refresh(),
+      ...(this.#options.onUseDimension ? { useDimension: (name: string) => this.#appliedThen(() => this.#options.onUseDimension?.(name)) } : {}),
+      ...(this.#options.onAdHoc ? { adHoc: () => this.#appliedThen(() => this.#options.onAdHoc?.()) } : {}),
     };
+  }
+
+  /** The draft applied and the editor closed, then `then`: what the Dimensions tab starts acts on the cube as applied. */
+  #appliedThen(then: () => void): void {
+    void this.apply({ close: true }).then((took) => {
+      if (took) then();
+    });
   }
 
   #renderTabs(): void {

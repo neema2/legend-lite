@@ -7,7 +7,7 @@ import { describe, it } from 'node:test';
 
 import { element, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
 import { AXIS_UPPER, boxMeasures, chartProblems, chartSnapshot, drillLevels, editChart, followCube, type ChartSpec } from '../src/chart-spec.ts';
-import { chartOption, describe as describeChart, kpiDrawing, type ChartDrawing, type GridShown } from '../src/chart-option.ts';
+import { chartOption, describe as describeChart, kpiDrawing, LIGHT_THEME, type ChartDrawing, type GridShown } from '../src/chart-option.ts';
 import { facetOption, gridKindOption, kindOption } from '../src/chart-kinds.ts';
 import { grainName, marimekkoNames, paretoName, ringTotalName, waffleNames, waterfallNames } from '../src/calc-presets.ts';
 import * as echarts from 'echarts/core';
@@ -237,6 +237,35 @@ describe('each kind is drawn', () => {
     assert.match(dial.notes.join(), /past the target/);
     const ring = kindOption({ ...spec, options: { ...OPTIONS, target: 2000, ring: true } }, one, undefined, (v) => String(v));
     assert.ok(svg(ring).includes('of 2000'));
+    assert.ok(svg(ring).includes('60% of 2000'), 'the ring says how much of its target is reached');
+  });
+
+  // the user, 2026-10-23: a gauge's 30px number was drawn at 10px -- a canvas refuses a font of the family `inherit`
+  // and draws in whatever font it had last, its sizes lost
+  it('every text names the page\'s font, never `inherit`', () => {
+    const theme = { ...LIGHT_THEME, font: 'Test Sans, sans-serif' };
+    const families = (o: unknown, out: string[] = []): string[] => {
+      if (Array.isArray(o)) for (const v of o) families(v, out);
+      else if (o !== null && typeof o === 'object') {
+        for (const [k, v] of Object.entries(o)) if (k === 'fontFamily') out.push(String(v)); else families(v, out);
+      }
+      return out;
+    };
+    const one = table([{ name: 'sum_revenue', type: 'Float', values: [1200] }]);
+    const { x: _x, ...gauge } = of('gauge');
+    const byRegion = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'AMER'] },
+      { name: 'sum_revenue', type: 'Float', values: [10, 20] },
+    ]);
+    for (const drawing of [
+      kindOption({ ...gauge, options: { ...OPTIONS, target: 1000, ring: true } }, one, theme),
+      kindOption(of('rose'), byRegion, theme),
+      chartOption({ ...of('bar') }, byRegion, theme),
+    ]) {
+      const named = families(drawing.option);
+      assert.ok(named.length > 0, 'its text names a font');
+      assert.deepEqual([...new Set(named)], [theme.font]);
+    }
   });
 });
 

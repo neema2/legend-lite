@@ -62,7 +62,7 @@ export function kindOption(
 ): ChartDrawing {
   const spec = drilledView(drilled).spec;
   const notes: string[] = [];
-  const text = { color: theme.inkSecondary, fontFamily: 'inherit' };
+  const text = { color: theme.inkSecondary, fontFamily: theme.font };
   const axisCommon = {
     axisLine: { lineStyle: { color: theme.axis } },
     axisTick: { show: false },
@@ -900,8 +900,10 @@ function gauge(
   const raw = c?.values[0] ?? null;
   const v = numberOf(raw, c?.type);
   const target = spec.options.target!;
-  const written = measureText(first, v, rows, label);
-  const goal = label(target, first.column, c?.type);
+  // the value and its target as headlines, as a KPI writes them ("$35.7m of $40m")
+  const written = measureText(first, v, rows, label, true);
+  const goal = measureText(first, target, rows, label, true);
+  const reached = v !== null && target > 0 ? Math.round((v / target) * 100) : null;
   const notes: string[] = [];
   // past the scale's end the needle stops there: said, not hidden
   if (v !== null && v > target) notes.push(`${written} is past the target (${goal}), the gauge's end.`);
@@ -913,12 +915,12 @@ function gauge(
   const series = ring ? {
     type: 'gauge', startAngle: 90, endAngle: -270, min: 0, max: target, radius: '86%',
     pointer: { show: false },
-    progress: { show: true, roundCap: true, width: 16, itemStyle: { color: colour } },
-    axisLine: { lineStyle: { width: 16, color: [[1, theme.grid]] } },
+    progress: { show: true, roundCap: true, width: 14, itemStyle: { color: colour } },
+    axisLine: { roundCap: true, lineStyle: { width: 14, color: [[1, theme.grid]] } },
     splitLine: { show: false }, axisTick: { show: false }, axisLabel: { show: false },
-    title: { offsetCenter: [0, '28%'], color: theme.muted, fontSize: 12 },
-    detail: { offsetCenter: [0, '-4%'], color: theme.ink, fontSize: 24, formatter: () => written },
-    data: [{ value: v, name: `of ${goal}` }],
+    title: { offsetCenter: [0, '26%'], color: theme.inkSecondary, fontSize: 13 },
+    detail: { offsetCenter: [0, '-6%'], color: theme.ink, fontSize: 30, fontWeight: 600, formatter: () => written },
+    data: [{ value: v, name: reached === null ? `of ${goal}` : `${reached}% of ${goal}` }],
   } : {
     type: 'gauge', min: 0, max: target, radius: '92%', center: ['50%', '60%'], startAngle: 200, endAngle: -20, splitNumber: 4,
     progress: { show: true, width: 12, itemStyle: { color: colour } },
@@ -926,9 +928,9 @@ function gauge(
     pointer: { length: '60%', width: 4, itemStyle: { color: theme.ink } },
     anchor: { show: true, size: 10, itemStyle: { color: theme.ink } },
     splitLine: { length: 8, lineStyle: { color: theme.axis } }, axisTick: { show: false },
-    axisLabel: { color: theme.muted, distance: 18, formatter: (n: number) => label(n, first.column, c?.type) },
+    axisLabel: { color: theme.muted, distance: 18, formatter: (n: number) => label(n, first.column, c?.type, true) },
     title: { offsetCenter: [0, '32%'], color: theme.muted, fontSize: 12 },
-    detail: { offsetCenter: [0, '62%'], color: theme.ink, fontSize: 22, formatter: () => written },
+    detail: { offsetCenter: [0, '62%'], color: theme.ink, fontSize: 26, fontWeight: 600, formatter: () => written },
     data: [{ value: v, name: measureTitle(first) }],
   };
   return {
@@ -961,7 +963,7 @@ export function gridKindOption(
   };
   const base = {
     backgroundColor: 'transparent',
-    textStyle: { fontFamily: 'inherit', color: theme.ink },
+    textStyle: { fontFamily: theme.font, color: theme.ink },
     color: [...theme.series],
     aria: { enabled: true, label: { enabled: false } },
     tooltip,
@@ -1142,7 +1144,7 @@ export function facetOption(
   return {
     option: asOption({
       backgroundColor: 'transparent',
-      textStyle: { color: theme.inkSecondary, fontFamily: 'inherit' },
+      textStyle: { color: theme.inkSecondary, fontFamily: theme.font },
       color: [...theme.series],
       aria: { enabled: true, label: { enabled: false }, decal: { show: spec.options.decal === true } },
       title: titles,

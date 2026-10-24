@@ -254,18 +254,17 @@ class _Session:
         if engine is not None:
             engine.sweep()
 
-    def _combine(self, page: dict[str, Any], held: list[str], edits: list[Any], known: list[str]) -> dict[str, Any]:
+    def _combine(self, page: dict[str, Any], held: list[str], edits: list[Any]) -> dict[str, Any]:
         """A writer's edits applied to ``page`` as the keeper has it now, by DataCube's one rule (headless pageRebase:
-        page-rebase.ts; made again on top when the page moved on since they were made, ``known`` the ids it held then) --
-        a grid's over the frames this session serves, a snapped grid's over the copy its engine holds: ``{page, held,
-        edits, renamed, reads}``, or ``{problems}``. The keeper's, asked holding nothing (the session's lock first, then
-        the frames')."""
+        page-rebase.ts; made again on top when the page moved on since they were made) -- a grid's over the frames this
+        session serves, a snapped grid's over the copy its engine holds: ``{page, held, edits, reads}``, or
+        ``{problems}``. The keeper's, asked holding nothing (the session's lock first, then the frames')."""
         from . import _json
         headless = self.headless()
         copies = self.held_copies()
         with self.frames.reading():
             said = _json.loads(headless.call('pageRebase', _json.dumps(page), _json.dumps(held), _json.dumps(edits),
-                                             _json.dumps(known), self.frames.hosted(), copies))
+                                             self.frames.hosted(), copies))
         if 'page' in said:
             said['page'] = _json.loads(said['page'])
         return said

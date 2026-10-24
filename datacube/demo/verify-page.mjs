@@ -68,11 +68,11 @@ async function dragToRows(from, column, to) {
   await settle();
 }
 
-/** Right-click > Insert > `what`, on a cell of the grid in `scope`. */
+/** Right-click > Create > `what`, on a cell of the grid in `scope`. */
 async function insert(what, scope) {
   await page.locator(scope).first().locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
-  await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
-  await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
+  await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Create"))').first().hover();
+  await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Create")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
   await settle();
 }
 
@@ -80,8 +80,8 @@ try {
   await page.goto(`http://127.0.0.1:${port}/demo/index.html`);
   await page.waitForSelector('.dc-row', { timeout: 120_000 });
   await settle();
-  // the second cube: a copy of the sample's grid, beside it
-  await insert('Copy of Grid', tile(A));
+  // the second cube: a copy of the sample's grid, under it
+  await insert('Copy of This Grid', tile(A));
   await page.locator(`${tile(B)} .dc-row`).first().waitFor({ timeout: 20_000 });
   await settle();
 
@@ -137,8 +137,11 @@ try {
       page.locator(`${tile(B)} .dc-app`).evaluate((e) => e.dataset.dcCube),
     ]);
     if (cubeOfWin !== cubeOfB) throw new Error(`the window is marked ${cubeOfWin}, B is ${cubeOfB}`);
+    // not held in the tile's box: B is a band of its own under A (a tile added goes under the one it came from), the
+    // window centred on the page, reaching past it
     const [w, t] = await Promise.all([win.boundingBox(), page.locator(tile(B)).boundingBox()]);
-    if (!w || !t || w.width <= t.width) throw new Error(`window ${w?.width}px wide in a ${t?.width}px tile`);
+    const inside = (o, i) => o.x >= i.x && o.y >= i.y && o.x + o.width <= i.x + i.width && o.y + o.height <= i.y + i.height;
+    if (!w || !t || inside(w, t)) throw new Error(`window ${JSON.stringify(w)} inside the tile ${JSON.stringify(t)}`);
     // STYLED as it is inside a cube: the cube's tokens reach it (they are defined on the cube,
     // not the page, so a window outside it once came out unstyled)
     const [font, tokenOfWin, tokenOfCube] = await Promise.all([
@@ -152,7 +155,7 @@ try {
     if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/page-window.png` });
     await page.keyboard.press('Escape');
     await win.locator('.dc-overlay-close, [aria-label="Close"]').first().click().catch(() => {});
-    return `${Math.round(w.width)}px window over a ${Math.round(t.width)}px tile`;
+    return `a ${Math.round(w.width)}x${Math.round(w.height)} window reaching past its ${Math.round(t.width)}x${Math.round(t.height)} tile`;
   });
 
   await check('removing a tile disposes its cube; the other keeps working', async () => {

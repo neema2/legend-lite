@@ -11,6 +11,8 @@
 // only, so the suite keeps watching them without the page offering
 // something that half-works.
 
+import { DESK_TRADES, sampleTradesCsv } from './sample-trades.ts';
+
 /** Deterministic, so the same choice gives the same file. */
 function rng(seed: number): () => number {
   let a = seed >>> 0;
@@ -249,6 +251,38 @@ export function salesCsv(rows = 6000, seed = 20261014): string {
   return `${out.join('\n')}\n`;
 }
 
+/**
+ * The countries the sales sample sells in, by ISO code -- less Singapore, which it sells in, and with Mexico and South
+ * Africa, where it does not -- so each way of joining the orders to them has rows to show (examples/prep-joins.ts): the
+ * orders with no country, the countries with no orders.
+ */
+const COUNTRIES = [
+  { code: 'GBR', country: 'United Kingdom', continent: 'Europe', capital: 'London', population: 68.3 },
+  { code: 'DEU', country: 'Germany', continent: 'Europe', capital: 'Berlin', population: 84.5 },
+  { code: 'FRA', country: 'France', continent: 'Europe', capital: 'Paris', population: 68.2 },
+  { code: 'USA', country: 'United States', continent: 'North America', capital: 'Washington', population: 335.0 },
+  { code: 'CAN', country: 'Canada', continent: 'North America', capital: 'Ottawa', population: 40.1 },
+  { code: 'MEX', country: 'Mexico', continent: 'North America', capital: 'Mexico City', population: 129.7 },
+  { code: 'BRA', country: 'Brazil', continent: 'South America', capital: 'Brasilia', population: 211.1 },
+  { code: 'JPN', country: 'Japan', continent: 'Asia', capital: 'Tokyo', population: 124.0 },
+  { code: 'IND', country: 'India', continent: 'Asia', capital: 'New Delhi', population: 1438.1 },
+  { code: 'AUS', country: 'Australia', continent: 'Oceania', capital: 'Canberra', population: 26.9 },
+  { code: 'ZAF', country: 'South Africa', continent: 'Africa', capital: 'Pretoria', population: 63.0 },
+] as const;
+
+/** The countries sample's columns, in order. */
+export const COUNTRY_COLUMNS = ['code', 'country', 'continent', 'capital', 'population_m'] as const;
+
+/** The countries sample: a row per country, its population in millions (a DOUBLE to DuckDB: a Float). */
+export function countriesCsv(): string {
+  const out = [COUNTRY_COLUMNS.join(','),
+    ...COUNTRIES.map((c) => [c.code, c.country, c.continent, c.capital, c.population.toFixed(1)].map(csvCell).join(','))];
+  return `${out.join('\n')}\n`;
+}
+
+/** The sample a table of countries is: the join example's second table. */
+export const COUNTRIES_SAMPLE = 'countries';
+
 export const SAMPLES: readonly Sample[] = [
   {
     id: 'trades',
@@ -260,12 +294,30 @@ export const SAMPLES: readonly Sample[] = [
       sampleCsv(seed === undefined ? { rows } : { rows, seed }),
   },
   {
+    // the rows the demo starts on (sample-trades.ts), as a file: what a page saved over its start's grid rebuilds
+    id: DESK_TRADES,
+    label: 'Desk trades -- the rows DataCube starts on',
+    about: 'Regions, desks, books, years and quarters, with a notional, a P&L and a quantity: '
+      + 'the trades the start page groups and pivots, as a file.',
+    defaultRows: 5000,
+    build: (rows) => sampleTradesCsv(rows),
+  },
+  {
     id: 'sales',
     label: 'Sales -- for dashboards',
     about: 'Two years of orders in ten countries: dates, regions, ISO codes and coordinates, channels, products, '
       + 'units, revenue, cost, profit, discount and a target. What the chart examples are drawn from.',
     defaultRows: 6000,
     build: (rows, seed) => salesCsv(rows, seed),
+  },
+  {
+    // the sales sample's countries: a table to join its orders to (examples/prep-joins.ts)
+    id: COUNTRIES_SAMPLE,
+    label: 'Countries -- to join the sales to',
+    about: 'Eleven countries by ISO code, with their continent, capital and population: nine the sales sample sells in, '
+      + 'two it does not, and one it sells in left out -- so joining the two leaves rows unmatched on both sides.',
+    defaultRows: COUNTRIES.length,
+    build: () => countriesCsv(),
   },
   {
     id: 'types',

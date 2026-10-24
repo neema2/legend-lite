@@ -17,7 +17,7 @@
 // series' colour (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §6).
 
 import type { EChartsOption } from 'echarts';
-import { AXIS_UPPER, axisName, drilledView, KPI_TREND_LIMIT, measureName, rangesAcross, type ChartMeasure, type ChartSpec, type LayerStat, type MeasureMark } from './chart-spec.ts';
+import { AXIS_UPPER, axisName, drilledView, kpiChange, KPI_TREND_LIMIT, measureName, rangesAcross, type ChartMeasure, type ChartSpec, type LayerStat, type MeasureMark } from './chart-spec.ts';
 import { isRatio, ringTotalName, SHOW_AS_LABELS, statName } from './calc-presets.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { numberOf } from '../../engine-client/src/values.ts';
@@ -39,6 +39,12 @@ export interface ChartTheme {
   readonly sequential: readonly string[];
   /** The colour of a value on the wrong side of a threshold (and a pinned minimum). */
   readonly bad?: string;
+  /**
+   * The page's font, by name: a canvas cannot inherit one -- a font of the family `inherit` is refused, and the text
+   * is drawn in whatever font the canvas had last, its sizes lost (the user, 2026-10-23: a gauge's 30px number drawn
+   * at 10px).
+   */
+  readonly font: string;
 }
 
 /** The reference palette's light mode (dataviz references/palette.md). */
@@ -52,6 +58,7 @@ export const LIGHT_THEME: ChartTheme = {
   series: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'],
   sequential: ['#cde2fb', '#86b6ef', '#3987e5', '#256abf', '#184f95', '#0d366b'],
   bad: '#e34948',
+  font: 'Roboto, ui-sans-serif, system-ui, sans-serif',
 };
 
 /**
@@ -79,6 +86,7 @@ export function themeOf(el: Element): ChartTheme {
     sequential: list('--dc-chart-sequential', LIGHT_THEME.sequential),
     // the KPI's own bad colour, the page's one word for a value on the wrong side
     bad: read('--dc-chart-bad', read('--dc-kpi-bad', LIGHT_THEME.bad!)),
+    font: css?.fontFamily || LIGHT_THEME.font,
   };
 }
 
@@ -87,8 +95,9 @@ export const MAX_SERIES = 8;
 /** A scatter's points overlap, and only the first three slots stay apart for every viewer. */
 export const MAX_SCATTER_SERIES = 3;
 
-/** How a value is written where the reader sees it (the grid's own formatter). */
-export type LabelOf = (value: Scalar, column: string, type: string | undefined) => string;
+/** How a value is written where the reader sees it (the grid's own formatter); `headline`: as a KPI's number, scaled
+ *  when large (format.ts `headlineFormat`). */
+export type LabelOf = (value: Scalar, column: string, type: string | undefined, headline?: boolean) => string;
 
 /**
  * A column's unit as the grid formats it (its kind, currency and unit: `currency|USD|`), or undefined when the grid
@@ -196,7 +205,7 @@ export function chartOption(
   // drilled, the chart draws the level after its path (its query asked for that level)
   const spec = drilledView(drilled).spec;
   const notes: string[] = [];
-  const text = { color: theme.inkSecondary, fontFamily: 'inherit' };
+  const text = { color: theme.inkSecondary, fontFamily: theme.font };
   const axisCommon = {
     axisLine: { lineStyle: { color: theme.axis } },
     axisTick: { show: false },
@@ -899,13 +908,13 @@ const round1 = (v: number): string => (Math.round(v * 10) / 10).toLocaleString(U
  * A measure's value as the reader sees it: a share or a change as a percentage, a rank and a count as whole numbers,
  * anything else as the grid writes the measure's column (its currency, its scale, its decimals).
  */
-export function measureText(m: ChartMeasure, v: number | null, rows: ResultTable, label: LabelOf): string {
+export function measureText(m: ChartMeasure, v: number | null, rows: ResultTable, label: LabelOf, headline = false): string {
   if (v === null) return label(null, m.column, undefined);
   if (m.showAs && isRatio(m.showAs.kind)) {
     return new Intl.NumberFormat(UI_LOCALE, { style: 'percent', maximumFractionDigits: 1 }).format(v);
   }
   if (m.showAs?.kind === 'rank' || m.fn === 'count') return Math.round(v).toLocaleString(UI_LOCALE);
-  return label(v, m.column, column(rows, measureName(m))?.type);
+  return label(v, m.column, column(rows, measureName(m))?.type, headline);
 }
 
 /** Text put into a hover's HTML: a value or a name from the data is never markup. */
@@ -1067,24 +1076,56 @@ const MARK_WORDS: Record<ChartSpec['mark'], string> = {
   gantt: 'Gantt chart',
 };
 
-/** A KPI as drawn: its number as the grid writes it, how it stands against its target, and its trend's line. */
+/**
+ * A KPI as drawn (the user, 2026-10-23: "make them look nicer, more sleek"): a stat tile -- its number as a headline,
+ * how it stands against its target (said, and a meter of how much of it is reached), its latest period against the
+ * one before, and its trend's line.
+ */
 export interface KpiDrawing {
-  /** The measure over every row, as the grid writes it; "—" when there is none (no rows). */
+  /** The measure over every row as a headline (format.ts `headlineFormat`: "$35.7m"); "\u2014" when there is none (no rows). */
   readonly value: string;
-  /** Against its target: "12% above target (13.5M)", good or not; absent with no target. */
-  readonly target?: { readonly text: string; readonly good: boolean };
-  /** Its trend, a line with no axes, when it has a column across. */
+  /** The same as the grid writes it in full ("$35,732,015"): said on a hover. */
+  readonly exact: string;
+  /**
+   * Against its target: `delta` the difference ("\u25BC 11%", or how many times it), `words` the rest ("below
+   * target"), `goal` the target as a headline ("$40m"), `text` them all as one; good when on the side `options.better`
+   * says; `reached` the share of the target the value is (0 to 1, past it 1), the meter's. Absent with no target.
+   */
+  readonly target?: {
+    readonly text: string;
+    readonly delta: string;
+    readonly words: string;
+    readonly goal: string;
+    readonly good: boolean;
+    readonly reached: number;
+  };
+  /**
+   * Its latest period against the one before, from its trend: `delta` ("\u25B2 4.2%"), `words` ("Dec vs Nov 2025"), good when it moved the way `options.better` says, null when it did not move. Absent with fewer than two
+   * periods, or a zero before.
+   */
+  readonly change?: { readonly text: string; readonly delta: string; readonly words: string; readonly good: boolean | null };
+  /** Its trend, a line with no axes, its latest point marked, when it has a column across. */
   readonly trend?: ChartDrawing;
   /** The KPI in words, for a screen reader. */
   readonly description: string;
   readonly notes: readonly string[];
 }
 
+/** Two periods said together, a year they share said once: "Dec vs Nov 2025", "Jan 2026 vs Dec 2025". */
+function versus(now: string, before: string): string {
+  const [a, b] = [now.lastIndexOf(' '), before.lastIndexOf(' ')];
+  return a > 0 && b > 0 && now.slice(a) === before.slice(b) ? `${now.slice(0, a)} vs ${before}` : `${now} vs ${before}`;
+}
+
+/** A share as a KPI says it: one place under ten ("6.3%"), whole above ("11%"). */
+const shareText = (share: number): string => `${share < 10 ? share.toFixed(1) : Math.round(share).toLocaleString(UI_LOCALE)}%`;
+
 /**
- * A KPI (chart-spec.ts `kpiQueries`): `total`'s one row, its measure written as the grid writes the measure's column;
- * against `options.target`, the difference as a share of the target -- good when it is on the side `options.better`
- * says (above, unless it says below) -- and, given `trend`'s rows, the measure along the column across, a line with
- * nothing but the line (a hover says each point).
+ * A KPI (chart-spec.ts `kpiQueries`): `total`'s one row, its measure written as the grid writes the measure's column
+ * -- as a headline (format.ts `headlineFormat`), in full on a hover; against `options.target`, the difference as a
+ * share of the target -- good when it is on the side `options.better` says (above, unless it says below); given
+ * `trend`'s rows, the measure along the column across, a line with nothing but the line and its latest point (a hover
+ * says each), and the latest point's change from the one before, the database's.
  */
 export function kpiDrawing(
   spec: ChartSpec,
@@ -1095,32 +1136,37 @@ export function kpiDrawing(
 ): KpiDrawing {
   const first = spec.y[0];
   const notes: string[] = [];
-  if (!first) return { value: '\u2014', description: 'A KPI with nothing to measure.', notes: ['Pick something to measure.'] };
+  if (!first) return { value: '\u2014', exact: '\u2014', description: 'A KPI with nothing to measure.', notes: ['Pick something to measure.'] };
   const name = measureName(first);
   const col = column(total, name);
   const raw = col?.values[0] ?? null;
   const v = numberOf(raw, col?.type);
-  const value = raw === null ? '\u2014' : label(raw, first.column, col?.type);
+  // written as a chart writes a value (a count a count, a share a percentage), as a headline
+  const written = (n: number, headline: boolean): string => measureText(first, n, total, label, headline);
+  const value = raw === null ? '\u2014' : v === null ? label(raw, first.column, col?.type) : written(v, true);
+  const exact = raw === null ? '\u2014' : v === null ? label(raw, first.column, col?.type) : written(v, false);
   const what = `${first.fn} of ${first.column}`;
+  const higher = spec.options.better !== 'lower';
   let target: KpiDrawing['target'];
   const t = spec.options.target;
   if (t !== undefined && v !== null) {
-    const higher = spec.options.better !== 'lower';
-    const goal = label(t, first.column, col?.type);
+    const goal = written(t, true);
+    const reached = t > 0 ? Math.min(1, Math.max(0, v / t)) : v >= t ? 1 : 0;
     if (v === t) {
-      target = { text: `On target (${goal})`, good: true };
+      target = { text: `On target (${goal})`, delta: '', words: 'On target', goal, good: true, reached };
     } else {
       const share = t === 0 ? null : Math.abs((v - t) / t) * 100;
       const above = v > t;
       const mark = above ? '\u25B2' : '\u25BC';
       // past ten times the target, said as how many times it (a percentage of thousands reads as nothing)
-      const text = share !== null && share >= 1000 && v / t > 0
-        ? `${mark} ${Math.round(v / t).toLocaleString(UI_LOCALE)}\u00D7 the target (${goal})`
-        : `${mark} ${share === null ? '' : `${share < 10 ? share.toFixed(1) : Math.round(share)}% `}${above ? 'above' : 'below'} target (${goal})`;
-      target = { text, good: above === higher };
+      const [delta, words] = share !== null && share >= 1000 && v / t > 0
+        ? [`${mark} ${Math.round(v / t).toLocaleString(UI_LOCALE)}\u00D7`, 'the target']
+        : [share === null ? mark : `${mark} ${shareText(share)}`, `${above ? 'above' : 'below'} target`];
+      target = { text: `${delta} ${words} (${goal})`, delta, words, goal, good: above === higher, reached };
     }
   }
   let line: ChartDrawing | undefined;
+  let change: KpiDrawing['change'];
   if (trend && spec.x !== undefined) {
     // the trend's column is its axis's: a date by its period (a grain's column), named as a period
     const xs = column(trend, axisName(spec) ?? spec.x);
@@ -1130,12 +1176,25 @@ export function kpiDrawing(
       const latest = xs.values.map((x, i) => [spec.grain !== undefined && x !== null ? periodText(String(x), spec.grain) : label(x, spec.x!, xs.type), numberOf(ys.values[i] ?? null, ys.type)] as const)
         .slice(0, KPI_TREND_LIMIT);
       const points = [...latest].reverse();
+      const last = points.length - 1;
+      // the latest period's change from the one before, as the database answered it (chart-spec.ts kpiChange: a lag
+      // window): empty for a first period, or a change from nothing
+      const changeOf = kpiChange(spec);
+      const changes = changeOf ? column(trend, measureName(changeOf)) : undefined;
+      const moved = changes ? numberOf(changes.values[0] ?? null, changes.type) : null;
+      const [now, before] = [latest[0], latest[1]];
+      if (moved !== null && now && before) {
+        const delta = moved === 0 ? '\u2014 0%' : `${moved > 0 ? '\u25B2' : '\u25BC'} ${shareText(Math.abs(moved) * 100)}`;
+        const words = versus(now[0], before[0]);
+        change = { text: `${delta} ${words}`, delta, words, good: moved === 0 ? null : (moved > 0) === higher };
+      }
+      const accent = theme.series[0]!;
       line = {
         option: asOption({
           backgroundColor: 'transparent',
           animation: false,
           aria: { enabled: true, label: { enabled: false } },
-          grid: { left: 0, right: 0, top: 4, bottom: 4 },
+          grid: { left: 6, right: 6, top: 6, bottom: 4 },
           tooltip: {
             trigger: 'axis', confine: true, backgroundColor: theme.surface, borderColor: theme.axis,
             textStyle: { color: theme.ink },
@@ -1143,9 +1202,16 @@ export function kpiDrawing(
           xAxis: { type: 'category', show: false, boundaryGap: false, data: points.map((p) => p[0]) },
           yAxis: { type: 'value', show: false, scale: true },
           series: [{
-            type: 'line', name: what, data: points.map((p) => p[1]), showSymbol: false,
-            lineStyle: { width: 2, color: theme.series[0] }, itemStyle: { color: theme.series[0] },
-            areaStyle: { opacity: 0.12, color: theme.series[0] },
+            // the trend in the quiet hue, a wash under it; its latest point in the accent, ringed by the surface
+            type: 'line', name: what, data: points.map((p) => p[1]), showSymbol: true,
+            symbol: 'circle', symbolSize: (_v: unknown, p: { dataIndex: number }) => (p.dataIndex === last ? 8 : 0),
+            lineStyle: { width: 2, color: theme.muted, cap: 'round', join: 'round' },
+            itemStyle: { color: accent, borderColor: theme.surface, borderWidth: 2 },
+            emphasis: { scale: false },
+            areaStyle: {
+              opacity: 0.16,
+              color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: accent }, { offset: 1, color: theme.surface }] },
+            },
           }],
         }),
         keyAt: () => null,
@@ -1155,8 +1221,8 @@ export function kpiDrawing(
       if (xs.values.length > KPI_TREND_LIMIT) notes.push(`The trend shows the latest ${KPI_TREND_LIMIT} values of ${spec.x}.`);
     }
   }
-  const description = `KPI: ${what} is ${value}${target ? `; ${target.text}` : ''}.`;
-  return { value, ...(target ? { target } : {}), ...(line ? { trend: line } : {}), description, notes };
+  const description = `KPI: ${what} is ${exact}${target ? `; ${target.text}` : ''}${change ? `; ${change.text}` : ''}.`;
+  return { value, exact, ...(target ? { target } : {}), ...(change ? { change } : {}), ...(line ? { trend: line } : {}), description, notes };
 }
 
 /** The chart in one sentence: what is plotted against what, and how much of it. */
@@ -1314,7 +1380,7 @@ export function treemapOfGrid(shown: GridShown, theme: ChartTheme = LIGHT_THEME,
   if (!value) notes.push('The grid shows no numeric column to size the blocks by.');
   const depth = (nodes: readonly GridNode[]): number => nodes.reduce((m, n) => Math.max(m, n.children ? 1 + depth(n.children) : 1), 0);
   const levels = Math.max(1, depth(data));
-  const text = { fontFamily: 'Roboto, ui-sans-serif, system-ui, sans-serif', fontSize: 11, color: theme.ink };
+  const text = { fontFamily: theme.font, fontSize: 11, color: theme.ink };
   return {
     option: asOption({
       backgroundColor: 'transparent',

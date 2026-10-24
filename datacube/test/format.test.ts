@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { FormatterCache, type ColumnFormat } from '../src/format.ts';
+import { FormatterCache, headlineFormat, type ColumnFormat } from '../src/format.ts';
 
 const EN: Partial<ColumnFormat> = { locale: 'en-US' };
 
@@ -108,5 +108,28 @@ describe('negative zero', () => {
     assert.equal(f.format(-0.0012, { kind: 'number', locale: 'en-US', decimals: 2 }), '0.00');
     assert.equal(f.format(-0.0012, { kind: 'auto', locale: 'en-US' }, 'Float'), '0');
     assert.equal(f.format(-1.5, { kind: 'number', locale: 'en-US', decimals: 2 }), '-1.50');
+  });
+});
+
+// the user, 2026-10-23: KPIs "nicer, more sleek" -- a stat tile's number at a glance
+describe('headlineFormat: a KPI\'s number', () => {
+  const c = new FormatterCache();
+  const money: ColumnFormat = { kind: 'currency', currency: 'USD', decimals: 0, ...EN };
+  it('scales money and numbers from 100,000 to their magnitude, one place at most, keeping the currency; below, as they are', () => {
+    const headline = (v: number, f: ColumnFormat, type?: string) => c.format(v, headlineFormat(f, type, v), type);
+    assert.equal(headline(35_732_015, money), '$35.7m');
+    assert.equal(headline(40_000_000, money), '$40m', 'no place it does not need');
+    assert.equal(headline(123_456, { kind: 'auto', ...EN }, 'Integer'), '123.5k', 'a number by its type');
+    assert.equal(headline(5955, money), '$5,955', 'below 100,000 in full: "$6k" would say less');
+    assert.equal(headline(-250_000, money), '-$250k');
+  });
+  it('a percentage to one place; a date and a text as they are', () => {
+    const percent: ColumnFormat = { kind: 'percent', decimals: 0, ...EN };
+    assert.equal(c.format(0.0820, percent), '8%');
+    assert.equal(c.format(0.0820, headlineFormat(percent)), '8.2%', 'never a whole 8% against a target of 8%');
+    assert.equal(c.format(0.35, headlineFormat(percent)), '35%');
+    const date: ColumnFormat = { kind: 'date', ...EN };
+    assert.equal(headlineFormat(date), date);
+    assert.equal(headlineFormat({ kind: 'auto' }, 'String').kind, 'auto');
   });
 });

@@ -153,6 +153,7 @@ export class MenuView {
       el.classList.add('dc-disabled');
       el.setAttribute('aria-disabled', 'true');
     }
+    if (item.hint !== undefined) el.title = item.hint;
 
     if (item.submenu && item.submenu.length > 0) {
       el.classList.add('dc-has-submenu');

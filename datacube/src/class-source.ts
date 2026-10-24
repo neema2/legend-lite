@@ -31,7 +31,7 @@ export interface ClassAt {
 export function classAt(ref: PageModelRef, cls: string, place: string): ClassAt {
   if (ref.revision === undefined) {
     throw new Error(`the page's project ${ref.project} has no saved revision yet (its first save did not go through): `
-      + 'Create a Class… again pins the page to the revision it reads');
+      + 'Create ▸ Class… again pins the page to the revision it reads');
   }
   return {
     class: cls, project: ref.project, workspace: ref.workspace, revision: ref.revision,

@@ -11,9 +11,10 @@ import { describe, it } from 'node:test';
 
 import { element } from '../../pure-protocol/src/index.ts';
 import {
-  chartFrom, chartProblems, DEFAULT_CHART_LIMIT, defaultChart, DEFAULT_OPTIONS, editChart, followCube, followRefusal, NO_CHART,
-  TIME_LIMIT, type ChartSpec,
+  chartFrom, chartGrid, chartProblems, chartQuery, chartStateOf, DEFAULT_CHART_LIMIT, defaultChart, DEFAULT_OPTIONS, editChart,
+  followCube, followRefusal, NO_CHART, readChart, showGridWay, TIME_LIMIT, type ChartMark, type ChartSpec,
 } from '../src/chart-spec.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 
@@ -172,3 +173,117 @@ describe('a change by hand (editChart: the charts\' form, and chartFrom)', () =>
     assert.equal(followCube(start, GROUPED), start);
   });
 });
+
+// the user, 2026-10-23: "frozen charts don't freeze filters -- seems to only freeze pivots"; one word per state
+describe('a chart\'s state: dynamic, pinned (its grouping its own) or frozen (its grouping and the grid\'s filter kept)', () => {
+  const EMEA = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } as const;
+  const APAC = { kind: 'condition', column: 'region', operator: 'equal', value: 'APAC' } as const;
+  const FILTERED: CubeSnapshot = { ...CUBE, rows: ['region', 'channel'], filter: EMEA };
+  const UNFILTERED: CubeSnapshot = { ...CUBE, rows: ['region', 'channel'] };
+  const made = (given: Record<string, unknown>, before?: ChartSpec, s: CubeSnapshot = FILTERED): ChartSpec => {
+    const spec = chartFrom(given, s, before);
+    if (typeof spec === 'string') throw new Error(spec);
+    return spec;
+  };
+
+  it('frozen keeps the grid\'s filter as it is then; its query reads that, whatever the grid\'s filter is after', () => {
+    const frozen = made({ state: 'frozen' }, made({ mark: 'bar' }));
+    assert.equal(chartStateOf(frozen), 'frozen');
+    assert.deepEqual(frozen.kept, { filter: EMEA });
+    assert.equal(frozen.frozen, true, 'its grouping kept too');
+    // the grid filtered otherwise since, or not at all: the chart's query is EMEA's
+    assert.deepEqual(chartQuery({ ...FILTERED, filter: APAC }, frozen).snapshot.filter, EMEA);
+    assert.deepEqual(chartQuery(UNFILTERED, frozen).snapshot.filter, EMEA);
+    // frozen on a grid with no filter: it keeps none, and a filter put on the grid after does not reach it
+    const bare = made({ state: 'frozen' }, made({ mark: 'bar' }, undefined, UNFILTERED), UNFILTERED);
+    assert.deepEqual(bare.kept, {});
+    assert.equal(chartQuery(FILTERED, bare).snapshot.filter, undefined);
+    // frozen again, it stays as it was: the filter it kept is not taken afresh
+    assert.deepEqual(made({ state: 'frozen' }, frozen, { ...FILTERED, filter: APAC }).kept, { filter: EMEA });
+  });
+
+  it('pinned keeps its grouping and follows the grid\'s filter; dynamic follows both; a hand on the axes pins', () => {
+    const pinned = made({ state: 'pinned' }, made({ state: 'frozen' }, made({ mark: 'bar' })));
+    assert.equal(chartStateOf(pinned), 'pinned');
+    assert.equal(pinned.kept, undefined, 'its kept filter let go');
+    assert.deepEqual(chartQuery({ ...FILTERED, filter: APAC }, pinned).snapshot.filter, APAC);
+    const dynamic = made({ state: 'dynamic' }, pinned);
+    assert.equal(chartStateOf(dynamic), 'dynamic');
+    assert.equal(dynamic.frozen, undefined);
+    assert.equal(chartStateOf(made({ mark: 'bar', x: 'channel' })), 'pinned', 'a hand on what the grouping sets pins it');
+    // a state that is none, refused in words
+    assert.equal(chartFrom({ state: 'stuck' }, FILTERED, made({ mark: 'bar' })),
+      'DataCube cannot read this chart: a chart\'s state is one of dynamic, pinned, frozen, not "stuck".');
+  });
+
+  it('a kept filter is read as a page reads one: a filter, on a chart that keeps its grouping, else refused by name', () => {
+    const base = made({ mark: 'bar' });
+    assert.notEqual(typeof readChart({ ...base, frozen: true, kept: { filter: EMEA } }), 'string');
+    assert.match(String(readChart({ ...base, kept: { filter: EMEA } })), /keeps its grouping too: it is frozen/);
+    assert.match(String(readChart({ ...base, frozen: true, kept: { filter: { kind: 'nope' } } })), /the filter it keeps is not one/);
+    assert.match(String(readChart({ ...base, frozen: true, kept: { rows: [] } })), /there is no "rows" in what it keeps/);
+    // a column its kept filter reads that the grid has no more: said, never quietly unfiltered
+    const gone = made({ state: 'frozen' }, base, { ...FILTERED, filter: { ...EMEA, column: 'channel' } });
+    const without = { ...FILTERED, columns: FILTERED.columns.filter((c) => c.name !== 'channel'), rows: ['region'] };
+    assert.match(chartProblems(gone, without).join(' '), /The filter it keeps reads 'channel'/);
+  });
+
+  it('Show Grid on a frozen chart: a grid of its own over the filter it kept, the chart following it, keeping nothing', () => {
+    const frozen = made({ state: 'frozen' }, made({ mark: 'bar' }));
+    const own = chartGrid({ snapshot: { ...FILTERED, filter: APAC }, config: DEFAULT_CONFIGURATION }, frozen, []);
+    assert.deepEqual(own.snapshot.filter, EMEA);
+    assert.equal(chartStateOf(own.spec), 'dynamic');
+  });
+
+  // the user, 2026-10-23: Show Grid on every chart -- a scatter, a map, a treemap, a gauge too
+  describe('Show Grid on every kind', () => {
+    const bar = made({ mark: 'bar' });
+    /** `bar` made another kind, in a state, with `extra` and without the slots `drop` names. */
+    const as = (mark: ChartMark, state: 'dynamic' | 'pinned' | 'frozen', extra: Partial<ChartSpec> = {},
+      drop: readonly ('x' | 'split')[] = []): ChartSpec => {
+      const { frozen: _f, kept: _k, ...rest } = { ...bar, mark, ...extra };
+      const base = Object.fromEntries(Object.entries(rest).filter(([k]) => !(drop as readonly string[]).includes(k))) as unknown as ChartSpec;
+      return state === 'dynamic' ? base : state === 'pinned' ? { ...base, frozen: true } : { ...base, frozen: true, kept: { filter: EMEA } };
+    };
+    const ownOf = (spec: ChartSpec) => chartGrid({ snapshot: { ...FILTERED, filter: APAC }, config: DEFAULT_CONFIGURATION }, spec, []);
+
+    it('the grid it reads, where that grid holds what it draws; else one of its own', () => {
+      const way = (spec: ChartSpec, follows = true) => showGridWay(spec, follows);
+      // a chart of groups: its grid while it follows it; pinned or frozen, its grouping its own: a grid of its own
+      assert.deepEqual([way(as('bar', 'dynamic')), way(as('bar', 'pinned')), way(as('bar', 'frozen'))], ['reveal', 'own', 'own']);
+      // pinned, a chart taking nothing of its grid's grouping reads just what it read: its grid
+      for (const mark of ['scatter', 'map', 'bubblemap', 'gauge', 'kpi'] as const) {
+        assert.equal(way(as(mark, 'pinned')), 'reveal', mark);
+        assert.equal(way(as(mark, 'frozen')), 'own', `${mark} frozen: the filter it keeps its own`);
+      }
+      // a treemap draws its grid as shown, whatever its state
+      assert.equal(way(as('treemap', 'frozen')), 'reveal');
+      // its grid removed: one of its own, whatever it is
+      assert.deepEqual([way(as('bar', 'dynamic'), false), way(as('treemap', 'dynamic'), false)], ['own', 'own']);
+    });
+
+    it("a scatter's own grid: its rows as they are, its plotted columns shown and no other, over the filter it kept", () => {
+      const own = ownOf(as('scatter', 'frozen', { x: 'cost', y: [{ column: 'revenue', fn: 'sum' }] }, ['split']));
+      assert.deepEqual(own.snapshot.rows, []);
+      assert.deepEqual(own.snapshot.filter, EMEA);
+      const hidden = Object.entries(own.configuration.columns).filter(([, c]) => c.hidden).map(([n]) => n).sort();
+      assert.deepEqual(hidden, ['at', 'channel', 'clock', 'day', 'month_start', 'profit', 'region']);
+      assert.equal(chartStateOf(own.spec), 'dynamic');
+      assert.equal(own.spec.x, 'cost', 'drawn as it was');
+    });
+
+    it("a map's grouped by its places; a gauge's and a KPI's one figure the grid's total; a treemap's the grid as it drew it", () => {
+      assert.deepEqual(ownOf(as('map', 'frozen', { x: 'region' })).snapshot.rows, ['region']);
+      assert.deepEqual(ownOf(as('bubblemap', 'frozen', { x: 'region', at: { lat: 'cost', lon: 'profit' } })).snapshot.rows,
+        ['region', 'cost', 'profit']);
+      for (const one of [as('gauge', 'frozen'), as('kpi', 'frozen', {}, ['x', 'split'])]) {
+        const own = ownOf(one);
+        assert.deepEqual(own.snapshot.rows, [], one.mark);
+        assert.equal(own.configuration.showRootAggregation, true, `${one.mark}: its figure the total row`);
+      }
+      const tree = ownOf(as('treemap', 'frozen'));
+      assert.deepEqual(tree.snapshot.rows, FILTERED.rows);
+    });
+  });
+});
+

@@ -9,7 +9,7 @@ import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
-import { boxMeasures, chartQuery, DEFAULT_OPTIONS, GRID_MARKS, measureName, type ChartSpec } from '../src/chart-spec.ts';
+import { axisName, boxMeasures, chartQuery, DEFAULT_OPTIONS, GRID_MARKS, kpiChange, kpiQueries, measureName, type ChartSpec } from '../src/chart-spec.ts';
 import { marimekkoNames, paretoName, ringTotalName, waffleNames, waterfallNames } from '../src/calc-presets.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
@@ -213,6 +213,7 @@ describe('the example pages\' charts, planned and run on their own sample (docs/
   it('the sample reads as the page declares it, and every chart\'s query plans and answers', async () => {
     const { chartsDashboardPage, EXAMPLE_CUBE, EXAMPLE_ROWS, SALES_SPECS } = await import('../src/examples/charts-dashboard.ts');
     const { chartsKindsPage } = await import('../src/examples/charts-kinds.ts');
+    const { chartsGalleryPage } = await import('../src/examples/charts-gallery.ts');
     const { salesCsv } = await import('../src/samples.ts');
     const db = await openDatabase();
     const local = new DuckDbEngine(db.connection);
@@ -223,8 +224,8 @@ describe('the example pages\' charts, planned and run on their own sample (docs/
       const all = await local.execute(await sales.plan(from(r.source).limit(1).lambda()), 0);
       assert.deepEqual(all.columns.map((c) => `${c.name}:${c.type}`), SALES_SPECS.map((c) => `${c.name}:${c.type}`));
       const cube: CubeSnapshot = { ...EXAMPLE_CUBE, source: { query: r.source } };
-      // batch 2's page and batch 3's; a chart of the grid as shown (a sunburst, a tree) has no query of its own
-      const views = [...(await chartsDashboardPage()).views, ...(await chartsKindsPage()).views];
+      // batch 2's page, batch 3's and the gallery; a chart of the grid as shown (a sunburst, a tree) has no query of its own
+      const views = [...(await chartsDashboardPage()).views, ...(await chartsKindsPage()).views, ...(await chartsGalleryPage()).views];
       for (const v of views) {
         if (v.kind !== 'chart' || GRID_MARKS.has(v.spec.mark)) continue;
         const { query } = chartQuery(cube, v.spec);
@@ -240,6 +241,18 @@ describe('the example pages\' charts, planned and run on their own sample (docs/
         }
         if (v.id === 'b-discount') {
           assert.deepEqual(values(t, 'discount__bin').map((d) => Number(Number(d).toFixed(2))).sort(), [0, 0.05, 0.1, 0.15, 0.2]);
+        }
+        // a KPI's trend, the latest first, each period's change from the one before beside it: the database's lag
+        // window, in the trend's own order whatever it is shown in (the user, 2026-10-23: the KPI's change)
+        if (v.spec.mark === 'kpi' && v.spec.x !== undefined) {
+          const trend = kpiQueries(cube, v.spec).trend!;
+          const answered = await local.execute(await sales.plan(trend.query), 0);
+          const measure = measureName(v.spec.y[0]!);
+          const [now, before] = values(answered, measure).map(Number);
+          const change = values(answered, measureName(kpiChange(v.spec)!)).map((c) => (c === null ? null : Number(c)));
+          assert.ok(Math.abs(change[0]! - (now! / before! - 1)) < 1e-9, `${v.title}: the latest period's change from the one before`);
+          assert.equal(change.at(-1), null, `${v.title}: the first period has none before it`);
+          if (v.spec.grain === 'month') assert.equal(String(values(answered, axisName(v.spec)!)[0]).slice(0, 7), '2025-12', 'the latest first');
         }
       }
     } finally {

@@ -35,7 +35,7 @@ import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile, type LayoutMove } from '../layout/band-board.ts';
 import { type Bands, NEW_SHEET, add as addTile, bringToFront, cells, leaves, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
-import { chartGrid, MAP_MARKS, ownGridRefusal, type ChartSpec } from '../chart-spec.ts';
+import { CHART_STATES, chartGrid, MAP_MARKS, showGridWay, type ChartSpec, type ChartState } from '../chart-spec.ts';
 import { chartPicked, type PageFilter } from '../page-filters.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { GridShown } from '../chart-option.ts';
@@ -54,12 +54,20 @@ import { withoutConditions, type CubeSnapshot, type FilterNode } from '../snapsh
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
+import { lazily } from '../lazily.ts';
 
 /** How many arrangements Undo Layout goes back through. */
 const LAYOUT_STEPS = 50;
 /** The grid's tile, until renamed: the cube's name is already above the board. */
 export const GRID_TILE_TITLE = 'Grid';
 const GRID = 'grid';
+
+/** A chart's states as its pill says them: its word, and what it does, in a line (chart-spec.ts chartState). */
+const STATE_WORDS: Readonly<Record<ChartState, { readonly label: string; readonly says: string }>> = {
+  dynamic: { label: 'Dynamic', says: 'it follows the grid: its grouping, its filters and the page\'s clicks' },
+  pinned: { label: 'Pinned', says: 'it keeps its own grouping, and follows the grid\'s filters and the page\'s clicks' },
+  frozen: { label: 'Frozen', says: 'it keeps its grouping and the grid\'s filter as they are now' },
+};
 
 /** What a chart needs from the grid it is made from (a CubeApp). */
 export interface ChartSource {
@@ -69,8 +77,8 @@ export interface ChartSource {
   readonly configuration: CubeConfiguration;
   /** Run a query the grid did not plan, through the grid's own runner. */
   run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<ResultTable>;
-  /** A value as the grid writes it. */
-  format(value: Scalar, column: string, type: string | undefined): string;
+  /** A value as the grid writes it; `headline`: scaled, a KPI's number (format.ts `headlineFormat`). */
+  format(value: Scalar, column: string, type: string | undefined, headline?: boolean): string;
   /** A column's unit as the grid formats it (`currency|USD|`), or undefined: two units, two value axes. */
   unit?(column: string): string | undefined;
   /** A column as the grid names it. */
@@ -209,6 +217,8 @@ export interface CubePageOptions {
    * after them and after every one on the board now (page-ids.ts nextPageId).
    */
   readonly taken: () => readonly string[];
+  /** The tag of the ids this board's tiles are made under (page-ids.ts nextPageId), or undefined: plain ids. */
+  readonly idTag?: () => string | undefined;
   /** A grid's cube document, as its page names it, for the command that carries one (`addGrid`):
    *  undefined when it cannot say its source. Absent, the grid's own (a cube alone's board: named as the cube is). */
   readonly documentOf?: (grid: string) => CubeDocument | undefined;
@@ -418,7 +428,7 @@ export class CubePage {
   #nextId(kind: 'grid' | 'chart' | 'sheet'): string {
     const board = [...this.#sheets.map((s) => s.id), ...this.#grids.keys(), ...this.#charts.keys(), ...this.#kept.keys(),
       ...this.#unavailable.keys(), ...this.#pending.keys()];
-    return nextPageId([...this.#options.taken(), ...board], kind);
+    return nextPageId([...this.#options.taken(), ...board], kind, this.#options.idTag?.());
   }
 
   /** A page edit told as its commands, one step named `label` (onPageEdit: applied, and the board put at what it makes),
@@ -467,15 +477,18 @@ export class CubePage {
   }
 
   /**
-   * A tile on its sheet: the one a saved page put it on (`setSheets`), else the sheet of `near` -- beside it while its
-   * band has room -- else the sheet shown.
+   * A tile on its sheet: the one a saved page put it on (`setSheets`), else the sheet of `near` -- under it (bands.ts
+   * add) -- else the sheet shown.
    */
   #place(spec: BandTile, near?: string): void {
     const by = near !== undefined ? this.#sheetOf(near) : undefined;
     const sheet = this.#planned.get(spec.id) ?? by ?? this.#shown;
     this.#specs.set(spec.id, spec);
-    sheet.board.add(spec, by === sheet ? near : undefined);
+    sheet.board.add(spec, by === sheet ? near : undefined, this.#charts.has(spec.id) ? this.#chartsOnly : undefined);
   }
+
+  /** Whether these tiles are all charts: a band a new chart joins (bands.ts add), beside its grid's other charts. */
+  readonly #chartsOnly = (ids: readonly string[]): boolean => ids.every((t) => this.#charts.has(t));
 
   /** A saved view this page cannot open, kept in its place as its page saved it: a tile that says `why`. */
   placeUnavailable(view: PageView, why: string): void {
@@ -546,10 +559,10 @@ export class CubePage {
    * step is said so once it has done.
    */
   sync(to: PageViews & { readonly cubes?: PageDocument['cubes'] }, from: PageViews, remake: Remake,
-    unopened: (cube: string) => string | undefined = () => undefined, theirs = false): void {
+    unopened: (cube: string) => string | undefined = () => undefined, theirs = false, refilter = true): void {
     this.#syncing = true;
     try {
-      this.#synced(to, from, remake, unopened, theirs);
+      this.#synced(to, from, remake, unopened, theirs, refilter);
     } finally {
       this.#syncing = false;
     }
@@ -560,7 +573,7 @@ export class CubePage {
   }
 
   #synced(to: PageViews & { readonly cubes?: PageDocument['cubes'] }, from: PageViews, remake: Remake,
-    unopened: (cube: string) => string | undefined, theirs: boolean): void {
+    unopened: (cube: string) => string | undefined, theirs: boolean, refilter = true): void {
     const wanted = new Map(to.views.map((v) => [v.id, v]));
     const known = new Set(from.views.map((v) => v.id));
     const sheetFor = new Map(to.sheets.flatMap((s) => tiles(s.layout).map((t) => [t, s.id] as const)));
@@ -579,7 +592,7 @@ export class CubePage {
         this.#place(spec);
       }
       // tiles the page held and the step does not: charts first (a grid would take its following ones, or detach them)
-      for (const id of [...this.#charts.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropChart(id, theirs);
+      for (const id of [...this.#charts.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropChart(id, theirs, refilter);
       for (const id of [...this.#grids.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropGrid(id);
       for (const id of [...this.#unavailable.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropUnavailable(id);
       // what it could not open, back: kept as the step has it, in its place
@@ -598,7 +611,10 @@ export class CubePage {
       // is replaced by the one made again, and its detached charts follow it once more
       for (const view of to.views) {
         if (view.kind !== 'grid' || this.#grids.has(view.id) || this.#unavailable.has(view.id)) continue;
-        const make = remake(view.id);
+        // from the cube the page `to` holds for it, when it says one (a keeper's step or put-back: the grid as the page
+        // has it, not as this screen last saw it -- a grid made again under the id its keeper gave it started from the
+        // screen's state, its sent commands then applied twice: the D19 audit's fourth round, 3)
+        const make = remake(view.id, to.cubes?.find((c) => c.id === view.cube)?.cube);
         if (!make) throw new Error(`grid ${view.id} cannot be made again: its maker is gone`);
         const kept = this.#kept.get(view.id);
         this.#kept.delete(view.id);
@@ -618,7 +634,7 @@ export class CubePage {
       for (const view of to.views) {
         if (view.kind !== 'chart' || this.#charts.has(view.id) || this.#unavailable.has(view.id)) continue;
         if (!this.#grids.has(view.cube) && !this.#kept.has(view.cube)) {
-          const make = remake(view.cube);
+          const make = remake(view.cube, to.cubes?.find((c) => c.id === view.cube)?.cube);
           if (!make) throw new Error(`chart ${view.id} cannot be opened again: grid ${view.cube}'s maker is gone`);
           this.keepGrid(view.cube, make);
         }
@@ -896,7 +912,7 @@ export class CubePage {
       this.#showPicker(this.#picker, anchor, first);
       return;
     }
-    void import('../ui/layout-picker.ts').then(({ LayoutPicker }) => {
+    void lazily(() => import('../ui/layout-picker.ts')).then(({ LayoutPicker }) => {
       if (this.#disposed) return;
       this.#picker ??= new LayoutPicker(this.#options.host);
       this.#showPicker(this.#picker, anchor, first);
@@ -1144,36 +1160,36 @@ export class CubePage {
     chip.className = 'dc-tile-chip';
     chip.hidden = true;
     chip.addEventListener('click', () => this.#select(id, null));
-    // THE CHART'S HEADER, simple (the user, 2026-09-30): its title, a Dynamic / Frozen pill -- as
-    // a grid's Live / Snapped -- that says which and toggles it, the filter chip while a click is
-    // filtering its grid, and its x. Everything else is a right-click away.
+    // THE CHART'S HEADER, simple (the user, 2026-09-30): its title, a pill -- as a grid's Live / Snapped -- that says
+    // its state and changes it, the filter chip while a click is filtering its grid, and its x. Everything else is a
+    // right-click away. Its states, one word each (the user, 2026-10-23: frozen charts kept their grouping but not
+    // their filter): DYNAMIC follows the grid; PINNED keeps its own grouping (a hand on its axes pins it) and follows
+    // the grid's filters and the page's clicks; FROZEN keeps its grouping and the grid's filter as they were.
     const pill = doc.createElement('button');
     pill.type = 'button';
     pill.className = 'dc-titlebar-toggle';
+    pill.setAttribute('aria-haspopup', 'menu');
     const paint = (): void => {
-      const frozen = panel.frozen;
+      const state = panel.state;
       const detached = link.grid === null;
-      pill.textContent = detached ? 'Detached' : frozen ? 'Frozen' : 'Dynamic';
-      pill.classList.toggle('dc-on', !frozen && !detached);
+      pill.textContent = detached ? 'Detached' : STATE_WORDS[state].label;
+      pill.classList.toggle('dc-on', state === 'dynamic' && !detached);
       pill.classList.toggle('dc-fixed', detached);
       pill.disabled = detached;
+      // a map is placed by its own columns (chart-spec.ts live): the grid's grouping leaves it as it is
+      const map = panel.spec !== null && MAP_MARKS.has(panel.spec.mark) && state === 'dynamic';
       pill.title = detached
         ? 'Its grid was removed: this chart keeps its own copy of that grid\'s query. Right-click > Show Grid to show it in a grid of its own.'
-        : frozen
-          ? 'Frozen: it keeps its grouping as the grid is pivoted. Click to follow the grid again.'
-          // a map is placed by its own columns (chart-spec.ts live): the grid's grouping leaves it as it is
-          : panel.spec !== null && MAP_MARKS.has(panel.spec.mark)
-            ? 'Dynamic: it re-draws as the grid is filtered; a map is placed by its own columns, not the grid\'s grouping. Click to freeze it as it is.'
-            : 'Dynamic: it re-draws as the grid is pivoted, grouped and filtered. Click to freeze it as it is.';
+        : `${STATE_WORDS[state].label}: ${map ? 'it re-draws as the grid is filtered; a map is placed by its own columns, not the grid\'s grouping' : STATE_WORDS[state].says}. Click to change.`;
     };
     const panel = new ChartPanel(body, {
-      // its spec changed by hand -- its options, a drill, frozen or following again -- is a step of the page's
-      onFrozen: () => this.#chartChanged(id, 'Chart Change'),
+      // its spec changed by hand -- its options, a drill, its state -- is a step of the page's
+      onState: () => this.#chartChanged(id, 'Chart Change'),
       onSpec: () => this.#chartChanged(id, 'Chart Change'),
       ...(restore ? { initial: restore.spec } : {}),
       snapshot: () => source().snapshot,
       run: (query, snapshot, signal) => source().run(query, snapshot, signal),
-      label: (value, column, type) => source().format(value, column, type),
+      label: (value, column, type, headline) => source().format(value, column, type, headline),
       unit: (column) => source().unit?.(column),
       // the page's charts with the same column across share a crosshair
       crosshair: this.#crosshair,
@@ -1182,17 +1198,26 @@ export class CubePage {
       onPick: (mark) => { if (link.grid !== null) this.#select(id, mark); },
       formOpen: false,
     });
+    // its states offered, the one it is in checked, each said in a line
     pill.addEventListener('click', () => {
       if (link.grid === null) return;
-      panel.setFrozen(!panel.frozen);
+      this.#menuFor = (item) => {
+        const state = CHART_STATES.find((s) => item.id === `tile.state.${s}`);
+        if (state !== undefined) panel.setState(state);
+      };
+      const at = pill.getBoundingClientRect();
+      this.#menu.show([{ label: '', items: CHART_STATES.map((s) => ({
+        id: `tile.state.${s}` as const, label: `${STATE_WORDS[s].label} \u2014 ${STATE_WORDS[s].says}`, checked: panel.state === s,
+      })) }], at.left, at.bottom);
     });
     // RIGHT-CLICK: the chart's own entries
     body.addEventListener('contextmenu', (event) => {
       event.preventDefault();
       const spec = panel.spec;
-      // its grid shown: the one it follows, or one of its own grouping made (D7: Show Grid) -- on a page of its own
-      // (#ownGridRefusal: a cube alone saves its own grid alone)
-      const shows = spec !== null && ((link.grid !== null && !panel.frozen) || this.#ownGridRefusal(spec) === null);
+      // SHOW GRID (D7; the user, 2026-10-23: on every chart): the grid it reads shown, or one of its own made
+      // (chart-spec.ts showGridWay) -- off, and why said on the entry, only where no grid of its own can be made
+      const way = spec === null ? null : showGridWay(spec, link.grid !== null);
+      const refused = way === 'own' ? this.#ownGridRefusal() : null;
       this.#menuFor = (item) => {
         if (item.id === 'tile.options') panel.toggleForm();
         if (item.id === 'tile.grid') this.#showGrid(id);
@@ -1204,7 +1229,7 @@ export class CubePage {
       this.#menu.show([
         { label: '', items: [
           { id: 'tile.options', label: 'Options...' },
-          { id: 'tile.grid', label: 'Show Grid', ...(shows ? {} : { disabled: true }) },
+          { id: 'tile.grid', label: 'Show Grid', ...(way !== null && refused === null ? {} : { disabled: true, ...(refused ? { hint: refused } : {}) }) },
         ] },
         // a page of sheets: this chart onto another, or a new one (its grid stays where it is, and it follows it)
         // locked: offered disabled, with nothing under it
@@ -1480,7 +1505,7 @@ export class CubePage {
       snapshot: detached.snapshot,
       get configuration() { return runs.configuration; },
       run: (query, s, signal) => runs.run(query, s, signal),
-      format: (value, column, type) => runs.format(value, column, type),
+      format: (value, column, type, headline) => runs.format(value, column, type, headline),
       unit: (column) => runs.unit?.(column),
       label: (column) => runs.label(column),
       // detached, a treemap keeps the rows it last drew
@@ -1519,12 +1544,12 @@ export class CubePage {
 
   /** A chart off the board: its selection off its grid's filter as the step took it off (`theirs`: another editor's,
    *  followed, not told), a grid kept only for it let go. */
-  #dropChart(id: string, theirs = false): void {
+  #dropChart(id: string, theirs = false, refilter = true): void {
     const chart = this.#charts.get(id);
     if (!chart) return;
     // its selection off its grid as the step that took it off the board took it off the grid's filter (the page's
-    // unselected)
-    if (chart.link.grid !== null && chart.conditions.length > 0) this.#sourceOf(chart.link).unselected(chart.conditions, theirs);
+    // unselected) -- unless the grid is put back whole by its caller (a converge's put-back: PageApp.putBack)
+    if (refilter && chart.link.grid !== null && chart.conditions.length > 0) this.#sourceOf(chart.link).unselected(chart.conditions, theirs);
     chart.panel.dispose();
     this.#charts.delete(id);
     this.#take(id);
@@ -1611,14 +1636,13 @@ export class CubePage {
     const chart = this.#charts.get(chartId);
     const spec = chart?.panel.spec;
     if (!chart || !spec) return;
-    if (chart.link.grid !== null && !chart.panel.frozen) {
+    if (chart.link.grid !== null && showGridWay(spec, true) === 'reveal') {
       this.#reveal(chart.link.grid);
       return;
     }
-    if (this.#ownGridRefusal(spec) !== null) return;
+    if (this.#ownGridRefusal() !== null) return;
     const source = this.#sourceOf(chart.link);
     const made = chartGrid({ snapshot: source.snapshot, config: source.configuration }, spec, chart.conditions);
-    if (typeof made === 'string') return;
     const from = chart.link.grid ?? chart.link.detached?.from;
     if (from === undefined) return;
     this.addGridOver(this.#gridLike(from, source, made.snapshot, made.configuration), {
@@ -1629,13 +1653,12 @@ export class CubePage {
   }
 
   /**
-   * Why a frozen or detached chart gets no grid of its own here, in words (chart-spec.ts ownGridRefusal), or null. A cube
-   * alone's board saves its own grid and its charts alone (app.ts pageViews): a chart moved onto another grid there would
-   * be lost when the cube is saved, so it is never moved -- Show Grid only shows the grid a chart follows.
+   * Why a chart gets no grid of its own here, in words, or null. A cube alone's board saves its own grid and its charts
+   * alone (app.ts pageViews): a chart moved onto another grid there would be lost when the cube is saved, so it is never
+   * moved -- Show Grid only shows the grid a chart reads.
    */
-  #ownGridRefusal(spec: ChartSpec): string | null {
-    if (this.#options.grid !== undefined) return "a cube alone saves its own grid alone: a chart's own grid needs a page";
-    return ownGridRefusal(spec);
+  #ownGridRefusal(): string | null {
+    return this.#options.grid !== undefined ? "A cube on its own keeps its one grid: a chart's own grid needs a page." : null;
   }
 
   /** A sheet's layout as the page has it (P7): set whenever the board is put at a page. */
@@ -1646,15 +1669,17 @@ export class CubePage {
   }
 
   /**
-   * A sheet's layout of the page's as its board draws it (P7): each chart with no spec yet (no page's tile) beside its
-   * grid, as it was first placed, and the tile each stack shows in front as the board shows it (what is looked at, never
+   * A sheet's layout of the page's as its board draws it (P7): each chart with no spec yet (no page's tile) under its
+   * grid, as a new chart is placed (bands.ts add), and the tile each stack shows in front as the board shows it (what is looked at, never
    * saved: the design's §5, 7) -- every tile kept as it is on the board, none made again.
    */
   #drawn(sheet: Sheet, layout: Bands): Bands {
     let drawn = layout;
     const on = new Set(tiles(sheet.board.layout));
     for (const [id, chart] of this.#charts) {
-      if (!tiles(drawn).includes(id) && on.has(id) && !chart.added) drawn = addTile(drawn, id, chart.link.grid ?? undefined, sheet.board.columns);
+      if (!tiles(drawn).includes(id) && on.has(id) && !chart.added) {
+        drawn = addTile(drawn, id, chart.link.grid ?? undefined, sheet.board.columns, this.#chartsOnly);
+      }
     }
     return fronted(drawn, sheet.board.layout);
   }

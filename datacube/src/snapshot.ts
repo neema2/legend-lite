@@ -813,15 +813,24 @@ function renamedWindow(d: DerivedColumn, one: (n: string) => string): DerivedCol
  * (grid-commands.ts calculate, editCalculated). In its place when it stays at its level, so an edit does not reorder the
  * cube's columns, else last of its new one; renamed, what read it reads it by its new name (renameColumnReferences).
  */
-export function withCalculated(s: CubeSnapshot, name: string | undefined, level: 'row' | 'group', column: DerivedColumn):
-  CubeSnapshot {
+export function withCalculated(s: CubeSnapshot, name: string | undefined, level: 'row' | 'group', column: DerivedColumn,
+  before?: string): CubeSnapshot {
   const without = (list: readonly DerivedColumn[]): DerivedColumn[] => list.filter((d) => name === undefined || d.name !== name);
   const row = without(s.derived);
   const group = without(s.groupDerived ?? []);
   const target = level === 'group' ? group : row;
-  const was = name === undefined ? -1 : (level === 'group' ? s.groupDerived ?? [] : s.derived).findIndex((d) => d.name === name);
-  if (was >= 0) target.splice(was, 0, column);
-  else target.push(column);
+  if (before !== undefined) {
+    // before the column named, of its level (an undo putting a column back in its place: grid-between.ts, D19)
+    const at = target.findIndex((d) => d.name === before);
+    if (at < 0) {
+      throw new CubeRefusal(`'${before}' is not a calculated column at the ${level} level (${target.map((d) => d.name).join(', ') || 'it has none'})`);
+    }
+    target.splice(at, 0, column);
+  } else {
+    const was = name === undefined ? -1 : (level === 'group' ? s.groupDerived ?? [] : s.derived).findIndex((d) => d.name === name);
+    if (was >= 0) target.splice(was, 0, column);
+    else target.push(column);
+  }
   const next: CubeSnapshot = { ...s, derived: row, groupDerived: group };
   return name !== undefined && name !== column.name ? renameColumnReferences(next, name, column.name) : next;
 }

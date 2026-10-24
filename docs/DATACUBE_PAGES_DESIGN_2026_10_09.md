@@ -192,7 +192,11 @@ with its own title bar and its own board, as now: the page is DataCube's own app
 - **The bar.** The page menu holds the page's things only: New (a data source), Open, Save, Save As, Share, Export of
   the page, Arrange, Undo/Redo Layout, Edit Layout, Settings, and the host's own entries (Generated Pure & SQL, where
   the planner runs). Each grid's own menu (in its tile header) keeps the grid's things, as phase 1 made it.
-- **One grid alone** fills the page with no frame, and its header -- its source, Live/Snapped, its menu -- sits at the
+  **Decided (the user, 2026-10-23): the grid's menu button is gone; its right-click holds all it had** -- Edit ▸ (Undo,
+  Redo, then the copies, where Copy ▸ was), Create ▸ (Grid over <Class> first of the model's entries), Join ▸, and
+  last Tile ▸ (Hide/Show Controls, Move to Sheet ▸, Remove from Page); Ad Hoc Analysis and a dimension's grouping are
+  started from Properties ▸ Dimensions, Ad Hoc left by its own bar's Exit.
+- **One grid alone** fills the page with no frame, and its header -- its source, Live/Snapped -- sits at the
   right of the bar's strip: one strip, as a grid alone looks today. A second tile moves it back into the tile.
 - **The empty page** (the last tile removed, or New > Blank Page) keeps the bar and shows the choices of a source.
 - **Every grid knows its source.** A grid added over a file, a warehouse table or a remote file now writes its source
@@ -341,7 +345,7 @@ sheets -- a chart on one following a grid on the other -- saved, shared and reop
 
 **As built (3a, 2026-10-09)**, where the plan above needed a decision:
 
-- **A tile moved to another sheet** (its menu's Move to Sheet -- a grid's own menu, a chart's right-click menu -- or a
+- **A tile moved to another sheet** (its menu's Move to Sheet -- a grid's right-click Tile ▸, a chart's right-click menu -- or a
   drag onto the tab) leaves the sheet shown as it is; the tile goes to the bottom of its new sheet, and the move is
   said. New ▸ Sheet in the page's menu adds a sheet as the + does.
 - **Renaming the page is a change** ("changed since saved"): the page's definition leaves its name out (so a page

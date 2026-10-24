@@ -11,187 +11,20 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { element, toJson } from '../../pure-protocol/src/index.ts';
+import { element } from '../../pure-protocol/src/index.ts';
 import { chartProblems, defaultChart, followCube } from '../src/chart-spec.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { cubeToJson, frameSource, openCube, readCube, writeCube } from '../src/cube-document.ts';
 import { fold, openedState, queryKey, stateKey, type CubeState } from '../src/cube-state.ts';
-import { applyGridCommand, readGridCommand, type GridCommand, type SettingsPatch } from '../src/grid-commands.ts';
-import {
-  allColumns, firstSortDirection, groupableColumns, headerSorts, offeredAggregates, type GridDraft,
-} from '../src/grid-edits.ts';
-import {
-  CubeRefusal, pivotTotalColumn, rowColumns, totalOrderSorts, type CubeSnapshot, type FilterNode, type SortDirection,
-} from '../src/snapshot.ts';
+import { applyGridCommand } from '../src/grid-commands.ts';
+import { allColumns, headerSorts, type GridDraft } from '../src/grid-edits.ts';
+import { CubeRefusal, pivotTotalColumn, totalOrderSorts, type CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
-import { stand } from './fake-planner.ts';
+import { CUBE, editedGrid, mulberry32, randomEdit, type Walked } from './grid-random.ts';
 
 const SEEDS = 300;
 const STEPS = 12;
 const TREE = '__tree';
-
-/** A grid of every kind of column a person meets: text, numbers of two types, a date, calculated ones at each level. */
-const CUBE: CubeSnapshot = {
-  source: { query: element('t') },
-  columns: [
-    { name: 'region', type: 'String' },
-    { name: 'desk', type: 'String' },
-    { name: 'year', type: 'Integer' },
-    { name: 'traded', type: 'StrictDate' },
-    { name: 'notional', type: 'Float' },
-    { name: 'qty', type: 'Integer' },
-  ],
-  derived: [
-    { name: 'big', lambda: stand('$x.notional > 1'), kind: 'dimension', type: 'Boolean' },
-    { name: 'fee', lambda: stand('$x.notional * 2'), kind: 'measure', type: 'Float' },
-  ],
-  groupDerived: [{ name: 'share', lambda: stand('$x.notional / 2'), type: 'Float' }],
-  rows: [],
-  pivotOn: [],
-  sorts: [],
-  epoch: 1,
-};
-
-/** A seeded generator: the same seed, the same grid. */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** An edit: a grid command, or one the screen does not make a command yet (the column editor's delete: step 3b). */
-type Edit = GridCommand | ((d: GridDraft) => GridDraft);
-
-/** An edit made: a command applied as the screen and Python apply it. */
-const applied = (d: GridDraft, edit: Edit): GridDraft => (typeof edit === 'function' ? edit(d) : applyGridCommand(d, edit));
-
-/** One edit a person (or Python) could make, picked at random, and its name for a failure's message. */
-function randomEdit(rand: () => number, d: GridDraft): [string, Edit] {
-  const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)] as T;
-  const columns = allColumns(d);
-  const type = (name: string): string | undefined => rowColumns(d.snapshot).find((c) => c.name === name)?.type;
-  const sortable = [...columns, ...(d.snapshot.pivotOn.length > 0 ? [pivotTotalColumn('notional')] : [])];
-  const choices: [string, () => [string, Edit]][] = [
-    ['group', () => {
-      const offered = groupableColumns(d);
-      const rows = offered.filter(() => rand() < 0.35).slice(0, 2);
-      return [`group ${rows.join(',')}`, { kind: 'group', rows }];
-    }],
-    ['pivot', () => {
-      const offered = groupableColumns(d).filter((c) => !d.snapshot.rows.includes(c));
-      const on = rand() < 0.4 ? [] : offered.filter(() => rand() < 0.3).slice(0, 1);
-      return [`pivot ${on.join(',')}`, { kind: 'pivot', columns: on }];
-    }],
-    ['click a header', () => {
-      const column = pick(sortable);
-      const chained = rand() < 0.5;
-      // the first direction as the screen reads it off the header's type
-      return [`click ${column}${chained ? ' chained' : ''}`,
-        { kind: 'clickSort', column, first: firstSortDirection(type(column)), chained }];
-    }],
-    ['click the tree', () => {
-      const chained = rand() < 0.5;
-      return [`click the tree${chained ? ' chained' : ''}`, { kind: 'clickTreeSort', chained }];
-    }],
-    ['add a sort', () => {
-      const column = pick(sortable);
-      const direction: SortDirection = rand() < 0.5 ? 'asc' : 'desc';
-      return [`add sort ${column} ${direction}`, { kind: 'addSort', column, direction }];
-    }],
-    ['an Aggregation', () => {
-      const column = pick(columns);
-      const fn = pick([...offeredAggregates(type(column)), null]);
-      const weight = fn === 'wavg' ? { weight: 'qty' } : {};
-      return [`aggregate ${column} ${String(fn)}`, { kind: 'column', name: column, change: { aggregate: fn, ...weight } }];
-    }],
-    ['a kind', () => {
-      const column = pick(CUBE.columns.map((c) => c.name));
-      const kind = rand() < 0.5 ? 'dimension' : 'measure';
-      return [`kind ${column} ${kind}`, { kind: 'column', name: column, change: { kind } }];
-    }],
-    ['a filter', () => {
-      const filters: FilterNode[] = [
-        { kind: 'condition', column: 'region', operator: pick(['equal', 'notEqual'] as const), value: pick(['EMEA', 'APAC']) },
-        { kind: 'condition', column: 'traded', operator: 'greaterThan', value: '2024-02-01' },
-        { kind: 'condition', column: 'qty', operator: 'lessThanEqual', value: 5 },
-      ];
-      const filter = rand() < 0.2 ? null : rand() < 0.5 ? pick(filters)
-        : { kind: 'and' as const, children: [pick(filters), pick(filters)] };
-      return [`filter ${JSON.stringify(filter)}`, { kind: 'filter', filter }];
-    }],
-    ['a calculated column', () => {
-      // added, as the column editor adds one (a row-level measure: a name the grid has is refused), or the last one
-      // taken away (the editor's delete, not a command yet)
-      const name = `calc${Math.floor(rand() * 3)}`;
-      return rand() < 0.6
-        ? ['add a calculated column',
-          { kind: 'calculate', level: 'row', column: { name, lambda: stand('$x.qty * 3'), kind: 'measure', type: 'Integer' } }]
-        : ['remove a calculated column', (x) => ({ ...x, snapshot: { ...x.snapshot, derived: x.snapshot.derived.slice(0, -1) } })];
-    }],
-    ['a setting', () => {
-      const column = pick(columns);
-      // as the configure command takes them: null clears a setting
-      const patches: [string, SettingsPatch][] = [
-        ['heatmap', { columns: { [column]: { heatmap: { from: '#ffffff', to: '#ff8a65' } } } }],
-        ['hidden', { columns: { [column]: { hidden: rand() < 0.7 } } }],
-        ['width', { columns: { [column]: { width: 40 + Math.floor(rand() * 200) } } }],
-        ['totals', { pivotStatisticColumnPlacement: pick(['left', 'right'] as const) }],
-        ['no totals', { pivotStatisticColumnPlacement: null }],
-        ['row limit', { maxRows: pick([10, 100, 5000]) }],
-        ['tree order', { treeColumnSort: pick(['asc', 'desc'] as const) }],
-        ['leaf count', { showLeafCount: rand() < 0.5 }],
-        ['root row', { showRootAggregation: rand() < 0.5 }],
-        ['total heatmap', { columns: { [pivotTotalColumn('notional')]: { heatmap: { from: '#ffffff', to: '#00ff00' } } } }],
-        ['pivot exclusion', { columns: { [column]: { excludedFromPivot: rand() < 0.5 } } }],
-        ['pivot sort', { columns: { [column]: { pivotSortDirection: pick(['asc', 'desc'] as const) } } }],
-        ['leaf count mode', { leafCountMode: pick(['children', 'leaves'] as const) }],
-        ['grouped columns kept', { showGroupedColumns: rand() < 0.5 }],
-      ];
-      const [name, patch] = pick(patches);
-      return [`setting ${name}`, { kind: 'configure', patch }];
-    }],
-  ];
-  return pick(choices)[1]();
-}
-
-/** A grid after `STEPS` random edits from `seed`, the edits made (the refused ones marked), and its open groups. */
-function editedGrid(seed: number): { draft: GridDraft; steps: string[]; tree: TreeState } {
-  const rand = mulberry32(seed);
-  let d: GridDraft = { snapshot: CUBE, config: DEFAULT_CONFIGURATION };
-  const steps: string[] = [];
-  for (let i = 0; i < STEPS; i += 1) {
-    const [name, edit] = randomEdit(rand, d);
-    if (typeof edit !== 'function') {
-      // what Python sends is the same command (its JSON, read)
-      assert.equal(toJson(readGridCommand(JSON.parse(toJson(edit)))), toJson(edit), `seed ${seed}, step ${i} (${name})`);
-    }
-    const before = JSON.stringify(d);
-    try {
-      d = applied(d, edit);
-      steps.push(name);
-    } catch (e) {
-      if (!(e instanceof CubeRefusal)) throw new Error(`seed ${seed}, step ${i} (${name}): ${String(e)}`);
-      // the screen's own refusal: said, and the grid left as it was
-      assert.equal(JSON.stringify(d), before, `seed ${seed}: a refused edit (${name}) changed the grid`);
-      steps.push(`${name} (refused)`);
-    }
-  }
-  // some groups open, as a person leaves a grid: a value of each grouping level, or none
-  const open = d.snapshot.rows.length > 0 && rand() < 0.5 ? [['EMEA'], ...(d.snapshot.rows.length > 1 ? [['EMEA', 'Rates']] : [])] : [];
-  let tree = TreeState.fromPaths(open, rand() < 0.5);
-  // and the level the groups open to, a group closed by hand under it (V5; the S2 audit's 10)
-  if (d.snapshot.rows.length > 0 && rand() < 0.5) {
-    tree = tree.withExpandTo(1 + Math.floor(rand() * 2));
-    if (rand() < 0.5) tree = tree.collapse(['AMER']);
-    steps.push(`expanded to ${tree.expandTo}${tree.closedPaths.length > 0 ? ', AMER closed' : ''}`);
-  }
-  return { draft: d, steps, tree };
-}
 
 /** The grid as the screen's state owner holds it: its configuration folded into its query (cube-state.ts fold). */
 function stateOf(d: GridDraft, tree = TreeState.empty()): CubeState {
@@ -307,11 +140,11 @@ describe('the state a grid keeps twice agrees with itself', () => {
       const chart = defaultChart(stateOf(start.draft).snapshot);
       if (chart === null) continue;
       charted += 1;
-      let d = start.draft;
+      let d: Walked = { ...start.draft, tree: start.tree };
       for (let i = 0; i < 4; i += 1) {
         const [, edit] = randomEdit(rand, d);
         try {
-          d = applied(d, edit);
+          d = applyGridCommand(d, edit);
         } catch (e) {
           if (!(e instanceof CubeRefusal)) throw e;
         }

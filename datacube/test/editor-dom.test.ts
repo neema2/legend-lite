@@ -524,4 +524,59 @@ describe('the editor', () => {
     ).click();
     assert.deepEqual(rows('available'), ['region', 'desk', 'year']);
   });
+
+  // the user, 2026-10-23: a dimension's grouping and Ad Hoc Analysis are started from this tab, not a menu
+  describe("Dimensions starts what is done with them: the draft applied, the editor closed, then the app's", () => {
+    const buttonNamed = (text: string): HTMLButtonElement | undefined =>
+      [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text);
+    const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+    let asked: string[];
+    const withActions = (onApply: () => boolean): void => {
+      asked = [];
+      root.replaceChildren();
+      editor = new CubeEditor(root, draftFor(CUBE, undefined, [{ name: 'Geo', columns: ['region', 'desk'] }]), {
+        onApply: (d) => { applied.push(d); return onApply(); },
+        onClose: () => (closed += 1),
+        onUseDimension: (name) => asked.push(`use ${name}`),
+        onAdHoc: () => asked.push('ad hoc'),
+      });
+      go('Dimensions');
+    };
+
+    it('offers neither without the app\'s actions', () => {
+      go('Dimensions');
+      assert.equal(buttonNamed('Start Ad Hoc Analysis'), undefined);
+      assert.equal(root.querySelector('.dc-dimension-use'), null);
+    });
+
+    it('Group Rows by: the draft applied (a hierarchy made in it too), closed, then the rows grouped', async () => {
+      withActions(() => true);
+      buttonNamed('Add')!.click();
+      assert.equal(buttonNamed('Group Rows by Dimension 1')?.disabled, true, 'a dimension of no columns groups nothing');
+      (root.querySelector('.dc-dimension-row') as HTMLElement).click();
+      buttonNamed('Group Rows by Geo')!.click();
+      await tick();
+      assert.deepEqual(applied.at(-1)?.dimensions.map((d) => d.name), ['Geo', 'Dimension 1'], 'the draft applied first');
+      assert.equal(closed, 1);
+      assert.deepEqual(asked, ['use Geo']);
+    });
+
+    it('Start Ad Hoc Analysis: applied, closed, then the mode', async () => {
+      withActions(() => true);
+      buttonNamed('Start Ad Hoc Analysis')!.click();
+      await tick();
+      assert.equal(applied.length, 1);
+      assert.equal(closed, 1);
+      assert.deepEqual(asked, ['ad hoc']);
+    });
+
+    it('a draft the cube refuses starts neither, and stays open', async () => {
+      withActions(() => false);
+      buttonNamed('Start Ad Hoc Analysis')!.click();
+      buttonNamed('Group Rows by Geo')!.click();
+      await tick();
+      assert.equal(closed, 0);
+      assert.deepEqual(asked, []);
+    });
+  });
 });

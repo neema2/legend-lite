@@ -17,7 +17,7 @@ import type { QueryReader } from '../../../query-store/src/index.ts';
 import type { HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { Planner } from '../cube.ts';
-import type { CubeDocument } from '../cube-document.ts';
+import type { CubeDocument, CubeSource } from '../cube-document.ts';
 import type { CubeStore } from '../cube-store.ts';
 import type { FileHandles } from '../file-handles.ts';
 import type { InferredModel, TableModels } from '../infer.ts';
@@ -286,34 +286,60 @@ export type LiveCommand =
 
 /**
  * What a page open on screen writes to the page's keeper (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S4): the edits made
- * on screen at the version it is at, each a command, which the keeper applies -- or, an undo or a redo (N2), the page
- * whole, a restore the keeper takes only at that version.
+ * on screen at the version it is at, each a command, which the keeper applies -- an undo or a redo among them, as the
+ * commands between (docs/DATACUBE_LIVE_EDITING_2026_10_24.md W5: no page is written whole). Each write has an id, its
+ * writer's (one per channel) and its number there, from 1: the keeper applies it once however often it is sent, so a
+ * write whose answer was lost is asked about, never taken for refused (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md,
+ * the middle version).
  */
-export type LiveWrite =
-  | { readonly edits: readonly LiveCommand[] }
-  | { readonly restore: PageDocument };
+export interface LiveWrite {
+  readonly edits: readonly LiveCommand[];
+  readonly writer: string;
+  readonly seq: number;
+}
+
+/** The page as its keeper says it is now: at its version, with every id it has held (none is given out again: B12), and
+ *  its hash (page-hash.ts: what the page open on it must hash to, W17); asked by a writer, the number of the last of its
+ *  writes the keeper took (`taken`, 0: none). */
+export interface LiveRead {
+  readonly version: number;
+  readonly page: PageDocument;
+  readonly held: readonly string[];
+  readonly hash: string;
+  readonly taken?: number;
+}
+
+/**
+ * A write settled by the page's keeper (keeper.py Settled): the page's version now and its hash, which the screen's
+ * must hash to (W17) -- and, when the keeper made another page than the screen sent (it had moved on meanwhile, the
+ * edits made again on top), that page and every id it has held, which the screen is put at
+ * (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version).
+ */
+export interface LiveSettled {
+  readonly version: number;
+  readonly hash: string;
+  readonly page?: PageDocument;
+  readonly held?: readonly string[];
+}
+
+/** A write the page's keeper refused, in its words: an edit that does not apply where the page now is, the host refusing
+ *  what it makes -- or the keeper answering a failure of its own (a status that is no proxy's giving up: the write was
+ *  answered, not lost). Nothing of it was kept. A write whose answer never came (the network, a proxy's 502, 503 or
+ *  504) is no refusal: the keeper is asked whether it took it. */
+export class LiveRefused extends Error {}
 
 /** A page another editor serves: read as it is now, and told what it is now. */
 export interface LivePage {
-  /** The page as the editor says it is now, at its version, with every id it has held (none is given out again: B12);
-   *  refused with the editor's reason. */
-  read(): Promise<{ readonly version: number; readonly page: PageDocument; readonly held: readonly string[] }>;
-  /**
-   * What moved the page since version `since` (the one open): the commands its editors made, in order -- or, when it
-   * keeps none for a version since (a page born or restored whole, a version long gone), the page as it is now.
-   */
-  changes(since: number): Promise<
-    | { readonly version: number; readonly commands: readonly LiveCommand[] }
-    | { readonly version: number; readonly page: PageDocument; readonly held: readonly string[] }>;
+  /** The page as the editor says it is now, and -- asked by `writer` -- the last of its writes the keeper took; refused
+   *  with the editor's reason. `fence`: a write of `writer`'s the keeper takes no more from now on, whether it took it
+   *  or not (a write whose answer was lost, still on its way there, is never applied after this says it was not). */
+  read(writer?: string, fence?: number): Promise<LiveRead>;
   /**
    * A write against the version on screen, settled by the page's keeper (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): its
-   * edits applied by DataCube's one rule to the page as the keeper has it, and what they make kept -- or a restore, kept
-   * whole at that version. Its version from then on -- the same, when it changed nothing -- and whether the keeper made
-   * another page than the screen's (the page had moved on, or an id was given out afresh: the screen then opens the
-   * page as the keeper made it). Refused in the keeper's words (an edit that does not apply there, a restore made
-   * against a version moved on from): nothing kept.
+   * edits applied by DataCube's one rule to the page as the keeper has it, and what they make kept (LiveSettled).
+   * Refused in the keeper's words (LiveRefused): nothing kept, and the screen is put at the page as the keeper has it.
    */
-  report(version: number, write: LiveWrite): Promise<{ readonly version: number; readonly combined: boolean }>;
+  report(version: number, write: LiveWrite): Promise<LiveSettled>;
 }
 
 // ------------------------------------------------------------------------------------------------------- the queries
@@ -402,6 +428,12 @@ export interface BrowserService {
 export interface Sample {
   /** Its opening view, typed by the compiler over its source. */
   readonly snapshot: () => Promise<CubeSnapshot>;
+  /**
+   * What its rows are, written down (a generated sample's file: sample-trades.ts DESK_TRADES_FILE), and the tables of
+   * the host's database they are in: its grid is then saved, shared and joined as any file's is. Absent (a remote file
+   * named in the address), the page it starts says it cannot be saved.
+   */
+  readonly source?: { readonly cube: CubeSource; readonly tables: readonly string[] };
   /** Generated rows are a copy in the host's database from the start; a mounted remote file is live, and snaps as any
    *  grid does (PageSources.snapTarget). */
   readonly heldCopy?: HeldCopy;

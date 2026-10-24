@@ -8,6 +8,7 @@
 import { and, fn, isIdentifier, lambda, transform, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { ClassSource, CubeSource } from './cube-document.ts';
 import { OPERATORS } from './filter-operators.ts';
+import { idShape } from './page-ids.ts';
 import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageCommand } from './page-commands.ts';
 import { filterNode } from './query.ts';
@@ -16,7 +17,7 @@ import { CubeRefusal, isRelativeDate, sameValue, type FilterNode, type FilterVal
 
 /** One filter of the page. */
 export interface PageFilter {
-  /** `filter-N`: given once, never again on the page (page-commands.ts). */
+  /** `filter-N`, or `filter-<tag>-N` (a tab's: page-ids.ts): given once, never again on the page (page-commands.ts). */
   readonly id: string;
   /** The class it filters, by its path. */
   readonly class: string;
@@ -26,8 +27,9 @@ export interface PageFilter {
   readonly from?: string;
 }
 
-/** A page filter's id: `filter-N`. */
-export const FILTER_ID = /^filter-\d+$/;
+/** A page filter's id: `filter-N`, or `filter-<tag>-N` (page-ids.ts idShape: a tab's, under its tag -- one a page could
+ *  hold and not be read again with was the middle version's audit's 1). */
+export const FILTER_ID = idShape('filter');
 
 /** The properties a condition names: each condition's column, and a `*Column` operator's other column. */
 export function namedProperties(node: FilterNode): Set<string> {
@@ -120,7 +122,7 @@ export function readPageFilter(raw: unknown, charts: ReadonlySet<string>): PageF
   const o = raw as Record<string, unknown>;
   const odd = Object.keys(o).filter((k) => !['id', 'class', 'condition', 'from'].includes(k));
   if (odd.length > 0) throw new CubeRefusal(`a page filter takes id, class, condition and from, not ${odd.join(', ')}`);
-  if (typeof o['id'] !== 'string' || !FILTER_ID.test(o['id'])) throw new CubeRefusal(`a page filter's id is filter-N, not ${JSON.stringify(o['id'])}`);
+  if (typeof o['id'] !== 'string' || !FILTER_ID.test(o['id'])) throw new CubeRefusal(`a page filter's id is filter-N or filter-<tag>-N, not ${JSON.stringify(o['id'])}`);
   if (typeof o['class'] !== 'string' || o['class'] === '') throw new CubeRefusal(`page filter ${o['id']} names no class`);
   const condition = readFilterNode(o['condition']);
   const bad = [...namedProperties(condition)].find((p) => !isIdentifier(p));

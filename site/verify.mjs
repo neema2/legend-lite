@@ -86,7 +86,7 @@ try {
   await cube.goto(`${SITE}/datacube/demo/index.html`);
   await cube.waitForSelector('.dc-row', { timeout: 120_000 });
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Data Source…")') }).click();
   await cube.locator('.dc-picker-tab[data-section="saved"]').click();
   await cube.locator('.dc-picker-body').waitFor({ timeout: 15_000 });
@@ -166,7 +166,7 @@ try {
     // DataCube's own Copy link, beside the saved query's row: the same query, opened by the other browser
     await cube.bringToFront();
     await cube.click('.dc-titlebar-menu');
-    await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+    await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
     await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Data Source\u2026")') }).click();
     await cube.locator('.dc-picker-tab[data-section="saved"]').click();
     await cube.locator('.dc-picker-entry', { hasText: name }).locator('.dc-picker-row-link').click();
@@ -248,7 +248,7 @@ try {
     }, undefined, { timeout: 60_000 });
     await r.goto(`${SITE}/datacube/demo/index.html`);
     await r.waitForSelector('.dc-row', { timeout: 120_000 });
-    await menuOf('New', 'Blank Page');
+    await menuOf('Create', 'Blank Page');
     await r.click('.dc-blank .dc-primary');
     await r.locator('.dc-picker-tab[data-section="remote"]').click();
     await r.fill('.dc-picker-url', `${ORIGIN}/remote/positions.csv`);
@@ -384,7 +384,7 @@ try {
   await cubeByName.goto(`${SITE}/datacube/demo/index.html`);
   await cubeByName.waitForSelector('.dc-row', { timeout: 120_000 });
   await cubeByName.click('.dc-titlebar-menu');
-  await cubeByName.locator('.dc-menu .dc-menu-item', { has: cubeByName.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await cubeByName.locator('.dc-menu .dc-menu-item', { has: cubeByName.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
   await cubeByName.locator('.dc-menu .dc-menu-item', { has: cubeByName.locator(':scope > .dc-menu-label:text-is("Data Source…")') }).click();
   await cubeByName.locator('.dc-picker-tab[data-section="saved"]').click();
   const parties1 = cubeByName.locator('.dc-picker-row[data-query]', { hasText: 'Parties at 1.0.0' });
@@ -412,14 +412,16 @@ try {
   await maker.goto(`${SITE}/datacube/demo/index.html`);
   await maker.waitForSelector('.dc-row', { timeout: 120_000 });
   await maker.click('.dc-titlebar-menu');
-  await entry('New').hover();
+  await entry('Create').hover();
   await entry('Blank Page').click();
   await maker.click('.dc-blank .dc-primary');
   await maker.locator('.dc-picker .dc-picker-drop').waitFor({ state: 'visible', timeout: 15_000 });
   await maker.setInputFiles('.dc-picker-file', fills);
   await maker.locator('.dc-picker').waitFor({ state: 'detached', timeout: 120_000 });
-  await maker.locator('.dc-tile-menu').first().click();
-  await entry('Create a Class…').click();
+  // the grid's right-click (its menu button went, 2026-10-23): Create ▸ Class…
+  await maker.locator('[data-tile] .dc-row .dc-cell').first().click({ button: 'right' });
+  await entry('Create').hover();
+  await entry('Class…').click();
   await maker.waitForFunction(() => document.querySelectorAll('.dc-class-file').length > 0
     || document.querySelector('.dc-class .dc-picker-status.dc-failed'), undefined, { timeout: 120_000 });
   await maker.locator('.dc-class .dc-primary').click();

@@ -134,6 +134,28 @@ export const COMPACT_FORMAT: ColumnFormat = {
   kind: 'number', numberScale: 'auto', maximumFractionDigits: 1,
 };
 
+/** From here up a headline's number is scaled ("$35.7m"); below it, written in full ("$5,955") it reads better. */
+export const HEADLINE_SCALED_FROM = 100_000;
+
+/**
+ * A column's format for `value` as a HEADLINE -- a KPI's number, where a dashboard reads it at a glance (the user,
+ * 2026-10-23): from HEADLINE_SCALED_FROM up, its own kind, currency and unit scaled to its magnitude with one place
+ * ("$35.7m"), and below it its own format; a percentage to one place ("8.2%", never a whole "8%" against a target of
+ * 8%). A date or a text is written as it is.
+ */
+export function headlineFormat(format: ColumnFormat = DEFAULT_FORMAT, type?: string, value?: Scalar): ColumnFormat {
+  const kind = format.kind === 'auto' && isNumeric(type) ? 'number' : format.kind;
+  if (kind === 'percent') {
+    const { decimals: _decimals, minimumFractionDigits: _min, ...rest } = format;
+    return { ...rest, minimumFractionDigits: 0, maximumFractionDigits: 1 };
+  }
+  if (kind !== 'number' && kind !== 'currency') return format;
+  const n = typeof value === 'number' ? value : typeof value === 'bigint' || typeof value === 'string' ? Number(value) : NaN;
+  if (value !== undefined && !(Math.abs(n) >= HEADLINE_SCALED_FROM)) return format;
+  const { decimals: _decimals, minimumFractionDigits: _min, scale: _scale, ...rest } = format;
+  return { ...rest, kind, numberScale: 'auto', minimumFractionDigits: 0, maximumFractionDigits: 1 };
+}
+
 /**
  * Cache key. Only the fields that affect the Intl object belong here --
  * nullText and negativeParens are applied by us afterwards, so folding

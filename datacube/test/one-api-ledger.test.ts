@@ -98,9 +98,22 @@ interface Entry {
 // the "nature" entries were wrong. F71. And L8_KINDS 1 -> 0: Python's measure is made by the steps a person makes it by
 // (grid-measures.ts measureCommands: `column`, or `calculate` and `column`), the `measures` kind deleted -- a page open
 // on it is told what a person's steps tell. F72
+// 2026-10-24 (D19 W7, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): L1_ROUTES 5 -> 7 -- the two grid routes of a screen
+// converging on its keeper's page (live-converge.ts): a touched grid put back at the keeper's cube by its own commands,
+// and the keeper's steps applied to it (the other editor's as theirs, the screen's own as said).
+// 2026-10-24 (D19 W19, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §3): L8_KINDS 0 -> 1 -- `detach`, the page command an
+// undo tells to put a chart back on the cube it read (the inverse of Show Grid on a detached chart, and of a detached
+// chart's removal: page-between.ts). Python has no history of its own, so nothing of Python's makes one; its generated
+// builder page_detach stands, and the keeper applies one a tab writes. The one entry says so; it leaves when Python
+// gains a history, never otherwise.
+// 2026-10-24 (D19, the independent audit's 2): L1_ROUTES 7 -> 6 -- the app's own follow route is gone: a follow is the
+// channel's converge (live-channel.ts follow; live-converge.ts applies the other editor's steps), so an edit made while
+// the keeper was asked is kept and made again, never dropped.
+// 2026-10-24 (the middle version, docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md): L1_ROUTES 6 -> 5 -- the converge's
+// put-back and its replay of the other editor's steps are one route: each grid set to its cube on the keeper's page.
 const CEILINGS: Record<string, number> = {
   L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
-  L8_KINDS: 0, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
+  L8_KINDS: 1, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
 };
 
 function pinned(name: string, size: number): void {
@@ -120,11 +133,13 @@ const OWNER_ALIAS = /(?<!#)\bowner\.(?:change|undo|redo|retryRefused)\(/;
 const L1_GRID: Record<string, Entry> = {
   '#change:#owner.change': { items: [], why: PLUMBING },
   '#applyCommands:#change': { items: [], why: 'the command path: applyGridCommands, told by onCommand' },
-  '#undo:#owner.undo': { items: [], why: 'N2: an undo is told as a restore (onRestore), the page written whole at its version' },
-  '#redo:#owner.redo': { items: [], why: 'N2: as an undo' },
+  // 2026-10-24 (D19 W3): a move of the history lands as the commands between the state before and the one landed
+  // (state-owner.ts StateRules.between: grid-between.ts gridBetween), told by onCommand as a change's are
+  '#undo:#owner.undo': { items: [], why: 'W3: an undo is told as the commands between (the owner\'s between: gridBetween), as a change is' },
+  '#redo:#owner.redo': { items: [], why: 'W3: as an undo' },
   // a retry stays a retry: the refused change run again, its commands kept and told when it lands
   // (cube-transactions.test.ts G13)
-  'submit:#owner.retryRefused': { items: [], why: 'the refused change run again (signed in again): the commands it was told as they land, or, an undo or a redo among it, a restore (N2)' },
+  'submit:#owner.retryRefused': { items: [], why: 'the refused change run again (signed in again): the commands it was told as they land, or, an undo or a redo among it, the commands between (W3)' },
 };
 
 /** Every call of the command path, by where it is made: the ones with a change of their own beside the commands. */
@@ -136,7 +151,9 @@ const L1_THEN: Record<string, Entry> = {
 };
 /** The allowed calls' exact text: a change beside the commands added there is a new gap, not a quiet edit. */
 const THEN_TEXT: Record<string, string> = {
-  '#apply:#applyCommands': 'const { refused, outcome } = await this.#applyCommands(commands, label);',
+  // 2026-10-24 (D19, the audit's second round, 3): a pending edit made again after a converge is told, and recorded as no
+  // new step (`again`: its step is in the history still) -- the record flag passed through, the path the same
+  '#apply:#applyCommands': "const { refused, outcome } = await this.#applyCommands(commands, label, 'mine', record);",
   // 2026-10-22 (the S7 confirmation audit's third round's 1): what a page step of the person's own said already is a
   // recorded step of the grid's history, told nothing ('said'); another editor's, neither ('theirs')
   'applyGridCommands:#applyCommands': "const { refused, outcome } = await this.#applyCommands(commands, label, own ? 'said' : 'theirs');",
@@ -149,10 +166,16 @@ const ROUTE_FILES = (f: string): boolean => f.startsWith('src/') && f.endsWith('
   && f !== 'src/state-owner.ts' && !f.startsWith('src/adhoc/') && !f.startsWith('src/headless/');
 const L1_ROUTES: Record<string, Entry> = {
   'src/page/cube-page.ts:#select:refilter': { items: [], why: "a chart's mark clicked, or its chip: the grid's refilter command, told beside the page's select (page-filters.ts chartPicked, Python's chartPick's rule); a chart removed or moved by a step is no click: its grid follows the step (ChartSource.unselected)" },
-  'src/page/page-app.ts:follow:followSnap': { items: [], why: "following another editor's snap" },
-  'src/page/page-app.ts:follow:followLive': { items: [], why: "following another editor's going live" },
+  // 2026-10-24 (the middle version): another editor's snap and going live followed by the converge, which sets each grid's
+  // rows where the keeper's page says -- PageApp.follow, which replayed the editor's commands, is gone
+  'src/app/live-converge.ts:converging:followSnap': { items: [], why: "a converge: another editor's snap, its copy read from its host (the page writes a grid's copy from the grid, §18.8)" },
+  'src/app/live-converge.ts:converging:followLive': { items: [], why: "a converge: another editor's going live, the grid's live rows again" },
   'src/app/datacube-app.ts:openSaved:followSnap': { items: [], why: 'N1: a saved page opened, its copies as it says' },
-  'src/app/datacube-app.ts:applyGrid:applyGridCommands': { items: [], why: "another editor's commands, applied" },
+  // 2026-10-24 (D19 W7, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §2): a screen converging on its keeper's page -- and,
+  // since the audit's 2, following it: a follow is a converge with no edits of its own (live-channel.ts follow)
+  // 2026-10-24 (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version): the six-step converge's two
+  // routes (putBack, applyGrid) are one -- the screen set to the keeper's page whole, each grid at its cube there
+  'src/app/live-converge.ts:gridsAtTarget:applyGridCommands': { items: [], why: "a converge: each grid set to its cube on the keeper's page by its own commands (gridBetween), before the board is set (a chart placed over it follows the grid as the keeper has it) and again after it, its history kept when no other editor changed it (keepHistory), started again when one did or the refused batch touched it (W13)" },
 };
 
 /** Every call of a listed gap, by where it is called from: a new gesture reaching an old gap is a new entry. */
@@ -271,6 +294,10 @@ describe('L1: every change of a grid, a copy or the page made other than by comm
 type Cell = 'screen' | 'python';
 /** The missing cells of each kind, by item; `nature` where the kind is one side's by its nature (reviewed at S7). */
 const L8_KINDS: Record<string, Partial<Record<Cell, Entry>>> = {
+  // 2026-10-24 (D19 W19): a detached chart made reachable by command -- the inverse of Show Grid on a detached chart and
+  // of a detached chart's removal (page-between.ts), which an undo tells; Python has no history, so nothing of its own
+  // makes one (its builder, page_detach, is generated; the keeper applies one a tab writes)
+  detach: { python: { items: [], why: "an undo's inverse (page-between.ts pageBetween): Python has no history of its own" } },
 };
 
 /** Each source kind's missing cells: Python reads a page over it (headless gridBase), Python adds a grid over it. */
@@ -485,6 +512,8 @@ const SCREEN_OWN_MAKERS: Record<string, string> = {
   moveToSheetCommands: "a tile dropped on another sheet's tab, or on New Sheet (Python makes the sheet, then moves tiles onto it)",
   selectionRefilters: "the tab's page undo and redo: a step brought back puts its charts' selections back on their grids (G8); Python's page has no undo",
   rebuiltCommands: "the tab opening the page Python serves: a cube it opened over the host's frames as they are now told back (P11); Python's own reopening tells its rebuilt as it reopens (_current)",
+  // 2026-10-24 (D19 W3, W7)
+  gridBetween: "the commands between two states of a grid: the tab's own history (an undo or a redo told as the commands between: state-owner.ts toward) and its converge (a touched grid put back at the keeper's cube: live-converge.ts); Python's grid has no history",
 };
 
 /** A call's arguments: the text between `(` at `open` and its closing `)`, strings and nesting skipped. */
@@ -1036,7 +1065,8 @@ describe('a grid saved and opened again opens its rows as it was told to', () =>
 /** The files that hold the ledgers, each naming items as string literals (a letter and a number, quoted). */
 const LEDGERS = ['test/one-api-ledger.test.ts', 'test/one-api-gestures.test.ts', '../python/tests/test_one_api.py'];
 // 2026-10-22 (S8): A, the step's items (one per place screen code built a command)
-const ITEM = /'([GTCPYVHZBXKA]\d{1,2})'/g;
+// 2026-10-24 (D19): W, the single writer's client side (docs/DATACUBE_LIVE_EDITING_2026_10_24.md §7)
+const ITEM = /'([GTCPYVHZBXKAW]\d{1,2})'/g;
 /** Every item the register has ever held: none leaves it but closed. */
 const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 P11 P12 '
   + 'P13 P14 Y1 Y2 Y3 Y6 V1 V2 V4 V5 H1 H2 H3 Z1 Z2 Z3 Z4 Z5 Z6 Z7 Z8 Z9 Z10 Z11 Z12 Z13 Z14 Z15 Z16 Z17 Z18 Z19 B1 B2 '
@@ -1071,7 +1101,10 @@ const ALL = ('G1 G2 G3 G4 G5 G6 G7 G8 G9 G10 G11 G12 G13 G14 G15 T1 T2 T3 T4 C1 
   // 2026-10-23, D23: the S7 audits' four asked items (Y-6, H-9, Y-7, H-8), built and closed with each
   + 'K13 K14 K15 K16 K17 '
   // 2026-10-23, D23's independent review, added by rule 9 and closed (fixed, or declared) with each fix
-  + 'R1 R2 R3 R4 R5 R6 R7 R8 ').split(' ').filter((item) => item !== '');
+  + 'R1 R2 R3 R4 R5 R6 R7 R8 '
+  // 2026-10-24, D19 (D24): the single writer's client side, docs/DATACUBE_LIVE_EDITING_2026_10_24.md §7, each closed by
+  // the slice that builds it
+  + 'W1 W2 W3 W4 W5 W6 W7 W8 W9 W10 W11 W12 W13 W14 W15 W16 W17 W18 W19 ').split(' ').filter((item) => item !== '');
 
 describe("the plan's register and the ledgers say the same", () => {
   it('every open item is in a ledger, every item a ledger names is open, and none leaves the register unclosed', () => {

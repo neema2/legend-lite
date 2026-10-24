@@ -53,13 +53,18 @@ function key(el: HTMLElement, k: string, shiftKey = false): void {
 }
 
 /** A board with `ids` side by side in one band half a screen high, the layout's changes counted. */
+/** One band of `ids` side by side, half a screen tall (a fixture: a new tile goes under the one it came from). */
+function rowOf(ids: readonly string[]): Bands {
+  return { fit: false, bands: [{ height: 0.5, node: ids.length === 1 ? { tile: ids[0]! } : {
+    split: 'row', parts: ids.map((id) => ({ node: { tile: id }, size: 1 / ids.length })),
+  } }] };
+}
+
 function sideBySide(ids: string[], options: BandBoardOptions = {}): { board: BandBoard; changes: Bands[] } {
   const changes: Bands[] = [];
   const board = new BandBoard(host, { ...options, onChange: (layout) => changes.push(layout) });
   for (const id of ids) board.add(tile(id));
-  board.setLayout({ fit: false, bands: [{ height: 0.5, node: ids.length === 1 ? { tile: ids[0]! } : {
-    split: 'row', parts: ids.map((id) => ({ node: { tile: id }, size: 1 / ids.length })),
-  } }] });
+  board.setLayout(rowOf(ids));
   return { board, changes };
 }
 
@@ -82,24 +87,32 @@ describe('the band board', () => {
     wellFormed(board);
   });
 
-  it('puts a new tile beside the one it came from while each would still be readable, else in a band below', () => {
+  it('puts a new tile under the one it came from, beside the tiles under it that it joins while each is readable', () => {
+    // the user, 2026-10-23: a new chart or grid goes below, not beside (bands.ts add)
     const board = new BandBoard(host);
     board.add(tile('a'));
     board.add(tile('b'), 'a');
-    // the first band is the whole screen (bands.ts FIRST_BAND_HEIGHT), a band below half of one
-    assert.deepEqual(box('b'), { x: 504, y: 0, w: 496, h: 600 }, 'beside it: two fit in 1000px');
-    board.add(tile('c'), 'b');
-    assert.deepEqual(box('c'), { x: 0, y: 608, w: 1000, h: 300 }, 'below: three would be under 360px each');
+    // the first band was the whole screen (bands.ts FIRST_BAND_HEIGHT): it shares the screen with the new one
+    assert.deepEqual(box('a'), { x: 0, y: 0, w: 1000, h: 300 });
+    assert.deepEqual(box('b'), { x: 0, y: 308, w: 1000, h: 300 }, 'under it');
+    const joins = (): boolean => true;
+    board.add(tile('c'), 'a', joins);
+    assert.deepEqual(box('c'), { x: 504, y: 308, w: 496, h: 300 }, 'beside the tile under a it joins: two fit in 1000px');
+    board.add(tile('d'), 'a', joins);
+    assert.deepEqual(box('d'), { x: 0, y: 308, w: 1000, h: 300 }, 'a band of its own under a: three would be under 360px each');
+    assert.equal(box('b').y, 616);
     host = dom.window.document.createElement('div');
     sized(1500, 600);
     const wide = new BandBoard(host);
     wide.add(tile('d'));
-    wide.add(tile('e'), 'd');
-    wide.add(tile('f'), 'e');
-    wide.add(tile('g'), 'f');
-    wide.add(tile('h'), 'g');
-    assert.equal(wide.layout.bands.length, 2, 'four beside each other at most');
-    assert.deepEqual(tiles({ fit: false, bands: [wide.layout.bands[0]!] }), ['d', 'e', 'f', 'g']);
+    for (const t of ['e', 'f', 'g', 'h']) wide.add(tile(t), 'd', joins);
+    assert.equal(wide.layout.bands.length, 2);
+    assert.deepEqual(tiles({ fit: false, bands: [wide.layout.bands[1]!] }), ['e', 'f', 'g', 'h'], 'four beside each other at most');
+    wide.add(tile('i'), 'd', joins);
+    assert.deepEqual(tiles({ fit: false, bands: [wide.layout.bands[1]!] }), ['i']);
+    // a tile it does not join: a band of its own under it
+    wide.add(tile('j'), 'i');
+    assert.deepEqual(tiles({ fit: false, bands: [wide.layout.bands[2]!] }), ['j']);
   });
 
   it('treats every tile alike: the first one removed, the rest close over its place', () => {
@@ -501,10 +514,9 @@ describe('the band board', () => {
     board.add(tile('b'));
     board.setFit(true);
     assert.ok(host.classList.contains('dc-bands-fit'));
-    // the first band the whole screen, the next half of one: two thirds and a third of the window, as a page started
-    // on the screen and one started in Python share it
+    // the first band was the whole screen; the next shares it (bands.ts add): half the window each
     const was = box('a').h;
-    assert.deepEqual([was, box('b').y + box('b').h], [395, 600]);
+    assert.deepEqual([was, box('b').y + box('b').h], [296, 600]);
     const edges = host.querySelectorAll<HTMLElement>('.dc-band-edge');
     assert.equal(edges.length, 1, 'between the bands only');
     pointer(edges[0]!, 'pointerdown', 500, was + 4);
@@ -542,7 +554,8 @@ describe('the band board', () => {
     const undos: boolean[] = [];
     const board = new BandBoard(host, { onChange: (layout, before) => steps.push([layout, before]), onUndo: (redo) => undos.push(redo) });
     board.add(tile('a'));
-    board.add(tile('b'), 'a');
+    board.add(tile('b'));
+    board.setLayout(rowOf(['a', 'b']));
     const start = board.layout;
     key(root('a'), 'ArrowRight');
     assert.equal(steps.length, 1);
@@ -693,8 +706,9 @@ describe('the band board', () => {
       { node: { tile: 'gone' }, size: 0.5 }, { node: { tile: 'a' }, size: 0.5 },
     ] } }] });
     assert.deepEqual(tiles(board.layout), ['a', 'b']);
-    assert.deepEqual(box('a'), { x: 0, y: 0, w: 1000, h: 600 });
-    assert.equal(box('b').y, 608);
+    // b put under the saved page's one band, which shares the screen with it (bands.ts add)
+    assert.deepEqual(box('a'), { x: 0, y: 0, w: 1000, h: 300 });
+    assert.equal(box('b').y, 308);
     wellFormed(board);
   });
 
@@ -721,7 +735,8 @@ describe('the band board', () => {
     assert.deepEqual(box('a'), { x: 0, y: 0, w: 1000, h: 300 });
     assert.equal(changes.length, 0);
     // a new tile's divider drags at once: nothing left over from the old gesture
-    board.add(tile('c'), 'a');
+    board.add(tile('c'));
+    board.setLayout(rowOf(['a', 'c']));
     const next = host.querySelector<HTMLElement>('.dc-band-divider-row')!;
     pointer(next, 'pointerdown', 500, 100);
     pointer(next, 'pointerup', 600, 100);
