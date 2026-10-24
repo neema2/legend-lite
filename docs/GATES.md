@@ -12558,7 +12558,10 @@ one against the code and the references before anything changed; what follows is
 
 Pull request neema2/legend-lite#71, branch `claude/datacube-d19`, merged by the user as 18db1e9a.
 - **CI:** branch run 40126078526 on 76af2a96, green on every job (51 of 51, "gates green"); main's own run 40128487998
-  on 18db1e9a, running when this was written.
+  on 18db1e9a (the same tree), green but one job: `windows / warehouse`'s `//warehouse:postgres_live`, its
+  `arrowCarriesTheSameValuesAsJson` -- the Arrow comparator's process (a `py_binary`) ending -1 with no output after 9
+  s, before any comparison; the same tree green on the PR's run an hour before, nothing of this change in the warehouse
+  or the comparator. Taken for a Windows flake; a re-run is the user's (this session's is refused: 403).
 - **Local** (a cloud session, Linux, root; on 76af2a96): `bazel test --lockfile_mode=error //gates:local //gates:warehouse`,
   425 passed; the 11 failures the container's own -- the ten Postgres targets refuse root and pass run unprivileged
   (`tools/postgres/as_unprivileged.sh`), and `browser_guard_test` meets the session proxy's certificate.
