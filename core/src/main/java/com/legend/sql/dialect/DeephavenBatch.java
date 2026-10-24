@@ -44,11 +44,13 @@ import java.util.Map;
 final class DeephavenBatch {
 
     /** The names this writer gives its helper columns: an output named like one is renamed by its place. */
-    private static final java.util.regex.Pattern HELPER = java.util.regex.Pattern.compile("__[acgnprs][0-9]+");
+    private static final java.util.regex.Pattern HELPER = java.util.regex.Pattern.compile("__[acgnprswx][0-9]+");
 
     private final Deephaven dialect;
     private final SqlWriter w;
     private int ops;
+    /** The helper columns a select's windows read and make ({@code __x<n>}, {@code __w<n>}): numbered across the batch. */
+    private int windowColumns;
 
     DeephavenBatch(Deephaven dialect, SqlWriter writer) {
         this.dialect = dialect;
@@ -197,8 +199,10 @@ final class DeephavenBatch {
                 }
                 cur = filter(cur, s.having());
             }
+            cur = windows(s, cur, scope);
+            // a filter over a window (a top-N of each group): its rows, the windows computed
             if (s.qualify() != null) {
-                throw new DialectCapability("a QUALIFY (a filter over a window) reached Deephaven: no shape yet");
+                cur = filter(cur, s.qualify());
             }
             return project(s, cur, scope);
         } finally {
@@ -344,6 +348,614 @@ final class DeephavenBatch {
             }
         }
         return null;
+    }
+
+    // ==================================================================
+    // Windows (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K6)
+    // ==================================================================
+
+    /**
+     * EACH WINDOW OF THE SELECT'S OUTPUTS AND ITS QUALIFY, AS COLUMNS BESIDE ITS ROWS: computed after the rows are
+     * filtered and grouped and before the QUALIFY and the outputs read them (SQL's order), each into a column of its own that the outputs then read by name
+     * ({@link Deephaven.Scope#computed}). Windows over a whole partition are the partition's aggregates joined back;
+     * windows over an order are the rows sorted by it (its nulls where the platform's order puts them) and the server's
+     * {@code updateBy} grouped by the partition: running, over a window of rows, or over a window of time. Windows over
+     * the same partition and order share their aggregate, or their sort and their {@code updateBy}: a screen's running
+     * figures, moving averages and previous prints along one order are one pass of the server's.
+     */
+    private int windows(SqlSelect s, int cur, Deephaven.Scope scope) {
+        List<SqlExpr.WindowCall> calls = new ArrayList<>();
+        for (SqlSelect.Projection p : s.projections()) {
+            collectWindows(p.expr(), calls);
+        }
+        for (SqlSelect.SortKey key : s.orderBy()) {
+            collectWindows(key.expr(), calls);
+        }
+        if (s.qualify() != null) {
+            collectWindows(s.qualify(), calls);
+        }
+        Map<List<Object>, List<SqlExpr.WindowCall>> sets = new LinkedHashMap<>();
+        for (SqlExpr.WindowCall call : calls) {
+            if (scope.computed.containsKey(call) || sets.values().stream().anyMatch(set -> set.contains(call))) {
+                continue;
+            }
+            WindowFn kind = windowFn(call.fn().fn());
+            if (call.fn() instanceof SqlAgg.Reducer r && (r.distinct() || !r.orderBy().isEmpty())) {
+                throw new DialectCapability("a distinct or ordered aggregate (" + r.fn() + ") over a window reached"
+                        + " Deephaven: no shape yet");
+            }
+            // a figure of the partition's values is the same in any order; a row's place, its neighbour, and the first
+            // and the last value are the order's
+            boolean ordering = switch (kind) {
+                case SUM, MIN, MAX, AVG, COUNT -> false;
+                case ROW_NUMBER, SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, FIRST, LAST -> true;
+            };
+            if (ordering && call.orderBy().isEmpty()) {
+                throw new DialectCapability("a window function (" + call.fn().fn() + ") with no order reached Deephaven:"
+                        + " no shape yet");
+            }
+            SqlExpr.WindowCall.Frame frame = call.frame();
+            boolean whole = !ordering && (call.orderBy().isEmpty() || frame != null && unbounded(frame));
+            if (call.orderBy().isEmpty() && frame != null && !unbounded(frame)) {
+                throw new DialectCapability("a window frame with no order reached Deephaven: no shape yet");
+            }
+            sets.computeIfAbsent(List.of(call.partitionBy(), whole ? List.of() : call.orderBy(), whole),
+                    k -> new ArrayList<>()).add(call);
+        }
+        for (Map.Entry<List<Object>, List<SqlExpr.WindowCall>> set : sets.entrySet()) {
+            cur = (Boolean) set.getKey().get(2) ? wholePartition(set.getValue(), cur, scope)
+                    : ordered(set.getValue(), cur, scope);
+        }
+        return cur;
+    }
+
+    private static void collectWindows(SqlExpr e, List<SqlExpr.WindowCall> out) {
+        if (e instanceof SqlExpr.WindowCall call) {
+            out.add(call);
+            return;
+        }
+        for (SqlExpr c : e.children()) {
+            collectWindows(c, out);
+        }
+    }
+
+    /** What a window function is on the server: an aggregation's figure, a row's place, a row's neighbour's value, or
+     *  the first or the last value of its frame. */
+    private enum WindowFn { SUM, MIN, MAX, AVG, COUNT, ROW_NUMBER, SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE,
+        FIRST, LAST }
+
+    private static WindowFn windowFn(SqlAgg.Fn fn) {
+        return switch (fn) {
+            case SUM -> WindowFn.SUM;
+            case MIN -> WindowFn.MIN;
+            case MAX -> WindowFn.MAX;
+            case AVG -> WindowFn.AVG;
+            case COUNT -> WindowFn.COUNT;
+            case ROW_NUMBER -> WindowFn.ROW_NUMBER;
+            case LAG, LEAD -> WindowFn.SHIFT;
+            case RANK -> WindowFn.RANK;
+            case DENSE_RANK -> WindowFn.DENSE_RANK;
+            case PERCENT_RANK -> WindowFn.PERCENT_RANK;
+            case CUME_DIST -> WindowFn.CUME_DIST;
+            case NTILE -> WindowFn.NTILE;
+            case FIRST_VALUE -> WindowFn.FIRST;
+            case LAST_VALUE -> WindowFn.LAST;
+            case ANY_VALUE, STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, MEDIAN, MODE, STRING_AGG, LIST, QUANTILE_CONT,
+                 QUANTILE_DISC, CORR, COVAR_SAMP, COVAR_POP, ARG_MAX, ARG_MIN, BOOL_AND, BOOL_OR, VARIANCE, STDDEV,
+                 NTH_VALUE ->
+                    throw new DialectCapability("a window function (" + fn + ") reached Deephaven: no shape yet");
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
+                    throw new IllegalStateException("the lowering's marker " + fn + " reached Deephaven in a window");
+        };
+    }
+
+    /** A fresh helper column's name. */
+    private String helper(String kind) {
+        return "__" + kind + windowColumns++;
+    }
+
+    /** {@code e} as a column of the rows: a column as it is by its name, else computed into a helper column. */
+    private String columnOf(SqlExpr e, List<Spec> pre) {
+        String named = dialect.plainColumn(e);
+        if (named != null) {
+            return named;
+        }
+        String column = helper("x");
+        pre.add(new Spec(column, e));
+        return column;
+    }
+
+    /** One window's function and argument: its kind, its value's column (null for none) and whether it may be null. */
+    private record Input(WindowFn kind, SqlAgg.Fn fn, @com.legend.base.Nullable String value, boolean nullable) {
+        String arg() {
+            if (value == null) {
+                throw new IllegalStateException("a window " + fn + " with no argument reached Deephaven");
+            }
+            return value;
+        }
+    }
+
+    private Input input(SqlExpr.WindowCall call, List<Spec> pre) {
+        SqlAgg.Fn fn = call.fn().fn();
+        // an NTILE's one argument is its number of buckets, not a value of the rows
+        List<SqlExpr> args = fn == SqlAgg.Fn.NTILE ? List.of() : call.fn().args();
+        return new Input(windowFn(fn), fn, args.isEmpty() ? null : columnOf(averaged(fn, args.get(0)), pre),
+                !args.isEmpty() && Deephaven.nullable(args.get(0)));
+    }
+
+    /** Windows over their whole partition: the partition's aggregates, one operation, joined back to each of its rows
+     *  by the partition's keys. */
+    private int wholePartition(List<SqlExpr.WindowCall> calls, int cur, Deephaven.Scope scope) {
+        List<Spec> pre = new ArrayList<>();
+        List<String> partition = new ArrayList<>();
+        for (SqlExpr p : calls.get(0).partitionBy()) {
+            partition.add(columnOf(p, pre));
+        }
+        List<String> aggregations = new ArrayList<>();
+        List<String> outs = new ArrayList<>();
+        Map<SqlExpr.WindowCall, String> made = new LinkedHashMap<>();
+        for (SqlExpr.WindowCall call : calls) {
+            Input in = input(call, pre);
+            String out = helper("w");
+            aggregations.add(switch (in.kind()) {
+                case SUM -> columnsOf("sum", out, in.arg());
+                case MIN -> columnsOf("min", out, in.arg());
+                case MAX -> columnsOf("max", out, in.arg());
+                case AVG -> columnsOf("avg", out, in.arg());
+                case COUNT -> !in.nullable() ? "{\"count\": {\"columnName\": \"" + out + "\"}}"
+                        : "{\"countWhere\": {\"columnName\": \"" + out + "\", \"filters\": "
+                                + DeephavenJson.strings(List.of(Deephaven.notNullFilter(in.arg()))) + "}}";
+                case ROW_NUMBER, SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, FIRST, LAST ->
+                        throw new IllegalStateException("a window function (" + in.fn() + ") of an order reached the"
+                                + " whole partition's");
+            });
+            outs.add(out);
+            made.put(call, out);
+        }
+        if (!pre.isEmpty()) {
+            cur = view("updateView", cur, pre);
+        }
+        int totals = simple("aggregate", source(cur) + ", \"groupByColumns\": " + DeephavenJson.strings(partition)
+                + ", \"aggregations\": [" + String.join(", ", aggregations) + "]");
+        cur = joinOp("naturalJoin", cur, totals, partition, outs, false);
+        scope.computed.putAll(made);
+        return cur;
+    }
+
+    private static String columnsOf(String spec, String out, String value) {
+        return "{\"columns\": {\"spec\": {\"" + spec + "\": {}}, \"matchPairs\": "
+                + DeephavenJson.strings(List.of(out + "=" + value)) + "}}";
+    }
+
+    /**
+     * Windows over one partition and order, the rows sorted by it: the server's {@code updateBy}, grouped by the
+     * partition, one operation each, and what is read across each tie or each partition. SQL's default frame (and RANGE
+     * from the partition's start to the row) counts a row's ties with it -- every tie takes the figure at the last of
+     * them -- so those figures are taken at each tie's last row and joined back to every tie by the partition and the
+     * order, one aggregate for them all; a window of ROWS is the rows as they are; a RANGE of time a window of time along
+     * the order's one date-time column; LAG and LEAD the one row a window that far behind or ahead holds. A row's rank
+     * is the number of the first of its ties; its dense rank the running count of the ties begun; its percent rank and
+     * cumulative distribution, and its bucket (NTILE), figures of those numbers and the partition's count.
+     */
+    private int ordered(List<SqlExpr.WindowCall> calls, int cur, Deephaven.Scope scope) {
+        SqlExpr.WindowCall first = calls.get(0);
+        List<Spec> pre = new ArrayList<>();
+        List<String> partition = new ArrayList<>();
+        for (SqlExpr p : first.partitionBy()) {
+            partition.add(columnOf(p, pre));
+        }
+        // the order: each key a column, a key that may be null after its null flag (the platform's order: nulls last
+        // ascending, first descending, unless the key says)
+        List<String> keys = new ArrayList<>();
+        List<String[]> sorts = new ArrayList<>();
+        for (SqlSelect.SortKey key : first.orderBy()) {
+            String column = columnOf(key.expr(), pre);
+            if (Deephaven.nullable(key.expr())) {
+                boolean nullsFirst = key.nullOrder() != null
+                        ? key.nullOrder() == SqlSelect.SortKey.NullOrder.NULLS_FIRST : !key.ascending();
+                String flag = helper("x");
+                pre.add(new Spec(flag + " = isNull(" + column + ")", null));
+                sorts.add(new String[] {flag, nullsFirst ? "DESCENDING" : "ASCENDING"});
+                keys.add(flag);
+            }
+            sorts.add(new String[] {column, key.ascending() ? "ASCENDING" : "DESCENDING"});
+            keys.add(column);
+        }
+        List<Input> inputs = new ArrayList<>();
+        for (SqlExpr.WindowCall call : calls) {
+            inputs.add(input(call, pre));
+        }
+        java.util.Set<WindowFn> kinds = java.util.EnumSet.noneOf(WindowFn.class);
+        inputs.forEach(in -> kinds.add(in.kind()));
+        boolean ranked = kinds.contains(WindowFn.RANK) || kinds.contains(WindowFn.DENSE_RANK)
+                || kinds.contains(WindowFn.PERCENT_RANK) || kinds.contains(WindowFn.CUME_DIST)
+                || kinds.contains(WindowFn.NTILE);
+        // a count of what is never null, and a row's number, count a column of ones
+        String ones = null;
+        if (ranked || kinds.contains(WindowFn.ROW_NUMBER) || inputs.stream().anyMatch(in -> !in.nullable()
+                && (in.kind() == WindowFn.COUNT || in.kind() == WindowFn.AVG))) {
+            ones = helper("x");
+            pre.add(new Spec(ones + " = 1L", null));
+        }
+        if (!pre.isEmpty()) {
+            cur = view("updateView", cur, pre);
+        }
+        StringBuilder sort = new StringBuilder(source(cur)).append(", \"sorts\": [");
+        for (int i = 0; i < sorts.size(); i++) {
+            sort.append(i > 0 ? ", " : "").append("{\"columnName\": ").append(DeephavenJson.string(sorts.get(i)[0]))
+                    .append(", \"direction\": \"").append(sorts.get(i)[1]).append("\"}");
+        }
+        cur = simple("sort", sort.append(']').toString());
+        // the updateBy's operations, the formulas over them, what is read at each tie and each partition, and what is
+        // computed from those last
+        List<String> ops = new ArrayList<>();
+        List<String> after = new ArrayList<>();
+        List<String> tieFirsts = new ArrayList<>();
+        List<String> tieLasts = new ArrayList<>();
+        List<String> partFirsts = new ArrayList<>();
+        List<String> partLasts = new ArrayList<>();
+        List<String> flags = new ArrayList<>();
+        List<String> dense = new ArrayList<>();
+        List<String> finals = new ArrayList<>();
+        // a row's number, its rank (the number of the first of its ties), the number of the last of them, and the
+        // partition's count, where a ranking reads them
+        String rn = null;
+        String rank = null;
+        String lastRn = null;
+        String count = null;
+        if (ranked) {
+            rn = helper("x");
+            ops.add(operation("{\"sum\": {}}", rn + "=" + ones));
+            if (kinds.contains(WindowFn.RANK) || kinds.contains(WindowFn.DENSE_RANK)
+                    || kinds.contains(WindowFn.PERCENT_RANK)) {
+                rank = helper("x");
+                tieFirsts.add(rank + "=" + rn);
+            }
+            if (kinds.contains(WindowFn.CUME_DIST)) {
+                lastRn = helper("x");
+                tieLasts.add(lastRn + "=" + rn);
+            }
+            if (kinds.contains(WindowFn.PERCENT_RANK) || kinds.contains(WindowFn.CUME_DIST)
+                    || kinds.contains(WindowFn.NTILE)) {
+                count = helper("x");
+            }
+        }
+        Map<SqlExpr.WindowCall, String> made = new LinkedHashMap<>();
+        for (int i = 0; i < calls.size(); i++) {
+            SqlExpr.WindowCall call = calls.get(i);
+            Input in = inputs.get(i);
+            SqlExpr.WindowCall.Frame frame = call.frame();
+            SqlExpr.WindowCall.Frame.Bound from = frame == null
+                    ? new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding() : frame.from();
+            SqlExpr.WindowCall.Frame.Bound to = frame == null ? new SqlExpr.WindowCall.Frame.Bound.CurrentRow()
+                    : frame.to();
+            boolean fromStart = from instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding;
+            boolean toRow = to instanceof SqlExpr.WindowCall.Frame.Bound.CurrentRow;
+            boolean range = frame == null || frame.kind() == SqlExpr.WindowCall.Frame.Kind.RANGE;
+            String out = helper("w");
+            switch (in.kind()) {
+                case RANK -> out = java.util.Objects.requireNonNull(rank);
+                case DENSE_RANK -> {
+                    // a tie begun at this row counts one: its row number is its rank
+                    String begun = helper("x");
+                    flags.add(begun + " = (" + rn + " == " + rank + ") ? 1L : 0L");
+                    dense.add(operation("{\"sum\": {}}", out + "=" + begun));
+                }
+                case PERCENT_RANK -> finals.add(out + " = (" + count + " == 1 ? 0.0 : (double) (" + rank + " - 1) / ("
+                        + count + " - 1))");
+                case CUME_DIST -> finals.add(out + " = (double) " + lastRn + " / " + count);
+                case NTILE -> finals.add(out + " = " + ntile(call, java.util.Objects.requireNonNull(rn),
+                        java.util.Objects.requireNonNull(count)));
+                case SHIFT -> {
+                    String group = helper("x");
+                    ops.add(shift(call, in, group));
+                    after.add(out + " = " + dialect.ofGroup(call.type(), "first", "a " + in.fn()) + "(" + group + ")");
+                }
+                case FIRST -> {
+                    if (fromStart && (toRow || ahead(to))) {
+                        // a frame from the partition's start: its first row's
+                        partFirsts.add(out + "=" + in.arg());
+                    } else {
+                        String group = helper("x");
+                        ops.add(operation("{\"rollingGroup\": " + windowScale(java.util.Objects.requireNonNull(frame),
+                                from, to, call) + "}", group + "=" + in.arg()));
+                        after.add(out + " = " + dialect.ofGroup(call.type(), "first", "a " + in.fn()) + "(" + group
+                                + ")");
+                    }
+                }
+                case LAST -> {
+                    if (to instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing && (fromStart || !ahead(from))) {
+                        // a frame to the partition's end: its last row's
+                        partLasts.add(out + "=" + in.arg());
+                    } else if (fromStart && toRow && range) {
+                        // to the row and its ties: the last tie's
+                        tieLasts.add(out + "=" + in.arg());
+                    } else if (fromStart && toRow) {
+                        out = in.arg();
+                    } else {
+                        String group = helper("x");
+                        ops.add(operation("{\"rollingGroup\": " + windowScale(java.util.Objects.requireNonNull(frame),
+                                from, to, call) + "}", group + "=" + in.arg()));
+                        after.add(out + " = " + dialect.ofGroup(call.type(), "last", "a " + in.fn()) + "(" + group
+                                + ")");
+                    }
+                }
+                case SUM, MIN, MAX, AVG, COUNT, ROW_NUMBER -> {
+                    boolean running = fromStart && toRow;
+                    // a row's number counts the rows to it, ties or none: the rows as they are
+                    boolean ties = running && in.kind() != WindowFn.ROW_NUMBER && range;
+                    String column = ties ? helper("x") : out;
+                    if (ties) {
+                        tieLasts.add(out + "=" + column);
+                    }
+                    if (running) {
+                        running(in, column, ones, ops, after);
+                    } else {
+                        rolling(call, in, java.util.Objects.requireNonNull(frame), from, to, column, ones, ops);
+                    }
+                }
+            }
+            made.put(call, out);
+        }
+        if (!ops.isEmpty()) {
+            cur = updateBy(cur, ops, partition);
+        }
+        if (!after.isEmpty()) {
+            cur = simple("updateView", source(cur) + ", \"columnSpecs\": " + DeephavenJson.strings(after));
+        }
+        List<String> byTie = new ArrayList<>(partition);
+        byTie.addAll(keys);
+        cur = readAcross(cur, byTie, tieFirsts, tieLasts, null);
+        cur = readAcross(cur, partition, partFirsts, partLasts, count);
+        if (!dense.isEmpty()) {
+            cur = simple("updateView", source(cur) + ", \"columnSpecs\": " + DeephavenJson.strings(flags));
+            cur = updateBy(cur, dense, partition);
+        }
+        if (!finals.isEmpty()) {
+            cur = simple("updateView", source(cur) + ", \"columnSpecs\": " + DeephavenJson.strings(finals));
+        }
+        scope.computed.putAll(made);
+        return cur;
+    }
+
+    /** Whether a bound is the row or after it. */
+    private static boolean ahead(SqlExpr.WindowCall.Frame.Bound b) {
+        return switch (b) {
+            case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> true;
+            case SqlExpr.WindowCall.Frame.Bound.Following f -> true;
+            case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f -> true;
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> true;
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> false;
+            case SqlExpr.WindowCall.Frame.Bound.Preceding p -> false;
+            case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> false;
+        };
+    }
+
+    /** A running figure from the partition's start to the row: the server's cumulative operation. */
+    private void running(Input in, String column, @com.legend.base.Nullable String ones, List<String> ops,
+            List<String> after) {
+        switch (in.kind()) {
+            case SUM -> ops.add(operation("{\"sum\": {}}", column + "=" + in.arg()));
+            case MIN -> ops.add(operation("{\"min\": {}}", column + "=" + in.arg()));
+            case MAX -> ops.add(operation("{\"max\": {}}", column + "=" + in.arg()));
+            case COUNT -> ops.add(in.nullable() ? countWhere(column, in.arg())
+                    : operation("{\"sum\": {}}", column + "=" + ones));
+            case ROW_NUMBER -> ops.add(operation("{\"sum\": {}}", column + "=" + ones));
+            case AVG -> {
+                // no running average on the server: the running sum over the running count of the values
+                String sum = helper("x");
+                String count = helper("x");
+                ops.add(operation("{\"sum\": {}}", sum + "=" + in.arg()));
+                ops.add(in.nullable() ? countWhere(count, in.arg()) : operation("{\"sum\": {}}", count + "=" + ones));
+                after.add(column + " = (" + count + " == 0 ? NULL_DOUBLE : (double) " + sum + " / " + count + ")");
+            }
+            case SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, FIRST, LAST ->
+                    throw new IllegalStateException("a " + in.fn() + " reached the running figures");
+        }
+    }
+
+    /** A figure over a frame of rows or of time: the server's rolling operation. */
+    private void rolling(SqlExpr.WindowCall call, Input in, SqlExpr.WindowCall.Frame frame,
+            SqlExpr.WindowCall.Frame.Bound from, SqlExpr.WindowCall.Frame.Bound to, String column,
+            @com.legend.base.Nullable String ones, List<String> ops) {
+        String spec = switch (in.kind()) {
+            case SUM -> "rollingSum";
+            case MIN -> "rollingMin";
+            case MAX -> "rollingMax";
+            case AVG -> "rollingAvg";
+            case COUNT -> "rollingCount";
+            case ROW_NUMBER -> throw new DialectCapability("a " + in.fn() + " over a frame reached Deephaven: no shape yet");
+            case SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, FIRST, LAST ->
+                    throw new IllegalStateException("a " + in.fn() + " reached the rolling figures");
+        };
+        // a count of every row counts the column of ones
+        String counted = in.kind() == WindowFn.COUNT && !in.nullable() ? java.util.Objects.requireNonNull(ones) : in.arg();
+        ops.add(operation("{\"" + spec + "\": " + windowScale(frame, from, to, call) + "}", column + "=" + counted));
+    }
+
+    /** The values read at the first and the last row of each group of {@code by} (each tie, or each partition), and its
+     *  count of rows: one aggregate, joined back to each of its rows. */
+    private int readAcross(int cur, List<String> by, List<String> firsts, List<String> lasts,
+            @com.legend.base.Nullable String count) {
+        List<String> aggregations = new ArrayList<>();
+        List<String> outs = new ArrayList<>();
+        for (String[] spec : List.of(new String[] {"first"}, new String[] {"last"})) {
+            List<String> pairs = spec[0].equals("first") ? firsts : lasts;
+            if (!pairs.isEmpty()) {
+                aggregations.add("{\"columns\": {\"spec\": {\"" + spec[0] + "\": {}}, \"matchPairs\": "
+                        + DeephavenJson.strings(pairs) + "}}");
+                pairs.forEach(pair -> outs.add(pair.substring(0, pair.indexOf('='))));
+            }
+        }
+        if (count != null) {
+            aggregations.add("{\"count\": {\"columnName\": \"" + count + "\"}}");
+            outs.add(count);
+        }
+        if (aggregations.isEmpty()) {
+            return cur;
+        }
+        int across = simple("aggregate", source(cur) + ", \"groupByColumns\": " + DeephavenJson.strings(by)
+                + ", \"aggregations\": [" + String.join(", ", aggregations) + "]");
+        return joinOp("naturalJoin", cur, across, by, outs, false);
+    }
+
+    /** NTILE(k): SQL's buckets, the first {@code n % k} of them one row larger -- whole-number division as an exact
+     *  quotient (the server's {@code /} is a fraction's: K5), the remainder taken off first. */
+    private static String ntile(SqlExpr.WindowCall call, String rn, String n) {
+        List<SqlExpr> args = call.fn().args();
+        if (args.size() != 1 || !(args.get(0) instanceof SqlExpr.IntLit k) || k.value() < 1) {
+            throw new DialectCapability("an NTILE of other than a positive whole number of buckets reached Deephaven: no"
+                    + " shape yet");
+        }
+        String buckets = Long.toString(k.value());
+        String q = quotient(n, buckets);
+        String r = "(" + n + " % " + buckets + ")";
+        return "(" + rn + " <= " + r + " * (" + q + " + 1) ? " + quotient("(" + rn + " - 1)", "(" + q + " + 1)")
+                + " + 1 : " + quotient("(" + rn + " - 1 - " + r + ")", q) + " + 1)";
+    }
+
+    /** {@code a / b} of two whole numbers that are not negative, as a whole number. */
+    private static String quotient(String a, String b) {
+        return "((long) ((" + a + " - " + a + " % " + b + ") / " + b + "))";
+    }
+
+    private static boolean unbounded(SqlExpr.WindowCall.Frame frame) {
+        return frame.from() instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding
+                && frame.to() instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing;
+    }
+
+    /** A running count of the rows where the value is not null. */
+    private static String countWhere(String column, String value) {
+        return "{\"column\": {\"spec\": {\"countWhere\": {\"resultColumn\": " + DeephavenJson.string(column)
+                + ", \"filters\": " + DeephavenJson.strings(List.of(Deephaven.notNullFilter(value))) + "}}}}";
+    }
+
+    private static String operation(String spec, String pair) {
+        return "{\"column\": {\"spec\": " + spec + ", \"matchPairs\": " + DeephavenJson.strings(List.of(pair)) + "}}";
+    }
+
+    private int updateBy(int cur, List<String> operations, List<String> partition) {
+        return simple("updateBy", source(cur) + ", \"operations\": [" + String.join(", ", operations) + "]"
+                + (partition.isEmpty() ? "" : ", \"groupByColumns\": " + DeephavenJson.strings(partition)));
+    }
+
+    /** LAG(v, k) and LEAD(v, k): the value k rows before or after, within the partition, null where there is none --
+     *  the one row a rolling group of that row holds, read by the library's {@code first} (DH33: a vector's own methods
+     *  are not the validator's). A default other than null is refused by name. */
+    private static String shift(SqlExpr.WindowCall call, Input in, String group) {
+        List<SqlExpr> args = call.fn().args();
+        if (args.size() > 2) {
+            throw new DialectCapability("a " + in.fn() + " with a default reached Deephaven: no shape yet");
+        }
+        long k = 1;
+        if (args.size() == 2) {
+            if (!(args.get(1) instanceof SqlExpr.IntLit n) || n.value() < 1) {
+                throw new DialectCapability("a " + in.fn() + " by other than a positive whole number reached Deephaven:"
+                        + " no shape yet");
+            }
+            k = n.value();
+        }
+        // the window holds the row k before (a lag) or k after (a lead): the row itself counts as one behind it
+        long reverse = in.fn() == SqlAgg.Fn.LAG ? k + 1 : 1 - k;
+        long forward = in.fn() == SqlAgg.Fn.LAG ? -k : k;
+        return operation("{\"rollingGroup\": {\"reverseWindowScale\": " + ticks(reverse) + ", \"forwardWindowScale\": "
+                + ticks(forward) + "}}", group + "=" + in.arg());
+    }
+
+    private static String ticks(long n) {
+        return "{\"ticks\": {\"ticks\": " + n + "}}";
+    }
+
+    /** A frame of ROWS as the server's ticks (the row itself one of those behind it), or a RANGE of time along the
+     *  order's one date-time column as its nanoseconds; any other refused by name. */
+    private String windowScale(SqlExpr.WindowCall.Frame frame, SqlExpr.WindowCall.Frame.Bound from,
+            SqlExpr.WindowCall.Frame.Bound to, SqlExpr.WindowCall call) {
+        if (frame.kind() == SqlExpr.WindowCall.Frame.Kind.ROWS) {
+            Long behind = rowsAt(from);
+            Long ahead = rowsAt(to);
+            if (behind == null || ahead == null || behind > ahead) {
+                throw new DialectCapability("a frame of rows from " + from + " to " + to + " reached Deephaven: no shape"
+                        + " yet");
+            }
+            return "{\"reverseWindowScale\": " + ticks(1 - behind) + ", \"forwardWindowScale\": " + ticks(ahead) + "}";
+        }
+        SqlSelect.SortKey key = call.orderBy().get(0);
+        if (call.orderBy().size() != 1 || !(key.expr().type() instanceof com.legend.sql.TypeFact.Typed t)
+                || t.type() != com.legend.sql.SqlType.Scalar.TIMESTAMP || !key.ascending()
+                || Deephaven.nullable(key.expr())) {
+            throw new DialectCapability("a RANGE frame other than one of time along one ascending date-time that is never"
+                    + " null reached Deephaven: no shape yet");
+        }
+        String column = dialect.plainColumn(key.expr());
+        if (column == null) {
+            throw new DialectCapability("a RANGE frame of time along a computed date-time reached Deephaven: no shape yet");
+        }
+        Long behind = nanosAt(from);
+        Long ahead = nanosAt(to);
+        if (behind == null || ahead == null || behind > ahead) {
+            throw new DialectCapability("a frame of time from " + from + " to " + to + " reached Deephaven: no shape yet");
+        }
+        return "{\"reverseWindowScale\": " + time(column, -behind) + ", \"forwardWindowScale\": " + time(column, ahead)
+                + "}";
+    }
+
+    private static String time(String column, long nanos) {
+        return "{\"time\": {\"column\": " + DeephavenJson.string(column) + ", \"nanos\": \"" + nanos + "\"}}";
+    }
+
+    /** A bound of rows as its place from the row (before negative), or null when it has none. */
+    private static @com.legend.base.Nullable Long rowsAt(SqlExpr.WindowCall.Frame.Bound b) {
+        return switch (b) {
+            case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> 0L;
+            case SqlExpr.WindowCall.Frame.Bound.Preceding p -> negated(wholeRows(p.n()));
+            case SqlExpr.WindowCall.Frame.Bound.Following f -> wholeRows(f.n());
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> null;
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> null;
+            case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding i -> null;
+            case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing i -> null;
+        };
+    }
+
+    private static @com.legend.base.Nullable Long negated(@com.legend.base.Nullable Long n) {
+        return n == null ? null : -n;
+    }
+
+    private static @com.legend.base.Nullable Long times(long n, @com.legend.base.Nullable Long unit) {
+        return unit == null ? null : Math.multiplyExact(n, unit);
+    }
+
+    private static @com.legend.base.Nullable Long wholeRows(Number n) {
+        double d = Math.abs(n.doubleValue());
+        return d == Math.rint(d) ? (long) d : null;
+    }
+
+    /** A bound of time as its nanoseconds from the row (before negative), or null when it is none of a fixed length. */
+    private static @com.legend.base.Nullable Long nanosAt(SqlExpr.WindowCall.Frame.Bound b) {
+        return switch (b) {
+            case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> 0L;
+            case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding i -> negated(times(Math.abs(i.n()), unitNanos(i.unit())));
+            case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing i -> times(Math.abs(i.n()), unitNanos(i.unit()));
+            case SqlExpr.WindowCall.Frame.Bound.Preceding p -> null;
+            case SqlExpr.WindowCall.Frame.Bound.Following f -> null;
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> null;
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> null;
+        };
+    }
+
+    /** A fixed unit's nanoseconds, Pure's {@code DurationUnit} by name (a day 24 hours: Pure's DateTime is UTC's, DH29);
+     *  a month or a year has none. */
+    private static @com.legend.base.Nullable Long unitNanos(String unit) {
+        return switch (unit) {
+            case "NANOSECONDS" -> 1L;
+            case "MICROSECONDS" -> 1_000L;
+            case "MILLISECONDS" -> 1_000_000L;
+            case "SECONDS" -> 1_000_000_000L;
+            case "MINUTES" -> 60_000_000_000L;
+            case "HOURS" -> 3_600_000_000_000L;
+            case "DAYS" -> 86_400_000_000_000L;
+            case "WEEKS" -> 604_800_000_000_000L;
+            default -> null;
+        };
     }
 
     // ==================================================================

@@ -40,6 +40,7 @@ Database risk::Ref
   Table instrument (iid VARCHAR(16) PRIMARY KEY, sector VARCHAR(16), ccy VARCHAR(3) NOT NULL)
   Table ticks (sym VARCHAR(8), px DOUBLE)
   Table fills (fid INTEGER PRIMARY KEY, tm TIMESTAMP NOT NULL, ts TIMESTAMP, d DATE, px DOUBLE NOT NULL)
+  Table prints (pid INTEGER PRIMARY KEY, sym VARCHAR(8), tm TIMESTAMP NOT NULL, px DOUBLE, sz DOUBLE NOT NULL)
 )
 ###Connection
 RelationalDatabaseConnection risk::Conn
@@ -85,6 +86,16 @@ fills = newTable(
   col("d", [java.time.LocalDate.parse("2026-10-24"), java.time.LocalDate.parse("2026-02-28"), null,
     java.time.LocalDate.parse("2024-12-31"), java.time.LocalDate.parse("1969-12-31")] as java.time.LocalDate[]),
   doubleCol("px", 10.0d, 11.0d, 12.0d, 13.0d, 14.0d))
+// prints for windows (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K6): two names and a print of none, two prints at one
+// time (a tie), prints exactly a minute and exactly thirty seconds apart (a window's bounds), prices that are null
+def at = { String t -> java.time.Instant.parse("2026-10-24T" + t + "Z") }
+prints = newTable(
+  intCol("pid", 1, 2, 3, 4, 5, 6, 7, 8, 9),
+  stringCol("sym", "AAA", "AAA", "BBB", "AAA", "AAA", "BBB", null, "AAA", "BBB"),
+  instantCol("tm", at("09:30:00"), at("09:30:30"), at("09:30:30"), at("09:31:00"), at("09:31:00"), at("09:32:00"),
+    at("09:32:30"), at("09:33:00.001"), at("09:33:00")),
+  doubleCol("px", 10.0d, 10.5d, 20.0d, NULL_DOUBLE, 11.0d, 19.5d, 5.0d, 10.0d, NULL_DOUBLE),
+  doubleCol("sz", 100.0d, 200.0d, 50.0d, 300.0d, 100.0d, 75.0d, 10.0d, 50.0d, 25.0d))
 `;
 
 const T = '#>{risk::Ref.trades}#';
@@ -183,6 +194,77 @@ const TIMES: readonly { readonly query: string; readonly rows: readonly (readonl
   // sortedLast by the fill's number), its high and low, its count
   { query: `${F}->extend(~[b:x|$x.tm->timeBucket(1, DurationUnit.DAYS)])->groupBy(~[b], ~[o:x|${RM}($x.px, $x.fid):y|$y->minBy(), hi:x|$x.px:y|$y->max(), lo:x|$x.px:y|$y->min(), c:x|${RM}($x.px, $x.fid):y|$y->maxBy(), n:x|$x.fid:y|$y->count()])->sort(~b->ascending())`,
     rows: [["1969-12-31T00:00:00", 14.0, 14.0, 14.0, 14.0, 1], ["2024-02-29T00:00:00", 13.0, 13.0, 13.0, 13.0, 1], ["2026-10-24T00:00:00", 10.0, 11.0, 10.0, 11.0, 2], ["2026-10-26T00:00:00", 12.0, 12.0, 12.0, 12.0, 1]] },
+];
+
+const P = '#>{risk::Ref.prints}#';
+
+/** WINDOWS (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K6): each answer DuckDB's over the same nine prints -- the
+ *  planner's DuckDB SQL for the query, run by DuckDB 1.4.4 (2026-10-24) -- so the server's sort and updateBy are held to
+ *  the platform's reference lane. */
+const WINDOWS: readonly { readonly query: string; readonly rows: readonly (readonly unknown[])[] }[] = [
+  // running figures along a time with ties (SQL's default frame): the two prints at 09:31 take the figure at the last of them; a null price is not counted or averaged; a print of no name is a partition of its own
+  { query: `${P}->extend(over(~sym, ~tm->ascending()), ~[vol:{p,w,r|$r.sz}:y|$y->plus(), hi:{p,w,r|$r.px}:y|$y->max(), n:{p,w,r|$r.px}:y|$y->count(), a:{p,w,r|$r.px}:y|$y->average()])->select(~[pid, vol, hi, n, a])->sort(~pid->ascending())`,
+    rows: [[1, 100.0, 10.0, 1, 10.0], [2, 300.0, 10.5, 2, 10.25], [3, 50.0, 20.0, 1, 20.0], [4, 700.0, 11.0, 3, 10.5], [5, 700.0, 11.0, 3, 10.5], [6, 125.0, 20.0, 2, 19.75], [7, 10.0, 5.0, 1, 5.0], [8, 750.0, 11.0, 4, 10.375], [9, 150.0, 20.0, 2, 19.75]] },
+  // a running VWAP: the running sums of price times size and of size, ROWS from the partition's start, and their quotient
+  { query: `${P}->extend(over(~sym, ~pid->ascending(), rows(unbounded(), 0)), ~[pv:{p,w,r|$r.px->toOne() * $r.sz}:y|$y->plus(), v:{p,w,r|$r.sz}:y|$y->plus()])->extend(~vwap:x|$x.pv / $x.v)->select(~[pid, pv, v, vwap])->sort(~pid->ascending())`,
+    rows: [[1, 1000.0, 100.0, 10.0], [2, 3100.0, 300.0, 10.333333333333334], [3, 1000.0, 50.0, 20.0], [4, 3100.0, 600.0, 5.166666666666667], [5, 4200.0, 700.0, 6.0], [6, 2462.5, 125.0, 19.7], [7, 50.0, 10.0, 5.0], [8, 4700.0, 750.0, 6.266666666666667], [9, 2462.5, 150.0, 16.416666666666668]] },
+  // a minute's volume and a 30 seconds' ahead, windows of time: a print exactly a minute before, and exactly 30 seconds after, is in its window
+  { query: `${P}->extend(over(~sym, ~tm->ascending(), _range(-1, DurationUnit.MINUTES, 0, DurationUnit.MINUTES)), ~[v1:{p,w,r|$r.sz}:y|$y->plus(), n1:{p,w,r|$r.px}:y|$y->count()])->extend(over(~sym, ~tm->ascending(), _range(0, DurationUnit.SECONDS, 30, DurationUnit.SECONDS)), ~f30:{p,w,r|$r.sz}:y|$y->plus())->select(~[pid, v1, n1, f30])->sort(~pid->ascending())`,
+    rows: [[1, 100.0, 1, 300.0], [2, 300.0, 2, 600.0], [3, 50.0, 1, 50.0], [4, 700.0, 3, 400.0], [5, 700.0, 3, 400.0], [6, 75.0, 1, 75.0], [7, 10.0, 1, 10.0], [8, 50.0, 1, 50.0], [9, 100.0, 1, 25.0]] },
+  // the previous and the next price, the size two prints back, and the previous print's name: null where there is none
+  { query: `${P}->extend(over(~sym, ~pid->ascending()), ~[prev:{p,w,r|$p->lag($r).px}, next:{p,w,r|$p->lead($r).px}, back2:{p,w,r|$p->lag($r, 2).sz}])->extend(over(~pid->ascending()), ~ps:{p,w,r|$p->lag($r).sym})->select(~[pid, prev, next, back2, ps])->sort(~pid->ascending())`,
+    rows: [[1, null, 10.5, null, null], [2, 10.0, null, null, "AAA"], [3, null, 19.5, null, "AAA"], [4, 10.5, 11.0, 100.0, "BBB"], [5, null, 10.0, 200.0, "AAA"], [6, 20.0, null, null, "AAA"], [7, null, null, null, "BBB"], [8, 11.0, null, 300.0, null], [9, 19.5, null, 50.0, "AAA"]] },
+  // a moving average of three prints, a count and a volume of a print and its neighbours, and the two prints before
+  { query: `${P}->extend(over(~sym, ~pid->ascending(), rows(-2, 0)), ~m3:{p,w,r|$r.px}:y|$y->average())->extend(over(~sym, ~pid->ascending(), rows(-1, 1)), ~[c3:{p,w,r|$r.px}:y|$y->count(), s3:{p,w,r|$r.sz}:y|$y->plus()])->extend(over(~sym, ~pid->ascending(), rows(-2, -1)), ~b2:{p,w,r|$r.sz}:y|$y->plus())->select(~[pid, m3, c3, s3, b2])->sort(~pid->ascending())`,
+    rows: [[1, 10.0, 2, 300.0, null], [2, 10.25, 2, 600.0, 100.0], [3, 20.0, 2, 125.0, null], [4, 10.25, 2, 600.0, 300.0], [5, 10.75, 2, 450.0, 500.0], [6, 19.75, 2, 150.0, 50.0], [7, 5.0, 1, 10.0, null], [8, 10.5, 2, 150.0, 400.0], [9, 19.75, 1, 100.0, 125.0]] },
+  // a print's place by price, highest first (a null price first, the platform's order descending), then by number
+  { query: `${P}->extend(over(~sym, [~px->descending(), ~pid->ascending()]), ~rn:{p,w,r|$p->rowNumber($r)})->select(~[pid, rn])->sort(~pid->ascending())`,
+    rows: [[1, 4], [2, 3], [3, 2], [4, 1], [5, 2], [6, 3], [7, 1], [8, 5], [9, 1]] },
+  // a name's whole figures beside each print
+  { query: `${P}->extend(over(~sym), ~[tot:{p,w,r|$r.sz}:y|$y->plus(), np:{p,w,r|$r.px}:y|$y->count(), ap:{p,w,r|$r.px}:y|$y->average(), mx:{p,w,r|$r.px}:y|$y->max()])->select(~[pid, tot, np, ap, mx])->sort(~pid->ascending())`,
+    rows: [[1, 750.0, 4, 10.375, 11.0], [2, 750.0, 4, 10.375, 11.0], [3, 150.0, 2, 19.75, 20.0], [4, 750.0, 4, 10.375, 11.0], [5, 750.0, 4, 10.375, 11.0], [6, 150.0, 2, 19.75, 20.0], [7, 10.0, 1, 5.0, 5.0], [8, 750.0, 4, 10.375, 11.0], [9, 150.0, 2, 19.75, 20.0]] },
+  // the lowest price so far
+  { query: `${P}->extend(over(~pid->ascending()), ~lo:{p,w,r|$r.px}:y|$y->min())->select(~[pid, lo])->sort(~pid->ascending())`,
+    rows: [[1, 10.0], [2, 10.0], [3, 10.0], [4, 10.0], [5, 10.0], [6, 10.0], [7, 5.0], [8, 5.0], [9, 5.0]] },
+  // the running volume of a minute's bars: a window over a group
+  { query: `${P}->extend(~[b:x|$x.tm->timeBucket(1, DurationUnit.MINUTES)])->groupBy(~[b], ~[v:x|$x.sz:y|$y->sum()])->extend(over(~b->ascending()), ~cv:{p,w,r|$r.v}:y|$y->plus())->sort(~b->ascending())`,
+    rows: [["2026-10-24T09:30:00", 350.0, 350.0], ["2026-10-24T09:31:00", 400.0, 750.0], ["2026-10-24T09:32:00", 85.0, 835.0], ["2026-10-24T09:33:00", 75.0, 910.0]] },
+  // a price's change from the previous print: a window read in a formula
+  { query: `${P}->extend(over(~sym, ~pid->ascending()), ~chg:{p,w,r|$r.px->toOne() - $p->lag($r).px->toOne()})->select(~[pid, chg])->sort(~pid->ascending())`,
+    rows: [[1, null], [2, 0.5], [3, null], [4, null], [5, null], [6, -0.5], [7, null], [8, -1.0], [9, null]] },
+  // the two biggest prints of each name (a top of each group: a row number filtered, SQL's QUALIFY, with no compiling)
+  { query: `${P}->extend(over(~sym, [~sz->descending(), ~pid->ascending()]), ~rn:{p,w,r|$p->rowNumber($r)})->filter(x|$x.rn <= 2)->select(~[pid, sym, rn])->sort(~pid->ascending())`,
+    rows: [[2, "AAA", 2], [3, "BBB", 2], [4, "AAA", 1], [6, "BBB", 1], [7, null, 1]] },
+  // a print's share of its name's volume: a window over the whole partition, read in a formula
+  { query: `${P}->extend(over(~sym), ~tot:{p,w,r|$r.sz}:y|$y->plus())->extend(~share:x|$x.sz / $x.tot->toOne())->select(~[pid, share])->sort(~pid->ascending())`,
+    rows: [[1, 0.13333333333333333], [2, 0.26666666666666666], [3, 0.3333333333333333], [4, 0.4], [5, 0.13333333333333333], [6, 0.5], [7, 1.0], [8, 0.06666666666666667], [9, 0.16666666666666666]] },
+  // a print's rank by price, highest first: its ties one rank (a null price first, descending); its dense rank, percent rank and cumulative distribution
+  { query: `${P}->extend(over(~sym, ~px->descending()), ~[rk:{p,w,r|$p->rank($w, $r)}, dr:{p,w,r|$p->denseRank($w, $r)}, pr:{p,w,r|$p->percentRank($w, $r)}, cd:{p,w,r|$p->cumulativeDistribution($w, $r)}])->select(~[pid, rk, dr, pr, cd])->sort(~pid->ascending())`,
+    rows: [[1, 4, 4, 0.75, 1.0], [2, 3, 3, 0.5, 0.6], [3, 2, 2, 0.5, 0.6666666666666666], [4, 1, 1, 0.0, 0.2], [5, 2, 2, 0.25, 0.4], [6, 3, 3, 1.0, 1.0], [7, 1, 1, 0.0, 1.0], [8, 4, 4, 0.75, 1.0], [9, 1, 1, 0.0, 0.3333333333333333]] },
+  // a rank along a time with ties: the two prints at 09:31 one rank, the next print's rank after both (dense: after one)
+  { query: `${P}->extend(over(~sym, ~tm->ascending()), ~[rk:{p,w,r|$p->rank($w, $r)}, dr:{p,w,r|$p->denseRank($w, $r)}])->select(~[pid, rk, dr])->sort(~pid->ascending())`,
+    rows: [[1, 1, 1], [2, 2, 2], [3, 1, 1], [4, 3, 3], [5, 3, 3], [6, 2, 2], [7, 1, 1], [8, 5, 4], [9, 3, 3]] },
+  // buckets (NTILE) along each name's prints, the first buckets a print larger; a print's cumulative distribution
+  { query: `${P}->extend(over(~sym, ~pid->ascending()), ~[n2:{p,w,r|$p->ntile($r, 2)}, n3:{p,w,r|$p->ntile($r, 3)}, cd:{p,w,r|$p->cumulativeDistribution($w, $r)}])->select(~[pid, n2, n3, cd])->sort(~pid->ascending())`,
+    rows: [[1, 1, 1, 0.2], [2, 1, 1, 0.4], [3, 1, 1, 0.3333333333333333], [4, 1, 2, 0.6], [5, 2, 2, 0.8], [6, 1, 2, 0.6666666666666666], [7, 1, 1, 1.0], [8, 2, 3, 1.0], [9, 2, 3, 1.0]] },
+  // the first and the last price to the row along a time (SQL's default frame: the last of the row's ties)
+  { query: `${P}->extend(over(~sym, ~tm->ascending()), ~[f:{p,w,r|$p->first($w, $r).px}, l:{p,w,r|$p->last($w, $r).px}])->select(~[pid, f, l])->sort(~pid->ascending())`,
+    rows: [[1, 10.0, 10.0], [2, 10.0, 10.5], [3, 20.0, 20.0], [4, 10.0, 11.0], [5, 10.0, 11.0], [6, 20.0, 19.5], [7, 5.0, 5.0], [8, 10.0, 10.0], [9, 20.0, null]] },
+  // the first and the last price of each name's whole partition (a null last price stays null)
+  { query: `${P}->extend(over(~sym, ~pid->ascending(), rows(unbounded(), unbounded())), ~[f:{p,w,r|$p->first($w, $r).px}, l:{p,w,r|$p->last($w, $r).px}])->select(~[pid, f, l])->sort(~pid->ascending())`,
+    rows: [[1, 10.0, 10.0], [2, 10.0, 10.0], [3, 20.0, null], [4, 10.0, 10.0], [5, 10.0, 10.0], [6, 20.0, null], [7, 5.0, 5.0], [8, 10.0, 10.0], [9, 20.0, null]] },
+  // the first name and the last price of a print and its neighbours: a frame of rows
+  { query: `${P}->extend(over(~sym, ~pid->ascending(), rows(-1, 1)), ~[f:{p,w,r|$p->first($w, $r).sym}, l:{p,w,r|$p->last($w, $r).px}])->select(~[pid, f, l])->sort(~pid->ascending())`,
+    rows: [[1, "AAA", 10.5], [2, "AAA", null], [3, "BBB", 19.5], [4, "AAA", 11.0], [5, "AAA", 10.0], [6, "BBB", null], [7, null, 5.0], [8, "AAA", 10.0], [9, "BBB", null]] },
+  // the last price to the row, ROWS: the row's own
+  { query: `${P}->extend(over(~sym, ~pid->ascending(), rows(unbounded(), 0)), ~l:{p,w,r|$p->last($w, $r).px})->select(~[pid, l])->sort(~pid->ascending())`,
+    rows: [[1, 10.0], [2, 10.5], [3, 20.0], [4, null], [5, 11.0], [6, 19.5], [7, 5.0], [8, 10.0], [9, null]] },
+  // the first price and the last print of the last minute, to the row and its ties: a frame of time
+  { query: `${P}->extend(over(~sym, ~tm->ascending(), _range(-1, DurationUnit.MINUTES, 0, DurationUnit.MINUTES)), ~[f:{p,w,r|$p->first($w, $r).px}, l:{p,w,r|$p->last($w, $r).pid}])->select(~[pid, f, l])->sort(~pid->ascending())`,
+    rows: [[1, 10.0, 1], [2, 10.0, 2], [3, 20.0, 3], [4, 10.0, 5], [5, 10.0, 5], [6, 19.5, 6], [7, 5.0, 7], [8, 10.0, 8], [9, 19.5, 9]] },
+  // buckets and percent ranks across every print: no partition
+  { query: `${P}->extend(over(~pid->ascending()), ~[nt:{p,w,r|$p->ntile($r, 4)}, pr:{p,w,r|$p->percentRank($w, $r)}])->select(~[pid, nt, pr])->sort(~pid->ascending())`,
+    rows: [[1, 1, 0.0], [2, 1, 0.125], [3, 1, 0.25], [4, 2, 0.375], [5, 2, 0.5], [6, 3, 0.625], [7, 3, 0.75], [8, 4, 0.875], [9, 4, 1.0]] },
 ];
 
 /** DataCube's shapes, L2's eighteen (the two the compiler refuses, a string operation on a nullable column, are not
@@ -313,7 +395,7 @@ try {
   }
   // a date or a date-time is read by its plan's column type, as DataCube's engine reads it (followedTable): an instant
   // its nanoseconds' UTC wall-clock, a date its day
-  for (const k of TIMES) {
+  for (const k of [...TIMES, ...WINDOWS]) {
     await check(`answers ${k.query}`, async () => {
       const plan = planned(k.query);
       const got = await answer(k.query, (rows) => {

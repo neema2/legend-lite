@@ -36,6 +36,9 @@ public final class DeephavenMessages {
     public record Message(String name, Map<String, Field> fields) {
     }
 
+    /** UpdateBy's operation specs, nested where the protocol nests them. */
+    private static final String SPEC = "UpdateByRequest.UpdateByOperation.UpdateByColumn.UpdateBySpec.";
+
     private static final Map<String, Message> MESSAGES = index(List.of(
             m("BatchTableRequest",
                     f("ops", 1, Kind.MESSAGE, "BatchTableRequest.Operation", Card.REPEATED)),
@@ -54,6 +57,7 @@ public final class DeephavenMessages {
                     f("crossJoin", 23, Kind.MESSAGE, "CrossJoinTablesRequest", Card.PRESENT),
                     f("naturalJoin", 24, Kind.MESSAGE, "NaturalJoinTablesRequest", Card.PRESENT),
                     f("createInputTable", 31, Kind.MESSAGE, "CreateInputTableRequest", Card.PRESENT),
+                    f("updateBy", 32, Kind.MESSAGE, "UpdateByRequest", Card.PRESENT),
                     f("aggregate", 35, Kind.MESSAGE, "AggregateRequest", Card.PRESENT),
                     f("slice", 44, Kind.MESSAGE, "SliceRequest", Card.PRESENT)),
             m("EmptyTableRequest",
@@ -140,6 +144,7 @@ public final class DeephavenMessages {
                     f("avg", 3, Kind.MESSAGE, "AggSpec.AggSpecAvg", Card.PRESENT),
                     f("countDistinct", 4, Kind.MESSAGE, "AggSpec.AggSpecCountDistinct", Card.PRESENT),
                     f("first", 6, Kind.MESSAGE, "AggSpec.AggSpecFirst", Card.PRESENT),
+                    f("last", 10, Kind.MESSAGE, "AggSpec.AggSpecLast", Card.PRESENT),
                     f("max", 11, Kind.MESSAGE, "AggSpec.AggSpecMax", Card.PRESENT),
                     f("median", 12, Kind.MESSAGE, "AggSpec.AggSpecMedian", Card.PRESENT),
                     f("min", 13, Kind.MESSAGE, "AggSpec.AggSpecMin", Card.PRESENT),
@@ -153,6 +158,8 @@ public final class DeephavenMessages {
             m("AggSpec.AggSpecCountDistinct",
                     f("countNulls", 1, Kind.BOOL, null, Card.SINGLE)),
             m("AggSpec.AggSpecFirst"),
+            // a group's last row's value: a window's running figure at the last of each tie, which every tie takes (K6)
+            m("AggSpec.AggSpecLast"),
             m("AggSpec.AggSpecMax"),
             m("AggSpec.AggSpecMedian",
                     f("averageEvenlyDivided", 1, Kind.BOOL, null, Card.SINGLE)),
@@ -172,6 +179,50 @@ public final class DeephavenMessages {
             m("AggSpec.AggSpecNonUniqueSentinel",
                     f("nullValue", 1, Kind.ENUM, "NullValue", Card.PRESENT)),
             m("AggSpec.AggSpecVar"),
+            // A WINDOW'S VALUES (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K6): a row-based operation over each group of
+            // the partition's keys, in the table's order -- running (cumulative) or over a window of rows or of time
+            m("UpdateByRequest",
+                    f("resultId", 1, Kind.MESSAGE, "Ticket", Card.SINGLE),
+                    f("sourceId", 2, Kind.MESSAGE, "TableReference", Card.SINGLE),
+                    f("operations", 4, Kind.MESSAGE, "UpdateByRequest.UpdateByOperation", Card.REPEATED),
+                    f("groupByColumns", 5, Kind.STRING, null, Card.REPEATED)),
+            m("UpdateByRequest.UpdateByOperation",
+                    f("column", 1, Kind.MESSAGE, "UpdateByRequest.UpdateByOperation.UpdateByColumn", Card.PRESENT)),
+            m("UpdateByRequest.UpdateByOperation.UpdateByColumn",
+                    f("spec", 1, Kind.MESSAGE, "UpdateByRequest.UpdateByOperation.UpdateByColumn.UpdateBySpec", Card.SINGLE),
+                    f("matchPairs", 2, Kind.STRING, null, Card.REPEATED)),
+            m("UpdateByRequest.UpdateByOperation.UpdateByColumn.UpdateBySpec",
+                    f("sum", 1, Kind.MESSAGE, SPEC + "UpdateByCumulativeSum", Card.PRESENT),
+                    f("min", 2, Kind.MESSAGE, SPEC + "UpdateByCumulativeMin", Card.PRESENT),
+                    f("max", 3, Kind.MESSAGE, SPEC + "UpdateByCumulativeMax", Card.PRESENT),
+                    f("rollingSum", 7, Kind.MESSAGE, SPEC + "UpdateByRollingSum", Card.PRESENT),
+                    f("rollingGroup", 8, Kind.MESSAGE, SPEC + "UpdateByRollingGroup", Card.PRESENT),
+                    f("rollingAvg", 9, Kind.MESSAGE, SPEC + "UpdateByRollingAvg", Card.PRESENT),
+                    f("rollingMin", 10, Kind.MESSAGE, SPEC + "UpdateByRollingMin", Card.PRESENT),
+                    f("rollingMax", 11, Kind.MESSAGE, SPEC + "UpdateByRollingMax", Card.PRESENT),
+                    f("rollingCount", 18, Kind.MESSAGE, SPEC + "UpdateByRollingCount", Card.PRESENT),
+                    f("countWhere", 23, Kind.MESSAGE, SPEC + "UpdateByCumulativeCountWhere", Card.PRESENT)),
+            m(SPEC + "UpdateByCumulativeSum"),
+            m(SPEC + "UpdateByCumulativeMin"),
+            m(SPEC + "UpdateByCumulativeMax"),
+            rolling("UpdateByRollingSum"),
+            rolling("UpdateByRollingGroup"),
+            rolling("UpdateByRollingAvg"),
+            rolling("UpdateByRollingMin"),
+            rolling("UpdateByRollingMax"),
+            rolling("UpdateByRollingCount"),
+            m(SPEC + "UpdateByCumulativeCountWhere",
+                    f("resultColumn", 1, Kind.STRING, null, Card.SINGLE),
+                    f("filters", 2, Kind.STRING, null, Card.REPEATED)),
+            // a window's size: in rows (ticks, the current one among them), or in time along a date-time column
+            m("UpdateByWindowScale",
+                    f("ticks", 1, Kind.MESSAGE, "UpdateByWindowScale.UpdateByWindowTicks", Card.PRESENT),
+                    f("time", 2, Kind.MESSAGE, "UpdateByWindowScale.UpdateByWindowTime", Card.PRESENT)),
+            m("UpdateByWindowScale.UpdateByWindowTicks",
+                    f("ticks", 1, Kind.DOUBLE, null, Card.SINGLE)),
+            m("UpdateByWindowScale.UpdateByWindowTime",
+                    f("column", 1, Kind.STRING, null, Card.SINGLE),
+                    f("nanos", 2, Kind.SINT64, null, Card.PRESENT)),
             m("Aggregation.AggregationCount",
                     f("columnName", 1, Kind.STRING, null, Card.SINGLE)),
             m("Aggregation.AggregationCountWhere",
@@ -249,6 +300,13 @@ public final class DeephavenMessages {
 
     private static Field f(String json, int number, Kind kind, @com.legend.base.Nullable String type, Card card) {
         return new Field(json, number, kind, type, card);
+    }
+
+    /** A rolling operation's spec (K6): its window behind the row, the row among it, and ahead. */
+    private static Message rolling(String name) {
+        return m(SPEC + name,
+                f("reverseWindowScale", 1, Kind.MESSAGE, "UpdateByWindowScale", Card.SINGLE),
+                f("forwardWindowScale", 2, Kind.MESSAGE, "UpdateByWindowScale", Card.SINGLE));
     }
 
     private static Message m(String name, Field... fields) {

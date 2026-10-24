@@ -5,10 +5,15 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { extendWindow } from '../src/query.ts';
-import { renameColumnReferences, type QuerySnapshot, type WindowSpec } from '../src/snapshot.ts';
+import { extendWindow, levelLambda } from '../src/query.ts';
+import { showAsColumns, SHOW_AS_LABELS } from '../src/calc-presets.ts';
+import type { ShowAsKind } from '../src/chart-spec.ts';
+import {
+  renameColumnReferences, WINDOW_FUNCTIONS, type QuerySnapshot, type WindowFrame, type WindowSpec,
+} from '../src/snapshot.ts';
 import { element, from } from '../../pure-protocol/src/index.ts';
-import { print, printLevel } from './lite-compiler.ts';
+import { plannerFor } from './catalog-builder.ts';
+import { print, printLevel, source } from './lite-compiler.ts';
 
 /** A window column over `t`, as the compiler prints the query that extends it. */
 function windowExtend(name: string, w: WindowSpec): Promise<string> {
@@ -111,5 +116,86 @@ describe('a group-level window follows the tree', () => {
   it('a rename reaches the columns a window names', () => {
     const renamed = renameColumnReferences(CUBE, 'notional', 'amount');
     assert.equal(renamed.groupDerived?.[0]?.window?.column, 'amount');
+  });
+});
+
+// ON DEEPHAVEN (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K6): every window DataCube writes -- each function with each
+// frame it takes, each show-as on a cube's level -- plans for a Deephaven runtime as the server's table operations,
+// refused by none; their rows are DuckDB's on the pinned server (test/deephaven/page.ts).
+const DEEPHAVEN = `###Relational
+Database risk::Ref
+(
+  Table trades (id INTEGER PRIMARY KEY, region VARCHAR(16), desk VARCHAR(16), year INTEGER, notional DOUBLE, pnl DOUBLE)
+)
+###Connection
+RelationalDatabaseConnection risk::Conn
+{
+  store: risk::Ref;
+  type: Deephaven;
+  specification: Deephaven { host: '127.0.0.1'; port: 8443; useTls: true; };
+  auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };
+}
+###Runtime
+Runtime risk::RT
+{
+  mappings: [];
+  connections: [ risk::Ref: [ c: risk::Conn ] ];
+}`;
+
+describe('every window DataCube writes plans on Deephaven', () => {
+  const planner = plannerFor(DEEPHAVEN, 'risk::RT');
+  const planned = async (query: Parameters<typeof planner.plan>[0], what: string, refused: string[]): Promise<void> => {
+    try {
+      const plan = await planner.plan(query);
+      if (!plan.sql.startsWith('{"ops": [')) refused.push(`${what}: not Deephaven's operations: ${plan.sql}`);
+    } catch (e) {
+      refused.push(`${what}: ${String(e)}`);
+    }
+  };
+
+  it('each window function, with each frame it takes', async () => {
+    const trades = from(await source('#>{risk::Ref.trades}#'));
+    const refused: string[] = [];
+    for (const meta of WINDOW_FUNCTIONS) {
+      const frames: readonly (WindowFrame | undefined)[] = meta.framed
+        ? [undefined, 'running', 'partition', { lastRows: 3 }] : [undefined];
+      for (const frame of frames) {
+        const w: WindowSpec = {
+          fn: meta.fn, partition: ['desk'], order: [{ column: 'year', direction: 'asc' }, { column: 'id', direction: 'asc' }],
+          ...(meta.column ? { column: 'pnl' } : {}), ...(frame ? { frame } : {}),
+          ...(meta.fn === 'lag' ? { offset: 2 } : {}), ...(meta.fn === 'ntile' ? { buckets: 3 } : {}),
+        };
+        await planned(extendWindow(trades, 'w', w).lambda(), `${meta.fn} ${JSON.stringify(frame)}`, refused);
+      }
+    }
+    assert.equal(WINDOW_FUNCTIONS.length, 15);
+    assert.deepEqual(refused, []);
+  });
+
+  it('each show-as, on a cube\'s levels', async () => {
+    const refused: string[] = [];
+    const kinds = Object.keys(SHOW_AS_LABELS) as ShowAsKind[];
+    for (const kind of kinds) {
+      const cube: QuerySnapshot = {
+        source: { query: await source('#>{risk::Ref.trades}#') },
+        columns: [
+          { name: 'id', type: 'Integer' }, { name: 'region', type: 'String' }, { name: 'desk', type: 'String' },
+          { name: 'year', type: 'Integer' }, { name: 'notional', type: 'Float' }, { name: 'pnl', type: 'Float' },
+        ],
+        derived: [],
+        rows: ['region', 'desk'],
+        pivotOn: [],
+        measures: [{ name: 'notional', column: 'notional', fn: 'sum' }],
+        sorts: [],
+        epoch: 1,
+        groupDerived: showAsColumns({ kind }, 'notional', ['desk'], ['region']),
+      };
+      for (const level of [1, 2]) {
+        await planned(levelLambda(cube, { level, parent: level === 2 ? ['EMEA'] : [] }), `${kind} at level ${level}`,
+          refused);
+      }
+    }
+    assert.equal(kinds.length, 6);
+    assert.deepEqual(refused, []);
   });
 });

@@ -295,6 +295,19 @@ public final class Deephaven extends AnsiSqlRenderer {
         };
     }
 
+    /** The library function reading the first or the last value ({@code fn}) of a group of {@code fact}'s type, the
+     *  type's null when the group is empty: {@code first} of a primitive column's vector, {@code firstObj} of an object
+     *  column's (DH33: a vector's own methods are not the validator's). */
+    String ofGroup(TypeFact fact, String fn, String what) {
+        if (!(fact instanceof TypeFact.Typed t) || !(t.type() instanceof SqlType.Scalar s)) {
+            throw new DialectCapability(what + " of no known type reached Deephaven, whose groups are typed");
+        }
+        return switch (scalarTypeName(s)) {
+            case "int", "long", "double" -> fn;
+            default -> fn + "Obj";
+        };
+    }
+
     /** Whether {@code e} may be SQL NULL; uncertainty is the safe side ({@link TypeFact.Typed#nullable}). */
     static boolean nullable(SqlExpr e) {
         return !(e.type() instanceof TypeFact.Typed t) || t.nullable();
@@ -704,6 +717,10 @@ public final class Deephaven extends AnsiSqlRenderer {
     private @com.legend.base.Nullable String bareColumn(SqlExpr e) {
         // a name the server keeps for a row's place (i, ii, k), which its filter parser would not read as a column, is
         // never a column's: DeephavenJson refuses it
+        if (e instanceof SqlExpr.WindowCall && bareKind(e) != null) {
+            // a window is the column it was computed into (K6: a top-N's row number, filtered with no compiling)
+            return scope().computed.get(e);
+        }
         return e instanceof SqlExpr.Column c && scope().computed.get(e) == null && bareKind(e) != null ? column(c) : null;
     }
 

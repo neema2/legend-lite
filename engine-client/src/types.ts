@@ -70,6 +70,11 @@ export function isDay(type: string | undefined): boolean {
   return isTemporal(type) && plainType(type as string) === 'StrictDate';
 }
 
+/** Pure's abstract Date: a day or an instant, which only a value says (what `datePart` and `adjust` answer). */
+export function isEitherDate(type: string | undefined): boolean {
+  return isTemporal(type) && plainType(type as string) === 'Date';
+}
+
 /** A time of day alone: StrictTime. */
 export function isTimeOfDay(type: string | undefined): boolean {
   return isTemporal(type) && plainType(type as string) === 'StrictTime';

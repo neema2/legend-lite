@@ -286,8 +286,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  again at its tick; about 2 KB gzipped, in the grid's own paths, which every tick and every scroll run; measured
  *  320,660 there) and 321,000 -> 322,000 (2026-10-23, A1, the user's "a visual of the cell color changing": a ticked
  *  number flashes green or red where its row is the same row (DataGrid.tickRows `flash`), a refused tick said once, the
- *  status bar's count drawn again when a tick brings or takes rows; measured 321,067 there)). Measured 334,805. */
-const BUDGET = 335_000;
+ *  status bar's count drawn again when a tick brings or takes rows; measured 321,067 there)). Measured 334,805.
+ *  335,000 -> 335,500 (2026-10-24, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K3, the trader screens: a date-time's
+ *  periods finer than a day -- the grain words, `grainsOf` and the refusal of an intraday grain on a date, in the
+ *  header menu's and the grid presets' paths; for the user's sign-off, D9). Measured 335,166. */
+const BUDGET = 335_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

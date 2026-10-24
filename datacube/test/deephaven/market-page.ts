@@ -165,6 +165,20 @@ try {
     return names > 0 && off === 0 ? null : `${names} names traded, ${off} with a VWAP outside their range`;
   });
 
+  await check('windows over the tape (K6): a running VWAP inside its running range, a previous print for all but the'
+    + ' first of each name', async () => {
+    // one query, so the prints windowed are the prints counted; a running low and high are Pure's [0..1]
+    const [counted] = await rows(`${T}->extend(over(~tsym, ~seq->ascending(), rows(unbounded(), 0)),`
+      + ` ~[pv:{p,w,r|$r.px * $r.sz}:y|$y->plus(), v:{p,w,r|$r.sz}:y|$y->plus(), hi:{p,w,r|$r.px}:y|$y->max(),`
+      + ` lo:{p,w,r|$r.px}:y|$y->min()])->extend(over(~tsym, ~seq->ascending()), ~prev:{p,w,r|$p->lag($r).px})`
+      + `->extend(~[off:x|(($x.pv / $x.v) < ($x.lo->toOne() - 0.000001)) || (($x.pv / $x.v) > ($x.hi->toOne() + 0.000001))])`
+      + `->groupBy(~[], ~[all:x|$x.seq:y|$y->count(), off:x|if($x.off, |1, |[]):y|$y->count(),`
+      + ` firsts:x|if($x.prev->isEmpty(), |1, |[]):y|$y->count(), names:x|$x.tsym:y|$y->distinct()->count()])`);
+    const [all = 0, off = 0, firsts = 0, names = 0] = (counted ?? []).map(Number);
+    return all > 0 && off === 0 && firsts === names ? null
+      : `${all} prints: ${off} with a VWAP outside their range, ${firsts} with no previous print for ${names} names`;
+  });
+
   await check('crypto ticks, simulated, with its feed refused: every coin traded, each print the simulator\'s', async () => {
     const coins = await rows(`${T}->join(${I}, ${INNER}, {t, i | $t.tsym == $i.sym})->filter(x|$x.kind == 'CRYPTO')`
       + `->groupBy(~[venue], ~[n:x|$x.tsym:y|$y->distinct()->count()])`);

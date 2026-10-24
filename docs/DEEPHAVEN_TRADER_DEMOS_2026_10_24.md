@@ -39,7 +39,7 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | K3 | **intraday grains built 2026-10-24** (§5); the candlestick kind waits on PR #72's `minBy` and `maxBy` aggregates (its open and close). **A candlestick chart** in DataCube: open, high, low, close and volume by time bucket, drawn again at its grid's tick with its axes held (C2) | DataCube's chart tests; the chart ticking in a browser check |
 | K4 | **the ticker**: a watchlist (last, change, bid/ask, volume, day VWAP, high/low), the tape, time and sales, and a live candle chart for the symbol picked | a browser check of every part ticking; the speeds of §4 measured |
 | K5 | **the runtime error on Deephaven**: the lowering's guard (Pure fails on `sqrt` of a negative, on an Integer division by zero) writes an `ERROR` no Deephaven formula holds yet; a formula that fails by name, so `sqrt` and Integer `/` plan | the dialect's tests; a failing row failing the view, said, on the server |
-| K6 | **windows as `updateBy`**: running and moving figures (by rows and by time), lag and lead, first and last; top-N per group as `headBy`; DataCube's window functions and show-as | each against DuckDB's answer |
+| K6 | **built 2026-10-24** (§5), but for EMA, delta and NTH_VALUE. **Windows as `updateBy`**: running and moving figures (by rows and by time), lag and lead, first and last, the ranks; top-N per group (a row number filtered, SQL's QUALIFY: no `headBy` needed); DataCube's window functions and show-as | each against DuckDB's answer |
 | K7 | **as-of joins as `aj`** (DH20) | the same |
 | K8 | **the market map**: a treemap of every name, sized by value, coloured by the day's change, ticking | a browser check |
 | K9 | **real-time P&L with limits**: day P&L against the prior close by desk and book, KPI tiles that turn red past a limit | the same |
@@ -131,4 +131,38 @@ menu and the chart's form list `grainsOf(type)` -- and is refused one by name, b
 preset alike. Measured: four prints in three five-minute buckets, planned and run on DuckDB (`chart-queries.test.ts`);
 K1 ran the same buckets on the pinned Deephaven. The candlestick kind follows PR #72: its open and close are #72's
 `minBy` and `maxBy` over an order (DataCube's own aggregates, not a copy of them here; K3a made Deephaven run them).
+
+**K6, windows on Deephaven (2026-10-24).** A select's windows are computed after its rows are filtered and grouped and
+before its QUALIFY and its outputs read them (SQL's order), each into a column the outputs read by name
+(`DeephavenBatch.windows`; `Deephaven.Scope#computed`). Windows over the same partition and order are one pass of the
+server's: one sort (a key that may be null after its null flag, as a select's sort), one `updateBy` grouped by the
+partition holding every running and rolling operation, one aggregate across each tie and one across each partition,
+each joined back. Running figures are the server's cumulative sum, min and max; a running count of a value that may
+be null its `countWhere`, of every row (and a row's number) the sum of a column of ones; a running average their
+quotient. SQL's default frame (RANGE to the row) counts a row's ties with it: each tie takes the figure at the last of
+them (an aggregate's `last` by the partition and the order), where ROWS takes the rows as they are. A frame of rows is
+the server's rolling operation over ticks, the row one of those behind it (`rows(-2, -1)` is 3 behind and -1 ahead);
+a RANGE of time along one ascending date-time that is never null, over its nanoseconds (a fixed unit; a month refused).
+LAG and LEAD are the one row a rolling group that far away holds, read by the library's `first` (DH33: a vector's own
+methods are not the validator's). A rank is the number of the first of a row's ties; a dense rank the running count
+of the ties begun; percent rank, cumulative distribution and NTILE figures of those and the partition's count (NTILE's
+whole-number quotients exact, as the server's `/` is a fraction's). FIRST_VALUE and LAST_VALUE are the partition's
+first or last row's, a tie's last, the row's own, or a rolling group's first or last. A whole partition's figure is its
+aggregate joined back. A filter over a window (QUALIFY: the top of each group) reads the window's column with no
+compiling (DH25). The message table gains `updateBy` and its specs, checked against Deephaven's definitions.
+
+Measured: 21 window queries over nine prints made for the edges -- two names and a print of none, a tie at 09:31,
+prints exactly a minute and exactly thirty seconds apart, null prices -- answer on the pinned server exactly DuckDB
+1.4.4's answers (`datacube/test/deephaven/page.ts`, 59 checks): running figures with ties, a running VWAP, a minute's
+and thirty seconds' windows of time (both bounds inclusive, a tie inside its window), the previous, next and second
+previous print and the previous name, moving figures of rows, a row number with nulls first, a name's whole figures
+and a print's share of them, the lowest so far, a running volume of minute bars (a window over a group), a price's
+change from the previous print (a window in a formula), the two biggest prints of each name, the ranks and NTILE, and
+first and last values over every frame kind. Disabling the tie step turns the ties check red (600 where DuckDB says 700).
+On the market world's live tape (`//datacube:deephaven_market_test`, now 10 checks): every name's running VWAP inside
+its running range, and a previous print for all but the first of each name. Every one of DataCube's 15 window
+functions, with each frame it takes, and its 6 show-as at a cube's levels plan for a Deephaven runtime
+(`window-columns.test.ts`). Not built: EMA and delta (Deephaven's own, no Pure function names them yet), NTH_VALUE,
+LAG with a default, a RANGE of numbers, a distinct or ordered aggregate over a window; each refused by name. A
+window's speed on a realistic tape is K4's to measure.
 

@@ -34,7 +34,7 @@ formats (data bars, colour scales, icon sets, rules, a format code's colour) in 
 into `#cell`, and the conditionals (`measureConditionals`, measured over the grid's rows as heatmaps are) must be measured
 again at a tick, or a ticking cell keeps a stale bar or colour; on a flat grid read by a window (V1) the rows are the
 window's, as a heatmap's are. #72 also adds DataCube features the Deephaven target refuses today (below): correlation,
-covariance, max-by and min-by; Top/Bottom N (a rank window); dates relative to today.
+covariance and dates relative to today; its max-by and min-by (K3a) and Top/Bottom N's rank window (K6) are built.
 
 ## What is built (the plan's §9 table; each row's paragraph says what it measured)
 
@@ -62,7 +62,7 @@ then `http://127.0.0.1:8080/` (one cube) and `/board.html` (three grids, two cha
 Deephaven. Verified on Linux only.
 
 **Checks** (the browser ones start the pinned server): `//datacube:deephaven_test` (answers worked out by hand, and
-K1's DuckDB's), `deephaven_market_test` (the trader screens' market world, K2),
+K1's and K6's DuckDB's), `deephaven_market_test` (the trader screens' market world, K2, and windows over its tape),
 `deephaven_cube_test`, `deephaven_flat_test`, `deephaven_board_test`; `//core:core_tests_deephaven`,
 `//core:core_tests_sql` (`DeephavenDialectTest`), `//core:deephaven_messages_test` (the message table against
 Deephaven's own definitions); then `//datacube:all //engine-client:all`. **Manual tools:**
@@ -116,7 +116,7 @@ operation Deephaven has for it:
 | Area | Refused on Deephaven | Deephaven's own | Blocks |
 |---|---|---|---|
 | Time (**built: K1**, except `now()` and `dateDiff`) | a DateTime literal; `now()->adjust`; `timeBucket`; `hour()` (EXTRACT); `datePart` (DATE_TRUNC_DAY); `firstDayOfMonth` (DATE_TRUNC); `dateDiff` | `lowerBin`, `now()`, calendar functions (a time zone each: a design point); a sliding window needs Deephaven's time-window helper, since `now()` in a filter is not evaluated again as time passes | candles, "the last 5 minutes", every DataCube time grain |
-| Windows | every window function (`updateBy` shape not built), and a filter over one (QUALIFY) | `updateBy` (cumulative, rolling by rows or time, EMA, delta); `headBy` for top-N | moving averages, tick change, running totals; all 15 of DataCube's window functions and its 6 show-as |
+| Windows (**built: K6**, except EMA, delta and NTH_VALUE) | every window function (`updateBy` shape not built), and a filter over one (QUALIFY) | `updateBy` (cumulative, rolling by rows or time, EMA, delta); `headBy` for top-N | moving averages, tick change, running totals; all 15 of DataCube's window functions and its 6 show-as |
 | As-of join | both forms | `aj` (DH20) | quote at trade time, markouts, TCA |
 | The runtime error | `sqrt` and Integer `/`: the lowering's guard (Pure fails on `sqrt` of a negative and on division by zero) writes an `ERROR`, which has no shape | a design: how a Deephaven formula fails by name | volatility, ratios, Black-Scholes |
 | Aggregates | percentile, `stdDevPopulation`, `variancePopulation`, `joinStrings`, `mode` (and #72's corr, covariance, max-by, min-by) | `pct`; the others computed or refused for good | 5 of DataCube's 15 aggregates |

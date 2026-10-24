@@ -32,6 +32,7 @@ class DeephavenDialectTest {
                             year INTEGER, qty BIGINT, notional DOUBLE, pnl DOUBLE, instrument VARCHAR(16))
               Table instrument (iid VARCHAR(16) PRIMARY KEY, sector VARCHAR(16), ccy VARCHAR(3) NOT NULL)
               Table fills (fid INTEGER PRIMARY KEY, tm TIMESTAMP NOT NULL, ts TIMESTAMP, d DATE, px DOUBLE)
+              Table prints (pid INTEGER PRIMARY KEY, sym VARCHAR(8), tm TIMESTAMP NOT NULL, px DOUBLE, sz DOUBLE NOT NULL)
             )
             ###Connection
             RelationalDatabaseConnection risk::Conn
@@ -268,7 +269,7 @@ class DeephavenDialectTest {
     @Test
     void whatHasNoShapeIsRefusedByName() {
         DialectCapability window = assertThrows(DialectCapability.class, () -> batch("#>{risk::Ref.trades}#"
-                + "->extend(over(~desk, ~pnl->descending()), ~[r:{p, w, r | $p->rank($w, $r)}])"));
+                + "->extend(over(~desk, ~pnl->descending()), ~[r:{p, w, r | $p->nth($w, $r, 2).id}])"));
         assertTrue(window.getMessage().contains("reached Deephaven"), window.getMessage());
         DialectCapability string = assertThrows(DialectCapability.class, () -> batch("#>{risk::Ref.trades}#"
                 + "->filter(x | $x.region == 'a`b')"));
@@ -405,5 +406,157 @@ class DeephavenDialectTest {
                     () -> batch(F + "->extend(~r:x|" + now + ")"));
             assertTrue(e.getMessage().contains("DH30"), e.getMessage());
         }
+    }
+
+    // ==================================================================
+    // Windows (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K6)
+    // ==================================================================
+
+    private static final String P = "#>{risk::Ref.prints}#";
+
+    /** How many of {@code b}'s operations are {@code op}. */
+    private static int count(String b, String op) {
+        return b.split("\\{\"" + op + "\": \\{", -1).length - 1;
+    }
+
+    /** A running figure along an order: the rows sorted by it, the server's cumulative operation grouped by the
+     *  partition; SQL's default frame counts a row's ties with it, so each tie takes the figure at the last of them. */
+    @Test
+    void aRunningFigureIsTheServersUpdateByAndATieTakesItsLastFigure() {
+        String b = batch(P + "->extend(over(~sym, ~tm->ascending()), ~vol:{p,w,r|$r.sz}:y|$y->plus())->select(~[pid, vol])");
+        assertTrue(b.contains("{\"sort\": {\"sourceId\": {\"batchOffset\": 0}, \"sorts\": [{\"columnName\": \"t0__tm\","
+                + " \"direction\": \"ASCENDING\"}]}}"), b);
+        assertTrue(b.contains("{\"updateBy\": {\"sourceId\": {\"batchOffset\": 1}, \"operations\": [{\"column\": {\"spec\":"
+                + " {\"sum\": {}}, \"matchPairs\": [\"__x1=t0__sz\"]}}], \"groupByColumns\": [\"t0__sym\"]}}"), b);
+        assertTrue(b.contains("{\"aggregate\": {\"sourceId\": {\"batchOffset\": 2}, \"groupByColumns\": [\"t0__sym\","
+                + " \"t0__tm\"], \"aggregations\": [{\"columns\": {\"spec\": {\"last\": {}}, \"matchPairs\":"
+                + " [\"__w0=__x1\"]}}]}}"), b);
+        assertTrue(b.contains("\"columnsToMatch\": [\"t0__sym\", \"t0__tm\"], \"columnsToAdd\": [\"__w0\"]"), b);
+        assertTrue(b.contains("\"vol = __w0\""), b);
+        // ROWS from the partition's start is the rows as they are: no tie to take
+        String rows = batch(P + "->extend(over(~sym, ~pid->ascending(), rows(unbounded(), 0)), ~v:{p,w,r|$r.sz}:y|"
+                + "$y->plus())->select(~[pid, v])");
+        assertEquals(0, count(rows, "aggregate"), rows);
+        // a count of a value that may be null counts where it is not; a running average is the running sum over it
+        String avg = batch(P + "->extend(over(~sym, ~pid->ascending()), ~a:{p,w,r|$r.px}:y|$y->average())"
+                + "->select(~[pid, a])");
+        assertTrue(avg.contains("{\"countWhere\": {\"resultColumn\": \"__x3\", \"filters\": [\"t0__px != null\"]}}"), avg);
+        assertTrue(avg.contains("\"__x1 = (__x3 == 0 ? NULL_DOUBLE : (double) __x2 / __x3)\""), avg);
+        // a row's number counts a column of ones, ties or none
+        String rn = batch(P + "->extend(over(~sym, ~tm->ascending()), ~rn:{p,w,r|$p->rowNumber($r)})->select(~[pid, rn])");
+        assertTrue(rn.contains("\"__x0 = 1L\"") && rn.contains("\"matchPairs\": [\"__w1=__x0\"]"), rn);
+        assertEquals(0, count(rn, "aggregate"), rn);
+    }
+
+    /** A key that may be null sorts after its null flag, as a select's does: nulls first descending. */
+    @Test
+    void anOrderKeyThatMayBeNullSortsItsNullsWhereThePlatformsOrderPutsThem() {
+        String b = batch(P + "->extend(over(~sym, [~px->descending(), ~pid->ascending()]), ~rn:{p,w,r|$p->rowNumber($r)})"
+                + "->select(~[pid, rn])");
+        assertTrue(b.contains("\"__x0 = isNull(t0__px)\""), b);
+        assertTrue(b.contains("\"sorts\": [{\"columnName\": \"__x0\", \"direction\": \"DESCENDING\"}, {\"columnName\":"
+                + " \"t0__px\", \"direction\": \"DESCENDING\"}, {\"columnName\": \"t0__pid\", \"direction\": \"ASCENDING\"}]"), b);
+    }
+
+    /** A frame of rows is the server's rolling operation over ticks (the row itself one of those behind it); a RANGE of
+     *  time along one date-time is one over its nanoseconds; LAG and LEAD the one row a window that far away holds. */
+    @Test
+    void aFrameOfRowsOrOfTimeIsTheServersRollingOperation() {
+        String rows = batch(P + "->extend(over(~sym, ~pid->ascending(), rows(-2, 0)), ~m:{p,w,r|$r.px}:y|$y->average())"
+                + "->select(~[pid, m])");
+        assertTrue(rows.contains("{\"rollingAvg\": {\"reverseWindowScale\": {\"ticks\": {\"ticks\": 3}},"
+                + " \"forwardWindowScale\": {\"ticks\": {\"ticks\": 0}}}}"), rows);
+        String before = batch(P + "->extend(over(~sym, ~pid->ascending(), rows(-2, -1)), ~b:{p,w,r|$r.sz}:y|$y->plus())"
+                + "->select(~[pid, b])");
+        assertTrue(before.contains("{\"rollingSum\": {\"reverseWindowScale\": {\"ticks\": {\"ticks\": 3}},"
+                + " \"forwardWindowScale\": {\"ticks\": {\"ticks\": -1}}}}"), before);
+        String time = batch(P + "->extend(over(~sym, ~tm->ascending(), _range(-1, DurationUnit.MINUTES, 30,"
+                + " DurationUnit.SECONDS)), ~v:{p,w,r|$r.sz}:y|$y->plus())->select(~[pid, v])");
+        assertTrue(time.contains("{\"rollingSum\": {\"reverseWindowScale\": {\"time\": {\"column\": \"t0__tm\", \"nanos\":"
+                + " \"60000000000\"}}, \"forwardWindowScale\": {\"time\": {\"column\": \"t0__tm\", \"nanos\":"
+                + " \"30000000000\"}}}}"), time);
+        String shifted = batch(P + "->extend(over(~sym, ~pid->ascending()), ~[a:{p,w,r|$p->lag($r).px},"
+                + " b:{p,w,r|$p->lead($r, 2).sym}])->select(~[pid, a, b])");
+        assertTrue(shifted.contains("{\"rollingGroup\": {\"reverseWindowScale\": {\"ticks\": {\"ticks\": 2}},"
+                + " \"forwardWindowScale\": {\"ticks\": {\"ticks\": -1}}}}"), shifted);
+        assertTrue(shifted.contains("{\"rollingGroup\": {\"reverseWindowScale\": {\"ticks\": {\"ticks\": -1}},"
+                + " \"forwardWindowScale\": {\"ticks\": {\"ticks\": 2}}}}"), shifted);
+        // the group's one value read by the library (DH33: a vector's own methods are not the validator's)
+        assertTrue(shifted.contains(" = first(__x") && shifted.contains(" = firstObj(__x"), shifted);
+    }
+
+    /** Windows over one partition and order share their sort and their updateBy; over a whole partition, its
+     *  aggregate, joined back. */
+    @Test
+    void windowsOverOneOrderAreOnePassOfTheServers() {
+        String b = batch(P + "->extend(over(~sym, ~pid->ascending()), ~[a:{p,w,r|$r.sz}:y|$y->plus(),"
+                + " c:{p,w,r|$r.px}:y|$y->max()])->extend(over(~sym, ~pid->ascending()), ~prev:{p,w,r|$p->lag($r).px})"
+                + "->extend(over(~sym, ~pid->ascending(), rows(-4, 0)), ~m:{p,w,r|$r.px}:y|$y->average())"
+                + "->select(~[pid, a, c, prev, m])");
+        assertEquals(1, count(b, "sort"), b);
+        assertEquals(1, count(b, "updateBy"), b);
+        assertEquals(1, count(b, "aggregate"), b);
+        String whole = batch(P + "->extend(over(~sym), ~[t:{p,w,r|$r.sz}:y|$y->plus(), n:{p,w,r|$r.px}:y|$y->count()])"
+                + "->select(~[pid, t, n])");
+        assertTrue(whole.contains("{\"aggregate\": {\"sourceId\": {\"batchOffset\": 0}, \"groupByColumns\": [\"t0__sym\"],"
+                + " \"aggregations\": [{\"columns\": {\"spec\": {\"sum\": {}}, \"matchPairs\": [\"__w0=t0__sz\"]}},"
+                + " {\"countWhere\": {\"columnName\": \"__w1\", \"filters\": [\"t0__px != null\"]}}]}}"), whole);
+        assertTrue(whole.contains("\"columnsToMatch\": [\"t0__sym\"], \"columnsToAdd\": [\"__w0\", \"__w1\"]"), whole);
+        assertEquals(0, count(whole, "sort"), whole);
+    }
+
+    @Test
+    void aWindowWithNoShapeYetIsRefusedByName() {
+        for (String w : List.of(
+                // a month is no fixed length of time
+                "over(~sym, ~tm->ascending(), _range(-1, DurationUnit.MONTHS, 0, DurationUnit.MONTHS)), ~v:{p,w,r|$r.sz}:y|$y->plus()",
+                // a frame open after the row
+                "over(~sym, ~pid->ascending(), rows(0, unbounded())), ~v:{p,w,r|$r.sz}:y|$y->plus()",
+                // a RANGE of numbers
+                "over(~sym, ~sz->ascending(), _range(-10, 0)), ~v:{p,w,r|$r.sz}:y|$y->plus()")) {
+            DialectCapability e = assertThrows(DialectCapability.class, () -> batch(P + "->extend(" + w + ")"));
+            assertTrue(e.getMessage().contains("reached Deephaven"), e.getMessage());
+        }
+    }
+
+    /** A filter over a window -- the top of each group, SQL's QUALIFY -- reads the column the window was computed
+     *  into, with no compiling (DH25). */
+    @Test
+    void aTopOfEachGroupIsItsRowNumberFilteredWithNoCompiling() {
+        String b = batch(P + "->extend(over(~sym, [~sz->descending(), ~pid->ascending()]), ~rn:{p,w,r|$p->rowNumber($r)})"
+                + "->filter(x|$x.rn <= 2)->select(~[pid, sym, rn])");
+        assertTrue(b.contains("{\"unstructuredFilter\": {\"sourceId\": {\"batchOffset\": 3}, \"filters\": [\"__w1 <= 2\"]}}"), b);
+    }
+
+    /** A rank is the row number of the first of its ties, read across each tie; a dense rank the running count of the
+     *  ties begun; percent rank, cumulative distribution and NTILE figures of those and the partition's count; the
+     *  first and the last value the partition's, a tie's, or a rolling group's. */
+    @Test
+    void aRankAndAFirstOrLastValueAreReadAcrossTiesAndPartitions() {
+        String b = batch(P + "->extend(over(~sym, ~px->descending()), ~[rk:{p,w,r|$p->rank($w, $r)},"
+                + " dr:{p,w,r|$p->denseRank($w, $r)}, pr:{p,w,r|$p->percentRank($w, $r)},"
+                + " cd:{p,w,r|$p->cumulativeDistribution($w, $r)}])->select(~[pid, rk, dr, pr, cd])");
+        // one row number, the first and the last of it across each tie, the partition's count
+        assertEquals(1, count(b, "sort"), b);
+        assertTrue(b.contains("{\"aggregate\": {\"sourceId\": {\"batchOffset\": 3}, \"groupByColumns\": [\"t0__sym\", \"__x0\","
+                + " \"t0__px\"], \"aggregations\": [{\"columns\": {\"spec\": {\"first\": {}}, \"matchPairs\": [\"__x3=__x2\"]}},"
+                + " {\"columns\": {\"spec\": {\"last\": {}}, \"matchPairs\": [\"__x4=__x2\"]}}]}}"), b);
+        assertTrue(b.contains("{\"count\": {\"columnName\": \"__x5\"}}"), b);
+        assertTrue(b.contains("\"__x8 = (__x2 == __x3) ? 1L : 0L\""), b);
+        assertTrue(b.contains("\"__w9 = (__x5 == 1 ? 0.0 : (double) (__x3 - 1) / (__x5 - 1))\""), b);
+        assertTrue(b.contains("\"__w10 = (double) __x4 / __x5\""), b);
+        String ntile = batch(P + "->extend(over(~sym, ~pid->ascending()), ~n:{p,w,r|$p->ntile($r, 3)})->select(~[pid, n])");
+        assertTrue(ntile.contains(" % 3"), ntile);
+        String values = batch(P + "->extend(over(~sym, ~tm->ascending()), ~[f:{p,w,r|$p->first($w, $r).px},"
+                + " l:{p,w,r|$p->last($w, $r).px}])->select(~[pid, f, l])");
+        // the first to the row is the partition's first; the last to the row, the last of its ties
+        assertTrue(values.contains("\"groupByColumns\": [\"t0__sym\"], \"aggregations\": [{\"columns\": {\"spec\": {\"first\":"
+                + " {}}, \"matchPairs\": [\"__w0=t0__px\"]}}]"), values);
+        assertTrue(values.contains("\"groupByColumns\": [\"t0__sym\", \"t0__tm\"], \"aggregations\": [{\"columns\": {\"spec\":"
+                + " {\"last\": {}}, \"matchPairs\": [\"__w1=t0__px\"]}}]"), values);
+        String rolling = batch(P + "->extend(over(~sym, ~pid->ascending(), rows(-1, 1)), ~f:{p,w,r|$p->first($w, $r).sym})"
+                + "->select(~[pid, f])");
+        assertTrue(rolling.contains("{\"rollingGroup\": {\"reverseWindowScale\": {\"ticks\": {\"ticks\": 2}},"
+                + " \"forwardWindowScale\": {\"ticks\": {\"ticks\": 1}}}}") && rolling.contains(" = firstObj(__x"), rolling);
     }
 }
