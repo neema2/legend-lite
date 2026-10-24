@@ -4,22 +4,23 @@
 // and Show As, and for Python's grid.grain, grid.show_as and grid.bins (D6, D21); the screen's Bins opens the column
 // editor on the same expression for a person to name and change.
 
-import { binColumns, grainColumn, showAsColumns } from './calc-presets.ts';
-import { SHOW_AS_KINDS, TIME_GRAINS, type Bins, type ShowAsKind, type TimeGrain } from './chart-spec.ts';
+import { binColumns, grainColumn, GRID_SHOW_AS_KINDS, gridShowAsColumns, isGridRatio, type GridShowAsKind } from './calc-presets.ts';
+import { TIME_GRAINS, type Bins, type TimeGrain } from './chart-spec.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn } from './snapshot.ts';
 
 /** A preset as the menu offers it and Python names it. */
 export type GridPreset =
   | { readonly kind: 'grain'; readonly column: string; readonly grain: TimeGrain }
-  | { readonly kind: 'showAs'; readonly column: string; readonly showAs: ShowAsKind }
+  | { readonly kind: 'showAs'; readonly column: string; readonly showAs: GridShowAsKind }
   | { readonly kind: 'bins'; readonly column: string; readonly bins: Bins };
 
 /**
  * The commands a preset adds to the grid as it is (`s`): its columns, each a `calculate` at the preset's level --
  * a period and a bin before the grouping, a Show As after it, along the grid's row groups in order -- named after the
  * column and the preset (`notional_runningTotal`), else that name with `_2`, `_3`… where the grid has a column of it.
- * A grain, a Show As or bins DataCube has not are refused, in its words.
+ * A Show As shows its one column as Excel's Show Values As does: the columns it reads hidden, a share or a change as a
+ * percentage. A grain, a Show As or bins DataCube has not are refused, in its words.
  */
 export function presetCommands(s: CubeSnapshot, preset: GridPreset): GridCommand[] {
   const { level, base, make } = shaped(s, preset);
@@ -27,7 +28,12 @@ export function presetCommands(s: CubeSnapshot, preset: GridPreset): GridCommand
   const fits = (name: string): boolean => make(name).every((d) => !taken.has(d.name));
   let free = base;
   for (let i = 2; !fits(free); i += 1) free = `${base}_${i}`;
-  return make(free).map((column): GridCommand => ({ kind: 'calculate', level, column }));
+  const columns = make(free);
+  const commands = columns.map((column): GridCommand => ({ kind: 'calculate', level, column }));
+  if (preset.kind !== 'showAs') return commands;
+  const settings: Record<string, unknown> = Object.fromEntries(columns.slice(0, -1).map((d) => [d.name, { hidden: true }]));
+  if (isGridRatio(preset.showAs)) settings[free] = { format: { kind: 'percent' } };
+  return Object.keys(settings).length === 0 ? commands : [...commands, { kind: 'configure', patch: { columns: settings } }];
 }
 
 function shaped(s: CubeSnapshot, preset: GridPreset):
@@ -39,13 +45,13 @@ function shaped(s: CubeSnapshot, preset: GridPreset):
       }
       return { level: 'row', base: `${preset.column}_${preset.grain}`, make: (n) => [grainColumn(preset.column, preset.grain, n)] };
     case 'showAs': {
-      if (!SHOW_AS_KINDS.includes(preset.showAs)) {
-        throw new CubeRefusal(`a Show As is ${SHOW_AS_KINDS.join(', ')}, not ${JSON.stringify(preset.showAs)}`);
+      if (!(GRID_SHOW_AS_KINDS as readonly string[]).includes(preset.showAs)) {
+        throw new CubeRefusal(`a Show As is ${GRID_SHOW_AS_KINDS.join(', ')}, not ${JSON.stringify(preset.showAs)}`);
       }
       // along the grid's own groupings, in order: said, not left to the level's sort -- which may be this very column
       const along = [...s.rows];
-      const show = { kind: preset.showAs };
-      return { level: 'group', base: `${preset.column}_${preset.showAs}`, make: (n) => showAsColumns(show, preset.column, along, [], n) };
+      const kind = preset.showAs;
+      return { level: 'group', base: `${preset.column}_${kind}`, make: (n) => gridShowAsColumns(kind, preset.column, along, n) };
     }
     case 'bins': {
       const { width, count } = preset.bins;
@@ -77,7 +83,7 @@ export function readGridPreset(raw: unknown): GridPreset {
       return { kind: 'grain', column, grain: o['grain'] as TimeGrain };
     case 'showAs':
       only(['showAs']);
-      return { kind: 'showAs', column, showAs: o['showAs'] as ShowAsKind };
+      return { kind: 'showAs', column, showAs: o['showAs'] as GridShowAsKind };
     case 'bins': {
       only(['bins']);
       const bins = o['bins'];

@@ -391,6 +391,25 @@ describe('a level query', () => {
         ),
       /uses wavg but has no weight column/,
     );
+    // so every aggregate of two (snapshot.ts SECOND_COLUMN), its second column named by what it is
+    assert.throws(() => level(snap({ measures: [{ name: 'c', column: 'notional', fn: 'corr' }] })), /uses corr but has no paired column/);
+    assert.throws(() => level(snap({ measures: [{ name: 'm', column: 'notional', fn: 'maxBy' }] })), /uses maxBy but has no ordering column/);
+  });
+
+  it("writes an aggregate of two as one row of two values, each a pivot cell's own; a distinct count of its own column or the one it names", async () => {
+    const s = await level(snap({
+      rows: ['region'], pivotOn: [],
+      measures: [
+        { name: 'c', column: 'notional', fn: 'corr', weight: 'qty' },
+        { name: 'top', column: 'country', fn: 'maxBy', weight: 'notional' },
+        { name: 'n', column: 'qty', fn: 'distinctCount' },
+        { name: 'k', column: 'qty', fn: 'distinctCount', weight: 'country' },
+      ],
+    }), { level: 1, parent: [] });
+    assert.match(s, /c:x\|\$x\.notional->rowMapper\(\$x\.qty\):y\|\$y->corr\(\)/);
+    assert.match(s, /top:x\|\$x\.country->rowMapper\(\$x\.notional\):y\|\$y->maxBy\(\)/);
+    assert.match(s, /n:x\|\$x\.qty:y\|\$y->distinct\(\)->count\(\)/);
+    assert.match(s, /k:x\|\$x\.country:y\|\$y->distinct\(\)->count\(\)/);
   });
 
   it('appends row dimensions to make the sort a total order', async () => {

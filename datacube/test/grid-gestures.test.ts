@@ -4,6 +4,7 @@
 // given what it does not take.
 
 import assert from 'node:assert/strict';
+import { DATA_BAR, RULE_STYLES } from '../src/conditional.ts';
 import { describe, it } from 'node:test';
 
 import { element } from '../../pure-protocol/src/index.ts';
@@ -154,6 +155,54 @@ describe('sorts, the tree and a dimension', () => {
   });
 });
 
+describe('the value list and date ranges: a column\'s own conditions replaced', () => {
+  const emea = { kind: 'condition' as const, column: 'region', operator: 'equal' as const, value: 'EMEA' };
+  const big = { kind: 'condition' as const, column: 'notional', operator: 'greaterThan' as const, value: 100 };
+
+  it('the values kept in place of the column\'s own conditions; every value takes them off; nothing kept refused', () => {
+    const filtered = grid({ filter: { kind: 'and', children: [emea, big] } });
+    assert.deepEqual(gridGesture('filter.values', filtered, { column: 'region', values: ['EMEA', 'AMER', null] }), [{
+      kind: 'refilter', remove: [emea],
+      add: [{ kind: 'or', children: [
+        { kind: 'condition', column: 'region', operator: 'in', value: ['EMEA', 'AMER'] },
+        { kind: 'condition', column: 'region', operator: 'isEmpty' },
+      ] }],
+    }]);
+    // applied: the other column's condition stays as it was
+    const [command] = gridGesture('filter.values', filtered, { column: 'region', values: ['AMER'] });
+    const after = applyGridCommands({ snapshot: filtered.snapshot, config: DEFAULT_CONFIGURATION }, [command!]);
+    assert.deepEqual(after.snapshot.filter,
+      { kind: 'and', children: [big, { kind: 'condition', column: 'region', operator: 'equal', value: 'AMER' }] });
+    assert.deepEqual(gridGesture('filter.values', filtered, { column: 'region', values: null }),
+      [{ kind: 'refilter', remove: [emea], add: [] }], 'every value: its own conditions off');
+    assert.deepEqual(gridGesture('filter.values', grid(), { column: 'region', values: null }), [], 'none to take off');
+    refused(() => gridGesture('filter.values', grid(), { column: 'region', values: [] }), /keep at least one value of 'region'/);
+    refused(() => gridGesture('filter.values', grid(), { column: 'region', values: 'EMEA' as never }), /the values kept are a list/);
+  });
+
+  it('a date range from its start to its end, in place of the column\'s own conditions', () => {
+    const [command] = gridGesture('filter.dateRange', grid(), { column: 'year', range: 'thisYear' });
+    assert.deepEqual(command, { kind: 'refilter', remove: [], add: [
+      { kind: 'condition', column: 'year', operator: 'greaterThanEqual', value: { relative: 'today', startOf: 'year' } },
+      { kind: 'condition', column: 'year', operator: 'lessThan',
+        value: { relative: 'today', startOf: 'year', offset: 1, unit: 'YEARS' } },
+    ] });
+    refused(() => gridGesture('filter.dateRange', grid(), { column: 'year', range: 'soon' as never }), /a date range is today/);
+  });
+});
+
+describe('top or bottom N', () => {
+  it('by the column, the largest or the smallest; taken off when set', () => {
+    assert.deepEqual(gridGesture('filter.topN', grid(), { column: 'notional', n: 10 }),
+      [{ kind: 'topN', topN: { by: 'notional', n: 10 } }]);
+    assert.deepEqual(gridGesture('filter.topN', grid(), { column: 'notional', n: 5, bottom: true }),
+      [{ kind: 'topN', topN: { by: 'notional', n: 5, bottom: true } }]);
+    assert.deepEqual(gridGesture('filter.topNOff', grid({ topN: { by: 'notional', n: 5 } }), {}), [{ kind: 'topN', topN: null }]);
+    assert.deepEqual(gridGesture('filter.topNOff', grid(), {}), [], 'none to take off');
+    refused(() => gridGesture('filter.topN', grid(), { column: 'notional', n: 2.5 }), /whole number from 1/);
+  });
+});
+
 describe('what a gesture is given', () => {
   it('named by text (a menu entry, Python), an argument it does not take, or one it needs and is not given, is refused in words', () => {
     refused(() => gridGestureGiven('column.pinLeft', grid(), { column: 'desk', side: 'left' }), /'column.pinLeft' takes column, not side/);
@@ -176,7 +225,8 @@ describe('what a gesture is given', () => {
   it('a gesture that reads the view is said to -- the heatmap only where a pivoted leaf can be named; one given no view refuses to guess', () => {
     const pivoted: CubeSnapshot = { ...CUBE, pivotOn: ['year'] };
     assert.deepEqual(GRID_GESTURES.filter((n) => gestureReadsView(n, pivoted, { column: '2021__|__notional' })),
-      ['header.sort', 'column.minimizeAll', 'heatmap.add', 'heatmap.remove']);
+      ['header.sort', 'column.minimizeAll', 'heatmap.add', 'heatmap.remove', 'format.dataBar', 'format.colorScale', 'format.iconSet',
+        'format.addRule', 'format.code', 'format.clear']);
     // a grid not pivoted, a column of the grid's own, a pivot's total: no view to read, the grid not run for it
     assert.equal(gestureReadsView('heatmap.add', CUBE, { column: 'notional' }), false);
     assert.equal(gestureReadsView('heatmap.add', pivoted, { column: 'notional' }), false);
@@ -190,5 +240,49 @@ describe('what a gesture is given', () => {
   it("a gesture's commands apply: what it makes, the grid takes", () => {
     const d = { snapshot: CUBE, config: DEFAULT_CONFIGURATION };
     assert.deepEqual(applyGridCommands(d, gridGesture('pivot.addVertical', grid(), { column: 'desk' })).snapshot.rows, ['region', 'desk']);
+  });
+});
+
+describe("conditional formats (conditional.ts): on what a heatmap is on", () => {
+  it('data bars on and off, a colour scale, icons, a rule added once, all cleared', () => {
+    const patch = (columns: unknown): unknown[] => [{ kind: 'configure', patch: { columns } }];
+    assert.deepEqual(gridGesture('format.dataBar', grid(), { column: 'notional', on: true }), patch({ notional: { dataBar: DATA_BAR } }));
+    assert.deepEqual(gridGesture('format.dataBar', grid(), { column: 'notional', on: false }), [], 'no bars to take off');
+    assert.deepEqual(gridGesture('format.colorScale', grid(), { column: 'notional', scale: { from: '#f8696b', mid: '#ffeb84', to: '#63be7b' } }),
+      patch({ notional: { heatmap: { from: '#f8696b', mid: '#ffeb84', to: '#63be7b' } } }));
+    assert.deepEqual(gridGesture('format.iconSet', grid(), { column: 'notional', set: 'flags', reverse: true }),
+      patch({ notional: { iconSet: { set: 'flags', reverse: true } } }));
+    const rule = { when: { op: 'greaterThan', value: 100 }, style: 'yellow' } as const;
+    const kept = { when: { op: 'greaterThan', value: 100 }, style: RULE_STYLES.yellow };
+    assert.deepEqual(gridGesture('format.addRule', grid(), { column: 'notional', rule }), patch({ notional: { rules: [kept] } }));
+    const ruled = withColumns({ notional: { rules: [kept as never] } });
+    assert.deepEqual(gridGesture('format.addRule', grid({}, ruled), { column: 'notional', rule }), [], 'the rule it has');
+    assert.deepEqual(gridGesture('format.addRule', grid({}, ruled), { column: 'notional', rule: { when: { op: 'blank' }, style: 'bold' } as const }),
+      patch({ notional: { rules: [kept, { when: { op: 'blank' }, style: RULE_STYLES.bold }] } }), 'after those it has');
+    assert.deepEqual(gridGesture('format.clear', grid({}, ruled), { column: 'notional' }),
+      patch({ notional: { heatmap: null, dataBar: null, iconSet: null, rules: null } }));
+    refused(() => gridGesture('format.iconSet', grid(), { column: 'notional', set: 'stars' as never }), /one of arrows, trafficLights, symbols, flags/);
+    refused(() => gridGesture('format.addRule', grid(), { column: 'notional', rule: { when: { op: 'top' }, style: 'yellow' } as never }), /count is missing/);
+    refused(() => gridGesture('format.colorScale', grid(), { column: 'notional', scale: { from: 'red', to: '#fff' } as never }), /#rrggbb, not "red"/);
+  });
+
+  it("on a pivoted column's measure, so every value's column has it", () => {
+    assert.deepEqual(gridGesture('format.iconSet', grid({ pivotOn: ['year'] }), { column: '2021__|__notional', set: 'arrows' }),
+      [{ kind: 'configure', patch: { columns: { notional: { iconSet: { set: 'arrows' } } } } }]);
+  });
+});
+
+describe("an Excel number format code on a column (format-code.ts)", () => {
+  it('set beside its other format settings, judged as given, taken off by null', () => {
+    const patch = (columns: unknown): unknown[] => [{ kind: 'configure', patch: { columns } }];
+    assert.deepEqual(gridGesture('format.code', grid(), { column: 'notional', code: '#,##0.0,,"M"' }),
+      patch({ notional: { format: { kind: 'auto', code: '#,##0.0,,"M"' } } }));
+    const formatted = withColumns({ notional: { format: { kind: 'number', decimals: 2, code: '0.0%' } } });
+    assert.deepEqual(gridGesture('format.code', grid({}, formatted), { column: 'notional', code: null }),
+      patch({ notional: { format: { kind: 'number', decimals: 2 } } }), 'its other settings kept');
+    assert.deepEqual(gridGesture('format.code', grid({}, withColumns({ notional: { format: { kind: 'auto', code: '0' } } })), { column: 'notional', code: null }),
+      patch({ notional: { format: null } }), 'nothing left: the format taken off');
+    assert.deepEqual(gridGesture('format.code', grid({}, formatted), { column: 'notional', code: '0.0%' }), [], 'the code it has');
+    refused(() => gridGesture('format.code', grid(), { column: 'notional', code: '[>100]0' }), /\[>100\] \(a condition or an elapsed time\)/);
   });
 });

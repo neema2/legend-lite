@@ -187,7 +187,7 @@ export async function fetchTree(
       const detail = request.level > depth;
       const target = detail ? detailSnapshot(snapshot, request.parent) : snapshot;
       const scoped = detail
-        ? { level: target.rows.length, parent: [], limit: maxRows + 1 }
+        ? { level: target.rows.length, parent: [], limit: maxRows + 1, grandFilter: snapshot.filter ?? null }
         : { ...request, limit: maxRows + 1 };
       const query = levelLambda(target, scoped, deps.pivot);
       const { rows: full, sql } = await deps.runner.run(
@@ -315,6 +315,11 @@ export type TreeColumnMode = 'single' | 'perDimension';
 
 /** Name of the synthetic tree column. Its header renders empty. */
 export const TREE_COLUMN = '__tree';
+
+/** The tree column's heading in an export or a copy, where the screen leaves it blank: what it groups by. */
+export function treeHeaderText(groupLabels: readonly string[]): string {
+  return groupLabels.join(' / ') || 'Group';
+}
 
 export interface AssembleOptions {
   readonly treeColumn?: TreeColumnMode;

@@ -194,6 +194,69 @@ export const SHOW_AS_LABELS: Readonly<Record<ShowAsKind, string>> = {
   rank: 'Rank',
 };
 
+/**
+ * What the GRID's Show As offers (grid-presets.ts; Excel's Show Values As): the chart's, and what a tree of groups has
+ * that a chart's rows have not -- a share of the grand total at every depth, a share of the parent row, a running share,
+ * a rank from the smallest.
+ */
+export const GRID_SHOW_AS_KINDS = [
+  'percentOfTotal', 'percentOfParent', 'runningTotal', 'percentRunningTotal', 'difference', 'percentChange',
+  'movingAverage', 'rank', 'rankAscending',
+] as const;
+export type GridShowAsKind = (typeof GRID_SHOW_AS_KINDS)[number];
+
+export const GRID_SHOW_AS_LABELS: Readonly<Record<GridShowAsKind, string>> = {
+  percentOfTotal: '% of grand total',
+  percentOfParent: '% of parent row total',
+  runningTotal: 'Running total',
+  percentRunningTotal: '% running total',
+  difference: 'Difference from previous',
+  percentChange: '% change from previous',
+  movingAverage: 'Moving average',
+  rank: 'Rank, largest first',
+  rankAscending: 'Rank, smallest first',
+};
+
+/** Whether the grid's Show As reads as a percentage: its preset shows it as one. */
+export function isGridRatio(kind: GridShowAsKind): boolean {
+  return kind === 'percentOfTotal' || kind === 'percentOfParent' || kind === 'percentRunningTotal' || kind === 'percentChange';
+}
+
+/**
+ * A measure shown as something computed from it in the GRID, as group-level columns: each level's rows are its
+ * parent's (query.ts LevelScope), `along` the grid's row groups in order. A share of the grand total or of the parent
+ * row divides by the measure AT THAT GRAIN (snapshot.ts Grain: the same aggregate over the coarser group's rows, so an
+ * average's share is of the average, exact at every depth); a running share by its running total's own end, so the
+ * last group reads 100%. The rest are the chart's (showAsColumns). The last column returned is the one shown, `name`;
+ * any it reads are named after it.
+ */
+export function gridShowAsColumns(kind: GridShowAsKind, base: string, along: readonly string[], name: string): DerivedColumn[] {
+  switch (kind) {
+    case 'percentOfTotal':
+    case 'percentOfParent': {
+      const whole = `${name}__${kind === 'percentOfTotal' ? 'total' : 'parent'}`;
+      return [
+        { name: whole, grain: { of: base, at: kind === 'percentOfTotal' ? 'all' : 'parent' } },
+        { name, lambda: row(share(one(base), whole)) },
+      ];
+    }
+    case 'percentRunningTotal': {
+      const running = `${name}__running`;
+      const total = `${name}__total`;
+      const order: SortSpec[] = along.map((column) => ({ column, direction: 'asc' }));
+      return [
+        { name: running, window: { fn: 'sum', column: base, partition: [], order, frame: 'running' } },
+        { name: total, window: wholeOf('sum', base) },
+        { name, lambda: row(share(one(running), total)) },
+      ];
+    }
+    case 'rankAscending':
+      return [{ name, window: { fn: 'rank', partition: [], order: [{ column: base, direction: 'asc' }] } }];
+    default:
+      return showAsColumns({ kind }, base, along, [], name);
+  }
+}
+
 /** Whether a show-as is a ratio (a share, a change): it reads as a percentage. */
 export function isRatio(kind: ShowAsKind): boolean {
   return kind === 'percentOfTotal' || kind === 'percentChange';

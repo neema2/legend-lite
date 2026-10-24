@@ -651,6 +651,30 @@ describe('buildColumnModel', () => {
     assert.equal(m.leaves[1]?.pinned, 'right');
   });
 
+  it('seats a pinned column at its edge, in the order shown, as frozen panes are: never stuck over the columns before it', () => {
+    // c pinned left from the middle sat in the middle, sticky at left 0 -- over a and b once scrolled; e pinned right
+    // from the left did the same at the right edge
+    const m = buildColumnModel(table(['a', 'b', 'c', 'd', 'e', 'f']), [], [], {
+      pinned: { c: 'left', e: 'right', f: 'left', a: 'right' },
+    });
+    assert.deepEqual(m.leaves.map((l) => l.name), ['c', 'f', 'b', 'd', 'a', 'e']);
+    // the header follows the leaves, one cell over each
+    assert.deepEqual(m.headerRows[0]?.map((h) => h.label), ['c', 'f', 'b', 'd', 'a', 'e']);
+  });
+
+  it('keeps the tree column first whatever is pinned left', () => {
+    const t: ResultTable = {
+      columns: [
+        { name: TREE_COLUMN, type: 'String', values: [] },
+        { name: 'x', type: 'Float', values: [] },
+        { name: 'y', type: 'Float', values: [] },
+      ],
+      rowCount: 0, epoch: 1, elapsedMs: 0,
+    };
+    const m = buildColumnModel(t, ['region'], [], { pinned: { y: 'left' } });
+    assert.deepEqual(m.leaves.map((l) => l.name), [TREE_COLUMN, 'y', 'x']);
+  });
+
   it('renames the header without changing the identity', () => {
     // The lookup still has to find the engine's column, so only the
     // label moves.

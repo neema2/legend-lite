@@ -254,7 +254,7 @@ class Screen {
         return this.idle();
       }
       case 'heatmap':
-        await this.menu(this.header(a.column), `Add Heatmap to ${columnLabel(a.column)}`);
+        await this.menu(this.header(a.column), 'Heatmap');
         // the colours the menu sets are the ones the case gives Python's call
         assert.deepEqual(this.app.configuration.columns[a.column]?.heatmap, { from: a.from, to: a.to });
         return;

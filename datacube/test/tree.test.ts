@@ -286,4 +286,12 @@ describe('Initially expand to level', () => {
     assert.equal(t.isOpen(['EMEA']), false);
     assert.equal(t.expandTo, 0);
   });
+
+  it('Expand All opens every group above the detail rows, the ones closed by hand too', () => {
+    const t = TreeState.empty().withExpandTo(1).collapse(['EMEA']).expandAll(3);
+    assert.equal(t.isOpen(['EMEA'], 3), true, 'closed by hand, open again');
+    assert.equal(t.isOpen(['EMEA', 'FX'], 3), true);
+    assert.equal(t.isOpen(['EMEA', 'FX', 'spot'], 3), false, 'the deepest groups stay shut: their detail rows are not asked');
+    assert.equal(t.expandTo, 3);
+  });
 });

@@ -28,6 +28,7 @@ import {
   type ColumnModel,
   type LeafColumn,
 } from './columns.ts';
+import { treeHeaderText } from '../treeview.ts';
 import { computeRowWindow, isCovered, type RowWindow } from './viewport.ts';
 import {
   currentHeaderDrag,
@@ -35,7 +36,7 @@ import {
   setHeaderDrag,
 } from '../ui/pivot-panel.ts';
 import type { ColumnFormat, FormatterCache } from '../format.ts';
-import { DEFAULT_FORMAT } from '../format.ts';
+import { DEFAULT_FORMAT, codeColour } from '../format.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import {
   bounds,
@@ -57,6 +58,7 @@ import {
   type CellAppearance,
   type GridAppearance,
 } from '../style.ts';
+import type { CellDecoration } from '../conditional.ts';
 
 export interface GridRowMeta {
   /** Depth in the row-group tree; 1 for a top-level row. */
@@ -101,6 +103,8 @@ export interface GridOptions {
    * and a test must not depend on a browser granting it.
    */
   readonly writeClipboard?: (text: string) => void | Promise<void>;
+  /** The tree column's heading in a copy (the screen leaves it blank): what it groups by. */
+  readonly treeHeader?: () => string;
   /**
    * Whether a column header may be dragged into the pivot zones.
    *
@@ -130,6 +134,12 @@ export interface GridOptions {
     order: readonly string[],
     added?: string,
   ) => void;
+  /**
+   * A cell's conditional formats (conditional.ts): a bar behind its value, an icon before it, a rule's colours --
+   * drawn after the heatmap, so a rule's background is over its colour. A hook as cellBackground is, the grid being
+   * virtualised.
+   */
+  readonly cellDecoration?: (leaf: LeafColumn, row: number, value: Scalar) => CellDecoration | null;
   /**
    * A per-cell background, for a heatmap.
    *
@@ -237,6 +247,10 @@ export class DataGrid {
   #rendered: RowWindow | null = null;
   #focus: Focus = { row: 0, col: 0 };
   #selection: CellRange | null = null;
+  /** Where a mouse drag across the cells started, while the button is down; the click ending a drag that moved keeps
+   *  the rectangle it made (#dragged). */
+  #dragFrom: Focus | null = null;
+  #dragged = false;
   #frame = 0;
   /** The sorts the header marks. */
   #sorts: readonly HeaderSort[] = [];
@@ -356,6 +370,9 @@ export class DataGrid {
     }
     this.#root.addEventListener('keydown', this.#onKeyDown);
     this.#body.addEventListener('click', this.#onClick);
+    this.#body.addEventListener('pointerdown', this.#onPointerDown);
+    this.#body.addEventListener('pointermove', this.#onPointerMove);
+    this.#root.ownerDocument.addEventListener('pointerup', this.#onPointerUp);
   }
 
   /** Replace the column model. Resets the header. */
@@ -556,6 +573,9 @@ export class DataGrid {
     this.#scroller.removeEventListener('scroll', this.#onScroll);
     this.#root.removeEventListener('keydown', this.#onKeyDown);
     this.#body.removeEventListener('click', this.#onClick);
+    this.#body.removeEventListener('pointerdown', this.#onPointerDown);
+    this.#body.removeEventListener('pointermove', this.#onPointerMove);
+    this.#root.ownerDocument.removeEventListener('pointerup', this.#onPointerUp);
     if (this.#frame) cancelAnimationFrame(this.#frame);
     this.#root.replaceChildren();
   }
@@ -567,6 +587,7 @@ export class DataGrid {
     if (!model) return;
     const doc = this.#root.ownerDocument;
     this.#headGrid.replaceChildren();
+    const sticky = this.#stickyOffsets(model);
 
     // One CSS grid for the whole header, with every cell placed
     // explicitly. Flexbox cannot express a cell spanning two rows, so
@@ -650,6 +671,8 @@ export class DataGrid {
           // invariant now covers them.
           if (leaf.isDimension) el.classList.add('dc-dim');
           if (leaf.pinned) el.classList.add(`dc-pin-${leaf.pinned}`);
+          el.style.left = sticky.left[cell.leafIndex as number] ?? '';
+          el.style.right = sticky.right[cell.leafIndex as number] ?? '';
           makeHeaderDraggable(
             el,
             leaf.name,
@@ -929,6 +952,7 @@ export class DataGrid {
     for (const row of this.#body.querySelectorAll<HTMLElement>('.dc-row')) {
       row.style.gridTemplateColumns = template;
     }
+    this.#applyStickyOffsets();
   }
 
   #clearDropMarks(): void {
@@ -991,19 +1015,63 @@ export class DataGrid {
    * dimension cell in the body took it.
    */
   #templateColumns(model: ColumnModel): string {
-    return model.leaves
-      .map((l) =>
-        this.#dragWidths.has(l.name)
-          ? `${this.#dragWidths.get(l.name)}px`
-          : l.width !== undefined
-          ? `${l.width}px`
-          : this.#fitWidths.has(l.name)
-          ? `${this.#fitWidths.get(l.name)}px`
-          : l.isDimension
-            ? 'var(--dc-dim-width)'
-            : 'var(--dc-col-width)',
-      )
-      .join(' ');
+    return model.leaves.map((l) => this.#widthOf(l)).join(' ');
+  }
+
+  /** A column's width as the template writes it: dragged, set, fitted, else its kind's default. */
+  #widthOf(l: LeafColumn): string {
+    return this.#dragWidths.has(l.name)
+      ? `${this.#dragWidths.get(l.name)}px`
+      : l.width !== undefined
+      ? `${l.width}px`
+      : this.#fitWidths.has(l.name)
+      ? `${this.#fitWidths.get(l.name)}px`
+      : l.isDimension
+        ? 'var(--dc-dim-width)'
+        : 'var(--dc-col-width)';
+  }
+
+  /**
+   * Where each sticky column sticks: after the sticky columns before it (the row dimensions and those pinned left),
+   * or before those after it (pinned right) -- frozen panes, each beside the last. At the edge, all of them sat on top
+   * of each other once scrolled. Empty for a column that does not stick, or sticks at the edge itself.
+   */
+  #stickyOffsets(model: ColumnModel): { left: string[]; right: string[] } {
+    const sum = (widths: readonly string[]): string =>
+      widths.length === 0 ? '' : widths.length === 1 ? widths[0]! : `calc(${widths.join(' + ')})`;
+    const left: string[] = [];
+    const right: string[] = [];
+    const before: string[] = [];
+    model.leaves.forEach((l, i) => {
+      const sticks = l.isDimension || l.pinned === 'left';
+      left[i] = sticks ? sum(before) : '';
+      if (sticks) before.push(this.#widthOf(l));
+    });
+    const after: string[] = [];
+    for (let i = model.leaves.length - 1; i >= 0; i--) {
+      const l = model.leaves[i]!;
+      const sticks = l.pinned === 'right' && !l.isDimension;
+      right[i] = sticks ? sum(after) : '';
+      if (sticks) after.unshift(this.#widthOf(l));
+    }
+    return { left, right };
+  }
+
+  /** Lay each rendered sticky cell, header and body, at its offset (#stickyOffsets). */
+  #applyStickyOffsets(): void {
+    const model = this.#model;
+    if (!model) return;
+    const { left, right } = this.#stickyOffsets(model);
+    const place = (el: HTMLElement, i: number): void => {
+      el.style.left = left[i] ?? '';
+      el.style.right = right[i] ?? '';
+    };
+    for (const el of this.#headGrid.querySelectorAll<HTMLElement>('.dc-th[data-col]')) {
+      place(el, Number(el.dataset['col']));
+    }
+    for (const el of this.#body.querySelectorAll<HTMLElement>('.dc-row > .dc-cell')) {
+      place(el, Number(el.getAttribute('aria-colindex')) - 1);
+    }
   }
 
   /**
@@ -1013,6 +1081,49 @@ export class DataGrid {
    * rebuilt on every render, and per-cell listeners would have to be
    * torn down with it.
    */
+  /** The body cell a pointer event is over, as its absolute row and its column; null off the cells. */
+  #cellAt(event: Event): Focus | null {
+    const target = event.target as { closest?: unknown } | null;
+    if (!target || typeof target.closest !== 'function') return null;
+    const cell = (target as unknown as Element).closest<HTMLElement>('.dc-cell');
+    const row = cell?.closest<HTMLElement>('.dc-row');
+    if (!cell || !row || !this.#body.contains(cell)) return null;
+    const col = Number(cell.getAttribute('aria-colindex') ?? '0') - 1;
+    const abs = Number(row.getAttribute('aria-rowindex') ?? '0') - this.#headerLevels() - 1;
+    return col >= 0 && abs >= 0 ? { row: abs, col } : null;
+  }
+
+  // A MOUSE DRAG ACROSS THE CELLS selects the rectangle it covers, as a spreadsheet's does. The mouse only: a finger's
+  // drag scrolls the grid, and its long press is the right-click (grid-gestures). Shift is the click's (extend from the
+  // anchor); a press on a chevron opens its group.
+  #onPointerDown = (event: PointerEvent): void => {
+    this.#dragged = false;
+    this.#dragFrom = null;
+    if (event.pointerType !== 'mouse' || event.button !== 0 || event.shiftKey) return;
+    const target = event.target as { closest?: unknown } | null;
+    if (target && typeof target.closest === 'function' && (target as unknown as Element).closest('.dc-chevron')) return;
+    this.#dragFrom = this.#cellAt(event);
+  };
+
+  #onPointerMove = (event: PointerEvent): void => {
+    const from = this.#dragFrom;
+    if (!from || event.pointerType !== 'mouse' || (event.buttons & 1) === 0) return;
+    const at = this.#cellAt(event);
+    if (!at || (at.row === this.#focus.row && at.col === this.#focus.col && this.#dragged)) return;
+    if (!this.#dragged && at.row === from.row && at.col === from.col) return;
+    this.#dragged = true;
+    this.#selection = { anchor: from, focus: at };
+    this.#focus = at;
+    this.#options.onSelectionChange?.(this.#selection);
+    this.#paintHeaderSelection();
+    this.#rendered = null;
+    this.#render();
+  };
+
+  #onPointerUp = (): void => {
+    this.#dragFrom = null;
+  };
+
   #onClick = (event: MouseEvent): void => {
     // Duck-typed rather than `instanceof Element`: the constructor
     // belongs to the document's realm, so an iframe -- or a test DOM
@@ -1022,6 +1133,11 @@ export class DataGrid {
     const el = target as unknown as Element;
     // The second click of a double-click: see #onDoubleClick.
     if (event.detail === 2) this.#onDoubleClick(event);
+    // the click that ends a drag keeps the rectangle the drag made
+    if (this.#dragged) {
+      this.#dragged = false;
+      return;
+    }
 
     const cell = el.closest<HTMLElement>('.dc-cell');
     const chevron = el.closest('.dc-chevron');
@@ -1144,6 +1260,7 @@ export class DataGrid {
     const frag = doc.createDocumentFragment();
     const headerLevels = this.#headerLevels();
     const template = this.#templateColumns(model);
+    const sticky = this.#stickyOffsets(model);
 
     for (let abs = wanted.start; abs < wanted.end; abs++) {
       const local = abs - this.#blockOffset;
@@ -1186,6 +1303,8 @@ export class DataGrid {
         // readable over a shoulder or in a screen share.
         if (leaf.blurred) classes.push('dc-blur');
         cell.className = classes.join(' ');
+        if (sticky.left[c]) cell.style.left = sticky.left[c]!;
+        if (sticky.right[c]) cell.style.right = sticky.right[c]!;
         cell.setAttribute('aria-colindex', String(c + 1));
         // The context menu reads this. Without it a right-click on a
         // CELL produced a menu with every column-specific entry
@@ -1212,11 +1331,27 @@ export class DataGrid {
           for (const [k, v] of Object.entries(onScreen(cellStyle(appearance, value, type)))) {
             cell.style.setProperty(k, v);
           }
+          // a format code's section colour (`[Red]`), as Excel draws it
+          const coded = codeColour(value, this.#options.formats?.[leaf.name], type);
+          if (coded) cell.style.color = coded;
 
           // After the value colours, so a heatmap wins over the
           // normal/negative background it would otherwise fight.
           const heat = this.#options.cellBackground?.(leaf, abs, value);
           if (heat) cell.style.backgroundColor = heat;
+          const deco = leaf.name === TREE_COLUMN ? null : this.#options.cellDecoration?.(leaf, abs, value) ?? null;
+          if (deco?.rule) {
+            if (deco.rule.background) cell.style.backgroundColor = deco.rule.background;
+            if (deco.rule.foreground) cell.style.color = deco.rule.foreground;
+            if (deco.rule.bold) cell.style.fontWeight = '700';
+          }
+          if (deco?.bar) {
+            // a bar from the zero line to the value, behind the text: a gradient of hard stops, its height the cell's middle
+            const at = (f: number): string => `${Math.round(f * 1000) / 10}%`;
+            cell.style.backgroundImage = `linear-gradient(90deg, transparent ${at(deco.bar.start)}, ${deco.bar.color} `
+              + `${at(deco.bar.start)}, ${deco.bar.color} ${at(deco.bar.end)}, transparent ${at(deco.bar.end)})`;
+            cell.classList.add('dc-bar');
+          }
 
           cell.title = leaf.name === TREE_COLUMN
             ? (this.#options.treeTitle?.(abs, text) ?? '')
@@ -1266,6 +1401,16 @@ export class DataGrid {
             } else {
               cell.textContent = text;
             }
+            if (deco?.icon) {
+              const icon = doc.createElement('span');
+              icon.className = 'dc-cond-icon';
+              icon.style.color = deco.icon.color;
+              icon.textContent = deco.icon.glyph;
+              // what the icon says, for a reader that does not see its colour
+              icon.setAttribute('aria-label', deco.icon.label);
+              icon.title = deco.icon.label;
+              cell.prepend(icon);
+            }
           }
         } else {
           // Not fetched yet. Rendered as a placeholder rather than
@@ -1312,24 +1457,41 @@ export class DataGrid {
     let handled = true;
 
     // Copy before the movement switch, so it does not also move.
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+    const command = event.ctrlKey || event.metaKey;
+    if (command && event.key.toLowerCase() === 'c') {
       event.preventDefault();
       this.copySelection();
       return;
     }
+    // Every cell, as a spreadsheet's Ctrl+A: the focus stays where it is.
+    if (command && event.key.toLowerCase() === 'a') {
+      event.preventDefault();
+      if (this.#totalRows === 0 || lastCol < 0) return;
+      this.#selection = { anchor: { row: 0, col: 0 }, focus: { row: lastRow, col: lastCol } };
+      this.#options.onSelectionChange?.(this.#selection);
+      this.#paintHeaderSelection();
+      this.#rendered = null;
+      this.#render();
+      this.#focusCell();
+      return;
+    }
 
+    // Ctrl+Arrow (Cmd on a Mac) goes to the edge: the first or last row or column, as ag-grid -- upstream's grid --
+    // does; with Shift it selects to there.
     switch (event.key) {
       case 'ArrowDown':
-        row = Math.min(lastRow, row + 1);
+        row = command ? lastRow : Math.min(lastRow, row + 1);
         break;
       case 'ArrowUp':
-        row = Math.max(0, row - 1);
+        row = command ? 0 : Math.max(0, row - 1);
         break;
       case 'ArrowRight': {
         // APG treegrid: on a collapsed group row, Right expands rather
         // than moving. Only then does it move to the next column.
         const meta = this.#options.rowMeta?.(row);
-        if (meta?.expanded === false) {
+        if (command) {
+          col = lastCol;
+        } else if (meta?.expanded === false) {
           this.#options.onToggleExpand?.(meta.key, true);
         } else {
           col = Math.min(lastCol, col + 1);
@@ -1338,7 +1500,9 @@ export class DataGrid {
       }
       case 'ArrowLeft': {
         const meta = this.#options.rowMeta?.(row);
-        if (meta?.expanded === true && col === 0) {
+        if (command) {
+          col = 0;
+        } else if (meta?.expanded === true && col === 0) {
           this.#options.onToggleExpand?.(meta.key, false);
         } else {
           col = Math.max(0, col - 1);
@@ -1437,7 +1601,7 @@ export class DataGrid {
     const range = this.#selection;
     const model = this.#model;
     if (!table || !range || !model) return null;
-    const text = toClipboard(selectionTable(table, model.leaves, range));
+    const text = toClipboard(selectionTable(table, model.leaves, range, this.#options.treeHeader?.() ?? treeHeaderText([])));
     void this.#options.writeClipboard?.(text);
     return text;
   }

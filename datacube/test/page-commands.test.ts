@@ -180,6 +180,36 @@ describe('each command gives the page the screen\'s rules give it', () => {
   });
 });
 
+describe('a text tile: added, its words set, titled, moved and removed by the page commands (page-text.ts)', () => {
+  it("added at its sheet's bottom, numbered; its words set whole; saved and read back as they are", () => {
+    const made = applyPageCommand(draft(), { kind: 'addText', sheet: 'sheet-2', text: '# Q3\n\nNotes', title: null, columns: null });
+    assert.equal((made.command as { id: string }).id, 'text-1');
+    const page = made.draft.page;
+    assert.deepEqual(view(page, 'text-1'), { id: 'text-1', kind: 'text', text: '# Q3\n\nNotes' });
+    assert.equal(tiles(sheet(page, 'sheet-2').layout).at(-1), 'text-1', 'a band of its own at the bottom');
+    assert.equal(page.views.at(-1)?.id, 'text-1', "after the grids and charts, as the screen writes them");
+    const set = apply({ kind: 'setText', tile: 'text-1', text: 'Up **3%**' }, made.draft).page;
+    assert.equal((view(set, 'text-1') as { text: string }).text, 'Up **3%**');
+    // saved and read back: a text tile has no cube
+    assert.deepEqual(readPage(JSON.parse(JSON.stringify(pageToJson(set)))).views.find((v) => v.id === 'text-1'), view(set, 'text-1'));
+    // titled, its made title none of its own; removed alone, the page's cubes as they were
+    const titled = apply({ kind: 'renameTile', tile: 'text-1', title: 'Notes' }, made.draft).page;
+    assert.equal((view(titled, 'text-1') as { title?: string }).title, 'Notes');
+    assert.equal((view(apply({ kind: 'renameTile', tile: 'text-1', title: 'Text 1' }, made.draft).page, 'text-1') as { title?: string }).title, undefined);
+    const gone = apply({ kind: 'removeTile', tile: 'text-1' }, made.draft).page;
+    assert.equal(view(gone, 'text-1'), undefined);
+    assert.deepEqual(gone.cubes.map((c) => c.id), trades.cubes.map((c) => c.id));
+  });
+
+  it('refused in words: blank or too long words, a chart set as text, a sheet the page has not', () => {
+    refused(() => apply({ kind: 'addText', sheet: 'sheet-1', text: '  ', title: null, columns: null }), /a text tile has words: its text is blank/);
+    refused(() => apply({ kind: 'addText', sheet: 'sheet-9', text: 'x', title: null, columns: null }), /'sheet-9' is not a sheet of the page/);
+    refused(() => apply({ kind: 'setText', tile: 'chart', text: 'x' }), /'chart' is a chart, not a text tile/);
+    refused(() => apply({ kind: 'addText', sheet: 'sheet-1', text: 'x'.repeat(10_001), title: null, columns: null }), /at most 10,000 characters/);
+    refused(() => readPageCommand({ kind: 'setText', tile: 'text-1', text: 3 }), /a text tile's text is text/);
+  });
+});
+
 describe("a grid of the page as a join reads it, the tab's Join… and Python's alike (joinInputOf: Z9)", () => {
   it('its cube as the page has it, under the title a person gave its tile, else what it reads; a chart refused', () => {
     const grid = trades.cubes.find((c) => c.id === 'grid-2')!.cube;
@@ -192,7 +222,7 @@ describe("a grid of the page as a join reads it, the tab's Join… and Python's 
 });
 
 describe('snapped or live is page state: a snap and a go-live are page commands (design §18.8)', () => {
-  const cube = (id: string) => view(trades, id)!.cube;
+  const cube = (id: string): string => view(trades, id)!.cube!;
 
   it('a snap says the copy its grid reads, by its cube; another snap replaces it; live takes it off', () => {
     const snapped = apply({ kind: 'snap', grid: 'grid', copy: SNAP });
@@ -254,6 +284,8 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'addGrid', id: 'grid-3', document: trades.cubes[0]!.cube, sheet: 'sheet-1', near: 'grid', title: null, columns: 2 },
     { kind: 'addChart', near: 'grid', spec, title: 'T', columns: null },
     { kind: 'setChart', chart: 'chart', spec },
+    { kind: 'addText', id: 'text-1', sheet: 'sheet-1', text: '# Sales', title: null, columns: null },
+    { kind: 'setText', tile: 'text-1', text: 'Up **3%**' },
     { kind: 'followGrid', chart: 'chart', grid: 'grid-2' },
     { kind: 'select', chart: 'chart', conditions: [{ kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' }] },
     { kind: 'moveTile', tile: 'chart', sheet: 'sheet-2', columns: null },

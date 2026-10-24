@@ -53,7 +53,8 @@ describe('lifecycle (B3)', () => {
     await settle();
     engine.gate.hold = false;
     engine.tag = false;
-    const shown = root.querySelector('.dc-drill')?.textContent ?? '';
+    // the rows are a grid's (the drill-through window shows them as one): its cells, read apart
+    const shown = [...root.querySelectorAll('.dc-drill .dc-cell')].map((c) => c.textContent).join(' ');
     assert.match(shown, new RegExp(`\\b${second}\\b`), `the later drill's rows: ${shown}`);
   });
 

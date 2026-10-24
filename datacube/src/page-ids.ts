@@ -7,12 +7,15 @@
 const numberOf = (id: string): number => Number(/-(\d+)$/.exec(id)?.[1] ?? 0);
 
 /** A new id of `kind` (`chart-4`): after every one of its kind the page has held, so never one a handle had. */
-export function nextPageId(held: readonly string[], kind: 'grid' | 'chart' | 'sheet' | 'filter'): string {
+export function nextPageId(held: readonly string[], kind: 'grid' | 'chart' | 'text' | 'sheet' | 'filter'): string {
   return `${kind}-${Math.max(0, ...held.filter((h) => h.startsWith(`${kind}-`)).map(numberOf)) + 1}`;
 }
 
 /** A new chart's title, as the screen titles one: its number (`chart-4`: "Chart 4"). */
 export const chartTitle = (id: string): string => `Chart ${numberOf(id)}`;
+
+/** A text tile's title, unless given one: its number (`text-2`: "Text 2"), not written, as a grid's made title is not. */
+export const textTitle = (id: string): string => `Text ${numberOf(id)}`;
 
 /** A page of its own's new grid's title, unless given one: its number. A grid's made title is not written. */
 export const gridTitle = (id: string): string => `Grid ${numberOf(id)}`;

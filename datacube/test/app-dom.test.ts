@@ -7,11 +7,14 @@ import { before, beforeEach, describe, it } from 'node:test';
 
 import { JSDOM } from 'jsdom';
 import { CubeApp } from '../src/app.ts';
+import { classRelation } from '../src/class-source.ts';
+import { classTree } from '../src/class-tree.ts';
 import type { Planner } from '../src/cube.ts';
 import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import type { GridCommand } from '../src/grid-commands.ts';
+import type { ModelMeasure } from '../src/model-measures.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { pivotTotalColumn } from '../src/snapshot.ts';
 import { setHeaderDrag } from '../src/ui/pivot-panel.ts';
@@ -223,6 +226,76 @@ describe('the app', () => {
     }
     item.click();
   };
+
+  it("a grid over a class offers its related classes' columns, and one chosen is added as the column editor adds one", async () => {
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const classes: CubeSnapshot = { ...SNAPSHOT, source: { query: classRelation('m::Trade', ['region', 'desk', 'notional']) } };
+    const tree = classTree([
+      { _type: 'class', package: 'm', name: 'Trade', properties: [] },
+      { _type: 'class', package: 'm', name: 'Customer', properties: [{ name: 'name', genericType: { rawType: { _type: 'packageableType', fullPath: 'String' } }, multiplicity: { lowerBound: 1, upperBound: 1 } }] },
+      { _type: 'association', package: 'm', name: 'TradeCustomer', properties: [
+        { name: 'customer', genericType: { rawType: { _type: 'packageableType', fullPath: 'm::Customer' } }, multiplicity: { lowerBound: 0, upperBound: 1 } },
+        { name: 'trades', genericType: { rawType: { _type: 'packageableType', fullPath: 'm::Trade' } }, multiplicity: { lowerBound: 0 } },
+      ] },
+    ]);
+    const sent: GridCommand[] = [];
+    const own = new CubeApp(host, classes, { engine, planner, classTree: { class: 'm::Trade', tree }, onCommand: (c) => sent.push(c) });
+    await own.open();
+    (host.querySelector('.dc-app-grid') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    pick('name');
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(sent.filter((c) => c.kind === 'calculate'), [{ kind: 'calculate', level: 'row',
+      column: { name: 'customer_name', related: { path: ['customer', 'name'] }, kind: 'dimension' } }]);
+    // chosen once, offered no more
+    (host.querySelector('.dc-app-grid') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    assert.ok(!menuItems().some((i) => i.textContent === 'Add Related Column'));
+    own.dispose();
+  });
+
+  it("a grid over a class offers its model's measures, and one chosen is added as the steps a person would make", async () => {
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const classes: CubeSnapshot = { ...SNAPSHOT, source: { query: classRelation('m::Trade', ['region', 'desk', 'notional']) } };
+    const of = 'm::Trade';
+    const measures: ModelMeasure[] = [{
+      path: 'm::grossNotional', name: 'grossNotional', of, param: 't', format: '$#,##0', doc: 'Gross notional booked',
+      body: { _type: 'func', function: 'sum', parameters: [{ _type: 'property', property: 'notional', parameters: [{ _type: 'var', name: 't' }] }] } as never,
+    }];
+    const sent: GridCommand[] = [];
+    const own = new CubeApp(host, classes, { engine, planner, classTree: { class: of, tree: classTree([]), measures }, onCommand: (c) => sent.push(c) });
+    await own.open();
+    (host.querySelector('.dc-app-grid') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    pick('grossNotional');
+    // the steps that add it are a chunk fetched with the first measure added (model-measure-commands.ts): ticks later
+    for (let i = 0; i < 200 && sent.length === 0; i++) await new Promise((r) => setTimeout(r, 5));
+    assert.deepEqual(sent.map((c) => c.kind), ['calculate', 'column', 'configure']);
+    assert.deepEqual(sent[1], { kind: 'column', name: 'grossNotional', change: { aggregate: 'sum' } });
+    // added once, offered no more
+    (host.querySelector('.dc-app-grid') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    assert.ok(!menuItems().some((i) => i.textContent === 'Add Model Measure'));
+    own.dispose();
+  });
+
+  it("conditional formats: a data bar behind each figure, an icon by its third of the range, a rule's colours where it holds", async () => {
+    await app.applyGridCommands([{ kind: 'configure', patch: { columns: { notional: {
+      dataBar: { color: '#9fc3ea' }, iconSet: { set: 'arrows' },
+      rules: [{ when: { op: 'top', count: 1 }, style: { background: '#ffc7ce', bold: true } }],
+    } } } }], 'formats');
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    const cells = [...root.querySelectorAll('.dc-cell[data-column="notional"]')] as HTMLElement[];
+    const drawn = cells.map((c) => ({
+      icon: c.querySelector('.dc-cond-icon')?.getAttribute('aria-label') ?? null,
+      bar: c.style.backgroundImage, ruled: c.style.backgroundColor === 'rgb(255, 199, 206)' && c.style.fontWeight === '700',
+    }));
+    // EMEA's 600 the region's largest: the high arrow, the whole bar, the top rule's colours; AMER's 400 the low arrow, two thirds
+    const high = drawn.find((d) => d.icon === 'high' && d.ruled);
+    const low = drawn.find((d) => d.icon === 'low' && !d.ruled);
+    assert.ok(high && low, JSON.stringify(drawn));
+    // the bar's colour as the DOM spells it back
+    assert.match(high.bar, /linear-gradient\(90deg, transparent 0%, rgb\(159, 195, 234\) 0%, rgb\(159, 195, 234\) 100%, transparent 100%\)/);
+    assert.match(low.bar, /rgb\(159, 195, 234\) 66\.7%/);
+  });
 
   describe('value filters on a group row', () => {
     /**
@@ -802,15 +875,15 @@ describe('the app', () => {
     ]);
   });
 
-  it('adds and removes a heatmap from the menu', async () => {
+  it('adds and removes a heatmap from the menu (Conditional Formatting ▸ Color Scales ▸)', async () => {
     rightClick('.dc-cell:not(.dc-dim)');
-    pick('Add Heatmap to notional');
+    pick('Heatmap');
     const column = Object.entries(app.configuration.columns).find(
       ([, c]) => c.heatmap,
     );
     assert.notEqual(column, undefined);
     rightClick('.dc-cell:not(.dc-dim)');
-    pick('Remove Heatmap');
+    pick('No Color Scale');
     assert.equal(
       Object.values(app.configuration.columns).some((c) => c.heatmap),
       false,
@@ -821,6 +894,128 @@ describe('the app', () => {
       { kind: 'configure', patch: { columns: { notional: { heatmap: { from: '#ffffff', to: '#ff8a65' } } } } },
       { kind: 'configure', patch: { columns: { notional: { heatmap: null } } } },
     ]);
+  });
+
+  it("the menu's copies are what Ctrl+C copies: tab-separated, no byte-order mark, so a paste fills Excel's columns", () => {
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Copy Column notional');
+    assert.deepEqual(clipboard, ['notional\n600\n400\n']);
+    // the selected cells: clicked, then Shift+clicked across to the measure -- the grid's own Ctrl+C text
+    const cell = (text: string): HTMLElement =>
+      [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === text) as HTMLElement;
+    cell('▸EMEA').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    cell('400.00').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, shiftKey: true }));
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Copy Selected Cells');
+    // the tree column heads its copy with what it groups by, as an export does, never its machinery name
+    assert.equal(clipboard.at(-1), 'region\tnotional\nEMEA\t600\nAMER\t400\n');
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Copy Selected Rows');
+    assert.equal(clipboard.at(-1), 'region\tnotional\nEMEA\t600\nAMER\t400\n');
+    // and Ctrl+C, the grid's own copy, writes the same text
+    const copies = clipboard.length;
+    (root.querySelector('.dc-grid') as HTMLElement).dispatchEvent(
+      new dom.window.KeyboardEvent('keydown', { key: 'c', ctrlKey: true, bubbles: true }));
+    assert.equal(clipboard.length, copies + 1, 'Ctrl+C copied');
+    assert.equal(clipboard.at(-1), 'region\tnotional\nEMEA\t600\nAMER\t400\n');
+  });
+
+  it('a double-click on a value shows the rows behind it, in a grid, with what they are', async () => {
+    // each click finds the cell afresh: the first one's selection re-renders the rows, as a browser's second click lands
+    // on the cell drawn there now
+    const value = (): HTMLElement => [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === '600.00') as HTMLElement;
+    value().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 1 }));
+    value().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 2 }));
+    for (let i = 0; i < 50 && !root.querySelector('[data-window="Drill-through"]'); i++) await new Promise((r) => setTimeout(r, 0));
+    const win = root.querySelector('[data-window="Drill-through"]') as HTMLElement;
+    assert.ok(win, 'the window opened');
+    assert.equal(win.querySelector('.dc-drill-caption')?.textContent, '2 rows where region = EMEA');
+    // a grid, headed by the columns and its rows formatted as the cube formats them -- not CSV text
+    const grid = win.querySelector('.dc-drill.dc-grid') as HTMLElement;
+    assert.ok(grid, 'a grid of the rows');
+    assert.deepEqual([...grid.querySelectorAll('.dc-th[data-column]')].map((h) => h.textContent), ['region', 'notional']);
+    assert.deepEqual([...grid.querySelectorAll('.dc-row')].map((r) => [...r.querySelectorAll('.dc-cell')].map((c) => c.textContent)),
+      [['EMEA', '600.00'], ['AMER', '400.00']]);
+    // Copy: the rows as the clipboard's text, every row
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'Copy') as HTMLButtonElement).click();
+    assert.equal(clipboard.at(-1), 'region\tnotional\nEMEA\t600\nAMER\t400\n');
+  });
+
+  it('a double-click on a group\'s label opens it, and again closes it, as a pivot\'s row label does', async () => {
+    const label = [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === '▸EMEA') as HTMLElement;
+    label.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 2 }));
+    for (let i = 0; i < 50 && commands.length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.equal(root.querySelector('[data-window="Drill-through"]'), null, 'no drill from a label');
+    assert.deepEqual(commands, [{ kind: 'open', path: ['EMEA'], open: true }]);
+  });
+
+  it("Filter Values: a column's values with their rows, the database's, ticked as the filter keeps them; OK keeps the ticked", async () => {
+    // the values query answers each value once with its rows (query.ts columnValuesLambda); the grid's queries as before
+    const values = new (class extends FakeEngine {
+      readonly name = 'values';
+      async answer(sql: string, epoch: number): Promise<ResultTable> {
+        if (sql.includes('__rows__')) {
+          return { columns: [
+            { name: 'region', type: 'String', values: ['AMER', 'EMEA', null] },
+            { name: '__rows__', type: 'Integer', values: [2, 1200, 1] },
+          ], rowCount: 3, epoch, elapsedMs: 0 };
+        }
+        return result(epoch);
+      }
+    })();
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const told: GridCommand[] = [];
+    // the EchoPlanner's "SQL" is the query's JSON, so the values query is told apart by its count column
+    const own = new CubeApp(host, SNAPSHOT, { engine: values, planner: new EchoPlanner(), onCommand: (c) => told.push(c) });
+    await own.open();
+    const cell = [...host.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === '▸EMEA') as HTMLElement;
+    cell.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
+    pick('Filter Values of region...');
+    for (let i = 0; i < 50 && !host.querySelector('[data-window="Filter Values"]'); i++) await new Promise((r) => setTimeout(r, 0));
+    const win = host.querySelector('[data-window="Filter Values"]') as HTMLElement;
+    assert.ok(win, 'the window opened');
+    const items = (): HTMLElement[] => [...win.querySelectorAll<HTMLElement>('.dc-value-item:not(.dc-value-all)')];
+    assert.deepEqual(items().map((i) => [i.querySelector('.dc-value-label')?.textContent, i.querySelector('.dc-value-count')?.textContent,
+      (i.querySelector('input') as HTMLInputElement).checked]),
+      [['AMER', '2', true], ['EMEA', '1,200', true], ['(Blank)', '1', true]], 'every value kept: nothing filters it yet');
+    // a search shows the matching ones; (Select All) ticks those shown
+    const search = win.querySelector('.dc-value-search') as HTMLInputElement;
+    search.value = 'me';
+    search.dispatchEvent(new dom.window.Event('input'));
+    assert.deepEqual(items().filter((i) => !i.hidden).map((i) => i.querySelector('.dc-value-label')?.textContent), ['AMER', 'EMEA']);
+    search.value = '';
+    search.dispatchEvent(new dom.window.Event('input'));
+    // the blanks left out: OK keeps AMER and EMEA, in place of the column's own conditions (none yet)
+    (items()[2]!.querySelector('input') as HTMLInputElement).click();
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'OK') as HTMLButtonElement).click();
+    for (let i = 0; i < 50 && told.length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(told, [{ kind: 'refilter', remove: [], add: [
+      { kind: 'condition', column: 'region', operator: 'in', value: ['AMER', 'EMEA'] },
+    ] }]);
+    assert.deepEqual(own.snapshot.filter, { kind: 'condition', column: 'region', operator: 'in', value: ['AMER', 'EMEA'] });
+  });
+
+  it('? shows the keyboard shortcuts, as View ▸ Keyboard Shortcuts... does; not while typing', () => {
+    const grid = root.querySelector('.dc-grid') as HTMLElement;
+    grid.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '?', bubbles: true }));
+    const win = root.querySelector('[data-window="Keyboard Shortcuts"]') as HTMLElement;
+    assert.ok(win, 'the window opened');
+    const rows = [...win.querySelectorAll('tr')].map((r) => [...r.querySelectorAll('td, th')].map((c) => c.textContent));
+    assert.ok(rows.some(([keys, what]) => keys === 'Ctrl+A' && /every cell/.test(what ?? '')), JSON.stringify(rows));
+    assert.ok(rows.some(([keys]) => keys === 'Ctrl+Arrow'));
+    win.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    const shown = (): boolean => root.querySelector('[data-window="Keyboard Shortcuts"]:not([hidden])') !== null;
+    assert.equal(shown(), false, 'Escape closed it');
+    // typing a ? into a field types it
+    const input = dom.window.document.createElement('input');
+    root.append(input);
+    input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '?', bubbles: true }));
+    assert.equal(shown(), false);
+    // and from the menu
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Keyboard Shortcuts...');
+    assert.equal(shown(), true);
   });
 
   it('a right-click on a TREE cell resolves the dimension at that level', () => {
@@ -985,6 +1180,84 @@ describe('the app', () => {
     assert.equal(win.querySelector<HTMLElement>('.dc-pe-col.dc-on')?.dataset['column'], 'notional');
   });
 
+  it("Column Properties' Colors: data bars, an icon set, a rule of a value of one's own, applied as the grid's configure", async () => {
+    rightClick('.dc-th[data-column="notional"]');
+    pick('Properties...');
+    const win = (): HTMLElement => root.querySelector('[data-window="Properties"]') as HTMLElement;
+    // the panel is redrawn after each change: each control found anew
+    const field = (label: string): HTMLElement => [...win().querySelectorAll('.dc-field')]
+      .find((f) => f.querySelector('.dc-field-label')?.textContent === label) as HTMLElement;
+    const change = (el: HTMLInputElement | HTMLSelectElement, value: string): void => {
+      el.value = value;
+      el.dispatchEvent(new dom.window.Event('change'));
+    };
+    (field('Data bars:').querySelector('input[type="checkbox"]') as HTMLInputElement).click();
+    change(field('Icons:').querySelector('select') as HTMLSelectElement, 'trafficLights');
+    const [op, style] = [...field('Rules:').querySelectorAll('select')] as HTMLSelectElement[];
+    change(op!, 'atLeast');
+    change(field('Rules:').querySelector('input[placeholder="value"]') as HTMLInputElement, '500');
+    change(style!, 'green');
+    ([...field('Rules:').querySelectorAll('button')].find((b) => b.textContent === 'Add Rule') as HTMLButtonElement).click();
+    // listed in words, a Remove beside it; a rule that is no rule said, not added
+    assert.deepEqual([...field('Rules:').querySelectorAll('.dc-rule-words')].map((w) => w.textContent), ['At least 500']);
+    change(field('Rules:').querySelectorAll('select')[0] as HTMLSelectElement, 'top');
+    ([...field('Rules:').querySelectorAll('button')].find((b) => b.textContent === 'Add Rule') as HTMLButtonElement).click();
+    assert.match(field('Rules:').querySelector('.dc-rule-problem')?.textContent ?? '', /count is missing/);
+    ([...win().querySelectorAll('.dc-editor-footer button')].find((b) => b.textContent === 'Apply') as HTMLButtonElement).click();
+    for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    const told = commands.filter((c) => c.kind === 'configure').at(-1) as unknown as { patch: { columns: Record<string, Record<string, unknown>> } };
+    assert.deepEqual(told.patch.columns['notional'], {
+      dataBar: { color: '#9fc3ea' }, iconSet: { set: 'trafficLights' },
+      rules: [{ when: { op: 'atLeast', value: 500 }, style: { foreground: '#006100', background: '#c6efce' } }],
+    });
+  });
+
+  it("a format code writes and colours the column as Excel would; Properties' Format Code refuses one it cannot draw", async () => {
+    await app.applyGridCommands([{ kind: 'configure', patch: { columns: { notional: { format: { kind: 'auto', code: '[Blue]#,##0.0,"k"' } } } } }], 'code');
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    const cells = [...root.querySelectorAll('.dc-row .dc-cell[data-column="notional"]')] as HTMLElement[];
+    assert.deepEqual(cells.map((c) => [c.textContent, c.style.color]).filter(([t]) => t !== ''),
+      [['0.6k', 'rgb(0, 0, 255)'], ['0.4k', 'rgb(0, 0, 255)']]);
+    rightClick('.dc-th[data-column="notional"]');
+    pick('Properties...');
+    const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
+    const field = [...win.querySelectorAll('.dc-field')].find((f) => f.querySelector('.dc-field-label')?.textContent === 'Format Code:') as HTMLElement;
+    const input = field.querySelector('input') as HTMLInputElement;
+    assert.equal(input.value, '[Blue]#,##0.0,"k"');
+    input.value = '0.0E+00';
+    input.dispatchEvent(new dom.window.Event('change'));
+    assert.match(field.querySelector('.dc-rule-problem')?.textContent ?? '', /has an exponent, which DataCube does not read/);
+  });
+
+  it('Group Values: its values ticked and named into a group, the rest as themselves, made as the calculate command', async () => {
+    // the grid's grouping, region, has no header of its own: the window opened as its menu entry opens it
+    await app.openGroupValues('region');
+    const win = root.querySelector('.dc-group-values') as HTMLElement;
+    const items = [...win.querySelectorAll('.dc-value-item')] as HTMLElement[];
+    assert.deepEqual(items.map((i) => i.textContent), ['EMEA', 'AMER']);
+    (items[0]!.querySelector('input') as HTMLInputElement).click();
+    const name = win.querySelector('.dc-group-name') as HTMLInputElement;
+    name.value = 'Europe';
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'Group Selected') as HTMLButtonElement).click();
+    assert.deepEqual([...win.querySelectorAll('.dc-group-words')].map((w) => w.textContent), ['Europe: EMEA']);
+    assert.equal(win.querySelector('.dc-value-item input')?.hasAttribute('disabled'), true, "a grouped value is its group's");
+    // a name taken: the gesture's words said in the window, which stays open, and nothing made
+    const column = win.querySelector('.dc-group-column') as HTMLInputElement;
+    column.value = 'desk';
+    const made = commands.filter((c) => c.kind === 'calculate').length;
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'OK') as HTMLButtonElement).click();
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.match(win.querySelector('.dc-group-problem')?.textContent ?? '', /desk/);
+    assert.ok(win.isConnected, 'the window stays open');
+    assert.equal(commands.filter((c) => c.kind === 'calculate').length, made);
+    column.value = 'region_group';
+    ([...win.querySelectorAll('button')].find((b) => b.textContent === 'OK') as HTMLButtonElement).click();
+    for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.ok(!win.isConnected, 'made, the window closes');
+    assert.deepEqual(commands.filter((c) => c.kind === 'calculate').at(-1), { kind: 'calculate', level: 'row',
+      column: { name: 'region_group', groups: { of: 'region', groups: [{ name: 'Europe', values: ['EMEA'] }] }, kind: 'dimension' } });
+  });
+
   it('keeps several windows open at once, as upstream\'s layout', () => {
     app.openEditor();
     app.openFilters();
@@ -1132,12 +1405,12 @@ describe('the app', () => {
     };
     assert.ok(cells(total).length > 0, 'the total is on screen');
     assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'no heatmap yet');
-    await pickOnTotal('Add Heatmap to Total / notional');
+    await pickOnTotal('Heatmap');
     assert.ok(app.configuration.columns[total]?.heatmap, "the total's own heatmap");
     assert.equal(app.configuration.columns['notional']?.heatmap, undefined, "its measure's is left alone");
     assert.ok(cells(total).some((c) => c.style.backgroundColor !== ''), 'the total is painted');
     assert.ok(cells('A__|__notional').every((c) => c.style.backgroundColor === ''), 'the cells are not');
-    await pickOnTotal('Remove Heatmap');
+    await pickOnTotal('No Color Scale');
     assert.equal(app.configuration.columns[total]?.heatmap, undefined);
     assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'taken off');
     app.dispose();

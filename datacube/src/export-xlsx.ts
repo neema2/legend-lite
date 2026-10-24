@@ -59,6 +59,8 @@ const quote = (s: string): string => `"${s.replace(/"/g, '""')}"`;
 
 /** An Excel number format code for a column's format, or null for Excel's General. */
 export function formatCode(format: ColumnFormat | undefined, type: string | undefined): string | null {
+  // the column's own Excel code, as it is: the file shows what the grid does
+  if (format?.code !== undefined) return format.code;
   if (!format || !isNumeric(type)) return null;
   const min = format.decimals ?? format.minimumFractionDigits ?? 0;
   const max = Math.max(min, format.decimals ?? format.maximumFractionDigits ?? min);

@@ -110,42 +110,49 @@ describe('buildMenu', () => {
     const withSub = top.filter((i) => i.submenu);
     assert.deepEqual(
       withSub.map((i) => i.label),
-      ['Export', 'Email', 'Edit', 'Sort', 'Filter', 'Pivot',
-        'Extended Columns', 'Resize', 'Pin', 'Heatmap', 'Create'],
+      ['Export', 'Email', 'Edit', 'Sort', 'Filter', 'Join', 'Pivot',
+        'Extended Columns', 'Resize', 'Pin', 'Conditional Formatting', 'Create', 'View'],
     );
     // A submenu parent does nothing itself.
     assert.ok(withSub.every((i) => i.id === undefined));
   });
 
-  it('ends with the switch for the controls, the order before it untouched', () => {
-    // The right-click order stays as people know it (the user); the one switch for the controls
-    // -- hidden for the grid alone, and the only way back (the user, 2026-10-01: "right click
-    // only") -- comes after everything, Properties... included.
-    const top = (hidden: boolean): (string | undefined)[] =>
-      buildMenu({ snapshot: CUBE, column: 'desk', ...(hidden ? { controlsHidden: true } : {}) })
-        .flatMap((g) => g.items).map((i) => i.label);
-    const shown = top(false);
-    assert.deepEqual(shown.slice(-2), ['Properties...', 'Hide Controls']);
-    assert.deepEqual(top(true).slice(-2), ['Properties...', 'Show Controls']);
+  // the user, 2026-10-24: one bucket for how the grid is shown -- its groups opened or closed, the controls' switch, the
+  // shortcuts -- the menu shorter
+  it('ends with View ▸ -- groups all opened or closed, the controls switch, the shortcuts -- the order before it untouched', () => {
+    // The right-click order stays as people know it (the user); the one switch for the controls -- hidden for the grid
+    // alone, and the only way back (the user, 2026-10-01: "right click only") -- in View ▸, after everything, Properties...
+    // included.
+    const top = (ctx: Partial<Parameters<typeof buildMenu>[0]>) => buildMenu({ snapshot: CUBE, column: 'desk', ...ctx }).flatMap((g) => g.items);
+    const shown = (items: readonly MenuItem[] | undefined) =>
+      (items ?? []).map((i) => `${i.separated ? '| ' : ''}${i.id}:${i.label}${i.disabled ? ' [off]' : ''}`);
+    assert.deepEqual(top({}).slice(-2).map((i) => i.label), ['Properties...', 'View']);
+    assert.deepEqual(shown(top({}).at(-1)?.submenu), [
+      'tree.expandAll:Expand All [off]', 'tree.collapseAll:Collapse All [off]', '| view.controls:Hide Controls',
+      'view.shortcuts:Keyboard Shortcuts...',
+    ], 'one level of groups: nothing beneath it to open; none opened: nothing to close');
+    assert.deepEqual(shown(top({ snapshot: { ...CUBE, rows: ['region', 'desk'] }, hasExpanded: true, controlsHidden: true }).at(-1)?.submenu), [
+      'tree.expandAll:Expand All', 'tree.collapseAll:Collapse All', '| view.controls:Show Controls', 'view.shortcuts:Keyboard Shortcuts...',
+    ]);
   });
 
-  // the user, 2026-10-23: the grid's menu button gone, its Move to Sheet and Remove from Page "nested with Hide Controls"
-  it('on a page, ends with Tile ▸: the controls, Move to Sheet, Remove from Page', () => {
-    const tile = (ctx: Partial<Parameters<typeof buildMenu>[0]>) => {
+  // the user, 2026-10-23: the grid's menu button gone, its Move to Sheet and Remove from Page under Tile ▸; 2026-10-24:
+  // both in View ▸, after the controls' switch -- no Tile ▸
+  it('on a page, View ▸ ends with what is done to the tile: Move to Sheet, Remove from Page', () => {
+    const view = (ctx: Partial<Parameters<typeof buildMenu>[0]>) => {
       const items = buildMenu({ snapshot: CUBE, column: 'desk', ...ctx }).flatMap((g) => g.items);
-      return items[items.length - 1]!;
+      assert.equal(items.at(-1)?.label, 'View', 'View ▸ last; no Tile ▸');
+      return items.at(-1)!.submenu ?? [];
     };
+    const tail = (items: readonly MenuItem[]) => items.slice(4).map((i) => `${i.separated ? '| ' : ''}${i.label}${i.disabled ? ' [off]' : ''}`);
     const sheets: MenuItem[] = [{ id: 'sheet.to.s2', label: 'Sheet 2' }, { id: 'sheet.toNew', label: 'New Sheet', separated: true }];
-    const both = tile({ sheets, canRemove: true });
-    assert.equal(both.label, 'Tile');
-    assert.deepEqual(both.submenu?.map((i) => `${i.separated ? '| ' : ''}${i.label}${i.disabled ? ' [off]' : ''}`),
-      ['Hide Controls', 'Move to Sheet', '| Remove from Page']);
-    assert.equal(both.submenu?.[1]?.submenu, sheets, 'Move to Sheet: the other sheets, then a new one');
-    assert.equal(both.submenu?.[2]?.id, 'grid.remove');
-    assert.deepEqual(tile({ sheets: 'locked', controlsHidden: true }).submenu?.map((i) => `${i.label}${i.disabled ? ' [off]' : ''}`),
-      ['Show Controls', 'Move to Sheet [off]'], 'locked: offered, disabled, nothing under it');
-    assert.deepEqual(tile({ canRemove: true }).submenu?.map((i) => i.label), ['Hide Controls', 'Remove from Page']);
-    assert.equal(tile({}).id, 'view.controls', 'off a page: the switch alone, no Tile ▸ of one entry');
+    const both = view({ sheets, canRemove: true });
+    assert.deepEqual(tail(both), ['| Move to Sheet', 'Remove from Page']);
+    assert.equal(both[4]?.submenu, sheets, 'Move to Sheet: the other sheets, then a new one');
+    assert.equal(both[5]?.id, 'grid.remove');
+    assert.deepEqual(tail(view({ sheets: 'locked' })), ['| Move to Sheet [off]'], 'locked: offered, disabled, nothing under it');
+    assert.deepEqual(tail(view({ canRemove: true })), ['| Remove from Page']);
+    assert.deepEqual(tail(view({})), [], 'off a page: nothing of a tile');
   });
 
   it('disables Email when the host cannot send it', () => {
@@ -385,6 +392,11 @@ describe('buildMenu', () => {
       enabled({ snapshot: filtered }).includes('filter.clearAll'),
       true,
     );
+  });
+
+  it('offers Expand All when there are groups under groups to open', () => {
+    assert.equal(enabled({ snapshot: CUBE }).includes('tree.expandAll'), false, 'one level of groups: nothing under them but rows');
+    assert.equal(enabled({ snapshot: { ...CUBE, rows: ['region', 'desk'] } }).includes('tree.expandAll'), true);
   });
 
   it('gates copy on a selection and collapse on an open group', () => {
@@ -670,7 +682,10 @@ describe('the chart\'s presets in the grid\'s Extended Columns (docs/DATACUBE_CH
   it('a measure of grouped rows shown as something computed from it; not on a pivot', () => {
     const shown = items({ snapshot: DATED, column: 'notional', isMeasure: true });
     assert.deepEqual(shown.filter((i) => i.id === 'calc.showAs').map((i) => i.showAs),
-      ['runningTotal', 'percentOfTotal', 'difference', 'percentChange', 'movingAverage', 'rank']);
+      ['percentOfTotal', 'percentOfParent', 'runningTotal', 'percentRunningTotal', 'difference', 'percentChange',
+        'movingAverage', 'rank', 'rankAscending']);
+    assert.deepEqual(shown.filter((i) => i.id === 'calc.showAs').slice(0, 2).map((i) => i.label),
+      ['% of grand total', '% of parent row total']);
     assert.ok(!items({ snapshot: CUBE, column: 'notional', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
     assert.ok(!items({ snapshot: { ...DATED, rows: [] }, column: 'notional', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
   });
@@ -680,23 +695,119 @@ describe('the chart\'s presets in the grid\'s Extended Columns (docs/DATACUBE_CH
 describe('Create ▸ and Join ▸', () => {
   const labels = (items: readonly MenuItem[]) => items.map((i) => `${i.separated ? '| ' : ''}${i.label}`);
 
-  it('Create ▸ is the same everywhere: a data source, a copy of this grid, a chart; the host\'s a line apart', () => {
+  it('Create ▸ is the same everywhere: a data source, a copy of this grid, a chart, a text box; the host\'s a line apart', () => {
     const host: MenuItem[] = [{ id: 'host.createClass', label: 'Class\u2026' }, { id: 'host.createDataSpace', label: 'Data Space\u2026' }];
-    assert.deepEqual(labels(createItems({ source: true, host })), ['Data Source\u2026', 'Copy of This Grid', 'Visualization', '| Class\u2026', 'Data Space\u2026']);
-    assert.deepEqual(labels(createItems({ source: false, host: [] })), ['Copy of This Grid', 'Visualization']);
-    assert.ok(createItems({ source: true, host, disabled: true }).slice(0, 3).every((i) => i.disabled), 'the grid\'s own off in Ad Hoc');
-    assert.ok(createItems({ source: true, host, disabled: true }).slice(3).every((i) => !i.disabled), 'the host\'s its own to say');
+    assert.deepEqual(labels(createItems({ source: true, host })), ['Data Source\u2026', 'Copy of This Grid', 'Visualization', 'Text Box', '| Class\u2026', 'Data Space\u2026']);
+    assert.deepEqual(labels(createItems({ source: false, host: [] })), ['Copy of This Grid', 'Visualization', 'Text Box']);
+    assert.ok(createItems({ source: true, host, disabled: true }).slice(0, 4).every((i) => i.disabled), 'the grid\'s own off in Ad Hoc');
+    assert.ok(createItems({ source: true, host, disabled: true }).slice(4).every((i) => !i.disabled), 'the host\'s its own to say');
     const create = buildMenu({ snapshot: CUBE, column: 'desk', canOpenSource: true, create: host }).flatMap((g) => g.items).find((i) => i.label === 'Create');
     assert.deepEqual(labels(create?.submenu ?? []), labels(createItems({ source: true, host })), 'the right-click\'s, the same');
   });
 
-  it("Join ▸ is the host's, beside Filter, only when it gives entries", () => {
+  // the user, 2026-10-24: never conditional -- greyed out, or with a way to join inside
+  it("Join ▸ is always beside Filter: the host's entries, or a disabled Join… saying why", () => {
     const join: MenuItem[] = [{ id: 'host.join.with.0', label: 'With customers on desk' }];
-    const top = (ctx: Parameters<typeof buildMenu>[0]) => buildMenu(ctx).flatMap((g) => g.items).map((i) => i.label);
-    const withJoin = top({ snapshot: CUBE, column: 'desk', join });
-    assert.equal(withJoin.indexOf('Join'), withJoin.indexOf('Filter') + 1);
-    assert.equal(buildMenu({ snapshot: CUBE, column: 'desk', join }).flatMap((g) => g.items).find((i) => i.label === 'Join')?.submenu, join);
-    assert.ok(!top({ snapshot: CUBE, column: 'desk' }).includes('Join'));
-    assert.ok(!top({ snapshot: CUBE, column: 'desk', join: [] }).includes('Join'));
+    const joinOf = (ctx: Parameters<typeof buildMenu>[0]) => buildMenu(ctx).flatMap((g) => g.items).find((i) => i.label === 'Join');
+    const top = buildMenu({ snapshot: CUBE, column: 'desk', join }).flatMap((g) => g.items).map((i) => i.label);
+    assert.equal(top.indexOf('Join'), top.indexOf('Filter') + 1);
+    assert.equal(joinOf({ snapshot: CUBE, column: 'desk', join })?.submenu, join);
+    for (const ctx of [{ snapshot: CUBE, column: 'desk' }, { snapshot: CUBE, column: 'desk', join: [] }, { snapshot: CUBE }]) {
+      const off = joinOf(ctx)?.submenu ?? [];
+      assert.deepEqual(off.map((i) => [i.label, i.disabled]), [['Join…', true]], 'nothing to join from here: there, disabled');
+      assert.match(off[0]!.hint ?? '', /on a page/);
+    }
+  });
+});
+
+describe("Add Related Column ▸: a grid over a class's related columns one hop away (class-tree.ts relatedOffers)", () => {
+  const offers = [
+    { property: 'customer', target: 'm::Customer', many: false, columns: [{ path: ['customer', 'region'] }] },
+    { property: 'trades', target: 'm::Trade', many: true,
+      columns: [{ path: ['trades'], aggregate: 'count' as const }, { path: ['trades', 'notional'], aggregate: 'sum' as const }] },
+  ];
+
+  it('each class one hop away, its columns in words a person reads; none on a grid over no class', () => {
+    const extended = buildMenu({ snapshot: CUBE, column: 'notional', related: offers }).flatMap((g) => g.items)
+      .find((i) => i.label === 'Extended Columns');
+    const add = extended?.submenu?.find((i) => i.label === 'Add Related Column');
+    assert.deepEqual(add?.submenu?.map((i) => i.label), ['customer (Customer)', 'trades (each Trade)']);
+    assert.deepEqual(add?.submenu?.[1]?.submenu?.map((i) => [i.id, i.label, i.related]), [
+      ['calc.related', 'Count', { path: ['trades'], aggregate: 'count' }],
+      ['calc.related', 'Sum of notional', { path: ['trades', 'notional'], aggregate: 'sum' }],
+    ]);
+    assert.ok(!menuItems(buildMenu({ snapshot: CUBE, column: 'notional' })).some((i) => i.id === 'calc.related'));
+  });
+
+  it('a related column under the pointer is deleted, never edited as a formula', () => {
+    const got = ids({ snapshot: CUBE, column: 'notional', calcStage: 'row', relatedColumn: true });
+    assert.ok(got.includes('calc.delete'));
+    assert.ok(!got.includes('calc.edit'));
+    assert.ok(ids({ snapshot: CUBE, column: 'notional', calcStage: 'row' }).includes('calc.edit'));
+  });
+});
+
+describe("Add Model Measure ▸: the measures the grid's class's model declares (model-measures.ts)", () => {
+  it('each by its name, its words the hint; none on a grid whose model declares none', () => {
+    const modelMeasures = [{ name: 'grossNotional', path: 'm::grossNotional', doc: 'Gross notional booked' }, { name: 'averageNotional', path: 'm::averageNotional' }];
+    const extended = buildMenu({ snapshot: CUBE, column: 'notional', modelMeasures }).flatMap((g) => g.items)
+      .find((i) => i.label === 'Extended Columns');
+    const add = extended?.submenu?.find((i) => i.label === 'Add Model Measure');
+    assert.deepEqual(add?.submenu?.map((i) => [i.id, i.label, i.measure, i.hint]), [
+      ['calc.modelMeasure', 'grossNotional', 'm::grossNotional', 'Gross notional booked'],
+      ['calc.modelMeasure', 'averageNotional', 'm::averageNotional', undefined],
+    ]);
+    assert.ok(!menuItems(buildMenu({ snapshot: CUBE, column: 'notional' })).some((i) => i.id === 'calc.modelMeasure'));
+    assert.ok(!menuItems(buildMenu({ snapshot: CUBE, column: 'notional', modelMeasures: [] })).some((i) => i.id === 'calc.modelMeasure'));
+  });
+});
+
+describe('Conditional Formatting ▸: data bars, colour scales, icon sets, one-click rules, cleared (conditional.ts)', () => {
+  const sub = (ctx: Parameters<typeof buildMenu>[0], label: string): readonly MenuItem[] =>
+    menuItems(buildMenu(ctx)).find((i) => i.label === 'Conditional Formatting')?.submenu?.find((i) => i.label === label)?.submenu ?? [];
+  const top = (ctx: Parameters<typeof buildMenu>[0]): readonly MenuItem[] => menuItems(buildMenu(ctx)).find((i) => i.label === 'Conditional Formatting')?.submenu ?? [];
+
+  it("each a gesture carrying its choice; Data Bars a toggle; the column's icon set checked", () => {
+    const none = { dataBar: false, scale: false, rules: 0 };
+    assert.deepEqual(top({ snapshot: CUBE, column: 'notional', conditional: none }).map((i) => i.label),
+      ['Data Bars', 'Color Scales', 'Icon Sets', 'Highlight Rules', 'Clear Formatting from Column']);
+    assert.deepEqual(menuGesture(top({ snapshot: CUBE, column: 'notional', conditional: none })[0]!), { name: 'format.dataBar', args: { column: 'notional', on: true } });
+    assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: { ...none, dataBar: true } })[0]!.label, 'Remove Data Bars');
+    const icons = sub({ snapshot: CUBE, column: 'notional', conditional: { ...none, iconSet: 'flags' } }, 'Icon Sets');
+    assert.deepEqual(icons.map((i) => [i.label, Boolean(i.checked)]),
+      [['Arrows', false], ['Traffic Lights', false], ['Symbols', false], ['Flags', true], ['No Icons', false]]);
+    assert.deepEqual(menuGesture(icons.at(-1)!), { name: 'format.iconSet', args: { column: 'notional', set: null } });
+    const rules = sub({ snapshot: CUBE, column: 'notional', conditional: none }, 'Highlight Rules');
+    assert.deepEqual(menuGesture(rules[0]!)?.args, { column: 'notional', rule: { when: { op: 'top', count: 10 }, style: { foreground: '#006100', background: '#c6efce' } } });
+    // the heatmap is a colour scale, the grid's own: it leads Color Scales ▸, and No Color Scale takes either off (the user,
+    // 2026-10-24: one place)
+    const scales = (hasHeatmap: boolean) => sub({ snapshot: CUBE, column: 'notional', conditional: none, hasHeatmap }, 'Color Scales');
+    assert.deepEqual(scales(false).map((i) => `${i.separated ? '| ' : ''}${i.label}${i.disabled ? ' [off]' : ''}`),
+      ['Heatmap', 'Green - Yellow - Red', 'Red - Yellow - Green', 'Blue - White - Red', 'White - Orange', '| No Color Scale [off]']);
+    assert.deepEqual(menuGesture(scales(false)[0]!), { name: 'heatmap.add', args: { column: 'notional' } });
+    assert.deepEqual([scales(true)[0]!.disabled, scales(true).at(-1)!.disabled], [true, false]);
+    assert.deepEqual(menuGesture(scales(true).at(-1)!), { name: 'heatmap.remove', args: { column: 'notional' } });
+    // nothing to clear, nothing offered to clear; something, offered
+    assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: none }).at(-1)?.disabled, true);
+    assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: { ...none, rules: 1 } }).at(-1)?.disabled, false);
+  });
+});
+
+describe('Group Values: a column of its values gathered by hand into groups (snapshot.ts ValueGroups)', () => {
+  const extended = (ctx: Parameters<typeof buildMenu>[0]): readonly MenuItem[] =>
+    menuItems(buildMenu(ctx)).find((i) => i.label === 'Extended Columns')?.submenu ?? [];
+  it("offered on a column of the grid's rows; a groups column's groups edited again, never as a formula", () => {
+    assert.ok(extended({ snapshot: CUBE, column: 'desk', groupable: true }).some((i) => i.id === 'calc.groupValues' && i.column === 'desk'));
+    assert.ok(!extended({ snapshot: CUBE, column: 'desk' }).some((i) => i.id === 'calc.groupValues'), 'no row column, no groups');
+    const groups = extended({ snapshot: CUBE, column: 'desk', calcStage: 'row', groupable: true, groupsColumn: true });
+    assert.ok(groups.some((i) => i.id === 'calc.editGroups'));
+    assert.ok(!groups.some((i) => i.id === 'calc.groupValues' || i.id === 'calc.edit'));
+  });
+
+  it("no Count entry: a count is a calculated column and its Aggregation (the user, 2026-10-24: the menu was too long)", () => {
+    const all = (items: readonly MenuItem[]): MenuItem[] => items.flatMap((i) => [i, ...all(i.submenu ?? [])]);
+    const items = all(menuItems(buildMenu({ snapshot: CUBE, column: 'desk', groupable: true, calcStage: 'row' })));
+    assert.ok(items.length > 0);
+    assert.ok(!items.some((i) => /^Count\b/.test(i.label)), items.map((i) => i.label).join(', '));
   });
 });

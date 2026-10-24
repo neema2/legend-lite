@@ -117,7 +117,7 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
       'Copy Column', 'Ascending', 'Descending', 'Add Ascending', 'Add Descending',
       'Vertical Pivot', 'Add Vertical Pivot', 'Remove Vertical Pivot', 'Horizontal Pivot', 'Add Horizontal Pivot',
       'Remove Horizontal Pivot', 'Auto-size to Fit Content', 'Minimize Column', 'Pin Left', 'Pin Right', 'Unpin', 'Hide',
-      'Add Heatmap', 'Remove Heatmap',
+      'Heatmap', 'No Color Scale',
     ]) {
       assert.ok(off.includes(`${want} [off]`), `${want}: ${off.join(' | ')}`);
     }
@@ -129,11 +129,10 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     }
   });
 
-  it('a heatmap is added to a column that has none and removed from one that has', () => {
-    assert.deepEqual(labels(submenu({ snapshot: CUBE, column: 'notional' }, 'Heatmap')),
-      ['Add Heatmap to notional', 'Remove Heatmap [off]']);
-    assert.deepEqual(labels(submenu({ snapshot: CUBE, column: 'notional', hasHeatmap: true }, 'Heatmap')),
-      ['Add Heatmap to notional [off]', 'Remove Heatmap']);
+  it('a heatmap is added to a column that has none and removed from one that has (Conditional Formatting ▸ Color Scales ▸)', () => {
+    const heat = (ctx: MenuContext) => labels(items(ctx).filter((i) => i.id === 'heatmap.add' || i.id === 'heatmap.remove'));
+    assert.deepEqual(heat({ snapshot: CUBE, column: 'notional' }), ['Heatmap', 'No Color Scale [off]']);
+    assert.deepEqual(heat({ snapshot: CUBE, column: 'notional', hasHeatmap: true }), ['Heatmap [off]', 'No Color Scale']);
   });
 
   it('the cube itself is exported as a file only when the host knows its source; the grid\'s exports always', () => {
@@ -168,7 +167,7 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     const total = pivotTotalColumn('notional');
     const ctx: MenuContext = { snapshot: { ...CUBE, pivotTotal: { placement: 'right' } }, column: total, pivotBase: 'notional',
       canGroup: false, isMeasure: true };
-    for (const label of ['Hide Total / notional', 'Copy Column Total / notional', 'Add Heatmap to Total / notional',
+    for (const label of ['Hide Total / notional', 'Copy Column Total / notional', 'Heatmap',
       'Minimize Column', 'Auto-size to Fit Content']) {
       assert.equal(find(ctx, label)?.disabled, false, label);
       assert.equal(find(ctx, label)?.column, total, label);
@@ -176,7 +175,7 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     // a pivot's result is not pinned, as upstream's
     for (const label of ['Pin Left', 'Pin Right']) assert.equal(find(ctx, label)?.disabled, true, label);
     // with its own heatmap on (the app's hasHeatmap: heatmapSetting, a total's alone), its menu offers to take it off
-    assert.equal(find({ ...ctx, hasHeatmap: true }, 'Remove Heatmap')?.disabled, false);
+    assert.equal(find({ ...ctx, hasHeatmap: true }, 'No Color Scale')?.disabled, false);
     // named as its header names it: Properties' Pivot Statistic Column Name, when renamed
     assert.equal(find({ ...ctx, totalLabel: 'All years' }, 'Hide All years / notional')?.column, total);
     // nothing about it as a calculated column (the app finds no stage for it: calcStageOf), nor as a dimension
@@ -203,8 +202,34 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     // a time of day is compared for equality only
     const time = submenu({ snapshot: DATED, column: 'cutoff', columnType: 'StrictTime', value: '17:30:00' }, 'Filter');
     assert.deepEqual(labels(time), [
-      'Add Filter: cutoff = \'17:30:00\'', 'More Filters on cutoff...', 'Filters...', 'Clear All Filters [off]',
-    ]);
+      'Add Filter: cutoff = \'17:30:00\'', 'More Filters on cutoff...', 'Filter Values of cutoff...', 'Filters...',
+      'Clear All Filters [off]',
+    ], 'its values to tick; no date range for a time of day');
+    // a date offers its ranges relative to today, each the dateRange gesture with its range
+    const ranges = today.find((i) => i.label === 'Date Range')?.submenu ?? [];
+    assert.deepEqual(ranges.slice(0, 3).map((i) => [i.label, i.id, i.range]),
+      [['Today', 'filter.dateRange', 'today'], ['Yesterday', 'filter.dateRange', 'yesterday'], ['This Week', 'filter.dateRange', 'thisWeek']]);
+    assert.deepEqual(menuGesture(ranges[0]!), { name: 'filter.dateRange', args: { column: 'trade_date', range: 'today' } });
+  });
+});
+
+describe('Filter ▸ Top 10 and Bottom 10', () => {
+  const filterOf = (ctx: Parameters<typeof buildMenu>[0]) => submenu(ctx, 'Filter');
+  it('by a grouped grid\'s measure, or a flat grid\'s number; never a pivot\'s; Clear when one is set', () => {
+    const UNPIVOTED = { ...CUBE, pivotOn: [] };
+    const grouped = filterOf({ snapshot: UNPIVOTED, column: 'notional', columnType: 'Float', isMeasure: true });
+    const tops = grouped.filter((i) => i.id === 'filter.topN');
+    assert.deepEqual(tops.map((i) => i.label), ['Top 10 by notional', 'Bottom 10 by notional']);
+    assert.deepEqual(menuGesture(tops[1]!), { name: 'filter.topN', args: { column: 'notional', n: 10, bottom: true } });
+    // a dimension of a grouped grid is no rank
+    assert.equal(filterOf({ snapshot: UNPIVOTED, column: 'region', columnType: 'String' }).some((i) => i.id === 'filter.topN'), false);
+    // a flat grid's number is
+    const flat = { ...UNPIVOTED, rows: [] };
+    assert.equal(filterOf({ snapshot: flat, column: 'notional', columnType: 'Float' }).some((i) => i.id === 'filter.topN'), true);
+    assert.equal(filterOf({ snapshot: CUBE, column: 'notional', columnType: 'Float', isMeasure: true })
+      .some((i) => i.id === 'filter.topN'), false, 'a pivot\'s figures are its values\' columns');
+    assert.deepEqual(filterOf({ snapshot: { ...CUBE, topN: { by: 'notional', n: 10, bottom: true } } })
+      .filter((i) => i.id === 'filter.topNOff').map((i) => i.label), ['Clear Bottom 10']);
   });
 });
 

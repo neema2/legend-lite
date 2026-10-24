@@ -1194,11 +1194,112 @@
   margin: 0 16px 16px;
 }
 
-.dc-drill {
-  max-height: 320px;
-  overflow: auto;
-  font-family: var(--dc-font-mono);
+/* The rows behind a cell: what they are and a Copy above, then a grid of them. The grid needs a height of its own to
+   scroll in (a virtual grid draws the rows its scroller shows). */
+.dc-drill-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
   font-size: var(--dc-text-base-size);
+}
+
+.dc-drill-caption {
+  flex: 1;
+  color: var(--dc-muted);
+}
+
+/* The value list (Filter Values...): a search, the values with their rows on the right, OK and Cancel below. */
+.dc-value-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  width: min(80vw, 340px);
+  font-size: var(--dc-text-base-size);
+}
+
+.dc-value-items {
+  max-height: min(50vh, 320px);
+  overflow: auto;
+  border: 1px solid var(--dc-border);
+  border-radius: 4px;
+  padding: 4px 0;
+}
+
+.dc-value-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.dc-value-item:hover {
+  background: var(--dc-hover);
+}
+
+.dc-value-item[hidden] {
+  display: none;
+}
+
+.dc-value-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-value-count {
+  color: var(--dc-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dc-value-all {
+  font-weight: 600;
+  border-bottom: 1px solid var(--dc-border);
+  margin-bottom: 2px;
+}
+
+.dc-value-foot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.dc-value-cut {
+  flex: 1;
+  color: var(--dc-muted);
+}
+
+/* The keyboard shortcuts: a heading per group, the keys in a column of their own. */
+.dc-shortcuts {
+  border-collapse: collapse;
+  font-size: var(--dc-text-base-size);
+  margin: 4px 8px 8px;
+}
+
+.dc-shortcuts th {
+  text-align: left;
+  font-weight: 600;
+  padding: 10px 0 4px;
+}
+
+.dc-shortcuts td {
+  padding: 2px 16px 2px 0;
+  vertical-align: top;
+}
+
+.dc-shortcut-keys {
+  font-family: var(--dc-font-mono);
+  white-space: nowrap;
+}
+
+.dc-drill {
+  height: min(60vh, 420px);
+  min-width: min(80vw, 640px);
   margin: 0;
 }
 
@@ -4261,3 +4362,18 @@
 .dc-open-example:hover { background: var(--dc-hover); }
 .dc-open-example-name { font-weight: 600; }
 .dc-open-example-about { color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+
+/* A TEXT TILE (page-text.ts): a page's title or a note, its small Markdown drawn; edited in place */
+.dc-text-host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.dc-text-tile { flex: 1 1 auto; overflow: auto; padding: var(--dc-pad-2) var(--dc-pad-3); line-height: 1.45; }
+.dc-text-tile > :first-child { margin-top: 0; }
+.dc-text-tile h3 { font-size: 1.5em; margin: 0.2em 0 0.4em; }
+.dc-text-tile h4 { font-size: 1.2em; margin: 0.6em 0 0.3em; }
+.dc-text-tile h5 { font-size: 1em; margin: 0.6em 0 0.3em; }
+.dc-text-tile p { margin: 0 0 0.6em; }
+.dc-text-tile ul, .dc-text-tile ol { margin: 0 0 0.6em; padding-left: 1.4em; }
+.dc-text-tile code { font-family: var(--dc-mono, ui-monospace, monospace); background: var(--dc-hover, rgba(127, 127, 127, 0.12)); padding: 0 0.25em; border-radius: 3px; }
+.dc-text-tile a { color: var(--dc-accent, #2f6fde); }
+.dc-text-area { flex: 1 1 auto; min-height: 4em; resize: none; margin: var(--dc-pad-2); font: inherit; font-family: var(--dc-mono, ui-monospace, monospace); }
+.dc-text-bar { display: flex; align-items: center; gap: var(--dc-pad-2); padding: 0 var(--dc-pad-2) var(--dc-pad-2); }
+.dc-text-problem { flex: 1 1 auto; color: var(--dc-error, #c62828); font-size: var(--dc-text-sm-size); }

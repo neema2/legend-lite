@@ -12,6 +12,7 @@ import {
   type ChildAggregate,
   type CubeSnapshot,
   type DerivedColumn,
+  type Grain,
   type WindowSpec,
 } from './snapshot.ts';
 
@@ -24,26 +25,30 @@ export interface ColumnDraft {
   level: ColumnLevel;
   /**
    * An expression over one row, a window over the rows around it, or
-   * (group level) an aggregate of the child groups' figures.
+   * (group level) an aggregate of the child groups' figures or a measure
+   * at its parent's or the grand total's grain.
    */
-  mode: 'expression' | 'window' | 'children';
+  mode: 'expression' | 'window' | 'children' | 'grain';
   /** The whole lambda as the person edits it, `x|$x.a * 2` (upstream's editor shows the same). */
   expression: string;
   /** EXPLODE: the expression is a collection, and each row repeats once per element (`DerivedColumn.unnest`). */
   unnest: boolean;
   window: WindowSpec;
   child: ChildAggregate;
+  grain: Grain;
 }
 
 /** A window to start from: a running sum, order to be chosen. */
 export const NEW_WINDOW: WindowSpec = { fn: 'sum', partition: [], order: [], frame: 'running' };
 /** A child-group aggregate to start from: the smallest child. */
 export const NEW_CHILD: ChildAggregate = { fn: 'min', of: '' };
+/** A measure at a grain to start from: at its parent's, measure to be chosen. */
+export const NEW_GRAIN: Grain = { of: '', at: 'parent' };
 
 /** A new column's draft: an expression, at `level` -- a MEASURE unless told, as upstream starts one
  *  (DataCubeNewColumnState). */
 export function newDraft(name: string, expression: string, level: ColumnLevel = 'measure'): ColumnDraft {
-  return { name, level, mode: 'expression', expression, unnest: false, window: NEW_WINDOW, child: NEW_CHILD };
+  return { name, level, mode: 'expression', expression, unnest: false, window: NEW_WINDOW, child: NEW_CHILD, grain: NEW_GRAIN };
 }
 
 /**
@@ -64,6 +69,7 @@ export function existingDraft(s: CubeSnapshot, name: string): { readonly draft: 
         unnest: row.unnest === true,
         window: row.window ?? NEW_WINDOW,
         child: NEW_CHILD,
+        grain: NEW_GRAIN,
       },
       ...(row.lambda ? { lambda: row.lambda } : {}),
     };
@@ -73,9 +79,9 @@ export function existingDraft(s: CubeSnapshot, name: string): { readonly draft: 
     ? {
       draft: {
         name, level: 'group',
-        mode: group.childAggregate ? 'children' : group.window ? 'window' : 'expression',
+        mode: group.childAggregate ? 'children' : group.grain ? 'grain' : group.window ? 'window' : 'expression',
         expression: '', unnest: false, window: group.window ?? NEW_WINDOW,
-        child: group.childAggregate ?? NEW_CHILD,
+        child: group.childAggregate ?? NEW_CHILD, grain: group.grain ?? NEW_GRAIN,
       },
       ...(group.lambda ? { lambda: group.lambda } : {}),
     }
@@ -110,6 +116,7 @@ export function draftColumn(draft: ColumnDraft, lambda?: Lambda): DerivedColumn 
     ...(draft.mode === 'expression' && draft.unnest && draft.level !== 'group' ? { unnest: true } : {}),
     ...(draft.mode === 'window' ? { window: draftWindow(draft.window) } : {}),
     ...(draft.mode === 'children' ? { childAggregate: { ...draft.child } } : {}),
+    ...(draft.mode === 'grain' ? { grain: { ...draft.grain } } : {}),
     // A group-level column is already past the aggregation, so it has
     // no measure-or-dimension to decide; upstream draws the same line.
     ...(draft.level === 'group' ? {} : { kind: draft.level }),

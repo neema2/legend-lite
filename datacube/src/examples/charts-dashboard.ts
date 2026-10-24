@@ -10,7 +10,7 @@ import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../config.ts';
 import { fileSource, writeCube } from '../cube-document.ts';
 import { openedState } from '../cube-state.ts';
 import type { Band, Node } from '../layout/bands.ts';
-import { writePageOf, type PageDocument, type PageSheet, type PageView } from '../page-document.ts';
+import { writePageOf, type ChartView, type PageDocument, type PageSheet, type PageView } from '../page-document.ts';
 import { sampleById, sampleFileName } from '../samples.ts';
 import type { ColumnSpec, CubeSnapshot } from '../snapshot.ts';
 import { TreeState } from '../tree.ts';
@@ -74,7 +74,7 @@ const CONFIGURATION: CubeConfiguration = {
 const CUBE = 'cube';
 
 /** A frozen chart of the cube (it keeps its own grouping as the grid changes), its options over the defaults. */
-export function chart(id: string, title: string, spec: Partial<Omit<ChartSpec, 'options'>> & { options?: Partial<ChartOptions> }): PageView {
+export function chart(id: string, title: string, spec: Partial<Omit<ChartSpec, 'options'>> & { options?: Partial<ChartOptions> }): ChartView {
   const { options, ...rest } = spec;
   return {
     id,

@@ -610,6 +610,42 @@ describe('detail rows under the deepest group', () => {
   });
 });
 
+describe("a measure at the grand total's grain on detail rows", () => {
+  it("is computed under the grid's own filter, never the group's keys a detail query folds into its own", async () => {
+    const sent: string[] = [];
+    const runner: QueryRunner = {
+      name: 'stub',
+      stream: async () => { throw new Error('this test streams nothing'); },
+      async run(query) {
+        const pure = await litePrint(query);
+        sent.push(pure);
+        return { rows: table([{ name: 'region', values: ['EMEA'] }, { name: 'notional', values: [60] }]), sql: 'SELECT' };
+      },
+      async compile() {},
+      async relationType() { return []; },
+      parse: liteParse,
+      print: litePrint,
+    };
+    const cube: QuerySnapshot = {
+      source: { query: element('trades') },
+      columns: [{ name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }],
+      derived: [],
+      rows: ['region'],
+      pivotOn: [],
+      sorts: [],
+      epoch: 1,
+      filter: { kind: 'condition', column: 'notional', operator: 'greaterThan', value: 5 },
+      groupDerived: [{ name: 'all_notional', grain: { of: 'notional', at: 'all' } }],
+    };
+    await fetchTree(cube, TreeState.empty().expand(['EMEA']), { runner, guard: new EpochGuard(), epoch: 0 });
+    const detail = sent.find((q) => q.includes("$x.region == 'EMEA'"));
+    assert.ok(detail, `no detail query among ${sent.join(' | ')}`);
+    // the rows the group's own; the grand total's measure the grid's filter's alone
+    assert.equal(detail!.split("$x.region == 'EMEA'").length - 1, 1, detail);
+    assert.equal(detail!.split('$x.notional > 5').length - 1, 2, detail);
+  });
+});
+
 describe('opening a group under a column pivot', () => {
   // The top level learns the pivot's columns across the WHOLE cube. A
   // group holds only some of those values -- a customer with no EMEA

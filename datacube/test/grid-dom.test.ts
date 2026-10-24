@@ -182,6 +182,32 @@ describe('DataGrid DOM', () => {
   });
 });
 
+describe('stacked sticky columns', () => {
+  it('each sits after the sticky ones before it, as frozen panes do -- never all at the edge, on top of each other', () => {
+    const table: ResultTable = {
+      columns: ['region', 'a', 'b', 'c', 'd'].map((name) => ({ name, type: name === 'region' ? 'String' : 'Float', values: [name === 'region' ? 'EMEA' : 1] })),
+      rowCount: 1, epoch: 1, elapsedMs: 0,
+    };
+    grid = new DataGrid(container, new FormatterCache(), { rowHeight: ROW_HEIGHT, overscan: 2 });
+    stubLayout(container.querySelector('.dc-scroller')!, VIEW_HEIGHT);
+    grid.setColumns(buildColumnModel(table, ['region'], [], {
+      pinned: { b: 'left', c: 'left', a: 'right', d: 'right' }, widths: { b: 90, d: 70 },
+    }));
+    grid.setRows(table, 0, 1);
+    const offsets = (selector: string): Record<string, [string, string]> => Object.fromEntries(
+      [...container.querySelectorAll<HTMLElement>(selector)].map((el) => [el.dataset['column'], [el.style.left, el.style.right]]));
+    const cells = offsets('.dc-row .dc-cell');
+    assert.deepEqual(cells, {
+      region: ['', ''],
+      b: ['var(--dc-dim-width)', ''],
+      c: ['calc(var(--dc-dim-width) + 90px)', ''],
+      a: ['', '70px'],
+      d: ['', ''],
+    });
+    assert.deepEqual(offsets('.dc-th[data-column]'), cells, 'each header over its column');
+  });
+});
+
 describe('DataGrid selection', () => {
   function press(key: string, init: KeyboardEventInit = {}) {
     container.dispatchEvent(
@@ -201,6 +227,30 @@ describe('DataGrid selection', () => {
       new dom.window.MouseEvent('click', { bubbles: true, shiftKey: shift }),
     );
   }
+
+  it('selects a rectangle dragged with the mouse, as a spreadsheet does; the click that ends it keeps it', () => {
+    build(50);
+    const cell = (row: number, col: number): HTMLElement =>
+      container.querySelectorAll('.dc-row')[row]!.querySelectorAll<HTMLElement>('.dc-cell')[col]!;
+    const pointer = (type: string, el: HTMLElement, init: PointerEventInit = {}): void => {
+      el.dispatchEvent(new dom.window.PointerEvent(type, { bubbles: true, pointerType: 'mouse', button: 0, buttons: 1, ...init }));
+    };
+    pointer('pointerdown', cell(1, 0));
+    pointer('pointermove', cell(2, 1));
+    pointer('pointermove', cell(3, 2));
+    pointer('pointerup', cell(3, 2), { buttons: 0 });
+    cell(3, 2).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 1 }));
+    assert.deepEqual(grid.selection, { anchor: { row: 1, col: 0 }, focus: { row: 3, col: 2 } });
+    assert.equal(container.querySelectorAll('.dc-selected').length, 9, 'three rows by three columns');
+    // a touch drags the page, not a selection: it scrolls, and a long press is its right-click
+    pointer('pointerdown', cell(5, 0), { pointerType: 'touch' });
+    pointer('pointermove', cell(6, 2), { pointerType: 'touch' });
+    assert.deepEqual(grid.selection, { anchor: { row: 1, col: 0 }, focus: { row: 3, col: 2 } });
+    // and the next plain click selects one cell again
+    pointer('pointerup', cell(6, 2), { pointerType: 'touch', buttons: 0 });
+    cell(4, 1).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 1 }));
+    assert.deepEqual(grid.selection, { anchor: { row: 4, col: 1 }, focus: { row: 4, col: 1 } });
+  });
 
   it('selects a single cell on click', () => {
     build(50);
@@ -383,6 +433,32 @@ describe('DataGrid keyboard', () => {
     press('ArrowUp');
     press('ArrowLeft');
     assert.deepEqual(grid.focus, { row: 1, col: 0 });
+  });
+
+  it('jumps to the edge with Ctrl+Arrow (Cmd on a Mac), and Shift with it selects to the edge, as a spreadsheet does', () => {
+    build(100);
+    press('ArrowDown', { ctrlKey: true });
+    assert.deepEqual(grid.focus, { row: 99, col: 0 });
+    press('ArrowRight', { metaKey: true });
+    assert.deepEqual(grid.focus, { row: 99, col: 2 });
+    press('ArrowUp', { ctrlKey: true, shiftKey: true });
+    assert.deepEqual(grid.focus, { row: 0, col: 2 });
+    assert.deepEqual(grid.selection, { anchor: { row: 99, col: 2 }, focus: { row: 0, col: 2 } });
+    press('ArrowLeft', { ctrlKey: true });
+    assert.deepEqual(grid.focus, { row: 0, col: 0 });
+  });
+
+  it('selects every cell with Ctrl+A, and Ctrl+C then copies them all', () => {
+    const copies: string[] = [];
+    const table = makeTable(3);
+    grid = new DataGrid(container, new FormatterCache(), { rowHeight: ROW_HEIGHT, writeClipboard: (t) => { copies.push(t); } });
+    stubLayout(container.querySelector('.dc-scroller')!, VIEW_HEIGHT);
+    grid.setColumns(buildColumnModel(table, ['region']));
+    grid.setRows(table, 0, 3);
+    press('a', { ctrlKey: true });
+    assert.deepEqual(grid.selection, { anchor: { row: 0, col: 0 }, focus: { row: 2, col: 2 } });
+    press('c', { ctrlKey: true });
+    assert.equal(copies[0]?.split('\n').length, 5, 'a header and three rows, each line ended');
   });
 
   it('clamps at the edges instead of running off', () => {

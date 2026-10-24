@@ -84,6 +84,9 @@ describe('Excel: a real .xlsx', () => {
     assert.equal(formatCode({ kind: 'number', decimals: 2, numberScale: 'millions' }, 'Float'), '#,##0.00,,"m"');
     assert.equal(formatCode({ kind: 'number', displayCommas: false }, 'Integer'), '0');
     assert.equal(formatCode(undefined, 'Float'), null);
+    // a column's own Excel code, written as it is -- a date column's too
+    assert.equal(formatCode({ kind: 'number', decimals: 2, code: '$#,##0;[Red]($#,##0)' }, 'Float'), '$#,##0;[Red]($#,##0)');
+    assert.equal(formatCode({ kind: 'auto', code: 'dd mmm yyyy' }, 'StrictDate'), 'dd mmm yyyy');
   });
   it('redacts a blurred column, and the About sheet says why', () => {
     const sheet = part('xl/worksheets/sheet1.xml');

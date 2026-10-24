@@ -28,6 +28,7 @@
 import {
   isJsonValue,
   isRelativeDate,
+  relativeDateWords,
   type FilterNode,
   type FilterOperator,
   type FilterValue,
@@ -285,7 +286,7 @@ function itemText(value: FilterValue): string {
 
 /** A stored value as it is SHOWN; what is published while untouched is the value itself (`stored`). */
 function scalarText(value: FilterValue): string {
-  if (isRelativeDate(value)) return `${value.relative}()`;
+  if (isRelativeDate(value)) return value.startOf === undefined && value.offset === undefined ? `${value.relative}()` : relativeDateWords(value);
   if (isJsonValue(value)) return value.json;
   return String(value);
 }

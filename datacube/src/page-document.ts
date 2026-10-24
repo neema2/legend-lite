@@ -31,6 +31,7 @@ import type { PageModelRef } from './page-model.ts';
 import { readPageFilters, type PageFilter } from './page-filters.ts';
 import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
+import { textProblem } from './page-text-rule.ts';
 
 export const PAGE_KIND = 'datacube.page';
 /**
@@ -61,7 +62,18 @@ export interface ChartView {
   readonly selection?: readonly FilterNode[];
 }
 
-export type PageView = GridView | ChartView;
+/** A text tile (page-text.ts): a page's title, a note -- its words in a small Markdown, no cube of its own. */
+export interface TextView {
+  readonly id: string;
+  readonly kind: 'text';
+  readonly text: string;
+  /** Its own title; else it is numbered (page-ids.ts textTitle). */
+  readonly title?: string;
+  /** It shows no cube: read off any view, a text tile's cube is undefined. */
+  readonly cube?: never;
+}
+
+export type PageView = GridView | ChartView | TextView;
 
 /** Where the views sit: the page's bands (layout/bands.ts), each tile a view's id. */
 export interface PageLayout extends Bands {
@@ -715,6 +727,13 @@ function readSheets(raw: unknown, views: ReadonlySet<string>): readonly PageShee
 function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
   if (!isObject(v) || typeof v['id'] !== 'string') throw new PageDocumentError('a view has no id');
   const id = v['id'];
+  if (v['kind'] === 'text') {
+    // its words by the text tile's one rule (page-text.ts textProblem); no cube
+    const problem = textProblem(v['text']);
+    if (problem !== null) throw new PageDocumentError(`text ${id}: ${problem}`);
+    if (v['title'] !== undefined && !named('tile', v['title'])) throw new PageDocumentError(`text ${id}'s title is blank`);
+    return { id, kind: 'text', text: v['text'] as string, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}) };
+  }
   if (typeof v['cube'] !== 'string' || !cubes.has(v['cube'])) {
     throw new PageDocumentError(`view ${id} shows no cube of this page`);
   }

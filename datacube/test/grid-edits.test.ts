@@ -358,19 +358,32 @@ describe('a column\'s Column Properties', () => {
       'joinStrings');
   });
 
-  it('takes a weight for a weighted average only, a column of the grid\'s', () => {
+  it('takes a second column for an aggregate of two only, a column of the grid\'s', () => {
     const wavg = setColumn(draft(), 'notional', { aggregate: 'wavg', weight: 'qty' });
     assert.deepEqual(columnConfig(wavg.config, 'notional'), { aggregateFn: 'wavg', aggregationParameters: ['qty'] });
-    refused(() => setColumn(draft(), 'notional', { weight: 'qty' }), /only a weighted average \(wavg\) takes a weight/);
-    refused(() => setColumn(wavg, 'notional', { weight: 'nope' }), /notional's weight names 'nope', not a column/);
+    refused(() => setColumn(draft(), 'notional', { weight: 'qty' }),
+      /only an aggregate of two columns \(wavg, distinctCount, corr, covarSample, covarPopulation, maxBy, minBy\) takes a second column: notional's Aggregation is its default/);
+    refused(() => setColumn(wavg, 'notional', { weight: 'nope' }), /notional's weight column names 'nope', not a column/);
     // a group-level column exists only after grouping: no row of the grid has it to weigh by
-    refused(() => setColumn(wavg, 'notional', { weight: 'share' }), /notional's weight names 'share', not a column the rows have/);
+    refused(() => setColumn(wavg, 'notional', { weight: 'share' }), /notional's weight column names 'share', not a column the rows have/);
     const unweighted = setColumn(wavg, 'notional', { weight: null });
     assert.equal(columnConfig(unweighted.config, 'notional').aggregationParameters, undefined);
   });
 
   it('refuses a column the grid has not', () => {
     refused(() => setColumn(draft(), 'nope', { aggregate: 'sum' }), /'nope' is not a column of the grid/);
+  });
+
+  it("takes a number as a correlation's, a covariance's or a max by's second column -- the compiler's rule -- and any as a distinct count's", () => {
+    const corr = setColumn(draft(), 'notional', { aggregate: 'corr', weight: 'qty' });
+    assert.deepEqual(columnConfig(corr.config, 'notional'), { aggregateFn: 'corr', aggregationParameters: ['qty'] });
+    refused(() => setColumn(draft(), 'notional', { aggregate: 'corr', weight: 'desk' }),
+      /notional's paired column 'desk' is a String column: a correlation reads a number/);
+    refused(() => setColumn(draft(), 'notional', { aggregate: 'maxBy', weight: 'desk' }),
+      /notional's ordering column 'desk' is a String column: a max by reads a number/);
+    refused(() => setColumn(draft(), 'notional', { aggregate: 'wavg', weight: 'desk' }), /a weighted average reads a number/);
+    const counted = setColumn(draft(), 'qty', { aggregate: 'distinctCount', weight: 'desk' });
+    assert.deepEqual(columnConfig(counted.config, 'qty'), { aggregateFn: 'distinctCount', aggregationParameters: ['desk'] });
   });
 });
 
@@ -409,9 +422,12 @@ describe('a measure as the screen\'s model (Python\'s grid.measure, a saved meas
     refused(() => measureAsColumn(draft(), { name: 'desk', column: 'qty', fn: 'sum' }), /'desk' is already a column/);
     // region is grouped: its measure is a column of its own, and a count of text is not offered
     refused(() => measureAsColumn(draft(), { name: 'region', column: 'region', fn: 'count' }),
-      /'count' is not offered on region, a String column: min, max, joinStrings, unique \(Show leaf count/);
+      /'count' is not offered on region, a String column: min, max, joinStrings, unique, maxBy, minBy \(Show leaf count/);
     refused(() => measureAsColumn(draft(), { name: 'n', column: 'notional', fn: 'sum', weight: 'qty' }),
-      /only a weighted average \(wavg\) takes a weight/);
+      /only an aggregate of two columns \(.*\) takes a second column/);
+    // a distinct count of text is a number, never the text column's Aggregation: a number column's of it
+    refused(() => measureAsColumn(draft(), { name: 'n', column: 'desk', fn: 'distinctCount' }),
+      /'distinctCount' is not offered on desk, a String column: .* \(a number column of its own counts desk's different values: a calculated column with Aggregation distinct count, desk its counted column\)/);
   });
 
   it('makes a list in order, a column taken once, and leaves out what it cannot hold, saying why', () => {

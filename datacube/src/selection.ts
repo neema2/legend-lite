@@ -10,6 +10,7 @@
 // grid renders a selection rather than owning one.
 
 import type { LeafColumn } from './grid/columns.ts';
+import { TREE_COLUMN } from './treeview.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { asDecimal, exactSum, numberOf } from '../../engine-client/src/values.ts';
 
@@ -180,6 +181,7 @@ export function selectionTable(
   table: ResultTable,
   leaves: SelectionColumns,
   range: CellRange,
+  treeHeader: string,
 ): ResultTable {
   const b = bounds(range);
   const columns = leaves
@@ -187,10 +189,12 @@ export function selectionTable(
     .flatMap((leaf) => {
       const c = table.columns[leaf.index];
       // Headed as the screen heads it: a renamed column copies under its
-      // label, not its internal name (P2-41).
+      // label, not its internal name (P2-41). The tree column, which the
+      // screen leaves blank, copies under the export's heading for it
+      // (treeHeaderText) -- never its machinery name.
       return c === undefined ? [] : [{
         ...c,
-        name: leaf.label ?? c.name,
+        name: leaf.name === TREE_COLUMN ? treeHeader : leaf.label ?? c.name,
         values: c.values.slice(b.top, b.bottom + 1),
       }];
     });

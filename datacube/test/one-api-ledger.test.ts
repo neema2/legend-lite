@@ -470,6 +470,8 @@ const PASS_THROUGH: Record<string, string> = {
   addGrid: "the new grid's cube, where it is dropped, and how many tiles fit side by side there (the board's measure)",
   addChart: "the chart's spec as its panel made it (chart-spec.ts editChart), beside its grid",
   setChart: "the spec as the chart's panel made it (chart-spec.ts editChart)",
+  addText: "a new text tile's id, as the page numbers ids, on the sheet it was asked for, with its starting words",
+  setText: "the words as typed in the text tile's editor (setText judges them, by page-text.ts textProblem)",
   renamePage: 'the name as typed (renamePage judges it)', savedAs: "the page store's record the page was saved as",
   setPageFilter: "the filter as the page's filter bar made it", removePageFilter: 'the page filter whose x was clicked',
 };

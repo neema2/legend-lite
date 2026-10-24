@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { element } from '../../pure-protocol/src/index.ts';
-import { binColumns, grainColumn, showAsColumns } from '../src/calc-presets.ts';
+import { binColumns, grainColumn, gridShowAsColumns } from '../src/calc-presets.ts';
 import { presetCommands, readGridPreset, type GridPreset } from '../src/grid-presets.ts';
 import { CubeRefusal, type CubeSnapshot } from '../src/snapshot.ts';
 
@@ -40,10 +40,33 @@ describe("the grid's presets: one rule for the header menu and Python (grid-pres
       [{ kind: 'calculate', level: 'row', column: grainColumn('traded', 'month', 'traded_month') }]);
   });
 
-  it('a Show As: columns after the grouping, along the row groups in order, named after the measure and the kind', () => {
-    assert.deepEqual(presetCommands(CUBE, { kind: 'showAs', column: 'notional', showAs: 'percentOfTotal' }),
-      showAsColumns({ kind: 'percentOfTotal' }, 'notional', ['region', 'desk'], [], 'notional_percentOfTotal')
+  it('a Show As: columns after the grouping, along the row groups in order, named after the measure and the kind -- '
+    + 'the ones it reads hidden, a share shown as a percentage, as Excel shows one', () => {
+    assert.deepEqual(presetCommands(CUBE, { kind: 'showAs', column: 'notional', showAs: 'percentOfTotal' }), [
+      ...gridShowAsColumns('percentOfTotal', 'notional', ['region', 'desk'], 'notional_percentOfTotal')
+        .map((column) => ({ kind: 'calculate', level: 'group', column })),
+      { kind: 'configure', patch: { columns: {
+        notional_percentOfTotal__total: { hidden: true }, notional_percentOfTotal: { format: { kind: 'percent' } },
+      } } },
+    ]);
+    // a running total is no ratio and reads nothing of its own: its one column, as it is
+    assert.deepEqual(presetCommands(CUBE, { kind: 'showAs', column: 'notional', showAs: 'runningTotal' }),
+      gridShowAsColumns('runningTotal', 'notional', ['region', 'desk'], 'notional_runningTotal')
         .map((column) => ({ kind: 'calculate', level: 'group', column })));
+  });
+
+  it("a share divides by the measure at that grain: the grand total's, the parent row's; a running share by its own end", () => {
+    const [all, allShare] = gridShowAsColumns('percentOfTotal', 'notional', ['region'], 'n');
+    assert.deepEqual(all, { name: 'n__total', grain: { of: 'notional', at: 'all' } });
+    assert.match(JSON.stringify(allShare), /"property":"n__total"/);
+    assert.deepEqual(gridShowAsColumns('percentOfParent', 'notional', ['region'], 'n')[0],
+      { name: 'n__parent', grain: { of: 'notional', at: 'parent' } });
+    const [running, total, share] = gridShowAsColumns('percentRunningTotal', 'notional', ['region'], 'n');
+    assert.deepEqual(running?.window, { fn: 'sum', column: 'notional', partition: [], order: [{ column: 'region', direction: 'asc' }], frame: 'running' });
+    assert.equal(total?.window?.frame, 'partition');
+    assert.equal(share?.name, 'n');
+    assert.deepEqual(gridShowAsColumns('rankAscending', 'notional', ['region'], 'n'),
+      [{ name: 'n', window: { fn: 'rank', partition: [], order: [{ column: 'notional', direction: 'asc' }] } }]);
   });
 
   it('bins: the bin and its upper edge, before the grouping, named after the column', () => {
@@ -59,7 +82,7 @@ describe("the grid's presets: one rule for the header menu and Python (grid-pres
     // percentOfTotal reads a helper of its own name: one the grid has moves it on too
     const helper = { ...CUBE, groupDerived: [{ name: 'notional_percentOfTotal__total', window: { fn: 'sum' as const, column: 'notional', partition: [], order: [] } }] };
     assert.deepEqual(named(helper, { kind: 'showAs', column: 'notional', showAs: 'percentOfTotal' }),
-      ['notional_percentOfTotal_2__total', 'notional_percentOfTotal_2']);
+      ['notional_percentOfTotal_2__total', 'notional_percentOfTotal_2', 'configure']);
   });
 
   it('refused in words: a period, a Show As or bins DataCube has not', () => {

@@ -28,6 +28,7 @@ const FORMAT: Required<ColumnFormat> = {
   kind: 'number', locale: '', minimumFractionDigits: 0, maximumFractionDigits: 2, decimals: 2,
   displayCommas: true, currency: '', numberScale: 'thousands', scale: 1, unit: '', nullText: '',
   negativeParens: true, fontCase: 'uppercase',
+  code: '#,##0.00;[Red](#,##0.00)',
 };
 
 /** Every column setting, set: a setting added later fails the build here, to be weighed for the next version. */
@@ -37,6 +38,7 @@ const COLUMN: Required<ColumnConfiguration> = {
   format: FORMAT,
   appearance: DEFAULT_CONFIGURATION.appearance,
   heatmap: { from: '#ffffff', to: '#ff8a65' },
+  dataBar: { color: '#9fc3ea' }, iconSet: { set: 'arrows' }, rules: [{ when: { op: 'greaterThan', value: 0 }, style: { bold: true } }],
   excludedFromPivot: true, pivotSortDirection: 'desc', pivotStatisticColumnFunction: 'sum',
   displayAsLink: true, linkLabelParameter: '',
 };

@@ -53,9 +53,9 @@ let canCompile: boolean;
 /** Set: the compile FAILS (not a refusal, not an abort) with this. */
 let compileFails: Error | null;
 
-function open(start: ColumnEditorStart): ColumnEditor {
+function open(start: ColumnEditorStart, snapshot: CubeSnapshot = CUBE): ColumnEditor {
   return new ColumnEditor(root, {
-    snapshot: () => CUBE,
+    snapshot: () => snapshot,
     start,
     debounceMs: 0,
     parse: liteParse,
@@ -549,11 +549,48 @@ describe('arithmetic over a possibly-empty column (src/calc-fix.ts)', () => {
   });
 });
 
+describe('Parent or grand total: a measure at a coarser grain', () => {
+  const GROUPED: CubeSnapshot = {
+    ...CUBE,
+    rows: ['region'],
+    groupDerived: [{ name: 'parent_notional', grain: { of: 'notional', at: 'parent' } }],
+  };
+
+  it('opens on a grain column as it is -- never as an empty formula -- and its OK keeps it one', async () => {
+    open({ edit: 'parent_notional' }, GROUPED);
+    await settle();
+    assert.equal($('.dc-xc-kind[data-kind="grain"]').getAttribute('aria-checked'), 'true');
+    assert.equal($<HTMLSelectElement>('.dc-grain-of').value, 'notional');
+    assert.equal($<HTMLSelectElement>('.dc-grain-at').value, 'parent');
+    const at = $<HTMLSelectElement>('.dc-grain-at');
+    at.value = 'all';
+    at.dispatchEvent(new dom.window.Event('change'));
+    await settle();
+    $<HTMLButtonElement>('.dc-calc-ok').click();
+    await settle();
+    assert.deepEqual(edited, [{ name: 'parent_notional', level: 'group',
+      column: { name: 'parent_notional', grain: { of: 'notional', at: 'all' } } }]);
+  });
+
+  it('a new one is a group-level column; it waits for its measure, and a pivot greys it out', async () => {
+    open({ expression: 'x|1' }, GROUPED);
+    $<HTMLButtonElement>('.dc-xc-kind[data-kind="grain"]').click();
+    await settle();
+    assert.match($('.dc-calc-check').textContent ?? '', /Choose the measure/);
+    assert.equal($<HTMLButtonElement>('.dc-calc-ok').disabled, true);
+    root.replaceChildren();
+    open({}, { ...GROUPED, pivotOn: ['region'] });
+    const grain = $<HTMLButtonElement>('.dc-xc-kind[data-kind="grain"]');
+    assert.equal(grain.disabled, true);
+    assert.match(grain.title, /pivots its columns/);
+  });
+});
+
 describe('the rail keeps its shape', () => {
   it('offers every kind, greying out the ones this cube cannot take, and says why', () => {
     open({});
     const kinds = [...root.querySelectorAll<HTMLButtonElement>('.dc-xc-kind')];
-    assert.deepEqual(kinds.map((k) => k.dataset['kind']), ['formula', 'window', 'ratio', 'children', 'json']);
+    assert.deepEqual(kinds.map((k) => k.dataset['kind']), ['formula', 'window', 'ratio', 'children', 'grain', 'json']);
     const json = kinds.find((k) => k.dataset['kind'] === 'json')!;
     assert.equal(json.disabled, true, 'no JSON column here');
     assert.match(json.title, /no JSON column/);

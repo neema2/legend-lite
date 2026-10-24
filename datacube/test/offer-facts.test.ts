@@ -23,17 +23,18 @@ describe('aggregates offered by the compiler\'s answers', () => {
   it('a number takes every numeric aggregate, whatever numeric type the result is', () => {
     // an Integer's average is a Float and its deviation a Number: the same family
     const numeric: AggregateFn[] = ['sum', 'average', 'count', 'min', 'max', 'median', 'percentile25', 'percentile75', 'stdDevPopulation',
-      'stdDevSample', 'variancePopulation', 'varianceSample', 'wavg', 'unique'];
+      'stdDevSample', 'variancePopulation', 'varianceSample', 'wavg', 'unique', 'distinctCount', 'corr', 'covarSample', 'covarPopulation',
+      'maxBy', 'minBy'];
     for (const type of ['Integer', 'Float', 'Decimal', 'Number']) assert.deepEqual(offered(type), numeric, type);
   });
 
-  it('text: what keeps it text -- no count, whose result is a number', () => {
-    assert.deepEqual(offered('String'), ['min', 'max', 'joinStrings', 'unique']);
+  it('text: what keeps it text -- no count, whose result is a number; the value at a number\'s greatest or least', () => {
+    assert.deepEqual(offered('String'), ['min', 'max', 'joinStrings', 'unique', 'maxBy', 'minBy']);
   });
 
-  it('dates, times, booleans and JSON: the ordered and the single value', () => {
+  it('dates, times, booleans and JSON: the ordered and the single value, and the value at a number\'s greatest or least', () => {
     for (const type of ['StrictDate', 'DateTime', 'Date', 'StrictTime', 'Boolean', 'Variant']) {
-      assert.deepEqual(offered(type), ['min', 'max', 'unique'], type);
+      assert.deepEqual(offered(type), ['min', 'max', 'unique', 'maxBy', 'minBy'], type);
     }
   });
 
@@ -152,6 +153,12 @@ describe('parity with upstream DataCube\'s aggregate offers', () => {
       'Float percentile25: ours only', 'Float percentile75: ours only',
       'Integer percentile25: ours only', 'Integer percentile75: ours only',
       'Number percentile25: ours only', 'Number percentile75: ours only',
+      // aggregates of two columns and the distinct count (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md P2), this
+      // DataCube's own: a correlation's, a covariance's and a distinct count's result a number; max by and min by keep
+      // the column's own type, any type's
+      ...['Decimal', 'Float', 'Integer', 'Number'].flatMap((t) =>
+        ['distinctCount', 'corr', 'covarSample', 'covarPopulation'].map((fn) => `${t} ${fn}: ours only`)),
+      ...Object.keys(UPSTREAM_CATEGORY).flatMap((t) => ['maxBy', 'minBy'].map((fn) => `${t} ${fn}: ours only`)),
     ].sort());
   });
 });

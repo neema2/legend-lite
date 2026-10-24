@@ -19,6 +19,7 @@
 // format, while the measure underneath stays one numeric value.
 
 import type { Scalar } from '../../engine-client/src/result.ts';
+import { formatByCode, readFormatCode } from './format-code.ts';
 import { prettyJson } from './json-shape.ts';
 import { hasTimeOfDay, isNumeric, isTemporal, isTimeOfDay, isVariant } from '../../engine-client/src/types.ts';
 
@@ -89,6 +90,11 @@ export interface ColumnFormat {
   readonly negativeParens?: boolean;
   /** Text case, applied last so it cannot disturb the number. */
   readonly fontCase?: FontCase;
+  /**
+   * An Excel number format code (format-code.ts): `#,##0.0,,"M"`, `$#,##0;[Red]($#,##0)`, `yyyy-mm-dd`. Where it has
+   * a section for the value it writes it, before every other setting here; judged when it is set.
+   */
+  readonly code?: string;
 }
 
 /**
@@ -297,6 +303,11 @@ export class FormatterCache {
     if (value === null || value === undefined) {
       return format.nullText ?? '';
     }
+    // Excel's code, where it has a section for the value: its digits, literals, scaling, a date's fields
+    if (format.code !== undefined) {
+      const by = formatByCode(readFormatCode(format.code), value, isNumeric(type));
+      if (by !== null) return applyCase(by.text, format.fontCase);
+    }
 
     if (format.kind === 'auto' || format.kind === 'text') {
       if (format.kind === 'auto' && isTemporal(type) && !isTimeOfDay(type)) {
@@ -387,4 +398,10 @@ function instantOf(value: Scalar): Date | null {
   at.setUTCHours(Number(m[4] ?? 0), Number(m[5] ?? 0), Number(m[6] ?? 0),
     Number((m[7] ?? '0').slice(0, 3).padEnd(3, '0')));
   return at;
+}
+
+/** A value's colour by its column's code (a section's `[Red]`), or none. */
+export function codeColour(value: Scalar, format: ColumnFormat | undefined, type: string | undefined): string | null {
+  if (format?.code === undefined || value === null || value === undefined) return null;
+  return formatByCode(readFormatCode(format.code), value, isNumeric(type))?.colour ?? null;
 }

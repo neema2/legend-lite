@@ -41,12 +41,12 @@ import type { CubeConfiguration } from '../config.ts';
 import type { GridShown } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
 import {
-  FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews,
+  FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews, type TextView,
 } from '../page-document.ts';
 import {
   layoutCommand, movedCommand, moveSheetCommand, moveToSheetCommands, pageCommand, renameSheetCommand, savedLayout, showGridCommands,
 } from '../page-gestures.ts';
-import { chartTitle, gridTitle, nextPageId } from '../page-ids.ts';
+import { chartTitle, gridTitle, nextPageId, textTitle } from '../page-ids.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { CubeDocument, CubeSource } from '../cube-document.ts';
 import type { GridCopy, PageDocument } from '../page-document.ts';
@@ -109,6 +109,8 @@ export interface SpawnOptions {
   readonly id?: string;
   readonly onChart?: () => void;
   readonly onNewGrid?: () => void;
+  /** Its menus' Create ▸ Text Box: a text tile on its sheet. */
+  readonly onText?: () => void;
   /** Its New ▸ Source…: a grid over another source, made by `make`, on this page. */
   readonly onNewSource?: (make: (host: HTMLElement, options: SpawnOptions) => SpawnedGrid) => void;
   /** Its menu's Remove from Page: the page takes its tile off, as the tile's own remove button does. */
@@ -272,6 +274,16 @@ interface ChartLink {
   detached?: { readonly snapshot: CubeSnapshot; readonly from: string };
 }
 
+/** A text tile's words when Create ▸ Text Box makes one, its editor open on them. */
+const STARTING_TEXT = 'Double-click to write here.';
+
+/** A text tile on the board: its words as the page has them, its body, and whether its editor is open. */
+interface TextTile {
+  text: string;
+  readonly body: HTMLElement;
+  editing: boolean;
+}
+
 interface ChartTile {
   readonly panel: ChartPanel;
   readonly link: ChartLink;
@@ -315,6 +327,8 @@ export class CubePage {
   #disposed = false;
   readonly #charts = new Map<string, ChartTile>();
   readonly #grids = new Map<string, GridTile>();
+  /** The text tiles (page-text.ts): each one's words as the page has them, its body, whether its editor is open. */
+  readonly #texts = new Map<string, TextTile>();
   /** Grids removed from the board while a frozen chart still reads them: kept, off the board, to run its query. */
   readonly #kept = new Map<string, SpawnedGrid>();
   /** Each grid's title as it was made, so a saved page writes only a title someone gave it. */
@@ -422,9 +436,9 @@ export class CubePage {
 
   /** The next id of `kind` (page-ids.ts nextPageId): after every id the page's state has held and every one on the board
    *  now -- a tile a gesture made that its command has not placed yet among them. */
-  #nextId(kind: 'grid' | 'chart' | 'sheet'): string {
+  #nextId(kind: 'grid' | 'chart' | 'text' | 'sheet'): string {
     const board = [...this.#sheets.map((s) => s.id), ...this.#grids.keys(), ...this.#charts.keys(), ...this.#kept.keys(),
-      ...this.#unavailable.keys(), ...this.#pending.keys()];
+      ...this.#unavailable.keys(), ...this.#pending.keys(), ...this.#texts.keys()];
     return nextPageId([...this.#options.taken(), ...board], kind);
   }
 
@@ -592,8 +606,17 @@ export class CubePage {
       for (const id of [...this.#charts.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropChart(id, theirs);
       for (const id of [...this.#grids.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropGrid(id);
       for (const id of [...this.#unavailable.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropUnavailable(id);
+      for (const id of [...this.#texts.keys()]) if (known.has(id) && !wanted.has(id)) this.#dropText(id);
+      // text tiles it has and the screen does not, each on its sheet
+      for (const view of to.views) {
+        if (view.kind !== 'text' || this.#texts.has(view.id)) continue;
+        const on = board(sheetFor.get(view.id));
+        if (on) this.#planned.set(view.id, on);
+        this.#placeText(view);
+      }
       // what it could not open, back: kept as the step has it, in its place
       for (const view of to.views) {
+        if (view.kind === 'text') continue;
         if (this.#unavailable.has(view.id) || this.#grids.has(view.id) || this.#charts.has(view.id)) {
           if (this.#unavailable.has(view.id)) this.#unavailable.set(view.id, view);
           continue;
@@ -640,8 +663,15 @@ export class CubePage {
       for (const view of to.views) {
         const sheet = this.#sheetOf(view.id);
         if (!sheet) continue;
-        const title = view.kind === 'grid' ? view.title ?? this.#titles.get(view.id) : view.title;
+        const title = view.kind === 'grid' ? view.title ?? this.#titles.get(view.id)
+          : view.kind === 'text' ? view.title ?? textTitle(view.id) : view.title;
         if (title !== undefined && sheet.board.title(view.id) !== title) sheet.board.rename(view.id, title);
+        // a text tile's words as the step has them, drawn unless its editor is open
+        const text = this.#texts.get(view.id);
+        if (text && view.kind === 'text' && text.text !== view.text) {
+          text.text = view.text;
+          if (!text.editing) this.#drawText(view.id);
+        }
         const chart = this.#charts.get(view.id);
         if (chart && view.kind === 'chart') {
           // reading another grid there than here (a grid's removal undone; a Show Grid, or one undone or redone): it reads
@@ -981,6 +1011,11 @@ export class CubePage {
     return this.#charts.size + this.#grids.size - (this.#options.grid ? 1 : 0);
   }
 
+  /** How many text tiles it holds. */
+  get texts(): number {
+    return this.#texts.size;
+  }
+
   /**
    * ANOTHER GRID on the page: a cube of its own over the same source, starting as `from` is now,
    * in a tile like any chart's -- moved, resized, renamed and removed the same way -- with charts
@@ -1107,6 +1142,7 @@ export class CubePage {
     return {
       id,
       onChart: () => this.openChart(undefined, id),
+      onText: () => this.addText(id),
       onNewGrid: () => this.addGrid(id),
       onNewSource: (other) => this.addGridOver(other, { near: id }),
       onRemove: () => this.removeGrid(id),
@@ -1374,6 +1410,11 @@ export class CubePage {
         ...(chart.conditions.length > 0 ? { selection: chart.conditions } : {}),
       });
     }
+    // the text tiles in reading order, each its own title only when someone gave it one
+    for (const id of this.tileIds.filter((t) => this.#texts.has(t))) {
+      const title = this.title(id);
+      views.push({ id, kind: 'text', text: this.#texts.get(id)!.text, ...(title !== undefined && title !== textTitle(id) ? { title } : {}) });
+    }
     // each sheet's layout of what is saved: the other tiles' places closed up, as if they had been removed
     // (page-gestures.ts savedLayout, the rule a layout is told by too)
     const saved = new Set(views.map((v) => v.id));
@@ -1400,6 +1441,13 @@ export class CubePage {
     this.setSheets(page.sheets);
     for (const view of page.views) {
       if (view.kind === 'grid' && view.title && this.#grids.has(view.id)) this.#sheetOf(view.id)?.board.rename(view.id, view.title);
+    }
+    const sheetFor = new Map(page.sheets.flatMap((s) => tiles(s.layout).map((t) => [t, s.id] as const)));
+    for (const view of page.views) {
+      if (view.kind !== 'text' || this.#texts.has(view.id)) continue;
+      const on = this.#sheets.find((s) => s.id === sheetFor.get(view.id));
+      if (on) this.#planned.set(view.id, on);
+      this.#placeText(view);
     }
     const charts = page.views.filter((v): v is ChartView => v.kind === 'chart');
     for (const chart of charts) {
@@ -1435,6 +1483,8 @@ export class CubePage {
     const grid = cells(bringToFront(without(fronted(this.#layoutOf(sheet), sheet.board.layout),
       (id) => this.#grids.has(id) && id !== table), table));
     const tiles = grid.tiles.map((t): ExportTile => {
+      const text = this.#texts.get(t.id);
+      if (text) return { id: t.id, kind: 'text', title: this.title(t.id) ?? textTitle(t.id), x: t.x, y: t.y, w: t.w, h: t.h, text: this.#exportedText(text) };
       const chart = this.#charts.get(t.id);
       const picture = chart?.panel.picture() ?? null;
       return {
@@ -1454,6 +1504,7 @@ export class CubePage {
     this.#picker?.close();
     for (const chart of this.#charts.values()) chart.panel.dispose();
     this.#charts.clear();
+    this.#texts.clear();
     for (const grid of this.#grids.values()) {
       grid.added?.stop();
       grid.added?.cube.dispose();
@@ -1522,6 +1573,7 @@ export class CubePage {
       this.#options.onChange();
       this.#afterRemove();
     } else if (this.#charts.has(id)) this.#dropChart(id);
+    else if (this.#texts.has(id)) this.#dropText(id);
   }
 
   /** A chart off the board: its selection off its grid's filter as the step took it off (`theirs`: another editor's,
@@ -1563,7 +1615,99 @@ export class CubePage {
 
   /** Nothing left of what the board is for: a cube's own with no chart, a page of its own with no tile. */
   #isEmpty(): boolean {
-    return this.charts === 0 && (this.#options.grid !== undefined || this.#grids.size === 0);
+    return this.charts === 0 && this.#texts.size === 0 && (this.#options.grid !== undefined || this.#grids.size === 0);
+  }
+
+  // -- text tiles ------------------------------------------------------------------------------------------------------
+
+  /**
+   * CREATE ▸ TEXT BOX: a text tile on `near`'s sheet (else the sheet shown), told as the page's (addText) -- a band of its
+   * own at the sheet's bottom -- its editor then open on its starting words.
+   */
+  addText(near?: string): void {
+    const sheet = (near !== undefined ? this.#sheetOf(near) : undefined) ?? this.#shown;
+    const id = this.#nextId('text');
+    if (!this.#tell('Add Text', pageCommand('addText', { id, sheet: sheet.id, text: STARTING_TEXT, title: null, columns: sheet.board.columns ?? null }))) return;
+    this.#reveal(id);
+    this.editText(id);
+  }
+
+  /** A text tile on the board, its words drawn (page-text.ts textElement); a double-click, or its Edit, edits them. */
+  #placeText(view: TextView): void {
+    const doc = this.#doc;
+    const body = doc.createElement('div');
+    body.className = 'dc-text-host';
+    this.#texts.set(view.id, { text: view.text, body, editing: false });
+    this.#drawText(view.id);
+    body.addEventListener('dblclick', () => this.editText(view.id));
+    const edit = doc.createElement('button');
+    edit.type = 'button';
+    edit.className = 'dc-tile-tool dc-text-edit';
+    edit.textContent = '\u270e';
+    edit.title = 'Edit the text';
+    edit.setAttribute('aria-label', `Edit ${view.title ?? textTitle(view.id)}`);
+    edit.addEventListener('click', () => this.editText(view.id));
+    this.#place({ id: view.id, title: view.title ?? textTitle(view.id), element: body, actions: [edit] });
+  }
+
+  /** A text tile's words drawn (page-text.ts, a chunk of its own fetched with the first drawn), unless its editor is
+   *  open by the time they are. */
+  #drawText(id: string): void {
+    void lazily(() => import('../page-text.ts')).then(({ readText, textElement }) => {
+      const text = this.#texts.get(id);
+      if (text && !text.editing) text.body.replaceChildren(textElement(this.#doc, readText(text.text)));
+    });
+  }
+
+  /**
+   * A TEXT TILE'S EDITOR, in its place (page-text.ts textEditor): OK tells its words (setText -- refused by the page, the
+   * editor stays with what was typed); Cancel or Escape leaves them as they were.
+   */
+  editText(id: string): void {
+    const text = this.#texts.get(id);
+    if (!text || text.editing) return;
+    text.editing = true;
+    void lazily(() => import('../page-text.ts')).then(({ textEditor }) => {
+      if (!this.#texts.has(id)) return;
+      const close = (): void => {
+        text.editing = false;
+        this.#drawText(id);
+      };
+      const editor = textEditor(this.#doc, {
+        words: text.text,
+        onCancel: close,
+        onOk: (words) => {
+          if (words === text.text) return close();
+          text.editing = false;
+          // the step draws it (sync); refused, the editor stays with what was typed
+          if (!this.#tell('Edit Text', pageCommand('setText', { tile: id, text: words }))) text.editing = true;
+        },
+      });
+      text.body.replaceChildren(...editor.elements);
+      editor.area.focus();
+      editor.area.select();
+    });
+  }
+
+  /** A text tile as an export writes it: as the board drew it -- its HTML, a line a block -- or, not yet drawn, its
+   *  words as typed. */
+  #exportedText(text: TextTile): { readonly html: string; readonly lines: readonly string[] } {
+    const drawn = text.body.querySelector('.dc-text-tile');
+    if (drawn === null) {
+      const pre = this.#doc.createElement('pre');
+      pre.textContent = text.text;
+      return { html: pre.outerHTML, lines: text.text.split('\n') };
+    }
+    const lines = [...drawn.children].flatMap((block) => (block.tagName === 'UL' || block.tagName === 'OL'
+      ? [...block.children].map((li, i) => `${block.tagName === 'OL' ? `${i + 1}.` : '-'} ${li.textContent ?? ''}`)
+      : [block.textContent ?? '']));
+    return { html: drawn.outerHTML, lines };
+  }
+
+  /** A text tile off the board, as a step leaves it. */
+  #dropText(id: string): void {
+    if (!this.#texts.delete(id)) return;
+    this.#take(id);
   }
 
   /** Take a grid off the page as its own tile's remove button does: a grid's menu's Remove from Page. */

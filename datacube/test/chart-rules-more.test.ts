@@ -505,7 +505,11 @@ describe('what stops a chart from being drawn (chartProblems), each in words', (
     // a count reads no column: it counts the group's rows
     assert.deepEqual(problems(of('bar', { y: [{ column: 'region', fn: 'count' }] })), []);
     assert.deepEqual(problems(of('bar', { y: [{ column: 'notional', fn: 'wavg' }] })),
-      ['A chart plots no weighted average: \'notional\' would need its weight.']);
+      ['A chart plots no weighted average: \'notional\' would need its weight column.']);
+    // so every aggregate of two; a distinct count of its own column plots
+    assert.deepEqual(problems(of('bar', { y: [{ column: 'notional', fn: 'corr' }] })),
+      ['A chart plots no correlation: \'notional\' would need its paired column.']);
+    assert.deepEqual(problems(of('bar', { y: [{ column: 'notional', fn: 'distinctCount' }] })), []);
   });
 
   it('a split the cube has not, a split that is the column across, a drill level the cube has not', () => {
@@ -608,7 +612,7 @@ describe('Open in Grid: a chart\'s values as the grid\'s Column Properties (char
     const made = chartValuesAsColumns({ snapshot: CUBE, config: DEFAULT_CONFIGURATION }, [SUM_NOTIONAL, counted]);
     assert.equal(made.carriedBy(counted), undefined);
     assert.deepEqual(made.notes, ['left out measure count: \'count\' is not offered on region, a String column: '
-      + 'min, max, joinStrings, unique (Show leaf count counts a group\'s rows)']);
+      + 'min, max, joinStrings, unique, maxBy, minBy (Show leaf count counts a group\'s rows)']);
     const following = of('bar', { y: [SUM_NOTIONAL, counted] });
     assert.deepEqual(followCube(following, CUBE, made.carriedBy).y[1], counted);
   });

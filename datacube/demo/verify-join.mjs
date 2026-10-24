@@ -51,7 +51,7 @@ page.on('dialog', async (d) => {
 const item = (label) => page.locator('.dc-menu .dc-menu-item', { has: page.locator(`:scope > .dc-menu-label:text-is(${JSON.stringify(label)})`) }).first();
 /** The grids on the page: each tile's grid (their menu buttons, which these counted, went 2026-10-23). */
 const GRIDS = '[data-tile] .dc-app-grid';
-/** `tile`'s right-click on its first cell (or one of `column`), then `parent` ▸ `label`: Join ▸ Join…, Tile ▸ Remove from Page. */
+/** `tile`'s right-click on its first cell (or one of `column`), then `parent` ▸ `label`: Join ▸ Join…, View ▸ Remove from Page. */
 async function gridEntry(tile, parent, label, column) {
   await tile.locator(column ? `.dc-row .dc-cell[data-column="${column}"]` : '.dc-row .dc-cell').first().click({ button: 'right' });
   await item(parent).hover();
@@ -242,7 +242,7 @@ try {
   // once, both joins reading the one table each file is read into
   await openSaved('Joins');
   await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length >= 4, undefined, { timeout: 60_000 });
-  const removeGrid = (tile) => gridEntry(tile, 'Tile', 'Remove from Page');
+  const removeGrid = (tile) => gridEntry(tile, 'View', 'Remove from Page');
   await removeGrid(tileWith('name').filter({ hasNot: page.locator('.dc-th[data-column="trade_id"]') }).first());
   await removeGrid(tileWith('notional').filter({ has: page.locator('.dc-status-rows', { hasText: /^40 rows/ }) }).first());
   await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length === 2, undefined, { timeout: 30_000 });

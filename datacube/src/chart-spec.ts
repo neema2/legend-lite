@@ -20,6 +20,7 @@ import {
   AGGREGATE_FNS,
   CubeRefusal,
   rowColumns,
+  SECOND_COLUMN,
   type AggregateFn,
   type CubeShape,
   type CubeSnapshot,
@@ -858,6 +859,7 @@ export function columnsRead(d: DerivedColumn): string[] {
     ];
   }
   if (d.childAggregate) return [d.childAggregate.of];
+  if (d.grain) return [d.grain.of];
   const out = new Set<string>();
   const walk = (n: unknown): void => {
     if (Array.isArray(n)) { n.forEach(walk); return; }
@@ -897,15 +899,22 @@ function chartRowCalcs(spec: ChartSpec | undefined): RowColumn[] {
 
 /** The measure a new chart plots when it is not told one: a column it treats as a measure, a fraction first (money, a
  *  quantity) -- every number is a measure by default (D3), and an id or a year summed is the worst first chart -- on
- *  the grid's Aggregation of it (Column Properties), as the grid shows it; never one aggregated by a weighted average,
- *  which needs a weight a chart's value has not; else none. */
+ *  the grid's Aggregation of it (Column Properties), as the grid shows it; never one aggregated by an aggregate of two
+ *  (plotsAlone); else none. */
 function firstMeasure(s: CubeSnapshot): ChartMeasure | undefined {
   const specOf = columnSpecs(s);
   const plotted = chartColumns(s).measures.filter((c) => c.kind === 'measure')
-    .map((c) => ({ column: c, fn: defaultMeasure(c.name, specOf.get(c.name)).fn }))
-    .filter((m) => m.fn !== 'wavg');
+    .map((c) => ({ column: c, measure: defaultMeasure(c.name, specOf.get(c.name)) }))
+    .filter((m) => plotsAlone(m.measure))
+    .map((m) => ({ column: m.column, fn: m.measure.fn }));
   const first = plotted.find((m) => isFractional(m.column.type)) ?? plotted[0];
   return first ? { column: first.column.name, fn: first.fn } : undefined;
+}
+
+/** Whether a chart's value can plot the grid's measure: one reading a second column (snapshot.ts SECOND_COLUMN: a
+ *  weighted average's weight, a distinct count of another column) cannot, as a chart's value names one column. */
+function plotsAlone(m: Measure): boolean {
+  return m.weight === undefined && SECOND_COLUMN[m.fn]?.required !== true;
 }
 
 /**
@@ -1054,7 +1063,7 @@ function carryingColumn(m: ChartMeasure, s: CubeShape): string | undefined {
  * A chart's value as a following chart plots it: its column at the grid's Aggregation of `column`, the grid column that
  * carries it (carryingColumn; a following chart's value no column carries follows its own column's). A row's value,
  * a value no column carries for Update, a value of a dimension (which the grid does not aggregate), one the grid
- * aggregates by a weighted average (which needs a weight a chart's value has not), and one whose followed pair another
+ * aggregates by an aggregate of two (plotsAlone: a second column a chart's value names none of), and one whose followed pair another
  * of the chart's values plots already (the grid carries one of two values of a column: followed, the chart would plot
  * it twice, and lose the other for good, as a following chart keeps what it follows) keep the chart's own.
  */
@@ -1062,9 +1071,9 @@ function followedValue(m: ChartMeasure, s: CubeShape, column: string | undefined
   plotted: readonly ChartMeasure[]): ChartMeasure {
   if (m.fn === 'value' || column === undefined) return m;
   if (rowColumns(s).find((c) => c.name === column)?.kind !== 'measure') return m;
-  const fn = defaultMeasure(column, columnSpecs(s).get(column)).fn;
-  if (fn === 'wavg' || fn === m.fn) return m;
-  const next = { ...m, fn };
+  const followed = defaultMeasure(column, columnSpecs(s).get(column));
+  if (!plotsAlone(followed) || followed.fn === m.fn) return m;
+  const next = { ...m, fn: followed.fn };
   return plotted.some((o) => o !== m && sameValue(o, next)) ? m : next;
 }
 
@@ -1366,8 +1375,9 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     } else if (m.fn !== 'count' && !known.has(m.column)) {
       out.push(`The cube has no column '${m.column}'.`);
     }
-    // a weighted average is weighted by another column, which a chart's value names none of (the grid's has its weight)
-    if (m.fn === 'wavg') out.push(`A chart plots no weighted average: '${m.column}' would need its weight.`);
+    // an aggregate of two reads another column, which a chart's value names none of (the grid's has its second column)
+    const second = m.fn === 'value' ? undefined : SECOND_COLUMN[m.fn];
+    if (second?.required) out.push(`A chart plots no ${second.words}: '${m.column}' would need its ${second.role} column.`);
   }
   if (spec.split !== undefined && !gridKind && !known.has(spec.split)) {
     out.push(`The cube has no column '${spec.split}'.`);

@@ -126,6 +126,8 @@ const EVERY_COLUMN_SETTING: Required<ColumnConfiguration> = {
   format: { kind: 'currency', currency: 'USD', locale: 'en-US', maximumFractionDigits: 0, numberScale: 'millions' },
   appearance: { bold: true, normalBackground: '#fafafa' },
   heatmap: { from: '#ffffff', to: '#ff8a65', range: { min: 0, max: 100 } },
+  dataBar: { color: '#9fc3ea', negativeColor: '#f4a3a3' }, iconSet: { set: 'flags', reverse: true },
+  rules: [{ when: { op: 'between', from: 1, to: 9 }, style: { foreground: '#9c0006', background: '#ffc7ce', bold: true } }],
   excludedFromPivot: true, pivotSortDirection: 'desc', pivotStatisticColumnFunction: 'max', displayAsLink: true,
   linkLabelParameter: 'title',
 };

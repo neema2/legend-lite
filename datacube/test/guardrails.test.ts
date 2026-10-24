@@ -472,7 +472,9 @@ describe('nothing is built and left unreachable', () => {
       'toPdf(',
       'exportCsv(',
       'toEml(',
-      'toCsv(',
+      // the menu's copies are the clipboard's text, as Ctrl+C's are (2026-10-24, the BI and Excel parity program's P1:
+      // they were a CSV file's, which pastes into one column); CSV files are exportCsv's, below
+      'toClipboard(',
       'drillLambda(',
       'selectionStats(',
       'writeCube(',

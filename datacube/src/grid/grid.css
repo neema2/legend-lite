@@ -180,6 +180,8 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* a mouse drag across the cells selects cells (grid.ts #onPointerMove), not the page's text; Ctrl+C copies them */
+  user-select: none;
 }
 
 /* The tree column: one column for the whole hierarchy, with depth
@@ -706,6 +708,12 @@
   display: block;
 }
 
+/* A long press opened the menu under the finger, and its release left the entry there hovered (a touch screen's sticky
+   hover): until the next touch that hover opens no submenu -- a tap on the entry does (ui/long-press.ts PRESSED_CLASS) */
+:root.dc-long-pressed .dc-menu-item.dc-has-submenu:hover:not(:focus-within) > .dc-submenu {
+  display: none;
+}
+
 /* A submenu that would run off the right edge opens leftward. */
 .dc-menu.dc-flip-x .dc-submenu {
   left: auto;
@@ -866,6 +874,10 @@
   touch-action: none;
 }
 .dc-col-resize:hover { background: var(--tw-sky-600); opacity: 0.35; }
+/* a finger is wider than a pointer: the grip wider where the pointer is a finger */
+@media (pointer: coarse) {
+  .dc-col-resize { width: 18px; right: -9px; }
+}
 
 /* Upstream's "start-end/total" bubble while scrolling. */
 .dc-scroll-hint {
@@ -895,4 +907,17 @@
   color: var(--tw-neutral-400);
   font-weight: 500;
   pointer-events: none;
+}
+
+/* Conditional formats (conditional.ts): a data bar's band, the cell's middle; an icon before the value. */
+.dc-cell.dc-bar {
+  background-size: 100% 64%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.dc-cell .dc-cond-icon {
+  margin-right: 4px;
+  font-size: 0.9em;
+  flex: none;
 }
