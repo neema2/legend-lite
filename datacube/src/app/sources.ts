@@ -16,6 +16,7 @@ import type { CatalogObject, WarehouseEngine, WarehouseSession } from '../../../
 import type { Query, QueryReader } from '../../../query-store/src/index.ts';
 import { from, fromJson, lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { ClassAt, ClassElement, ClassGiven } from '../class-source.ts';
+import type { ClassOf } from '../class-tree.ts';
 import type { HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { HostSnap, Planner, SnapTarget } from '../cube.ts';
@@ -76,6 +77,8 @@ export type GridPlace = {
   readonly signInAgain?: (password: string) => Promise<void>;
   /** A grid can be saved: its source, by identity (never its data). */
   readonly cubeSource?: CubeSource;
+  /** A grid over a class: its class and the model's class tree, what its related columns may name (class-tree.ts). */
+  readonly classTree?: ClassOf;
   /** The groups a saved cube had open. */
   readonly tree?: TreeState;
   /** The rows are a copy in the host's database already: an opened file, generated rows. */
@@ -1038,7 +1041,7 @@ export function pageSources(d: SourcesOf): PageSources {
     if (!modelHome) throw new Error(`“${name}” is a class of ${at.project}: this page reaches no model home`);
     // fetched the first time a class is opened: a page with no class grid never downloads them
     const [{ classOpened }, home] = await Promise.all([lazily(() => import('../class-source.ts')), modelHome.connect()]);
-    const { model, left, source } = await classOpened(at,
+    const { model, left, source, tree, measures, supertypes } = await classOpened(at,
       await home.client.pure({ project: at.project, workspace: at.workspace, revision: at.revision }),
       async (text) => await services.engine.reading.elements(text) as ClassElement[]);
     const rows = services.engine.rows(model, at.runtime, { mapping: at.mapping });
@@ -1063,7 +1066,9 @@ export function pageSources(d: SourcesOf): PageSources {
         // what it leaves out, said when it is first opened: a saved grid's reopening is no change of it
         notes: [...(left.length > 0 && !saved ? [`${name}: not shown, ${left.join(', ')}`] : []), ...r.notes],
         make: gridMaker(r.snapshot, r.configuration, [], {
-          ...rowsPlace(rows), cubeSource, label: name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped,
+          ...rowsPlace(rows), cubeSource, classTree: { class: at.class, tree, measures, supertypes }, label: name,
+          ...(r.tree ? { tree: r.tree } : {}),
+          foldPanel: capped,
         }),
         discard: async () => letGo(rows),
       };

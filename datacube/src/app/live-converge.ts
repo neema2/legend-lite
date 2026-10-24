@@ -25,7 +25,7 @@ import { configurationOf, gridCapped, treeOf, type CubeDocument } from '../cube-
 import { gridBetween } from '../grid-between.ts';
 import type { GridCommand } from '../grid-commands.ts';
 import type { PageCommand } from '../page-commands.ts';
-import type { GridCopy, PageDocument } from '../page-document.ts';
+import type { GridCopy, GridView, PageDocument } from '../page-document.ts';
 import type { GridMaker, PageApp } from '../page/page-app.ts';
 import { sameValue, type CubeSnapshot } from '../snapshot.ts';
 import type { Converge, Converged } from './live-channel.ts';
@@ -141,7 +141,7 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
   for (const id of page.grids) {
     if (ownCopy.has(id)) continue;
     const grid = deps.grid(id);
-    const view = on.target.views.find((v) => v.id === id);
+    const view = on.target.views.find((v): v is GridView => v.kind === 'grid' && v.id === id);
     if (grid === undefined || view === undefined) continue;
     const copy = (on.target.copies ?? {})[view.cube];
     if (sameValue(grid.copy, copy)) continue;

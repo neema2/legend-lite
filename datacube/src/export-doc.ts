@@ -453,6 +453,18 @@ function dashboard(table: ExportTable, page: ExportPage | undefined, p: Prepared
       const name = `Im${images.length + 1}`;
       images.push({ name, jpeg: t.picture.jpeg, width: t.picture.pixelWidth, height: t.picture.pixelHeight });
       s.text(`q ${drawW.toFixed(2)} 0 0 ${drawH.toFixed(2)} ${dx.toFixed(2)} ${dy.toFixed(2)} cm /${name} Do Q\n`);
+    } else if (t.kind === 'text' && t.text !== undefined) {
+      // A TEXT TILE'S WORDS, a line each, as many as its tile holds, each cut to its width
+      const size = 9;
+      const room = Math.max(1, Math.floor(innerW / (size * 0.55)));
+      const lines = t.text.lines;
+      const fit = Math.max(0, Math.floor(innerH / (size * 1.5)));
+      lines.slice(0, fit).forEach((line, i) => {
+        const shown = line.length > room ? `${line.slice(0, room - 1)}…` : line;
+        s.text(`0.2 0.2 0.2 rg BT /F1 ${size} Tf 1 0 0 1 ${(x + 6).toFixed(2)} ${(innerTop - size - i * size * 1.5).toFixed(2)} Tm `);
+        s.string(shown, missing);
+        s.text(' Tj ET\n');
+      });
     } else if (t.kind === 'grid') {
       // THE TABLE IN ITS TILE: fitted to the tile's width, as many rows as its height holds
       const all = p.widths.map((_, i) => i);

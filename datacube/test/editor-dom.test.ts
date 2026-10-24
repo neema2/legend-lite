@@ -297,22 +297,31 @@ describe('the editor', () => {
     assert.equal(agg().disabled, false);
   });
 
-  it('offers a weight column only for a weighted average', () => {
+  it('offers a second column only for an aggregate of two, named by what it is to it', () => {
     go('Column Properties');
     chooseColumn(root, 'notional');
 
-    const weight = (): HTMLSelectElement =>
-      fieldWithLabel('Weight column:').querySelector(
+    const second = (label: string): HTMLSelectElement =>
+      fieldWithLabel(label).querySelector(
         'select',
       ) as HTMLSelectElement;
-    assert.equal(weight().disabled, true);
+    assert.equal(second('Second column:').disabled, true);
 
-    const agg = fieldWithLabel('Aggregation:').querySelector(
+    const agg = (): HTMLSelectElement => fieldWithLabel('Aggregation:').querySelector(
       'select',
     ) as HTMLSelectElement;
-    agg.value = 'wavg';
-    agg.dispatchEvent(new dom.window.Event('change'));
-    assert.equal(weight().disabled, false);
+    const pick = (fn: string): void => {
+      agg().value = fn;
+      agg().dispatchEvent(new dom.window.Event('change'));
+    };
+    pick('wavg');
+    assert.equal(second('Weight column:').disabled, false);
+    // a correlation's other column, a number as the compiler's corr takes
+    pick('corr');
+    const paired = [...second('Paired column:').options].map((o) => o.value).filter((v) => v !== '');
+    assert.ok(paired.includes('year') && !paired.includes('desk'), paired.join(', '));
+    pick('maxBy');
+    assert.equal(second('Ordering column:').disabled, false);
   });
 
   it('offers as a weight the columns the rows have, never a group-level one', () => {
@@ -322,7 +331,7 @@ describe('the editor', () => {
     });
     go('Column Properties');
     chooseColumn(root, 'notional');
-    const weight = fieldWithLabel('Weight column:').querySelector('select') as HTMLSelectElement;
+    const weight = fieldWithLabel('Second column:').querySelector('select') as HTMLSelectElement;
     const offered = [...weight.options].map((o) => o.value).filter((v) => v !== '');
     assert.ok(offered.includes('notional') && offered.includes('margin'), offered.join(', '));
     assert.equal(offered.includes('share'), false, 'a group-level column exists only after grouping');
@@ -401,7 +410,8 @@ describe('the editor', () => {
 
     it('offers only the aggregates that keep the type', () => {
       choose('desk');
-      assert.deepEqual(options('Aggregation:'), ['min', 'max', 'joinStrings', 'unique']);
+      // a text column's own, and the value on the row whose number is greatest or least
+      assert.deepEqual(options('Aggregation:'), ['min', 'max', 'joinStrings', 'unique', 'maxBy', 'minBy']);
       choose('notional');
       assert.ok(options('Aggregation:').includes('sum'));
       assert.ok(!options('Aggregation:').includes('joinStrings'));

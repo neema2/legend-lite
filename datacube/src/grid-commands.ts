@@ -4,24 +4,31 @@
 // command from a click, Python from a call; neither holds a rule of its own, so the two cannot make one edit two ways.
 // No DOM, no planner: what needs the compiler (a calculated column's parse) is done before the command is built.
 
+import { familyOf } from '../../engine-client/src/types.ts';
 import { nameProblem } from './calc.ts';
+import { readColorScale, readDataBar, readIconSet, readRule } from './conditional.ts';
+import { readFormatCode } from './format-code.ts';
 import { fieldNames, type CommandFields, type MissingFields } from './command-fields.ts';
 import {
   APPEARANCE_SETTINGS, COLUMN_SETTINGS, CUBE_SETTINGS, columnConfig, renameColumnConfig, withColumn, withConfiguration,
   type CubeConfiguration, type Patch,
 } from './config.ts';
 import {
-  addSort, allColumns, clearSort, clickSort, clickTreeSort, pivotHeaderMeasure, setColumn, setGrouping, setPivot,
+  addSort, allColumns, clearSort, clickSort, clickTreeSort, columnKind, pivotHeaderMeasure, setColumn, setGrouping, setPivot,
   setSorts, spreadMeasureNames, type ColumnChange, type GridDraft,
 } from './grid-edits.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { defaultKind } from '../../engine-client/src/types.ts';
 import { operandKind } from './filter-operators.ts';
 import {
-  AGGREGATE_FNS, CHILD_AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, SORT_DIRECTIONS, WINDOW_FUNCTIONS, isJsonValue,
-  isPivotTotalColumn, isRelativeDate, pivotTotalColumn, withCalculated, withoutConditions,
-  type AggregateFn, type ChildAggregate, type ColumnKind, type DerivedColumn, type FilterNode, type FilterOperator,
-  type FilterValue, type Measure, type SortDirection, type SortSpec, type WindowFrame, type WindowFunction, type WindowSpec,
+  AGGREGATE_FNS, CHILD_AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, FILTER_OPERATORS, GRAIN_ATS, PATH_AGGREGATES, SORT_DIRECTIONS,
+  WINDOW_FUNCTIONS, isJsonValue,
+  isPivotTotalColumn, isRelativeDate, rowColumns, pivotTotalColumn, readTopN, withCalculated, withoutConditions,
+  type AggregateFn, type ChildAggregate, type ColumnKind, type DerivedColumn, type Grain, type RelatedPath, type FilterNode, type FilterOperator,
+  type FilterValue, type Measure, type SortDirection, type SortSpec, type TopN, type WindowFrame, type WindowFunction,
+  type WindowSpec,
+  type CubeSnapshot,
+  type ValueGroups,
 } from './snapshot.ts';
 import { TREE_COLUMN } from './treeview.ts';
 import { isDetailPath, TreeState, type RowPath } from './tree.ts';
@@ -80,6 +87,11 @@ export type GridCommand =
   | { readonly kind: 'open'; readonly path: RowPath; readonly open: boolean }
   /** Every group closed, the expand level's too (the menu's Collapse All). */
   | { readonly kind: 'collapseAll' }
+  /** Every group above the detail rows open, as an Excel pivot's Expand Entire Field (the menu's Expand All). */
+  | { readonly kind: 'expandAll' }
+  /** The top or bottom N rows or groups by a column (snapshot.ts TopN: the menu's Top 10, Python's grid.top); null
+   *  takes it off. */
+  | { readonly kind: 'topN'; readonly topN: TopN | null }
   /**
    * The open groups set whole, in the saved tree's own shape (cube-document.ts CubeDocument.tree): the groups open, the
    * grand total shown, the level the groups open to and the groups closed under it. What puts a collapsed tree back --
@@ -93,7 +105,7 @@ export type GridCommand =
 
 export const GRID_COMMAND_KINDS = [
   'group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort', 'column', 'configure', 'filter', 'addFilter',
-  'refilter', 'calculate', 'editCalculated', 'removeCalculated', 'open', 'collapseAll', 'tree',
+  'refilter', 'calculate', 'editCalculated', 'removeCalculated', 'open', 'collapseAll', 'expandAll', 'topN', 'tree',
 ] as const satisfies readonly GridCommand['kind'][];
 
 /** Each grid command's fields, by kind: what readGridCommand takes, and what Python's generated builders write (D17). */
@@ -102,7 +114,7 @@ export const GRID_COMMAND_FIELDS = {
   clickSort: ['column', 'first', 'chained'], clickTreeSort: ['chained'], column: ['name', 'change'], configure: ['patch'],
   filter: ['filter'], addFilter: ['condition'], refilter: ['remove', 'add'], calculate: ['level', 'column', 'before?'],
   editCalculated: ['name', 'level', 'column', 'before?'], removeCalculated: ['name'], open: ['path', 'open'],
-  collapseAll: [], tree: ['open', 'showTotals', 'expandTo?', 'closed?'],
+  collapseAll: [], expandAll: [], topN: ['topN'], tree: ['open', 'showTotals', 'expandTo?', 'closed?'],
 } as const satisfies CommandFields<GridCommand>;
 // every field of every kind listed: a field the list leaves out is a type error naming it
 const gridFieldsWhole: [MissingFields<GridCommand, typeof GRID_COMMAND_FIELDS>] extends [never] ? true
@@ -154,10 +166,15 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
     case 'calculate': {
       const problem = nameProblem(draft.snapshot, command.level, command.column.name);
       if (problem !== null) throw new CubeRefusal(problem);
+      if (command.column.related !== undefined && command.level !== 'row') {
+        throw new CubeRefusal(`'${command.column.name}' is a related class's property: a row-level column, projected with the class's own`);
+      }
+      groupsProblem(draft.snapshot, command.level, command.column);
       return { ...draft, snapshot: withCalculated(draft.snapshot, undefined, command.level, command.column, command.before) };
     }
     case 'editCalculated': {
       const was = calculatedNamed(draft, command.name);
+      groupsProblem(draft.snapshot, command.level, command.column);
       const problem = nameProblem(draft.snapshot, command.level, command.column.name, command.name);
       if (problem !== null) throw new CubeRefusal(problem);
       if (command.before === command.name) throw new CubeRefusal(`'${command.name}' cannot go before itself`);
@@ -197,6 +214,16 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
     }
     case 'collapseAll':
       return { ...draft, tree: shownTree(draft).collapseAll() };
+    case 'expandAll':
+      return { ...draft, tree: shownTree(draft).expandAll(draft.snapshot.rows.length) };
+    case 'topN': {
+      const { topN: _was, ...rest } = draft.snapshot;
+      if (command.topN === null) return { ...draft, snapshot: rest };
+      if (draft.snapshot.pivotOn.length > 0) {
+        throw new CubeRefusal("a top N ranks the grid's rows or groups; a pivot's figures are its values' columns: take the pivot off first");
+      }
+      return { ...draft, snapshot: { ...rest, topN: command.topN } };
+    }
     case 'tree': {
       shownTree(draft);
       for (const path of [...command.open, ...(command.closed ?? [])]) {
@@ -251,11 +278,22 @@ export function draftCommands(base: GridDraft, edited: GridDraft): GridCommand[]
   for (const name of new Set([...Object.keys(base.config.columns), ...Object.keys(edited.config.columns)])) {
     const was = columnConfig(base.config, name);
     const now = columnConfig(edited.config, name);
+    const aggregation: ColumnChange = {
+      ...(!same(now.aggregateFn, was.aggregateFn) ? { aggregate: now.aggregateFn ?? null } : {}),
+      ...(!same(now.aggregationParameters, was.aggregationParameters) ? { weight: now.aggregationParameters?.[0] ?? null } : {}),
+    };
+    // a dimension keeps the Aggregation it had as a measure (setColumn), but only a measure is given one: set as a
+    // measure, then made the dimension it ends as (2026-10-24, found by the undo's random walks: Aggregation, then
+    // dimension, was a draft no command list reached)
+    if (now.kind === 'dimension' && Object.keys(aggregation).length > 0) {
+      early.push({ kind: 'column', name, change: { ...(columnKind(base, name) === 'dimension' ? { kind: 'measure' } : {}), ...aggregation } });
+      early.push({ kind: 'column', name, change: { kind: 'dimension' } });
+      continue;
+    }
     const change: ColumnChange = {
       // a kind is set, never cleared: one cleared is left to configure, which refuses it in words
       ...(now.kind !== undefined && now.kind !== was.kind ? { kind: now.kind } : {}),
-      ...(!same(now.aggregateFn, was.aggregateFn) ? { aggregate: now.aggregateFn ?? null } : {}),
-      ...(!same(now.aggregationParameters, was.aggregationParameters) ? { weight: now.aggregationParameters?.[0] ?? null } : {}),
+      ...aggregation,
     };
     if (Object.keys(change).length === 0) continue;
     (change.kind === 'dimension' ? early : late).push({ kind: 'column', name, change });
@@ -389,6 +427,26 @@ function configured<D extends GridDraft>(draft: D, given: SettingsPatch): D {
     }
     if (excludedFromPivot !== undefined && excludedFromPivot !== null && typeof excludedFromPivot !== 'boolean') {
       throw new CubeRefusal(`${name}'s excludedFromPivot is true or false, not ${JSON.stringify(excludedFromPivot)}`);
+    }
+    // conditional formats (conditional.ts): each as its reader takes it, or refused in its words
+    const { heatmap, dataBar, iconSet, rules, format } = presentation as Record<string, unknown>;
+    try {
+      // as the saved cube's reader takes one (cube-document.ts): null is no code, refused -- a format without one has none
+      const code = isObject(format) ? format['code'] : undefined;
+      if (code !== undefined) {
+        if (typeof code !== 'string') throw new CubeRefusal(`a format code is text, not ${JSON.stringify(code)}`);
+        readFormatCode(code);
+      }
+      if (heatmap !== undefined && heatmap !== null) readColorScale(heatmap);
+      if (dataBar !== undefined && dataBar !== null) readDataBar(dataBar);
+      if (iconSet !== undefined && iconSet !== null) readIconSet(iconSet);
+      if (rules !== undefined && rules !== null) {
+        if (!Array.isArray(rules)) throw new CubeRefusal(`rules are a list, each {when, style}, not ${JSON.stringify(rules)}`);
+        rules.forEach(readRule);
+      }
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      throw new CubeRefusal(`${name}: ${e.message}`);
     }
     if ((kind !== undefined && kind !== null) || aggregateFn !== undefined || aggregationParameters !== undefined) {
       d = setColumn(d, name, {
@@ -597,21 +655,98 @@ function childAggregateFrom(v: unknown): ChildAggregate {
   return { fn: fn as ChildAggregate['fn'], of: textFrom(v['of'], "a child aggregate's column") };
 }
 
+/** A measure at a grain -- the measure, its parent's level or the grand total's -- or why not. */
+function grainFrom(v: unknown): Grain {
+  if (!isObject(v)) throw new CubeRefusal(`a measure at a grain is {of, at}, not ${JSON.stringify(v)}`);
+  fields(v, 'grain', ['of', 'at'], 'a measure at a grain');
+  const at = v['at'];
+  if (typeof at !== 'string' || !(GRAIN_ATS as readonly string[]).includes(at)) {
+    throw new CubeRefusal(`a measure's grain is its parent's ('parent') or the grand total's ('all'), not ${JSON.stringify(at)}`);
+  }
+  return { of: textFrom(v['of'], "a grain's measure"), at: at as Grain['at'] };
+}
+
+/** A related class's property -- its path from the class, a to-many end's aggregate -- or why not. What the path names
+ *  (a property the class has, to one or to many) is the model's to judge: class-source.ts relatedProblem. */
+function relatedFrom(v: unknown): RelatedPath {
+  if (!isObject(v)) throw new CubeRefusal(`a related column is {path[, aggregate]}, not ${JSON.stringify(v)}`);
+  fields(v, 'related', ['path', 'aggregate'], 'a related column');
+  const path = namesFrom(v['path'], "a related column's path");
+  if (path.length === 0) throw new CubeRefusal("a related column's path is the properties from the class, at least one");
+  const aggregate = v['aggregate'];
+  if (aggregate !== undefined && (typeof aggregate !== 'string' || !(PATH_AGGREGATES as readonly string[]).includes(aggregate))) {
+    throw new CubeRefusal(`a related column's values are aggregated by ${PATH_AGGREGATES.join(', ')}, not ${JSON.stringify(aggregate)}`);
+  }
+  return { path, ...(aggregate !== undefined ? { aggregate: aggregate as RelatedPath['aggregate'] & string } : {}) };
+}
+
+/** Value groups judged against the grid (snapshot.ts ValueGroups): a row-level column, of a column of its rows, its
+ *  values in no group named where they are no text (an if's branches one type). */
+function groupsProblem(s: CubeSnapshot, level: string, column: DerivedColumn): void {
+  const g = column.groups;
+  if (g === undefined) return;
+  if (level !== 'row') throw new CubeRefusal(`'${column.name}' groups a column's values: a row-level column, before the grouping`);
+  const of = rowColumns(s).find((c) => c.name === g.of);
+  if (of === undefined) throw new CubeRefusal(`'${g.of}' is no column of the grid's rows (${rowColumns(s).map((c) => c.name).join(', ')})`);
+  if (g.other === undefined && of.type !== undefined && familyOf(of.type) !== 'text') {
+    throw new CubeRefusal(`${g.of} is ${of.type}: its values in no group need a name (other), a group's name being text`);
+  }
+}
+
+/** A column's values gathered into named groups (snapshot.ts ValueGroups) read from JSON, or why not: a group of no
+ *  values, a name twice, a value in two groups. Which column it gathers is the grid's to judge (the calculate command). */
+function groupsFrom(v: unknown): ValueGroups {
+  if (!isObject(v)) throw new CubeRefusal(`value groups are {of, groups: [{name, values}], other?}, not ${JSON.stringify(v)}`);
+  fields(v, 'groups', ['of', 'groups', 'other'], 'value groups');
+  const of = textFrom(v['of'], 'the column the groups gather');
+  const given = v['groups'];
+  if (!Array.isArray(given) || given.length === 0) throw new CubeRefusal(`value groups have at least one group, each {name, values}, not ${JSON.stringify(given)}`);
+  const seen = new Map<string, string>();
+  const names = new Set<string>();
+  const groups = given.map((g) => {
+    if (!isObject(g)) throw new CubeRefusal(`a group is {name, values}, not ${JSON.stringify(g)}`);
+    fields(g, 'group', ['name', 'values'], 'a group');
+    const name = textFrom(g['name'], "a group's name").trim();
+    if (name === '') throw new CubeRefusal("a group's name is some text, not blank");
+    if (names.has(name)) throw new CubeRefusal(`two groups are named ${name}: a name is one group's`);
+    names.add(name);
+    const values = g['values'];
+    if (!Array.isArray(values) || values.length === 0) throw new CubeRefusal(`the group ${name} holds at least one value`);
+    return {
+      name,
+      values: values.map((x) => {
+        const value = x === null ? null : filterValueFrom(x);
+        const key = JSON.stringify(value);
+        const had = seen.get(key);
+        if (had !== undefined) throw new CubeRefusal(`${value === null ? 'the blanks' : JSON.stringify(value)} are in ${had} and ${name}: a value is in one group`);
+        seen.set(key, name);
+        return value;
+      }),
+    };
+  });
+  const other = v['other'];
+  if (other !== undefined && (typeof other !== 'string' || other.trim() === '')) {
+    throw new CubeRefusal(`the name of the values in no group is some text, not ${JSON.stringify(other)}`);
+  }
+  return { of, groups, ...(other !== undefined ? { other: (other as string).trim() } : {}) };
+}
+
 /**
  * A calculated column read from JSON, as the screen's column editor and its presets make one: a formula (its lambda the
  * protocol's, its body the planner's to judge; exploded, each row repeated per element), a window column (Show As: a
- * running total, a rank) or an aggregate of the child groups -- exactly one of them -- with its name (trimmed, as the
- * editor takes one), its kind and its type; or why not.
+ * running total, a rank), an aggregate of the child groups, a measure at its parent's or the grand total's grain or a
+ * related class's property -- exactly one of them -- with its name (trimmed, as the editor takes one), its kind and its
+ * type; or why not.
  */
 function calculatedFrom(v: unknown): DerivedColumn {
-  if (!isObject(v)) throw new CubeRefusal(`a calculated column is {name, lambda | window | childAggregate, ...}, not ${JSON.stringify(v)}`);
-  fields(v, 'column', ['name', 'lambda', 'window', 'childAggregate', 'unnest', 'kind', 'type'], 'a calculated column from JSON');
-  const shapes = (['lambda', 'window', 'childAggregate'] as const).filter((k) => v[k] !== undefined);
+  if (!isObject(v)) throw new CubeRefusal(`a calculated column is {name, lambda | window | childAggregate | grain | related | groups, ...}, not ${JSON.stringify(v)}`);
+  fields(v, 'column', ['name', 'lambda', 'window', 'childAggregate', 'grain', 'related', 'groups', 'unnest', 'kind', 'type'], 'a calculated column from JSON');
+  const shapes = (['lambda', 'window', 'childAggregate', 'grain', 'related', 'groups'] as const).filter((k) => v[k] !== undefined);
   if (shapes.length !== 1) {
-    throw new CubeRefusal(`a calculated column is one of a lambda, a window or a child aggregate, not ${shapes.join(' and ') || 'none'}`);
+    throw new CubeRefusal(`a calculated column is one of a lambda, a window, a child aggregate, a grain, a related property or value groups, not ${shapes.join(' and ') || 'none'}`);
   }
   if (v['unnest'] !== undefined && typeof v['unnest'] !== 'boolean') throw new CubeRefusal(`unnest is true or false, not ${JSON.stringify(v['unnest'])}`);
-  if (v['unnest'] === true && shapes[0] !== 'lambda') throw new CubeRefusal("explode is a formula's: a window or a child aggregate is not exploded");
+  if (v['unnest'] === true && shapes[0] !== 'lambda') throw new CubeRefusal("explode is a formula's: a window, a child aggregate, a grain, a related property or value groups are not exploded");
   const lambda = v['lambda'];
   if (lambda !== undefined && (!isObject(lambda) || lambda['_type'] !== 'lambda' || !Array.isArray(lambda['body']))) {
     throw new CubeRefusal(`a calculated column's lambda is the protocol's {_type: 'lambda', body, parameters}, not ${JSON.stringify(lambda)}`);
@@ -621,6 +756,9 @@ function calculatedFrom(v: unknown): DerivedColumn {
     ...(lambda !== undefined ? { lambda: lambda as unknown as Lambda } : {}),
     ...(v['window'] !== undefined ? { window: windowFrom(v['window']) } : {}),
     ...(v['childAggregate'] !== undefined ? { childAggregate: childAggregateFrom(v['childAggregate']) } : {}),
+    ...(v['grain'] !== undefined ? { grain: grainFrom(v['grain']) } : {}),
+    ...(v['related'] !== undefined ? { related: relatedFrom(v['related']) } : {}),
+    ...(v['groups'] !== undefined ? { groups: groupsFrom(v['groups']) } : {}),
     ...(v['unnest'] !== undefined ? { unnest: v['unnest'] as boolean } : {}),
     ...(v['kind'] !== undefined ? { kind: kindFrom(v['kind']) } : {}),
     ...(v['type'] !== undefined ? { type: textFrom(v['type'], "a calculated column's type") } : {}),
@@ -733,8 +871,12 @@ export function readGridCommand(given: unknown): GridCommand {
       return { kind, path: pathFrom(o['path']), open: o['open'] };
     }
     case 'collapseAll':
+    case 'expandAll':
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind };
+    case 'topN':
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
+      return { kind, topN: o['topN'] === null ? null : readTopN(o['topN']) };
     case 'tree': {
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       const paths = (v: unknown, what: string): RowPath[] => {

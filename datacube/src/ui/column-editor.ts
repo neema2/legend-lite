@@ -33,6 +33,7 @@ import { emptyOperands, isEmptyOperandRefusal, sayEmpty, type EmptyAs } from '..
 import { columnType } from '../snapshot.ts';
 import {
   NEW_CHILD,
+  NEW_GRAIN,
   NEW_WINDOW,
   draftCandidate,
   draftColumn,
@@ -48,6 +49,7 @@ import {
   type CubeSnapshot,
   type DerivedColumn,
   type ChildAggregateFn,
+  type GrainAt,
   type WindowFrame,
   type WindowFunction,
 } from '../snapshot.ts';
@@ -121,7 +123,7 @@ export interface ColumnPreview {
 }
 
 /** What a calculated column computes: each kind its own builder, on one page. */
-type Kind = 'formula' | 'window' | 'ratio' | 'children' | 'json';
+type Kind = 'formula' | 'window' | 'ratio' | 'children' | 'grain' | 'json';
 
 interface KindMeta {
   readonly id: Kind;
@@ -136,6 +138,7 @@ const KINDS: readonly KindMeta[] = [
   { id: 'window', label: 'Running, rank, previous', hint: 'From the rows around each one', title: 'From the rows around each one' },
   { id: 'ratio', label: 'Ratio of totals', hint: 'After grouping, from each group\u2019s figures', title: 'From each group\u2019s figures, after grouping' },
   { id: 'children', label: 'From child groups', hint: 'Smallest, largest, average\u2026 of those beneath', title: 'From the groups beneath each group' },
+  { id: 'grain', label: 'Parent or grand total', hint: 'A measure as the group above has it', title: 'A measure as its parent group or the grand total has it' },
   { id: 'json', label: 'Field from JSON', hint: 'A field of a JSON column', title: 'A field of a JSON column' },
 ];
 
@@ -151,6 +154,9 @@ function splitHead(text: string): { readonly head: string; readonly body: string
 
 /** The form's draft: the column as column-draft.ts makes it into the cube's columns, as Python's headless calls do. */
 type Draft = ColumnDraft;
+
+/** Where a measure at a grain is taken, in the form's words. */
+const GRAIN_PLACES: readonly (readonly [GrainAt, string])[] = [['parent', 'Its parent group has it'], ['all', 'The grand total has it']];
 
 const CHILD_FUNCTIONS: readonly (readonly [ChildAggregateFn, string])[] = [
   ['min', 'Minimum'], ['max', 'Maximum'], ['average', 'Average'],
@@ -217,7 +223,7 @@ export class ColumnEditor {
       printing = found?.lambda;
       this.#initial = found?.draft ?? {
         name: start.edit, level: 'measure', mode: 'expression', expression: '', unnest: false,
-        window: NEW_WINDOW, child: NEW_CHILD,
+        window: NEW_WINDOW, child: NEW_CHILD, grain: NEW_GRAIN,
       };
     } else {
       this.#original = undefined;
@@ -303,6 +309,12 @@ export class ColumnEditor {
       if (d.level !== 'group') return 'Child groups are a Group Level calculation';
       if (s.pivotOn.length > 0) return 'Not on a cube with column pivots';
       return d.child.of === '' ? 'Choose the measure whose child figures are aggregated' : null;
+    }
+    if (d.mode === 'grain') {
+      const s = this.#options.snapshot();
+      if (d.level !== 'group') return 'A parent\u2019s or the grand total\u2019s figure is a Group Level calculation';
+      if (s.pivotOn.length > 0) return 'Not on a cube with column pivots';
+      return d.grain.of === '' ? 'Choose the measure' : null;
     }
     const w = d.window;
     const meta = WINDOW_FUNCTIONS.find((f) => f.fn === w.fn);
@@ -475,6 +487,7 @@ export class ColumnEditor {
   #kind(): Kind {
     const d = this.#draft;
     if (d.mode === 'children') return 'children';
+    if (d.mode === 'grain') return 'grain';
     if (d.mode === 'window') return 'window';
     if (d.level === 'group') return 'ratio';
     return this.#json ? 'json' : 'formula';
@@ -488,6 +501,7 @@ export class ColumnEditor {
     if (k === 'formula' || k === 'json') { d.mode = 'expression'; d.level = rowLevel(); }
     if (k === 'ratio') { d.mode = 'expression'; d.level = 'group'; }
     if (k === 'children') { d.mode = 'children'; d.level = 'group'; }
+    if (k === 'grain') { d.mode = 'grain'; d.level = 'group'; }
     if (k === 'window') d.mode = 'window';
     if (k !== 'json') d.unnest = false;
     // another kind: the last preview was of something else
@@ -506,9 +520,11 @@ export class ColumnEditor {
     const json = this.#options.readJson !== undefined
       && rowColumns(s).some((c) => c.name !== this.#original && isVariant(c.type));
     const children = s.pivotOn.length === 0 || this.#kind() === 'children';
+    const grain = s.pivotOn.length === 0 || this.#kind() === 'grain';
     return KINDS.map((k) => {
       if (k.id === 'json' && !json) return { ...k, unavailable: 'This cube has no JSON column to read a field of' };
       if (k.id === 'children' && !children) return { ...k, unavailable: 'Not on a cube that pivots its columns' };
+      if (k.id === 'grain' && !grain) return { ...k, unavailable: 'Not on a cube that pivots its columns' };
       return k;
     });
   }
@@ -652,6 +668,7 @@ export class ColumnEditor {
     }
     if (kind === 'window') this.#paintWindow(el(doc, 'div', 'dc-calc-window', builder));
     if (kind === 'children') this.#paintChildren(el(doc, 'div', 'dc-calc-children', builder));
+    if (kind === 'grain') this.#paintGrain(el(doc, 'div', 'dc-calc-grain', builder));
 
     const check = el(doc, 'div', 'dc-calc-check', main);
     check.setAttribute('role', 'status');
@@ -980,42 +997,69 @@ export class ColumnEditor {
   }
 
   /** The child-groups form: the function, and the measure it reads. */
+  /**
+   * The group level's figures: measures (or, with none, the columns the groupBy aggregates) -- not the group keys, not
+   * other calculated columns, which neither the child query nor a grain's computes.
+   */
+  #groupMeasures(): string[] {
+    const s = this.#options.snapshot();
+    const derivedNames = new Set((s.groupDerived ?? []).map((d) => d.name));
+    return columnsInScope(s, 'group', this.#original, this.#pivot()).map((x) => x.label)
+      .filter((n) => !s.rows.includes(n) && !derivedNames.has(n));
+  }
+
+  /** A labelled dropdown in `box`, each change the draft's (`set`) and an edit. */
+  #pick(box: HTMLElement, label: string, cls: string, options: readonly (readonly [string, string])[], value: string,
+    set: (v: string) => void): void {
+    const doc = this.#doc;
+    const sel = el(doc, 'select', cls, field(doc, box, label)) as HTMLSelectElement;
+    for (const [v, text] of options) {
+      const o = doc.createElement('option');
+      o.value = v;
+      o.textContent = text;
+      sel.append(o);
+    }
+    sel.value = value;
+    sel.addEventListener('change', () => {
+      set(sel.value);
+      this.#edited();
+    });
+  }
+
   #paintChildren(box: HTMLElement): void {
     const doc = this.#doc;
     box.replaceChildren();
-    const s = this.#options.snapshot();
     const c = this.#draft.child;
-    const derivedNames = new Set((s.groupDerived ?? []).map((d) => d.name));
-    // The group level's figures: measures (or, with none, the columns
-    // the groupBy aggregates) -- not the group keys, not other
-    // calculated columns, which the child query does not compute.
-    const measures = columnsInScope(s, 'group', this.#original, this.#pivot()).map((x) => x.label)
-      .filter((n) => !s.rows.includes(n) && !derivedNames.has(n));
-    const pick = (label: string, cls: string, options: readonly (readonly [string, string])[],
-      value: string, set: (v: string) => void): void => {
-      const sel = el(doc, 'select', cls, field(doc, box, label)) as HTMLSelectElement;
-      for (const [v, text] of options) {
-        const o = doc.createElement('option');
-        o.value = v;
-        o.textContent = text;
-        sel.append(o);
-      }
-      sel.value = value;
-      sel.addEventListener('change', () => {
-        set(sel.value);
-        this.#edited();
-      });
-    };
-    pick('Function:', 'dc-child-fn', CHILD_FUNCTIONS, c.fn, (v) => {
+    const measures = this.#groupMeasures();
+    this.#pick(box, 'Function:', 'dc-child-fn', CHILD_FUNCTIONS, c.fn, (v) => {
       this.#draft.child = { ...this.#draft.child, fn: v as ChildAggregateFn };
     });
-    pick('Of:', 'dc-child-of', [['', 'Choose a measure…'], ...measures.map((m) => [m, m] as const)],
+    this.#pick(box, 'Of:', 'dc-child-of', [['', 'Choose a measure…'], ...measures.map((m) => [m, m] as const)],
       c.of, (v) => {
         this.#draft.child = { ...this.#draft.child, of: v };
       });
     const hint = el(doc, 'p', 'dc-child-hint', box);
     hint.textContent = 'On each group row: this function over its child groups\' figures — '
       + 'a region shows the smallest of its desks\' totals. At the deepest group, over its rows.';
+  }
+
+  /** The grain form (snapshot.ts Grain): the measure, and whose -- the parent group's or the grand total's. */
+  #paintGrain(box: HTMLElement): void {
+    const doc = this.#doc;
+    box.replaceChildren();
+    const g = this.#draft.grain;
+    const measures = this.#groupMeasures();
+    this.#pick(box, 'Of:', 'dc-grain-of', [['', 'Choose a measure…'], ...measures.map((m) => [m, m] as const)],
+      g.of, (v) => {
+        this.#draft.grain = { ...this.#draft.grain, of: v };
+      });
+    this.#pick(box, 'As:', 'dc-grain-at', GRAIN_PLACES, g.at, (v) => {
+      this.#draft.grain = { ...this.#draft.grain, at: v as GrainAt };
+    });
+    const hint = el(doc, 'p', 'dc-grain-hint', box);
+    hint.textContent = 'On each group row: the measure as its parent group has it — the same aggregate over the '
+      + 'parent\'s rows, so an average is the parent\'s average — or as the grand total has it. Divide by it for an '
+      + 'exact share.';
   }
 
   /** The window form: function, column, partition, order, frame. */

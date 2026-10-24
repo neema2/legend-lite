@@ -264,7 +264,7 @@ describe('the app', () => {
     const create = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu-item')]
       .find((el) => el.querySelector(':scope > .dc-menu-label')?.textContent === 'Create');
     const entries = [...(create?.querySelectorAll(':scope > .dc-submenu > .dc-menu-item > .dc-menu-label') ?? [])].map((l) => l.textContent);
-    assert.deepEqual(entries, ['Data Source\u2026', 'Copy of This Grid', 'Visualization']);
+    assert.deepEqual(entries, ['Data Source\u2026', 'Copy of This Grid', 'Visualization', 'Text Box']);
     click([...create!.querySelectorAll<HTMLElement>(':scope > .dc-submenu > .dc-menu-item')][0]);
     await flush();
     assert.equal(asked, 1, 'its host asked to add a grid over a source picked now');

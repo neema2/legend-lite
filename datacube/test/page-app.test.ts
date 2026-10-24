@@ -222,6 +222,64 @@ describe('a page of its own', () => {
     assert.equal(host.querySelector<HTMLElement>('.dc-page-empty')!.hidden, false);
   });
 
+  it("a text tile from a grid's Create ▸ Text Box: edited in place, told as setText; another editor's followed; saved and reopened", async () => {
+    const told: PageCommand[] = [];
+    // the text tile's drawing and its editor are a chunk of their own (page-text.ts): fetched, then shown
+    const until = async (shown: () => unknown): Promise<void> => {
+      for (let i = 0; i < 100 && !shown(); i++) await new Promise((r) => setTimeout(r, 5));
+    };
+    newPage({ confirm: () => true, onPageCommand: (c) => told.push(c) });
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    told.length = 0;
+    gridMenuItem(a, 'Text Box').click();
+    await settle();
+    assert.deepEqual(told.map((c) => c.kind), ['addText']);
+    const id = (told[0] as { id: string }).id;
+    assert.equal(id, 'text-1');
+    // its editor open on its starting words: typed, OK tells them; drawn as its Markdown says, never as HTML
+    await until(() => tile(id).querySelector('textarea'));
+    const area = tile(id).querySelector('textarea') as HTMLTextAreaElement;
+    assert.ok(area, 'its editor open');
+    area.value = '# Q3\n\nBy **desk** <b>x</b>';
+    [...tile(id).querySelectorAll('button')].find((b) => b.textContent === 'OK')!.click();
+    await settle();
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    assert.deepEqual(told.at(-1), { kind: 'setText', tile: id, text: '# Q3\n\nBy **desk** <b>x</b>' });
+    assert.equal(tile(id).querySelector('.dc-text-tile h3')?.textContent, 'Q3');
+    assert.equal(tile(id).querySelector('.dc-text-tile strong')?.textContent, 'desk');
+    assert.equal(tile(id).querySelector('.dc-text-tile b'), null, 'typed markup is text');
+    // blank refused in the editor, which stays; Escape leaves the words as they were
+    (tile(id).querySelector('.dc-text-tile') as HTMLElement).dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+    await until(() => tile(id).querySelector('textarea'));
+    const again = tile(id).querySelector('textarea') as HTMLTextAreaElement;
+    again.value = '  ';
+    const before = told.length;
+    [...tile(id).querySelectorAll('button')].find((b) => b.textContent === 'OK')!.click();
+    assert.match(tile(id).querySelector('.dc-text-problem')?.textContent ?? '', /blank/);
+    assert.equal(told.length, before, 'nothing told');
+    again.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    assert.equal(tile(id).querySelector('textarea'), null);
+    assert.equal(tile(id).querySelector('.dc-text-tile h3')?.textContent, 'Q3');
+    // another editor's words followed
+    await theirs(page, [{ kind: 'setText', tile: id, text: 'From **Python**' }]);
+    await settle();
+    await until(() => tile(id).querySelector('.dc-text-tile p')?.textContent === 'From Python');
+    assert.equal(tile(id).querySelector('.dc-text-tile p')?.textContent, 'From Python');
+    // saved with the page, reopened as it was
+    const doc = page.document('Q3')!;
+    assert.deepEqual(doc.views.find((v) => v.id === id), { id, kind: 'text', text: 'From **Python**' });
+    const back = readPage(pageToJson(doc));
+    page.dispose();
+    newPage();
+    page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])));
+    await settle();
+    await until(() => tile(id)?.querySelector('.dc-text-tile strong'));
+    assert.deepEqual(page.views(), { views: doc.views, sheets: doc.sheets });
+    assert.equal(tile(id).querySelector('.dc-text-tile strong')?.textContent, 'Python');
+  });
+
   it('is saved as one cube per grid, each over its own source, and reopens as it was', async () => {
     newPage();
     const a = page.addGrid(over('trades.csv'));
@@ -488,7 +546,7 @@ describe('a page of its own', () => {
       return [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')];
     };
     const onCell = await hold(tile(id).querySelector('.dc-row .dc-cell') as HTMLElement);
-    assert.ok(['Edit', 'Create', 'Tile'].every((l) => onCell.some((i) => label(i) === l)), onCell.map(label).join(' | '));
+    assert.ok(['Edit', 'Create', 'View', 'Move to Sheet'].every((l) => onCell.some((i) => label(i) === l)), onCell.map(label).join(' | '));
     const onTab = await hold(bar().querySelector('.dc-sheet-tab') as HTMLElement);
     assert.ok(onTab.some((i) => /^Rename/.test(label(i))), `the tab's own menu: ${onTab.map(label).join(' | ')}`);
   });

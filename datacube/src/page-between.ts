@@ -21,7 +21,7 @@
 import { tiles } from './layout/bands.ts';
 import { applyPageCommand, idsOf, nextPageId, takenIds, type PageCommand, type PageDraft } from './page-commands.ts';
 import type { CubeDocument } from './cube-document.ts';
-import type { ChartView, GridCopy, PageDocument, PageSheet, PageView } from './page-document.ts';
+import type { ChartView, GridCopy, GridView, PageDocument, PageSheet, PageView, TextView } from './page-document.ts';
 import { rearranged, renamedCommand } from './page-rebase.ts';
 import { CubeRefusal, sameValue } from './snapshot.ts';
 
@@ -29,14 +29,15 @@ import { CubeRefusal, sameValue } from './snapshot.ts';
 export type PageScope = 'history' | 'whole';
 
 /** The commands that make a tile or a sheet: their id is theirs to give out afresh. */
-const MAKERS = new Set<PageCommand['kind']>(['addSheet', 'addGrid', 'addChart']);
+const MAKERS = new Set<PageCommand['kind']>(['addSheet', 'addGrid', 'addChart', 'addText']);
 
 /** The kind of id a making command gives out. */
-function kindMade(command: PageCommand): 'grid' | 'chart' | 'sheet' | 'filter' {
+function kindMade(command: PageCommand): 'grid' | 'chart' | 'text' | 'sheet' | 'filter' {
   switch (command.kind) {
     case 'addSheet': return 'sheet';
     case 'addGrid': return 'grid';
     case 'addChart': return 'chart';
+    case 'addText': return 'text';
     default: return 'filter';
   }
 }
@@ -139,6 +140,23 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     emit({ kind: 'addGrid', id: v.id, document, sheet: sheet.id, near: null, title: v.title ?? null, columns: null });
   }
 
+  // 2b. text tiles `to` has, on their sheets (a band of their own: the layout follows below); the ones both have, their
+  //     words and their title as `to` has them
+  for (const v of to.views) {
+    if (v.kind !== 'text') continue;
+    // made when `from` has it not -- never found by its id here, which a tile made under a fresh id may hold by now
+    if (!inFrom(v.id)) {
+      const sheet = sheetOf(to, v.id);
+      if (sheet === undefined) throw new CubeRefusal(`'${v.id}' is on no sheet of the page: it cannot be made`);
+      emit({ kind: 'addText', id: v.id, sheet: sheet.id, text: v.text, title: v.title ?? null, columns: null });
+      continue;
+    }
+    const here = cur().views.find((x): x is TextView => x.kind === 'text' && x.id === n(v.id));
+    if (here === undefined) continue;
+    if (here.text !== v.text) emit({ kind: 'setText', tile: v.id, text: v.text });
+    if ((here.title ?? null) !== (v.title ?? null)) emit({ kind: 'renameTile', tile: v.id, title: v.title ?? null });
+  }
+
   // 3. the charts both have: pointed at their grid in `to` (before the grid they read goes) -- or, detached in `to` (no
   //    grid shows their cube), on that kept cube as `to` holds it (`detach`, W19), unless a grid here still shows it (its
   //    removal detaches them, below: 5b) -- their spec, their title
@@ -201,6 +219,7 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     if (grid !== undefined && !sameValue((cur().copies ?? {})[cube], copy)) emit({ kind: 'snap', grid: grid.id, copy });
   }
   for (const v of from.views) if (v.kind === 'grid' && !inTo(v.id)) emit({ kind: 'removeTile', tile: v.id });
+  for (const v of from.views) if (v.kind === 'text' && !inTo(v.id)) emit({ kind: 'removeTile', tile: v.id });
   for (const v of from.views) {
     if (v.kind === 'chart' && !inTo(v.id) && cur().views.some((x) => x.id === v.id)) emit({ kind: 'removeTile', tile: v.id });
   }
@@ -285,7 +304,7 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
   const cubeInTo = new Map<string, string>();
   for (const v of to.views) {
     if (v.kind !== 'grid') continue;
-    const here = cur().views.find((x) => x.id === n(v.id));
+    const here = cur().views.find((x): x is GridView => x.kind === 'grid' && x.id === n(v.id));
     if (here !== undefined) cubeInTo.set(here.cube, v.cube);
   }
   for (const [cube, copy] of Object.entries(cur().copies ?? {})) {
@@ -305,7 +324,7 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
   for (const [cube, copy] of Object.entries(to.copies ?? {})) {
     const grid = gridShowing(to, cube);
     if (grid === undefined) continue;
-    const here = cur().views.find((x) => x.id === n(grid.id));
+    const here = cur().views.find((x): x is GridView => x.kind === 'grid' && x.id === n(grid.id));
     const have = here === undefined ? undefined : (cur().copies ?? {})[here.cube];
     if (!sameValue(have, copy)) emit({ kind: 'snap', grid: grid.id, copy });
   }

@@ -26,7 +26,8 @@ import type {
   PivotTotal,
   SortDirection,
 } from './snapshot.ts';
-import { rowColumns } from './snapshot.ts';
+import { rowColumns, SECOND_COLUMN } from './snapshot.ts';
+import type { DataBarSpec, FormatRule, IconSetSpec } from './conditional.ts';
 import type { CellAppearance, GridAppearance, HeatmapSpec } from './style.ts';
 import { isFractional, isNumeric } from '../../engine-client/src/types.ts';
 
@@ -77,6 +78,11 @@ export interface ColumnConfiguration {
   readonly format?: ColumnFormat;
   readonly appearance?: CellAppearance;
   readonly heatmap?: HeatmapSpec;
+  /** Conditional formats (conditional.ts; Excel's): a bar in each cell, an icon by the value's third of the range, the
+   *  colours of the first rule that holds. */
+  readonly dataBar?: DataBarSpec;
+  readonly iconSet?: IconSetSpec;
+  readonly rules?: readonly FormatRule[];
 
   readonly excludedFromPivot?: boolean;
   /** Direction this column's values take as pivot headers. */
@@ -290,8 +296,8 @@ export const REQUIRED_SETTINGS = {
 export const COLUMN_SETTINGS = {
   displayName: true, kind: true, aggregateFn: true, aggregationParameters: true, hidden: true, blurred: true,
   pinned: true, widthMode: true, width: true, minWidth: true, maxWidth: true, format: true, appearance: true,
-  heatmap: true, excludedFromPivot: true, pivotSortDirection: true, pivotStatisticColumnFunction: true,
-  displayAsLink: true, linkLabelParameter: true,
+  heatmap: true, dataBar: true, iconSet: true, rules: true, excludedFromPivot: true, pivotSortDirection: true,
+  pivotStatisticColumnFunction: true, displayAsLink: true, linkLabelParameter: true,
 } as const satisfies Record<keyof ColumnConfiguration, true>;
 
 export const APPEARANCE_SETTINGS = {
@@ -819,9 +825,9 @@ function pivotTotalOf(config: CubeConfiguration): { pivotTotal?: PivotTotal } {
 /**
  * Column Properties > Aggregation, as the query reads it.
  *
- * The weight rides only with `wavg`, the one aggregate that takes a
- * parameter; kept on any other it would be a setting the query
- * silently ignores.
+ * The second column rides only with an aggregate of two (snapshot.ts
+ * SECOND_COLUMN: `wavg`'s weight, `corr`'s pair, ...); kept on any other
+ * it would be a setting the query silently ignores.
  */
 function aggregateOf(
   c: ColumnConfiguration,
@@ -830,7 +836,7 @@ function aggregateOf(
   const weight = c.aggregationParameters?.[0];
   return {
     aggregate: c.aggregateFn,
-    ...(c.aggregateFn === 'wavg' && weight !== undefined
+    ...(SECOND_COLUMN[c.aggregateFn] !== undefined && weight !== undefined
       ? { aggregateWeight: weight }
       : {}),
   };

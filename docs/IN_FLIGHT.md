@@ -133,6 +133,24 @@ with the compiler's plan/execution split**, in this order:
    dashboards are built on them), its steps in order: 1 compile once everywhere; 2 Make a class; 3 dashboards on
    classes (the charts' batch 1 page filters land here); 4 combining in prep (every join form); 5 the model view; 6
    projects and publishing; 7 measures in the model.
+   **Now (2026-10-24, the user): BI and Excel parity** (`docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md`, branch
+   `claude/datacube-bi-parity`): the grid against Excel, the pivot's analysis, formats, a page as a dashboard, then
+   Pure as the semantic layer (the class tree, measures declared in the model as functions over a class's instances --
+   steps 5 and 7 above brought forward). `datacube/` only -- but for one step of Studio's `query/demo/verify.mjs`
+   (2026-10-24: the cube's Show Controls moved under its right-click's View ▸, which that step clicks); the core asks (its §5: a user aggregate over class
+   instances in groupBy, units, a date range relation, tagged values in the metamodel tables, constraints in
+   projections, `orElse`, a data space as a query entry) are recorded there for the compiler line, not edited here.
+   Pushed to the branch so far: P1 (the grid's Excel quick wins) and P2's Filter Values window, date ranges relative
+   to today, Top/Bottom N, Show As as Excel's Show Values As over a measure at its parent's or the grand total's
+   grain (`DerivedColumn.grain`, the database's: a join in the level's query), and aggregates of two columns with
+   distinct counts (`SECOND_COLUMN` -- no Count shortcut, the user 2026-10-24: a calculated column and its
+   Aggregation make every count); P5's class tree, step 1 -- a class's grid
+   reads its related classes (`DerivedColumn.related`: a to-one hop's value, a to-many end aggregated per instance) --
+   and step 2, measures declared in the model (`datacube/src/model-measures.ts`: Add Model Measure, Python's
+   `grid.model_measure`); P3's conditional formats (`datacube/src/conditional.ts`: data bars, a three-colour scale,
+   icon sets, rules), Excel's number format codes and date patterns (`datacube/src/format-code.ts`) and a column's
+   values grouped by hand (`ValueGroups`); P4's text tiles (`datacube/src/page-text.ts`, a `text` page view) -- the doc's §4
+   rows say which.
    **Step 1 landed 2026-10-10 (fe7961b7b; run 38090412797; GATES "Compile once, plan many").** **Step 2's first
    landing, Create a Class…, landed 2026-10-11 (0cee56761; run 38109599876; GATES "Create a Class…")** -- no file
    touched beyond the announced list. **Step 2's second landing, Create an Association… and Create a Data Space…,

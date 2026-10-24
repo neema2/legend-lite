@@ -10,6 +10,14 @@ import { after, before, describe, it } from 'node:test';
 import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
+import { classRelation } from '../src/class-source.ts';
+import { classTree, type ClassElement } from '../src/class-tree.ts';
+import { applyToSnapshot, DEFAULT_CONFIGURATION } from '../src/config.ts';
+import { applyGridCommands } from '../src/grid-commands.ts';
+import { modelMeasureCommands } from '../src/model-measure-commands.ts';
+import { modelMeasures } from '../src/model-measures.ts';
+import { levelLambda, sourceWithDerived } from '../src/query.ts';
+import type { CubeSnapshot, QuerySnapshot } from '../src/snapshot.ts';
 import { plannerFor } from './catalog-builder.ts';
 
 const MODEL = `
@@ -174,5 +182,162 @@ describe('a page\'s model: two sources as classes over relation functions, relat
       + '->groupBy(~name, ~[count: x|$x.notional: y|$y->count(), total: x|$x.notional: y|$y->sum()])->sort(~name->ascending())');
     assert.deepEqual(rows.map(([name, count, total]) => [name, Number(count), total]),
       [['Acme', 2, 350], ['Beta', 1, 50], ['Gamma', 0, null]]);
+  });
+});
+
+describe("a class's grid with related columns (the class tree: query.ts relatedSource), planned and run", () => {
+  /** A level's rows, each by its columns' names. */
+  const level = async (s: QuerySnapshot, at: number): Promise<Record<string, unknown>[]> => {
+    const t = await engine.run((await planner.plan(levelLambda(s, { level: at, parent: [] }))).sql, 0);
+    return Array.from({ length: t.rowCount }, (_, i) => Object.fromEntries(t.columns.map((c) => [c.name, c.values[i] ?? null])));
+  };
+
+  it("each trade's customer's region beside it, and the trades grouped by it: a to-one end's join", async () => {
+    const s: QuerySnapshot = {
+      source: { query: classRelation('files::trades::Trade', ['tradeId', 'notional']) },
+      columns: [{ name: 'tradeId', type: 'Integer', kind: 'dimension' }, { name: 'notional', type: 'Float', kind: 'measure' }],
+      derived: [{ name: 'customer_region', related: { path: ['customer', 'region'] }, kind: 'dimension' }],
+      rows: ['customer_region'], pivotOn: [], sorts: [], epoch: 1,
+    };
+    const by = new Map((await level(s, 1)).map((r) => [r['customer_region'], Number(r['notional'])]));
+    // EMEA: Acme's 100 and 250; AMER: Beta's 50; no customer: trade 13's 75
+    assert.deepEqual([by.get('EMEA'), by.get('AMER'), by.get(null), by.size], [350, 50, 75, 3]);
+  });
+
+  it("each customer's trades counted and summed for it -- never a row per trade -- so a region's total of them is exact", async () => {
+    const s: QuerySnapshot = {
+      source: { query: classRelation('files::customers::Customer', ['id', 'region']) },
+      columns: [{ name: 'id', type: 'Integer', kind: 'dimension' }, { name: 'region', type: 'String', kind: 'dimension' }],
+      derived: [
+        { name: 'trades_count', related: { path: ['trades'], aggregate: 'count' }, kind: 'measure' },
+        { name: 'trades_notional_sum', related: { path: ['trades', 'notional'], aggregate: 'sum' }, kind: 'measure' },
+      ],
+      rows: ['region'], pivotOn: [], sorts: [], epoch: 1,
+    };
+    // typed by the compiler as every row-stage column is (step 0, plan.ts typeColumns): numbers, so each region sums them
+    const types = new Map((await planner.relationType(sourceWithDerived(s).lambda())).map((c) => [c.name, c.type]));
+    assert.deepEqual([types.get('trades_count'), types.get('trades_notional_sum')], ['Integer', 'Float']);
+    const typed: QuerySnapshot = { ...s, derived: s.derived.map((d) => ({ ...d, type: types.get(d.name)! })) };
+    const by = new Map((await level(typed, 1)).map((r) => [r['region'], [Number(r['trades_count']), Number(r['trades_notional_sum'])]]));
+    // EMEA: Acme's two trades (350) and Gamma's none; AMER: Beta's one (50) -- trade 13, no customer's, in neither
+    assert.deepEqual(by.get('EMEA'), [2, 350]);
+    assert.deepEqual(by.get('AMER'), [1, 50]);
+  });
+});
+
+// The model's own measures (src/model-measures.ts; docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md §3.4): functions of the
+// trades stereotyped BI.measure, read from the elements as this compiler gives them, added to a grid of the trades as
+// the steps a person would make, and run: each region's figures what the functions say of its trades.
+const MEASURED = `${MODEL}
+###Pure
+Profile meta::legend::bi::BI
+{
+  stereotypes: [measure, dimension];
+  tags: [format, goodDirection];
+}
+
+function <<meta::legend::bi::BI.measure>> {meta::legend::bi::BI.format = '$#,##0', meta::pure::profiles::doc.doc = 'Gross notional booked'}
+page::grossNotional(t: files::trades::Trade[*]): Float[1]
+{
+  $t.notional->sum()
+}
+
+function <<meta::legend::bi::BI.measure>>
+page::bigNotional(t: files::trades::Trade[*]): Float[1]
+{
+  $t->filter(x|$x.notional > 60).notional->sum()
+}
+
+function <<meta::legend::bi::BI.measure>> {meta::legend::bi::BI.format = '#,##0.00'}
+page::averageNotional(t: files::trades::Trade[*]): Float[1]
+{
+  page::grossNotional($t) / $t->count()
+}
+
+function <<meta::legend::bi::BI.measure>>
+page::regionsKnown(t: files::trades::Trade[*]): Integer[1]
+{
+  $t.customer.region->count()
+}
+
+function <<meta::legend::bi::BI.measure>>
+page::bigTrades(t: files::trades::Trade[*]): Integer[1]
+{
+  $t->filter(x|$x.notional > 60)->count()
+}
+`;
+
+describe("the model's measures added to a class's grid, planned and run", () => {
+  const measured = plannerFor(MEASURED, 'page::Runtime', { mapping: 'page::Mapping' });
+
+  it("each region of trades: its sum, its filtered sum, an average of two aggregates, a count through the customer, a filter's count", async () => {
+    const elements = await measured.modelElements(MEASURED) as ClassElement[];
+    const measures = modelMeasures(elements);
+    assert.deepEqual(measures.map((m) => [m.path, m.of, m.format ?? null]), [
+      ['page::grossNotional', 'files::trades::Trade', '$#,##0'],
+      ['page::bigNotional', 'files::trades::Trade', null],
+      ['page::averageNotional', 'files::trades::Trade', '#,##0.00'],
+      ['page::regionsKnown', 'files::trades::Trade', null],
+      ['page::bigTrades', 'files::trades::Trade', null],
+    ]);
+    assert.equal(measures[0]!.doc, 'Gross notional booked');
+    const tree = classTree(elements);
+    const s0: CubeSnapshot = {
+      source: { query: classRelation('files::trades::Trade', ['tradeId', 'notional']) },
+      columns: [{ name: 'tradeId', type: 'Integer', kind: 'dimension' }, { name: 'notional', type: 'Float', kind: 'measure' }],
+      derived: [{ name: 'customer_region', related: { path: ['customer', 'region'] }, kind: 'dimension' }],
+      rows: ['customer_region'], pivotOn: [], sorts: [], epoch: 1,
+    };
+    let draft = { snapshot: s0, config: DEFAULT_CONFIGURATION };
+    for (const m of measures) draft = applyGridCommands(draft, modelMeasureCommands(draft.snapshot, tree, 'files::trades::Trade', measures, m));
+    // the related column the count reads is the grid's own already: read, not added again
+    assert.equal(draft.snapshot.derived.filter((d) => d.related !== undefined).length, 1);
+    const folded = applyToSnapshot(draft.snapshot, draft.config);
+    // typed by the compiler as every row-stage column is (plan.ts typeColumns)
+    const types = new Map((await measured.relationType(sourceWithDerived(folded).lambda())).map((c) => [c.name, c.type]));
+    const s: CubeSnapshot = { ...folded, derived: folded.derived.map((d) => ({ ...d, type: types.get(d.name)! })) };
+    const t = await engine.run((await measured.plan(levelLambda(s, { level: 1, parent: [] }))).sql, 0);
+    const rows = Array.from({ length: t.rowCount }, (_, i) => Object.fromEntries(t.columns.map((c) => [c.name, c.values[i] ?? null])));
+    const figures = (r: Record<string, unknown>): (number | null)[] =>
+      ['grossNotional', 'bigNotional', 'averageNotional', 'regionsKnown', 'bigTrades'].map((n) => (r[n] === null ? null : Number(r[n])));
+    const by = new Map(rows.map((r) => [r['customer_region'], figures(r)]));
+    // EMEA: Acme's 100 and 250, both over 60; AMER: Beta's 50, none over 60; no customer: trade 13's 75, its region none
+    // to count (Pure's count of values, never the grid's of rows)
+    assert.deepEqual(by.get('EMEA'), [350, 350, 175, 2, 2]);
+    assert.deepEqual(by.get('AMER'), [50, null, 50, 1, 0]);
+    assert.deepEqual(by.get(null), [75, 75, 75, 0, 1]);
+    // the average's two aggregates its machinery, hidden; the measures' formats as their tags say
+    assert.deepEqual(['averageNotional__1', 'averageNotional__2'].map((n) => draft.config.columns?.[n]?.hidden), [true, true]);
+    assert.equal(draft.config.columns?.['grossNotional']?.format?.kind, 'currency');
+  });
+});
+
+// A column's values gathered by hand into named groups (snapshot.ts ValueGroups; query.ts groupsLambda): planned and run,
+// a grid grouped by the groups as by any column -- a number column's rest named, a text column's left as itself.
+describe("a column's values gathered into named groups, planned and run", () => {
+  const level = async (s: QuerySnapshot): Promise<Map<unknown, number>> => {
+    const t = await engine.run((await planner.plan(levelLambda(s, { level: 1, parent: [] }))).sql, 0);
+    const at = (name: string): readonly unknown[] => t.columns.find((c) => c.name === name)!.values;
+    const keys = at(s.rows[0]!);
+    return new Map(keys.map((k, i) => [k ?? null, Number(at('notional')[i])]));
+  };
+  const trades = (derived: QuerySnapshot['derived'], rows: string[]): QuerySnapshot => ({
+    source: { query: classRelation('files::trades::Trade', ['tradeId', 'notional']) },
+    columns: [{ name: 'tradeId', type: 'Integer', kind: 'dimension' }, { name: 'notional', type: 'Float', kind: 'measure' }],
+    derived, rows, pivotOn: [], sorts: [], epoch: 1,
+  });
+
+  it("a number column's values: the big trades a group, the rest under its name", async () => {
+    const by = await level(trades([{ name: 'size', groups: { of: 'tradeId', groups: [{ name: 'Big', values: [10, 11] }], other: 'Rest' }, kind: 'dimension', type: 'String' }], ['size']));
+    // trades 10 and 11: 100 + 250; 12 and 13: 50 + 75
+    assert.deepEqual([by.get('Big'), by.get('Rest'), by.size], [350, 125, 2]);
+  });
+
+  it("a related column's text: EMEA named Europe, AMER as itself, a trade with no customer blank", async () => {
+    const by = await level(trades([
+      { name: 'customer_region', related: { path: ['customer', 'region'] }, kind: 'dimension', type: 'String' },
+      { name: 'zone', groups: { of: 'customer_region', groups: [{ name: 'Europe', values: ['EMEA'] }] }, kind: 'dimension', type: 'String' },
+    ], ['zone']));
+    assert.deepEqual([by.get('Europe'), by.get('AMER'), by.get(null), by.size], [350, 50, 75, 3]);
   });
 });

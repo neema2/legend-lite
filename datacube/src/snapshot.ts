@@ -111,7 +111,8 @@ export interface ColumnSpec {
    * (a measure sums, a dimension takes its unique value), as before.
    */
   readonly aggregate?: AggregateFn;
-  /** The weight column, for `wavg` only. */
+  /** The second column an aggregate of two reads (SECOND_COLUMN): a weighted average's weight, a correlation's other
+   *  column, max by's ordering, the column a distinct count counts. */
   readonly aggregateWeight?: string;
 }
 
@@ -222,6 +223,15 @@ export type AggregateFn =
   | 'variancePopulation'
   | 'joinStrings'
   | 'wavg'
+  /** The number of different values: `$y->distinct()->count()` (COUNT(DISTINCT)) -- of its second column, if named. */
+  | 'distinctCount'
+  /** Two columns' correlation and covariance: `rowMapper($x.a, $x.b)` reduced by `corr()`, `covarSample()`, ... */
+  | 'corr'
+  | 'covarSample'
+  | 'covarPopulation'
+  /** The column's value on the row whose second column is greatest (least): `rowMapper` reduced by `maxBy()` (ARG_MAX). */
+  | 'maxBy'
+  | 'minBy'
   /**
    * The value when a group has exactly one, otherwise null.
    *
@@ -237,9 +247,45 @@ export type AggregateFn =
 const EVERY_AGGREGATE: Readonly<Record<AggregateFn, true>> = {
   sum: true, average: true, count: true, min: true, max: true, median: true, percentile25: true, percentile75: true,
   stdDevPopulation: true, stdDevSample: true, variancePopulation: true, varianceSample: true,
-  joinStrings: true, wavg: true, unique: true,
+  joinStrings: true, wavg: true, unique: true, distinctCount: true, corr: true, covarSample: true, covarPopulation: true,
+  maxBy: true, minBy: true,
 };
 export const AGGREGATE_FNS: readonly AggregateFn[] = Object.keys(EVERY_AGGREGATE) as AggregateFn[];
+
+/** An aggregate of two columns' second column (Measure.weight; the configuration's aggregationParameters[0]). */
+export interface SecondColumn {
+  /** The aggregate in words, as a note or a refusal says it. */
+  readonly words: string;
+  /** What the second column is, as Column Properties labels it and a refusal names it ("its weight column"). */
+  readonly role: string;
+  /** How the aggregate reads it, as a note says it ("weighted by qty"). */
+  readonly reads: string;
+  /** Without one the aggregate cannot be written; else it reads its own column. */
+  readonly required: boolean;
+  /** It must be a number (the compiler's rule for the function: `rowMapper`'s second argument, a weight). */
+  readonly numeric: boolean;
+}
+
+/**
+ * THE AGGREGATES OF TWO COLUMNS, one entry each: the second column each reads, and how. A weighted average (DAX's
+ * SUMX/SUM, inexpressible in a spreadsheet pivot), a correlation or covariance, the value at a maximum or minimum
+ * (DAX's TOPN(1, ...), Excel's XLOOKUP(MAX(...))), and a distinct count of another column (its own when it names none:
+ * a number column -- a calculated one, 1 or 0 on a row -- counts a text column's different values so). Every one is
+ * legend-lite's own native (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md: a two-column measure is a DataCube UI gap,
+ * not a compiler gap).
+ */
+export const SECOND_COLUMN: Readonly<Partial<Record<AggregateFn, SecondColumn>>> = {
+  wavg: { words: 'weighted average', role: 'weight', reads: 'is weighted by', required: true, numeric: true },
+  corr: { words: 'correlation', role: 'paired', reads: 'is paired with', required: true, numeric: true },
+  covarSample: { words: 'sample covariance', role: 'paired', reads: 'is paired with', required: true, numeric: true },
+  covarPopulation: { words: 'population covariance', role: 'paired', reads: 'is paired with', required: true, numeric: true },
+  maxBy: { words: 'max by', role: 'ordering', reads: 'is ordered by', required: true, numeric: true },
+  minBy: { words: 'min by', role: 'ordering', reads: 'is ordered by', required: true, numeric: true },
+  distinctCount: { words: 'distinct count', role: 'counted', reads: 'counts', required: false, numeric: false },
+};
+
+/** The aggregates that read a second column, by name (SECOND_COLUMN's keys, in order). */
+export const TWO_COLUMN_AGGREGATES: readonly AggregateFn[] = AGGREGATE_FNS.filter((fn) => SECOND_COLUMN[fn] !== undefined);
 
 /** One value column in the cube: an aggregate over a source column. */
 export interface Measure {
@@ -248,7 +294,8 @@ export interface Measure {
   /** Source column being aggregated. Ignored by `count`. */
   readonly column: string;
   readonly fn: AggregateFn;
-  /** Weight column, required by and only used for `wavg`. */
+  /** The second column an aggregate of two reads (SECOND_COLUMN), named by no other: `wavg`'s weight, `corr`'s other
+   *  column, `maxBy`'s ordering, the column `distinctCount` counts. */
   readonly weight?: string;
 }
 
@@ -343,18 +390,76 @@ export interface ChildAggregate {
   readonly of: string;
 }
 
+/**
+ * How a TO-MANY END's values are aggregated for each instance of the class (RelatedPath): what the compiler takes over a
+ * to-many navigation in a projection -- a join to the related rows grouped by their key, never a row per related
+ * instance. A distinct count over a to-many end is the compiler's to add (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md §5).
+ */
+export const PATH_AGGREGATES = ['count', 'sum', 'average', 'min', 'max'] as const;
+export type PathAggregate = (typeof PATH_AGGREGATES)[number];
+
+/**
+ * A RELATED COLUMN of a grid over a class (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md §3.3, the class tree): a path of
+ * properties from the class -- each hop a class-typed property or an association's end -- to a related class's
+ * property, `customer.region`, `$x.customer.region` beside the class's own; through a to-many end its values
+ * aggregated per instance, `trades.notional` summed, `$x.trades.notional->sum()`, or the end itself counted -- so a
+ * total over the grid counts each instance once, by construction. Projected with the class's own properties
+ * (query.ts relatedSource): the database's join, typed by the compiler as every column is.
+ */
+export interface RelatedPath {
+  /** The properties from the class, in order: `['customer', 'region']`. */
+  readonly path: readonly string[];
+  /** Through a to-many end, how its values are aggregated (a class at the end: counted); a to-one path has none. */
+  readonly aggregate?: PathAggregate;
+}
+
+/** Where a figure at a grain is taken (Grain): its parent group's level, or the grand total's. */
+export type GrainAt = 'parent' | 'all';
+
+/** Every grain, as a command read from JSON may name it. */
+export const GRAIN_ATS = ['parent', 'all'] as const satisfies readonly GrainAt[];
+
+/**
+ * A MEASURE AT A COARSER GRAIN (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md §3: grain in place of DAX's CALCULATE): on
+ * each group row, the measure `of` as its parent group has it (`parent`; a top group's parent is the grand total) or
+ * as the grand total has it (`all`) -- the same aggregate over the coarser group's rows, so an average's is the
+ * parent's average, never an average of averages, and a share of it is exact at every depth. The database computes it,
+ * in the level's own query (query.ts levelRelation); a grouped grid's, not a pivot's.
+ */
+export interface Grain {
+  readonly of: string;
+  readonly at: GrainAt;
+}
+
+/**
+ * A COLUMN'S VALUES GATHERED BY HAND INTO NAMED GROUPS (Tableau's groups, Power BI's groups): each group's values (null:
+ * the blanks), as the Filter Values window lists them; the rest named `other`, or -- on a text column -- left as
+ * themselves. A row-level column (query.ts groupsLambda), so a grid groups, filters and charts by it as by any other.
+ */
+export interface ValueGroups {
+  readonly of: string;
+  readonly groups: readonly { readonly name: string; readonly values: readonly (FilterValue | null)[] }[];
+  readonly other?: string;
+}
+
 export interface DerivedColumn {
   readonly name: string;
   /**
    * The column as a function of the row, `x|$x.a * 2`, as protocol: the
    * compiler's parse of what the person typed (upstream's `mapFn`). Absent
-   * for a window or child-aggregate column.
+   * for a window, child-aggregate, grain or related column.
    */
   readonly lambda?: Lambda;
   /** A window column instead of an expression: see `WindowSpec`. */
   readonly window?: WindowSpec;
   /** An aggregate of the child groups instead: see `ChildAggregate`. */
   readonly childAggregate?: ChildAggregate;
+  /** A measure at its parent's or the grand total's grain instead: see `Grain`. */
+  readonly grain?: Grain;
+  /** A related class's property instead, projected with the class's own (row stage only): see `RelatedPath`. */
+  readonly related?: RelatedPath;
+  /** A column's values gathered into named groups instead (row stage only): see `ValueGroups`. */
+  readonly groups?: ValueGroups;
   /**
    * EXPLODE: `lambda` yields a collection, and each row is repeated once per element, the
    * element being this column (`lateral(x|<collection>->flatten(~name))`, upstream Pure's
@@ -396,7 +501,7 @@ export interface DerivedColumn {
    * saved before this field existed still behaves as it did.
    */
   readonly kind?: ColumnKind;
-  /** As on `ColumnSpec`: Column Properties > Aggregation. */
+  /** As on `ColumnSpec`: Column Properties > Aggregation, and an aggregate of two's second column. */
   readonly aggregate?: AggregateFn;
   readonly aggregateWeight?: string;
 }
@@ -485,10 +590,31 @@ export interface FilterCondition {
  * A date relative to when the query RUNS: upstream's TODAY and NOW
  * advanced values (DataCubeOperationAdvancedValueType). Rendered as
  * `today()` / `now()`, so a saved view filtered to "before today" means
- * today whenever it is opened, not the day it was saved.
+ * today whenever it is opened, not the day it was saved. A date range's
+ * ends (date-ranges.ts) are taken to their period's start and moved, by
+ * the compiler's functions -- the database's date arithmetic, never the tab's.
  */
 export interface RelativeDate {
   readonly relative: 'today' | 'now';
+  /** First taken to its period's first day: `firstDayOfMonth(today())`. */
+  readonly startOf?: RelativeStart;
+  /** Then moved by this many units, back when negative: `adjust(<it>, -1, DurationUnit.MONTHS)`. Both or neither. */
+  readonly offset?: number;
+  readonly unit?: RelativeUnit;
+}
+
+export const RELATIVE_STARTS = ['week', 'month', 'quarter', 'year'] as const;
+export type RelativeStart = (typeof RELATIVE_STARTS)[number];
+export const RELATIVE_UNITS = ['DAYS', 'WEEKS', 'MONTHS', 'YEARS'] as const;
+export type RelativeUnit = (typeof RELATIVE_UNITS)[number];
+
+/** A relative date in words: `today`, `the start of this month - 1 month`. */
+export function relativeDateWords(v: RelativeDate): string {
+  const base = v.startOf !== undefined ? `the start of this ${v.startOf}` : v.relative;
+  if (v.offset === undefined || v.unit === undefined || v.offset === 0) return base;
+  const n = Math.abs(v.offset);
+  const unit = v.unit.toLowerCase().replace(/s$/, '');
+  return `${base} ${v.offset < 0 ? '-' : '+'} ${n} ${unit}${n === 1 ? '' : 's'}`;
 }
 
 /**
@@ -515,9 +641,36 @@ export function isJsonValue(v: unknown): v is JsonValue {
 export type FilterValue = string | number | boolean | RelativeDate | JsonValue;
 
 export function isRelativeDate(v: unknown): v is RelativeDate {
-  return typeof v === 'object' && v !== null
-    && ((v as { relative?: unknown }).relative === 'today'
-      || (v as { relative?: unknown }).relative === 'now');
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+  const o = v as Record<string, unknown>;
+  if (o['relative'] !== 'today' && o['relative'] !== 'now') return false;
+  if (Object.keys(o).some((k) => !['relative', 'startOf', 'offset', 'unit'].includes(k))) return false;
+  if (o['startOf'] !== undefined && !(RELATIVE_STARTS as readonly unknown[]).includes(o['startOf'])) return false;
+  const moved = o['offset'] !== undefined || o['unit'] !== undefined;
+  return !moved || (Number.isInteger(o['offset']) && (RELATIVE_UNITS as readonly unknown[]).includes(o['unit']));
+}
+
+/** Top or bottom N (CubeSnapshot.topN). */
+export interface TopN {
+  /** The column ranked by: a measure, a group-level column, or (a flat grid's) any column. */
+  readonly by: string;
+  /** How many: a whole number from 1. */
+  readonly n: number;
+  /** The smallest, not the largest. */
+  readonly bottom?: boolean;
+}
+
+/** A top N read from JSON, or refused in words. */
+export function readTopN(raw: unknown): TopN {
+  const o = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : undefined;
+  if (o === undefined || typeof o['by'] !== 'string' || o['by'] === '') {
+    throw new CubeRefusal(`a top N is {by, n[, bottom]}, by a column, not ${JSON.stringify(raw)}`);
+  }
+  const odd = Object.keys(o).filter((k) => !['by', 'n', 'bottom'].includes(k));
+  if (odd.length > 0) throw new CubeRefusal(`a top N takes by, n and bottom, not ${odd.join(', ')}`);
+  if (!Number.isInteger(o['n']) || (o['n'] as number) < 1) throw new CubeRefusal(`a top N's n is a whole number from 1, not ${JSON.stringify(o['n'])}`);
+  if (o['bottom'] !== undefined && typeof o['bottom'] !== 'boolean') throw new CubeRefusal('a top N is the largest, or the smallest (bottom: true)');
+  return { by: o['by'], n: o['n'] as number, ...(o['bottom'] === true ? { bottom: true } : {}) };
 }
 
 export interface FilterGroup {
@@ -573,6 +726,12 @@ export interface CubeSnapshot {
    */
   readonly groupDerived?: readonly DerivedColumn[];
   readonly filter?: FilterNode;
+  /**
+   * TOP OR BOTTOM N (Excel's Top 10, Tableau's Top N): the N rows -- a grouped grid's groups at each level, each
+   * parent's own -- with the largest (the smallest, `bottom`) value of `by`, ties kept (a rank); the rest left out.
+   * The database ranks them (query.ts), after the grouping and the group-level columns.
+   */
+  readonly topN?: TopN;
   /** Row dimensions, outermost first. These become the group-by. */
   readonly rows: readonly string[];
   /** Column dimensions. Empty means a flat (non-pivoted) result. */
@@ -794,6 +953,8 @@ export function totalOrderSorts(
  */
 function renamedWindow(d: DerivedColumn, one: (n: string) => string): DerivedColumn {
   if (d.childAggregate) return { ...d, childAggregate: { ...d.childAggregate, of: one(d.childAggregate.of) } };
+  if (d.grain) return { ...d, grain: { ...d.grain, of: one(d.grain.of) } };
+  if (d.groups) return { ...d, groups: { ...d.groups, of: one(d.groups.of) } };
   const w = d.window;
   if (!w) return d;
   return {

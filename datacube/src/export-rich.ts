@@ -51,6 +51,13 @@ export function cssOf(style: ExportStyle): string {
   const deco = [style.underline ? 'underline' : '', style.strike ? 'line-through' : ''].filter(Boolean);
   if (deco.length) out.push(`text-decoration:${deco.join(' ')}${style.underline && style.underline !== 'solid' ? ` ${style.underline}` : ''}`);
   if (style.align !== 'left') out.push(`text-align:${style.align}`);
+  if (style.bar) {
+    // a data bar as the grid draws it: the cell's middle, from the zero line to the value
+    const at = (f: number): string => `${Math.round(f * 1000) / 10}%`;
+    out.push(`background-image:linear-gradient(90deg,transparent ${at(style.bar.start)},${style.bar.color} ${at(style.bar.start)},`
+      + `${style.bar.color} ${at(style.bar.end)},transparent ${at(style.bar.end)})`, 'background-size:100% 64%',
+    'background-position:center', 'background-repeat:no-repeat');
+  }
   return out.join(';');
 }
 
@@ -93,7 +100,10 @@ export function toHtml(table: ExportTable, options: RichExportOptions = {}): str
       const text = cased(c.redacted ? String(v) : fmt(v, c.name, c.type), style.fontCase);
       const indent = c.tree && row.depth > 1 ? `;padding-left:${4 + (row.depth - 1) * 16}px` : '';
       const css = (cssOf(style) + indent).replace(/^;/, '');
-      return `<td${css ? ` class="${classOf(css)}"` : ''}>${escapeXml(text)}</td>`;
+      const icon = style.icon
+        ? `<span style="color:${style.icon.color};margin-right:4px" title="${escapeXml(style.icon.label)}">${escapeXml(style.icon.glyph)}</span>`
+        : '';
+      return `<td${css ? ` class="${classOf(css)}"` : ''}>${icon}${escapeXml(text)}</td>`;
     }).join('');
     return `<tr>${cells}</tr>`;
   });
@@ -106,7 +116,7 @@ export function toHtml(table: ExportTable, options: RichExportOptions = {}): str
   const layout = (grid: string): string => (page ? `<div class="page" style="grid-template-columns:repeat(${page.cols},minmax(0,1fr))">
 ${page.tiles.map((t) => `<section class="tile" style="grid-column:${t.x + 1} / span ${t.w};grid-row:${t.y + 1} / span ${t.h}">
 <h2>${escapeXml(t.title)}</h2>
-${t.kind === 'grid' ? grid : t.picture
+${t.kind === 'grid' ? grid : t.kind === 'text' ? t.text?.html ?? '' : t.picture
     ? `<img alt="${escapeXml(t.title)}" width="${t.picture.width}" height="${t.picture.height}" src="data:image/png;base64,${base64(t.picture.png)}">`
     : '<p class="note">(this chart had not drawn)</p>'}
 </section>`).join('\n')}

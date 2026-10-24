@@ -21,7 +21,7 @@ import { accessor, col, fn, lambda, lit, toJson, type Lambda } from '../../../pu
 import { CALC_FUNCTIONS } from '../../src/calc.ts';
 import { levelLambda } from '../../src/query.ts';
 import {
-  AGGREGATE_FNS, FILTER_OPERATORS,
+  AGGREGATE_FNS, FILTER_OPERATORS, SECOND_COLUMN,
   type CubeSnapshot, type DerivedColumn, type FilterNode, type FilterOperator, type FilterValue,
 } from '../../src/snapshot.ts';
 
@@ -140,7 +140,8 @@ function lines(): string[] {
   out.push(`type\t-\t-\t${toJson(levelLambda(s))}`);
   for (const p of PROBES) {
     for (const aggregate of AGGREGATE_FNS) {
-      const m = { name: 'm', column: p.name, fn: aggregate, ...(aggregate === 'wavg' ? { weight: WEIGHT } : {}) };
+      // an aggregate of two takes the integer column W as its second (snapshot.ts SECOND_COLUMN: a number each)
+      const m = { name: 'm', column: p.name, fn: aggregate, ...(SECOND_COLUMN[aggregate]?.required ? { weight: WEIGHT } : {}) };
       out.push(`agg\t${p.name}\t${aggregate}\t${toJson(levelLambda({ ...s, rows: [GROUP], measures: [m] }))}`);
     }
     for (const operator of FILTER_OPERATORS) {

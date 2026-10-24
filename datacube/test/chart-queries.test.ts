@@ -11,7 +11,7 @@ import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { axisName, boxMeasures, chartQuery, DEFAULT_OPTIONS, GRID_MARKS, kpiChange, kpiQueries, measureName, type ChartSpec } from '../src/chart-spec.ts';
 import { marimekkoNames, paretoName, ringTotalName, waffleNames, waterfallNames } from '../src/calc-presets.ts';
-import type { CubeSnapshot } from '../src/snapshot.ts';
+import type { CubeSnapshot, DerivedColumn } from '../src/snapshot.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
 import { row } from './lite-compiler.ts';
@@ -175,6 +175,61 @@ describe('the presets in the grid, planned and run: along its own rows', () => {
     assert.deepEqual(values(t, 'region'), ['AMER', 'EMEA']);
     assert.deepEqual(values(t, 'revenue_runningTotal'), [600, 1200]);
     assert.deepEqual(values(t, 'revenue_share').map(Number), [0.5, 0.5]);
+  });
+
+  it('a share of the grand total and of the parent row divide by the measure at that grain, exact at every depth', async () => {
+    const { gridShowAsColumns } = await import('../src/calc-presets.ts');
+    const { levelLambda } = await import('../src/query.ts');
+    const along = ['region', 'sold'];
+    const shares = (measure: string): DerivedColumn[] => [
+      ...gridShowAsColumns('percentOfTotal', measure, along, 'of_all'),
+      ...gridShowAsColumns('percentOfParent', measure, along, 'of_parent'),
+    ];
+    const s: CubeSnapshot = { ...cube, rows: along, sorts: [], groupDerived: shares('revenue') };
+    const run = async (snapshot: CubeSnapshot, level: number, parent: string[]): Promise<ResultTable> =>
+      engine.execute(await planner.plan(levelLambda(snapshot, { level, parent })), 0);
+    const fixed = (t: ResultTable, c: string): string[] => values(t, c).map((v) => Number(v).toFixed(6));
+    const ratios = (xs: readonly number[]): string[] => xs.map((v) => v.toFixed(6));
+    // EMEA's sales, 100, 200 and 300: of EMEA's 600 and of the whole's 1200
+    const emea = await run(s, 2, ['EMEA']);
+    assert.deepEqual(values(emea, 'revenue').map(Number), [100, 200, 300]);
+    assert.deepEqual(fixed(emea, 'of_all'), ratios([100 / 1200, 200 / 1200, 300 / 1200]));
+    assert.deepEqual(fixed(emea, 'of_parent'), ratios([100 / 600, 200 / 600, 300 / 600]));
+    // the join brings the measures alone: no column of its own reaches the level's rows (nor a class made of them)
+    assert.deepEqual(emea.columns.map((c) => c.name).filter((n) => n.startsWith('__')), []);
+    // a top group's parent is the grand total; the grand total is the whole of itself
+    const top = await run(s, 1, []);
+    assert.deepEqual(fixed(top, 'of_all'), ratios([0.5, 0.5]));
+    assert.deepEqual(fixed(top, 'of_parent'), ratios([0.5, 0.5]));
+    assert.deepEqual(fixed(await run(s, 0, []), 'of_all'), ratios([1]));
+    // AN AVERAGE'S share is of the parent's average -- the same aggregate over the parent's rows -- never of a sum
+    // of averages: EMEA's costs 60, 150 and 200 average 410/3; every cost, 640/6
+    const averaged: CubeSnapshot = {
+      ...s,
+      columns: s.columns.map((c) => (c.name === 'cost' ? { ...c, aggregate: 'average' as const } : c)),
+      groupDerived: shares('cost'),
+    };
+    const costs = await run(averaged, 2, ['EMEA']);
+    assert.deepEqual(fixed(costs, 'of_parent'), ratios([60, 150, 200].map((v) => v / (410 / 3))));
+    assert.deepEqual(fixed(costs, 'of_all'), ratios([60, 150, 200].map((v) => v / (640 / 6))));
+  });
+
+  it("a detail row's share of the grand total is under the grid's filter, not its group's keys", async () => {
+    const { gridShowAsColumns } = await import('../src/calc-presets.ts');
+    const { detailSnapshot, levelLambda } = await import('../src/query.ts');
+    // the grid keeps costs over 50: AMER's 50 sale leaves, and the whole is 1150
+    const s: CubeSnapshot = {
+      ...cube,
+      rows: ['region'],
+      sorts: [],
+      filter: { kind: 'condition', column: 'cost', operator: 'greaterThan', value: 50 },
+      groupDerived: gridShowAsColumns('percentOfTotal', 'revenue', ['region'], 'of_all'),
+    };
+    const detail = detailSnapshot(s, ['EMEA']);
+    const t = await engine.execute(await planner.plan(levelLambda(detail, { level: 0, parent: [], grandFilter: s.filter ?? null })), 0);
+    assert.deepEqual(values(t, 'revenue').map(Number).sort((a, b) => a - b), [100, 200, 300]);
+    assert.deepEqual(values(t, 'of_all').map((v) => Number(v).toFixed(6)).sort(),
+      [100 / 1150, 200 / 1150, 300 / 1150].map((v) => v.toFixed(6)));
   });
 
   it('a date by its period is a row-stage column the grid can group by', async () => {

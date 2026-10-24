@@ -14,12 +14,13 @@ import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, tiles, type Bands, type Preset,
 } from './layout/bands.ts';
 import {
-  PageDocumentError, keptFor, readGridCopy, readLayout, unnamedLabel, writePageOf, type ChartView, type GridCopy, type PageDocument,
-  type PageLayout, type PageSheet, type PageView,
+  PageDocumentError, keptFor, readGridCopy, readLayout, unnamedLabel, writePageOf, type ChartView, type GridCopy, type GridView,
+  type PageDocument, type PageLayout, type PageSheet, type PageView, type TextView,
 } from './page-document.ts';
 import { givenName } from './page-names.ts';
 import type { PageModelRef } from './page-model.ts';
-import { chartTitle, gridTitle, idShape, nextPageId } from './page-ids.ts';
+import { chartTitle, gridTitle, idShape, nextPageId, textTitle } from './page-ids.ts';
+import { textProblem } from './page-text-rule.ts';
 import { namedProperties, type PageFilter } from './page-filters.ts';
 import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageState } from './page-state.ts';
@@ -93,6 +94,13 @@ export type PageCommand =
   }
   /** A chart's spec, whole (made first by chart-spec.ts editChart, the options form's rule). */
   | { readonly kind: 'setChart'; readonly chart: string; readonly spec: ChartSpec }
+  /** A text tile (page-text.ts) on `sheet`, a band of its own at its bottom, its words judged by textProblem. */
+  | {
+    readonly kind: 'addText'; readonly id?: string; readonly sheet: string; readonly text: string; readonly title: string | null;
+    readonly columns: number | null;
+  }
+  /** A text tile's words, whole (its editor's OK). */
+  | { readonly kind: 'setText'; readonly tile: string; readonly text: string }
   /** A chart reading another grid's cube from now on (D7: Show Grid made the grid of its own grouping) -- its selection
    *  taken off the cube it read, and that cube let go when no view reads it any more (a detached chart's). */
   | { readonly kind: 'followGrid'; readonly chart: string; readonly grid: string }
@@ -146,8 +154,8 @@ export type PageCommand =
 
 export const PAGE_COMMAND_KINDS = [
   'renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart',
-  'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap',
-  'live', 'rebuilt', 'modelInto', 'modelPin', 'modelKeep',
+  'addText', 'setText', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter',
+  'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
 /** Each page command's fields, by kind (`?` one it may leave out): what readPageCommand takes, and what Python's generated
@@ -155,8 +163,8 @@ export const PAGE_COMMAND_KINDS = [
 export const PAGE_COMMAND_FIELDS = {
   renamePage: ['name'], savedAs: ['record'], addSheet: ['id?', 'name'], renameSheet: ['sheet', 'name'], moveSheet: ['sheet', 'to'],
   removeSheet: ['sheet'], renameTile: ['tile', 'title'], addGrid: ['id?', 'document', 'sheet', 'near', 'title', 'columns'],
-  addChart: ['id?', 'near', 'spec', 'title', 'columns'], setChart: ['chart', 'spec'], followGrid: ['chart', 'grid'],
-  detach: ['chart', 'cube', 'document', 'copy?'],
+  addChart: ['id?', 'near', 'spec', 'title', 'columns'], setChart: ['chart', 'spec'], addText: ['id?', 'sheet', 'text', 'title', 'columns'],
+  setText: ['tile', 'text'], followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
   removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'],
@@ -175,7 +183,7 @@ export interface PageApplied {
 
 // ---------------------------------------------------------------- ids and titles (page-ids.ts: the screen's too)
 
-export { chartTitle, gridTitle, idTag, nextPageId } from './page-ids.ts';
+export { chartTitle, gridTitle, idTag, nextPageId, textTitle } from './page-ids.ts';
 
 // ---------------------------------------------------------------- applying
 
@@ -221,7 +229,7 @@ function viewNamed(page: PageDocument, id: string): PageView {
  */
 export function joinInputOf(page: PageDocument, grid: string): JoinInput {
   const view = viewNamed(page, grid);
-  if (view.kind !== 'grid') throw new CubeRefusal(`'${grid}' is a chart: a join is of two grids`);
+  if (view.kind !== 'grid') throw new CubeRefusal(`'${grid}' is ${kindWords(view)}: a join is of two grids`);
   const cube = page.cubes.find((c) => c.id === view.cube);
   if (!cube) throw new CubeRefusal(`'${grid}' shows no cube of the page`);
   return { name: view.title ?? cube.cube.source.name, source: cube.cube.source, query: cube.cube.query };
@@ -242,7 +250,7 @@ export function takenIds(draft: PageDraft): string[] {
 /**
  * A fresh id for a command that makes one, or the one it names -- refused when it is taken (takenIds).
  */
-function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'chart' | 'sheet' | 'filter'): string {
+function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'chart' | 'text' | 'sheet' | 'filter'): string {
   const taken = takenIds(draft);
   if (given === undefined) return nextPageId(taken, kind);
   if (taken.includes(given)) throw new CubeRefusal(`'${given}' is an id the page has held already`);
@@ -264,9 +272,12 @@ function rewritten(page: PageDocument,
 }
 
 /** The grid view `grid` names, or a refusal: a chart reads its grid's rows, and snaps with it. */
-function gridNamed(page: PageDocument, grid: string): PageView {
+/** What a view is, in a refusal's words: a grid, a chart, a text tile. */
+const kindWords = (view: PageView): string => (view.kind === 'text' ? 'a text tile' : `a ${view.kind}`);
+
+function gridNamed(page: PageDocument, grid: string): GridView {
   const view = viewNamed(page, grid);
-  if (view.kind !== 'grid') throw new CubeRefusal(`'${grid}' is a chart: its grid snaps, and the chart reads what it reads`);
+  if (view.kind !== 'grid') throw new CubeRefusal(`'${grid}' is ${kindWords(view)}: ${view.kind === 'chart' ? 'its grid snaps, and the chart reads what it reads' : 'a grid snaps'}`);
   return view;
 }
 
@@ -318,7 +329,7 @@ function withoutTile(page: PageDocument, tile: string): PageDocument {
   const gone = new Set([tile]);
   if (view.kind === 'chart') {
     next = unselected(next, view);
-  } else {
+  } else if (view.kind === 'grid') {
     for (const chart of next.views.filter((v): v is ChartView => v.kind === 'chart' && v.cube === view.cube)) {
       if (!chart.spec.frozen) {
         gone.add(chart.id);
@@ -342,19 +353,17 @@ function withoutTile(page: PageDocument, tile: string): PageDocument {
 
 /**
  * The views and cubes in the order the screen writes them (page/cube-page.ts views(), page-app.ts document()): the grids
- * in the sheets' reading order -- the order a reopened page adds them in -- then the charts, each in the order it came;
- * the cubes of the grids in their order, then those kept for detached charts. A page Python edits is written as the
- * screen writes it.
+ * in the sheets' reading order -- the order a reopened page adds them in -- then the charts, each in the order it came,
+ * then the text tiles in reading order; the cubes of the grids in their order, then those kept for detached charts. A
+ * page Python edits is written as the screen writes it.
  */
 export function inScreenOrder(page: PageDocument): PageDocument {
   const reading = page.sheets.flatMap((s) => tiles(s.layout));
   const at = (id: string): number => (reading.includes(id) ? reading.indexOf(id) : reading.length);
-  const grids = page.views.filter((v) => v.kind === 'grid');
-  const views = [
-    ...grids.map((v, i) => ({ v, i })).sort((x, y) => at(x.v.id) - at(y.v.id) || x.i - y.i).map((x) => x.v),
-    ...page.views.filter((v) => v.kind === 'chart'),
-  ];
-  const gridOrder = views.filter((v) => v.kind === 'grid').map((v) => v.cube);
+  const inReading = (kind: PageView['kind']): PageView[] => page.views.filter((v) => v.kind === kind).map((v, i) => ({ v, i }))
+    .sort((x, y) => at(x.v.id) - at(y.v.id) || x.i - y.i).map((x) => x.v);
+  const views = [...inReading('grid'), ...page.views.filter((v) => v.kind === 'chart'), ...inReading('text')];
+  const gridOrder = views.flatMap((v) => (v.kind === 'grid' ? [v.cube] : []));
   const place = (id: string): number => (gridOrder.includes(id) ? gridOrder.indexOf(id) : gridOrder.length);
   const cubes = page.cubes.map((c, i) => ({ c, i })).sort((x, y) => place(x.c.id) - place(y.c.id) || x.i - y.i).map((x) => x.c);
   const same = views.every((v, i) => v === page.views[i]) && cubes.every((c, i) => c === page.cubes[i]);
@@ -411,8 +420,9 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const view = viewNamed(page, command.tile);
       if (command.title === null && view.kind === 'chart') throw new CubeRefusal('a chart has a title');
       const given = command.title === null ? undefined : named('tile', command.title);
-      // a grid named what it was made named keeps no title of its own: it is numbered by its id, as it was
-      const title = view.kind === 'grid' && given === gridTitle(view.id) ? undefined : given;
+      // a grid or a text named what it was made named keeps no title of its own: it is numbered by its id, as it was
+      const made = view.kind === 'grid' ? gridTitle(view.id) : view.kind === 'text' ? textTitle(view.id) : undefined;
+      const title = given === made ? undefined : given;
       const views = page.views.map((v) => {
         if (v.id !== view.id) return v;
         if (title !== undefined) return { ...v, title };
@@ -424,7 +434,10 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
     case 'addGrid': {
       const id = freshId(draft, command.id, 'grid');
       const sheet = sheetNamed(page, command.sheet);
-      const title = command.title === null ? undefined : named('tile', command.title);
+      const given = command.title === null ? undefined : named('tile', command.title);
+      // named what it is numbered, it keeps no title of its own, as renameTile leaves one (2026-10-24, found by the
+      // undo's random walks: a grid made 'Grid 1' was a page no rename put back)
+      const title = given === gridTitle(id) ? undefined : given;
       const view: PageView = { id, kind: 'grid', cube: id, ...(title !== undefined ? { title } : {}) };
       // a grid is a table, which wants the page's width: a band of its own at the bottom of its sheet, never beside the
       // tile it came from, nor between that tile and its charts (the user, 2026-10-23: bands.ts add)
@@ -435,7 +448,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
     }
     case 'addChart': {
       const grid = viewNamed(page, command.near);
-      if (grid.kind !== 'grid') throw new CubeRefusal(`'${command.near}' is a chart: a chart is of a grid`);
+      if (grid.kind !== 'grid') throw new CubeRefusal(`'${command.near}' is ${kindWords(grid)}: a chart is of a grid`);
       const spec = readChart(JSON.parse(JSON.stringify(command.spec)));
       if (typeof spec === 'string') throw new CubeRefusal(spec);
       const id = freshId(draft, command.id, 'chart');
@@ -453,9 +466,29 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       // chart a new id, keeps the title the person saw (D19, B12)
       return done(followedPage({ ...placed, views: [...page.views, view] }, grid.cube, page), [...draft.held, id], { ...command, id, title });
     }
+    case 'addText': {
+      const problem = textProblem(command.text);
+      if (problem !== null) throw new CubeRefusal(problem);
+      const id = freshId(draft, command.id, 'text');
+      const sheet = sheetNamed(page, command.sheet);
+      const given = command.title === null ? undefined : named('tile', command.title);
+      const title = given === textTitle(id) ? undefined : given;
+      const view: TextView = { id, kind: 'text', text: command.text, ...(title !== undefined ? { title } : {}) };
+      // a band of its own at the bottom of its sheet, as a grid is added (bands.ts add): a title or a note is moved where
+      // it reads from there
+      const placed = withSheet(page, sheet.id, (s) => ({ ...s, layout: laid(() => add(s.layout, id, undefined, command.columns ?? MAX_COLUMNS)) }));
+      return done({ ...placed, views: [...page.views, view] }, [...draft.held, id], { ...command, id });
+    }
+    case 'setText': {
+      const view = viewNamed(page, command.tile);
+      if (view.kind !== 'text') throw new CubeRefusal(`'${command.tile}' is ${kindWords(view)}, not a text tile`);
+      const problem = textProblem(command.text);
+      if (problem !== null) throw new CubeRefusal(problem);
+      return done({ ...page, views: page.views.map((v) => (v.id === view.id ? { ...view, text: command.text } : v)) });
+    }
     case 'setChart': {
       const view = viewNamed(page, command.chart);
-      if (view.kind !== 'chart') throw new CubeRefusal(`'${command.chart}' is a grid, not a chart`);
+      if (view.kind !== 'chart') throw new CubeRefusal(`'${command.chart}' is ${kindWords(view)}, not a chart`);
       const spec = readChart(JSON.parse(JSON.stringify(command.spec)));
       if (typeof spec === 'string') throw new CubeRefusal(spec);
       // a chart detached from its grid (its grid removed: no grid shows its cube) has no grid to follow: it stays frozen,
@@ -468,9 +501,9 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
     }
     case 'followGrid': {
       const view = viewNamed(page, command.chart);
-      if (view.kind !== 'chart') throw new CubeRefusal(`'${command.chart}' is a grid, not a chart`);
+      if (view.kind !== 'chart') throw new CubeRefusal(`'${command.chart}' is ${kindWords(view)}, not a chart`);
       const grid = viewNamed(page, command.grid);
-      if (grid.kind !== 'grid') throw new CubeRefusal(`'${command.grid}' is a chart, not a grid: a chart follows a grid`);
+      if (grid.kind !== 'grid') throw new CubeRefusal(`'${command.grid}' is ${kindWords(grid)}, not a grid: a chart follows a grid`);
       if (grid.cube === view.cube) throw new CubeRefusal(`'${command.chart}' reads ${command.grid} already`);
       // its selection off the cube it read (as a chart removed takes it off) and its page filter off (a click on nothing
       // takes both: the S7 audit's Y-1), then the chart on the grid's cube; the cube it read let go when no view reads it
@@ -528,7 +561,7 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
     }
     case 'select': {
       const view = viewNamed(page, command.chart);
-      if (view.kind !== 'chart') throw new CubeRefusal(`'${command.chart}' is a grid, not a chart`);
+      if (view.kind !== 'chart') throw new CubeRefusal(`'${command.chart}' is ${kindWords(view)}, not a chart`);
       const { selection: _was, ...rest } = view;
       const chart: ChartView = command.conditions.length === 0 ? rest : { ...rest, selection: [...command.conditions] };
       return done({ ...page, views: page.views.map((v) => (v.id === view.id ? chart : v)) });
@@ -881,6 +914,15 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'removeTile':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, tile: text(o['tile'], 'a tile') };
+    case 'addText':
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      return {
+        kind, ...optionalId(o['id'], "a text tile's id"), sheet: text(o['sheet'], 'a sheet'), text: text(o['text'], "a text tile's text"),
+        title: textOrNull(o['title'], "a tile's title"), columns: columnsFrom(o['columns']),
+      };
+    case 'setText':
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      return { kind, tile: text(o['tile'], 'a tile'), text: text(o['text'], "a text tile's text") };
     case 'arrange': {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       const order = o['order'];

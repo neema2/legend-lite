@@ -74,6 +74,10 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
       return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), sheet: n(command.sheet), near: command.near === null ? null : n(command.near) };
     case 'addChart':
       return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), near: n(command.near) };
+    case 'addText':
+      return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), sheet: n(command.sheet) };
+    case 'setText':
+      return { ...command, tile: n(command.tile) };
     case 'setChart':
     case 'select':
       return { ...command, chart: n(command.chart) };

@@ -69,6 +69,26 @@ describe('the commands between two states of a grid take one to the other', () =
 
 describe('the vocabulary the diff needs', () => {
   const d = start();
+
+  // 2026-10-24, found by the random walks once Top N and the formats joined them: two drafts no command list reached
+  it('a dimension keeping the Aggregation it had as a measure: set as a measure, then made a dimension', () => {
+    const kept = applyGridCommands(d, [{ kind: 'column', name: 'qty', change: { aggregate: 'max' } }, { kind: 'column', name: 'qty', change: { kind: 'dimension' } }]);
+    const between = gridBetween(d, kept);
+    assert.deepEqual(between, [{ kind: 'column', name: 'qty', change: { aggregate: 'max' } }, { kind: 'column', name: 'qty', change: { kind: 'dimension' } }]);
+    assert.deepEqual(savedForm(applyGridCommands(d, between)), savedForm(kept));
+  });
+
+  it("a calculated column grouped by, its kind changed back: edited once the grouping has let it go", () => {
+    const fee = { name: 'fee', lambda: stand('$x.notional * 2'), kind: 'measure' as const, type: 'Float' };
+    const measure = applyGridCommands(d, [{ kind: 'calculate', level: 'row', column: { ...fee, name: 'fee2' } }]);
+    const grouped = applyGridCommands(measure, [
+      { kind: 'editCalculated', name: 'fee2', level: 'row', column: { ...fee, name: 'fee2', kind: 'dimension' } },
+      { kind: 'group', rows: ['fee2'] },
+    ]);
+    const back = gridBetween(grouped, measure);
+    assert.deepEqual(back.map((c) => c.kind), ['group', 'editCalculated'], 'ungrouped first');
+    assert.deepEqual(savedForm(applyGridCommands(grouped, back)), savedForm(measure));
+  });
   const calc = (name: string): GridCommand['kind'] extends never ? never : Extract<GridCommand, { kind: 'calculate' }>['column'] =>
     ({ name, lambda: stand('$x.qty * 2'), kind: 'measure', type: 'Integer' });
 

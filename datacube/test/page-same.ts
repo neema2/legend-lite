@@ -18,7 +18,7 @@ export function renamedPage(page: PageDocument, given: Readonly<Record<string, s
     (o === undefined ? undefined : Object.fromEntries(Object.entries(o).map(([k, v]) => [n(k), v])));
   return {
     ...page,
-    views: page.views.map((v) => ({ ...v, id: n(v.id), cube: n(v.cube) })),
+    views: page.views.map((v) => (v.kind === 'text' ? { ...v, id: n(v.id) } : { ...v, id: n(v.id), cube: n(v.cube) })),
     cubes: page.cubes.map((c) => ({ id: n(c.id), cube: c.cube })),
     sheets: page.sheets.map((s) => ({
       ...s, id: n(s.id), layout: (renamedCommand({ kind: 'layout', sheet: s.id, layout: s.layout }, map) as Extract<PageCommand, { kind: 'layout' }>).layout,

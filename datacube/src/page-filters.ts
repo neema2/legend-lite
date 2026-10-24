@@ -13,7 +13,7 @@ import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageCommand } from './page-commands.ts';
 import { filterNode } from './query.ts';
 import type { QueryLens } from './runner.ts';
-import { CubeRefusal, isRelativeDate, sameValue, type FilterNode, type FilterValue } from './snapshot.ts';
+import { CubeRefusal, isRelativeDate, relativeDateWords, sameValue, type FilterNode, type FilterValue } from './snapshot.ts';
 
 /** One filter of the page. */
 export interface PageFilter {
@@ -151,7 +151,7 @@ export function readPageFilters(raw: unknown, charts: ReadonlySet<string>): read
 const LABEL = new Map<string, string>(OPERATORS.map((o) => [o.op, o.label]));
 
 function valueWords(v: FilterValue): string {
-  if (isRelativeDate(v)) return v.relative;
+  if (isRelativeDate(v)) return relativeDateWords(v);
   if (typeof v === 'object') return v.json;
   return String(v);
 }

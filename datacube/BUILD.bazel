@@ -224,6 +224,10 @@ _EXTRA_ENV = {
     "page-corpus": {
         "CORPUS": "$(rlocationpaths :corpus_pages)",
     },
+    # the stylesheet whose rules a long press's menu and a finger's resize grip rely on (src/ui/long-press.ts)
+    "long-press": {
+        "GRID_CSS": "$(rlocationpath src/grid/grid.css)",
+    },
 }
 
 # DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
@@ -237,6 +241,8 @@ _DUCKDB_USERS = [
     # the screen's grid over a real DuckDB, its document held to Python's (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11)
     "parity-screen",
     "model-join",
+    # aggregates of two columns and Count's columns, planned and run (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md P2)
+    "two-column-aggregates",
     # a class as a grid's source, its rows planned over the project's files (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16)
     "class-source",
     # a join opened over one model of its tables, its rows from DuckDB (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17)
@@ -273,6 +279,7 @@ _EXTRA_DATA = {
     "saved-queries": ["//fixtures/saved-queries:records", ":projects", ":trading_copies"],
     "upstream-plans": ["test/fixtures/upstream-plans.json"],
     "chart-rules": ["test/fixtures/chart-rules.json"],
+    "long-press": ["src/grid/grid.css"],
     "parity-screen": ["test/fixtures/parity/parity.json"],
     # the saved-page corpus, and the script that makes it (the test holds the files to what it makes)
     "page-corpus": [":corpus_pages", "test/fixtures/pages/make.ts"],
@@ -347,8 +354,12 @@ _WASM_TESTS = [
     "json-shape",
     "column-editor",
     "saved-queries",
+    # the value list's question and a date range's ends, as the compiler prints them (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md P2)
+    "value-filter",
     # a page's model: classes over relation functions, related by a ModelJoin (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §11)
     "model-join",
+    # aggregates of two columns and Count's columns, planned by the compiler (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md P2)
+    "two-column-aggregates",
     # the model's routes, asked of the tab's module (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.6a)
     "model-route",
     # a class as a grid's source, read back from a class the writer made (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §16)
@@ -478,18 +489,23 @@ _HEADLESS_TESTS = [
     "chart-rules-more",
     "child-groups",
     "class-source",
+    "class-tree",
     "column-kind",
     "columns-selector",
+    "conditional",
     "config",
     "config-fold",
     "create-class",
     "cube-document",
     # a grid edit as a value (docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md)
     "cypher-spike",
+    "format-code",
     "grid-commands",
     # a grid's and a page's gestures as their commands (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8)
     "grid-gestures",
     "page-gestures",
+    # a text tile's words read, and written by an export (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md P4)
+    "page-text",
     # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
     "cube-round-trip",
     "cube-state",
@@ -526,6 +542,7 @@ _HEADLESS_TESTS = [
     "menu",
     "menu-more",
     "model-join",
+    "model-measures",
     "model-route",
     "offer-facts",
     "page-document",
@@ -548,7 +565,10 @@ _HEADLESS_TESTS = [
     "style",
     "tree",
     "treeview",
+    "two-column-aggregates",
     "type-columns",
+    "value-filter",
+    "value-groups",
     "values",
     "warehouse-session",
     "window",

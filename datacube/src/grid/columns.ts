@@ -585,7 +585,7 @@ export function buildColumnModel(
   const fixed = new Set(layout.fixed ?? []);
   const links = layout.links ?? {};
 
-  const sized: LeafColumn[] = ordered.map((l) => {
+  const unseated: LeafColumn[] = ordered.map((l) => {
     // A width is clamped by its own bounds rather than applied raw,
     // so a saved width from a wider screen cannot squeeze a column
     // past the minimum that made it readable.
@@ -612,6 +612,11 @@ export function buildColumnModel(
       ...(link !== undefined ? { linkLabelParameter: link } : {}),
     };
   });
+  // A PINNED COLUMN SITS AT ITS EDGE, in the order shown, as a spreadsheet's frozen panes and upstream's pinned
+  // sections keep them: the row dimensions first, then the columns pinned left, the rest, the columns pinned right.
+  // Pinned where it stood, a column from the middle stuck at the edge over the columns before it once scrolled.
+  const edge = (l: LeafColumn): number => l.isDimension ? 0 : l.pinned === 'left' ? 1 : l.pinned === 'right' ? 3 : 2;
+  const sized = unseated.map((l, i) => ({ l, i })).sort((a, b) => edge(a.l) - edge(b.l) || a.i - b.i).map(({ l }) => l);
 
   const measuresFirst = layout.measuresFirst === true;
   const hp = (l: LeafColumn): readonly string[] => headerPathOf(l, measuresFirst);

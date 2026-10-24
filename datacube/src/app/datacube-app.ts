@@ -223,6 +223,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         ...(place.hostSnap ? { hostSnap: place.hostSnap } : {}),
         ...(place.signInAgain ? { signInAgain: place.signInAgain } : {}),
         ...(place.cubeSource ? { cubeSource: place.cubeSource } : {}),
+        ...(place.classTree ? { classTree: place.classTree } : {}),
         // the groups a saved cube had open: its own grid's, not a copy's (a copy starts collapsed, as a new grid) -- or, the
         // same grid made again by an undo, its own as they were
         ...(start?.tree ? { tree: start.tree } : place.tree && !start ? { tree: place.tree } : {}),
@@ -253,10 +254,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         // its Create ▸ Data Source…: a grid over a source picked now, beside this one (the page's own Data Source…'s way)
         ...(picks ? { onOpenSource: () => { if (spawned.id !== undefined) void page.addSource(spawned.id); } } : {}),
         // ITS RIGHT-CLICK JOIN ▸ (the user, 2026-10-23), built as it opens: what each entry asks kept until one is picked
+        // -- on a host's page that makes no joins (no local engine, no HostJoin), still there, saying so
         joinMenu: (column) => {
           const built = spawned.id !== undefined && joinMenuOf ? joinMenuOf(spawned.id, column) : undefined;
           joinAsks = built?.asks ?? new Map();
-          return built?.items ?? [];
+          return built?.items ?? [{ label: 'Join…', disabled: true, hint: 'This page\'s host makes no joins' }];
         },
         onHostMenu: (item) => {
           const ask = item.id !== undefined ? joinAsks.get(item.id) : undefined;
@@ -1333,7 +1335,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const joinable = (id: string): boolean => { const p = sources.place(id); return p !== undefined && joins.offered(p); };
       joinMenuOf = (cube, column) => {
         const now = page.document(page.title);
-        if (!now || !joinable(cube)) return { items: [], asks: new Map() };
+        // a grid whose rows are no table of this page's (a class's, a saved query's): Join ▸ still there, saying why
+        if (!now || !joinable(cube)) {
+          return { items: [{ label: 'Join…', disabled: true, hint: 'A join reads tables this page holds, and this grid\'s rows are none of them' }], asks: new Map() };
+        }
         const input = (id: string) => {
           const i = joinInputOf(now, id);
           return { id, name: i.name, columns: i.query.columns, pivoted: i.query.pivotOn.length > 0 };

@@ -180,7 +180,7 @@ def _tagged(value: Any) -> Any:
 
 @_operations
 class Tile:
-    """A tile of a page (a grid or a chart): its view in the page's document, by its id."""
+    """A tile of a page (a grid, a chart or a text): its view in the page's document, by its id."""
 
     _kind = ''
 
@@ -424,10 +424,49 @@ class Grid(Tile):
         it off (the gesture ``pivot.removeHorizontal``); not pivoted on, nothing changes."""
         return self._gesture('pivot.removeHorizontal', {'column': column})
 
+    def data_bars(self, column: str, on: bool = True) -> Grid:
+        """Data bars in ``column``'s cells -- or, ``on=False``, none -- each from the zero line to its value against the
+        column's range at its depth, as the header menu's Conditional Formatting ▸ Data Bars draws them (the gesture
+        ``format.dataBar``; DataCube's conditional.ts). On a pivoted column's measure, as a heatmap is."""
+        return self._gesture('format.dataBar', {'column': column, 'on': on})
+
+    def color_scale(self, column: str, low: str, high: str, mid: str | None = None) -> Grid:
+        """A colour scale on ``column``: ``low`` at its smallest value, ``high`` at its largest, ``mid`` (``'#rrggbb'``)
+        halfway -- Excel's three-colour scale -- as Conditional Formatting ▸ Color Scales sets one (``format.colorScale``;
+        the heatmap's colours)."""
+        scale = {'from': low, 'to': high, **({'mid': mid} if mid is not None else {})}
+        return self._gesture('format.colorScale', {'column': column, 'scale': scale})
+
+    def icon_set(self, column: str, set: str | None = 'arrows', reverse: bool = False) -> Grid:
+        """An icon before each of ``column``'s values by the third of its range it falls in -- ``set``: ``'arrows'``,
+        ``'trafficLights'``, ``'symbols'`` or ``'flags'``; ``None`` takes them off; ``reverse`` the high icon for the low
+        values (a cost's) -- as Conditional Formatting ▸ Icon Sets (``format.iconSet``)."""
+        return self._gesture('format.iconSet', {'column': column, 'set': set, **({'reverse': True} if reverse else {})})
+
+    def highlight(self, column: str, when: dict, style: str | dict = 'lightRed') -> Grid:
+        """A rule on ``column``: its cells drawn in ``style`` where ``when`` holds -- ``{'op': 'greaterThan', 'value':
+        100}``, ``{'op': 'between', 'from': 1, 'to': 9}``, ``{'op': 'contains', 'text': 'EM'}``, ``{'op': 'top', 'count':
+        10}``, ``{'op': 'aboveAverage'}``, ``{'op': 'blank'}`` ... -- the first rule that holds drawing; ``style`` one of
+        Excel's (``'lightRed'``, ``'yellow'``, ``'green'``, ``'redText'``, ``'bold'``) or ``{'foreground', 'background',
+        'bold'}`` (``format.addRule``; DataCube's conditional.ts judges it, in its words)."""
+        return self._gesture('format.addRule', {'column': column, 'rule': {'when': when, 'style': style}})
+
+    def format_code(self, column: str, code: str | None) -> Grid:
+        """``column``'s values written by an Excel number format code -- ``'#,##0.0,,"M"'``, ``'0.0%'``,
+        ``'$#,##0;[Red]($#,##0)'``, ``'dd mmm yyyy'`` -- its sections (positive; negative; zero; text) and colours as
+        Excel's; ``None`` takes it off. Judged by DataCube's format-code.ts, in its words (the gesture ``format.code``);
+        the Excel export writes the code itself."""
+        return self._gesture('format.code', {'column': column, 'code': code})
+
+    def clear_formats(self, column: str) -> Grid:
+        """``column``'s conditional formats taken off -- its colour scale, data bars, icons and rules -- as Conditional
+        Formatting ▸ Clear Formatting from Column (``format.clear``)."""
+        return self._gesture('format.clear', {'column': column})
+
     def heatmap(self, column: str, on: bool = True) -> Grid:
-        """A heatmap on ``column`` -- or, ``on=False``, off -- as the header menu's Add Heatmap and Remove Heatmap paint
-        it (the gestures ``heatmap.add`` and ``heatmap.remove``): on a pivoted column's measure, so every value's column
-        under it has it; a pivot total's its own. The heatmap it has already, or none to take off, changes nothing."""
+        """A heatmap on ``column`` -- or, ``on=False``, off -- as the menu's Conditional Formatting > Color Scales >
+        Heatmap and No Color Scale paint it (the gestures ``heatmap.add`` and ``heatmap.remove``): on a pivoted
+        column's measure, so every value's column under it has it; a pivot total's its own. The heatmap it has already, or none to take off, changes nothing."""
         return self._gesture('heatmap.add' if on else 'heatmap.remove', {'column': column})
 
     def gesture(self, name: str, /, **args: Any) -> Grid:
@@ -458,8 +497,10 @@ class Grid(Tile):
     def column(self, name: str, *, kind: str | None = None, aggregate: Any = _KEEP, weight: Any = _KEEP) -> Grid:
         """``name``'s Column Properties, as the panel sets them: its ``kind`` (``'dimension'``, which can be grouped and
         pivoted on, or ``'measure'``; a calculated column's is its editor's), its Aggregation (``aggregate``: one the
-        panel offers for its type; a measure's only) and a weighted average's ``weight`` column -- None clears either,
-        as the panel's "none" does. What is not given is left as it is."""
+        panel offers for its type; a measure's only) and an aggregate of two's second column, ``weight`` (a weighted
+        average's weight; ``corr``'s and ``covarSample``'s other number; the number ``maxBy`` and ``minBy`` order by; the
+        column ``distinctCount`` counts) -- None clears either, as the panel's "none" does. What is not given is left as
+        it is."""
         change = {**({'kind': kind} if kind is not None else {}),
                   **({'aggregate': aggregate} if aggregate is not _KEEP else {}),
                   **({'weight': weight} if weight is not _KEEP else {})}
@@ -467,8 +508,9 @@ class Grid(Tile):
 
     def measure(self, column: str, fn: str, name: str | None = None, *, weight: str | None = None) -> Grid:
         """``column`` aggregated by ``fn`` when the grid groups (one Aggregation offers for its type, and none is assumed:
-        ``column(name, kind='measure')`` makes a measure at the one DataCube gives its type; ``wavg`` takes a ``weight``
-        column, and only it does): ``column``'s own Aggregation, as Column Properties sets it -- replacing the one it
+        ``column(name, kind='measure')`` makes a measure at the one DataCube gives its type; an aggregate of two --
+        ``wavg``, ``corr``, ``covarSample``, ``covarPopulation``, ``maxBy``, ``minBy`` -- takes its second column as
+        ``weight``, and only they and ``distinctCount`` do): ``column``'s own Aggregation, as Column Properties sets it -- replacing the one it
         had; a measure's, as the panel refuses a dimension's (``column(name, kind='measure')`` makes one) -- unless
         ``name`` names another column: then a calculated column of that name reading ``column``, with that Aggregation,
         as the screen would add one. A grouped ``column`` takes no Aggregation of its own: give the measure a ``name``."""
@@ -501,6 +543,28 @@ class Grid(Tile):
             raise ValueError('; '.join(said['problems']))
         # the cube with it, set by the filter command the filter editor's Apply builds
         return self._kept(said, 3)
+
+    def filter_values(self, column: str, values: Any) -> Grid:
+        """The values of ``column`` kept, as the Filter Values window keeps the ticked ones (Excel's autofilter; DataCube's
+        one rule, value-filter.ts): ``values`` a list of them, ``None`` among them the blanks, in place of the
+        column's own conditions in the filter -- the other columns' kept as they are; ``None`` for every value, the
+        column's own conditions taken off. Each value as JSON carries it, tagged where it has no form (a date)."""
+        return self._gesture('filter.values', {'column': column, 'values': None if values is None else _tagged(list(values))})
+
+    def filter_date_range(self, column: str, range: str) -> Grid:
+        """``column``'s dates in ``range``, relative to when the query runs (the menu's Filter ▸ Date Range; DataCube's
+        date-ranges.ts): ``'today'``, ``'lastMonth'``, ``'yearToDate'``, ``'last30Days'``... -- from its start to its end,
+        in place of the column's own conditions. The dates are the database's to compute: a page saved with "last
+        month" shows last month whenever it is opened."""
+        return self._gesture('filter.dateRange', {'column': column, 'range': range})
+
+    def top(self, n: int | None, by: str | None = None, *, bottom: bool = False) -> Grid:
+        """The top ``n`` rows by ``by`` -- a grouped grid's groups at each level, each parent's own -- the largest first,
+        or the smallest with ``bottom`` (the menu's Top 10 and Bottom 10; DataCube's snapshot.ts TopN): ties kept, the
+        rest left out, the database ranking them. ``None`` takes it off."""
+        if n is None:
+            return self._apply([_commands.grid_top_n(top_n=None)])
+        return self._gesture('filter.topN', {'column': by, 'n': n, **({'bottom': True} if bottom else {})})
 
     def sort(self, column: str, direction: str = 'asc') -> Grid:
         """A sort, after those it has, as the header menu's Add Ascending and Add Descending add one (grid-edits.ts
@@ -571,8 +635,12 @@ class Grid(Tile):
         return self._apply([_commands.grid_open(path=list(path), open=False)])
 
     def collapse_all(self) -> Grid:
-        """Every group closed, the expand level's too, as the menu's Collapse All closes them."""
+        """Every group closed, the expand level's too, as the menu's View > Collapse All closes them."""
         return self._apply([_commands.grid_collapse_all()])
+
+    def expand_all(self) -> Grid:
+        """Every group above the detail rows open, as the menu's View > Expand All opens them (an ``expandAll`` command)."""
+        return self._apply([_commands.grid_expand_all()])
 
     def tree(self, *open: Sequence[str | None], totals: bool = False, expand_to: int | None = None,
              closed: Sequence[Sequence[str | None]] = ()) -> Grid:
@@ -627,6 +695,60 @@ class Grid(Tile):
         ``'max'``, ``'average'``...) -- the column editor's Children (DataCube's code, headless: gridColumn)."""
         return self._column({'name': name, 'mode': 'children', 'level': 'group', 'child': {'fn': fn, 'of': of}})
 
+    def model_measure(self, measure: str) -> Grid:
+        """A measure the grid's model declares -- a Pure function of the class's instances stereotyped ``BI.measure``
+        (``meta::legend::bi::BI``, or the project's own profile named ``BI``: its store refuses a ``meta::`` path),
+        ``grossNotional(t: Trade[*]): Float[1] { $t.notional->sum() }`` -- by its name
+        or its path, added as the header menu's Add Model Measure adds it (DataCube's model-measures.ts, headless
+        gridModelMeasure): each aggregate over the instances a calculated column with its Aggregation, the rest -- its
+        arithmetic, the measures it calls -- a group-level column over them; its format from its ``BI.format`` tag. The
+        database aggregates it per group as it does every measure. Refused in DataCube's words, naming the part that does
+        not take apart so."""
+        self._page._current(self._view['cube'], 4)
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridModelMeasure', self._spec(engine, frames), _json.dumps({'measure': measure})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return self._kept(said, 3)
+
+    def group_values(self, column: str, groups: dict, other: str | None = None, *, name: str | None = None) -> Grid:
+        """A column gathering ``column``'s values by hand into named groups -- ``{'Macro': ['FX', 'Rates'], 'Equity':
+        ['EQ']}``, ``None`` among a group's values the blanks -- the rest named ``other`` or, on a text column, left as
+        themselves (Tableau's groups; the header menu's Group Values; DataCube's snapshot.ts ValueGroups, its expression
+        built at query time): a dimension the grid groups, filters and charts by. Named ``<column>_group`` unless ``name``
+        says. Refused in DataCube's words: a value in two groups, a number column's rest unnamed, a name taken."""
+        made = {'of': column, 'groups': [{'name': k, 'values': list(v)} for k, v in groups.items()],
+                **({'other': other} if other is not None else {})}
+        return self._gesture('column.calculate', {'level': 'row', 'column': {'name': name or f'{column}_group', 'groups': made,
+                                                                             'kind': 'dimension'}})
+
+    def related(self, path: str, aggregate: str | None = None, *, name: str | None = None) -> Grid:
+        """A related class's property as a column of a grid over a class (DataCube's class tree: class-tree.ts, headless
+        gridRelated) -- ``path`` from the class, dotted (``'customer.region'``), each hop a class-typed property or an
+        association's end -- as the header menu's Add Related Column adds it: through a to-many end its values aggregated
+        per instance (``aggregate``: ``'count'``, ``'sum'``, ``'average'``, ``'min'`` or ``'max'``; a class at the end
+        counted), so a total over the grid counts each instance once. Named after its path (``customer_region``,
+        ``trades_notional_sum``) unless ``name`` says; a measure when it aggregates, else a dimension. The database's join,
+        planned through the class's mapping. Refused in DataCube's words: a path the model has not, a to-many end not
+        aggregated, a grid over no class."""
+        given = {'path': path.split('.'), **({'aggregate': aggregate} if aggregate is not None else {}),
+                 **({'name': name} if name is not None else {})}
+        self._page._current(self._view['cube'], 4)
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridRelated', self._spec(engine, frames), _json.dumps(given)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return self._kept(said, 3)
+
+    def measure_at(self, name: str, of: str, at: str = 'parent') -> Grid:
+        """A group-level column: the measure ``of`` as each group's parent has it (``at='parent'``; a top group's parent
+        is the grand total) or as the grand total has it (``at='all'``) -- the same aggregate over the coarser group's
+        rows, so an average's is the parent's average -- the column editor's Parent or Grand Total (DataCube's code,
+        headless: gridColumn). A measure divided by it is an exact share, as ``show_as`` builds one."""
+        return self._column({'name': name, 'mode': 'grain', 'level': 'group', 'grain': {'of': of, 'at': at}})
+
     def grain(self, column: str, grain: str) -> Grid:
         """The date ``column`` taken to its period (``'day'``, ``'week'``, ``'month'``, ``'quarter'``, ``'year'``; a
         date-time's also ``'second'``, ``'minute'``, ``'minute5'``, ``'minute15'``, ``'minute30'``, ``'hour'``), a new
@@ -635,9 +757,12 @@ class Grid(Tile):
         return self._preset({'kind': 'grain', 'column': column, 'grain': grain})
 
     def show_as(self, column: str, kind: str) -> Grid:
-        """The measure ``column`` shown as ``kind`` (``'runningTotal'``, ``'percentOfTotal'``, ``'difference'``,
-        ``'percentChange'``, ``'movingAverage'``, ``'rank'``) along the grid's row groups, as group-level columns, as the
-        header menu's Show As adds them (grid-presets.ts presetCommands) -- named ``<column>_<kind>``."""
+        """The measure ``column`` shown as ``kind`` along the grid's row groups, as the header menu's Show As adds it
+        (Excel's Show Values As; grid-presets.ts presetCommands): ``'percentOfTotal'`` (of the grand total, at every
+        depth), ``'percentOfParent'`` (of the parent row), ``'runningTotal'``, ``'percentRunningTotal'``,
+        ``'difference'``, ``'percentChange'``, ``'movingAverage'``, ``'rank'`` (largest first) or ``'rankAscending'`` --
+        group-level columns named ``<column>_<kind>``, the ones it reads hidden, a share or a change shown as a
+        percentage. A share divides by the measure at that grain: the same aggregate over the coarser group's rows."""
         return self._preset({'kind': 'showAs', 'column': column, 'showAs': kind})
 
     def bins(self, column: str, *, width: float | None = None, count: int | None = None) -> Grid:
@@ -1130,6 +1255,25 @@ class Chart(Tile):
 
 
 @_operations
+class Text(Tile):
+    """A text tile: a page's title, a note beside a chart -- its words in DataCube's small Markdown (``# `` a heading,
+    ``**bold**``, ``*italic*``, ``- `` or ``1. `` a list, ``[words](https://...)`` a link; DataCube's page-text.ts),
+    drawn as text, never as HTML."""
+
+    _kind = 'text'
+
+    @property
+    def text(self) -> str:
+        return self._view['text']
+
+    @text.setter
+    def text(self, text: str) -> None:
+        _ = self._view
+        # by the command the tile's editor sends (page-commands.ts setText), judged by DataCube in its words: blank, too
+        # long, not text
+        self._page._apply_page([_commands.page_set_text(tile=self._id, text=text)])
+
+
 class Sheet:
     """A sheet of a page: a whole screen of tiles, in places -- each a tile, or a stack of tiles shown one at a time --
     laid out in bands, each band's places side by side (``layout``, ``arrange``, ``layout_from``)."""
@@ -1178,6 +1322,13 @@ class Sheet:
     def tiles(self) -> list[Tile]:
         """Its tiles in reading order, a stack's in its tabs' order."""
         return [self._page._tile_of(t) for t in self._page._tiles(self._doc['layout'])]
+
+    def text(self, text: str, *, title: str | None = None) -> Text:
+        """A text tile on this sheet, a band of its own at its bottom (``title``: its own; None, numbered), as the
+        menus' Create ▸ Text Box adds one (page-commands.ts addText) -- its words judged by DataCube, in its words."""
+        _ = self._doc
+        applied = self._page._apply_page([_commands.page_add_text(sheet=self._id, text=text, title=title, columns=None)])
+        return self._page._tile(applied[0]['id'], Text)
 
     def add(self, *tiles: Tile) -> Sheet:
         """Puts ``tiles`` on this sheet, each at its bottom, from the sheet it was on, as the screen's Move to Sheet
@@ -1466,6 +1617,15 @@ class Page:
     def charts(self) -> list[Chart]:
         return [self._tile(v['id'], Chart) for v in self._doc['views'] if v['kind'] == 'chart']
 
+    @property
+    def texts(self) -> list[Text]:
+        return [self._tile(v['id'], Text) for v in self._doc['views'] if v['kind'] == 'text']
+
+    def text(self, text: str, *, title: str | None = None, sheet: Sheet | None = None) -> Text:
+        """A text tile -- a title, a note -- on ``sheet`` (None: the first), a band of its own at its bottom
+        (``Sheet.text``)."""
+        return (sheet if sheet is not None else self.sheets[0]).text(text, title=title)
+
     # -- building ------------------------------------------------------------------------------------------------------
 
     def grid(self, frame: Any = None, *, file: str | Path | None = None, remote: str | None = None,
@@ -1660,7 +1820,7 @@ class Page:
         them."""
         strays = [t for t in tiles if not isinstance(t, Tile)]
         if strays:
-            raise ValueError(f'a stack is of tiles (grids and charts), not {", ".join(repr(t) for t in strays)}')
+            raise ValueError(f'a stack is of tiles (grids, charts and texts), not {", ".join(repr(t) for t in strays)}')
         if any(t._page is not self for t in tiles):
             raise ValueError('the tiles of a stack are of this page')
         for t in tiles:
@@ -2049,7 +2209,7 @@ class Page:
 
     def _tile_of(self, id: str) -> Tile:
         view = next(v for v in self._doc['views'] if v['id'] == id)
-        return self._tile(id, Grid if view['kind'] == 'grid' else Chart)
+        return self._tile(id, {'grid': Grid, 'chart': Chart, 'text': Text}[view['kind']])
 
     def _sheet(self, id: str) -> Sheet:
         return self._tile(id, Sheet)

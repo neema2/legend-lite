@@ -268,29 +268,55 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  322,500 -> 323,500 (2026-10-23, the grid's menu button gone, its right-click its menu -- Edit ▸, Tile ▸, Properties'
  *  Dimensions tab's Group Rows by and Start Ad Hoc Analysis -- and a long press as the right-click on a touch screen,
  *  an iPad's Safari firing none (ui/long-press.ts), installed with every grid and page). Measured 322,712.
- *  323,500 -> 332,000 (2026-10-24, D19 in its full form, docs/DATACUBE_LIVE_EDITING_2026_10_24.md: the grid's and the
- *  page's total diffs (grid-between.ts, page-between.ts: undo and redo as the commands between), the converge on the
- *  keeper's page (live-converge.ts, the rebase's rearranging and renaming it shares), and the page hash checked at every
- *  write (page-hash.ts: a synchronous SHA-256 over the canonical JSON). The note said this budget would move if the
- *  diffs pushed it over, with the number, for the user's sign-off (D9). Measured 331,197.
- *  332,000 -> 333,500 (2026-10-24, the D19 audit's fourth round: pending and refused page steps counted for the put-back,
- *  a pending maker made again under a fresh id and a colliding pending grid moved first, a grid made again from the
- *  page's own cube, every way of changing a grid refused while its page converges, a refused batch's steps off the
- *  history, another editor's filter-moving run applied a command at a time; for the user's sign-off, D9). Measured
- *  332,801.
- *  333,500 -> 335,000 (2026-10-24, main (PRs #65-#71) merged into the Deephaven line, docs/DEEPHAVEN_START_HERE.md: the line's
- *  own growth on its branch carried onto main's 333,500 -- 319,000 -> 321,000 (2026-10-23, V1-V3,
- *  docs/DEEPHAVEN_PLAN_2026_10_22.md DH27, "a change may take time; a tick may not": a flat cube read by a window -- the
- *  controller's, the runners' and the app's part, the grid painting a block of the whole and saying the rows on screen --
- *  a tick drawn in place, the changed cells of the rows on screen only (DataGrid.tickRows), and a grid's charts drawn
- *  again at its tick; about 2 KB gzipped, in the grid's own paths, which every tick and every scroll run; measured
- *  320,660 there) and 321,000 -> 322,000 (2026-10-23, A1, the user's "a visual of the cell color changing": a ticked
- *  number flashes green or red where its row is the same row (DataGrid.tickRows `flash`), a refused tick said once, the
- *  status bar's count drawn again when a tick brings or takes rows; measured 321,067 there)). Measured 334,805.
- *  335,000 -> 335,500 (2026-10-24, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K3, the trader screens: a date-time's
- *  periods finer than a day -- the grain words, `grainsOf` and the refusal of an intraday grain on a date, in the
- *  header menu's and the grid presets' paths; for the user's sign-off, D9). Measured 335,166. */
-const BUDGET = 335_500;
+ *  323,500 -> 325,500 (2026-10-24, the BI and Excel parity program's P1, docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md:
+ *  the grid's Ctrl+Arrow, Ctrl+A and mouse drag selection, the rows behind a cell as a grid of their own with their
+ *  caption, Expand All, the keyboard shortcuts' list and window, pinned columns' offsets, copies headed as exports
+ *  are). Measured 325,228.
+ *  325,500 -> 329,000 (2026-10-24, the program's P2: the Filter Values window -- a column's values with their counts, a
+ *  search, (Select All) -- the date ranges relative to today, Top and Bottom N, and the menu entries that offer them).
+ *  Measured 328,453.
+ *  329,000 -> 330,000 (2026-10-24, P2's Show As as Excel's Show Values As: a measure at its parent's or the grand
+ *  total's grain, the column editor's Parent or Grand Total, % of parent row, % running total, rank from the smallest).
+ *  Measured 329,704.
+ *  330,000 -> 332,500 (2026-10-24, P5's class tree, step 1: a class's grid reads its related classes -- the class tree read
+ *  from the model's elements (class-tree.ts, in the grid's module: its menu offers one hop of it), the relation rewritten
+ *  with each related column, the header menu's Add Related Column). Measured 332,202.
+ *  332,500 -> 334,000 (2026-10-24, P5's step 2, measures declared in the model: the header menu's Add Model Measure and
+ *  the grid's offer of them (class-tree.ts measuresOf, app.ts); the measures' reader travels with the class source's
+ *  chunk and the steps that add one are a chunk of their own, fetched with the first (model-measure-commands.ts) --
+ *  with both at startup it measured 335,041). Measured 333,553.
+ *  334,000 -> 339,500 (2026-10-24, P3's conditional formats, Excel's: a data bar, an icon by the third of the range, a
+ *  rule's colours, drawn by the grid as it paints a cell (conditional.ts, grid.ts), the menu's Conditional Formatting
+ *  and the column's Properties' editor of them, each setting judged by configure (the commands' chunk, at startup: a
+ *  grid applies commands as it opens) and drawn in the HTML export -- the editor is in the Properties chunk every grid
+ *  loads at startup). Measured 339,239.
+ *  339,500 -> 342,500 (2026-10-24, P3's Excel number format codes and date patterns: format-code.ts reads a code into
+ *  its sections and writes a cell by it -- in the grid's formatter, which writes every cell at once, so at startup --
+ *  with its colour, the Properties' Format Code field and its judging on configure and on a saved page's open).
+ *  Measured 342,025.
+ *  342,500 -> 343,500 (2026-10-24, P3's groups of a column's values: ValueGroups read, judged and planned (grid-commands,
+ *  query), the menu's Group Values and Edit Groups, the window's opening -- the window itself a chunk of its own,
+ *  fetched with the first one opened (ui/group-values.ts)). Measured 342,844.
+ *  343,500 -> 344,500 (2026-10-24, P2's aggregates of two columns and Count: six aggregates -- their compiler facts per
+ *  type in the generated offer table (offers.ts reads it at startup), the SECOND_COLUMN table every rule asks, their
+ *  labels -- the Properties' second column named by its role, and Count's gesture and menu). Measured 344,036.
+ *  344,500 -> 346,000 (2026-10-24, P4's text tiles: a text view read, written and merged (page-document, page-commands,
+ *  page-rebase), the board's tile placed, synced and exported, Create ▸ Text Box, its styles -- the words' reader, drawing
+ *  and editor a chunk of their own, fetched with the first text tile drawn (page-text.ts)). Measured 345,834.
+ *  346,000 -> 347,000 (2026-10-24, the user on an iPad: a long press's menu opened its first submenu by itself, and
+ *  columns could not be dragged or resized -- a long press's menu says so to the stylesheet until the next touch, waits
+ *  on what the browser drags for the finger to lift, and is never a resize grip's (ui/long-press.ts); Count moved from the
+ *  right-click menu to Column Properties' buttons). Measured 346,360.
+ *  347,000 -> 355,500 (2026-10-24, main's D19 merged into this branch: its own steps there, 323,500 -> 332,000 ->
+ *  333,500 -- the grid's and the page's total diffs, the converge on the keeper's page, the page hash, its audits'
+ *  rounds, each signed off by the user (D9) -- now on top of the parity program's). Measured 355,159.
+ *  355,500 -> 358,500 (2026-10-24, main (PR #72) merged into the Deephaven line, docs/DEEPHAVEN_START_HERE.md: the
+ *  line's own growth on its branch carried onto main's -- 333,500 -> 335,000 (V1-V3 and A1, docs/DEEPHAVEN_PLAN_2026_10_22.md
+ *  DH27: a flat cube read by a window, a tick drawn in place and flashed, a grid's charts drawn again at its tick) ->
+ *  335,500 (K3, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md: a date-time's periods finer than a day in the header menu's and
+ *  the grid presets' paths) -- each signed off with the line (D9)); #72's conditional formats drawn by the one cell
+ *  painter a tick draws with (grid.ts #cell), measured again at a tick). Measured 358,132. */
+const BUDGET = 358_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -379,14 +405,25 @@ const BUDGET = 335_500;
  *  313,500 -> 314,000 (2026-10-23, KPIs as stat tiles, with Show Grid on every chart kind (PR #69) merged beside them:
  *  the tile's lines and the headline format the grid's formatter writes -- the notebook widget's note of the same
  *  date). Measured 313,533.
- *  314,000 -> 322,500 (2026-10-24, D19 in its full form: the two total diffs, the converge and the page hash, as the
- *  grid-only page's note of the same date says; for the user's sign-off, D9). Measured 321,768.
- *  322,500 -> 323,000 (2026-10-24, the D19 audit's third round: the page and its grids held while the converge runs (a
- *  gesture meanwhile is refused in words), a detach's copy said in the page command, a grid remade by the converge
- *  restarted; for the user's sign-off, D9). Measured 322,567.
- *  323,000 -> 324,000 (2026-10-24, the D19 audit's fourth round -- the grid-only page's note of the same date; for the
- *  user's sign-off, D9). Measured 323,385. */
-const ENGINE_BUDGET = 324_000;
+ *  314,000 -> 315,500 (2026-10-24, the BI and Excel parity program's P1 -- the grid's note of the same date). Measured
+ *  315,361.
+ *  315,500 -> 319,000 (2026-10-24, the program's P2 -- the grid's note of the same date). Measured 318,756.
+ *  319,000 -> 320,500 (2026-10-24, P2's Show As -- the grid's note of the same date). Measured 320,130.
+ *  320,500 -> 323,000 (2026-10-24, P5's class tree, step 1 -- the grid's note of the same date). Measured 322,762.
+ *  323,000 -> 325,000 (2026-10-24, P5's step 2, model measures -- the grid's note of the same date). Measured 324,518.
+ *  325,000 -> 330,000 (2026-10-24, P3's conditional formats -- the grid's note of the same date). Measured 329,866.
+ *  330,000 -> 333,000 (2026-10-24, P3's format codes -- the grid's note of the same date). Measured 332,665.
+ *  333,000 -> 334,500 (2026-10-24, P3's groups of values -- the grid's note of the same date). Measured 333,810.
+ *  334,500 -> 335,500 (2026-10-24, P2's aggregates of two columns and Count -- the grid's note of the same date).
+ *  Measured 334,962.
+ *  335,500 -> 337,000 (2026-10-24, P4's text tiles -- the grid's note of the same date). Measured 336,754.
+ *  337,000 -> 338,000 (2026-10-24, a long press on an iPad and Count in Column Properties -- the grid's note of the same
+ *  date). Measured 337,265.
+ *  338,000 -> 344,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 314,000 -> 324,000 -- the
+ *  grid-only page's note of the same date). Measured 343,438.
+ *  344,000 -> 347,000 (2026-10-24, main (PR #72) merged into the Deephaven line -- the grid-only page's note of the same
+ *  date). Measured 346,501. */
+const ENGINE_BUDGET = 347_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -529,14 +566,25 @@ const EXAMPLE_BUDGET = 4_000;
  *  332,000 -> 332,500 (2026-10-23, KPIs as stat tiles: the tile's headline, meter and change lines in the chart panel,
  *  their styles, and the headline format the grid's formatter writes -- the drawing itself is the chart chunk's).
  *  Measured 332,006.
- *  332,500 -> 341,000 (2026-10-24, D19 in its full form: the two total diffs, the converge and the page hash, as the
- *  grid-only page's note of the same date says; for the user's sign-off, D9). Measured 340,482.
- *  341,000 -> 341,500 (2026-10-24, the D19 audit's second round: the converge applies the keeper's page steps to the
- *  confirmed page to find the grids they change, and waits for every grid's change in flight before the hash; the page
- *  held through it). Measured 341,063.
- *  341,500 -> 342,500 (2026-10-24, the D19 audit's fourth round -- the grid-only page's note of the same date; for the
- *  user's sign-off, D9). Measured 342,085. */
-const WIDGET_BUDGET = 342_500;
+ *  332,500 -> 334,500 (2026-10-24, the BI and Excel parity program's P1 -- the grid's note of the same date). Measured
+ *  334,149.
+ *  334,500 -> 338,000 (2026-10-24, the program's P2 -- the grid's note of the same date). Measured 337,670.
+ *  338,000 -> 339,500 (2026-10-24, P2's Show As -- the grid's note of the same date). Measured 339,031.
+ *  339,500 -> 342,000 (2026-10-24, P5's class tree, step 1 -- the grid's note of the same date). Measured 341,696.
+ *  342,000 -> 344,000 (2026-10-24, P5's step 2, model measures -- the grid's note of the same date). Measured 343,433.
+ *  344,000 -> 349,000 (2026-10-24, P3's conditional formats -- the grid's note of the same date). Measured 348,827.
+ *  349,000 -> 352,000 (2026-10-24, P3's format codes -- the grid's note of the same date). Measured 351,631.
+ *  352,000 -> 353,500 (2026-10-24, P3's groups of values -- the grid's note of the same date). Measured 352,770.
+ *  353,500 -> 354,500 (2026-10-24, P2's aggregates of two columns and Count -- the grid's note of the same date).
+ *  Measured 353,929.
+ *  354,500 -> 356,000 (2026-10-24, P4's text tiles -- the grid's note of the same date). Measured 355,922.
+ *  356,000 -> 357,000 (2026-10-24, a long press on an iPad and Count in Column Properties -- the grid's note of the same
+ *  date). Measured 356,493.
+ *  357,000 -> 363,000 (2026-10-24, main's D19 merged into this branch: its own steps there, 332,500 -> 342,500 -- the
+ *  grid-only page's note of the same date). Measured 362,642.
+ *  363,000 -> 366,000 (2026-10-24, main (PR #72) merged into the Deephaven line -- the grid-only page's note of the same
+ *  date). Measured 365,842. */
+const WIDGET_BUDGET = 366_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

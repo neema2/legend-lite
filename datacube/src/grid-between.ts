@@ -13,6 +13,7 @@
 import { treeDocument } from './cube-document.ts';
 import { applyGridCommand, draftCommands, type GridCommand } from './grid-commands.ts';
 import type { GridDraft } from './grid-edits.ts';
+import { defaultKind } from '../../engine-client/src/types.ts';
 import { sameValue, type DerivedColumn } from './snapshot.ts';
 
 type Level = 'row' | 'group';
@@ -36,6 +37,7 @@ export function gridBetween(from: GridDraft, to: GridDraft): GridCommand[] {
     cur = applyGridCommand(cur, command);
     out.push(command);
   };
+  const postponed: GridCommand[] = [];
   // 1. the calculated columns `to` has, each level in `to`'s order: one the grid has not is added before the first of
   //    `to`'s later columns the grid has (so it lands in its place); one it has, edited where its definition, its level
   //    or its place differs (an edit keeps the place when the level stays, else goes before the same), left alone otherwise
@@ -60,14 +62,29 @@ export function gridBetween(from: GridDraft, to: GridDraft): GridCommand[] {
         // the columns before it are placed in order before the next of `to`'s, which is this one: it is after them
         throw new Error(`gridBetween: ${column.name} is out of place with nothing to go before`);
       }
-      emit({ kind: 'editCalculated', name: column.name, level, column, ...(placed ? {} : before) });
+      const edit: GridCommand = { kind: 'editCalculated', name: column.name, level, column, ...(placed ? {} : before) };
+      // one grouped or pivoted on keeps its kind and its level (grid-commands.ts editCalculated): changed in `to`, it is
+      // grouped by in `to` no more (a group takes a dimension at the row level), so it is edited once the structure has
+      // let it go (2026-10-24, found by the undo's random walks)
+      const kind = (d: DerivedColumn): string => d.kind ?? defaultKind(d.type);
+      const grouped = cur.snapshot.rows.includes(column.name) || cur.snapshot.pivotOn.includes(column.name);
+      const haveLevel: Level = cur.snapshot.derived.some((d) => d.name === column.name) ? 'row' : 'group';
+      if (grouped && (haveLevel !== level || kind(have) !== kind(column))) postponed.push(edit);
+      else emit(edit);
     }
   }
   // 2. the structure, the settings and the sorts, as the Properties window's Apply builds them (a kind or an exclusion
   //    `to` has none for cleared by the settings); the filter whole; the tree whole, after the settings have moved it
+  //    -- a top N `to` has not, or has another, taken off first (a pivot `to` has is refused while one holds), and set
+  //    after the filter
+  const topN = to.snapshot.topN ?? null;
+  const topNMoves = !sameValue(cur.snapshot.topN ?? null, topN);
+  if (topNMoves && cur.snapshot.topN !== undefined) emit({ kind: 'topN', topN: null });
   for (const command of draftCommands(cur, to)) emit(command);
+  for (const command of postponed) emit(command);
   const filter = to.snapshot.filter ?? null;
   if (!sameValue(cur.snapshot.filter ?? null, filter)) emit({ kind: 'filter', filter });
+  if (topNMoves && topN !== null) emit({ kind: 'topN', topN });
   if (cur.tree !== undefined && to.tree !== undefined && cur.tree.key !== to.tree.key) emit({ kind: 'tree', ...treeDocument(to.tree) });
   // 3. the calculated columns `to` has not, last: nothing `to` groups, sorts or filters by names them any more
   const kept = new Set(allCalculated(to).map((d) => d.name));

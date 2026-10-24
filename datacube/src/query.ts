@@ -10,7 +10,7 @@
 // meaning, made and proven there.
 
 import {
-  agg, and, asc, collection, derive, desc, flatten, fn, from, lambda, lit, not, or, property, variable,
+  agg, and, asc, collection, derive, desc, enumValue, flatten, fn, from, lambda, lit, not, or, projectObjects, property, variable,
   type AppliedFunction, type ColSpec, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import {
@@ -21,8 +21,10 @@ import {
   pivotTotalColumn,
   isJsonValue,
   isRelativeDate,
+  relativeDateWords,
   referencedColumns,
   rowColumns,
+  SECOND_COLUMN,
   totalOrderSorts,
   WINDOW_FUNCTIONS,
   type AggregateFn,
@@ -32,11 +34,17 @@ import {
   type DerivedColumn,
   type FilterNode,
   type FilterValue,
+  type GrainAt,
   type Measure,
   type QuerySnapshot,
+  type RelatedPath,
+  type RelativeDate,
+  type RelativeStart,
   type SortSpec,
   type WindowSpec,
+  type ValueGroups,
 } from './snapshot.ts';
+import { filterWithout, keptCondition, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
 import type { GroupKey, RowPath } from './tree.ts';
 import { ROOT_COLUMN, WINDOW_ALL_PREFIX } from './grid/columns.ts';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
@@ -53,13 +61,28 @@ import { columnRef, measureNameProblem } from './calc.ts';
  * typed is refused: the text's look (a `.`, a `-`) or JavaScript's type of it is a guess.
  */
 export function literalNode(v: FilterValue, type?: string): ValueSpecification {
-  if (isRelativeDate(v)) return fn(v.relative === 'today' ? 'today' : 'now');
+  if (isRelativeDate(v)) return relativeDateNode(v);
   if (isJsonValue(v)) return fn('fromJson', lit.string(v.json));
   if (type === undefined) {
     throw new CubeRefusal(`the compiler has not typed the column this value ${JSON.stringify(v)} is compared with`);
   }
   if (isBoolean(type)) return lit.boolean(v === true || v === 'true');
   return lit.of(plainType(type), typeof v === 'boolean' ? String(v) : v);
+}
+
+/** The compiler's function taking a date to its period's first day. */
+const START_FUNCTION: Readonly<Record<RelativeStart, string>> = {
+  week: 'firstDayOfWeek', month: 'firstDayOfMonth', quarter: 'firstDayOfQuarter', year: 'firstDayOfYear',
+};
+
+/** `today()`, taken to its period's start, then moved: `adjust(firstDayOfMonth(today()), -1, DurationUnit.MONTHS)`. */
+function relativeDateNode(v: RelativeDate): ValueSpecification {
+  let node: ValueSpecification = fn(v.relative === 'today' ? 'today' : 'now');
+  if (v.startOf !== undefined) node = fn(START_FUNCTION[v.startOf], node);
+  if (v.offset !== undefined && v.unit !== undefined && v.offset !== 0) {
+    node = fn('adjust', node, lit.integer(v.offset), enumValue('meta::pure::functions::date::DurationUnit', v.unit));
+  }
+  return node;
 }
 
 // ---- filters ----
@@ -177,11 +200,20 @@ function aggregateSpec(m: Measure, when?: ValueSpecification): ColSpec {
   switch (m.fn) {
     case 'count':
       return agg(m.name, lambda(['x'], only(lit.integer(1))), lambda(['y'], fn('count', y)));
-    case 'wavg': {
-      if (!m.weight) throw new CubeRefusal(`measure '${m.name}' uses wavg but has no weight column`);
-      return agg(m.name, lambda(['x'], fn('wavgRowMapper', only(ref('x', m.column)), only(ref('x', m.weight)))),
-        lambda(['y'], fn('wavg', y)));
+    // two columns, the second Measure.weight (SECOND_COLUMN), mapped as one row each: legend-lite's natives
+    case 'wavg':
+    case 'corr':
+    case 'covarSample':
+    case 'covarPopulation':
+    case 'maxBy':
+    case 'minBy': {
+      if (!m.weight) throw new CubeRefusal(`measure '${m.name}' uses ${m.fn} but has no ${SECOND_COLUMN[m.fn]?.role} column`);
+      return agg(m.name, lambda(['x'], fn(m.fn === 'wavg' ? 'wavgRowMapper' : 'rowMapper', only(ref('x', m.column)), only(ref('x', m.weight)))),
+        lambda(['y'], fn(m.fn, y)));
     }
+    // the different values of the column -- or of the second column it names -- each once: COUNT(DISTINCT ...)
+    case 'distinctCount':
+      return agg(m.name, lambda(['x'], only(ref('x', m.weight ?? m.column))), lambda(['y'], fn('count', fn('distinct', y))));
     case 'joinStrings':
       return agg(m.name, lambda(['x'], only(ref('x', m.column))), lambda(['y'], fn('joinStrings', y, lit.string(', '))));
     case 'unique':
@@ -209,7 +241,26 @@ interface LevelWindow {
 }
 
 /** A calculated column appended to `rel`: an expression over the row, or a window. */
-function extendDerived(rel: Relation, d: DerivedColumn, level?: LevelWindow): Relation {
+/**
+ * A VALUE-GROUPS COLUMN'S EXPRESSION (snapshot.ts ValueGroups): each group's values tested as the Filter Values window
+ * tests them (value-filter.ts keptCondition: the blanks by isEmpty), its name where they hold, in order; the rest
+ * `other`, or the value itself. Each literal typed by its column (`typeOf`), as a filter's is.
+ */
+export function groupsLambda(g: ValueGroups, typeOf: TypeOf = () => undefined): Lambda {
+  const otherwise: ValueSpecification = g.other !== undefined ? lit.string(g.other) : ref('x', g.of);
+  return lambda(['x'], g.groups.reduceRight<ValueSpecification>((rest, group) =>
+    fn('if', filterNode(keptCondition(g.of, group.values), 'x', typeOf), lambda([], lit.string(group.name)), lambda([], rest)), otherwise));
+}
+
+function extendDerived(rel: Relation, d: DerivedColumn, level?: LevelWindow, typeOf?: TypeOf): Relation {
+  if (d.related) throw new Error(`'${d.name}' is projected with the class's own properties (relatedSource), never extended`);
+  if (d.groups) {
+    if (level) throw new CubeRefusal(`'${d.name}' groups a column's values: a row-level column, before the grouping`);
+    return rel.extend([derive(d.name, groupsLambda(d.groups, typeOf))]);
+  }
+  if (d.grain) {
+    throw new CubeRefusal(`'${d.name}' is a measure at its parent's or the grand total's grain: a group-level column, after the grouping`);
+  }
   if (!d.window) {
     if (!d.lambda) throw new CubeRefusal(`the calculated column '${d.name}' has no expression`);
     if (d.unnest) {
@@ -314,11 +365,40 @@ export function extendWindow(rel: Relation, name: string, w: WindowSpec): Relati
 
 // ---- the cube's queries ----
 
-/** The source with the cube's row-stage calculated columns: what step 0 types. */
+/** The source with the cube's row-stage calculated columns: what step 0 types, and every query of the cube starts from. */
 export function sourceWithDerived(s: QuerySnapshot): Relation {
-  let rel = from(s.source.query);
-  for (const d of s.derived) rel = extendDerived(rel, d);
+  let rel = from(relatedSource(s));
+  const typeOf: TypeOf = (c) => columnType(s, c);
+  for (const d of s.derived) if (!d.related) rel = extendDerived(rel, d, undefined, typeOf);
   return rel;
+}
+
+/**
+ * THE SOURCE WITH THE GRID'S RELATED COLUMNS (snapshot.ts RelatedPath) projected beside the class's own properties:
+ * `<cls>.all()->project(~[..., customer_region: x|$x.customer.region, trades_notional_sum: x|$x.trades.notional->sum()])`
+ * -- the class's relation rearranged, never computed; the joins and the per-instance aggregates the database's. A
+ * related column on rows that are no class's projection (a file's, a snapped grid's copy) is refused in words.
+ */
+export function relatedSource(s: QuerySnapshot): ValueSpecification {
+  const related = s.derived.filter((d) => d.related !== undefined);
+  if (related.length === 0) return s.source.query;
+  const q = s.source.query;
+  const specs = q._type === 'func' && q.function === 'project' && q.parameters.length === 2 ? q.parameters[1] : undefined;
+  const value = (specs as { readonly type?: unknown; readonly value?: { readonly colSpecs?: unknown } } | undefined);
+  if (value?.type !== 'colSpecArray' || !Array.isArray(value.value?.colSpecs)) {
+    throw new CubeRefusal(`'${related[0]!.name}' reads a class's relationships, and this grid's rows are no class's projection `
+      + '(a snapped grid reads a copy of its rows, which has none)');
+  }
+  return projectObjects((q as AppliedFunction).parameters[0]!, [
+    ...(value.value.colSpecs as ColSpec[]), ...related.map((d) => derive(d.name, lambda(['x'], relatedValue(d.related!)))),
+  ]).node;
+}
+
+/** A related column's value over the class's instance `$x`: its path, its to-many end's values aggregated. */
+export function relatedValue(r: RelatedPath): ValueSpecification {
+  let at: ValueSpecification = variable('x');
+  for (const p of r.path) at = property(at, p);
+  return r.aggregate === undefined ? at : fn(r.aggregate, at);
 }
 
 /** The column `countLambda` answers in. */
@@ -338,6 +418,24 @@ export function countLambda(s: QuerySnapshot): Lambda {
 export function rowCountLambda(rel: Relation): Lambda {
   return rel.extend([derive(ROOT_COLUMN, lambda(['x'], lit.string(ROOT_VALUE)))])
     .groupBy([ROOT_COLUMN], [agg(TOTAL_ROWS_COLUMN, lambda(['x'], lit.integer(1)), lambda(['y'], fn('count', variable('y'))))])
+    .lambda();
+}
+
+/**
+ * A VALUE LIST's question (value-filter.ts, Excel's autofilter): `column`'s values -- each once, with how many rows have
+ * it -- in order, one past the cap. Read under the grid's filter with the column's own conditions left off (`own`
+ * false), so a value they filter out is offered to put back; with them (`own` true), the values the filter keeps now,
+ * which the list shows ticked.
+ */
+export function columnValuesLambda(s: QuerySnapshot, column: string, own = false): Lambda {
+  let rel = sourceWithDerived(s);
+  const filter = own ? s.filter : filterWithout(s.filter, column);
+  if (filter) rel = rel.filter(lambda(['x'], filterNode(filter, 'x', (c) => columnType(s, c))));
+  return rel
+    .select([column])
+    .groupBy([column], [agg(VALUE_COUNT_COLUMN, lambda(['x'], lit.integer(1)), lambda(['y'], fn('count', variable('y'))))])
+    .sort([asc(column)])
+    .limit(MAX_FILTER_VALUES + 1)
     .lambda();
 }
 
@@ -409,9 +507,15 @@ export function sampleLambda(source: ValueSpecification, n: number = SAMPLE_ROWS
 /**
  * WHAT A SNAP COPIES (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3, §18.8): the grid's base query, its EVERY column --
  * not the ones its view shows, so a column shown after it is snapped answers from the copy too, and a fresh grid,
- * which shows none, is no `select(~[])` the planner refuses. The screen's Snap and Python's ask it alike.
+ * which shows none, is no `select(~[])` the planner refuses. The screen's Snap and Python's ask it alike. A grid with a
+ * related column is refused: a copy of the class's rows has none of its relationships to read it through.
  */
-export function snapPull(snapshot: Pick<CubeSnapshot, 'source' | 'columns'>): Lambda {
+export function snapPull(snapshot: Pick<CubeSnapshot, 'source' | 'columns' | 'derived'>): Lambda {
+  const related = snapshot.derived.find((d) => d.related !== undefined);
+  if (related !== undefined) {
+    throw new CubeRefusal(`'${related.name}' reads the class's relationships, which a copy of its rows has not: take the `
+      + 'related columns off to snap it');
+  }
   return from(snapshot.source.query).select(snapshot.columns.map((c) => c.name)).lambda();
 }
 
@@ -504,11 +608,9 @@ function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: Pivo
     const problem = measureNameProblem(snapshot, at);
     if (problem !== null) throw new CubeRefusal(problem);
   }
-  let rel = from(snapshot.source.query);
+  let rel = sourceWithDerived(snapshot);
   const groupCols = scope ? snapshot.rows.slice(0, Math.max(0, scope.level)) : snapshot.rows;
   const grandTotal = scope !== undefined && scope.level === 0 && snapshot.rows.length > 0;
-
-  for (const d of snapshot.derived) rel = extendDerived(rel, d);
 
   const conditions: FilterNode[] = [];
   if (snapshot.filter) conditions.push(snapshot.filter);
@@ -609,8 +711,30 @@ function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: Pivo
     present: rooted ? [ROOT_COLUMN] : groupCols,
     order: shown.length > 0 ? shown : keys,
   };
+  // MEASURES AT A COARSER GRAIN (snapshot.ts Grain): the database's, beside each group row before the group-level
+  // columns that read them
+  const grains = (snapshot.groupDerived ?? []).filter((d) => d.grain !== undefined);
+  if (grains.length > 0) {
+    const named = grains[0]!.name;
+    if (pivoting) throw new CubeRefusal(`'${named}' is a measure at its parent's or the grand total's grain: a grouped grid's, not a pivot's -- take the pivot off first`);
+    for (const at of ['parent', 'all'] as const) {
+      const wanted = grains.filter((d) => d.grain!.at === at);
+      if (wanted.length > 0) rel = joinedGrain(rel, snapshot, wanted, at, scope);
+    }
+  }
   for (const d of snapshot.groupDerived ?? []) {
-    if (!d.childAggregate) rel = extendDerived(rel, d, levelWindow);
+    if (!d.childAggregate && !d.grain) rel = extendDerived(rel, d, levelWindow);
+  }
+  // TOP OR BOTTOM N (snapshot.ts TopN): ranked by the database after the grouping and the group-level columns -- each
+  // parent's groups, as a level's rows are its parent's; a flat grid's rows -- ties kept, the rest left out. Never the
+  // grand total's one row, a pivot's, or the detail rows under the deepest groups.
+  const top = snapshot.topN;
+  const ranked = grouping ? groupCols.length > 0 : snapshot.rows.length === 0;
+  if (top !== undefined && ranked && !grandTotal && !pivoting) {
+    // machinery (grid/columns.ts isMachinery): never shown -- named here, as the module loads before columns.ts's prefix
+    const TOP_N_RANK = `${WINDOW_ALL_PREFIX}topN`;
+    rel = extendWindow(rel, TOP_N_RANK, { fn: 'rank', partition: [], order: [{ column: top.by, direction: top.bottom ? 'asc' : 'desc' }] });
+    rel = rel.filter(lambda(['x'], fn('lessThanEqual', property(variable('x'), TOP_N_RANK), lit.integer(top.n))));
   }
 
   if (ordered && !isSingleRow(snapshot, groupCols, grandTotal)) {
@@ -624,6 +748,40 @@ function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: Pivo
     }
   }
   return rel;
+}
+
+/**
+ * A LEVEL'S ROWS WITH MEASURES AT A COARSER GRAIN (snapshot.ts Grain): each measure aggregated -- by its own aggregate,
+ * the one its column groups by -- over the rows of the level's parent (the level's own rows: a level's query is its
+ * parent's, query.ts LevelScope), or over every row the grid's filter keeps (`all`), one row joined to each of the
+ * level's: a group row stays one row. A detail query has its group's keys folded into its filter (detailSnapshot), so
+ * the grand total's filter comes with its scope (`grandFilter`).
+ */
+function joinedGrain(rel: Relation, snapshot: QuerySnapshot, wanted: readonly DerivedColumn[], at: GrainAt, scope?: LevelScope): Relation {
+  const measures = groupedMeasures(snapshot, []);
+  const aggs = wanted.map((d) => {
+    const m = measures.find((x) => x.name === d.grain!.of);
+    if (m === undefined) {
+      throw new CubeRefusal(`'${d.name}' is '${d.grain!.of}' at a coarser grain, and the grid has no measure '${d.grain!.of}' `
+        + `(${measures.map((x) => x.name).join(', ')})`);
+    }
+    return aggregateSpec({ ...m, name: d.name });
+  });
+  let whole = sourceWithDerived(snapshot);
+  const own = at === 'all' && scope?.grandFilter !== undefined ? scope.grandFilter ?? undefined : snapshot.filter;
+  const conditions: FilterNode[] = [
+    ...(own ? [own] : []),
+    ...(at === 'parent' && scope ? parentConditions(snapshot, scope.parent) : []),
+  ];
+  const typeOf: TypeOf = (c) => columnType(snapshot, c);
+  if (conditions.length > 0) {
+    whole = whole.filter(lambda(['x'], filterNode(conditions.length === 1 ? conditions[0]! : { kind: 'and', children: conditions }, 'x', typeOf)));
+  }
+  // one row -- grouped by a constant, then the measures alone -- beside every row of the level's: no column of the
+  // join's own reaches the level's rows (a class of the grid's rows, Create a Class, takes each as a property)
+  const key = `${WINDOW_ALL_PREFIX}grain_${at}`;
+  whole = whole.extend([derive(key, lambda(['x'], lit.integer(1)))]).groupBy([key], aggs).select(wanted.map((d) => d.name));
+  return rel.join(whole, 'INNER', lambda(['a', 'b'], lit.boolean(true)));
 }
 
 /** A level's child-group aggregates: each group row's aggregate of its child groups' figures. */
@@ -731,6 +889,12 @@ export interface LevelScope {
    * second counting query.
    */
   readonly limit?: number;
+  /**
+   * A DETAIL query's (detailSnapshot's, its group's keys folded into its filter): the grid's own filter, null for none --
+   * what a measure at the grand total's grain is computed under (snapshot.ts Grain). Absent on a level's query, whose
+   * filter is the grid's.
+   */
+  readonly grandFilter?: FilterNode | null;
 }
 
 /**
@@ -921,7 +1085,7 @@ export function pivotColumns(s: QuerySnapshot, facts: PivotFacts): PivotColumn[]
     for (const measure of spread) {
       const fn = total.functions?.[measure.column] ?? measure.fn;
       const { weight: _w, ...rest } = measure;
-      const retargeted: Measure = fn === 'wavg' && measure.weight !== undefined
+      const retargeted: Measure = SECOND_COLUMN[fn] !== undefined && measure.weight !== undefined
         ? { ...rest, fn, weight: measure.weight }
         : { ...rest, fn };
       out.push({ name: pivotTotalColumn(measure.name), measure: retargeted, tuple: null });
@@ -954,7 +1118,7 @@ export function pinnedPivotFacts(s: QuerySnapshot): PivotFacts | null {
   if (s.pivotValues === undefined || s.pivotValues.length === 0) return null;
   // A key as a tree key is: the value's exact text (a JSON value its document's text)
   const key = (v: FilterValue): GroupKey => (isJsonValue(v) ? v.json
-    : isRelativeDate(v) ? v.relative : String(v));
+    : isRelativeDate(v) ? relativeDateWords(v) : String(v));
   return { tuples: s.pivotValues.map((v) => [key(v)]) };
 }
 

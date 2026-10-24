@@ -71,6 +71,7 @@ const EVERY: Required<CubeSnapshot> = {
   pivotSort: { desk: 'desc' },
   pivotTotal: { placement: 'left', functions: { notional: 'max' } },
   keepGroupedColumns: true,
+  topN: { by: 'notional', n: 5, bottom: true },
   leafCount: true,
   childCount: true,
   sorts: [{ column: 'region', direction: 'desc' }],
@@ -417,5 +418,13 @@ describe("a new grid is capped when it is not its page's only grid (gridCapped, 
     assert.equal(gridCapped(2), true);
     assert.equal(gridCapped(3), true);
     assert.equal(fresh(2).maxRows, DEFAULT_MAX_ROWS);
+  });
+});
+
+describe("a saved cube's format code is judged on open, as when it was set (format-code.ts)", () => {
+  it('kept; refused naming the column and the part', () => {
+    const coded = (code: string): string => cubeToJson(doc()).replace('"decimals":3', `"decimals":3,"code":${JSON.stringify(code)}`);
+    assert.equal(readCube(coded('#,##0.000')).configuration['columns'] && (readCube(coded('#,##0.000')).configuration['columns'] as Record<string, { format?: { code?: string } }>)['notional']?.format?.code, '#,##0.000');
+    assert.throws(() => readCube(coded('[>100]0')), /'configuration\.columns\.notional\.format\.code': the format code "\[>100\]0" has \[>100\]/);
   });
 });

@@ -298,7 +298,7 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
     assert.deepEqual(app.snapshot.rows, ['region', 'desk']);
   });
 
-  it('every grid\'s right-click is its own menu: Edit ▸ its own Undo, Tile ▸ Remove from Page for an added one', async () => {
+  it('every grid\'s right-click is its own menu: Edit ▸ its own Undo, View ▸ Remove from Page for an added one', async () => {
     await app.newGrid();
     await settle();
     const id = added()[0]!.dataset['tile']!;
@@ -314,9 +314,11 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
       .map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
     const top = (items: HTMLElement[]): string[] => items.filter((i) => i.parentElement?.closest('.dc-menu-item') === null)
       .map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
-    assert.deepEqual(under(rightClick(id), 'Tile'), ['Hide Controls', 'Remove from Page']);
-    // the cube's own grid is its host's: it cannot be taken off the page, so its switch stands alone
-    assert.equal(top(rightClick('grid')).at(-1), 'Hide Controls', 'the cube\'s own grid: no Tile ▸');
+    // View ▸ holds the controls' switch and what is done to the tile (the user, 2026-10-24: no Tile ▸)
+    assert.deepEqual(under(rightClick(id), 'View').slice(2), ['Hide Controls', 'Keyboard Shortcuts...', 'Remove from Page']);
+    assert.ok(!top(rightClick(id)).includes('Tile'));
+    // the cube's own grid is its host's: it cannot be taken off the page
+    assert.ok(!under(rightClick('grid'), 'View').includes('Remove from Page'), 'the cube\'s own grid stays on the page');
     // its Undo is its own: the added grid's change undone, the cube's grid untouched
     await ungroup(zoneOf(id), 'desk');
     const undo = rightClick(id).find((i) => i.querySelector(':scope > .dc-menu-label')?.textContent === 'Undo'

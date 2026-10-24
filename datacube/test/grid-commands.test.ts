@@ -219,6 +219,30 @@ describe('each command gives what the screen\'s own edit gives', () => {
     refused(() => applyGridCommand(d, { kind: 'calculate', level: 'row', column: { ...double, name: 'qty' } }), /qty/);
   });
 
+  it('a top N set, replaced and taken off; refused on a pivot, whose figures are its values\' columns, and a pivot under it', () => {
+    const top = applyGridCommand(d, { kind: 'topN', topN: { by: 'notional', n: 10 } });
+    assert.deepEqual(top.snapshot.topN, { by: 'notional', n: 10 });
+    assert.deepEqual(applyGridCommand(top, { kind: 'topN', topN: { by: 'qty', n: 3, bottom: true } }).snapshot.topN,
+      { by: 'qty', n: 3, bottom: true });
+    assert.equal('topN' in applyGridCommand(top, { kind: 'topN', topN: null }).snapshot, false);
+    const pivoted = { ...d, snapshot: { ...d.snapshot, pivotOn: ['region'] } };
+    refused(() => applyGridCommand(pivoted, { kind: 'topN', topN: { by: 'notional', n: 10 } }), /take the pivot off first/);
+    // the other way round (2026-10-24, found by the undo's random walks: a pivot set under a top N was a state no command
+    // makes again)
+    refused(() => applyGridCommand(top, { kind: 'pivot', columns: ['region'] }), /take the top N off first/);
+    assert.deepEqual(applyGridCommand(top, { kind: 'pivot', columns: [] }).snapshot.pivotOn, [], 'no pivot is no pivot');
+  });
+
+  // 2026-10-24, found by the round-trip tests once the random walks set format codes: a null code was taken, and the
+  // saved cube's reader refused the grid written with it
+  it('a format code is text: null is refused, as the saved cube\'s reader refuses it; a format without one has none', () => {
+    refused(() => applyGridCommand(d, { kind: 'configure', patch: { columns: { notional: { format: { kind: 'auto', code: null } } } } } as never),
+      /a format code is text, not null/);
+    const coded = applyGridCommand(d, { kind: 'configure', patch: { columns: { notional: { format: { kind: 'auto', code: '#,##0' } } } } });
+    assert.equal(coded.config.columns['notional']?.format?.code, '#,##0');
+    assert.equal(applyGridCommand(coded, { kind: 'configure', patch: { columns: { notional: { format: null } } } }).config.columns['notional']?.format, undefined);
+  });
+
   it('a group opened and closed is the tree the chevron leaves; Collapse All the menu\'s (G1, G2)', () => {
     const shown = { ...draft({ rows: ['region', 'desk'] }), tree: TreeState.empty().withExpandTo(1) };
     const opened = applyGridCommand(shown, { kind: 'open', path: ['EMEA', 'FX'], open: true });
@@ -230,6 +254,10 @@ describe('each command gives what the screen\'s own edit gives', () => {
     assert.equal(closed.tree.isOpen(['APAC']), true, 'the expand level opens the others');
     const all = applyGridCommand(closed, { kind: 'collapseAll' });
     assert.equal(all.tree.isOpen(['APAC']), false, "Collapse All closes the expand level's groups too");
+    // Expand All: every group above the detail rows
+    const every = applyGridCommand(all, { kind: 'expandAll' });
+    assert.equal(every.tree.isOpen(['APAC'], 2), true);
+    assert.equal(every.tree.isOpen(['APAC', 'FX'], 2), false, 'the deepest groups open onto detail rows: not asked');
     // a path deeper than the groups (another editor regrouped since the click) opens nothing, and is no refusal
     assert.equal(applyGridCommand(shown, { kind: 'open', path: ['EMEA', 'FX', 'x'], open: true }), shown);
     refused(() => applyGridCommand(shown, { kind: 'open', path: [], open: true }), /the grand total is no group/);
@@ -385,6 +413,8 @@ describe('a command read from JSON is the same command, and what DataCube does n
     { kind: 'removeCalculated', name: 'double' },
     { kind: 'open', path: ['EMEA', null], open: true },
     { kind: 'collapseAll' },
+    { kind: 'expandAll' },
+    { kind: 'topN', topN: { by: 'notional', n: 3, bottom: true } },
     { kind: 'tree', open: [['EMEA'], ['EMEA', 'FX']], showTotals: true, expandTo: 1, closed: [['AMER']] },
   ];
 
@@ -399,6 +429,9 @@ describe('a command read from JSON is the same command, and what DataCube does n
     refused(() => readGridCommand({ kind: 'open', path: 'EMEA', open: true }), /a group's path is its keys/);
     refused(() => readGridCommand({ kind: 'open', path: ['EMEA'] }), /open is true or false/);
     refused(() => readGridCommand({ kind: 'collapseAll', path: [] }), /a 'collapseAll' command takes nothing more, not path/);
+    refused(() => readGridCommand({ kind: 'expandAll', level: 2 }), /'expandAll' command takes nothing more, not level/);
+    refused(() => readGridCommand({ kind: 'topN', topN: { by: 'notional', n: 0 } }), /a top N's n is a whole number from 1/);
+    refused(() => readGridCommand({ kind: 'topN', topN: { by: 'notional', n: 2, top: true } }), /a top N takes by, n and bottom, not top/);
     refused(() => readGridCommand({ kind: 'editCalculated', name: 'double', level: 'cell', column: double }), /'row' or 'group'/);
     refused(() => readGridCommand({ kind: 'removeCalculated', name: 7 }), /the calculated column's name is text/);
     refused(() => readGridCommand({ kind: 'group', row: ['region'] }), /a 'group' command takes rows, not row/);
@@ -423,10 +456,16 @@ describe('a command read from JSON is the same command, and what DataCube does n
     refused(() => readGridCommand(calc({ name: 'x', lambda: 42 })), /lambda is the protocol's/);
     refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, kind: 'bogus' })), /a column's kind is/);
     refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, window: {} })),
-      /a calculated column is one of a lambda, a window or a child aggregate, not lambda and window/);
-    refused(() => readGridCommand(calc({ name: 'x' })), /a calculated column is one of a lambda, a window or a child aggregate, not none/);
+      /a calculated column is one of a lambda, a window, a child aggregate, a grain, a related property or value groups, not lambda and window/);
+    refused(() => readGridCommand(calc({ name: 'x' })), /a calculated column is one of a lambda, a window, a child aggregate, a grain, a related property or value groups, not none/);
     refused(() => readGridCommand(calc({ name: 'x', lambda: double.lambda, colour: 'red' })),
-      /a calculated column from JSON takes name, lambda, window, childAggregate, unnest, kind, type, not colour/);
+      /a calculated column from JSON takes name, lambda, window, childAggregate, grain, related, groups, unnest, kind, type, not colour/);
+    // a measure at a grain: its measure, and its parent's or the grand total's
+    const grain = (g: unknown): unknown => ({ kind: 'calculate', level: 'group', column: { name: 'g', grain: g } });
+    assert.deepEqual(readGridCommand(grain({ of: 'notional', at: 'all' })),
+      { kind: 'calculate', level: 'group', column: { name: 'g', grain: { of: 'notional', at: 'all' } } });
+    refused(() => readGridCommand(grain({ of: 'notional', at: 'grandparent' })), /its parent's \('parent'\) or the grand total's \('all'\), not "grandparent"/);
+    refused(() => readGridCommand(grain({ of: 'notional', at: 'all', by: 'region' })), /a measure at a grain takes of, at, not by/);
     // a window, field by field
     const win = (w: Record<string, unknown>): unknown => calc({ name: 'w', window: { partition: [], order: [], ...w } });
     refused(() => readGridCommand(win({ fn: 'median' })), /a window's function is one of sum, average/);

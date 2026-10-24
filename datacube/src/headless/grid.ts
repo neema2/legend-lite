@@ -32,7 +32,8 @@ import {
 } from '../filter-operators.ts';
 import { STALE } from '../epoch.ts';
 import {
-  EXPORT_KINDS, columnFormats, heatmapColour, heatmapSetting, isExportKind, measureHeatmaps, renderExport,
+  EXPORT_KINDS, cellDecoration, columnFormats, conditionalSetting, heatmapColour, heatmapSetting, isExportKind, measureConditionals,
+  measureHeatmaps, renderExport,
 } from '../export-render.ts';
 import { FormatterCache } from '../format.ts';
 import { LitePlanner } from '../lite-planner.ts';
@@ -52,14 +53,18 @@ import { formatOf } from '../upload.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
   COLUMN_KINDS, CubeRefusal, isJsonValue, isRelativeDate, rowColumns,
-  type AggregateFn, type ChildAggregate, type ColumnKind, type ColumnSpec, type CubeSnapshot, type FilterNode, type FilterValue,
+  type AggregateFn, type ChildAggregate, type Grain, type ColumnKind, type ColumnSpec, type CubeSnapshot, type DerivedColumn, type FilterNode,
+  type FilterValue,
   type SortDirection, type WindowSpec,
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { pythonRunner } from '../services/python-host.ts';
 import { hostCalls, hostEngine, hostWorker } from './host.ts';
 import { leafOnHost, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
-import { classGiven, className } from '../class-source.ts';
+import { classGiven, className, type ClassElement } from '../class-source.ts';
+import { classTree, measuresOf, relatedName, relatedProblem, supertypesOf } from '../class-tree.ts';
+import { modelMeasureCommands } from '../model-measure-commands.ts';
+import { modelMeasures } from '../model-measures.ts';
 import type { PageModelRef } from '../page-model.ts';
 import { sharedPart, type SharedQuery } from '../../../query-store/src/share.ts';
 import { joinOpenedOn } from './join.ts';
@@ -468,7 +473,7 @@ function viewJson(view: CubeView, configuration: CubeState['configuration'], que
 export async function gridColumn(spec: GridSpec, given: string): Promise<string> {
   const asked = JSON.parse(given) as {
     name?: unknown; replacing?: unknown; level?: unknown; kind?: ColumnKind | null; mode?: unknown;
-    expression?: unknown; explode?: unknown; window?: unknown; child?: unknown; before?: unknown;
+    expression?: unknown; explode?: unknown; window?: unknown; child?: unknown; grain?: unknown; before?: unknown;
   };
   const kind = asked.kind ?? null;
   if (kind !== null && !COLUMN_KINDS.includes(kind)) {
@@ -482,10 +487,13 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
   }
   const mode = asked.mode ?? 'expression';
   if (!isDraftMode(mode)) {
-    return JSON.stringify({ problems: [`a calculated column is an expression, a window or a child aggregate, not ${JSON.stringify(mode)}`] });
+    return JSON.stringify({ problems: [`a calculated column is an expression, a window, a child aggregate or a grain, not ${JSON.stringify(mode)}`] });
   }
   if (mode === 'children' && asked.level !== 'group') {
     return JSON.stringify({ problems: ["a child aggregate is a group-level column: its level is 'group'"] });
+  }
+  if (mode === 'grain' && asked.level !== 'group') {
+    return JSON.stringify({ problems: ["a measure at a grain is a group-level column: its level is 'group'"] });
   }
   if (asked.explode === true && (mode !== 'expression' || asked.level === 'group')) {
     return JSON.stringify({ problems: ['explode repeats each row once per element of an expression: a row-level expression only'] });
@@ -493,10 +501,11 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
   if (typeof asked.name !== 'string') return JSON.stringify({ problems: [`a calculated column's name is text, not ${JSON.stringify(asked.name)}`] });
   const name = asked.name;
   if (mode !== 'expression') {
-    // a window's or a child aggregate's fields read as a calculate command's are, refused in its words
+    // a window's, a child aggregate's or a grain's fields read as a calculate command's are, refused in its words
     try {
       readGridCommand({ kind: 'calculate', level: asked.level === 'group' ? 'group' : 'row',
-        column: { name, ...(mode === 'window' ? { window: asked.window } : { childAggregate: asked.child }) } });
+        column: { name, ...(mode === 'window' ? { window: asked.window } : mode === 'grain' ? { grain: asked.grain }
+          : { childAggregate: asked.child }) } });
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       return JSON.stringify({ problems: [e.message] });
@@ -516,6 +525,10 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
   return using(spec, async (o) => {
     const { planner, state } = o;
     // an edit starts from the column as it is (Edit Column opens on it: its level, its explode), as told otherwise
+    // a related column is the class tree's (gridRelated), never a formula to edit
+    if (replacing !== null && state.snapshot.derived.some((d) => d.name === replacing && d.related !== undefined)) {
+      return JSON.stringify({ problems: [`'${replacing}' is a related column: remove it and add another (grid.related)`] });
+    }
     const was = replacing === null ? undefined : existingDraft(state.snapshot, replacing)?.draft;
     if (replacing !== null && was === undefined) {
       return JSON.stringify({ problems: [`'${replacing}' is not a calculated column of the grid`] });
@@ -528,6 +541,7 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
       ...(asked.explode !== undefined ? { unnest: asked.explode === true } : {}),
       ...(mode === 'window' ? { window: asked.window as WindowSpec } : {}),
       ...(mode === 'children' ? { child: asked.child as ChildAggregate } : {}),
+      ...(mode === 'grain' ? { grain: asked.grain as Grain } : {}),
     };
     const problem = nameProblem(state.snapshot, draftStage(draft), draft.name, replacing ?? undefined);
     if (problem !== null) return JSON.stringify({ problems: [problem] });
@@ -550,7 +564,81 @@ export async function gridColumn(spec: GridSpec, given: string): Promise<string>
   });
 }
 
-const isDraftMode = (m: unknown): m is ColumnDraft['mode'] => m === 'expression' || m === 'window' || m === 'children';
+const isDraftMode = (m: unknown): m is ColumnDraft['mode'] => m === 'expression' || m === 'window' || m === 'children' || m === 'grain';
+
+/**
+ * A RELATED COLUMN ADDED AS THE HEADER MENU'S ADD RELATED COLUMN ADDS ONE (snapshot.ts RelatedPath; Python's grid.related):
+ * `given` `{path, aggregate?, name?}` -- read as a calculate command's related column is, its path judged against the
+ * class tree of the grid's model (class-tree.ts relatedProblem: a property the class reaches, a to-many end aggregated)
+ * -- added by the column editor's command, named after its path unless named, a measure when it aggregates. JSON: as
+ * gridApply's, or `{problems}`, in DataCube's words.
+ */
+export async function gridRelated(spec: GridSpec, given: string): Promise<string> {
+  const asked = JSON.parse(given) as { path?: unknown; aggregate?: unknown; name?: unknown };
+  const source = readCube(fromJson(spec.cube)).source;
+  if (source._type !== 'class') {
+    return JSON.stringify({ problems: [`a related column reads a class's relationships, and this grid is over ${source.name}, no class`] });
+  }
+  if (asked.name !== undefined && typeof asked.name !== 'string') {
+    return JSON.stringify({ problems: [`a related column's name is text, not ${JSON.stringify(asked.name)}`] });
+  }
+  let column: DerivedColumn;
+  try {
+    const read = readGridCommand({ kind: 'calculate', level: 'row', column: { name: asked.name ?? 'related', related: { path: asked.path,
+      ...(asked.aggregate !== undefined ? { aggregate: asked.aggregate } : {}) } } });
+    column = (read as { readonly column: DerivedColumn }).column;
+  } catch (e) {
+    if (!(e instanceof CubeRefusal)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
+  const related = column.related!;
+  return using(spec, async (o) => {
+    const problem = relatedProblem(classTree(await o.planner.modelElements(spec.model) as ClassElement[]), source.class, related);
+    if (problem !== null) return JSON.stringify({ problems: [problem] });
+    const base = relatedName(related);
+    let name = asked.name as string | undefined;
+    if (name === undefined) {
+      name = base;
+      for (let i = 2; nameProblem(o.state.snapshot, 'row', name) !== null; i += 1) name = `${base}_${i}`;
+    }
+    return applied(spec, o, [{ kind: 'calculate', level: 'row',
+      column: { name, related, kind: related.aggregate !== undefined ? 'measure' : 'dimension' } }]);
+  });
+}
+
+/**
+ * A MODEL MEASURE ADDED AS THE HEADER MENU'S ADD MODEL MEASURE ADDS ONE (model-measures.ts; Python's grid.model_measure):
+ * `given` `{measure}`, by its name or its path, of the grid's class or a supertype of it in the grid's model -- added as the
+ * steps a person would make (modelMeasureCommands). JSON: as gridApply's, or `{problems}`, in DataCube's words.
+ */
+export async function gridModelMeasure(spec: GridSpec, given: string): Promise<string> {
+  const asked = JSON.parse(given) as { measure?: unknown };
+  const source = readCube(fromJson(spec.cube)).source;
+  if (source._type !== 'class') {
+    return JSON.stringify({ problems: [`a model measure is of a class's instances, and this grid is over ${source.name}, no class`] });
+  }
+  if (typeof asked.measure !== 'string' || asked.measure === '') {
+    return JSON.stringify({ problems: [`a model measure is named by its name or its path, not ${JSON.stringify(asked.measure)}`] });
+  }
+  return using(spec, async (o) => {
+    const elements = await o.planner.modelElements(spec.model) as ClassElement[];
+    const all = modelMeasures(elements);
+    const mine = measuresOf(all, (c) => supertypesOf(elements, c), source.class);
+    const measure = mine.find((m) => m.path === asked.measure || m.name === asked.measure);
+    if (measure === undefined) {
+      return JSON.stringify({ problems: [`${className(source.class)} has no measure ${asked.measure as string} in its model`
+        + ` (${mine.map((m) => m.name).sort().join(', ') || 'none'})`] });
+    }
+    let commands: GridCommand[];
+    try {
+      commands = modelMeasureCommands(o.state.snapshot, classTree(elements), source.class, all, measure);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
+    return applied(spec, o, commands);
+  });
+}
 
 /**
  * A PRESET ADDED AS THE HEADER MENU ADDS ONE (grid-presets.ts presetCommands: a date to its period, a measure shown as,
@@ -1108,10 +1196,12 @@ export async function gridExport(spec: GridSpec, kind: string): Promise<string> 
     if (view === STALE) throw new Error('the grid was asked again before its view was ready');
     const config = state.configuration;
     const heatmaps = measureHeatmaps(view, view.treeRows, (name) => heatmapSetting(config, view, name));
+    const conditionals = measureConditionals(view, view.treeRows, (name) => conditionalSetting(config, view, name));
     const file = renderExport(kind, {
       view, model: shownColumns(view, config), config,
       formats: columnFormats(config, state.snapshot, state.snapshot, view), formatters: new FormatterCache(),
-      cellBackground: (leaf, row, value) => heatmapColour(heatmaps, view.treeRows, leaf, row, value), at: new Date(),
+      cellBackground: (leaf, row, value) => heatmapColour(heatmaps, view.treeRows, leaf, row, value),
+      cellDecoration: (leaf, row, value) => cellDecoration(conditionals, view.treeRows, leaf, row, value), at: new Date(),
     });
     const { content } = file;
     return JSON.stringify({ name: file.name, mime: file.mime, text: typeof content === 'string',

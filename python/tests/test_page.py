@@ -796,6 +796,23 @@ class Document(Paged):
         # a chart can plot it, as any column
         grid.chart('line', x='region', y=[('margin', 'average')])
 
+    def test_a_text_tile_titles_and_notes_a_page(self):
+        # Power BI's text box: a page's title or a note, in DataCube's small Markdown (page-text.ts), by the commands its
+        # menus send (addText, setText), saved and reopened as it is; refused in DataCube's words
+        page, grid, _ = self.built()
+        note = page.text('# Q3 sales\n\nBy **desk**.', title='Notes')
+        self.assertEqual((note.id, note.text, note.title), ('text-1', '# Q3 sales\n\nBy **desk**.', 'Notes'))
+        self.assertIn(note, page.texts)
+        self.assertIs(note.sheet, grid.sheet)
+        note.text = 'Updated'
+        self.assertEqual(next(v for v in page.to_dict()['views'] if v['id'] == 'text-1')['text'], 'Updated')
+        with self.assertRaisesRegex(ValueError, 'a text tile has words: its text is blank'):
+            note.text = '   '
+        other = page.sheet('More').text('Second sheet')
+        self.assertEqual(other.sheet.name, 'More')
+        page.remove(other)
+        self.assertNotIn(other, page.texts)
+
     def test_a_grid_is_edited_as_datacubes_screen_edits_it_and_refused_in_its_words(self):
         # grouping, pivot, Column Properties and sorts by the one module the screen's panels, header menu and drag zones
         # call (grid-commands.ts, headless gridApply: docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md), the grid compiled as
@@ -806,7 +823,7 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, "'sum' is not offered on desk, a String column: min, max, joinStrings"):
             grid.measure('desk', 'sum', name='desks')
         # only a weighted average takes a weight, refused rather than dropped; and it takes one (the query's own words)
-        with self.assertRaisesRegex(ValueError, r'only a weighted average \(wavg\) takes a weight'):
+        with self.assertRaisesRegex(ValueError, r'only an aggregate of two columns \(wavg, .*\) takes a second column'):
             grid.measure('pnl', 'sum', name='p', weight='notional')
         with self.assertRaisesRegex(ValueError, 'uses wavg but has no weight column'):
             grid.measure('pnl', 'wavg', name='w')
@@ -1012,6 +1029,11 @@ class Document(Paged):
         grid.expand('AMER').expand('EMEA').collapse_all()
         self.assertEqual(open_paths(), [])
         self.assertEqual(page._commands[-1], {'kind': 'collapseAll'})
+        # Expand All: every group above the detail rows, saved as the level the groups open to
+        grid.expand_all()
+        self.assertEqual(page._commands[-1], {'kind': 'expandAll'})
+        self.assertEqual(page.to_dict()['cubes'][0]['cube']['tree'].get('expandTo'), 2)
+        grid.collapse_all()
         grid.expand('EMEA', 'FX', 'deeper')
         self.assertEqual(open_paths(), [], 'a path deeper than the groups opens nothing')
         with self.assertRaisesRegex(ValueError, 'each text or null'):
@@ -1402,6 +1424,54 @@ class Abilities(Paged):
             grid.add_filter(('nope', 'equal', 'x'))
         self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5])
 
+    def test_a_value_list_keeps_the_values_ticked_in_place_of_the_columns_own_conditions(self):
+        # grid.filter_values: the Filter Values window's OK (DataCube's value-filter.ts, the 'filter.values' gesture)
+        page = ll.Page('Values')
+        grid = page.grid(trades(), name='valued_trades')
+        grid.filter([('desk', 'equal', 'Rates'), ('region', 'equal', 'AMER')])
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [250.0])
+        grid.filter_values('region', ['EMEA', 'AMER'])
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5, 250.0], "region's own condition replaced, desk's kept")
+        self.assertEqual(page._commands[-1]['kind'], 'refilter')
+        grid.filter_values('region', ['EMEA', None])
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5], 'the blanks kept too: there are none')
+        grid.filter_values('region', None)
+        self.assertEqual(sorted(grid.to_pandas()['notional']), [75.5, 250.0], "every value: region's own conditions off")
+        with self.assertRaisesRegex(ValueError, "keep at least one value of 'region'"):
+            grid.filter_values('region', [])
+
+    def test_a_date_range_relative_to_today_is_two_conditions_the_database_computes(self):
+        # grid.filter_date_range: the menu's Filter > Date Range (DataCube's date-ranges.ts)
+        page = ll.Page('Dated')
+        today = datetime.date.today()
+        frame = pd.DataFrame({'day': [today, today - datetime.timedelta(days=400)], 'notional': [1.0, 2.0]})
+        grid = page.grid(frame, name='dated')
+        grid.filter_date_range('day', 'last30Days')
+        self.assertEqual(list(grid.to_pandas()['notional']), [1.0])
+        condition = page._commands[-1]['add'][0]
+        self.assertEqual(condition['value'], {'relative': 'today', 'offset': -29, 'unit': 'DAYS'})
+        # a range from a period's start (firstDayOfYear, adjust): this year's day kept, the one 400 days back not
+        grid.filter_date_range('day', 'thisYear')
+        self.assertEqual(list(grid.to_pandas()['notional']), [1.0], 'the range replaced the last one')
+        grid.filter_date_range('day', 'lastYear')
+        self.assertEqual(list(grid.to_pandas()['notional']), [2.0] if (today - datetime.timedelta(days=400)).year == today.year - 1 else [])
+        with self.assertRaisesRegex(ValueError, 'a date range is today'):
+            grid.filter_date_range('day', 'someday')
+
+    def test_the_top_n_groups_by_a_measure_are_ranked_by_the_database_each_parents_own(self):
+        # grid.top: the menu's Top 10 / Bottom 10 (DataCube's snapshot.ts TopN, the filter.topN gesture)
+        page = ll.Page('Ranked')
+        grid = page.grid(trades(), name='ranked_trades', rows=['region'], measures={'notional': 'sum'})
+        grid.top(1, 'notional')
+        self.assertEqual(groups_of(grid.view(), 'notional'), {'AMER': 250.0}, 'AMER 250 over EMEA 175.5')
+        self.assertEqual(page._commands[-1], {'kind': 'topN', 'topN': {'by': 'notional', 'n': 1}})
+        grid.top(1, 'notional', bottom=True)
+        self.assertEqual(groups_of(grid.view(), 'notional'), {'EMEA': 175.5})
+        grid.top(None)
+        self.assertEqual(groups_of(grid.view(), 'notional'), {'EMEA': 175.5, 'AMER': 250.0})
+        with self.assertRaisesRegex(ValueError, 'whole number from 1'):
+            grid.top(0, 'notional')
+
     def test_copy_of_grid_is_a_grid_of_its_own_beside_it_starting_as_it_is(self):
         # (K10) grid.copy: Copy of Grid -- the copy's cube by DataCube's one rule (cube-document.ts cubeCopied), the one
         # the screen's copy writes (one-api-gestures.test.ts holds the two the same)
@@ -1478,6 +1548,24 @@ class Abilities(Paged):
         self.assertEqual(len(flat.to_pandas()), 6)
         with self.assertRaisesRegex(ValueError, 'a row-level expression only'):
             flat._column({'name': 'late', 'expression': 'x|[1, 2]', 'level': 'group', 'explode': True})
+
+    def test_a_measure_at_its_parent_or_the_grand_total(self):
+        # grid.measure_at and grid.show_as's shares: the measure as the parent group or the grand total has it, the
+        # database's (snapshot.ts Grain) -- the column editor's Parent or Grand Total and the header menu's Show As
+        page = ll.Page('Grains')
+        grid = page.grid(trades(), name='grain_trades', rows=['region'], measures={'notional': 'sum'})
+        grid.measure_at('whole', 'notional', at='all')
+        whole = next(d for d in grid._query['groupDerived'] if d['name'] == 'whole')
+        self.assertEqual(whole['grain'], {'of': 'notional', 'at': 'all'})
+        self.assertEqual(groups_of(grid.view(), 'whole'), {'EMEA': 425.5, 'AMER': 425.5})
+        grid.show_as('notional', 'percentOfTotal')
+        shares = groups_of(grid.view(), 'notional_percentOfTotal')
+        self.assertAlmostEqual(shares['EMEA'], 175.5 / 425.5)
+        self.assertAlmostEqual(shares['AMER'], 250.0 / 425.5)
+        with self.assertRaisesRegex(ValueError, 'a measure at a grain is a group-level column'):
+            grid._column({'name': 'rowwise', 'mode': 'grain', 'grain': {'of': 'notional', 'at': 'all'}})
+        with self.assertRaisesRegex(ValueError, r"its parent's \('parent'\) or the grand total's \('all'\)"):
+            grid.measure_at('odd', 'notional', at='everything')
 
     def test_presets_as_the_header_menu_adds_them(self):
         # (K4) grid.grain, grid.show_as, grid.bins: the header menu's By Month and Show As, by the one rule the menu

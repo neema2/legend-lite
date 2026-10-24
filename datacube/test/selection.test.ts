@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { TREE_COLUMN, treeHeaderText } from '../src/treeview.ts';
 import { toClipboard } from '../src/export.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import {
@@ -122,7 +123,7 @@ describe('selectionTable', () => {
     const t = selectionTable(TABLE, ALL, {
       anchor: { row: 1, col: 1 },
       focus: { row: 2, col: 2 },
-    });
+    }, 'Group');
     assert.deepEqual(t.columns.map((c) => c.name), ['q1', 'q2']);
     assert.deepEqual(t.columns[0]?.values, [-5, null]);
     assert.equal(t.rowCount, 2);
@@ -134,7 +135,7 @@ describe('selectionTable', () => {
     const t = selectionTable(TABLE, ALL, {
       anchor: { row: 0, col: 0 },
       focus: { row: 1, col: 1 },
-    });
+    }, 'Group');
     assert.equal(toClipboard(t), 'region\tq1\nEMEA\t10\nAMER\t-5\n');
   });
 });
@@ -149,8 +150,16 @@ describe('a selection reads the columns ON SCREEN (P2-36)', () => {
   });
 
   it('a copy is those columns, headed by their labels', () => {
-    const t = selectionTable(TABLE, SHOWN, { anchor: { row: 0, col: 0 }, focus: { row: 0, col: 1 } });
+    const t = selectionTable(TABLE, SHOWN, { anchor: { row: 0, col: 0 }, focus: { row: 0, col: 1 } }, 'Group');
     assert.equal(toClipboard(t), 'q2\tFirst quarter\n20\t10\n');
+  });
+
+  it('the tree column, blank on screen, copies under what it groups by -- never its machinery name', () => {
+    const tree = { ...TABLE, columns: [{ ...TABLE.columns[0]!, name: TREE_COLUMN }, ...TABLE.columns.slice(1)] };
+    const t = selectionTable(tree, [{ index: 0, name: TREE_COLUMN }, { index: 1, name: 'q1' }],
+      { anchor: { row: 0, col: 0 }, focus: { row: 0, col: 1 } }, treeHeaderText(['Region', 'Desk']));
+    assert.equal(toClipboard(t), 'Region / Desk\tq1\nEMEA\t10\n');
+    assert.equal(treeHeaderText([]), 'Group', 'grouped by nothing named');
   });
 });
 

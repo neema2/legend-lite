@@ -12,15 +12,16 @@
 // become REDACTED before any format sees a value, so no renderer can forget it.
 
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
+import type { CellDecoration } from './conditional.ts';
 import type { ColumnModel, HeaderCell, LeafColumn } from './grid/columns.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import {
   coloursFor, highlightBand, isAlternateRow, mergeAppearance, valueState,
   type CellAppearance, type GridAppearance, type TextAlign, type UnderlineVariant,
 } from './style.ts';
-import type { FontCase } from './format.ts';
+import { codeColour, type ColumnFormat, type FontCase } from './format.ts';
 import type { TreeRow } from './tree.ts';
-import { TREE_COLUMN } from './treeview.ts';
+import { TREE_COLUMN, treeHeaderText } from './treeview.ts';
 
 /** What a blurred cell becomes in every export: plainly not data, and the same everywhere. */
 export const REDACTED = '[REDACTED]';
@@ -59,6 +60,9 @@ export interface ExportStyle {
   readonly strike?: boolean;
   readonly align: TextAlign;
   readonly fontCase?: FontCase;
+  /** A conditional format's data bar and icon (conditional.ts), drawn where a file can (HTML). */
+  readonly bar?: { readonly start: number; readonly end: number; readonly color: string };
+  readonly icon?: { readonly glyph: string; readonly color: string; readonly label: string };
 }
 
 /** The grid-wide look: its font, its lines, its header (plain gray, whatever the grid's is). */
@@ -126,6 +130,10 @@ export interface ExportSource {
   readonly columnAppearance?: Readonly<Record<string, CellAppearance>>;
   /** A cell's heatmap colour, as the grid asks for it: (leaf, row, value). */
   readonly cellBackground?: (leaf: LeafColumn, row: number, value: Scalar) => string | null;
+  /** The columns' formats, by name: a format code's section colour (format.ts codeColour). */
+  readonly formats?: Readonly<Record<string, ColumnFormat>>;
+  /** A cell's conditional formats, as the grid asks for them (conditional.ts). */
+  readonly cellDecoration?: (leaf: LeafColumn, row: number, value: Scalar) => CellDecoration | null;
 }
 
 /** The label the grid shows over one leaf, per header level (from the header cells that cover it). */
@@ -143,7 +151,7 @@ export function exportTable(source: ExportSource): ExportTable {
   const { rows, model, treeRows } = source;
   const index = new Map(rows.columns.map((c, i) => [c.name, i]));
   const grouped = model.leaves.some((l) => l.name === TREE_COLUMN);
-  const treeHeader = source.groupLabels.join(' / ') || 'Group';
+  const treeHeader = treeHeaderText(source.groupLabels);
 
   const columns: ExportColumn[] = model.leaves.map((leaf, i) => {
     const tree = leaf.name === TREE_COLUMN;
@@ -189,10 +197,16 @@ export function exportTable(source: ExportSource): ExportTable {
       const { foreground, background } = c.redacted ? {} : coloursFor(a, valueState(v, c.type));
       // the grid's order: the band, the total's shading over it, the value's colour, a heatmap last
       const heat = c.redacted || !source.cellBackground ? null : source.cellBackground(leaf, r, v);
-      const bg = heat ?? background ?? (kind === 'total' ? GRID_LOOK.totalBackground : banded);
+      // and a conditional format's over it, as the grid draws them: a rule's colours, a bar, an icon
+      const deco = c.redacted || c.tree || !source.cellDecoration ? null : source.cellDecoration(leaf, r, v);
+      const bg = deco?.rule?.background ?? heat ?? background ?? (kind === 'total' ? GRID_LOOK.totalBackground : banded);
+      const fg = deco?.rule?.foreground ?? (c.redacted ? null : codeColour(v, source.formats?.[leaf.name], c.type)) ?? foreground;
       return {
-        ...(c.redacted ? { color: '#a3a3a3', italic: true } : foreground ? { color: foreground } : {}),
+        ...(c.redacted ? { color: '#a3a3a3', italic: true } : fg ? { color: fg } : {}),
         ...(bg ? { background: bg } : {}),
+        ...(deco?.rule?.bold ? { bold: true } : {}),
+        ...(deco?.bar ? { bar: deco.bar } : {}),
+        ...(deco?.icon ? { icon: deco.icon } : {}),
         ...(a.fontFamily ? { fontFamily: a.fontFamily } : {}),
         ...(a.fontSize !== undefined ? { fontSize: a.fontSize } : {}),
         ...(a.bold || kind === 'total' ? { bold: true } : {}),
@@ -258,12 +272,15 @@ export interface ExportPage {
 
 export interface ExportTile {
   readonly id: string;
-  readonly kind: 'grid' | 'chart';
+  readonly kind: 'grid' | 'chart' | 'text';
   readonly title: string;
   readonly x: number;
   readonly y: number;
   readonly w: number;
   readonly h: number;
+  /** A text tile's words as the board drew them (page-text.ts): its HTML -- every word escaped, as drawn -- and a line
+   *  a paragraph, heading or list item, for an export that writes text. */
+  readonly text?: { readonly html: string; readonly lines: readonly string[] };
   /** A chart's picture (absent when it has not drawn, or could not be read). */
   readonly picture?: {
     readonly width: number;

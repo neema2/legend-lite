@@ -648,9 +648,9 @@ try {
     const chart = page.locator('[data-tile^="chart-"]').first();
     await chart.waitFor({ timeout: 20_000 });
     const chartId = await chart.getAttribute('data-tile');
-    // the grid onto a new sheet, from its right-click's Tile ▸ Move to Sheet: its chart stays on the first
+    // the grid onto a new sheet, from its right-click's View ▸ Move to Sheet: its chart stays on the first
     await page.locator('[data-tile="grid-1"] .dc-row .dc-cell').first().click({ button: 'right' });
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Tile"))').first().hover();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("View"))').first().hover();
     const moveTo = '.dc-menu-item:has(> .dc-menu-label:text-is("Move to Sheet"))';
     await page.locator(moveTo).first().hover();
     await page.locator(`${moveTo} .dc-menu-item:has(> .dc-menu-label:text-is("New Sheet"))`).first().click();

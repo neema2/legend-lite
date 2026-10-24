@@ -442,9 +442,10 @@ async function suite(title, query, signedIn = false) {
     // a group's first cell carries the tree's expander (▸) before its label
     const groups = (await cubeRows(page)).map((r) => [r[0].replace(/^[▸▾]\s*/, ''), r[r.length - 1]]);
     assert.deepEqual(groups, [['BUY', '15,003,400'], ['SELL', '37,503,100']]);
-    // its controls come back from the right-click menu's last entry (DataCube's own mode)
+    // its controls come back from the right-click menu's View ▸ (DataCube's own mode; under View since 2026-10-24)
     await page.click('.q-cube .dc-row >> nth=0 >> .dc-cell >> nth=1', { button: 'right' });
-    await page.click('.dc-menu > .dc-menu-item:has(> .dc-menu-label:text-is("Show Controls"))');
+    await page.hover('.dc-menu > .dc-menu-item:has(> .dc-menu-label:text-is("View"))');
+    await page.click('.dc-submenu .dc-menu-item:has(> .dc-menu-label:text-is("Show Controls"))');
     await page.waitForSelector('.q-cube .dc-titlebar:visible, .q-cube .dc-app-stats:visible', { timeout: 10000 });
     await page.click('.q-results-bar button.q-mode:text-is("Grid")');
     await page.waitForSelector('.q-grid tbody tr', { timeout: 30000 });

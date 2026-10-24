@@ -44,7 +44,9 @@ import type { Dimension } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
 import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
-import { drillLambda, levelLambda } from './query.ts';
+import { columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda } from './query.ts';
+import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
+import { valueList } from './ui/value-list.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
 import { columnKind, headerSorts, type GridDraft } from './grid-edits.ts';
@@ -56,7 +58,7 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine, ResultWindow } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
 import type { HostSnap, SnapTarget } from './cube.ts';
-import { exportFileName, toCsv, toEml } from './export.ts';
+import { exportFileName, toClipboard, toEml } from './export.ts';
 import {
   ALERT_WINDOW,
   CODE_CHECK_WINDOW,
@@ -70,7 +72,8 @@ import {
 import { pivotLabel, type PivotColumn } from './query.ts';
 import type { ExportPage } from './export-model.ts';
 import {
-  columnFormats, heatmapColour, heatmapSetting, measureHeatmaps, renderExport, type ExportedFile, type ExportKind, type Heatmap,
+  cellDecoration, columnFormats, conditionalSetting, heatmapColour, heatmapSetting, measureConditionals, measureHeatmaps, renderExport,
+  type Conditional, type ExportedFile, type ExportKind, type Heatmap,
 } from './export-render.ts';
 import { cubeScopeOf, newCubeScope } from './ui/scope.ts';
 import type { CubePage, ChartSource, PageEdit, SpawnedGrid, SpawnOptions } from './page/cube-page.ts';
@@ -83,11 +86,15 @@ import { FormatterCache, headlineFormat, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
 import {
   TREE_COLUMN,
+  buildColumnModel,
   type LeafColumn,
 } from './grid/columns.ts';
+import { conditionWords } from './page-filters.ts';
+import { shortcutsTable } from './ui/shortcuts.ts';
 import { shownColumns } from './shown-columns.ts';
 import { freshConfiguration, gridCapped, newGridTree, writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
+import { treeHeaderText } from './treeview.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import type { JsonColumnReader } from './ui/json-fields.ts';
 import {
@@ -97,8 +104,11 @@ import {
   type DerivedColumn,
   type FilterNode,
   type FilterValue,
+  type RelatedPath,
 } from './snapshot.ts';
 import type { HeatmapSpec } from './style.ts';
+import { measuresOf, relatedName, relatedOffers, type ClassOf, type RelatedOffer } from './class-tree.ts';
+import type { ModelMeasure } from './model-measures.ts';
 import { TreeState, parsePathKey, pathKey, type TreeRow } from './tree.ts';
 import { CubeStateOwner, type ChangeOptions, type CubeState, type OwnerEvent, type Outcome } from './cube-state.ts';
 
@@ -119,9 +129,9 @@ import {
 } from './settings.ts';
 import { SETTINGS_WINDOW, buildSettingsPanel } from './ui/settings-panel.ts';
 import { buildDocumentation, isDocKey, type DocKey } from './ui/docs.ts';
-import { binColumns, SHOW_AS_LABELS } from './calc-presets.ts';
+import { binColumns, GRID_SHOW_AS_LABELS } from './calc-presets.ts';
 import { presetCommands, type GridPreset } from './grid-presets.ts';
-import { columnRef } from './calc.ts';
+import { columnRef, nameProblem } from './calc.ts';
 import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
 import {
@@ -133,6 +143,7 @@ import {
   columnLabel,
   emailItems,
   exportItems,
+  type ConditionalFacts,
   type MenuGroup,
   type MenuItem,
 } from './ui/menu.ts';
@@ -272,6 +283,9 @@ export interface CubeAppBaseOptions {
    * cannot -- a cube over a model waits for the model home.
    */
   readonly cubeSource?: CubeSource;
+  /** A grid over a class: its class and the model's class tree -- the header menu's Add Related Column offers one hop of
+   *  it (class-tree.ts relatedOffers). */
+  readonly classTree?: ClassOf;
   /**
    * Where the cube's windows (dialogs) float, and what they are kept inside: a page of several
    * cubes gives its whole area, so a dialog opened from a small tile is not squeezed into the
@@ -290,6 +304,8 @@ export interface CubeAppBaseOptions {
    */
   readonly onChart?: () => void;
   readonly onNewGrid?: () => void;
+  /** A grid on a page: its Create ▸ Text Box goes to the page, as `onNewGrid` does. */
+  readonly onText?: () => void;
   /**
    * ANOTHER SOURCE, for New ▸ Source…: the host asks the person which (its source picker) and
    * answers what reads it, or undefined when they chose nothing. Absent: no New ▸ Source….
@@ -522,6 +538,8 @@ export class CubeApp {
     number,
     Heatmap
   >();
+  /** Conditional formats (conditional.ts) and their columns' figures, by leaf index; measured with the heatmaps. */
+  readonly #conditionals = new Map<number, Conditional>();
   readonly #columnsPanel: ColumnsToolPanel;
   readonly #els: {
     toolbar: HTMLElement;
@@ -618,6 +636,8 @@ export class CubeApp {
   #filters: FilterEditor | null = null;
   /** Drill-throughs, latest wins: an earlier one answering late is dropped (P2-131). */
   #drills = 0;
+  /** The grid of the rows behind a cell (the drill-through window's), let go when the window shows another. */
+  #drillGrid: DataGrid | null = null;
   #selection: CellRange | null = null;
   /** Where selection statistics are written, inside the status bar. */
   #statsSlot: HTMLElement | null = null;
@@ -803,10 +823,11 @@ export class CubeApp {
         void this.#gesture('columns.reorder', { order, ...(added !== undefined ? { added } : {}) }, 'reorder columns');
       },
       cellBackground: (leaf, row, value) => this.#heatFor(leaf, row, value),
+      cellDecoration: (leaf, row, value) => cellDecoration(this.#conditionals, this.#treeRows, leaf, row, value),
       rowMeta: (abs) => this.#rowMeta(abs),
       onRowsMoved: () => this.#rowsMoved(),
       // a selection past the rows a window holds (V1): copied from the view read whole
-      onCopyUnheld: () => this.#copyWhole((view) => this.#selectionCsv(view)),
+      onCopyUnheld: () => this.#copyWhole((view) => this.#selectionText(view)),
       // SET, never toggled: the grid says which way the person asked, and
       // asking for what already is changes nothing (P2-127).
       onToggleExpand: (key, expanded) => {
@@ -816,12 +837,14 @@ export class CubeApp {
       onActivateCell: (row, column) => {
         void this.#drillThrough(row, column);
       },
+      onDoubleClickCell: (row, column) => this.#onDoubleClickCell(row, column),
       onHeaderSort: (column, chained) => this.#sortByHeader(column, chained),
       // A dragged edge is a width like Auto-size's -- resizable again,
       // unlike an explicit Fixed one.
       onResizeColumn: (column, width) => void this.#gesture('column.resize', { column, width }, `column ${column}`),
       headerTitle: (path, leaf) => this.#headerTitle(path, leaf),
       treeTitle: (_row, label) => (label === '' ? '' : `Group Value = ${label}`),
+      treeHeader: () => this.#treeHeader(),
       ...(options.writeClipboard
         ? { writeClipboard: options.writeClipboard }
         : {}),
@@ -1531,10 +1554,12 @@ export class CubeApp {
       this.#paintView(view);
     } else {
       this.#refreshHeatmaps(view);
-      // only the cells whose value changed drawn again; every cell when a heatmap's scale reads them all; a changed
-      // number flashes where a row is the same row each tick: a group's, or a flat view's in the source's order
+      // only the cells whose value changed drawn again; every cell when a heatmap's scale or a conditional format (a
+      // data bar's range, an icon's thirds, a rule of the top) reads them all, measured again above; a changed number
+      // flashes where a row is the same row each tick: a group's, or a flat view's in the source's order
       this.#grid.tickRows(view.rows, view.window?.offset ?? 0, view.window?.total ?? view.rows.rowCount,
-        this.#heatmaps.size > 0, view.snapshot.rows.length > 0 || view.snapshot.sorts.length === 0);
+        this.#heatmaps.size > 0 || this.#conditionals.size > 0,
+        view.snapshot.rows.length > 0 || view.snapshot.sorts.length === 0);
       // the status bar's count drawn again when the tick brought or took rows: a tick that moved values leaves it --
       // but for the selection's figures (its sum, average, least and greatest), which read the values the tick moved
       if (statusCount(view) !== this.#statusCounted) this.#renderStatusBar(view, model.leaves.length);
@@ -2092,6 +2117,10 @@ export class CubeApp {
     for (const [leaf, heat] of measureHeatmaps(view, this.#treeRows, (name) => this.#heatmapFor(name))) {
       this.#heatmaps.set(leaf, heat);
     }
+    this.#conditionals.clear();
+    for (const [leaf, c] of measureConditionals(view, this.#treeRows, (name) => conditionalSetting(this.#config, view, name))) {
+      this.#conditionals.set(leaf, c);
+    }
   }
 
   /**
@@ -2105,6 +2134,15 @@ export class CubeApp {
    */
   #heatmapFor(leafName: string): HeatmapSpec | undefined {
     return heatmapSetting(this.#config, this.#view ?? undefined, leafName);
+  }
+
+  /** What the menu's Conditional Formatting ▸ says of a leaf: its data bars, its icons, how many rules. */
+  #conditionalFacts(leafName: string): ConditionalFacts {
+    const c = conditionalSetting(this.#config, this.#view ?? undefined, leafName);
+    return {
+      dataBar: c?.dataBar !== undefined, rules: c?.rules?.length ?? 0, scale: this.#heatmapFor(leafName) !== undefined,
+      ...(c?.iconSet ? { iconSet: c.iconSet.set } : {}),
+    };
   }
 
   /**
@@ -2161,6 +2199,7 @@ export class CubeApp {
       // region, and the desk beneath it filters desk. Their menu
       // resolves it the same way, from the node's level.
       let value: FilterValue | null | undefined;
+      let raw: unknown;
       let columnType: string | undefined;
       const cell = el.closest<HTMLElement>('.dc-cell');
       const row = cell?.closest<HTMLElement>('.dc-row');
@@ -2179,19 +2218,22 @@ export class CubeApp {
           // total's path is empty and offers no value filter.
           const path = meta?.path ?? [];
           column = this.#shown.rows[path.length - 1];
-          value = path.length > 0 ? (path[path.length - 1] ?? null) : undefined;
+          raw = path.length > 0 ? (path[path.length - 1] ?? null) : undefined;
         } else if (column !== undefined) {
           const leaf = this.#view.columns.leaves.find(
             (l) => l.name === column,
           );
-          const raw =
-            leaf === undefined
-              ? null
-              : (this.#view.rows.columns[leaf.index]?.values[abs - (this.#view.window?.offset ?? 0)] ?? null);
-          // a big integer as its digits: a filter value is saved as JSON, which has no
-          // bigint; `literal` spells the digits by the column's type
-          value = (typeof raw === 'bigint' ? raw.toString() : raw) as FilterValue | null;
+          raw = leaf === undefined ? null
+            : (this.#view.rows.columns[leaf.index]?.values[abs - (this.#view.window?.offset ?? 0)] ?? null);
         }
+        if (column !== undefined) {
+          columnType = rowColumns(this.#shown).find(
+            (c) => c.name === column,
+          )?.type;
+        }
+        // the cell's or the key's value as a filter takes it, by the value list's one rule (value-filter.ts
+        // cellFilterValue): a big integer as its digits, a JSON cell's text as a document (`fromJson`)
+        if (raw !== undefined) value = cellFilterValue(raw, columnType);
         // A PIVOT'S OWN COLUMN -- a cell or a Total -- exists only after
         // the pivot, and every filter runs before it: a value filter on
         // one could only be refused (P2-134). Its row keys and its pivot
@@ -2200,14 +2242,6 @@ export class CubeApp {
           && (isPivotTotalColumn(column) || this.#pivotMeasureOf(column) !== undefined)) {
           value = undefined;
         }
-        if (column !== undefined) {
-          columnType = rowColumns(this.#shown).find(
-            (c) => c.name === column,
-          )?.type;
-        }
-        // a JSON cell or key is its JSON text; as a filter value it is a document
-        // (`fromJson`), as query.ts reads a JSON group key
-        if (isVariant(columnType) && typeof value === 'string') value = { json: value };
         // A group-stage calculated column exists only AFTER the
         // groupBy, and every filter runs before it -- so a value
         // filter on one could only ever be refused.
@@ -2241,6 +2275,8 @@ export class CubeApp {
       // the host's Join ▸ on the column clicked, and its Create ▸ entries: theirs to answer (#onHostAction)
       const join = this.#options.joinMenu?.(column !== TREE_COLUMN ? column : undefined) ?? [];
       this.#cellHost = join;
+      const related = this.#relatedOffers();
+      const measures = this.#modelMeasures();
       const groups = buildMenu({
         snapshot: this.#shown,
         ...(join.length > 0 && !this.#adhoc ? { join } : {}),
@@ -2262,6 +2298,7 @@ export class CubeApp {
         hasExpanded: this.#owner.current.tree.opensAny(this.#shown.rows.length),
         hasHeatmap:
           column !== undefined && this.#heatmapFor(column) !== undefined,
+        ...(column !== undefined ? { conditional: this.#conditionalFacts(column) } : {}),
         ...(this.#config.pivotStatisticColumnName !== undefined
           ? { totalLabel: this.#config.pivotStatisticColumnName }
           : {}),
@@ -2279,6 +2316,11 @@ export class CubeApp {
           ? { extendable: true }
           : {}),
         ...(column !== undefined ? calcStageOf(this.#shown, column) : {}),
+        ...(column !== undefined && this.#shown.derived.some((d) => d.name === column && d.related !== undefined) ? { relatedColumn: true } : {}),
+        ...(column !== undefined && this.#shown.derived.some((d) => d.name === column && d.groups !== undefined) ? { groupsColumn: true } : {}),
+        ...(column !== undefined && rowColumns(this.#shown).some((c) => c.name === column) ? { groupable: true } : {}),
+        ...(related.length > 0 ? { related } : {}),
+        ...(measures.length > 0 ? { modelMeasures: measures.map((m) => ({ name: m.name, path: m.path, ...(m.doc !== undefined ? { doc: m.doc } : {}) })) } : {}),
         ...facts,
         ...(value !== undefined ? { value } : {}),
         ...(columnType !== undefined ? { columnType } : {}),
@@ -2289,6 +2331,57 @@ export class CubeApp {
         ? { top: scroller.scrollTop, left: scroller.scrollLeft }
         : null;
     });
+  }
+
+  /** The related columns one hop from the grid's class it has not yet (class-tree.ts relatedOffers): the header menu's
+   *  Add Related Column ▸. None on a grid over anything but a class whose tree its opener read. */
+  #relatedOffers(): RelatedOffer[] {
+    const of = this.#options.classTree;
+    if (of === undefined) return [];
+    const has = new Set(this.#shown.derived.flatMap((d) => (d.related ? [relatedName(d.related)] : [])));
+    return relatedOffers(of.tree, of.class)
+      .map((o) => ({ ...o, columns: o.columns.filter((c) => !has.has(relatedName(c))) }))
+      .filter((o) => o.columns.length > 0);
+  }
+
+  /** The model's measures of the grid's class (class-tree.ts measuresOf) it has not yet: Add Model Measure ▸. */
+  #modelMeasures(): ModelMeasure[] {
+    const of = this.#options.classTree;
+    if (of?.measures === undefined) return [];
+    const has = new Set([...this.#snapshot.derived, ...(this.#snapshot.groupDerived ?? [])].map((d) => d.name));
+    return measuresOf(of.measures, () => of.supertypes ?? [], of.class).filter((m) => !has.has(m.name));
+  }
+
+  /** A MODEL MEASURE ADDED (Add Model Measure ▸; model-measure-commands.ts, fetched with the first): the steps a person
+   *  would make. */
+  async #addModelMeasure(path: string): Promise<void> {
+    const of = this.#options.classTree;
+    const measure = of?.measures?.find((m) => m.path === path);
+    if (of === undefined || measure === undefined) return;
+    const { modelMeasureCommands } = await lazily(() => import('./model-measure-commands.ts'));
+    let commands: GridCommand[];
+    try {
+      commands = modelMeasureCommands(this.#snapshot, of.tree, of.class, of.measures ?? [], measure);
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      this.#status(`Could not add ${measure.name}: ${e.message}`, 'error');
+      return;
+    }
+    const refused = await this.#apply(commands, `measure ${measure.name}`);
+    if (refused) this.#status(`Could not add ${measure.name}: ${refused}`, 'error');
+  }
+
+  /**
+   * A RELATED COLUMN ADDED (Add Related Column ▸; snapshot.ts RelatedPath), as the column editor's Add adds a column (the
+   * `column.calculate` gesture): named after its path (`customer_region`), else that with `_2`, `_3`… where the grid has
+   * a column of it; a measure when it aggregates, else a dimension -- a related class's value is what a grid groups by.
+   */
+  async #addRelated(related: RelatedPath): Promise<void> {
+    const base = relatedName(related);
+    let name = base;
+    for (let i = 2; nameProblem(this.#snapshot, 'row', name) !== null; i += 1) name = `${base}_${i}`;
+    await this.#gesture('column.calculate',
+      { level: 'row', column: { name, related, kind: related.aggregate !== undefined ? 'measure' : 'dimension' } }, `related column ${name}`);
   }
 
   #onMenuAction(item: MenuItem): void {
@@ -2317,19 +2410,22 @@ export class CubeApp {
         this.#autoSize(null);
         return;
       case 'copy.selection':
-        this.#copyWhole((view) => this.#selectionCsv(view));
+        this.#copyWhole((view) => this.#selectionText(view));
         return;
       case 'copy.column':
-        if (column) this.#copyWhole((view) => this.#columnCsv(view, column));
+        if (column) this.#copyWhole((view) => this.#columnText(view, column));
         return;
       case 'view.properties':
         this.openEditor(item.column);
+        return;
+      case 'view.shortcuts':
+        this.showShortcuts();
         return;
       case 'view.controls':
         this.setControlsHidden(!this.#controlsHidden);
         return;
       case 'copy.rows':
-        this.#copyWhole((view) => this.#rowsCsv(view));
+        this.#copyWhole((view) => this.#rowsText(view));
         return;
       case 'grid.sizeToFit':
         this.#sizeToFit();
@@ -2368,10 +2464,22 @@ export class CubeApp {
           }
         }
         return;
+      case 'calc.related':
+        if (item.related) void this.#addRelated(item.related);
+        return;
+      case 'calc.groupValues':
+        if (column) void this.openGroupValues(column);
+        return;
+      case 'calc.editGroups':
+        if (column) void this.openGroupValues(column, column);
+        return;
+      case 'calc.modelMeasure':
+        if (item.measure) void this.#addModelMeasure(item.measure);
+        return;
       case 'calc.showAs':
         if (column && item.showAs) {
           void this.#addPreset({ kind: 'showAs', column, showAs: item.showAs },
-            `${column} as ${SHOW_AS_LABELS[item.showAs].toLowerCase()}`);
+            `${column} as ${GRID_SHOW_AS_LABELS[item.showAs].toLowerCase()}`);
         }
         return;
       case 'calc.edit':
@@ -2413,6 +2521,9 @@ export class CubeApp {
       case 'chart.plot':
         void this.openChart();
         return;
+      case 'text.new':
+        void this.newText();
+        return;
       case 'source.new':
         void this.newSource();
         return;
@@ -2442,6 +2553,9 @@ export class CubeApp {
         return;
       case 'filter.column':
         this.openFilters();
+        return;
+      case 'filter.valueList':
+        if (column) void this.openValueList(column);
         return;
       default:
         return;
@@ -2615,23 +2729,25 @@ export class CubeApp {
     });
   }
 
-  #selectionCsv(view: CubeView): string {
-    const table = view.rows;
+  // The menu's copies are the clipboard's text, as Ctrl+C's are (the grid's copySelection): tab-separated with no
+  // byte-order mark, so a paste fills a spreadsheet's columns -- not a CSV file's text, which lands in one column.
+  #selectionText(view: CubeView): string {
     if (!this.#selection) return '';
-    return toCsv(selectionTable(table, this.#grid.columns?.leaves ?? [], this.#selection));
+    return toClipboard(selectionTable(view.rows, this.#grid.columns?.leaves ?? [], this.#selection, this.#treeHeader()));
   }
 
-  #columnCsv(view: CubeView, column: string): string {
-    const leaf = view.columns.leaves.find((l) => l.name === column);
-    if (!leaf) return '';
-    const src = view.rows.columns[leaf.index];
-    if (!src) return '';
-    return toCsv({
-      columns: [src],
-      rowCount: view.rows.rowCount,
-      epoch: view.rows.epoch,
-      elapsedMs: 0,
-    });
+  /** The tree column's heading in a copy, as an export heads it: the shown grid's groups, by their labels. */
+  #treeHeader(): string {
+    return treeHeaderText((this.#view?.snapshot.rows ?? []).map((name) => labelFor(this.#config, name)));
+  }
+
+  /** One column, every row, headed as a selection's copy is (its label; the tree, what it groups by). */
+  #columnText(view: CubeView, column: string): string {
+    if (view.rows.rowCount === 0) return '';
+    const col = view.columns.leaves.findIndex((l) => l.name === column);
+    if (col < 0) return '';
+    return toClipboard(selectionTable(view.rows, view.columns.leaves,
+      { anchor: { row: 0, col }, focus: { row: view.rows.rowCount - 1, col } }, this.#treeHeader()));
   }
 
   /**
@@ -2639,21 +2755,13 @@ export class CubeApp {
    * Rows as Plain Text". Through the column model, so hidden columns
    * and the tree's machinery stay out.
    */
-  #rowsCsv(view: CubeView): string {
+  #rowsText(view: CubeView): string {
     const sel = this.#selection;
     if (!sel) return '';
-    const top = Math.min(sel.anchor.row, sel.focus.row);
-    const bottom = Math.max(sel.anchor.row, sel.focus.row);
-    const columns = view.columns.leaves.flatMap((l) => {
-      const c = view.rows.columns[l.index];
-      return c ? [{ ...c, values: c.values.slice(top, bottom + 1) }] : [];
-    });
-    return toCsv({
-      columns,
-      rowCount: bottom - top + 1,
-      epoch: view.rows.epoch,
-      elapsedMs: 0,
-    });
+    const last = view.columns.leaves.length - 1;
+    if (last < 0) return '';
+    return toClipboard(selectionTable(view.rows, view.columns.leaves,
+      { anchor: { row: sel.anchor.row, col: 0 }, focus: { row: sel.focus.row, col: last } }, this.#treeHeader()));
   }
 
   /**
@@ -2701,7 +2809,128 @@ export class CubeApp {
     this.#status('copied', 'ok');
   }
 
+  /**
+   * THE VALUE LIST of `column` (Filter ▸ Filter Values..., Excel's autofilter): its values with how many rows each has,
+   * under the grid's other filters -- the database's answer (query.ts columnValuesLambda) -- each ticked when the
+   * filter keeps it now (the same question, the column's own conditions kept). OK keeps the ticked ones in place of
+   * the column's own conditions: the 'filter.values' gesture, Python's grid.filter_values.
+   */
+  async openValueList(column: string): Promise<void> {
+    const view = this.#view;
+    if (!view) return;
+    const s = view.snapshot;
+    const type = rowColumns(s).find((c) => c.name === column)?.type;
+    let offered: ResultTable;
+    let kept: ResultTable;
+    try {
+      [{ rows: offered }, { rows: kept }] = await Promise.all([
+        this.#controller.runQuery(columnValuesLambda(s, column), s),
+        this.#controller.runQuery(columnValuesLambda(s, column, true), s),
+      ]);
+    } catch (error: unknown) {
+      if (!this.#disposed) this.#reportFailure(error);
+      return;
+    }
+    if (this.#disposed) return;
+    const valuesOf = (t: ResultTable): (FilterValue | null)[] =>
+      (t.columns.find((c) => c.name === column)?.values ?? []).slice(0, MAX_FILTER_VALUES)
+        .map((v) => cellFilterValue(v, type));
+    const counts = offered.columns.find((c) => c.name === VALUE_COUNT_COLUMN)?.values ?? [];
+    const keyOf = (v: FilterValue | null): string => JSON.stringify(v);
+    const ticked = new Set(valuesOf(kept).map(keyOf));
+    const format = this.#formats[column];
+    const values = valuesOf(offered).map((value, i) => ({
+      value,
+      label: value === null ? '(Blank)' : this.#formatters.format(offered.columns.find((c) => c.name === column)?.values[i] ?? null, format, type),
+      rows: Number(counts[i] ?? 0).toLocaleString(UI_LOCALE),
+    }));
+    const named = labelFor(this.#config, column);
+    this.#showOverlay('Filter Values', (host, close) => {
+      host.replaceChildren(valueList(this.#doc, {
+        values,
+        ticked: (v) => ticked.has(keyOf(v)),
+        cut: offered.rowCount > MAX_FILTER_VALUES,
+        onOk: (keep) => {
+          close();
+          void this.#gestureGiven('filter.values', { column, values: keep }, `filter ${named}`);
+        },
+        onCancel: close,
+      }));
+    }, { replace: true });
+  }
+
+  /**
+   * THE GROUP VALUES WINDOW of `column` (Extended Columns ▸ Group Values of X..., Tableau's groups): its values as the
+   * Filter Values window lists them, ticked and named into groups; OK makes the column (`column.calculate`) or, editing
+   * the groups column `editing`, remakes it (`column.editCalculated`). Refused, the gesture's words are said in the
+   * window, which stays open. The window is a chunk of its own, fetched with the first one opened.
+   */
+  async openGroupValues(column: string, editing?: string): Promise<void> {
+    const view = this.#view;
+    if (!view) return;
+    const s = view.snapshot;
+    const was = editing !== undefined ? s.derived.find((d) => d.name === editing)?.groups : undefined;
+    const of = was?.of ?? column;
+    const type = rowColumns(s).find((c) => c.name === of)?.type;
+    let offered: ResultTable;
+    try {
+      ({ rows: offered } = await this.#controller.runQuery(columnValuesLambda(s, of), s));
+    } catch (error: unknown) {
+      if (!this.#disposed) this.#reportFailure(error);
+      return;
+    }
+    if (this.#disposed) return;
+    const raw = (offered.columns.find((c) => c.name === of)?.values ?? []).slice(0, MAX_FILTER_VALUES);
+    const values = raw.map((v) => {
+      const value = cellFilterValue(v, type);
+      return { value, label: value === null ? '(Blank)' : this.#formatters.format(v, this.#formats[of], type), rows: '' };
+    });
+    // the window a chunk of its own, fetched with the first one opened
+    const { groupValues } = await lazily(() => import('./ui/group-values.ts'));
+    if (this.#disposed) return;
+    let suggested = `${of}_group`;
+    for (let i = 2; editing === undefined && nameProblem(this.#snapshot, 'row', suggested) !== null; i += 1) suggested = `${of}_group_${i}`;
+    this.#showOverlay(editing !== undefined ? 'Edit Groups' : 'Group Values', (host, close) => {
+      host.replaceChildren(groupValues(this.#doc, {
+        column: of, values, ...(was ? { groups: was } : {}), name: editing ?? suggested,
+        // the gesture judges it (the command's rules); refused, the words are said in the window, which stays open
+        onOk: async (name, groups) => {
+          const made: DerivedColumn = { name, groups, kind: 'dimension' };
+          const refused = editing !== undefined
+            ? await this.#gesture('column.editCalculated', { name: editing, level: 'row', column: made }, `groups ${name}`)
+            : await this.#gesture('column.calculate', { level: 'row', column: made }, `groups ${name}`);
+          if (refused === null) close();
+          return refused;
+        },
+        onCancel: close,
+      }));
+    }, { replace: true });
+  }
+
+  /** The keyboard shortcuts, in a window of their own (Edit ▸ Keyboard Shortcuts..., the ? key). */
+  showShortcuts(): void {
+    this.#showOverlay('Keyboard Shortcuts', (host) => {
+      host.replaceChildren(shortcutsTable(this.#doc));
+    }, { replace: true });
+  }
+
   // -- drill-through ----------------------------------------------------
+
+  /**
+   * A double-click, as an Excel pivot takes one: on a group's label it opens or closes the group; on a value it shows
+   * the rows behind it (the drill-through Enter gives).
+   */
+  #onDoubleClickCell(row: number, column: number): void {
+    const leaf = this.#view?.columns.leaves[column];
+    if (leaf?.name === TREE_COLUMN) {
+      const meta = this.#treeRows[row];
+      if (meta?.isGroup) {
+        void this.#gesture('tree.open', { path: meta.path, open: !meta.expanded }, meta.expanded ? 'collapse' : 'expand');
+      }
+      return;
+    }
+    void this.#drillThrough(row, column);
+  }
 
   /**
    * The rows behind one aggregate.
@@ -2742,11 +2971,39 @@ export class CubeApp {
     // LATEST WINS: two drills in quick succession answered in either
     // order, and whichever answered last took the window (P2-131).
     if (drill !== this.#drills || this.#disposed) return;
+    const limit = DEFAULT_DRILL_LIMIT;
+    const where = drillConditions(view.snapshot, { path: meta.path, ...(pivotPath ? { pivotPath } : {}) })
+      .map((c) => conditionWords(c)).join(' and ');
+    const count = table.rowCount >= limit ? `The first ${limit.toLocaleString(UI_LOCALE)} rows`
+      : `${table.rowCount.toLocaleString(UI_LOCALE)} ${table.rowCount === 1 ? 'row' : 'rows'}`;
+    const label = (name: string): string => labelFor(this.#config, name);
     this.#showOverlay('Drill-through', (host) => {
-      const pre = this.#doc.createElement('pre');
-      pre.className = 'dc-drill';
-      pre.textContent = toCsv(table);
-      host.append(pre);
+      this.#drillGrid?.destroy();
+      const bar = this.#doc.createElement('div');
+      bar.className = 'dc-drill-bar';
+      const caption = this.#doc.createElement('span');
+      caption.className = 'dc-drill-caption';
+      caption.textContent = where === '' ? count : `${count} where ${where}`;
+      const copy = this.#doc.createElement('button');
+      copy.type = 'button';
+      copy.className = 'dc-button';
+      copy.textContent = 'Copy';
+      copy.addEventListener('click', () =>
+        this.#copy(toClipboard({ ...table, columns: table.columns.map((c) => ({ ...c, name: label(c.name) })) })));
+      bar.append(caption, copy);
+      // The rows in a grid of their own, formatted as this cube formats its columns and headed by their labels.
+      const rows = this.#doc.createElement('div');
+      rows.className = 'dc-drill';
+      host.replaceChildren(bar, rows);
+      const grid = new DataGrid(rows, this.#formatters, {
+        formats: this.#formats,
+        ...(this.#options.writeClipboard ? { writeClipboard: this.#options.writeClipboard } : {}),
+      });
+      grid.setColumns(buildColumnModel(table, [], [], {
+        displayNames: Object.fromEntries(table.columns.map((c) => [c.name, label(c.name)])),
+      }));
+      grid.setRows(table, 0, table.rowCount);
+      this.#drillGrid = grid;
     }, { replace: true });
   }
 
@@ -2764,6 +3021,15 @@ export class CubeApp {
     (await this.#ensurePage())?.openChart(restore);
     // a saved chart put back is no edit: the board's state keeps it as it is
     if (restore) this.#pageChanged();
+  }
+
+  /** Create ▸ Text Box: a text tile on the page, beside this grid (page/cube-page.ts `addText`). */
+  async newText(): Promise<void> {
+    if (this.#options.onText) {
+      this.#options.onText();
+      return;
+    }
+    (await this.#ensurePage())?.addText();
   }
 
   /** Another grid on the page, starting as this one is (page/cube-page.ts `addGrid`). */
@@ -2993,7 +3259,7 @@ export class CubeApp {
   #boardSeen(page: CubePage, idsOf: (page: PageDocument) => string[]): PageDraft {
     const cube = this.cubeDocument('');
     const views = page.views((grid) => (grid === 'grid' ? PAGE_CUBE : grid));
-    const others = [...new Set(views.views.map((v) => v.cube))].filter((id) => id !== PAGE_CUBE).flatMap((id) => {
+    const others = [...new Set(views.views.flatMap((v) => (v.cube === undefined ? [] : [v.cube])))].filter((id) => id !== PAGE_CUBE).flatMap((id) => {
       const doc = page.documentOf(id);
       return doc ? [{ id, cube: doc }] : [];
     });
@@ -3032,12 +3298,12 @@ export class CubeApp {
 
   /**
    * What the cube shows around itself, as a saved page keeps it: the grid, each chart (its
-   * title, spec, and the mark it filters to) and the layout. A cube with no charts is a page
-   * of its grid alone, the whole board.
+   * title, spec, and the mark it filters to), each text tile and the layout. A cube with no
+   * charts and no text tiles is a page of its grid alone, the whole board.
    */
   pageViews(): PageViews {
     const page = this.#page?.page;
-    if (!page || page.charts === 0) return startingViews({ id: 'grid', cube: PAGE_CUBE });
+    if (!page || page.charts + page.texts === 0) return startingViews({ id: 'grid', cube: PAGE_CUBE });
     return page.views();
   }
 
@@ -3067,9 +3333,9 @@ export class CubeApp {
     return this.#page?.page.editing ?? true;
   }
 
-  /** Put a saved page's views back around the cube: its charts, their titles, its layout. */
+  /** Put a saved page's views back around the cube: its charts and text tiles, their titles, its layout. */
   async restoreViews(page: PageViews): Promise<void> {
-    if (!page.views.some((v) => v.kind === 'chart')) return;
+    if (!page.views.some((v) => v.kind !== 'grid')) return;
     (await this.#ensurePage())?.restore(page);
     // a saved page put back is no edit: the board's state keeps it as it is
     this.#pageChanged();
@@ -3090,7 +3356,9 @@ export class CubeApp {
     const page = this.#exportPage();
     return renderExport(kind, {
       view, model, config: this.#config, formats: this.#formats, formatters: this.#formatters,
-      cellBackground: (leaf, row, value) => this.#heatFor(leaf, row, value), ...(page ? { page } : {}), at: new Date(),
+      cellBackground: (leaf, row, value) => this.#heatFor(leaf, row, value),
+      cellDecoration: (leaf, row, value) => cellDecoration(this.#conditionals, this.#treeRows, leaf, row, value),
+      ...(page ? { page } : {}), at: new Date(),
     });
   }
 
@@ -3165,7 +3433,7 @@ export class CubeApp {
   /** The board as an export carries it: each tile where it is, each chart as its picture; none without charts. */
   #exportPage(): ExportPage | undefined {
     const page = this.#page?.page;
-    if (page) return page.charts > 0 ? page.exportPage() : undefined;
+    if (page) return page.charts + page.texts > 0 ? page.exportPage() : undefined;
     // a grid on a page of its own: the page's, this grid its table
     return this.#options.exportPage?.();
   }
@@ -3504,6 +3772,16 @@ export class CubeApp {
   openColumnEditor(start: ColumnEditorStart): void {
     if (this.#cubeOnly()) return;
     const editing = 'edit' in start ? start.edit : undefined;
+    // a related column is the class tree's (Add Related Column), never a formula: its editor would open on none
+    if (editing !== undefined && this.#snapshot.derived.some((d) => d.name === editing && d.related !== undefined)) {
+      this.#status(`${editing} is a related column: delete it and add another from Add Related Column`, 'warn');
+      return;
+    }
+    // a groups column is its groups', edited in their window, never a formula
+    if (editing !== undefined && this.#snapshot.derived.some((d) => d.name === editing && d.groups !== undefined)) {
+      void this.openGroupValues(editing, editing);
+      return;
+    }
     const key = editing !== undefined
       ? `column:${editing}`
       : `column:new:${(this.#newColumns += 1)}`;
@@ -4400,6 +4678,13 @@ export class CubeApp {
     this.#els.root.addEventListener('pointerdown', this.#onTouch, true);
     this.#els.root.addEventListener('focusin', this.#onTouch, true);
     this.#onDocKey = (event: KeyboardEvent): void => {
+      // ? shows the keyboard shortcuts, as a spreadsheet's and a web app's does -- never while typing one
+      if (event.key === '?' && !event.ctrlKey && !event.metaKey && !event.altKey
+        && this.#ownsKey(event.target) && !isTextEntry(event.target)) {
+        event.preventDefault();
+        this.showShortcuts();
+        return;
+      }
       if (!(event.ctrlKey || event.metaKey)) return;
       if (!this.#ownsKey(event.target)) return;
       const key = event.key.toLowerCase();
@@ -4595,5 +4880,6 @@ function readsOf(d: DerivedColumn): string[] {
     d.window.order.forEach((o) => add(o.column));
   }
   if (d.childAggregate) add(d.childAggregate.of);
+  if (d.grain) add(d.grain.of);
   return out;
 }

@@ -172,6 +172,14 @@ export function randomEdit(rand: () => number, d: Walked): [string, GridCommand]
       return [`${open ? 'open' : 'close'} ${path.join('/')}`, { kind: 'open', path, open }];
     }],
     ['collapse all', () => ['collapse all', { kind: 'collapseAll' }]],
+    ['expand all', () => ['expand all', { kind: 'expandAll' }]],
+    ['a top N', () => {
+      if (rand() < 0.3) return ['top N off', { kind: 'topN', topN: null }];
+      const by = pick(['notional', 'qty']);
+      const n = pick([1, 2, 3]);
+      const bottom = rand() < 0.5;
+      return [`${bottom ? 'bottom' : 'top'} ${n} by ${by}`, { kind: 'topN', topN: { by, n, ...(bottom ? { bottom: true } : {}) } }];
+    }],
     ['a setting', () => {
       const column = pick(columns);
       // as the configure command takes them: null clears a setting
@@ -191,6 +199,12 @@ export function randomEdit(rand: () => number, d: Walked): [string, GridCommand]
         ['pivot sort', { columns: { [column]: { pivotSortDirection: pick(['asc', 'desc'] as const) } } }],
         ['leaf count mode', { leafCountMode: pick(['children', 'leaves'] as const) }],
         ['grouped columns kept', { showGroupedColumns: rand() < 0.5 }],
+        // the conditional formats and a format code (conditional.ts, format-code.ts), set and cleared
+        ['data bar', { columns: { [column]: { dataBar: rand() < 0.7 ? { color: '#5b9bd5' } : null } } }],
+        ['icon set', { columns: { [column]: { iconSet: rand() < 0.7 ? { set: 'arrows' } : null } } }],
+        ['rules', { columns: { [column]: { rules: rand() < 0.7 ? [{ when: { op: 'greaterThan', value: 1 }, style: { foreground: '#c00000' } }] : null } } }],
+        // set, or the format taken off whole (a format with no code has none: configure refuses a null code)
+        ['format code', { columns: { [column]: { format: rand() < 0.7 ? { kind: 'auto', code: '#,##0.00' } : null } } }],
       ];
       const [name, patch] = pick(patches);
       return [`setting ${name}`, { kind: 'configure', patch }];

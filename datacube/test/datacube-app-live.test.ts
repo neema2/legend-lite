@@ -67,7 +67,8 @@ afterEach(() => {
 
 /** The app opened on `editor`'s page, as a tab opens it: what it watches through, and its page's text. `host`: more of
  *  the host's database (its asks a test holds). */
-async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>, host: Record<string, unknown> = {}):
+async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>, host: Record<string, unknown> = {},
+  engine: Record<string, unknown> = {}):
   Promise<{ moved: (version: number) => void; unwatched: () => boolean; text: () => string; shown: () => number | undefined }> {
   const watchers: ((now: { version: number; frames: Record<string, number> } | string) => void)[] = [];
   let unwatched = false;
@@ -81,6 +82,7 @@ async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>
       rows: () => ({ planner: new StubPlanner(), engine: new GateEngine() }),
       // a source to pick: the page offers New ▸ Blank Page; the host's frames, as the test says them
       database: { ingestFile: async () => { throw new Error('no file here'); }, ...(frame ? { frame } : {}), ...host },
+      ...engine,
     },
     live: {
       page: editor,
@@ -237,6 +239,11 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
       .find((i) => i.querySelector('.dc-menu-label')?.textContent === 'Grid over Trade'
         && i.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Create');
     assert.ok(item, `offered on Python's page: ${[...doc.querySelectorAll('.dc-menu [role="menuitem"]')].map((i) => i.textContent).join(' | ')}`);
+    // its Join ▸, on a host's page that makes no joins: there all the same, greyed, saying why (the user, 2026-10-24)
+    assert.deepEqual([...doc.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')]
+      .filter((i) => i.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Join')
+      .map((i) => [i.querySelector('.dc-menu-label')?.textContent, i.getAttribute('aria-disabled'), i.title]),
+    [['Join…', 'true', "This page's host makes no joins"]]);
     item.click();
     for (let i = 0; i < 5; i += 1) await settle();
     // made by the host -- the page's model, the class as class-source.ts classGiven takes it, beside the grid's one other
@@ -244,6 +251,37 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     assert.deepEqual(JSON.parse(asked[0]![1] as string).classes, model.classes);
     assert.equal(asked[0]![2], '{"class":"p::domain::Trade"}');
     assert.equal(asked[0]![4], 2, 'a grid beside another: capped');
+  });
+
+  // the user, 2026-10-24: a grid's Join ▸ is always there -- what it can join, or greyed saying why
+  describe("a grid's right-click Join ▸, on every page", () => {
+    /** The page's one grid right-clicked: its Join ▸'s entries, each its label, whether greyed, and its hint. */
+    async function joinMenuOf(host: Record<string, unknown>, engine: Record<string, unknown> = {}): Promise<(string | null | undefined)[][]> {
+      // the keeper holds the page (test/fake-keeper.ts): a read made to say another would leave the tab converging on it
+      const trades = (await corpus())['trades.page.json']!;
+      const editor = new Editor(trades, idsOf(trades));
+      await opened(editor, async () => ({ version: 0, model: '', runtime: '', source: { _type: 'packageableElementPtr', fullPath: 'trades' } }), host, engine);
+      for (let i = 0; i < 5; i += 1) await settle();
+      const doc = dom.window.document;
+      const cell = doc.querySelector<HTMLElement>('[data-tile] .dc-row .dc-cell');
+      assert.ok(cell, "the grid's rows");
+      cell.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      return [...doc.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')]
+        .filter((i) => i.parentElement?.closest('.dc-menu-item')?.querySelector(':scope > .dc-menu-label')?.textContent === 'Join')
+        .map((i) => [i.querySelector('.dc-menu-label')?.textContent, i.getAttribute('aria-disabled'), i.title]);
+    }
+
+    it("a host that makes joins: its window, and a data source's, to join to", async () => {
+      const no = async (): Promise<never> => { throw new Error('not asked here'); };
+      const items = await joinMenuOf({ join: { sides: no, questions: no, cube: no } });
+      assert.deepEqual(items.map(([label, disabled]) => [label, disabled]),
+        [['No other grid has a column region', 'true'], ['Join…', null], ['Join a Data Source…', null]]);
+    });
+
+    it("a grid whose rows are no table the page's own database holds: greyed, saying so", async () => {
+      assert.deepEqual(await joinMenuOf({}, { local: { planner: new StubPlanner(), engine: new GateEngine() } }),
+        [['Join…', 'true', "A join reads tables this page holds, and this grid's rows are none of them"]]);
+    });
   });
 
   it('the editor is told, as it is asked, the version on screen: the copies it reads stay until it moves past them (Z17)', async () => {

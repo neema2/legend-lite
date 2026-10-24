@@ -13,11 +13,12 @@ _ABSENT: Any = object()
 
 GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort',
                                'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate', 'editCalculated',
-                               'removeCalculated', 'open', 'collapseAll', 'tree',)
+                               'removeCalculated', 'open', 'collapseAll', 'expandAll', 'topN', 'tree',)
 PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet',
-                               'renameTile', 'addGrid', 'addChart', 'setChart', 'followGrid', 'detach', 'select',
-                               'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter',
-                               'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto', 'modelPin', 'modelKeep',)
+                               'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText', 'followGrid',
+                               'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout',
+                               'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto', 'modelPin',
+                               'modelKeep',)
 
 
 def grid_group(*, rows: Any) -> dict[str, Any]:
@@ -89,6 +90,14 @@ def grid_collapse_all() -> dict[str, Any]:
     return {'kind': 'collapseAll'}
 
 
+def grid_expand_all() -> dict[str, Any]:
+    return {'kind': 'expandAll'}
+
+
+def grid_top_n(*, top_n: Any) -> dict[str, Any]:
+    return {'kind': 'topN', 'topN': top_n}
+
+
 def grid_tree(*, open: Any, show_totals: Any, expand_to: Any = _ABSENT, closed: Any = _ABSENT) -> dict[str, Any]:
     return {'kind': 'tree', 'open': open, 'showTotals': show_totals,
             **({} if expand_to is _ABSENT else {'expandTo': expand_to}),
@@ -136,6 +145,15 @@ def page_add_chart(*, id: Any = _ABSENT, near: Any, spec: Any, title: Any, colum
 
 def page_set_chart(*, chart: Any, spec: Any) -> dict[str, Any]:
     return {'kind': 'setChart', 'chart': chart, 'spec': spec}
+
+
+def page_add_text(*, id: Any = _ABSENT, sheet: Any, text: Any, title: Any, columns: Any) -> dict[str, Any]:
+    return {'kind': 'addText', **({} if id is _ABSENT else {'id': id}), 'sheet': sheet, 'text': text, 'title': title,
+            'columns': columns}
+
+
+def page_set_text(*, tile: Any, text: Any) -> dict[str, Any]:
+    return {'kind': 'setText', 'tile': tile, 'text': text}
 
 
 def page_follow_grid(*, chart: Any, grid: Any) -> dict[str, Any]:

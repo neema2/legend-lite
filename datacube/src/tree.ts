@@ -249,6 +249,14 @@ export class TreeState {
     return new TreeState(new Set(), this.#showTotals);
   }
 
+  /**
+   * Expand All opens every group above the detail rows, `depth` the grid's row groups -- the closes made by hand
+   * forgotten. The deepest groups stay shut: open, each would ask for its source rows.
+   */
+  expandAll(depth: number): TreeState {
+    return new TreeState(new Set(), this.#showTotals, Math.max(0, depth));
+  }
+
   withTotals(show: boolean): TreeState {
     return new TreeState(this.#open, show, this.#expandTo, this.#closed);
   }

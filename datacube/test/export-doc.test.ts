@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { toPdf, toPlainText, winAnsiByte } from '../src/export-doc.ts';
+import { toHtml } from '../src/export-rich.ts';
 import { exportTable, type ExportTable } from '../src/export-model.ts';
 import { buildColumnModel } from '../src/grid/columns.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
@@ -157,6 +158,15 @@ describe('the whole page in a PDF: the board as laid out, the table in its tile'
     assert.match(pdf, /\/MediaBox \[0 0 842 595\]/);
     assert.ok(pdf.includes('(Region 1) Tj'), 'the table\'s cells are on the dashboard');
     consistent(pdf);
+  });
+
+  it("a text tile's words in its tile, a line a block as the board drew them; in the page's HTML as drawn", () => {
+    const text = { html: '<div class="dc-text-tile"><h3>Q3</h3><p>By &lt;desk&gt;</p></div>', lines: ['Q3', 'By <desk>', '- EMEA'] };
+    const page = { ...board(14), tiles: [...board(14).tiles, { id: 'text-1', kind: 'text' as const, title: 'Notes', x: 6, y: 14, w: 6, h: 10, text }] };
+    const pdf = latin1(toPdf(shown(result(3), 'Trades'), { page }));
+    assert.ok(pdf.includes('(Q3) Tj') && pdf.includes('(By <desk>) Tj') && pdf.includes('(- EMEA) Tj'), 'its lines');
+    consistent(pdf);
+    assert.ok(toHtml(shown(result(3), 'Trades'), { page }).includes(text.html), 'the HTML as drawn');
   });
 
   it('a table too long for its tile: still one page, the rows that fit, and a line saying so', () => {

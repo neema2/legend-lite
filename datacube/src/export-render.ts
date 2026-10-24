@@ -4,7 +4,7 @@
 // board; the window only asks the person (the leakage warning) and hands the file over.
 
 import type { Scalar } from '../../engine-client/src/result.ts';
-import { columnConfig, labelFor, leafFormats, renderFormats, toColumnAppearance, type CubeConfiguration } from './config.ts';
+import { columnConfig, labelFor, leafFormats, renderFormats, toColumnAppearance, type ColumnConfiguration, type CubeConfiguration } from './config.ts';
 import type { CubeView } from './cube.ts';
 import { toPdf, toPlainText } from './export-doc.ts';
 import { exportTable, type ExportPage } from './export-model.ts';
@@ -15,6 +15,7 @@ import type { FormatterCache, ColumnFormat } from './format.ts';
 import type { ColumnModel, LeafColumn } from './grid/columns.ts';
 import { isPivotTotalColumn, rowColumns, type CubeSnapshot } from './snapshot.ts';
 import { columnRange, heatColour, type HeatmapRange, type HeatmapSpec } from './style.ts';
+import { columnStats, decorate, type CellDecoration, type ColumnStats, type ConditionalSetting } from './conditional.ts';
 import type { TreeRow } from './tree.ts';
 
 /** The files a grid exports to, as its Export menu offers them. */
@@ -65,10 +66,64 @@ export interface Heatmap {
  * 2026-10-18): it sums every pivot value, on its own scale, so it takes only its own heatmap, never its measure's.
  */
 export function heatmapSetting(config: CubeConfiguration, view: CubeView | undefined, leafName: string): HeatmapSpec | undefined {
-  const own = columnConfig(config, leafName).heatmap;
-  if (own || isPivotTotalColumn(leafName)) return own;
+  return leafSetting(config, view, leafName, (c) => c.heatmap);
+}
+
+/** A leaf's presentation setting by heatmapSetting's rule: its own, else its measure's; a pivot total's its own. */
+function leafSetting<T>(config: CubeConfiguration, view: CubeView | undefined, leafName: string,
+  pick: (c: ColumnConfiguration) => T | undefined): T | undefined {
+  const own = pick(columnConfig(config, leafName));
+  if (own !== undefined || isPivotTotalColumn(leafName)) return own;
   const measure = view?.pivot?.columns.find((c) => c.name === leafName)?.measure.name;
-  return measure !== undefined ? columnConfig(config, measure).heatmap : undefined;
+  return measure !== undefined ? pick(columnConfig(config, measure)) : undefined;
+}
+
+/** A leaf's conditional formats (conditional.ts), by heatmapSetting's rule; none when it has none. */
+export function conditionalSetting(config: CubeConfiguration, view: CubeView | undefined, leafName: string): ConditionalSetting | undefined {
+  return leafSetting(config, view, leafName, (c) => (c.dataBar || c.iconSet || (c.rules && c.rules.length > 0)
+    ? { ...(c.dataBar ? { dataBar: c.dataBar } : {}), ...(c.iconSet ? { iconSet: c.iconSet } : {}), ...(c.rules?.length ? { rules: c.rules } : {}) }
+    : undefined));
+}
+
+/** A leaf's conditional formats and its column's figures at each depth (a bar's, an icon's, a top N's), measured as a
+ *  heatmap is: over the whole column, never the visible window. */
+export interface Conditional {
+  readonly setting: ConditionalSetting;
+  readonly byDepth: Map<number, ColumnStats>;
+  readonly type: string | undefined;
+}
+
+/** The conditional formats of a view's leaves, each with its figures at each depth. */
+export function measureConditionals(view: CubeView, treeRows: readonly TreeRow[],
+  setting: (leafName: string) => ConditionalSetting | undefined): Map<number, Conditional> {
+  const out = new Map<number, Conditional>();
+  for (const leaf of view.columns.leaves) {
+    const s = setting(leaf.name);
+    if (!s) continue;
+    const type = view.rows.columns[leaf.index]?.type;
+    const atDepth = new Map<number, Scalar[]>();
+    (view.rows.columns[leaf.index]?.values ?? []).forEach((value, row) => {
+      const depth = treeRows[row]?.depth ?? 0;
+      const bucket = atDepth.get(depth);
+      if (bucket) bucket.push(value);
+      else atDepth.set(depth, [value]);
+    });
+    const byDepth = new Map<number, ColumnStats>();
+    for (const [depth, bucket] of atDepth) {
+      const stats = columnStats(bucket, type);
+      if (stats) byDepth.set(depth, stats);
+    }
+    out.set(leaf.index, { setting: s, byDepth, type });
+  }
+  return out;
+}
+
+/** What a cell draws of its leaf's conditional formats, against its own depth's figures; null when nothing. */
+export function cellDecoration(conditionals: ReadonlyMap<number, Conditional>, treeRows: readonly TreeRow[], leaf: LeafColumn,
+  row: number, value: Scalar): CellDecoration | null {
+  const c = conditionals.get(leaf.index);
+  if (!c) return null;
+  return decorate(c.setting, value, c.type, c.byDepth.get(treeRows[row]?.depth ?? 0) ?? null);
 }
 
 /**
@@ -124,6 +179,8 @@ export interface ExportOf {
   readonly formatters: FormatterCache;
   /** A cell's heatmap colour, as the grid draws it. */
   readonly cellBackground: (leaf: LeafColumn, row: number, value: Scalar) => string | null;
+  /** A cell's conditional formats, as the grid draws them. */
+  readonly cellDecoration?: (leaf: LeafColumn, row: number, value: Scalar) => CellDecoration | null;
   /** The page's board, when it has charts: each format carries them where the board puts them. */
   readonly page?: ExportPage;
   /** The moment it is exported: its file's name says it, so a second export never overwrites the first. */
@@ -147,6 +204,8 @@ export function renderExport(kind: ExportKind, o: ExportOf): ExportedFile {
     appearance: o.config.appearance,
     columnAppearance: toColumnAppearance(o.config),
     cellBackground: o.cellBackground,
+    formats: o.formats,
+    ...(o.cellDecoration ? { cellDecoration: o.cellDecoration } : {}),
   });
   const doc = { formatters: o.formatters, formats: o.formats, ...(o.page ? { page: o.page } : {}) };
   switch (kind) {

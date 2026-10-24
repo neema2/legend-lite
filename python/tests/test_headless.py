@@ -102,6 +102,85 @@ class Grids(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "is not a column of the grid"):
             grid.configure({'columns': {'__pivot_total____|__nope': {'hidden': True}}})
 
+    def test_conditional_formats_are_set_by_name_and_drawn_in_the_export(self):
+        # Excel's conditional formats (DataCube's conditional.ts, through the gestures the screen's Conditional
+        # Formatting menu sends): data bars, an icon set, a rule, a three-colour scale -- kept in the grid's
+        # configuration, drawn in its HTML export as on screen, cleared at once, refused in DataCube's words
+        import pandas as pd
+        frame = pd.DataFrame({'desk': ['A', 'B', 'C'], 'qty': [10, -5, 40]})
+        grid = self.page.grid(frame, name='trades_formats')
+        grid.data_bars('qty').icon_set('qty', 'trafficLights').highlight('qty', {'op': 'lessThan', 'value': 0}, 'redText')
+        kept = grid._cube['configuration']['columns']['qty']
+        self.assertEqual(kept['iconSet'], {'set': 'trafficLights'})
+        self.assertEqual(kept['rules'], [{'when': {'op': 'lessThan', 'value': 0}, 'style': {'foreground': '#c62828'}}])
+        html = grid.export('html')
+        self.assertIn('linear-gradient', html)
+        self.assertIn('title="high">●<', html)
+        grid.color_scale('qty', '#f8696b', '#63be7b', mid='#ffeb84')
+        self.assertEqual(grid._cube['configuration']['columns']['qty']['heatmap'], {'from': '#f8696b', 'to': '#63be7b', 'mid': '#ffeb84'})
+        grid.clear_formats('qty')
+        self.assertNotIn('qty', grid._cube['configuration'].get('columns', {}))
+        self.assertNotIn('linear-gradient', grid.export('html'))
+        with self.assertRaisesRegex(ValueError, 'one of arrows, trafficLights, symbols, flags, not "stars"'):
+            grid.icon_set('qty', 'stars')
+        with self.assertRaisesRegex(ValueError, 'count is a whole number from 1, not 0'):
+            grid.highlight('qty', {'op': 'top', 'count': 0})
+
+    def test_a_format_code_writes_the_column_as_excel_would(self):
+        # Excel's number format codes (DataCube's format-code.ts, through the gesture format.code): the grid's text, a
+        # section's colour in the HTML export, the code itself in the workbook; refused in DataCube's words
+        import pandas as pd
+        frame = pd.DataFrame({'desk': ['A', 'B'], 'pnl': [1_250_000.0, -40_000.0]})
+        grid = self.page.grid(frame, name='trades_codes')
+        grid.format_code('pnl', '#,##0.0,,"M";[Red](#,##0.0,,"M")')
+        self.assertEqual(grid._cube['configuration']['columns']['pnl']['format'], {'kind': 'auto', 'code': '#,##0.0,,"M";[Red](#,##0.0,,"M")'})
+        html = grid.export('html')
+        self.assertIn('1.3M', html)
+        self.assertIn('(0.0M)', html)
+        self.assertRegex(html.lower(), 'color:#ff0000')
+        grid.format_code('pnl', None)
+        self.assertNotIn('pnl', grid._cube['configuration'].get('columns', {}))
+        with self.assertRaisesRegex(ValueError, 'has an exponent, which DataCube does not read'):
+            grid.format_code('pnl', '0.00E+00')
+
+    def test_a_columns_values_gathered_into_named_groups(self):
+        # Tableau's groups (DataCube's snapshot.ts ValueGroups, through the column.calculate gesture the Group Values
+        # window sends): a dimension the grid groups by, its rest under a name or as itself; refused in DataCube's words
+        import pandas as pd
+        frame = pd.DataFrame({'desk': ['FX', 'Rates', 'EQ', 'FX'], 'year': [2024, 2025, 2026, 2026], 'qty': [1, 2, 3, 4]})
+        grid = self.page.grid(frame, name='trades_groups')
+        grid.group_values('desk', {'Macro': ['FX', 'Rates']}).group('desk_group')
+        self.assertEqual(groups(grid.view(), 'qty'), {'Macro': 7, 'EQ': 3})
+        grid.group_values('year', {'Recent': [2025, 2026]}, other='Earlier', name='era').group('era')
+        self.assertEqual(groups(grid.view(), 'qty'), {'Recent': 9, 'Earlier': 1})
+        with self.assertRaisesRegex(ValueError, 'year is Integer: its values in no group need a name'):
+            grid.group_values('year', {'Recent': [2026]}, name='era2')
+        with self.assertRaisesRegex(ValueError, 'are in A and B: a value is in one group'):
+            grid.group_values('desk', {'A': ['FX'], 'B': ['FX']}, name='twice')
+
+    def test_aggregates_of_two_columns_and_the_counts(self):
+        # a correlation and max by -- Column Properties' Aggregation with its second column (DataCube's snapshot.ts
+        # SECOND_COLUMN) -- and a text column's counts as a calculated column and its Aggregation make them: its distinct
+        # values in a number column of its own, and its blanks
+        import pandas as pd
+        frame = pd.DataFrame({'desk': ['A', 'A', 'A', 'B', 'B'], 'customer': ['c1', 'c1', 'c2', 'c3', None],
+                              'qty': [1.0, 2.0, 3.0, 5.0, 6.0], 'px': [2.0, 4.0, 7.0, 1.0, 3.0]})
+        grid = self.page.grid(frame, name='trades_two', rows=['desk'])
+        grid.column('qty', aggregate='maxBy', weight='px')
+        grid.calculate('customers', 'if($x.customer->isEmpty(), |0, |1)').column('customers', aggregate='distinctCount', weight='customer')
+        grid.calculate('blanks', 'if($x.customer->isEmpty(), |1, |0)')
+        self.assertEqual(groups(grid.view(), 'qty'), {'A': 3, 'B': 6})
+        self.assertEqual(groups(grid.view(), 'customers'), {'A': 2, 'B': 1})
+        self.assertEqual(groups(grid.view(), 'blanks'), {'A': 0, 'B': 1})
+        grid.column('px', aggregate='corr', weight='qty')
+        self.assertAlmostEqual(groups(grid.view(), 'px')['B'], 1.0)
+        # refused in DataCube's words: a correlation of text, a count of nothing it counts
+        with self.assertRaisesRegex(ValueError, "px's paired column 'customer' is a String column: a correlation reads a number"):
+            grid.column('px', aggregate='corr', weight='customer')
+        # a text column's distinct count is a number: not its own Aggregation, said with the way it is made
+        with self.assertRaisesRegex(ValueError, "'distinctCount' is not offered on customer, a String column: .*a number column of its own"):
+            grid.measure('customer', 'distinctCount', name='n')
+
     def test_a_grid_exports_as_its_export_menu_makes_the_file(self):
         # the screen's own core (export-render.ts), run headless: each format DataCube's Export menu offers, with the
         # grid's formats (a sum past a thousand, written with its separator where a person reads it) and its heatmap

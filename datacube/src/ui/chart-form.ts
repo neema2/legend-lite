@@ -25,7 +25,7 @@ import {
   type ShowAsKind,
   type TimeGrain,
 } from '../chart-spec.ts';
-import type { AggregateFn, CubeSnapshot } from '../snapshot.ts';
+import { SECOND_COLUMN, type AggregateFn, type CubeSnapshot } from '../snapshot.ts';
 import { checkbox, dropdown, field, numberInput } from './form.ts';
 import { aggregatesFor } from './panel-column.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
@@ -89,7 +89,7 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   const first = spec.y[0];
   const typeOf = new Map([...dimensions, ...measures].map((c) => [c.name, c.type]));
   const fns = (first && first.fn !== 'value' ? aggregatesFor(typeOf.get(first.column)) : [])
-    .filter((a) => a.value !== 'wavg')
+    .filter((a) => SECOND_COLUMN[a.value]?.required !== true)
     .map((a) => ({ value: a.value, label: a.label }));
   // what a measure can be: a number column, aggregated; or a group-level column, plotted as it is (`fn: 'value'`)
   const GROUP = 'group:';
@@ -333,7 +333,7 @@ function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
     row.className = 'dc-chartpanel-measure';
     const value = m.fn === 'value' ? `${GROUP}${m.column}` : m.column;
     const fns = (m.fn === 'value' ? [] : aggregatesFor(typeOf.get(m.column)))
-      .filter((a) => a.value !== 'wavg').map((a) => ({ value: a.value, label: a.label }));
+      .filter((a) => SECOND_COLUMN[a.value]?.required !== true).map((a) => ({ value: a.value, label: a.label }));
     row.append(
       field(doc, `Value ${i + 1}:`, dropdown<string>(doc, value, plotted, (v) => {
         if (!v) return;

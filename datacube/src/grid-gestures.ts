@@ -17,9 +17,14 @@ import { availableDimensions, drillDown, drillUp, useDimension, type Dimension }
 import type { GridCommand } from './grid-commands.ts';
 import { headerSortCommand, type SortedHeader } from './header-sort.ts';
 import {
-  CubeRefusal, isPivotTotalColumn, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode, type FilterOperator, type FilterValue,
+  CubeRefusal, isPivotTotalColumn, readTopN, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode, type FilterOperator, type FilterValue,
 } from './snapshot.ts';
 import type { RowPath } from './tree.ts';
+import { DATA_BAR, readColorScale, readIconSet, readRule, type FormatRuleGiven, type IconSetName } from './conditional.ts';
+import type { HeatmapSpec } from './style.ts';
+import { readFormatCode } from './format-code.ts';
+import { dateRangeConditions, type DateRange } from './date-ranges.ts';
+import { keptCondition, ownConditions } from './value-filter.ts';
 import { TREE_COLUMN } from './treeview.ts';
 
 /** What a gesture reads of the grid: its state, and the dimensions it offers (its own, or its host's). */
@@ -55,6 +60,10 @@ export type GridGestureArgs = {
   readonly 'filter.add': { readonly column: string; readonly operator: FilterOperator; readonly value?: FilterValue };
   readonly 'filter.clearAll': Nothing;
   readonly 'filter.set': { readonly filter: FilterNode | null };
+  readonly 'filter.values': { readonly column: string; readonly values: readonly (FilterValue | null)[] | null };
+  readonly 'filter.dateRange': { readonly column: string; readonly range: DateRange };
+  readonly 'filter.topN': { readonly column: string; readonly n: number; readonly bottom?: boolean };
+  readonly 'filter.topNOff': Nothing;
   readonly 'chart.refilter': { readonly remove: readonly FilterNode[]; readonly add: readonly FilterNode[] };
   readonly 'pivot.vertical': Column; readonly 'pivot.addVertical': Column; readonly 'pivot.removeVertical': Column;
   readonly 'pivot.clearVertical': Nothing;
@@ -71,9 +80,16 @@ export type GridGestureArgs = {
   readonly 'column.minimize': Column; readonly 'column.minimizeAll': Nothing;
   readonly 'columns.sizeToFit': { readonly widths: Widths; readonly viewport: number };
   readonly 'heatmap.add': Column; readonly 'heatmap.remove': Column;
+  readonly 'format.dataBar': Column & { readonly on: boolean };
+  readonly 'format.colorScale': Column & { readonly scale: HeatmapSpec };
+  readonly 'format.iconSet': Column & { readonly set: IconSetName | null; readonly reverse?: boolean };
+  readonly 'format.addRule': Column & { readonly rule: FormatRuleGiven };
+  readonly 'format.clear': Column;
+  readonly 'format.code': Column & { readonly code: string | null };
   readonly 'view.chrome': { readonly showDragZones?: boolean; readonly showTitleBar?: boolean };
   readonly 'tree.open': { readonly path: RowPath; readonly open: boolean };
   readonly 'tree.collapseAll': Nothing;
+  readonly 'tree.expandAll': Nothing;
   readonly 'view.dimension': { readonly name: string; readonly move: 'use' | 'down' | 'up' };
   readonly 'column.calculate': { readonly level: Level; readonly column: DerivedColumn };
   readonly 'column.editCalculated': { readonly name: string; readonly level: Level; readonly column: DerivedColumn };
@@ -161,6 +177,13 @@ export function columnOrderOf(s: CubeSnapshot, config: CubeConfiguration): strin
 }
 
 /** The row groups, or the pivot, with `name` added last -- none when it is there already -- or taken out. */
+/** `column`'s own conditions in the filter (value-filter.ts ownConditions) replaced by `add`: one refilter, or nothing
+ *  when nothing changes. */
+const replaced = (s: CubeSnapshot, column: string, add: readonly FilterNode[]): GridCommand[] => {
+  const remove = ownConditions(s.filter, column);
+  return remove.length === 0 && add.length === 0 ? [] : [{ kind: 'refilter', remove, add }];
+};
+
 const zone = (kind: 'group' | 'pivot', s: CubeSnapshot, change: (has: readonly string[]) => string[] | null): GridCommand[] => {
   const has = kind === 'group' ? s.rows : s.pivotOn;
   const next = change(has);
@@ -180,10 +203,20 @@ function pivotedLeaf(s: CubeSnapshot, a: GestureArgs): boolean {
 /** A heatmap on or off for the column a leaf is of: a pivoted leaf's measure, so every value's leaf has it (a heatmap
  *  on one pivoted leaf and not its siblings is worse than none); a pivot total is a column of its own (the user,
  *  2026-10-18), its measure's leaves left alone (export-render.ts heatmapSetting). */
-const heatmap = (g: GestureGrid, leaf: string, on: boolean): GridCommand[] => {
-  const measure = pivotedLeaf(g.snapshot, { column: leaf }) ? viewOf(g).pivot.find((c) => c.name === leaf)?.measure.name ?? leaf : leaf;
+const heatmap = (g: GestureGrid, leaf: string, on: boolean): GridCommand[] =>
   // null takes it off, as JSON cannot write undefined
-  return patched(g, measure, { heatmap: on ? HEATMAP : null });
+  patched(g, presentedOn(g, leaf), { heatmap: on ? HEATMAP : null });
+
+/** The column a leaf's colouring is set on: a pivoted leaf's measure (heatmap's rule), else the leaf. */
+const presentedOn = (g: GestureGrid, leaf: string): string =>
+  (pivotedLeaf(g.snapshot, { column: leaf }) ? viewOf(g).pivot.find((c) => c.name === leaf)?.measure.name ?? leaf : leaf);
+
+/** A rule added to a column's (conditional.ts), after those it has; one it has already, nothing. */
+const addRule = (g: GestureGrid, leaf: string, given: unknown): GridCommand[] => {
+  const name = presentedOn(g, leaf);
+  const rule = readRule(given);
+  const has = columnConfig(g.config, name).rules ?? [];
+  return has.some((r) => JSON.stringify(r) === JSON.stringify(rule)) ? [] : [column(name, { rules: [...has, rule] })];
 };
 
 const GESTURES = {
@@ -216,6 +249,34 @@ const GESTURES = {
   'filter.clearAll': { args: [], make: () => [{ kind: 'filter', filter: null }] },
   // the filter editor's filter, whole; null takes it off
   'filter.set': { args: ['filter'], make: (_g, a) => [{ kind: 'filter', filter: a['filter'] as FilterNode | null }] },
+  // THE VALUE LIST (value-filter.ts, Excel's autofilter): the values of the column kept -- null among them the blanks --
+  // in place of the column's own conditions; null for every value (its own conditions taken off)
+  'filter.values': {
+    args: ['column', 'values'],
+    make: (g, a) => {
+      const column = columnOf(a);
+      const values = a['values'];
+      if (values !== null && !Array.isArray(values)) {
+        throw new CubeRefusal(`the values kept are a list (null among them the blanks), or null for every one, not ${JSON.stringify(values)}`);
+      }
+      return replaced(g.snapshot, column, values === null ? [] : [keptCondition(column, values as (FilterValue | null)[])]);
+    },
+  },
+  // TOP OR BOTTOM N by the column (snapshot.ts TopN): the menu's Top 10 and Bottom 10, Python's grid.top
+  'filter.topN': {
+    args: ['column', 'n', 'bottom?'],
+    make: (_g, a) => [{ kind: 'topN', topN: readTopN({ by: columnOf(a), n: a['n'], ...(a['bottom'] === true ? { bottom: true } : {}) }) }],
+  },
+  'filter.topNOff': { args: [], make: (g) => (g.snapshot.topN === undefined ? [] : [{ kind: 'topN', topN: null }]) },
+  // A DATE RANGE relative to when the query runs (date-ranges.ts): from its start to its end, in place of the column's
+  // own conditions
+  'filter.dateRange': {
+    args: ['column', 'range'],
+    make: (g, a) => {
+      const column = columnOf(a);
+      return replaced(g.snapshot, column, dateRangeConditions(column, text(a, 'range', 'the date range') as DateRange));
+    },
+  },
   // a chart's mark on the grid's filter -- the selection it had taken off, the one it has now on -- or a selection off
   'chart.refilter': {
     args: ['remove', 'add'],
@@ -313,6 +374,38 @@ const GESTURES = {
   },
   'heatmap.add': { args: ['column'], view: pivotedLeaf, make: (g, a) => heatmap(g, columnOf(a), true) },
   'heatmap.remove': { args: ['column'], view: pivotedLeaf, make: (g, a) => heatmap(g, columnOf(a), false) },
+  // conditional formats (conditional.ts), each on what a heatmap is on: data bars, a colour scale, icons, a rule, none
+  'format.dataBar': {
+    args: ['column', 'on'], view: pivotedLeaf,
+    make: (g, a) => patched(g, presentedOn(g, columnOf(a)), { dataBar: flag(a, 'on', 'the data bars shown') ? DATA_BAR : null }),
+  },
+  'format.colorScale': {
+    args: ['column', 'scale'], view: pivotedLeaf,
+    make: (g, a) => patched(g, presentedOn(g, columnOf(a)), { heatmap: readColorScale(a['scale']) }),
+  },
+  'format.iconSet': {
+    args: ['column', 'set', 'reverse?'], view: pivotedLeaf,
+    make: (g, a) => patched(g, presentedOn(g, columnOf(a)), {
+      iconSet: a['set'] === null ? null : readIconSet({ set: a['set'], ...(a['reverse'] !== undefined ? { reverse: a['reverse'] } : {}) }),
+    }),
+  },
+  'format.addRule': { args: ['column', 'rule'], view: pivotedLeaf, make: (g, a) => addRule(g, columnOf(a), a['rule']) },
+  // an Excel number format code on the column (format-code.ts), judged here; null takes it off
+  'format.code': {
+    args: ['column', 'code'], view: pivotedLeaf,
+    make: (g, a) => {
+      const name = presentedOn(g, columnOf(a));
+      const given = a['code'];
+      if (given !== null && typeof given !== 'string') throw new CubeRefusal(`a format code is text, not ${JSON.stringify(given)}`);
+      if (given !== null) readFormatCode(given);
+      const { code: _old, ...rest } = columnConfig(g.config, name).format ?? { kind: 'auto' as const };
+      return patched(g, name, { format: given === null ? (Object.keys(rest).length > 1 || rest.kind !== 'auto' ? rest : null) : { ...rest, code: given } });
+    },
+  },
+  'format.clear': {
+    args: ['column'], view: pivotedLeaf,
+    make: (g, a) => patched(g, presentedOn(g, columnOf(a)), { heatmap: null, dataBar: null, iconSet: null, rules: null }),
+  },
   // the zones or the title bar folded away or brought back (a page's bar says so too)
   'view.chrome': {
     args: ['showDragZones?', 'showTitleBar?'],
@@ -327,6 +420,7 @@ const GESTURES = {
   // (P2-127)
   'tree.open': { args: ['path', 'open'], make: (_g, a) => [{ kind: 'open', path: a['path'] as RowPath, open: flag(a, 'open', 'opened') }] },
   'tree.collapseAll': { args: [], make: () => [{ kind: 'collapseAll' }] },
+  'tree.expandAll': { args: [], make: () => [{ kind: 'expandAll' }] },
   // a named dimension (dimensions.ts) used -- the grid grouped by its first level -- or drilled a level down or up, by
   // the group the Rows zone builds
   'view.dimension': {
