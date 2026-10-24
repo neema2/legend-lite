@@ -2841,10 +2841,14 @@ Community License) with live results beside typed rows; DataCube the first live 
 - **Plan:** `docs/DEEPHAVEN_PLAN_2026_10_22.md` (decisions DH1-DH20; agreed with the MongoDB line, the Studio line and
   the DataCube + Python line on 2026-10-22). **Evidence:** `experiments/streaming-risk-spike` and
   `experiments/deephaven-spike` on `claude/gallant-allen-qydtzt`.
-- **Branches, stacked (no PR until the user asks):** `claude/deephaven-1-model` (L1, on main), then the target (L2), the
+- **Branches, stacked (no PR until the user asks):** `claude/deephaven-1-model` (L1), then the target (L2), the
   connector (L3, on the MongoDB branch's connector seam), the first demo with a plain live-grid page (D0); then the
   writes (after the Cypher writes branch lands), cross-store with explicit `from(runtime)` boundaries, the modelled
   publisher, and DataCube's ticking mode (once the DataCube line has settled).
+- **State, 2026-10-24: start at `docs/DEEPHAVEN_START_HERE.md`.** The work is on `claude/deephaven-3-browser` (L1, L2
+  and everything since, stacked; none on `main` yet, 22 commits behind it): DataCube on Deephaven straight from the
+  browser, ticking, through the single-user audit (A1). Open, waiting on the user or counsel: the licence question on
+  the protocol table, section 4's guard before writes, the whole system's sign-in design, merging `main`.
 - **L1's files outside its own:** `model/ConnectionDefinition.java` (`DatabaseType.Deephaven`),
   `ConnectionSpecification.java`, `AuthenticationSpec.java`, `ConnectionWire.java`;
   `parser/section/ConnectionSectionGrammar.java` (`LITE_DATABASE_TYPES`, the two parsers), `parser/Dialect.java`

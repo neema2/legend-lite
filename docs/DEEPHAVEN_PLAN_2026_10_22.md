@@ -1,5 +1,8 @@
 # Deephaven as a database of legend-lite: the design (2026-10-22, revised)
 
+> **A session picking this line up starts at `docs/DEEPHAVEN_START_HERE.md`** (where things stand, how to run and
+> check it, what is open). This document is the record.
+
 **Status: L1, L2, L3b, D0, J1 (DataCube's own app on Deephaven, DH23), T1 (real ticking, DH24), F1 (filters the
 server reads without compiling, DH25), B1, G1, and V1-V3 (a flat grid of any size, a page of several grids, charts
 that tick: DH27), P1 (pivots the server compiles nothing for), O1 and N1 (a gesture's time, and over a network),
