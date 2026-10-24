@@ -12553,3 +12553,44 @@ one against the code and the references before anything changed; what follows is
    - `//gates:parser_equivalence`: 3 of 3. The JSON door: the engine collection 7,085 matched and the same 4 failed,
      rule A 116 written and the same 10 refused, now listed text by text (126 rows); lite's projects 167 of 167; the
      showcase 123 of 123. Own corpus 2,976 matched (the new tests' models).
+
+## 2026-10-24 — DataCube live editing, D19 in full and the middle version: undo as commands, unique ids, the keeper's page, write ids (the DataCube + Python line)
+
+Pull request neema2/legend-lite#71, branch `claude/datacube-d19`, merged by the user as 18db1e9a.
+- **CI:** branch run 40126078526 on 76af2a96, green on every job (51 of 51, "gates green"); main's own run 40128487998
+  on 18db1e9a, running when this was written.
+- **Local** (a cloud session, Linux, root; on 76af2a96): `bazel test --lockfile_mode=error //gates:local //gates:warehouse`,
+  425 passed; the 11 failures the container's own -- the ten Postgres targets refuse root and pass run unprivileged
+  (`tools/postgres/as_unprivileged.sh`), and `browser_guard_test` meets the session proxy's certificate.
+
+1. **What it is:**
+   - **D19 in full** (decision D24, `docs/DATACUBE_LIVE_EDITING_2026_10_24.md`, items W1–W19): undo and redo are
+     inverse commands from two total diffs (`grid-between.ts`, `page-between.ts`), told to the keeper as every edit;
+     the restore write deleted end to end; the keeper's page hash checked at every answer (W17); the `detach` page
+     command (W19).
+   - **The middle version** (the user's decision, `docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md` §8): each live
+     tab's ids under a random tag, nothing renamed; a combined write answered with the keeper's page, the screen set
+     to it in one pass (`live-converge.ts`), a follow reading the page whole; each write's id `{writer, seq}` taken
+     once, a lost answer resolved by asking, the ask fencing the write off. Gone: the six-step converge, the `since=`
+     route, the keeper's per-version steps, the renames, `PageApp.follow`.
+   - **A change of behaviour, listed in the PR for the user's sign-off:** a grid another editor changes at the moment
+     one edits it starts its undo history again after that edit (W13).
+2. **What proves it:** the three two-editor soaks as gates -- `live-soak.test.ts` (three real tabs on a keeper as
+   Python's, the keeper's faults injected, 24 seeds in CI; 60 with faults, 30 without and 12 sessions of 40 steps by
+   hand), test_keeper.py `Converges` (Python and two open pages, each under its own tag, undoing and redoing), and
+   `python_engine_test` (two browser tabs on one `ll.Page`); the channel suite (52), page-app (51), the follow, rebase,
+   page-state and gestures suites.
+3. **Reviews:** six independent read-only audits -- four on the D19 converge (each round's defects fixed with
+   failing-first tests; the fourth with a three-tab soak and a 300-step session), one on the middle version's diff
+   (eight findings: 3 HIGH, 2 MEDIUM, 3 lower, fixed in 137e9ff3), and a confirmation audit of that fix commit (one
+   HIGH: the pending-snap fix did not survive the channel's hash check; three lower; fixed in 76af2a96). Every fix
+   has a test that fails without it. CI caught one the local gate cannot: the browser harness's fixture
+   (`engine_fixture.py`) on the old keeper API, in the warehouse lane (32545e47).
+4. **Guards moved, each with a dated note:** `L9_KEEPER` 6 -> 5; `L1_ROUTES` 5 -> 7 -> 6 -> 5; `L8_KINDS` 0 -> 1; the
+   state guardrail's `renamedBy` and `follow` pins removed; the bundle budgets raised, listed in the PR for the user's
+   sign-off (D9) --
+   the grid-only page 323,500 -> 333,500, the engine page 314,000 -> 324,000, the notebook module 332,500 -> 342,500
+   (about 8 KB gzipped each: the two total diffs, the converge, the synchronous SHA-256).
+5. **Not done, recorded:** the larger redesign of the same note (a client store, undo decided at the keeper, patches)
+   is not built; it stays the plan should the middle version prove short. The board of a cube alone (`app.ts`) makes
+   untagged ids; it is never on a live channel.
