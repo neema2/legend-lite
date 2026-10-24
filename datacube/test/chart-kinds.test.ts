@@ -612,6 +612,23 @@ describe('the trader screens: a candlestick, its open and close by an order', ()
     assert.deepEqual(both[1]?.data.slice(0, 2).map((b) => b.itemStyle?.color), [LIGHT_THEME.series[2], LIGHT_THEME.bad]);
     assert.ok(svg(withVolume).includes('EMEA'));
   });
+  it('a candle by month says its end, so a click on it or on its volume filters to the month', () => {
+    const across = grainName('day', 'month');
+    const spec: ChartSpec = { ...CANDLE, x: 'day', grain: 'month', y: candleMeasures('revenue', 'seq', 'size') };
+    const rows = table([
+      { name: across, type: 'StrictDate', values: ['2024-01-01', '2024-02-01'] },
+      { name: 'minBy_revenue_by_seq', type: 'Float', values: [10, 30] },
+      { name: 'max_revenue', type: 'Float', values: [40, 35] },
+      { name: 'min_revenue', type: 'Float', values: [5, 12] },
+      { name: 'maxBy_revenue_by_seq', type: 'Float', values: [20, 15] },
+      { name: 'sum_size', type: 'Float', values: [100, 50] },
+      { name: AXIS_UPPER, type: 'StrictDate', values: ['2024-02-01', '2024-03-01'] },
+    ]);
+    const d = kindOption(spec, rows);
+    assert.equal(d.upperAt?.(0, { ci: 1 }), '2024-03-01');
+    assert.equal(d.upperAt?.(1, { ci: 0 }), '2024-02-01');
+    assert.deepEqual(d.keyAt(1, 1), d.keyAt(0, 1));
+  });
 });
 
 describe('the phase 5 audit: what each fix pins', () => {
