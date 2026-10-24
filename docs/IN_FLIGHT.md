@@ -2198,9 +2198,6 @@ repros will be in the study's §9.
       of the folded predicate holds one of the grouped select's own no-column aggregates, and the isolation keeps the
       sort, `Sorts.isolateOrdered`; `GroupedFilterSubqueryTest`). Judged by both parity lanes of each island, the
       lowering and integration suites, and the relational corpus on DuckDB and H2.
-  - **The SQL islands' shared `protocol/sql/SqlToPure.java` (`output`), 2026-10-23:** an item whose Pure grows past 50
-    times its SQL (from 2,000 nodes) has its long operands computed once, as an item past the size bound already
-    had (`hoistOperands`; eight divisions by a column were 852 KB of DuckDB's SQL, now 7.6 KB).
   - **The compiler line's `lowering/Scalars.java` (`quotient`), 2026-10-23:** a literal divisor that is not zero has
     no zero guard, as `rem`'s had none (the guard's message copied the dividend, so nested divisions doubled a level).
   - **The dialect package, 2026-10-23:** a common render pass, `ConstantAggregateOrder` (`AnsiSqlRenderer.renderPasses`,
