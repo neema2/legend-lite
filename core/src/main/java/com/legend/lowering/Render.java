@@ -270,10 +270,12 @@ public final class Render {
                 new OutputCol("_csv_line", SqlType.Scalar.VARCHAR, false)));
         List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, cols,
                 rowAlias, aggAlias, rowProjs);
-        SqlExpr header = escapeCsv(new SqlExpr.StringLit(cols.get(0).name()));
+        // the names as shown: a SQL island's repeated name as its own (Type.RelationType.presentName; IQ island,
+        // 2026-10-24). A JSON row keeps the mark, its keys distinct.
+        SqlExpr header = escapeCsv(new SqlExpr.StringLit(Type.RelationType.presentName(cols.get(0).name())));
         for (int i = 1; i < cols.size(); i++) {
             header = cat(header, new SqlExpr.StringLit(","),
-                    escapeCsv(new SqlExpr.StringLit(cols.get(i).name())));
+                    escapeCsv(new SqlExpr.StringLit(Type.RelationType.presentName(cols.get(i).name()))));
         }
         SqlExpr crlf = new SqlExpr.StringLit("\r\n");
         SqlExpr agg = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,

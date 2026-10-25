@@ -114,6 +114,12 @@ public interface InputDialect {
         return false;
     }
 
+    /** IQ island, 2026-10-24: whether the statement's result shows a name two of its columns have, as SAP IQ does
+     *  ({@code SqlToPure.REPEATED_NAME_MARK}); refused by name where not. */
+    default boolean showsRepeatedNames() {
+        return false;
+    }
+
     /** The output name of a select item that is a column reference written without an alias: {@code written} is the
      *  reference's last part as written, {@code label} the name the column has where it is read (Postgres's). */
     default String columnName(SqlAst.Ident written, String label) {

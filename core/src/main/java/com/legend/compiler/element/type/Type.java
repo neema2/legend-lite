@@ -540,6 +540,21 @@ public sealed interface Type permits
          * literal single quotes as part of the NAME — the physical SQL
          * column stays bare (Fold.pivotIdentity is the reference-side
          * inverse). */
+        /** A result column's name as shown: a SQL island's repeated name without its mark (IQ island, 2026-10-24:
+         *  SAP IQ shows {@code SELECT a.id, b.id} as two columns named id, which the relation carries as {@code id}
+         *  and {@code id} {@link com.legend.protocol.sql.SqlToPure#REPEATED_NAME_MARK} {@code 2}), then
+         *  {@link #presentPivotName}. */
+        public static String presentName(String physical) {
+            String mark = com.legend.protocol.sql.SqlToPure.REPEATED_NAME_MARK;
+            int at = physical.lastIndexOf(mark);
+            int digits = at + mark.length();
+            if (at > 0 && digits < physical.length() && physical.substring(digits).chars().allMatch(
+                    c -> c >= '0' && c <= '9')) {
+                return presentPivotName(physical.substring(0, at));
+            }
+            return presentPivotName(physical);
+        }
+
         public static String presentPivotName(String physical) {
             return physical.contains(PIVOT_SEPARATOR)
                     && !(physical.startsWith("'") && physical.endsWith("'"))

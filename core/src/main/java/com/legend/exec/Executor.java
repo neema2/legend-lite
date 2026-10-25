@@ -936,7 +936,8 @@ public final class Executor {
             // POSITIONAL on both sides (schemas are ordered); no null types.
             for (int i = 1; i <= n; i++) {
                 Type.Column sc = schema.columns().get(i - 1);
-                columns.add(new Column(sc.name(), sc.type(),
+                // a SQL island's repeated name shown as its own (Type.RelationType.presentName; IQ island, 2026-10-24)
+                columns.add(new Column(Type.RelationType.presentName(sc.name()), sc.type(),
                         sc.multiplicity()));
             }
         } else if (hasPivot(plan)) {

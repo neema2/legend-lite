@@ -2277,6 +2277,14 @@ repros will be in the study's §9.
    15 levels ran out of memory before). `tools/census/RenderCensus.java` lowers with the storeless runtime on DuckDB.
    `ScaleCostsTest` pins the work. Judges in GATES: the six corpus passes 0 of 23 result files differ; the render census
    58,794 entries, 22 differ.
+  - **From the Mac session (`claude/iq-scale-mac`, 2026-10-24): a statement's result with two columns of one name**
+    (168 of the corpus lane's SEDE queries; measured on IQ 17.1 and SQL Anywhere 17, `lite/repeated_names`):
+    - `protocol/sql/SqlToPure.java` (`assemble`, `sortKey`, `translate`) and `InputDialect.showsRepeatedNames` (IQ's
+      true): the result's select marks a repeated name (`REPEATED_NAME_MARK`, U+00A0 `#n`); an unqualified ORDER BY of
+      it is IQ's -144.
+    - `compiler/element/type/Type.java`: `RelationType.presentName`, the mark stripped, then `presentPivotName`.
+    - `exec/Executor.java` (the positional result columns) and `lowering/Render.java` (the CSV wire header) show the
+      name as IQ does; a JSON row keeps the marked key, its keys distinct.
 
 ## An eleventh line, 2026-10-15: Cypher in Pure, the `#Cypher{...}#` island (the user's ask, rule 5)
 

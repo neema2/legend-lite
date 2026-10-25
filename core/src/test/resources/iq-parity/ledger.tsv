@@ -2692,8 +2692,8 @@ lite/m1a/rowgenerator_product_within_an_integer@iq16-default	PASS	PASS	PASS
 lite/m1a/rowgenerator_product_within_an_integer@iq17-default	PASS	PASS	PASS
 lite/m1a/rowgenerator_unaliased_expression_is_named@iq16-default	PASS	PASS	PASS
 lite/m1a/rowgenerator_unaliased_expression_is_named@iq17-default	PASS	PASS	PASS
-lite/m1a/rowgenerator_column_twice_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1a/rowgenerator_column_twice_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1a/rowgenerator_column_twice_is_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1a/rowgenerator_column_twice_is_refused@iq17-default	PASS	PASS	REFUSED
 lite/m1a/dummy_rows@iq16-default	PASS	PASS	PASS
 lite/m1a/dummy_rows@iq17-default	PASS	PASS	PASS
 lite/m1a/dummy_of_sys@iq16-default	PASS	PASS	PASS
@@ -3220,8 +3220,8 @@ lite/m1b/name_of_the_first_branch@iq16-default	PASS	PASS	PASS
 lite/m1b/name_of_the_first_branch@iq17-default	PASS	PASS	PASS
 lite/m1b/name_with_distinct_and_top@iq16-default	PASS	PASS	PASS
 lite/m1b/name_with_distinct_and_top@iq17-default	PASS	PASS	PASS
-lite/m1b/name_twice_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1b/name_twice_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1b/name_twice_is_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1b/name_twice_is_refused@iq17-default	PASS	PASS	REFUSED
 lite/m1b/comma_join_qualified@iq16-default	PASS	PASS	PASS
 lite/m1b/comma_join_qualified@iq17-default	PASS	PASS	PASS
 lite/m1b/comma_join_unqualified_unique_columns@iq16-default	PASS	PASS	PASS
@@ -3252,8 +3252,8 @@ lite/m1b/comma_join_of_rowgenerators@iq16-default	PASS	PASS	PASS
 lite/m1b/comma_join_of_rowgenerators@iq17-default	PASS	PASS	PASS
 lite/m1b/comma_join_names_without_case@iq16-default	PASS	PASS	PASS
 lite/m1b/comma_join_names_without_case@iq17-default	PASS	PASS	PASS
-lite/m1b/comma_join_column_names_twice_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1b/comma_join_column_names_twice_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1b/comma_join_column_names_twice_is_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1b/comma_join_column_names_twice_is_refused@iq17-default	PASS	PASS	REFUSED
 lite/m1b/comma_join_string_equality_ignores_trailing_blanks@iq16-default	PASS	PASS	PASS
 lite/m1b/comma_join_string_equality_ignores_trailing_blanks@iq17-default	PASS	PASS	PASS
 lite/m1b/comma_join_compares_case_sensitively@iq16-default	PASS	PASS	PASS
@@ -3356,8 +3356,7 @@ lite/m1b/natural_join@iq16-default	PASS	PASS	PASS
 lite/m1b/natural_join@iq17-default	PASS	PASS	PASS
 lite/m1b/natural_join_unqualified_shared_column@iq16-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
 lite/m1b/natural_join_unqualified_shared_column@iq17-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
-lite/m1b/natural_join_star_shows_both_sides@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1b/natural_join_star_shows_both_sides@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1b/natural_join_star_shows_both_sides@iq17-default	PASS	PASS	REFUSED
 lite/m1b/natural_join_with_on@iq16-default	PASS	PASS	PASS
 lite/m1b/natural_join_with_on@iq17-default	PASS	PASS	PASS
 lite/m1b/natural_left_join@iq16-default	PASS	PASS	PASS
@@ -4119,8 +4118,8 @@ lite/m1c/name_of_an_aggregate_not_spelled_in_order_by@iq16-default	PASS	PASS	PAS
 lite/m1c/name_of_an_aggregate_not_spelled_in_order_by@iq17-default	PASS	PASS	PASS
 lite/m1c/name_of_an_aggregate_written_otherwise_is_refused@sqla17-default	REFUSED	REFUSED	REFUSED
 lite/m1c/name_of_an_aggregate_written_otherwise_is_refused@iq17-default	PASS	PASS	PASS
-lite/m1c/name_of_a_qualified_aggregate_argument_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1c/name_of_a_qualified_aggregate_argument_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1c/name_of_a_qualified_aggregate_argument_is_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1c/name_of_a_qualified_aggregate_argument_is_refused@iq17-default	PASS	PASS	REFUSED
 lite/m1c/name_of_a_column_spelled_in_group_by@sqla17-default	PASS	PASS	PASS
 lite/m1c/name_of_a_column_spelled_in_group_by@iq17-default	PASS	PASS	PASS
 lite/m1c/name_of_a_signed_column_spelled_in_group_by@sqla17-default	PASS	PASS	PASS
@@ -5727,24 +5726,24 @@ lite/m1gaps/subquerys_own_column_in_an_in_subquery@iq16-default	PASS	PASS	PASS
 lite/m1gaps/subquerys_own_column_in_an_in_subquery@iq17-default	PASS	PASS	PASS
 lite/m1gaps/subquerys_own_column_before_an_alias_of_its_name@iq16-default	PASS	PASS	PASS
 lite/m1gaps/subquerys_own_column_before_an_alias_of_its_name@iq17-default	PASS	PASS	PASS
-lite/m1gaps/alias_read_bare_is_a_duplicate_name_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/alias_read_bare_is_a_duplicate_name_refused@iq17-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/alias_read_in_parentheses_is_a_duplicate_name_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/alias_read_in_parentheses_is_a_duplicate_name_refused@iq17-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/alias_shadowing_a_column_read_bare_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/alias_shadowing_a_column_read_bare_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/bare_column_read_as_a_later_alias_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/bare_column_read_as_a_later_alias_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/alias_read_bare_by_name_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/alias_read_bare_by_name_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/string_alias_read_bare_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/string_alias_read_bare_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1gaps/alias_read_bare_is_a_duplicate_name_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1gaps/alias_read_bare_is_a_duplicate_name_refused@iq17-default	PASS	PASS	REFUSED
+lite/m1gaps/alias_read_in_parentheses_is_a_duplicate_name_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1gaps/alias_read_in_parentheses_is_a_duplicate_name_refused@iq17-default	PASS	PASS	REFUSED
+lite/m1gaps/alias_shadowing_a_column_read_bare_is_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1gaps/alias_shadowing_a_column_read_bare_is_refused@iq17-default	PASS	PASS	REFUSED
+lite/m1gaps/bare_column_read_as_a_later_alias_is_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1gaps/bare_column_read_as_a_later_alias_is_refused@iq17-default	PASS	PASS	REFUSED
+lite/m1gaps/alias_read_bare_by_name_is_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1gaps/alias_read_bare_by_name_is_refused@iq17-default	PASS	PASS	REFUSED
+lite/m1gaps/string_alias_read_bare_is_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1gaps/string_alias_read_bare_is_refused@iq17-default	PASS	PASS	REFUSED
 lite/m1gaps/select_distinct_ordered_by_an_alias_expression_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
 lite/m1gaps/select_distinct_ordered_by_an_alias_expression_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
 lite/m1gaps/alias_holding_a_variable_read_in_where_under_ansinull_off_is_refused@iq16-tds	REFUSED	REFUSED	REFUSED
 lite/m1gaps/alias_holding_a_variable_read_in_where_under_ansinull_off_is_refused@iq17-tds	REFUSED	REFUSED	REFUSED
-lite/m1gaps/alias_read_by_a_cast_item_is_refused_unnamed@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/alias_read_by_a_cast_item_is_refused_unnamed@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1gaps/alias_read_by_a_cast_item_is_refused_unnamed@iq16-default	PASS	PASS	REFUSED
+lite/m1gaps/alias_read_by_a_cast_item_is_refused_unnamed@iq17-default	PASS	PASS	REFUSED
 lite/m1gaps/not_grouped_through_an_alias_is_refused@iq16-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
 lite/m1gaps/not_grouped_through_an_alias_is_refused@iq17-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
 lite/m1gaps/unaliased_item_over_an_alias_is_named_as_written@iq16-default	PASS	PASS	PASS
@@ -5998,8 +5997,8 @@ lite/m1gaps/owner_table_column_aliased_and_in_where@iq16-default	PASS	PASS	PASS
 lite/m1gaps/owner_table_column_aliased_and_in_where@iq17-default	PASS	PASS	PASS
 lite/m1gaps/owner_table_column_quoted@iq16-default	PASS	PASS	PASS
 lite/m1gaps/owner_table_column_quoted@iq17-default	PASS	PASS	PASS
-lite/m1gaps/owner_table_column_beside_its_column_is_a_duplicate_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/owner_table_column_beside_its_column_is_a_duplicate_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1gaps/owner_table_column_beside_its_column_is_a_duplicate_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1gaps/owner_table_column_beside_its_column_is_a_duplicate_refused@iq17-default	PASS	PASS	REFUSED
 lite/m1gaps/owner_table_column_beside_a_second_alias@iq16-default	PASS	PASS	PASS
 lite/m1gaps/owner_table_column_beside_a_second_alias@iq17-default	PASS	PASS	PASS
 lite/m1gaps/catalog_owner_table_column_is_iq_error_142@iq16-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
@@ -6018,8 +6017,8 @@ lite/m1gaps/duplicate_names_in_exists@iq16-default	PASS	PASS	PASS
 lite/m1gaps/duplicate_names_in_exists@iq17-default	PASS	PASS	PASS
 lite/m1gaps/duplicate_names_in_a_later_union_branch@iq16-default	PASS	PASS	PASS
 lite/m1gaps/duplicate_names_in_a_later_union_branch@iq17-default	PASS	PASS	PASS
-lite/m1gaps/duplicate_names_of_the_first_union_branch_are_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/duplicate_names_of_the_first_union_branch_are_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1gaps/duplicate_names_of_the_first_union_branch_are_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1gaps/duplicate_names_of_the_first_union_branch_are_refused@iq17-default	PASS	PASS	REFUSED
 lite/m1gaps/duplicate_name_read_from_a_derived_table_is_iq_error_144@iq16-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
 lite/m1gaps/duplicate_name_read_from_a_derived_table_is_iq_error_144@iq17-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
 lite/m1gaps/duplicate_names_in_not_exists@iq16-default	PASS	PASS	PASS
@@ -6028,8 +6027,8 @@ lite/m1gaps/duplicate_names_under_a_column_list@iq16-default	PASS	PASS	PASS
 lite/m1gaps/duplicate_names_under_a_column_list@iq17-default	PASS	PASS	PASS
 lite/m1gaps/duplicate_names_in_a_later_except_branch@iq16-default	REFUSED	REFUSED	REFUSED
 lite/m1gaps/duplicate_names_in_a_later_except_branch@iq17-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
-lite/m1gaps/duplicate_constant_names_are_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/duplicate_constant_names_are_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1gaps/duplicate_constant_names_are_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1gaps/duplicate_constant_names_are_refused@iq17-default	PASS	PASS	REFUSED
 lite/m1gaps/duplicate_aggregate_names_in_exists@iq16-default	PASS	PASS	PASS
 lite/m1gaps/duplicate_aggregate_names_in_exists@iq17-default	FAIL	FAIL	FAIL
 lite/m1gaps/duplicate_names_counted_by_star_are_refused@iq16-default	REFUSED	REFUSED	REFUSED
@@ -7413,6 +7412,33 @@ lite/options/settings/r8_a_databases_quoted_whole_decimal_is_201@iq17-default	SK
 lite/options/settings/r8_a_querys_value_with_a_plus_is_read@iq16-default	PASS	PASS	PASS
 lite/options/settings/r8_a_querys_value_with_a_plus_is_read@sqla17-default	PASS	PASS	PASS
 lite/options/settings/r8_a_querys_value_with_a_plus_is_read@iq17-default	PASS	PASS	PASS
+lite/repeated_names/two_columns_of_one_name@iq16-default	PASS	PASS	
+lite/repeated_names/two_columns_of_one_name@iq17-default	PASS	PASS	
+lite/repeated_names/star_over_a_join@iq17-default	PASS	PASS	
+lite/repeated_names/star_over_a_join_with_a_filter@iq17-default	PASS	PASS	
+lite/repeated_names/a_table_star_and_a_column@iq16-default	PASS	PASS	
+lite/repeated_names/a_table_star_and_a_column@iq17-default	PASS	PASS	
+lite/repeated_names/two_table_stars@iq17-default	PASS	PASS	
+lite/repeated_names/a_column_twice@iq16-default	PASS	PASS	
+lite/repeated_names/a_column_twice@iq17-default	PASS	PASS	
+lite/repeated_names/a_column_and_a_computed_one_of_its_name@iq16-default	PASS	PASS	
+lite/repeated_names/a_column_and_a_computed_one_of_its_name@iq17-default	PASS	PASS	
+lite/repeated_names/a_union_named_by_its_first_branch@iq16-default	PASS	PASS	
+lite/repeated_names/a_union_named_by_its_first_branch@iq17-default	PASS	PASS	
+lite/repeated_names/distinct_with_a_repeated_name@iq16-default	PASS	PASS	
+lite/repeated_names/distinct_with_a_repeated_name@iq17-default	PASS	PASS	
+lite/repeated_names/top_with_a_repeated_name@iq16-default	PASS	PASS	
+lite/repeated_names/top_with_a_repeated_name@iq17-default	PASS	PASS	
+lite/repeated_names/a_repeated_name_grouped@iq16-default	PASS	PASS	
+lite/repeated_names/a_repeated_name_grouped@iq17-default	PASS	PASS	
+lite/repeated_names/order_by_a_repeated_name@iq16-default	BOTH_ERROR	BOTH_ERROR	
+lite/repeated_names/order_by_a_repeated_name@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/repeated_names/star_of_a_derived_table_with_a_repeated_name@iq16-default	BOTH_ERROR	BOTH_ERROR	
+lite/repeated_names/star_of_a_derived_table_with_a_repeated_name@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/repeated_names/star_of_a_cte_with_a_repeated_name@iq16-default	BOTH_ERROR	BOTH_ERROR	
+lite/repeated_names/star_of_a_cte_with_a_repeated_name@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/repeated_names/a_derived_table_with_a_repeated_name_counted@iq16-default	REFUSED	REFUSED	
+lite/repeated_names/a_derived_table_with_a_repeated_name_counted@iq17-default	REFUSED	REFUSED	
 lite/review4/b1_star_before_an_rtrim_item_distinct@iq16-default	PASS	PASS	PASS
 lite/review4/b1_star_before_an_rtrim_item_distinct@iq17-default	PASS	PASS	PASS
 lite/review4/b1_star_before_a_constant_distinct@iq16-default	PASS	PASS	PASS
@@ -7929,8 +7955,8 @@ lite/review7/b2_inner_string_alias_names_the_item@iq16-default	PASS	PASS	PASS
 lite/review7/b2_inner_string_alias_names_the_item@iq17-default	PASS	PASS	PASS
 lite/review7/b2_inner_bracketed_tsql_alias_names_the_item@iq16-default	PASS	PASS	PASS
 lite/review7/b2_inner_bracketed_tsql_alias_names_the_item@iq17-default	PASS	PASS	PASS
-lite/review7/b2_two_inner_aliases_of_one_name_are_a_duplicate_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/review7/b2_two_inner_aliases_of_one_name_are_a_duplicate_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/review7/b2_two_inner_aliases_of_one_name_are_a_duplicate_refused@iq16-default	PASS	PASS	REFUSED
+lite/review7/b2_two_inner_aliases_of_one_name_are_a_duplicate_refused@iq17-default	PASS	PASS	REFUSED
 lite/review7/b2_outer_alias_before_the_inner_one@iq16-default	PASS	PASS	PASS
 lite/review7/b2_outer_alias_before_the_inner_one@iq17-default	PASS	PASS	PASS
 lite/review7/b2_inner_alias_names_a_union@iq16-default	PASS	PASS	PASS
@@ -8079,8 +8105,8 @@ lite/rules/c01_language-60@iq16-default	PASS	PASS	PASS
 lite/rules/c01_language-60@iq17-default	PASS	PASS	PASS
 lite/rules/c01_language-65@iq16-default	PASS	PASS	PASS
 lite/rules/c01_language-65@iq17-default	PASS	PASS	PASS
-lite/rules/c01_language-78@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c01_language-78@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c01_language-78@iq16-default	PASS	PASS	REFUSED
+lite/rules/c01_language-78@iq17-default	PASS	PASS	REFUSED
 lite/rules/c01_language-79@iq16-default	PASS	PASS	PASS
 lite/rules/c01_language-79@iq17-default	PASS	PASS	PASS
 lite/rules/c01_language-80@iq16-default	PASS	PASS	PASS

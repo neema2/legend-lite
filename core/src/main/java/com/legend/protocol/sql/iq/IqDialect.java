@@ -2026,6 +2026,14 @@ public final class IqDialect implements InputDialect {
         return unreadNames.contains(s);
     }
 
+    /** IQ island, 2026-10-24 (measured on IQ 17.1, lite/repeated_names): IQ's result shows a name two of its columns
+     *  have -- SELECT a.id, b.id, SELECT * over a join, a column read twice, a set operation's first branch's -- and
+     *  reading it unqualified is its -144 (ORDER BY id; a derived table's or a CTE's, refused as before). */
+    @Override
+    public boolean showsRepeatedNames() {
+        return true;
+    }
+
     /** IQ island, 2026-10-14 (the third landing; measured on SQL Anywhere 17): a name inside a subquery that is no
      *  column of its own query's FROM items, and that an enclosing SELECT's alias may be ({@link IqAliases}): IQ reads
      *  the alias there, before the enclosing query's columns (a column of the subquery's own comes first), which is

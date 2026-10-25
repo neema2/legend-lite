@@ -143,8 +143,11 @@ class IqToPureTest {
         // an unaliased item reading an alias is named as written
         assertTrue(pure("SELECT id AS x, x + 1 FROM " + T).contains("'x+1'"));
         assertTrue(pure("SELECT id AS id, id + 1 FROM " + T).contains("'id+1'"));
-        SqlTranslationException shadow = refusal("SELECT id AS sm, sm FROM " + T);
-        assertTrue(shadow.getMessage().contains("appears twice"), shadow.getMessage());
+        // 2026-10-24 (the repeated names, measured on IQ 17.1): two items of one name are IQ's result, the second
+        // marked in the relation (SqlToPure.REPEATED_NAME_MARK) and shown under the name
+        String shadow = pure("SELECT id AS sm, sm FROM " + T);
+        assertTrue(shadow.contains("->rename(~_sql_2, ~'sm\\u00A0#2')"), shadow);
+        assertTrue(refusal("SELECT id AS sm, sm FROM " + T + " ORDER BY sm").getMessage().contains("-144"));
         // a bare alias, a position and a qualified column are read as before
         String bare = pure("SELECT id, sm AS x FROM " + T + " ORDER BY x");
         assertTrue(bare.contains("->sort([~x->ascending("), bare);

@@ -295,6 +295,9 @@ tests:
     sql: "SELECT id FROM t NATURAL JOIN u"
   - id: natural_join_star_shows_both_sides
     sql: "SELECT * FROM t NATURAL JOIN u"
+    # 2026-10-24 (the repeated names answered): iq17 alone, the star reading t's CHAR(5), which IQ's store pads and
+    # SQL Anywhere's database, judging the iq16 run, does not (D-S1)
+    profile: iq17-default
   - id: natural_join_with_on
     sql: "SELECT t.id FROM t NATURAL JOIN u ON t.id = 1"
   - id: natural_left_join
