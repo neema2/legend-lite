@@ -1,0 +1,21 @@
+# The IQ scale program's realistic reports (2026-10-25): calendar, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: ages_to_the_day
+    sql: "SELECT id, birth_date, DATEDIFF(YEAR, birth_date, '2026-01-15') - CASE WHEN DATEADD(YEAR, DATEDIFF(YEAR, birth_date, '2026-01-15'), birth_date) > '2026-01-15' THEN 1 ELSE 0 END AS age, DATEDIFF(DAY, DATEADD(YEAR, DATEDIFF(YEAR, birth_date, '2026-01-15') - CASE WHEN DATEADD(YEAR, DATEDIFF(YEAR, birth_date, '2026-01-15'), birth_date) > '2026-01-15' THEN 1 ELSE 0 END, birth_date), '2026-01-15') AS days_since_birthday FROM customers WHERE birth_date IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: fiscal_and_week_labels
+    sql: "SELECT id, CAST(order_ts AS DATE) AS order_date, 'FY' || RIGHT(CAST(YEAR(DATEADD(MONTH, 6, order_ts)) AS VARCHAR(4)), 2) || '-Q' || CAST(QUARTER(DATEADD(MONTH, 6, order_ts)) AS VARCHAR(1)) AS fiscal_quarter, CAST(YEAR(order_ts) AS VARCHAR(4)) || '-W' || RIGHT('0' || CAST(DATEPART(WEEK, order_ts) AS VARCHAR(2)), 2) AS week_label, DATENAME(MONTH, order_ts) || ' ' || CAST(DAY(order_ts) AS VARCHAR(2)) AS spoken_date FROM orders WHERE id <= 30 ORDER BY id"
+    profile: iq17-default
+  - id: first_monday_and_last_weekday
+    sql: "SELECT DISTINCT YMD(YEAR(order_ts), MONTH(order_ts), 1) AS month_start, DATEADD(DAY, MOD(9 - DOW(YMD(YEAR(order_ts), MONTH(order_ts), 1)), 7), YMD(YEAR(order_ts), MONTH(order_ts), 1)) AS first_monday, DATEADD(DAY, CASE DOW(DATEADD(DAY, -1, DATEADD(MONTH, 1, YMD(YEAR(order_ts), MONTH(order_ts), 1)))) WHEN 1 THEN -2 WHEN 7 THEN -1 ELSE 0 END, DATEADD(DAY, -1, DATEADD(MONTH, 1, YMD(YEAR(order_ts), MONTH(order_ts), 1)))) AS last_weekday FROM orders WHERE YEAR(order_ts) = 2025 ORDER BY month_start"
+    profile: iq17-default
+  - id: ship_dates_moved_off_weekends
+    sql: "SELECT id, ship_date, DATENAME(WEEKDAY, ship_date) AS weekday, CASE DOW(ship_date) WHEN 7 THEN DATEADD(DAY, 2, ship_date) WHEN 1 THEN DATEADD(DAY, 1, ship_date) ELSE ship_date END AS business_ship_date FROM orders WHERE ship_date IS NOT NULL AND id <= 50 ORDER BY id"
+    profile: iq17-default
+  - id: orders_per_hour_slot
+    sql: "SELECT DATEADD(HOUR, DATEDIFF(HOUR, '2000-01-01', order_ts), '2000-01-01') AS hour_slot, COUNT(*) AS orders FROM orders WHERE order_ts >= '2025-12-01' GROUP BY DATEADD(HOUR, DATEDIFF(HOUR, '2000-01-01', order_ts), '2000-01-01') ORDER BY hour_slot"
+    profile: iq17-default
+  - id: months_between_with_fraction
+    sql: "SELECT id, signup_date, DATEDIFF(MONTH, signup_date, '2026-01-01') AS whole_months, ROUND(DATEDIFF(DAY, signup_date, '2026-01-01') / 30.44, 1) AS approx_months, DATEDIFF(DAY, signup_date, '2026-01-01') - 365 * (DATEDIFF(DAY, signup_date, '2026-01-01') / 365) AS days_past_whole_years FROM customers ORDER BY id"
+    profile: iq17-default

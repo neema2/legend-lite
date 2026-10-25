@@ -1,0 +1,18 @@
+# The IQ scale program's realistic reports (2026-10-25): text_building, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: usernames_and_initials
+    sql: "SELECT id, LOWER(LEFT(TRIM(first_name), 1) || REPLACE(last_name, ' ', '')) || RIGHT('0' || CAST(id AS VARCHAR(3)), 2) AS username, UPPER(LEFT(TRIM(first_name), 1)) || '.' || UPPER(LEFT(last_name, 1)) || '.' AS initials, LENGTH(TRIM(first_name)) + LENGTH(last_name) + 1 AS full_name_length FROM customers ORDER BY id"
+    profile: iq17-default
+  - id: phones_reformatted
+    sql: "SELECT id, phone, digits, CASE WHEN LENGTH(digits) = 10 THEN '(' || LEFT(digits, 3) || ') ' || SUBSTRING(digits, 4, 3) || '-' || RIGHT(digits, 4) ELSE 'invalid' END AS formatted, CASE WHEN LENGTH(digits) = 10 THEN '+1-' || LEFT(digits, 3) || '-' || SUBSTRING(digits, 4, 3) || '-' || RIGHT(digits, 4) END AS e164ish FROM (SELECT id, phone, REPLACE(REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', ''), ' ', '') AS digits FROM customers WHERE phone IS NOT NULL) p ORDER BY id"
+    profile: iq17-default
+  - id: email_checks
+    sql: "SELECT id, email, CASE WHEN email IS NULL THEN 'missing' WHEN email NOT LIKE '%_@_%._%' THEN 'malformed' WHEN LOCATE(email, '@') <> LOCATE(email, '@', LOCATE(email, '@') + 1) - 0 AND LOCATE(email, '@', LOCATE(email, '@') + 1) > 0 THEN 'two @' ELSE 'ok' END AS check_result, LENGTH(email) - LENGTH(REPLACE(email, '.', '')) AS dots, CASE WHEN email IS NOT NULL THEN LENGTH(email) - LOCATE(email, '@') END AS domain_length FROM customers ORDER BY id"
+    profile: iq17-default
+  - id: next_sku_in_series
+    sql: "SELECT LEFT(sku, 8) AS series, MAX(sku) AS last_sku, LEFT(MAX(sku), 8) || RIGHT('000' || CAST(CAST(RIGHT(MAX(sku), 3) AS INTEGER) + 1 AS VARCHAR(4)), 3) AS next_sku, COUNT(*) AS products FROM products GROUP BY LEFT(sku, 8) ORDER BY series"
+    profile: iq17-default
+  - id: display_names_with_titles
+    sql: "SELECT e.id, CASE WHEN e.title LIKE 'VP%' THEN 'VP ' WHEN e.title LIKE '%Manager%' THEN 'Mgr ' ELSE '' END || e.first_name || ' ' || UPPER(LEFT(e.last_name, 1)) || LOWER(SUBSTRING(e.last_name, 2)) AS display, COALESCE(m.first_name || ' ' || m.last_name, '(none)') AS reports_to, REPEAT(' ', CASE WHEN e.manager_id IS NULL THEN 0 WHEN m.manager_id IS NULL THEN 1 ELSE 2 END) || e.last_name AS indented FROM employees e LEFT JOIN employees m ON m.id = e.manager_id ORDER BY e.id"
+    profile: iq17-default

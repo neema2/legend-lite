@@ -1,0 +1,12 @@
+# The IQ scale program's realistic reports (2026-10-25): staff, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: salary_bands
+    sql: "SELECT CASE WHEN salary < 60000 THEN 'under 60k' WHEN salary < 100000 THEN '60k-100k' WHEN salary < 150000 THEN '100k-150k' ELSE '150k+' END AS band, COUNT(*) AS people, MIN(salary) AS low, MAX(salary) AS high, LIST(last_name, ', ' ORDER BY salary, id) AS who FROM employees GROUP BY CASE WHEN salary < 60000 THEN 'under 60k' WHEN salary < 100000 THEN '60k-100k' WHEN salary < 150000 THEN '100k-150k' ELSE '150k+' END ORDER BY MIN(salary)"
+    profile: iq17-default
+  - id: span_of_control
+    sql: "SELECT m.id, m.first_name || ' ' || m.last_name AS manager, COUNT(e.id) AS direct_reports, COUNT(e2.id) AS second_level, CAST(AVG(e.salary) AS NUMERIC(10,2)) AS avg_report_salary FROM employees m JOIN employees e ON e.manager_id = m.id LEFT JOIN employees e2 ON e2.manager_id = e.id GROUP BY m.id, m.first_name, m.last_name ORDER BY direct_reports DESC, m.id"
+    profile: iq17-default
+  - id: tenure_in_years_and_months
+    sql: "SELECT id, first_name || ' ' || last_name AS name, hire_date, DATEDIFF(MONTH, hire_date, '2026-01-01') / 12 AS years, MOD(DATEDIFF(MONTH, hire_date, '2026-01-01'), 12) AS months, CAST(DATEDIFF(MONTH, hire_date, '2026-01-01') / 12 AS VARCHAR(3)) || 'y ' || CAST(MOD(DATEDIFF(MONTH, hire_date, '2026-01-01'), 12) AS VARCHAR(2)) || 'm' AS tenure FROM employees ORDER BY hire_date, id"
+    profile: iq17-default

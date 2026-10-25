@@ -1,0 +1,24 @@
+# The IQ scale program's realistic reports (2026-10-25): calculations, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: credit_growth_projection
+    sql: "SELECT id, credit_limit, ROUND(credit_limit * POWER(1.05, 3), 2) AS in_three_years, ROUND(credit_limit * (1 + 0.05 * 3), 2) AS simple_growth, CAST(credit_limit * 1.05 * 1.05 * 1.05 AS NUMERIC(14,2)) AS exact_compound FROM customers WHERE id <= 15 ORDER BY id"
+    profile: iq17-default
+  - id: margin_and_markup
+    sql: "SELECT id, name, unit_price, unit_cost, unit_price - unit_cost AS profit, ROUND(100 * (unit_price - unit_cost) / unit_price, 2) AS margin_pct, ROUND(100 * (unit_price - unit_cost) / unit_cost, 2) AS markup_pct, ROUND(unit_cost / (1 - 0.40), 2) AS price_for_40_margin FROM products ORDER BY id"
+    profile: iq17-default
+  - id: capped_attainment
+    sql: "SELECT e.id, e.last_name, COALESCE(s.revenue, 0) AS revenue, LESSER(100, ROUND(100.0 * COALESCE(s.revenue, 0) / (e.salary * 2), 1)) AS capped_pct, GREATER(0, COALESCE(s.revenue, 0) - e.salary * 2) AS above_target FROM employees e LEFT JOIN (SELECT o.sales_rep_id, SUM(oi.quantity * oi.unit_price) AS revenue FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'shipped' GROUP BY o.sales_rep_id) s ON s.sales_rep_id = e.id ORDER BY e.id"
+    profile: iq17-default
+  - id: capped_attainment_by_case
+    sql: "SELECT e.id, e.last_name, COALESCE(s.revenue, 0) AS revenue, CASE WHEN ROUND(100.0 * COALESCE(s.revenue, 0) / (e.salary * 2), 1) > 100 THEN 100 ELSE ROUND(100.0 * COALESCE(s.revenue, 0) / (e.salary * 2), 1) END AS capped_pct FROM employees e LEFT JOIN (SELECT o.sales_rep_id, SUM(oi.quantity * oi.unit_price) AS revenue FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'shipped' GROUP BY o.sales_rep_id) s ON s.sales_rep_id = e.id ORDER BY e.id"
+    profile: iq17-default
+  - id: prices_rounded_to_a_nickel
+    sql: "SELECT id, unit_price, ROUND(unit_price * 20, 0) / 20 AS to_nickel, CEILING(unit_price) - 0.01 AS charm_price, FLOOR(unit_price / 10) * 10 AS price_floor_10, ROUND(unit_price, -1) AS nearest_ten FROM products ORDER BY id"
+    profile: iq17-default
+  - id: order_value_z_scores
+    sql: "SELECT id, total, ROUND((total - AVG(total) OVER ()) / NULLIF(STDDEV(total) OVER (), 0), 3) AS z, CASE WHEN ABS((total - AVG(total) OVER ()) / NULLIF(STDDEV(total) OVER (), 0)) > 2 THEN 'outlier' ELSE '' END AS flag FROM (SELECT o.id, CAST(SUM(oi.quantity * oi.unit_price - oi.line_discount) AS DOUBLE) AS total FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'shipped' GROUP BY o.id) t ORDER BY id"
+    profile: iq17-default
+  - id: weighted_and_simple_averages
+    sql: "SELECT p.category, ROUND(AVG(oi.unit_price), 2) AS simple_avg_price, ROUND(SUM(oi.unit_price * oi.quantity) / SUM(oi.quantity), 2) AS weighted_avg_price, ROUND(SUM(oi.line_discount) / NULLIF(SUM(oi.quantity * oi.unit_price), 0) * 100, 3) AS discount_rate_pct FROM order_items oi JOIN products p ON p.id = oi.product_id GROUP BY p.category ORDER BY p.category"
+    profile: iq17-default
