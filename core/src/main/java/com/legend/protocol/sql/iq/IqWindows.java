@@ -85,6 +85,14 @@ final class IqWindows {
     /** The aggregates read over a window (MEDIAN and LIST are refused there). */
     private static final Set<String> AGGREGATES = Set.of("count", "sum", "avg", "min", "max");
 
+    /** The statistical aggregates over a window (the IQ scale program, 2026-10-25: IqAggregates.statisticOverWindow),
+     *  and those of them that take a pair (y, x). */
+    private static final Set<String> STATISTICS = Set.of("stddev", "stddev_pop", "stddev_samp", "variance", "var_pop",
+            "var_samp", "corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept",
+            "regr_r2", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy");
+    private static final Set<String> SINGLE_STATISTICS = Set.of("stddev", "stddev_pop", "stddev_samp", "variance",
+            "var_pop", "var_samp");
+
     /** The largest LAG and LEAD offset IQ reads (measured: 3000000000 is its -1005028). */
     private static final BigInteger MAX_OFFSET = BigInteger.valueOf(Integer.MAX_VALUE);
 
@@ -314,6 +322,13 @@ final class IqWindows {
             }
             boolean arity = fn.equals("count") ? f.star() || f.args().size() == 1 : !f.star() && f.args().size() == 1;
             if (!arity) {
+                throw wrongArguments(f);
+            }
+        } else if (STATISTICS.contains(fn)) {
+            if (f.distinct()) {
+                throw iq("DISTINCT is not allowed in a window function", -134, "0A000", f.pos());
+            }
+            if (f.star() || f.args().size() != (SINGLE_STATISTICS.contains(fn) ? 1 : 2)) {
                 throw wrongArguments(f);
             }
         } else if (RANKING.contains(fn)) {
@@ -731,8 +746,12 @@ final class IqWindows {
                 }
             }
         }
-        if (iqEngine && (AGGREGATES.contains(fn) || fn.equals("first_value") || fn.equals("last_value"))) {
+        if (iqEngine && (AGGREGATES.contains(fn) || STATISTICS.contains(fn) || fn.equals("first_value")
+                || fn.equals("last_value"))) {
             rangeKey(f, spec, at.sortKeys());
+        }
+        if (STATISTICS.contains(fn)) {
+            return IqAggregates.statisticOverWindow(f, at);
         }
         ValueSpecification p = at.partition();
         ValueSpecification w = at.window();

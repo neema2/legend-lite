@@ -1507,6 +1507,15 @@ final class IqAggregates {
                 "sum") : sxx;
         Tx sxy = fn.pair() ? sumOf(at, specs, SqlToPure.strict(Kind.FLOAT, List.of(y, x), v -> times(v.get(0),
                 v.get(1))), "sum") : sxx;
+        ValueSpecification value = statisticValue(fn, n, sx, sxx, sy, syy, sxy);
+        return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(value), null, null), Kind.FLOAT,
+                fn != Fn.REGR_COUNT, new IqType("DOUBLE"));
+    }
+
+    /** {@link #statistic}'s value from its one-pass sums, of a group's rows or a window's frame: {@code n} the count of
+     *  the values, {@code sx} and {@code sxx} their sum and sum of squares, {@code sy}, {@code syy} and {@code sxy} a
+     *  pair's (y, x) other sums (a single value's: x's own). */
+    static ValueSpecification statisticValue(Fn fn, Tx n, Tx sx, Tx sxx, Tx sy, Tx syy, Tx sxy) {
         ValueSpecification count = SqlToPure.call("toFloat", n.vs());
         ValueSpecification shown = SqlToPure.valueOf(SqlToPure.strict(Kind.FLOAT, List.of(sx, sxx, sy, syy, sxy), v -> {
             ValueSpecification ssx = minus(v.get(1), divide(times(v.get(0), v.get(0)), count));
@@ -1543,10 +1552,48 @@ final class IqAggregates {
             };
         }));
         // no value at all (n is 0): NULL, but REGR_COUNT's 0
-        ValueSpecification value = fn == Fn.REGR_COUNT ? SqlToPure.call("toFloat", n.vs()) : IqDialect.ifThen(
+        return fn == Fn.REGR_COUNT ? SqlToPure.call("toFloat", n.vs()) : IqDialect.ifThen(
                 SqlToPure.call("equal", n.vs(), new CInteger(0L)), SqlToPure.nullOf(Kind.FLOAT).vs(), shown);
-        return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(value), null, null), Kind.FLOAT,
-                fn != Fn.REGR_COUNT, new IqType("DOUBLE"));
+    }
+
+    /**
+     * A statistical aggregate over a window (the IQ scale program, 2026-10-25, the census's frames): {@link #statistic}'s
+     * one-pass sums, each over the frame, and its formulas over them. Refused by name as {@link #statistic} refuses.
+     */
+    static SqlToPure.WindowFunction statisticOverWindow(SqlAst.FunctionCall f, SqlToPure.Windowing at) {
+        Fn fn = java.util.Objects.requireNonNull(Fn.of(f), "a statistic");
+        String upper = fn.name();
+        Tx y = asDouble(at.tx(f.args().get(0)), upper, f.args().get(0).pos());
+        Tx x = fn.pair() ? asDouble(at.tx(f.args().get(1)), upper, f.args().get(1).pos()) : y;
+        if (fn.pair()) {
+            // a pair's value only where both are known
+            Tx known = SqlToPure.strict(Kind.FLOAT, List.of(y, x), v -> v.get(0));
+            Tx knownX = SqlToPure.strict(Kind.FLOAT, List.of(y, x), v -> v.get(1));
+            y = known;
+            x = knownX;
+        }
+        List<ColSpec> windows = new ArrayList<>();
+        Tx n = framed(at, windows, x, "count");
+        Tx sx = framed(at, windows, x, "sum");
+        Tx sxx = framed(at, windows, SqlToPure.strict(Kind.FLOAT, List.of(x), v -> times(v.get(0), v.get(0))), "sum");
+        Tx sy = fn.pair() ? framed(at, windows, y, "sum") : sx;
+        Tx syy = fn.pair() ? framed(at, windows, SqlToPure.strict(Kind.FLOAT, List.of(y), v -> times(v.get(0),
+                v.get(0))), "sum") : sxx;
+        Tx sxy = fn.pair() ? framed(at, windows, SqlToPure.strict(Kind.FLOAT, List.of(y, x), v -> times(v.get(0),
+                v.get(1))), "sum") : sxx;
+        return new SqlToPure.WindowFunction(windows, new ColSpec(at.name(), at.overRow(statisticValue(fn, n, sx, sxx,
+                sy, syy, sxy)), null, null), Kind.FLOAT, fn != Fn.REGR_COUNT, new IqType("DOUBLE"));
+    }
+
+    /** A window's {@code reduce} (count or sum) of {@code t}'s values over the frame: its column, a window of
+     *  {@code windows}. */
+    private static Tx framed(SqlToPure.Windowing at, List<ColSpec> windows, Tx t, String reduce) {
+        Tx value = at.computed(t);
+        String name = at.fresh();
+        windows.add(new ColSpec(name, at.overWindow(SqlToPure.valueOf(value)), at.overGroup(SqlToPure.call(reduce,
+                at.values())), null));
+        return reduce.equals("count") ? Tx.value(at.column(name), Kind.INTEGER, false)
+                : Tx.value(at.column(name), Kind.FLOAT, true);
     }
 
     /** A per-group {@code reduce} (count or sum) of {@code t}'s values: its column, a spec of {@code specs}. */
