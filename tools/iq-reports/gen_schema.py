@@ -105,7 +105,7 @@ for cat, sub, names in catalog:
                          1 if pid % 9 == 0 else 0))
 table("products", [("id", "integer"), ("sku", "varchar(12)"), ("name", "varchar(30)"), ("category", "varchar(15)"),
                    ("subcategory", "varchar(15)"), ("unit_price", "numeric(8,2)"), ("unit_cost", "numeric(8,2)"),
-                   ("weight_kg", "double"), ("launched", "date"), ("discontinued", "bit")], products)
+                   ("weight_kg", "numeric(6,3)"), ("launched", "date"), ("discontinued", "bit")], products)
 
 statuses = ["shipped"] * 7 + ["pending", "cancelled", "returned"]
 channels = ["web", "web", "store", "phone"]

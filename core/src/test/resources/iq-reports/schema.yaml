@@ -90,7 +90,7 @@ tables:
       - {name: subcategory, type: varchar(15)}
       - {name: unit_price, type: 'numeric(8,2)'}
       - {name: unit_cost, type: 'numeric(8,2)'}
-      - {name: weight_kg, type: double}
+      - {name: weight_kg, type: 'numeric(6,3)'}
       - {name: launched, type: date}
       - {name: discontinued, type: bit}
     rows:
