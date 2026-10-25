@@ -1,0 +1,21 @@
+# The IQ scale program's realistic reports (2026-10-25): people, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: employee_manager_names
+    sql: "SELECT e.id, e.first_name || ' ' || e.last_name AS employee, e.title, COALESCE(m.first_name || ' ' || m.last_name, '(none)') AS manager FROM employees e LEFT JOIN employees m ON m.id = e.manager_id ORDER BY e.id"
+    profile: iq17-default
+  - id: tenure_and_salary_rank
+    sql: "SELECT id, last_name, title, hire_date, DATEDIFF(YEAR, hire_date, '2026-01-01') AS years, salary, RANK() OVER (PARTITION BY title ORDER BY salary DESC) AS rank_in_title, ROUND(100.0 * salary / SUM(salary) OVER (), 2) AS payroll_share FROM employees ORDER BY title, rank_in_title, id"
+    profile: iq17-default
+  - id: rep_performance
+    sql: "SELECT e.id, e.last_name, COUNT(DISTINCT o.id) AS orders, COALESCE(SUM(oi.quantity * oi.unit_price - oi.line_discount), 0) AS revenue, CASE WHEN COUNT(DISTINCT o.id) = 0 THEN NULL ELSE ROUND(SUM(oi.quantity * oi.unit_price - oi.line_discount) / COUNT(DISTINCT o.id), 2) END AS per_order FROM employees e LEFT JOIN orders o ON o.sales_rep_id = e.id AND o.status IN ('shipped', 'returned') LEFT JOIN order_items oi ON oi.order_id = o.id GROUP BY e.id, e.last_name ORDER BY revenue DESC, e.id"
+    profile: iq17-default
+  - id: team_size_per_manager
+    sql: "SELECT m.id, m.last_name, COUNT(e.id) AS direct_reports, SUM(e.salary) AS team_payroll FROM employees m JOIN employees e ON e.manager_id = m.id GROUP BY m.id, m.last_name ORDER BY m.id"
+    profile: iq17-default
+  - id: salary_vs_title_average
+    sql: "SELECT e.id, e.title, e.salary, ROUND(AVG(e.salary) OVER (PARTITION BY e.title), 2) AS title_avg, e.salary - AVG(e.salary) OVER (PARTITION BY e.title) AS diff_from_avg FROM employees e ORDER BY e.title, e.id"
+    profile: iq17-default
+  - id: reps_region_coverage
+    sql: "SELECT r.name AS region, COUNT(DISTINCT e.id) AS reps, LIST(e.last_name, ', ' ORDER BY e.last_name) AS names FROM regions r LEFT JOIN employees e ON e.region_id = r.id GROUP BY r.name ORDER BY r.name"
+    profile: iq17-default

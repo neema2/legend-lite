@@ -1,0 +1,33 @@
+# The IQ scale program's realistic reports (2026-10-25): products, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: product_margins
+    sql: "SELECT id, sku, name, unit_price, unit_cost, unit_price - unit_cost AS margin, ROUND(100.0 * (unit_price - unit_cost) / unit_price, 1) AS margin_pct FROM products WHERE discontinued = 0 ORDER BY margin_pct DESC, id"
+    profile: iq17-default
+  - id: sku_parts
+    sql: "SELECT id, sku, LEFT(sku, 3) AS cat_code, SUBSTRING(sku, 5, 3) AS sub_code, CAST(RIGHT(sku, 3) AS INTEGER) AS seq, CASE WHEN UPPER(LEFT(category, 3)) = LEFT(sku, 3) THEN 'yes' ELSE 'no' END AS consistent FROM products ORDER BY id"
+    profile: iq17-default
+  - id: price_bands_with_counts
+    sql: "SELECT CASE WHEN unit_price < 25 THEN 'a: under 25' WHEN unit_price < 100 THEN 'b: 25-99' WHEN unit_price < 500 THEN 'c: 100-499' ELSE 'd: 500+' END AS band, COUNT(*) AS products, MIN(unit_price) AS lo, MAX(unit_price) AS hi, ROUND(AVG(unit_price), 2) AS mean FROM products GROUP BY CASE WHEN unit_price < 25 THEN 'a: under 25' WHEN unit_price < 100 THEN 'b: 25-99' WHEN unit_price < 500 THEN 'c: 100-499' ELSE 'd: 500+' END ORDER BY band"
+    profile: iq17-default
+  - id: products_never_sold
+    sql: "SELECT p.id, p.name, p.category FROM products p WHERE p.id NOT IN (SELECT oi.product_id FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE o.status <> 'cancelled') ORDER BY p.id"
+    profile: iq17-default
+  - id: units_and_revenue_rank_in_category
+    sql: "SELECT p.category, p.name, SUM(oi.quantity) AS units, RANK() OVER (PARTITION BY p.category ORDER BY SUM(oi.quantity) DESC) AS unit_rank, DENSE_RANK() OVER (ORDER BY SUM(oi.quantity * oi.unit_price - oi.line_discount) DESC) AS revenue_rank_overall FROM products p JOIN order_items oi ON oi.product_id = p.id GROUP BY p.category, p.name, p.id ORDER BY p.category, unit_rank, p.id"
+    profile: iq17-default
+  - id: discounted_line_share
+    sql: "SELECT p.subcategory, COUNT(*) AS lines, SUM(CASE WHEN oi.line_discount > 0 OR oi.unit_price < p.unit_price THEN 1 ELSE 0 END) AS discounted, ROUND(100.0 * SUM(CASE WHEN oi.line_discount > 0 OR oi.unit_price < p.unit_price THEN 1 ELSE 0 END) / COUNT(*), 1) AS discounted_pct FROM order_items oi JOIN products p ON p.id = oi.product_id GROUP BY p.subcategory ORDER BY p.subcategory"
+    profile: iq17-default
+  - id: weight_and_shipping_class
+    sql: "SELECT id, name, weight_kg, CASE WHEN weight_kg IS NULL THEN 'unknown' WHEN weight_kg < 1 THEN 'parcel' WHEN weight_kg < 5 THEN 'standard' ELSE 'freight' END AS ship_class, ROUND(COALESCE(weight_kg, 0) * 2.20462, 2) AS weight_lb FROM products ORDER BY id"
+    profile: iq17-default
+  - id: product_age_in_months
+    sql: "SELECT id, name, launched, DATEDIFF(MONTH, launched, '2026-01-01') AS months_on_market, CASE WHEN DATEDIFF(MONTH, launched, '2026-01-01') > 48 THEN 'mature' ELSE 'new' END AS lifecycle FROM products ORDER BY launched, id"
+    profile: iq17-default
+  - id: cross_sell_pairs
+    sql: "SELECT a.product_id AS p1, b.product_id AS p2, COUNT(*) AS together FROM order_items a JOIN order_items b ON b.order_id = a.order_id AND b.product_id > a.product_id GROUP BY a.product_id, b.product_id HAVING COUNT(*) >= 2 ORDER BY together DESC, p1, p2"
+    profile: iq17-default
+  - id: category_price_spread
+    sql: "SELECT category, COUNT(*) AS n, MIN(unit_price) AS lo, MAX(unit_price) AS hi, MAX(unit_price) - MIN(unit_price) AS spread, ROUND(STDDEV(CAST(unit_price AS DOUBLE)), 4) AS sd FROM products GROUP BY category ORDER BY category"
+    profile: iq17-default

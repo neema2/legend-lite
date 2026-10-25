@@ -820,6 +820,24 @@ _IQ_PARITY_FLAGS = [
     "-Diq.parity.lite=$(rlocationpath src/test/resources/iq-parity/lite/basics.yaml)",
 ]
 
+# the realistic report suite (the IQ scale program, 2026-10-25; tools/iq-oracle/README.md "A second root"): its own
+# retail schema and report cases, judged by the live IQ as iq-parity's are, by IqParityTest's own run
+_IQ_REPORTS_DATA = glob(["src/test/resources/iq-reports/lite/**/*.yaml"]) + [
+    "src/test/resources/iq-reports/iq-answers.jsonl",
+    "src/test/resources/iq-reports/ledger.tsv",
+    "src/test/resources/iq-reports/schema.yaml",
+    "src/test/resources/iq-reports/iq17-divergences.tsv",
+]
+
+_IQ_REPORTS_FLAGS = [
+    "-Diq.parity.schema=$(rlocationpath src/test/resources/iq-reports/schema.yaml)",
+    "-Diq.parity.answers=$(rlocationpath src/test/resources/iq-reports/iq-answers.jsonl)",
+    "-Diq.parity.ledger=$(rlocationpath src/test/resources/iq-reports/ledger.tsv)",
+    "-Diq.parity.divergences=$(rlocationpath src/test/resources/iq-reports/iq17-divergences.tsv)",
+    # the case files: the directory of this file
+    "-Diq.parity.lite=$(rlocationpath src/test/resources/iq-reports/lite/reports_sales.yaml)",
+]
+
 # the showcase's SQL (docs/IQ_SQL_SHOWCASE.md; IQ island, 2026-10-14): lite/showcase.yaml's main case planned for
 # Snowflake (rendered only) and DuckDB, pinned byte for byte by IqParityTest;
 # -Diq.showcase.update=<core/src/test/resources/iq-parity/showcase in the workspace> rewrites them
@@ -841,6 +859,27 @@ junit_test(
         "-Diq.parity.showcase=$(rlocationpath src/test/resources/iq-parity/showcase/snowflake.sql)",
     ],
     select = ["--select-class=com.legend.integration.IqParityTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# the realistic report suite's cases on the platform (the IQ scale program, 2026-10-25): iq_parity_test's run over the
+# iq-reports root (its schema, cases, answers, ledger and divergences), the showcase and the harness's own tests aside
+junit_test(
+    name = "iq_reports_parity_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/IqParityTest.java"],
+    data = _IQ_REPORTS_DATA,
+    jvm_flags = _IQ_REPORTS_FLAGS,
+    select = ["--select-method=com.legend.integration.IqParityTest#everyIqCaseHasItsLedgerStatusOnThePlatform"],
     runtime_deps = [":drivers"],
     deps = [
         ":core",
@@ -1048,6 +1087,30 @@ junit_test(
     ],
     jvm_flags = _IQ_PARITY_FLAGS + ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
     select = ["--select-class=com.legend.server.IqParityPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# the realistic report suite on an embedded Postgres (the IQ scale program, 2026-10-25), as :iq_parity_postgres_test
+junit_test(
+    name = "iq_reports_parity_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/server/IqParityPostgresTest.java"],
+    data = _IQ_REPORTS_DATA + [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = _IQ_REPORTS_FLAGS + ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-method=com.legend.server.IqParityPostgresTest#everyIqCaseHasItsLedgerStatusOnPostgres"],
     runtime_deps = [":drivers"],
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [

@@ -1425,15 +1425,17 @@ def differences(old, new):
 LIVE_META = "live_iq"  # the meta line's part the live IQ's run writes (IQ island, landing 4, WP1)
 
 
-def head_of(head, oracle, fresh=None):
+def head_of(head, oracle, fresh=None, sa_free=False):
     """The meta line's part one oracle owns -- SQL Anywhere's: all of it but the live IQ's; the live IQ's: its own --
-    and, with fresh, the line with that part replaced (the other oracle's part kept as committed, the live IQ's last)."""
+    and, with fresh, the line with that part replaced (the other oracle's part kept as committed, the live IQ's last).
+    A root none of whose cases SQL Anywhere answers (sa_free; the IQ scale program, 2026-10-25: the realistic reports,
+    iq-reports) has the live IQ's part alone."""
     meta_ = dict((head or {}).get("meta") or {})
     live = meta_.pop(LIVE_META, None)
     if fresh is None:
         return live if oracle == "iq" else meta_
     if oracle == "iq":
-        if not meta_:
+        if not meta_ and not sa_free:
             raise Bad("iq-answers.jsonl has no SQL Anywhere meta line: snap SQL Anywhere's answers first")
         meta_[LIVE_META] = fresh
     else:
@@ -1453,6 +1455,8 @@ def main(argv):
     mode.add_argument("--check", action="store_true", help="re-run the cases and compare with iq-answers.jsonl")
     ap.add_argument("--only", metavar="GLOB", help="only the cases whose key (lite/<file>/<id>) or id matches")
     ap.add_argument("--repo", help="the legend-lite checkout (default: this file's)")
+    ap.add_argument("--root", metavar="DIR", help="the parity root, relative to the checkout (default %s; the realistic"
+                    " reports': core/src/test/resources/iq-reports)" % PARITY)
     ap.add_argument("--oracle", choices=["sa", "iq"], default="sa",
                     help="sa: SQL Anywhere 17 for the iq16-* and sqla17-* profiles (the default); iq: the live SAP IQ"
                          " 17.1 for the iq17-* profiles")
@@ -1464,7 +1468,7 @@ def main(argv):
     args = ap.parse_args(argv)
 
     repo = args.repo or os.environ.get("BUILD_WORKSPACE_DIRECTORY") or os.path.dirname(os.path.dirname(HERE))
-    parity = os.path.join(repo, PARITY)
+    parity = os.path.join(repo, args.root or PARITY)
     answers_path = os.path.join(parity, "iq-answers.jsonl")
     sqlany17 = os.environ.get("SQLANY17")
     if not sqlany17:
@@ -1526,7 +1530,8 @@ def main(argv):
         merged = {k: v for k, v in committed.items() if not mine(k[1]) or k in expected and k not in in_scope}
         merged.update(fresh)
         gone = sorted(k for k in committed if mine(k[1]) and k not in expected)
-        write_answers(answers_path, head_of(head, which, fresh_head), merged)
+        sa_free = not any(oracle_of(p) == "sa" for c in cases for p in c["profiles"])
+        write_answers(answers_path, head_of(head, which, fresh_head, sa_free), merged)
         print("wrote %d answers to %s%s" % (len(merged), os.path.relpath(answers_path, repo),
                                              "; dropped %d gone" % len(gone) if gone else ""))
     else:
