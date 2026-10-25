@@ -364,6 +364,7 @@ its size over the tape) passes on DuckDB (4,809 of 4,837, the old failures uncha
 (4,779; 45 failures, the 44 before and this one); on the market world's live tape every name's running EMA stays inside
 its running range (`//datacube:deephaven_market_test`). Not built here: a
 time-decayed EMA (irregular ticks; Deephaven has one) and a weighted moving average, each its own small function if a
-screen needs it. Not verified in this cloud session: the generated-file drift checks of the catalog (`Pure.java`'s
-overload groups, `native-claims.tsv`), whose generators read the legend-pure checkout this session cannot fetch; the
-two lines were written as the generators write them, and CI checks them.
+screen needs it. The catalog's generated lines, whose generators read the legend-pure checkout this cloud session cannot
+fetch: `Pure.java`'s overload groups replayed by the generator's own rule (`NativesGenerator.withOverloadGroups`, over
+the committed file) come out identical; `native-claims.tsv`'s one row is written as `ClaimsGenerator` writes it, and is
+checked only where the checkouts are (`//core:update_generated_tests`; CI runs on `main` and PRs, not this branch).
