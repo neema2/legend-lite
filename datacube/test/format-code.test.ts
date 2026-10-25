@@ -66,6 +66,16 @@ describe('a date or a timestamp by its code (UTC, as stored)', () => {
     assert.equal(text('h:mm AM/PM', '2026-10-24 15:30:00', false), '3:30 PM');
     assert.equal(text('mm:ss', '2026-10-24T09:05:07', false), '05:07');
   });
+
+  it("a second's fraction (ss.000): the digits stored, cut, never rounded; zeros where none are stored", () => {
+    // a print on the tape (the trader screens, 2026-10-25): its time to the millisecond
+    assert.equal(text('hh:mm:ss.000', '2026-10-24T09:05:07.123456789Z', false), '09:05:07.123');
+    assert.equal(text('hh:mm:ss.0', '2026-10-24T09:05:07.99960', false), '09:05:07.9');
+    assert.equal(text('hh:mm:ss.000', '2026-10-24T09:05:07', false), '09:05:07.000');
+    assert.equal(text('ss.00', '2026-10-24T09:05:07.5', false), '07.50');
+    // a point not after a second is the code's own text
+    assert.equal(text('yyyy.mm.dd', '2026-10-24', false), '2026.10.24');
+  });
 });
 
 describe('refused in words where Excel asks what DataCube does not draw', () => {

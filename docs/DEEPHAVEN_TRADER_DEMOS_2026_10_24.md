@@ -38,7 +38,7 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | K2 | **built 2026-10-24** (§5). **The market world**: a realistic equity simulator and a crypto feed handler that gives way to it (DH28), as the server's startup scripts; since 2026-10-25 publishing the corpus's own tables, queried through its classes (DH34, §6) | the world's figures checked on the pinned server; the fallback taken when the feed is refused |
 | K3a | **built 2026-10-24** (§5). **A candle's open and close on Deephaven**: Pure's `minBy` and `maxBy` over a whole-number order (a trade's sequence number), SQL's `ARG_MIN` and `ARG_MAX`, as the server's `sortedFirst` and `sortedLast` | the dialect's tests; DuckDB's answer on the pinned server |
 | K3 | **built 2026-10-24** (§5); its ticking in a browser is K4's page. **A candlestick chart** in DataCube: open, high, low, close and volume by time bucket, drawn again at its grid's tick with its axes held (C2) | DataCube's chart tests; the chart ticking in a browser check |
-| K4 | **the ticker**: a watchlist (last, change, bid/ask, volume, day VWAP, high/low), the tape, time and sales, and a live candle chart for the symbol picked | a browser check of every part ticking; the speeds of §4 measured |
+| K4 | **built 2026-10-25** (§7). **the ticker**: a watchlist (last, change, bid/ask, volume, day VWAP, high/low), the tape, time and sales, and a live candle chart for the symbol picked | a browser check of every part ticking; the speeds of §4 measured |
 | K5 | **built 2026-10-25** (§6). **The runtime error on Deephaven**: the lowering's guard (Pure fails on `sqrt` of a negative, on an Integer division by zero) writes an `ERROR` no Deephaven formula holds yet; a formula that fails by name, so `sqrt` and Integer `/` plan | the dialect's tests; a failing row failing the view, said, on the server |
 | K6 | **built 2026-10-24** (§5), but for NTH_VALUE; EMA and delta 2026-10-25 (§6). **Windows as `updateBy`**: running and moving figures (by rows and by time), lag and lead, first and last, the ranks; top-N per group (a row number filtered, SQL's QUALIFY: no `headBy` needed); DataCube's window functions and show-as | each against DuckDB's answer |
 | K7 | **built 2026-10-25** (§6). **as-of joins as `aj`** (DH20) | the same |
@@ -64,6 +64,8 @@ Each row is a thing done outside the platform, to push into it.
 | `market/market.groovy`'s simulator (K2) | the equity market: names, prices that move together, quotes and trades at each name's pace | lite writes no rows into Deephaven yet, and a market's rows come from no source of record | a feed the store declares (DH16), its rows written by the platform (L3w, Wr) from a simulator that is a program of its own |
 | `market/market.groovy`'s Coinbase feed (K2) | crypto from Coinbase Exchange's public feed, the simulator in its place where it is refused | no feed ingestion in lite | a feed declared in the store and started by the platform; Kafka into Deephaven in production |
 | `market/market.groovy`'s `world` table (K2) | what each part of the world is and why (simulated, live, connecting) | the page has no other way to learn it | the feed's own status, a system table of the platform's |
+| `market/traders.ts`'s grids read as written (K4) | each trader screen's grid plans its queries in the tab and runs them on its own reader, with no base kept on the server (`src/server-base.ts`, B1) | a base re-declares the planner's model in its text, and the one trading model takes 4.4 s to hold: a screen of five grids would hold it six times before it showed | a base's Database held over the held model (an overlay of the held `ModelContext`, as a runtime and connection already are), never in its text |
+| `market/traders.ts`, the host (K4) | the page around DataCube's: its menu of trader screens, each written by `screens.ts` and opened as a saved page is | the screens are saved pages of a demo of their own, not yet a project's | a project's saved pages, listed by DataCube's own Open window |
 
 ## 4. Realistic speeds
 
@@ -392,3 +394,31 @@ key under the same condition (measured 2026-10-25, a throwaway probe: a print an
 unmatched on DuckDB). The corpus's oracle states DuckDB's rule ("a NULL key or instant matches nothing"), and Deephaven
 follows it (a right key that may be null filtered out). Which is the platform's is a ruling: Pure's `==` says match;
 SQL's equality and the oracle say no.
+
+## 7. The trader screens (the user, 2026-10-25)
+
+"Keep going and building and fixing until we have all the trader screen demos saved as datacube pages user can open
+and see from datacube -- can be different tabs or different saved pages similar to our chart pages."
+
+**The host and the pages.** Each screen is a saved DataCube page (`datacube/demo/deephaven/market/screens.ts`), written
+by DataCube's own writers (`writeCube`, `writePageOf`) as the example pages are: its grids and charts, a sheet (a tab)
+per view of the desk. Every grid's source is a saved query over the one trading model's classes, its text and its
+execution context (`stress::AllMapping` on `market::LiveRuntime`); its columns come from the tab's planner. The host
+(`traders.ts`, `bazel run //datacube:deephaven_traders`) is DataCube's own page over the market world's Deephaven: its
+menu (Trader screens ▸) opens a screen as a saved page is opened -- each grid made again over its source as it is now,
+by `openCube` -- and its Save and Open keep the page as a person left it in the browser. Every grid has its own reader
+and ticks from the rows it follows.
+
+**K4, the ticker (2026-10-25).** Two sheets. *Watchlist*: every name's quote (last, bid, ask and their sizes, the day's
+open, high and low, volume, the change against the prior close in green and red, the spread in basis points); the tape
+(time and sales, to the millisecond, the newest first, read by a window); each name's day from its prints, grouped by
+DataCube (prints counted, VWAP as a size-weighted average, high, low, last by sequence, turnover). *BTC-USD*: two KPI
+tiles (last, change on the day), the coin's quote, one-minute candles with volume, the last print each second against
+its EMA (lite's `ema`, over the tape in the source), and the coin's prints with their EMA. The screen needed three things
+of DataCube, built into it: a chart's value axis fitted to its values (`fitAxis`: a price's line, which a zero baseline
+flattened), a measure's own title in the legend (`title`: "last print", not "maxBy of price by seq"), and a second's
+fraction in a format code (`ss.000`, Excel's: the digits stored, cut). Measured (`//datacube:deephaven_traders_test`,
+the pinned Chromium, a world of 100 names, 2,000 quotes and 400 prints a second, crypto simulated): the page live in
+33 s from a cold tab (the planner holding the trading model, then the screen), the screen open in 7.3 s, again in 0.5 s
+from the page saved; five grids and four charts, each sheet ticking with nothing sent or fetched, a tick on screen 20-24
+ms after its rows on the chart sheet and 33 ms on the watchlist sheet (p50, five grids ticking on one thread).

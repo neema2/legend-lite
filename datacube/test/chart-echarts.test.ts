@@ -1162,6 +1162,22 @@ describe('a ticking chart\'s scale (docs/DEEPHAVEN_PLAN_2026_10_22.md C2)', () =
     assert.deepEqual(d.hold?.extents, [[-120, 500]]);
   });
 
+  it('a value axis fitted to its values (a price\'s line) is scaled, and holds their range, not zero', () => {
+    const fitted = chartOption({ ...BAR, mark: 'line', options: { ...BAR.options, fitAxis: true } }, regions([68_010, 68_070, 68_040]));
+    assert.equal((fitted.option.yAxis as { scale?: boolean }).scale, true);
+    assert.deepEqual(fitted.hold?.extents, [[68_010, 68_070]]);
+    // unfitted, the axis keeps zero in view
+    assert.deepEqual(chartOption({ ...BAR, mark: 'line' }, regions([68_010, 68_070, 68_040])).hold?.extents, [[0, 68_070]]);
+    const [view] = drawn(fitted);
+    assert.ok(view && view[0] > 60_000, `the fitted axis was drawn at ${view}`);
+  });
+
+  it('a measure titled is called by its title in the legend, else by its aggregate of its column', () => {
+    const titled = chartOption({ ...BAR, mark: 'line', y: [{ column: 'notional', fn: 'sum', title: 'book value' }] }, regions([1, 2, 3]));
+    assert.equal((titled.option.series as { name?: string }[])[0]?.name, 'book value');
+    assert.equal((chartOption({ ...BAR, mark: 'line' }, regions([1, 2, 3])).option.series as { name?: string }[])[0]?.name, 'sum of notional');
+  });
+
   it('holds nothing a percent, a log axis or a rank draws', () => {
     assert.equal(chartOption({ ...BAR, options: { ...BAR.options, stack: 'percent' } }, regions([300, 200, 100])).hold, undefined);
     assert.equal(chartOption({ ...BAR, options: { ...BAR.options, logAxis: true } }, regions([300, 200, 100])).hold, undefined);

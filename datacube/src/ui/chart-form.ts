@@ -498,13 +498,13 @@ function lookFields(h: FormHost, spec: ChartSpec): HTMLElement[] {
   const heading = doc.createElement('div');
   heading.className = 'dc-chartpanel-heading';
   heading.textContent = 'Look and interaction';
-  const flag = <K extends 'smooth' | 'step' | 'logAxis' | 'decal' | 'brush' | 'toolbox'>(key: K, text: string): HTMLElement =>
+  const flag = <K extends 'smooth' | 'step' | 'logAxis' | 'fitAxis' | 'decal' | 'brush' | 'toolbox'>(key: K, text: string): HTMLElement =>
     checkbox(doc, text, o[key] === true, (on) => setFlag(h, key, on));
   const lines = spec.mark === 'line' || spec.mark === 'area' || spec.y.some((m) => m.mark === 'line' || m.mark === 'area');
   return [
     heading,
     ...(lines ? [flag('smooth', 'Smooth lines'), flag('step', 'Step lines')] : []),
-    ...(spec.mark !== 'scatter' ? [flag('logAxis', 'Log value axis')] : []),
+    ...(spec.mark !== 'scatter' ? [flag('logAxis', 'Log value axis'), flag('fitAxis', 'Value axis fitted to the values (not from zero)')] : []),
     field(doc, 'Labels:', dropdown(doc, o.labelPosition ?? 'outside', [
       { value: 'outside', label: 'Beyond each mark' }, { value: 'inside', label: 'Inside each mark' },
     ] as const, (v) => { if (v) h.setOption('labelPosition', v); })),
@@ -522,6 +522,6 @@ function lookFields(h: FormHost, spec: ChartSpec): HTMLElement[] {
 }
 
 /** An on/off option: on is said, off is left out (the spec stays as small as what it means). */
-function setFlag(h: FormHost, key: 'smooth' | 'step' | 'logAxis' | 'decal' | 'brush' | 'toolbox' | 'half' | 'ring', on: boolean): void {
+function setFlag(h: FormHost, key: 'smooth' | 'step' | 'logAxis' | 'fitAxis' | 'decal' | 'brush' | 'toolbox' | 'half' | 'ring', on: boolean): void {
   h.setOption(key, on ? true : null);
 }

@@ -2049,6 +2049,8 @@ build_test(
         ":verify_app",
         # the live risk demo's hand tool (bazel run //datacube:deephaven_demo, 2026-10-23)
         ":deephaven_demo",
+        # the trader screens' hand tool (bazel run //datacube:deephaven_traders, 2026-10-25)
+        ":deephaven_traders",
     ],
 )
 
@@ -2192,6 +2194,84 @@ browser_test(
         "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
         "PLANNER": "$(rlocationpaths //wasm:planner)",
     },
+)
+
+# THE TRADER SCREENS (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K4, K8-K13; the user, 2026-10-25): each screen a saved
+# DataCube page (demo/deephaven/market/screens.ts) over the market world, opened from DataCube's own page's menu
+# (demo/deephaven/market/traders.ts) -- its grids and charts, a sheet per view of the desk -- every query planned in the
+# tab over the one trading model's classes and run on the Deephaven server, ticking. `bazel run
+# //datacube:deephaven_traders` serves them by hand; :deephaven_traders_test opens each one and checks it ticks.
+esbuild_bundle(
+    name = "deephaven_traders_bundle",
+    testonly = True,
+    srcs = glob(["demo/deephaven/market/*.ts"]) + [
+        ":node_modules/echarts",
+        ":src",
+    ],
+    outs = ["demo/deephaven/market/traders.js"],
+    args = [
+        "demo/deephaven/market/traders.ts",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--log-level=warning",
+        "--outfile=demo/deephaven/market/traders.js",
+    ],
+)
+
+_DEEPHAVEN_TRADERS_DATA = [
+    "demo/deephaven/market/site.mjs",
+    "demo/deephaven/market/traders.html",
+    "demo/deephaven/site.mjs",
+    ":deephaven_cube_styles",
+    # the binary for its runfiles (the server's jars and Java, the market world), its executable to start it by
+    ":deephaven_market_fixture",
+    ":deephaven_market_fixture_executable",
+    ":deephaven_traders_bundle",
+    "//scripts/corpus:trading_model",
+    "//wasm:planner",
+]
+
+_DEEPHAVEN_TRADERS_ENV = {
+    "MARKET_FIXTURE": "$(rlocationpath :deephaven_market_fixture_executable)",
+    "TRADERS_BUNDLE": "$(rlocationpath :deephaven_traders_bundle)",
+    "TRADERS_PAGE": "$(rlocationpath demo/deephaven/market/traders.html)",
+    "CUBE_STYLES": "$(rlocationpaths :deephaven_cube_styles)",
+    "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
+    "PLANNER": "$(rlocationpaths //wasm:planner)",
+}
+
+# `bazel run //datacube:deephaven_traders`: the trader screens by hand, their address printed (a hand tool: manual,
+# built by :tools_build_test)
+js_binary(
+    name = "deephaven_traders",
+    testonly = True,
+    data = _DEEPHAVEN_TRADERS_DATA + [
+        "demo/deephaven/market/serve.mjs",
+        "//tools/js:runfiles",
+    ],
+    entry_point = "demo/deephaven/market/serve.mjs",
+    env = _DEEPHAVEN_TRADERS_ENV,
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+    tags = ["manual"],
+)
+
+# Every trader screen opened from the page's menu, in the pinned Chromium, over a small market world (its crypto feed
+# refused): every grid's rows and every chart drawn, each sheet ticking with nothing sent or fetched, the page saved
+# and opened again. A screenshot of each sheet is its output. Manual, beside the market world's test.
+browser_test(
+    name = "deephaven_traders_test",
+    size = "large",
+    tags = ["manual"],
+    data = _DEEPHAVEN_TRADERS_DATA + [
+        "test/deephaven/traders.mjs",
+        ":node_modules/playwright",
+    ],
+    entry_point = "test/deephaven/traders.mjs",
+    env = _DEEPHAVEN_TRADERS_ENV,
 )
 
 # THE LIVE RISK DEMO (docs/DEEPHAVEN_PLAN_2026_10_22.md D0, DH23, DH24): DataCube on Deephaven over a risk book whose

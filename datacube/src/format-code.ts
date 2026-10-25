@@ -18,7 +18,9 @@ const COLOURS: Readonly<Record<string, string>> = {
 type Part =
   | { readonly kind: 'text'; readonly text: string }
   | { readonly kind: 'number' }
-  | { readonly kind: 'date'; readonly field: DateField };
+  | { readonly kind: 'date'; readonly field: DateField }
+  /** A second's fraction (`ss.000`): this many of its digits, as the value stores them. */
+  | { readonly kind: 'fraction'; readonly digits: number };
 
 type DateField = 'yyyy' | 'yy' | 'mmmm' | 'mmm' | 'mm' | 'm' | 'dddd' | 'ddd' | 'dd' | 'd' | 'hh' | 'h' | 'MM' | 'M' | 'ss' | 's' | 'ampm';
 
@@ -148,6 +150,14 @@ function readSection(s: string, code: string): Section {
     if (inNumber) { inNumber = false; numberDone = true; }
     if (c === '%') { percent = true; text += '%'; continue; }
     if ((c === 'E' || c === 'e') && /^[Ee][+-]/.test(rest)) said('an exponent');
+    // `ss.000`: a second's fraction (Excel's), right after the second
+    const fraction = /^\.(0+)/.exec(rest);
+    const last = parts[parts.length - 1];
+    if (fraction && text === '' && last?.kind === 'date' && (last.field === 's' || last.field === 'ss')) {
+      parts.push({ kind: 'fraction', digits: fraction[1]!.length });
+      i += fraction[0].length - 1;
+      continue;
+    }
     const token = DATE_TOKENS.exec(rest);
     if (token) {
       flush();
@@ -187,24 +197,27 @@ function sectionOf(c: FormatCode, n: number | null): { section: Section; signed:
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-/** A date's or a timestamp's text as its fields, in UTC as stored; null for text that is not one. */
-function fieldsOf(value: Scalar): Date | null {
+/** A date's or a timestamp's text as its fields, in UTC as stored, and its second's fraction's digits as stored ('' for
+ *  none); null for text that is not one. */
+function fieldsOf(value: Scalar): { readonly at: Date; readonly fraction: string } | null {
   if (typeof value !== 'string') return null;
-  const m = /^(-?\d{4,})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}):(\d{2}))?/.exec(value);
+  const m = /^(-?\d{4,})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?)?/.exec(value);
   if (!m) return null;
   const at = new Date(0);
   at.setUTCFullYear(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   at.setUTCHours(Number(m[4] ?? 0), Number(m[5] ?? 0), Number(m[6] ?? 0), 0);
-  return at;
+  return { at, fraction: m[7] ?? '' };
 }
 
-function dateText(section: Section, at: Date): string {
+function dateText(section: Section, { at, fraction }: { readonly at: Date; readonly fraction: string }): string {
   const twelve = section.parts.some((p) => p.kind === 'date' && p.field === 'ampm');
   const pad = (n: number): string => String(n).padStart(2, '0');
   const hour = twelve ? ((at.getUTCHours() + 11) % 12) + 1 : at.getUTCHours();
   return section.parts.map((p) => {
     if (p.kind === 'text') return p.text;
     if (p.kind === 'number') return '';
+    // the digits stored, cut (never rounded: a print at .9996 is not the next second's), zeros after the last
+    if (p.kind === 'fraction') return `.${fraction.slice(0, p.digits).padEnd(p.digits, '0')}`;
     switch (p.field) {
       case 'yyyy': return String(at.getUTCFullYear());
       case 'yy': return pad(at.getUTCFullYear() % 100);

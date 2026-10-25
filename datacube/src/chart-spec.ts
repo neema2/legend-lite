@@ -186,6 +186,8 @@ export interface ChartMeasure {
   /** The second column an aggregate of two reads (snapshot.ts SECOND_COLUMN): a candle's open and close, `minBy` and
    *  `maxBy`, by their order (K3). Named by no other value. */
   readonly weight?: string;
+  /** What the legend and a hover call it ("last print", "EMA"); absent, its aggregate of its column says it. */
+  readonly title?: string;
 }
 
 /** A date across, taken to its period: the grain's first day (the compiler's `firstDayOf...`), or its year. */
@@ -323,6 +325,9 @@ export interface ChartOptions {
   readonly step?: boolean;
   /** The value axis on a log scale. */
   readonly logAxis?: boolean;
+  /** The value axis fitted to the values drawn, not from zero: a price's line, whose moves a zero baseline flattens
+   *  (the trader screens, 2026-10-25: a coin at 68,000 moving by tens drew as a flat line). */
+  readonly fitAxis?: boolean;
   /** Ranges of the value axis left out (an axis break): a tall outlier no longer flattens the rest. */
   readonly breaks?: readonly { readonly from: number; readonly to: number }[];
   /** Where a mark's label sits: on it (inside) or beyond its end (outside, the default). */
@@ -348,8 +353,8 @@ export interface ChartOptions {
 /** The options that are flags, each true or false (a Record over them: an option flag added and not here fails the build). */
 type FlagKeys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends boolean ? K : never }[keyof T];
 const OPTION_FLAGS: Readonly<Record<FlagKeys<ChartOptions>, true>> = {
-  labels: true, smooth: true, step: true, logAxis: true, zoom: true, brush: true, decal: true, dim: true, toolbox: true,
-  half: true, ring: true,
+  labels: true, smooth: true, step: true, logAxis: true, fitAxis: true, zoom: true, brush: true, decal: true, dim: true,
+  toolbox: true, half: true, ring: true,
 };
 
 // The words a saved spec may use, each list exhaustive by construction (a Record over its union): a page's reader
@@ -394,13 +399,13 @@ const SPEC_KEYS: Readonly<Record<keyof ChartSpec, true>> = {
 const KEPT_KEYS: Readonly<Record<keyof ChartKept, true>> = { filter: true };
 const PLACE_KEYS: Readonly<Record<keyof ChartPlace, true>> = { lat: true, lon: true };
 const MEASURE_KEYS: Readonly<Record<keyof ChartMeasure, true>> = {
-  column: true, fn: true, mark: true, axis: true, showAs: true, weight: true,
+  column: true, fn: true, mark: true, axis: true, showAs: true, weight: true, title: true,
 };
 const FACET_KEYS: Readonly<Record<keyof ChartFacet, true>> = { row: true, column: true };
 const OPTION_KEYS: Readonly<Record<keyof ChartOptions, true>> = {
   orientation: true, stack: true, sort: true, limit: true, labels: true, legend: true, target: true, better: true,
-  smooth: true, step: true, logAxis: true, breaks: true, labelPosition: true, labelRotate: true, zoom: true, brush: true,
-  decal: true, dim: true, toolbox: true, half: true, ring: true,
+  smooth: true, step: true, logAxis: true, fitAxis: true, breaks: true, labelPosition: true, labelRotate: true, zoom: true,
+  brush: true, decal: true, dim: true, toolbox: true, half: true, ring: true,
 };
 const SHOW_AS_KEYS: Readonly<Record<keyof ShowAs, true>> = { kind: true, rows: true };
 const BINS_KEYS: Readonly<Record<keyof Bins, true>> = { width: true, count: true };
@@ -433,6 +438,7 @@ function measureProblem(m: unknown, what: string): string | null {
   if (m['mark'] !== undefined && !known(MEASURE_MARK_WORDS, m['mark'])) return `${what}'s mark ${JSON.stringify(m['mark'])} is not bar, line or area`;
   if (m['axis'] !== undefined && !known(AXIS_WORDS, m['axis'])) return `${what}'s axis ${JSON.stringify(m['axis'])} is not left or right`;
   if (m['weight'] !== undefined && typeof m['weight'] !== 'string') return `${what}'s second column is not a column's name`;
+  if (m['title'] !== undefined && (typeof m['title'] !== 'string' || m['title'].trim() === '')) return `${what}'s title is not words`;
   const showAs = m['showAs'];
   if (showAs !== undefined && (!isRecord(showAs) || !known(SHOW_AS_WORDS, showAs['kind']))) {
     return `${what} is shown as something this DataCube does not know (${JSON.stringify(showAs)})`;

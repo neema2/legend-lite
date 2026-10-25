@@ -541,6 +541,8 @@ export function chartOption(
       ...axisCommon,
       type: spec.options.logAxis && !percent ? 'log' as const : 'value' as const,
       ...(ranks ? { inverse: !horizontal, min: 1, minInterval: 1 } : {}),
+      // fitted to its values (a price's line): ECharts' scaled axis, its baseline wherever the values are
+      ...(spec.options.fitAxis && !percent && !ranks ? { scale: true } : {}),
       ...(index === 1 ? { splitLine: { show: false } } : {}),
       ...(percent ? { max: 100 } : {}),
       ...(twoAxes && on ? { name: on.name, nameTextStyle: { ...text, color: colour } } : {}),
@@ -560,9 +562,10 @@ export function chartOption(
     const on = series.filter((s) => axisOf(s.measure) === index);
     if (on.length === 0 || percent || spec.options.logAxis || on.every((s) => s.measure.showAs?.kind === 'rank')) return null;
     if (index === 0 && spec.options.breaks && spec.options.breaks.length > 0) return null;
-    // from zero: a value axis here keeps its baseline in view (ECharts' own, unscaled)
-    let lo = 0;
-    let hi = 0;
+    // from zero: a value axis here keeps its baseline in view (ECharts' own, unscaled); fitted, from its values
+    const fitted = spec.options.fitAxis === true;
+    let lo = fitted ? Infinity : 0;
+    let hi = fitted ? -Infinity : 0;
     let any = false;
     const up = categories.map(() => 0);
     const down = categories.map(() => 0);
@@ -901,7 +904,7 @@ function zoomOf(spec: ChartSpec, points: number, horizontal: boolean): Record<st
 
 /** A measure as a legend and a hover name it: its column and aggregate, and what it is shown as. */
 export function measureTitle(m: ChartMeasure): string {
-  const base = m.fn === 'value' ? m.column : m.fn === 'count' ? 'count'
+  const base = m.title !== undefined ? m.title : m.fn === 'value' ? m.column : m.fn === 'count' ? 'count'
     : m.weight !== undefined ? `${m.fn} of ${m.column} by ${m.weight}` : `${m.fn} of ${m.column}`;
   return m.showAs ? `${base} (${SHOW_AS_LABELS[m.showAs.kind].toLowerCase()})` : base;
 }

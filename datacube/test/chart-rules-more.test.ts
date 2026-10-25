@@ -143,7 +143,7 @@ describe('the reader refuses a chart it cannot read, in words', () => {
 
   it('a value\'s mark, axis and show-as words, and keys it has no place for', () => {
     assert.equal(measureRefusal({ ...SUM_NOTIONAL, colour: 'red' }),
-      'there is no "colour" in measure 1 (it says column, fn, mark, axis, showAs, weight)');
+      'there is no "colour" in measure 1 (it says column, fn, mark, axis, showAs, weight, title)');
     assert.equal(measureRefusal({ ...SUM_NOTIONAL, mark: 'pie' }), 'measure 1\'s mark "pie" is not bar, line or area');
     assert.equal(measureRefusal({ ...SUM_NOTIONAL, axis: 'top' }), 'measure 1\'s axis "top" is not left or right');
     assert.equal(measureRefusal({ ...SUM_NOTIONAL, showAs: { kind: 'cumulative' } }),
@@ -869,13 +869,20 @@ describe('rules the chart model does not keep yet: a slot nothing draws refused,
     assert.ok(typeof read === 'string' || chartProblems(read, CUBE).length > 0, JSON.stringify(read));
   });
 
+  it("a measure's title is words: a number or a blank one is refused, words are read", () => {
+    assert.match(refusal({ y: [{ column: 'notional', fn: 'sum', title: 5 }] }), /title is not words/);
+    assert.match(refusal({ y: [{ column: 'notional', fn: 'sum', title: '  ' }] }), /title is not words/);
+    const read = readChart({ ...SAVED, y: [{ column: 'notional', fn: 'sum', title: 'book value' }] });
+    assert.notEqual(typeof read, 'string', String(read));
+  });
+
   it('a flag of the options or the chart that is not true or false is refused, as half and ring are', () => {
     // frozen "false" was read and kept the chart frozen; labels "yes" was drawn as labels shown
     const refused = (saved: Record<string, unknown>): boolean => {
       const read = readChart(saved);
       return typeof read === 'string' || chartProblems(read, CUBE).length > 0;
     };
-    const read = ['labels', 'smooth', 'step', 'logAxis', 'zoom', 'brush', 'decal', 'dim', 'toolbox']
+    const read = ['labels', 'smooth', 'step', 'logAxis', 'fitAxis', 'zoom', 'brush', 'decal', 'dim', 'toolbox']
       .filter((flag) => !refused({ ...SAVED, options: { [flag]: 'yes' } })).map((flag) => `options.${flag} "yes"`);
     if (!refused({ ...SAVED, frozen: 'false' })) read.push('frozen "false"');
     assert.deepEqual(read, [], 'read and drawn as if true');
