@@ -533,9 +533,15 @@ class IqParityTest {
                 "SELECT id FROM t WHERE EXISTS (SELECT TOP 1 1 FROM u WHERE u.t_id = t.id) ORDER BY id",
                 // a LIST ordered, of a GROUP BY key, of a constant; a statement the reader rejects keeps no rows
                 "SELECT LIST(id ORDER BY id) FROM g", "SELECT k, LIST(k) FROM g GROUP BY k ORDER BY 1",
-                "SELECT k, LIST(DISTINCT 1) FROM g GROUP BY k ORDER BY 1", "SELECT TOP 2 WITH TIES id FROM t")) {
+                "SELECT k, LIST(DISTINCT 1) FROM g GROUP BY k ORDER BY 1", "SELECT TOP 2 WITH TIES id FROM t",
+                // the IQ scale program, 2026-10-26: a grouped query's keys from a table its unique column joins, ordered
+                // through the key that joins it
+                "SELECT u.id, t.sm, NTILE(2) OVER (ORDER BY COUNT(*) DESC, u.id) AS q FROM u LEFT JOIN t ON t.id ="
+                        + " u.t_id GROUP BY u.id, t.sm ORDER BY u.id")) {
             assertEquals(null, lint.apply(sql, null), sql);
         }
+        assertTrue(lint.apply("SELECT t.id, u.id, NTILE(2) OVER (ORDER BY COUNT(*) DESC, t.id) AS q FROM t LEFT JOIN u"
+                + " ON u.t_id = t.id GROUP BY t.id, u.id ORDER BY t.id, u.id", null).contains("fewer than its GROUP BY"));
         // IQ island, 2026-10-14 (the combination with the options framework): a run that begins with SET statements
         // is linted on its SELECT, read under the settings they make (quoted_identifier Off: ORDER BY "id" orders by
         // a string); an error in them keeps no rows; a case's settings key reads alike

@@ -1039,8 +1039,9 @@ public final class IqParity {
             }
         }
         if (!s.groupBy().isEmpty()) {
+            boolean[] reached = reached(s, sources, keys);
             for (SqlAst.Expr g : s.groupBy()) {
-                if (!covered(resolve(g, s, sources, true), keys, sources)) {
+                if (!covered(resolve(g, s, sources, true), keys, sources, reached)) {
                     return "orders a grouped query by fewer than its GROUP BY keys";
                 }
             }
@@ -1123,8 +1124,9 @@ public final class IqParity {
                     groupKeys.add(g);
                 }
             }
+            boolean[] reached = reached(s, sources, keys);
             for (SqlAst.Expr g : groupKeys) {
-                if (!covered(resolve(g, s, sources, true), keys, sources)) {
+                if (!covered(resolve(g, s, sources, true), keys, sources, reached)) {
                     return at + " orders a grouped query by fewer than its GROUP BY keys";
                 }
             }
@@ -1146,12 +1148,7 @@ public final class IqParity {
         // a FROM item is ordered where the ORDER BY reaches a unique column of it, or where an inner join's ON or the
         // WHERE equates a unique column of it with a column of an item that is ordered (one row of it for each row of
         // that one: SELECT ... FROM t JOIN (... GROUP BY t.id) a ON a.tid = t.id ORDER BY t.id)
-        boolean[] reached = new boolean[sources.size()];
-        for (int i = 0; i < sources.size(); i++) {
-            Source src = sources.get(i);
-            reached[i] = src.oneRow() || src.reachedBy(i, keys);
-        }
-        closeOverEqualities(s, sources, reached);
+        boolean[] reached = reached(s, sources, keys);
         for (int i = 0; i < sources.size(); i++) {
             if (!reached[i]) {
                 return at + " orders by no unique column of " + sources.get(i).label();
@@ -1186,7 +1183,8 @@ public final class IqParity {
     /** Whether the GROUP BY key {@code k} is ordered by {@code keys}: read there, or a column of a source whose unique
      *  column they read, which determines it in its group (the IQ scale program, 2026-10-25: GROUP BY p.category,
      *  p.name, p.id ordered by p.id). */
-    private static boolean covered(@com.legend.base.Nullable String k, List<String> keys, List<Source> sources) {
+    private static boolean covered(@com.legend.base.Nullable String k, List<String> keys, List<Source> sources,
+            boolean[] reached) {
         if (k == null) {
             return false;
         }
@@ -1198,7 +1196,22 @@ public final class IqParity {
         }
         int dot = k.indexOf('.');
         int i = Integer.parseInt(k.substring(0, dot));
-        return i < sources.size() && !sources.get(i).unique().isEmpty() && sources.get(i).reachedBy(i, keys);
+        // the IQ scale program, 2026-10-26 (the realistic reports' league table): a source the keys reach, or one an
+        // equality with a unique column of it ties to one they reach (a LEFT JOIN of a manager ON m.id = e.manager_id),
+        // has one row for each ordered row, so each of its columns is ordered too
+        return i < sources.size() && reached[i];
+    }
+
+    /** Which of {@code s}'s sources {@code keys} order: one of one row, one whose unique column they reach, and, closed
+     *  over the WHERE's and the joins' equalities ({@link #closeOverEqualities}), one tied to an ordered one. */
+    private static boolean[] reached(SqlAst.Select s, List<Source> sources, List<String> keys) {
+        boolean[] reached = new boolean[sources.size()];
+        for (int i = 0; i < sources.size(); i++) {
+            Source src = sources.get(i);
+            reached[i] = src.oneRow() || src.reachedBy(i, keys);
+        }
+        closeOverEqualities(s, sources, reached);
+        return reached;
     }
 
     /** Whether {@code k} is a resolved column's key, {@code <source index>.<column>} ({@link #resolve}), not an
