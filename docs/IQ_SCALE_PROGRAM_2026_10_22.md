@@ -717,4 +717,16 @@ says so.
     others) and the reports' 9 are it over more rows. Data-typed as D-N3 is: listed (row-typed, 9 runs), not modeled;
     derived-total is likely the same rule over a derived table's estimate. Part D (48 more: aging, ledgers,
     commissions, cohorts, gaps and islands, GROUPING SETS and CUBE, percentiles, ANY and ALL) follows to snap.
+  - **Reports parts D and E** (2026-10-26; `tools/iq-reports/queries_d.py`, 48, pushed to snap at 1c529dfe;
+    `queries_e.py`, 38 over five more tables -- exchange rates, promotions, a web shop's events, support tickets,
+    inventory -- held until D's answers land, its schema change making every reports answer stale). Lite answers 153
+    of D's 155 first, 185 of E's 193; **fixed:** a DISTINCT with a window ordered by a qualified column crashed ("not
+    an input scope"); a position in or a length of a VARCHAR(n) is typed 0 to n, so a count computed from it needs no
+    32-bit check (URL parsing by nested LOCATE and SUBSTRING was past the size bound, now 3 to 4 times smaller); a
+    GROUP BY key past the bound, and a CASE nested in an item, have their long operands computed once; LIST ordered by
+    several keys or by an expression (each nullable key after one of its NULL's place, IQ's NULL first ascending). The
+    determinism lint reads a SELECT DISTINCT's items, a tagged UNION ALL and many-to-one joins as keys. E stands at
+    189 of 193: MEDIAN of a BIGINT (not measured), a quotient past 38 digits (set aside), and one IQ error lite
+    predicts (a derived table's scalar subquery read in a CASE, -1001030). The fixes' cases: `lite/census5_report_fixes`
+    (9), at claude/iq-census-5 to snap.
   - **The Snowflake lane** (its sibling session idle since 10-23): its ledger column predates this day's typing.

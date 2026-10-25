@@ -560,12 +560,24 @@ public final class SqlToPure {
         private final String name;
         /** The grouped relation's columns so far, by the canonical form of what they are: its keys first. */
         private final Map<String, Col> grouped;
+        /** The columns computed over each input row before the grouping ({@link #computed}). */
+        private final List<ColSpec> before;
 
-        private Grouping(Input in, Set<String> names, String name, Map<String, Col> grouped) {
+        private Grouping(Input in, Set<String> names, String name, Map<String, Col> grouped, List<ColSpec> before) {
             this.in = in;
             this.names = names;
             this.name = name;
             this.grouped = grouped;
+            this.before = before;
+        }
+
+        /** A column of {@code body} (over an input row, {@link #overRow}'s variable) computed before the grouping, so
+         *  that a reduce may sort by it: its name (the IQ scale program, 2026-10-26: a LIST's NULLs first). */
+        public String computed(ValueSpecification body) {
+            String column = fresh();
+            names.add(column);
+            before.add(new ColSpec(column, lambda(row, body), null, null));
+            return column;
         }
 
         /** The translation this grouping is in, its input scope and the grouped relation's names so far: for an
@@ -2516,6 +2528,9 @@ public final class SqlToPure {
         Map<String, Col> keyBySource = new HashMap<>();
         List<ColSpec> keys = new ArrayList<>();
         List<ColSpec> computedKeys = new ArrayList<>();
+        // the columns a long key's operands are computed in, before the keys (one extend each: each may read one
+        // computed before it)
+        List<ColSpec> keyPre = new ArrayList<>();
         List<ColSpec> representatives = new ArrayList<>();
         Set<String> names = taken();
         names.addAll(in.names());
@@ -2557,7 +2572,24 @@ public final class SqlToPure {
                     }
                 }
             } else {
-                Tx t = tx(key, in, row);
+                Tx t;
+                List<SqlAst.Expr> mine = new ArrayList<>();
+                try {
+                    t = tx(key, in, row);
+                } catch (SqlTranslationException tooLarge) {
+                    if (!tooLarge.pastSizeBound()) {
+                        throw tooLarge;
+                    }
+                    // the IQ scale program, 2026-10-26 (the realistic reports: GROUP BY REPLACE(SUBSTRING(referrer,
+                    // LOCATE(referrer, '://') + 3, ...), 'www.', '')): a key past the dialect's size bound has its long
+                    // operands each computed once, a column before it, as a select item's are ({@link #output})
+                    hoistOperands(key, in, names, keyPre, mine);
+                    try {
+                        t = tx(key, in, row);
+                    } finally {
+                        mine.forEach(hoisted::remove);
+                    }
+                }
                 notJsonKey(t.kind(), "GROUP BY", key.pos());
                 java.util.function.UnaryOperator<ValueSpecification> collation = dialect.key("GROUP BY", t, key,
                         key.pos());
@@ -2603,10 +2635,17 @@ public final class SqlToPure {
                         : dialect.defaultName(x, ref -> tableOf(in, ref)));
             }
         }
+        List<ColSpec> before = new ArrayList<>();
         for (SqlAst.Expr e : scanned) {
-            collectAggregates(e, in, byCanon, aggregates, finishes, names, preferred);
+            collectAggregates(e, in, byCanon, aggregates, finishes, names, preferred, before);
         }
         aggregates.addAll(0, representatives);
+        for (ColSpec c : keyPre) {
+            relation = call("extend", relation, new ColSpecArray(List.of(c)));
+        }
+        if (!before.isEmpty()) {
+            relation = call("extend", relation, new ColSpecArray(before));
+        }
         if (!computedKeys.isEmpty()) {
             relation = call("extend", relation, new ColSpecArray(computedKeys));
         }
@@ -3650,6 +3689,17 @@ public final class SqlToPure {
             if (hoisted.containsKey(c)) {
                 continue;
             }
+            // the IQ scale program, 2026-10-26 (the realistic reports: LENGTH(CASE WHEN LOCATE(url, '?') > 0 THEN
+            // SUBSTRING(url, ...) ELSE SUBSTRING(url, ...) END)): a searched CASE the item computes has its branches'
+            // long operands computed where each is taken, as an item's own CASE does (below), before it
+            if (c instanceof SqlAst.Case k && k.operand() == null && dialect.computesEveryOperand()) {
+                for (int i = 0; i <= k.whens().size(); i++) {
+                    SqlAst.Expr result = i < k.whens().size() ? k.whens().get(i).result() : k.otherwise();
+                    if (result != null) {
+                        hoistTaken(k, i, result, scope, present, pre, mine);
+                    }
+                }
+            }
             Tx ct;
             try {
                 ct = tx(c, scope, row);
@@ -4354,7 +4404,7 @@ public final class SqlToPure {
 
     /** Every aggregate call of {@code e}, once each: a column of the grouped relation with its map and reduce. */
     private void collectAggregates(SqlAst.Expr e, Input in, Map<String, Col> byCanon, List<ColSpec> aggregates,
-            List<ColSpec> finishes, Set<String> names, Map<String, String> preferred) {
+            List<ColSpec> finishes, Set<String> names, Map<String, String> preferred, List<ColSpec> before) {
         if (e instanceof SqlAst.FunctionCall f && isAggregate(f)) {
             for (SqlAst.Expr arg : f.args()) {
                 if (containsAggregate(arg)) {
@@ -4368,7 +4418,7 @@ public final class SqlToPure {
             String want = preferred.get(canon);
             String name = want != null && !names.contains(want) && !want.startsWith(SYNTHETIC) ? want : fresh(names);
             // the dialect's aggregate: its columns, and the one computed from them after the grouping
-            Aggregation own = dialect.aggregate(f, new Grouping(in, names, name, byCanon));
+            Aggregation own = dialect.aggregate(f, new Grouping(in, names, name, byCanon, before));
             names.add(name);
             byCanon.put(canon, Col.of(name, own.kind(), own.nullable(), own.detail()));
             aggregates.addAll(own.specs());
@@ -4381,7 +4431,7 @@ public final class SqlToPure {
             return;
         }
         for (SqlAst.Expr child : children(e)) {
-            collectAggregates(child, in, byCanon, aggregates, finishes, names, preferred);
+            collectAggregates(child, in, byCanon, aggregates, finishes, names, preferred, before);
         }
     }
 

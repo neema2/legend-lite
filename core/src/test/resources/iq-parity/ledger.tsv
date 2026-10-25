@@ -2247,7 +2247,7 @@ lite/iq_engine_aggregates/list_ordered_by_another_column_descending@iq17-default
 lite/iq_engine_aggregates/list_of_integers_ordered_by_another_column@iq17-default	PASS	PASS	PASS
 lite/iq_engine_aggregates/list_ordered_by_a_key_with_nulls@iq17-default	PASS	PASS	PASS
 lite/iq_engine_aggregates/list_ordered_by_a_key_with_nulls_descending@iq17-default	PASS	PASS	PASS
-lite/iq_engine_aggregates/list_ordered_by_two_keys_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/iq_engine_aggregates/list_ordered_by_two_keys_is_refused@iq17-default	PASS	PASS	REFUSED
 lite/iq_engine_apply/cross_apply_of_computed_columns@iq17-default	PASS	PASS	PASS
 lite/iq_engine_apply/outer_apply_of_computed_columns@iq17-default	PASS	PASS	PASS
 lite/iq_engine_apply/chained_computed_columns@iq17-default	PASS	PASS	PASS

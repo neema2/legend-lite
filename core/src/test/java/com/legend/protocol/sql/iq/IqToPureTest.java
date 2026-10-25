@@ -376,6 +376,41 @@ class IqToPureTest {
     }
 
     @Test
+    void aPositionInAStringOfKnownLengthIsCheckedForNoOverflow() {
+        // the IQ scale program, 2026-10-26 (the realistic reports' URL parsing, past the size bound): a LOCATE over a
+        // VARCHAR(20) is 0 to 20, so a start computed from it lies in 32 bits and IQ's error past them is not checked
+        String sql = "SELECT LOCATE(vc, 'b', LOCATE(vc, 'a') + 3) AS p FROM " + T;
+        String p = pure(sql, IqProfile.IQ17_DEFAULT.settings());
+        assertFalse(p.contains("past 32 bits"), p);
+        // a string of no known length (a concatenation's) still has it checked
+        String q = pure("SELECT LOCATE(vc || '', 'b', LOCATE(vc || '', 'a') + 3) AS p FROM " + T,
+                IqProfile.IQ17_DEFAULT.settings());
+        assertTrue(q.contains("past 32 bits"), q);
+    }
+
+    @Test
+    void aGroupByKeyPastTheSizeBoundComputesItsLongOperandsFirst() {
+        // the IQ scale program, 2026-10-26 (the realistic reports' referrer domains): a key whose Pure is past the
+        // dialect's bound has its long operands computed once, columns before the key, as a select item's are
+        // (over a concatenation, whose length no type says)
+        String key = "REPLACE(SUBSTRING(vc || '', LOCATE(vc || '', '://') + 3, LOCATE(vc || '', '/', LOCATE(vc || '',"
+                + " '://') + 3) - LOCATE(vc || '', '://') - 3), 'www.', '')";
+        String p = pure("SELECT " + key + " AS d, COUNT(*) AS n FROM " + T + " GROUP BY " + key,
+                IqProfile.IQ17_DEFAULT.settings());
+        assertTrue(p.indexOf("->extend(") >= 0 && p.indexOf("->extend(") < p.indexOf("->groupBy("), p);
+    }
+
+    @Test
+    void aListOrderedBySeveralKeysSortsANullableKeysNullsFirst() {
+        // the IQ scale program, 2026-10-26 (the realistic reports: LIST(TRIM(subject), ' | ' ORDER BY opened_ts, id)):
+        // each key in turn, a nullable one after a key of its NULL's place computed before the grouping (IQ's NULL
+        // first ascending)
+        String p = pure("SELECT LIST(vc, ',' ORDER BY sm, id) AS l FROM " + T, IqProfile.IQ17_DEFAULT.settings());
+        assertTrue(p.contains("->extend(") && p.contains("joinStrings(") && p.contains("~sm->ascending(), ~id->ascending()"),
+                p);
+    }
+
+    @Test
     void aDistinctWithAWindowSortsByAnItemItShows() {
         // the IQ scale program, 2026-10-25 (the realistic reports' crash, "not an input scope"): a DISTINCT with a
         // window, ordered by a qualified column it shows, sorts by that item after the DISTINCT

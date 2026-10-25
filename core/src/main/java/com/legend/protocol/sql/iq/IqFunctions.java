@@ -1473,7 +1473,7 @@ final class IqFunctions {
             return width;
         }
         Tx s = text(args.get(0), f.args().get(0), name);
-        return strict(Kind.INTEGER, nonNegative(), List.of(s), v -> SqlToPure.call("length", v.get(0)));
+        return strict(Kind.INTEGER, withinLength(s), List.of(s), v -> SqlToPure.call("length", v.get(0)));
     }
 
     /**
@@ -2006,7 +2006,7 @@ final class IqFunctions {
         // IQ island, 2026-10-14 (natives): a sqla17 profile's database finds the search without regard to the ASCII
         // letters' case (measured: LOCATE('xAbc', 'abc') is 2): both folded, which moves no position
         boolean fold = !settings.caseSensitive();
-        Tx r = strict(Kind.INTEGER, nonNegative(), operands, v -> {
+        Tx r = strict(Kind.INTEGER, withinLength(text), operands, v -> {
             ValueSpecification str = fold ? asciiFold(v.get(0), false) : v.get(0);
             ValueSpecification find = fold ? asciiFold(v.get(1), false) : v.get(1);
             ValueSpecification value;
@@ -5256,7 +5256,11 @@ final class IqFunctions {
             return t;
         }
         if (t.kind() == Kind.INTEGER && t.detail() instanceof IqType type && type.isInteger()) {
-            if (type.family().equals("BIGINT") || type.wide() && !type.exact()) {
+            // a value whose range lies in 32 bits needs no check, whatever it is computed in (the IQ scale program,
+            // 2026-10-26: LOCATE(url, '/', LOCATE(url, '://') + 3) over a VARCHAR(160), its start 3 to 163)
+            boolean within = type.lo().compareTo(BigInteger.valueOf(Integer.MIN_VALUE)) >= 0
+                    && type.hi().compareTo(BigInteger.valueOf(Integer.MAX_VALUE)) <= 0;
+            if ((type.family().equals("BIGINT") || type.wide() && !type.exact()) && !within) {
                 String past = IqDialect.REFUSED_AT_RUN_TIME + fn + " with a count or position past 32 bits is not"
                         + " supported: IQ raises its error for a computed one, and reads a BIGINT column's otherwise";
                 Tx checked = SqlToPure.strict(Kind.INTEGER, List.of(t), v -> refusedPast(SqlToPure.call("or",
@@ -5424,6 +5428,18 @@ final class IqFunctions {
     private static IqType nonNegative() {
         return IqType.integer("INTEGER", BigInteger.ZERO, IqType.INTEGER_MAX, false);
     }
+
+    /** A position in or a length of the string {@code s}: an INTEGER from 0 to the characters its type holds, where
+     *  the type says (a CHAR(n)'s or a VARCHAR(n)'s n), so arithmetic over it needs no 32-bit check (the IQ scale
+     *  program, 2026-10-26, the realistic reports: SUBSTRING(url, LOCATE(url, '://') + 3, LOCATE(url, '/',
+     *  LOCATE(url, '://') + 3) - LOCATE(url, '://') - 3) was past the size bound, its every count checked). */
+    private static IqType withinLength(Tx s) {
+        int n = s.detail() instanceof IqType t && CHARACTERS.contains(t.family()) ? t.size() : -1;
+        return n < 0 ? nonNegative() : IqType.integer("INTEGER", BigInteger.ZERO, BigInteger.valueOf(n), false);
+    }
+
+    /** The string types whose size is a count of characters at most. */
+    private static final java.util.Set<String> CHARACTERS = java.util.Set.of("CHAR", "VARCHAR", "NCHAR", "NVARCHAR");
 
     private static IqType varchar() {
         return new IqType("VARCHAR");

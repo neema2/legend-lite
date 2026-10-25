@@ -9,6 +9,7 @@ import com.legend.protocol.spec.CFloat;
 import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.PureCollection;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.sql.SqlAst;
 import com.legend.protocol.sql.SqlToPure;
@@ -2242,8 +2243,7 @@ final class IqAggregates {
         SqlAst.SortItem order = f.orderBy().get(0);
         String key = order.expr() instanceof SqlAst.ColumnRef ref ? at.inputColumn(ref) : null;
         if (f.orderBy().size() != 1 || key == null) {
-            throw SqlTranslationException.unsupported("LIST ordered by more than one key, or by one that is no column,"
-                    + " is not supported yet", order.pos());
+            return listByKeys(f, at, x, delimiter, dialect);
         }
         Tx k = at.tx(order.expr());
         if (k.kind() == Kind.STRING && !dialect.keys().own(order.expr())) {
@@ -2274,6 +2274,51 @@ final class IqAggregates {
         ValueSpecification listed = IqDialect.ifThen(SqlToPure.call("isEmpty", lead.vs()), trail.vs(), IqDialect.ifThen(
                 SqlToPure.call("isEmpty", trail.vs()), lead.vs(), both));
         return new SqlToPure.Aggregation(List.of(byNull, byKey), new ColSpec(at.name(), at.overRow(listed), null, null),
+                Kind.STRING, true, new IqType("LONG VARCHAR"));
+    }
+
+    /**
+     * LIST({@code x} [, delimiter] ORDER BY {@code k1} [DESC], {@code k2} [DESC], ...) under IQ's engine, or by one key
+     * that is no column (the IQ scale program, 2026-10-26, the realistic reports: LIST(TRIM(subject), ' | ' ORDER BY
+     * opened_ts, id)): as {@link #listByKey} lists, by each key in turn, IQ's NULL first ascending and last descending
+     * -- a key of a NULL's place, computed before the grouping, sorted before a key that may be NULL. A key that is no
+     * column is computed before the grouping too. Refused as {@link #listByKey} refuses: a string key whose values may
+     * share a collation key, a value that is no string or integer.
+     */
+    private static SqlToPure.Aggregation listByKeys(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x,
+            String delimiter, IqDialect dialect) {
+        boolean strings = x.kind() == Kind.STRING;
+        if (!strings && !(x.kind() == Kind.INTEGER && x.detail() instanceof IqType t && t.isInteger())) {
+            throw SqlTranslationException.unsupported("LIST of values of this type is not supported yet: IQ spells them"
+                    + " by its own rules", f.args().get(0).pos());
+        }
+        List<ValueSpecification> sorts = new ArrayList<>();
+        for (SqlAst.SortItem o : f.orderBy()) {
+            Tx k = at.tx(o.expr());
+            if (k.kind() == Kind.STRING && !dialect.keys().own(o.expr())) {
+                throw SqlTranslationException.unsupported("LIST ordered by a string whose values may share a collation"
+                        + " key is not supported yet: the order of their rows is the plan's", o.pos());
+            }
+            if (k.nullable()) {
+                // IQ's NULL first ascending, last descending: 0 sorts first
+                ValueSpecification isNull = SqlToPure.call("isEmpty", SqlToPure.valueOf(k));
+                sorts.add(SqlToPure.call("ascending", new ColSpec(at.computed(IqDialect.ifThen(isNull,
+                        new CInteger(o.descending() ? 1L : 0L), new CInteger(o.descending() ? 0L : 1L))), null, null,
+                        null)));
+            }
+            String column = o.expr() instanceof SqlAst.ColumnRef ref ? at.inputColumn(ref) : null;
+            if (column == null) {
+                column = at.computed(SqlToPure.valueOf(k));
+            }
+            sorts.add(SqlToPure.call(o.descending() ? "descending" : "ascending", new ColSpec(column, null, null,
+                    null)));
+        }
+        Tx text = SqlToPure.strict(Kind.STRING, List.of(x), v -> strings ? IqFunctions.trailingSpacesDropped(v.get(0))
+                : SqlToPure.call("toString", v.get(0)));
+        String raw = at.fresh();
+        ColSpec spec = new ColSpec(raw, at.overGroup(SqlToPure.call("joinStrings", at.values(), at.overRow(
+                SqlToPure.valueOf(text)), new CString(delimiter), new PureCollection(sorts))), null, null);
+        return new SqlToPure.Aggregation(List.of(spec), new ColSpec(at.name(), at.overRow(at.column(raw)), null, null),
                 Kind.STRING, true, new IqType("LONG VARCHAR"));
     }
 
