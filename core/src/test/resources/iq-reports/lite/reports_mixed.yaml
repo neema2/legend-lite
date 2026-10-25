@@ -1,0 +1,81 @@
+# The IQ scale program's realistic reports (2026-10-25): mixed, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: rollup_year_and_quarter
+    sql: "SELECT YEAR(o.order_ts) AS yr, QUARTER(o.order_ts) AS qtr, COUNT(*) AS lines, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS revenue, GROUPING(YEAR(o.order_ts)) AS g_year, GROUPING(QUARTER(o.order_ts)) AS g_qtr, CASE WHEN GROUPING(YEAR(o.order_ts)) = 1 THEN 'grand total' WHEN GROUPING(QUARTER(o.order_ts)) = 1 THEN 'year total' ELSE 'quarter' END AS level FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'shipped' GROUP BY ROLLUP (YEAR(o.order_ts), QUARTER(o.order_ts)) ORDER BY g_year, yr, g_qtr, qtr"
+    profile: iq17-default
+  - id: cube_segment_by_year
+    sql: "SELECT COALESCE(c.segment, 'all segments') AS segment, COALESCE(CAST(YEAR(o.order_ts) AS VARCHAR(4)), 'all years') AS yr, COUNT(*) AS orders, SUM(o.shipping_fee) AS shipping FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.status <> 'cancelled' GROUP BY CUBE (c.segment, YEAR(o.order_ts)) ORDER BY 1, 2"
+    profile: iq17-default
+  - id: priced_above_every_home_product
+    sql: "SELECT id, name, category, unit_price FROM products WHERE unit_price > ALL (SELECT unit_price FROM products WHERE category = 'Home') AND category <> 'Home' ORDER BY unit_price DESC, id"
+    profile: iq17-default
+  - id: customers_in_manager_regions
+    sql: "SELECT c.id, c.last_name, c.region_id FROM customers c WHERE c.region_id = ANY (SELECT region_id FROM employees WHERE title = 'Sales Manager') AND c.is_active = 1 ORDER BY c.id"
+    profile: iq17-default
+  - id: customer_scorecard_cte_chain
+    sql: "WITH order_totals AS (SELECT o.id, o.customer_id, o.order_ts, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS total FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'shipped' GROUP BY o.id, o.customer_id, o.order_ts), customer_stats AS (SELECT customer_id, COUNT(*) AS orders, SUM(total) AS revenue, MAX(order_ts) AS last_ts FROM order_totals GROUP BY customer_id), payment_stats AS (SELECT o.customer_id, COUNT(DISTINCT p.method) AS methods FROM payments p JOIN orders o ON o.id = p.order_id GROUP BY o.customer_id), scored AS (SELECT s.customer_id, s.orders, s.revenue, COALESCE(ps.methods, 0) AS methods, CASE WHEN s.revenue >= 20000 THEN 3 WHEN s.revenue >= 5000 THEN 2 ELSE 1 END + CASE WHEN s.orders >= 5 THEN 2 WHEN s.orders >= 3 THEN 1 ELSE 0 END + CASE WHEN DATEDIFF(DAY, s.last_ts, '2026-01-01') <= 120 THEN 2 ELSE 0 END AS score FROM customer_stats s LEFT JOIN payment_stats ps ON ps.customer_id = s.customer_id) SELECT c.id, TRIM(c.first_name) || ' ' || c.last_name AS customer, c.segment, sc.orders, sc.revenue, sc.methods, sc.score, CASE WHEN sc.score >= 6 THEN 'platinum' WHEN sc.score >= 4 THEN 'gold' WHEN sc.score >= 2 THEN 'silver' ELSE 'bronze' END AS tier FROM scored sc JOIN customers c ON c.id = sc.customer_id ORDER BY sc.score DESC, sc.revenue DESC, c.id"
+    profile: iq17-default
+  - id: invoice_numbers
+    sql: "SELECT o.id, 'INV-' || CAST(YEAR(o.order_ts) AS VARCHAR(4)) || '-' || RIGHT('00000' || CAST(o.id AS VARCHAR(10)), 5) AS invoice_no, UPPER(LEFT(o.channel, 1)) || SUBSTRING(o.channel, 2) AS channel_label, RIGHT(SPACE(10) || CAST(o.shipping_fee AS VARCHAR(10)), 10) AS fee_aligned FROM orders o WHERE o.id <= 15 ORDER BY o.id"
+    profile: iq17-default
+  - id: email_tld_and_user_lengths
+    sql: "SELECT CASE WHEN LOWER(email) LIKE '%.com' THEN 'com' WHEN LOWER(email) LIKE '%.org' THEN 'org' ELSE 'other' END AS tld, COUNT(*) AS customers, MIN(LOCATE(email, '@') - 1) AS shortest_user, MAX(LOCATE(email, '@') - 1) AS longest_user, SUM(CASE WHEN email <> LOWER(email) THEN 1 ELSE 0 END) AS not_lowercase FROM customers WHERE email IS NOT NULL GROUP BY CASE WHEN LOWER(email) LIKE '%.com' THEN 'com' WHEN LOWER(email) LIKE '%.org' THEN 'org' ELSE 'other' END ORDER BY customers DESC, tld"
+    profile: iq17-default
+  - id: same_initial_rep_matches
+    sql: "SELECT c.id AS customer_id, TRIM(c.first_name) || ' ' || c.last_name AS customer, e.id AS employee_id, e.first_name || ' ' || e.last_name AS employee FROM customers c JOIN employees e ON UPPER(LEFT(TRIM(c.first_name), 1)) = UPPER(LEFT(e.first_name, 1)) AND c.region_id = e.region_id ORDER BY c.id, e.id"
+    profile: iq17-default
+  - id: fiscal_calendar_from_february
+    sql: "SELECT YEAR(DATEADD(MONTH, 11, o.order_ts)) AS fiscal_year, QUARTER(DATEADD(MONTH, -1, o.order_ts)) AS fiscal_quarter, MIN(CAST(o.order_ts AS DATE)) AS first_order, MAX(CAST(o.order_ts AS DATE)) AS last_order, COUNT(*) AS orders FROM orders o WHERE o.status <> 'cancelled' GROUP BY YEAR(DATEADD(MONTH, 11, o.order_ts)), QUARTER(DATEADD(MONTH, -1, o.order_ts)) ORDER BY fiscal_year, fiscal_quarter"
+    profile: iq17-default
+  - id: business_days_to_ship
+    sql: "SELECT o.id, CAST(o.order_ts AS DATE) AS order_date, o.ship_date, DATEDIFF(DAY, o.order_ts, o.ship_date) AS calendar_days, DATEDIFF(DAY, o.order_ts, o.ship_date) - 2 * DATEDIFF(WEEK, o.order_ts, o.ship_date) AS business_days, DATENAME(WEEKDAY, o.ship_date) AS ship_day FROM orders o WHERE o.ship_date IS NOT NULL AND o.id <= 40 ORDER BY o.id"
+    profile: iq17-default
+  - id: next_birthdays
+    sql: "SELECT id, birth_date, CASE WHEN DATEADD(YEAR, DATEDIFF(YEAR, birth_date, '2026-01-15'), birth_date) < '2026-01-15' THEN DATEADD(YEAR, DATEDIFF(YEAR, birth_date, '2026-01-15') + 1, birth_date) ELSE DATEADD(YEAR, DATEDIFF(YEAR, birth_date, '2026-01-15'), birth_date) END AS next_birthday FROM customers WHERE birth_date IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: category_growth_rate
+    sql: "WITH y AS (SELECT p.category, SUM(CASE WHEN YEAR(o.order_ts) = 2023 THEN oi.quantity * oi.unit_price ELSE 0 END) AS rev_2023, SUM(CASE WHEN YEAR(o.order_ts) = 2025 THEN oi.quantity * oi.unit_price ELSE 0 END) AS rev_2025 FROM order_items oi JOIN orders o ON o.id = oi.order_id JOIN products p ON p.id = oi.product_id WHERE o.status = 'shipped' GROUP BY p.category) SELECT category, rev_2023, rev_2025, ROUND(SQRT(CAST(rev_2025 AS DOUBLE) / rev_2023) - 1, 4) AS annual_growth FROM y WHERE rev_2023 > 0 ORDER BY category"
+    profile: iq17-default
+  - id: shipping_cost_estimate
+    sql: "SELECT o.id, r.country, SUM(COALESCE(p.weight_kg, 1.0) * oi.quantity) AS kg, CASE WHEN r.country = 'USA' THEN 5.00 + 1.25 * CEILING(SUM(COALESCE(p.weight_kg, 1.0) * oi.quantity)) WHEN r.country = 'Canada' THEN 12.00 + 2.10 * CEILING(SUM(COALESCE(p.weight_kg, 1.0) * oi.quantity)) ELSE 18.00 + 3.40 * CEILING(SUM(COALESCE(p.weight_kg, 1.0) * oi.quantity)) END AS est_shipping, o.shipping_fee AS charged FROM orders o JOIN customers c ON c.id = o.customer_id JOIN regions r ON r.id = c.region_id JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id WHERE o.status = 'shipped' AND o.id <= 40 GROUP BY o.id, r.country, o.shipping_fee ORDER BY o.id"
+    profile: iq17-default
+  - id: units_in_packs_of_four
+    sql: "SELECT p.id, p.name, SUM(oi.quantity) AS units, FLOOR(SUM(oi.quantity) / 4) AS packs_of_4, MOD(SUM(oi.quantity), 4) AS singles FROM products p JOIN order_items oi ON oi.product_id = p.id GROUP BY p.id, p.name ORDER BY p.id"
+    profile: iq17-default
+  - id: order_facts_by_correlated_subqueries
+    sql: "SELECT o.id, o.status, (SELECT MAX(p.paid_ts) FROM payments p WHERE p.order_id = o.id) AS last_paid, (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id AND oi.line_discount > 0) AS discounted_lines, (SELECT SUM(oi.quantity) FROM order_items oi WHERE oi.order_id = o.id) AS units FROM orders o WHERE o.customer_id IN (3, 7, 11) ORDER BY o.id"
+    profile: iq17-default
+  - id: priced_above_category_average
+    sql: "SELECT p.id, p.name, p.category, p.unit_price FROM products p WHERE p.unit_price > (SELECT AVG(p2.unit_price) FROM products p2 WHERE p2.category = p.category) ORDER BY p.category, p.unit_price DESC, p.id"
+    profile: iq17-default
+  - id: orders_with_every_line_discounted
+    sql: "SELECT o.id, o.customer_id FROM orders o WHERE EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id) AND NOT EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND oi.line_discount = 0) ORDER BY o.id"
+    profile: iq17-default
+  - id: line_statistics_by_category
+    sql: "SELECT p.category, COUNT(*) AS lines, ROUND(AVG(oi.quantity * oi.unit_price), 2) AS avg_line, ROUND(STDDEV_SAMP(oi.quantity * oi.unit_price), 2) AS sd_line, ROUND(CORR(oi.quantity, oi.unit_price), 4) AS qty_price_corr FROM order_items oi JOIN products p ON p.id = oi.product_id GROUP BY p.category ORDER BY p.category"
+    profile: iq17-default
+  - id: month_over_month_by_category
+    sql: "WITH m AS (SELECT p.category, YEAR(o.order_ts) * 100 + MONTH(o.order_ts) AS ym, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS revenue FROM orders o JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id WHERE o.status = 'shipped' AND o.order_ts >= '2025-01-01' GROUP BY p.category, YEAR(o.order_ts) * 100 + MONTH(o.order_ts)) SELECT category, ym, revenue, LAG(revenue) OVER (PARTITION BY category ORDER BY ym) AS prev_revenue, revenue - LAG(revenue) OVER (PARTITION BY category ORDER BY ym) AS change FROM m ORDER BY category, ym"
+    profile: iq17-default
+  - id: hired_after_their_manager
+    sql: "SELECT e.id, e.first_name || ' ' || e.last_name AS employee, e.hire_date, m.first_name || ' ' || m.last_name AS manager, m.hire_date AS manager_hired, DATEDIFF(MONTH, m.hire_date, e.hire_date) AS months_after_manager, e.salary - m.salary AS salary_gap FROM employees e JOIN employees m ON m.id = e.manager_id ORDER BY months_after_manager, e.id"
+    profile: iq17-default
+  - id: payroll_by_region_with_share
+    sql: "SELECT COALESCE(r.name, 'unassigned') AS region, COUNT(*) AS headcount, SUM(e.salary) AS payroll, ROUND(100.0 * SUM(e.salary) / SUM(SUM(e.salary)) OVER (), 2) AS payroll_share, AVG(e.salary) AS avg_salary FROM employees e LEFT JOIN regions r ON r.id = e.region_id GROUP BY r.name ORDER BY payroll DESC, region"
+    profile: iq17-default
+  - id: orders_matching_campaign_rules
+    sql: "SELECT o.id, o.channel, o.status, o.discount_pct, o.order_ts FROM orders o JOIN customers c ON c.id = o.customer_id WHERE ((o.channel = 'web' AND o.discount_pct >= 0.10) OR (o.channel IN ('store', 'phone') AND o.shipping_fee = 0)) AND o.status NOT IN ('cancelled', 'returned') AND (c.segment = 'enterprise' OR c.credit_limit > 50000) AND MONTH(o.order_ts) NOT IN (7, 8) AND (o.ship_date IS NULL OR DATEDIFF(DAY, o.order_ts, o.ship_date) <= 5) ORDER BY o.order_ts, o.id"
+    profile: iq17-default
+  - id: multichannel_customers
+    sql: "SELECT c.id, c.last_name, COUNT(*) AS orders, COUNT(DISTINCT o.channel) AS channels, SUM(o.shipping_fee) AS shipping_paid, MAX(o.order_ts) AS last_order FROM customers c JOIN orders o ON o.customer_id = c.id WHERE o.status <> 'cancelled' GROUP BY c.id, c.last_name HAVING COUNT(DISTINCT o.channel) >= 2 AND COUNT(*) >= 3 AND MAX(o.order_ts) >= '2025-01-01' AND MIN(o.shipping_fee) = 0 ORDER BY orders DESC, c.id"
+    profile: iq17-default
+  - id: catalog_coverage
+    sql: "SELECT o.customer_id, COUNT(DISTINCT oi.product_id) AS products_bought, ROUND(COUNT(DISTINCT oi.product_id) * 100.0 / (SELECT COUNT(*) FROM products WHERE discontinued = 0), 1) AS coverage_pct FROM orders o JOIN order_items oi ON oi.order_id = o.id GROUP BY o.customer_id HAVING COUNT(DISTINCT oi.product_id) >= 4 ORDER BY coverage_pct DESC, o.customer_id"
+    profile: iq17-default
+  - id: product_name_words
+    sql: "SELECT id, name, CASE WHEN LOCATE(name, ' ') > 0 THEN LEFT(name, LOCATE(name, ' ') - 1) ELSE name END AS first_word, CASE WHEN LOCATE(name, ' ') > 0 THEN TRIM(SUBSTRING(name, LOCATE(name, ' ') + 1)) ELSE '' END AS rest, LENGTH(name) - LENGTH(REPLACE(name, ' ', '')) + 1 AS word_count FROM products ORDER BY id"
+    profile: iq17-default
+  - id: year_to_date_same_period
+    sql: "SELECT YEAR(o.order_ts) AS yr, COUNT(DISTINCT o.id) AS orders_to_date, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS revenue_to_date FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'shipped' AND DATEPART(DAYOFYEAR, o.order_ts) <= DATEPART(DAYOFYEAR, '2025-06-30') GROUP BY YEAR(o.order_ts) ORDER BY yr"
+    profile: iq17-default

@@ -1,0 +1,27 @@
+# The IQ scale program's realistic reports (2026-10-25): rankings, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: top_three_customers_per_region
+    sql: "SELECT region_id, region, customer_id, customer, revenue, rn FROM ( SELECT r.id AS region_id, r.name AS region, c.id AS customer_id, TRIM(c.first_name) || ' ' || c.last_name AS customer, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS revenue, ROW_NUMBER() OVER (PARTITION BY r.id ORDER BY SUM(oi.quantity * oi.unit_price - oi.line_discount) DESC, c.id) AS rn FROM regions r JOIN customers c ON c.region_id = r.id JOIN orders o ON o.customer_id = c.id JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'shipped' GROUP BY r.id, r.name, c.id, c.first_name, c.last_name) ranked WHERE rn <= 3 ORDER BY region_id, rn, customer_id"
+    profile: iq17-default
+  - id: product_rank_change_2024_to_2025
+    sql: "WITH yearly AS (SELECT oi.product_id, YEAR(o.order_ts) AS yr, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS revenue FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE o.status = 'shipped' AND YEAR(o.order_ts) IN (2024, 2025) GROUP BY oi.product_id, YEAR(o.order_ts)), ranked AS (SELECT product_id, yr, revenue, RANK() OVER (PARTITION BY yr ORDER BY revenue DESC) AS rnk FROM yearly) SELECT p.id, p.name, a.rnk AS rank_2024, b.rnk AS rank_2025, a.rnk - b.rnk AS places_gained, CASE WHEN a.rnk IS NULL THEN 'new' WHEN b.rnk IS NULL THEN 'dropped' WHEN b.rnk < a.rnk THEN 'up' WHEN b.rnk > a.rnk THEN 'down' ELSE 'same' END AS movement FROM products p LEFT JOIN ranked a ON a.product_id = p.id AND a.yr = 2024 LEFT JOIN ranked b ON b.product_id = p.id AND b.yr = 2025 WHERE a.rnk IS NOT NULL OR b.rnk IS NOT NULL ORDER BY p.id"
+    profile: iq17-default
+  - id: order_value_quartiles
+    sql: "WITH q AS (SELECT id, total, NTILE(4) OVER (ORDER BY total, id) AS quartile FROM (SELECT o.id, o.channel, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS total FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'shipped' GROUP BY o.id, o.channel) t) SELECT quartile, COUNT(*) AS orders, MIN(total) AS low, MAX(total) AS high, SUM(total) AS revenue FROM q GROUP BY quartile ORDER BY quartile"
+    profile: iq17-default
+  - id: order_value_percentiles_by_channel
+    sql: "SELECT channel, COUNT(*) AS orders, MEDIAN(total) AS median_total, PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY total) AS p90, PERCENTILE_DISC(0.25) WITHIN GROUP (ORDER BY total) AS p25 FROM (SELECT o.id, o.channel, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS total FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'shipped' GROUP BY o.id, o.channel) t GROUP BY channel ORDER BY channel"
+    profile: iq17-default
+  - id: salary_percentiles
+    sql: "SELECT e.id, e.last_name, r.name AS region, e.salary, RANK() OVER (ORDER BY e.salary DESC) AS overall_rank, PERCENT_RANK() OVER (ORDER BY e.salary) AS pct_rank, CUME_DIST() OVER (ORDER BY e.salary) AS cume FROM employees e LEFT JOIN regions r ON r.id = e.region_id ORDER BY e.salary DESC, e.id"
+    profile: iq17-default
+  - id: first_and_latest_product_per_customer
+    sql: "SELECT DISTINCT o.customer_id, FIRST_VALUE(p.name) OVER (PARTITION BY o.customer_id ORDER BY o.order_ts, oi.id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS first_product, LAST_VALUE(p.name) OVER (PARTITION BY o.customer_id ORDER BY o.order_ts, oi.id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS latest_product, COUNT(*) OVER (PARTITION BY o.customer_id) AS lines FROM orders o JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id WHERE o.status <> 'cancelled' ORDER BY o.customer_id"
+    profile: iq17-default
+  - id: second_highest_salary_per_title
+    sql: "SELECT title, id, last_name, salary FROM ( SELECT title, id, last_name, salary, DENSE_RANK() OVER (PARTITION BY title ORDER BY salary DESC) AS dr FROM employees) x WHERE dr = 2 ORDER BY title, id"
+    profile: iq17-default
+  - id: top_product_per_month_2025
+    sql: "WITH monthly AS (SELECT MONTH(o.order_ts) AS mo, oi.product_id, SUM(oi.quantity) AS units FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'shipped' AND YEAR(o.order_ts) = 2025 GROUP BY MONTH(o.order_ts), oi.product_id), ranked AS (SELECT mo, product_id, units, ROW_NUMBER() OVER (PARTITION BY mo ORDER BY units DESC, product_id) AS rn FROM monthly) SELECT r.mo, p.name, r.units FROM ranked r JOIN products p ON p.id = r.product_id WHERE r.rn = 1 ORDER BY r.mo"
+    profile: iq17-default
