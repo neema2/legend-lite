@@ -1,0 +1,127 @@
+# The IQ scale program's real-life census (2026-10-25): string, one representative use per construct a
+# report writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md
+# has the keys.
+tests:
+  - id: ascii
+    sql: "SELECT id, ASCII(vc) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: char_from_code
+    sql: "SELECT CHAR(65) AS v"
+    profile: iq17-default
+  - id: length_len_char_length
+    sql: "SELECT id, LENGTH(vc) AS a, LEN(vc) AS b, CHAR_LENGTH(vc) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: byte_length_octet
+    sql: "SELECT id, BYTE_LENGTH(vc) AS a, OCTET_LENGTH(vc) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: bit_length
+    sql: "SELECT id, BIT_LENGTH(vc) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: upper_lower
+    sql: "SELECT id, UPPER(vc) AS a, LOWER(vc) AS b, UCASE(vc) AS c, LCASE(vc) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: left_right
+    sql: "SELECT id, LEFT(vc, 3) AS a, RIGHT(vc, 2) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: substring_3
+    sql: "SELECT id, SUBSTRING(vc, 2, 3) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: substring_2
+    sql: "SELECT id, SUBSTRING(vc, 2) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: substr
+    sql: "SELECT id, SUBSTR(vc, 1, 2) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: trim_ltrim_rtrim
+    sql: "SELECT id, TRIM(ch) AS a, LTRIM(ch) AS b, RTRIM(ch) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: trim_varchar
+    sql: "SELECT id, TRIM(vc) AS v, LENGTH(TRIM(vc)) AS n FROM t ORDER BY id"
+    profile: iq17-default
+  - id: replace
+    sql: "SELECT id, REPLACE(vc, 'l', 'L') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: str_replace
+    sql: "SELECT id, STR_REPLACE(vc, 'l', 'L') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: repeat_replicate
+    sql: "SELECT id, REPEAT('ab', 2) AS a, REPLICATE(LEFT(vc, 1), 3) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: space
+    sql: "SELECT id, 'x' || SPACE(2) || 'y' AS v FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: charindex
+    sql: "SELECT id, CHARINDEX('l', vc) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: locate
+    sql: "SELECT id, LOCATE(vc, 'l') AS a, LOCATE(vc, 'l', 4) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: patindex
+    sql: "SELECT id, PATINDEX('%l%', vc) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: stuff
+    sql: "SELECT id, STUFF(vc, 2, 1, 'Z') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: insertstr
+    sql: "SELECT id, INSERTSTR(2, vc, 'XY') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: lpad_rpad
+    sql: "SELECT id, LPAD(vc, 8, '*') AS a, RPAD(vc, 8, '-') AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: reverse
+    sql: "SELECT id, REVERSE(vc) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: soundex_difference
+    sql: "SELECT id, SOUNDEX(vc) AS a, DIFFERENCE(vc, 'hello') AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: similar
+    sql: "SELECT id, SIMILAR(vc, 'hello') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: str_of_double
+    sql: "SELECT id, STR(dbl, 8, 2) AS v FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: string_concat_fn
+    sql: "SELECT id, STRING(vc, '-', it) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: concat_operator
+    sql: "SELECT id, vc || '/' || ch AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: concat_plus
+    sql: "SELECT id, vc + '!' AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: hash_md5
+    sql: "SELECT id, HASH(vc, 'md5') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: like_prefix
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+    profile: iq17-default
+  - id: like_contains
+    sql: "SELECT id FROM t WHERE vc LIKE '%l%' ORDER BY id"
+    profile: iq17-default
+  - id: like_underscore
+    sql: "SELECT id FROM t WHERE vc LIKE '_ello' ORDER BY id"
+    profile: iq17-default
+  - id: not_like
+    sql: "SELECT id FROM t WHERE vc NOT LIKE '%e%' ORDER BY id"
+    profile: iq17-default
+  - id: like_escape
+    sql: "SELECT id FROM t WHERE vc LIKE '%!%%' ESCAPE '!' ORDER BY id"
+    profile: iq17-default
+  - id: string_comparison
+    sql: "SELECT id FROM t WHERE vc > 'b' ORDER BY id"
+    profile: iq17-default
+  - id: string_in_list
+    sql: "SELECT id FROM t WHERE vc IN ('Hello', 'apple') ORDER BY id"
+    profile: iq17-default
+  - id: upper_compare
+    sql: "SELECT id FROM t WHERE UPPER(vc) = 'HELLO' ORDER BY id"
+    profile: iq17-default
+  - id: isnumeric
+    sql: "SELECT id, ISNUMERIC(vc) AS a, ISNUMERIC('12.5') AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: cast_number_to_string
+    sql: "SELECT id, CAST(it AS VARCHAR(20)) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: string_of_number_concat
+    sql: "SELECT id, 'id=' || CAST(id AS VARCHAR(10)) AS v FROM t ORDER BY id"
+    profile: iq17-default

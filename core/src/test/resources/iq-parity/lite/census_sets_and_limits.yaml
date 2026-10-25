@@ -1,0 +1,46 @@
+# The IQ scale program's real-life census (2026-10-25): sets_and_limits, one representative use per construct a
+# report writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md
+# has the keys.
+tests:
+  - id: union
+    sql: "SELECT id FROM t UNION SELECT t_id FROM u WHERE t_id IS NOT NULL ORDER BY 1"
+    profile: iq17-default
+  - id: union_all
+    sql: "SELECT id, 't' AS src FROM t UNION ALL SELECT id, 'u' AS src FROM u ORDER BY src, id"
+    profile: iq17-default
+  - id: intersect
+    sql: "SELECT id FROM t INTERSECT SELECT t_id FROM u ORDER BY 1"
+    profile: iq17-default
+  - id: except
+    sql: "SELECT id FROM t EXCEPT SELECT t_id FROM u ORDER BY 1"
+    profile: iq17-default
+  - id: union_in_derived
+    sql: "SELECT COUNT(*) AS n FROM (SELECT id FROM t UNION ALL SELECT id FROM u) x"
+    profile: iq17-default
+  - id: union_of_aggregates
+    sql: "SELECT 'g' AS src, COUNT(*) AS n FROM g UNION ALL SELECT 't', COUNT(*) FROM t ORDER BY src"
+    profile: iq17-default
+  - id: top_n
+    sql: "SELECT TOP 3 id, vc FROM t ORDER BY id"
+    profile: iq17-default
+  - id: top_n_start_at
+    sql: "SELECT TOP 2 START AT 3 id FROM t ORDER BY id"
+    profile: iq17-default
+  - id: first
+    sql: "SELECT FIRST id FROM t ORDER BY id DESC"
+    profile: iq17-default
+  - id: order_by_desc_multi
+    sql: "SELECT id, k FROM g WHERE id < 10 ORDER BY k DESC, id ASC"
+    profile: iq17-default
+  - id: order_by_position
+    sql: "SELECT id, v FROM g WHERE id < 10 ORDER BY 2, 1"
+    profile: iq17-default
+  - id: order_by_expression
+    sql: "SELECT id FROM g WHERE id < 10 ORDER BY ABS(v - 2), id"
+    profile: iq17-default
+  - id: order_by_nulls_first_last
+    sql: "SELECT id, j FROM g WHERE id < 10 ORDER BY j NULLS LAST, id"
+    profile: iq17-default
+  - id: distinct_top
+    sql: "SELECT DISTINCT TOP 2 k FROM g WHERE id < 10 ORDER BY k"
+    profile: iq17-default

@@ -1,0 +1,88 @@
+# The IQ scale program's real-life census (2026-10-25): aggregates, one representative use per construct a
+# report writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md
+# has the keys.
+tests:
+  - id: count_star_count_col
+    sql: "SELECT COUNT(*) AS a, COUNT(v) AS b, COUNT(s) AS c FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: count_distinct
+    sql: "SELECT COUNT(DISTINCT k) AS a, COUNT(DISTINCT s) AS b FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: sum_avg_int
+    sql: "SELECT SUM(v) AS s, AVG(v) AS a FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: sum_avg_numeric
+    sql: "SELECT SUM(n) AS s, AVG(n) AS a FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: sum_avg_double
+    sql: "SELECT SUM(d) AS s, AVG(d) AS a FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: min_max_each_type
+    sql: "SELECT MIN(v) AS a, MAX(v) AS b, MIN(n) AS c, MAX(n) AS d, MIN(s) AS e, MAX(s) AS f, MIN(dt) AS g, MAX(dt) AS h FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: grouped_count_sum
+    sql: "SELECT k, COUNT(*) AS n, SUM(v) AS s FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: grouped_avg
+    sql: "SELECT k, AVG(v) AS a, AVG(n) AS b FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: grouped_min_max
+    sql: "SELECT k, MIN(dt) AS a, MAX(s) AS b FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: sum_distinct
+    sql: "SELECT SUM(DISTINCT v) AS a, AVG(DISTINCT v) AS b FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: conditional_sum
+    sql: "SELECT k, SUM(CASE WHEN b = 1 THEN v ELSE 0 END) AS yes, SUM(CASE WHEN b = 0 THEN 1 ELSE 0 END) AS no FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: conditional_count
+    sql: "SELECT k, COUNT(CASE WHEN v > 2 THEN 1 END) AS big FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: count_distinct_grouped
+    sql: "SELECT k, COUNT(DISTINCT s) AS n FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: list
+    sql: "SELECT k, LIST(s, ',' ORDER BY id) AS v FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: list_distinct
+    sql: "SELECT LIST(DISTINCT c, ';' ORDER BY c) AS v FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: median
+    sql: "SELECT k, MEDIAN(v) AS m FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: stddev_variance
+    sql: "SELECT STDDEV(d) AS a, STDDEV_POP(d) AS b, STDDEV_SAMP(d) AS c, VARIANCE(d) AS e, VAR_POP(d) AS f, VAR_SAMP(d) AS h FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: stddev_grouped
+    sql: "SELECT k, STDDEV(v) AS s FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: corr_covar
+    sql: "SELECT CORR(v, d) AS a, COVAR_POP(v, d) AS b, COVAR_SAMP(v, d) AS c FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: regr
+    sql: "SELECT REGR_SLOPE(d, v) AS a, REGR_INTERCEPT(d, v) AS b, REGR_COUNT(d, v) AS c, REGR_R2(d, v) AS e, REGR_AVGX(d, v) AS f, REGR_AVGY(d, v) AS h FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: regr_sums
+    sql: "SELECT REGR_SXX(d, v) AS a, REGR_SYY(d, v) AS b, REGR_SXY(d, v) AS c FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: percentile_cont_disc
+    sql: "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY v) AS a, PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY v) AS b FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: percentile_grouped
+    sql: "SELECT k, PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY d) AS p FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: aggregate_of_expression
+    sql: "SELECT SUM(v * 2 + 1) AS a, AVG(n * 100) AS b, MAX(LENGTH(s)) AS c FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: aggregate_over_empty
+    sql: "SELECT COUNT(*) AS a, SUM(v) AS b, AVG(v) AS c, MAX(s) AS d FROM g WHERE id > 100"
+    profile: iq17-default
+  - id: ratio_of_aggregates
+    sql: "SELECT k, SUM(v) * 1.0 / COUNT(*) AS r FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: count_star_by_two_keys
+    sql: "SELECT k, b, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY k, b ORDER BY k, b"
+    profile: iq17-default
+  - id: weighted_avg
+    sql: "SELECT WEIGHTED_AVG(v, 3) OVER (ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
