@@ -2,8 +2,9 @@
 # employees, customers, products, orders, their lines and payments -- with the data real tables hold
 # (NULLs where a value is not known yet, mixed-case e-mails, padded names, cancelled and pending orders,
 # partial payments) -- and, from part E (2026-10-26), monthly exchange rates, promotions over date ranges, a
-# web shop's events, support tickets and inventory snapshots. Generated, deterministically, by the program's
-# gen_schema.py; tools/iq-oracle's README.md has the format.
+# web shop's events, support tickets and inventory snapshots; from part I, international suppliers (UTF-8
+# names) and the products they supply. Generated, deterministically, by the program's gen_schema.py;
+# tools/iq-oracle's README.md has the format.
 tables:
   - name: regions
     columns:
@@ -1393,3 +1394,80 @@ tables:
       - [238, 20, '2025-10-01', 31, 10]
       - [239, 20, '2025-11-01', 17, 10]
       - [240, 20, '2025-12-01', 12, 10]
+  - name: suppliers
+    columns:
+      - {name: id, type: integer}
+      - {name: name, type: varchar(40)}
+      - {name: city, type: varchar(30)}
+      - {name: country, type: varchar(20)}
+      - {name: contact, type: varchar(40)}
+      - {name: email, type: varchar(60)}
+      - {name: phone, type: varchar(25)}
+      - {name: rating, type: 'numeric(3,1)'}
+      - {name: since, type: date}
+    rows:
+      - [1, 'Müller GmbH', 'München', 'Germany', 'Jürgen Weiß', 'j.weiss@mueller.de', '+49 89 1234567', '4.5', '2016-04-01']
+      - [2, 'Société Générale de Café', 'Lyon', 'France', 'Amélie Dubois', 'amelie@sgcafe.fr', '+33 4 72 00 00 00', '3.9', '2018-09-15']
+      - [3, 'Ñandú Imports', 'Córdoba', 'Argentina', 'José Núñez', 'jose@nandu.com.ar', '+54 351 555 0101', '4.1', '2020-01-20']
+      - [4, 'Øresund Trading', 'Malmö', 'Sweden', 'Åsa Lindqvist', 'asa@oresund.se', '+46 40 123 456', '4.8', '2015-06-30']
+      - [5, 'Łódź Textiles', 'Łódź', 'Poland', 'Paweł Wójcik', 'pawel@lodztex.pl', '+48 42 600 70 80', '3.2', '2021-03-03']
+      - [6, 'São Paulo Couros', 'São Paulo', 'Brazil', 'João Conceição', 'joao@spcouros.com.br', '+55 11 4000 1234', '4.0', '2019-11-11']
+      - [7, 'Zürich Präzision AG', 'Zürich', 'Switzerland', 'Ursula Kälin', 'u.kaelin@zprazision.ch', '+41 44 555 66 77', '4.9', '2014-02-14']
+      - [8, 'Kraków Metal', 'Kraków', 'Poland', 'Zofia Kowalczyk', null, '+48 12 345 67 89', '3.7', '2022-07-01']
+      - [9, 'İstanbul Halı', 'İstanbul', 'Turkey', 'Ayşe Yılmaz', 'ayse@istanbulhali.com.tr', '+90 212 555 0000', '4.3', '2017-05-05']
+      - [10, 'Ålesund Fisk', 'Ålesund', 'Norway', 'Ole Øvrebø', 'ole@alesundfisk.no', null, '4.6', '2016-12-01']
+      - [11, 'Café Crème', 'Paris', 'France', 'Hélène Béranger', 'helene@cafecreme.fr', '+33 1 40 00 00 00', '3.5', '2023-02-28']
+      - [12, 'Cafe Creme', 'Montréal', 'Canada', 'Gaëtan Lévesque', 'gaetan@cafecreme.ca', '+1 514 555 0199', '3.8', '2023-03-01']
+      - [13, '  Acme Supplies  ', 'Chicago', 'USA', 'Wile Coyote', 'WILE@ACME.COM', '(312) 555-0100', '2.9', '2012-01-01']
+      - [14, 'ACME supplies', 'Chicago', 'USA', null, 'orders@acme.com', '312.555.0101', null, '2024-06-15']
+      - [15, 'Straße & Söhne', 'Köln', 'Germany', 'Björn Groß', 'bjoern@strasse-soehne.de', '+49 221 987654', '4.2', '2013-08-08']
+      - [16, 'naïve design', 'Bruxelles', 'Belgium', 'Zoë Peeters', 'zoe@naive.be', '+32 2 555 12 12', '4.4', '2020-10-10']
+      - [17, 'Smith & Sons', 'Leeds', 'UK', 'Ian Smith', 'ian@smithandsons.co.uk', '+44 113 496 0000', '3.1', '2011-05-20']
+      - [18, 'Østfold Wood', 'Fredrikstad', 'Norway', 'Kåre Ødegård', 'kare@ostfoldwood.no', '+47 69 00 00 00', '4.0', '2019-04-04']
+  - name: supplier_products
+    columns:
+      - {name: id, type: integer}
+      - {name: supplier_id, type: integer}
+      - {name: product_id, type: integer}
+      - {name: lead_days, type: smallint}
+      - {name: unit_cost, type: 'numeric(8,2)'}
+      - {name: min_order, type: integer}
+    rows:
+      - [1, 2, 1, 10, '69.66', 100]
+      - [2, 5, 1, 10, '65.79', 10]
+      - [3, 16, 2, 30, '1583.64', 10]
+      - [4, 14, 3, 45, '161.99', 25]
+      - [5, 13, 4, 45, '9.40', 50]
+      - [6, 6, 4, 7, '10.44', 50]
+      - [7, 11, 5, 5, '3.82', 25]
+      - [8, 3, 5, 14, '4.27', 25]
+      - [9, 3, 6, 30, '13.49', 50]
+      - [10, 10, 6, 21, '15.74', 10]
+      - [11, 13, 7, 14, '584.55', null]
+      - [12, 11, 7, 7, '613.78', 10]
+      - [13, 12, 7, 30, '526.10', 50]
+      - [14, 7, 8, 3, '6.86', 25]
+      - [15, 2, 8, 45, '5.55', 25]
+      - [16, 8, 9, 10, '1662.82', 50]
+      - [17, 10, 9, 10, '1662.82', 100]
+      - [18, 18, 10, 21, '106.88', 100]
+      - [19, 13, 11, 21, '224.55', 50]
+      - [20, 11, 11, 3, '224.55', 10]
+      - [21, 4, 11, 10, '190.87', 100]
+      - [22, 16, 12, 7, '74.50', null]
+      - [23, 2, 12, 3, '67.40', 50]
+      - [24, 8, 13, 10, '10.96', 25]
+      - [25, 3, 13, 45, '9.40', 50]
+      - [26, 18, 14, 10, '512.43', 10]
+      - [27, 13, 14, 14, '566.37', 25]
+      - [28, 17, 15, 10, '5.88', 10]
+      - [29, 14, 15, 21, '5.88', 50]
+      - [30, 6, 16, 45, '17.99', 10]
+      - [31, 4, 17, 5, '647.28', 10]
+      - [32, 12, 17, 7, '614.92', 50]
+      - [33, 8, 18, 7, '1209.73', null]
+      - [34, 6, 18, 3, '1149.24', 50]
+      - [35, 18, 19, 7, '989.77', 25]
+      - [36, 6, 19, 7, '989.77', 25]
+      - [37, 13, 20, 5, '6.47', 100]
+      - [38, 6, 20, 14, '7.19', 10]

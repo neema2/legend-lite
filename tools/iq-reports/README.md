@@ -7,8 +7,9 @@ retail database, judged by the live SAP IQ 17.1 as the parity cases are.
 - `gen_schema.py` writes the schema: regions, employees, customers, products, orders, their lines and payments, with
   the data real tables hold (NULLs, mixed-case e-mails, padded names, cancelled and pending orders, partial payments).
   Deterministic.
-- `queries_a.py` to `queries_h.py` hold the queries by group (part E's over the five tables `gen_schema.py` adds for
-  it: exchange rates, promotions, web events, support tickets, inventory); `build.py` writes them as
+- `queries_a.py` to `queries_i.py` hold the queries by group (parts E and I over the tables `gen_schema.py` adds for
+  them: exchange rates, promotions, web events, support tickets, inventory; suppliers and their products);
+  `build.py` writes them as
   `core/src/test/resources/iq-reports/lite/reports_<group>.yaml` (one line each, profile iq17-default) and as a corpus
   suite for `IqCorpusTest`'s coverage run.
 - The root `core/src/test/resources/iq-reports` is a second parity root (`tools/iq-oracle/README.md`, "A second
