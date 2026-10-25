@@ -124,8 +124,20 @@ class IqCorpusTest {
                         if (snap == null) {
                             continue;
                         }
-                        Future<SqlParity.Outcome> judged = pool.submit(() -> IqParity.outcome(parityRun, snap,
-                                tables, names, is -> service.execute(model, is, IqParity.RUNTIME, session)));
+                        // the IQ scale program, 2026-10-26 (the TPC-H lane's 24 TIMEOUTs in runs of neighbours): a
+                        // query the judge stops ran on in DuckDB and held the next ones on the shared session; each
+                        // now runs on a connection of its own, interrupted when stopped (stop)
+                        Connection one = own(session);
+                        java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+                        Future<SqlParity.Outcome> judged = pool.submit(() -> {
+                            try {
+                                return IqParity.outcome(parityRun, snap, tables, names, is -> service.execute(model, is,
+                                        IqParity.RUNTIME, one));
+                            } finally {
+                                done.countDown();
+                            }
+                        });
+                        boolean stopped = false;
                         String verdict;
                         String detail;
                         try {
@@ -133,11 +145,11 @@ class IqCorpusTest {
                             verdict = o.status().name();
                             detail = o.detail().replaceAll("\\s+", " ").strip();
                             if (o.status() == SqlParity.Status.FAIL && !detail.contains("Column")
-                                    && sameRowsUnordered(parityRun, snap, service, model, island, session)) {
+                                    && sameRowsUnordered(parityRun, snap, service, model, island, one)) {
                                 // a real-world query's ORDER BY may tie: the rows are IQ's, in another order
                                 verdict = "PASS_UNORDERED";
                             } else if (o.status() == SqlParity.Status.FAIL
-                                    && samePlacesCut(parityRun, snap, service, model, island, session)) {
+                                    && samePlacesCut(parityRun, snap, service, model, island, one)) {
                                 // the IQ scale program, 2026-10-25: a NUMERIC's places differ, its digits agree;
                                 // 2026-10-26 (the TPC-DS lane's 23 percentages and an AVG of IQ's fewer places): tried
                                 // for any FAIL, not only one whose detail names places -- every other cell must match
@@ -145,6 +157,8 @@ class IqCorpusTest {
                             }
                         } catch (TimeoutException e) {
                             judged.cancel(true);
+                            stop(one, session, done, pool);
+                            stopped = true;
                             verdict = "TIMEOUT";
                             detail = "over " + budget + " ms";
                         } catch (java.util.concurrent.ExecutionException e) {
@@ -157,7 +171,7 @@ class IqCorpusTest {
                             // IQ island, 2026-10-16: lite's own rows, for reading a FAIL beside the live IQ's
                             try {
                                 SqlParity.Grid g = SqlParity.grid(service.execute(model, island, IqParity.RUNTIME,
-                                        session));
+                                        one));
                                 rowsOut.append("{\"id\":").append(json(q.id())).append(",\"columns\":[");
                                 rowsOut.append(String.join(",", g.columns().stream().map(IqCorpusTest::json)
                                         .toList())).append("],\"rows\":[");
@@ -172,22 +186,34 @@ class IqCorpusTest {
                                         .append(json(oneLine(e))).append("}\n");
                             }
                         }
+                        if (!stopped) {
+                            closed(one, session);
+                        }
                         continue;
                     }
+                    Connection one = own(session);
+                    java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
                     Future<Status> run = pool.submit(() -> {
-                        service.execute(model, island, IqParity.RUNTIME, session);
-                        return Status.ANSWERED;
+                        try {
+                            service.execute(model, island, IqParity.RUNTIME, one);
+                            return Status.ANSWERED;
+                        } finally {
+                            done.countDown();
+                        }
                     });
                     Result r;
                     try {
                         run.get(budget, TimeUnit.MILLISECONDS);
                         r = new Result(q.id(), Status.ANSWERED, "");
+                        closed(one, session);
                     } catch (TimeoutException e) {
                         run.cancel(true);
+                        stop(one, session, done, pool);
                         r = new Result(q.id(), Status.TIMEOUT, "over " + budget + " ms");
                     } catch (java.util.concurrent.ExecutionException e) {
                         Throwable t = e.getCause() == null ? e : e.getCause();
                         r = new Result(q.id(), classify(t), oneLine(t));
+                        closed(one, session);
                     }
                     results.add(r);
                 }
@@ -279,6 +305,71 @@ class IqCorpusTest {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /** A connection of its own to {@code session}'s database for one query: DuckDB's duplicate, with the dialect's
+     *  session setup made again (the IQ scale program, 2026-10-26); the session itself where it has none. */
+    private static Connection own(Connection session) throws java.sql.SQLException {
+        java.lang.reflect.Method duplicate;
+        try {
+            duplicate = session.getClass().getMethod("duplicate");
+        } catch (NoSuchMethodException none) {
+            return session;
+        }
+        Connection c;
+        try {
+            c = (Connection) duplicate.invoke(session);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("the session's duplicate failed", e);
+        }
+        try (java.sql.Statement s = c.createStatement()) {
+            for (String setup : PLATFORM.dialect().sessionSetup()) {
+                s.execute(setup);
+            }
+        }
+        return c;
+    }
+
+    /** A query's own connection ({@link #own}) closed once it is done with. */
+    private static void closed(Connection one, Connection session) {
+        if (one != session) {
+            try {
+                one.close();
+            } catch (java.sql.SQLException e) {
+                throw new IllegalStateException("a query's connection did not close", e);
+            }
+        }
+    }
+
+    /** The statement a stopped query runs on {@code one} interrupted (DuckDB's {@code interrupt}, its connection's own,
+     *  not public, under the connection's lock), and the connection closed once the query has ended ({@code done}): it must not run on, holding
+     *  the threads the next queries read with. */
+    private static void stop(Connection one, Connection session, java.util.concurrent.CountDownLatch done,
+            ExecutorService pool) {
+        if (one == session) {
+            return;
+        }
+        try {
+            // as DuckDB's own Statement.cancel does: the connection's lock held, which a running query does not hold
+            java.lang.reflect.Field lockField = one.getClass().getDeclaredField("connRefLock");
+            lockField.setAccessible(true);
+            java.util.concurrent.locks.Lock lock = (java.util.concurrent.locks.Lock) lockField.get(one);
+            java.lang.reflect.Method interrupt = one.getClass().getDeclaredMethod("interrupt");
+            interrupt.setAccessible(true);
+            lock.lock();
+            try {
+                interrupt.invoke(one);
+            } finally {
+                lock.unlock();
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("DuckDB's interrupt is not reachable", e);
+        }
+        pool.submit(() -> {
+            done.await();
+            closed(one, session);
+            return null;
+        });
     }
 
     /** The IQ scale program, 2026-10-25 (the corpus judge's PLACES): whether lite's rows are IQ's once each NUMERIC
