@@ -329,10 +329,12 @@ class DeephavenDialectTest {
         formulaOver(books, "bid", "$x.used->toFloat()", "(t0__used.doubleValue())");
         formulaOver(books, "bid", "$x.lim->toOne()->toFloat()",
                 "(isNull(t0__lim) ? NULL_DOUBLE : t0__lim.doubleValue())");
-        // a float's text is Java's where SQL's differs (1.0E7 against 10000000.0): refused by name
-        DialectCapability text = assertThrows(DialectCapability.class,
-                () -> batch(P + "->extend(~r:x|$x.sz->toString())->select(~[pid, r])"));
-        assertTrue(text.getMessage().contains("reached Deephaven"), text.getMessage());
+        // a Float's text is Pure's: Java's where it is plain, its exponent form re-written plainly (1.0E7 is
+        // 10000000.0) -- a whole value by its exact digits, a fraction by its shortest digits; outside the bands, Java's
+        formulaOver(P, "pid", "$x.sz->toString()", "((`` + t0__sz).indexOf(`E`) < 0 ? (`` + t0__sz) : (t0__sz =="
+                + " floor(t0__sz) && abs(t0__sz) < 1.0E38) ? (new java.math.BigDecimal(t0__sz).toPlainString() + `.0`) :"
+                + " (abs(t0__sz) >= 1.0E-17 && abs(t0__sz) < 9.007199254740992E15) ? new java.math.BigDecimal(`` +"
+                + " t0__sz).stripTrailingZeros().toPlainString() : (`` + t0__sz))");
     }
 
     // ==================================================================
@@ -347,10 +349,11 @@ class DeephavenDialectTest {
         formulaOver(P, "pid", "$x.pid->rem($x.pid)", "((t0__pid == 0L) ? parseLong((`` + (char) 31 + (((((`Cannot divide ` + (`` + t0__pid))) + ` by zero`))) + (char) 31)) : (t0__pid % t0__pid))");
         formulaOver(P, "pid", "$x.pid / ($x.pid - 3)", "(((t0__pid - 3L) == 0L) ? ((double) parseLong((`` + (char) 31"
                 + " + (`Division by zero`) + (char) 31))) : (t0__pid / (t0__pid - 3L)))");
-        // a message that prints a float (sqrt's) has no shape yet: a float's text is the next gap
-        DialectCapability sqrt = assertThrows(DialectCapability.class,
-                () -> batch(P + "->extend(~r:x|$x.sz->sqrt())->select(~[pid, r])"));
-        assertTrue(sqrt.getMessage().contains("a cast to VARCHAR"), sqrt.getMessage());
+        // sqrt of a negative: Pure's message prints the float as Pure does
+        String b = batch(P + "->extend(~r:x|$x.sz->sqrt())->select(~[pid, r])");
+        assertTrue(b.contains("? ((double) parseLong((`` + (char) 31 + (((`Unable to compute sqrt of ` + ((`` + ((double)"
+                + " t0__sz)).indexOf(`E`) < 0 ?"), b);
+        assertTrue(b.contains(": sqrt(t0__sz))"), b);
     }
 
     @Test

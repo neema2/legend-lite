@@ -39,7 +39,7 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | K3a | **built 2026-10-24** (§5). **A candle's open and close on Deephaven**: Pure's `minBy` and `maxBy` over a whole-number order (a trade's sequence number), SQL's `ARG_MIN` and `ARG_MAX`, as the server's `sortedFirst` and `sortedLast` | the dialect's tests; DuckDB's answer on the pinned server |
 | K3 | **built 2026-10-24** (§5); its ticking in a browser is K4's page. **A candlestick chart** in DataCube: open, high, low, close and volume by time bucket, drawn again at its grid's tick with its axes held (C2) | DataCube's chart tests; the chart ticking in a browser check |
 | K4 | **the ticker**: a watchlist (last, change, bid/ask, volume, day VWAP, high/low), the tape, time and sales, and a live candle chart for the symbol picked | a browser check of every part ticking; the speeds of §4 measured |
-| K5 | **its first part built 2026-10-25** (§6; `sqrt` still refused, its message printing a float as text). **The runtime error on Deephaven**: the lowering's guard (Pure fails on `sqrt` of a negative, on an Integer division by zero) writes an `ERROR` no Deephaven formula holds yet; a formula that fails by name, so `sqrt` and Integer `/` plan | the dialect's tests; a failing row failing the view, said, on the server |
+| K5 | **built 2026-10-25** (§6). **The runtime error on Deephaven**: the lowering's guard (Pure fails on `sqrt` of a negative, on an Integer division by zero) writes an `ERROR` no Deephaven formula holds yet; a formula that fails by name, so `sqrt` and Integer `/` plan | the dialect's tests; a failing row failing the view, said, on the server |
 | K6 | **built 2026-10-24** (§5), but for EMA, delta and NTH_VALUE. **Windows as `updateBy`**: running and moving figures (by rows and by time), lag and lead, first and last, the ranks; top-N per group (a row number filtered, SQL's QUALIFY: no `headBy` needed); DataCube's window functions and show-as | each against DuckDB's answer |
 | K7 | **as-of joins as `aj`** (DH20) | the same |
 | K8 | **the market map**: a treemap of every name, sized by value, coloured by the day's change, ticking | a browser check |
@@ -322,5 +322,25 @@ reads the server's log and holds it to that (an operator's path: the reference a
 message, in the envelope `RaisedErrors` reads). Found on the way,
 fixed: the live reader never said that the server failed a table -- the library fires `requestfailed`, which nothing
 heard, so a page or a DataCube grid waited for rows that would not come; `follow` now takes a failure callback, and
-the engine says it as it says rows it cannot read. Still refused: `sqrt` (its message prints a float, and a float's
-text has no shape yet), `EPOCH_SECONDS` (a fractional epoch), a date difference in weeks or microseconds.
+the engine says it as it says rows it cannot read. Still refused: `EPOCH_SECONDS` (a fractional epoch), a date
+difference in weeks or microseconds.
+
+**K5, done: a Float's text, so `sqrt` (2026-10-25).** `sqrt`'s guard prints the negative it refuses, and a Float's
+`toString` is the same text, Pure's (`FloatPrintText`'s contract: the shortest round-trip digits, written plainly).
+Deephaven spells it itself: Java's own text where it is plain (shortest digits since JDK 19, the server on 25); where
+Java writes an exponent, a whole value below 1e38 as its exact digits (the double's own `BigDecimal`) and `.0`, a
+fraction in [1e-17, 2^53) as its digits' `BigDecimal`, trailing zeros stripped; outside those bands Java's exponent
+(`1.5E-18`, where DuckDB writes `1.5e-18`). legend-engine's text (`FLOAT_PRINT_ENGINE`) is Java's `Double.toString`
+itself. Measured first: the server's validator permits `BigDecimal`'s constructors and statics and `Double`'s text on
+42.7. Measured on the pinned server (`page.ts`, 72 checks): plain small and large values, whole values past 2^53 by
+their exact digits, negatives and a null answer exactly DuckDB's text; `sqrt` answers; `sqrt` of a negative fails,
+the server's log holding "Unable to compute sqrt of -100.0" under the reference the page was handed (the driver's
+check). Found, not fixed here (a defect of the shared spelling, for `main`): the portable spelling every SQL dialect
+uses rounds a fraction past 18 decimal places (`DECIMAL(38,18)`: 50/2^20 = 0.0000476837158203125 prints
+0.000047683715820313), which the contract's shortest digits do not; Deephaven writes the exact digits, and the page's
+values are ones both write exactly.
+
+Measured, the corpus on a Deephaven runtime (the throwaway probe of §6): 4,170 of 4,778 services plan, from 3,888;
+`dateDiff` (270), whole-number division (55) and the runtime error (27) are gone, and `EXISTS` shows 87 (from 15:
+services that stopped at `dateDiff` reach it now). Of the 21 trader feature services, 16 plan; the rest are K7's three
+as-of joins and two windows of time over a time that may be null (live time windows).

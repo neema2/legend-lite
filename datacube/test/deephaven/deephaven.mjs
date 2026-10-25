@@ -78,8 +78,8 @@ try {
     console.log(`FAIL the setup: ${verdict.setupError}`);
     failed = true;
   }
-  if (verdict.outcomes.length !== 70) {
-    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 70`);
+  if (verdict.outcomes.length !== 72) {
+    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 72`);
     failed = true;
   }
   // WHAT AN OPERATOR FINDS (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K5): the server hands a client only a reference
@@ -94,8 +94,8 @@ try {
       + (ok ? '' : `\n${record === undefined ? 'no record of it' : record.slice(0, 2000)}`));
     if (!ok) failed = true;
   }
-  if (verdict.logged.length !== 1) {
-    console.log(`FAIL ${verdict.logged.length} logged failures were handed over, not 1`);
+  if (verdict.logged.length !== 2) {
+    console.log(`FAIL ${verdict.logged.length} logged failures were handed over, not 2`);
     failed = true;
   }
 } finally {

@@ -356,6 +356,21 @@ const DIVISIONS: readonly { readonly query: string; readonly rows: readonly (rea
     rows: [[1, 0, 0, 0, 0, 0, 0, 1792834215], [2, null, null, null, null, null, null, 1792834499],
       [3, -298, -9, 0, -7175, -430559, -25833599000, 1793059199], [4, null, null, null, null, null, null, 1709208000],
       [5, 20544, 675, 57, 493055, 29583300, 1774998030000, -30]] },
+  // a Float's text, Pure's: its shortest digits written plainly where Java writes an exponent (1.0E-4 is 0.0001, 1.0E9
+  // 1000000000.0), a whole value past 2^53 by its exact digits; a null null; and sqrt, whose guard prints one
+  { query: `${P}->extend(~[a:x|($x.sz / 1000000.0)->toString(), b:x|($x.sz * 1.0E7)->toString(),`
+      + ` c:x|(($x.sz * 1.0E17) / 3.0)->toString(), d:x|($x.sz / 3.0)->toString(), e:x|$x.px->toOne()->toString(),`
+      + ` f:x|(0.0 - ($x.sz / 1000000.0))->toString(), r:x|$x.sz->sqrt()])->select(~[pid, a, b, c, d, e, f, r])`
+      + `->sort(~pid->ascending())`,
+    rows: [[1, '0.0001', '1000000000.0', '3333333333333333504.0', '33.333333333333336', '10.0', '-0.0001', 10],
+      [2, '0.0002', '2000000000.0', '6666666666666667008.0', '66.66666666666667', '10.5', '-0.0002', 14.142135623730951],
+      [3, '0.00005', '500000000.0', '1666666666666666752.0', '16.666666666666668', '20.0', '-0.00005', 7.0710678118654755],
+      [4, '0.0003', '3000000000.0', '10000000000000000000.0', '100.0', null, '-0.0003', 17.320508075688775],
+      [5, '0.0001', '1000000000.0', '3333333333333333504.0', '33.333333333333336', '11.0', '-0.0001', 10],
+      [6, '0.000075', '750000000.0', '2500000000000000000.0', '25.0', '19.5', '-0.000075', 8.660254037844387],
+      [7, '0.00001', '100000000.0', '333333333333333312.0', '3.3333333333333335', '5.0', '-0.00001', 3.1622776601683795],
+      [8, '0.00005', '500000000.0', '1666666666666666752.0', '16.666666666666668', '10.0', '-0.00005', 7.0710678118654755],
+      [9, '0.000025', '250000000.0', '833333333333333376.0', '8.333333333333334', null, '-0.000025', 5]] },
 ];
 
 const SHAPES: readonly string[] = [
@@ -518,6 +533,18 @@ try {
       if (reference === undefined) return `failed otherwise: ${String(e)}`;
       // for the driver, which reads the server's log: Pure's message under this reference
       verdict.logged.push({ reference, message: 'Cannot divide 3 by zero' });
+      return null;
+    }
+  });
+  await check('sqrt of a negative fails the query, the server\'s reference to its log said', async () => {
+    try {
+      const got = await answer(`${P}->filter(x|$x.pid == 1)->extend(~[r:x|(0.0 - $x.sz)->sqrt()])->select(~[pid, r])`);
+      return `answered ${JSON.stringify(got)}`;
+    } catch (e) {
+      const reference = /failed the table .*Details Logged w\/ID '([0-9a-f-]+)'/.exec(String(e))?.[1];
+      if (reference === undefined) return `failed otherwise: ${String(e)}`;
+      // Pure's message, its float printed as Pure prints it
+      verdict.logged.push({ reference, message: 'Unable to compute sqrt of -100.0' });
       return null;
     }
   });

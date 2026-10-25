@@ -825,6 +825,7 @@ public final class Deephaven extends AnsiSqlRenderer {
             case REM -> writer.append("(").expr(a.get(0), 0).append(" % ").expr(a.get(1), 0).append(")");
             // K5: a whole-number quotient cut toward zero, and the platform's runtime error
             case INT_DIVIDE -> intDivide(writer, c);
+            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrint(writer, c);
             case ERROR -> raise(writer, c, c.type(), "a runtime error");
             case SUBSTRING -> substring(writer, c);
             case STRPOS -> strpos(writer, c);
@@ -861,7 +862,7 @@ public final class Deephaven extends AnsiSqlRenderer {
                  LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, REPEAT_VALUE,
                  LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL,
                  STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF, ROUND_HALF_UP, FLOOR_RAW, TO_VARIANT,
-                 BOOL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, FLOAT_PRINT_ENGINE, VARIANT_ELEMENTS, VARIANT_GET,
+                 BOOL_TO_TEXT, FLOAT_CANON, VARIANT_ELEMENTS, VARIANT_GET,
                  JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY ->
                     throw new DialectCapability("function " + c.fn() + " reached Deephaven: no shape yet");
         };
@@ -1285,8 +1286,46 @@ public final class Deephaven extends AnsiSqlRenderer {
     }
 
     // ==================================================================
-    // K5: whole-number division and the runtime error
+    // K5: whole-number division, the runtime error, a Float's text
     // ==================================================================
+
+    /** This dialect writes a Float's two texts itself ({@link #floatPrint}): the portable spelling's casts of a double
+     *  to text are none of the formula language's. */
+    @Override
+    protected boolean spellsFloatPrint() {
+        return true;
+    }
+
+    /** A Float's text. Pure's ({@code FLOAT_PRINT}, {@code FloatPrintText}'s contract): its shortest round-trip digits
+     *  written plainly -- Java's own text where it is plain (shortest digits since JDK 19; the server runs 25), and
+     *  where Java writes an exponent, re-written as the platform's portable spelling re-writes the database's: a whole
+     *  value below 1e38 as its exact digits (the double's own BigDecimal) and {@code .0}, a fraction in [1e-17, 2^53)
+     *  as its digits' BigDecimal, trailing zeros stripped; outside those bands the exponent kept (Java's
+     *  {@code 1.5E-18}, where DuckDB writes {@code 1.5e-18} and H2 Java's). legend-engine's ({@code
+     *  FLOAT_PRINT_ENGINE}) is Java's {@code Double.toString} layout over the shortest digits: Java's own text. NaN and
+     *  the infinities are Java's words, which are Pure's. A null stays null. BigDecimal's constructors and Double's
+     *  text are the validator's (DH33, measured on 42.7). */
+    private SqlWriter floatPrint(SqlWriter writer, SqlExpr.Call c) {
+        SqlExpr x = c.args().get(0);
+        if (scalarOf(x) != SqlType.Scalar.DOUBLE) {
+            throw new DialectCapability("a Float's text of a " + x.type() + " reached Deephaven: no shape yet");
+        }
+        String empty = stringLiteral("");
+        writer.append("(");
+        if (nullable(x)) {
+            writer.append("isNull(").expr(x, 0).append(") ? (String) null : ");
+        }
+        if (c.fn() == SqlFn.FLOAT_PRINT_ENGINE) {
+            return writer.append("(" + empty + " + ").expr(x, 0).append("))");
+        }
+        writer.append("(" + empty + " + ").expr(x, 0).append(").indexOf(`E`) < 0 ? (" + empty + " + ").expr(x, 0)
+                .append(") : (").expr(x, 0).append(" == floor(").expr(x, 0).append(") && abs(").expr(x, 0)
+                .append(") < 1.0E38) ? (new java.math.BigDecimal(").expr(x, 0).append(").toPlainString() + `.0`) : (abs(")
+                .expr(x, 0).append(") >= 1.0E-17 && abs(").expr(x, 0).append(") < 9.007199254740992E15) ?")
+                .append(" new java.math.BigDecimal(" + empty + " + ").expr(x, 0)
+                .append(").stripTrailingZeros().toPlainString() : (" + empty + " + ").expr(x, 0).append(")");
+        return writer.append(")");
+    }
 
     /** A whole-number quotient cut toward zero ({@code INT_DIVIDE}; the formula language's {@code /} answers a
      *  double): the library's floored division ({@code floorDiv}) of the dividend less its remainder -- an exact
