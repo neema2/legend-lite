@@ -519,6 +519,10 @@ widens), every request newest first through its states, and each client's hit ra
 done, average spread and response. Found on the way, fixed in the Deephaven dialect: a pip's size by its pair -- an
 if of two float literals, typed DECIMAL by their digits -- was cast to a double by a BigDecimal's own `doubleValue`,
 which a primitive has not (the server refused the batch); only a value that reads a DECIMAL column is a BigDecimal now.
+Found looking at the screen (2026-10-25): the market world priced each cross on a walk of its own, so in a minute EUR/JPY
+stood 17.5 pips off the rate its legs implied -- a free lunch no desk shows. Each cross is now its legs' product (or
+ratio) with a basis of its own of a few tenths of a pip that reverts, priced again whenever a leg is, its prior close
+its legs'; the market lane checks every cross within 3 pips of its legs (21 checks).
 
 **K13, TCA and markouts (2026-10-25).** *TCA*: the day's slippage against arrival and markout after 5 seconds (KPIs),
 markouts by algorithm 1, 5 and 30 seconds after the fill, TCA by algorithm and venue, and slippage by venue. *Fills*: TCA

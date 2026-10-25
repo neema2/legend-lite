@@ -50,7 +50,7 @@ const site = createServer((req, res) => {
 });
 const sitePort = await new Promise((done) => site.listen(0, '127.0.0.1', () => done(site.address().port)));
 
-const CHECKS = 20;
+const CHECKS = 21;
 let failed = false;
 let browser;
 try {

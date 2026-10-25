@@ -279,6 +279,16 @@ try {
     return Number(counted?.[0]) === 10 && Number(counted?.[1]) === 0 ? null : `the rates: ${JSON.stringify(counted)}`;
   });
 
+  await check('FX: each cross within 3 pips of the rate its legs imply', async () => {
+    // a cross priced on its own drifted 17 pips off its legs in a minute (the trader screens, 2026-10-25): a free lunch
+    const mid = new Map((await rows('marketdata::FxRate.all()->project(~[p:x|$x.currencyPair, m:x|$x.midRate])'))
+      .map((r) => [String(r[0]), Number(r[1])]));
+    const at = (pair: string): number => mid.get(pair) ?? Number.NaN;
+    const off = ([['EUR/GBP', at('EUR/USD') / at('GBP/USD'), 0.0001], ['EUR/JPY', at('EUR/USD') * at('USD/JPY'), 0.01],
+      ['GBP/JPY', at('GBP/USD') * at('USD/JPY'), 0.01]] as const).map(([pair, implied, pip]) => [pair, (at(pair) - implied) / pip] as const);
+    return off.every(([, pips]) => Math.abs(pips) <= 3) ? null : `quoted less implied, in pips: ${off.map(([p, x]) => `${p} ${x.toFixed(1)}`).join(', ')}`;
+  });
+
   await check('RFQs: quoted unless declined, a hit only when done, some done', async () => {
     const [counted] = await rows('trading::Rfq.all()->project(~[r:x|$x.rfqId, s:x|$x.status, h:x|$x.isHit, q:x|$x.quotedRate,'
       + ' c:x|$x.client.shortName, d:x|$x.dealer.traderId])'

@@ -486,7 +486,8 @@ class WorkingOrder {
     int slices
 }
 
-/** A currency pair the desk makes prices in: its mid, its prior close (the feed's), its pip and spread in pips. */
+/** A currency pair the desk makes prices in: its mid, its prior close (the feed's), its pip and spread in pips. A cross
+ *  (`leg1` set) is quoted about its legs' product, or their ratio (`divide`), `basis` pips of its own about it. */
 @CompileStatic
 class Pair {
     String pair
@@ -497,6 +498,15 @@ class Pair {
     double spreadPips
     double vol
     double weight
+    Pair leg1
+    Pair leg2
+    boolean divide
+    double basis
+
+    /** A cross's mid as its legs imply it. */
+    double implied() {
+        return divide ? leg1.mid / leg2.mid : leg1.mid * leg2.mid
+    }
 }
 
 /** A client's request for a quote: asked, quoted (or declined) after the desk's response, then done, missed or let
@@ -683,10 +693,23 @@ class Day {
 
     void price(double dt, Instant now) {
         RateRows r = new RateRows()
+        Set<Pair> moved = new HashSet<Pair>()
         for (Pair p : pairs) {
+            if (p.leg1 != null) continue
             p.mid *= Math.exp(random.nextGaussian() * p.vol * Math.sqrt(dt / DAY))
             // about ten prices a second for the most traded, fewer for the rest
-            if (random.nextDouble() < Math.min(1d, 10d * p.weight * dt / 0.15d)) r.rate(p, now)
+            if (random.nextDouble() < Math.min(1d, 10d * p.weight * dt / 0.15d)) {
+                r.rate(p, now)
+                moved << p
+            }
+        }
+        // each cross about its legs' product (or ratio), a few tenths of a pip of its own about it (a basis that reverts:
+        // about 0.3 pip), priced again whenever a leg is -- never a free lunch against its legs, as a real desk's
+        for (Pair p : pairs) {
+            if (p.leg1 == null) continue
+            p.basis = 0.7d * p.basis + 0.21d * random.nextGaussian()
+            p.mid = p.implied() + p.basis * p.pip
+            if (moved.contains(p.leg1) || moved.contains(p.leg2) || random.nextDouble() < Math.min(1d, 10d * p.weight * dt / 0.15d)) r.rate(p, now)
         }
         if (!r.id.isEmpty()) rates.add(r.rates())
     }
@@ -1504,7 +1527,7 @@ COUNTERPARTY = TableTools.newTable(
 clientEdges = CLIENTS.collect { it[2] == 'T1' ? 0.5d : it[2] == 'T2' ? 0.2d : 0d }
 
 // the pairs the FX desk prices: the majors, and three crosses quoted about their legs' product (the screen's cross by a
-// live join reads the difference)
+// live join reads the difference); a cross's volatility is its legs' (its own column unused)
 PAIRS = [['EUR/USD', 'EUR', 1.0850d, 0.0001d, 0.3d, 0.0055d, 0.30d], ['GBP/USD', 'GBP', 1.2700d, 0.0001d, 0.6d, 0.0065d, 0.12d],
          ['USD/JPY', 'USD', 151.20d, 0.01d, 0.4d, 0.0070d, 0.15d], ['USD/CHF', 'USD', 0.8800d, 0.0001d, 0.8d, 0.0060d, 0.05d],
          ['AUD/USD', 'AUD', 0.6550d, 0.0001d, 0.6d, 0.0080d, 0.08d], ['USD/CAD', 'USD', 1.3750d, 0.0001d, 0.8d, 0.0055d, 0.07d],
@@ -1512,6 +1535,17 @@ PAIRS = [['EUR/USD', 'EUR', 1.0850d, 0.0001d, 0.3d, 0.0055d, 0.30d], ['GBP/USD',
          ['EUR/JPY', 'EUR', 164.05d, 0.01d, 1.0d, 0.0080d, 0.07d], ['GBP/JPY', 'GBP', 192.02d, 0.01d, 1.5d, 0.0095d, 0.05d]]
 pairs = PAIRS.collect { p -> new Pair(pair: p[0], base: p[1], mid: p[2], prevClose: (p[2] as double) * Math.exp(bank.nextGaussian() * 0.003d),
         pip: p[3], spreadPips: p[4], vol: p[5], weight: p[6]) }
+// each cross's legs, and its mid and prior close its legs': EUR/GBP as EUR/USD over GBP/USD, the yen crosses as their
+// dollar legs' product
+pairOf = pairs.collectEntries { Pair p -> [(p.pair): p] }
+[['EUR/GBP', 'EUR/USD', 'GBP/USD', true], ['EUR/JPY', 'EUR/USD', 'USD/JPY', false], ['GBP/JPY', 'GBP/USD', 'USD/JPY', false]].each { c ->
+    Pair p = pairOf[c[0]] as Pair
+    p.leg1 = pairOf[c[1]] as Pair
+    p.leg2 = pairOf[c[2]] as Pair
+    p.divide = c[3] as boolean
+    p.mid = p.implied()
+    p.prevClose = p.divide ? p.leg1.prevClose / p.leg2.prevClose : p.leg1.prevClose * p.leg2.prevClose
+}
 
 orderPublisher = TablePublisher.of('orders', TableDefinition.of(
         ColumnDefinition.ofString('ORDER_ID'), ColumnDefinition.fromGenericType('ORDER_DATE', java.time.LocalDate),

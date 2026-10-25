@@ -649,8 +649,10 @@ async function fxPage(types: SourceTypes): Promise<PageDocument> {
     }));
   const crossGrid = cubeOf('Crosses', marketSource('FX crosses by their legs', FX_CROSSES, crosses), cubeOver(crosses),
     configured('Each cross against its legs', {
-      k: HIDDEN, k1: HIDDEN, k2: HIDDEN, k3: HIDDEN, pip: HIDDEN, quoted: RATE, implied: RATE, eurusd: RATE, gbpusd: RATE,
-      usdjpy: RATE, basisPips: { ...PIPS, displayName: 'quoted less implied (pips)' },
+      k: HIDDEN, k1: HIDDEN, k2: HIDDEN, k3: HIDDEN, pip: HIDDEN, quoted: { ...RATE, displayName: 'quoted mid' },
+      implied: { ...RATE, displayName: 'implied by its legs' }, eurusd: { ...RATE, displayName: 'EUR/USD' },
+      gbpusd: { ...RATE, displayName: 'GBP/USD' }, usdjpy: { ...RATE, displayName: 'USD/JPY' },
+      basisPips: { ...PIPS, displayName: 'quoted less implied (pips)', width: 170 },
     }));
   const rfqSource = marketSource('Requests for quote', RFQS, rfqs);
   const blotter = cubeOf('RFQs', rfqSource, cubeOver(rfqs, { sorts: [{ column: 'at', direction: 'desc' }] }),
