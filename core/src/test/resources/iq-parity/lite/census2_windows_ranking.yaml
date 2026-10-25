@@ -1,0 +1,171 @@
+# The IQ scale program's real-life census, its second wave (2026-10-25): windows_ranking, the permutations a report
+# writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: row_number_v_asc_all
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: row_number_v_asc_by_k
+    sql: "SELECT id, ROW_NUMBER() OVER (PARTITION BY k ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: row_number_v_desc_all
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: row_number_v_desc_by_k
+    sql: "SELECT id, ROW_NUMBER() OVER (PARTITION BY k ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: row_number_s_asc_all
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: row_number_s_asc_by_k
+    sql: "SELECT id, ROW_NUMBER() OVER (PARTITION BY k ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: rank_v_asc_all
+    sql: "SELECT id, RANK() OVER (ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: rank_v_asc_by_k
+    sql: "SELECT id, RANK() OVER (PARTITION BY k ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: rank_v_desc_all
+    sql: "SELECT id, RANK() OVER (ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: rank_v_desc_by_k
+    sql: "SELECT id, RANK() OVER (PARTITION BY k ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: rank_s_asc_all
+    sql: "SELECT id, RANK() OVER (ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: rank_s_asc_by_k
+    sql: "SELECT id, RANK() OVER (PARTITION BY k ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: dense_rank_v_asc_all
+    sql: "SELECT id, DENSE_RANK() OVER (ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: dense_rank_v_asc_by_k
+    sql: "SELECT id, DENSE_RANK() OVER (PARTITION BY k ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: dense_rank_v_desc_all
+    sql: "SELECT id, DENSE_RANK() OVER (ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: dense_rank_v_desc_by_k
+    sql: "SELECT id, DENSE_RANK() OVER (PARTITION BY k ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: dense_rank_s_asc_all
+    sql: "SELECT id, DENSE_RANK() OVER (ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: dense_rank_s_asc_by_k
+    sql: "SELECT id, DENSE_RANK() OVER (PARTITION BY k ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: percent_rank_v_asc_all
+    sql: "SELECT id, PERCENT_RANK() OVER (ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: percent_rank_v_asc_by_k
+    sql: "SELECT id, PERCENT_RANK() OVER (PARTITION BY k ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: percent_rank_v_desc_all
+    sql: "SELECT id, PERCENT_RANK() OVER (ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: percent_rank_v_desc_by_k
+    sql: "SELECT id, PERCENT_RANK() OVER (PARTITION BY k ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: percent_rank_s_asc_all
+    sql: "SELECT id, PERCENT_RANK() OVER (ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: percent_rank_s_asc_by_k
+    sql: "SELECT id, PERCENT_RANK() OVER (PARTITION BY k ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: cume_dist_v_asc_all
+    sql: "SELECT id, CUME_DIST() OVER (ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: cume_dist_v_asc_by_k
+    sql: "SELECT id, CUME_DIST() OVER (PARTITION BY k ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: cume_dist_v_desc_all
+    sql: "SELECT id, CUME_DIST() OVER (ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: cume_dist_v_desc_by_k
+    sql: "SELECT id, CUME_DIST() OVER (PARTITION BY k ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: cume_dist_s_asc_all
+    sql: "SELECT id, CUME_DIST() OVER (ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: cume_dist_s_asc_by_k
+    sql: "SELECT id, CUME_DIST() OVER (PARTITION BY k ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: ntile_2_v_asc_all
+    sql: "SELECT id, NTILE(2) OVER (ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: ntile_2_v_asc_by_k
+    sql: "SELECT id, NTILE(2) OVER (PARTITION BY k ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: ntile_2_v_desc_all
+    sql: "SELECT id, NTILE(2) OVER (ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: ntile_2_v_desc_by_k
+    sql: "SELECT id, NTILE(2) OVER (PARTITION BY k ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: ntile_2_s_asc_all
+    sql: "SELECT id, NTILE(2) OVER (ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: ntile_2_s_asc_by_k
+    sql: "SELECT id, NTILE(2) OVER (PARTITION BY k ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: ntile_4_v_asc_all
+    sql: "SELECT id, NTILE(4) OVER (ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: ntile_4_v_asc_by_k
+    sql: "SELECT id, NTILE(4) OVER (PARTITION BY k ORDER BY v, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: ntile_4_v_desc_all
+    sql: "SELECT id, NTILE(4) OVER (ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: ntile_4_v_desc_by_k
+    sql: "SELECT id, NTILE(4) OVER (PARTITION BY k ORDER BY v DESC, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: ntile_4_s_asc_all
+    sql: "SELECT id, NTILE(4) OVER (ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: ntile_4_s_asc_by_k
+    sql: "SELECT id, NTILE(4) OVER (PARTITION BY k ORDER BY s, id) AS r FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lag_all
+    sql: "SELECT id, LAG(v) OVER (ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lag_by_k
+    sql: "SELECT id, LAG(v) OVER (PARTITION BY k ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lag_2_all
+    sql: "SELECT id, LAG(v, 2) OVER (ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lag_2_by_k
+    sql: "SELECT id, LAG(v, 2) OVER (PARTITION BY k ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lag_default_all
+    sql: "SELECT id, LAG(v, 1, -1) OVER (ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lag_default_by_k
+    sql: "SELECT id, LAG(v, 1, -1) OVER (PARTITION BY k ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lead_all
+    sql: "SELECT id, LEAD(v) OVER (ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lead_by_k
+    sql: "SELECT id, LEAD(v) OVER (PARTITION BY k ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lead_string_default_all
+    sql: "SELECT id, LEAD(s, 1, 'none') OVER (ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lead_string_default_by_k
+    sql: "SELECT id, LEAD(s, 1, 'none') OVER (PARTITION BY k ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lead_date_all
+    sql: "SELECT id, LEAD(dt) OVER (ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lead_date_by_k
+    sql: "SELECT id, LEAD(dt) OVER (PARTITION BY k ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lag_numeric_all
+    sql: "SELECT id, LAG(n, 3, 0) OVER (ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: lag_numeric_by_k
+    sql: "SELECT id, LAG(n, 3, 0) OVER (PARTITION BY k ORDER BY id) AS o FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default

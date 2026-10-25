@@ -1,0 +1,63 @@
+# The IQ scale program's real-life census, its second wave (2026-10-25): subqueries_matrix, the permutations a report
+# writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: in_uncorrelated_1
+    sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM u) ORDER BY id"
+    profile: iq17-default
+  - id: in_correlated_1
+    sql: "SELECT id FROM t WHERE id IN (SELECT u.t_id FROM u WHERE u.qty > t.sm / 100) ORDER BY id"
+    profile: iq17-default
+  - id: in_uncorrelated_2
+    sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM u WHERE id IN (SELECT id FROM g WHERE k = 1)) ORDER BY id"
+    profile: iq17-default
+  - id: in_correlated_2
+    sql: "SELECT id FROM t WHERE id IN (SELECT u.t_id FROM u WHERE u.id IN (SELECT g.id FROM g WHERE g.k = t.id)) ORDER BY id"
+    profile: iq17-default
+  - id: exists_uncorrelated_1
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u WHERE qty > 1) ORDER BY id"
+    profile: iq17-default
+  - id: exists_correlated_1
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id AND u.qty > 0) ORDER BY id"
+    profile: iq17-default
+  - id: exists_correlated_2
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id AND EXISTS (SELECT 1 FROM g WHERE g.id = u.id AND g.k = 1)) ORDER BY id"
+    profile: iq17-default
+  - id: not_exists_correlated_2
+    sql: "SELECT id FROM t WHERE NOT EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id AND NOT EXISTS (SELECT 1 FROM g WHERE g.id = u.id)) ORDER BY id"
+    profile: iq17-default
+  - id: scalar_uncorrelated_in_select
+    sql: "SELECT id, (SELECT COUNT(*) FROM u) AS n FROM t ORDER BY id"
+    profile: iq17-default
+  - id: scalar_correlated_in_select
+    sql: "SELECT id, (SELECT SUM(qty) FROM u WHERE u.t_id = t.id) AS q FROM t ORDER BY id"
+    profile: iq17-default
+  - id: scalar_correlated_2_deep
+    sql: "SELECT id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id AND u.id > (SELECT MIN(g.id) FROM g WHERE g.k = 1)) AS n FROM t ORDER BY id"
+    profile: iq17-default
+  - id: scalar_in_where
+    sql: "SELECT id FROM t WHERE sm > (SELECT AVG(k) FROM g WHERE id < 10) ORDER BY id"
+    profile: iq17-default
+  - id: scalar_correlated_in_where
+    sql: "SELECT id FROM g a WHERE a.id < 10 AND a.v >= (SELECT AVG(b.v) FROM g b WHERE b.k = a.k AND b.id < 10) ORDER BY id"
+    profile: iq17-default
+  - id: derived_in_derived_with_join
+    sql: "SELECT x.k, x.n, y.m FROM (SELECT k, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY k) x JOIN (SELECT k, MAX(v) AS m FROM (SELECT k, v FROM g WHERE id < 10) z GROUP BY k) y ON y.k = x.k ORDER BY x.k"
+    profile: iq17-default
+  - id: derived_2_deep
+    sql: "SELECT COUNT(*) AS n, SUM(v) AS s FROM (SELECT id, v FROM (SELECT id, v FROM (SELECT id, v FROM g WHERE id < 10) d0 WHERE v IS NOT NULL OR id > 0) d1 WHERE v IS NOT NULL OR id > 1) dd"
+    profile: iq17-default
+  - id: derived_3_deep
+    sql: "SELECT COUNT(*) AS n, SUM(v) AS s FROM (SELECT id, v FROM (SELECT id, v FROM (SELECT id, v FROM (SELECT id, v FROM g WHERE id < 10) d0 WHERE v IS NOT NULL OR id > 0) d1 WHERE v IS NOT NULL OR id > 1) d2 WHERE v IS NOT NULL OR id > 2) dd"
+    profile: iq17-default
+  - id: derived_4_deep
+    sql: "SELECT COUNT(*) AS n, SUM(v) AS s FROM (SELECT id, v FROM (SELECT id, v FROM (SELECT id, v FROM (SELECT id, v FROM (SELECT id, v FROM g WHERE id < 10) d0 WHERE v IS NOT NULL OR id > 0) d1 WHERE v IS NOT NULL OR id > 1) d2 WHERE v IS NOT NULL OR id > 2) d3 WHERE v IS NOT NULL OR id > 3) dd"
+    profile: iq17-default
+  - id: derived_5_deep
+    sql: "SELECT COUNT(*) AS n, SUM(v) AS s FROM (SELECT id, v FROM (SELECT id, v FROM (SELECT id, v FROM (SELECT id, v FROM (SELECT id, v FROM (SELECT id, v FROM g WHERE id < 10) d0 WHERE v IS NOT NULL OR id > 0) d1 WHERE v IS NOT NULL OR id > 1) d2 WHERE v IS NOT NULL OR id > 2) d3 WHERE v IS NOT NULL OR id > 3) d4 WHERE v IS NOT NULL OR id > 4) dd"
+    profile: iq17-default
+  - id: cte_feeding_a_correlated_subquery
+    sql: "WITH m AS (SELECT k, MAX(v) AS mv FROM g WHERE id < 10 GROUP BY k) SELECT id FROM g WHERE id < 10 AND v = (SELECT mv FROM m WHERE m.k = g.k) ORDER BY id"
+    profile: iq17-default
+  - id: union_inside_in
+    sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM u UNION SELECT id FROM g WHERE k = 3) ORDER BY id"
+    profile: iq17-default

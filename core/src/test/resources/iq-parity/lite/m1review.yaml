@@ -141,6 +141,10 @@ tests:
   - id: m2_median_of_smallint_extremes
     sql: "SELECT MEDIAN(sm) AS m FROM t WHERE id IN (1, 2)"
     profile: iq17-default
+  # its twin in a SQL Anywhere database, whose front end floors the midpoint (the IQ scale program, 2026-10-25)
+  - id: m2_median_of_smallint_extremes_in_the_front_end
+    sql: "SELECT MEDIAN(sm) AS m FROM t WHERE id IN (1, 2)"
+    profile: sqla17-default
   - id: m2_median_of_a_bounded_integer
     sql: "SELECT MEDIAN(row_num) AS m FROM sa_rowgenerator(1, 10)"
     engine: sa

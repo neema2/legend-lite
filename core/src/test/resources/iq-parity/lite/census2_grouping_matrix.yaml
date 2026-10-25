@@ -1,0 +1,39 @@
+# The IQ scale program's real-life census, its second wave (2026-10-25): grouping_matrix, the permutations a report
+# writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: key_none
+    sql: "SELECT k AS g1, COUNT(*) AS n, SUM(v) AS s, AVG(d) AS a, MIN(s) AS lo FROM g WHERE id < 10 GROUP BY k  ORDER BY 1, 2"
+    profile: iq17-default
+  - id: key_count
+    sql: "SELECT k AS g1, COUNT(*) AS n, SUM(v) AS s, AVG(d) AS a, MIN(s) AS lo FROM g WHERE id < 10 GROUP BY k HAVING COUNT(*) > 1 ORDER BY 1, 2"
+    profile: iq17-default
+  - id: key_sum_and_max
+    sql: "SELECT k AS g1, COUNT(*) AS n, SUM(v) AS s, AVG(d) AS a, MIN(s) AS lo FROM g WHERE id < 10 GROUP BY k HAVING SUM(v) > 0 AND MAX(d) < 5 ORDER BY 1, 2"
+    profile: iq17-default
+  - id: two_keys_none
+    sql: "SELECT k, b AS g1, COUNT(*) AS n, SUM(v) AS s, AVG(d) AS a, MIN(s) AS lo FROM g WHERE id < 10 GROUP BY k, b  ORDER BY 1, 2"
+    profile: iq17-default
+  - id: two_keys_count
+    sql: "SELECT k, b AS g1, COUNT(*) AS n, SUM(v) AS s, AVG(d) AS a, MIN(s) AS lo FROM g WHERE id < 10 GROUP BY k, b HAVING COUNT(*) > 1 ORDER BY 1, 2"
+    profile: iq17-default
+  - id: two_keys_sum_and_max
+    sql: "SELECT k, b AS g1, COUNT(*) AS n, SUM(v) AS s, AVG(d) AS a, MIN(s) AS lo FROM g WHERE id < 10 GROUP BY k, b HAVING SUM(v) > 0 AND MAX(d) < 5 ORDER BY 1, 2"
+    profile: iq17-default
+  - id: year_none
+    sql: "SELECT YEAR(dt) AS g1, COUNT(*) AS n, SUM(v) AS s, AVG(d) AS a, MIN(s) AS lo FROM g WHERE id < 10 GROUP BY YEAR(dt)  ORDER BY 1, 2"
+    profile: iq17-default
+  - id: year_count
+    sql: "SELECT YEAR(dt) AS g1, COUNT(*) AS n, SUM(v) AS s, AVG(d) AS a, MIN(s) AS lo FROM g WHERE id < 10 GROUP BY YEAR(dt) HAVING COUNT(*) > 1 ORDER BY 1, 2"
+    profile: iq17-default
+  - id: year_sum_and_max
+    sql: "SELECT YEAR(dt) AS g1, COUNT(*) AS n, SUM(v) AS s, AVG(d) AS a, MIN(s) AS lo FROM g WHERE id < 10 GROUP BY YEAR(dt) HAVING SUM(v) > 0 AND MAX(d) < 5 ORDER BY 1, 2"
+    profile: iq17-default
+  - id: case_none
+    sql: "SELECT CASE WHEN v > 2 THEN 'big' ELSE 'small' END AS g1, COUNT(*) AS n, SUM(v) AS s, AVG(d) AS a, MIN(s) AS lo FROM g WHERE id < 10 GROUP BY CASE WHEN v > 2 THEN 'big' ELSE 'small' END  ORDER BY 1, 2"
+    profile: iq17-default
+  - id: case_count
+    sql: "SELECT CASE WHEN v > 2 THEN 'big' ELSE 'small' END AS g1, COUNT(*) AS n, SUM(v) AS s, AVG(d) AS a, MIN(s) AS lo FROM g WHERE id < 10 GROUP BY CASE WHEN v > 2 THEN 'big' ELSE 'small' END HAVING COUNT(*) > 1 ORDER BY 1, 2"
+    profile: iq17-default
+  - id: case_sum_and_max
+    sql: "SELECT CASE WHEN v > 2 THEN 'big' ELSE 'small' END AS g1, COUNT(*) AS n, SUM(v) AS s, AVG(d) AS a, MIN(s) AS lo FROM g WHERE id < 10 GROUP BY CASE WHEN v > 2 THEN 'big' ELSE 'small' END HAVING SUM(v) > 0 AND MAX(d) < 5 ORDER BY 1, 2"
+    profile: iq17-default

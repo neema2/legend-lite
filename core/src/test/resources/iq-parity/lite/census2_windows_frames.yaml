@@ -1,0 +1,363 @@
+# The IQ scale program's real-life census, its second wave (2026-10-25): windows_frames, the permutations a report
+# writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: sum_v_whole_all
+    sql: "SELECT id, SUM(v) OVER () AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_whole_by_k
+    sql: "SELECT id, SUM(v) OVER (PARTITION BY k) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_running_all
+    sql: "SELECT id, SUM(v) OVER (ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_running_by_k
+    sql: "SELECT id, SUM(v) OVER (PARTITION BY k ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_rows_unbounded_all
+    sql: "SELECT id, SUM(v) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_rows_unbounded_by_k
+    sql: "SELECT id, SUM(v) OVER (PARTITION BY k ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_rows_1_1_all
+    sql: "SELECT id, SUM(v) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_rows_1_1_by_k
+    sql: "SELECT id, SUM(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_rows_to_end_all
+    sql: "SELECT id, SUM(v) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_rows_to_end_by_k
+    sql: "SELECT id, SUM(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_rows_before_all
+    sql: "SELECT id, SUM(v) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_rows_before_by_k
+    sql: "SELECT id, SUM(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_rows_all_desc_all
+    sql: "SELECT id, SUM(v) OVER (ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_rows_all_desc_by_k
+    sql: "SELECT id, SUM(v) OVER (PARTITION BY k ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_range_10_all
+    sql: "SELECT id, SUM(v) OVER (ORDER BY j RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_v_range_10_by_k
+    sql: "SELECT id, SUM(v) OVER (PARTITION BY k ORDER BY j RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_whole_all
+    sql: "SELECT id, AVG(n) OVER () AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_whole_by_k
+    sql: "SELECT id, AVG(n) OVER (PARTITION BY k) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_running_all
+    sql: "SELECT id, AVG(n) OVER (ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_running_by_k
+    sql: "SELECT id, AVG(n) OVER (PARTITION BY k ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_rows_unbounded_all
+    sql: "SELECT id, AVG(n) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_rows_unbounded_by_k
+    sql: "SELECT id, AVG(n) OVER (PARTITION BY k ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_rows_1_1_all
+    sql: "SELECT id, AVG(n) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_rows_1_1_by_k
+    sql: "SELECT id, AVG(n) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_rows_to_end_all
+    sql: "SELECT id, AVG(n) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_rows_to_end_by_k
+    sql: "SELECT id, AVG(n) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_rows_before_all
+    sql: "SELECT id, AVG(n) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_rows_before_by_k
+    sql: "SELECT id, AVG(n) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_rows_all_desc_all
+    sql: "SELECT id, AVG(n) OVER (ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_rows_all_desc_by_k
+    sql: "SELECT id, AVG(n) OVER (PARTITION BY k ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_range_10_all
+    sql: "SELECT id, AVG(n) OVER (ORDER BY j RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_n_range_10_by_k
+    sql: "SELECT id, AVG(n) OVER (PARTITION BY k ORDER BY j RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_whole_all
+    sql: "SELECT id, MIN(d) OVER () AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_whole_by_k
+    sql: "SELECT id, MIN(d) OVER (PARTITION BY k) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_running_all
+    sql: "SELECT id, MIN(d) OVER (ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_running_by_k
+    sql: "SELECT id, MIN(d) OVER (PARTITION BY k ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_rows_unbounded_all
+    sql: "SELECT id, MIN(d) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_rows_unbounded_by_k
+    sql: "SELECT id, MIN(d) OVER (PARTITION BY k ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_rows_1_1_all
+    sql: "SELECT id, MIN(d) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_rows_1_1_by_k
+    sql: "SELECT id, MIN(d) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_rows_to_end_all
+    sql: "SELECT id, MIN(d) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_rows_to_end_by_k
+    sql: "SELECT id, MIN(d) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_rows_before_all
+    sql: "SELECT id, MIN(d) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_rows_before_by_k
+    sql: "SELECT id, MIN(d) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_rows_all_desc_all
+    sql: "SELECT id, MIN(d) OVER (ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_rows_all_desc_by_k
+    sql: "SELECT id, MIN(d) OVER (PARTITION BY k ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_range_10_all
+    sql: "SELECT id, MIN(d) OVER (ORDER BY j RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_d_range_10_by_k
+    sql: "SELECT id, MIN(d) OVER (PARTITION BY k ORDER BY j RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_whole_all
+    sql: "SELECT id, MAX(s) OVER () AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_whole_by_k
+    sql: "SELECT id, MAX(s) OVER (PARTITION BY k) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_running_all
+    sql: "SELECT id, MAX(s) OVER (ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_running_by_k
+    sql: "SELECT id, MAX(s) OVER (PARTITION BY k ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_rows_unbounded_all
+    sql: "SELECT id, MAX(s) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_rows_unbounded_by_k
+    sql: "SELECT id, MAX(s) OVER (PARTITION BY k ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_rows_1_1_all
+    sql: "SELECT id, MAX(s) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_rows_1_1_by_k
+    sql: "SELECT id, MAX(s) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_rows_to_end_all
+    sql: "SELECT id, MAX(s) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_rows_to_end_by_k
+    sql: "SELECT id, MAX(s) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_rows_before_all
+    sql: "SELECT id, MAX(s) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_rows_before_by_k
+    sql: "SELECT id, MAX(s) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_rows_all_desc_all
+    sql: "SELECT id, MAX(s) OVER (ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_rows_all_desc_by_k
+    sql: "SELECT id, MAX(s) OVER (PARTITION BY k ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_range_10_all
+    sql: "SELECT id, MAX(s) OVER (ORDER BY j RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: max_s_range_10_by_k
+    sql: "SELECT id, MAX(s) OVER (PARTITION BY k ORDER BY j RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_whole_all
+    sql: "SELECT id, COUNT(v) OVER () AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_whole_by_k
+    sql: "SELECT id, COUNT(v) OVER (PARTITION BY k) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_running_all
+    sql: "SELECT id, COUNT(v) OVER (ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_running_by_k
+    sql: "SELECT id, COUNT(v) OVER (PARTITION BY k ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_rows_unbounded_all
+    sql: "SELECT id, COUNT(v) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_rows_unbounded_by_k
+    sql: "SELECT id, COUNT(v) OVER (PARTITION BY k ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_rows_1_1_all
+    sql: "SELECT id, COUNT(v) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_rows_1_1_by_k
+    sql: "SELECT id, COUNT(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_rows_to_end_all
+    sql: "SELECT id, COUNT(v) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_rows_to_end_by_k
+    sql: "SELECT id, COUNT(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_rows_before_all
+    sql: "SELECT id, COUNT(v) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_rows_before_by_k
+    sql: "SELECT id, COUNT(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_rows_all_desc_all
+    sql: "SELECT id, COUNT(v) OVER (ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_rows_all_desc_by_k
+    sql: "SELECT id, COUNT(v) OVER (PARTITION BY k ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_range_10_all
+    sql: "SELECT id, COUNT(v) OVER (ORDER BY j RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_v_range_10_by_k
+    sql: "SELECT id, COUNT(v) OVER (PARTITION BY k ORDER BY j RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_whole_all
+    sql: "SELECT id, COUNT(*) OVER () AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_whole_by_k
+    sql: "SELECT id, COUNT(*) OVER (PARTITION BY k) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_running_all
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_running_by_k
+    sql: "SELECT id, COUNT(*) OVER (PARTITION BY k ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_rows_unbounded_all
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_rows_unbounded_by_k
+    sql: "SELECT id, COUNT(*) OVER (PARTITION BY k ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_rows_1_1_all
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_rows_1_1_by_k
+    sql: "SELECT id, COUNT(*) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_rows_to_end_all
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_rows_to_end_by_k
+    sql: "SELECT id, COUNT(*) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_rows_before_all
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_rows_before_by_k
+    sql: "SELECT id, COUNT(*) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_rows_all_desc_all
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_rows_all_desc_by_k
+    sql: "SELECT id, COUNT(*) OVER (PARTITION BY k ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_range_10_all
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY j RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: count_star_range_10_by_k
+    sql: "SELECT id, COUNT(*) OVER (PARTITION BY k ORDER BY j RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: first_v_running_all
+    sql: "SELECT id, FIRST_VALUE(v) OVER (ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: first_v_running_by_k
+    sql: "SELECT id, FIRST_VALUE(v) OVER (PARTITION BY k ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: first_v_rows_unbounded_all
+    sql: "SELECT id, FIRST_VALUE(v) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: first_v_rows_unbounded_by_k
+    sql: "SELECT id, FIRST_VALUE(v) OVER (PARTITION BY k ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: first_v_rows_1_1_all
+    sql: "SELECT id, FIRST_VALUE(v) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: first_v_rows_1_1_by_k
+    sql: "SELECT id, FIRST_VALUE(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: first_v_rows_to_end_all
+    sql: "SELECT id, FIRST_VALUE(v) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: first_v_rows_to_end_by_k
+    sql: "SELECT id, FIRST_VALUE(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: first_v_rows_before_all
+    sql: "SELECT id, FIRST_VALUE(v) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: first_v_rows_before_by_k
+    sql: "SELECT id, FIRST_VALUE(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: first_v_rows_all_desc_all
+    sql: "SELECT id, FIRST_VALUE(v) OVER (ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: first_v_rows_all_desc_by_k
+    sql: "SELECT id, FIRST_VALUE(v) OVER (PARTITION BY k ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: last_v_running_all
+    sql: "SELECT id, LAST_VALUE(v) OVER (ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: last_v_running_by_k
+    sql: "SELECT id, LAST_VALUE(v) OVER (PARTITION BY k ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: last_v_rows_unbounded_all
+    sql: "SELECT id, LAST_VALUE(v) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: last_v_rows_unbounded_by_k
+    sql: "SELECT id, LAST_VALUE(v) OVER (PARTITION BY k ORDER BY id ROWS UNBOUNDED PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: last_v_rows_1_1_all
+    sql: "SELECT id, LAST_VALUE(v) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: last_v_rows_1_1_by_k
+    sql: "SELECT id, LAST_VALUE(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: last_v_rows_to_end_all
+    sql: "SELECT id, LAST_VALUE(v) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: last_v_rows_to_end_by_k
+    sql: "SELECT id, LAST_VALUE(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: last_v_rows_before_all
+    sql: "SELECT id, LAST_VALUE(v) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: last_v_rows_before_by_k
+    sql: "SELECT id, LAST_VALUE(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: last_v_rows_all_desc_all
+    sql: "SELECT id, LAST_VALUE(v) OVER (ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: last_v_rows_all_desc_by_k
+    sql: "SELECT id, LAST_VALUE(v) OVER (PARTITION BY k ORDER BY id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS w FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
