@@ -694,3 +694,12 @@ says so.
     The coverage lane at 5329aeb8: the size bound's refusals 16 to 6 (SEDE 5: DATEDIFF chains, LOG and POWER, nested
     CHARINDEX; SQLStorm 1); SEDE 7,256 answered, SQLStorm 5,893, no new database error. The ratios' cases,
     `lite/census3_ratios` (8), go to snap with census 3.
+    69954201: every branch of a searched CASE (its ELSE, its later WHENs, each under the earlier ones, nested as the
+    CASE reads them) hoists its long operands where it is taken.
+  - **Census 4** (`lite/census4_frames`, 96): six aggregates over eight more RANGE and ROWS forms, partitioned or not.
+    The statistical aggregates over a window were refused (32); they are now computed as over a group, IQ's one-pass
+    sums each over the frame (`IqAggregates.statisticOverWindow`; STDDEV(v) OVER (ORDER BY id ROWS 2 PRECEDING) is
+    Python's statistics.stdev of each frame to the last digit). Through the lens 86 of 96 answered, 10 refused (MIN of
+    strings over a frame after the partition's first row, IQ's NUL bytes). With census 3 on claude/iq-census-4, to snap
+    when the live IQ answers again (it drops connections, -832, since the afternoon).
+  - **The Snowflake lane** (its sibling session idle since 10-23): its ledger column predates this day's typing.
