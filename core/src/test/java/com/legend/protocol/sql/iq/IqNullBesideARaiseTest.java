@@ -49,14 +49,21 @@ class IqNullBesideARaiseTest {
                 {"iq17-default", "NULLIF(sm, 0) + it / NULLIF(sm, 0)", "3", null},
                 {"iq17-default", "NULLIF(sm, 0) + it / sm", "1", "5"},
                 {"iq17-default", "it / sm + NULLIF(sm, 0) + bg / sm", "5", null},
-                // SQL Anywhere's front end: from the left, to the first NULL
+                // SQL Anywhere's front end: from the left, to the first NULL (a NULL constant read first: Q30's second
+                // batch, it / sm + NULL is NULL there)
                 {"sqla17-default", "NULLIF(sm, 0) + it / sm", "3", null},
                 {"sqla17-default", "it / sm + NULLIF(sm, 0)", "3", RAISES},
                 {"sqla17-default", "NULL + it / sm", "3", null},
-                {"sqla17-default", "it / sm + NULL", "3", RAISES},
+                {"sqla17-default", "it / sm + NULL", "3", null},
                 {"sqla17-default", "NULLIF(it, 0) * (bg / sm)", "3", null},
                 {"sqla17-default", "(bg / sm) * NULLIF(it, 0)", "3", RAISES},
                 {"sqla17-default", "NULLIF(sm, 0) + it / sm", "1", "5"},
+                // IQ's engine: a comparison's operands and a function's arguments (Q30's second batch)
+                {"iq17-default", "CASE WHEN NULLIF(sm, 0) < it / sm THEN 1 ELSE 0 END", "3", RAISES},
+                {"iq17-default", "CASE WHEN it / sm < NULLIF(sm, 0) THEN 1 ELSE 0 END", "3", RAISES},
+                {"iq17-default", "CASE WHEN NULLIF(sm, 0) < it / sm THEN 1 ELSE 0 END", "1", "1"},
+                {"iq17-default", "MOD(NULLIF(it, 0), bg / sm)", "3", RAISES},
+                {"iq17-default", "MOD(NULLIF(it, 0), bg / sm)", "1", "3"},
         };
         List<Arguments> out = new ArrayList<>();
         for (TestBackend backend : TestBackends.inProcess()) {

@@ -200,7 +200,7 @@ says so.
 | Q26 | TOP and START AT compute the items of rows they skip (IQ raises for them); Snowflake evaluates the select list after the limit (3 runs BUG) | P1.2 | the sibling's measurements | open |
 | Q27 | Nested integer division by a column grows exponentially: `it / sm / sm` doubles a level twice on DuckDB (the translator's NULL guard repeats the inner quotient, unmerged where IQ raises for a zero divisor; the zero guard's message copies the dividend) and six times on Snowflake (its exact quotient writes the dividend twice). Needs a common-subexpression hoist (the operand as a computed column) or a single-copy exact quotient for Snowflake (`TRUNC(CAST(a AS NUMBER(38, 19)) / b)`, by its division scale rule, to be measured) | P4, P1.3 | the sibling's measurement for the Snowflake half | done: the Snowflake half (2026-10-23, the scale-19 quotient, measured); DuckDB's (2026-10-24, the translator's operand hoist, under IQ's engine once Q30 measured it: eight divisions 7.9 KB, sixteen 17.1 KB) |
 | Q28 | Planning a long UNION ALL grows faster than linearly: 1.9 s at 1,000 branches, 4.0 s at 2,000, 16.6 s at 4,000 (the scale probe at twice its sizes, 2026-10-23) | P4 | a profile | done (2026-10-23): 4,000 branches planned in 1.4 s |
-| Q30 | Whether IQ computes an operand beside a NULL one (`NULL + x / 0`: IQ's divide-by-zero, or NULL): the translator's merged NULL guard skips a raising operand in a strict operation's body where another operand is NULL (Postgres raises there), and an early hoist that computed such operands for every row changed an item's answer with its size (reverted) | P3, P4 | the live IQ | done (2026-10-24): measured on IQ 17.1 and SQL Anywhere 17 (`lite/null_beside_a_raise`); IQ's engine computes every operand, SQL Anywhere's front end reads from the left to the first NULL, and the translator follows each. Open: the same rule for a strict function's arguments and a comparison's operands (each still merges the one NULL operand's guard), and SQL Anywhere's twins over tables (sqla17) to snap |
+| Q30 | Whether IQ computes an operand beside a NULL one (`NULL + x / 0`: IQ's divide-by-zero, or NULL): the translator's merged NULL guard skips a raising operand in a strict operation's body where another operand is NULL (Postgres raises there), and an early hoist that computed such operands for every row changed an item's answer with its size (reverted) | P3, P4 | the live IQ | done (2026-10-24): measured on IQ 17.1 and SQL Anywhere 17 (`lite/null_beside_a_raise`); IQ's engine computes every operand, SQL Anywhere's front end reads from the left to the first NULL, and the translator follows each. The second batch (2026-10-24, `lite/null_beside_a_raise_read_where`): a comparison's operands and a strict function's arguments under IQ's engine, the front end over tables, IQ's own front end by GREATER. Open: the other functions IQ computes an argument of beside a NULL one (measured for LEFT; the catalog's strict functions of two arguments follow it) |
 | Q29 | Planning a long join chain: `Fold.sourceColumn` scanned a join's every output at each level of its recursion, for a pivot identity's check | P4 | a profile | done (2026-10-23): 700 joins planned in 4.0 s (were 9.7 s); 1,200 in 8.7 s, the rest spread over the translator's taken names and the typer, past DuckDB's depth limit anyway |
 | Q7 | Snowflake's scale limits, measured and handled | P1.4, P4 | Q3 | the lane built (`//core:iq_scale_snowflake_test`, 2026-10-23); its run waits on the user's approval of warehouse time |
 | Q8 | WITH RECURSIVE through `recurse` | P3.1 | oracle | open |
@@ -560,3 +560,21 @@ says so.
     harness's D-E2 skip (a raise beside AND depends on the plan; IQ raised there). `IqNullBesideARaiseTest` pins both
     rules on every in-process database, the front end's under sqla17-default. The DuckDB and Postgres lanes: the seven
     are BOTH_ERROR, and no other run moved.
+- 2026-10-24, **Q30's second batch** (`lite/null_beside_a_raise_read_where`, eleven cases; the Mac session's snap,
+  1724d477, each live IQ answer confirmed by a second run and a `--check` run). The result:
+  - **SQL Anywhere's front end over a table** (sqla17-default): it reads from the left to the first computed NULL, as
+    measured under iq16 (NULL for `NULLIF(sm, 0) + it / sm` and `NULLIF(it, 0) * (bg / sm)`, -628 with the division
+    first). But a NULL literal makes the item NULL on either side: `it / sm + NULL` is NULL, folded before anything
+    is read. The untyped NULL's read of its other operand (ebe932aa's `nullBeside`) is gone: the front end folds
+    the NULL, and IQ's engine refuses it (-1009145).
+  - **IQ's own front end** (a query over IQ's tables that reads GREATER, iq17-default): it reads as SQL Anywhere
+    does, with SQL Anywhere's -628. lite already reads such a statement by the front end's rules.
+  - **IQ's engine on a comparison and a function**: `NULLIF(sm, 0) < it / sm` raises -1001007 in either order, and so
+    does `LEFT(NULLIF(vc, vc), it / sm)`. Before the fix, only the order with the quotient first raised: the
+    comparison's AND read the NULL test first and stopped. `IqDialect.computedFirst` reads each operand that may raise
+    first, alone or in a sum, where another may be NULL. It wraps a comparison (but one with a NULL literal) and the
+    catalog's functions of two arguments or more that are NULL when an argument is (`IqFunctions.STRICT`: LEFT,
+    RIGHT, SUBSTRING, REPEAT, LOCATE, CHARINDEX, ROUND, TRUNCNUM, MOD, REMAINDER, POWER). A constant or a variable
+    raises nothing when read: a pinned plan, the showcase's `vc <> @skip`, keeps its SQL.
+  - The lanes: the eleven pass or are BOTH_ERROR on DuckDB and Postgres, and nothing else moved.
+    `IqNullBesideARaiseTest` gains the comparison and MOD.

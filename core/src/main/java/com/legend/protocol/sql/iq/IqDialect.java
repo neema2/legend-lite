@@ -5396,8 +5396,12 @@ public final class IqDialect implements InputDialect {
                 if (engine == Engine.IQ && simpleWhens.contains(b)) {
                     simpleWhen(b, l, r);
                 }
+                boolean nulls = b.left() instanceof SqlAst.NullLit || b.right() instanceof SqlAst.NullLit;
                 Tx compared = comparison(b.op(), l, r, b.left() instanceof SqlAst.NullLit,
                         b.right() instanceof SqlAst.NullLit, b, b.pos());
+                if (!nulls) {
+                    compared = computedFirst(compared, List.of(b.left(), b.right()), List.of(l, r));
+                }
                 yield selfComparison(b, l, r) ? itself(b.op(), l) : twoValued(b, compared);
             }
             case PLUS -> plus(b, at);
@@ -5820,7 +5824,7 @@ public final class IqDialect implements InputDialect {
         }
         if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
             // an untyped NULL with a NUMERIC is a DOUBLE (measured; / too)
-            return nullBeside(b, l, r, doubleNull());
+            return doubleNull();
         }
         if (b.op() == SqlAst.BinaryOp.DIVIDE || b.op() == SqlAst.BinaryOp.MODULO) {
             return quotient(b, l, r, operator);
@@ -6236,9 +6240,9 @@ public final class IqDialect implements InputDialect {
     /**
      * Whether IQ may raise computing {@code e} where its value is read, beside an operand that is NULL (the IQ scale
      * program's Q30, 2026-10-24; {@link SqlToPure#strict(Kind, List, List, boolean, java.util.function.Function)}):
-     * a column, a constant, an aggregate's or a window's value (computed before the item) never; under IQ's engine
-     * what {@link #cannotRaise} admits neither (a division by a nonzero integer constant too: integers widen); under
-     * SQL Anywhere's front end anything else may (its integer arithmetic raises -158).
+     * a column, a constant, a variable, an aggregate's or a window's value (computed before the item) never; under
+     * IQ's engine what {@link #cannotRaise} admits neither (a division by a nonzero integer constant too: integers
+     * widen); under SQL Anywhere's front end anything else may (its integer arithmetic raises -158).
      */
     private boolean mayRaise(SqlAst.Expr e) {
         return switch (e) {
@@ -6246,6 +6250,12 @@ public final class IqDialect implements InputDialect {
             case SqlAst.IntegerLit n -> false;
             case SqlAst.NumericLit n -> false;
             case SqlAst.NullLit n -> false;
+            // a constant or a variable raises nothing where it is read (a conversion of it raises where it is
+            // converted)
+            case SqlAst.StringLit n -> false;
+            case SqlAst.BooleanLit n -> false;
+            case SqlAst.TypedLit n -> false;
+            case SqlAst.Param n -> false;
             case SqlAst.Window w -> false;
             case SqlAst.FunctionCall f when IqAggregates.isAggregate(IqLexer.lower(f.name().get(f.name().size() - 1)
                     .text())) -> false;
@@ -6262,18 +6272,45 @@ public final class IqDialect implements InputDialect {
         return java.util.Collections.nCopies(operands, true);
     }
 
-    /** {@code NULL op x} or {@code x op NULL}, an untyped NULL's: {@code typed}, its NULL, once {@code x} is computed
-     *  where IQ computes it and it may raise (the IQ scale program's Q30, 2026-10-24, measured on IQ 17.1: NULL beside
-     *  {@code it / sm} over a zero {@code sm} raises its divide-by-zero under IQ's engine, and to its right under SQL
-     *  Anywhere's front end), as {@link #strict} reads it. */
-    private Tx nullBeside(SqlAst.Binary b, Tx l, Tx r, Tx typed) {
-        boolean leftNull = l.kind() == Kind.NULL;
-        if (!mayRaise(leftNull ? b.right() : b.left()) || engine != Engine.IQ && leftNull) {
-            return typed;
+    /**
+     * {@code t}, a comparison of {@code operands} or a function of them that is NULL when one of them is, once each
+     * operand that may raise ({@link #mayRaise}) is computed, where another may be NULL: under IQ's engine, which
+     * computes every one (the IQ scale program's Q30, its second batch, 2026-10-24, measured on IQ 17.1:
+     * {@code NULLIF(sm, 0) < it / sm} and {@code LEFT(NULLIF(vc, vc), it / sm)} over a zero {@code sm} raise its
+     * divide-by-zero, as the comparison's other order did). The operand is read whole, ahead of the rest, where its
+     * value then decides nothing more: NULL makes the comparison UNKNOWN and the function NULL.
+     */
+    Tx computedFirst(Tx t, List<SqlAst.Expr> exprs, List<Tx> operands) {
+        if (engine != Engine.IQ || exprs.size() != operands.size()) {
+            return t;
         }
-        Tx computed = strict(typed.kind(), b, leftNull ? List.of(typed, r) : List.of(l, typed),
-                v -> v.get(leftNull ? 0 : 1));
-        return Tx.value(computed.vs(), typed.kind(), true, typed.detail());
+        List<ValueSpecification> tests = new ArrayList<>();
+        for (int i = 0; i < operands.size(); i++) {
+            if (!mayRaise(exprs.get(i)) || SqlToPure.isNullConstant(operands.get(i))) {
+                continue;
+            }
+            for (int j = 0; j < operands.size(); j++) {
+                if (j != i && operands.get(j).nullable()) {
+                    tests.add(SqlToPure.call("isEmpty", SqlToPure.valueOf(operands.get(i))));
+                    break;
+                }
+            }
+        }
+        if (tests.isEmpty()) {
+            return t;
+        }
+        ValueSpecification read = tests.get(0);
+        if (tests.size() > 1) {
+            // a sum computes each of its terms, where an OR stops at the first that holds
+            List<ValueSpecification> counts = new ArrayList<>();
+            tests.forEach(x -> counts.add(ifThen(x, new CInteger(1L), new CInteger(0L))));
+            read = SqlToPure.call("greaterThan", AppliedFunction.infixRun("plus", counts), new CInteger(0L));
+        }
+        if (t.kind() == Kind.BOOLEAN && t.whenFalse() != null) {
+            return Tx.condition(ifThen(read, new CBoolean(false), t.vs()), ifThen(read, new CBoolean(false),
+                    t.falseWhen()), true);
+        }
+        return Tx.value(ifThen(read, SqlToPure.nullOf(t.kind()).vs(), t.vs()), t.kind(), true, t.detail());
     }
 
     /** {@code operands}' strict operation, as {@code node}'s ({@link #raises}): under SQL Anywhere's front end they are
@@ -6307,7 +6344,7 @@ public final class IqDialect implements InputDialect {
                     b.pos());
         }
         if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
-            return nullBeside(b, l, r, doubleNull());
+            return doubleNull();
         }
         boolean lf = doubleOperand(l, b.left(), operator);
         boolean rf = doubleOperand(r, b.right(), operator);
@@ -6486,7 +6523,7 @@ public final class IqDialect implements InputDialect {
             if (family == null) {
                 throw resultRefused(operator, other.family(), other.family(), b.pos());
             }
-            return nullBeside(b, l, r, typedNull(family));
+            return typedNull(family);
         }
         IqType lt = integerOperand(l, b.left(), operator);
         IqType rt = integerOperand(r, b.right(), operator);

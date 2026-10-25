@@ -354,8 +354,17 @@ final class IqFunctions {
         if (fn == null) {
             return null;
         }
-        return (f, args, at) -> IqDialect.bounded(new IqFunctions(dialect).apply(fn, f, args, at), f);
+        return (f, args, at) -> {
+            Tx t = new IqFunctions(dialect).apply(fn, f, args, at);
+            // the IQ scale program's Q30 (2026-10-24, measured on IQ 17.1): IQ's engine computes every argument of
+            // a function that is NULL when one is, an argument that raises beside a NULL one too
+            return IqDialect.bounded(STRICT.contains(fn) ? dialect.computedFirst(t, f.args(), args) : t, f);
+        };
     }
+
+    /** The functions of two arguments or more that are NULL when any argument is ({@link IqDialect#computedFirst}). */
+    private static final java.util.Set<Fn> STRICT = java.util.Set.of(Fn.LEFT, Fn.RIGHT, Fn.SUBSTRING, Fn.SUBSTR,
+            Fn.REPEAT, Fn.REPLICATE, Fn.LOCATE, Fn.CHARINDEX, Fn.ROUND, Fn.TRUNCNUM, Fn.MOD, Fn.REMAINDER, Fn.POWER);
 
     private Tx apply(Fn fn, SqlAst.FunctionCall f, List<Tx> args, SqlToPure.At at) {
         String name = f.name().get(f.name().size() - 1).text().toUpperCase(Locale.ROOT);
