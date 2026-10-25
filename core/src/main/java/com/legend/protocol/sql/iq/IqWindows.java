@@ -4,6 +4,7 @@
 package com.legend.protocol.sql.iq;
 
 import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CDecimal;
 import com.legend.protocol.spec.CFloat;
 import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.ColSpec;
@@ -1050,7 +1051,15 @@ final class IqWindows {
     /** The IQ engine's AVG of an exact number over a window: its total and count over the window, then the quotient
      *  cut toward zero at {@code scale} places ({@link IqFunctions#cutQuotient}); NULL over no values. */
     private static SqlToPure.WindowFunction average(SqlAst.FunctionCall f, SqlToPure.Windowing at, Tx dec, int s1,
-            int whole, int scale, int precision) {
+            int typed, int scale, int precision) {
+        // the IQ scale program, 2026-10-26 (tpcds-6742, as IqAggregates' AVG over a group): a value read as a NUMERIC
+        // may hold more digits than its type's, a sum's being row-typed; where the steps fit, the total is bounded by
+        // what lite's decimal holds
+        int held = 38 - s1;
+        CDecimal one1 = new CDecimal(java.math.BigDecimal.ONE);
+        int whole = held > typed && (IqFunctions.cutQuotient(one1, s1, held, one1, 19, scale) != null
+                || IqFunctions.truncatedFits(s1, held, scale)
+                || IqFunctions.longQuotient(one1, s1, held, one1, 19, scale, "") != null) ? held : typed;
         String total = at.fresh();
         String count = at.fresh();
         Tx t = Tx.value(at.column(total), Kind.DECIMAL, true);

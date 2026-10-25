@@ -1908,6 +1908,16 @@ final class IqAggregates {
             scale = ps[1] + 21;
             sumScale = ps[1];
             sumWhole = ps[0] + 1 - ps[1];
+            // the IQ scale program, 2026-10-26 (tpcds-6742: an AVG of a SUM of SUMs of NUMERIC(7,2)s, its values 2e12
+            // where lite's type says NUMERIC(10,2), DuckDB's INT64 overflowed in a step): IQ sizes a sum by its rows'
+            // estimate (row-typed), so a value read as a NUMERIC(p,s) may hold more than p digits; where the steps
+            // fit, the sum is bounded by what lite's decimal holds, 38 - s digits before its point
+            int held = 38 - ps[1];
+            if (held > sumWhole && (IqFunctions.truncatedFits(sumScale, held, scale) || IqFunctions.longQuotient(
+                    new CDecimal(java.math.BigDecimal.ONE), sumScale, held, new CDecimal(java.math.BigDecimal.ONE),
+                    COUNT_DIGITS, scale, "") != null)) {
+                sumWhole = held;
+            }
             // IQ island, 2026-10-17: past 38 digits IQ's type holds what lite's 38 do (longQuotient refuses at run time
             // a value past them), so lite types the value it holds: its comparisons and arithmetic sized within 38
             spelling = "NUMERIC(" + Math.min(ps[0] + 22, 38) + "," + scale + ")";
