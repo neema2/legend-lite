@@ -49,8 +49,8 @@ import {
 import { chartTitle, gridTitle, nextPageId, textTitle } from '../page-ids.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { CubeDocument, CubeSource } from '../cube-document.ts';
-import type { GridCopy, PageDocument } from '../page-document.ts';
-import { withoutConditions, type CubeSnapshot, type FilterNode } from '../snapshot.ts';
+import type { GridCopy, GridLink, PageDocument } from '../page-document.ts';
+import { sameValue, withoutConditions, type CubeSnapshot, type FilterNode, type FilterValue } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
@@ -132,6 +132,9 @@ export interface SpawnOptions {
   readonly onMoveToSheet?: (sheet: string | null) => void;
   /** Its configuration, when not the spawning grid's: Show Grid's, a chart's values as its Column Properties. */
   readonly configuration?: CubeConfiguration;
+  /** A row picked in it (clicked, or moved to by its arrows): the row's value of a column, by its name (undefined: it
+   *  shows no such column). The page takes the grids it links to that value (page-document.ts GridLink). */
+  readonly onRowPicked?: (valueOf: (column: string) => FilterValue | null | undefined) => void;
 }
 
 /** A grid on a page (a CubeApp). */
@@ -336,6 +339,8 @@ export class CubePage {
   readonly #kept = new Map<string, SpawnedGrid>();
   /** Each grid's title as it was made, so a saved page writes only a title someone gave it. */
   readonly #titles = new Map<string, string>();
+  /** Each linked grid's link (page-document.ts GridLink): the grids a row picked in it takes to that row's value. */
+  readonly #links = new Map<string, GridLink>();
   /**
    * WHAT A SAVED PAGE HAS THAT THIS ONE COULD NOT OPEN (a grid whose source was not opened, a chart reading one): each
    * view kept as its page saved it, a tile saying why in its place -- written back, never dropped (P9).
@@ -1161,7 +1166,31 @@ export class CubePage {
         sheets: () => ({ locked: !this.#editing, others: this.#otherSheets(id) }),
         onMoveToSheet: (sheet: string | null) => this.moveToSheet(id, sheet),
       } : {}),
+      onRowPicked: (valueOf) => this.#follow(id, valueOf),
     };
+  }
+
+  /**
+   * A ROW PICKED IN A LINKED GRID (page-document.ts GridLink): each grid it links to taken to the row's value of the
+   * link's column -- its filter's equality on that column replaced by one to this value, a step of that grid's own (the
+   * refilter a chart's click makes), undone as any; a grid at that value already left as it is. A row with no value
+   * there (a total, an empty cell) takes none.
+   */
+  #follow(from: string, valueOf: (column: string) => FilterValue | null | undefined): void {
+    const link = this.#links.get(from);
+    if (!link) return;
+    const value = valueOf(link.column);
+    if (value === undefined || value === null) return;
+    const next: FilterNode = { kind: 'condition', column: link.column, operator: 'equal', value };
+    for (const to of link.to) {
+      const grid = this.#grids.get(to);
+      if (!grid) continue;
+      const filter = grid.source.snapshot.filter;
+      const top = filter === undefined ? [] : filter.kind === 'and' ? filter.children : [filter];
+      const old = top.filter((c) => c.kind === 'condition' && c.column === link.column && c.operator === 'equal');
+      if (old.length === 1 && sameValue(old[0], next)) continue;
+      grid.source.refilter(old, [next], `${link.column} ${String(value)}`);
+    }
   }
 
   /** Whether a chart is on grid `id`'s sheet: its export then lays out that sheet, the grid its table. */
@@ -1406,7 +1435,13 @@ export class CubePage {
       const cube = cubeOf(id);
       if (cube === undefined) continue;
       const title = this.title(id);
-      views.push({ id, kind: 'grid', cube, ...(title !== undefined && title !== this.#titles.get(id) ? { title } : {}) });
+      // a link to the grids still on the page (one taken off is let go of)
+      const link = this.#links.get(id);
+      const to = link?.to.filter((t) => this.#grids.has(t) || this.#unavailable.get(t)?.kind === 'grid') ?? [];
+      views.push({
+        id, kind: 'grid', cube, ...(title !== undefined && title !== this.#titles.get(id) ? { title } : {}),
+        ...(link && to.length > 0 ? { link: { column: link.column, to } } : {}),
+      });
     }
     for (const id of this.#chartIds()) {
       const lost = this.#unavailable.get(id);
@@ -1460,6 +1495,9 @@ export class CubePage {
     for (const view of page.views) {
       if (view.kind === 'grid' && view.title && this.#grids.has(view.id)) this.#sheetOf(view.id)?.board.rename(view.id, view.title);
     }
+    // each grid's link as the page has it
+    this.#links.clear();
+    for (const view of page.views) if (view.kind === 'grid' && view.link) this.#links.set(view.id, view.link);
     const sheetFor = new Map(page.sheets.flatMap((s) => tiles(s.layout).map((t) => [t, s.id] as const)));
     for (const view of page.views) {
       if (view.kind !== 'text' || this.#texts.has(view.id)) continue;

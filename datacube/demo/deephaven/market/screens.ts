@@ -23,14 +23,17 @@ export const MARKET_MAPPING = 'stress::AllMapping';
 /** A source's columns as the compiler types them: the host's planner, asked. */
 export type SourceTypes = (text: string) => Promise<readonly ColumnSpec[]>;
 
+/** The one value a query answers, as the market has it now (a screen's first symbol: the market's largest name). */
+export type FirstValue = (text: string) => Promise<string>;
+
 export interface TraderPage {
   readonly id: string;
   /** Shown in the host's menu. */
   readonly label: string;
   /** What it shows. */
   readonly about: string;
-  /** The page, written: its sources typed by `types`. */
-  build(types: SourceTypes): Promise<PageDocument>;
+  /** The page, written: its sources typed by `types`, what it starts on asked of the market by `first`. */
+  build(types: SourceTypes, first: FirstValue): Promise<PageDocument>;
 }
 
 // ---------------------------------------------------------------- the sources: queries over the corpus's classes
@@ -56,9 +59,17 @@ export const TAPE = `${TRADE}->project(~[seq:x|$x.sequenceNumber, ticker:x|$x.in
 export const DAY = `${TAPE}->extend(~[vwap:x|$x.price, high:x|$x.price, low:x|$x.price, close:x|$x.price,`
   + ' notional:x|$x.price * $x.size])';
 
-/** The tape with each name's exponential moving average of its prices, print by print (lite's ema, K6). */
-export const TAPE_EMA = `${TAPE}->extend(over(~ticker, ~seq->ascending(), rows(unbounded(), 0)),`
-  + ' ~[ema:{p,w,r|$r.price}:y|$y->ema(0.1)])';
+/** THE STOCK (K14): every print with its name's prior close (its listing's, an equity's -- the static reference, so a
+ *  quote's tick never touches the tape; a coin's day has none) and the name's exponential moving average of its prices,
+ *  print by print (lite's ema, K6): one grid, filtered to the name picked, whose views are the stock's every tile. */
+export const STOCK = `${TRADE}->project(~[seq:x|$x.sequenceNumber, ticker:x|$x.instrument.ticker, at:x|$x.printTime,`
+  + ' price:x|$x.price, size:x|$x.quantity, side:x|$x.aggressorSide, venue:x|$x.venue,'
+  + ' prevClose:x|$x.instrument.equity.lastPrice])'
+  + '->extend(over(~ticker, ~seq->ascending(), rows(unbounded(), 0)), ~[ema:{p,w,r|$r.price}:y|$y->ema(0.1)])';
+
+/** The market's largest name (by its capitalisation at the prior close): the stock a screen first shows. */
+export const LARGEST = 'products::Equity.all()->project(~[t:x|$x.ticker, cap:x|$x.marketCap])->sort(~cap->descending())'
+  + '->limit(1)->select(~[t])';
 
 // ---------------------------------------------------------------- writing a page
 
@@ -145,12 +156,9 @@ const configured = (reportTitle: string, columns: Readonly<Record<string, Column
   ...DEFAULT_CONFIGURATION, reportTitle, columns,
 });
 
-// ---------------------------------------------------------------- K4: the ticker
+// ---------------------------------------------------------------- K4, K14: the ticker
 
-/** The coin the ticker's chart sheet follows. */
-export const TICKER_COIN = 'BTC-USD';
-
-async function tickerPage(types: SourceTypes): Promise<PageDocument> {
+async function tickerPage(types: SourceTypes, first: FirstValue): Promise<PageDocument> {
   const quoteFigures = { aggregate: 'average' } as const;
   const watchColumns = await columnsOf(types, WATCHLIST, {
     last: quoteFigures, bid: quoteFigures, ask: quoteFigures, open: quoteFigures, high: { aggregate: 'max' },
@@ -161,9 +169,33 @@ async function tickerPage(types: SourceTypes): Promise<PageDocument> {
     seq: { aggregate: 'count' }, price: { aggregate: 'average' }, vwap: { aggregate: 'wavg', aggregateWeight: 'size' },
     high: { aggregate: 'max' }, low: { aggregate: 'min' }, close: { aggregate: 'maxBy', aggregateWeight: 'seq' },
   });
-  const emaColumns = await columnsOf(types, TAPE_EMA, { seq: { kind: 'dimension' } });
+  const stockColumns = await columnsOf(types, STOCK, { seq: { kind: 'dimension' } });
+  // the stock it opens on: the market's largest, as the market says now
+  const symbol = await first(LARGEST);
 
+  // THE STOCK SHEET: the watchlist down the left; picked in it, a name's tiles beside it -- its figures, its chart (a
+  // line or candles), its prints and its quote -- every one a view of two grids the list links to (K14)
   const watchSource = marketSource('Watchlist', WATCHLIST, watchColumns);
+  const pick = cubeOf('Pick a name', watchSource, cubeOver(watchColumns, { sorts: [{ column: 'ticker', direction: 'asc' }] }),
+    configured('Watchlist: pick a name', {
+      name: HIDDEN, kind: HIDDEN, sector: HIDDEN, at: HIDDEN, bid: HIDDEN, ask: HIDDEN, bidSize: HIDDEN, askSize: HIDDEN,
+      open: HIDDEN, high: HIDDEN, low: HIDDEN, prevClose: HIDDEN, chg: HIDDEN, spreadBps: HIDDEN, volume: HIDDEN,
+      last: PRICE, chgPct: { ...CHANGE_PCT, displayName: 'chg' },
+    }));
+  const quote = cubeOf('The quote', watchSource, cubeOver(watchColumns, { filter: equal('ticker', symbol) }),
+    configured('The quote', {
+      kind: HIDDEN, sector: HIDDEN, at: HIDDEN, last: HIDDEN, chg: HIDDEN, chgPct: HIDDEN, bid: PRICE, ask: PRICE,
+      open: PRICE, high: PRICE, low: PRICE, prevClose: PRICE, bidSize: SIZE, askSize: SIZE, volume: BIG,
+      spreadBps: { format: { kind: 'number', decimals: 1 } },
+    }));
+  const stockSource = marketSource('The stock', STOCK, stockColumns);
+  const stock = cubeOf('The stock', stockSource,
+    cubeOver(stockColumns, { filter: equal('ticker', symbol), sorts: [{ column: 'seq', direction: 'desc' }] }),
+    configured('Its prints', {
+      seq: HIDDEN, ticker: HIDDEN, prevClose: HIDDEN, ema: HIDDEN, at: PRINT_TIME, price: PRICE, size: SIZE,
+    }));
+
+  // THE WATCHLIST SHEET: every name's quote, the tape, each name's day
   const watch = cubeOf('Watchlist', watchSource, cubeOver(watchColumns, { sorts: [{ column: 'ticker', direction: 'asc' }] }),
     configured('Watchlist', {
       name: HIDDEN, sector: HIDDEN, at: HIDDEN, last: PRICE, bid: PRICE, ask: PRICE, open: PRICE, high: PRICE, low: PRICE,
@@ -180,51 +212,61 @@ async function tickerPage(types: SourceTypes): Promise<PageDocument> {
       seq: { displayName: 'prints', format: { kind: 'number', decimals: 0 } }, price: HIDDEN, at: HIDDEN, side: HIDDEN,
       venue: HIDDEN, condition: HIDDEN, vwap: PRICE, high: PRICE, low: PRICE, close: PRICE, size: BIG, notional: BIG,
     }));
-  const coinWatch = cubeOf(`${TICKER_COIN} quote`, watchSource, cubeOver(watchColumns, { filter: equal('ticker', TICKER_COIN) }),
-    configured(`${TICKER_COIN} quote`, {
-      kind: HIDDEN, sector: HIDDEN, at: HIDDEN, open: HIDDEN, prevClose: HIDDEN, last: PRICE, bid: PRICE, ask: PRICE,
-      high: PRICE, low: PRICE, bidSize: { format: { kind: 'number', decimals: 4 } }, askSize: { format: { kind: 'number', decimals: 4 } },
-      volume: BIG, chg: CHANGE, chgPct: CHANGE_PCT, spreadBps: { format: { kind: 'number', decimals: 1 } },
-    }));
-  const coinSource = marketSource('The tape with its EMA', TAPE_EMA, emaColumns);
-  const coin = cubeOf(`${TICKER_COIN} prints`, coinSource,
-    cubeOver(emaColumns, { filter: equal('ticker', TICKER_COIN), sorts: [{ column: 'seq', direction: 'desc' }] }),
-    configured(`${TICKER_COIN} prints`, {
-      seq: HIDDEN, kind: HIDDEN, ticker: HIDDEN, at: PRINT_TIME, price: PRICE, ema: PRICE,
-      size: { format: { kind: 'number', decimals: 4 } },
-    }));
 
-  const byTime = { sort: { by: 'x', direction: 'asc' }, limit: 5000, zoom: true, legend: 'top' } as const;
+  const LAST = { column: 'price', fn: 'maxBy', weight: 'seq', title: 'last' } as const;
+  const PRIOR = { column: 'prevClose', fn: 'max' } as const;
+  const byTime = { sort: { by: 'x', direction: 'asc' }, zoom: true } as const;
   const views: PageView[] = [
+    { id: 'pick', kind: 'grid', cube: 'pick', title: 'Watchlist: pick a name', link: { column: 'ticker', to: ['prints', 'quote'] } },
+    chart('last', 'stock', 'Last', { mark: 'kpi', y: [LAST], layers: [{ kind: 'line', of: PRIOR, label: 'prior close' }] }),
+    chart('vwap', 'stock', 'VWAP', { mark: 'kpi', y: [{ column: 'price', fn: 'wavg', weight: 'size' }] }),
+    chart('high', 'stock', 'Day high', { mark: 'kpi', y: [{ column: 'price', fn: 'max' }] }),
+    chart('low', 'stock', 'Day low', { mark: 'kpi', y: [{ column: 'price', fn: 'min' }] }),
+    chart('volume', 'stock', 'Volume', { mark: 'kpi', y: [{ column: 'size', fn: 'sum' }] }),
+    chart('price', 'stock', 'Today: the last price each second against the prior close, its EMA, the volume beneath', {
+      // the whole day by the minute; a span picked by the second (a day by the second would be tens of thousands of marks)
+      mark: 'area', x: 'at', grain: 'minute',
+      // the EMA on the price's own axis (a column of no format of its own would be given a second)
+      y: [LAST, { column: 'ema', fn: 'maxBy', weight: 'seq', title: 'EMA (0.1)', mark: 'line', axis: 'left' },
+        { column: 'size', fn: 'sum', title: 'volume', pane: 'below' }],
+      layers: [{ kind: 'line', of: PRIOR, label: 'prior close' }, { kind: 'threshold', of: PRIOR }, { kind: 'last' }],
+      // its spans for a window, no slider: a slider's shadow of the whole day is drawn again at every tick
+      options: {
+        ...byTime, zoom: false, limit: 40_000, legend: 'top', fitAxis: true, span: 0,
+        spans: [{ seconds: 60, grain: 'second' }, { seconds: 300, grain: 'second' }, { seconds: 900, grain: 'second' },
+          { seconds: 3600, grain: 'second' }, { seconds: 0, grain: 'minute' }],
+      },
+    }),
+    chart('candles', 'stock', 'Today: one-minute candles, the volume beneath', {
+      mark: 'candlestick', x: 'at', grain: 'minute', y: candleMeasures('price', 'seq', 'size'), options: { ...byTime, limit: 1000 },
+    }),
+    { id: 'prints', kind: 'grid', cube: 'stock', title: 'Its prints, newest first' },
+    { id: 'quote', kind: 'grid', cube: 'quote', title: 'Its quote' },
     { id: 'watchlist', kind: 'grid', cube: 'watch', title: 'Watchlist' },
     { id: 'tape', kind: 'grid', cube: 'tape', title: 'Time and sales' },
     { id: 'day', kind: 'grid', cube: 'day', title: 'The day by name: VWAP, range and turnover' },
-    { id: 'coin-quote', kind: 'grid', cube: 'coinWatch', title: `${TICKER_COIN}: the quote` },
-    chart('coin-last', 'coinWatch', `${TICKER_COIN}: last`, { mark: 'kpi', y: [{ column: 'last', fn: 'max' }] }),
-    chart('coin-change', 'coinWatch', `${TICKER_COIN}: change on the day`, { mark: 'kpi', y: [{ column: 'chgPct', fn: 'max' }] }),
-    chart('coin-candles', 'coin', `${TICKER_COIN}: one-minute candles`, {
-      mark: 'candlestick', x: 'at', grain: 'minute', y: candleMeasures('price', 'seq', 'size'), options: byTime,
-    }),
-    chart('coin-ema', 'coin', `${TICKER_COIN}: the last print each second, and its EMA`, {
-      mark: 'line', x: 'at', grain: 'second',
-      y: [{ column: 'price', fn: 'maxBy', weight: 'seq', title: 'last print' }, { column: 'ema', fn: 'maxBy', weight: 'seq', title: 'EMA (0.1)' }],
-      options: { ...byTime, fitAxis: true },
-    }),
-    { id: 'coin-prints', kind: 'grid', cube: 'coin', title: `${TICKER_COIN}: prints` },
   ];
+  const column = (...parts: readonly (readonly [node: Node, size: number])[]): Node => ({
+    split: 'column', parts: parts.map(([node, size]) => ({ node, size })),
+  });
   const sheets: PageSheet[] = [
-    sheet('sheet-1', 'Watchlist', [[0.6, tile('watchlist')], [0.4, row(['tape', 0.45], ['day', 0.55])]]),
-    sheet('sheet-2', TICKER_COIN, [
-      [0.2, row(['coin-last', 0.2], ['coin-change', 0.2], ['coin-quote', 0.6])],
-      [0.5, tile('coin-candles')],
-      [0.3, row(['coin-ema', 0.6], ['coin-prints', 0.4])],
-    ]),
+    sheet('sheet-1', 'Stock', [[1, {
+      split: 'row', parts: [
+        { node: tile('pick'), size: 0.2 },
+        { node: column(
+          [row(['last', 0.24], ['vwap', 0.19], ['high', 0.19], ['low', 0.19], ['volume', 0.19]), 0.16],
+          [{ stack: ['price', 'candles'] }, 0.56],
+          [row(['prints', 0.45], ['quote', 0.55]), 0.28],
+        ), size: 0.8 },
+      ],
+    }]]),
+    sheet('sheet-2', 'Watchlist', [[0.6, tile('watchlist')], [0.4, row(['tape', 0.45], ['day', 0.55])]]),
   ];
   return writePageOf({
     name: 'Ticker',
     cubes: [
+      { id: 'pick', cube: pick }, { id: 'stock', cube: stock }, { id: 'quote', cube: quote },
       { id: 'watch', cube: watch }, { id: 'tape', cube: tape }, { id: 'day', cube: day },
-      { id: 'coinWatch', cube: coinWatch }, { id: 'coin', cube: coin },
     ],
     views: { views, sheets },
   });
@@ -794,8 +836,9 @@ export const TRADER_PAGES: readonly TraderPage[] = [
   {
     id: 'ticker',
     label: 'Ticker',
-    about: 'A watchlist of every name, its quote ticking against its prior close; the tape, print by print; each name\'s '
-      + `day so far (its VWAP, range and turnover); and ${TICKER_COIN}'s quote, one-minute candles and EMA.`,
+    about: 'Pick a name on the watchlist: its price today from the open, ticking -- green above its prior close, red '
+      + 'below, its EMA, its volume beneath, the last minute to the whole day -- or its candles; its last, VWAP, range and '
+      + 'volume; its prints and quote. And every name\'s quote, the tape, each name\'s day so far.',
     build: tickerPage,
   },
   {

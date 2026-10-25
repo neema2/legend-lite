@@ -46,7 +46,7 @@ async function check(name: string, run: () => Promise<string | null>): Promise<v
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 try {
-  const config = await (await fetch('config.json')).json() as { url: string; psk: string; names: number; trades: number };
+  const config = await (await fetch('config.json')).json() as { url: string; psk: string; names: number; trades: number; morning: number };
   const server: DeephavenServer = {
     url: config.url,
     signIn: { type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token: config.psk },
@@ -163,6 +163,24 @@ try {
       const [all, bad] = [Number(counted?.[0]), Number(counted?.[1])];
       return all > 0 && bad === 0 ? null : `${bad} of ${all} prints are ill formed`;
     });
+
+  await check(`the day from the open (K14): the tape starts at the session's open, ${config.morning / 60} minutes before the world, and each quote's volume is its prints'`, async () => {
+    const said = await rows(`${W}->filter(x|$x.item == 'equities')`);
+    const open = /the session open since (\S+)$/.exec(String(said[0]?.[2] ?? ''))?.[1];
+    if (open === undefined) return `the world says no open: ${JSON.stringify(said)}`;
+    const first = await rows(`${TRADE}->filter(x|$x.instrument.assetClass == 'EQUITY')->project(~[t:x|$x.printTime])`
+      + '->groupBy(~[], ~[first:x|$x.t:y|$y->min()])');
+    const late = (new Date(String(first[0]?.[0])).getTime() - new Date(open).getTime()) / 1000;
+    // each equity's prints summed against its quote's volume: a quote lags its name's prints by at most a few seconds'
+    const [counted] = await rows(`${TRADE}->filter(x|$x.instrument.assetClass == 'EQUITY')`
+      + '->project(~[i:x|$x.instrument.instrumentId, q:x|$x.quantity])->groupBy(~[i], ~[tape:x|$x.q:y|$y->sum()])'
+      + `->join(${QUOTE}->project(~[i2:x|$x.instrument.instrumentId, v:x|$x.volume]), meta::pure::functions::relation::JoinKind.INNER, {a, b|$a.i == $b.i2})`
+      + '->extend(~[bad:x|abs($x.tape->toOne() - $x.v->toOne()) > (0.02 * $x.v->toOne())])'
+      + '->groupBy(~[], ~[all:x|$x.i:y|$y->count(), bad:x|if($x.bad, |1, |[]):y|$y->count()])');
+    const [all, bad] = [Number(counted?.[0]), Number(counted?.[1])];
+    return late >= 0 && late < 60 && all === equities && bad === 0 ? null
+      : `the open ${open}, the first print ${String(first[0]?.[0])} (${late.toFixed(0)} s after it); ${bad} of ${all} quotes' volumes off their prints'`;
+  });
 
   await check(`prints reach the tape at the world's pace: about ${config.trades} a second`, async () => {
     const count = `${TRADE}->project(~[seq:x|$x.sequenceNumber])->groupBy(~[], ~[n:x|$x.seq:y|$y->count()])`;

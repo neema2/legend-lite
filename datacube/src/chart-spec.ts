@@ -161,6 +161,10 @@ export type MeasureMark = 'bar' | 'line' | 'area';
 /** A measure's value axis: the first (left) or the second (right). Absent: by its unit (§6). */
 export type MeasureAxis = 'left' | 'right';
 
+/** Where a measure is drawn: beneath the chart, in a pane of its own on the same axis across (a price's volume: the
+ *  trader screens' stock chart, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K14). Absent: in the chart. */
+export type MeasurePane = 'below';
+
 /**
  * A measure shown as something computed from it (§3.2's presets): each is a group-level calculated column the
  * planner already plans -- a window over the chart's rows, sometimes with an expression over it.
@@ -188,6 +192,8 @@ export interface ChartMeasure {
   readonly weight?: string;
   /** What the legend and a hover call it ("last print", "EMA"); absent, its aggregate of its column says it. */
   readonly title?: string;
+  /** Drawn in a pane beneath the chart, on its own value axis (a price's volume): K14. */
+  readonly pane?: MeasurePane;
 }
 
 /** A date across, taken to its period: the grain's first day (the compiler's `firstDayOf...`), or its year. */
@@ -195,6 +201,13 @@ export interface ChartMeasure {
  *  docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md), or any date's day, week, month, quarter or year. */
 export type TimeGrain = 'second' | 'minute' | 'minute5' | 'minute15' | 'minute30' | 'hour'
   | 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+/** A span of time a chart offers (ChartOptions.spans): the latest `seconds` (0: all of it), drawn by `grain` when it says
+ *  one (absent: the chart's own). */
+export interface ChartSpan {
+  readonly seconds: number;
+  readonly grain?: TimeGrain;
+}
 
 /** A number across, taken to its bin: `width` wide, or `count` bins over the column's range. */
 export interface Bins {
@@ -207,25 +220,35 @@ export type LayerStat = 'average' | 'min' | 'max';
 
 /**
  * What a chart draws over its marks (§3.1's layers):
- *  - `line`: a constant or a target, at `value`;
+ *  - `line`: a constant or a target, at `value` -- or at a measure's value on the chart's latest mark (`of`: a price's
+ *    prior close, K14), the database's figure, never one found here;
  *  - `stat`: the average, minimum or maximum of a measure over the chart's rows;
  *  - `band`: a shaded range, `from` to `to`, across (`x`, categories or dates) or up (`y`, values);
- *  - `threshold`: a measure's marks coloured by value -- below `value` in the bad colour;
- *  - `extremes`: a measure's highest and lowest marks pinned.
+ *  - `threshold`: a measure's marks coloured by value -- below `value` (or `of`'s, as a line's) in the bad colour,
+ *    at or above it in the good colour when it is `of` a measure (a price red below its prior close, green above);
+ *  - `extremes`: a measure's highest and lowest marks pinned;
+ *  - `last`: a measure's latest mark pinned live -- its value tagged on the value axis, in its colour (K14).
  * `measure` is the index of the measure it reads (default 0); `label` what it is called.
  */
 export type ChartLayer =
-  | { readonly kind: 'line'; readonly value: number; readonly measure?: number; readonly label?: string }
+  | { readonly kind: 'line'; readonly value?: number; readonly of?: ChartMeasure; readonly measure?: number; readonly label?: string }
   | { readonly kind: 'stat'; readonly stat: LayerStat; readonly measure?: number; readonly label?: string }
   | {
     readonly kind: 'band'; readonly axis: 'x' | 'y'; readonly from: string | number; readonly to: string | number;
     readonly label?: string;
   }
-  | { readonly kind: 'threshold'; readonly value: number; readonly measure?: number; readonly label?: string }
-  | { readonly kind: 'extremes'; readonly measure?: number; readonly label?: string };
+  | { readonly kind: 'threshold'; readonly value?: number; readonly of?: ChartMeasure; readonly measure?: number; readonly label?: string }
+  | { readonly kind: 'extremes'; readonly measure?: number; readonly label?: string }
+  | { readonly kind: 'last'; readonly measure?: number; readonly label?: string };
 
 /** The layers' kinds, one word each (Python's LAYERS). */
-export type ChartLayerKind = 'line' | 'stat' | 'band' | 'threshold' | 'extremes';
+export type ChartLayerKind = 'line' | 'stat' | 'band' | 'threshold' | 'extremes' | 'last';
+
+/** The measures a chart's layers read beside the ones it plots (a line's or a threshold's `of`): its query computes
+ *  them too. */
+export function layerMeasures(spec: Pick<ChartSpec, 'layers'>): ChartMeasure[] {
+  return (spec.layers ?? []).flatMap((l) => ((l.kind === 'line' || l.kind === 'threshold') && l.of !== undefined ? [l.of] : []));
+}
 
 /** A column per small chart: small multiples on shared axes, by row, by column, or both. */
 export interface ChartFacet {
@@ -345,6 +368,12 @@ export interface ChartOptions {
   readonly labelRotate?: number;
   /** A slider to zoom and pan across (a long series). */
   readonly zoom?: boolean;
+  /** The spans of time a time across offers to show, each the latest that many seconds (0: all of it) and the period it
+   *  is drawn by: a stock chart's 1m and 5m by the second, its day by the minute (K14) -- a span picked takes its grain,
+   *  so a day asks for hundreds of marks, not tens of thousands. The span shown follows the latest mark as it ticks. */
+  readonly spans?: readonly ChartSpan[];
+  /** The span shown, in seconds: the latest that much of the time across (absent or 0: all of it). */
+  readonly span?: number;
   /** Drag across (or around, on a scatter) to filter the grid to a range. */
   readonly brush?: boolean;
   /** Pattern fills as well as colours, for readers who cannot tell colours apart (ECharts' decal). */
@@ -380,8 +409,9 @@ const GRAIN_WORDS: Readonly<Record<TimeGrain, true>> = {
   day: true, week: true, month: true, quarter: true, year: true,
 };
 const LAYER_WORDS: Readonly<Record<ChartLayerKind, true>> = {
-  line: true, stat: true, band: true, threshold: true, extremes: true,
+  line: true, stat: true, band: true, threshold: true, extremes: true, last: true,
 };
+const PANE_WORDS: Readonly<Record<MeasurePane, true>> = { below: true };
 const STAT_WORDS: Readonly<Record<LayerStat, true>> = { average: true, min: true, max: true };
 
 export const SHOW_AS_KINDS = Object.keys(SHOW_AS_WORDS) as ShowAsKind[];
@@ -408,13 +438,14 @@ const SPEC_KEYS: Readonly<Record<keyof ChartSpec, true>> = {
 const KEPT_KEYS: Readonly<Record<keyof ChartKept, true>> = { filter: true };
 const PLACE_KEYS: Readonly<Record<keyof ChartPlace, true>> = { lat: true, lon: true };
 const MEASURE_KEYS: Readonly<Record<keyof ChartMeasure, true>> = {
-  column: true, fn: true, mark: true, axis: true, showAs: true, weight: true, title: true,
+  column: true, fn: true, mark: true, axis: true, showAs: true, weight: true, title: true, pane: true,
 };
 const FACET_KEYS: Readonly<Record<keyof ChartFacet, true>> = { row: true, column: true };
 const OPTION_KEYS: Readonly<Record<keyof ChartOptions, true>> = {
   orientation: true, stack: true, sort: true, limit: true, labels: true, legend: true, target: true, better: true,
   smooth: true, step: true, logAxis: true, fitAxis: true, colourReach: true, breaks: true, labelPosition: true,
-  labelRotate: true, zoom: true, brush: true, decal: true, dim: true, toolbox: true, half: true, ring: true,
+  labelRotate: true, zoom: true, spans: true, span: true, brush: true, decal: true, dim: true, toolbox: true, half: true,
+  ring: true,
 };
 const SHOW_AS_KEYS: Readonly<Record<keyof ShowAs, true>> = { kind: true, rows: true };
 const BINS_KEYS: Readonly<Record<keyof Bins, true>> = { width: true, count: true };
@@ -424,11 +455,12 @@ const DRILL_KEYS: Readonly<Record<keyof ChartDrill, true>> = { levels: true, pat
 const CALC_KEYS: Readonly<Record<keyof ChartCalc, true>> = { stage: true, column: true };
 // each kind of layer its own keys
 const LAYER_KEYS: { readonly [K in ChartLayerKind]: Readonly<Record<keyof Extract<ChartLayer, { kind: K }>, true>> } = {
-  line: { kind: true, value: true, measure: true, label: true },
+  line: { kind: true, value: true, of: true, measure: true, label: true },
   stat: { kind: true, stat: true, measure: true, label: true },
   band: { kind: true, axis: true, from: true, to: true, label: true },
-  threshold: { kind: true, value: true, measure: true, label: true },
+  threshold: { kind: true, value: true, of: true, measure: true, label: true },
   extremes: { kind: true, measure: true, label: true },
+  last: { kind: true, measure: true, label: true },
 };
 
 /** The first key of `o` that `keys` has no place for, refused by name; or null. */
@@ -446,6 +478,7 @@ function measureProblem(m: unknown, what: string): string | null {
   if (extra) return extra;
   if (m['mark'] !== undefined && !known(MEASURE_MARK_WORDS, m['mark'])) return `${what}'s mark ${JSON.stringify(m['mark'])} is not bar, line or area`;
   if (m['axis'] !== undefined && !known(AXIS_WORDS, m['axis'])) return `${what}'s axis ${JSON.stringify(m['axis'])} is not left or right`;
+  if (m['pane'] !== undefined && !known(PANE_WORDS, m['pane'])) return `${what}'s pane ${JSON.stringify(m['pane'])} is not below`;
   if (m['weight'] !== undefined && typeof m['weight'] !== 'string') return `${what}'s second column is not a column's name`;
   if (m['title'] !== undefined && (typeof m['title'] !== 'string' || m['title'].trim() === '')) return `${what}'s title is not words`;
   const showAs = m['showAs'];
@@ -553,6 +586,16 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
   if (o['colourReach'] !== undefined && !(typeof o['colourReach'] === 'number' && o['colourReach'] > 0)) {
     return `its colour reach ${JSON.stringify(o['colourReach'])} is not a number above zero`;
   }
+  // the spans of time it offers, and the one shown: seconds, 0 all of it
+  const spans = o['spans'];
+  if (spans !== undefined && !(Array.isArray(spans) && spans.length > 0 && spans.every((x) => isRecord(x)
+    && typeof x['seconds'] === 'number' && x['seconds'] >= 0 && (x['grain'] === undefined || known(GRAIN_WORDS, x['grain']))
+    && Object.keys(x).every((k) => k === 'seconds' || k === 'grain')))) {
+    return `its spans ${JSON.stringify(spans)} are not a list of seconds (0: all of it), each with its grain or none`;
+  }
+  if (o['span'] !== undefined && !(typeof o['span'] === 'number' && o['span'] >= 0)) {
+    return `its span ${JSON.stringify(o['span'])} is not a number of seconds (0: all of it)`;
+  }
   const sort = o['sort'];
   if (sort !== undefined && (!isRecord(sort) || (sort['by'] !== 'x' && sort['by'] !== 'y')
     || (sort['direction'] !== 'asc' && sort['direction'] !== 'desc'))) {
@@ -584,7 +627,14 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
       if (l['measure'] !== undefined && !(Number.isInteger(l['measure']) && (l['measure'] as number) >= 0)) {
         return `layer ${i + 1}'s value ${JSON.stringify(l['measure'])} is not one of the chart's (a whole number, 0 its first)`;
       }
-      if ((l['kind'] === 'line' || l['kind'] === 'threshold') && typeof l['value'] !== 'number') return `layer ${i + 1} has no value`;
+      if (l['kind'] === 'line' || l['kind'] === 'threshold') {
+        // its value: a number, or a measure's on the chart's latest mark -- one, never both
+        if (l['of'] !== undefined) {
+          if (l['value'] !== undefined) return `layer ${i + 1} has a value and a measure's value: one or the other`;
+          const ofProblem = measureProblem(l['of'], `layer ${i + 1}'s measure`);
+          if (ofProblem) return ofProblem;
+        } else if (typeof l['value'] !== 'number') return `layer ${i + 1} has no value`;
+      }
       if (l['kind'] === 'band' && (l['from'] === undefined || l['to'] === undefined || (l['axis'] !== 'x' && l['axis'] !== 'y'))) {
         return `layer ${i + 1} (a band) needs an axis, a from and a to`;
       }
@@ -1450,7 +1500,8 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     else if (!known.has(spec.colour.column)) out.push(`The cube has no column '${spec.colour.column}'.`);
   }
   const drawn = gridKind ? [] : spec.y;
-  for (const m of [...drawn, ...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : [])]) {
+  for (const m of [...drawn, ...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : []),
+    ...layerMeasures(spec)]) {
     if (m.fn === 'value') {
       if (plotsRows(spec)) out.push(`A ${markLabel(spec.mark)} plots rows, not groups: '${m.column}' is a group-level column.`);
       else if (!groupLevel.has(m.column)) out.push(`The cube has no group-level column '${m.column}'.`);
@@ -1647,7 +1698,34 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   for (const l of spec.layers ?? []) {
     if (l.kind !== 'band' && (l.measure ?? 0) >= spec.y.length) out.push(`A ${l.kind} layer reads value ${(l.measure ?? 0) + 1}, which the chart does not plot.`);
   }
-  if (!LAYERED.has(spec.mark) && (spec.layers ?? []).length > 0) out.push(`${article} ${kind} draws no reference lines yet.`);
+  // a KPI says itself against a reference line (a price's prior close, K14); every other layer is a chart's
+  if (spec.mark === 'kpi') {
+    if ((spec.layers ?? []).some((l) => l.kind !== 'line') || (spec.layers ?? []).length > 1) {
+      out.push('A KPI is said against one reference line: no other layer.');
+    }
+  } else if (!LAYERED.has(spec.mark) && (spec.layers ?? []).length > 0) out.push(`${article} ${kind} draws no reference lines yet.`);
+  // A PANE BENEATH (K14: a price's volume): bars, lines and areas drawn upright, each measure in it on its own axis
+  // under the chart's; the chart keeps one in itself, a split's series are of one measure, and small multiples' panels
+  // are each a chart already
+  const below = spec.y.filter((m) => m.pane === 'below');
+  if (below.length > 0) {
+    if (!LAYERED.has(spec.mark) || (spec.mark === 'bar' && spec.options.orientation === 'horizontal')) {
+      out.push(`${article} ${kind} draws no pane beneath it: bars, lines and areas drawn upright do.`);
+    } else if (below.length === spec.y.length) out.push('Every value is beneath the chart: keep one in it.');
+    else if (spec.split !== undefined) out.push('A split draws one value: none of the chart\'s values is beneath it.');
+    else if (spec.facet !== undefined) out.push('Small multiples draw no pane beneath them.');
+  }
+  // A SPAN OF TIME (K14: a stock chart's 1m, 5m, 1h and Day): the latest of a time across
+  if ((spec.options.spans !== undefined || (spec.options.span ?? 0) > 0)
+    && (!LAYERED.has(spec.mark) || spec.x === undefined || !isTemporalAcross(spec.x, s))) {
+    out.push('A span of time is shown of a date or a time across, on bars, lines and areas.');
+  } else if (spec.x !== undefined) {
+    // a span's grain, one its time across takes (a date has no second)
+    const takes = grainsOf(rowColumns(s).find((c) => c.name === spec.x)?.type);
+    for (const sp of spec.options.spans ?? []) {
+      if (sp.grain !== undefined && !takes.includes(sp.grain)) out.push(`'${spec.x}' is not taken to the ${GRAIN_LABELS[sp.grain].toLowerCase()}: a span cannot draw it so.`);
+    }
+  }
   if (!LABELLED.has(spec.mark) && spec.label !== undefined) out.push(`${article} ${kind} writes no other measure on its marks.`);
   if (!HOVER_EXTRAS.has(spec.mark) && (spec.tooltip ?? []).length > 0 && spec.mark !== 'scatter') {
     out.push(`${article} ${kind}'s hover lists no further measures.`);
@@ -1708,7 +1786,8 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapsho
   const places = spec.mark === 'bubblemap' ? [spec.at?.lat, spec.at?.lon] : [];
   const keys = [scatter ? spec.x : across, spec.split, ...panels, ...places].filter((c): c is string => c !== undefined);
   // what the chart plots, and the measures a hover lists, a mark's size reads and its label says
-  const extras = [...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : [])];
+  const extras = [...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : []),
+    ...layerMeasures(spec)];
   const plotted = [...spec.y, ...extras];
   const aggregated = plotted.filter((m): m is ChartMeasure & { fn: AggregateFn } => m.fn !== 'value');
   // a measure's name before any show-as: two measures shown two ways of one aggregate share it

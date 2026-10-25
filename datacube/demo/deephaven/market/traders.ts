@@ -19,7 +19,7 @@
 import { getInstanceByDom } from 'echarts/core';
 import { CubeApp } from '../../../src/app.ts';
 import type { CubeView } from '../../../src/cube.ts';
-import { tiles } from '../../../src/layout/bands.ts';
+import { places } from '../../../src/layout/bands.ts';
 import { openCube } from '../../../src/cube-document.ts';
 import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../../../src/config.ts';
 import { LitePlanner } from '../../../src/lite-planner.ts';
@@ -97,6 +97,9 @@ interface Shown {
   /** The page's sheets (its tabs) by name, and the one shown: a sheet shown by name. */
   sheets?: () => { readonly names: readonly string[]; readonly shown: string };
   showSheet?: (name: string) => void;
+  /** A chart's window as ECharts holds it now (its first: start and end values), and its latest point's time and value. */
+  chartNow?: (id: string) => { readonly zoom: { readonly startValue?: number; readonly endValue?: number } | null;
+    readonly last: readonly unknown[] | null } | null;
 }
 const shown: Shown = {
   status: 'starting', error: '', screen: '', screens: TRADER_PAGES.map((p) => ({ id: p.id, label: p.label })),
@@ -197,6 +200,20 @@ async function main(): Promise<void> {
       t.catch(() => { typed.delete(text); });
     }
     return t;
+  };
+
+  /** The one value a query answers now (a screen's first symbol): planned in the tab, read once from the server. */
+  const firstValue = async (text: string): Promise<string> => {
+    const plan = await planner.planText(text);
+    const reader = engine.reader();
+    try {
+      const result = await reader.execute(plan, 1);
+      const v = result.columns[0]?.values[0];
+      if (v === undefined || v === null) throw new Error(`the market answers nothing for ${text}`);
+      return String(v);
+    } finally {
+      void reader.close();
+    }
   };
 
   const tickedAt = new Map<string, number>();
@@ -436,7 +453,8 @@ async function main(): Promise<void> {
         }
         const el = tileEl?.querySelector<HTMLElement>('.dc-chartpanel-chart');
         const chart = el ? getInstanceByDom(el) : undefined;
-        if (!chart) {
+        // mounted is not drawn: a chart is watched from its first drawing (ECharts has no option before it)
+        if (!chart || chart.getOption() === undefined) {
           all = false;
           continue;
         }
@@ -490,8 +508,10 @@ async function main(): Promise<void> {
     page.setTitle(doc.name);
     await page.ready();
     took('grids shown');
+    // the charts a sheet shows: a tile's, and a stack's in front (one behind its tab draws when it is shown)
+    const inFront = new Set(doc.sheets.flatMap((s) => places(s.layout)));
     for (const v of doc.views) {
-      if (v.kind !== 'chart') continue;
+      if (v.kind !== 'chart' || !inFront.has(v.id)) continue;
       shown.charts[v.id] = { grid: titles.get(v.cube) ?? v.cube, kind: v.spec.mark, draws: 0, tickToDraw: [], values: [] };
     }
     shown.screen = screen;
@@ -499,7 +519,7 @@ async function main(): Promise<void> {
     for (const s of doc.sheets) {
       page.showSheet(s.id);
       await page.ready();
-      await watchCharts(tiles(s.layout).filter((t) => shown.charts[t] !== undefined));
+      await watchCharts(places(s.layout).filter((t) => shown.charts[t] !== undefined));
       took(`sheet ${s.name ?? s.id} drawn`);
     }
     if (doc.sheets[0] !== undefined) page.showSheet(doc.sheets[0].id);
@@ -515,7 +535,7 @@ async function main(): Promise<void> {
   const openScreen = async (id: string): Promise<void> => {
     const screen: TraderPage | undefined = TRADER_PAGES.find((p) => p.id === id);
     if (screen === undefined) throw new Error(`no trader screen '${id}'`);
-    const doc = await screen.build(async (text) => (await typeOf(text)).columns);
+    const doc = await screen.build(async (text) => (await typeOf(text)).columns, firstValue);
     await open(doc, id);
   };
 
@@ -618,6 +638,18 @@ async function main(): Promise<void> {
     return box;
   };
 
+  shown.chartNow = (id) => {
+    const el = document.querySelector<HTMLElement>(`[data-tile="${id}"] .dc-chartpanel-chart`);
+    const chart = el ? getInstanceByDom(el) : undefined;
+    if (!chart) return null;
+    const option = chart.getOption() as { dataZoom?: { startValue?: number; endValue?: number }[]; series?: { data?: unknown[] }[] } | undefined;
+    if (option === undefined) return null;
+    const zoom = option.dataZoom?.[0];
+    const data = option.series?.[0]?.data ?? [];
+    const last = data[data.length - 1];
+    return { zoom: zoom ? { ...(zoom.startValue !== undefined ? { startValue: zoom.startValue } : {}), ...(zoom.endValue !== undefined ? { endValue: zoom.endValue } : {}) } : null,
+      last: Array.isArray(last) ? last : null };
+  };
   shown.openScreen = openScreen;
   shown.save = save;
   shown.open = (text) => open(text, 'saved');

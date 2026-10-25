@@ -25,10 +25,10 @@ import {
   type ChartMeasure,
   type ChartSpec,
 } from '../src/chart-spec.ts';
-import { chartCsv, chartOption, kpiDrawing, LIGHT_THEME, MAX_SERIES, periodText, treemapOfGrid, type GridShown, type LabelOf } from '../src/chart-option.ts';
+import { chartCsv, chartOption, kpiDrawing, LIGHT_THEME, MAX_SERIES, periodText, treemapOfGrid, localTime, type GridShown, type LabelOf } from '../src/chart-option.ts';
 import * as echarts from 'echarts/core';
 import { SVGRenderer } from 'echarts/renderers';
-import { drawnExtents, heldOption } from '../src/chart-render.ts';   // registers the charts and components the page uses
+import { drawnExtents, heldOption, keptZoom } from '../src/chart-render.ts';   // registers the charts and components the page uses
 import type { EChartsOption } from 'echarts';
 import type { ChartDrawing } from '../src/chart-option.ts';
 
@@ -856,8 +856,13 @@ describe('dashboard-grade drawing: bar and line together, the grid\'s formats, l
     const d = chartOption({ ...BAR, layers: [{ kind: 'threshold', value: 1000000 }] }, ROWS);
     const vm = (d.option as unknown as Opt).visualMap!;
     assert.equal(vm.length, 1);
-    assert.deepEqual(vm[0]!.pieces[0], { lt: 1000000, color: '#e34948' });
+    const [below, above] = vm[0]!.pieces as { gte: number; lt?: number; lte?: number; color: string }[];
+    assert.deepEqual([below!.lt, below!.color, above!.gte], [1000000, '#e34948', 1000000]);
+    // bounded, a little past every value drawn: a canvas draws a line's gradient only between finite stops
+    assert.ok(Number.isFinite(below!.gte) && Number.isFinite(above!.lte!), `the pieces ${JSON.stringify(vm[0]!.pieces)}`);
     chartSvg(d);
+    // on a line too: a piece open at one end gave its colour gradient no stop, and ECharts 6 failed drawing it (K14)
+    assert.match(chartSvg(chartOption({ ...BAR, mark: 'line', layers: [{ kind: 'threshold', value: 1000000 }] }, ROWS)), /<path/);
   });
 
   it('the cheaper options: smooth, step, log axis, labels inside and turned, no dimming', () => {
@@ -1242,3 +1247,121 @@ describe('a ticking chart\'s scale (docs/DEEPHAVEN_PLAN_2026_10_22.md C2)', () =
     assert.ok(wider![1] >= hi * 2 && wider![0] === lo, `widened to ${wider}`);
   });
 });
+
+describe('the stock chart (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K14)', () => {
+  const LAST: ChartMeasure = { column: 'price', fn: 'maxBy', weight: 'seq', title: 'last' };
+  const PREV: ChartMeasure = { column: 'prevClose', fn: 'max' };
+  const VOLUME: ChartMeasure = { column: 'size', fn: 'sum', pane: 'below', title: 'volume' };
+  const STOCK: ChartSpec = {
+    ...BAR, mark: 'area', x: 'at', y: [LAST, VOLUME],
+    layers: [{ kind: 'line', of: PREV, label: 'prior close' }, { kind: 'threshold', of: PREV }, { kind: 'last' }],
+    options: { ...BAR.options, sort: { by: 'x', direction: 'asc' }, fitAxis: true, legend: 'none' },
+  };
+  const minutes = ['2026-10-25 10:00:00', '2026-10-25 10:01:00', '2026-10-25 10:02:00', '2026-10-25 10:03:00', '2026-10-25 10:04:00'];
+  /** A day's prices by minute, against a prior close of 100, and their volumes. */
+  const prices = (px: number[], prev = 100) => table([
+    { name: 'at', type: 'DateTime', values: minutes.slice(0, px.length) },
+    { name: measureName(LAST), type: 'Float', values: px },
+    { name: measureName(VOLUME), type: 'Float', values: px.map((_, i) => 1000 * (i + 1)) },
+    { name: measureName(PREV), type: 'Float', values: px.map(() => prev) },
+  ]);
+  type Opt = {
+    series: { name: string; type: string; xAxisIndex?: number; yAxisIndex?: number; data: unknown[];
+      markLine?: { data: { yAxis: number; label?: { formatter?: string; backgroundColor?: string } }[] };
+      markPoint?: { data: { coord: unknown[]; itemStyle: { color: string } }[] } }[];
+    visualMap?: { seriesIndex: number; pieces: { lt?: number; gte?: number; color: string }[] }[];
+    grid: unknown; xAxis: unknown; yAxis: unknown;
+    dataZoom?: { type: string; startValue?: number; endValue?: number; xAxisIndex?: unknown }[];
+  };
+  const good = LIGHT_THEME.series[2];
+  const bad = LIGHT_THEME.bad ?? LIGHT_THEME.series[7];
+
+  it('the prior close a dashed line at its measure\'s value, the price green above it and red below', () => {
+    const d = chartOption(STOCK, prices([100.5, 101, 99, 98.5, 102]));
+    const o = d.option as unknown as Opt;
+    // bounded a little past the values drawn (98.5 to 102, the prior close among them): every one coloured
+    assert.deepEqual(o.visualMap?.filter((v) => v.seriesIndex === 0).map((v) => [v.seriesIndex, v.pieces]),
+      [[0, [{ gte: 98.5 - 3.5, lt: 100, color: bad }, { gte: 100, lte: 102 + 3.5, color: good }]]]);
+    const prior = o.series[0]!.markLine!.data.find((l) => l.yAxis === 100);
+    assert.ok(prior, 'a line at the prior close');
+    assert.match(String(prior.label?.formatter), /^prior close: 100/);
+    assert.match(chartSvg(d), /<path/);
+  });
+
+  it('the latest price tagged on the axis in its side\'s colour, a dot on it', () => {
+    const up = chartOption(STOCK, prices([100.5, 101, 99, 98.5, 102])).option as unknown as Opt;
+    const tag = up.series[0]!.markLine!.data.find((l) => l.yAxis === 102);
+    assert.equal(tag?.label?.backgroundColor, good);
+    assert.deepEqual(up.series[0]!.markPoint!.data.map((p) => [p.coord, p.itemStyle.color]), [[[minutes[4], 102], good]]);
+    const down = chartOption(STOCK, prices([100.5, 101, 99, 98.5, 97])).option as unknown as Opt;
+    assert.equal(down.series[0]!.markLine!.data.find((l) => l.yAxis === 97)?.label?.backgroundColor, bad);
+    // its legend in its latest side's colour, as its line is drawn
+    assert.deepEqual([(up.series[0] as { color?: string }).color, (down.series[0] as { color?: string }).color], [good, bad]);
+  });
+
+  it('the volume beneath, in a pane of its own: two grids, its bars on the second, each in its price\'s side\'s colour', () => {
+    const d = chartOption(STOCK, prices([100.5, 101, 99, 98.5, 102]));
+    const o = d.option as unknown as Opt;
+    assert.equal((o.grid as unknown[]).length, 2);
+    assert.equal((o.xAxis as unknown[]).length, 2);
+    assert.equal((o.yAxis as unknown[]).length, 2);
+    const volume = o.series[1]!;
+    assert.deepEqual([volume.type, volume.xAxisIndex, volume.yAxisIndex], ['bar', 1, 1]);
+    // each bar its price's side, a third value a visual map colours: bad below, good at or above -- one style for all
+    assert.deepEqual((volume.data as unknown[][]).map((b) => b[2]), [1, 1, 0, 0, 1]);
+    assert.deepEqual(o.visualMap?.find((v) => v.seriesIndex === 1)?.pieces, [{ value: 0, color: bad }, { value: 1, color: good }] as never);
+    // the pane's axis no tick holds; the price's, from its values -- the prior close among them, so its line shows
+    assert.deepEqual(d.hold?.extents, [[98.5, 102], null]);
+    assert.deepEqual(chartOption(STOCK, prices([101, 102, 103], 97)).hold?.extents, [[97, 103]].concat([null as never]));
+    assert.match(chartSvg(d), /<path/);
+  });
+
+  it('a span of time: the latest that many seconds, a window ending at the latest mark, its values its scale', () => {
+    const spanned: ChartSpec = { ...STOCK, options: { ...STOCK.options, span: 120 } };
+    const d = chartOption(spanned, prices([90, 101, 99, 98.5, 102]));
+    const o = d.option as unknown as Opt;
+    const latest = localTime(minutes[4]!);
+    assert.equal(d.latest, latest);
+    assert.deepEqual(o.dataZoom?.map((z) => [z.type, z.startValue, z.endValue, z.xAxisIndex]), [['inside', latest - 120_000, latest, [0, 1]]]);
+    // the window's values only, the prior close let go: a span is read as it moves
+    assert.deepEqual(d.hold?.extents, [[98.5, 102], null]);
+    // all of it: no window
+    assert.equal((chartOption(STOCK, prices([90, 101])).option as unknown as Opt).dataZoom, undefined);
+  });
+
+  it('a KPI against a reference line: the price against its prior close, the difference both ways, good above it', () => {
+    const kpi: ChartSpec = { ...BAR, mark: 'kpi', x: undefined as never, y: [LAST], layers: [{ kind: 'line', of: PREV, label: 'prior close' }] };
+    const { x: _x, ...noX } = kpi;
+    const total = (last: number) => table([
+      { name: measureName(LAST), type: 'Float', values: [last] }, { name: measureName(PREV), type: 'Float', values: [100] },
+    ]);
+    // written as the grid writes a price: two places
+    const price: LabelOf = (v) => (typeof v === 'number' ? v.toFixed(2) : String(v));
+    const up = kpiDrawing(noX as ChartSpec, total(101.6), null, LIGHT_THEME, price);
+    assert.deepEqual(up.reference, { text: '\u25B2 1.60 (1.6%) above prior close', delta: '\u25B2 1.60 (1.6%)', words: 'above prior close', good: true });
+    assert.equal(up.target, undefined, 'a reference is no goal: no meter');
+    const down = kpiDrawing(noX as ChartSpec, total(98), null, LIGHT_THEME, price);
+    assert.equal(down.reference?.words, 'below prior close');
+    assert.equal(down.reference?.good, false);
+    assert.equal(kpiDrawing(noX as ChartSpec, total(100), null, LIGHT_THEME, price).reference?.good, null);
+  });
+
+  it('a tick keeps the window the last left: at the latest it moves with it, elsewhere it stays, all of it stays all', () => {
+    const t0 = localTime(minutes[3]!);
+    const t1 = localTime(minutes[4]!);
+    const option = { dataZoom: [{ type: 'inside', xAxisIndex: 0, startValue: t1 - 60_000, endValue: t1 }] } as EChartsOption;
+    const zoom = (o: EChartsOption) => (o as { dataZoom: { startValue?: number; endValue?: number; start?: number; end?: number }[] }).dataZoom[0];
+    // a person's five minutes ending at the latest: the same five, ending at the new latest
+    assert.deepEqual(zoom(keptZoom(option, [{ start: 40, end: 100, startValue: t0 - 300_000, endValue: t0 }], t0, t1)),
+      { type: 'inside', xAxisIndex: 0, startValue: t1 - 300_000, endValue: t1 });
+    // panned back into the morning: left where it is
+    assert.deepEqual(zoom(keptZoom(option, [{ start: 10, end: 30, startValue: 1000, endValue: 2000 }], t0, t1)),
+      { type: 'inside', xAxisIndex: 0, startValue: 1000, endValue: 2000 });
+    // all of it: the tick's own window
+    assert.deepEqual(zoom(keptZoom(option, [{ start: 0, end: 100 }], t0, t1)), zoom(option));
+    // across categories: by its shares
+    assert.deepEqual(zoom(keptZoom(option, [{ start: 20, end: 60 }], undefined, undefined)),
+      { type: 'inside', xAxisIndex: 0, start: 20, end: 60 });
+  });
+});
+

@@ -299,6 +299,44 @@ describe('a page of its own', () => {
     assert.deepEqual(page.views(), { views: doc.views, sheets: doc.sheets });
   });
 
+  it("a grid linked to another (K14): a row picked in it takes the other to its value, a step of that grid's; kept when saved", async () => {
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    const b = page.addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const doc = page.document('Q3')!;
+    const linked = { ...doc, views: doc.views.map((v) => (v.id === a && v.kind === 'grid' ? { ...v, link: { column: 'region', to: [b] } } : v)) };
+    const back = readPage(pageToJson(linked));
+    page.dispose();
+    newPage();
+    page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])));
+    await settle();
+    /** A row of grid `id` clicked: the row whose first cell says `text`. */
+    const pick = async (id: string, text: string): Promise<void> => {
+      // a group's first cell: its chevron, then its value
+      const row = [...tile(id).querySelectorAll<HTMLElement>('.dc-row')].find((r) => r.querySelector('.dc-cell')?.textContent?.endsWith(text));
+      assert.ok(row, `grid ${id} shows a row ${text}`);
+      row.querySelector<HTMLElement>('.dc-cell')!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 1 }));
+      await settle();
+    };
+    const EMEA: FilterNode = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' };
+    await pick(a, 'EMEA');
+    assert.deepEqual(page.grid(b)!.snapshot.filter, EMEA);
+    // another row: the condition replaced, never piled on
+    await pick(a, 'AMER');
+    assert.deepEqual(page.grid(b)!.snapshot.filter, { ...EMEA, value: 'AMER' });
+    // the linked grid's own step: undone, it is back at EMEA
+    await (page.grid(b) as unknown as CubeApp).undo();
+    await settle();
+    assert.deepEqual(page.grid(b)!.snapshot.filter, EMEA);
+    // the grid it links from was not filtered; the link is saved with the page
+    assert.equal(page.grid(a)!.snapshot.filter, undefined);
+    assert.deepEqual(page.document('Q3')!.views.find((v) => v.id === a), { id: a, kind: 'grid', cube: a, link: { column: 'region', to: [b] } });
+    // a link to no grid of the page is refused by name
+    assert.throws(() => readPage(pageToJson({ ...linked, views: linked.views.map((v) => (v.id === a ? { ...v, link: { column: 'region', to: ['nowhere'] } } : v)) })),
+      new RegExp(`grid ${a}'s link takes nowhere, no other grid of this page`));
+  });
+
   it("restored with the ids its keeper has held: none is given out again (B12, the S4 audit's 5)", async () => {
     newPage();
     page.addGrid(over('trades.csv'));

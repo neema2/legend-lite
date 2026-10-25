@@ -323,8 +323,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  code's fraction of a second (format-code.ts `ss.000`, a print's time to the millisecond), a grid drawn again when its
  *  height changes (grid.ts: one drawn on a sheet not shown painted a name twice once shown), and the chart rules' new
  *  keys read at startup -- an axis fitted to its values, a treemap's colour by a value and its reach, a measure's title
- *  (chart-spec.ts); signed off by the user 2026-10-25, D9). Measured 359,107. */
-const BUDGET = 359_500;
+ *  (chart-spec.ts); signed off by the user 2026-10-25, D9). Measured 359,107.
+ *  359,500 -> 361,000 (2026-10-25, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K14, the stock chart: the stock chart's words, which the chart rules read at startup (a measure in a
+ *  pane beneath, a layer at a measure's value, the latest mark pinned, spans of time each with its grain), a grid linked
+ *  to others (page-document.ts GridLink, the board's follow, the grid's row picked) and a KPI against a reference;
+ *  within the user's sign-off of the same day, "bundle budget is fine", D9). Measured 360,791. */
+const BUDGET = 361_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -431,8 +435,10 @@ const BUDGET = 359_500;
  *  grid-only page's note of the same date). Measured 343,438.
  *  344,000 -> 347,000 (2026-10-24, main (PR #72) merged into the Deephaven line -- the grid-only page's note of the same
  *  date). Measured 346,501.
- *  347,000 -> 347,500 (2026-10-24, K3's candlestick -- the grid-only page's note of the same date). Measured 347,124. */
-const ENGINE_BUDGET = 347_500;
+ *  347,000 -> 347,500 (2026-10-24, K3's candlestick -- the grid-only page's note of the same date). Measured 347,124.
+ *  347,500 -> 349,500 (2026-10-25, K14's stock chart, and the trader screens' steps before it -- the grid-only page's
+ *  notes of the same date). Measured 349,124. */
+const ENGINE_BUDGET = 349_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -466,8 +472,14 @@ const ENGINE_BUDGET = 347_500;
  *  304,000 -> 304,500 (2026-10-25, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K4, K8-K13, the trader screens): an axis
  *  fitted to its values (`fitAxis`), a treemap of a grid's rows coloured by a value from red through grey to green
  *  (`treemapOfGrid`'s colour, `colourReach`), a heatmap's cells labelled in the measure's format, a measure's own title
- *  (chart-option.ts); signed off by the user 2026-10-25, D9. Measured 304,219. */
-const CHART_BUDGET = 304_500;
+ *  (chart-option.ts); signed off by the user 2026-10-25, D9. Measured 304,219.
+ *  304,500 -> 307,000 (2026-10-25, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K14, the stock chart): a measure in a pane
+ *  beneath on the same time across, a reference line and a threshold at a measure's value (a price's prior close), the
+ *  latest mark pinned on its axis, a span of time's window following the latest mark across ticks (chart-render.ts
+ *  keptZoom), a threshold's pieces bounded (a line's gradient on a canvas), a KPI against a reference, the span buttons
+ *  (chart-option.ts, chart-panel.ts), a price's legend in its side's colour; within the user's sign-off of the same day,
+ *  D9. Measured 306,519. */
+const CHART_BUDGET = 307_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -602,8 +614,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  date). Measured 365,842.
  *  366,000 -> 366,500 (2026-10-24, K3's candlestick -- the grid-only page's note of the same date). Measured 366,467.
  *  366,500 -> 367,000 (2026-10-25, the trader screens' DataCube steps -- the grid-only page's note of the same date).
- *  Measured 366,801. */
-const WIDGET_BUDGET = 367_000;
+ *  Measured 366,801.
+ *  367,000 -> 369,000 (2026-10-25, K14's stock chart -- the grid-only page's note of the same date). Measured 368,547. */
+const WIDGET_BUDGET = 369_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -26,6 +26,9 @@
 //   MARKET_FEED_URL  the feed's address (wss://ws-feed.exchange.coinbase.com); a test points it at nothing
 //   MARKET_HISTORY   0 (the default): every trade kept; n: the latest n (a long or stormy run's memory)
 //   MARKET_SEED      the simulation's random seed (20261024)
+//   MARKET_MORNING   seconds of the session before the world starts (7200): the open that long ago, each equity's
+//                    morning on the tape, so a chart has a day to draw (0: the session opens as the world starts)
+//   MARKET_MORNING_PRINTS  the most prints the morning writes (400000): a thinner tape of larger prints past it
 //
 // Realism, simulated: prices move together (one market factor, one per sector, each name's own, and rare jumps: news);
 // a cent tick; spreads by liquidity, a name's activity by its size (the largest names quote and trade most); quotes
@@ -187,6 +190,71 @@ class Rows {
     }
 }
 
+/** The morning's prints (Simulator.morning), each column an array grown as it fills: hundreds of thousands of rows,
+ *  never a boxed value each. */
+@CompileStatic
+class MorningRows {
+    int size = 0
+    String[] id
+    int[] seq
+    Instant[] ts
+    double[] px
+    double[] sz
+    String[] side
+    String[] venue
+    String[] condition
+    Boolean[] off
+    String[] instrument
+
+    MorningRows(int capacity) {
+        grow(capacity)
+    }
+
+    void grow(int capacity) {
+        id = id == null ? new String[capacity] : Arrays.copyOf(id, capacity)
+        seq = seq == null ? new int[capacity] : Arrays.copyOf(seq, capacity)
+        ts = ts == null ? new Instant[capacity] : Arrays.copyOf(ts, capacity)
+        px = px == null ? new double[capacity] : Arrays.copyOf(px, capacity)
+        sz = sz == null ? new double[capacity] : Arrays.copyOf(sz, capacity)
+        side = side == null ? new String[capacity] : Arrays.copyOf(side, capacity)
+        venue = venue == null ? new String[capacity] : Arrays.copyOf(venue, capacity)
+        condition = condition == null ? new String[capacity] : Arrays.copyOf(condition, capacity)
+        off = off == null ? new Boolean[capacity] : Arrays.copyOf(off, capacity)
+        instrument = instrument == null ? new String[capacity] : Arrays.copyOf(instrument, capacity)
+    }
+
+    /** A print of `n`: `side` 1 a buyer's, 0 a seller's, -1 none (off-exchange); `venue` its index in VENUES. */
+    void add(long number, Instant at, Name n, double price, double size, int aggressor, int venueAt) {
+        if (this.size == id.length) grow(id.length * 2)
+        int i = this.size++
+        id[i] = 'MT-' + number
+        seq[i] = (int) number
+        ts[i] = at
+        px[i] = price
+        sz[i] = size
+        side[i] = aggressor < 0 ? null : (aggressor == 1 ? 'B' : 'S')
+        venue[i] = Simulator.VENUES[venueAt]
+        condition[i] = size < 100d ? 'I' : '@'
+        off[i] = aggressor < 0
+        instrument[i] = n.instrumentId
+    }
+
+    /** The rows as MARKET_TRADE's columns, in its order. */
+    Table table() {
+        return TableTools.newTable(
+                TableTools.stringCol('PRINT_ID', Arrays.copyOf(id, size)),
+                TableTools.intCol('SEQUENCE_NUMBER', Arrays.copyOf(seq, size)),
+                TableTools.instantCol('PRINT_TIME', Arrays.copyOf(ts, size)),
+                TableTools.doubleCol('PRICE', Arrays.copyOf(px, size)),
+                TableTools.doubleCol('QUANTITY', Arrays.copyOf(sz, size)),
+                TableTools.stringCol('AGGRESSOR_SIDE', Arrays.copyOf(side, size)),
+                TableTools.stringCol('VENUE', Arrays.copyOf(venue, size)),
+                TableTools.stringCol('TRADE_CONDITION', Arrays.copyOf(condition, size)),
+                TableTools.col('IS_OFF_EXCHANGE', Arrays.copyOf(off, size)),
+                TableTools.stringCol('INSTRUMENT_ID', Arrays.copyOf(instrument, size)))
+    }
+}
+
 /** The simulation: a market factor, one per sector, each name's own, and jumps; quotes and trades at each name's
  *  pace. Stepped by the world's clock, its rows into a Rows. */
 @CompileStatic
@@ -243,6 +311,12 @@ class Simulator {
     }
 
     void quote(Name n, Instant now, Rows rows) {
+        requote(n)
+        rows.quote(n, now, n.kind == 'EQUITY' ? 'SIP' : 'SIM')
+    }
+
+    /** `n`'s top of book about its price now: its spread by its liquidity, a size each side. */
+    void requote(Name n) {
         long ticks = Math.max(1L, Math.round(n.mid * n.spreadBps / 1e4d / n.tick))
         double bid = Math.floor(n.mid / n.tick - ticks / 2d) * n.tick
         n.bid = roundTo(bid, n.tick)
@@ -250,7 +324,83 @@ class Simulator {
         n.bidSize = size(n)
         n.askSize = size(n)
         n.quoted = true
-        rows.quote(n, now, n.kind == 'EQUITY' ? 'SIP' : 'SIM')
+    }
+
+    /**
+     * THE MORNING (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K14): the session from its `open`, `seconds` before the
+     * world starts, so a name's chart has a day to draw -- each second its price on the same factors as a beat's (the
+     * market's, its sector's, its own, a rare jump), its quote moved where the price leaves it (never published: a
+     * quote is the latest), its prints at the day's pace, busiest at the open (the first half of an intraday U). The
+     * tape keeps a `thin` share of them, each that much larger, so a minute's volume is a minute's at any thinning and
+     * the morning's rows are bounded. Each second's prints are put in time order before they are numbered, so a
+     * print's sequence is its place on the tape. The names' days (open, high, low, last, volume) are moved by them.
+     */
+    MorningRows morning(double seconds, Instant open, double thin) {
+        MorningRows out = new MorningRows(Math.max(16, (int) (tradeRate * thin * morningPace(seconds) * 1.2d)))
+        List<double[]> second = []
+        List<Name> whose = []
+        for (int t = 0; t < (int) seconds; t++) {
+            double root = Math.sqrt(1d / DAY)
+            double market = gauss() * 0.010d * root
+            double[] sector = new double[sectors]
+            for (int k = 0; k < sectors; k++) sector[k] = gauss() * 0.008d * root
+            double pace = 1d + 2d * Math.exp(-t / 900d)
+            second.clear()
+            whose.clear()
+            for (Name n : names) {
+                double r = n.beta * market + 0.6d * sector[n.sectorIx] + gauss() * n.vol * root
+                if (random.nextDouble() < 1d / (2 * DAY)) r += gauss() * 0.02d
+                n.mid = Math.max(n.tick, n.mid * Math.exp(r))
+                n.drift = r
+                if (!n.quoted || n.mid <= n.bid || n.mid >= n.ask) requote(n)
+                int trades = events(tradeRate * n.weight * pace * thin)
+                // the name's prints in this second, in time order
+                double[] at = new double[trades]
+                for (int k = 0; k < trades; k++) at[k] = random.nextDouble()
+                Arrays.sort(at)
+                for (int k = 0; k < trades; k++) {
+                    double[] print = morningPrint(n, thin)
+                    second << ([at[k], print[0], print[1], print[2], print[3]] as double[])
+                    whose << n
+                }
+            }
+            // the second's prints across the names in time order, numbered so
+            Integer[] order = (0..<second.size()).toArray(new Integer[0]) as Integer[]
+            Arrays.sort(order, { Integer a, Integer b -> Double.compare(second[a][0], second[b][0]) } as Comparator<Integer>)
+            for (Integer i : order) {
+                double[] p = second[i]
+                Name n = whose[i]
+                Instant ts = open.plusNanos((long) ((t + p[0]) * 1e9d))
+                out.add(seq.incrementAndGet(), ts, n, p[1], p[2], (int) p[3], (int) p[4])
+                n.printed(p[1], p[2])
+            }
+        }
+        return out
+    }
+
+    /** The prints a morning of `seconds` would have, each name at its weight, before any thinning. */
+    double morningPace(double seconds) {
+        // the integral of the day's pace (1 + 2 e^(-t/900)) over the morning, at the world's trade rate
+        return seconds + 1800d * (1d - Math.exp(-seconds / 900d))
+    }
+
+    /** One of `n`'s morning prints, `1 / thin` times a print's size: its price, size, side (1 buy, 0 sell, -1 none)
+     *  and venue's index; the price moved its way. */
+    double[] morningPrint(Name n, double thin) {
+        boolean buy = random.nextDouble() < 0.5d + 0.25d * Math.tanh(n.drift * 2000)
+        double u = random.nextDouble()
+        int venue = VENUES.length - 1
+        for (int v = 0; v < VENUES.length; v++) {
+            u -= VENUE_SHARE[v]
+            if (u < 0) { venue = v; break }
+        }
+        boolean off = VENUES[venue] == 'FINRA'
+        double px = off ? roundTo((n.bid + n.ask) / 2, n.tick / 2) : (buy ? n.ask : n.bid)
+        double sz = random.nextDouble() < 0.10d ? (double) (1 + random.nextInt(99))
+                : Math.max(100d, Math.round(n.sizeMedian * 0.5d * Math.exp(gauss() * 0.9d) / 100d) * 100d)
+        sz = sz < 100d ? sz : Math.max(100d, Math.round(sz / thin / 100d) * 100d)
+        n.mid *= Math.exp((buy ? 1 : -1) * 0.00002d * Math.sqrt(Math.max(1d, sz / Math.max(1d, n.sizeMedian))))
+        return [px, sz, off ? -1d : (buy ? 1d : 0d), (double) venue] as double[]
     }
 
     /** A size at the quote: an equity's in round lots, a coin's its median's notional about. */
@@ -1020,6 +1170,8 @@ TRADES = Double.parseDouble(env.getOrDefault('MARKET_TRADES', '800'))
 FEED = env.getOrDefault('MARKET_FEED', 'coinbase')
 FEED_URL = env.getOrDefault('MARKET_FEED_URL', 'wss://ws-feed.exchange.coinbase.com')
 HISTORY = Integer.parseInt(env.getOrDefault('MARKET_HISTORY', '0'))
+MORNING = Double.parseDouble(env.getOrDefault('MARKET_MORNING', '7200'))
+MORNING_PRINTS = Double.parseDouble(env.getOrDefault('MARKET_MORNING_PRINTS', '400000'))
 random = new Random(Long.parseLong(env.getOrDefault('MARKET_SEED', '20261024')))
 
 // ---------------------------------------------------------------- the names
@@ -1232,10 +1384,24 @@ world = worldPublisher.table().lastBy('item')
 // ---------------------------------------------------------------- the clock: a beat every 20 ms
 
 simulator = new Simulator(random, equities, SECTORS.size(), QUOTES, TRADES, seq)
+// THE MORNING (K14): the session opened MORNING seconds ago, each equity's morning on the tape before the clock starts;
+// crypto's day is the feed's (or the simulator's from now), never made up before the world began
+sessionOpen = Instant.now().minusMillis((long) (MORNING * 1000d))
+if (MORNING >= 1d) {
+    double thin = Math.min(1d, MORNING_PRINTS / (TRADES * simulator.morningPace(MORNING)))
+    long t0 = System.nanoTime()
+    MorningRows morning = simulator.morning(MORNING, sessionOpen, thin)
+    tradePublisher.add(morning.table())
+    // each name's quote published at the clock's first beat, its day so far the morning's
+    equities.each { Name n -> n.quoted = false }
+    System.out.println(String.format('the market world\'s morning: the open %s, %,d prints (a %.3f share of its pace, each %.1f times a print) in %.1f s',
+            sessionOpen, morning.size, thin, 1d / thin, (System.nanoTime() - t0) / 1e9d))
+}
 // a coin's activity on its own scale: the simulator's rates are the equities'; coins quote and trade a tenth as often
 coins.each { it.weight = it.weight / 10d }
 marketWorld = new World(simulator, feed, quotePublisher, tradePublisher, worldPublisher, seq,
-        String.format('%d names, %,.0f quotes and %,.0f trades a second', NAMES, QUOTES, TRADES))
+        String.format('%d names, %,.0f quotes and %,.0f trades a second, the session open since %s', NAMES, QUOTES, TRADES,
+                sessionOpen.toString().replaceFirst('\\.\\d+Z$', 'Z')))
 (equities + coins).each { marketWorld.bySym.put(it.sym, it) }
 marketWorld.equities.addAll(equities)
 marketWorld.coins.addAll(coins)

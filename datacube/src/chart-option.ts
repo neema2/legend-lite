@@ -17,7 +17,7 @@
 // series' colour (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §6).
 
 import type { EChartsOption } from 'echarts';
-import { AXIS_UPPER, axisName, drilledView, kpiChange, KPI_TREND_LIMIT, measureName, rangesAcross, type ChartMeasure, type ChartSpec, type LayerStat, type MeasureMark } from './chart-spec.ts';
+import { AXIS_UPPER, axisName, drilledView, kpiChange, KPI_TREND_LIMIT, measureName, rangesAcross, type ChartLayer, type ChartMeasure, type ChartSpec, type LayerStat, type MeasureMark, INTRADAY_GRAINS } from './chart-spec.ts';
 import { isRatio, ringTotalName, SHOW_AS_LABELS, statName } from './calc-presets.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { numberOf } from '../../engine-client/src/values.ts';
@@ -67,6 +67,22 @@ export const LIGHT_THEME: ChartTheme = {
  * they are read here, once per draw.
  */
 export function themeOf(el: Element): ChartTheme {
+  // read once while the page's theme stays as it was: a computed style read at every tick's draw forces the page's
+  // styles to be worked out again (the trader screens' profile, K14: a sixth of a tick's time)
+  const view = el.ownerDocument.defaultView;
+  const root = el.ownerDocument.documentElement;
+  const key = `${root?.getAttribute('data-dc-theme') ?? ''}|${view?.matchMedia?.('(prefers-color-scheme: dark)').matches ?? ''}`;
+  const kept = THEMES.get(el);
+  if (kept?.key === key) return kept.theme;
+  const theme = readTheme(el);
+  THEMES.set(el, { key, theme });
+  return theme;
+}
+
+/** Each element's theme as last read, and the page's theme it was read under. */
+const THEMES = new WeakMap<Element, { readonly key: string; readonly theme: ChartTheme }>();
+
+function readTheme(el: Element): ChartTheme {
   const view = el.ownerDocument.defaultView;
   const css = view ? view.getComputedStyle(el) : undefined;
   const read = (name: string, fallback: string): string =>
@@ -158,6 +174,9 @@ export interface ChartDrawing {
   readonly description: string;
   /** Its value axes a tick may hold (chart-render.ts `heldOption`); absent, a chart of no value axis a tick holds. */
   readonly hold?: AxisHold;
+  /** A time across: its latest time, as ECharts places it (ms), so a tick's window follows the latest mark the way the
+   *  last one did (chart-render.ts `keptZoom`, K14). */
+  readonly latest?: number;
 }
 
 /**
@@ -479,7 +498,8 @@ export function chartOption(
   } else {
     series = spec.y.map((m) => {
       const c = measure(m);
-      const s: Series = { key: undefined, name: measureTitle(m), ...point(), measure: m, mark: m.mark ?? chartMark };
+      // beneath the chart (a price's volume, K14) a measure is bars unless it says otherwise
+      const s: Series = { key: undefined, name: measureTitle(m), ...point(), measure: m, mark: m.mark ?? (m.pane === 'below' ? 'bar' : chartMark) };
       xCol.values.forEach((xv, i) => {
         const xi = indexOf.get(keyText(xv));
         if (xi !== undefined) {
@@ -510,19 +530,24 @@ export function chartOption(
     if (m.fn === 'count') return 'count';
     return unit?.(m.column) ?? 'number';
   };
-  const firstUnit = unitKey(spec.y[0]!);
+  // A PANE BENEATH (K14: a price's volume): its measures drawn under the chart on an axis of their own, the same time or
+  // categories across; the chart's value axes are the other measures'
+  const inPane = (m: ChartMeasure): boolean => m.pane === 'below';
+  const pane = series.some((s) => inPane(s.measure));
+  const chartY = spec.y.filter((m) => !inPane(m));
+  const firstUnit = unitKey(chartY[0] ?? spec.y[0]!);
   const axisOf = (m: ChartMeasure): 0 | 1 => {
     if (m.axis) return m.axis === 'right' ? 1 : 0;
     return splitCol || unitKey(m) === firstUnit ? 0 : 1;
   };
-  const units = new Set(spec.y.filter((m) => axisOf(m) === 1).map(unitKey));
+  const units = new Set(chartY.filter((m) => axisOf(m) === 1).map(unitKey));
   if (units.size > 1) notes.push('Two value axes at most: the measures of a third unit share the second.');
   const percent = spec.options.stack === 'percent';
   const formatOf = (m: ChartMeasure) => (v: number | null): string => (percent ? `${v === null ? '' : round1(v)}%` : measureText(m, v, rows, label));
   const horizontal = spec.mark === 'bar' && spec.options.orientation === 'horizontal'
     && series.every((s) => s.mark === 'bar');
   const stacked = spec.options.stack !== 'none';
-  const twoAxes = series.some((s) => axisOf(s.measure) === 1);
+  const twoAxes = series.some((s) => !inPane(s.measure) && axisOf(s.measure) === 1);
   // a time axis takes each point's own time; a category axis its label
   const at = (i: number): string | number => (timeAxis ? String(categories[i]) : catLabels[i]!);
   const categoryAxis = timeAxis ? {
@@ -541,7 +566,7 @@ export function chartOption(
     axisLabel: { ...axisCommon.axisLabel, ...(spec.options.labelRotate !== undefined ? { rotate: spec.options.labelRotate } : {}) },
   };
   const valueAxis = (index: 0 | 1) => {
-    const on = series.find((s) => axisOf(s.measure) === index);
+    const on = series.find((s) => !inPane(s.measure) && axisOf(s.measure) === index);
     const colour = twoAxes && on ? theme.series[series.indexOf(on) % theme.series.length]! : undefined;
     const fmt = on ? formatOf(on.measure) : (v: number | null) => String(v);
     // a rank's axis runs from the first at the top (a bump chart), whole ranks only
@@ -550,8 +575,13 @@ export function chartOption(
       ...axisCommon,
       type: spec.options.logAxis && !percent ? 'log' as const : 'value' as const,
       ...(ranks ? { inverse: !horizontal, min: 1, minInterval: 1 } : {}),
-      // fitted to its values (a price's line): ECharts' scaled axis, its baseline wherever the values are
+      // fitted to its values (a price's line): ECharts' scaled axis, its baseline wherever the values are -- and its
+      // reference lines in view (a price's prior close), over the whole time across
       ...(spec.options.fitAxis && !percent && !ranks ? { scale: true } : {}),
+      ...(spec.options.fitAxis && !percent && !ranks && index === 0 && windowStart === undefined && referenceValues.length > 0 ? {
+        min: (v: { min: number }) => Math.min(v.min, ...referenceValues),
+        max: (v: { max: number }) => Math.max(v.max, ...referenceValues),
+      } : {}),
       ...(index === 1 ? { splitLine: { show: false } } : {}),
       ...(percent ? { max: 100 } : {}),
       ...(twoAxes && on ? { name: on.name, nameTextStyle: { ...text, color: colour } } : {}),
@@ -565,10 +595,42 @@ export function chartOption(
         : {}),
     };
   };
+  // A SPAN OF TIME (K14: a stock chart's 1m, 5m, 1h): the latest `span` seconds of a time across shown, from the latest
+  // mark -- placed as ECharts places a time (localTime), compared, never computed from the values
+  const times = timeAxis ? categories.map((c) => (c === null ? Number.NaN : localTime(String(c)))) : [];
+  const latest = times.length > 0 ? times[times.length - 1] : undefined;
+  const spanMs = timeAxis && latest !== undefined && Number.isFinite(latest) && (spec.options.span ?? 0) > 0
+    ? spec.options.span! * 1000 : 0;
+  const windowStart = spanMs > 0 ? latest! - spanMs : undefined;
+  const inWindow = (i: number): boolean => windowStart === undefined || (times[i] ?? Number.NEGATIVE_INFINITY) >= windowStart;
+  // each category's first row: a layer's measure read on the latest mark (`of`)
+  const rowOfCategory = categories.map(() => -1);
+  xCol.values.forEach((xv, i) => {
+    const ci = indexOf.get(keyText(xv));
+    if (ci !== undefined && rowOfCategory[ci] === -1) rowOfCategory[ci] = i;
+  });
+  /** A layer's value: its own, or its measure's on the latest mark that has one (`of`: a price's prior close) -- the
+   *  database's figure, found by its place, never computed. */
+  const layerValue = (l: { readonly value?: number; readonly of?: ChartMeasure }): number | null => {
+    if (l.of === undefined) return l.value ?? null;
+    const c = measure(l.of);
+    if (!c) return null;
+    for (let ci = categories.length - 1; ci >= 0; ci--) {
+      const row = rowOfCategory[ci] ?? -1;
+      const v = row < 0 ? null : numberOf(c.values[row] ?? null, c.type);
+      if (v !== null) return v;
+    }
+    return null;
+  };
+  // the values a reference line sits at: on a fitted axis, kept in view as the values are (a price far above its prior
+  // close still shows the line)
+  const referenceValues = (spec.layers ?? []).flatMap((l) => (l.kind === 'line' ? [layerValue(l)] : []))
+    .filter((v): v is number => v !== null && Number.isFinite(v));
   const valueAxes = twoAxes ? [valueAxis(0), valueAxis(1)] : valueAxis(0);
-  // what each value axis's values reach, for a tick to hold the axis the view drew while they stay inside it (C2)
+  // what each value axis's values reach, for a tick to hold the axis the view drew while they stay inside it (C2): the
+  // span's values, when a span is shown
   const extentOf = (index: 0 | 1): readonly [number, number] | null => {
-    const on = series.filter((s) => axisOf(s.measure) === index);
+    const on = series.filter((s) => !inPane(s.measure) && axisOf(s.measure) === index);
     if (on.length === 0 || percent || spec.options.logAxis || on.every((s) => s.measure.showAs?.kind === 'rank')) return null;
     if (index === 0 && spec.options.breaks && spec.options.breaks.length > 0) return null;
     // from zero: a value axis here keeps its baseline in view (ECharts' own, unscaled); fitted, from its values
@@ -581,7 +643,7 @@ export function chartOption(
     for (const s of on) {
       const stacks = stacked && (s.mark !== 'line' || chartMark === 'line');
       s.values.forEach((v, i) => {
-        if (v === null || !Number.isFinite(v)) return;
+        if (v === null || !Number.isFinite(v) || !inWindow(i)) return;
         any = true;
         if (!stacks) {
           lo = Math.min(lo, v);
@@ -595,18 +657,74 @@ export function chartOption(
         }
       });
     }
+    // a reference line kept in view over the whole time across; a span shows its own values
+    if (any && index === 0 && fitted && windowStart === undefined) for (const r of referenceValues) { lo = Math.min(lo, r); hi = Math.max(hi, r); }
     return any ? [lo, hi] : null;
   };
-  const extents = twoAxes ? [extentOf(0), extentOf(1)] : [extentOf(0)];
+  const extents = [...(twoAxes ? [extentOf(0), extentOf(1)] : [extentOf(0)]), ...(pane ? [null] : [])];
   const labelMeasure = spec.label;
   const labelCol = labelMeasure ? measure(labelMeasure) : undefined;
   const dim = spec.options.dim !== false;
+  // A MEASURE COLOURED BY VALUE (a threshold layer): its side of the threshold at each mark -- the bad colour below, the
+  // good (a threshold of a measure: a price's prior close) or its own at or above; compared, never computed
+  const good = theme.series[2]!;
+  const bad = theme.bad ?? theme.series[7]!;
+  const thresholds = (spec.layers ?? []).flatMap((l) => (l.kind === 'threshold' ? [{ l, v: layerValue(l) }] : []))
+    .filter((t): t is { l: Extract<ChartLayer, { kind: 'threshold' }>; v: number } => t.v !== null);
+  const sideColour = (measureIndex: number, v: number, own: string): string => {
+    const t = thresholds.find((x) => (x.l.measure ?? 0) === measureIndex);
+    return t === undefined ? own : v < t.v ? bad : t.l.of !== undefined ? good : own;
+  };
+  const paneAxis = (twoAxes ? 2 : 1);
+  // a pane's marks coloured as the chart's first measure is at each (its side of a threshold), by a visual map on their
+  // third value: bad below, good at or above
+  const leadIndex = spec.y.findIndex((m) => !inPane(m));
+  const paneSides = thresholds.some((t) => (t.l.measure ?? 0) === leadIndex)
+    ? series.flatMap((s, i) => (inPane(s.measure) ? [{
+      type: 'piecewise' as const, show: false, seriesIndex: i, dimension: 2,
+      pieces: [{ value: 0, color: bad }, { value: 1, color: thresholds.find((t) => (t.l.measure ?? 0) === leadIndex)!.l.of !== undefined ? good : theme.series[i % theme.series.length]! }],
+    }] : []))
+    : [];
   const out = series.map((s, si) => {
     const fmt = formatOf(s.measure);
     const axisIndex = axisOf(s.measure);
     const long = categories.length;
+    const own = theme.series[si % theme.series.length]!;
+    if (inPane(s.measure)) {
+      // BENEATH: on the pane's axes; a bar coloured as the chart's first measure is at its mark (a price's side of its
+      // prior close), else its own colour, half-strength
+      const lead = spec.y.findIndex((m) => !inPane(m));
+      const leadSeries = series.find((x) => x.measure === spec.y[lead]);
+      const sided = thresholds.some((t) => (t.l.measure ?? 0) === lead) && leadSeries !== undefined;
+      return {
+        name: s.name,
+        type: s.mark === 'bar' ? 'bar' as const : 'line' as const,
+        xAxisIndex: 1,
+        yAxisIndex: paneAxis,
+        ...(s.mark === 'bar' ? { barMaxWidth: 12, ...(long > 2000 ? { large: true } : {}) } : { showSymbol: false, lineStyle: { width: 1 } }),
+        ...(s.mark === 'area' ? { areaStyle: { opacity: 0.2 } } : {}),
+        itemStyle: { color: own, opacity: 0.5 },
+        // its marks' side of the chart's threshold a third value each, coloured by a visual map (paneSides): one style
+        // for all of them, never one each -- a style per bar was a tick's every other millisecond (K14's profile)
+        data: s.values.map((v, i) => {
+          const x = timeAxis ? at(i) : i;
+          if (!sided) return timeAxis ? [x, v] : v;
+          const lv = leadSeries.values[i] ?? null;
+          return [x, v, lv === null ? 1 : sideColour(lead, lv, '') === bad ? 0 : 1];
+        }),
+        tooltip: { valueFormatter: (v: unknown) => fmt(valueOf(v)) },
+        emphasis: { focus: 'none' as const },
+      };
+    }
+    // a measure coloured by its side of a threshold of a measure (a price against its prior close): its legend in the
+    // colour its latest mark has, not a palette's -- the visual map colours the marks themselves
+    const measureIndex = spec.y.indexOf(s.measure);
+    const sided = thresholds.find((t) => (t.l.measure ?? 0) === measureIndex && t.l.of !== undefined);
+    let latestValue: number | null = null;
+    for (let i = s.values.length - 1; i >= 0 && sided; i--) if (s.values[i] !== null) { latestValue = s.values[i]!; break; }
     const common = {
       name: s.name,
+      ...(sided && latestValue !== null ? { color: sideColour(measureIndex, latestValue, own) } : {}),
       data: timeAxis ? s.values.map((v, i) => [at(i), v]) : s.values,
       // a stack is the chart's: a line chart's lines stack; a line drawn beside a stack's bars (a value of its own) does not
       ...(stacked && (s.mark !== 'line' || chartMark === 'line') ? { stack: `total-${axisIndex}` } : {}),
@@ -627,7 +745,8 @@ export function chartOption(
       },
       tooltip: { valueFormatter: (v: unknown) => fmt(valueOf(v)) },
       emphasis: { focus: dim ? 'series' as const : 'none' as const },
-      ...layersOf(spec, s, si, series, categories, at, rows, theme, fmt, xCol.type, horizontal),
+      ...layersOf(spec, s, si, series, categories, at, rows, theme, fmt, xCol.type, horizontal, layerValue,
+        (measureIndex, v) => sideColour(measureIndex, v, own)),
     };
     if (s.mark === 'bar') {
       return {
@@ -651,7 +770,8 @@ export function chartOption(
       lineStyle: { width: 2 },
       symbol: 'circle',
       symbolSize: 8,
-      showSymbol: categories.length <= 40,
+      // a few points marked; a time of day's series (a price by the second, the minute) is a line, never points
+      showSymbol: categories.length <= 40 && !(timeAxis && spec.grain !== undefined && INTRADAY_GRAINS.has(spec.grain)),
       // point thinning (largest-triangle-three-buckets): a long series stays quick and keeps its shape
       ...(long > 500 ? { sampling: 'lttb' as const } : {}),
       ...(spec.options.smooth ? { smooth: true } : {}),
@@ -698,6 +818,45 @@ export function chartOption(
     }
     return lines.join('<br>');
   };
+  // THE LAYOUT: the window shown (a span of time); a pane beneath, the bottom quarter, its time across written under it,
+  // the chart's and its plot one width so a bar is under its mark (an axis's labels kept inside its own grid would make
+  // each as wide as its labels); a latest mark's tag room past the value axis's end
+  const zoomed = zoomOf(spec, categories.length, horizontal, pane ? [0, 1] : [0],
+    windowStart !== undefined ? { startValue: windowStart, endValue: latest! } : undefined);
+  const slider = Array.isArray(zoomed['dataZoom']) && (zoomed['dataZoom'] as { type: string }[]).some((z) => z.type === 'slider');
+  const lead = series.find((x) => !inPane(x.measure));
+  const widest = (fmt: (v: number | null) => string, values: readonly (number | null)[]): number =>
+    values.reduce<number>((w, v) => (v === null ? w : Math.max(w, fmt(v).length)), 4);
+  const tagRoom = (spec.layers ?? []).some((l) => l.kind === 'last') && lead
+    ? widest(formatOf(lead.measure), lead.values) * 7 + 22 : undefined;
+  const gridNow = (zoomed['grid'] ?? base.grid) as Record<string, unknown>;
+  let layout: Record<string, unknown>;
+  if (pane && !horizontal) {
+    const paneSeries = series.filter((x) => inPane(x.measure));
+    const paneFmt = formatOf(paneSeries[0]!.measure);
+    const left = Math.max(lead ? widest(formatOf(lead.measure), lead.values) : 4, widest(paneFmt, paneSeries.flatMap((x) => x.values))) * 7 + 14;
+    const right = tagRoom ?? 16;
+    layout = {
+      grid: [
+        { left, right, top: 40, bottom: slider ? '36%' : '30%' },
+        { left, right, top: slider ? '68%' : '74%', bottom: slider ? 36 : 24 },
+      ],
+      xAxis: [
+        { ...categoryAxis, axisLabel: { ...categoryAxis.axisLabel, show: false }, axisTick: { show: false } },
+        { ...categoryAxis, gridIndex: 1 },
+      ],
+      yAxis: [...(Array.isArray(valueAxes) ? valueAxes : [valueAxes]), {
+        ...axisCommon, type: 'value' as const, gridIndex: 1, splitNumber: 2, splitLine: { show: false },
+        axisLabel: { ...axisCommon.axisLabel, formatter: (v: number) => paneFmt(v) },
+      }],
+    };
+  } else {
+    layout = {
+      ...(tagRoom !== undefined ? { grid: { ...gridNow, right: tagRoom } } : {}),
+      xAxis: horizontal ? valueAxes : categoryAxis,
+      yAxis: horizontal ? { ...categoryAxis, inverse: true } : valueAxes,
+    };
+  }
   return {
     option: asOption({
       ...base,
@@ -708,14 +867,13 @@ export function chartOption(
         formatter: tooltipFormatter,
       },
       legend: legendOf(spec, out.length, theme),
-      ...zoomOf(spec, categories.length, horizontal),
+      ...zoomed,
       ...(spec.options.brush ? {
         brush: { ...(horizontal ? { yAxisIndex: 0 } : { xAxisIndex: 0 }), brushType: horizontal ? 'lineY' : 'lineX', ...BRUSH_STYLE(theme) },
       } : {}),
       ...toolboxOf(spec, rows, theme, spec.options.brush ? (horizontal ? 'lineY' : 'lineX') : undefined, !horizontal),
-      xAxis: horizontal ? valueAxes : categoryAxis,
-      yAxis: horizontal ? { ...categoryAxis, inverse: true } : valueAxes,
-      ...thresholdMap(spec, series, theme, horizontal),
+      ...layout,
+      ...visualMaps(thresholdMap(spec, series, theme, horizontal, layerValue), paneSides),
       series: out,
     }),
     keyAt: (seriesIndex, dataIndex) => {
@@ -751,6 +909,7 @@ export function chartOption(
     notes,
     description: describe(spec, rows),
     ...(extents.some((e) => e !== null) ? { hold: { key: horizontal ? 'xAxis' as const : 'yAxis' as const, extents } } : {}),
+    ...(latest !== undefined && Number.isFinite(latest) ? { latest } : {}),
   };
 }
 
@@ -898,16 +1057,19 @@ export const ZOOM_FROM = 60;
  * Zoom and pan across (batch 2 item 9): a slider under the chart and the wheel or a drag inside it, when the chart asks
  * for it -- or, asking nothing, when it has more than ZOOM_FROM points.
  */
-function zoomOf(spec: ChartSpec, points: number, horizontal: boolean): Record<string, unknown> {
+function zoomOf(spec: ChartSpec, points: number, horizontal: boolean, xAxes: readonly number[] = [0],
+  window?: { readonly startValue: number; readonly endValue: number }): Record<string, unknown> {
   const on = spec.options.zoom ?? points > ZOOM_FROM;
-  if (!on) return {};
-  const axis = horizontal ? { yAxisIndex: 0 } : { xAxisIndex: 0 };
+  // a span of time shown (K14) is a window across, zoomed inside even with no slider
+  if (!on && window === undefined) return {};
+  const axis = horizontal ? { yAxisIndex: 0 } : { xAxisIndex: xAxes.length === 1 ? xAxes[0] : [...xAxes] };
+  const span = window ? { startValue: window.startValue, endValue: window.endValue } : {};
   return {
     dataZoom: [
-      { type: 'inside', ...axis },
-      { type: 'slider', ...axis, height: 18, bottom: 6, ...(horizontal ? { right: 6, width: 18, height: undefined, bottom: undefined, orient: 'vertical' } : {}) },
+      { type: 'inside', ...axis, ...span },
+      ...(on ? [{ type: 'slider', ...axis, ...span, height: 18, bottom: 6, ...(horizontal ? { right: 6, width: 18, height: undefined, bottom: undefined, orient: 'vertical' } : {}) }] : []),
     ],
-    grid: { left: 8, right: horizontal ? 36 : 16, top: 40, bottom: horizontal ? 8 : 36, containLabel: true },
+    ...(on ? { grid: { left: 8, right: horizontal ? 36 : 16, top: 40, bottom: horizontal ? 8 : 36, containLabel: true } } : {}),
   };
 }
 
@@ -955,6 +1117,8 @@ function layersOf(
   fmt: (v: number | null) => string,
   xType: string | undefined,
   horizontal: boolean,
+  valueOfLayer: (l: { readonly value?: number; readonly of?: ChartMeasure }) => number | null,
+  colourAt: (measureIndex: number, v: number) => string,
 ): Record<string, unknown> {
   // on a horizontal bar the values run across and the categories down
   const valueKey = horizontal ? 'xAxis' : 'yAxis';
@@ -1000,7 +1164,26 @@ function layersOf(
     if (!firstOf(at)) continue;
     const m = spec.y[at]!;
     if (l.kind === 'line') {
-      lines.push({ [valueKey]: l.value, name: l.label ?? fmt(l.value), lineStyle, label: { position: 'insideEndTop', formatter: `${escapeLabel(l.label ?? '')}${l.label ? ': ' : ''}${escapeLabel(fmt(l.value))}`, color: theme.inkSecondary } });
+      // at its value, or its measure's on the latest mark (a price's prior close)
+      const v = valueOfLayer(l);
+      if (v === null) continue;
+      lines.push({ [valueKey]: v, name: l.label ?? fmt(v), lineStyle, label: { position: 'insideEndTop', formatter: `${escapeLabel(l.label ?? '')}${l.label ? ': ' : ''}${escapeLabel(fmt(v))}`, color: theme.inkSecondary } });
+    } else if (l.kind === 'last') {
+      // THE LATEST MARK, LIVE (K14): its value tagged where its line meets the value axis, in its colour -- its side of
+      // a threshold's -- and the mark itself a dot; the latest is the last value along the axis, found by its place
+      let li = s.values.length - 1;
+      while (li >= 0 && s.values[li] === null) li--;
+      if (li < 0) continue;
+      const v = s.values[li]!;
+      const colour = colourAt(at, v);
+      lines.push({
+        [valueKey]: v, name: l.label ?? 'latest', lineStyle: { color: colour, type: 'dotted' as const, width: 1 },
+        label: { show: true, position: 'end', formatter: escapeLabel(fmt(v)), color: theme.surface, backgroundColor: colour,
+          padding: [3, 5], borderRadius: 3, fontWeight: 600 },
+      });
+      points.push({ coord: horizontal ? [v, xAt(li)] : [xAt(li), v], value: '', symbol: 'circle', symbolSize: 9,
+        itemStyle: { color: colour, borderColor: theme.surface, borderWidth: 2, shadowBlur: 8, shadowColor: colour },
+        label: { show: false } });
     } else if (l.kind === 'stat') {
       const v = statValue(l.stat, m);
       if (v === null) continue;
@@ -1039,14 +1222,30 @@ function escapeLabel(s: string): string {
  */
 function thresholdMap(
   spec: ChartSpec,
-  series: readonly { measure: ChartMeasure }[],
+  series: readonly { measure: ChartMeasure; values: readonly (number | null)[] }[],
   theme: ChartTheme,
   horizontal: boolean,
+  valueOfLayer: (l: { readonly value?: number; readonly of?: ChartMeasure }) => number | null,
 ): Record<string, unknown> {
   const maps = (spec.layers ?? []).flatMap((l) => {
     if (l.kind !== 'threshold') return [];
+    const value = valueOfLayer(l);
+    if (value === null) return [];
     const m = spec.y[l.measure ?? 0];
     const indices = series.map((s, i) => [s, i] as const).filter(([s]) => s.measure === m).map(([, i]) => i);
+    // EACH PIECE BOUNDED, a little past the values drawn: a piece open at one end gives a line's colour gradient no stop
+    // (ECharts 6 fails drawing it), and one reaching the largest number places its stop at no finite point, its colour
+    // interpolated to none (a canvas refuses it) -- both found by the stock chart, K14. Drawn again at every tick.
+    let lo = value;
+    let hi = value;
+    for (const i of indices) {
+      for (const v of series[i]!.values) {
+        if (v === null || !Number.isFinite(v)) continue;
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+    }
+    const pad = (hi - lo) || Math.abs(value) || 1;
     return indices.map((i) => ({
       type: 'piecewise' as const,
       show: false,
@@ -1054,11 +1253,18 @@ function thresholdMap(
       // the value's dimension: across on a horizontal bar, up otherwise
       dimension: horizontal ? 0 : 1,
       pieces: [
-        { lt: l.value, color: theme.bad ?? theme.series[7] },
-        { gte: l.value, color: theme.series[i % theme.series.length] },
+        { gte: lo - pad, lt: value, color: theme.bad ?? theme.series[7] },
+        // at or above a measure's value (a price's prior close): the good colour; at or above a number, its own
+        { gte: value, lte: hi + pad, color: l.of !== undefined ? theme.series[2] : theme.series[i % theme.series.length] },
       ],
     }));
   });
+  return maps.length > 0 ? { visualMap: maps } : {};
+}
+
+/** The chart's visual maps together: its thresholds' (`{ visualMap }`, or none) and any more. */
+function visualMaps(thresholds: Record<string, unknown>, more: readonly Record<string, unknown>[]): Record<string, unknown> {
+  const maps = [...((thresholds['visualMap'] as Record<string, unknown>[] | undefined) ?? []), ...more];
   return maps.length > 0 ? { visualMap: maps } : {};
 }
 
@@ -1120,6 +1326,12 @@ export interface KpiDrawing {
    * periods, or a zero before.
    */
   readonly change?: { readonly text: string; readonly delta: string; readonly words: string; readonly good: boolean | null };
+  /**
+   * Against a reference (a `line` layer: a price's prior close, K14): `delta` the difference and its share ("\u25B2
+   * 1,071.96 (1.6%)"), `words` the reference's ("above prior close"), good when on the side `options.better` says, null at
+   * it. No meter: a reference is no goal. Absent with no such layer, or no value for it.
+   */
+  readonly reference?: { readonly text: string; readonly delta: string; readonly words: string; readonly good: boolean | null };
   /** Its trend, a line with no axes, its latest point marked, when it has a column across. */
   readonly trend?: ChartDrawing;
   /** The KPI in words, for a screen reader. */
@@ -1237,8 +1449,29 @@ export function kpiDrawing(
       if (xs.values.length > KPI_TREND_LIMIT) notes.push(`The trend shows the latest ${KPI_TREND_LIMIT} values of ${spec.x}.`);
     }
   }
-  const description = `KPI: ${what} is ${exact}${target ? `; ${target.text}` : ''}${change ? `; ${change.text}` : ''}.`;
-  return { value, exact, ...(target ? { target } : {}), ...(change ? { change } : {}), ...(line ? { trend: line } : {}), description, notes };
+  // AGAINST A REFERENCE (a `line` layer, K14: a price's prior close): its value, or its measure's -- the database's figure
+  // over the KPI's rows, as its value is -- and the difference said both ways, compared, the share of it the database's
+  // figures make
+  let reference: KpiDrawing['reference'];
+  const layer = (spec.layers ?? []).find((l): l is Extract<ChartLayer, { kind: 'line' }> => l.kind === 'line');
+  if (layer && v !== null) {
+    const refCol = layer.of !== undefined ? column(total, measureName(layer.of)) : undefined;
+    const ref = layer.of !== undefined ? numberOf(refCol?.values[0] ?? null, refCol?.type) : layer.value ?? null;
+    if (ref !== null) {
+      const called = layer.label ?? (layer.of !== undefined ? measureName(layer.of) : written(ref, true));
+      const diff = v - ref;
+      const mark = diff > 0 ? '\u25B2' : diff < 0 ? '\u25BC' : '\u2014';
+      const share = ref === 0 ? '' : ` (${shareText(Math.abs(diff / ref) * 100)})`;
+      const delta = `${mark} ${written(Math.abs(diff), false)}${share}`;
+      const words = diff > 0 ? `above ${called}` : diff < 0 ? `below ${called}` : `at ${called}`;
+      reference = { text: `${delta} ${words}`, delta, words, good: diff === 0 ? null : (diff > 0) === higher };
+    }
+  }
+  const description = `KPI: ${what} is ${exact}${target ? `; ${target.text}` : ''}${reference ? `; ${reference.text}` : ''}${change ? `; ${change.text}` : ''}.`;
+  return {
+    value, exact, ...(target ? { target } : {}), ...(reference ? { reference } : {}), ...(change ? { change } : {}),
+    ...(line ? { trend: line } : {}), description, notes,
+  };
 }
 
 /** The chart in one sentence: what is plotted against what, and how much of it. */

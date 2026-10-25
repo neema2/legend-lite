@@ -143,7 +143,7 @@ describe('the reader refuses a chart it cannot read, in words', () => {
 
   it('a value\'s mark, axis and show-as words, and keys it has no place for', () => {
     assert.equal(measureRefusal({ ...SUM_NOTIONAL, colour: 'red' }),
-      'there is no "colour" in measure 1 (it says column, fn, mark, axis, showAs, weight, title)');
+      'there is no "colour" in measure 1 (it says column, fn, mark, axis, showAs, weight, title, pane)');
     assert.equal(measureRefusal({ ...SUM_NOTIONAL, mark: 'pie' }), 'measure 1\'s mark "pie" is not bar, line or area');
     assert.equal(measureRefusal({ ...SUM_NOTIONAL, axis: 'top' }), 'measure 1\'s axis "top" is not left or right');
     assert.equal(measureRefusal({ ...SUM_NOTIONAL, showAs: { kind: 'cumulative' } }),
@@ -216,7 +216,7 @@ describe('the reader refuses a chart it cannot read, in words', () => {
       'layer 2\'s statistic "median" is not one of average, min, max');
     assert.equal(refusal({ layers: [{ kind: 'stat' }] }), 'layer 1\'s statistic null is not one of average, min, max');
     assert.equal(refusal({ layers: [{ kind: 'line', value: 1, colour: 'red' }] }),
-      'there is no "colour" in layer 1 (a line) (it says kind, value, measure, label)');
+      'there is no "colour" in layer 1 (a line) (it says kind, value, of, measure, label)');
     // a band reads no value: a key of another kind of layer has no place on it
     assert.equal(refusal({ layers: [{ kind: 'band', axis: 'y', from: 1, to: 2, measure: 0 }] }),
       'there is no "measure" in layer 1 (a band) (it says kind, axis, from, to, label)');
@@ -921,3 +921,80 @@ describe('rules the chart model does not keep yet: a slot nothing draws refused,
       ['greaterThanEqual 9007199254740000', 'lessThan 9007199254741000']);
   });
 });
+
+describe('the stock chart\'s words (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K14): read, and judged', () => {
+  const PRICES: CubeSnapshot = {
+    source: { query: element('tape') },
+    columns: [
+      { name: 'ticker', type: 'String' },
+      { name: 'at', type: 'DateTime' },
+      { name: 'seq', type: 'Integer', kind: 'dimension' },
+      { name: 'price', type: 'Float' },
+      { name: 'prevClose', type: 'Float' },
+      { name: 'size', type: 'Float' },
+    ],
+    derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1,
+  };
+  const LAST: ChartMeasure = { column: 'price', fn: 'maxBy', weight: 'seq', title: 'last' };
+  const PREV: ChartMeasure = { column: 'prevClose', fn: 'max' };
+  const VOLUME: ChartMeasure = { column: 'size', fn: 'sum', pane: 'below' };
+  const STOCK = of('area', {
+    x: 'at', grain: 'second', y: [LAST, VOLUME],
+    layers: [{ kind: 'line', of: PREV, label: 'prior close' }, { kind: 'threshold', of: PREV }, { kind: 'last' }],
+    options: { ...OPTIONS, sort: { by: 'x', direction: 'asc' }, fitAxis: true, spans: [{ seconds: 60 }, { seconds: 300 }, { seconds: 3600, grain: 'minute' }, { seconds: 0, grain: 'minute5' }], span: 300 },
+  });
+
+  it('a stock chart is read and drawn: a line at a measure\'s value, a threshold of one, the latest tagged, volume beneath, spans', () => {
+    assert.deepEqual(chartProblems(STOCK, PRICES), []);
+    // as a page saves it, read back
+    const read = readChart(JSON.parse(JSON.stringify(STOCK)));
+    assert.equal(typeof read, 'object', String(read));
+  });
+
+  it('a layer has a value or a measure\'s, never both nor neither; its measure is read as any', () => {
+    assert.equal(refusal({ layers: [{ kind: 'line', value: 1, of: { column: 'notional', fn: 'max' } }] }),
+      'layer 1 has a value and a measure\'s value: one or the other');
+    assert.equal(refusal({ layers: [{ kind: 'threshold' }] }), 'layer 1 has no value');
+    assert.equal(refusal({ layers: [{ kind: 'line', of: { column: 'notional', fn: 'mean' } }] }),
+      'layer 1\'s measure is not a column and an aggregate');
+    assert.equal(refusal({ layers: [{ kind: 'last', value: 3 }] }),
+      'there is no "value" in layer 1 (a last) (it says kind, measure, label)');
+  });
+
+  it('a pane is below; spans are seconds, 0 all of it', () => {
+    assert.equal(measureRefusal({ column: 'notional', fn: 'sum', pane: 'above' }), 'measure 1\'s pane "above" is not below');
+    assert.equal(optionRefusal({ spans: [] }), 'its spans [] are not a list of seconds (0: all of it), each with its grain or none');
+    assert.equal(optionRefusal({ spans: [300] }), 'its spans [300] are not a list of seconds (0: all of it), each with its grain or none');
+    assert.equal(optionRefusal({ spans: [{ seconds: 60, grain: 'tick' }] }),
+      'its spans [{"seconds":60,"grain":"tick"}] are not a list of seconds (0: all of it), each with its grain or none');
+    assert.equal(optionRefusal({ span: -60 }), 'its span -60 is not a number of seconds (0: all of it)');
+  });
+
+  it('a layer\'s measure the cube has not is refused, as a plotted one is', () => {
+    const missing = { ...STOCK, layers: [{ kind: 'line' as const, of: { column: 'close', fn: 'max' as const } }] };
+    assert.deepEqual(chartProblems(missing, PRICES), ['The cube has no column \'close\'.']);
+  });
+
+  it('a pane beneath: on bars, lines and areas drawn upright, one value kept in the chart, no split, no small multiples', () => {
+    const { spans: _spans, span: _span, ...unspanned } = STOCK.options;
+    assert.deepEqual(chartProblems({ ...STOCK, mark: 'pie', layers: [], options: unspanned }, PRICES)
+      .filter((p) => p.includes('pane')), ['A pie draws no pane beneath it: bars, lines and areas drawn upright do.']);
+    assert.ok(chartProblems({ ...STOCK, y: [VOLUME] }, PRICES).includes('Every value is beneath the chart: keep one in it.'));
+    assert.ok(chartProblems({ ...STOCK, split: 'ticker' }, PRICES)
+      .includes('A split draws one value: none of the chart\'s values is beneath it.'));
+  });
+
+  it('a span\'s grain is one its time across takes', () => {
+    const onDays = { ...PRICES, columns: PRICES.columns.map((c) => (c.name === 'at' ? { ...c, type: 'StrictDate' } : c)) };
+    const { grain: _g, ...daily } = STOCK;
+    assert.ok(chartProblems({ ...daily, options: { ...STOCK.options, spans: [{ seconds: 0, grain: 'second' }] } }, onDays)
+      .includes("'at' is not taken to the second: a span cannot draw it so."));
+  });
+
+  it('a span of time is of a date or a time across', () => {
+    const { grain: _grain, ...ungrained } = STOCK;
+    const byName: ChartSpec = { ...ungrained, x: 'ticker', layers: [], y: [LAST] };
+    assert.ok(chartProblems(byName, PRICES).includes('A span of time is shown of a date or a time across, on bars, lines and areas.'));
+  });
+});
+

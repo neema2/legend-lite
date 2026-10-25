@@ -323,6 +323,9 @@ export interface CubeAppBaseOptions {
   readonly onOpenSource?: () => void;
   /** A grid on a page of its own: its menu's Remove from Page, the page taking its tile off. */
   readonly onRemove?: () => void;
+  /** A grid on a page: a row picked in it (one row selected, by a click or its arrow keys), its values by column, for
+   *  the grids the page links it to (page-document.ts GridLink). */
+  readonly onRowPicked?: SpawnOptions['onRowPicked'];
   /**
    * The grid let go (`dispose`: its page took its tile off, or put another page in its place): what its host made for
    * it alone -- a reader of its engine, a table on a server (docs/DEEPHAVEN_PLAN_2026_10_22.md B2) -- let go with it.
@@ -2683,6 +2686,38 @@ export class CubeApp {
   #onSelectionChange(range: CellRange | null): void {
     this.#selection = range;
     this.#renderSelectionStats();
+    this.#pickRow(range);
+  }
+
+  /** The row last told picked: told again only when another is (a selection widened, or the same row's other cell, is
+   *  no new row). */
+  #picked: number | undefined;
+
+  /**
+   * A ROW PICKED (one row selected): told to the page with a reader of its values -- a row dimension's its path's (a
+   * group's key), any other column's its cell's -- each as a filter takes it (value-filter.ts cellFilterValue), so the
+   * grids linked to this one go to it (page-document.ts GridLink).
+   */
+  #pickRow(range: CellRange | null): void {
+    const pick = this.#options.onRowPicked;
+    const row = range !== null && range.anchor.row === range.focus.row ? range.focus.row : undefined;
+    if (row === this.#picked) return;
+    this.#picked = row;
+    const view = this.#view;
+    if (!pick || row === undefined || !view) return;
+    const meta = this.#treeRows[row];
+    const types = new Map(rowColumns(this.#shown).map((c) => [c.name, c.type]));
+    pick((column) => {
+      const dimension = this.#shown.rows.indexOf(column);
+      if (dimension >= 0) {
+        const path = meta?.path ?? [];
+        return dimension < path.length ? cellFilterValue(path[dimension] ?? null, types.get(column)) : null;
+      }
+      const leaf = view.columns.leaves.find((l) => l.name === column);
+      if (leaf === undefined) return undefined;
+      const raw = view.rows.columns[leaf.index]?.values[row - (view.window?.offset ?? 0)];
+      return raw === undefined ? null : cellFilterValue(raw, types.get(column));
+    });
   }
 
   #renderSelectionStats(): void {
@@ -3082,6 +3117,7 @@ export class CubeApp {
       ...(spawned.onNewGrid ? { onNewGrid: spawned.onNewGrid } : {}),
       ...(spawned.onNewSource ? { onNewSource: spawned.onNewSource } : {}),
       ...(spawned.onRemove ? { onRemove: spawned.onRemove } : {}),
+      ...(spawned.onRowPicked ? { onRowPicked: spawned.onRowPicked } : {}),
       ...(spawned.exportPage ? { exportPage: spawned.exportPage } : {}),
       ...(spawned.onSettingsChanged ? { onSettingsChanged: spawned.onSettingsChanged } : {}),
     });
@@ -3228,6 +3264,7 @@ export class CubeApp {
           ...(spawned?.onNewGrid ? { onNewGrid: spawned.onNewGrid } : {}),
           ...(spawned?.onNewSource ? { onNewSource: spawned.onNewSource } : {}),
           ...(spawned?.onRemove ? { onRemove: spawned.onRemove } : {}),
+          ...(spawned?.onRowPicked ? { onRowPicked: spawned.onRowPicked } : {}),
           ...(spawned?.exportPage ? { exportPage: spawned.exportPage } : {}),
           ...(spawned?.onSettingsChanged ? { onSettingsChanged: spawned.onSettingsChanged } : {}),
         });

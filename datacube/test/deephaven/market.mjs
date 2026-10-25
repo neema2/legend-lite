@@ -11,9 +11,11 @@ import { chromium } from 'playwright';
 import { runfileFromEnv, runfileNamed } from '../../../tools/js/runfiles.mts';
 import { startDeephaven } from '../../demo/deephaven/site.mjs';
 
-// a small world, quick to check: 50 names, 2,000 quotes and 400 trades a second; the feed's address refuses at once
+// a small world, quick to check: 50 names, 2,000 quotes and 400 trades a second, half an hour of morning on a tape of
+// at most 100,000 prints; the feed's address refuses at once
 const NAMES = 50;
 const TRADES = 400;
+const MORNING = 1800;
 const deephaven = startDeephaven({
   quiet: true,
   fixture: 'MARKET_FIXTURE',
@@ -21,6 +23,8 @@ const deephaven = startDeephaven({
     MARKET_NAMES: String(NAMES),
     MARKET_QUOTES: '2000',
     MARKET_TRADES: String(TRADES),
+    MARKET_MORNING: String(MORNING),
+    MARKET_MORNING_PRINTS: '100000',
     MARKET_FEED: 'coinbase',
     MARKET_FEED_URL: 'wss://127.0.0.1:9/',
   },
@@ -35,7 +39,7 @@ const files = {
   '/classes.wasm': ['application/wasm', readFileSync(runfileNamed('PLANNER', 'classes.wasm'))],
   // the one trading model (//scripts/corpus:trading_model), which the page holds
   '/trading-model.pure': ['text/plain; charset=utf-8', readFileSync(runfileFromEnv('TRADING_MODEL'))],
-  '/config.json': ['application/json', JSON.stringify({ url: config.url, psk: config.psk, names: NAMES, trades: TRADES })],
+  '/config.json': ['application/json', JSON.stringify({ url: config.url, psk: config.psk, names: NAMES, trades: TRADES, morning: MORNING })],
 };
 // the page's own origin, not the server's, served for real on the loopback (test/deephaven/deephaven.mjs says why)
 const site = createServer((req, res) => {
@@ -50,7 +54,7 @@ const site = createServer((req, res) => {
 });
 const sitePort = await new Promise((done) => site.listen(0, '127.0.0.1', () => done(site.address().port)));
 
-const CHECKS = 21;
+const CHECKS = 22;
 let failed = false;
 let browser;
 try {

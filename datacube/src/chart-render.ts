@@ -105,6 +105,53 @@ export function heldOption(option: EChartsOption, hold: AxisHold, held: readonly
   return { ...option, [hold.key]: Array.isArray(axes) ? kept : kept[0] } as EChartsOption;
 }
 
+/** A dataZoom's window as ECharts holds it: its shares of the axis (%) and its values at either end. */
+export interface ZoomNow {
+  readonly start?: number;
+  readonly end?: number;
+  readonly startValue?: number;
+  readonly endValue?: number;
+}
+
+/**
+ * A TICK'S WINDOW AS THE LAST ONE LEFT IT (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K14): a chart drawn again at a tick
+ * is drawn afresh (its option replaced), which would put a window a person zoomed or panned back where its option says.
+ * So each window keeps its place: one that ended at the latest time across moves with it, the same width (a stock's
+ * last five minutes stay the last five); one left elsewhere stays where it was; one showing all of it shows all of the
+ * tick's (its option's own window: a span shown). `before` is each window as ECharts had it, `latestBefore` and
+ * `latest` the latest time across then and now (none: a category axis, its window kept by its shares).
+ */
+export function keptZoom(option: EChartsOption, before: readonly ZoomNow[] | null, latestBefore: number | undefined,
+  latest: number | undefined): EChartsOption {
+  const zooms = (option as { dataZoom?: unknown }).dataZoom;
+  if (!before || !Array.isArray(zooms) || zooms.length !== before.length) return option;
+  const kept = zooms.map((z: Record<string, unknown>, i) => {
+    const b = before[i]!;
+    // all of it shown: the tick's window, as its option has it
+    if ((b.start ?? 0) <= 0.01 && (b.end ?? 100) >= 99.99) return z;
+    const { start: _s, end: _e, startValue: _sv, endValue: _ev, ...rest } = z;
+    if (latest !== undefined && latestBefore !== undefined && b.startValue !== undefined && b.endValue !== undefined) {
+      const width = b.endValue - b.startValue;
+      return b.endValue >= latestBefore - 1
+        ? { ...rest, startValue: latest - width, endValue: latest }
+        : { ...rest, startValue: b.startValue, endValue: b.endValue };
+    }
+    return { ...rest, start: b.start ?? 0, end: b.end ?? 100 };
+  });
+  return { ...option, dataZoom: kept } as EChartsOption;
+}
+
+/** Each of the chart's windows as ECharts holds it now (none: no window). */
+function zoomNow(chart: echarts.ECharts): ZoomNow[] | null {
+  const zooms = (chart.getOption() as { dataZoom?: ZoomNow[] } | undefined)?.dataZoom;
+  return Array.isArray(zooms) && zooms.length > 0
+    ? zooms.map((z) => ({
+      ...(typeof z.start === 'number' ? { start: z.start } : {}), ...(typeof z.end === 'number' ? { end: z.end } : {}),
+      ...(typeof z.startValue === 'number' ? { startValue: z.startValue } : {}),
+      ...(typeof z.endValue === 'number' ? { endValue: z.endValue } : {}),
+    })) : null;
+}
+
 /** The extent ECharts drew each of `hold`'s axes at (its model's scale: what the axis shows), null where none. */
 export function drawnExtents(chart: echarts.ECharts, hold: AxisHold): (Extent | null)[] {
   // ECharts' model, which its public API has no other way to read: an axis's scale, as `getExtent` gives it
@@ -241,11 +288,15 @@ export function mountChart(
       }
     },
     show(d, how = {}) {
+      // a tick's window where the last one left it (keptZoom): read before the drawing is replaced
+      const zoomBefore = how.ticked === true ? zoomNow(chart) : null;
+      const latestBefore = drawing?.latest;
       drawing = d;
       if (el.getAttribute('aria-label') !== d.description) el.setAttribute('aria-label', d.description);
       // a tick's scale the one drawn before it (widened where its values leave it); a view's, its own
       const option = how.ticked === true
-        ? { ...(d.hold && held ? heldOption(d.option, d.hold, held) : d.option), animation: false }
+        ? keptZoom({ ...(d.hold && held ? heldOption(d.option, d.hold, held) : d.option), animation: false }, zoomBefore,
+          latestBefore, d.latest)
         : d.option;
       chart.setOption(option as EChartsOption, { notMerge: true });
       held = d.hold ? drawnExtents(chart, d.hold) : null;

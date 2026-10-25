@@ -545,4 +545,39 @@ describe('a KPI tile (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, batch 1)', () =
     assert.equal(host.querySelector('.dc-kpi'), null);
     panel.dispose();
   });
+
+  it('a chart of a grid whose source holds an exact number draws, and draws again at a tick (K14: its query keyed)', async () => {
+    const { ChartPanel } = await import('../src/ui/chart-panel.ts');
+    const { element, fn, lambda, lit, property, variable } = await import('../../pure-protocol/src/index.ts');
+    const host = dom.window.document.createElement('div');
+    root.append(host);
+    // a source whose Pure text has a decimal literal, kept exact as the protocol keeps it (the market map's): what the
+    // chart's draw is keyed by must write it -- JSON.stringify refused it, and the chart never drew
+    const filtered = { ...SNAPSHOT, source: { query: fn('filter', element('trades'),
+      lambda(['x'], fn('greaterThan', property(variable('x'), 'notional'), lit.decimal('100.50')))) } };
+    let runs = 0;
+    const panel = new ChartPanel(host, {
+      snapshot: () => filtered,
+      run: async () => {
+        runs += 1;
+        return { columns: [{ name: 'region', type: 'String', values: ['AMER', 'EMEA'] }, { name: 'sum_notional', type: 'Float', values: [600, 900] }],
+          rowCount: 2, epoch: 1, elapsedMs: 0 };
+      },
+      label: (v) => String(v),
+      onPick: () => {},
+      initial: {
+        version: 2, mark: 'bar', x: 'region', y: [{ column: 'notional', fn: 'sum' }],
+        options: { orientation: 'vertical', stack: 'none', sort: { by: 'y', direction: 'desc' }, limit: 50, labels: false, legend: 'top' },
+      },
+      debounceMs: 0,
+    });
+    await settle();
+    assert.equal(host.querySelector('.dc-chartpanel-status')?.textContent ?? '', '', 'nothing said: the chart drew');
+    assert.ok(host.querySelector('.dc-chartpanel-chart canvas, .dc-chartpanel-chart div'), 'drawn');
+    panel.tick();
+    await settle();
+    assert.equal(runs, 2);
+    assert.equal(host.querySelector('.dc-chartpanel-status')?.textContent ?? '', '');
+    panel.dispose();
+  });
 });

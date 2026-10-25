@@ -111,8 +111,11 @@ interface Entry {
 // the keeper was asked is kept and made again, never dropped.
 // 2026-10-24 (the middle version, docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md): L1_ROUTES 6 -> 5 -- the converge's
 // put-back and its replay of the other editor's steps are one route: each grid set to its cube on the keeper's page.
+// 2026-10-25 (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K14, the stock chart): L1_ROUTES 5 -> 6 -- a row picked in a
+// linked grid (page-document.ts GridLink) refilters each grid it links to, by the grid's own refilter command, told as
+// any: the route a chart's click takes (#select), for the grids a watchlist picks a name for.
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 5, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
+  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
   L8_KINDS: 1, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
 };
 
@@ -166,6 +169,9 @@ const ROUTE_FILES = (f: string): boolean => f.startsWith('src/') && f.endsWith('
   && f !== 'src/state-owner.ts' && !f.startsWith('src/adhoc/') && !f.startsWith('src/headless/');
 const L1_ROUTES: Record<string, Entry> = {
   'src/page/cube-page.ts:#select:refilter': { items: [], why: "a chart's mark clicked, or its chip: the grid's refilter command, told beside the page's select (page-filters.ts chartPicked, Python's chartPick's rule); a chart removed or moved by a step is no click: its grid follows the step (ChartSource.unselected)" },
+  // 2026-10-25 (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K14): a row picked in a linked grid takes the grids it links to
+  // its value -- each one's refilter command, its own step, as a chart's click is
+  'src/page/cube-page.ts:#follow:refilter': { items: [], why: "a row picked in a linked grid (page-document.ts GridLink): each grid it links to refiltered to the row's value, the grid's own refilter command and step, told as any; the link itself is the page's, saved with it" },
   // 2026-10-24 (the middle version): another editor's snap and going live followed by the converge, which sets each grid's
   // rows where the keeper's page says -- PageApp.follow, which replayed the editor's commands, is gone
   'src/app/live-converge.ts:converging:followSnap': { items: [], why: "a converge: another editor's snap, its copy read from its host (the page writes a grid's copy from the grid, §18.8)" },

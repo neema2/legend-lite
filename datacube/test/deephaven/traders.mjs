@@ -22,6 +22,9 @@ const server = startDeephaven({
     MARKET_NAMES: '100',
     MARKET_QUOTES: '2000',
     MARKET_TRADES: '400',
+    // half an hour of the session before the world starts, on a bounded tape: a stock's chart has a morning to draw
+    MARKET_MORNING: process.env.TRADERS_MORNING ?? '1800',
+    MARKET_MORNING_PRINTS: '120000',
     MARKET_FEED: 'coinbase',
     MARKET_FEED_URL: 'wss://127.0.0.1:9/',
   },
@@ -61,7 +64,7 @@ try {
     // stalled: what the page shows, and what each grid's own status line says
     await page.screenshot({ path: join(outputs, 'stalled.png') });
     const lines = await page.evaluate(() => [...document.querySelectorAll('[data-tile]')].map((t) =>
-      `${t.getAttribute('data-tile')}: ${[...t.querySelectorAll('.dc-status-note-text, .dc-error, [role="alert"]')].map((e) => e.textContent).join(' | ')}`));
+      `${t.getAttribute('data-tile')}: ${[...t.querySelectorAll('.dc-status-note-text, .dc-error, [role="alert"], .dc-chartpanel-status')].map((e) => e.textContent).join(' | ')}`));
     throw new Error(`not ${what} in ${ms / 1000} s: ${lines.join('; ')}\n${JSON.stringify(await state()).slice(0, 1500)}`);
   };
   const status = () => page.evaluate(() => ({ text: document.getElementById('status')?.textContent ?? '',
@@ -134,6 +137,32 @@ try {
     const one = await checkScreen(only, 1);
     for (const [n, g] of Object.entries(one.state.grids)) console.log(`     ${n}: base ${JSON.stringify(g.base)}`);
     console.log(`     the planner's calls: ${Object.entries(one.state.planner).map(([k, v]) => `${k} ${v.calls} in ${(v.ms / 1000).toFixed(1)} s (slowest ${v.slowest} ms)`).join(', ')}`);
+    // WHERE A TICK'S TIME GOES (--test_env=TRADERS_PROFILE=1): the page's first sheet ticking for five seconds, profiled
+    // by the browser, its functions by their own time; the profile itself among the test's outputs
+    if (process.env.TRADERS_PROFILE) {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Profiler.enable');
+      await page.evaluate((n) => window.__traders.showSheet(n), one.doc.sheets[0].name ?? one.doc.sheets[0].id);
+      await sleep(1500);
+      await cdp.send('Profiler.start');
+      await sleep(5000);
+      const { profile } = await cdp.send('Profiler.stop');
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync(join(outputs, 'ticks.cpuprofile'), JSON.stringify(profile));
+      const total = profile.endTime - profile.startTime;
+      const self = new Map();
+      const dt = profile.timeDeltas;
+      const byId = new Map(profile.nodes.map((n) => [n.id, n]));
+      profile.samples.forEach((id, i) => {
+        const n = byId.get(id);
+        const f = n.callFrame;
+        const key = `${f.functionName || '(anonymous)'} ${f.url.split('/').pop()}:${f.lineNumber + 1}`;
+        self.set(key, (self.get(key) ?? 0) + (dt[i] ?? 0));
+      });
+      const top = [...self].sort((a, b) => b[1] - a[1]).slice(0, 25);
+      console.log(`     profile: ${(total / 1000).toFixed(0)} ms, its functions by their own time:`);
+      for (const [k, us] of top) console.log(`       ${(us / 1000).toFixed(0).padStart(6)} ms  ${k}`);
+    }
     throw new Error(`only ${only} was checked (TRADERS_ONLY): not a run of every screen`);
   }
   const first = await checkScreen('Ticker', 1);
@@ -141,6 +170,59 @@ try {
   const startup = Object.values(first.state.startup).reduce((a, b) => a + b, 0);
   ok(`the page live in ${(startup / 1000).toFixed(1)} s from a cold tab: ${Object.entries(first.state.startup).map(([k, v]) => `${k} ${(v / 1000).toFixed(1)} s`).join(', ')}`);
   const screens = first.state.screens;
+
+  // K14: THE STOCK -- a name picked on the watchlist takes its every tile with it; its chart's spans; its candles
+  {
+    const grid = (s, name) => s.grids[name];
+    const cell = (g, column) => g?.rows[0]?.[g.columns.indexOf(column)];
+    await page.evaluate(() => window.__traders.showSheet('Stock'));
+    await sleep(500);
+    const before = await state();
+    const was = cell(grid(before, 'Its quote'), 'ticker');
+    // another name on the list: a person's click on its row
+    const names = grid(before, 'Watchlist: pick a name').rows.map((r) => r[grid(before, 'Watchlist: pick a name').columns.indexOf('ticker')]);
+    const other = names.find((n) => n !== was && !String(n).endsWith('-USD'));
+    await page.locator('[data-tile="pick"] .dc-row', { hasText: other }).first().locator('.dc-cell').first().click();
+    const followed = await until((s) => cell(grid(s, 'Its quote'), 'ticker') === other
+      && grid(s, 'Its prints, newest first').rows.length > 0
+      && grid(s, 'Its prints, newest first').rows.every((r) => r[grid(s, 'Its prints, newest first').columns.indexOf('ticker')] === other),
+    `the stock's grids at ${other}`);
+    // its chart and its last price: the quote's, give or take a tick
+    await sleep(2500);
+    const after = await state();
+    const quoteLast = Number(cell(grid(after, 'Its quote'), 'bid'));
+    const kpi = Number(String(after.charts['last']?.values[0] ?? '').replace(/,/g, ''));
+    const line = await page.evaluate(() => window.__traders.chartNow('price'));
+    const lineLast = Number(line?.last?.[1]);
+    const near = (a, b) => Math.abs(a - b) / b < 0.01;
+    if (near(kpi, quoteLast) && near(lineLast, quoteLast)) {
+      ok(`a name picked on the watchlist takes the stock's tiles with it: ${was} to ${other} -- its quote, its prints, its last ${kpi} and its line's ${lineLast} (bid ${quoteLast})`);
+    } else fail(`picked ${other}: the quote ${JSON.stringify(cell(followed.grids['Its quote'], 'ticker'))}, the KPI ${kpi}, the line's last ${lineLast}, the bid ${quoteLast}`);
+    await page.screenshot({ path: join(outputs, `stock-${other}.png`) });
+
+    // THE SPANS: 5m, by the second, its window the latest five minutes, following the latest mark
+    await page.locator('[data-tile="price"] .dc-chartpanel-span[data-span="300"]').click();
+    await sleep(3000);
+    const spanned = await page.evaluate(() => window.__traders.chartNow('price'));
+    const spec = JSON.parse(await page.evaluate(() => window.__traders.save())).views.find((v) => v.id === 'price').spec;
+    const width = (spanned?.zoom?.endValue ?? 0) - (spanned?.zoom?.startValue ?? 0);
+    const edge = Math.abs((spanned?.zoom?.endValue ?? 0) - new Date(String(spanned?.last?.[0]).replace(' ', 'T')).getTime());
+    if (spec.grain === 'second' && spec.options.span === 300 && width === 300_000 && edge < 1500) {
+      ok(`a span picked: the latest 5 minutes by the second, the window ending at the latest mark (${JSON.stringify(spanned.zoom)})`);
+    } else fail(`5m: the spec ${spec.grain} ${spec.options.span}, the window ${JSON.stringify(spanned?.zoom)}, the latest ${JSON.stringify(spanned?.last)}`);
+    await page.screenshot({ path: join(outputs, 'stock-5m.png') });
+
+    // THE CANDLES, behind the line: their tab shown, they draw
+    await page.locator('.dc-tile-tab[data-tab="candles"] .dc-tile-tab-label').click();
+    const drew = await page.waitForFunction(() => {
+      const el = document.querySelector('[data-tile="candles"] .dc-chartpanel-chart canvas');
+      return el !== null && el.getBoundingClientRect().width > 0;
+    }, null, { timeout: 30_000 }).then(() => true, () => false);
+    if (drew) ok('the candles, behind the line: their tab shown, they draw');
+    else fail('the candles did not draw when their tab was shown');
+    await page.screenshot({ path: join(outputs, 'stock-candles.png') });
+    await page.locator('.dc-tile-tab[data-tab="price"] .dc-tile-tab-label').click();
+  }
 
   // B2: THE SCREEN SAVED BY SAVE AS…, UNDER A NAME, AND OPENED AGAIN FROM OPEN… -- the tab's own store of saved pages;
   // every grid made again over its source as it is now, its charts as saved

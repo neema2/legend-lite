@@ -40,11 +40,27 @@ import type { Brushed, GridShown, LabelOf, MarkKey, UnitOf } from '../chart-opti
 import type { ChartPicture, MountedChart } from '../chart-render.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { CubeSnapshot, FilterNode } from '../snapshot.ts';
-import type { Lambda } from '../../../pure-protocol/src/index.ts';
+import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { lazily } from '../lazily.ts';
 
 /** The kinds with an axis of categories or time across, whose pointer a page's other charts follow (a crosshair). */
 const CROSSHAIRED: ReadonlySet<ChartMark> = new Set(['bar', 'line', 'area', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto']);
+
+/** A span of time as its button says it: 1m, 5m, 1h, 1d -- or All. */
+export function spanLabel(seconds: number): string {
+  if (seconds === 0) return 'All';
+  if (seconds % 86_400 === 0) return `${seconds / 86_400}d`;
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
+  if (seconds % 60 === 0) return `${seconds / 60}m`;
+  return `${seconds}s`;
+}
+
+/** A span of time in words: "5 minutes", "1 hour". */
+function spanWords(seconds: number): string {
+  const [n, unit] = seconds % 86_400 === 0 ? [seconds / 86_400, 'day'] : seconds % 3600 === 0 ? [seconds / 3600, 'hour']
+    : seconds % 60 === 0 ? [seconds / 60, 'minute'] : [seconds, 'second'];
+  return `${n} ${unit}${n === 1 ? '' : 's'}`;
+}
 
 /** Whether batch 3's rarer ECharts charts are registered on this page (chart-render-kinds.ts, fetched once). */
 let kindsRegistered = false;
@@ -91,6 +107,8 @@ export class ChartPanel {
   #status!: HTMLElement;
   /** A drilled chart's path, above it (batch 2 item 10). */
   #crumbs!: HTMLElement;
+  /** The spans of time it offers, above it (K14: a stock chart's 1m, 5m, 1h, All). */
+  #spans!: HTMLElement;
   #clickTimer: ReturnType<typeof setTimeout> | undefined;
   /** The spec changed while the form was closed: painted when it is next shown. */
   #formStale = false;
@@ -113,6 +131,8 @@ export class ChartPanel {
   #disposed = false;
   /** A treemap's rows as last drawn: what a frozen one keeps. */
   #shownKept: GridShown | null = null;
+  /** What the chart's last draw read (its query, but its epoch): a tick's draw of the same holds its scale. */
+  #drawnQuery: string | undefined;
 
   constructor(root: HTMLElement, options: ChartPanelOptions) {
     this.#root = root;
@@ -237,7 +257,12 @@ export class ChartPanel {
     this.#crumbs.className = 'dc-chartpanel-crumbs';
     this.#crumbs.setAttribute('aria-label', 'Drill path');
     this.#crumbs.hidden = true;
-    right.append(this.#crumbs, this.#canvas, this.#status);
+    this.#spans = doc.createElement('div');
+    this.#spans.className = 'dc-chartpanel-spans';
+    this.#spans.setAttribute('role', 'group');
+    this.#spans.setAttribute('aria-label', 'Span of time shown');
+    this.#spans.hidden = true;
+    right.append(this.#crumbs, this.#spans, this.#canvas, this.#status);
     this.#root.append(this.#form, right);
     this.#form.hidden = this.#options.formOpen === false;
     this.#paintForm();
@@ -252,6 +277,8 @@ export class ChartPanel {
     if (this.state !== was) this.#options.onState?.(this.state);
     this.#options.onSpec?.();
     if (redrawForm) this.#paintForm();
+    // its span buttons say the span shown, whatever changed it
+    this.#paintSpans();
     this.refresh();
   }
 
@@ -265,6 +292,7 @@ export class ChartPanel {
    */
   #paintForm(): void {
     this.#paintCrumbs();
+    this.#paintSpans();
     if (this.#form.hidden) {
       this.#formStale = true;
       return;
@@ -278,6 +306,37 @@ export class ChartPanel {
 
 
 
+
+  /**
+   * THE SPANS OF TIME (K14): a button per span the chart offers (`options.spans`), the one shown pressed -- a press shows
+   * that span, the latest that many seconds of its time across, following the latest mark as it ticks (chart-option.ts);
+   * a change of the chart's, kept with it and undone as any.
+   */
+  #paintSpans(): void {
+    const spans = this.#spec?.options.spans;
+    this.#spans.hidden = spans === undefined;
+    if (spans === undefined) {
+      this.#spans.replaceChildren();
+      return;
+    }
+    const shown = this.#spec?.options.span ?? 0;
+    this.#spans.replaceChildren(...spans.map(({ seconds, grain }) => {
+      const b = this.#doc.createElement('button');
+      b.type = 'button';
+      b.className = 'dc-chartpanel-span';
+      b.textContent = spanLabel(seconds);
+      b.dataset['span'] = String(seconds);
+      b.setAttribute('aria-pressed', String(seconds === shown));
+      b.title = seconds === 0 ? 'All of it' : `The latest ${spanWords(seconds)}`;
+      // the span, and the period it is drawn by: one step of the chart's
+      b.addEventListener('click', () => {
+        const spec = this.#spec;
+        if (!spec || ((spec.options.span ?? 0) === seconds && (grain === undefined || spec.grain === grain))) return;
+        this.#set({ ...(grain !== undefined && grain !== spec.grain ? { grain } : {}), options: { span: seconds } });
+      });
+      return b;
+    }));
+  }
 
   // -- drawing ----------------------------------------------------------------
 
@@ -369,7 +428,14 @@ export class ChartPanel {
       } else {
         drawing = chartOption(spec, rows, themeOf(this.#canvas), this.#options.label, this.#options.unit);
       }
-      chart.show(drawing, { ticked });
+      // a tick's draw holds the scale and the window the last draw left -- of the same query only: one that reads
+      // anything else (another stock picked, a span, a filter) is drawn afresh, whatever brought it (K14: a scale held
+      // across a change of stock kept the old one's prices in view)
+      const { epoch: _epoch, ...reads } = snapshot as typeof snapshot & { readonly epoch?: number };
+      // written as the protocol writes it: a snapshot holds exact numbers, which JSON.stringify refuses
+      const key = toJson(reads as never);
+      chart.show(drawing, { ticked: ticked && key === this.#drawnQuery });
+      this.#drawnQuery = key;
       // the page's charts with the same column across (at the same grain) share a crosshair: those with an axis of
       // categories or time
       const across = axisName(drilledView(spec).spec);
@@ -487,6 +553,7 @@ export class ChartPanel {
         meter.append(track, div('dc-kpi-goal', goal));
         box.append(meter);
       }
+      if (drawing.reference) box.append(said('dc-kpi-reference', drawing.reference.delta, drawing.reference.words, drawing.reference.good));
       if (drawing.change) box.append(said('dc-kpi-change', drawing.change.delta, drawing.change.words, drawing.change.good));
       const place = div('dc-kpi-trend');
       if (drawing.trend) box.append(place);

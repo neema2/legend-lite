@@ -205,7 +205,8 @@
 .dc-page-bar.dc-collapsed .dc-page-alone .dc-tile-cube > :not(.dc-titlebar-zones) { visibility: hidden; }
 
 /* A KPI (ui/chart-panel.ts) as a stat tile (the user, 2026-10-23: "nicer, more sleek"): its headline, large; against
-   its target, said and metered; its latest period against the one before; its trend's line along the foot. Sized by
+   its target, said and metered; against a reference (a price's prior close, K14), said; its latest period against the
+   one before; its trend's line along the foot. Sized by
    its own tile (a container): a row of eight is as legible as one alone, and a short tile sheds its lesser lines. */
 .dc-chartpanel-chart.dc-chartpanel-kpi { display: flex; }
 .dc-kpi {
@@ -229,6 +230,7 @@
   text-overflow: ellipsis;
 }
 .dc-kpi-target,
+.dc-kpi-reference,
 .dc-kpi-change {
   display: flex;
   align-items: baseline;
@@ -3257,6 +3259,16 @@
 .dc-chartpanel-add { align-self: flex-start; margin: var(--dc-pad-1) 0; }
 /* a drilled chart's path (batch 2 item 10): each step a way back up */
 .dc-chartpanel-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 0 var(--dc-pad-2); font-size: var(--dc-text-sm-size); color: var(--dc-muted); }
+/* the spans of time a chart offers (K14): a small segmented control at its top right, the one shown pressed */
+.dc-chartpanel-spans { display: flex; justify-content: flex-end; gap: 2px; padding: 2px var(--dc-pad-2) 0; }
+.dc-chartpanel-spans[hidden] { display: none; }
+.dc-chartpanel-span {
+  min-width: 34px; padding: 1px 8px; border: 1px solid var(--dc-line); border-radius: var(--dc-radius-sm);
+  background: var(--dc-bg); color: var(--dc-muted-strong); font: inherit; font-size: var(--dc-text-sm-size);
+  font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.dc-chartpanel-span:hover { background: var(--dc-hover); }
+.dc-chartpanel-span[aria-pressed='true'] { background: var(--tw-sky-700); border-color: var(--tw-sky-700); color: var(--tw-white); }
 .dc-chartpanel-crumb { border: 0; background: none; padding: 0; color: var(--dc-active); cursor: pointer; text-decoration: underline; font: inherit; }
 .dc-chartpanel-crumb-here { color: var(--dc-muted-strong); }
 .dc-chartpanel-crumbs-hint .dc-chartpanel-crumb-here { color: var(--dc-muted); }
