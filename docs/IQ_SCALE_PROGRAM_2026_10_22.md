@@ -683,3 +683,14 @@ says so.
     sum's a NUMERIC(29,0)), listed (derived-total, 6 runs) until its rule is measured.
   - **Census 3** (`lite/census3_idioms`, 59 report idioms, each combining several features) is with the Mac session to
     snap: lite answers 58 and refuses one (a UNION's ORDER BY by a name, which it reads as IQ's -1005012).
+  - **Ratios as reports write them** (the Mac session's tpch_iq re-judge: tpch-22676 PASS to REFUSED; the coverage
+    lane's 16 refusals past the size bound): CASE WHEN up + down > 0 THEN ROUND(CAST(up AS FLOAT) / (up + down) * 100,
+    2) ELSE 0 END, each DOUBLE operation's checks repeating its operands and IQ's REAL rounding five times more.
+    **Fixed:** a DOUBLE operation on integers, NUMERICs or REALs computes no overflow or underflow check (none can
+    happen there); an integer's CAST to REAL is only rounded, raises nothing and keeps its NULL guard
+    (`IqDialect.exactReal`); a one-WHEN searched CASE's long result operands are computed once where its condition
+    holds (`SqlToPure.hoistOperands`; the scale probe's guarded ratio of 8 and 16 quotients, 8 and 16 KB).
+    CAST(up AS FLOAT) / (up + down) is 4.8 KB of DuckDB's SQL (38 KB before), the CASE of it 15.5 KB (refused before).
+    The coverage lane at 5329aeb8: the size bound's refusals 16 to 6 (SEDE 5: DATEDIFF chains, LOG and POWER, nested
+    CHARINDEX; SQLStorm 1); SEDE 7,256 answered, SQLStorm 5,893, no new database error. The ratios' cases,
+    `lite/census3_ratios` (8), go to snap with census 3.
