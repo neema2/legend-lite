@@ -83,7 +83,8 @@ try {
     for (const [i, sheet] of doc.sheets.entries()) {
       const label = sheet.name ?? sheet.id;
       await page.evaluate((n) => window.__traders.showSheet(n), label);
-      await sleep(600);
+      // settled: a chart drawn as its page opened reads its result once more at the first tick, then follows it
+      await sleep(1500);
       const a = await state();
       await sleep(4000);
       const b = await state();
@@ -124,12 +125,58 @@ try {
   if (same && again.doc.cubes.length === doc.cubes.length) ok(`saved and opened again: the same ${doc.cubes.length} grids and ${Object.keys(again.state.charts).length} charts`);
   else fail(`opened again: grids ${Object.keys(again.state.grids).join(', ')}; charts ${Object.keys(again.state.charts).join(', ')}`);
 
+  /** A list of names, one row a name, never names one twice -- in any view it shows while it ticks, nor on screen (a
+   *  window over a result re-sorted at every tick: the trader screens, 2026-10-25, painted a name twice at two prices,
+   *  a grid drawn on a sheet not shown redrawing its first row alone at each tick). `grids`: each its name and tile. */
+  const noRepeats = async (sheet, grids, column, ms) => {
+    await page.evaluate((n) => window.__traders.showSheet(n), sheet);
+    await sleep(300);
+    const seen = {};
+    const end = Date.now() + ms;
+    let views = 0;
+    let paints = 0;
+    const twiceIn = (names) => names.filter((n, i) => n !== null && n !== '' && names.indexOf(n) !== i);
+    while (Date.now() < end) {
+      const s = await state();
+      // the rows a person sees: inside the grid's scroller (a row drawn below it, in its buffer, waits for a scroll)
+      const painted = await page.evaluate(({ tiles, column }) => tiles.map((t) => {
+        const scroller = document.querySelector(`[data-tile="${t}"] .dc-scroller`);
+        const box = scroller?.getBoundingClientRect();
+        return [...document.querySelectorAll(`[data-tile="${t}"] .dc-row`)].filter((r) => {
+          const at = r.getBoundingClientRect();
+          return box !== undefined && at.top >= box.top - 1 && at.bottom <= box.bottom + 1;
+        }).map((r) => r.querySelector(`[data-column="${column}"]`)?.textContent ?? null);
+      }), { tiles: grids.map((g) => g.tile), column });
+      for (const [i, { name }] of grids.entries()) {
+        const g = s.grids[name];
+        const at = g?.columns.indexOf(column) ?? -1;
+        if (g && at >= 0) {
+          views++;
+          const twice = twiceIn(g.rows.map((r) => r[at]));
+          if (twice.length > 0) (seen[name] ??= new Set()).add(`in its view: ${twice.join(', ')}`);
+        }
+        paints++;
+        const twice = twiceIn(painted[i]);
+        if (twice.length > 0) (seen[name] ??= new Set()).add(`on screen: ${twice.join(', ')}`);
+      }
+      await sleep(20);
+    }
+    const said = Object.entries(seen).map(([n, x]) => `${n}: ${[...x].slice(0, 5).join('; ')}`);
+    if (said.length === 0) ok(`${grids.map((g) => g.name).join(', ')}: no name twice in ${views} views and ${paints} screens read while ticking`);
+    else fail(`a name shown twice while ticking -- ${said.join(' | ')}`);
+  };
+  await noRepeats('Watchlist', [{ name: 'Watchlist', tile: 'watchlist' }], 'ticker', 3000);
+
   // EVERY OTHER SCREEN, opened from the menu's list
   let opened = again.state.opened;
   for (const screen of screens.slice(1)) {
     await page.evaluate((id) => window.__traders.openScreen(id), screen.id);
     opened++;
     await checkScreen(screen.label, opened);
+    if (screen.id === 'market-map') {
+      await noRepeats('Movers', [{ name: 'Top gainers', tile: 'gainers' }, { name: 'Top losers', tile: 'losers' },
+        { name: 'Most active, by turnover', tile: 'active' }], 'ticker', 5000);
+    }
   }
   ok(`${screens.length} trader screens: ${screens.map((x) => x.label).join(', ')}`);
 } catch (e) {

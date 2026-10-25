@@ -325,7 +325,9 @@ export class ChartPanel {
         if (this.#disposed) return;
         drawing = gridKindOption(mark, now, themeOf(this.#canvas), this.#options.label);
       } else {
-        drawing = treemapOfGrid(now, themeOf(this.#canvas), this.#options.label);
+        drawing = treemapOfGrid(now, themeOf(this.#canvas), this.#options.label, spec.colour
+          ? { column: spec.colour.column, ...(spec.options.colourReach !== undefined ? { reach: spec.options.colourReach } : {}) }
+          : undefined);
       }
       chart.show(drawing, { ticked });
       this.#say(drawing.notes.join(' '));

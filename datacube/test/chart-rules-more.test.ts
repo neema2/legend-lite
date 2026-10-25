@@ -124,7 +124,7 @@ describe('the reader refuses a chart it cannot read, in words', () => {
   });
 
   it('a key it has no place for -- a newer DataCube\'s, or one misspelt -- is refused by name, with what it does say', () => {
-    assert.match(refusal({ colour: 'red' }), /^there is no "colour" in a chart \(it says version, mark, x, .*, frozen, kept\)$/);
+    assert.match(refusal({ palette: 'red' }), /^there is no "palette" in a chart \(it says version, mark, x, .*, frozen, kept\)$/);
     assert.match(optionRefusal({ animate: true }), /^there is no "animate" in its options \(it says orientation, stack, .*, ring\)$/);
   });
 
@@ -867,6 +867,17 @@ describe('rules the chart model does not keep yet: a slot nothing draws refused,
     // read as they are, they reach chart-option.ts, which throws "spec.options.breaks.map is not a function"
     const read = readChart({ ...SAVED, options: { breaks: 'x' } });
     assert.ok(typeof read === 'string' || chartProblems(read, CUBE).length > 0, JSON.stringify(read));
+  });
+
+  it('colour by value is a treemap\'s: refused on another kind by name, taken away by a change of kind', () => {
+    const treemap = readChart({ ...SAVED, mark: 'treemap', colour: { column: 'notional', fn: 'value' }, options: { legend: 'top', colourReach: 0.03 } });
+    assert.notEqual(typeof treemap, 'string', String(treemap));
+    const bar = readChart({ ...SAVED, colour: { column: 'notional', fn: 'value' } });
+    assert.notEqual(typeof bar, 'string', String(bar));
+    assert.match(chartProblems(bar as ChartSpec, CUBE).join(' '), /has no colour by value: a treemap has/);
+    assert.match(refusal({ options: { legend: 'top', colourReach: -1 } }), /colour reach -1 is not a number above zero/);
+    const moved = editChart(treemap as ChartSpec, { mark: 'bar' }, CUBE);
+    assert.equal(drilledView(moved).spec.colour, undefined, 'a bar has no colour by value');
   });
 
   it("a measure's title is words: a number or a blank one is refused, words are read", () => {

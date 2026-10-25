@@ -383,6 +383,11 @@ export class DataGrid {
         const height = Math.round(this.#scroller.clientHeight);
         if (height !== tall) {
           tall = height;
+          // and the rows now on screen are drawn from its rows now: a tick draws only the rows on screen by the height
+          // its last draw read, and a grid drawn hidden (a sheet not shown: no height) drew its first row alone at each
+          // tick -- shown, a list re-sorted at every tick named one name twice, at two prices (the trader screens,
+          // 2026-10-25)
+          this.#render();
           this.#options.onRowsMoved?.();
         }
         const width = Math.round(this.#scroller.clientWidth);

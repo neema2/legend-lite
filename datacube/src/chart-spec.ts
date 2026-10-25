@@ -270,6 +270,12 @@ export interface ChartSpec {
   readonly size?: ChartMeasure;
   /** A measure written on each mark instead of its own value (revenue's bars labelled with their margin). */
   readonly label?: ChartMeasure;
+  /**
+   * A value colouring each mark on a scale either side of zero -- the bad colour below, the good above, grey at none (a
+   * market map's day change: the trader screens, K8). A treemap's: a column the grid shows, its value on each row as the
+   * grid writes it (a group's as the grid aggregates it). Its reach either side of zero is `options.colourReach`.
+   */
+  readonly colour?: ChartMeasure;
   /** Further measures a hover lists, beside the plotted ones. */
   readonly tooltip?: readonly ChartMeasure[];
   /** Small multiples: a chart per value. */
@@ -328,6 +334,9 @@ export interface ChartOptions {
   /** The value axis fitted to the values drawn, not from zero: a price's line, whose moves a zero baseline flattens
    *  (the trader screens, 2026-10-25: a coin at 68,000 moving by tens drew as a flat line). */
   readonly fitAxis?: boolean;
+  /** How far either side of zero the colour scale reaches (`colour`): a value past it takes the full colour. Absent, the
+   *  largest value's distance drawn -- a fixed reach keeps a block's colour from changing when another's value does. */
+  readonly colourReach?: number;
   /** Ranges of the value axis left out (an axis break): a tall outlier no longer flattens the rest. */
   readonly breaks?: readonly { readonly from: number; readonly to: number }[];
   /** Where a mark's label sits: on it (inside) or beyond its end (outside, the default). */
@@ -393,7 +402,7 @@ const known = (words: Readonly<Record<string, true>>, v: unknown): boolean => ty
 // The keys a saved spec's objects may have, each exhaustive by construction (a Record over the type's own keys): a key
 // it has no place for -- a newer DataCube's, or one misspelt -- is refused by name, never ignored
 const SPEC_KEYS: Readonly<Record<keyof ChartSpec, true>> = {
-  version: true, mark: true, x: true, grain: true, bins: true, y: true, split: true, size: true, label: true,
+  version: true, mark: true, x: true, grain: true, bins: true, y: true, split: true, size: true, label: true, colour: true,
   tooltip: true, facet: true, at: true, layers: true, calcs: true, drill: true, options: true, frozen: true, kept: true,
 };
 const KEPT_KEYS: Readonly<Record<keyof ChartKept, true>> = { filter: true };
@@ -404,8 +413,8 @@ const MEASURE_KEYS: Readonly<Record<keyof ChartMeasure, true>> = {
 const FACET_KEYS: Readonly<Record<keyof ChartFacet, true>> = { row: true, column: true };
 const OPTION_KEYS: Readonly<Record<keyof ChartOptions, true>> = {
   orientation: true, stack: true, sort: true, limit: true, labels: true, legend: true, target: true, better: true,
-  smooth: true, step: true, logAxis: true, fitAxis: true, breaks: true, labelPosition: true, labelRotate: true, zoom: true,
-  brush: true, decal: true, dim: true, toolbox: true, half: true, ring: true,
+  smooth: true, step: true, logAxis: true, fitAxis: true, colourReach: true, breaks: true, labelPosition: true,
+  labelRotate: true, zoom: true, brush: true, decal: true, dim: true, toolbox: true, half: true, ring: true,
 };
 const SHOW_AS_KEYS: Readonly<Record<keyof ShowAs, true>> = { kind: true, rows: true };
 const BINS_KEYS: Readonly<Record<keyof Bins, true>> = { width: true, count: true };
@@ -467,7 +476,7 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
     const p = measureProblem(m, `measure ${i + 1}`);
     if (p) return p;
   }
-  for (const slot of ['size', 'label'] as const) {
+  for (const slot of ['size', 'label', 'colour'] as const) {
     if (spec[slot] === undefined) continue;
     const p = measureProblem(spec[slot], `its ${slot}`);
     if (p) return p;
@@ -540,6 +549,9 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
   }
   if (o['target'] !== undefined && typeof o['target'] !== 'number') {
     return `its target ${JSON.stringify(o['target'])} is not a number`;
+  }
+  if (o['colourReach'] !== undefined && !(typeof o['colourReach'] === 'number' && o['colourReach'] > 0)) {
+    return `its colour reach ${JSON.stringify(o['colourReach'])} is not a number above zero`;
   }
   const sort = o['sort'];
   if (sort !== undefined && (!isRecord(sort) || (sort['by'] !== 'x' && sort['by'] !== 'y')
@@ -1209,9 +1221,11 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
  * dropped without a word. Part of a change by hand (editChart).
  */
 function asMark(spec: ChartSpec, mark: ChartMark, s: CubeSnapshot): ChartSpec {
-  const { x, split, grain, bins, at: _at, ...rest } = spec;
+  const { x, split, grain, bins, at: _at, colour: _colour, ...rest } = spec;
   // a bubble map's places go with it: no other kind places anything by latitude and longitude
   const at = mark === 'bubblemap' ? spec.at : undefined;
+  // so does a treemap's colour by value: no other kind colours by one
+  const colour = mark === 'treemap' ? spec.colour : undefined;
   const keepX = mark !== 'gauge' && mark !== 'matrix' && x !== undefined;
   const keepSplit = !UNSPLIT.has(mark) && split !== undefined;
   // the options built once (the phase 7 audit: a kind's order was lost to a map's limit spread after it): a Pareto runs
@@ -1239,6 +1253,7 @@ function asMark(spec: ChartSpec, mark: ChartMark, s: CubeSnapshot): ChartSpec {
     // a candlestick taking a kind of one value keeps its close
     ...(spec.mark === 'candlestick' && !SEVERAL_VALUES.has(mark) && rest.y[3] !== undefined ? { y: [rest.y[3]] } : {}),
     ...(at !== undefined ? { at } : {}),
+    ...(colour !== undefined ? { colour } : {}),
   };
 }
 
@@ -1429,6 +1444,11 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     out.push('Pick a column across.');
   } else if (spec.x !== undefined && !known.has(spec.x)) out.push(`The cube has no column '${spec.x}'.`);
   if (spec.y.length === 0 && !gridKind) out.push('Pick something to plot.');
+  // colour by value: a treemap's, a column the grid shows
+  if (spec.colour !== undefined) {
+    if (spec.mark !== 'treemap') out.push(`A ${markLabel(spec.mark)} has no colour by value: a treemap has.`);
+    else if (!known.has(spec.colour.column)) out.push(`The cube has no column '${spec.colour.column}'.`);
+  }
   const drawn = gridKind ? [] : spec.y;
   for (const m of [...drawn, ...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : [])]) {
     if (m.fn === 'value') {

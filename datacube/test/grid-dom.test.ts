@@ -967,6 +967,36 @@ describe('a tick, and a block of a larger result', () => {
     assert.equal(row?.querySelectorAll('.dc-cell')[1]?.textContent, '999', 'scrolled on: drawn from the newest rows');
   });
 
+  it('a grid ticked while hidden (no height), then shown, draws every row on screen from its newest rows', () => {
+    // a grid on a sheet not shown: drawn with no height, so each tick drew the rows "on screen" -- its first alone
+    let observed: (() => void) | undefined;
+    (dom.window as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
+      constructor(callback: () => void) { observed = callback; }
+      observe(): void { /* the test calls back */ }
+      disconnect(): void { /* nothing held */ }
+    };
+    const table = makeTable(50);
+    grid = new DataGrid(container, new FormatterCache(), { rowHeight: ROW_HEIGHT, overscan: 2 });
+    const scroller = container.querySelector('.dc-scroller') as HTMLElement;
+    stubLayout(scroller, 0);
+    grid.setColumns(buildColumnModel(table, ['region']));
+    grid.setRows(table, 0, 50);
+    observed?.();
+    // ticks while hidden: rows 1 to 3 change
+    let now = table;
+    for (const row of [1, 2, 3]) {
+      now = changed(now, row, 500 + row);
+      grid.tickRows(now, 0, 50);
+    }
+    // its sheet shown: the grid has its height, and says so
+    stubLayout(scroller, VIEW_HEIGHT);
+    observed?.();
+    for (const row of [1, 2, 3]) {
+      const drawn = [...container.querySelectorAll('.dc-row')].find((r) => r.getAttribute('aria-rowindex') === String(2 + row + 1));
+      assert.equal(drawn?.querySelectorAll('.dc-cell')[1]?.textContent, String(500 + row), `row ${row} from the newest rows`);
+    }
+  });
+
   it('draws the grid whole when the rows moved under it or the count changed', () => {
     const { table } = build(50);
     const before = cell(0, 0);

@@ -1303,6 +1303,9 @@ export interface GridNode {
   readonly key: MarkKey;
   readonly children?: GridNode[];
   readonly level: number;
+  /** Its value of the column it is coloured by (`colourBy`), as a number and as the grid writes it. */
+  readonly shade?: number;
+  readonly shadeText?: string;
 }
 
 /**
@@ -1312,7 +1315,7 @@ export interface GridNode {
  * whole, not a node. Non-positive values are DROPPED, never clamped (an area or an angle cannot be negative), and
  * counted; a node whose children all went goes too.
  */
-export function gridTree(shown: GridShown, label: LabelOf, groupsValued = false): {
+export function gridTree(shown: GridShown, label: LabelOf, groupsValued = false, colourBy?: string): {
   readonly data: GridNode[];
   readonly dropped: number;
   readonly value: GridShown['leaves'][number] | undefined;
@@ -1325,10 +1328,14 @@ export function gridTree(shown: GridShown, label: LabelOf, groupsValued = false)
   const value = shown.leaves.find((l) => l.name !== TREE && isNumeric(l.type) && (!grouped || l.measure === true));
   const valueCol = value ? column(rows, value.name) : undefined;
   const treeCol = column(rows, TREE);
+  // the column each node is coloured by, read on its own row as the grid writes it
+  const shadeLeaf = colourBy === undefined ? undefined : shown.leaves.find((l) => l.name === colourBy && isNumeric(l.type));
+  const shadeCol = shadeLeaf ? column(rows, shadeLeaf.name) : undefined;
   // a flat cube's label: the first visible column that is not a number
   const flatLabel = shown.leaves.find((l) => l.name !== TREE && !isNumeric(l.type));
   const flatCol = flatLabel ? column(rows, flatLabel.name) : undefined;
-  type Node = { name: string; value?: number; text?: string; key: MarkKey; children?: Node[]; level: number };
+  type Node = { name: string; value?: number; text?: string; key: MarkKey; children?: Node[]; level: number;
+    shade?: number; shadeText?: string };
   const top: Node[] = [];
   const open: Node[] = [];
   let dropped = 0;
@@ -1366,7 +1373,11 @@ export function gridTree(shown: GridShown, label: LabelOf, groupsValued = false)
       dropped += 1;
       continue;
     }
-    into({ name, value: v, text, key, level });
+    const shade = shadeCol ? numberOf(shadeCol.values[i] ?? null, shadeCol.type) : null;
+    into({
+      name, value: v, text, key, level,
+      ...(shade !== null && shadeLeaf ? { shade, shadeText: label(shadeCol!.values[i] ?? null, shadeLeaf.name, shadeLeaf.type) } : {}),
+    });
   }
   // a node whose children were all dropped is not a node (but a valued group keeps its own value)
   const prune = (nodes: Node[]): Node[] => nodes.flatMap((n) => {
@@ -1380,13 +1391,45 @@ export function gridTree(shown: GridShown, label: LabelOf, groupsValued = false)
   return { data: prune(top), dropped, value };
 }
 
-export function treemapOfGrid(shown: GridShown, theme: ChartTheme = LIGHT_THEME, label: LabelOf = defaultLabel): ChartDrawing {
+/** A colour `t` of the way from `a` to `b` (each `#rrggbb`), t in [0, 1]. */
+function mix(a: string, b: string, t: number): string {
+  const at = (c: string, i: number): number => parseInt(c.slice(1 + 2 * i, 3 + 2 * i), 16);
+  return `#${[0, 1, 2].map((i) => Math.round(at(a, i) + (at(b, i) - at(a, i)) * t).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** What a treemap's blocks are coloured by (ChartSpec.colour): a column the grid shows, and the scale's reach either side
+ *  of zero (absent: the largest value's distance drawn). */
+export interface TreemapColour {
+  readonly column: string;
+  readonly reach?: number;
+}
+
+/** The neutral of a scale either side of zero: a block at none (dark, so a block's white label reads on it). */
+const NEUTRAL = '#4a4945';
+
+export function treemapOfGrid(shown: GridShown, theme: ChartTheme = LIGHT_THEME, label: LabelOf = defaultLabel,
+  colour?: TreemapColour): ChartDrawing {
   const notes: string[] = [];
-  const { data, dropped, value } = gridTree(shown, label);
+  const { data: sized, dropped, value } = gridTree(shown, label, false, colour?.column);
   if (dropped > 0) {
     notes.push(`${dropped} ${dropped === 1 ? 'row' : 'rows'} not shown: zero or negative cannot have an area.`);
   }
   if (!value) notes.push('The grid shows no numeric column to size the blocks by.');
+  // COLOUR BY VALUE (K8): each block from grey at zero to the good colour above, the bad below, full at the reach
+  const shaded = colour !== undefined && shown.leaves.some((l) => l.name === colour.column && isNumeric(l.type));
+  if (colour !== undefined && !shaded) notes.push(`The grid shows no number column '${colour.column}' to colour the blocks by.`);
+  const shades = (nodes: readonly GridNode[]): number[] => nodes.flatMap((n) => [...(n.shade !== undefined ? [n.shade] : []),
+    ...(n.children ? shades(n.children) : [])]);
+  const reach = colour?.reach ?? Math.max(0, ...shades(sized).map(Math.abs).filter(Number.isFinite));
+  const good = theme.series[2]!;
+  const bad = theme.bad ?? theme.series[1]!;
+  const painted = (nodes: readonly GridNode[]): GridNode[] => nodes.map((n) => {
+    const children = n.children ? { children: painted(n.children) } : {};
+    if (n.children || !shaded) return { ...n, ...children };
+    const t = n.shade === undefined || !Number.isFinite(n.shade) || reach <= 0 ? 0 : Math.max(-1, Math.min(1, n.shade / reach));
+    return { ...n, itemStyle: { color: mix(NEUTRAL, t < 0 ? bad : good, Math.abs(t)) } } as GridNode;
+  });
+  const data = painted(sized);
   const depth = (nodes: readonly GridNode[]): number => nodes.reduce((m, n) => Math.max(m, n.children ? 1 + depth(n.children) : 1), 0);
   const levels = Math.max(1, depth(data));
   const text = { fontFamily: theme.font, fontSize: 11, color: theme.ink };
@@ -1404,8 +1447,9 @@ export function treemapOfGrid(shown: GridShown, theme: ChartTheme = LIGHT_THEME,
         trigger: 'item',
         // the value as the grid writes it
         // a group's name and value from the data, written as text, never markup
-        formatter: (p: { name?: string; data?: { text?: string } }) =>
-          (p.data?.text !== undefined ? `${escapeHtml(p.name ?? '')}: ${escapeHtml(p.data.text)}` : escapeHtml(p.name ?? '')),
+        formatter: (p: { name?: string; data?: { text?: string; shadeText?: string } }) =>
+          (p.data?.text !== undefined ? `${escapeHtml(p.name ?? '')}: ${escapeHtml(p.data.text)}` : escapeHtml(p.name ?? ''))
+          + (p.data?.shadeText !== undefined ? `<br>${escapeHtml(colour?.column ?? '')}: ${escapeHtml(p.data.shadeText)}` : ''),
       },
       series: [{
         type: 'treemap',
@@ -1414,7 +1458,14 @@ export function treemapOfGrid(shown: GridShown, theme: ChartTheme = LIGHT_THEME,
         breadcrumb: { show: false },
         top: 8, left: 8, right: 8, bottom: 8,
         leafDepth: levels,
-        label: { show: true, color: '#ffffff', overflow: 'truncate' },
+        // coloured by value, a block says its value under its name (a market map's ticker and change)
+        label: {
+          show: true, color: '#ffffff', overflow: 'truncate',
+          ...(shaded ? {
+            formatter: (p: { name?: string; data?: { shadeText?: string } }) =>
+              (p.data?.shadeText !== undefined ? `${p.name ?? ''}\n${p.data.shadeText}` : p.name ?? ''),
+          } : {}),
+        },
         upperLabel: { show: levels > 1, height: 18, color: theme.ink },
         itemStyle: { borderColor: theme.surface, borderWidth: 1, gapWidth: 1 },
         levels: [
@@ -1430,7 +1481,8 @@ export function treemapOfGrid(shown: GridShown, theme: ChartTheme = LIGHT_THEME,
       return key && Object.keys(key).length > 0 ? key : null;
     },
     notes,
-    description: `Treemap of ${value?.label ?? value?.name ?? 'nothing'} by the grid's rows as shown.`,
+    description: `Treemap of ${value?.label ?? value?.name ?? 'nothing'} by the grid's rows as shown`
+      + (shaded ? `, coloured by ${colour!.column}.` : '.'),
   };
 }
 

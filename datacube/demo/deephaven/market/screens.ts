@@ -98,19 +98,22 @@ const cubeOver = (columns: readonly ColumnSpec[], over: Partial<CubeSnapshot> = 
   source: { query: element('market') }, columns, derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1, ...over,
 });
 
-/** A cube written as the screen holds one it opens (cube-state.ts openedState). */
-function cubeOf(name: string, source: QuerySource, snapshot: CubeSnapshot, configuration: CubeConfiguration): CubeDocument {
-  const state = openedState(snapshot, configuration, TreeState.fromPaths([], false));
+/** A cube written as the screen holds one it opens (cube-state.ts openedState); `expandTo`: every group to that level
+ *  open. */
+function cubeOf(name: string, source: QuerySource, snapshot: CubeSnapshot, configuration: CubeConfiguration,
+  expandTo = 0): CubeDocument {
+  const state = openedState(snapshot, configuration, TreeState.saved([], false, expandTo, []));
   return writeCube({ name, source, snapshot: state.snapshot, configuration: state.configuration, tree: state.tree });
 }
 
-/** A chart of the cube `cube`, its grouping its own (frozen). */
+/** A chart of the cube `cube`, its grouping its own (frozen) unless it says otherwise -- a treemap draws its grid's rows
+ *  as shown, which frozen it would stop following. */
 function chart(id: string, cube: string, title: string,
   spec: Partial<Omit<ChartSpec, 'options'>> & { options?: Partial<ChartOptions> }): ChartView {
   const { options, ...rest } = spec;
   return {
     id, kind: 'chart', cube, title,
-    spec: { version: CHART_VERSION, mark: 'bar', y: [], ...rest, options: { ...DEFAULT_OPTIONS, ...options }, frozen: true } as ChartSpec,
+    spec: { version: CHART_VERSION, mark: 'bar', y: [], frozen: true, ...rest, options: { ...DEFAULT_OPTIONS, ...options } } as ChartSpec,
   };
 }
 
@@ -227,6 +230,70 @@ async function tickerPage(types: SourceTypes): Promise<PageDocument> {
   });
 }
 
+// ---------------------------------------------------------------- K8: the market map
+
+/** Every equity's quote as a market map reads it: its sector, its value at the last price (shares out by the last), the
+ *  day's change against the prior close, its turnover, and whether it is up or down on the day. */
+export const MARKET_MAP = `${QUOTE}->filter(x|$x.instrument.assetClass == 'EQUITY')->project(~[sector:x|$x.instrument.sector.name,`
+  + ' ticker:x|$x.instrument.ticker, name:x|$x.instrument.name, shares:x|$x.instrument.equity.sharesOutstanding,'
+  + ' last:x|$x.last, prevClose:x|$x.closePrice, volume:x|$x.volume])'
+  + '->extend(~[cap:x|$x.shares->toOne() * $x.last->toOne(), chgPct:x|($x.last->toOne() / $x.prevClose->toOne()) - 1.0,'
+  + ' turnover:x|$x.volume->toOne() * $x.last->toOne()])'
+  + '->extend(~[up:x|if($x.chgPct > 0.0, |1, |0), down:x|if($x.chgPct < 0.0, |1, |0)])';
+
+async function marketMapPage(types: SourceTypes): Promise<PageDocument> {
+  const columns = await columnsOf(types, MARKET_MAP, {
+    shares: { aggregate: 'sum' }, last: { aggregate: 'average' }, prevClose: { aggregate: 'average' },
+    cap: { aggregate: 'sum' }, chgPct: { aggregate: 'wavg', aggregateWeight: 'cap' }, turnover: { aggregate: 'sum' },
+    up: { aggregate: 'sum' }, down: { aggregate: 'sum' },
+  });
+  const source = marketSource('The market map', MARKET_MAP, columns);
+  // the map's grid: by sector, then name, every sector open -- what the treemap draws, block by block
+  const quoteFigures: Readonly<Record<string, ColumnConfiguration>> = {
+    shares: HIDDEN, last: HIDDEN, prevClose: HIDDEN, volume: HIDDEN, up: HIDDEN, down: HIDDEN, name: HIDDEN,
+    cap: BIG, chgPct: CHANGE_PCT, turnover: BIG,
+  };
+  const map = cubeOf('The market map', source,
+    cubeOver(columns, { rows: ['sector', 'ticker'], sorts: [{ column: 'cap', direction: 'desc' }] }),
+    configured('Sectors and names', quoteFigures), 1);
+  /** A list of every name, flat, by `column` in `direction`, its top first. */
+  const list = (name: string, column: string, direction: 'asc' | 'desc'): CubeDocument => cubeOf(name, source,
+    cubeOver(columns, { sorts: [{ column, direction }] }),
+    configured(name, { ...quoteFigures, sector: HIDDEN, last: PRICE }));
+  const views: PageView[] = [
+    chart('map', 'map', 'The market: each name sized by its value, coloured by its change on the day (green up, red down; full at 2%)', {
+      mark: 'treemap', frozen: false, colour: { column: 'chgPct', fn: 'value' }, options: { colourReach: 0.02 },
+    }),
+    { id: 'sectors', kind: 'grid', cube: 'map', title: 'Sectors and names' },
+    chart('advancing', 'map', 'Advancing', { mark: 'kpi', y: [{ column: 'up', fn: 'sum' }] }),
+    chart('declining', 'map', 'Declining', { mark: 'kpi', y: [{ column: 'down', fn: 'sum' }] }),
+    chart('by-sector', 'map', 'Each sector\'s change on the day, weighted by value', {
+      x: 'sector', y: [{ column: 'chgPct', fn: 'wavg', weight: 'cap', title: 'change (value-weighted)' }],
+      options: { sort: { by: 'y', direction: 'desc' }, labels: true, legend: 'none' },
+    }),
+    { id: 'gainers', kind: 'grid', cube: 'gainers', title: 'Top gainers' },
+    { id: 'losers', kind: 'grid', cube: 'losers', title: 'Top losers' },
+    { id: 'active', kind: 'grid', cube: 'active', title: 'Most active, by turnover' },
+  ];
+  const sheets: PageSheet[] = [
+    sheet('sheet-1', 'Map', [[1, row(['map', 0.7], ['sectors', 0.3])]]),
+    sheet('sheet-2', 'Movers', [
+      [0.3, row(['advancing', 0.18], ['declining', 0.18], ['by-sector', 0.64])],
+      [0.7, row(['gainers', 0.34], ['losers', 0.33], ['active', 0.33])],
+    ]),
+  ];
+  return writePageOf({
+    name: 'Market map',
+    cubes: [
+      { id: 'map', cube: map },
+      { id: 'gainers', cube: list('Top gainers', 'chgPct', 'desc') },
+      { id: 'losers', cube: list('Top losers', 'chgPct', 'asc') },
+      { id: 'active', cube: list('Most active', 'turnover', 'desc') },
+    ],
+    views: { views, sheets },
+  });
+}
+
 /** The trader screens, in the menu's order. */
 export const TRADER_PAGES: readonly TraderPage[] = [
   {
@@ -235,5 +302,12 @@ export const TRADER_PAGES: readonly TraderPage[] = [
     about: 'A watchlist of every name, its quote ticking against its prior close; the tape, print by print; each name\'s '
       + `day so far (its VWAP, range and turnover); and ${TICKER_COIN}'s quote, one-minute candles and EMA.`,
     build: tickerPage,
+  },
+  {
+    id: 'market-map',
+    label: 'Market map',
+    about: 'Every equity as a block sized by its value and coloured by its change on the day, by sector; the day\'s '
+      + 'breadth, each sector\'s value-weighted change, and the top gainers, losers and most active names.',
+    build: marketMapPage,
   },
 ];

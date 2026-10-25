@@ -42,7 +42,7 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | K5 | **built 2026-10-25** (§6). **The runtime error on Deephaven**: the lowering's guard (Pure fails on `sqrt` of a negative, on an Integer division by zero) writes an `ERROR` no Deephaven formula holds yet; a formula that fails by name, so `sqrt` and Integer `/` plan | the dialect's tests; a failing row failing the view, said, on the server |
 | K6 | **built 2026-10-24** (§5), but for NTH_VALUE; EMA and delta 2026-10-25 (§6). **Windows as `updateBy`**: running and moving figures (by rows and by time), lag and lead, first and last, the ranks; top-N per group (a row number filtered, SQL's QUALIFY: no `headBy` needed); DataCube's window functions and show-as | each against DuckDB's answer |
 | K7 | **built 2026-10-25** (§6). **as-of joins as `aj`** (DH20) | the same |
-| K8 | **the market map**: a treemap of every name, sized by value, coloured by the day's change, ticking | a browser check |
+| K8 | **built 2026-10-25** (§7). **the market map**: a treemap of every name, sized by value, coloured by the day's change, ticking | a browser check |
 | K9 | **real-time P&L with limits**: day P&L against the prior close by desk and book, KPI tiles that turn red past a limit | the same |
 | K10 | **the execution blotter**: parent and child orders, fills, % filled, slippage against arrival in basis points, by strategy and venue | the same |
 | K11 | **the options desk**: greeks as Pure functions run by Deephaven as formulas (needs K5's `sqrt`), vega by expiry and strike | the same |
@@ -430,3 +430,19 @@ summed). The contract is unchanged: `PureV1Api` takes a host's `Models` (a text 
 for it alone), and the tab's and Python's boundary answers a request whose model text it holds over the held model
 (`HeldModels.withText`, by content hash, under the model's lock), compiled no more. Measured: those calls 2.2 s summed,
 the screen 6.4 s cold. A server holds nothing, so compiles per request as before.
+
+**K8, the market map (2026-10-25).** Two sheets. *Map*: every equity a block, by sector, sized by its value at the last
+price (shares out by the last) and coloured by its change on the day -- grey at none, green up, red down, full at 2% --
+its ticker and change written on it; beside it the grid it draws, by sector then name, every sector open, a sector's
+change its names' value-weighted average (DataCube's `wavg`). *Movers*: the day's breadth (advancing and declining
+names, KPIs), each sector's value-weighted change (bars), and the top gainers, losers and most active names by turnover
+(three lists, each a window over every name re-sorted at every tick). DataCube gained a treemap coloured by value
+(`colour`, a column the grid shows; `options.colourReach`, its reach either side of zero; the editor's Colour by and
+Colour reach), taken away when the chart becomes another kind.
+
+**Found and fixed on the way (a DataCube defect, every page with sheets):** a grid first drawn on a sheet not shown
+measured no height, and a tick draws only the rows on screen by the height its last draw read -- so, shown, each tick
+redrew its first row alone, the rest kept from older blocks: a list re-sorted at every tick painted a name twice, at two
+prices. The grid now draws again when its height changes (its sheet shown, its tile grown). The browser check reads
+every list's view and the rows painted on screen at each tick and refuses a name shown twice (210 views and screens,
+none), and the grid's own test ticks a grid hidden and shows it.

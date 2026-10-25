@@ -198,6 +198,16 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
         ? 'Draws the grid\'s rows as shown: each group a ring, its rows outside it, sized by the first number column the grid shows. Expand a group to see its ring.'
         : 'Draws the grid\'s rows as shown: each group a node, its rows its branches, valued by the first number column the grid shows. Expand a group to grow its branch.';
     form.append(markField, note);
+    if (spec.mark === 'treemap') {
+      // a block coloured by a value the grid shows, either side of zero (a day's change): its reach a fixed number or
+      // the largest drawn
+      form.append(
+        field(doc, 'Colour by:', dropdown<string>(doc, spec.colour?.column, measures.map((c) => ({ value: c.name, label: c.name })),
+          (v) => h.set({ colour: v ? { column: v, fn: 'value' } : null }), { allowNone: true })),
+        field(doc, 'Colour reach:', numberInput(doc, spec.options.colourReach, (v) => h.setOption('colourReach', v !== undefined && v > 0 ? v : null),
+          { width: 110 })),
+      );
+    }
     return;
   }
   form.append(

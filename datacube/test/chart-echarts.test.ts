@@ -25,7 +25,7 @@ import {
   type ChartMeasure,
   type ChartSpec,
 } from '../src/chart-spec.ts';
-import { chartCsv, chartOption, kpiDrawing, MAX_SERIES, periodText, treemapOfGrid, type GridShown, type LabelOf } from '../src/chart-option.ts';
+import { chartCsv, chartOption, kpiDrawing, LIGHT_THEME, MAX_SERIES, periodText, treemapOfGrid, type GridShown, type LabelOf } from '../src/chart-option.ts';
 import * as echarts from 'echarts/core';
 import { SVGRenderer } from 'echarts/renderers';
 import { drawnExtents, heldOption } from '../src/chart-render.ts';   // registers the charts and components the page uses
@@ -382,6 +382,40 @@ describe('the drawing', () => {
     const d = treemapOfGrid(grid(false), undefined, money as never);
     const tip = (d.option as { tooltip: { formatter: (p: { name: string; data: { text?: string } }) => string } }).tooltip;
     assert.equal(tip.formatter({ name: 'EMEA', data: nodes(d)[0] as { text?: string } }), 'EMEA: 30.00');
+  });
+
+  it('a treemap coloured by a value (K8): grey at zero, the good colour above, the bad below, full at its reach', () => {
+    // each region's day change beside its notional; FX up a lot, Rates down a little, AMER flat
+    const shown = grid(true);
+    const coloured: GridShown = {
+      ...shown,
+      rows: table([
+        { name: '__tree', type: 'String', values: ['', 'EMEA', 'FX', 'Rates', 'AMER'] },
+        { name: 'region', type: 'String', values: [null, 'EMEA', 'EMEA', 'EMEA', 'AMER'] },
+        { name: 'sum_notional', type: 'Float', values: [60, 30, 10, 20, 30] },
+        { name: 'chg', type: 'Float', values: [0, 0.01, 0.04, -0.01, 0] },
+      ]),
+      leaves: [...shown.leaves, { name: 'chg', type: 'Float', measure: true }],
+    };
+    type Shaded = Node & { itemStyle?: { color?: string }; shadeText?: string };
+    const d = treemapOfGrid(coloured, undefined, undefined, { column: 'chg', reach: 0.02 });
+    const [emea, amer] = nodes(d) as Shaded[];
+    const [fx, rates] = emea!.children as Shaded[];
+    assert.equal(fx!.itemStyle?.color, LIGHT_THEME.series[2], 'past its reach: the full good colour');
+    assert.equal(rates!.itemStyle?.color?.length, 7, 'half way down: a colour between grey and the bad colour');
+    assert.notEqual(rates!.itemStyle?.color, fx!.itemStyle?.color);
+    assert.equal(amer!.itemStyle?.color, '#4a4945', 'at zero: grey');
+    assert.equal(fx!.shadeText, '0.04', 'its value, as the grid writes it');
+    const labelled = (d.option as { series: { label: { formatter: (p: unknown) => string } }[] }).series[0]!.label;
+    assert.equal(labelled.formatter({ name: 'FX', data: fx }), 'FX\n0.04', 'its name, then its value');
+    // with no reach, the largest drawn is the full colour
+    const widest = nodes(treemapOfGrid(coloured, undefined, undefined, { column: 'chg' }))[0]!.children as Shaded[];
+    assert.equal(widest[0]!.itemStyle?.color, LIGHT_THEME.series[2]);
+    // a column the grid does not show colours nothing, and says so
+    const none = treemapOfGrid(coloured, undefined, undefined, { column: 'nope' });
+    assert.equal((nodes(none)[1] as Shaded).itemStyle, undefined);
+    assert.match(none.notes.join(), /no number column 'nope'/);
+    assert.match(chartSvg(d), /<svg/);
   });
 
   it('chartOption refuses a treemap: it is drawn from the grid, never a query of its own', () => {
