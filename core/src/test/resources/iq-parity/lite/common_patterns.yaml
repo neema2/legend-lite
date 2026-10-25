@@ -1,0 +1,14 @@
+# The IQ scale program's common patterns (2026-10-25), the corpus lane's shapes judged by the live IQ (iq17-default):
+# a DOUBLE average in a CTE read under HAVING (lite refused a checked AVG read from a query around it until
+# 5fac2980), and a CHAR column read by a query that GREATER moves into SQL Anywhere's front end (IQ's store pads it:
+# the fuzzer's round 3). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: an_average_of_a_double_in_a_cte
+    sql: "WITH s AS (SELECT id % 3 AS k, AVG(CAST(sm AS DOUBLE)) AS a FROM t GROUP BY id % 3 HAVING COUNT(*) > 1) SELECT k, a FROM s ORDER BY k"
+    profile: iq17-default
+  - id: a_sum_and_an_average_in_a_derived_table_filtered
+    sql: "SELECT d.k, d.s, d.a FROM (SELECT id % 3 AS k, SUM(it) AS s, AVG(CAST(it AS DOUBLE)) AS a FROM t WHERE it IS NOT NULL GROUP BY id % 3) d WHERE d.k <> 1 ORDER BY d.k"
+    profile: iq17-default
+  - id: a_char_read_beside_greater
+    sql: "SELECT id, ch, LENGTH(ch) AS n, GREATER(id, 2) AS g FROM t ORDER BY id"
+    profile: iq17-default
