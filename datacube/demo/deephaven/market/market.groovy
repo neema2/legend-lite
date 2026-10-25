@@ -5,12 +5,19 @@
 // sees a market. Its platform homes: the modelled publisher over writes (L5), and a feed declared in the store
 // (DH16) that the platform starts.
 //
-// Four tables, as the store declares them (market/model.ts):
-//   instrument  every name: its kind (EQUITY, CRYPTO), sector, prior close, shares out, tick
-//   quote       each name's latest top of book, keyed by sym
-//   trade       every print, in order: its sequence number, time, price, size, aggressor's side and venue
-//   world       what each part of the world is: simulated, live, connecting -- and why
-//
+// Its tables are the ONE TRADING MODEL's (DH34: the stress corpus's store, core/src/test/resources/stress/30-store.pure),
+// every column it declares, so a page plans the corpus's own classes through stress::AllMapping (market/model.ts):
+//   EXCHANGE      the listing venues: their MIC, name, city, zone and hours
+//   SECTOR        the eleven GICS sectors and crypto: each one's share of the market's capitalisation, its names
+//   INSTRUMENT    every name: its id (INST-<ticker>), ticker, name, asset class (EQUITY, CRYPTO), listing, sector
+//   EQUITY        each equity's company, shares out, capitalisation at the prior close, beta, lot
+//   MARKET_QUOTE  each name's latest quote: its top of book, and the day so far (open, high, low, last, volume) and
+//                 the prior close, as a consolidated quote carries them
+//   MARKET_TRADE  every print on the tape, in order: its sequence, time, price, size, aggressor (none off-exchange),
+//                 venue, condition (@ regular, I an odd lot)
+// and one of its own, outside the corpus:
+//   world         what each part of the world is: simulated, live, connecting -- and why
+
 // Its size and pace, from the server's environment (a test's or the demo's; the defaults are the demo's):
 //   MARKET_NAMES     how many equities (500)
 //   MARKET_QUOTES    quote updates a second over all equities (8000)
@@ -57,6 +64,11 @@ class Name {
     double prevClose
     long shares
     double tick
+    /** the corpus's ids: the instrument's, the equity's (none for a coin), the sector's, the listing exchange's */
+    String instrumentId
+    String equityId
+    String sectorId
+    String exchange
     /** daily volatility, beta to the market, and the share of the market's activity it takes */
     double vol
     double beta
@@ -72,52 +84,106 @@ class Name {
     boolean quoted
     /** the price's move in the last step, which the aggressor's side leans with */
     double drift
+    /** the day so far: its first, highest, lowest and last print, and its volume (no print yet: none) */
+    double open = Double.NaN
+    double high = Double.NaN
+    double low = Double.NaN
+    double last = Double.NaN
+    double volume = 0d
+
+    /** A print of this name: the day's figures moved by it. */
+    void printed(double px, double sz) {
+        if (Double.isNaN(open)) open = px
+        high = Double.isNaN(high) ? px : Math.max(high, px)
+        low = Double.isNaN(low) ? px : Math.min(low, px)
+        last = px
+        volume += sz
+    }
 }
 
-/** Rows made since the last publish, by table: a list per column. */
+/** Rows made since the last publish, by table: a list per column, each the corpus's (30-store.pure's MARKET_QUOTE and
+ *  MARKET_TRADE, every column it declares, in its order). */
 @CompileStatic
 class Rows {
-    final List<String> qSym = []
+    static final double NULL_DOUBLE = io.deephaven.util.QueryConstants.NULL_DOUBLE
+
+    final List<String> qId = []
     final List<Instant> qTs = []
     final List<Double> qBid = []
     final List<Double> qAsk = []
+    final List<Double> qMid = []
+    final List<Double> qLast = []
+    final List<Double> qVolume = []
+    final List<Double> qOpen = []
+    final List<Double> qHigh = []
+    final List<Double> qLow = []
+    final List<Double> qClose = []
+    final List<String> qSource = []
+    final List<String> qInstrument = []
     final List<Double> qBidSize = []
     final List<Double> qAskSize = []
-    final List<Long> tSeq = []
+    final List<String> tId = []
+    final List<Integer> tSeq = []
     final List<Instant> tTs = []
-    final List<String> tSym = []
     final List<Double> tPx = []
     final List<Double> tSz = []
     final List<String> tSide = []
     final List<String> tVenue = []
+    final List<String> tCondition = []
+    final List<Boolean> tOff = []
+    final List<String> tInstrument = []
 
-    void quote(String sym, Instant ts, double bid, double ask, double bidSize, double askSize) {
-        qSym << sym; qTs << ts; qBid << bid; qAsk << ask; qBidSize << bidSize; qAskSize << askSize
+    static double orNull(double v) { return Double.isNaN(v) ? NULL_DOUBLE : v }
+
+    /** `n`'s quote now: its top of book, and the day so far as it stands. */
+    void quote(Name n, Instant ts, String source) {
+        qId << ('MQ-' + n.sym); qTs << ts; qBid << n.bid; qAsk << n.ask; qMid << (n.bid + n.ask) / 2d
+        qLast << orNull(n.last); qVolume << n.volume; qOpen << orNull(n.open); qHigh << orNull(n.high)
+        qLow << orNull(n.low); qClose << n.prevClose; qSource << source; qInstrument << n.instrumentId
+        qBidSize << n.bidSize; qAskSize << n.askSize
     }
 
-    void trade(long seq, Instant ts, String sym, double px, double sz, String side, String venue) {
-        tSeq << seq; tTs << ts; tSym << sym; tPx << px; tSz << sz; tSide << side; tVenue << venue
+    /** A print of `n` on the tape: no aggressor (`side` null) off-exchange; an equity's lot under 100 is odd (I). */
+    void trade(long seq, Instant ts, Name n, double px, double sz, String side, String venue, boolean offExchange) {
+        tId << ('MT-' + seq); tSeq << (int) seq; tTs << ts; tPx << px; tSz << sz; tSide << side; tVenue << venue
+        tCondition << (n.kind == 'EQUITY' && sz < 100d ? 'I' : '@'); tOff << offExchange; tInstrument << n.instrumentId
+        n.printed(px, sz)
     }
 
     Table quotes() {
+        int k = qId.size()
         return TableTools.newTable(
-                TableTools.stringCol('qsym', qSym as String[]),
-                TableTools.instantCol('qts', qTs as Instant[]),
-                TableTools.doubleCol('bid', qBid as double[]),
-                TableTools.doubleCol('ask', qAsk as double[]),
-                TableTools.doubleCol('bidSize', qBidSize as double[]),
-                TableTools.doubleCol('askSize', qAskSize as double[]))
+                TableTools.stringCol('QUOTE_ID', qId as String[]),
+                TableTools.instantCol('QUOTE_TIME', qTs as Instant[]),
+                TableTools.doubleCol('BID', qBid as double[]),
+                TableTools.doubleCol('ASK', qAsk as double[]),
+                TableTools.doubleCol('MID', qMid as double[]),
+                TableTools.doubleCol('LAST', qLast as double[]),
+                TableTools.doubleCol('VOLUME', qVolume as double[]),
+                TableTools.doubleCol('OPEN_PRICE', qOpen as double[]),
+                TableTools.doubleCol('HIGH_PRICE', qHigh as double[]),
+                TableTools.doubleCol('LOW_PRICE', qLow as double[]),
+                TableTools.doubleCol('CLOSE_PRICE', qClose as double[]),
+                TableTools.stringCol('SOURCE', qSource as String[]),
+                TableTools.col('IS_DELAYED', ([Boolean.FALSE] * k) as Boolean[]),
+                TableTools.stringCol('SNAPSHOT_ID', new String[k]),
+                TableTools.stringCol('INSTRUMENT_ID', qInstrument as String[]),
+                TableTools.doubleCol('BID_SIZE', qBidSize as double[]),
+                TableTools.doubleCol('ASK_SIZE', qAskSize as double[]))
     }
 
     Table trades() {
         return TableTools.newTable(
-                TableTools.longCol('seq', tSeq as long[]),
-                TableTools.instantCol('ts', tTs as Instant[]),
-                TableTools.stringCol('tsym', tSym as String[]),
-                TableTools.doubleCol('px', tPx as double[]),
-                TableTools.doubleCol('sz', tSz as double[]),
-                TableTools.stringCol('side', tSide as String[]),
-                TableTools.stringCol('venue', tVenue as String[]))
+                TableTools.stringCol('PRINT_ID', tId as String[]),
+                TableTools.intCol('SEQUENCE_NUMBER', tSeq as int[]),
+                TableTools.instantCol('PRINT_TIME', tTs as Instant[]),
+                TableTools.doubleCol('PRICE', tPx as double[]),
+                TableTools.doubleCol('QUANTITY', tSz as double[]),
+                TableTools.stringCol('AGGRESSOR_SIDE', tSide as String[]),
+                TableTools.stringCol('VENUE', tVenue as String[]),
+                TableTools.stringCol('TRADE_CONDITION', tCondition as String[]),
+                TableTools.col('IS_OFF_EXCHANGE', tOff as Boolean[]),
+                TableTools.stringCol('INSTRUMENT_ID', tInstrument as String[]))
     }
 }
 
@@ -126,7 +192,8 @@ class Rows {
 @CompileStatic
 class Simulator {
     static final double DAY = 23_400d   // seconds in a trading day: a daily volatility's horizon
-    static final String[] VENUES = ['XNAS', 'XNYS', 'ARCX', 'BATS', 'EDGX', 'IEXG', 'DARK'] as String[]
+    /** the lit venues by MIC, and off-exchange (a TRF's print: the FINRA facility) */
+    static final String[] VENUES = ['XNAS', 'XNYS', 'ARCX', 'BATS', 'EDGX', 'IEXG', 'FINRA'] as String[]
     static final double[] VENUE_SHARE = [0.30d, 0.20d, 0.10d, 0.15d, 0.08d, 0.04d, 0.13d] as double[]
     final Random random
     final List<Name> names
@@ -183,7 +250,7 @@ class Simulator {
         n.bidSize = size(n)
         n.askSize = size(n)
         n.quoted = true
-        rows.quote(n.sym, now, n.bid, n.ask, n.bidSize, n.askSize)
+        rows.quote(n, now, n.kind == 'EQUITY' ? 'SIP' : 'SIM')
     }
 
     /** A size at the quote: an equity's in round lots, a coin's its median's notional about. */
@@ -200,8 +267,9 @@ class Simulator {
             u -= VENUE_SHARE[v]
             if (u < 0) { venue = VENUES[v]; break }
         }
-        // off-exchange at the midpoint (to half a tick); else at the side the aggressor takes
-        double px = n.kind == 'EQUITY' && venue == 'DARK' ? roundTo((n.bid + n.ask) / 2, n.tick / 2) : (buy ? n.ask : n.bid)
+        // off-exchange at the midpoint (to half a tick), with no aggressor; else at the side the aggressor takes
+        boolean off = n.kind == 'EQUITY' && venue == 'FINRA'
+        double px = off ? roundTo((n.bid + n.ask) / 2, n.tick / 2) : (buy ? n.ask : n.bid)
         double sz
         if (n.kind == 'EQUITY') {
             sz = random.nextDouble() < 0.10d ? (double) (1 + random.nextInt(99))
@@ -209,7 +277,8 @@ class Simulator {
         } else {
             sz = Math.round(n.sizeMedian * 0.3d * Math.exp(gauss() * 1.1d) * 1e6d) / 1e6d
         }
-        rows.trade(seq.incrementAndGet(), now, n.sym, px, sz, buy ? 'B' : 'S', n.kind == 'EQUITY' ? venue : 'SIM')
+        rows.trade(seq.incrementAndGet(), now, n, px, sz, off ? null : (buy ? 'B' : 'S'),
+                n.kind == 'EQUITY' ? venue : 'SIM', off)
         // a print moves the price a little its way
         n.mid *= Math.exp((buy ? 1 : -1) * 0.00002d * Math.sqrt(Math.max(1d, sz / Math.max(1d, n.sizeMedian))))
     }
@@ -340,8 +409,8 @@ class World {
                     Thread.start { feed.connect() }
                 }
             }
-            if (!rows.qSym.isEmpty()) quotes.add(rows.quotes())
-            if (!rows.tSeq.isEmpty()) trades.add(rows.trades())
+            if (!rows.qId.isEmpty()) quotes.add(rows.quotes())
+            if (!rows.tId.isEmpty()) trades.add(rows.trades())
             say(live)
         } catch (Throwable e) {
             System.err.println('the market world\'s beat failed: ' + e)
@@ -364,12 +433,12 @@ class World {
                 n.askSize = Double.parseDouble((String) m.get('best_ask_size'))
                 n.mid = (n.bid + n.ask) / 2
                 n.quoted = true
-                rows.quote(n.sym, ts, n.bid, n.ask, n.bidSize, n.askSize)
+                rows.quote(n, ts, 'CBX')
             } else {
                 double px = Double.parseDouble((String) m.get('price'))
                 // the side the feed names is the maker's: the aggressor took the other
                 String side = m.get('side') == 'sell' ? 'B' : 'S'
-                rows.trade(seq.incrementAndGet(), ts, n.sym, px, Double.parseDouble((String) m.get('size')), side, 'CBX')
+                rows.trade(seq.incrementAndGet(), ts, n, px, Double.parseDouble((String) m.get('size')), side, 'CBX', false)
                 n.mid = px
             }
         }
@@ -409,6 +478,8 @@ random = new Random(Long.parseLong(env.getOrDefault('MARKET_SEED', '20261024')))
 SECTORS = ['Technology', 'Health Care', 'Financials', 'Consumer Discretionary', 'Communication Services',
            'Industrials', 'Consumer Staples', 'Energy', 'Utilities', 'Real Estate', 'Materials']
 SECTOR_SHARE = [0.22, 0.12, 0.13, 0.10, 0.08, 0.09, 0.06, 0.05, 0.05, 0.05, 0.05]
+// each sector's GICS code (Information Technology 45, Health Care 35, ...): its corpus id is SEC-<code>
+GICS = ['45', '35', '40', '25', '50', '20', '30', '10', '55', '60', '15']
 SECTOR_WORDS = [['Systems', 'Software', 'Semiconductor', 'Networks', 'Cloud'], ['Therapeutics', 'Biosciences', 'Health', 'Medical', 'Pharma'],
                 ['Bancorp', 'Financial', 'Capital', 'Insurance', 'Trust'], ['Retail', 'Motors', 'Brands', 'Apparel', 'Leisure'],
                 ['Media', 'Telecom', 'Interactive', 'Broadcasting', 'Studios'], ['Industries', 'Aerospace', 'Machinery', 'Logistics', 'Rail'],
@@ -442,6 +513,12 @@ for (int i = 0; i < NAMES; i++) {
             spreadBps: 1.0d + 25d * Math.pow(i / (double) NAMES, 1.5), sizeMedian: 300d + 1500d * Math.pow(i + 1, -0.5))
     // the day opens a little away from its prior close
     n.mid = Math.max(n.tick, n.prevClose * Math.exp(random.nextGaussian() * 0.008))
+    // the corpus's ids; a listing on Nasdaq or the NYSE by the name's place (no draw, so the world's names are as
+    // they were)
+    n.instrumentId = 'INST-' + sym
+    n.equityId = 'EQ-' + sym
+    n.sectorId = 'SEC-' + GICS[k]
+    n.exchange = i % 5 < 3 ? 'XNAS' : 'XNYS'
     equities << n
 }
 double totalWeight = equities.sum { it.weight } as double
@@ -458,6 +535,8 @@ COINS.eachWithIndex { c, i ->
             prevClose: px, shares: 0L, tick: px >= 10d ? 0.01d : 0.0001d, vol: 0.035d, beta: 1.5d,
             weight: Math.pow(i + 1, -1.0) / 2.72d, spreadBps: 1.5d, sizeMedian: 3000d / px)
     n.mid = px * Math.exp(random.nextGaussian() * 0.02)
+    n.instrumentId = 'INST-' + n.sym
+    n.sectorId = 'SEC-CRYPTO'
     coins << n
 }
 
@@ -492,26 +571,109 @@ if (FEED == 'coinbase') {
 NO_FLUSH = { p -> } as java.util.function.Consumer
 NO_SHUTDOWN = { -> } as Runnable
 
-instrument = TableTools.newTable(
-        TableTools.stringCol('sym', (equities + coins).collect { it.sym } as String[]),
-        TableTools.stringCol('name', (equities + coins).collect { it.name } as String[]),
-        TableTools.stringCol('kind', (equities + coins).collect { it.kind } as String[]),
-        TableTools.stringCol('sector', (equities + coins).collect { it.sector } as String[]),
-        TableTools.doubleCol('prevClose', (equities + coins).collect { it.prevClose } as double[]),
-        TableTools.longCol('shares', (equities + coins).collect { it.shares } as long[]),
-        TableTools.doubleCol('tick', (equities + coins).collect { it.tick } as double[]))
+// the reference tables, as the corpus declares them (30-store.pure): every column, a null where the world has no value
+nulls = { int k -> new String[k] }
+names = equities + coins
+today = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+facts = new Random(Long.parseLong(env.getOrDefault('MARKET_SEED', '20261024')) + 1L)
 
+EXCHANGE = TableTools.newTable(
+        TableTools.stringCol('MIC', 'XNAS', 'XNYS'),
+        TableTools.stringCol('NAME', 'Nasdaq Stock Market', 'New York Stock Exchange'),
+        TableTools.stringCol('CITY', 'New York', 'New York'),
+        TableTools.stringCol('TIMEZONE', 'America/New_York', 'America/New_York'),
+        TableTools.stringCol('OPEN_TIME', '09:30', '09:30'),
+        TableTools.stringCol('CLOSE_TIME', '16:00', '16:00'),
+        TableTools.col('IS_ELECTRONIC', Boolean.TRUE, Boolean.FALSE),
+        TableTools.stringCol('OPERATING_MIC', 'XNAS', 'XNYS'),
+        TableTools.stringCol('WEBSITE', 'https://www.nasdaq.com', 'https://www.nyse.com'),
+        TableTools.stringCol('REGULATORY_BODY', 'SEC', 'SEC'),
+        TableTools.stringCol('COUNTRY_ID', 'US', 'US'))
+
+totalCap = equities.sum { it.shares * it.prevClose } as double
+SECTOR = TableTools.newTable(
+        TableTools.stringCol('SECTOR_ID', ((0..<SECTORS.size()).collect { 'SEC-' + GICS[it] } + ['SEC-CRYPTO']) as String[]),
+        TableTools.stringCol('NAME', (SECTORS + ['Crypto']) as String[]),
+        TableTools.stringCol('GICS_CODE', (GICS + [null]) as String[]),
+        TableTools.intCol('LEVEL', ([1] * (SECTORS.size() + 1)) as int[]),
+        TableTools.stringCol('DESCRIPTION', nulls(SECTORS.size() + 1)),
+        TableTools.col('IS_ACTIVE', ([Boolean.TRUE] * (SECTORS.size() + 1)) as Boolean[]),
+        TableTools.stringCol('PARENT_SECTOR_ID', nulls(SECTORS.size() + 1)),
+        TableTools.doubleCol('MARKET_CAP_WEIGHT', ((0..<SECTORS.size()).collect { k ->
+            (equities.findAll { it.sectorIx == k }.sum { it.shares * it.prevClose } ?: 0d) / totalCap } +
+            [io.deephaven.util.QueryConstants.NULL_DOUBLE]) as double[]),
+        TableTools.intCol('NUMBER_OF_COMPANIES', ((0..<SECTORS.size()).collect { k ->
+            equities.count { it.sectorIx == k } } + [coins.size()]) as int[]),
+        TableTools.col('LAST_UPDATED', ([today] * (SECTORS.size() + 1)) as java.time.LocalDate[]))
+
+int nn = names.size()
+INSTRUMENT = TableTools.newTable(
+        TableTools.stringCol('INSTRUMENT_ID', names.collect { it.instrumentId } as String[]),
+        TableTools.stringCol('TICKER', names.collect { it.sym } as String[]),
+        TableTools.stringCol('NAME', names.collect { it.name } as String[]),
+        TableTools.stringCol('ISIN', nulls(nn)),
+        TableTools.stringCol('CUSIP', nulls(nn)),
+        TableTools.stringCol('SEDOL', nulls(nn)),
+        TableTools.stringCol('ASSET_CLASS', names.collect { it.kind } as String[]),
+        TableTools.stringCol('PRODUCT_TYPE', names.collect { it.kind == 'EQUITY' ? 'COMMON_STOCK' : 'SPOT' } as String[]),
+        TableTools.col('IS_ACTIVE', ([Boolean.TRUE] * nn) as Boolean[]),
+        TableTools.col('LISTING_DATE', new java.time.LocalDate[nn]),
+        TableTools.col('MATURITY_DATE', new java.time.LocalDate[nn]),
+        TableTools.doubleCol('NOTIONAL_AMOUNT', ([io.deephaven.util.QueryConstants.NULL_DOUBLE] * nn) as double[]),
+        TableTools.stringCol('CURRENCY', (['USD'] * nn) as String[]),
+        TableTools.stringCol('DESCRIPTION', names.collect { it.sector } as String[]),
+        TableTools.col('ISSUE_DATE', new java.time.LocalDate[nn]),
+        TableTools.stringCol('EQUITY_ID', names.collect { it.equityId } as String[]),
+        TableTools.stringCol('BOND_ID', nulls(nn)),
+        TableTools.stringCol('FUTURE_ID', nulls(nn)),
+        TableTools.stringCol('FX_FORWARD_ID', nulls(nn)),
+        TableTools.stringCol('SWAP_ID', nulls(nn)),
+        TableTools.stringCol('CDS_ID', nulls(nn)),
+        TableTools.stringCol('STRUCTURED_PRODUCT_ID', nulls(nn)),
+        TableTools.stringCol('ETF_ID', nulls(nn)),
+        TableTools.stringCol('CURRENCY_CODE', (['USD'] * nn) as String[]),
+        TableTools.stringCol('EXCHANGE_MIC', names.collect { it.exchange } as String[]),
+        TableTools.stringCol('SECTOR_ID', names.collect { it.sectorId } as String[]))
+
+int ne = equities.size()
+EQUITY = TableTools.newTable(
+        TableTools.stringCol('EQUITY_ID', equities.collect { it.equityId } as String[]),
+        TableTools.stringCol('TICKER', equities.collect { it.sym } as String[]),
+        TableTools.stringCol('COMPANY_NAME', equities.collect { it.name + ' Inc.' } as String[]),
+        TableTools.stringCol('SHARE_CLASS', (['COMMON'] * ne) as String[]),
+        TableTools.doubleCol('MARKET_CAP', equities.collect { it.shares * it.prevClose } as double[]),
+        TableTools.doubleCol('SHARES_OUTSTANDING', equities.collect { (double) it.shares } as double[]),
+        // the facts the simulation does not move, from a draw of their own: a yield to 4%, an earnings multiple
+        TableTools.doubleCol('DIVIDEND_YIELD', equities.collect { Math.round(facts.nextDouble() * 400) / 10000d } as double[]),
+        TableTools.doubleCol('PE_RATIO', equities.collect { Math.round((8 + facts.nextDouble() * 32) * 10) / 10d } as double[]),
+        TableTools.doubleCol('BETA', equities.collect { Math.round(it.beta * 100) / 100d } as double[]),
+        TableTools.stringCol('PRIMARY_EXCHANGE', equities.collect { it.exchange } as String[]),
+        TableTools.col('IS_ADR', ([Boolean.FALSE] * ne) as Boolean[]),
+        TableTools.intCol('LOT_SIZE', ([100] * ne) as int[]),
+        TableTools.doubleCol('LAST_PRICE', equities.collect { it.prevClose } as double[]),
+        TableTools.col('PRICE_DATE', ([today.minusDays(1)] * ne) as java.time.LocalDate[]),
+        TableTools.stringCol('INSTRUMENT_ID', equities.collect { it.instrumentId } as String[]))
+
+// the market, ticking: each name's latest quote, and the tape
 quotePublisher = TablePublisher.of('quotes', TableDefinition.of(
-        ColumnDefinition.ofString('qsym'), ColumnDefinition.ofTime('qts'), ColumnDefinition.ofDouble('bid'),
-        ColumnDefinition.ofDouble('ask'), ColumnDefinition.ofDouble('bidSize'), ColumnDefinition.ofDouble('askSize')),
-        NO_FLUSH, NO_SHUTDOWN)
-quote = quotePublisher.table().lastBy('qsym')
+        ColumnDefinition.ofString('QUOTE_ID'), ColumnDefinition.ofTime('QUOTE_TIME'), ColumnDefinition.ofDouble('BID'),
+        ColumnDefinition.ofDouble('ASK'), ColumnDefinition.ofDouble('MID'), ColumnDefinition.ofDouble('LAST'),
+        ColumnDefinition.ofDouble('VOLUME'), ColumnDefinition.ofDouble('OPEN_PRICE'),
+        ColumnDefinition.ofDouble('HIGH_PRICE'), ColumnDefinition.ofDouble('LOW_PRICE'),
+        ColumnDefinition.ofDouble('CLOSE_PRICE'), ColumnDefinition.ofString('SOURCE'),
+        ColumnDefinition.ofBoolean('IS_DELAYED'), ColumnDefinition.ofString('SNAPSHOT_ID'),
+        ColumnDefinition.ofString('INSTRUMENT_ID'), ColumnDefinition.ofDouble('BID_SIZE'),
+        ColumnDefinition.ofDouble('ASK_SIZE')), NO_FLUSH, NO_SHUTDOWN)
+MARKET_QUOTE = quotePublisher.table().lastBy('QUOTE_ID')
 
 tradePublisher = TablePublisher.of('trades', TableDefinition.of(
-        ColumnDefinition.ofLong('seq'), ColumnDefinition.ofTime('ts'), ColumnDefinition.ofString('tsym'),
-        ColumnDefinition.ofDouble('px'), ColumnDefinition.ofDouble('sz'), ColumnDefinition.ofString('side'),
-        ColumnDefinition.ofString('venue')), NO_FLUSH, NO_SHUTDOWN)
-trade = HISTORY > 0 ? RingTableTools.of(tradePublisher.table(), HISTORY) : BlinkTableTools.blinkToAppendOnly(tradePublisher.table())
+        ColumnDefinition.ofString('PRINT_ID'), ColumnDefinition.ofInt('SEQUENCE_NUMBER'),
+        ColumnDefinition.ofTime('PRINT_TIME'), ColumnDefinition.ofDouble('PRICE'), ColumnDefinition.ofDouble('QUANTITY'),
+        ColumnDefinition.ofString('AGGRESSOR_SIDE'), ColumnDefinition.ofString('VENUE'),
+        ColumnDefinition.ofString('TRADE_CONDITION'), ColumnDefinition.ofBoolean('IS_OFF_EXCHANGE'),
+        ColumnDefinition.ofString('INSTRUMENT_ID')), NO_FLUSH, NO_SHUTDOWN)
+MARKET_TRADE = HISTORY > 0 ? RingTableTools.of(tradePublisher.table(), HISTORY)
+        : BlinkTableTools.blinkToAppendOnly(tradePublisher.table())
 
 worldPublisher = TablePublisher.of('world', TableDefinition.of(
         ColumnDefinition.ofString('item'), ColumnDefinition.ofString('state'), ColumnDefinition.ofString('detail')),

@@ -79,7 +79,9 @@ MAX_ROOTS = 2100
 # trader and book, an option's own instrument, a surface's underlying, a request for quote's client and dealer). Those
 # links give sixteen trading roots more reach than sixteen of the old 400, which the ranking then dropped; the cap grows
 # by the sixteen so that no root's deep variants are lost -- the new roots are varied, not one more copy of a taxonomy.
-DEEP_ROOTS = 416
+# 416 -> 417 (2026-10-25, DH34, the market world's screens): an equity's instrument mapped (products::Equity_Instrument)
+# gives products::Equity reach; it outranked CustodiedCryptoHolding, whose deep variants the cap then dropped.
+DEEP_ROOTS = 417
 
 
 # Single-construct mapping FIXTURES, each with its own store, runtime and data element.

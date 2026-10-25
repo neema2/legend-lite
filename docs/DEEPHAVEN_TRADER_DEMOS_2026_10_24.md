@@ -35,7 +35,7 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | # | content | judge |
 |---|---|---|
 | K1 | **built 2026-10-24** (§5). **Time on Deephaven** (DH29, DH30): a DateTime literal, in a formula and in a filter the server reads without compiling (DH25); `timeBucket` as `lowerBin`; a date-time's calendar parts (year to second, day of year, ISO day of week) in UTC; `datePart`; `firstDayOf...` and the truncations DataCube's time grains write; `adjust` by a fixed unit; the epoch conversions | the dialect's tests; answers worked out by hand on the pinned server (`datacube/test/deephaven/page.ts`) |
-| K2 | **built 2026-10-24** (§5). **The market world**: a realistic equity simulator and a crypto feed handler that gives way to it (DH28), as the server's startup scripts; a store, classes and mappings over their tables | the world's figures checked on the pinned server; the fallback taken when the feed is refused |
+| K2 | **built 2026-10-24** (§5). **The market world**: a realistic equity simulator and a crypto feed handler that gives way to it (DH28), as the server's startup scripts; since 2026-10-25 publishing the corpus's own tables, queried through its classes (DH34, §6) | the world's figures checked on the pinned server; the fallback taken when the feed is refused |
 | K3a | **built 2026-10-24** (§5). **A candle's open and close on Deephaven**: Pure's `minBy` and `maxBy` over a whole-number order (a trade's sequence number), SQL's `ARG_MIN` and `ARG_MAX`, as the server's `sortedFirst` and `sortedLast` | the dialect's tests; DuckDB's answer on the pinned server |
 | K3 | **built 2026-10-24** (§5); its ticking in a browser is K4's page. **A candlestick chart** in DataCube: open, high, low, close and volume by time bucket, drawn again at its grid's tick with its axes held (C2) | DataCube's chart tests; the chart ticking in a browser check |
 | K4 | **the ticker**: a watchlist (last, change, bid/ask, volume, day VWAP, high/low), the tape, time and sales, and a live candle chart for the symbol picked | a browser check of every part ticking; the speeds of §4 measured |
@@ -122,7 +122,8 @@ bucket, K3a's open and close) holds its open and close between its low and high;
 and high; every coin traded by the simulator; the busiest quote ticking -- each a Pure query planned in the tab and
 answered by the server. By hand, the server started with this cloud session's proxy: "the market world's crypto is
 live: Coinbase Exchange" (the server's log). Found on the way: the server's log is kept when it fails to start too
-(a Groovy compile error said why only there); a Groovy decimal is a `BigDecimal` unless written `1.5d`.
+(a Groovy compile error said why only there); a Groovy decimal is a `BigDecimal` unless written `1.5d`. Since DH34 the
+world's tables are the corpus's and its checks are queries over the corpus's classes (§6).
 
 **K3, its first part: a date-time by a period finer than a day (2026-10-24).** DataCube's periods (`TimeGrain`) gain a
 date-time's second, minute, 5, 15 and 30 minutes and hour: its bucket from the epoch, the platform's `timeBucket`
@@ -276,3 +277,29 @@ Not services, with the reason: an exponential moving average and a tick-to-tick 
 `now()`-relative windows (the corpus never reads the clock: a fixed instant here, the live ones on the live tape);
 `joinStrings` per group (its order is the database's).
 
+**The market world publishes the corpus's tables (2026-10-25).** `market.groovy` publishes `EXCHANGE`, `SECTOR`,
+`INSTRUMENT`, `EQUITY`, `MARKET_QUOTE` (each name's latest quote, a blink table's `lastBy('QUOTE_ID')`) and
+`MARKET_TRADE` (the tape) in the corpus's own columns -- every one `30-store.pure` declares, in its order: ids `INST-`,
+`EQ-` and `SEC-` with the sector's GICS code, listings on XNAS and XNYS, a quote carrying its day so far (open, high,
+low, last, volume), a print its sequence, venue, condition (`I` an equity's odd lot) and aggressor (none off the
+exchange) -- and its `world` beside them; `market::Store` and its classes are gone. The page holds the one trading
+model (`//scripts/corpus:trading_model`: the linked projects and every stress file legend-lite's suites load, less
+`StressExclusions`, read from its own source, and the services and test data; 2.27 MB) in the WebAssembly planner once,
+4.4 s, and plans each check as a query over the corpus's classes (`marketdata::MarketTrade`, `products::Instrument`,
+...) through `stress::AllMapping`, on a runtime whose `store::DB` is the market's Deephaven: 5 ms a query after the
+first (68 ms). Measured: `//datacube:deephaven_market_test`, 12 checks, green on the first live run -- the ten before,
+now class queries, and two new: every quote's day consistent (its open and last inside its low and high), and every
+equity's sector and listing reached through the corpus's associations.
+
+Found on the way, fixed: the corpus declared `products::Equity_Instrument` and its join but mapped neither end (now
+`ProductsMapping`'s). The generators then take an equity's instrument as they take any link: deep, grouped, posted and
+tree stacks and a dense stack on `products::Equity`, the deep cap 416 -> 417 so that CustodiedCryptoHolding keeps its
+own (`deepstack.py`, dated); by the generators' own rules `D_CorporateActionDense` now repeats `D_ProductsEquityDense`'s
+paths and `D_MarketTradeDense` falls under five features (its deep chains are taken first by the equity's), so both
+are dropped -- the tape's deep navigation stays in its four deep variants and the TF services -- and the spread
+generator's greedy stops a service sooner (20 of its budget of 90): `SP_defDailyPnLEmpty`'s combinations are closed now
+by the services before it. And a boolean `if` as
+a condition reached Deephaven with no shape (an off-exchange print has no side, any other a buyer's or a seller's):
+now a ternary of the branches' conditions (`DeephavenDialectTest.anIfOfTwoConditionsIsTheConditionOfTheBranchItTakes`).
+Measured: the stress suites on DuckDB (4,808 of 4,836 pass) and H2 (4,779), their failures unchanged (15 and 44), all
+seven equity stacks passing on both; the corpus's gates, its diff tests and the differential green.

@@ -33,6 +33,8 @@ const files = {
   '/market.js': ['text/javascript', readFileSync(runfileFromEnv('MARKET_PAGE'))],
   '/wasm-gc-module-runtime.js': ['text/javascript', readFileSync(runfileNamed('PLANNER', 'wasm-gc-module-runtime.js'))],
   '/classes.wasm': ['application/wasm', readFileSync(runfileNamed('PLANNER', 'classes.wasm'))],
+  // the one trading model (//scripts/corpus:trading_model), which the page holds
+  '/trading-model.pure': ['text/plain; charset=utf-8', readFileSync(runfileFromEnv('TRADING_MODEL'))],
   '/config.json': ['application/json', JSON.stringify({ url: config.url, psk: config.psk, names: NAMES, trades: TRADES })],
 };
 // the page's own origin, not the server's, served for real on the loopback (test/deephaven/deephaven.mjs says why)
@@ -48,7 +50,7 @@ const site = createServer((req, res) => {
 });
 const sitePort = await new Promise((done) => site.listen(0, '127.0.0.1', () => done(site.address().port)));
 
-const CHECKS = 10;
+const CHECKS = 12;
 let failed = false;
 let browser;
 try {

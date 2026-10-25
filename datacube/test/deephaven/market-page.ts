@@ -1,8 +1,10 @@
-// THE MARKET WORLD, CHECKED (//datacube:deephaven_market_test; docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K2, DH28):
-// the page plans each question in Pure on the market's runtime with the WebAssembly planner, sends it straight to the
-// pinned Deephaven running the market world (demo/deephaven/market/market.groovy), and reads the rows as DataCube's
-// engine reads them (followedTable). Its feed points at an address that refuses it, so the world must say so and
-// simulate crypto in its place. Every check runs here; the driver (market.mjs) reports what the page found.
+// THE MARKET WORLD, CHECKED (//datacube:deephaven_market_test; docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K2, DH28,
+// DH34): the page holds the one trading model (the stress corpus's, served beside it) with the WebAssembly planner, plans
+// each question as a query over the corpus's own classes through stress::AllMapping on the market's runtime, sends it
+// straight to the pinned Deephaven running the market world (demo/deephaven/market/market.groovy, which publishes the
+// corpus's tables), and reads the rows as DataCube's engine reads them (followedTable). Its feed points at an address
+// that refuses it, so the world must say so and simulate crypto in its place. Every check runs here; the driver
+// (market.mjs) reports what the page found.
 
 import { DeephavenSession, type DeephavenServer } from '../../../engine-client/src/deephaven.ts';
 import { LiveClient, type Followed, type FollowedRows } from '../../../engine-client/src/deephaven-live.ts';
@@ -21,13 +23,16 @@ interface Outcome {
 const verdict: { outcomes: Outcome[]; setupError?: string; done: boolean } = { outcomes: [], done: false };
 (window as unknown as { __market: typeof verdict }).__market = verdict;
 
-const I = '#>{market::Store.instrument}#';
-const Q = '#>{market::Store.quote}#';
-const T = '#>{market::Store.trade}#';
-const W = '#>{market::Store.world}#';
+// the corpus's classes, each read through stress::AllMapping; the world's own status, a table of its own
+const INSTRUMENT = 'products::Instrument.all()';
+const EQUITY = 'products::Equity.all()';
+const QUOTE = 'marketdata::MarketQuote.all()';
+const TRADE = 'marketdata::MarketTrade.all()';
+const W = '#>{market::World.world}#';
 const RM = 'meta::pure::functions::math::mathUtility::rowMapper';
-const LEFT = 'meta::pure::functions::relation::JoinKind.LEFT';
-const INNER = 'meta::pure::functions::relation::JoinKind.INNER';
+/** A print's columns: its sequence, its name's ticker and id, its time, price and size. */
+const PRINTS = `${TRADE}->project(~[seq:x|$x.sequenceNumber, sym:x|$x.instrument.ticker, inst:x|$x.instrument.instrumentId,`
+  + ' at:x|$x.printTime, px:x|$x.price, sz:x|$x.quantity])';
 
 async function check(name: string, run: () => Promise<string | null>): Promise<void> {
   try {
@@ -47,16 +52,22 @@ try {
     signIn: { type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token: config.psk },
   };
   const at = new URL(config.url);
-  const model = MARKET_MODEL(at.hostname, Number(at.port));
+  const corpus = await (await fetch('trading-model.pure')).text();
+  const model = MARKET_MODEL(corpus, at.hostname, Number(at.port));
   const teavm = await load('classes.wasm', { stackDeobfuscator: { enabled: false } });
   const exports = teavm.exports as {
-    planOrError(model: string, query: string, runtime: string): string;
+    holdModelOrError(model: string): string;
+    planHeldOrError(handle: number, query: string, runtime: string): string;
     deephavenOrError(op: string, args: string): string;
   };
+  // the model compiled once (the whole corpus: measured 4.4 s in WebAssembly), every query planned against it
+  const held = exports.holdModelOrError(model);
+  if (!held.startsWith('OK\n')) throw new Error(`the trading model did not compile: ${held.replace(/\n/g, ' | ')}`);
+  const handle = Number(held.slice(3));
   const session = await DeephavenSession.open(server, async (op, args) => exports.deephavenOrError(op, JSON.stringify(args)));
   const live = await LiveClient.open(server, (why) => { verdict.setupError ??= `the live reader ended: ${why}`; });
   const planned = (query: string): Plan => {
-    const plan = exports.planOrError(model, query, MARKET_RUNTIME);
+    const plan = exports.planHeldOrError(handle, query, MARKET_RUNTIME);
     if (!plan.startsWith('OK\n')) throw new Error(`the planner refused ${query}: ${plan.replace(/\n/g, ' | ')}`);
     const body = JSON.parse(plan.slice(3)) as { sql: string; type: unknown };
     return { sql: body.sql, columns: relationColumns(body.type) };
@@ -108,32 +119,52 @@ try {
       : `crypto: ${JSON.stringify(crypto)}`;
   });
 
-  await check(`every name is an instrument: ${equities} equities and 8 coins, eleven sectors and crypto`, async () => {
-    const kinds = await rows(`${I}->groupBy(~[kind], ~[n:x|$x.sym:y|$y->count()])->sort(~kind->ascending())`);
-    const sectors = await number(`${I}->groupBy(~[], ~[n:x|$x.sector:y|$y->distinct()->count()])`);
-    return JSON.stringify(kinds) === JSON.stringify([['CRYPTO', 8], ['EQUITY', equities]]) && sectors === 12 ? null
-      : `kinds ${JSON.stringify(kinds)}, sectors ${sectors}`;
+  await check(`every name is an instrument: ${equities} equities and 8 coins, in eleven sectors and crypto`, async () => {
+    const kinds = await rows(`${INSTRUMENT}->project(~[kind:x|$x.assetClass, id:x|$x.instrumentId,`
+      + ` sector:x|$x.sector.name])->groupBy(~[kind], ~[n:x|$x.id:y|$y->count(), s:x|$x.sector:y|$y->distinct()->count()])`
+      + `->sort(~kind->ascending())`);
+    return JSON.stringify(kinds) === JSON.stringify([['CRYPTO', 8, 1], ['EQUITY', equities, 11]]) ? null
+      : `kinds and their sectors: ${JSON.stringify(kinds)}`;
   });
 
-  await check('every name is quoted, its bid under its ask by at least its tick', async () => {
-    const quoted = await number(`${Q}->groupBy(~[], ~[n:x|$x.qsym:y|$y->count()])`);
-    const crossed = await number(`${Q}->join(${I}, ${LEFT}, {q, i | $q.qsym == $i.sym})`
-      + `->filter(x|($x.bid <= 0.0) || (($x.ask - $x.bid) < ($x.tick->toOne() - 0.0000001)))`
-      + `->groupBy(~[], ~[n:x|$x.qsym:y|$y->count()])`);
-    return quoted === equities + 8 && crossed === 0 ? null : `${quoted} quoted, ${crossed} crossed or under a tick`;
-  });
-
-  await check('every trade is a known name\'s, at a positive price, an aggressor\'s side, a size', async () => {
-    // one query, so the trades counted are the trades checked: all of them, and those of no instrument or ill formed
-    const [counted] = await rows(`${T}->join(${I}, ${LEFT}, {t, i | $t.tsym == $i.sym})`
-      + `->extend(~[bad:x|$x.sym->isEmpty() || ($x.px <= 0.0) || ($x.sz <= 0.0) || !$x.side->in(['B', 'S'])])`
-      + `->groupBy(~[], ~[all:x|$x.seq:y|$y->count(), bad:x|if($x.bad, |1, |[]):y|$y->count()])`);
+  await check('every equity has its company, its sector and its listing, through the corpus\'s associations', async () => {
+    const [counted] = await rows(`${EQUITY}->project(~[t:x|$x.ticker, cap:x|$x.marketCap, sector:x|$x.instrument.sector.name,`
+      + ` venue:x|$x.instrument.exchange.name])->extend(~[bad:x|$x.sector->isEmpty() || $x.venue->isEmpty()`
+      + ` || ($x.cap <= 0.0)])->groupBy(~[], ~[all:x|$x.t:y|$y->count(), bad:x|if($x.bad, |1, |[]):y|$y->count()])`);
     const [all, bad] = [Number(counted?.[0]), Number(counted?.[1])];
-    return all > 0 && bad === 0 ? null : `${bad} of ${all} trades are ill formed`;
+    return all === equities && bad === 0 ? null : `${bad} of ${all} equities miss their sector, listing or capitalisation`;
   });
 
-  await check(`trades print at the world's pace: about ${config.trades} a second`, async () => {
-    const count = `${T}->groupBy(~[], ~[n:x|$x.seq:y|$y->count()])`;
+  await check('every name is quoted, its bid under its ask', async () => {
+    const quoted = await number(`${QUOTE}->project(~[id:x|$x.quoteId])->groupBy(~[], ~[n:x|$x.id:y|$y->count()])`);
+    const crossed = await number(`${QUOTE}->filter(x|($x.bid <= 0.0) || ($x.ask <= $x.bid))->project(~[id:x|$x.quoteId])`
+      + `->groupBy(~[], ~[n:x|$x.id:y|$y->count()])`);
+    return quoted === equities + 8 && crossed === 0 ? null : `${quoted} quoted, ${crossed} crossed`;
+  });
+
+  await check('a quote carries the day so far: its last inside its low and high, its open too', async () => {
+    const [counted] = await rows(`${QUOTE}->filter(x|$x.last->isNotEmpty())->project(~[id:x|$x.quoteId,`
+      + ` o:x|$x.openPrice->toOne(), h:x|$x.highPrice->toOne(), l:x|$x.lowPrice->toOne(), c:x|$x.last->toOne(),`
+      + ` v:x|$x.volume->toOne()])->extend(~[bad:x|($x.c < $x.l) || ($x.c > $x.h) || ($x.o < $x.l) || ($x.o > $x.h)`
+      + ` || ($x.v <= 0.0)])->groupBy(~[], ~[all:x|$x.id:y|$y->count(), bad:x|if($x.bad, |1, |[]):y|$y->count()])`);
+    const [all, bad] = [Number(counted?.[0]), Number(counted?.[1])];
+    return all > 0 && bad === 0 ? null : `${bad} of ${all} quotes with a day outside its range`;
+  });
+
+  await check('every print is a known name\'s, at a positive price and size, an aggressor\'s side but off-exchange',
+    async () => {
+      // one query, so the prints counted are the prints checked: all of them, and those of no instrument or ill formed
+      const [counted] = await rows(`${TRADE}->project(~[seq:x|$x.sequenceNumber, inst:x|$x.instrument.instrumentId,`
+        + ` px:x|$x.price, sz:x|$x.quantity, side:x|$x.aggressorSide, off:x|$x.isOffExchange])`
+        + `->extend(~[bad:x|$x.inst->isEmpty() || ($x.px <= 0.0) || ($x.sz <= 0.0)`
+        + ` || if($x.off, |$x.side->isNotEmpty(), |!$x.side->in(['B', 'S']))])`
+        + `->groupBy(~[], ~[all:x|$x.seq:y|$y->count(), bad:x|if($x.bad, |1, |[]):y|$y->count()])`);
+      const [all, bad] = [Number(counted?.[0]), Number(counted?.[1])];
+      return all > 0 && bad === 0 ? null : `${bad} of ${all} prints are ill formed`;
+    });
+
+  await check(`prints reach the tape at the world's pace: about ${config.trades} a second`, async () => {
+    const count = `${TRADE}->project(~[seq:x|$x.sequenceNumber])->groupBy(~[], ~[n:x|$x.seq:y|$y->count()])`;
     const t0 = Date.now();
     const a = await number(count);
     await sleep(5000);
@@ -145,53 +176,53 @@ try {
   });
 
   await check('a minute\'s candles hold their open and close between their low and high', async () => {
-    const candles = `${T}->extend(~[bar:x|$x.ts->timeBucket(1, DurationUnit.MINUTES)])`
-      + `->groupBy(~[tsym, bar], ~[o:x|${RM}($x.px, $x.seq):y|$y->minBy(), hi:x|$x.px:y|$y->max(),`
+    const candles = `${PRINTS}->extend(~[bar:x|$x.at->timeBucket(1, DurationUnit.MINUTES)])`
+      + `->groupBy(~[sym, bar], ~[o:x|${RM}($x.px, $x.seq):y|$y->minBy(), hi:x|$x.px:y|$y->max(),`
       + ` lo:x|$x.px:y|$y->min(), c:x|${RM}($x.px, $x.seq):y|$y->maxBy(), v:x|$x.sz:y|$y->sum()])`;
-    const n = await number(`${candles}->groupBy(~[], ~[n:x|$x.tsym:y|$y->count()])`);
+    const n = await number(`${candles}->groupBy(~[], ~[n:x|$x.sym:y|$y->count()])`);
     const outside = await number(`${candles}->filter(x|($x.o < $x.lo) || ($x.o > $x.hi) || ($x.c < $x.lo)`
-      + ` || ($x.c > $x.hi) || ($x.v <= 0.0))->groupBy(~[], ~[n:x|$x.tsym:y|$y->count()])`);
+      + ` || ($x.c > $x.hi) || ($x.v <= 0.0))->groupBy(~[], ~[n:x|$x.sym:y|$y->count()])`);
     return n > 0 && outside === 0 ? null : `${n} candles, ${outside} with an open or close outside them`;
   });
 
   await check('a name\'s day so far: its VWAP between its low and its high', async () => {
-    const day = `${T}->groupBy(~[tsym], ~[pv:x|$x.px * $x.sz:y|$y->sum(), v:x|$x.sz:y|$y->sum(),`
+    const day = `${PRINTS}->groupBy(~[sym], ~[pv:x|$x.px * $x.sz:y|$y->sum(), v:x|$x.sz:y|$y->sum(),`
       + ` hi:x|$x.px:y|$y->max(), lo:x|$x.px:y|$y->min()])->extend(~[vwap:x|$x.pv / $x.v])`;
-    const names = await number(`${day}->groupBy(~[], ~[n:x|$x.tsym:y|$y->count()])`);
+    const names = await number(`${day}->groupBy(~[], ~[n:x|$x.sym:y|$y->count()])`);
     // a group's least and greatest are Pure's [0..1]: their arithmetic takes their one
     const off = await number(`${day}->filter(x|($x.vwap < ($x.lo->toOne() - 0.000001))`
       + ` || ($x.vwap > ($x.hi->toOne() + 0.000001)))`
-      + `->groupBy(~[], ~[n:x|$x.tsym:y|$y->count()])`);
+      + `->groupBy(~[], ~[n:x|$x.sym:y|$y->count()])`);
     return names > 0 && off === 0 ? null : `${names} names traded, ${off} with a VWAP outside their range`;
   });
 
   await check('windows over the tape (K6): a running VWAP inside its running range, a previous print for all but the'
     + ' first of each name', async () => {
     // one query, so the prints windowed are the prints counted; a running low and high are Pure's [0..1]
-    const [counted] = await rows(`${T}->extend(over(~tsym, ~seq->ascending(), rows(unbounded(), 0)),`
+    const [counted] = await rows(`${PRINTS}->extend(over(~sym, ~seq->ascending(), rows(unbounded(), 0)),`
       + ` ~[pv:{p,w,r|$r.px * $r.sz}:y|$y->plus(), v:{p,w,r|$r.sz}:y|$y->plus(), hi:{p,w,r|$r.px}:y|$y->max(),`
-      + ` lo:{p,w,r|$r.px}:y|$y->min()])->extend(over(~tsym, ~seq->ascending()), ~prev:{p,w,r|$p->lag($r).px})`
+      + ` lo:{p,w,r|$r.px}:y|$y->min()])->extend(over(~sym, ~seq->ascending()), ~prev:{p,w,r|$p->lag($r).px})`
       + `->extend(~[off:x|(($x.pv / $x.v) < ($x.lo->toOne() - 0.000001)) || (($x.pv / $x.v) > ($x.hi->toOne() + 0.000001))])`
       + `->groupBy(~[], ~[all:x|$x.seq:y|$y->count(), off:x|if($x.off, |1, |[]):y|$y->count(),`
-      + ` firsts:x|if($x.prev->isEmpty(), |1, |[]):y|$y->count(), names:x|$x.tsym:y|$y->distinct()->count()])`);
+      + ` firsts:x|if($x.prev->isEmpty(), |1, |[]):y|$y->count(), names:x|$x.sym:y|$y->distinct()->count()])`);
     const [all = 0, off = 0, firsts = 0, names = 0] = (counted ?? []).map(Number);
     return all > 0 && off === 0 && firsts === names ? null
       : `${all} prints: ${off} with a VWAP outside their range, ${firsts} with no previous print for ${names} names`;
   });
 
   await check('crypto ticks, simulated, with its feed refused: every coin traded, each print the simulator\'s', async () => {
-    const coins = await rows(`${T}->join(${I}, ${INNER}, {t, i | $t.tsym == $i.sym})->filter(x|$x.kind == 'CRYPTO')`
-      + `->groupBy(~[venue], ~[n:x|$x.tsym:y|$y->distinct()->count()])`);
+    const coins = await rows(`${TRADE}->filter(x|$x.instrument.assetClass == 'CRYPTO')->project(~[venue:x|$x.venue,`
+      + ` inst:x|$x.instrument.instrumentId])->groupBy(~[venue], ~[n:x|$x.inst:y|$y->distinct()->count()])`);
     return JSON.stringify(coins) === JSON.stringify([['SIM', 8]]) ? null : `the coins' prints by venue: ${JSON.stringify(coins)}`;
   });
 
-  await check('a quote ticks: the busiest name\'s moves several times in two seconds', async () => {
-    const busiest = String((await rows(`${I}->filter(x|$x.kind == 'EQUITY')->sort(~shares->descending())->limit(1)`
-      + `->select(~[sym])`))[0]?.[0]);
+  await check('a quote ticks: the largest name\'s moves several times in two seconds', async () => {
+    const largest = String((await rows(`${EQUITY}->project(~[t:x|$x.ticker, cap:x|$x.marketCap])`
+      + `->sort(~cap->descending())->limit(1)->select(~[t])`))[0]?.[0]);
     const seen = new Set<string>();
-    await rows(`${Q}->filter(x|$x.qsym == '${busiest}')->select(~[bid, ask, bidSize, askSize])`, 2000,
-      (now) => seen.add(JSON.stringify(now)));
-    return seen.size >= 3 ? null : `${busiest}'s quote seen ${seen.size} ways in two seconds`;
+    await rows(`${QUOTE}->filter(x|$x.instrument.ticker == '${largest}')->project(~[bid:x|$x.bid, ask:x|$x.ask,`
+      + ` bsz:x|$x.bidSize, asz:x|$x.askSize])`, 2000, (now) => seen.add(JSON.stringify(now)));
+    return seen.size >= 3 ? null : `${largest}'s quote seen ${seen.size} ways in two seconds`;
   });
 
   live.close();

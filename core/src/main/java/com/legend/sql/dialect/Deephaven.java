@@ -376,9 +376,26 @@ public final class Deephaven extends AnsiSqlRenderer {
             case SqlExpr.NullLit n -> writer.append("false");
             case SqlExpr.Column c -> booleanColumn(writer, column(c), nullable(c), holds);
             case SqlExpr.Call c -> conditionCall(writer, c, holds);
+            case SqlExpr.Case c -> caseCondition(writer, c, holds);
             default -> throw new DialectCapability("a condition of shape " + e.getClass().getSimpleName()
                     + " reached Deephaven: no shape yet");
         };
+    }
+
+    /** A boolean CASE as a condition (Pure's {@code if} of two conditions): TRUE when the branch it takes is TRUE,
+     *  FALSE likewise; no ELSE takes a null, which is neither. */
+    private SqlWriter caseCondition(SqlWriter writer, SqlExpr.Case c, boolean holds) {
+        writer.append("(");
+        for (SqlExpr.Case.When w : c.whens()) {
+            truth(writer, w.condition()).append(" ? ");
+            condition(writer, w.then(), holds).append(" : ");
+        }
+        if (c.otherwise() == null) {
+            writer.append("false");
+        } else {
+            condition(writer, c.otherwise(), holds);
+        }
+        return writer.append(")");
     }
 
     private static SqlWriter booleanColumn(SqlWriter writer, String name, boolean nullable, boolean holds) {

@@ -132,6 +132,18 @@ class DeephavenDialectTest {
         assertTrue(or.contains("\"filters\": [\"(") && or.contains(" || "), or);
     }
 
+    @Test
+    void anIfOfTwoConditionsIsTheConditionOfTheBranchItTakes() {
+        // a print off the exchange has no side; one on it a buyer's or a seller's: TRUE when the branch taken is TRUE,
+        // FALSE (its negation, which keeps what the branch's FALSE keeps) likewise
+        filters("if($x.year > 2020, |$x.region->isNotEmpty(), |$x.region->in(['B', 'S']))",
+                "\"((!isNull(t0__year) && (!isNull(t0__year) && t0__year > 2020L)) ? !isNull(t0__region) :"
+                        + " (!isNull(t0__region) && (t0__region == `B` || t0__region == `S`)))\"");
+        filters("!if($x.year > 2020, |$x.region->isNotEmpty(), |$x.region->in(['B', 'S']))",
+                "\"((!isNull(t0__year) && (!isNull(t0__year) && t0__year > 2020L)) ? isNull(t0__region) :"
+                        + " !(!isNull(t0__region) && (t0__region == `B` || t0__region == `S`)))\"");
+    }
+
     /** {@code condition}'s filter list is {@code expected}. */
     private static void filters(String condition, String expected) {
         filters("#>{risk::Ref.trades}#", condition, expected);

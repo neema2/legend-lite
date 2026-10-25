@@ -220,6 +220,40 @@ run_binary(
     visibility = ["//core:__pkg__"],
 )
 
+# THE ONE TRADING MODEL AS ONE TEXT (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md DH34): what the trader pages hold to
+# plan the corpus's classes through stress::AllMapping -- the linked projects and the committed stress files (the
+# generated ones included: their runtimes), in StressCorpus's order, without legend-lite's exclusions, the services or
+# the test data.
+py_binary(
+    name = "trading_model_tool",
+    srcs = ["trading_model.py"],
+    main = "trading_model.py",
+)
+
+run_binary(
+    name = "trading_model",
+    srcs = [
+        "//core:src/test/java/com/legend/integration/StressExclusions.java",
+        "//core:src/test/resources/com/legend/integration/stress-layout.json",
+        "//core:stress_files",
+    ] + _LINKED,
+    outs = ["trading-model.pure"],
+    args = [
+        "--out",
+        "$(execpath trading-model.pure)",
+        "--exclusions",
+        "$(execpath //core:src/test/java/com/legend/integration/StressExclusions.java)",
+        "--inputs",
+        "$(execpaths //core:stress_files)",
+    ] + ["$(execpaths %s)" % p for p in _LINKED],
+    env = {
+        "STRESS_LAYOUT": "$(execpath //core:src/test/resources/com/legend/integration/stress-layout.json)",
+        "PYTHONUTF8": "1",
+    },
+    tool = ":trading_model_tool",
+    visibility = ["//datacube:__pkg__"],
+)
+
 # THE CORPUS RATCHETS (Bazel workplan P2-04): each `--gate` of the corpus's own measures as a test, over the
 # committed corpus (every stress file, the linked projects, the queries). Each ratchet constant stays a hand-owned,
 # dated pin in its script (density.py MAX_PLAIN_RATIO/MAX_ABSENT, executed.py's baseline, stacking.py

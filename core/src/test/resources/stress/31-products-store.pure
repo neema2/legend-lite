@@ -43,6 +43,14 @@ Mapping products::ProductsMapping
         ~mainTable [store::DB] ETF
         etfId: [store::DB] ETF.ETF_ID, ticker: [store::DB] ETF.TICKER, fundName: [store::DB] ETF.FUND_NAME, assetClass: [store::DB] ETF.ASSET_CLASS, expenseRatio: [store::DB] ETF.EXPENSE_RATIO, totalAssets: [store::DB] ETF.TOTAL_ASSETS, nav: [store::DB] ETF.NAV, navDate: [store::DB] ETF.NAV_DATE, trackingError: [store::DB] ETF.TRACKING_ERROR, indexName: [store::DB] ETF.INDEX_NAME, isLeveraged: [store::DB] ETF.IS_LEVERAGED, leverageMultiple: [store::DB] ETF.LEVERAGE_MULTIPLE, dividendFrequency: [store::DB] ETF.DIVIDEND_FREQUENCY
     }
+    // An equity's instrument: its sector and its listing (the market world's screens, DH34, 2026-10-25). The
+    // association and its join were declared; nothing mapped them.
+    products::Equity_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @Equity_Instrument,
+            equity: [store::DB] @Equity_Instrument
+        )
+    }
     products::Option_Underlying: Relational {
         AssociationMapping (
             underlying: [store::DB] @Option_Underlying,

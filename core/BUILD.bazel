@@ -1475,9 +1475,13 @@ stress_layout(
     visibility = ["//scripts/corpus:__pkg__"],
 )
 
-# the committed layout (core/stress.bzl as JSON), read by the corpus generators
+# the committed layout (core/stress.bzl as JSON), read by the corpus generators; and the files legend-lite builds no
+# model from, which //scripts/corpus:trading_model leaves out as StressCorpus does
 exports_files(
-    ["src/test/resources/com/legend/integration/stress-layout.json"],
+    [
+        "src/test/java/com/legend/integration/StressExclusions.java",
+        "src/test/resources/com/legend/integration/stress-layout.json",
+    ],
     visibility = ["//scripts/corpus:__pkg__"],
 )
 

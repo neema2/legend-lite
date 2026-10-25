@@ -2182,12 +2182,14 @@ browser_test(
         ":deephaven_market_fixture_executable",
         ":deephaven_market_page",
         ":node_modules/playwright",
+        "//scripts/corpus:trading_model",
         "//wasm:planner",
     ],
     entry_point = "test/deephaven/market.mjs",
     env = {
         "MARKET_FIXTURE": "$(rlocationpath :deephaven_market_fixture_executable)",
         "MARKET_PAGE": "$(rlocationpath :deephaven_market_page)",
+        "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
         "PLANNER": "$(rlocationpaths //wasm:planner)",
     },
 )
