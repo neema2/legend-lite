@@ -107,6 +107,12 @@ final class IqWindows {
         return SqlTranslationException.invalid(message + code(sqlcode, sqlstate), pos);
     }
 
+    /** Whether {@code e} holds a COUNT(*) outside its subqueries. */
+    private static boolean countsRows(SqlAst.Expr e) {
+        return e instanceof SqlAst.FunctionCall f && f.star()
+                || IqDialect.children(e).stream().anyMatch(IqWindows::countsRows);
+    }
+
     // ------------------------------------------------------------------ the tree
 
     /** What a window call reads: its arguments, its window's keys and its frame's offsets (not its call: a windowed
@@ -350,6 +356,13 @@ final class IqWindows {
             iqOnly(f, upper, engine, settings);
             if (f.args().isEmpty() || f.args().size() > 3) {
                 throw wrongArguments(f);
+            }
+            if (iqEngine && countsRows(f.args().get(0))) {
+                // the IQ scale program, 2026-10-25 (the census, and the live IQ's probes, measured on IQ 17.1): a
+                // COUNT(*) anywhere in the first argument is refused -- LAG(COUNT(*)), LAG(COUNT(*) + 0), LEAD(COUNT(*),
+                // 1, 0) -- while LAG(COUNT(id)), LAG(SUM(v)) and LAG(MAX(v)) are answered
+                throw iq("the first argument of LAG and LEAD is a column or a value expression, not one over COUNT(*)",
+                        -1005028, "QTA28", f.args().get(0).pos());
             }
             ordered(f, upper, spec);
             if (framed) {

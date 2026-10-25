@@ -1040,8 +1040,7 @@ public final class IqParity {
         }
         if (!s.groupBy().isEmpty()) {
             for (SqlAst.Expr g : s.groupBy()) {
-                String k = resolve(g, s, sources, true);
-                if (k == null || !keys.contains(k)) {
+                if (!covered(resolve(g, s, sources, true), keys, sources)) {
                     return "orders a grouped query by fewer than its GROUP BY keys";
                 }
             }
@@ -1050,10 +1049,7 @@ public final class IqParity {
         boolean[] reached = new boolean[sources.size()];
         for (int i = 0; i < sources.size(); i++) {
             Source src = sources.get(i);
-            reached[i] = src.oneRow();
-            for (String u : src.unique()) {
-                reached[i] |= keys.contains(i + "." + u);
-            }
+            reached[i] = src.oneRow() || src.reachedBy(i, keys);
         }
         List<SqlAst.Expr> equalities = new ArrayList<>();
         if (s.where() != null) {
@@ -1144,8 +1140,7 @@ public final class IqParity {
                 }
             }
             for (SqlAst.Expr g : groupKeys) {
-                String k = resolve(g, s, sources, true);
-                if (k == null || !keys.contains(k)) {
+                if (!covered(resolve(g, s, sources, true), keys, sources)) {
                     return at + " orders a grouped query by fewer than its GROUP BY keys";
                 }
             }
@@ -1170,10 +1165,7 @@ public final class IqParity {
         boolean[] reached = new boolean[sources.size()];
         for (int i = 0; i < sources.size(); i++) {
             Source src = sources.get(i);
-            reached[i] = src.oneRow();
-            for (String u : src.unique()) {
-                reached[i] |= keys.contains(i + "." + u);
-            }
+            reached[i] = src.oneRow() || src.reachedBy(i, keys);
         }
         List<SqlAst.Expr> equalities = new ArrayList<>();
         if (s.where() != null) {
@@ -1223,11 +1215,35 @@ public final class IqParity {
         return n;
     }
 
+    /** Whether the GROUP BY key {@code k} is ordered by {@code keys}: read there, or a column of a source whose unique
+     *  column they read, which determines it in its group (the IQ scale program, 2026-10-25: GROUP BY p.category,
+     *  p.name, p.id ordered by p.id). */
+    private static boolean covered(@com.legend.base.Nullable String k, List<String> keys, List<Source> sources) {
+        if (k == null) {
+            return false;
+        }
+        if (keys.contains(k)) {
+            return true;
+        }
+        if (!columnKey(k)) {
+            return false;
+        }
+        int dot = k.indexOf('.');
+        int i = Integer.parseInt(k.substring(0, dot));
+        return i < sources.size() && !sources.get(i).unique().isEmpty() && sources.get(i).reachedBy(i, keys);
+    }
+
+    /** Whether {@code k} is a resolved column's key, {@code <source index>.<column>} ({@link #resolve}), not an
+     *  expression's or an item's. */
+    private static boolean columnKey(@com.legend.base.Nullable String k) {
+        return k != null && k.matches("[0-9]+\\.[^ ]+");
+    }
+
     /** Marks {@code unique}'s source ordered where it is a unique column of a source not yet ordered, and
      *  {@code other} a column of another, ordered source; whether it did. */
     private static boolean determines(@com.legend.base.Nullable String unique, @com.legend.base.Nullable String other,
             List<Source> sources, boolean[] reached) {
-        if (unique == null || other == null || !unique.contains(".") || !other.contains(".")) {
+        if (!columnKey(unique) || !columnKey(other)) {
             return false;
         }
         int i = Integer.parseInt(unique.substring(0, unique.indexOf('.')));
@@ -1264,7 +1280,24 @@ public final class IqParity {
     /** A FROM item as the lint knows it: its label, the name that qualifies its columns (lower case), its columns
      *  (null when not known), those unique in its rows, and whether it has at most one row. */
     private record Source(String label, String qualifier, @com.legend.base.Nullable List<String> columns,
-            Set<String> unique, boolean oneRow) {
+            Set<String> unique, boolean oneRow, Set<String> composite) {
+
+        /** A source of no composite key: its unique columns each alone. */
+        Source(String label, String qualifier, @com.legend.base.Nullable List<String> columns, Set<String> unique,
+                boolean oneRow) {
+            this(label, qualifier, columns, unique, oneRow, Set.of());
+        }
+
+        /** Whether {@code keys} (resolved keys, {@code <index>.<column>}) reach a unique column of this source, the
+         *  {@code index}th, or all its composite key's columns. */
+        boolean reachedBy(int index, List<String> keys) {
+            for (String u : unique) {
+                if (keys.contains(index + "." + u)) {
+                    return true;
+                }
+            }
+            return !composite.isEmpty() && composite.stream().allMatch(c -> keys.contains(index + "." + c));
+        }
     }
 
     private static List<Source> sources(SqlAst.Select s, Map<String, SqlParity.Table> tables) {
@@ -1318,10 +1351,42 @@ public final class IqParity {
                         unique.add(name);
                     }
                 }
-                return new Source("the derived table " + q, q, names, unique, oneRow(d.query(), tables));
+                return new Source("the derived table " + q, q, names, unique, oneRow(d.query(), tables),
+                        groupKeyOutputs(d.query(), outputs, names, tables));
             }
             case SqlAst.Join j -> throw new IllegalStateException("a join is no FROM leaf");
         }
+    }
+
+    /** The output names of a grouped query {@code q} that show all its GROUP BY keys (together unique in its rows:
+     *  the IQ scale program, 2026-10-25, a derived table of GROUP BY yr, qtr ordered by both); none where a key is not
+     *  shown or is a ROLLUP's or a CUBE's. */
+    private static Set<String> groupKeyOutputs(SqlAst.Statement q, List<Output> outputs, List<String> names,
+            Map<String, SqlParity.Table> tables) {
+        if (!(q instanceof SqlAst.Select s) || s.groupBy().size() < 2) {
+            return Set.of();
+        }
+        List<Source> inner = sources(s, tables);
+        Set<String> shown = new java.util.HashSet<>();
+        for (SqlAst.Expr g : s.groupBy()) {
+            if (g instanceof SqlAst.FunctionCall f && f.name().size() == 1 && Set.of("rollup", "cube", "grouping sets")
+                    .contains(f.name().get(0).text().toLowerCase(Locale.ROOT))) {
+                return Set.of();
+            }
+            String k = resolve(g, s, inner, true);
+            int at = -1;
+            for (int i = 0; i < outputs.size() && k != null; i++) {
+                if (k.equals(outputs.get(i).key()) && !names.get(i).isEmpty()) {
+                    at = i;
+                    break;
+                }
+            }
+            if (at < 0) {
+                return Set.of();
+            }
+            shown.add(names.get(at));
+        }
+        return Set.copyOf(shown);
     }
 
     /** A schema table's source: its columns, and {@link #KEY} unique where its rows hold it once each. */
@@ -1347,7 +1412,7 @@ public final class IqParity {
     }
 
     /** A query's output column: its name (lower case; null for none) and whether no two of its rows have one value. */
-    private record Output(@com.legend.base.Nullable String name, boolean unique) {
+    private record Output(@com.legend.base.Nullable String name, boolean unique, @com.legend.base.Nullable String key) {
     }
 
     /** {@code q}'s output columns, in order; null where a {@code *} reads a source whose columns are not known. */
@@ -1359,7 +1424,7 @@ public final class IqParity {
                 return null;
             }
             boolean single = left.size() == 1 && !o.all();
-            return left.stream().map(x -> new Output(x.name(), single)).toList();
+            return left.stream().map(x -> new Output(x.name(), single, null)).toList();
         }
         SqlAst.Select s = (SqlAst.Select) q;
         List<Source> sources = sources(s, tables);
@@ -1387,7 +1452,7 @@ public final class IqParity {
                     }
                     for (String col : java.util.Objects.requireNonNull(src.columns())) {
                         out.add(new Output(col, one || s.groupBy().isEmpty() && !s.distinct() && multi <= 1
-                                && src.unique().contains(col)));
+                                && src.unique().contains(col), null));
                     }
                 }
                 continue;
@@ -1401,16 +1466,20 @@ public final class IqParity {
             if (one) {
                 unique = true;
             } else if (!s.groupBy().isEmpty()) {
-                unique = group.size() == 1 && k != null && k.equals(group.get(0));
+                // a GROUP BY key alone, or a key that is a unique column of its source (the IQ scale program,
+                // 2026-10-25: GROUP BY p.id, p.name has one row for each p.id)
+                int dot = !columnKey(k) ? -1 : java.util.Objects.requireNonNull(k).indexOf('.');
+                unique = k != null && group.size() == 1 && k.equals(group.get(0)) || dot > 0 && group.contains(k)
+                        && sources.get(Integer.parseInt(k.substring(0, dot))).unique().contains(k.substring(dot + 1));
             } else if (s.distinct()) {
                 unique = s.items().size() == 1;
             } else {
-                int dot = k == null ? -1 : k.indexOf('.');
+                int dot = !columnKey(k) ? -1 : java.util.Objects.requireNonNull(k).indexOf('.');
                 unique = dot > 0 && multi <= 1 && sources.get(Integer.parseInt(k.substring(0, dot))).unique()
                         .contains(k.substring(dot + 1)) && !sources.get(Integer.parseInt(k.substring(0, dot)))
                         .oneRow();
             }
-            out.add(new Output(name, unique));
+            out.add(new Output(name, unique, k));
         }
         return out;
     }
@@ -1453,7 +1522,7 @@ public final class IqParity {
                     ? itemKey(x, i, s, sources) : null;
         }
         if (!(e instanceof SqlAst.ColumnRef r)) {
-            return null;
+            return exprKey(e, s, sources);
         }
         List<String> parts = r.parts().stream().map(p -> p.text().toLowerCase(Locale.ROOT)).toList();
         String column = parts.get(parts.size() - 1);
@@ -1481,10 +1550,50 @@ public final class IqParity {
         return found < 0 ? null : found + "." + column;
     }
 
-    /** The key a select item reads ({@link #resolve}): its column's, else the item's own. */
+    /** The key a select item reads ({@link #resolve}): its column's or its expression's, else the item's own. */
     private static String itemKey(SqlAst.SelectExpr x, int i, SqlAst.Select s, List<Source> sources) {
         String k = resolve(x.expr(), s, sources, false);
         return k != null ? k : "item " + i;
+    }
+
+    /**
+     * A key for an expression that is no column (the IQ scale program, 2026-10-25: GROUP BY YEAR(o.order_ts) and a
+     * window's PARTITION BY YEAR(o.order_ts) are one key): its structure, positions aside, each column in it resolved
+     * ({@link #resolve}); null for a form not read here, an aggregate, a subquery, or a column not resolved.
+     */
+    private static @com.legend.base.Nullable String exprKey(SqlAst.Expr e, SqlAst.Select s, List<Source> sources) {
+        return switch (e) {
+            case SqlAst.ColumnRef r -> resolve(r, s, sources, false);
+            case SqlAst.IntegerLit n -> "int " + n.value();
+            case SqlAst.NumericLit n -> "num " + n.value().toPlainString();
+            case SqlAst.StringLit t -> "str '" + t.value() + "'";
+            case SqlAst.FunctionCall f when !aggregated(f) && f.filter() == null && f.orderBy().isEmpty() -> {
+                StringBuilder b = new StringBuilder("fn ").append(f.name().get(f.name().size() - 1).text()
+                        .toLowerCase(Locale.ROOT)).append('(');
+                for (SqlAst.Expr a : f.args()) {
+                    String k = exprKey(a, s, sources);
+                    if (k == null) {
+                        yield null;
+                    }
+                    b.append(k).append(';');
+                }
+                yield b.append(')').toString();
+            }
+            case SqlAst.Binary b -> {
+                String l = exprKey(b.left(), s, sources);
+                String r = exprKey(b.right(), s, sources);
+                yield l == null || r == null ? null : "(" + l + " " + b.op() + " " + r + ")";
+            }
+            case SqlAst.Unary u -> {
+                String k = exprKey(u.operand(), s, sources);
+                yield k == null ? null : u.op() + "(" + k + ")";
+            }
+            case SqlAst.Cast c -> {
+                String k = exprKey(c.operand(), s, sources);
+                yield k == null ? null : "cast(" + k + " as " + c.type().name().toLowerCase(Locale.ROOT) + ")";
+            }
+            default -> null;
+        };
     }
 
     /** A query's clauses' expressions: its items', WHERE's, GROUP BY's, HAVING's, ORDER BY's and its joins' ON

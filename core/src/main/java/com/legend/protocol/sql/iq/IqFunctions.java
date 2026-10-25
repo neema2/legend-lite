@@ -5320,7 +5320,9 @@ final class IqFunctions {
     }
 
     /** A number argument as a DOUBLE: an integer converted, a NUMERIC of at most 15 digits converted (exact in every
-     *  database, as SQL Anywhere's conversion is), a DOUBLE itself, a NULL. */
+     *  database, as SQL Anywhere's conversion is) or a whole one of at most 18 (a 64-bit integer, which every database
+     *  rounds to its nearest DOUBLE; the IQ scale program, 2026-10-25: CAST(SUM(b) AS FLOAT), a BIT's sum a
+     *  NUMERIC(18,0)), a DOUBLE itself, a NULL. */
     private Tx asDouble(Tx x, SqlAst.Expr e, String fn) {
         if (isNull(x)) {
             return Tx.value(SqlToPure.nullOf(Kind.FLOAT).vs(), Kind.FLOAT, true, new IqType("DOUBLE"));
@@ -5331,7 +5333,7 @@ final class IqFunctions {
         }
         if (decimal(x)) {
             int[] ps = scaleOf(x, e, fn);
-            if (ps[0] > 15) {
+            if (ps[0] > 15 && !(ps[1] == 0 && ps[0] <= 18)) {
                 throw SqlTranslationException.unsupported(fn + " of a NUMERIC of more than 15 digits is not supported"
                         + " yet: its DOUBLE may round otherwise in lite's databases", e.pos());
             }
