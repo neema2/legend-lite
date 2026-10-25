@@ -331,6 +331,12 @@ export interface CubeAppBaseOptions {
    * it alone -- a reader of its engine, a table on a server (docs/DEEPHAVEN_PLAN_2026_10_22.md B2) -- let go with it.
    */
   readonly onDispose?: () => void;
+  /**
+   * ITS FIRST VIEW WAITS FOR THIS (a host's live grid no sheet shown shows: the trading desk's ten tabs, each tab's grids
+   * read when it is first shown -- docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md): `open` resolves at once, and the grid
+   * reads its rows once this does. Absent: it reads them as it opens.
+   */
+  readonly opensWhen?: Promise<void>;
   /** A grid on a page of its own: the page around it for its export (its charts, this grid as the table). */
   readonly exportPage?: () => ExportPage | undefined;
   /** A grid made on a page whose bar is folded: its title bar setting starts hidden, as the page's other grids say. */
@@ -1069,6 +1075,12 @@ export class CubeApp {
 
   /** Run the cube and show it: the first query. Not an undo step. */
   async open(): Promise<void> {
+    const when = this.#options.opensWhen;
+    if (when !== undefined) {
+      // opened now, its rows read when its host says (a sheet showing it shown): the page waits for none of it
+      void when.then(() => { if (!this.#disposed) void this.#owner.refresh(); });
+      return;
+    }
     await this.#owner.refresh();
   }
 

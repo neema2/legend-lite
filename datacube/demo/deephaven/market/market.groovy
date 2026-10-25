@@ -213,6 +213,9 @@ class MorningRows {
     String[] condition
     Boolean[] off
     String[] instrument
+    /** Each print stands for several (a thinned morning: Simulator.morning): its condition the tape's B, a bunched
+     *  trade -- the aggregate of regular trades the SIP reports under it -- never a single print of that size. */
+    boolean bunched = false
 
     MorningRows(int capacity) {
         grow(capacity)
@@ -242,7 +245,7 @@ class MorningRows {
         sz[i] = size
         side[i] = aggressor < 0 ? null : (aggressor == 1 ? 'B' : 'S')
         venue[i] = Simulator.VENUES[venueAt]
-        condition[i] = size < 100d ? 'I' : '@'
+        condition[i] = size < 100d ? 'I' : bunched ? 'B' : '@'
         off[i] = aggressor < 0
         instrument[i] = n.instrumentId
     }
@@ -348,12 +351,13 @@ class Simulator {
      * market's, its sector's, its own, a rare jump), its quote moved where the price leaves it (never published: a
      * quote is the latest), its prints at the day's pace, busiest at the open (the first half of an intraday U). The
      * tape keeps a `thin` share of them, each that much larger, so a minute's volume is a minute's at any thinning and
-     * the morning's rows are bounded. Each second's prints are put in time order before they are numbered, so a
+     * the morning's rows are bounded -- each such print a bunched trade (condition B), as the tape reports an aggregate. Each second's prints are put in time order before they are numbered, so a
      * print's sequence is its place on the tape. The names' days (open, high, low, last, volume) are moved by them.
      * The newswire's morning (K15) is written as it goes, each story at the start of its second.
      */
     MorningRows morning(double seconds, Instant open, double thin) {
         MorningRows out = new MorningRows(Math.max(16, (int) (tradeRate * thin * morningPace(seconds) * 1.2d)))
+        out.bunched = thin < 1d
         List<double[]> second = []
         List<Name> whose = []
         for (int t = 0; t < (int) seconds; t++) {
@@ -521,6 +525,16 @@ class Newsroom {
     final double rate
     /** EDGAR's filings live: the simulated ones stop */
     volatile boolean filingsLive = false
+    /**
+     * THE MARKET'S MOVES COME AT A DAY'S PACE, whatever the wire's (a busy terminal's `rate` writes more stories, not a
+     * more violent market): a day has about this many macro shocks to the market, sector shocks to each sector, and
+     * nudges to each name from its briefs; a story beyond them is one the market shrugs off. A day's market then moves
+     * about as a day's does -- a percent or so, a name a few -- where every story moving its price compounded a busy
+     * wire's hundreds into tens of percent in an hour.
+     */
+    static final double MACRO_MOVES_A_DAY = 6d
+    static final double SECTOR_MOVES_A_DAY = 2d
+    static final double BRIEF_MOVES_A_NAME_A_DAY = 2d
     long count = 0L
     Instant lastAt = Instant.EPOCH
     /** the stories since the last publish: NEWS_STORY's columns (30-store.pure), in its order */
@@ -576,21 +590,27 @@ class Newsroom {
     double beat(double dt, Instant at, double[] factors, boolean morning) {
         double perStory = dt * rate / 60d / 12d
         double market = 0d
-        if (random.nextDouble() < perStory) market = macro(at)
+        if (random.nextDouble() < perStory) market = macro(at, moves(MACRO_MOVES_A_DAY, rate / 12d))
         if (random.nextDouble() < 1.5d * perStory) {
             int k = random.nextInt(GROUPS.length)
-            factors[k] += industry(k, at)
+            factors[k] += industry(k, at, moves(SECTOR_MOVES_A_DAY * GROUPS.length, 1.5d * rate / 12d))
         }
         double briefs = 9d * perStory
         int b = (int) Math.floor(briefs) + (random.nextDouble() < briefs - Math.floor(briefs) ? 1 : 0)
-        for (int i = 0; i < b; i++) brief(at)
+        for (int i = 0; i < b; i++) brief(at, moves(BRIEF_MOVES_A_NAME_A_DAY * equities.size(), 9d * rate / 12d))
         if (!morning && !coins.isEmpty() && random.nextDouble() < 0.5d * perStory) crypto(at)
         return market
     }
 
-    /** A macro headline and its shock to the market (a log move), its sign the headline's. */
-    double macro(Instant at) {
-        double size = 0.0012d + 0.004d * random.nextDouble() * random.nextDouble()
+    /** Whether a story of a kind written `perMinute` a minute moves its price: so that a day has `perDay` of them. */
+    boolean moves(double perDay, double perMinute) {
+        return random.nextDouble() < perDay / Math.max(perDay, perMinute * Simulator.DAY / 60d)
+    }
+
+    /** A macro headline and its shock to the market (a log move), its sign the headline's -- or, `moves` false, one the
+     *  market shrugs off. */
+    double macro(Instant at, boolean moves) {
+        double size = moves ? 0.0015d + 0.004d * random.nextDouble() * random.nextDouble() : 0d
         boolean up = random.nextBoolean()
         String head
         String reg = 'Americas'
@@ -625,22 +645,23 @@ class Newsroom {
                 reg = 'APAC'
         }
         double shock = up ? size : -size
-        String text = String.format('Stocks %s broadly on the headline, the market about %s %s.', up ? 'rise' : 'fall',
-                pct(shock), up ? 'higher' : 'lower')
-        story(at, head, text, 'Macro Desk', 'Macro', size >= 0.004d ? 'FLASH' : 'STORY', score(shock, 0.005d), null, reg,
-                null, null)
+        String text = moves ? String.format('Stocks %s broadly on the headline, the market about %s %s.', up ? 'rise' : 'fall',
+                pct(shock), up ? 'higher' : 'lower') : 'Stocks are little changed on the headline.'
+        story(at, head, text, 'Macro Desk', 'Macro', size >= 0.004d ? 'FLASH' : 'STORY', moves ? score(shock, 0.005d) : 0d,
+                null, reg, null, null)
         return shock
     }
 
     /** A sector's story and its shock to the sector's factor (a name takes 0.6 of it), its sign the headline's. */
-    double industry(int k, Instant at) {
-        double size = 0.003d + 0.012d * random.nextDouble() * random.nextDouble()
+    double industry(int k, Instant at, boolean moves) {
+        double size = moves ? 0.003d + 0.012d * random.nextDouble() * random.nextDouble() : 0d
         boolean up = random.nextBoolean()
         double move = 0.6d * size * (up ? 1 : -1)
-        String head = GROUPS[k] + (up ? ' rally as ' : ' slide as ') + pick(up ? RALLY[k] : SLIDE[k])
+        String head = GROUPS[k] + (!moves ? ' little changed as ' : up ? ' rally as ' : ' slide as ') + pick(up ? RALLY[k] : SLIDE[k])
         List<Name> lead = leaders[k]
-        String text = String.format('The sector moves about %s %s; %s among the most active.', pct(move),
-                up ? 'higher' : 'lower', lead.collect { Name e -> e.name + ' (' + e.sym + ')' }.join(', '))
+        String most = lead.collect { Name e -> e.name + ' (' + e.sym + ')' }.join(', ')
+        String text = moves ? String.format('The sector moves about %s %s; %s among the most active.', pct(move),
+                up ? 'higher' : 'lower', most) : String.format('The sector is little changed; %s among the most active.', most)
         story(at, head, text, 'Market Wire', 'Industry', Math.abs(move) >= 0.006d ? 'FLASH' : 'STORY', score(move, 0.008d),
                 lead.collect { Name e -> e.sym }.join(' ') ?: null, 'Americas', null, sectorIds[k])
         return size * (up ? 1 : -1)
@@ -708,19 +729,24 @@ class Newsroom {
                 'Market Wire', cat, Math.abs(r) >= 0.03d ? 'FLASH' : 'STORY', score(r, 0.04d), n.sym, 'Americas', n, null)
     }
 
-    /** A brief about a name drawn by its share of the market's activity: its nudge, a little its way, if any. */
-    void brief(Instant at) {
+    /**
+     * A brief about a name drawn by its share of the market's activity: its nudge, a little its way, if it `moves` --
+     * as often down as up (a stake cut as a stake taken, a share offering as a buyback), so a busy name's briefs move it
+     * about, never only up.
+     */
+    void brief(Instant at, boolean moves) {
         int i = Arrays.binarySearch(cumulative, random.nextDouble() * cumulative[cumulative.length - 1])
         Name n = equities[i < 0 ? Math.min(-i - 1, equities.size() - 1) : i]
         double nudge = 0d
+        double size = 0.001d + 0.002d * random.nextDouble()
+        boolean up = random.nextBoolean()
         String head
         String cat
         String src = 'Market Wire'
         switch (random.nextInt(filingsLive ? 6 : 7)) {
             case 0:
-                nudge = (random.nextBoolean() ? 1 : -1) * (0.002d + 0.003d * random.nextDouble())
-                head = String.format('%s %s %s price target to %s', pick(BROKERS), nudge > 0 ? 'raises' : 'cuts', n.name,
-                        target(n, nudge > 0))
+                nudge = (up ? 1 : -1) * (0.002d + 0.003d * random.nextDouble())
+                head = String.format('%s %s %s price target to %s', pick(BROKERS), up ? 'raises' : 'cuts', n.name, target(n, up))
                 cat = 'Analyst'
                 src = 'Street Desk'
                 break
@@ -732,8 +758,9 @@ class Newsroom {
                 src = 'Street Desk'
                 break
             case 2:
-                nudge = 0.001d + 0.002d * random.nextDouble()
-                head = String.format('%s discloses %.1f%% stake in %s -- filing', pick(FUNDS), 5d + 4d * random.nextDouble(), n.name)
+                nudge = up ? size : -size
+                head = up ? String.format('%s discloses %.1f%% stake in %s -- filing', pick(FUNDS), 5d + 4d * random.nextDouble(), n.name)
+                        : String.format('%s cuts its stake in %s to %.1f%% -- filing', pick(FUNDS), n.name, 1d + 3d * random.nextDouble())
                 cat = 'Filing'
                 src = 'Filings'
                 break
@@ -746,15 +773,17 @@ class Newsroom {
                 cat = 'Dividend'
                 break
             case 5:
-                nudge = 0.001d + 0.002d * random.nextDouble()
-                head = String.format('%s authorises a $%.1fbn share buyback', n.name, Math.max(0.1d, n.shares * n.mid * 0.02d / 1e9d))
-                cat = 'Management'
+                nudge = up ? size : -size
+                head = String.format(up ? '%s authorises a $%.1fbn share buyback' : '%s prices a $%.1fbn share offering', n.name,
+                        Math.max(0.1d, n.shares * n.mid * (up ? 0.02d : 0.01d) / 1e9d))
+                cat = up ? 'Management' : 'Capital Markets'
                 break
             default:
                 head = String.format('%s files 8-K: %s', n.name, pick(FILING_ITEMS))
                 cat = 'Filing'
                 src = 'Filings'
         }
+        if (!moves) nudge = 0d
         if (nudge != 0d) n.mid = Math.max(n.tick, n.mid * Math.exp(nudge))
         story(at, head, String.format('%s (%s) at %s.', n.name, n.sym, price(n)), src, cat, 'BRIEF',
                 nudge == 0d ? Double.NaN : score(nudge, 0.01d), n.sym, 'Americas', n, null)

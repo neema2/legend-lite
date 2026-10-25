@@ -83,8 +83,38 @@ export interface PlaneService {
  * never SQL (a Python host: R4).
  */
 export type GridRows =
-  | { readonly planner: Planner; readonly engine: QueryEngine; readonly runner?: undefined }
-  | { readonly runner: PlanAndRun; readonly planner?: undefined; readonly engine?: undefined };
+  | { readonly planner: Planner; readonly engine: QueryEngine; readonly runner?: undefined; readonly live?: undefined }
+  | {
+    readonly runner: PlanAndRun;
+    /** Rows that change under the grid: each grid made over them (a copy too) takes its own (`LiveGrid`). */
+    readonly live?: () => LiveGrid;
+    readonly planner?: undefined;
+    readonly engine?: undefined;
+  };
+
+/**
+ * A GRID'S OWN ROWS THAT CHANGE UNDER IT (a live server's: Deephaven's, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, the
+ * trading desk): its runner -- its own reader on the server, which follows what this grid reads and no other's -- and
+ * what says when those rows changed. Made for each grid, let go with it.
+ */
+export interface LiveGrid {
+  readonly runner: PlanAndRun;
+  readonly rows: LiveRows;
+}
+
+/**
+ * ROWS THAT CHANGE UNDER THE GRID: the host follows what each of the grid's views read, and says when those rows changed
+ * -- the grid then runs again as it is (CubeApp.tick), or whole once the host's connection is back (CubeApp.refresh).
+ */
+export interface LiveRows {
+  /** The grid's view landed, its snapshot at `epoch`: what it read is followed from now. */
+  viewed(epoch: number): void;
+  /** Where the grid is told: a tick when its rows changed -- its run, landed, or nothing while no sheet shown shows the
+   *  grid (it runs once one does) -- and a refresh once the host's connection is back. */
+  onChange(grid: { tick(): Promise<unknown> | undefined; refresh(): void }): void;
+  /** The grid let go: what follows its rows goes with it. */
+  close(): void;
+}
 
 /**
  * WHAT THE MODEL ACTIONS NEED OF A HOST (Create a Class…, Create an Association…, Create a Data Space…;

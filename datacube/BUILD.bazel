@@ -2051,6 +2051,8 @@ build_test(
         ":deephaven_demo",
         # the trader screens' hand tool (bazel run //datacube:deephaven_traders, 2026-10-25)
         ":deephaven_traders",
+        # the trading desk in DataCube's own page, by hand (bazel run //datacube:deephaven_desk, 2026-10-25)
+        ":deephaven_desk",
     ],
 )
 
@@ -2348,6 +2350,62 @@ browser_test(
     ],
     entry_point = "test/deephaven/traders.mjs",
     env = _DEEPHAVEN_TRADERS_ENV,
+)
+
+# THE TRADING DESK IN DATACUBE ITSELF (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, the trading desk; the user,
+# 2026-10-25): DataCube's own site (:site, as :serve serves it) with its config.json naming the market world's Deephaven,
+# so the tab's own page opens the trading desk -- one saved page, ten tabs -- and lists it first under Open…'s Examples
+# (demo/deephaven/market/host.ts). The market's code is a chunk of the page's own bundle, fetched only where a market is
+# named.
+_DEEPHAVEN_DESK_DATA = _HARNESS_HELPERS + [
+    "demo/deephaven/market/desk-site.mjs",
+    "demo/deephaven/site.mjs",
+    # named itself: SITE is its runfiles path
+    "demo/index.html",
+    ":site",
+    # the binary for its runfiles (the server's jars and Java, the market world), its executable to start it by
+    ":deephaven_market_fixture",
+    ":deephaven_market_fixture_executable",
+    "//scripts/corpus:trading_model",
+]
+
+_DEEPHAVEN_DESK_ENV = _SITE_ENV | {
+    "MARKET_FIXTURE": "$(rlocationpath :deephaven_market_fixture_executable)",
+    "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
+}
+
+# `bazel run //datacube:deephaven_desk`: the trading desk in DataCube by hand, its address printed (a hand tool: manual,
+# built by :tools_build_test)
+js_binary(
+    name = "deephaven_desk",
+    testonly = True,
+    data = _DEEPHAVEN_DESK_DATA + [
+        "demo/deephaven/market/desk.mjs",
+        # a node_test has it already
+        "//tools/js:runfiles",
+    ],
+    entry_point = "demo/deephaven/market/desk.mjs",
+    env = _DEEPHAVEN_DESK_ENV,
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+    tags = ["manual"],
+)
+
+# The trading desk opened in DataCube's own page, in the pinned Chromium, over a small market world (its crypto feed
+# refused): its ten tabs, on each every grid's rows and every chart drawn and the tab ticking; Open…'s Examples list it
+# first. A screenshot of each tab is its output. Manual, beside the market world's test.
+browser_test(
+    name = "deephaven_desk_test",
+    size = "large",
+    tags = ["manual"],
+    data = _DEEPHAVEN_DESK_DATA + [
+        "test/deephaven/desk.mjs",
+        ":node_modules/playwright",
+    ],
+    entry_point = "test/deephaven/desk.mjs",
+    env = _DEEPHAVEN_DESK_ENV,
 )
 
 # THE LIVE RISK DEMO (docs/DEEPHAVEN_PLAN_2026_10_22.md D0, DH23, DH24): DataCube on Deephaven over a risk book whose

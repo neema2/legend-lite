@@ -331,8 +331,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  361,000 -> 363,000 (2026-10-25, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K15, the news feed: a feed's words, which the
  *  chart rules read at startup (its slots, their reader and rules, its query of the cube's rows), the panel's feed and
  *  its keyword box, a feed's link (page-document.ts), and a keyword said on a chart's chip -- its cards a chunk of their
- *  own, ui/chart-feed.ts; within the user's sign-off, D9). Measured 362,471. */
-const BUDGET = 363_000;
+ *  own, ui/chart-feed.ts; within the user's sign-off, D9). Measured 362,471.
+ *  363,000 -> 364,500 (2026-10-25, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, the trading desk in DataCube's own page:
+ *  a host's grids whose rows change under them (services.ts LiveGrid, the grid maker's follow and tick), a host's own
+ *  example pages and an example the address names (#example=), the config's market and the boot's call into it -- the
+ *  market itself (its host, its screens, Deephaven's engine) a chunk of its own, fetched only where a market is named;
+ *  within the user's sign-off, D9). Measured 363,900. */
+const BUDGET = 364_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -621,8 +626,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  366,500 -> 367,000 (2026-10-25, the trader screens' DataCube steps -- the grid-only page's note of the same date).
  *  Measured 366,801.
  *  367,000 -> 369,000 (2026-10-25, K14's stock chart -- the grid-only page's note of the same date). Measured 368,547.
- *  369,000 -> 371,000 (2026-10-25, K15's news feed -- the grid-only page's note of the same date). Measured 370,719. */
-const WIDGET_BUDGET = 371_000;
+ *  369,000 -> 371,000 (2026-10-25, K15's news feed -- the grid-only page's note of the same date). Measured 370,719.
+ *  371,000 -> 371,500 (2026-10-25, the trading desk -- the grid-only page's note of the same date: a host's live grids,
+ *  a tick held while no sheet shown shows its grid, an example the address names). Measured 371,069. */
+const WIDGET_BUDGET = 371_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

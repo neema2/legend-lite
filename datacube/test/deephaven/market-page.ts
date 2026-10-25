@@ -356,8 +356,9 @@ try {
     });
 
   const NEWS = 'marketdata::NewsStory.all()';
+  // a share offering's is Capital Markets (2026-10-25, the trading desk: a brief moves its name as often down as up)
   const CATEGORIES = new Set(['Earnings', 'Guidance', 'M&A', 'Analyst', 'Macro', 'Industry', 'Regulatory', 'Management',
-    'Product', 'Filing', 'Dividend', 'Crypto']);
+    'Product', 'Filing', 'Dividend', 'Crypto', 'Capital Markets']);
   const stories = await rows(`${NEWS}->project(~[id:x|$x.storyId, at:x|$x.publishTime, head:x|$x.headline, body:x|$x.body,`
     + ' cat:x|$x.category, urg:x|$x.urgency, tickers:x|$x.tickers, sym:x|$x.instrument.ticker, sector:x|$x.sector.name])');
   await check(`the newswire (K15): the morning's news at the world's pace, every ticker a name's, a story about a name`

@@ -37,6 +37,22 @@ export interface PageConfig {
    * (//site:dist). The one key: nothing else in the config names a vendor folder.
    */
   readonly vendor: string;
+  /**
+   * A market world's Deephaven server, which the page's saved queries over the one trading model run on, ticking
+   * (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, the trading desk): its address, the test server's pre-shared key, and
+   * where the trading model is served. Open…'s Examples then hold the trading desk. Absent: no market (the site's own
+   * config.json names none; the market's site serves one that does).
+   */
+  readonly market?: MarketConfig;
+}
+
+export interface MarketConfig {
+  /** The server, `https://host:port` (its TLS certificate the test server's own). */
+  readonly url: string;
+  /** Its pre-shared key: a test server's, never a production one. */
+  readonly psk: string;
+  /** The one trading model's text (//scripts/corpus:trading_model), by URL relative to config.json. */
+  readonly model: string;
 }
 
 export interface DepotConfig {
@@ -79,6 +95,15 @@ function projects(v: unknown, base: string): ProjectConfig[] {
 }
 
 
+/** `market`, when it names a server, its key and the trading model; a malformed one is left out, not guessed at. */
+function market(v: unknown, base: string): MarketConfig | undefined {
+  if (typeof v !== 'object' || v === null) return undefined;
+  const o = v as Record<string, unknown>;
+  const [url, psk, model] = [text(o['url']), text(o['psk']), text(o['model'])];
+  if (!url || !psk || !model) return undefined;
+  return { url, psk, model: new URL(model, base).href };
+}
+
 /** `depot`, when it names an SDLC (`"page"` or a URL). */
 function depot(v: unknown): DepotConfig | undefined {
   if (typeof v !== 'object' || v === null) return undefined;
@@ -106,11 +131,13 @@ export async function pageConfig(location: Location = window.location): Promise<
     if (r.ok) {
       const raw = await r.json() as Record<string, unknown>;
       const byName = depot(raw['depot']);
+      const live = market(raw['market'], url.href);
       file = {
         legendLite: text(raw['legendLite']), legendEngine: text(raw['legendEngine']), warehouse: text(raw['warehouse']),
         queryStore: text(raw['queryStore']), user: text(raw['user']), projects: projects(raw['projects'], url.href),
         vendor: text(raw['vendor']) || EMPTY.vendor,
         ...(byName ? { depot: byName } : {}),
+        ...(live ? { market: live } : {}),
       };
     }
   } catch {
@@ -126,5 +153,6 @@ export async function pageConfig(location: Location = window.location): Promise<
     projects: file.projects,
     vendor: file.vendor,
     ...(file.depot ? { depot: file.depot } : {}),
+    ...(file.market ? { market: file.market } : {}),
   };
 }

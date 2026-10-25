@@ -19,7 +19,10 @@ import type { ProjectDataSource } from '../../engine-client/src/project-data.ts'
 import { mountRemote } from '../src/remote.ts';
 import { isPageFragment } from '../src/share/link.ts';
 import type { TableModels } from '../src/infer.ts';
-import { pageConfig } from './page-config.ts';
+import { pageConfig, type MarketConfig } from './page-config.ts';
+// the tab's planner's class, which the tab loads at its start (planners.ts): the market's planner is one of its own
+import { LitePlanner } from '../src/lite-planner.ts';
+import type { Market } from './deephaven/market/host.ts';
 import { browserServices } from '../src/services/browser.ts';
 import { openDataCube } from '../src/app/datacube-app.ts';
 import type { PlaneService, PlaneWord, Sample, Services } from '../src/app/services.ts';
@@ -76,9 +79,12 @@ export type { PlaneWord };
 type Start =
   | { readonly kind: 'sample' }
   | { readonly kind: 'link' }
-  | { readonly kind: 'warehouse'; readonly key: string; readonly table?: string };
+  | { readonly kind: 'warehouse'; readonly key: string; readonly table?: string }
+  /** An example page by its id (`#example=trading-desk`): opened as Open…'s Examples open it. */
+  | { readonly kind: 'example'; readonly id: string };
 
 async function startOf(where: Location): Promise<Start> {
+  if (where.hash.startsWith('#example=')) return { kind: 'example', id: decodeURIComponent(where.hash.slice('#example='.length)) };
   if (where.hash.startsWith('#key=')) {
     const p = new URLSearchParams(where.hash.slice(1));
     const table = p.get('table');
@@ -352,15 +358,20 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   const chosen = await engineReady;
   const { planner, source, label } = chosen;
   status.textContent = label;
+  // A MARKET, where the deployment names one (page-config.ts `market`: the market world's site serves it): its Deephaven
+  // signed in to and its model held by the page's module -- its code a chunk of its own, never fetched without one
+  const config = await configured;
+  const market = config.market ? await openMarket(config.market, chosen.planner, config.vendor) : undefined;
   // THE TAB'S SERVICES (src/services/browser.ts): everything below reads its planner, its database, its stores and its
-  // browser through them
-  const services: Services = await browserServices({
+  // browser through them -- the market's added to them
+  const tab: Services = await browserServices({
     plane: tabPlane(),
     planner: chosen,
     duckdb: duck,
-    config: await configured,
+    config,
     location,
   });
+  const services: Services = market ? market.over(tab) : tab;
 
   /** The sample cube's opening view. */
   const sampleSnapshot = async (): Promise<CubeSnapshot> => ({
@@ -411,7 +422,19 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
         : start,
     taken: ['trades'],
     settled,
+    ...(market ? { examples: market.examples } : {}),
   });
+}
+
+/**
+ * The market `config` names, opened (demo/deephaven/market/host.ts), its model held by the page's module: the tab's own
+ * when the page plans in the tab (its worker), else a module of its own -- the server's wire is the module's (DH11).
+ */
+async function openMarket(config: MarketConfig, planner: Planner, vendor: string): Promise<Market> {
+  const host = await import('./deephaven/market/host.ts');
+  const module = planner instanceof LitePlanner ? planner
+    : new LitePlanner({ assetBaseUrl: vendor, model: '', runtime: '', workerUrl: new URL('./planner-worker.js', location.href).href });
+  return host.openMarket(config, module);
 }
 
 /**

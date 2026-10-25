@@ -191,7 +191,7 @@ const L1_REACH: Record<string, Entry> = {
   'datacube-app.ts:open:openSaved': { items: [], why: "N1, D1: the Open… window's page, of this tab's own; and openLive's `open`, the page its other editor serves opened whole as its keeper has it (replacing)", count: 2 },
   'datacube-app.ts:openText:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'datacube-app.ts:examplesList:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
-  'datacube-app.ts:openDataCube:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
+  'datacube-app.ts:openDataCube:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is: a page link's, and an example the address names (#example=, the trading desk: 2026-10-25)", count: 2 },
   'datacube-app.ts:openDataCube:blankPage': { items: [], why: "N1, D1: New ▸ Blank Page, a new page of this tab's own (newPage, D11), the page another editor serves left as it is; and a start that opened nothing, said -- never once the page its other editor serves is open (the S7 audit's H-1)", count: 3 },
 };
 
@@ -750,6 +750,10 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/sources.ts:openedFrame:database.frame': { other: `${NATURE} a dataframe lives in Python` },
   'src/app/sources.ts:openedRecord:queries': { other: `${BOTH} a saved query read from the host's query store`, ability: 'queries' },
   'src/app/sources.ts:openedRecord:modelHome': { other: `${BOTH} a query of an unconfigured project read through the host's model home`, ability: 'queries' },
+  // the trading desk (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, 2026-10-25): a project's own rows loaded into the tab's
+  // database only where the tab runs them -- a host's runner reads its own
+  'src/app/sources.ts:openedRecord:local': { other: `${BOTH} a project's own rows in the tab's database where the tab runs them; Python's in its own`, ability: 'queries' },
+  'src/app/sources.ts:openedRecord:rows.runner': { other: `${BOTH} a saved query a host's runner runs (Python's, the market's Deephaven) loads no copy of its project's rows into the tab`, ability: 'queries' },
   'src/app/sources.ts:openedClass:modelHome': { other: `${BOTH} a class read through the tab's model home; on a host's page, made by the host (K16)`, ability: 'class' },
   'src/app/sources.ts:openedGivenClass:local': { other: `${BOTH} a named class opened here, or made by the host (K16, K17)`, ability: 'class' },
   'src/app/sources.ts:openedGivenClass:writing': { other: `${BOTH} the tab reads a class through its place's runtime; the host through its own`, ability: 'class' },

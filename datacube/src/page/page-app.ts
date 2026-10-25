@@ -130,6 +130,9 @@ export interface PageAppOptions {
   /** New ▸ Blank Page: the host clears the page (asking first about unsaved changes). */
   readonly onBlankPage?: () => void;
   /** Something on the page changed: a grid's state, a chart, the layout, a title. */
+  /** The sheets changed, or another is shown (its tab clicked, a page opened on it): a host's live grids that waited
+   *  while no sheet shown showed them run now (`showsGrid`). */
+  readonly onSheets?: () => void;
   readonly onChange?: () => void;
   /** A grid's Settings saved: in effect on every grid, and for the host to keep. */
   readonly onSettingsChanged?: (values: SettingValues) => void;
@@ -531,6 +534,11 @@ export class PageApp {
     this.#page.showSheet(id);
   }
 
+  /** Whether the sheet shown shows grid `id`'s rows -- the grid, or a chart of it (CubePage.showsGrid). */
+  showsGrid(id: string): boolean {
+    return this.#page.showsGrid(id);
+  }
+
   /** What a sheet's tab says. */
   sheetLabel(id: string): string {
     const sheet = this.#page.sheets.find((s) => s.id === id);
@@ -552,10 +560,12 @@ export class PageApp {
     this.#page.removeSheet(id);
   }
 
-  /** The sheets changed, or another is shown: the tabs, the lone grid, the empty sheet, the host's readout. */
+  /** The sheets changed, or another is shown: the tabs, the lone grid, the empty sheet, the host's readout -- and the
+   *  host told (its live grids that waited while no sheet shown showed them). */
   #onSheets(): void {
     this.#paintSheets();
     this.#paintEmpty();
+    this.#options.onSheets?.();
   }
 
   /** The grids on the page, sheet by sheet in reading order (not those kept off it for a detached chart). */

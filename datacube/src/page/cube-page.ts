@@ -564,6 +564,20 @@ export class CubePage {
     return this.#shown.id;
   }
 
+  /**
+   * Whether the sheet shown shows grid `id`'s rows: the grid itself, or a chart that reads it -- in front of a stack or
+   * behind another tile there (a feed in front reads the grid stacked behind it). What a host's live rows wait on: a
+   * grid no sheet on screen shows need not run at each tick (the trading desk's ten tabs).
+   */
+  showsGrid(id: string): boolean {
+    const on = new Set(tiles(this.#shown.board.layout));
+    if (on.has(id)) return true;
+    for (const [chart, tile] of this.#charts) {
+      if (on.has(chart) && (tile.link.grid ?? tile.link.detached?.from) === id) return true;
+    }
+    return false;
+  }
+
   /** Said by the sheet shown, to a screen reader (an undo: what it undid). */
   say(text: string): void {
     this.#shown.board.say(text);

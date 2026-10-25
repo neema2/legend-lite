@@ -14,9 +14,12 @@ export const MARKET_CONNECTION = (host: string, port: number) => (store: string)
   auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };
 }`;
 
-/** The model, its connections at `host`:`port` over TLS, over the corpus's text. */
-export const MARKET_MODEL = (corpus: string, host: string, port: number): string => `${corpus}
-###Relational
+/** The model, its connections at `host`:`port` over TLS, over the corpus's text: the corpus, then the market's own. */
+export const MARKET_MODEL = (corpus: string, host: string, port: number): string => `${corpus}\n${MARKET_LIVE(host, port)}`;
+
+/** The market's own part of the model: its status table, its connections at `host`:`port`, its options functions and
+ *  its runtime -- a project's second model file after the corpus's (the trading desk's project: host.ts). */
+export const MARKET_LIVE = (host: string, port: number): string => `###Relational
 Database market::World
 (
   Table world (item VARCHAR(16) PRIMARY KEY, state VARCHAR(16) NOT NULL, detail VARCHAR(256) NOT NULL)

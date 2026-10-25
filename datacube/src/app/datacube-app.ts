@@ -45,7 +45,7 @@ import { classBasis, duplicateLambda } from '../query.ts';
 import { isPageFragment, readPageFragment, shareLink } from '../share/link.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import { CubeLibrary } from '../ui/cube-library.ts';
-import { EXAMPLE_PAGES } from '../examples/catalog.ts';
+import { EXAMPLE_PAGES, type ExamplePage } from '../examples/catalog.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { saveDialog } from '../ui/save-dialog.ts';
 import type { SectionId } from '../ui/source-picker.ts';
@@ -84,7 +84,10 @@ export type AppStart =
   | { readonly kind: 'warehouse'; readonly key: string; readonly table?: string }
   /** The page another editor serves (`services.live.page`: Python's `ll.Page`, and `ll.show(df)`'s page of one grid:
    *  docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P12), followed and reported back to it. */
-  | { readonly kind: 'live' };
+  | { readonly kind: 'live' }
+  /** An example page by its id (the address's `#example=<id>`), opened as Open…'s Examples open it: the host's own
+   *  (`OpenDataCube.examples`: the market's trading desk) or the app's. */
+  | { readonly kind: 'example'; readonly id: string };
 
 
 /** The app open on its host: what takes it down (a notebook's cell re-run, its view closed). */
@@ -105,12 +108,16 @@ export interface OpenDataCube {
   readonly taken: readonly string[];
   /** Told how to show a start that failed, once the page can say it (its empty card). */
   readonly settled: { show: (reason: string) => void };
+  /** The host's own example pages, listed first under Open…'s Examples (the market's trading desk, over its server). */
+  readonly examples?: readonly ExamplePage[];
 }
 
 /** DataCube's app, opened in `o.host` over the host's services. */
 export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   const { services, status, start, settled } = o;
   const host = o.host;
+  /** Open…'s Examples: the host's own first, then the app's. */
+  const examples: readonly ExamplePage[] = [...(o.examples ?? []), ...EXAMPLE_PAGES];
   const { label } = services.engine;
   /** The page's own planner and database, where it has them (the tab); on a Python host every grid's rows are Python's. */
   const local = services.engine.local;
@@ -183,6 +190,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   const harnessSignal = { changes: 0, printing: 0 };
   /** Each grid the app made, by its tile's id: what following a frame re-runs (`page.cubes` says which are on it). */
   const madeCubes = new Map<string, CubeApp>();
+  /** Each live grid's tick held while no sheet shown showed it, by its tile's id: run when another sheet is shown. */
+  const waitingTicks = new Map<string, () => void>();
+  /** Each live grid not read yet, its sheet never shown, by its tile's id: read when a sheet showing it is. */
+  const waitingOpens = new Map<string, () => void>();
   /** The page's channel to the page's keeper, on a page another editor serves (live-channel.ts): its writes carry the
    *  edits made here, each grid's and the page's. */
   let channel: LiveChannel | undefined;
@@ -205,8 +216,16 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       /** What each entry of its last right-click's Join ▸ asks (joinMenuOf), until one is picked. */
       let joinAsks = new Map<string, JoinAsk>();
       const kept = services.browser.readSettings();
+      // rows that change under it: this grid's own (a copy's too) -- its runner, and what follows what it reads
+      const ticking = place.ticking?.();
+      // AND READ WHEN IT IS SHOWN: such a grid on a sheet not shown reads its first view once a sheet showing it is (lazy
+      // about work, docs/TENETS.md: the trading desk's other nine tabs no longer read theirs while the first draws)
+      let opens: (() => void) | undefined;
+      const opensWhen = ticking && spawned.id !== undefined ? new Promise<void>((resolve) => { opens = resolve; }) : undefined;
       // THE ONE BRANCH ON THE ROWS' SHAPE (§4.5): planned here and run here, or planned and run by the host
-      const rows: CubeAppQuerySource = place.runner
+      const rows: CubeAppQuerySource = ticking
+        ? { runner: ticking.runner }
+        : place.runner
         ? { runner: place.runner }
         : {
           engine: place.engine ?? must(local, 'a grid over the page\'s own database').engine,
@@ -228,6 +247,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         // same grid made again by an undo, its own as they were
         ...(start?.tree ? { tree: start.tree } : place.tree && !start ? { tree: place.tree } : {}),
         ...(place.heldCopy ? { heldCopy: place.heldCopy } : {}),
+        ...(opensWhen ? { opensWhen } : {}),
         ...(place.label !== undefined ? { sourceLabel: place.label } : {}),
         compact: true,
         // a copy is a grid added beside others; the same grid made again folds as it did
@@ -298,6 +318,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           status.classList.remove('warn-text');
         },
         onView: (view) => {
+          // rows that change under it (a live server's): what this view read is followed from now (services.ts LiveRows)
+          ticking?.rows.viewed(view.snapshot.epoch);
           // For the browser harness: how many views have landed.
           const w = window as unknown as { __dataCubeViews?: number };
           w.__dataCubeViews = (w.__dataCubeViews ?? 0) + 1;
@@ -323,8 +345,43 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           windows.sql.textContent =
             view.sql || '(no SQL for this view)';
         },
+        // let go, its own live rows go with it
+        ...(ticking ? {
+          onDispose: () => {
+            ticking.rows.close();
+            if (spawned.id !== undefined) {
+              waitingTicks.delete(spawned.id);
+              waitingOpens.delete(spawned.id);
+            }
+          },
+        } : {}),
         ...spawned,
       });
+      // ITS ROWS CHANGED UNDER IT: run again as it is (a tick) -- while a sheet shown shows it, else once one does (the
+      // trading desk's ten tabs: 35 grids ticking at once put a tick on screen 100 ms after its rows, the tab in front's
+      // alone 20-50); whole once the host's connection is back
+      if (ticking) {
+        const id = spawned.id;
+        let waited = false;
+        const tick = (): Promise<unknown> | undefined => {
+          waited = id !== undefined && !page.showsGrid(id);
+          return waited ? undefined : created.tick();
+        };
+        ticking.rows.onChange({ tick, refresh: () => { void created.refresh(); } });
+        if (id !== undefined) {
+          waitingTicks.set(id, () => { if (waited) void tick(); });
+          // its first view, once a sheet showing it is shown: asked once the page has laid it out, and at each sheet shown
+          const shown = (): void => {
+            if (opens === undefined || !page.showsGrid(id)) return;
+            const open = opens;
+            opens = undefined;
+            waitingOpens.delete(id);
+            open();
+          };
+          waitingOpens.set(id, shown);
+          queueMicrotask(shown);
+        }
+      }
       if (spawned.id !== undefined) {
         madeCubes.set(spawned.id, created);
         madeGrid?.(spawned.id, place);
@@ -428,6 +485,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
    */
   const page = new PageApp({
     host,
+    // another sheet shown: the live grids it shows that waited run now
+    onSheets: () => {
+      for (const open of waitingOpens.values()) open();
+      for (const resume of waitingTicks.values()) resume();
+    },
     hostMenu: () => [
       // saved pages: where the host keeps them (in this browser), over the sources they were built on
       ...(services.pages ? [
@@ -1039,7 +1101,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       heading.className = 'dc-open-examples-title';
       heading.textContent = 'Examples';
       box.append(heading);
-      for (const example of EXAMPLE_PAGES) {
+      for (const example of examples) {
         const item = document.createElement('button');
         item.type = 'button';
         item.className = 'dc-open-example';
@@ -1539,6 +1601,16 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     if (start.kind === 'live') {
       const why = await openLive().catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
       if (why !== undefined) failedStart(new Error(why));
+    }
+    // AN EXAMPLE THE ADDRESS NAMES (`#example=<id>`), opened as Open…'s Examples open it; one not here is said
+    if (start.kind === 'example') {
+      const example = examples.find((e) => e.id === start.id);
+      try {
+        if (example === undefined) throw new Error(`this page has no example “${start.id}”`);
+        await openSaved(readSaved(pageToJson(await example.build())), undefined);
+      } catch (e) {
+        failedStart(e);
+      }
     }
 
     // FOLLOWING THE OTHER EDITOR (services.live, §5): Python moves what the page shows -- the page itself (its version:

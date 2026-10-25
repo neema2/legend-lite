@@ -69,7 +69,8 @@ Each row is a thing done outside the platform, to push into it.
 | `market/market.groovy`'s Coinbase feed (K2) | crypto from Coinbase Exchange's public feed, the simulator in its place where it is refused | no feed ingestion in lite | a feed declared in the store and started by the platform; Kafka into Deephaven in production |
 | `market/market.groovy`'s `world` table (K2) | what each part of the world is and why (simulated, live, connecting) | the page has no other way to learn it | the feed's own status, a system table of the platform's |
 | `market/market.groovy`'s bank (K9-K13) | the bank's own day: desks, traders, books, positions at the prior close, limits; parent orders worked by algorithms into fills and routes on the market's own prices; FX prices; clients' RFQs quoted and done or missed; a listed option chain settled by Black and Scholes | lite writes no rows into Deephaven yet, and a bank's books and blotters come from its systems of record | each its own source -- an OMS's orders and fills, a position keeper, a pricing engine -- declared in the store and published by the platform (L5) |
-| `market/traders.ts`, the host (K4) | the page around DataCube's: the trader screens, each written by `screens.ts`, listed in DataCube's own Open window (its library, its examples' place) and opened as a saved page is; Save and Open on the tab's own store | the screens are pages of a demo of their own, not yet a project's, and the tab's app (`datacube-app.ts`) opens no grid on Deephaven, so the host builds the Open window's frame the app builds (about 60 lines) | a project's saved pages on Deephaven, opened by the app itself |
+| `market/traders.ts`, the host (K4) | the page around DataCube's: the trader screens, each written by `screens.ts`, listed in DataCube's own Open window (its library, its examples' place) and opened as a saved page is; Save and Open on the tab's own store | the screens were pages of a demo of their own, and the tab's app (`datacube-app.ts`) opened no grid on Deephaven, so the host built the Open window's frame the app builds (about 60 lines). Since the trading desk (2026-10-25) the app itself opens them (`market/host.ts`): this host is the screens' test bench (`//datacube:deephaven_traders_test`'s per-grid tick timings) until those checks move onto the app | the app, as `//datacube:deephaven_desk` serves it |
+| `market/host.ts`'s project and elements (the trading desk) | the market's project (the one trading model and the market's part, a page-made file) added to the tab's saved-query projects; the model's elements answered from the trading corpus's | the screens' saved queries name a project no SDLC or depot holds yet; the app reads a project's elements through the drop-in surface (pure/v1's `grammarToJson`), which refuses lite's own Pure (the Deephaven connection), and the market's part declares no data space or enumeration -- all the app reads them for | the screens as a project's saved queries in a model home; a lite-surface reader of a model's elements in the module |
 
 ## 4. Realistic speeds
 
@@ -399,6 +400,30 @@ unmatched on DuckDB). The corpus's oracle states DuckDB's rule ("a NULL key or i
 follows it (a right key that may be null filtered out). Which is the platform's is a ruling: Pure's `==` says match;
 SQL's equality and the oracle say no.
 
+**The whole corpus on Deephaven, against the oracle (task 15, 2026-10-25).** Every stress-corpus test is planned on a
+Deephaven runtime over the same store (`//core:stress_deephaven cases`: its plan, its result type, its enumerations and
+the oracle's expectation, and the corpus's seed as tables), the tables loaded into the pinned server
+(`test/deephaven/corpus/corpus.groovy`), each plan sent from the pinned Chromium as DataCube sends one and its rows read
+as DataCube reads them (`test/deephaven/corpus-page.ts`), and every answer judged by the stress suites' own judge
+(`//core:stress_deephaven judge`, `TestAssertions.equalToJson`). `//datacube:deephaven_corpus_test` (manual) holds the
+passes to a floor. Measured: 4,191 of the 4,195 tests that plan pass (the floor 4,191); every plan sent in about 90 s.
+The four that do not: `CF_Confluence`, `O1_CounterpartyOtherwise` and `F32` fail on DuckDB too (the stress suites'
+ledgers), and `TF_TapeEma`'s slow EMA differs from SQL's in its last digits -- the server's EMA decays by ticks
+(`-1 / ln(1 - alpha)`), the fold by the value's own weight, equal in exact arithmetic and not in a double's (stated, not
+fixed). 653 have no plan on Deephaven, by reason: a graph fetch's JSON tree (462), `EXISTS` (87), another store than
+`store::DB` (44), a schema-qualified table (27), a join with no equality (27), and six others. That is the order of the
+Deephaven work left (task 14).
+
+**What the corpus found in the dialect, fixed (each with its `DeephavenDialectTest`, which fails without it):** a
+DOUBLE's arithmetic took a DECIMAL column as the server's BigDecimal and divided at its precision (1666666.66666667
+where SQL answers 1666666.6666666667) -- each operand is its double value first; a COALESCE of a DECIMAL and a double
+was a condition the server refuses ("Incompatible types in condition operation") -- written in doubles; an average of
+a DECIMAL column kept the column's scale (2.905 where SQL answers 2.9045833333333335) -- averaged in doubles; and a BIT
+compared with 0 or 1 (a store filter's `IS_INTERPOLATED = 0`) matched nothing -- compared with false or true. The
+lane's first run passed 633; the plans that never reached the server (an enumeration column the reader refused outside
+its try), answers lost to a flush, and four tables the fixture refused (single-digit hours, a header-only table) were
+the lane's own, fixed before the dialect's.
+
 ## 7. The trader screens (the user, 2026-10-25)
 
 "Keep going and building and fixing until we have all the trader screen demos saved as datacube pages user can open
@@ -617,3 +642,79 @@ in 1.6 s, its panes' 2,600 morning stories each kept to its own (macro and secto
 keyword), a story reaching the top of its pane read from the rows followed -- nothing sent or fetched; "dividend" typed
 into the keyword pane's box keeps only its stories and is saved with the page; a ticker chip clicked charts that name;
 the Stock sheet's news followed the name picked. The market lane: 24 checks.
+
+**The trading desk, in DataCube itself (the user, 2026-10-25: "a real saved page just like charts in real datacube (on
+this branch) that opens like 8-10 tabs all with different realistic trading screens").** One saved page, ten tabs, each a
+screen of a trading floor: *Markets* (the market map, breadth, each sector's value-weighted change, the top gainers,
+losers and most active), *Stock* (K14: the name picked on the watchlist, its day from the open, its candles, quote,
+prints and news), *News* (K15's monitor), *Order flow* (new: bought against sold each minute, the net flow by sector and
+by name, the block prints -- 10,000 shares or a million dollars in one print, never a bunched one -- time and sales,
+the notional by venue), *Crypto* (new: the coins, majors first, their 24 hours' change; the coin picked, its last five
+minutes by the second and its EMA, its candles and prints; each coin's net flow; the crypto book marked live),
+*Blotter* (K10), *TCA* (K13), *P&L and risk* (K9: the firm's, desks', books' and names' day P&L, each desk against its
+limits), *Options* (K11: the chain priced by Black and Scholes, the smile, the books' greeks), *FX* (K12: the ladder, the
+crosses against their legs, the RFQs and hit ratios). 35 grids and 57 charts, every grid a saved query over the one
+trading model run on the market's Deephaven, ticking.
+
+*It is DataCube's own page* (the one `//datacube:serve` serves, its own bundle): Open… lists it first under Examples,
+above the chart pages, and the address `#example=trading-desk` opens it straight away. What made that possible, in the
+app: **a host's grids whose rows change under them** (`services.ts` `LiveGrid`, `LiveRows`: each grid made over such rows
+-- a copy too -- takes its own runner and its own reader on the server, which follows what that grid's views read, and the
+host says when they changed: a tick, or the whole grid again once the connection is back); **a host's own example pages**
+(`OpenDataCube.examples`) and **an example named in the address**; and **a saved query run by a host's runner loads no
+copy of its project's rows into the tab** (`sources.ts` `openedRecord`: it loaded the trading model's whole seed into
+DuckDB for rows the server serves). **The market, a host of the app** (`market/host.ts`, its own chunk, fetched only where
+`config.json` names a market: page-config.ts `market`): the market's project (the one trading model and the market's
+part), its model held once by the tab's own module, the server signed in to, every grid on its runtime run through its
+bases (B1) -- and nothing else of the tab's services changed: a file, a sample, the chart pages, Save and Open are the
+tab's. `bazel run //datacube:deephaven_desk` serves DataCube's site with the market world's server named (its
+`desk-site.mjs`) and prints two addresses: the desk itself (`…/demo/index.html#example=trading-desk`), and DataCube's own
+start, where Open…'s Examples hold the desk first. Save or Save As… keeps it as a page of one's own, in the browser's
+store of saved pages, which Open… lists and opens again over the market as it is then. The old trader host
+(`traders.ts`) stays as the screens' test bench for now (§3).
+
+**What the desk's screenshots showed, fixed (2026-10-25):** *The market rose 10-20% in half an hour* (93 names
+advancing, 6 declining): the newsroom's briefs moved their names only up where they moved them (a stake disclosed, a
+buyback), drawn by activity, so the largest names took hundreds of up-nudges at a busy wire's pace; and every macro or
+sector story moved prices, so the wire's rate set the market's volatility. The market's moves now come at a day's pace
+whatever the wire's (six macro shocks a day, two a sector, two nudges a name; the rest "little changed", said so), and a
+brief moves as often down as up (a stake cut, a share offering). Measured on the same world: 55 names advancing and 46
+declining after half an hour, moves of a tenth of a percent to 2.8%, the largest name 0.8% up across its prior close.
+*Blocks were 44% of the tape*: a thinned morning's print stands for several (the tape keeps a share of the morning's
+prints, each that much larger), so it is now the tape's own bunched trade (condition B), never a block; the desk counts
+34 blocks in 140,944 prints. *A tab's name was cut* ("Mark…", "Optio…") with half the bar empty: a sheet's tab is now its
+label's width (`app.css`), never the strip's average. *The coins were listed by volume in coins* (DOGE first, BTC last):
+by price now, the majors first. *Every grid's drag zones* took two rows of each tile: a screen's grids are saved with
+them folded (`showDragZones`), their chevron bringing them back.
+
+**A tab not shown does not tick (2026-10-25).** Ten tabs are 35 grids, and every one ran again at each change of its
+rows, shown or not: a tick reached the screen 100 ms after its rows (the old host's lane, the desk opened there), where
+one screen's took 20-50. A live grid's tick now waits while no sheet shown shows its rows -- the grid itself, or a chart
+of it, in front of a stack or behind another tile (`CubePage.showsGrid`: a feed in front reads the grid stacked behind
+it) -- and runs once its sheet is shown (`PageApp`'s `onSheets`); each tick is a measure on the browser's timeline
+(`dh:tick`, the market host's: from its rows to the grid painted again).
+
+**Nor does it read its first view (2026-10-25).** With the ticks held, the first tab still drew in 14.5 s and ticked at
+1.3 s while the other nine tabs' 31 grids read their first views on the server at once. Lazy about work (docs/TENETS.md):
+a host's live grid on a sheet not shown opens at once and reads its rows once a sheet showing it is shown
+(`CubeAppOptions.opensWhen`; the page's `ready` waits on none of it), so a tab's grids are read when it is first shown.
+
+The market's model's elements (what a saved query reads of its project: pure/v1's `grammarToJson` over the 2.3 MB
+corpus) are read as the tab starts, not when the first saved query opens (eager about knowledge): the desk's open, 10.7
+s, became 8.3.
+
+Measured (`//datacube:deephaven_desk_test`, manual: the pinned Chromium at 1680x1050, a world of 100 names, 2,000 quotes
+and 400 prints a second, half an hour of morning, crypto simulated): the desk open in 8.3 s from DataCube's own page,
+its first tab drawn 8.2 s later and ticking at 54 ms (p50); every other tab read and drawn when first shown in 0.2 to
+3.3 s -- the options desk 9.3 s, its Black and Scholes formulas compiled by the server the first time -- and each tab's
+ticks on screen 6 to 54 ms after their rows (p50, 142 to 577 ticks in five seconds). Open…'s Examples list the desk
+first. Saved by Save As… as "My trading desk", DataCube opened again on its own start, the desk found in Open…'s saved
+pages and opened from there in 14.3 s: its ten tabs, the first drawn and ticking, Crypto read when shown. A screenshot
+of each tab is the test's output. Not yet: the desk's open is the page written (each screen's sources typed, the market
+asked for its largest names) and its 35 saved queries opened one after another, each parsed and typed again.
+
+**Found, not fixed (2026-10-25):** `//datacube:deephaven_board_test`'s reopen check failed twice in five runs with the
+same code that passed it the other three (and on the pushed commit): the saved board opened again, its book's first view
+landed with a window of 0 rows (`{"offset":0,"total":0}`), the next tick filling it. The board's path is the risk demo's
+(ServerBases over its own host), untouched here; a base let go by the page's old grids and held again by its new ones
+(same key) is the likely race. The check reads the first view; a person would see the book empty for a tick.

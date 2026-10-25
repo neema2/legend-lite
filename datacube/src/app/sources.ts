@@ -54,7 +54,7 @@ import type { TreeState } from '../tree.ts';
 import { pickSource, type DatabaseSession, type PickerSections, type RemoteCredentials, type SectionId } from '../ui/source-picker.ts';
 import { formatOf, modelLanded, tableNameOf } from '../upload.ts';
 import type { JoinRead } from './join-sources.ts';
-import type { ConfiguredProject, GridRows, LocalEngine, QueryService, Services, WarehouseService } from './services.ts';
+import type { ConfiguredProject, GridRows, LiveGrid, LocalEngine, QueryService, Services, WarehouseService } from './services.ts';
 import { lazily } from '../lazily.ts';
 
 // saved queries' code, fetched the first time it is needed -- the Saved queries section, a query link -- as charts
@@ -89,6 +89,9 @@ export type GridPlace = {
   readonly planner?: Planner;
   /** Planned and run by the host instead (a Python host's frame: R4): no planner or engine in the page. */
   readonly runner?: PlanAndRun;
+  /** Its rows change under it (a live server's): each grid made here takes its own runner and what follows them
+   *  (services.ts LiveGrid), in place of `runner`. */
+  readonly ticking?: () => LiveGrid;
   /** What its header says it reads. */
   readonly label?: string;
   /**
@@ -339,11 +342,11 @@ export function pageSources(d: SourcesOf): PageSources {
   /** Saved queries, offered on every host: read by its compiler, run where its rows are (C5). */
   const queries = services.queries;
   /** A grid's place from its rows: a planner and the engine it runs on, or the host's runner. */
-  const rowsPlace = (rows: GridRows): Pick<GridPlace, 'planner' | 'engine' | 'runner'> =>
-    (rows.runner ? { runner: rows.runner } : { planner: rows.planner, engine: rows.engine });
+  const rowsPlace = (rows: GridRows): Pick<GridPlace, 'planner' | 'engine' | 'runner' | 'ticking'> =>
+    (rows.runner ? { runner: rows.runner, ...(rows.live ? { ticking: rows.live } : {}) } : { planner: rows.planner, engine: rows.engine });
   /** What types a source's columns: the rows' planner, or the host's runner (both answer lambdaRelationType). */
   const typer = (rows: GridRows): Planner | QueryRunner => rows.runner ?? rows.planner;
-  /** The rows' own planner let go (a runner holds no model in the page). */
+  /** The rows' own planner let go (a runner holds no model in the page; a live grid's own rows go with its grid). */
   const letGo = (rows: GridRows): void => { rows.planner?.dispose?.(); };
 
   // -- each grid's file and planners, kept by its id ---------------------------------------------------------------
@@ -994,11 +997,6 @@ export function pageSources(d: SourcesOf): PageSources {
     const model = await once(projectModels, key, async () => (project
       ? (await Promise.all(project.models.map((url) => queries.fetchText(url)))).join('\n')
       : (await lazily(() => import('../../../depot-client/src/model-text.ts'))).modelText((await modelHome!.connect()).depot, q.groupId, q.artifactId, q.versionId)));
-    // in the tab, a project brings its own rows: its Data elements' tables, in a database of the version's own inside
-    // the tab's DuckDB (C5, engine-client's project-data.ts) -- another version may be on the page beside it, in its
-    // own. On Python, Python runs a project's model in its own (the host's runner).
-    const versioned: QueryEngine | undefined = local
-      ? (await (await local.projects()).engineFor(model, local.engine)).engine : undefined;
     // rules 1-4, the one rule (saved-queries.ts savedQueryOpened), typed over its rows where the host reads them
     let rows: GridRows | undefined;
     const { runtime, how, source } = await savedQueryOpened(q, model, reading, (at, options) => {
@@ -1006,6 +1004,12 @@ export function pageSources(d: SourcesOf): PageSources {
       return typer(rows);
     });
     if (rows === undefined) throw new Error('unreachable: a saved query is typed over its rows');
+    // in the tab, a project brings its own rows: its Data elements' tables, in a database of the version's own inside
+    // the tab's DuckDB (C5, engine-client's project-data.ts) -- another version may be on the page beside it, in its
+    // own. On Python, Python runs a project's model in its own (the host's runner); so does a host whose runner reads a
+    // server's rows (the market's Deephaven): the tab loads no copy of them it would never read.
+    const versioned: QueryEngine | undefined = local && rows.runner === undefined
+      ? (await (await local.projects()).engineFor(model, local.engine)).engine : undefined;
     const columns = await sourceColumns(typer(rows), source);
     const { sharedPart } = await queryStores();
     const cubeSource: QuerySource = {
