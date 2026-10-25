@@ -1891,9 +1891,15 @@ public final class Postgres extends AnsiSqlRenderer {
 
     /** A temporal operand as a NAIVE timestamp: a DATE implicitly casts to
      * timestamptz in Postgres' function resolution (date_trunc, to_char, date_bin),
-     * which the session zone would then shift; a declared TIMESTAMPTZ stays one. */
+     * which the session zone would then shift; a declared TIMESTAMPTZ stays one. A
+     * date_trunc to a date-grained part is typed TIMESTAMP (DuckDB's) but written
+     * here as a DATE ({@link #dateTrunc}), so it is cast (the IQ scale program,
+     * 2026-10-26: IQ's DATEFLOOR(MONTH, ts), a month's first day at midnight, read
+     * as a timestamptz). */
     private SqlWriter.Piece naive(SqlExpr e) {
-        if (e.type() instanceof com.legend.sql.TypeFact.Typed t
+        boolean writtenAsDate = e instanceof SqlExpr.Call c && c.fn() == SqlFn.DATE_TRUNC
+                && DATE_GRAINED.contains(datePart(part(c.args().get(0))));
+        if (!writtenAsDate && e.type() instanceof com.legend.sql.TypeFact.Typed t
                 && (t.type() == SqlType.Scalar.TIMESTAMP || t.type() == SqlType.Scalar.TIMESTAMPTZ)) {
             return w -> w.expr(e, 0);
         }

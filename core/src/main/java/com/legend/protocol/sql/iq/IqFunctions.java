@@ -1392,8 +1392,8 @@ final class IqFunctions {
                     f.args().get(0)), false, false, f.pos());
             return dateAdd(name, add, List.of(partTx, args.get(1), args.get(0)));
         }
-        throw SqlTranslationException.unsupported(name + " of a " + kindName(second.kind()) + " second argument is not"
-                + " supported yet: IQ converts it by its own rules", f.args().get(1).pos());
+        throw SqlTranslationException.unsupported(name + " of " + kindName(second.kind()) + " as its second argument is"
+                + " not supported yet: IQ converts it by its own rules", f.args().get(1).pos());
     }
 
     /** The days from 0000-01-01 (proleptic Gregorian) to 1970-01-01, IQ's engine's DAYS of 1970-01-01. */
@@ -3706,22 +3706,38 @@ final class IqFunctions {
      * next start unless it is one already, or to the nearest (a half up: 23:59:59.999999 to the minute is the next
      * day's 00:00); a TIMESTAMP. Parts YEAR, QUARTER, MONTH, DAY, HOUR and MINUTE (DATEROUND's DAY, HOUR and MINUTE).
      * Refused by name: a DATE (IQ's type for it is not measured), any other part, DATEROUND to a calendar part, a
-     * multiple (the third argument), and any of them outside IQ's engine, whose front end does not implement them
-     * (IQ's -134, measured; SQL Anywhere 17 has none).
+     * multiple that is no constant positive integer, and any of them outside IQ's engine, whose front end does not
+     * implement them (IQ's -134, measured; SQL Anywhere 17 has none).
+     *
+     * <p>The IQ scale program, 2026-10-26 (part K of the report suite, measured on IQ 17.1): a multiple k, the third
+     * argument, cuts to a start k parts apart. MINUTE's count from the hour's start and HOUR's from the day's, so k
+     * divides 60 or 24 (15 minutes, 6 hours), else IQ raises -1001010 for each row; DAY's, MONTH's, QUARTER's and
+     * YEAR's count from 0000-01-01 of the proleptic calendar, as {@code DAYS} and {@code MONTHS} do (7 days from
+     * 2025-12-18 is 2025-12-13, 5 months 2025-11-01, 2 years from 2023-08-13 2022-01-01), any k. DATECEILING moves up
+     * by k parts, DATEROUND to the nearest start (half of k parts up). A start before the year 1 raises (IQ's
+     * TIMESTAMP has none). WEEK's start is the Sunday on or before x (DATEFLOOR and DATECEILING; its multiple and
+     * DATEROUND to it are not measured, refused).
      */
     private Tx dateTruncated(Fn fn, String name, SqlAst.FunctionCall f, List<Tx> args) {
         if (engine != IqDialect.Engine.IQ) {
             throw SqlTranslationException.unsupported(name + " outside IQ's engine is not supported: IQ's front end"
                     + " does not implement it", f.pos());
         }
+        long multiple = 1;
         if (args.size() == 3) {
-            throw SqlTranslationException.unsupported(name + " to a multiple of the part is not supported yet",
-                    f.args().get(2).pos());
+            BigInteger k = f.args().get(2) instanceof SqlAst.IntegerLit n ? n.value() : null;
+            if (k == null || k.signum() <= 0 || k.bitLength() > 31) {
+                throw SqlTranslationException.unsupported(name + " to a multiple that is no constant positive integer"
+                        + " is not supported", f.args().get(2).pos());
+            }
+            multiple = k.longValue();
         }
         Part part = Part.of(((SqlAst.StringLit) f.args().get(0)).value());
         boolean round = fn == Fn.DATEROUND;
         boolean calendar = part == Part.YEAR || part == Part.QUARTER || part == Part.MONTH;
-        if (!(calendar || part == Part.DAY || part == Part.HOUR || part == Part.MINUTE) || round && calendar) {
+        boolean week = part == Part.WEEK;
+        if (!(calendar || week || part == Part.DAY || part == Part.HOUR || part == Part.MINUTE)
+                || (round || multiple > 1) && week || round && calendar) {
             throw SqlTranslationException.unsupported(name + "(" + part + ", ...) is not supported yet", f.pos());
         }
         Tx d = args.get(1);
@@ -3732,14 +3748,17 @@ final class IqFunctions {
             throw SqlTranslationException.unsupported(name + " of " + kindName(d.kind()) + " is not supported yet (of a"
                     + " TIMESTAMP only)", f.args().get(1).pos());
         }
+        if (multiple > 1) {
+            return multipleStart(fn, part, multiple, d);
+        }
         String unit = switch (part) {
             case YEAR -> "YEARS";
             case QUARTER, MONTH -> "MONTHS";
-            case DAY -> "DAYS";
+            case WEEK, DAY -> "DAYS";
             case HOUR -> "HOURS";
             default -> "MINUTES";
         };
-        long step = part == Part.QUARTER ? 3 : 1;
+        long step = part == Part.QUARTER ? 3 : week ? 7 : 1;
         return strict(Kind.DATETIME, new IqType("TIMESTAMP"), List.of(d), v -> {
             ValueSpecification x = !round ? v.get(0) : switch (part) {
                 case DAY -> adjusted(v.get(0), 12, "HOURS");
@@ -3750,12 +3769,58 @@ final class IqFunctions {
                 case YEAR -> SqlToPure.call("firstHourOfDay", SqlToPure.call("firstDayOfYear", x));
                 case QUARTER -> SqlToPure.call("firstHourOfDay", SqlToPure.call("firstDayOfQuarter", x));
                 case MONTH -> SqlToPure.call("firstHourOfDay", SqlToPure.call("firstDayOfMonth", x));
+                case WEEK -> SqlToPure.call("firstHourOfDay", typed(SqlToPure.call("adjust", x, SqlToPure.call(
+                        "minus", sunday(x)), new EnumValue(DURATION_UNIT, "DAYS")), "DateTime"));
                 case DAY -> SqlToPure.call("firstHourOfDay", x);
                 case HOUR -> SqlToPure.call("firstMinuteOfHour", x);
                 default -> SqlToPure.call("firstSecondOfMinute", x);
             };
             return fn != Fn.DATECEILING ? start : ifThen(SqlToPure.call("equal", start, v.get(0)), start,
                     adjusted(start, step, unit));
+        });
+    }
+
+    /** {@link #dateTruncated}'s start {@code k} parts apart (k > 1) of timestamp {@code d}, DATEFLOOR's, DATECEILING's
+     *  or DATEROUND's. */
+    private Tx multipleStart(Fn fn, Part part, long k, Tx d) {
+        long within = part == Part.MINUTE ? 60 : part == Part.HOUR ? 24 : 0;
+        boolean raises = within > 0 && within % k != 0;
+        boolean calendar = part == Part.YEAR || part == Part.QUARTER || part == Part.MONTH;
+        long step = part == Part.YEAR ? 12 * k : part == Part.QUARTER ? 3 * k : k;
+        String unit = calendar ? "MONTHS" : part == Part.DAY ? "DAYS" : part == Part.HOUR ? "HOURS" : "MINUTES";
+        return strict(Kind.DATETIME, new IqType("TIMESTAMP"), List.of(d), v -> {
+            ValueSpecification t = v.get(0);
+            if (raises) {
+                return raise("DateTime");
+            }
+            ValueSpecification x = fn != Fn.DATEROUND ? t : switch (part) {
+                case DAY -> adjusted(t, 12 * k, "HOURS");
+                case HOUR -> adjusted(t, 30 * k, "MINUTES");
+                default -> adjusted(t, 30 * k, "SECONDS");
+            };
+            // the part's start, moved back by its count's remainder: minutes within the hour, hours within the day,
+            // days and months from 0000-01-01
+            ValueSpecification start;
+            ValueSpecification count;
+            if (calendar) {
+                start = SqlToPure.call("firstHourOfDay", SqlToPure.call("firstDayOfMonth", x));
+                count = minus(months(x, 12), integer(1));
+            } else if (part == Part.DAY) {
+                start = SqlToPure.call("firstHourOfDay", x);
+                count = AppliedFunction.infixRun("plus", List.of(SqlToPure.call("dateDiff", new CDate(
+                        PureDateLiteral.parse("1970-01-01"), "1970-01-01", null), day(x, false),
+                        new EnumValue(DURATION_UNIT, "DAYS")), integer(DAYS_TO_1970)));
+            } else {
+                start = SqlToPure.call(part == Part.HOUR ? "firstMinuteOfHour" : "firstSecondOfMinute", x);
+                count = SqlToPure.call(part == Part.HOUR ? "hour" : "minute", x);
+            }
+            ValueSpecification floor = typed(SqlToPure.call("adjust", start, SqlToPure.call("minus", SqlToPure.call(
+                    "mod", count, integer(step))), new EnumValue(DURATION_UNIT, unit)), "DateTime");
+            if (within == 0) {
+                floor = ifThen(lt(SqlToPure.call("year", floor), integer(1)), raise("DateTime"), floor);
+            }
+            return fn != Fn.DATECEILING ? floor : ifThen(SqlToPure.call("equal", floor, t), floor,
+                    adjusted(floor, step, unit));
         });
     }
 

@@ -432,6 +432,30 @@ class IqToPureTest {
     }
 
     @Test
+    void aTimestampCutToAMultipleOfItsPartCountsFromThePartsStart() {
+        // the IQ scale program, 2026-10-26 (the realistic reports' part K, measured on IQ 17.1): 15 minutes count from
+        // the hour, 5 months from 0000-01-01; a multiple that divides no hour is IQ's -1001010 for each row
+        String p = pure("SELECT DATEFLOOR(MINUTE, CAST(dt AS TIMESTAMP), 15) AS a, DATECEILING(MONTH, CAST(dt AS"
+                + " TIMESTAMP), 5) AS b FROM " + T, IqProfile.IQ17_DEFAULT.settings());
+        assertTrue(p.contains("mod(15)") && p.contains("mod(5)") && p.contains("firstDayOfMonth"), p);
+        String raised = pure("SELECT DATEFLOOR(MINUTE, CAST(dt AS TIMESTAMP), 7) AS a FROM " + T,
+                IqProfile.IQ17_DEFAULT.settings());
+        assertTrue(raised.contains("toOne") && !raised.contains("mod("), raised);
+        refusal("SELECT DATEFLOOR(MINUTE, CAST(dt AS TIMESTAMP), sm) AS a FROM " + T, IqProfile.IQ17_DEFAULT.settings(),
+                COLUMNS);
+    }
+
+    @Test
+    void aTimestampCutToItsWeekIsTheSundayOnOrBeforeIt() {
+        // the IQ scale program, 2026-10-26 (the realistic reports' part K, measured on IQ 17.1)
+        String p = pure("SELECT DATEFLOOR(WEEK, CAST(dt AS TIMESTAMP)) AS w FROM " + T,
+                IqProfile.IQ17_DEFAULT.settings());
+        assertTrue(p.contains("DayOfWeek.Sunday"), p);
+        refusal("SELECT DATEROUND(WEEK, CAST(dt AS TIMESTAMP)) AS w FROM " + T, IqProfile.IQ17_DEFAULT.settings(),
+                COLUMNS);
+    }
+
+    @Test
     void aSimpleCaseOfALongOperandComputesItOnce() {
         // the IQ scale program, 2026-10-26 (the realistic reports' last weekday of a month): the operand, compared in
         // each WHEN, was written once per WHEN past the size bound; computed once, before the item

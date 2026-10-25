@@ -755,4 +755,19 @@ says so.
     / and MOD of negatives cut toward zero, ROUND at a half, blank padding (a leading blank counts), NULL groups and
     order, DISTINCT over NULLs; the 23rd, COALESCE((SELECT SUM ...), 0), is IQ's -1001030 as lite predicts. The root: 267
     of 286 PASS, 14 row-typed, 2 refused, 3 IQ's errors, no wrong value.
-  - **The Snowflake lane** (its sibling session idle since 10-23): its ledger column predates this day's typing.
+  - **Reports part K judged** (IQ's own idioms, 29 cases snapped at 38febb18): IF ... ENDIF and IFNULL labels, STR,
+    STUFF, REPLICATE, PATINDEX, INSERTSTR and STRING text, CONVERT's date styles, DATEFORMAT's pictures, DAYNAME,
+    MONTHNAME and DATENAME, YEARS, MONTHS, WEEKS and DAYS, ARGN, the REGR_ family and RANGE frames over a value: 27 PASS
+    and 2 IQ's own errors on DuckDB and Postgres. **Measured and built**: DATEFLOOR, DATECEILING and DATEROUND to a
+    multiple of the part -- MINUTE's counted from the hour and HOUR's from the day, a multiple dividing 60 or 24 (else
+    IQ's -1001010 for each row: 7 minutes, 5 hours); DAY's, MONTH's, QUARTER's and YEAR's from 0000-01-01, as DAYS and
+    MONTHS count (7 days from 2025-12-18 is 2025-12-13); and WEEK's start, the Sunday on or before. **Fixed**: a month's,
+    quarter's or year's start read as a timestamp on Postgres was a timestamptz (date_trunc of the DATE Postgres writes
+    for a date-grained date_trunc, typed TIMESTAMP after DuckDB's), now cast first. The root: 294 of 315 PASS, 14
+    row-typed, 2 refused, 5 IQ's errors, no wrong value.
+  - **The Snowflake lane at ac51fd9d** (the sibling session's run, its message refused for want of a trusted device; read
+    from its transcript): 6,825 runs PASS on both; 9 that PASS on DuckDB are Snowflake's compile error "Unsupported
+    subquery type cannot be evaluated" -- a correlated scalar subquery compared in a WHERE or an outer join's ON, an IN
+    within an IN correlated to the outer query, an EXISTS over a GROUP BY expression -- 4 of them matched DuckDB at
+    476bb731; 3 refused by name; 8 IQ's errors lite answers on Snowflake (the iq16 BIGINT overflows and a lazy
+    TOP), unchanged. The report suite's run waits on the user's approval in that session.
