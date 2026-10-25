@@ -6300,8 +6300,57 @@ public final class IqDialect implements InputDialect {
                     && b.right() instanceof SqlAst.IntegerLit n -> n.value().signum() != 0 && cannotRaise(b.left());
             case SqlAst.Binary b -> (b.op() == SqlAst.BinaryOp.PLUS || b.op() == SqlAst.BinaryOp.MINUS
                     || b.op() == SqlAst.BinaryOp.TIMES) && cannotRaise(b.left()) && cannotRaise(b.right());
+            case SqlAst.ScalarSubquery q -> oneRowAggregate(q.query());
             default -> false;
         };
+    }
+
+    /**
+     * Whether {@code s} is a subquery of one row that computes nothing that raises (the IQ scale program, 2026-10-26: the
+     * Snowflake lane's correlated MAX, MIN and AVG compared in a WHERE or an ON, each computed ahead of its comparison
+     * and so written inside a CASE, which Snowflake evaluates no correlated subquery in): one MIN, MAX, COUNT or AVG of a
+     * column, or COUNT(*), with no GROUP BY, HAVING or row limit, over tables, filtered by comparisons of columns and
+     * numeric constants and their NULL tests joined by AND.
+     */
+    private static boolean oneRowAggregate(SqlAst.Statement s) {
+        if (!(s instanceof SqlAst.Select q) || !q.groupBy().isEmpty() || q.having() != null || q.limit() != null
+                || q.offset() != null || !q.windows().isEmpty() || q.items().size() != 1
+                || !(q.items().get(0) instanceof SqlAst.SelectExpr x) || !(x.expr() instanceof SqlAst.FunctionCall f)
+                || f.filter() != null || !f.orderBy().isEmpty() || !f.withinGroup().isEmpty()) {
+            return false;
+        }
+        String fn = IqLexer.lower(f.name().get(f.name().size() - 1).text());
+        boolean counted = fn.equals("count") && f.star() && f.args().isEmpty();
+        if (!counted && !(Set.of("min", "max", "count", "avg").contains(fn) && f.args().size() == 1
+                && f.args().get(0) instanceof SqlAst.ColumnRef)) {
+            return false;
+        }
+        for (SqlAst.FromItem i : q.from()) {
+            // a table by its name, or by the island's tb('...')
+            boolean table = i instanceof SqlAst.TableName || i instanceof SqlAst.TableFunction t
+                    && t.name().size() == 1 && IqLexer.lower(t.name().get(0).text()).equals("tb");
+            if (!table) {
+                return false;
+            }
+        }
+        return q.where() == null || plainFilter(q.where());
+    }
+
+    /** Whether {@code e} is comparisons of columns and numeric constants, and their NULL tests, joined by AND
+     *  ({@link #oneRowAggregate}). */
+    private static boolean plainFilter(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.AND -> plainFilter(b.left()) && plainFilter(b.right());
+            case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.EQ || b.op() == SqlAst.BinaryOp.NE
+                    || b.op() == SqlAst.BinaryOp.LT || b.op() == SqlAst.BinaryOp.LE || b.op() == SqlAst.BinaryOp.GT
+                    || b.op() == SqlAst.BinaryOp.GE -> plainOperand(b.left()) && plainOperand(b.right());
+            case SqlAst.IsNull n -> n.operand() instanceof SqlAst.ColumnRef;
+            default -> false;
+        };
+    }
+
+    private static boolean plainOperand(SqlAst.Expr e) {
+        return e instanceof SqlAst.ColumnRef || e instanceof SqlAst.IntegerLit || e instanceof SqlAst.NumericLit;
     }
 
     /**

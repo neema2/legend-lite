@@ -34,6 +34,7 @@ final class ScalarSubqueriesFlattened extends SqlRewriter {
     }
 
     static SqlQuery flattened(SqlQuery q) {
+        q = collapsed(q);
         while (q instanceof SqlSelect s && s.from() instanceof SqlSource.Subselect sub
                 && sub.inner() instanceof SqlSelect in && readsOneColumnOnly(s, sub.alias()) && keepsItsRows(in)) {
             SqlSelect.Projection p = s.projections().get(0);
@@ -49,7 +50,53 @@ final class ScalarSubqueriesFlattened extends SqlRewriter {
                     p.out())), in.distinct(), in.from(), in.where(), in.groupBy(), null, null, List.of(), null, null,
                     s.outputs());
         }
-        return q;
+        return collapsed(q);
+    }
+
+    /**
+     * {@code q}, where it computes one value from the columns of a derived table that aggregates with no grouping (one
+     * row) and does nothing else, as that derived table's select of the value, each column read as the aggregate it
+     * names: {@code (SELECT f(x.s, x.n) FROM (SELECT SUM(v) AS s, COUNT(v) AS n FROM u WHERE u.k = t.k) x)} is {@code
+     * (SELECT f(SUM(v), COUNT(v)) FROM u WHERE u.k = t.k)}. The IQ scale program, 2026-10-26 (the Snowflake lane's
+     * census2 scalar_correlated_in_where: IQ's exact AVG, a quotient of a SUM and a COUNT, correlated a derived table
+     * down, which Snowflake evaluates no subquery of). Else {@code q} itself.
+     */
+    private static SqlQuery collapsed(SqlQuery q) {
+        if (!(q instanceof SqlSelect s && s.from() instanceof SqlSource.Subselect sub
+                && sub.inner() instanceof SqlSelect in && s.projections().size() == 1 && !s.distinct()
+                && s.where() == null && s.groupBy().isEmpty() && s.having() == null && s.qualify() == null
+                && s.orderBy().isEmpty() && s.limit() == null && s.offset() == null && in.groupBy().isEmpty()
+                && !in.distinct() && keepsItsRows(in) && !in.projections().isEmpty()
+                && in.projections().stream().allMatch(x -> SqlAgg.aggregatesSelect(x.expr()))
+                && !SqlAgg.aggregatesSelect(s.projections().get(0).expr()))) {
+            return q;
+        }
+        String alias = sub.alias();
+        boolean[] unread = {false};
+        SqlExpr value = new SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr e) {
+                if (e instanceof SqlExpr.Column c && alias.equals(c.table())) {
+                    SqlSelect.Projection read = projectionNamed(in, c.name());
+                    if (read == null) {
+                        unread[0] = true;
+                        return e;
+                    }
+                    return read.expr();
+                }
+                return e;
+            }
+
+            SqlExpr run(SqlExpr root) {
+                return rewriteExpr(root);
+            }
+        }.run(s.projections().get(0).expr());
+        if (unread[0]) {
+            return q;
+        }
+        SqlSelect.Projection p = s.projections().get(0);
+        return new SqlSelect(List.of(new SqlSelect.Projection(value, p.alias(), p.out())), false, in.from(), in.where(),
+                List.of(), null, null, List.of(), null, null, s.outputs());
     }
 
     /** {@code s} reads one column of its derived table {@code alias} and does nothing else. */

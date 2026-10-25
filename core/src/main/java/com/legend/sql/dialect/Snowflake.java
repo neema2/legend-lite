@@ -179,7 +179,9 @@ public final class Snowflake extends AnsiSqlRenderer {
      * aggregate and names its columns {@code 'a'}, quotes included); the checked-defect envelopes as list lambdas
      * (a to-many hoist nests lambdas and walls here); the substring start clamp (a negative start counts from the
      * end here); a select-list UNNEST as a lateral FLATTEN; a constant GROUP BY or ORDER BY key as a typed
-     * expression (Snowflake reads an integer one as a position); a WHERE's IS NOT NULL guard of a column it compares,
+     * expression (Snowflake reads an integer one as a position); a comparison two-valued by its operands' guards as
+     * the plain comparison where its CASE adds nothing (GuardedComparisonsUnwrapped: Snowflake evaluates no correlated
+     * subquery inside a CASE); a WHERE's IS NOT NULL guard of a column it compares,
      * dropped (RedundantNullGuards: a guard of the outer row keeps Snowflake from decorrelating); an EXISTS written
      * closer to an equality correlation
      * in its subquery's own WHERE (ExistsUnnested); an EXISTS one row decides, without its subquery
@@ -197,10 +199,13 @@ public final class Snowflake extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
-                new ConstantKeysAsExpressions(), new RedundantNullGuards(), new NotExistsAsAll(), new ExistsUnnested(),
+                new ConstantKeysAsExpressions(), new GuardedComparisonsUnwrapped(), new RedundantNullGuards(),
+                new NotExistsAsAll(), new ExistsUnnested(),
                 new ExistsOverOneRow(),
                 new OuterJoinSubqueryFilters(true),
                 new ScalarSubqueriesFlattened(),
+                // again: a scalar subquery's own WHERE surfaces only once its chain of derived tables is collapsed
+                new RedundantNullGuards(),
                 new ScalarSubqueriesAggregated(), new SnowflakeSubqueryRefusals(), new RootNumericTypes());
     }
 

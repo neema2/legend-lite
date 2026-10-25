@@ -51,17 +51,17 @@ final class RedundantNullGuards extends SqlRewriter {
         }
         List<SqlExpr> parts = new ArrayList<>();
         conjuncts(s.where(), parts);
-        Set<SqlExpr> compared = new HashSet<>();
+        Set<Object> compared = new HashSet<>();
         for (SqlExpr p : parts) {
             if (ungrouped(p) instanceof SqlExpr.Call c && REJECTING.contains(c.fn()) && c.args().size() == 2) {
-                compared.add(ungrouped(c.args().get(0)));
-                compared.add(ungrouped(c.args().get(1)));
+                compared.add(key(c.args().get(0)));
+                compared.add(key(c.args().get(1)));
             }
         }
         List<SqlExpr> kept = new ArrayList<>();
         for (SqlExpr p : parts) {
             boolean redundant = ungrouped(p) instanceof SqlExpr.Call c && c.fn() == SqlFn.IS_NOT_NULL
-                    && c.args().size() == 1 && compared.contains(ungrouped(c.args().get(0)));
+                    && c.args().size() == 1 && compared.contains(key(c.args().get(0)));
             if (!redundant) {
                 kept.add(p);
             }
@@ -71,6 +71,12 @@ final class RedundantNullGuards extends SqlRewriter {
         }
         return new SqlSelect(s.projections(), s.distinct(), s.from(), and(kept), s.groupBy(), s.having(), s.qualify(),
                 s.orderBy(), s.limit(), s.offset(), s.outputs());
+    }
+
+    /** What {@code e} is compared as: a column by its table and name (the IQ scale program, 2026-10-26: a guard's
+     *  column and the comparison's carried different type facts, so the guard of the outer row stayed), else itself. */
+    private static Object key(SqlExpr e) {
+        return ungrouped(e) instanceof SqlExpr.Column c ? List.of(String.valueOf(c.table()), c.name()) : ungrouped(e);
     }
 
     private static SqlExpr ungrouped(SqlExpr e) {

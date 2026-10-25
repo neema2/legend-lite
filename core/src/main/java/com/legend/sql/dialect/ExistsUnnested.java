@@ -26,7 +26,8 @@ import java.util.Set;
  *   <li>a row limit of one or more and its order decide nothing: {@code EXISTS (SELECT ... LIMIT 1)} is the select
  *       without them; with an offset m, the select has a row past m: {@code (SELECT COUNT(*) ...) > m};</li>
  *   <li>a condition that reads no column of the subquery's own is the same for each of its rows:
- *       {@code EXISTS (SELECT ... WHERE w AND p)} is {@code COALESCE(p, FALSE) AND EXISTS (SELECT ... WHERE w)}.</li>
+ *       {@code EXISTS (SELECT ... WHERE w AND p)} is {@code COALESCE(p, FALSE) AND EXISTS (SELECT ... WHERE w)};</li>
+ *   <li>an EXISTS among its WHERE's conjuncts is a source of its own ({@link #merged}).</li>
  * </ul>
  */
 final class ExistsUnnested extends SqlRewriter {
@@ -56,8 +57,8 @@ final class ExistsUnnested extends SqlRewriter {
                         new SqlExpr.IntLit(s.offset()));
             }
         }
-        if (q instanceof SqlSelect s && s.where() != null && s.groupBy().isEmpty() && s.having() == null
-                && s.qualify() == null && s.limit() == null && s.offset() == null && !aggregates(s)) {
+        if (q instanceof SqlSelect s && s.where() != null && plain(s)) {
+            q = s = merged(s);
             Set<String> own = new HashSet<>();
             aliases(s.from(), own);
             List<SqlExpr> parts = new ArrayList<>();
@@ -78,6 +79,46 @@ final class ExistsUnnested extends SqlRewriter {
             }
         }
         return q == x.subquery() ? e : new SqlExpr.Exists(q);
+    }
+
+    /** {@code s} filters its rows and does nothing else: no grouping, limit, qualification or aggregate. */
+    private static boolean plain(SqlSelect s) {
+        return s.groupBy().isEmpty() && s.having() == null && s.qualify() == null && s.limit() == null
+                && s.offset() == null && !aggregates(s) && !ExistsOverOneRow.explodes(s);
+    }
+
+    /**
+     * {@code s}, the subquery of an EXISTS, with each EXISTS among its WHERE's conjuncts whose own subquery is plain
+     * ({@link #plain}) merged into it: {@code EXISTS (SELECT 1 FROM a WHERE p AND EXISTS (SELECT 1 FROM b WHERE q))} is
+     * {@code EXISTS (SELECT 1 FROM a CROSS JOIN b WHERE p AND q)} -- a row of a with one of b. The IQ scale program,
+     * 2026-10-26 (the Snowflake lane's census2 in_correlated_2, an IN within an IN that reads the outermost row):
+     * Snowflake evaluates no subquery correlated to a query two levels out, and decorrelates the one EXISTS.
+     */
+    private static SqlSelect merged(SqlSelect s) {
+        List<SqlExpr> parts = new ArrayList<>();
+        conjuncts(java.util.Objects.requireNonNull(s.where()), parts);
+        SqlSource from = s.from();
+        List<SqlExpr> kept = new ArrayList<>();
+        boolean any = false;
+        for (SqlExpr p : parts) {
+            SqlExpr u = p instanceof SqlExpr.Group g ? g.inner() : p;
+            if (u instanceof SqlExpr.Exists x && x.subquery() instanceof SqlSelect in && plain(in)
+                    && !(in.from() instanceof SqlSource.Dual) && !(from instanceof SqlSource.Dual)) {
+                from = new SqlSource.Join(from, in.from(), SqlSource.Join.Kind.CROSS, null);
+                if (in.where() != null) {
+                    conjuncts(in.where(), kept);
+                }
+                any = true;
+            } else {
+                kept.add(p);
+            }
+        }
+        if (!any) {
+            return s;
+        }
+        SqlSelect out = new SqlSelect(s.projections(), s.distinct(), from, kept.isEmpty() ? new SqlExpr.BoolLit(true)
+                : and(kept), List.of(), null, null, s.orderBy(), null, null, s.outputs());
+        return merged(out);
     }
 
     /** {@code s} keeps its derived table's rows, one for one: no filter but TRUE, no grouping, limit or aggregate. */
