@@ -608,3 +608,35 @@ says so.
     session's Q21 merged (79cf2723: DATEADD of a timestamp of no known year checked row by row past 7910).
   - **Next:** the decimals past 38 digits whose values fit (the CAST with no precision, its SUM; the count ratios),
     typed as IQ types them and computed in lite's 38, refused at run time where a value does not fit.
+- 2026-10-25, **the user's breadth ask, and the real-life census.** "How are we doing with all the scalar and
+  aggregate and window functions, GROUP BY and HAVING, every OVER/PARTITION/ROWS/RANGE form, string, math, date and
+  time functions, all join types, lots of joins, nested subqueries, combinations?" Decimals past 38 digits are set
+  aside (DECFLOAT would not help: DuckDB has none, and Snowflake's DECFLOAT also holds 38 significant digits).
+  - **The census** (`lite/census_*`, 317 cases in eleven files, iq17-default): one representative use per construct a
+    report writes, over the parity tables, deterministic. The functions are every analytic one IQ 17.1 lists
+    (`iq-sql-research/iqrules/iq_function_names.txt` by its categories, the system, web, file and encryption ones
+    aside); every window frame form; GROUP BY forms (expression, CASE, ROLLUP, CUBE, GROUPING SETS); every join type
+    (and chains of 6 and 10, APPLY, `*=`); subqueries (scalar, correlated, IN, EXISTS, ANY and ALL, three deep, CTE
+    chains); set operations and row limits; report-shaped combinations. The Mac session snapped them from the live IQ
+    (fd59eb33): 302 answered, 15 IQ's errors.
+  - **Before** (translation alone): 278 answered, 33 refused, 6 of IQ's errors claimed. **After** this slice, judged
+    against the live IQ: 295 PASS and 15 BOTH_ERROR of 317 (97.8%), 6 refused (ISDATE, INTTOHEX and HEXTOINT, SOUNDEX
+    and DIFFERENCE, SIMILAR, STR of a DOUBLE, LIST(DISTINCT) of no GROUP BY key), 1 FAIL listed (a share of total
+    over a window SUM of an INTEGER: IQ types the SUM by its data, D-N3; its EXPRTYPEs asked). Every IQ error the
+    census meets lite models (INTERSECT, EXCEPT, GROUPING SETS, TOP in a subquery and APPLY under IQ's engine, USING,
+    NULLS LAST, a RANGE frame over two keys or a date, a set operation's ORDER BY by a constant's alias).
+  - **Added:** SIN, COS, TAN, COT, ASIN, ACOS, ATAN, ATAN2, DEGREES, RADIANS (a value outside the domain refused at
+    run time), WIDTH_BUCKET of integers, OCTET_LENGTH, BIT_LENGTH, STR_REPLACE, HASH (MD5, SHA256), DATEFLOOR,
+    DATECEILING and DATEROUND of a TIMESTAMP; STDDEV, STDDEV_POP, STDDEV_SAMP, VARIANCE, VAR_POP, VAR_SAMP, CORR,
+    COVAR_POP, COVAR_SAMP and the nine REGR_* by IQ's own one-pass formulas in DOUBLE (the Mac session measured them,
+    and the forms were checked against its digits: n * SUM(x*y) - SUM(x) * SUM(y) for the slope, CORR and R2, the
+    sums about the means for the rest); MEDIAN of an INTEGER answered (a group whose values differ by more than 2^31 - 1
+    refused at run time, where IQ's midpoint wraps), its midpoint cut toward zero under IQ's engine (D-F17 fixed); a
+    NUMERIC dividend over a scale-0 decimal divisor is a NUMERIC quotient (IQ divides whole an integer only: 100.0 *
+    COUNT(*) / SUM(COUNT(*)) OVER () is its NUMERIC(46,23)). 42 older runs went from refused to PASS with them.
+  - **The corpus lane at dc45fbfd, judged by the Mac session against the live IQ:** SEDE and SQLStorm 12,906 queries,
+    10,923 PASS and 1,544 PASS_UNORDERED (96.6%), 208 FAIL after the tie-break: 151 ties (ROW_NUMBER or TOP over equal
+    keys), 20 the clock, 24 NUMERIC places past 38 digits, 9 IQ's names of an unaliased item over a derived table, 4
+    to classify. BIRD 350 PASS and 132 BOTH_ERROR of 500, 3 FAIL (ties); TPC-H 19 PASS of 20, 1 BOTH_ERROR; TPC-DS 64
+    PASS and 19 BOTH_ERROR of 87, 4 FAIL (the share of total's places). No wrong answer to a query IQ answers that is
+    a translation's defect.

@@ -136,8 +136,11 @@ tests:
   # ---- M2: MEDIAN of an INTEGER (SQL Anywhere's midpoint wraps at 32 bits: its defect)
   - id: m2_median_of_integer_extremes_is_refused
     sql: "SELECT MEDIAN(it) AS m FROM t WHERE id IN (1, 2)"
+  # the IQ scale program, 2026-10-25: under IQ's engine the midpoint is cut toward zero (D-F17, the live IQ's 0), where
+  # SQL Anywhere 17, which judged the iq16-default run, floors it (-1) as IQ's front end does: the live IQ judges it
   - id: m2_median_of_smallint_extremes
     sql: "SELECT MEDIAN(sm) AS m FROM t WHERE id IN (1, 2)"
+    profile: iq17-default
   - id: m2_median_of_a_bounded_integer
     sql: "SELECT MEDIAN(row_num) AS m FROM sa_rowgenerator(1, 10)"
     engine: sa

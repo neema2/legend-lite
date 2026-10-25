@@ -105,7 +105,12 @@ final class IqFunctions {
         EXTRACT(2, 2, IqParser.EXTRACT), DATEFORMAT(2, 2), DAYNAME(1, 1), MONTHNAME(1, 1), DATETIME(1, 1), YMD(3, 3),
         GREATER(2, 2), LESSER(2, 2), ARGN(2, Integer.MAX_VALUE), REVERSE(1, 1), INSERTSTR(3, 3), BYTE_LENGTH(1, 1),
         TO_CHAR(1, 2),
-        REGEXP_SUBSTR(2, 5), DATALENGTH(1, 1);
+        REGEXP_SUBSTR(2, 5), DATALENGTH(1, 1),
+        // the IQ scale program, 2026-10-25 (the real-life census): the trigonometric functions, DEGREES, RADIANS,
+        // WIDTH_BUCKET, OCTET_LENGTH, BIT_LENGTH, STR_REPLACE
+        SIN(1, 1), COS(1, 1), TAN(1, 1), COT(1, 1), ASIN(1, 1), ACOS(1, 1), ATAN(1, 1), ATAN2(2, 2), DEGREES(1, 1),
+        RADIANS(1, 1), WIDTH_BUCKET(4, 4), OCTET_LENGTH(1, 1), BIT_LENGTH(1, 1), STR_REPLACE(3, 3), HASH(1, 2),
+        DATEFLOOR(2, 3), DATECEILING(2, 3), DATEROUND(2, 3);
 
         final int min;
         final int max;
@@ -415,7 +420,14 @@ final class IqFunctions {
             case REVERSE -> reverse(name, f, args);
             case TO_CHAR -> toChar(name, f, args);
             case INSERTSTR -> insertstr(name, f, args);
-            case BYTE_LENGTH -> byteLength(name, f, args);
+            case BYTE_LENGTH, OCTET_LENGTH -> byteLength(name, f, args);
+            case BIT_LENGTH -> bitLength(name, f, args);
+            case SIN, COS, TAN, COT, ASIN, ACOS, ATAN, DEGREES, RADIANS -> trigonometric(fn, name, f, args);
+            case ATAN2 -> atan2(name, f, args);
+            case WIDTH_BUCKET -> widthBucket(name, f, args);
+            case STR_REPLACE -> replace(name, f, args, at);
+            case HASH -> hash(name, f, args);
+            case DATEFLOOR, DATECEILING, DATEROUND -> dateTruncated(fn, name, f, args);
             case DATALENGTH -> dataLength(name, f, args);
             case REGEXP_SUBSTR -> regexpSubstr(name, f, args);
             case PI -> Tx.value(SqlToPure.call("pi"), Kind.FLOAT, false, new IqType("DOUBLE"));
@@ -3033,6 +3045,77 @@ final class IqFunctions {
         return Tx.value(r.vs(), Kind.FLOAT, true, r.detail());
     }
 
+    /**
+     * SIN, COS, TAN, COT, ASIN, ACOS, ATAN, DEGREES and RADIANS of a number, a DOUBLE (the IQ scale program, 2026-10-25,
+     * the real-life census): the IEEE function each database computes alike (DEGREES and RADIANS a product by 180 / pi
+     * or pi / 180). A value outside its domain -- ASIN's or ACOS's past 1 in magnitude, COT's 0 -- is refused at run
+     * time: IQ's answer there is not measured.
+     */
+    private Tx trigonometric(Fn fn, String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx x = asDouble(args.get(0), f.args().get(0), name);
+        String outside = IqDialect.REFUSED_AT_RUN_TIME + name + " of a value outside its domain is not supported:"
+                + " IQ's answer there is not measured";
+        Tx r = strict(Kind.FLOAT, new IqType("DOUBLE"), List.of(x), v -> {
+            ValueSpecification d = v.get(0);
+            ValueSpecification pastOne = SqlToPure.call("greaterThan", SqlToPure.call("abs", d), new CFloat(1.0));
+            return switch (fn) {
+                case SIN -> SqlToPure.call("sin", d);
+                case COS -> SqlToPure.call("cos", d);
+                case TAN -> SqlToPure.call("tan", d);
+                case ATAN -> SqlToPure.call("atan", d);
+                case ASIN -> refusedPast(pastOne, outside, SqlToPure.call("asin", d), raise("Float"));
+                case ACOS -> refusedPast(pastOne, outside, SqlToPure.call("acos", d), raise("Float"));
+                case COT -> refusedPast(SqlToPure.call("equal", d, new CFloat(0.0)), outside, SqlToPure.call("cot", d),
+                        raise("Float"));
+                case DEGREES -> times(d, new CFloat(180.0 / Math.PI));
+                case RADIANS -> times(d, new CFloat(Math.PI / 180.0));
+                default -> throw new IllegalStateException("not a trigonometric function: " + fn);
+            };
+        });
+        return Tx.value(r.vs(), Kind.FLOAT, r.nullable(), r.detail());
+    }
+
+    /** {@code ATAN2(y, x)}, a DOUBLE: the angle of the point (x, y), as {@link #trigonometric}'s; of (0, 0) refused at
+     *  run time (IQ's answer there is not measured). */
+    private Tx atan2(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx y = asDouble(args.get(0), f.args().get(0), name);
+        Tx x = asDouble(args.get(1), f.args().get(1), name);
+        String origin = IqDialect.REFUSED_AT_RUN_TIME + name + " of the origin is not supported: IQ's answer there is"
+                + " not measured";
+        Tx r = strict(Kind.FLOAT, new IqType("DOUBLE"), List.of(y, x), v -> refusedPast(SqlToPure.call("and",
+                SqlToPure.call("equal", v.get(0), new CFloat(0.0)), SqlToPure.call("equal", v.get(1), new CFloat(0.0))),
+                origin, SqlToPure.call("atan2", v.get(0), v.get(1)), raise("Float")));
+        return Tx.value(r.vs(), Kind.FLOAT, r.nullable(), r.detail());
+    }
+
+    /**
+     * {@code WIDTH_BUCKET(x, low, high, n)} of integers (the IQ scale program, 2026-10-25, the real-life census): the
+     * bucket of x among n equal ones from low to high, 0 below low and n + 1 from high on, exactly, by integer
+     * arithmetic (x - low) * n / (high - low) + 1; an INTEGER. Refused by name: low, high or n no integer constant,
+     * low not below high, n not above 0, and x no integer.
+     */
+    private Tx widthBucket(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        BigInteger lo = IqDialect.integerLiteral(f.args().get(1));
+        BigInteger hi = IqDialect.integerLiteral(f.args().get(2));
+        BigInteger n = IqDialect.integerLiteral(f.args().get(3));
+        if (lo == null || hi == null || n == null || lo.compareTo(hi) >= 0 || n.signum() <= 0
+                || args.get(0).kind() != Kind.INTEGER) {
+            throw SqlTranslationException.unsupported(name + "(...) is supported yet only of an integer by integer"
+                    + " constants, its low below its high and a count of buckets above 0", f.pos());
+        }
+        Tx x = args.get(0);
+        IqType type = IqType.integer("INTEGER", BigInteger.ZERO, n.add(BigInteger.ONE), false);
+        return strict(Kind.INTEGER, type, List.of(x), v -> {
+            ValueSpecification w = SqlToPure.call("floor", v.get(0));
+            ValueSpecification bucket = AppliedFunction.infixRun("plus", List.of(SqlToPure.wholeQuotient(
+                    AppliedFunction.infixRun("times", List.of(AppliedFunction.infixRun("minus", List.of(w,
+                            integer(lo.longValueExact()))), integer(n.longValueExact()))),
+                    integer(hi.subtract(lo).longValueExact())), integer(1)));
+            return ifThen(lt(w, integer(lo.longValueExact())), integer(0), ifThen(SqlToPure.call("greaterThanEqual", w,
+                    integer(hi.longValueExact())), integer(n.add(BigInteger.ONE).longValueExact()), bucket));
+        });
+    }
+
     /** The largest DOUBLE: a value past it is an overflow ({@link #iqPower}). */
     private static final double LARGEST = Double.MAX_VALUE;
 
@@ -3349,6 +3432,14 @@ final class IqFunctions {
                 : v.get(0)));
     }
 
+    /** {@code BIT_LENGTH(s)}: {@link #byteLength}'s bytes times 8 (the IQ scale program, 2026-10-25, the real-life
+     *  census). */
+    private Tx bitLength(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx bytes = byteLength(name, f, args);
+        IqType type = IqType.integer("INTEGER", BigInteger.ZERO, IqType.INTEGER_MAX, false);
+        return strict(Kind.INTEGER, type, List.of(bytes), v -> times(v.get(0), integer(8)));
+    }
+
     /**
      * {@code DATALENGTH(x)} (IQ island, 2026-10-15; the corpus lane, measured on IQ 17.1): a string's length in bytes,
      * as {@link #byteLength} (a CHAR(n) column's n, its value blank padded under IQ's engine); under IQ's engine a
@@ -3607,6 +3698,106 @@ final class IqFunctions {
         }
         return strict(Kind.DATE, dated("DATE", latestYear(d)), List.of(d), v -> typed(SqlToPure.call("datePart",
                 v.get(0)), "StrictDate"));
+    }
+
+    /**
+     * {@code DATEFLOOR(part, x)}, {@code DATECEILING(part, x)} and {@code DATEROUND(part, x)} of a TIMESTAMP (the IQ
+     * scale program, 2026-10-25, the real-life census, measured on IQ 17.1): x cut to the part's start, moved up to the
+     * next start unless it is one already, or to the nearest (a half up: 23:59:59.999999 to the minute is the next
+     * day's 00:00); a TIMESTAMP. Parts YEAR, QUARTER, MONTH, DAY, HOUR and MINUTE (DATEROUND's DAY, HOUR and MINUTE).
+     * Refused by name: a DATE (IQ's type for it is not measured), any other part, DATEROUND to a calendar part, a
+     * multiple (the third argument), and any of them outside IQ's engine, whose front end does not implement them
+     * (IQ's -134, measured; SQL Anywhere 17 has none).
+     */
+    private Tx dateTruncated(Fn fn, String name, SqlAst.FunctionCall f, List<Tx> args) {
+        if (engine != IqDialect.Engine.IQ) {
+            throw SqlTranslationException.unsupported(name + " outside IQ's engine is not supported: IQ's front end"
+                    + " does not implement it", f.pos());
+        }
+        if (args.size() == 3) {
+            throw SqlTranslationException.unsupported(name + " to a multiple of the part is not supported yet",
+                    f.args().get(2).pos());
+        }
+        Part part = Part.of(((SqlAst.StringLit) f.args().get(0)).value());
+        boolean round = fn == Fn.DATEROUND;
+        boolean calendar = part == Part.YEAR || part == Part.QUARTER || part == Part.MONTH;
+        if (!(calendar || part == Part.DAY || part == Part.HOUR || part == Part.MINUTE) || round && calendar) {
+            throw SqlTranslationException.unsupported(name + "(" + part + ", ...) is not supported yet", f.pos());
+        }
+        Tx d = args.get(1);
+        if (d.kind() == Kind.NULL) {
+            return Tx.value(SqlToPure.nullOf(Kind.DATETIME).vs(), Kind.DATETIME, true, new IqType("TIMESTAMP"));
+        }
+        if (d.kind() != Kind.DATETIME) {
+            throw SqlTranslationException.unsupported(name + " of " + kindName(d.kind()) + " is not supported yet (of a"
+                    + " TIMESTAMP only)", f.args().get(1).pos());
+        }
+        String unit = switch (part) {
+            case YEAR -> "YEARS";
+            case QUARTER, MONTH -> "MONTHS";
+            case DAY -> "DAYS";
+            case HOUR -> "HOURS";
+            default -> "MINUTES";
+        };
+        long step = part == Part.QUARTER ? 3 : 1;
+        return strict(Kind.DATETIME, new IqType("TIMESTAMP"), List.of(d), v -> {
+            ValueSpecification x = !round ? v.get(0) : switch (part) {
+                case DAY -> adjusted(v.get(0), 12, "HOURS");
+                case HOUR -> adjusted(v.get(0), 30, "MINUTES");
+                default -> adjusted(v.get(0), 30, "SECONDS");
+            };
+            ValueSpecification start = switch (part) {
+                case YEAR -> SqlToPure.call("firstHourOfDay", SqlToPure.call("firstDayOfYear", x));
+                case QUARTER -> SqlToPure.call("firstHourOfDay", SqlToPure.call("firstDayOfQuarter", x));
+                case MONTH -> SqlToPure.call("firstHourOfDay", SqlToPure.call("firstDayOfMonth", x));
+                case DAY -> SqlToPure.call("firstHourOfDay", x);
+                case HOUR -> SqlToPure.call("firstMinuteOfHour", x);
+                default -> SqlToPure.call("firstSecondOfMinute", x);
+            };
+            return fn != Fn.DATECEILING ? start : ifThen(SqlToPure.call("equal", start, v.get(0)), start,
+                    adjusted(start, step, unit));
+        });
+    }
+
+    /** {@code x} moved by {@code n} of {@code unit} (a DurationUnit's name), a DateTime. */
+    private static ValueSpecification adjusted(ValueSpecification x, long n, String unit) {
+        return typed(SqlToPure.call("adjust", x, integer(n), new EnumValue(DURATION_UNIT, unit)), "DateTime");
+    }
+
+    /**
+     * {@code HASH(s [, algorithm])} (the IQ scale program, 2026-10-25, the real-life census, measured on IQ 17.1): the
+     * digest of a string's bytes as lowercase hex, MD5 by default or SHA256, as each database computes it from the
+     * UTF-8 bytes. Refused by name: another algorithm, one that is no constant, an ISO-8859-1 database (IQ hashes those
+     * bytes), a value that is no string.
+     */
+    private Tx hash(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        String algorithm = "MD5";
+        if (args.size() == 2) {
+            if (!(f.args().get(1) instanceof SqlAst.StringLit a)) {
+                throw SqlTranslationException.unsupported(name + " by an algorithm that is no constant is not"
+                        + " supported", f.args().get(1).pos());
+            }
+            algorithm = a.value().strip().toUpperCase(Locale.ROOT);
+        }
+        if (!algorithm.equals("MD5") && !algorithm.equals("SHA256")) {
+            throw SqlTranslationException.unsupported(name + " by " + algorithm + " is not supported yet (MD5 and SHA256"
+                    + " are)", f.pos());
+        }
+        if (settings.latin1()) {
+            throw SqlTranslationException.unsupported(name + " in an ISO-8859-1 database is not supported: IQ hashes"
+                    + " those bytes, lite's databases the UTF-8 ones", f.pos());
+        }
+        Tx s = args.get(0);
+        if (s.kind() == Kind.NULL) {
+            return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, new IqType("VARCHAR(128)"));
+        }
+        if (s.kind() != Kind.STRING) {
+            throw SqlTranslationException.unsupported(name + " of " + kindName(s.kind()) + " is not supported yet: IQ"
+                    + " hashes its text", f.args().get(0).pos());
+        }
+        String digest = algorithm;
+        return strict(Kind.STRING, new IqType("VARCHAR(128)"), List.of(s), v -> SqlToPure.call("hash", v.get(0),
+                new EnumValue("meta::pure::functions::hash::HashType", digest)));
     }
 
     /** A timestamp of {@code d} (a DATE: its midnight). */

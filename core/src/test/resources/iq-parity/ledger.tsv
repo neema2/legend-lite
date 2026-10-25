@@ -166,6 +166,323 @@ lite/basics/integer_plus_a_constant@iq16-default	PASS	PASS	PASS
 lite/basics/integer_plus_a_constant@iq17-default	PASS	PASS	PASS
 lite/basics/tsql_alias@iq16-default	PASS	PASS	PASS
 lite/basics/tsql_alias@iq17-default	PASS	PASS	PASS
+lite/census_aggregates/count_star_count_col@iq17-default	PASS	PASS	
+lite/census_aggregates/count_distinct@iq17-default	PASS	PASS	
+lite/census_aggregates/sum_avg_int@iq17-default	PASS	PASS	
+lite/census_aggregates/sum_avg_numeric@iq17-default	PASS	PASS	
+lite/census_aggregates/sum_avg_double@iq17-default	PASS	PASS	
+lite/census_aggregates/min_max_each_type@iq17-default	PASS	PASS	
+lite/census_aggregates/grouped_count_sum@iq17-default	PASS	PASS	
+lite/census_aggregates/grouped_avg@iq17-default	PASS	PASS	
+lite/census_aggregates/grouped_min_max@iq17-default	PASS	PASS	
+lite/census_aggregates/sum_distinct@iq17-default	PASS	PASS	
+lite/census_aggregates/conditional_sum@iq17-default	PASS	PASS	
+lite/census_aggregates/conditional_count@iq17-default	PASS	PASS	
+lite/census_aggregates/count_distinct_grouped@iq17-default	PASS	PASS	
+lite/census_aggregates/list@iq17-default	PASS	PASS	
+lite/census_aggregates/list_distinct@iq17-default	REFUSED	REFUSED	
+lite/census_aggregates/median@iq17-default	PASS	PASS	
+lite/census_aggregates/stddev_variance@iq17-default	PASS	PASS	
+lite/census_aggregates/stddev_grouped@iq17-default	PASS	PASS	
+lite/census_aggregates/corr_covar@iq17-default	PASS	PASS	
+lite/census_aggregates/regr@iq17-default	PASS	PASS	
+lite/census_aggregates/regr_sums@iq17-default	PASS	PASS	
+lite/census_aggregates/percentile_cont_disc@iq17-default	PASS	PASS	
+lite/census_aggregates/percentile_grouped@iq17-default	PASS	PASS	
+lite/census_aggregates/aggregate_of_expression@iq17-default	PASS	PASS	
+lite/census_aggregates/aggregate_over_empty@iq17-default	PASS	PASS	
+lite/census_aggregates/ratio_of_aggregates@iq17-default	PASS	PASS	
+lite/census_aggregates/count_star_by_two_keys@iq17-default	PASS	PASS	
+lite/census_aggregates/weighted_avg@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_combinations/report_join_group_having_order@iq17-default	PASS	PASS	
+lite/census_combinations/report_monthly_with_running_total@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_combinations/report_rank_within_group_of_joined@iq17-default	PASS	PASS	
+lite/census_combinations/report_case_buckets_and_share@iq17-default	PASS	PASS	
+lite/census_combinations/report_cte_join_window_filter@iq17-default	PASS	PASS	
+lite/census_combinations/report_correlated_latest@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_combinations/report_dates_and_strings@iq17-default	PASS	PASS	
+lite/census_combinations/report_pivot_by_case@iq17-default	PASS	PASS	
+lite/census_combinations/report_exists_and_aggregate@iq17-default	PASS	PASS	
+lite/census_combinations/report_union_then_group@iq17-default	PASS	PASS	
+lite/census_combinations/report_moving_average_per_group@iq17-default	PASS	PASS	
+lite/census_combinations/report_top_per_group_with_join@iq17-default	PASS	PASS	
+lite/census_combinations/report_nested_aggregates@iq17-default	PASS	PASS	
+lite/census_combinations/report_coalesce_join_counts@iq17-default	PASS	PASS	
+lite/census_combinations/report_lag_growth@iq17-default	PASS	PASS	
+lite/census_conversions/cast_numeric_to_integer@iq17-default	PASS	PASS	
+lite/census_conversions/cast_double_to_integer@iq17-default	PASS	PASS	
+lite/census_conversions/cast_integer_to_numeric@iq17-default	PASS	PASS	
+lite/census_conversions/cast_integer_to_double@iq17-default	PASS	PASS	
+lite/census_conversions/cast_string_to_integer@iq17-default	PASS	PASS	
+lite/census_conversions/cast_string_to_numeric@iq17-default	PASS	PASS	
+lite/census_conversions/cast_bit_to_integer@iq17-default	PASS	PASS	
+lite/census_conversions/convert_to_varchar@iq17-default	PASS	PASS	
+lite/census_conversions/convert_to_integer@iq17-default	PASS	PASS	
+lite/census_conversions/inttohex_hextoint@iq17-default	REFUSED	REFUSED	
+lite/census_conversions/coalesce@iq17-default	PASS	PASS	
+lite/census_conversions/isnull@iq17-default	PASS	PASS	
+lite/census_conversions/ifnull_three@iq17-default	PASS	PASS	
+lite/census_conversions/nullif@iq17-default	PASS	PASS	
+lite/census_conversions/case_searched@iq17-default	PASS	PASS	
+lite/census_conversions/case_simple@iq17-default	PASS	PASS	
+lite/census_conversions/case_no_else@iq17-default	PASS	PASS	
+lite/census_conversions/case_nested@iq17-default	PASS	PASS	
+lite/census_conversions/if_expression@iq17-default	PASS	PASS	
+lite/census_conversions/argn@iq17-default	PASS	PASS	
+lite/census_conversions/greater_lesser@iq17-default	PASS	PASS	
+lite/census_conversions/is_null_filter@iq17-default	PASS	PASS	
+lite/census_conversions/is_not_null_filter@iq17-default	PASS	PASS	
+lite/census_conversions/between_and_in@iq17-default	PASS	PASS	
+lite/census_conversions/not_between@iq17-default	PASS	PASS	
+lite/census_conversions/boolean_logic@iq17-default	PASS	PASS	
+lite/census_datetime/year_month_day@iq17-default	PASS	PASS	
+lite/census_datetime/hour_minute_second@iq17-default	PASS	PASS	
+lite/census_datetime/quarter_dow@iq17-default	PASS	PASS	
+lite/census_datetime/dayname_monthname@iq17-default	PASS	PASS	
+lite/census_datetime/datepart_year@iq17-default	PASS	PASS	
+lite/census_datetime/datepart_parts@iq17-default	PASS	PASS	
+lite/census_datetime/datepart_week@iq17-default	PASS	PASS	
+lite/census_datetime/datename_month@iq17-default	PASS	PASS	
+lite/census_datetime/dateadd_day@iq17-default	PASS	PASS	
+lite/census_datetime/dateadd_month@iq17-default	PASS	PASS	
+lite/census_datetime/dateadd_year_negative@iq17-default	PASS	PASS	
+lite/census_datetime/dateadd_hour@iq17-default	PASS	PASS	
+lite/census_datetime/dateadd_minute@iq17-default	PASS	PASS	
+lite/census_datetime/datediff_day@iq17-default	PASS	PASS	
+lite/census_datetime/datediff_month@iq17-default	PASS	PASS	
+lite/census_datetime/datediff_year@iq17-default	PASS	PASS	
+lite/census_datetime/datediff_hour_ts@iq17-default	PASS	PASS	
+lite/census_datetime/datediff_second@iq17-default	PASS	PASS	
+lite/census_datetime/dateformat@iq17-default	PASS	PASS	
+lite/census_datetime/datefloor_ceiling_round@iq17-default	PASS	PASS	
+lite/census_datetime/date_of_timestamp@iq17-default	PASS	PASS	
+lite/census_datetime/datetime_of_date@iq17-default	PASS	PASS	
+lite/census_datetime/days_years_months@iq17-default	PASS	PASS	
+lite/census_datetime/hours_minutes_seconds@iq17-default	PASS	PASS	
+lite/census_datetime/days_between@iq17-default	PASS	PASS	
+lite/census_datetime/ymd@iq17-default	PASS	PASS	
+lite/census_datetime/extract@iq17-default	PASS	PASS	
+lite/census_datetime/isdate@iq17-default	REFUSED	REFUSED	
+lite/census_datetime/convert_style_101@iq17-default	PASS	PASS	
+lite/census_datetime/convert_style_120@iq17-default	PASS	PASS	
+lite/census_datetime/cast_timestamp_to_date@iq17-default	PASS	PASS	
+lite/census_datetime/cast_string_to_date@iq17-default	PASS	PASS	
+lite/census_datetime/cast_date_to_string@iq17-default	PASS	PASS	
+lite/census_datetime/date_range_filter@iq17-default	PASS	PASS	
+lite/census_datetime/date_comparison_ts@iq17-default	PASS	PASS	
+lite/census_datetime/date_plus_integer@iq17-default	PASS	PASS	
+lite/census_datetime/date_minus_date@iq17-default	PASS	PASS	
+lite/census_datetime/current_date_relative@iq17-default	PASS	PASS	
+lite/census_datetime/getdate_relative@iq17-default	PASS	PASS	
+lite/census_datetime/month_bucket@iq17-default	PASS	PASS	
+lite/census_datetime/date_trunc_by_dateformat@iq17-default	PASS	PASS	
+lite/census_grouping/group_by_expression@iq17-default	PASS	PASS	
+lite/census_grouping/group_by_case@iq17-default	PASS	PASS	
+lite/census_grouping/group_by_function@iq17-default	PASS	PASS	
+lite/census_grouping/group_by_date_part@iq17-default	PASS	PASS	
+lite/census_grouping/having_count@iq17-default	PASS	PASS	
+lite/census_grouping/having_sum@iq17-default	PASS	PASS	
+lite/census_grouping/having_unselected_aggregate@iq17-default	PASS	PASS	
+lite/census_grouping/having_and_or@iq17-default	PASS	PASS	
+lite/census_grouping/having_avg@iq17-default	PASS	PASS	
+lite/census_grouping/having_without_group_by@iq17-default	PASS	PASS	
+lite/census_grouping/where_and_having@iq17-default	PASS	PASS	
+lite/census_grouping/order_by_aggregate@iq17-default	PASS	PASS	
+lite/census_grouping/order_by_alias_of_aggregate@iq17-default	PASS	PASS	
+lite/census_grouping/distinct@iq17-default	PASS	PASS	
+lite/census_grouping/distinct_two_columns@iq17-default	PASS	PASS	
+lite/census_grouping/group_by_with_null_group@iq17-default	PASS	PASS	
+lite/census_grouping/rollup@iq17-default	PASS	PASS	
+lite/census_grouping/cube@iq17-default	PASS	PASS	
+lite/census_grouping/grouping_sets@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_grouping/grouping_function@iq17-default	PASS	PASS	
+lite/census_grouping/top_n_groups@iq17-default	PASS	PASS	
+lite/census_grouping/group_by_joined@iq17-default	PASS	PASS	
+lite/census_grouping/group_by_derived@iq17-default	PASS	PASS	
+lite/census_joins/inner_join@iq17-default	PASS	PASS	
+lite/census_joins/inner_join_keyword@iq17-default	PASS	PASS	
+lite/census_joins/left_join@iq17-default	PASS	PASS	
+lite/census_joins/left_outer_join@iq17-default	PASS	PASS	
+lite/census_joins/right_join@iq17-default	PASS	PASS	
+lite/census_joins/full_outer_join@iq17-default	PASS	PASS	
+lite/census_joins/cross_join@iq17-default	PASS	PASS	
+lite/census_joins/comma_join@iq17-default	PASS	PASS	
+lite/census_joins/self_join@iq17-default	PASS	PASS	
+lite/census_joins/join_two_conditions@iq17-default	PASS	PASS	
+lite/census_joins/non_equi_join@iq17-default	PASS	PASS	
+lite/census_joins/left_join_anti@iq17-default	PASS	PASS	
+lite/census_joins/left_join_filter_in_on@iq17-default	PASS	PASS	
+lite/census_joins/join_three_tables@iq17-default	PASS	PASS	
+lite/census_joins/mixed_inner_left@iq17-default	PASS	PASS	
+lite/census_joins/join_to_derived@iq17-default	PASS	PASS	
+lite/census_joins/join_to_cte@iq17-default	PASS	PASS	
+lite/census_joins/join_grouped_result@iq17-default	PASS	PASS	
+lite/census_joins/join_on_expression@iq17-default	PASS	PASS	
+lite/census_joins/join_on_string@iq17-default	PASS	PASS	
+lite/census_joins/join_10_tables@iq17-default	PASS	PASS	
+lite/census_joins/left_join_chain_6@iq17-default	PASS	PASS	
+lite/census_joins/cross_apply@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_joins/outer_apply_top@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_joins/tsql_outer_join@iq17-default	PASS	PASS	
+lite/census_joins/natural_join@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_joins/join_using@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_numeric/abs_int@iq17-default	PASS	PASS	
+lite/census_numeric/abs_numeric@iq17-default	PASS	PASS	
+lite/census_numeric/abs_double@iq17-default	PASS	PASS	
+lite/census_numeric/ceiling_numeric@iq17-default	PASS	PASS	
+lite/census_numeric/ceil_double@iq17-default	PASS	PASS	
+lite/census_numeric/floor_numeric@iq17-default	PASS	PASS	
+lite/census_numeric/floor_double@iq17-default	PASS	PASS	
+lite/census_numeric/round_numeric_1@iq17-default	PASS	PASS	
+lite/census_numeric/round_numeric_0@iq17-default	PASS	PASS	
+lite/census_numeric/round_numeric_negative@iq17-default	PASS	PASS	
+lite/census_numeric/round_double_2@iq17-default	PASS	PASS	
+lite/census_numeric/round_integer@iq17-default	PASS	PASS	
+lite/census_numeric/truncnum_numeric@iq17-default	PASS	PASS	
+lite/census_numeric/mod_int@iq17-default	PASS	PASS	
+lite/census_numeric/remainder_int@iq17-default	PASS	PASS	
+lite/census_numeric/modulo_operator@iq17-default	PASS	PASS	
+lite/census_numeric/power_int@iq17-default	PASS	PASS	
+lite/census_numeric/power_double@iq17-default	PASS	PASS	
+lite/census_numeric/sqrt@iq17-default	PASS	PASS	
+lite/census_numeric/square@iq17-default	PASS	PASS	
+lite/census_numeric/exp@iq17-default	PASS	PASS	
+lite/census_numeric/ln@iq17-default	PASS	PASS	
+lite/census_numeric/log@iq17-default	PASS	PASS	
+lite/census_numeric/log10@iq17-default	PASS	PASS	
+lite/census_numeric/pi@iq17-default	PASS	PASS	
+lite/census_numeric/sign_int@iq17-default	PASS	PASS	
+lite/census_numeric/sign_numeric@iq17-default	PASS	PASS	
+lite/census_numeric/sin_cos_tan@iq17-default	PASS	PASS	
+lite/census_numeric/cot@iq17-default	PASS	PASS	
+lite/census_numeric/asin_acos_atan@iq17-default	PASS	PASS	
+lite/census_numeric/atan2@iq17-default	PASS	PASS	
+lite/census_numeric/degrees_radians@iq17-default	PASS	PASS	
+lite/census_numeric/width_bucket@iq17-default	PASS	PASS	
+lite/census_numeric/arithmetic_mix@iq17-default	PASS	PASS	
+lite/census_numeric/integer_division@iq17-default	PASS	PASS	
+lite/census_numeric/numeric_arithmetic@iq17-default	PASS	PASS	
+lite/census_numeric/numeric_division@iq17-default	PASS	PASS	
+lite/census_numeric/double_arithmetic@iq17-default	PASS	PASS	
+lite/census_numeric/percentage@iq17-default	PASS	PASS	
+lite/census_sets_and_limits/union@iq17-default	PASS	PASS	
+lite/census_sets_and_limits/union_all@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_sets_and_limits/intersect@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_sets_and_limits/except@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_sets_and_limits/union_in_derived@iq17-default	PASS	PASS	
+lite/census_sets_and_limits/union_of_aggregates@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_sets_and_limits/top_n@iq17-default	PASS	PASS	
+lite/census_sets_and_limits/top_n_start_at@iq17-default	PASS	PASS	
+lite/census_sets_and_limits/first@iq17-default	PASS	PASS	
+lite/census_sets_and_limits/order_by_desc_multi@iq17-default	PASS	PASS	
+lite/census_sets_and_limits/order_by_position@iq17-default	PASS	PASS	
+lite/census_sets_and_limits/order_by_expression@iq17-default	PASS	PASS	
+lite/census_sets_and_limits/order_by_nulls_first_last@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_sets_and_limits/distinct_top@iq17-default	PASS	PASS	
+lite/census_string/ascii@iq17-default	PASS	PASS	
+lite/census_string/char_from_code@iq17-default	PASS	PASS	
+lite/census_string/length_len_char_length@iq17-default	PASS	PASS	
+lite/census_string/byte_length_octet@iq17-default	PASS	PASS	
+lite/census_string/bit_length@iq17-default	PASS	PASS	
+lite/census_string/upper_lower@iq17-default	PASS	PASS	
+lite/census_string/left_right@iq17-default	PASS	PASS	
+lite/census_string/substring_3@iq17-default	PASS	PASS	
+lite/census_string/substring_2@iq17-default	PASS	PASS	
+lite/census_string/substr@iq17-default	PASS	PASS	
+lite/census_string/trim_ltrim_rtrim@iq17-default	PASS	PASS	
+lite/census_string/trim_varchar@iq17-default	PASS	PASS	
+lite/census_string/replace@iq17-default	PASS	PASS	
+lite/census_string/str_replace@iq17-default	PASS	PASS	
+lite/census_string/repeat_replicate@iq17-default	PASS	PASS	
+lite/census_string/space@iq17-default	PASS	PASS	
+lite/census_string/charindex@iq17-default	PASS	PASS	
+lite/census_string/locate@iq17-default	PASS	PASS	
+lite/census_string/patindex@iq17-default	PASS	PASS	
+lite/census_string/stuff@iq17-default	PASS	PASS	
+lite/census_string/insertstr@iq17-default	PASS	PASS	
+lite/census_string/lpad_rpad@iq17-default	PASS	PASS	
+lite/census_string/reverse@iq17-default	PASS	PASS	
+lite/census_string/soundex_difference@iq17-default	REFUSED	REFUSED	
+lite/census_string/similar@iq17-default	REFUSED	REFUSED	
+lite/census_string/str_of_double@iq17-default	REFUSED	REFUSED	
+lite/census_string/string_concat_fn@iq17-default	PASS	PASS	
+lite/census_string/concat_operator@iq17-default	PASS	PASS	
+lite/census_string/concat_plus@iq17-default	PASS	PASS	
+lite/census_string/hash_md5@iq17-default	PASS	PASS	
+lite/census_string/like_prefix@iq17-default	PASS	PASS	
+lite/census_string/like_contains@iq17-default	PASS	PASS	
+lite/census_string/like_underscore@iq17-default	PASS	PASS	
+lite/census_string/not_like@iq17-default	PASS	PASS	
+lite/census_string/like_escape@iq17-default	PASS	PASS	
+lite/census_string/string_comparison@iq17-default	PASS	PASS	
+lite/census_string/string_in_list@iq17-default	PASS	PASS	
+lite/census_string/upper_compare@iq17-default	PASS	PASS	
+lite/census_string/isnumeric@iq17-default	PASS	PASS	
+lite/census_string/cast_number_to_string@iq17-default	PASS	PASS	
+lite/census_string/string_of_number_concat@iq17-default	PASS	PASS	
+lite/census_subqueries/scalar_subquery_uncorrelated@iq17-default	PASS	PASS	
+lite/census_subqueries/scalar_subquery_correlated@iq17-default	PASS	PASS	
+lite/census_subqueries/scalar_subquery_correlated_max@iq17-default	PASS	PASS	
+lite/census_subqueries/where_in_subquery@iq17-default	PASS	PASS	
+lite/census_subqueries/where_not_in_subquery@iq17-default	PASS	PASS	
+lite/census_subqueries/where_exists@iq17-default	PASS	PASS	
+lite/census_subqueries/where_not_exists@iq17-default	PASS	PASS	
+lite/census_subqueries/where_compare_scalar@iq17-default	PASS	PASS	
+lite/census_subqueries/where_correlated_compare@iq17-default	PASS	PASS	
+lite/census_subqueries/where_any_all@iq17-default	PASS	PASS	
+lite/census_subqueries/having_subquery@iq17-default	PASS	PASS	
+lite/census_subqueries/derived_table@iq17-default	PASS	PASS	
+lite/census_subqueries/derived_nested_3@iq17-default	PASS	PASS	
+lite/census_subqueries/subquery_nested_3_where@iq17-default	PASS	PASS	
+lite/census_subqueries/cte_simple@iq17-default	PASS	PASS	
+lite/census_subqueries/cte_chain@iq17-default	PASS	PASS	
+lite/census_subqueries/cte_used_twice@iq17-default	PASS	PASS	
+lite/census_subqueries/cte_with_window@iq17-default	PASS	PASS	
+lite/census_subqueries/subquery_in_select_and_where@iq17-default	PASS	PASS	
+lite/census_subqueries/correlated_exists_two_levels@iq17-default	PASS	PASS	
+lite/census_subqueries/in_list_of_values@iq17-default	PASS	PASS	
+lite/census_windows/row_number_partitioned@iq17-default	PASS	PASS	
+lite/census_windows/row_number_whole@iq17-default	PASS	PASS	
+lite/census_windows/rank_dense_rank@iq17-default	PASS	PASS	
+lite/census_windows/rank_partitioned_desc@iq17-default	PASS	PASS	
+lite/census_windows/percent_rank_cume_dist@iq17-default	PASS	PASS	
+lite/census_windows/ntile@iq17-default	PASS	PASS	
+lite/census_windows/lag_lead@iq17-default	PASS	PASS	
+lite/census_windows/lag_offset_default@iq17-default	PASS	PASS	
+lite/census_windows/lead_partitioned@iq17-default	PASS	PASS	
+lite/census_windows/first_last_value@iq17-default	PASS	PASS	
+lite/census_windows/sum_over_whole@iq17-default	PASS	PASS	
+lite/census_windows/sum_over_partition@iq17-default	PASS	PASS	
+lite/census_windows/running_sum_default_frame@iq17-default	PASS	PASS	
+lite/census_windows/running_sum_partitioned@iq17-default	PASS	PASS	
+lite/census_windows/rows_unbounded_current@iq17-default	PASS	PASS	
+lite/census_windows/rows_unbounded_preceding_short@iq17-default	PASS	PASS	
+lite/census_windows/rows_moving_3@iq17-default	PASS	PASS	
+lite/census_windows/rows_2_preceding@iq17-default	PASS	PASS	
+lite/census_windows/rows_current_to_unbounded@iq17-default	PASS	PASS	
+lite/census_windows/rows_following_only@iq17-default	PASS	PASS	
+lite/census_windows/rows_whole_partition@iq17-default	PASS	PASS	
+lite/census_windows/range_unbounded_current@iq17-default	PASS	PASS	
+lite/census_windows/range_numeric_offset@iq17-default	PASS	PASS	
+lite/census_windows/range_current_to_unbounded@iq17-default	PASS	PASS	
+lite/census_windows/range_with_ties@iq17-default	PASS	PASS	
+lite/census_windows/count_avg_min_max_over@iq17-default	PASS	PASS	
+lite/census_windows/count_column_over@iq17-default	PASS	PASS	
+lite/census_windows/partition_by_two_keys@iq17-default	PASS	PASS	
+lite/census_windows/order_by_desc_nulls@iq17-default	PASS	PASS	
+lite/census_windows/order_by_expression@iq17-default	PASS	PASS	
+lite/census_windows/partition_by_expression@iq17-default	PASS	PASS	
+lite/census_windows/named_window@iq17-default	PASS	PASS	
+lite/census_windows/several_windows@iq17-default	PASS	PASS	
+lite/census_windows/window_over_aggregate@iq17-default	PASS	PASS	
+lite/census_windows/rank_of_aggregate@iq17-default	PASS	PASS	
+lite/census_windows/share_of_total@iq17-default	FAIL	FAIL	
+lite/census_windows/difference_from_previous@iq17-default	PASS	PASS	
+lite/census_windows/top_n_per_group@iq17-default	PASS	PASS	
+lite/census_windows/dedup_latest_per_key@iq17-default	PASS	PASS	
+lite/census_windows/running_count_distinct_days@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_windows/window_in_order_by@iq17-default	PASS	PASS	
+lite/census_windows/percentile_over_partition@iq17-default	BOTH_ERROR	BOTH_ERROR	
 lite/collation/order_by_a_string_column@iq16-default	PASS	PASS	PASS
 lite/collation/order_by_a_string_column@sqla17-default	PASS	PASS	PASS
 lite/collation/order_by_a_string_column@iq17-default	PASS	PASS	PASS
@@ -504,13 +821,16 @@ lite/common_decimals/a_ratio_of_a_cast_to_decimal_and_an_integer@iq17-default	RE
 lite/common_decimals/a_percentage_of_two_casts_to_decimal@iq17-default	BOTH_ERROR	BOTH_ERROR	
 lite/common_decimals/a_grouped_ratio_of_casts_to_decimal@iq17-default	BOTH_ERROR	BOTH_ERROR	
 lite/common_decimals/a_ratio_of_a_count_times_one_point_zero@iq17-default	PASS	PASS	
-lite/common_decimals/a_ratio_of_two_counts_times_one_point_zero@iq17-default	REFUSED	REFUSED	
-lite/common_decimals/a_ratio_of_counts_of_a_derived_table@iq17-default	REFUSED	REFUSED	
+lite/common_decimals/a_ratio_of_two_counts_times_one_point_zero@iq17-default	PASS	PASS	
+lite/common_decimals/a_ratio_of_counts_of_a_derived_table@iq17-default	PASS	PASS	
 lite/common_decimals/a_ratio_of_a_count_and_a_count_plus_an_epsilon@iq17-default	REFUSED	REFUSED	
 lite/common_decimals/a_percentage_cast_to_decimal_5_1_as_text@iq17-default	PASS	PASS	
 lite/common_decimals/an_average_of_a_case_of_ones@iq17-default	PASS	PASS	
 lite/common_decimals/an_average_of_averages@iq17-default	REFUSED	REFUSED	
 lite/common_decimals/a_sum_of_averages@iq17-default	PASS	PASS	
+lite/common_patterns/an_average_of_a_double_in_a_cte@iq17-default	PASS	PASS	
+lite/common_patterns/a_sum_and_an_average_in_a_derived_table_filtered@iq17-default	PASS	PASS	
+lite/common_patterns/a_char_read_beside_greater@iq17-default	PASS	PASS	
 lite/corpus_gaps/coalesce_of_a_count_and_an_integer@iq17-default	PASS	PASS	PASS
 lite/corpus_gaps/coalesce_of_counts_alone@iq17-default	PASS	PASS	PASS
 lite/corpus_gaps/coalesce_of_a_count_and_a_numeric_or_a_double@iq17-default	PASS	PASS	PASS
@@ -1450,7 +1770,7 @@ lite/iq_engine_aggregates/median_of_a_numeric@iq17-default	PASS	PASS	PASS
 lite/iq_engine_aggregates/median_of_a_double@iq17-default	PASS	PASS	PASS
 lite/iq_engine_aggregates/percentile_of_a_string_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
 lite/iq_engine_aggregates/percentile_disc_of_a_bigint_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
-lite/iq_engine_aggregates/stddev_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/iq_engine_aggregates/stddev_is_refused@iq17-default	PASS	PASS	REFUSED
 lite/iq_engine_aggregates/list_ordered_by_another_column_descending@iq17-default	PASS	PASS	PASS
 lite/iq_engine_aggregates/list_of_integers_ordered_by_another_column@iq17-default	PASS	PASS	PASS
 lite/iq_engine_aggregates/list_ordered_by_a_key_with_nulls@iq17-default	PASS	PASS	PASS
@@ -3512,22 +3832,22 @@ lite/m1c/max_of_a_char@iq16-default	PASS	PASS	PASS
 lite/m1c/max_of_a_char@iq17-default	PASS	PASS	PASS
 lite/m1c/min_with_order_by_is_wrong@iq16-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
 lite/m1c/min_with_order_by_is_wrong@iq17-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
-lite/m1c/median_of_integers@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1c/median_of_integers@iq17-default	REFUSED	REFUSED	REFUSED
-lite/m1c/median_per_group@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1c/median_per_group@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1c/median_of_integers@iq16-default	PASS	PASS	REFUSED
+lite/m1c/median_of_integers@iq17-default	PASS	PASS	REFUSED
+lite/m1c/median_per_group@iq16-default	PASS	PASS	REFUSED
+lite/m1c/median_per_group@iq17-default	PASS	PASS	REFUSED
 lite/m1c/median_of_an_even_count_is_floored@iq16-default	PASS	PASS	PASS
 lite/m1c/median_of_an_even_count_is_floored@iq17-default	PASS	PASS	PASS
 lite/m1c/median_of_an_odd_count@iq16-default	PASS	PASS	PASS
 lite/m1c/median_of_an_odd_count@iq17-default	PASS	PASS	PASS
 lite/m1c/median_of_an_even_rowgenerator@iq16-default	PASS	PASS	PASS
 lite/m1c/median_of_an_even_rowgenerator@iq17-default	PASS	PASS	PASS
-lite/m1c/median_all@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1c/median_all@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1c/median_all@iq16-default	PASS	PASS	REFUSED
+lite/m1c/median_all@iq17-default	PASS	PASS	REFUSED
 lite/m1c/median_distinct_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
 lite/m1c/median_distinct_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
-lite/m1c/median_of_no_rows@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1c/median_of_no_rows@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1c/median_of_no_rows@iq16-default	PASS	PASS	REFUSED
+lite/m1c/median_of_no_rows@iq17-default	PASS	PASS	REFUSED
 lite/m1c/median_of_integer_extremes@iq16-default	REFUSED	REFUSED	REFUSED
 lite/m1c/median_of_integer_extremes@iq17-default	REFUSED	REFUSED	REFUSED
 lite/m1c/median_of_a_bit_is_wrong@iq16-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
@@ -3822,10 +4142,10 @@ lite/m1c/a_nested_aggregate_is_wrong@iq16-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERR
 lite/m1c/a_nested_aggregate_is_wrong@iq17-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
 lite/m1c/an_aggregate_of_a_condition_is_a_syntax_error@iq16-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
 lite/m1c/an_aggregate_of_a_condition_is_a_syntax_error@iq17-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
-lite/m1c/stddev_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1c/stddev_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
-lite/m1c/variance_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1c/variance_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1c/stddev_is_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1c/stddev_is_refused@iq17-default	PASS	PASS	REFUSED
+lite/m1c/variance_is_refused@iq16-default	PASS	PASS	REFUSED
+lite/m1c/variance_is_refused@iq17-default	PASS	PASS	REFUSED
 lite/m1c/a_window_over_all_rows@iq16-default	PASS	PASS	PASS
 lite/m1c/a_window_over_all_rows@iq17-default	PASS	PASS	PASS
 lite/m1c/grouping_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
@@ -3840,7 +4160,7 @@ lite/m1c/an_aggregate_compared_with_null_under_tds@iq16-tds	PASS	PASS	PASS
 lite/m1c/an_aggregate_compared_with_null_under_tds@iq17-tds	PASS	PASS	PASS
 lite/m1c/an_aggregate_compared_with_null@iq16-default	PASS	PASS	PASS
 lite/m1c/an_aggregate_compared_with_null@iq17-default	PASS	PASS	PASS
-lite/m1c/grouped_in_a_sql_anywhere_database@sqla17-default	REFUSED	REFUSED	REFUSED
+lite/m1c/grouped_in_a_sql_anywhere_database@sqla17-default	PASS	PASS	REFUSED
 lite/m1c/grouped_under_odbc@iq16-odbc	PASS	PASS	PASS
 lite/m1c/grouped_under_odbc@iq17-odbc	PASS	PASS	PASS
 lite/m1c/grouped_under_tds@iq16-tds	PASS	PASS	PASS
@@ -5959,8 +6279,7 @@ lite/m1review/m1_chains_of_other_operands_keep_their_parentheses@iq16-default	PA
 lite/m1review/m1_chains_of_other_operands_keep_their_parentheses@iq17-default	PASS	PASS	PASS
 lite/m1review/m2_median_of_integer_extremes_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
 lite/m1review/m2_median_of_integer_extremes_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
-lite/m1review/m2_median_of_smallint_extremes@iq16-default	PASS	PASS	PASS
-lite/m1review/m2_median_of_smallint_extremes@iq17-default	FAIL	FAIL	FAIL
+lite/m1review/m2_median_of_smallint_extremes@iq17-default	PASS	PASS	FAIL
 lite/m1review/m2_median_of_a_bounded_integer@iq16-default	PASS	PASS	PASS
 lite/m1review/m2_median_of_a_bounded_integer@iq17-default	PASS	PASS	PASS
 lite/m1review/m3_getdate_beside_another_reading_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
@@ -8002,8 +8321,8 @@ lite/rules/c04_fn_a-18@iq16-default	PASS	PASS	PASS
 lite/rules/c04_fn_a-18@iq17-default	PASS	PASS	PASS
 lite/rules/c04_fn_a-19@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c04_fn_a-19@iq17-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-21@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-21@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c04_fn_a-21@iq16-default	PASS	PASS	REFUSED
+lite/rules/c04_fn_a-21@iq17-default	PASS	PASS	REFUSED
 lite/rules/c04_fn_a-34@iq16-default	PASS	PASS	PASS
 lite/rules/c04_fn_a-34@iq17-default	PASS	PASS	PASS
 lite/rules/c04_fn_a-35@iq16-default	PASS	PASS	PASS
@@ -8022,16 +8341,16 @@ lite/rules/c04_fn_a-43@iq16-default	PASS	PASS	PASS
 lite/rules/c04_fn_a-43@iq17-default	PASS	PASS	PASS
 lite/rules/c04_fn_a-44@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c04_fn_a-44@iq17-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-46@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-46@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c04_fn_a-46@iq16-default	PASS	PASS	REFUSED
+lite/rules/c04_fn_a-46@iq17-default	PASS	PASS	REFUSED
 lite/rules/c04_fn_a-47@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c04_fn_a-47@iq17-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-49@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-49@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c04_fn_a-49@iq16-default	PASS	PASS	REFUSED
+lite/rules/c04_fn_a-49@iq17-default	PASS	PASS	REFUSED
 lite/rules/c04_fn_a-50@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c04_fn_a-50@iq17-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-52@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-52@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c04_fn_a-52@iq16-default	PASS	PASS	REFUSED
+lite/rules/c04_fn_a-52@iq17-default	PASS	PASS	REFUSED
 lite/rules/c04_fn_a-56@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c04_fn_a-56@iq17-default	REFUSED	REFUSED	REFUSED
 lite/rules/c04_fn_a-57@iq16-default	REFUSED	REFUSED	REFUSED
@@ -8118,18 +8437,18 @@ lite/rules/c04_fn_a-186@iq16-default	PASS	PASS	PASS
 lite/rules/c04_fn_a-186@iq17-default	PASS	PASS	PASS
 lite/rules/c04_fn_a-225@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c04_fn_a-225@iq17-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-231@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-231@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c04_fn_a-231@iq16-default	PASS	PASS	REFUSED
+lite/rules/c04_fn_a-231@iq17-default	PASS	PASS	REFUSED
 lite/rules/c04_fn_a-232@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c04_fn_a-232@iq17-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-233@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-233@iq17-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-235@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-235@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c04_fn_a-233@iq16-default	PASS	PASS	REFUSED
+lite/rules/c04_fn_a-233@iq17-default	PASS	PASS	REFUSED
+lite/rules/c04_fn_a-235@iq16-default	PASS	PASS	REFUSED
+lite/rules/c04_fn_a-235@iq17-default	PASS	PASS	REFUSED
 lite/rules/c04_fn_a-236@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c04_fn_a-236@iq17-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-237@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c04_fn_a-237@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c04_fn_a-237@iq16-default	PASS	PASS	REFUSED
+lite/rules/c04_fn_a-237@iq17-default	PASS	PASS	REFUSED
 lite/rules/c04_fn_a-244@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c04_fn_a-244@iq17-default	REFUSED	REFUSED	REFUSED
 lite/rules/c04_fn_a-252@iq16-default	REFUSED	REFUSED	REFUSED
@@ -8176,8 +8495,8 @@ lite/rules/c05_fn_b-119@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c05_fn_b-119@iq17-default	REFUSED	REFUSED	REFUSED
 lite/rules/c05_fn_b-126@iq16-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
 lite/rules/c05_fn_b-126@iq17-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
-lite/rules/c05_fn_b-136@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c05_fn_b-136@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c05_fn_b-136@iq16-default	PASS	PASS	REFUSED
+lite/rules/c05_fn_b-136@iq17-default	PASS	PASS	REFUSED
 lite/rules/c05_fn_b-137@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c05_fn_b-137@iq17-default	REFUSED	REFUSED	REFUSED
 lite/rules/c05_fn_b-145@iq16-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
@@ -8207,9 +8526,9 @@ lite/rules/c05_fn_b-256@iq17-default	REFUSED	REFUSED	REFUSED
 lite/rules/c05_fn_b-263@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c05_fn_b-263@iq17-default	REFUSED	REFUSED	REFUSED
 lite/rules/c05_fn_b-275@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c05_fn_b-275@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c05_fn_b-275@iq17-default	PASS	PASS	REFUSED
 lite/rules/c05_fn_b-288@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c05_fn_b-288@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c05_fn_b-288@iq17-default	PASS	PASS	REFUSED
 lite/rules/c05_fn_b-289@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c05_fn_b-289@iq17-default	REFUSED	REFUSED	REFUSED
 lite/rules/c05_fn_b-297@iq16-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
@@ -8400,8 +8719,8 @@ lite/rules/c06_fn_c-294@iq16-default	PASS	PASS	PASS
 lite/rules/c06_fn_c-294@iq17-default	PASS	PASS	PASS
 lite/rules/c06_fn_c-299@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c06_fn_c-299@iq17-default	REFUSED	REFUSED	REFUSED
-lite/rules/c06_fn_c-301@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c06_fn_c-301@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c06_fn_c-301@iq16-default	PASS	PASS	REFUSED
+lite/rules/c06_fn_c-301@iq17-default	PASS	PASS	REFUSED
 lite/rules/c06_fn_c-302@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c06_fn_c-302@iq17-default	REFUSED	REFUSED	REFUSED
 lite/rules/c06_fn_c-307@iq16-default	REFUSED	REFUSED	REFUSED
@@ -8476,8 +8795,8 @@ lite/rules/c07_fn_d-85@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c07_fn_d-85@iq17-default	REFUSED	REFUSED	REFUSED
 lite/rules/c07_fn_d-87@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c07_fn_d-87@iq17-default	REFUSED	REFUSED	REFUSED
-lite/rules/c07_fn_d-89@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c07_fn_d-89@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c07_fn_d-89@iq16-default	PASS	PASS	REFUSED
+lite/rules/c07_fn_d-89@iq17-default	PASS	PASS	REFUSED
 lite/rules/c07_fn_d-93@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c07_fn_d-93@iq17-default	REFUSED	REFUSED	REFUSED
 lite/rules/c07_fn_d-94@iq16-default	REFUSED	REFUSED	REFUSED
@@ -8522,8 +8841,8 @@ lite/rules/c07_fn_d-178@iq16-default	PASS	PASS	PASS
 lite/rules/c07_fn_d-178@iq17-default	PASS	PASS	PASS
 lite/rules/c07_fn_d-191@iq16-default	REFUSED	REFUSED	REFUSED
 lite/rules/c07_fn_d-191@iq17-default	REFUSED	REFUSED	REFUSED
-lite/rules/c07_fn_d-217@iq16-default	REFUSED	REFUSED	REFUSED
-lite/rules/c07_fn_d-217@iq17-default	REFUSED	REFUSED	REFUSED
+lite/rules/c07_fn_d-217@iq16-default	PASS	PASS	REFUSED
+lite/rules/c07_fn_d-217@iq17-default	PASS	PASS	REFUSED
 lite/rules/c07_fn_d-220@iq16-default	PASS	PASS	PASS
 lite/rules/c07_fn_d-220@iq17-default	PASS	PASS	PASS
 lite/rules/c07_fn_d-230@iq16-default	PASS	PASS	PASS

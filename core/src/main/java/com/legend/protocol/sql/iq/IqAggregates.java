@@ -55,8 +55,10 @@ import java.util.Set;
  *       NUMERIC of scale 16, of a NUMERIC(p,s) one of scale s+21, SUM / COUNT cut toward zero there, wherever read.</li>
  *   <li><b>MIN, MAX</b> keep their argument's type: integers, NUMERICs, DOUBLEs, dates and timestamps; strings where
  *       each value is its own collation key ({@link IqKeys}: IQ shows the first value of the least key it meets).</li>
- *   <li><b>MEDIAN</b> of a SMALLINT or an INTEGER keeps the type, the mean of the two middle values floored (measured:
- *       -1, -4 give -3; the research's D-F17 under the IQ engine). Of a BIT, a date or a string, IQ's error -156;
+ *   <li><b>MEDIAN</b> of a SMALLINT or an INTEGER keeps the type, the mean of the two middle values floored in SQL
+ *       Anywhere's front end (measured: -1, -4 give -3), cut toward zero under IQ's engine (the research's D-F17,
+ *       measured on IQ 17.1: -32768, 32767 give 0); a group whose values differ by more than 2147483647 refused at run
+ *       time (IQ's midpoint wraps there). Of a BIT, a date or a string, IQ's error -156;
  *       of a BIGINT (whose midpoint lite's databases compute in double precision), a DOUBLE (whose midpoint they
  *       compute by another formula) or a NUMERIC (an exact quotient), refused.</li>
  *   <li><b>LIST</b>{@code (x [, delimiter] ORDER BY x [ASC | DESC])} of an integer column: its values as text, in
@@ -66,7 +68,8 @@ import java.util.Set;
  *       dates, numerics and doubles (SQL Anywhere's own spelling) and DISTINCT refused. Two LISTs
  *       ordered differently are SQL Anywhere's error -904; the IQ engine orders both by the first (the research's
  *       D-A1): refused there.</li>
- *   <li><b>STDDEV and VARIANCE</b> are refused by the reader: SQL Anywhere's formula loses precision.</li>
+ *   <li><b>STDDEV, VARIANCE, CORR, COVAR_* and REGR_*</b> (the IQ scale program, 2026-10-25): DOUBLEs, by IQ's own
+ *       one-pass formulas ({@link #statistic}).</li>
  * </ul>
  */
 final class IqAggregates {
@@ -86,7 +89,19 @@ final class IqAggregates {
 
     /** The aggregates the island reads ({@link IqParser#READ_AGGREGATES}). */
     private enum Fn {
-        COUNT, SUM, AVG, MIN, MAX, MEDIAN, LIST, PERCENTILE_CONT, PERCENTILE_DISC, ARRAY_AGG;
+        COUNT, SUM, AVG, MIN, MAX, MEDIAN, LIST, PERCENTILE_CONT, PERCENTILE_DISC, ARRAY_AGG, STDDEV, STDDEV_POP,
+        STDDEV_SAMP, VARIANCE, VAR_POP, VAR_SAMP, CORR, COVAR_POP, COVAR_SAMP, REGR_AVGX, REGR_AVGY, REGR_COUNT,
+        REGR_INTERCEPT, REGR_R2, REGR_SLOPE, REGR_SXX, REGR_SXY, REGR_SYY;
+
+        /** Whether it reads a pair of values, (y, x): CORR, COVAR_* and REGR_*. */
+        boolean pair() {
+            return this == CORR || this == COVAR_POP || this == COVAR_SAMP || name().startsWith("REGR_");
+        }
+
+        /** Whether it is one of the statistical aggregates {@link #statistic} computes. */
+        boolean statistic() {
+            return pair() || name().startsWith("STDDEV") || name().startsWith("VAR");
+        }
 
         static Fn of(SqlAst.FunctionCall f) {
             return valueOf(IqLexer.lower(f.name().get(0).text()).toUpperCase(java.util.Locale.ROOT));
@@ -184,7 +199,9 @@ final class IqAggregates {
         if (e instanceof SqlAst.FunctionCall f && named(f)) {
             String fn = IqLexer.lower(f.name().get(0).text());
             int n = f.args().size();
-            boolean arity = fn.equals("count") ? f.star() || n == 1 : fn.equals("list") ? n == 1 || n == 2 : n == 1;
+            boolean pair = Fn.of(f).pair();
+            boolean arity = fn.equals("count") ? f.star() || n == 1 : fn.equals("list") ? n == 1 || n == 2
+                    : n == (pair ? 2 : 1);
             if (!arity || f.star() && !fn.equals("count")) {
                 throw SqlTranslationException.invalid("wrong number of arguments to " + f.name().get(0).text()
                         .toUpperCase(java.util.Locale.ROOT) + code(-154, "37505"), f.pos());
@@ -1442,11 +1459,136 @@ final class IqAggregates {
                 ColSpec spec = new ColSpec(at.name(), at.overRow(map), at.overGroup(reduce), null);
                 yield new SqlToPure.Aggregation(List.of(spec), null, x.kind(), true, type);
             }
-            case MEDIAN -> median(f, at, x, type, values);
+            case MEDIAN -> median(f, at, x, type, values, engine);
             case LIST -> list(f, at, x, type, dialect);
             case PERCENTILE_CONT, PERCENTILE_DISC -> percentile(f, at, x, type, values);
             case ARRAY_AGG -> arrayAgg(f, at, x, engine);
+            case STDDEV, STDDEV_POP, STDDEV_SAMP, VARIANCE, VAR_POP, VAR_SAMP, CORR, COVAR_POP, COVAR_SAMP, REGR_AVGX,
+                 REGR_AVGY, REGR_COUNT, REGR_INTERCEPT, REGR_R2, REGR_SLOPE, REGR_SXX, REGR_SXY, REGR_SYY ->
+                    statistic(Fn.of(f), f, at, x);
         };
+    }
+
+    /**
+     * The statistical aggregates (the IQ scale program, 2026-10-25, the real-life census; measured on IQ 17.1, each a
+     * DOUBLE): computed as IQ computes them, from one pass of sums of the values as DOUBLEs -- the count n, the sum
+     * and the sum of squares (of products, for a pair) -- by the textbook formulas over them: VAR_SAMP (VARIANCE) is
+     * (SUM(x*x) - SUM(x)*SUM(x)/n) / (n - 1), VAR_POP the same over n, the STDDEVs their square roots. So a variance
+     * whose mean dwarfs its spread loses the digits IQ's does (VARIANCE of 1000000.1, 1000000.2, 1000000.3 is IQ's
+     * 0.0100, measured by the landing 5 research), which a database's own stable STDDEV keeps. A pair (y, x) reads
+     * only its rows where both are known: COVAR_POP is (SUM(x*y) - SUM(x)*SUM(y)/n) / n, COVAR_SAMP over n - 1, REGR_SXX,
+     * REGR_SYY and REGR_SXY the sums of squares and of products about the means (SUM(x*x) - SUM(x)^2/n); the slope
+     * by n's own form, (n*SUM(x*y) - SUM(x)*SUM(y)) / (n*SUM(x*x) - SUM(x)^2), as IQ computes it (its digits, measured),
+     * CORR that over the square root of the two such, REGR_R2 its square over their product (1 where y is constant),
+     * REGR_INTERCEPT (SUM(y) - SLOPE*SUM(x)) / n, REGR_COUNT n as a DOUBLE (measured: 7.0). NULL where n is too small, or a variance
+     * divided by is 0. Refused by name: DISTINCT, a string or a date.
+     */
+    private static SqlToPure.Aggregation statistic(Fn fn, SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx first) {
+        String upper = fn.name();
+        if (f.distinct()) {
+            throw SqlTranslationException.unsupported(upper + "(DISTINCT ...) is not supported yet", f.pos());
+        }
+        Tx y = asDouble(first, upper, f.args().get(0).pos());
+        Tx x = fn.pair() ? asDouble(at.tx(f.args().get(1)), upper, f.args().get(1).pos()) : y;
+        if (fn.pair()) {
+            // a pair's value only where both are known
+            Tx known = SqlToPure.strict(Kind.FLOAT, List.of(y, x), v -> v.get(0));
+            Tx knownX = SqlToPure.strict(Kind.FLOAT, List.of(y, x), v -> v.get(1));
+            y = known;
+            x = knownX;
+        }
+        List<ColSpec> specs = new ArrayList<>();
+        Tx n = sumOf(at, specs, x, "count");
+        Tx sx = sumOf(at, specs, x, "sum");
+        Tx sxx = sumOf(at, specs, SqlToPure.strict(Kind.FLOAT, List.of(x), v -> times(v.get(0), v.get(0))), "sum");
+        Tx sy = fn.pair() ? sumOf(at, specs, y, "sum") : sx;
+        Tx syy = fn.pair() ? sumOf(at, specs, SqlToPure.strict(Kind.FLOAT, List.of(y), v -> times(v.get(0), v.get(0))),
+                "sum") : sxx;
+        Tx sxy = fn.pair() ? sumOf(at, specs, SqlToPure.strict(Kind.FLOAT, List.of(y, x), v -> times(v.get(0),
+                v.get(1))), "sum") : sxx;
+        ValueSpecification count = SqlToPure.call("toFloat", n.vs());
+        ValueSpecification shown = SqlToPure.valueOf(SqlToPure.strict(Kind.FLOAT, List.of(sx, sxx, sy, syy, sxy), v -> {
+            ValueSpecification ssx = minus(v.get(1), divide(times(v.get(0), v.get(0)), count));
+            ValueSpecification ssy = minus(v.get(3), divide(times(v.get(2), v.get(2)), count));
+            ValueSpecification ssxy = minus(v.get(4), divide(times(v.get(0), v.get(2)), count));
+            // IQ's own forms of the pair statistics (measured on IQ 17.1, to the last digit): n * SUM(x*y) - SUM(x) *
+            // SUM(y) over n * SUM(x*x) - SUM(x)^2 for the slope, and the like for CORR and R2
+            ValueSpecification nxy = minus(times(count, v.get(4)), times(v.get(0), v.get(2)));
+            ValueSpecification nxx = minus(times(count, v.get(1)), times(v.get(0), v.get(0)));
+            ValueSpecification nyy = minus(times(count, v.get(3)), times(v.get(2), v.get(2)));
+            ValueSpecification none = SqlToPure.nullOf(Kind.FLOAT).vs();
+            ValueSpecification overN1 = minus(count, new CFloat(1.0));
+            return switch (fn) {
+                case VAR_POP -> divide(ssx, count);
+                case VARIANCE, VAR_SAMP -> atLeast(n, 2, divide(ssx, overN1));
+                case STDDEV_POP -> SqlToPure.call("sqrt", divide(ssx, count));
+                case STDDEV, STDDEV_SAMP -> atLeast(n, 2, SqlToPure.call("sqrt", divide(ssx, overN1)));
+                case COVAR_POP -> divide(ssxy, count);
+                case COVAR_SAMP -> atLeast(n, 2, divide(ssxy, overN1));
+                case CORR -> IqDialect.ifThen(SqlToPure.call("or", lessThanEqualZero(nxx), lessThanEqualZero(nyy)),
+                        none, divide(nxy, SqlToPure.call("sqrt", times(nxx, nyy))));
+                case REGR_COUNT -> count;
+                case REGR_AVGX -> divide(v.get(0), count);
+                case REGR_AVGY -> divide(v.get(2), count);
+                case REGR_SXX -> ssx;
+                case REGR_SYY -> ssy;
+                case REGR_SXY -> ssxy;
+                case REGR_SLOPE -> IqDialect.ifThen(lessThanEqualZero(nxx), none, divide(nxy, nxx));
+                case REGR_INTERCEPT -> IqDialect.ifThen(lessThanEqualZero(nxx), none, divide(minus(v.get(2),
+                        times(divide(nxy, nxx), v.get(0))), count));
+                case REGR_R2 -> IqDialect.ifThen(lessThanEqualZero(nxx), none, IqDialect.ifThen(lessThanEqualZero(nyy),
+                        new CFloat(1.0), divide(times(nxy, nxy), times(nxx, nyy))));
+                default -> throw new IllegalStateException("not a statistic: " + fn);
+            };
+        }));
+        // no value at all (n is 0): NULL, but REGR_COUNT's 0
+        ValueSpecification value = fn == Fn.REGR_COUNT ? SqlToPure.call("toFloat", n.vs()) : IqDialect.ifThen(
+                SqlToPure.call("equal", n.vs(), new CInteger(0L)), SqlToPure.nullOf(Kind.FLOAT).vs(), shown);
+        return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(value), null, null), Kind.FLOAT,
+                fn != Fn.REGR_COUNT, new IqType("DOUBLE"));
+    }
+
+    /** A per-group {@code reduce} (count or sum) of {@code t}'s values: its column, a spec of {@code specs}. */
+    private static Tx sumOf(SqlToPure.Grouping at, List<ColSpec> specs, Tx t, String reduce) {
+        String name = at.fresh();
+        specs.add(new ColSpec(name, at.overRow(SqlToPure.valueOf(t)), at.overGroup(SqlToPure.call(reduce,
+                at.values())), null));
+        return reduce.equals("count") ? Tx.value(at.column(name), Kind.INTEGER, false)
+                : Tx.value(at.column(name), Kind.FLOAT, true);
+    }
+
+    /** A statistic's argument as a DOUBLE: a number's; anything else refused by name. */
+    private static Tx asDouble(Tx t, String what, SqlAst.Pos pos) {
+        if (t.kind() == Kind.FLOAT) {
+            return t;
+        }
+        if (t.kind() == Kind.INTEGER || t.kind() == Kind.DECIMAL) {
+            return SqlToPure.strict(Kind.FLOAT, List.of(t), v -> SqlToPure.call("toFloat", v.get(0)));
+        }
+        throw SqlTranslationException.unsupported(what + " of " + (t.kind() == Kind.NULL ? "NULL" : "a "
+                + t.kind().name().toLowerCase(java.util.Locale.ROOT)) + " is not supported yet", pos);
+    }
+
+    /** {@code value} where the group holds at least {@code least} values, else NULL. */
+    private static ValueSpecification atLeast(Tx n, int least, ValueSpecification value) {
+        return IqDialect.ifThen(SqlToPure.call("lessThan", n.vs(), new CInteger((long) least)),
+                SqlToPure.nullOf(Kind.FLOAT).vs(), value);
+    }
+
+    private static ValueSpecification lessThanEqualZero(ValueSpecification v) {
+        return SqlToPure.call("lessThanEqual", v, new CFloat(0.0));
+    }
+
+    private static ValueSpecification times(ValueSpecification a, ValueSpecification b) {
+        return AppliedFunction.infixRun("times", List.of(a, b));
+    }
+
+    private static ValueSpecification minus(ValueSpecification a, ValueSpecification b) {
+        return AppliedFunction.infixRun("minus", List.of(a, b));
+    }
+
+    private static ValueSpecification divide(ValueSpecification a, ValueSpecification b) {
+        return SqlToPure.call("divide", a, b);
     }
 
     /** The separator {@link #memberOfKey} packs a value behind its key with: below every byte of an escaped key. */
@@ -1853,7 +1995,7 @@ final class IqAggregates {
     /** MEDIAN of a SMALLINT or an INTEGER (or a TINYINT): Pure's continuous percentile at 0.5 of the values as
      *  doubles (exact for these: the midpoint of two 32-bit integers is a double's), floored, as the input type. */
     private static SqlToPure.Aggregation median(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x,
-            @com.legend.base.Nullable IqType type, ValueSpecification values) {
+            @com.legend.base.Nullable IqType type, ValueSpecification values, IqDialect.Engine engine) {
         String family = type == null ? "" : type.family();
         if (x.kind() == Kind.NULL || x.kind() == Kind.STRING || x.kind() == Kind.DATE || x.kind() == Kind.DATETIME
                 || family.equals("BIT")) {
@@ -1877,21 +2019,42 @@ final class IqAggregates {
             throw SqlTranslationException.unsupported("MEDIAN(DISTINCT ...) is not supported yet: lite's Postgres takes"
                     + " no percentile of distinct values", f.pos());
         }
+        String raw = at.fresh();
+        Tx asDouble = SqlToPure.strict(Kind.FLOAT, List.of(x), v -> SqlToPure.call("toFloat", v.get(0)));
+        List<ColSpec> specs = new ArrayList<>();
+        specs.add(new ColSpec(raw, at.overRow(SqlToPure.valueOf(asDouble)), at.overGroup(SqlToPure.call(
+                "percentile", values, new CFloat(0.5), new com.legend.protocol.spec.CBoolean(true),
+                new com.legend.protocol.spec.CBoolean(true))), null));
+        // the midpoint cut toward zero under IQ's engine (D-F17, measured on IQ 17.1: -32768 and 32767 give 0), and
+        // floored in SQL Anywhere's front end, which computes a + (b - a) / 2 (the IQ scale program, 2026-10-25)
+        boolean iq = engine == IqDialect.Engine.IQ;
+        Tx floored = SqlToPure.strict(Kind.INTEGER, List.of(Tx.value(at.column(raw), Kind.FLOAT, true)),
+                v -> iq ? IqDialect.ifThen(SqlToPure.call("lessThan", v.get(0), new CFloat(0.0)), SqlToPure.call(
+                        "ceiling", v.get(0)), SqlToPure.call("floor", v.get(0))) : SqlToPure.call("floor", v.get(0)));
+        ValueSpecification shown = floored.vs();
         if (java.util.Objects.requireNonNull(type).hi().subtract(type.lo()).compareTo(IqType.INTEGER_MAX) > 0) {
             // IQ island, 2026-10-14 (review 3's M2, measured): SQL Anywhere computes the midpoint a + (b - a) / 2 in
             // INTEGER and wraps where two values differ by more than 2^31 - 1 (MEDIAN of 2147483647 and -2147483648
-            // is -2147483648): its defect, and the IQ engine's is not measured -- refused under both
-            throw SqlTranslationException.unsupported("MEDIAN of an INTEGER whose values may differ by more than"
-                    + " 2147483647 is not supported: SQL Anywhere's midpoint wraps there (its defect)", f.pos());
+            // is -2147483648), and the live IQ 17.1 does: its defect. The IQ scale program, 2026-10-25 (the real-life
+            // census: every INTEGER column was refused for it): a group whose values differ by that much is refused
+            // at run time, every other answered
+            String most = at.fresh();
+            String least = at.fresh();
+            specs.add(new ColSpec(most, at.overRow(SqlToPure.valueOf(x)), at.overGroup(SqlToPure.call("max",
+                    at.values())), null));
+            specs.add(new ColSpec(least, at.overRow(SqlToPure.valueOf(x)), at.overGroup(SqlToPure.call("min",
+                    at.values())), null));
+            Tx wide = SqlToPure.strict(Kind.INTEGER, List.of(Tx.value(at.column(most), Kind.INTEGER, true),
+                    Tx.value(at.column(least), Kind.INTEGER, true)), v -> AppliedFunction.infixRun("minus",
+                    List.of(SqlToPure.call("floor", v.get(0)), SqlToPure.call("floor", v.get(1)))));
+            String past = IqDialect.REFUSED_AT_RUN_TIME + "MEDIAN of an INTEGER whose values differ by more than"
+                    + " 2147483647 is not supported: IQ's midpoint wraps there (its defect)";
+            ValueSpecification median = shown;
+            shown = SqlToPure.valueOf(SqlToPure.strict(Kind.INTEGER, List.of(wide), v -> IqFunctions.refusedPast(
+                    SqlToPure.call("greaterThan", v.get(0), new CInteger(2147483647L)), past,
+                    SqlToPure.call("toOne", median), IqDialect.raise())));
         }
-        String raw = at.fresh();
-        Tx asDouble = SqlToPure.strict(Kind.FLOAT, List.of(x), v -> SqlToPure.call("toFloat", v.get(0)));
-        ColSpec spec = new ColSpec(raw, at.overRow(SqlToPure.valueOf(asDouble)), at.overGroup(SqlToPure.call(
-                "percentile", values, new CFloat(0.5), new com.legend.protocol.spec.CBoolean(true),
-                new com.legend.protocol.spec.CBoolean(true))), null);
-        Tx floored = SqlToPure.strict(Kind.INTEGER, List.of(Tx.value(at.column(raw), Kind.FLOAT, true)),
-                v -> SqlToPure.call("floor", v.get(0)));
-        return new SqlToPure.Aggregation(List.of(spec), new ColSpec(at.name(), at.overRow(floored.vs()), null, null),
+        return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(shown), null, null),
                 Kind.INTEGER, true, IqType.integer(family, java.util.Objects.requireNonNull(type).lo(), type.hi(),
                         false));
     }

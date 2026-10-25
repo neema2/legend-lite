@@ -77,13 +77,12 @@ public final class IqParser {
      *  {@code *} (or nothing), LIST's delimiter, and an ORDER BY inside the call (IQ's syntax in any call; the dialect
      *  takes it in LIST's only). */
     static final Set<String> READ_AGGREGATES = Set.of("count", "sum", "avg", "min", "max", "median", "list",
-            "percentile_cont", "percentile_disc", "array_agg");
-
-    /** IQ's statistical aggregates: SQL Anywhere computes them by a formula that loses precision (the research's
-     *  TYPING §7: three equal values of 9999999999999999.9999 give a STDDEV of 134217728), which lite's databases do
-     *  not reproduce; refused by name. */
-    private static final Set<String> STATISTICS = Set.of("stddev", "stddev_pop", "stddev_samp", "variance", "var_pop",
-            "var_samp");
+            "percentile_cont", "percentile_disc", "array_agg",
+            // the IQ scale program, 2026-10-25 (the real-life census, measured on IQ 17.1): the statistical aggregates,
+            // each computed as IQ computes it (IqAggregates.statistic)
+            "stddev", "stddev_pop", "stddev_samp", "variance", "var_pop", "var_samp", "corr", "covar_pop", "covar_samp",
+            "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2", "regr_slope", "regr_sxx", "regr_sxy",
+            "regr_syy");
 
     /** IQ island, 2026-10-14 (M1d): the functions {@code f(*)} calls without arguments (the research's GRAMMAR F4). */
     private static final Set<String> STAR_CALLS = Set.of("getdate", "now", "today", "pi");
@@ -2367,10 +2366,6 @@ public final class IqParser {
         }
         if (WINDOW_FUNCTIONS.contains(lower)) {
             return windowFunction(parts, first, lower);
-        }
-        if (STATISTICS.contains(lower)) {
-            throw SqlSyntaxException.unsupported(name + "(...) is not supported: SQL Anywhere computes it by a formula"
-                    + " that loses precision for large values, which lite's databases do not reproduce", first.pos());
         }
         // IQ island, 2026-10-15 (checklist 2.16b): GROUPING(x) is read as a call, IqDialect.rolledUp's to read
         // IQ island, 2026-10-17 (measured on IQ 17.1): a name of no function of IQ's (STRING_AGG, STDEV, CONCAT) is read

@@ -18,7 +18,6 @@ cause	top-expr	IQ 17.1's parser rejects TOP (expr), START AT (expr) and TOP ALL 
 cause	D-A1	two LISTs ordered differently: IQ answers with one order for both, where lite raises SQL Anywhere's -904 (WP2 item 6)
 cause	non-string-input	LOCATE's start under IQ's engine: a large one is its -1009145 ("cannot be big integer for non-LOB data"), which lite answers (WP2 item 8; IQ island, 2026-10-15: the other non-string inputs -- a number or a date given to LEFT, SUBSTRING, UPPER, the TRIMs, REPLACE, STUFF, LIKE, an untyped NULL in arithmetic, a DATE's time -- are refused with IQ's codes, IqFunctions.iqEngineArguments)
 cause	not-in-unknown	IS UNKNOWN over NOT IN of a subquery holding NULL: IQ's engine answers otherwise (WP2 item 9)
-cause	D-F17	MEDIAN of integers: IQ's engine truncates the midpoint toward zero, where lite floors (WP2 item 10)
 cause	D-S5	blank padding with a tab: IQ's engine pads the shorter string with blanks before comparing (WP2 item 10)
 cause	exp-underflow	EXP's underflow is NULL in IQ 17.1's front end, 0 in SQL Anywhere 17's (WP2 item 10)
 cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is false where no row matches; the internal error -1006000 for ISNULL(LEFT(...)) beside a CASE of SUBSTRING; (IQ island, 2026-10-16) a filter of the null-supplying side of a LEFT JOIN inside a windowed derived table, or an outer join's condition on it, applied below its window functions (a RANK or a COUNT(*) OVER () of the filtered rows)
@@ -61,7 +60,6 @@ run	lite/m0/top_expression_precedence@iq17-default	top-expr	duckdb,postgres,snow
 run	lite/m1c/two_lists_ordered_differently@iq17-default	D-A1	duckdb,postgres,snowflake
 run	lite/m1d/locate_from_column_starts@iq17-default	non-string-input	duckdb,postgres,snowflake
 run	lite/m1b/in_subquery_unknown_counted@iq17-default	not-in-unknown	duckdb,postgres
-run	lite/m1review/m2_median_of_smallint_extremes@iq17-default	D-F17	duckdb,postgres,snowflake
 run	lite/natives/between_with_a_tab_and_blanks@iq17-default	D-S5	duckdb,postgres,snowflake
 run	lite/m1d/exp_at_the_largest_and_the_smallest_doubles@iq17-default	exp-underflow	duckdb,postgres,snowflake
 run	lite/m1d/exp_of_constants@iq17-default	exp-underflow	duckdb,postgres,snowflake
@@ -80,3 +78,9 @@ run	lite/m1a/double_overflow@iq17-default	pg-double-overflow	postgres
 # alike on Snowflake gained its lane above
 run	lite/corpus_gaps/start_at_skipping_a_raising_row_is_iqs_error@iq17-default	sf-lazy	snowflake
 run	lite/corpus_gaps/top_computes_a_distincts_items_for_every_row@iq17-default	sf-lazy	snowflake
+
+# the IQ scale program, 2026-10-25 (the real-life census, lite/census_*, snapped from the live IQ): IQ's engine types a
+# window SUM of an INTEGER in a quotient by its data's range (100.0 * v / SUM(v) OVER () over g's small values is a
+# NUMERIC(25,12), the SUM read as of 10 digits), where lite types it by the declared type's (a NUMERIC(20,0)), so its
+# quotient carries more places (D-N3's typing by the data; its EXPRTYPEs asked of the Mac session)
+run	lite/census_windows/share_of_total@iq17-default	D-N3	duckdb,postgres

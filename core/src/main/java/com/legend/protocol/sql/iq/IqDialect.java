@@ -5796,7 +5796,7 @@ public final class IqDialect implements InputDialect {
     }
 
     /** An integer literal's value, signs applied ({@code 5}, {@code -5}, {@code +5}); null for any other expression. */
-    private static @com.legend.base.Nullable BigInteger integerLiteral(SqlAst.Expr e) {
+    static @com.legend.base.Nullable BigInteger integerLiteral(SqlAst.Expr e) {
         return switch (e) {
             case SqlAst.IntegerLit n -> n.value();
             case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.MINUS -> {
@@ -6015,9 +6015,12 @@ public final class IqDialect implements InputDialect {
         // corpora's queries): where the type's steps need more than lite's 38 digits, the quotient is computed for a
         // dividend of the most digits they hold, and a row whose dividend has more is refused there, at run time
         int held = whole1;
-        // not by a divisor that is a decimal of scale 0: it may be one of IQ's whole NUMERICs, which IQ divides whole
-        // (SUM(v) * 100 / SUM(SUM(v)) OVER () is its BIGINT 23, where lite's window SUM is a decimal)
-        boolean guardable = !(decimal(r) && rt[1] == 0);
+        // not an integer by a divisor that is a decimal of scale 0: it may be one of IQ's whole NUMERICs, which IQ
+        // divides whole (SUM(v) * 100 / SUM(SUM(v)) OVER () is its BIGINT 23, where lite's window SUM is a decimal).
+        // A NUMERIC by one is a NUMERIC quotient (the IQ scale program, 2026-10-25, measured on IQ 17.1: 100.0 * COUNT(*)
+        // / SUM(COUNT(*)) OVER () is the NUMERIC(46,23) 28.57142857142857142857142, SUM(...) * 1.0 / (COUNT(*) * 1.0)
+        // the NUMERIC(42,22) .4285714285714285714285: the real-world corpus's ratios of counts)
+        boolean guardable = !(decimal(r) && rt[1] == 0 && !decimal(l));
         while (held > 0 && !IqFunctions.truncatedDivisionFits(lt[1], held, rt[1], whole2, s)) {
             held = guardable ? held - 1 : 0;
         }

@@ -126,8 +126,8 @@ class IqParserTest {
                 {"SELECT id FROM t GROUP BY GROUPING SETS ((id))", "GROUPING SETS"},
                 {"SELECT id FROM t GROUP BY id, ROLLUP(id)", "-1001030"},
                 {"SELECT id FROM t GROUP BY (id, vc)", "composite"},
-                {"SELECT stddev(id) FROM t", "loses precision"},
-                {"SELECT corr(id, id) FROM t", "aggregate"},
+                // the IQ scale program, 2026-10-25 (the real-life census): the statistics are read now, by IQ's own
+                // one-pass formulas (IqAggregates.statistic)
                 {"SELECT dba.f(id) FROM t", "owner-qualified"},
                 // IQ island, 2026-10-14 (M1a): LIKE, IN lists and the truth tests are read now; these are not
                 {"SELECT id FROM t WHERE vc SIMILAR TO 'a%'", "SIMILAR"},
