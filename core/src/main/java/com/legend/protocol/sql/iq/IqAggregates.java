@@ -2064,8 +2064,13 @@ final class IqAggregates {
         if (x.kind() == Kind.FLOAT || x.kind() == Kind.DECIMAL) {
             return middles(f, at, x, java.util.Objects.requireNonNull(type, "a NUMERIC's or a DOUBLE's type"), values);
         }
+        // the IQ scale program, 2026-10-26 (the realistic reports: MEDIAN(DATEDIFF(MINUTE, opened_ts, closed_ts))): a
+        // BIGINT whose range lies within 2^52 either side, the midpoint of two of which a double holds exactly too
+        boolean exactAsDouble = family.equals("BIGINT") && type != null
+                && type.lo().abs().compareTo(BigInteger.TWO.pow(52)) <= 0 && type.hi().abs().compareTo(
+                BigInteger.TWO.pow(52)) <= 0;
         if (x.kind() != Kind.INTEGER || !(family.equals("SMALLINT") || family.equals("INTEGER")
-                || family.equals("TINYINT"))) {
+                || family.equals("TINYINT") || exactAsDouble)) {
             throw SqlTranslationException.unsupported("MEDIAN of a " + (type == null ? "value of this type"
                     : type.spelling()) + " is not supported yet: lite's databases compute its midpoint otherwise than"
                     + " IQ (in double precision, or by another formula)", f.pos());

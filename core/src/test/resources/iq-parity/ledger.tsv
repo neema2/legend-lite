@@ -638,6 +638,15 @@ lite/census4_frames/variance_n_rows_all_before_all@iq17-default	PASS	PASS
 lite/census4_frames/variance_n_rows_all_before_by_k@iq17-default	PASS	PASS	
 lite/census4_frames/variance_n_rows_2_preceding_all@iq17-default	PASS	PASS	
 lite/census4_frames/variance_n_rows_2_preceding_by_k@iq17-default	PASS	PASS	
+lite/census5_report_fixes/list_by_two_keys@iq17-default	PASS	PASS	
+lite/census5_report_fixes/list_by_two_keys_descending@iq17-default	PASS	PASS	
+lite/census5_report_fixes/list_of_strings_by_date_then_id@iq17-default	PASS	PASS	
+lite/census5_report_fixes/list_by_an_expression_then_id@iq17-default	PASS	PASS	
+lite/census5_report_fixes/list_by_three_keys_mixed@iq17-default	PASS	PASS	
+lite/census5_report_fixes/locate_from_a_computed_start@iq17-default	PASS	PASS	
+lite/census5_report_fixes/substring_between_markers@iq17-default	PASS	PASS	
+lite/census5_report_fixes/left_of_a_marker_and_length_after@iq17-default	PASS	PASS	
+lite/census5_report_fixes/distinct_with_a_window_ordered_by_a_qualified_column@iq17-default	PASS	PASS	
 lite/census_aggregates/count_star_count_col@iq17-default	PASS	PASS	
 lite/census_aggregates/count_distinct@iq17-default	PASS	PASS	
 lite/census_aggregates/sum_avg_int@iq17-default	PASS	PASS	

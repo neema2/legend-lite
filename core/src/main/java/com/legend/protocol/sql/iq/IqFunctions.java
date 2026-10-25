@@ -4082,7 +4082,18 @@ final class IqFunctions {
         };
         Tx a = dateArgument(args.get(1), f.args().get(1), name);
         Tx b = dateArgument(args.get(2), f.args().get(2), name);
-        IqType type = big ? IqType.integer("BIGINT", IqType.BIGINT_MIN, IqType.BIGINT_MAX, true)
+        // the IQ scale program, 2026-10-26: a BIGINT part's count is at most the units of the 10,000 years a date-time
+        // spans (DATEDIFF(MINUTE, opened_ts, closed_ts) within 5.3 billion), so arithmetic and MEDIAN over it know
+        // its range
+        BigInteger most = switch (part) {
+            case HOUR -> BigInteger.valueOf(10_000L * 366 * 24);
+            case MINUTE -> BigInteger.valueOf(10_000L * 366 * 24 * 60);
+            case SECOND -> BigInteger.valueOf(10_000L * 366 * 86_400);
+            case MILLISECOND -> BigInteger.valueOf(10_000L * 366 * 86_400_000L);
+            case MICROSECOND -> BigInteger.valueOf(10_000L * 366 * 86_400_000_000L);
+            default -> IqType.BIGINT_MAX;
+        };
+        IqType type = big ? IqType.integer("BIGINT", most.negate(), most, true)
                 : IqType.integer("INTEGER", IqType.INTEGER_MIN, IqType.INTEGER_MAX, true);
         if (a == null || b == null) {
             return Tx.value(SqlToPure.nullOf(Kind.INTEGER).vs(), Kind.INTEGER, true, type);

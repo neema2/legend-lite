@@ -411,6 +411,18 @@ class IqToPureTest {
     }
 
     @Test
+    void aMedianOfADateDifferenceIsComputedAsAnIntegersIs() {
+        // the IQ scale program, 2026-10-26 (the realistic reports: MEDIAN(DATEDIFF(MINUTE, opened_ts, closed_ts))): a
+        // DATEDIFF in minutes is a BIGINT within 2^52 either side, whose midpoints a double holds exactly
+        String p = pure("SELECT MEDIAN(DATEDIFF(MINUTE, dt, '2026-12-31')) AS m FROM " + T,
+                IqProfile.IQ17_DEFAULT.settings());
+        assertTrue(p.contains("percentile("), p);
+        // a BIGINT column's values may not be
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT MEDIAN(bg) AS m FROM " + T)
+                .kind());
+    }
+
+    @Test
     void aDistinctWithAWindowSortsByAnItemItShows() {
         // the IQ scale program, 2026-10-25 (the realistic reports' crash, "not an input scope"): a DISTINCT with a
         // window, ordered by a qualified column it shows, sorts by that item after the DISTINCT

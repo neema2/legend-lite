@@ -28,3 +28,8 @@ run	lite/reports_long/basket_analysis_by_size@iq17-default	row-typed	duckdb,post
 run	lite/reports_payments/collections_by_method_share@iq17-default	row-typed	duckdb,postgres
 run	lite/reports_sales/quarterly_revenue_with_growth@iq17-default	row-typed	duckdb,postgres
 run	lite/reports_sales/revenue_by_category_share@iq17-default	row-typed	duckdb,postgres
+#
+# The IQ scale program, 2026-10-26 (part D's judgement, snapped at 7aca3f16): ROUND(100.0 * SUM(e.salary) /
+# SUM(SUM(e.salary)) OVER (), 2) over employees LEFT JOIN regions -- IQ's window total over the group's NUMERIC(9,2) sums
+# has 22 digits before its point (26 places), lite's 9 (13): sized by the join's estimate
+run	lite/reports_mixed/payroll_by_region_with_share@iq17-default	row-typed	duckdb,postgres
