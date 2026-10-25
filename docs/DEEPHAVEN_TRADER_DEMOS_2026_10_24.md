@@ -39,7 +39,7 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | K3a | **built 2026-10-24** (§5). **A candle's open and close on Deephaven**: Pure's `minBy` and `maxBy` over a whole-number order (a trade's sequence number), SQL's `ARG_MIN` and `ARG_MAX`, as the server's `sortedFirst` and `sortedLast` | the dialect's tests; DuckDB's answer on the pinned server |
 | K3 | **built 2026-10-24** (§5); its ticking in a browser is K4's page. **A candlestick chart** in DataCube: open, high, low, close and volume by time bucket, drawn again at its grid's tick with its axes held (C2) | DataCube's chart tests; the chart ticking in a browser check |
 | K4 | **the ticker**: a watchlist (last, change, bid/ask, volume, day VWAP, high/low), the tape, time and sales, and a live candle chart for the symbol picked | a browser check of every part ticking; the speeds of §4 measured |
-| K5 | **the runtime error on Deephaven**: the lowering's guard (Pure fails on `sqrt` of a negative, on an Integer division by zero) writes an `ERROR` no Deephaven formula holds yet; a formula that fails by name, so `sqrt` and Integer `/` plan | the dialect's tests; a failing row failing the view, said, on the server |
+| K5 | **its first part built 2026-10-25** (§6; `sqrt` still refused, its message printing a float as text). **The runtime error on Deephaven**: the lowering's guard (Pure fails on `sqrt` of a negative, on an Integer division by zero) writes an `ERROR` no Deephaven formula holds yet; a formula that fails by name, so `sqrt` and Integer `/` plan | the dialect's tests; a failing row failing the view, said, on the server |
 | K6 | **built 2026-10-24** (§5), but for EMA, delta and NTH_VALUE. **Windows as `updateBy`**: running and moving figures (by rows and by time), lag and lead, first and last, the ranks; top-N per group (a row number filtered, SQL's QUALIFY: no `headBy` needed); DataCube's window functions and show-as | each against DuckDB's answer |
 | K7 | **as-of joins as `aj`** (DH20) | the same |
 | K8 | **the market map**: a treemap of every name, sized by value, coloured by the day's change, ticking | a browser check |
@@ -303,3 +303,22 @@ a condition reached Deephaven with no shape (an off-exchange print has no side, 
 now a ternary of the branches' conditions (`DeephavenDialectTest.anIfOfTwoConditionsIsTheConditionOfTheBranchItTakes`).
 Measured: the stress suites on DuckDB (4,808 of 4,836 pass) and H2 (4,779), their failures unchanged (15 and 44), all
 seven equity stacks passing on both; the corpus's gates, its diff tests and the differential green.
+
+**K5, its first part (2026-10-25).** A formula has no throw, so the platform's runtime error (`ERROR`, the lowering's
+guard where Pure fails: a zero divisor, a bound) is the library's `parseLong` of its message inside the raise envelope
+(`RaisedErrors`' U+001F marks), which fails naming the text, typed as its CASE is -- never `parseDouble`, which trims
+the marks. A whole-number quotient cut toward zero (`INT_DIVIDE`: the formula language's `/` answers a double) is the
+library's `floorDiv` of the dividend less its remainder, an exact multiple, with no double between. `dateDiff`'s
+calendar parts are SQL's crossings in UTC (a day's by the dates' `toEpochDay`, months and years by the library's
+parts), its milliseconds floored and its hours, minutes and seconds the epoch milliseconds' quotient, each instant's
+milliseconds cut toward zero as DuckDB's `epoch_ms` cuts them (measured 1.4.4: half a millisecond before the epoch is
+0, where Java's `toEpochMilli` floors it to -1); `toEpochValue` is that from the epoch. A boolean `if` as a condition
+is a ternary of the branches' conditions. Measured on the pinned server (`page.ts`, 70 checks): quotients of negative
+numbers, `dateDiff` in days, months, years, hours, minutes and milliseconds and `toEpochValue` (an instant before the
+epoch, nulls) answer exactly DuckDB's answers; guards no row takes compile there and answer; a row that divides by
+zero fails the query. The server logs Pure's message (`NumberFormatException: For input string: "Cannot divide 3 by
+zero"`, the marks around it) and hands the client only its reference ("Details Logged w/ID '...'"). Found on the way,
+fixed: the live reader never said that the server failed a table -- the library fires `requestfailed`, which nothing
+heard, so a page or a DataCube grid waited for rows that would not come; `follow` now takes a failure callback, and
+the engine says it as it says rows it cannot read. Still refused: `sqrt` (its message prints a float, and a float's
+text has no shape yet), `EPOCH_SECONDS` (a fractional epoch), a date difference in weeks or microseconds.

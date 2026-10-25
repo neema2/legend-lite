@@ -10,7 +10,7 @@ import type { ResultWindow } from './engine.ts';
 /** The part of Deephaven's JS library the live reader uses, as its own API names it. */
 export interface DhModule {
   readonly CoreClient: new (url: string) => DhClient;
-  readonly Table: { readonly EVENT_UPDATED: string };
+  readonly Table: { readonly EVENT_UPDATED: string; readonly EVENT_REQUEST_FAILED: string };
   readonly RangeSet: { ofRange(first: number, last: number): DhRangeSet };
 }
 
@@ -65,16 +65,23 @@ interface DhTable {
     readonly rows: DhRangeSet;
     readonly updateIntervalMs: number;
   }): DhViewportSubscription;
+  addEventListener(name: string, listener: (e: { readonly detail: unknown }) => void): () => void;
   close(): void;
 }
 
-interface DhSubscription {
+/** What the library says when the server fails a request: its text (for a server-side failure, the server's own
+ *  reference to what it logged, "Details Logged w/ID '...'"). */
+interface DhFailures {
+  addEventListener(name: string, listener: (e: { readonly detail: unknown }) => void): () => void;
+}
+
+interface DhSubscription extends DhFailures {
   addEventListener(name: string, listener: (e: { readonly detail: { readonly rows: readonly DhRow[] } }) => void): () => void;
   close(): void;
 }
 
 /** The library's viewport subscription: an update's rows are the window's, `offset` the first one's place. */
-interface DhViewportSubscription {
+interface DhViewportSubscription extends DhFailures {
   addEventListener(name: string,
     listener: (e: { readonly detail: { readonly offset: number; readonly rows: readonly DhRow[] } }) => void): () => void;
   update(options: { readonly rows: DhRangeSet; readonly columns: readonly DhColumn[] }): void;
@@ -124,12 +131,15 @@ export class LiveClient {
     }
   }
 
-  /** Follows the published table `name`: `onRows` with every row at each update (the first: the rows as they are). */
-  async follow(name: string, onRows: (rows: FollowedRows) => void, intervalMs = 10): Promise<Followed> {
+  /** Follows the published table `name`: `onRows` with every row at each update (the first: the rows as they are);
+   *  `onFailed` once if the server fails it (`failures`). */
+  async follow(name: string, onRows: (rows: FollowedRows) => void, onFailed: (error: Error) => void,
+    intervalMs = 10): Promise<Followed> {
     const table = await this.#ide.getSharedObject(name, 'Table');
     const columns = table.columns;
     const names = columns.map((c) => c.name);
     const subscription = table.createSubscription({ columns, updateIntervalMs: intervalMs });
+    this.#failures(name, [table, subscription], onFailed);
     subscription.addEventListener(this.#dh.Table.EVENT_UPDATED, (e) => {
       const rows = e.detail.rows;
       onRows({ columns: names, values: columns.map((c) => rows.map((r) => r.get(c))) });
@@ -156,6 +166,7 @@ export class LiveClient {
     const names = columns.map((c) => c.name);
     const range = (w: ResultWindow): DhRangeSet => this.#dh.RangeSet.ofRange(w.offset, w.offset + Math.max(1, w.count) - 1);
     const subscription = table.createViewportSubscription({ columns, rows: range(window), updateIntervalMs: intervalMs });
+    this.#failures(name, [table, subscription], onFailed);
     subscription.addEventListener(this.#dh.Table.EVENT_UPDATED, (e) => {
       const { offset, rows } = e.detail;
       const total = table.size;
@@ -176,5 +187,20 @@ export class LiveClient {
 
   close(): void {
     this.#client.disconnect();
+  }
+
+  /** A followed table the server fails -- a row its formula fails on (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K5: the
+   *  platform's runtime error fails the server's snapshot) -- is said once, by the library's `requestfailed` on the table
+   *  or its subscription: never a following that waits unsaid for rows that will not come (the library, unheard, only
+   *  logs it to the console). The server keeps its reason in its log, under the reference the library hands over. */
+  #failures(name: string, sources: readonly DhFailures[], onFailed: (error: Error) => void): void {
+    let said = false;
+    for (const source of sources) {
+      source.addEventListener(this.#dh.Table.EVENT_REQUEST_FAILED, (e) => {
+        if (said) return;
+        said = true;
+        onFailed(new Error(`the Deephaven server failed the table ${name}: ${String(e.detail)}`));
+      });
+    }
   }
 }

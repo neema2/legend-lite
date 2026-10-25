@@ -92,7 +92,7 @@ try {
         } catch (e) {
           failed ??= e;
         }
-      });
+      }, (e) => { failed ??= e; });
       for (let i = 0; i < 200 && first === null && failed === null; i++) await sleep(50);
       if (ms > 0) await sleep(ms);
       followed.close();

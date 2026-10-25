@@ -427,6 +427,8 @@ public final class Deephaven extends AnsiSqlRenderer {
             case COALESCE -> coalesceCondition(writer, a, 0, holds);
             case STARTS_WITH -> stringTest(writer, a, "startsWith", holds);
             case ENDS_WITH -> stringTest(writer, a, "endsWith", holds);
+            // a guard's error where a condition stands: the condition is never decided
+            case ERROR -> raise(writer, c, SqlType.Scalar.BOOLEAN);
             default -> throw new DialectCapability("a condition " + c.fn() + " reached Deephaven: no shape yet");
         };
     }
@@ -821,6 +823,9 @@ public final class Deephaven extends AnsiSqlRenderer {
             case MOD -> writer.append("(((").expr(a.get(0), 0).append(" % ").expr(a.get(1), 0).append(") + ")
                     .expr(a.get(1), 0).append(") % ").expr(a.get(1), 0).append(")");
             case REM -> writer.append("(").expr(a.get(0), 0).append(" % ").expr(a.get(1), 0).append(")");
+            // K5: a whole-number quotient cut toward zero, and the platform's runtime error
+            case INT_DIVIDE -> intDivide(writer, c);
+            case ERROR -> raise(writer, c, c.type(), "a runtime error");
             case SUBSTRING -> substring(writer, c);
             case STRPOS -> strpos(writer, c);
             case UPPER -> stringMethod(writer, c, "toUpperCase");
@@ -832,6 +837,10 @@ public final class Deephaven extends AnsiSqlRenderer {
             case DATE_TRUNC_DAY -> asDate(writer, a.get(0), "datePart");
             case DATE_TRUNC -> dateTrunc(writer, a);
             case ADD_INTERVAL -> addInterval(writer, a);
+            // K5's: dateDiff, and toEpochValue (a dateDiff from the epoch) -- its calendar parts SQL's crossings, its
+            // hours, minutes and seconds the epoch milliseconds' whole-number quotient
+            case DATE_DIFF -> dateDiff(writer, c);
+            case EPOCH_MS -> epochMillis(writer, a.get(0));
             case NOW, TODAY -> throw new DialectCapability("the time now (" + c.fn() + ") reached Deephaven: a live"
                     + " view's rows are filtered when they change, not again as time passes, so a filter on the time"
                     + " now would keep a row it has aged out; not shaped until a live window is designed"
@@ -844,14 +853,14 @@ public final class Deephaven extends AnsiSqlRenderer {
                  MAP_CONCAT, MATCHES, LEFT, RIGHT, LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE,
                  SPLIT, SPLIT_PART, TRANSLATE, PURE_SPLIT_PART, REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST,
                  ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT, HASH, MD5, SHA1, SHA256, RANDOM,
-                 MAKE_DATE, MAKE_TIMESTAMP, DATE_DIFF,
-                 TIMEZONE, DATE_AT_TIME, EPOCH_NS, FROM_EPOCH_NS, ADD_INTERVAL_TEMPORAL, EPOCH_SECONDS, EPOCH_MS,
-                 FROM_EPOCH_SECONDS, FROM_EPOCH_MS, DAYNAME, MONTHNAME, COT, RADIANS, DEGREES, INT_DIVIDE,
+                 MAKE_DATE, MAKE_TIMESTAMP,
+                 TIMEZONE, DATE_AT_TIME, EPOCH_NS, FROM_EPOCH_NS, ADD_INTERVAL_TEMPORAL, EPOCH_SECONDS,
+                 FROM_EPOCH_SECONDS, FROM_EPOCH_MS, DAYNAME, MONTHNAME, COT, RADIANS, DEGREES,
                  REPEAT_STR, JARO_WINKLER, DECODE_BASE64, CURRENT_USER_FN, LIST_LENGTH, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
                  LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, REPEAT_VALUE,
                  LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL,
-                 STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF, ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT,
+                 STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF, ROUND_HALF_UP, FLOOR_RAW, TO_VARIANT,
                  BOOL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, FLOAT_PRINT_ENGINE, VARIANT_ELEMENTS, VARIANT_GET,
                  JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY ->
                     throw new DialectCapability("function " + c.fn() + " reached Deephaven: no shape yet");
@@ -1043,6 +1052,69 @@ public final class Deephaven extends AnsiSqlRenderer {
         return isDate(e, what) ? writer.expr(e, 0) : writer.append("toLocalDate(").expr(e, 0).append(", " + UTC + ")");
     }
 
+    /** DATE_DIFF(part, from, to): SQL's count of the part's boundaries crossed from {@code from} to {@code to}
+     *  (DuckDB's {@code date_diff}, measured 1.4.4): a day's, a month's or a year's on the UTC calendar, a
+     *  millisecond's floored (half a millisecond before the epoch to the epoch is 1). A null either side is null. */
+    private SqlWriter dateDiff(SqlWriter writer, SqlExpr.Call c) {
+        com.legend.sql.DatePart p = part(c.args().get(0));
+        SqlExpr from = c.args().get(1);
+        SqlExpr to = c.args().get(2);
+        String what = "a date difference";
+        writer.append("(");
+        List<SqlExpr> guarded = java.util.stream.Stream.of(from, to).filter(Deephaven::nullable).toList();
+        if (!guarded.isEmpty()) {
+            writer.append("(");
+            for (int i = 0; i < guarded.size(); i++) {
+                writer.append(i > 0 ? " || isNull(" : "isNull(").expr(guarded.get(i), 0).append(")");
+            }
+            // the library's calendar parts read a null's sentinel, but a date's own toEpochDay would fail on it
+            writer.append(") ? NULL_LONG : ");
+        }
+        // an expression switch, so javac holds it to every part
+        SqlWriter done = switch (p) {
+            case DAY -> {
+                asDate(writer, to, what).append(".toEpochDay() - ");
+                yield asDate(writer, from, what).append(".toEpochDay()");
+            }
+            case MONTH -> {
+                writer.append("12L * (");
+                calendar(writer, "year", to).append(" - ");
+                calendar(writer, "year", from).append(") + (");
+                calendar(writer, "monthOfYear", to).append(" - ");
+                yield calendar(writer, "monthOfYear", from).append(")");
+            }
+            case YEAR -> {
+                writer.append("(long) (");
+                calendar(writer, "year", to).append(" - ");
+                yield calendar(writer, "year", from).append(")");
+            }
+            case MILLISECOND -> {
+                writer.append("epochMillis(");
+                asInstant(writer, to, what).append(") - epochMillis(");
+                yield asInstant(writer, from, what).append(")");
+            }
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK, QUARTER, WEEK, HOUR, MINUTE, SECOND, MICROSECOND, NANOSECOND ->
+                    throw new DialectCapability("a date difference in " + p + "S reached Deephaven: no shape yet");
+        };
+        return done.append(")");
+    }
+
+    /** The library's calendar part {@code fn} of a date, or of a date-time in UTC. */
+    private SqlWriter calendar(SqlWriter writer, String fn, SqlExpr t) {
+        return writer.append(fn + "(").expr(t, 0).append(isDate(t, "a calendar part") ? ")" : ", " + UTC + ")");
+    }
+
+    /** EPOCH_MS(t): the milliseconds since the epoch, cut toward zero as DuckDB's {@code epoch_ms} cuts them
+     *  (measured 1.4.4: half a millisecond before the epoch is 0, where Java's {@code toEpochMilli} floors to -1) --
+     *  the instant's nanoseconds less their remainder, by the library's floored division; a null is null (the
+     *  library's and the operators' own sentinels), and an instant past the nanoseconds' range fails. */
+    private SqlWriter epochMillis(SqlWriter writer, SqlExpr t) {
+        String what = "an epoch's milliseconds";
+        writer.append("floorDiv(epochNanos(");
+        asInstant(writer, t, what).append(") - (epochNanos(");
+        return asInstant(writer, t, what).append(") % 1000000L), 1000000L)");
+    }
+
     /** TIME_BUCKET(unit, n, t): the start of t's bucket of n units, counted from the epoch -- a week's from its Monday
      *  ({@link #WEEK_OFFSET}) -- as the server's {@code lowerBin}; an instant whatever t is (the lowering casts a
      *  date's back). A calendar unit is none of the server's bins, refused by name (DH29). */
@@ -1205,7 +1277,76 @@ public final class Deephaven extends AnsiSqlRenderer {
         if (e instanceof SqlExpr.NullLit n && !(n.type() instanceof TypeFact.Typed)) {
             return writer.append(typedNull(c.type(), "a CASE's null"));
         }
+        if (e instanceof SqlExpr.Call k && k.fn() == SqlFn.ERROR) {
+            // a guard's error (the lowering's CASE WHEN bad THEN ERROR(...) ELSE value): the CASE's value, never made
+            return raise(writer, k, c.type(), "a CASE's runtime error");
+        }
         return writer.expr(e, 0);
+    }
+
+    // ==================================================================
+    // K5: whole-number division and the runtime error
+    // ==================================================================
+
+    /** A whole-number quotient cut toward zero ({@code INT_DIVIDE}; the formula language's {@code /} answers a
+     *  double): the library's floored division ({@code floorDiv}) of the dividend less its remainder -- an exact
+     *  multiple of the divisor, whose floor is the cut quotient, with no double between. A null either side is the
+     *  quotient's null: the operators and the library carry a sentinel through, but for an int divisor Java widens
+     *  to a long dividend's call, its null with it, so such a divisor that may be null is guarded. A zero divisor
+     *  fails, as Java's division does (the lowering guards one by name). */
+    private SqlWriter intDivide(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        writer.append("(");
+        SqlType.Scalar divisor = scalarOf(a.get(1));
+        boolean widened = divisor != SqlType.Scalar.BIGINT && divisor != scalarOf(a.get(0));
+        if (widened && !(a.get(1) instanceof SqlExpr.IntLit) && nullable(a.get(1))) {
+            writer.append("isNull(").expr(a.get(1), 0).append(") ? ")
+                    .append(typedNull(c.type(), "a whole-number quotient")).append(" : ");
+        }
+        writer.append("floorDiv(").expr(a.get(0), 0).append(" - (").expr(a.get(0), 0).append(" % ")
+                .expr(a.get(1), 0).append("), ").expr(a.get(1), 0).append(")");
+        return writer.append(")");
+    }
+
+    /** {@code e}'s scalar type, or null when it has none known. */
+    private static SqlType.@com.legend.base.Nullable Scalar scalarOf(SqlExpr e) {
+        return e.type() instanceof TypeFact.Typed t && t.type() instanceof SqlType.Scalar s ? s : null;
+    }
+
+    /** The platform's runtime error ({@code ERROR}: its message, and the raising call's place when it has one) as a
+     *  value of {@code fact}'s type that is never made. */
+    private SqlWriter raise(SqlWriter writer, SqlExpr.Call c, TypeFact fact, String what) {
+        if (!(fact instanceof TypeFact.Typed t) || !(t.type() instanceof SqlType.Scalar s)) {
+            throw new DialectCapability(what + " of no known type reached Deephaven, whose formulas are typed");
+        }
+        return raise(writer, c, s);
+    }
+
+    /** A formula has no throw, so the error is the library's parse of a whole number from its message inside the
+     *  platform's raise envelope ({@code RaisedErrors}: U+001F either side, U+001E after the place), which fails
+     *  naming the text it could not read ({@code NumberFormatException: For input string: "..."}): the server fails
+     *  the operation, or a live table, at the first row that takes it. Never a double's parse, which trims the
+     *  envelope's marks (a message of digits would parse); a value of another type is the parsed number converted,
+     *  which is never reached. */
+    private SqlWriter raise(SqlWriter writer, SqlExpr.Call c, SqlType.Scalar s) {
+        String[] around = switch (s) {
+            case INTEGER -> new String[] {"parseInt(", ")"};
+            case BIGINT -> new String[] {"parseLong(", ")"};
+            case DOUBLE -> new String[] {"((double) parseLong(", "))"};
+            case BOOLEAN -> new String[] {"(parseLong(", ") == 0L)"};
+            case VARCHAR -> new String[] {"(" + stringLiteral("") + " + parseLong(", "))"};
+            case TIMESTAMP -> new String[] {"epochNanosToInstant(parseLong(", "))"};
+            case DATE -> new String[] {"toLocalDate(epochNanosToInstant(parseLong(", ")), " + UTC + ")"};
+            case TIME -> new String[] {"toLocalTime(epochNanosToInstant(parseLong(", ")), " + UTC + ")"};
+            case HUGEINT, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
+                    "a runtime error of type " + s + " reached Deephaven: no column holds it yet");
+        };
+        List<SqlExpr> a = c.args();
+        writer.append(around[0]).append("(" + stringLiteral("") + " + (char) 31 + ");
+        if (a.size() > 1) {
+            writer.expr(a.get(1), 0).append(" + (char) 30 + ");
+        }
+        return writer.append("(").expr(a.get(0), 0).append(") + (char) 31)").append(around[1]);
     }
 
     /** A numeric widening cast, a null kept null (a primitive cast of a null sentinel would answer a number); a

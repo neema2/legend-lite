@@ -335,6 +335,59 @@ class DeephavenDialectTest {
         assertTrue(text.getMessage().contains("reached Deephaven"), text.getMessage());
     }
 
+    // ==================================================================
+    // K5: the runtime error and whole-number division (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md §2)
+    // ==================================================================
+
+    @Test
+    void aRuntimeErrorIsTheLibrarysParseOfItsMessageWhichFailsNamingIt() {
+        // rem by a column that may be zero: the lowering's guard raises Pure's message; a formula has no throw, so the
+        // error is a whole number parsed from the message in the raise envelope (U+001F either side), which fails
+        // naming the text it could not read -- of the CASE's type: a whole number here, a float for a division
+        formulaOver(P, "pid", "$x.pid->rem($x.pid)", "((t0__pid == 0L) ? parseLong((`` + (char) 31 + (((((`Cannot divide ` + (`` + t0__pid))) + ` by zero`))) + (char) 31)) : (t0__pid % t0__pid))");
+        formulaOver(P, "pid", "$x.pid / ($x.pid - 3)", "(((t0__pid - 3L) == 0L) ? ((double) parseLong((`` + (char) 31"
+                + " + (`Division by zero`) + (char) 31))) : (t0__pid / (t0__pid - 3L)))");
+        // a message that prints a float (sqrt's) has no shape yet: a float's text is the next gap
+        DialectCapability sqrt = assertThrows(DialectCapability.class,
+                () -> batch(P + "->extend(~r:x|$x.sz->sqrt())->select(~[pid, r])"));
+        assertTrue(sqrt.getMessage().contains("a cast to VARCHAR"), sqrt.getMessage());
+    }
+
+    @Test
+    void aWholeNumberQuotientIsTheLibrarysFlooredDivisionOfAnExactMultiple() {
+        // cut toward zero: the dividend less its remainder is a multiple of the divisor, whose floor is the quotient
+        formulaOver(P, "pid", "meta::legend::lite::quotient($x.pid, 7)",
+                "((7L == 0L) ? parseLong((`` + (char) 31 + (((((`Cannot divide ` + (`` + t0__pid))) + ` by zero`))) + (char) 31)) : (floorDiv(t0__pid - (t0__pid % 7L), 7L)))");
+    }
+
+    @Test
+    void aDateDifferenceCountsTheUtcCalendarsCrossingsAndElapsedTime() {
+        // the calendar's parts are SQL's crossings, a day's by the dates' epoch days; a null either side is null
+        String utc = "timeZone(`UTC`)";
+        formula("dateDiff($x.tm, $x.ts->toOne(), DurationUnit.DAYS)", "((isNull(t0__ts)) ? NULL_LONG : toLocalDate(t0__ts,"
+                + " " + utc + ").toEpochDay() - toLocalDate(t0__tm, " + utc + ").toEpochDay())");
+        formula("dateDiff($x.tm, $x.ts->toOne(), DurationUnit.MONTHS)", "((isNull(t0__ts)) ? NULL_LONG : 12L * (year(t0__ts,"
+                + " " + utc + ") - year(t0__tm, " + utc + ")) + (monthOfYear(t0__ts, " + utc + ") - monthOfYear(t0__tm, "
+                + utc + ")))");
+        formula("dateDiff($x.tm, $x.ts->toOne(), DurationUnit.YEARS)", "((isNull(t0__ts)) ? NULL_LONG : (long)"
+                + " (year(t0__ts, " + utc + ") - year(t0__tm, " + utc + ")))");
+        // a millisecond's crossings floored, as DuckDB counts them
+        formula("dateDiff($x.tm, $x.ts->toOne(), DurationUnit.MILLISECONDS)",
+                "((isNull(t0__ts)) ? NULL_LONG : epochMillis(t0__ts) - epochMillis(t0__tm))");
+        // hours, minutes and seconds are elapsed: the epoch milliseconds' whole-number quotient, each instant's
+        // milliseconds cut toward zero as DuckDB's epoch_ms cuts them; the operators carry a null through
+        String ts = "floorDiv(epochNanos(t0__ts) - (epochNanos(t0__ts) % 1000000L), 1000000L)";
+        String tm = "floorDiv(epochNanos(t0__tm) - (epochNanos(t0__tm) % 1000000L), 1000000L)";
+        String elapsed = "(" + ts + " - " + tm + ")";
+        formula("dateDiff($x.tm, $x.ts->toOne(), DurationUnit.HOURS)",
+                "(floorDiv(" + elapsed + " - (" + elapsed + " % 3600000L), 3600000L))");
+        // toEpochValue is the seconds elapsed since the epoch
+        String epoch = "floorDiv(epochNanos(parseInstant(`1970-01-01T00:00:00Z`)) - (epochNanos(parseInstant("
+                + "`1970-01-01T00:00:00Z`)) % 1000000L), 1000000L)";
+        String since = "(" + tm + " - " + epoch + ")";
+        formula("$x.tm->toEpochValue()", "(floorDiv(" + since + " - (" + since + " % 1000L), 1000L))");
+    }
+
     @Test
     void whatHasNoShapeIsRefusedByName() {
         DialectCapability window = assertThrows(DialectCapability.class, () -> batch("#>{risk::Ref.trades}#"

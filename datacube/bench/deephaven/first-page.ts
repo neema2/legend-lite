@@ -82,8 +82,9 @@ async function main(): Promise<void> {
       const name = await session.publishKept(kept.exportId);
       const t2 = performance.now();
       let first!: (rows: FollowedRows) => void;
-      const landed = new Promise<FollowedRows>((resolve) => { first = resolve; });
-      followed = await live.follow(name, (rows) => first(rows));
+      let failed!: (error: Error) => void;
+      const landed = new Promise<FollowedRows>((resolve, refuse) => { first = resolve; failed = refuse; });
+      followed = await live.follow(name, (rows) => first(rows), (e) => failed(e));
       const t3 = performance.now();
       const rows = await Promise.race([landed, new Promise<never>((_, refuse) => {
         setTimeout(() => refuse(new Error('no first rows in 10 s')), 10_000);

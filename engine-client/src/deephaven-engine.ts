@@ -265,6 +265,13 @@ export class DeephavenEngine implements QueryEngine {
         firstSeen = true;
         arrived();
         for (const r of f.readers) r.changed();
+      }, (error) => {
+        // the server failed the result (a row its formula fails on): said as rows the tab cannot read are
+        if (f.stopped) return;
+        if (this.#whole.get(plan.sql) === f) this.#whole.delete(plan.sql);
+        unread(error);
+        if (firstSeen) for (const r of f.readers) r.unfollowed(error.message);
+        stopFollowing(f);
       });
       f.stop = () => {
         followed.close();

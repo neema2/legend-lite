@@ -330,6 +330,28 @@ const SCALARS: readonly { readonly query: string; readonly rows: readonly (reado
     rows: [[1, '250.25', 500.5, 1000.5], [2, '0', 0, null], [3, '12.34', 24.68, 0.1]] },
 ];
 
+const Q = 'meta::legend::lite::quotient';
+
+/** K5 (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md §2): whole-number division and the date differences built on it, each
+ *  answer DuckDB 1.4.4's over the same rows. */
+const DIVISIONS: readonly { readonly query: string; readonly rows: readonly (readonly unknown[])[] }[] = [
+  // a whole-number quotient cut toward zero, a negative dividend's too (-5 by 4 is -1, not the floor's -2)
+  { query: `${P}->extend(~[q:x|${Q}($x.pid, 4), nq:x|${Q}(0 - $x.pid, 4)])->select(~[pid, q, nq])`
+      + `->sort(~pid->ascending())`,
+    rows: [[1, 0, 0], [2, 0, 0], [3, 0, 0], [4, 1, -1], [5, 1, -1], [6, 1, -1], [7, 1, -1], [8, 2, -2], [9, 2, -2]] },
+  // dateDiff's calendar parts (days, months and years crossed, in UTC), its elapsed hours and minutes (cut toward
+  // zero: -7175.99 hours is -7175) and milliseconds; a null either side null; toEpochValue's seconds, an instant half a
+  // minute before the epoch -30
+  { query: `${F}->extend(~[dd:x|dateDiff($x.tm, $x.ts->toOne(), DurationUnit.DAYS),`
+      + ` dm:x|dateDiff($x.tm, $x.ts->toOne(), DurationUnit.MONTHS), dy:x|dateDiff($x.tm, $x.ts->toOne(), DurationUnit.YEARS),`
+      + ` dh:x|dateDiff($x.tm, $x.ts->toOne(), DurationUnit.HOURS), dn:x|dateDiff($x.tm, $x.ts->toOne(), DurationUnit.MINUTES),`
+      + ` ds:x|dateDiff($x.tm, $x.ts->toOne(), DurationUnit.MILLISECONDS), e:x|$x.tm->toEpochValue()])`
+      + `->select(~[fid, dd, dm, dy, dh, dn, ds, e])->sort(~fid->ascending())`,
+    rows: [[1, 0, 0, 0, 0, 0, 0, 1792834215], [2, null, null, null, null, null, null, 1792834499],
+      [3, -298, -9, 0, -7175, -430559, -25833599000, 1793059199], [4, null, null, null, null, null, null, 1709208000],
+      [5, 20544, 675, 57, 493055, 29583300, 1774998030000, -30]] },
+];
+
 const SHAPES: readonly string[] = [
   `${T}->groupBy(~[region, country], ~['2023__|__total':x|if($x.year == 2023, |$x.notional, |[]):y|$y->sum(),`
     + ` total:x|$x.notional:y|$y->sum()])->sort([~region->ascending(), ~country->ascending()])`,
@@ -434,6 +456,10 @@ try {
           clearTimeout(late);
           followed?.close();
           resolve(first);
+        }, (e) => {
+          // the server failed the table: said, not a wait for rows
+          clearTimeout(late);
+          reject(e);
         }).then((f) => {
           followed = f;
           if (first) f.close();
@@ -456,7 +482,7 @@ try {
   }
   // a date or a date-time is read by its plan's column type, as DataCube's engine reads it (followedTable): an instant
   // its nanoseconds' UTC wall-clock, a date its day
-  for (const k of [...TIMES, ...WINDOWS, ...SCALARS]) {
+  for (const k of [...TIMES, ...WINDOWS, ...SCALARS, ...DIVISIONS]) {
     await check(`answers ${k.query}`, async () => {
       const plan = planned(k.query);
       const got = await answer(k.query, (rows) => {
@@ -467,6 +493,24 @@ try {
         : `expected ${JSON.stringify(k.rows)}\n   got ${JSON.stringify(got)}`;
     });
   }
+  // THE RUNTIME ERROR (K5): the lowering's guards raise Pure's message where Pure would fail. A guard no row takes is
+  // compiled by the server all the same (its error typed as its CASE is: a whole number, a float) and answers; a row
+  // that takes it fails the query, the server's own message naming Pure's
+  await check('a guard no row takes compiles on the server and answers', async () => {
+    const got = (await answer(`${P}->extend(~[r:x|$x.pid->rem($x.pid), q:x|${Q}($x.pid * 10, $x.pid),`
+      + ` f:x|$x.pid / $x.pid])->select(~[pid, r, q, f])->filter(x|$x.pid <= 2)->sort(~pid->ascending())`)).map((r) => r.map(plain));
+    return JSON.stringify(got) === JSON.stringify([[1, 0, 10, 1], [2, 0, 10, 1]]) ? null : `answered ${JSON.stringify(got)}`;
+  });
+  // the server keeps Pure's message in its log ("For input string: "Cannot divide 3 by zero""), and hands the client
+  // only its reference to it
+  await check('a row that divides by zero fails the query, the server\'s reference to its log said', async () => {
+    try {
+      const got = await answer(`${P}->extend(~[q:x|${Q}($x.pid, $x.pid - 3)])->select(~[pid, q])->sort(~pid->ascending())`);
+      return `answered ${JSON.stringify(got)}`;
+    } catch (e) {
+      return /failed the table .*Details Logged w\/ID '[0-9a-f-]+'/.test(String(e)) ? null : `failed otherwise: ${String(e)}`;
+    }
+  });
   // A FILTER ON A NEW DATE-TIME OR DATE COMPILES NOTHING (DH25, K1): each in quotes, a range or match filter the
   // server reads as written, so a value never filtered on before costs the server no compile (a formula's literal,
   // measured 240 ms each)
@@ -499,7 +543,8 @@ try {
       "#>{risk::Ref.ticks}#->groupBy(~[sym], ~[total:x|$x.px:y|$y->sum()])->sort(~sym->ascending())"));
     const seen: string[] = [];
     const followed = await live.follow(await session.publishKept(kept.exportId),
-      (rows) => seen.push(JSON.stringify(byRow(rows).map((r) => r.map(plain)))), 200);
+      (rows) => seen.push(JSON.stringify(byRow(rows).map((r) => r.map(plain)))),
+      (e) => { seen.push(`failed: ${e.message}`); }, 200);
     await new Promise((r) => setTimeout(r, 3000));
     followed.close();
     kept.release();
