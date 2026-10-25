@@ -48,6 +48,7 @@ Database risk::Ref
   Table fills (fid INTEGER PRIMARY KEY, tm TIMESTAMP NOT NULL, ts TIMESTAMP, d DATE, px DOUBLE NOT NULL)
   Table prints (pid INTEGER PRIMARY KEY, sym VARCHAR(8), tm TIMESTAMP NOT NULL, px DOUBLE, sz DOUBLE NOT NULL)
   Table books (bid INTEGER PRIMARY KEY, lim DECIMAL(18,2), used DECIMAL(18,2) NOT NULL)
+  Table quotes (qid INTEGER PRIMARY KEY, qsym VARCHAR(8), qtm TIMESTAMP NOT NULL, bid DOUBLE)
 )
 ###Connection
 RelationalDatabaseConnection risk::Conn
@@ -105,6 +106,12 @@ prints = newTable(
   doubleCol("sz", 100.0d, 200.0d, 50.0d, 300.0d, 100.0d, 75.0d, 10.0d, 50.0d, 25.0d))
 // books for decimals (the stress corpus's 1,582 services over a DECIMAL column): a BigDecimal column each, one null
 def dec = { String v -> v == null ? null : new java.math.BigDecimal(v) }
+// quotes for as-of joins (K7): one at a print's very instant (an aj takes it, a strict raj does not), one of no name
+quotes = newTable(
+  intCol("qid", 1, 2, 3, 4, 5, 6),
+  stringCol("qsym", "AAA", "AAA", "BBB", "AAA", null, "BBB"),
+  instantCol("qtm", at("09:29:00"), at("09:30:30"), at("09:30:00"), at("09:31:30"), at("09:31:00"), at("09:32:30")),
+  doubleCol("bid", 9.9d, 10.4d, 19.8d, 10.9d, 5.1d, 19.4d))
 books = newTable(
   intCol("bid", 1, 2, 3),
   col("lim", [dec("1000.50"), dec(null), dec("0.10")] as java.math.BigDecimal[]),
@@ -344,6 +351,7 @@ const SCALARS: readonly { readonly query: string; readonly rows: readonly (reado
 ];
 
 const Q = 'meta::legend::lite::quotient';
+const QT = '#>{risk::Ref.quotes}#';
 
 /** K5 (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md §2): whole-number division and the date differences built on it, each
  *  answer DuckDB 1.4.4's over the same rows. */
@@ -363,6 +371,20 @@ const DIVISIONS: readonly { readonly query: string; readonly rows: readonly (rea
     rows: [[1, 0, 0, 0, 0, 0, 0, 1792834215], [2, null, null, null, null, null, null, 1792834499],
       [3, -298, -9, 0, -7175, -430559, -25833599000, 1793059199], [4, null, null, null, null, null, null, 1709208000],
       [5, 20544, 675, 57, 493055, 29583300, 1774998030000, -30]] },
+  // AS-OF JOINS (K7), the server's aj and raj: each print's prevailing quote (the latest at or before it, one at its
+  // very instant included) and the next quote strictly after it, by name; the print of no name matches no quote, the
+  // quote of no name included (DuckDB's ASOF JOIN, and the corpus's oracle, match no null key)
+  { query: `${P}->asOfJoin(${QT}, {a, b|$a.tm >= $b.qtm}, {a, b|$a.sym == $b.qsym})->select(~[pid, qid, bid])`
+      + `->sort(~pid->ascending())`,
+    rows: [[1, 1, 9.9], [2, 2, 10.4], [3, 3, 19.8], [4, 2, 10.4], [5, 2, 10.4], [6, 3, 19.8], [7, null, null], [8, 4, 10.9],
+      [9, 6, 19.4]] },
+  { query: `${P}->asOfJoin(${QT}, {a, b|$a.tm < $b.qtm}, {a, b|$a.sym == $b.qsym})->select(~[pid, qid, bid])`
+      + `->sort(~pid->ascending())`,
+    rows: [[1, 2, 10.4], [2, 4, 10.9], [3, 6, 19.4], [4, 4, 10.9], [5, 4, 10.9], [6, 6, 19.4], [7, null, null], [8, null, null],
+      [9, null, null]] },
+  // the next quote after a time that may be null, by no key: a null time takes none (the server would take the first)
+  { query: `${F}->asOfJoin(${QT}, {a, b|$a.ts->toOne() < $b.qtm})->select(~[fid, qid])->sort(~fid->ascending())`,
+    rows: [[1, 2], [2, null], [3, 1], [4, null], [5, 1]] },
   // a Float's text, Pure's: its shortest digits written plainly where Java writes an exponent (1.0E-4 is 0.0001, 1.0E9
   // 1000000000.0), a whole value past 2^53 by its exact digits; a null null; and sqrt, whose guard prints one
   { query: `${P}->extend(~[a:x|($x.sz / 1000000.0)->toString(), b:x|($x.sz * 1.0E7)->toString(),`

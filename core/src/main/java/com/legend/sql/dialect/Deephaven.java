@@ -47,7 +47,8 @@ public final class Deephaven extends AnsiSqlRenderer {
     public static final Lexicon LEXICON = new Lexicon('`', Set.of());
 
     /** No native list, no correlated explosion, no JSON carrier, no full join: each refused by name where met. */
-    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, false, false, false);
+    /** No lists, no JSON, no FULL join; its own as-of join (aj and raj, K7). */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, false, false, false, true);
 
     /** A parameter's column in the parameters table, by its place among the statement's placeholders. */
     static final String PARAMETER = "__p";

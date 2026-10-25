@@ -78,8 +78,8 @@ try {
     console.log(`FAIL the setup: ${verdict.setupError}`);
     failed = true;
   }
-  if (verdict.outcomes.length !== 73) {
-    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 73`);
+  if (verdict.outcomes.length !== 76) {
+    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 76`);
     failed = true;
   }
   // WHAT AN OPERATOR FINDS (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K5): the server hands a client only a reference

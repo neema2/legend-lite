@@ -41,7 +41,7 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | K4 | **the ticker**: a watchlist (last, change, bid/ask, volume, day VWAP, high/low), the tape, time and sales, and a live candle chart for the symbol picked | a browser check of every part ticking; the speeds of §4 measured |
 | K5 | **built 2026-10-25** (§6). **The runtime error on Deephaven**: the lowering's guard (Pure fails on `sqrt` of a negative, on an Integer division by zero) writes an `ERROR` no Deephaven formula holds yet; a formula that fails by name, so `sqrt` and Integer `/` plan | the dialect's tests; a failing row failing the view, said, on the server |
 | K6 | **built 2026-10-24** (§5), but for NTH_VALUE; EMA and delta 2026-10-25 (§6). **Windows as `updateBy`**: running and moving figures (by rows and by time), lag and lead, first and last, the ranks; top-N per group (a row number filtered, SQL's QUALIFY: no `headBy` needed); DataCube's window functions and show-as | each against DuckDB's answer |
-| K7 | **as-of joins as `aj`** (DH20) | the same |
+| K7 | **built 2026-10-25** (§6). **as-of joins as `aj`** (DH20) | the same |
 | K8 | **the market map**: a treemap of every name, sized by value, coloured by the day's change, ticking | a browser check |
 | K9 | **real-time P&L with limits**: day P&L against the prior close by desk and book, KPI tiles that turn red past a limit | the same |
 | K10 | **the execution blotter**: parent and child orders, fills, % filled, slippage against arrival in basis points, by strategy and venue | the same |
@@ -368,3 +368,27 @@ screen needs it. The catalog's generated lines, whose generators read the legend
 fetch: `Pure.java`'s overload groups replayed by the generator's own rule (`NativesGenerator.withOverloadGroups`, over
 the committed file) come out identical; `native-claims.tsv`'s one row is written as `ClaimsGenerator` writes it, and is
 checked only where the checkouts are (`//core:update_generated_tests`; CI runs on `main` and PRs, not this branch).
+
+**K7, as-of joins (2026-10-25).** Pure's `asOfJoin` (the IR's `ASOF_LEFT`) is the server's own as-of join: `aj` where
+each left row takes the right row with the greatest as-of value not after its own (`l >= r`, or `l > r` strictly),
+`raj` the least not before it (`l <= r`, `l < r`), the key equalities matched exactly, the comparison read from the left
+whichever way it is written; a left row with none keeps nulls. The carrier strategies had rewritten every as-of join
+for a dialect without native lists into the portable LEFT join with a pick, which the batch refused; a new capability
+(`Caps.nativeAsOf`, Deephaven's alone) leaves Deephaven's alone. A right row whose key or as-of value may be null is
+filtered out first; a reverse join's left time that may be null is matched through a helper column as the last whole
+second the server converts (its nanoseconds end 2262-04-11T23:47:16.854775807Z and the very last overflows, measured),
+since the server orders a null first and `raj` would take the first row. The protocol's `AjRajTablesRequest` joins the
+message table, checked against the server's definitions. Measured on the pinned server (`page.ts`, 76 checks): each
+print's prevailing quote (one at the print's very instant included) and the next quote strictly after it, by name, and
+the next quote after a time that may be null, answer exactly DuckDB's `ASOF JOIN`; the corpus on a Deephaven runtime plans
+4,173 services (the throwaway probe), all three of the trader as-of services among them. Not built: a live as-of check
+on the market world's tape (its quotes table keeps each name's latest quote only, `lastBy`; the simulator's quote
+history is item 8's).
+
+**Found, not fixed (a platform finding for the user):** an as-of join's key equality is written null-safe by the
+lowering (`IS NOT DISTINCT FROM`, Pure's `==` holding for two empty values), and the databases disagree on it: H2's
+as-of emulation (a LEFT join with a pick) matches a null key with a null key, DuckDB 1.4.4's `ASOF JOIN` matches no null
+key under the same condition (measured 2026-10-25, a throwaway probe: a print and a quote of no name, matched on H2,
+unmatched on DuckDB). The corpus's oracle states DuckDB's rule ("a NULL key or instant matches nothing"), and Deephaven
+follows it (a right key that may be null filtered out). Which is the platform's is a ruling: Pure's `==` says match;
+SQL's equality and the oracle say no.

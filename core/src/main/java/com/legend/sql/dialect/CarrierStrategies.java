@@ -68,9 +68,18 @@ public final class CarrierStrategies extends SqlRewriter {
      * binary — SQLite/MariaDB have correlated explosion but no native
      * lists; H2 has neither; DuckDB has everything). Strategy rules
      * dispatch on these. Each dialect class holds its own row
-     * ({@link DuckDb#CAPS}, ...: the dialect program's Phase 1a). */
+     * ({@link DuckDb#CAPS}, ...: the dialect program's Phase 1a).
+     * {@code nativeAsOf}: an as-of join the dialect writes as its own
+     * operation though it has no native lists (Deephaven's aj and raj,
+     * docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K7, 2026-10-25), so the
+     * emulation leaves it as it is; every other row's is false. */
     public record Caps(boolean nativeLists, boolean correlatedExplode,
-            boolean jsonCarrier, boolean nativeFullOuter) {
+            boolean jsonCarrier, boolean nativeFullOuter, boolean nativeAsOf) {
+
+        public Caps(boolean nativeLists, boolean correlatedExplode,
+                boolean jsonCarrier, boolean nativeFullOuter) {
+            this(nativeLists, correlatedExplode, jsonCarrier, nativeFullOuter, false);
+        }
     }
 
     private final Caps caps;
@@ -356,7 +365,7 @@ public final class CarrierStrategies extends SqlRewriter {
         }
         if (s instanceof com.legend.sql.SqlSource.Join aj
                 && aj.kind() == com.legend.sql.SqlSource.Join.Kind.ASOF_LEFT
-                && aj.on() != null) {
+                && aj.on() != null && !caps.nativeAsOf()) {
             com.legend.sql.SqlSource em = asOfEmulation(aj);
             if (em != null) {
                 return em;

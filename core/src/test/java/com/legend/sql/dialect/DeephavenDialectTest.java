@@ -34,6 +34,7 @@ class DeephavenDialectTest {
               Table fills (fid INTEGER PRIMARY KEY, tm TIMESTAMP NOT NULL, ts TIMESTAMP, d DATE, px DOUBLE)
               Table prints (pid INTEGER PRIMARY KEY, sym VARCHAR(8), tm TIMESTAMP NOT NULL, px DOUBLE, sz DOUBLE NOT NULL)
               Table books (bid INTEGER PRIMARY KEY, lim DECIMAL(18,2), used DECIMAL(18,2) NOT NULL)
+              Table quotes (qid INTEGER PRIMARY KEY, qsym VARCHAR(8), qtm TIMESTAMP NOT NULL, bid DOUBLE)
             )
             ###Connection
             RelationalDatabaseConnection risk::Conn
@@ -403,6 +404,25 @@ class DeephavenDialectTest {
         DialectCapability alpha = assertThrows(DialectCapability.class, () -> batch(P + "->extend(over(~sym,"
                 + " ~pid->ascending(), rows(unbounded(), 0)), ~e:{p,w,r|$r.px}:y|$y->ema(1.0))"));
         assertTrue(alpha.getMessage().contains("not a literal between 0 and 1"), alpha.getMessage());
+    }
+
+    @Test
+    void anAsOfJoinIsTheServersAjOrRajMatchingItsKeysExactly() {
+        String quotes = "#>{risk::Ref.quotes}#";
+        // the quote prevailing at each print (the latest at or before it), by name: aj; a right key that may be null
+        // filtered off first, as DuckDB's as-of join and the corpus's oracle match no null key
+        String aj = batch(P + "->asOfJoin(" + quotes + ", {a, b | $a.tm >= $b.qtm}, {a, b | $a.sym == $b.qsym})");
+        assertTrue(aj.contains("\"filters\": [\"t1__qsym != null\"]"), aj);
+        assertTrue(aj.contains("{\"aj\": {\"leftId\": {\"batchOffset\": 0}, \"rightId\": {\"batchOffset\": 2},"
+                + " \"exactMatchColumns\": [\"t0__sym=t1__qsym\"], \"asOfColumn\": \"t0__tm>=t1__qtm\", \"columnsToAdd\":"
+                + " [\"t1__qid\", \"t1__qsym\", \"t1__qtm\", \"t1__bid\"]}}"), aj);
+        // the next quote after it: raj, strictly; the comparison read from the left whichever way it is written
+        String raj = batch(P + "->asOfJoin(" + quotes + ", {a, b | $b.qtm > $a.tm}, {a, b | $a.sym == $b.qsym})");
+        assertTrue(raj.contains("{\"raj\": {") && raj.contains("\"asOfColumn\": \"t0__tm<t1__qtm\""), raj);
+        // a left time that may be null: matched as the latest instant the server holds, after which no quote comes
+        String nullable = batch(F + "->asOfJoin(" + quotes + ", {a, b | $a.ts->toOne() < $b.qtm})");
+        assertTrue(nullable.contains("= isNull(t0__ts) ? epochNanosToInstant(9223372035999999999L) : t0__ts"), nullable);
+        assertTrue(nullable.contains("{\"raj\": {") && nullable.contains("<t1__qtm\""), nullable);
     }
 
     @Test

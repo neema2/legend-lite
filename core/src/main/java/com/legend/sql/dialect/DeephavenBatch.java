@@ -1532,6 +1532,9 @@ final class DeephavenBatch {
         if (j.kind() == SqlSource.Join.Kind.CROSS) {
             return joinOp("crossJoin", left, right, List.of(), rightColumns, false);
         }
+        if (j.kind() == SqlSource.Join.Kind.ASOF_LEFT) {
+            return asOf(j, left, right, before, rightColumns, scope);
+        }
         if (j.kind() != SqlSource.Join.Kind.INNER && j.kind() != SqlSource.Join.Kind.LEFT) {
             throw new DialectCapability("a " + j.kind() + " join reached Deephaven: no shape yet (DH20)");
         }
@@ -1578,6 +1581,128 @@ final class DeephavenBatch {
             }
         }
         return joined;
+    }
+
+    /** An as-of join (DH20, K7): the server's own -- {@code aj}, each left row taking the right row with the greatest
+     *  as-of value not after its own ({@code l >= r}, or {@code l > r} strictly), or {@code raj}, the least not before
+     *  it ({@code l <= r}, {@code l < r}) -- among those whose keys equal its own; a left row with none keeps nulls, as
+     *  SQL's ASOF LEFT JOIN does. A right row whose key or as-of value may be null is filtered out first, as DuckDB's
+     *  as-of join and the corpus's oracle match no null; a left as-of value that may be null is refused for {@code raj} (the server orders a null before
+     *  every value, which the reverse join would take). Anything beyond the equalities and the one comparison is
+     *  refused by name. */
+    private int asOf(SqlSource.Join j, int left, int right, Map<String, Map<String, String>> before,
+            List<String> rightColumns, Deephaven.Scope scope) {
+        List<String> exact = new ArrayList<>();
+        List<String> rightNullFilters = new ArrayList<>();
+        String asOfColumn = null;
+        boolean reverse = false;
+        dialect.pushScope(scope);
+        try {
+            for (SqlExpr conjunct : conjuncts(j.on())) {
+                // a key matches no null: the lowering writes the as-of join's keys null-safe (IS NOT DISTINCT FROM),
+                // but DuckDB's ASOF JOIN matches no null key under it and the corpus's oracle states the same ("a NULL
+                // key or instant matches nothing"); H2's emulation does match them (measured 2026-10-25, DuckDB 1.4.4,
+                // docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K7: a finding for the platform). The server's exact match
+                // takes a null as a key value, so a right key that may be null is filtered out first.
+                boolean nullSafe = conjunct instanceof SqlExpr.Call c && c.fn() == SqlFn.NULL_SAFE_EQUAL;
+                String[] pair = keyPair(nullSafe ? new SqlExpr.Call(SqlFn.EQUAL, ((SqlExpr.Call) conjunct).args(),
+                        conjunct.type()) : conjunct, before, scope);
+                if (pair != null) {
+                    exact.add(pair[0] + "=" + pair[1]);
+                    if (pair[2] != null) {
+                        rightNullFilters.add(Deephaven.notNullFilter(pair[1]));
+                    }
+                    continue;
+                }
+                AsOfSides sides = asOfSides(conjunct, before, scope);
+                if (sides == null || asOfColumn != null) {
+                    throw new DialectCapability("an as-of join with a condition beyond its key equalities and one"
+                            + " comparison of its sides reached Deephaven: no shape yet (DH20)");
+                }
+                reverse = sides.op().startsWith("<");
+                String leftAt = sides.left();
+                if (reverse && sides.leftNullable()) {
+                    // the server orders a null before every value, which the reverse join would match with the first
+                    // right row: a null time is matched as the last whole second the server converts instead (its
+                    // nanoseconds' range ends 2262-04-11T23:47:16.854775807Z; the very last overflows, measured on
+                    // 42.7), after which no row comes but one in that range's last 0.85 s (a helper column; the left's
+                    // own is as it was)
+                    if (sides.leftType() != com.legend.sql.SqlType.Scalar.TIMESTAMP) {
+                        throw new DialectCapability("an as-of join to the next row of a left value other than a"
+                                + " date-time that may be null reached Deephaven: the server orders a null first, which"
+                                + " its reverse as-of join would take");
+                    }
+                    leftAt = helper("x");
+                    left = view("updateView", left, List.of(new Spec(leftAt + " = isNull(" + sides.left()
+                            + ") ? epochNanosToInstant(9223372035999999999L) : " + sides.left(), null)));
+                }
+                if (sides.rightNullable()) {
+                    rightNullFilters.add(Deephaven.notNullFilter(sides.right()));
+                }
+                asOfColumn = leftAt + sides.op() + sides.right();
+            }
+        } finally {
+            dialect.popScope();
+        }
+        if (asOfColumn == null) {
+            throw new DialectCapability("an as-of join with no comparison of its sides reached Deephaven: no shape yet");
+        }
+        if (!rightNullFilters.isEmpty()) {
+            right = filterText(right, rightNullFilters);
+        }
+        return simple(reverse ? "raj" : "aj", "\"leftId\": " + DeephavenJson.offset(left) + ", \"rightId\": "
+                + DeephavenJson.offset(right) + ", \"exactMatchColumns\": " + DeephavenJson.strings(exact)
+                + ", \"asOfColumn\": " + DeephavenJson.string(asOfColumn) + ", \"columnsToAdd\": "
+                + DeephavenJson.strings(rightColumns));
+    }
+
+    /** An as-of join's comparison as the left side reads it: its two columns' Deephaven names, the operator from the
+     *  left's view ({@code >=}, {@code >}, {@code <=}, {@code <}), and whether each may be null. */
+    private record AsOfSides(String left, String op, String right, boolean leftNullable, boolean rightNullable,
+            com.legend.sql.SqlType.@com.legend.base.Nullable Scalar leftType) {
+    }
+
+    /** {@code conjunct} as an as-of comparison between a column of each side, or null when it is none. */
+    private static @com.legend.base.Nullable AsOfSides asOfSides(SqlExpr conjunct,
+            Map<String, Map<String, String>> leftSources, Deephaven.Scope scope) {
+        if (!(conjunct instanceof SqlExpr.Call c) || !(c.args().size() == 2)
+                || !(c.args().get(0) instanceof SqlExpr.Column a) || !(c.args().get(1) instanceof SqlExpr.Column b)
+                || a.table() == null || b.table() == null) {
+            return null;
+        }
+        String op = switch (c.fn()) {
+            case GREATER_EQUAL -> ">=";
+            case GREATER -> ">";
+            case LESS_EQUAL -> "<=";
+            case LESS -> "<";
+            default -> null;
+        };
+        boolean aLeft = leftSources.containsKey(a.table());
+        if (op == null || aLeft == leftSources.containsKey(b.table())) {
+            return null;
+        }
+        SqlExpr.Column l = aLeft ? a : b;
+        SqlExpr.Column r = aLeft ? b : a;
+        if (!aLeft) {
+            // r op l, as the left reads it: l (op reversed) r
+            op = switch (op) {
+                case ">=" -> "<=";
+                case ">" -> "<";
+                case "<=" -> ">=";
+                case "<" -> ">";
+                default -> throw new IllegalStateException("an as-of comparison " + op);
+            };
+        }
+        Map<String, String> ls = scope.sources.get(l.table());
+        Map<String, String> rs = scope.sources.get(r.table());
+        String ln = ls == null ? null : ls.get(l.name());
+        String rn = rs == null ? null : rs.get(r.name());
+        if (ln == null || rn == null) {
+            return null;
+        }
+        return new AsOfSides(ln, op, rn, Deephaven.nullable(l), Deephaven.nullable(r),
+                l.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof com.legend.sql.SqlType.Scalar ls2
+                        ? ls2 : null);
     }
 
     private int joinOp(String name, int left, int right, List<String> matches, List<String> add, boolean toOne) {
