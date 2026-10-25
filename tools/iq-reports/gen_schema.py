@@ -151,12 +151,115 @@ table("order_items", [("id", "integer"), ("order_id", "integer"), ("product_id",
 table("payments", [("id", "integer"), ("order_id", "integer"), ("paid_ts", "timestamp"), ("amount", "numeric(10,2)"),
                    ("method", "varchar(10)")], payments)
 
+# The tables of part E (2026-10-26), drawn from a generator of their own so the tables above keep their rows: monthly
+# exchange rates (one month missing, for an as-of join), promotions over date ranges (two overlapping), a web shop's
+# events (URLs with UTM parameters, sessions), support tickets (some still open) and monthly inventory snapshots.
+rnd2 = random.Random(20261026)
+
+rates = []
+rid = 0
+for cur, start in (("EUR", 1.08), ("CAD", 0.74), ("GBP", 1.26)):
+    rate = start
+    for m in range(36):
+        rate = round(rate + rnd2.choice([-0.012, -0.006, -0.003, 0.0, 0.004, 0.007, 0.011]), 6)
+        if cur == "CAD" and m == 18:
+            continue  # July 2024 was never loaded
+        rid += 1
+        rates.append((rid, datetime.date(2023 + m // 12, 1 + m % 12, 1).isoformat(), cur, "%.6f" % rate))
+table("exchange_rates", [("id", "integer"), ("rate_date", "date"), ("currency", "varchar(3)"),
+                         ("usd_rate", "numeric(10,6)")], rates)
+
+promotions = [(1, "NEWYEAR23", "2023-01-01", "2023-01-15", "0.10", None),
+              (2, "SPRINGHOME", "2023-04-01", "2023-04-30", "0.15", "Home"),
+              (3, "BACK2SCHOOL", "2023-08-15", "2023-09-10", "0.10", "Electronics"),
+              (4, "BLACKFRI23", "2023-11-24", "2023-11-27", "0.25", None),
+              (5, "SUMMER24", "2024-06-01", "2024-08-31", "0.05", "Outdoor"),
+              (6, "CYBER24", "2024-11-29", "2024-12-02", "0.20", "Electronics"),
+              (7, "HOLIDAY24", "2024-12-01", "2024-12-24", "0.10", None),
+              (8, "SPRING25", "2025-03-15", "2025-04-15", "0.12", "Home"),
+              (9, "FLASH25", "2025-07-04", "2025-07-04", "0.30", None)]
+table("promotions", [("id", "integer"), ("code", "varchar(12)"), ("starts", "date"), ("ends", "date"),
+                     ("pct_off", "numeric(4,2)"), ("category", "varchar(15)")], promotions)
+
+host = "https://shop.example.com"
+landings = ["?utm_source=google&utm_medium=cpc&utm_campaign=fall_sale", "?utm_source=newsletter&utm_campaign=nov",
+            "?ref=partner42", "", "", "?utm_medium=social&utm_source=facebook"]
+referrers = {"?utm_source=google&utm_medium=cpc&utm_campaign=fall_sale": "https://www.google.com/",
+             "?utm_source=newsletter&utm_campaign=nov": "https://mail.example.org/",
+             "?ref=partner42": "https://partner42.example.net/deals", "": None,
+             "?utm_medium=social&utm_source=facebook": "https://www.facebook.com/"}
+terms = ["desk", "phone+case", "tent", "espresso", "headphones"]
+events = []
+eid = 0
+for sess in range(70):
+    cust = None if sess % 6 == 0 else 1 + rnd2.randrange(30)
+    ts = datetime.datetime(2025, 9, 1, 0, 0) + datetime.timedelta(minutes=rnd2.randrange(0, 122 * 24 * 60))
+    device = rnd2.choice(["mobile", "mobile", "desktop", "tablet"])
+    land = landings[sess % len(landings)]
+    pid = 1 + rnd2.randrange(20)
+    path = rnd2.choice(["/", "/products/%d" % pid, "/category/" + products[pid - 1][3].lower(),
+                        "/search?q=" + rnd2.choice(terms)])
+    steps = [path + (land if "?" not in path else land.replace("?", "&"))]
+    depth = rnd2.randrange(0, 6)
+    funnel = ["/products/%d" % pid, "/cart", "/checkout?step=1", "/checkout?step=2", "/order/confirmation"]
+    steps += funnel[:depth]
+    for k, s in enumerate(steps):
+        eid += 1
+        if k:
+            ts += datetime.timedelta(minutes=rnd2.randrange(1, 16), seconds=rnd2.randrange(0, 60))
+        url = (host.upper().replace("SHOP.EXAMPLE.COM", "Shop.Example.com") if eid % 37 == 0 else host) + s
+        events.append((eid, cust, ts.strftime("%Y-%m-%d %H:%M:%S"), url, referrers[land] if k == 0 else None, device))
+table("web_events", [("id", "integer"), ("customer_id", "integer"), ("event_ts", "timestamp"),
+                     ("url", "varchar(160)"), ("referrer", "varchar(80)"), ("device", "varchar(10)")], events)
+
+subjects = ["Refund request for order", "Where is my package?", "Damaged item received", "Change shipping address",
+            "Invoice copy needed", "Product question: battery life", "Cancel my order please", "  Login problem  ",
+            "REFUND NOT RECEIVED", "Wrong size delivered - exchange", "Missing parts in box",
+            "Question about warranty coverage for a product bought last year"]
+hours = {"urgent": (1, 12), "high": (2, 30), "normal": (4, 80), "low": (8, 200)}
+orders_of = {}
+for o in orders:
+    orders_of.setdefault(o[1], []).append(o[0])
+tickets = []
+for tid in range(1, 61):
+    cust = 1 + rnd2.randrange(30)
+    while cust not in orders_of:
+        cust = 1 + rnd2.randrange(30)
+    oid = rnd2.choice(orders_of[cust]) if rnd2.random() < 0.7 else None
+    opened = datetime.datetime(2024, 6, 1, 0, 0) + datetime.timedelta(minutes=rnd2.randrange(0, 580 * 24 * 60))
+    priority = rnd2.choice(["low", "normal", "normal", "high", "urgent"])
+    lo, hi = hours[priority]
+    closed = None if tid % 8 == 0 else opened + datetime.timedelta(minutes=rnd2.randrange(lo * 60, hi * 60))
+    agent = None if tid % 10 == 0 else rnd2.choice([4, 5, 6, 7, 8, 9, 10])
+    tickets.append((tid, cust, oid, opened.strftime("%Y-%m-%d %H:%M:%S"),
+                    closed.strftime("%Y-%m-%d %H:%M:%S") if closed else None, priority,
+                    rnd2.choice(["email", "phone", "chat"]), subjects[rnd2.randrange(len(subjects))], agent))
+table("support_tickets", [("id", "integer"), ("customer_id", "integer"), ("order_id", "integer"),
+                          ("opened_ts", "timestamp"), ("closed_ts", "timestamp"), ("priority", "varchar(8)"),
+                          ("channel", "varchar(10)"), ("subject", "varchar(80)"), ("agent_id", "integer")], tickets)
+
+inventory = []
+sid = 0
+for p in products:
+    on_hand = rnd2.randrange(20, 200)
+    reorder = rnd2.choice([10, 15, 20, 30, 40])
+    for m in range(12):
+        sid += 1
+        inventory.append((sid, p[0], datetime.date(2025, 1 + m, 1).isoformat(), on_hand, reorder))
+        sold = rnd2.randrange(0, 60)
+        on_hand = max(0, on_hand - sold)
+        if on_hand < reorder and rnd2.random() < 0.6:
+            on_hand += rnd2.choice([50, 100, 150])
+table("inventory", [("id", "integer"), ("product_id", "integer"), ("snapshot_date", "date"), ("on_hand", "integer"),
+                    ("reorder_point", "smallint")], inventory)
+
 with open(OUT, "w") as f:
     f.write("# The IQ scale program's realistic report schema (2026-10-25): a small retail database -- regions,\n"
             "# employees, customers, products, orders, their lines and payments -- with the data real tables hold\n"
             "# (NULLs where a value is not known yet, mixed-case e-mails, padded names, cancelled and pending orders,\n"
-            "# partial payments). Generated, deterministically, by the program's gen_schema.py; tools/iq-oracle's\n"
-            "# README.md has the format.\n"
+            "# partial payments) -- and, from part E (2026-10-26), monthly exchange rates, promotions over date ranges, a\n"
+            "# web shop's events, support tickets and inventory snapshots. Generated, deterministically, by the program's\n"
+            "# gen_schema.py; tools/iq-oracle's README.md has the format.\n"
             "tables:\n")
     for name, cols, rows in tables:
         f.write("  - name: %s\n    columns:\n" % name)

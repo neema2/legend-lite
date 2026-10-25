@@ -1,0 +1,33 @@
+# The IQ scale program's realistic reports (2026-10-25): tickets, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: resolution_by_priority
+    sql: "SELECT priority, COUNT(*) AS tickets, COUNT(closed_ts) AS closed, COUNT(*) - COUNT(closed_ts) AS still_open, ROUND(AVG(DATEDIFF(MINUTE, opened_ts, closed_ts) / 60.0), 1) AS avg_hours, MEDIAN(DATEDIFF(MINUTE, opened_ts, closed_ts)) AS median_minutes, MAX(DATEDIFF(HOUR, opened_ts, closed_ts)) AS worst_hours FROM support_tickets GROUP BY priority ORDER BY CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END, priority"
+    profile: iq17-default
+  - id: sla_breaches_by_month
+    sql: "SELECT DATEFORMAT(opened_ts, 'yyyy-mm') AS month, COUNT(*) AS tickets, SUM(CASE WHEN closed_ts IS NULL OR DATEDIFF(MINUTE, opened_ts, closed_ts) > 60 * CASE priority WHEN 'urgent' THEN 4 WHEN 'high' THEN 24 WHEN 'normal' THEN 72 ELSE 168 END THEN 1 ELSE 0 END) AS breaches, SUM(CASE WHEN priority IN ('urgent', 'high') THEN 1 ELSE 0 END) AS high_priority FROM support_tickets WHERE opened_ts >= '2025-01-01' GROUP BY DATEFORMAT(opened_ts, 'yyyy-mm') ORDER BY month"
+    profile: iq17-default
+  - id: backlog_at_each_month_end
+    sql: "SELECT m.month_end, COUNT(t.id) AS open_tickets, SUM(CASE WHEN t.priority IN ('urgent', 'high') THEN 1 ELSE 0 END) AS open_high_priority FROM (SELECT DATEADD(DAY, -1, DATEADD(MONTH, row_num, '2024-06-01')) AS month_end FROM sa_rowgenerator(1, 19)) m LEFT JOIN support_tickets t ON t.opened_ts <= m.month_end AND (t.closed_ts IS NULL OR t.closed_ts > m.month_end) GROUP BY m.month_end ORDER BY m.month_end"
+    profile: iq17-default
+  - id: agent_workload
+    sql: "SELECT e.id, e.first_name || ' ' || e.last_name AS agent, COUNT(t.id) AS tickets, COUNT(t.closed_ts) AS resolved, ROUND(AVG(CASE WHEN t.closed_ts IS NOT NULL THEN DATEDIFF(MINUTE, t.opened_ts, t.closed_ts) END) / 60.0, 1) AS avg_hours, RANK() OVER (ORDER BY COUNT(t.closed_ts) DESC) AS rank_by_resolved FROM employees e LEFT JOIN support_tickets t ON t.agent_id = e.id WHERE e.title IN ('Account Executive', 'Sales Associate') GROUP BY e.id, e.first_name, e.last_name ORDER BY rank_by_resolved, e.id"
+    profile: iq17-default
+  - id: ticket_topics
+    sql: "SELECT topic, COUNT(*) AS tickets, SUM(CASE WHEN closed_ts IS NULL THEN 1 ELSE 0 END) AS open_tickets, MIN(opened_ts) AS first_seen FROM (SELECT id, closed_ts, opened_ts, CASE WHEN LOWER(subject) LIKE '%refund%' THEN 'refund' WHEN LOWER(subject) LIKE '%cancel%' THEN 'cancellation' WHEN LOWER(subject) LIKE '%package%' OR LOWER(subject) LIKE '%shipping%' OR LOWER(subject) LIKE '%delivered%' THEN 'delivery' WHEN LOWER(subject) LIKE '%damaged%' OR LOWER(subject) LIKE '%missing%' THEN 'quality' WHEN LOWER(subject) LIKE '%invoice%' THEN 'billing' ELSE 'other' END AS topic FROM support_tickets) x GROUP BY topic ORDER BY tickets DESC, topic"
+    profile: iq17-default
+  - id: subjects_cleaned
+    sql: "SELECT id, UPPER(LEFT(TRIM(subject), 1)) || LOWER(SUBSTRING(TRIM(subject), 2)) AS clean_subject, CASE WHEN LENGTH(TRIM(subject)) > 30 THEN LEFT(TRIM(subject), 27) || '...' ELSE TRIM(subject) END AS short_subject, LENGTH(subject) - LENGTH(TRIM(subject)) AS padding FROM support_tickets WHERE id <= 30 ORDER BY id"
+    profile: iq17-default
+  - id: escalations_with_order_context
+    sql: "SELECT t.id, TRIM(c.first_name) || ' ' || c.last_name AS customer, t.priority, o.id AS order_id, o.status AS order_status, DATEDIFF(DAY, o.order_ts, t.opened_ts) AS days_after_order, CASE WHEN o.id IS NULL THEN 'no order' WHEN DATEDIFF(DAY, o.order_ts, t.opened_ts) <= 30 THEN 'recent order' ELSE 'older order' END AS context FROM support_tickets t JOIN customers c ON c.id = t.customer_id LEFT JOIN orders o ON o.id = t.order_id WHERE t.priority IN ('high', 'urgent') ORDER BY t.opened_ts, t.id"
+    profile: iq17-default
+  - id: repeat_contacts_within_90_days
+    sql: "SELECT t1.customer_id, t1.id, t1.opened_ts, COUNT(t2.id) AS later_contacts FROM support_tickets t1 JOIN support_tickets t2 ON t2.customer_id = t1.customer_id AND t2.id <> t1.id AND t2.opened_ts BETWEEN t1.opened_ts AND DATEADD(DAY, 90, t1.opened_ts) GROUP BY t1.customer_id, t1.id, t1.opened_ts ORDER BY t1.customer_id, t1.opened_ts, t1.id"
+    profile: iq17-default
+  - id: ticket_history_per_customer
+    sql: "SELECT customer_id, COUNT(*) AS tickets, LIST(TRIM(subject), ' | ' ORDER BY opened_ts, id) AS history, MAX(opened_ts) AS latest FROM support_tickets GROUP BY customer_id HAVING COUNT(*) >= 3 ORDER BY customer_id"
+    profile: iq17-default
+  - id: off_hours_tickets
+    sql: "SELECT channel, COUNT(*) AS tickets, SUM(CASE WHEN DOW(opened_ts) IN (1, 7) THEN 1 ELSE 0 END) AS weekend, SUM(CASE WHEN DOW(opened_ts) BETWEEN 2 AND 6 AND (HOUR(opened_ts) < 9 OR HOUR(opened_ts) >= 17) THEN 1 ELSE 0 END) AS after_hours FROM support_tickets GROUP BY channel ORDER BY channel"
+    profile: iq17-default

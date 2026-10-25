@@ -1,0 +1,51 @@
+# The IQ scale program's realistic reports (2026-10-25): commerce, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: as_of_exchange_rate_per_order
+    sql: "SELECT o.id, r.country, CAST(o.order_ts AS DATE) AS order_date, (SELECT x.usd_rate FROM exchange_rates x WHERE x.currency = CASE r.country WHEN 'Germany' THEN 'EUR' ELSE 'CAD' END AND x.rate_date = (SELECT MAX(x2.rate_date) FROM exchange_rates x2 WHERE x2.currency = CASE r.country WHEN 'Germany' THEN 'EUR' ELSE 'CAD' END AND x2.rate_date <= o.order_ts)) AS usd_rate FROM orders o JOIN customers c ON c.id = o.customer_id JOIN regions r ON r.id = c.region_id WHERE r.country <> 'USA' AND o.status = 'shipped' ORDER BY o.id"
+    profile: iq17-default
+  - id: local_currency_revenue
+    sql: "WITH order_rates AS ( SELECT o.id AS order_id, MAX(CASE r.country WHEN 'Germany' THEN 'EUR' ELSE 'CAD' END) AS currency, MAX(x.rate_date) AS rate_date FROM orders o JOIN customers c ON c.id = o.customer_id JOIN regions r ON r.id = c.region_id JOIN exchange_rates x ON x.currency = CASE r.country WHEN 'Germany' THEN 'EUR' ELSE 'CAD' END AND x.rate_date <= o.order_ts WHERE r.country IN ('Germany', 'Canada') AND o.status = 'shipped' GROUP BY o.id) SELECT q.currency, YEAR(o.order_ts) AS yr, SUM(oi.quantity * oi.unit_price) AS usd_amount, ROUND(SUM(oi.quantity * oi.unit_price / x.usd_rate), 2) AS local_amount FROM order_rates q JOIN orders o ON o.id = q.order_id JOIN order_items oi ON oi.order_id = o.id JOIN exchange_rates x ON x.currency = q.currency AND x.rate_date = q.rate_date GROUP BY q.currency, YEAR(o.order_ts) ORDER BY q.currency, yr"
+    profile: iq17-default
+  - id: rate_changes_and_gaps
+    sql: "SELECT currency, rate_date, usd_rate, usd_rate - LAG(usd_rate) OVER (PARTITION BY currency ORDER BY rate_date, id) AS change, CASE WHEN DATEDIFF(MONTH, LAG(rate_date) OVER (PARTITION BY currency ORDER BY rate_date, id), rate_date) > 1 THEN 'gap before' ELSE '' END AS note FROM exchange_rates WHERE rate_date >= '2024-01-01' AND rate_date < '2025-01-01' ORDER BY currency, rate_date, id"
+    profile: iq17-default
+  - id: yearly_rate_ranges
+    sql: "SELECT currency, YEAR(rate_date) AS yr, MIN(usd_rate) AS low, MAX(usd_rate) AS high, ROUND(AVG(usd_rate), 4) AS avg_rate, MAX(usd_rate) - MIN(usd_rate) AS spread, COUNT(*) AS months FROM exchange_rates GROUP BY currency, YEAR(rate_date) ORDER BY currency, yr"
+    profile: iq17-default
+  - id: orders_during_promotions
+    sql: "SELECT pr.code, COUNT(DISTINCT o.id) AS orders, SUM(oi.quantity) AS units, ROUND(SUM(oi.quantity * oi.unit_price * pr.pct_off), 2) AS est_discount FROM promotions pr JOIN orders o ON CAST(o.order_ts AS DATE) BETWEEN pr.starts AND pr.ends JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id WHERE (pr.category IS NULL OR pr.category = p.category) AND o.status <> 'cancelled' GROUP BY pr.code ORDER BY pr.code"
+    profile: iq17-default
+  - id: overlapping_promotions
+    sql: "SELECT a.code AS promo, b.code AS overlaps_with, GREATER(a.starts, b.starts) AS overlap_from, LESSER(a.ends, b.ends) AS overlap_to, DATEDIFF(DAY, GREATER(a.starts, b.starts), LESSER(a.ends, b.ends)) + 1 AS overlap_days FROM promotions a JOIN promotions b ON a.id < b.id AND a.starts <= b.ends AND b.starts <= a.ends ORDER BY a.id, b.id"
+    profile: iq17-default
+  - id: promotion_lift
+    sql: "SELECT code, promo_days, promo_orders, orders_30_days_before, CASE WHEN orders_30_days_before = 0 THEN NULL ELSE ROUND(promo_orders * 30.0 / (promo_days * orders_30_days_before), 2) END AS lift FROM (SELECT pr.id, pr.code, DATEDIFF(DAY, pr.starts, pr.ends) + 1 AS promo_days, (SELECT COUNT(*) FROM orders o WHERE CAST(o.order_ts AS DATE) BETWEEN pr.starts AND pr.ends) AS promo_orders, (SELECT COUNT(*) FROM orders o WHERE CAST(o.order_ts AS DATE) BETWEEN DATEADD(DAY, -30, pr.starts) AND DATEADD(DAY, -1, pr.starts)) AS orders_30_days_before FROM promotions pr) x ORDER BY id"
+    profile: iq17-default
+  - id: promotion_lift_by_join
+    sql: "WITH counts AS ( SELECT pr.id, pr.code, DATEDIFF(DAY, pr.starts, pr.ends) + 1 AS promo_days, SUM(CASE WHEN CAST(o.order_ts AS DATE) BETWEEN pr.starts AND pr.ends THEN 1 ELSE 0 END) AS promo_orders, SUM(CASE WHEN CAST(o.order_ts AS DATE) < pr.starts THEN 1 ELSE 0 END) AS orders_30_days_before FROM promotions pr LEFT JOIN orders o ON CAST(o.order_ts AS DATE) BETWEEN DATEADD(DAY, -30, pr.starts) AND pr.ends GROUP BY pr.id, pr.code, pr.starts, pr.ends) SELECT code, promo_days, promo_orders, orders_30_days_before, CASE WHEN orders_30_days_before = 0 THEN NULL ELSE ROUND(promo_orders * 30.0 / (promo_days * orders_30_days_before), 2) END AS lift FROM counts ORDER BY id"
+    profile: iq17-default
+  - id: promotion_labels
+    sql: "SELECT id, code, CASE WHEN ISNUMERIC(RIGHT(code, 2)) = 1 THEN LEFT(code, LENGTH(code) - 2) || ' 20' || RIGHT(code, 2) ELSE code END AS display_code, DATEFORMAT(starts, 'Mmm dd') || ' - ' || DATEFORMAT(ends, 'Mmm dd, yyyy') AS period, CAST(CAST(pct_off * 100 AS INTEGER) AS VARCHAR(3)) || '% off' || COALESCE(' ' || LOWER(category), ' everything') AS label FROM promotions ORDER BY id"
+    profile: iq17-default
+  - id: promotion_days_per_month_2024
+    sql: "SELECT MONTH(d.day) AS mo, COUNT(DISTINCT d.day) AS days, COUNT(DISTINCT CASE WHEN pr.id IS NOT NULL THEN d.day END) AS promo_days FROM (SELECT DATEADD(DAY, row_num - 1, '2024-01-01') AS day FROM sa_rowgenerator(1, 366)) d LEFT JOIN promotions pr ON d.day BETWEEN pr.starts AND pr.ends GROUP BY MONTH(d.day) ORDER BY mo"
+    profile: iq17-default
+  - id: stock_status_now
+    sql: "SELECT p.id, p.name, i.on_hand, i.reorder_point, CASE WHEN i.on_hand = 0 THEN 'OUT OF STOCK' WHEN i.on_hand < i.reorder_point THEN 'reorder' ELSE 'ok' END AS status FROM products p JOIN inventory i ON i.product_id = p.id WHERE i.snapshot_date = (SELECT MAX(i2.snapshot_date) FROM inventory i2 WHERE i2.product_id = p.id) ORDER BY CASE WHEN i.on_hand = 0 THEN 0 WHEN i.on_hand < i.reorder_point THEN 1 ELSE 2 END, p.id, i.id"
+    profile: iq17-default
+  - id: runs_below_reorder_point
+    sql: "WITH below AS (SELECT product_id, snapshot_date, MONTH(snapshot_date) - ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY snapshot_date, id) AS grp FROM inventory WHERE on_hand < reorder_point) SELECT product_id, MIN(snapshot_date) AS from_month, MAX(snapshot_date) AS to_month, COUNT(*) AS months FROM below GROUP BY product_id, grp ORDER BY product_id, from_month"
+    profile: iq17-default
+  - id: inventory_movements
+    sql: "SELECT product_id, snapshot_date, on_hand, on_hand - LAG(on_hand) OVER (PARTITION BY product_id ORDER BY snapshot_date, id) AS change, CASE WHEN on_hand - LAG(on_hand) OVER (PARTITION BY product_id ORDER BY snapshot_date, id) > 0 THEN 'restocked' ELSE '' END AS event FROM inventory WHERE product_id IN (1, 2, 3) ORDER BY product_id, snapshot_date, id"
+    profile: iq17-default
+  - id: stock_value_by_category
+    sql: "WITH latest AS (SELECT product_id, on_hand FROM inventory WHERE snapshot_date = '2025-12-01') SELECT p.category, SUM(l.on_hand) AS units, SUM(l.on_hand * p.unit_cost) AS stock_value, MAX(l.on_hand * p.unit_cost) AS largest_position FROM latest l JOIN products p ON p.id = l.product_id GROUP BY p.category ORDER BY stock_value DESC, p.category"
+    profile: iq17-default
+  - id: days_of_cover
+    sql: "SELECT p.id, p.name, i.on_hand, COALESCE(s.units, 0) AS units_sold_2025, CASE WHEN COALESCE(s.units, 0) = 0 THEN NULL ELSE i.on_hand * 365 / s.units END AS days_of_cover FROM products p JOIN inventory i ON i.product_id = p.id AND i.snapshot_date = '2025-12-01' LEFT JOIN (SELECT oi.product_id, SUM(oi.quantity) AS units FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE YEAR(o.order_ts) = 2025 AND o.status <> 'cancelled' GROUP BY oi.product_id) s ON s.product_id = p.id ORDER BY p.id"
+    profile: iq17-default
+  - id: customer_activity_overview
+    sql: "SELECT c.id, TRIM(c.first_name) || ' ' || c.last_name AS customer, COALESCE(o.orders, 0) AS orders, COALESCE(t.tickets, 0) AS tickets, COALESCE(w.events, 0) AS web_events, CASE WHEN COALESCE(t.tickets, 0) >= 3 THEN 'needs attention' WHEN COALESCE(w.events, 0) > 0 AND COALESCE(o.orders, 0) = 0 THEN 'browser only' ELSE 'normal' END AS flag FROM customers c LEFT JOIN (SELECT customer_id, COUNT(*) AS orders FROM orders WHERE status <> 'cancelled' GROUP BY customer_id) o ON o.customer_id = c.id LEFT JOIN (SELECT customer_id, COUNT(*) AS tickets FROM support_tickets GROUP BY customer_id) t ON t.customer_id = c.id LEFT JOIN (SELECT customer_id, COUNT(*) AS events FROM web_events WHERE customer_id IS NOT NULL GROUP BY customer_id) w ON w.customer_id = c.id ORDER BY c.id"
+    profile: iq17-default
