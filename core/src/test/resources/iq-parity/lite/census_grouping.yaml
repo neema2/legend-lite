@@ -1,0 +1,73 @@
+# The IQ scale program's real-life census (2026-10-25): grouping, one representative use per construct a
+# report writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md
+# has the keys.
+tests:
+  - id: group_by_expression
+    sql: "SELECT v % 2 AS parity, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY v % 2 ORDER BY parity"
+    profile: iq17-default
+  - id: group_by_case
+    sql: "SELECT CASE WHEN v > 2 THEN 'big' ELSE 'small' END AS size, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY CASE WHEN v > 2 THEN 'big' ELSE 'small' END ORDER BY size"
+    profile: iq17-default
+  - id: group_by_function
+    sql: "SELECT UPPER(s) AS us, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY UPPER(s) ORDER BY us"
+    profile: iq17-default
+  - id: group_by_date_part
+    sql: "SELECT YEAR(dt) AS y, SUM(v) AS s FROM g WHERE id < 10 GROUP BY YEAR(dt) ORDER BY y"
+    profile: iq17-default
+  - id: having_count
+    sql: "SELECT k, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY k HAVING COUNT(*) > 1 ORDER BY k"
+    profile: iq17-default
+  - id: having_sum
+    sql: "SELECT k, SUM(v) AS s FROM g WHERE id < 10 GROUP BY k HAVING SUM(v) > 0 ORDER BY k"
+    profile: iq17-default
+  - id: having_unselected_aggregate
+    sql: "SELECT k FROM g WHERE id < 10 GROUP BY k HAVING MAX(v) >= 1 ORDER BY k"
+    profile: iq17-default
+  - id: having_and_or
+    sql: "SELECT k, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY k HAVING COUNT(*) >= 2 AND (MIN(v) < 0 OR MAX(v) > 5) ORDER BY k"
+    profile: iq17-default
+  - id: having_avg
+    sql: "SELECT k, AVG(d) AS a FROM g WHERE id < 10 GROUP BY k HAVING AVG(d) > 0 ORDER BY k"
+    profile: iq17-default
+  - id: having_without_group_by
+    sql: "SELECT COUNT(*) AS n FROM g WHERE id < 10 HAVING COUNT(*) > 3"
+    profile: iq17-default
+  - id: where_and_having
+    sql: "SELECT k, SUM(v) AS s FROM g WHERE id < 10 AND v > 0 GROUP BY k HAVING COUNT(*) >= 1 ORDER BY k"
+    profile: iq17-default
+  - id: order_by_aggregate
+    sql: "SELECT k, SUM(v) AS s FROM g WHERE id < 10 GROUP BY k ORDER BY SUM(v) DESC, k"
+    profile: iq17-default
+  - id: order_by_alias_of_aggregate
+    sql: "SELECT k, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY k ORDER BY n DESC, k"
+    profile: iq17-default
+  - id: distinct
+    sql: "SELECT DISTINCT k FROM g WHERE id < 10 ORDER BY k"
+    profile: iq17-default
+  - id: distinct_two_columns
+    sql: "SELECT DISTINCT k, c FROM g WHERE id < 10 ORDER BY k, c"
+    profile: iq17-default
+  - id: group_by_with_null_group
+    sql: "SELECT j, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY j ORDER BY j"
+    profile: iq17-default
+  - id: rollup
+    sql: "SELECT k, b, SUM(v) AS s FROM g WHERE id < 10 GROUP BY ROLLUP (k, b) ORDER BY k, b"
+    profile: iq17-default
+  - id: cube
+    sql: "SELECT k, b, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY CUBE (k, b) ORDER BY k, b"
+    profile: iq17-default
+  - id: grouping_sets
+    sql: "SELECT k, b, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY GROUPING SETS ((k), (b), ()) ORDER BY k, b"
+    profile: iq17-default
+  - id: grouping_function
+    sql: "SELECT k, GROUPING(k) AS gk, SUM(v) AS s FROM g WHERE id < 10 GROUP BY ROLLUP (k) ORDER BY gk, k"
+    profile: iq17-default
+  - id: top_n_groups
+    sql: "SELECT TOP 2 k, SUM(v) AS s FROM g WHERE id < 10 GROUP BY k ORDER BY s DESC, k"
+    profile: iq17-default
+  - id: group_by_joined
+    sql: "SELECT t.id, COUNT(u.id) AS n FROM t LEFT JOIN u ON u.t_id = t.id GROUP BY t.id ORDER BY t.id"
+    profile: iq17-default
+  - id: group_by_derived
+    sql: "SELECT size, COUNT(*) AS n FROM (SELECT CASE WHEN v > 2 THEN 'big' ELSE 'small' END AS size FROM g WHERE id < 10) x GROUP BY size ORDER BY size"
+    profile: iq17-default

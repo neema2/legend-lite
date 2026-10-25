@@ -1,0 +1,121 @@
+# The IQ scale program's real-life census (2026-10-25): numeric, one representative use per construct a
+# report writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md
+# has the keys.
+tests:
+  - id: abs_int
+    sql: "SELECT id, ABS(it) AS v FROM t WHERE id <> 2 ORDER BY id"
+    profile: iq17-default
+  - id: abs_numeric
+    sql: "SELECT id, ABS(nm) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: abs_double
+    sql: "SELECT id, ABS(dbl) AS v FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: ceiling_numeric
+    sql: "SELECT id, CEILING(nm) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: ceil_double
+    sql: "SELECT id, CEIL(dbl) AS v FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: floor_numeric
+    sql: "SELECT id, FLOOR(nm) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: floor_double
+    sql: "SELECT id, FLOOR(dbl) AS v FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: round_numeric_1
+    sql: "SELECT id, ROUND(nm, 1) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: round_numeric_0
+    sql: "SELECT id, ROUND(nm, 0) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: round_numeric_negative
+    sql: "SELECT id, ROUND(nm, -2) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: round_double_2
+    sql: "SELECT id, ROUND(dbl, 2) AS v FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: round_integer
+    sql: "SELECT id, ROUND(it, -1) AS v FROM t WHERE id IN (3, 4, 6, 7) ORDER BY id"
+    profile: iq17-default
+  - id: truncnum_numeric
+    sql: "SELECT id, TRUNCNUM(nm, 1) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: mod_int
+    sql: "SELECT id, MOD(it, 7) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: remainder_int
+    sql: "SELECT id, REMAINDER(it, 7) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: modulo_operator
+    sql: "SELECT id, it % 7 AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: power_int
+    sql: "SELECT id, POWER(sm, 2) AS v FROM t WHERE id IN (3, 4, 6, 7) ORDER BY id"
+    profile: iq17-default
+  - id: power_double
+    sql: "SELECT id, POWER(dbl, 2) AS v FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: sqrt
+    sql: "SELECT id, SQRT(ABS(dbl)) AS v FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: square
+    sql: "SELECT id, SQUARE(sm) AS v FROM t WHERE id IN (3, 4, 6, 7) ORDER BY id"
+    profile: iq17-default
+  - id: exp
+    sql: "SELECT id, EXP(dbl) AS v FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: ln
+    sql: "SELECT id, LN(ABS(dbl) + 1) AS v FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: log
+    sql: "SELECT id, LOG(ABS(dbl) + 1) AS v FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: log10
+    sql: "SELECT id, LOG10(ABS(it) + 1) AS v FROM t WHERE id IN (3, 4, 6, 7) ORDER BY id"
+    profile: iq17-default
+  - id: pi
+    sql: "SELECT PI() AS v"
+    profile: iq17-default
+  - id: sign_int
+    sql: "SELECT id, SIGN(it) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: sign_numeric
+    sql: "SELECT id, SIGN(nm) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: sin_cos_tan
+    sql: "SELECT id, SIN(dbl) AS s, COS(dbl) AS c, TAN(dbl) AS t FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: cot
+    sql: "SELECT id, COT(dbl) AS v FROM t WHERE id IN (1, 2, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: asin_acos_atan
+    sql: "SELECT id, ASIN(dbl / 10) AS a, ACOS(dbl / 10) AS b, ATAN(dbl) AS c FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: atan2
+    sql: "SELECT id, ATAN2(dbl, 2) AS v FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: degrees_radians
+    sql: "SELECT id, DEGREES(dbl) AS d, RADIANS(dbl) AS r FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: width_bucket
+    sql: "SELECT id, WIDTH_BUCKET(sm, 0, 100, 4) AS v FROM t WHERE id IN (3, 4, 6, 7) ORDER BY id"
+    profile: iq17-default
+  - id: arithmetic_mix
+    sql: "SELECT id, (it + sm) * 2 - bg / 3 AS v FROM t WHERE id IN (3, 4, 6, 7) ORDER BY id"
+    profile: iq17-default
+  - id: integer_division
+    sql: "SELECT id, it / 3 AS a, -it / 3 AS b FROM t WHERE id IN (3, 4, 6, 7) ORDER BY id"
+    profile: iq17-default
+  - id: numeric_arithmetic
+    sql: "SELECT id, nm * 2 + 0.5 AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: numeric_division
+    sql: "SELECT id, nm / 4 AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: double_arithmetic
+    sql: "SELECT id, dbl * 2.5 + 1 AS v FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: percentage
+    sql: "SELECT id, 100.0 * sm / NULLIF(it, 0) AS v FROM t WHERE id IN (3, 4, 6, 7) ORDER BY id"
+    profile: iq17-default

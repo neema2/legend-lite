@@ -1,0 +1,67 @@
+# The IQ scale program's real-life census (2026-10-25): subqueries, one representative use per construct a
+# report writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md
+# has the keys.
+tests:
+  - id: scalar_subquery_uncorrelated
+    sql: "SELECT id, (SELECT MAX(v) FROM g WHERE id < 10) AS m FROM t ORDER BY id"
+    profile: iq17-default
+  - id: scalar_subquery_correlated
+    sql: "SELECT t.id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t ORDER BY t.id"
+    profile: iq17-default
+  - id: scalar_subquery_correlated_max
+    sql: "SELECT t.id, (SELECT MAX(u.qty) FROM u WHERE u.t_id = t.id) AS q FROM t ORDER BY t.id"
+    profile: iq17-default
+  - id: where_in_subquery
+    sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM u) ORDER BY id"
+    profile: iq17-default
+  - id: where_not_in_subquery
+    sql: "SELECT id FROM t WHERE id NOT IN (SELECT t_id FROM u WHERE t_id IS NOT NULL) ORDER BY id"
+    profile: iq17-default
+  - id: where_exists
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id) ORDER BY id"
+    profile: iq17-default
+  - id: where_not_exists
+    sql: "SELECT id FROM t WHERE NOT EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id) ORDER BY id"
+    profile: iq17-default
+  - id: where_compare_scalar
+    sql: "SELECT id FROM g WHERE v > (SELECT AVG(v) FROM g WHERE id < 10) AND id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: where_correlated_compare
+    sql: "SELECT a.id FROM g a WHERE a.id < 10 AND a.v = (SELECT MAX(b.v) FROM g b WHERE b.k = a.k AND b.id < 10) ORDER BY a.id"
+    profile: iq17-default
+  - id: where_any_all
+    sql: "SELECT id FROM t WHERE sm > ALL (SELECT k FROM g WHERE k IS NOT NULL AND id < 10) OR sm = ANY (SELECT k FROM g WHERE id < 10) ORDER BY id"
+    profile: iq17-default
+  - id: having_subquery
+    sql: "SELECT k, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY k HAVING COUNT(*) > (SELECT COUNT(*) / 4 FROM g WHERE id < 10) ORDER BY k"
+    profile: iq17-default
+  - id: derived_table
+    sql: "SELECT x.k, x.n FROM (SELECT k, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY k) x WHERE x.n > 1 ORDER BY x.k"
+    profile: iq17-default
+  - id: derived_nested_3
+    sql: "SELECT z.k FROM (SELECT y.k FROM (SELECT x.k FROM (SELECT k FROM g WHERE id < 10) x WHERE x.k IS NOT NULL) y GROUP BY y.k) z ORDER BY z.k"
+    profile: iq17-default
+  - id: subquery_nested_3_where
+    sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM u WHERE id IN (SELECT id FROM g WHERE k IN (SELECT k FROM g WHERE id < 3))) ORDER BY id"
+    profile: iq17-default
+  - id: cte_simple
+    sql: "WITH x AS (SELECT k, SUM(v) AS s FROM g WHERE id < 10 GROUP BY k) SELECT k, s FROM x ORDER BY k"
+    profile: iq17-default
+  - id: cte_chain
+    sql: "WITH a AS (SELECT id, v FROM g WHERE id < 10), b AS (SELECT id, v * 2 AS w FROM a), c AS (SELECT COUNT(*) AS n, SUM(w) AS s FROM b) SELECT n, s FROM c"
+    profile: iq17-default
+  - id: cte_used_twice
+    sql: "WITH x AS (SELECT k, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY k) SELECT a.k, a.n, b.n AS m FROM x a JOIN x b ON b.k = a.k ORDER BY a.k"
+    profile: iq17-default
+  - id: cte_with_window
+    sql: "WITH r AS (SELECT id, k, ROW_NUMBER() OVER (PARTITION BY k ORDER BY id) AS rn FROM g WHERE id < 10) SELECT id, k FROM r WHERE rn = 1 ORDER BY id"
+    profile: iq17-default
+  - id: subquery_in_select_and_where
+    sql: "SELECT t.id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t WHERE EXISTS (SELECT 1 FROM g WHERE g.id = t.id) ORDER BY t.id"
+    profile: iq17-default
+  - id: correlated_exists_two_levels
+    sql: "SELECT t.id FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id AND EXISTS (SELECT 1 FROM g WHERE g.id = u.id)) ORDER BY t.id"
+    profile: iq17-default
+  - id: in_list_of_values
+    sql: "SELECT id FROM t WHERE vc IN (SELECT s FROM g WHERE id < 10) OR id IN (1, 2) ORDER BY id"
+    profile: iq17-default

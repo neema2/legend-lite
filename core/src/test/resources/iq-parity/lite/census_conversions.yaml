@@ -1,0 +1,82 @@
+# The IQ scale program's real-life census (2026-10-25): conversions, one representative use per construct a
+# report writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md
+# has the keys.
+tests:
+  - id: cast_numeric_to_integer
+    sql: "SELECT id, CAST(nm AS INTEGER) AS v FROM t WHERE id <> 2 ORDER BY id"
+    profile: iq17-default
+  - id: cast_double_to_integer
+    sql: "SELECT id, CAST(dbl AS INTEGER) AS v FROM t WHERE id IN (1, 2, 3, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: cast_integer_to_numeric
+    sql: "SELECT id, CAST(sm AS NUMERIC(10, 2)) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: cast_integer_to_double
+    sql: "SELECT id, CAST(it AS DOUBLE) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: cast_string_to_integer
+    sql: "SELECT CAST('123' AS INTEGER) AS a, CAST(' 42 ' AS INTEGER) AS b"
+    profile: iq17-default
+  - id: cast_string_to_numeric
+    sql: "SELECT CAST('12.345' AS NUMERIC(8, 2)) AS v"
+    profile: iq17-default
+  - id: cast_bit_to_integer
+    sql: "SELECT id, CAST(bt AS INTEGER) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_to_varchar
+    sql: "SELECT id, CONVERT(VARCHAR(12), nm) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_to_integer
+    sql: "SELECT id, CONVERT(INTEGER, nm) AS v FROM t WHERE id <> 2 ORDER BY id"
+    profile: iq17-default
+  - id: inttohex_hextoint
+    sql: "SELECT id, INTTOHEX(sm) AS a, HEXTOINT('FF') AS b FROM t WHERE id IN (3, 4, 6) ORDER BY id"
+    profile: iq17-default
+  - id: coalesce
+    sql: "SELECT id, COALESCE(vc, ch, 'none') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: isnull
+    sql: "SELECT id, ISNULL(it, 0) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: ifnull_three
+    sql: "SELECT id, IFNULL(it, 'none', 'some') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: nullif
+    sql: "SELECT id, NULLIF(sm, 0) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: case_searched
+    sql: "SELECT id, CASE WHEN it > 100 THEN 'big' WHEN it > 0 THEN 'small' WHEN it IS NULL THEN 'none' ELSE 'neg' END AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: case_simple
+    sql: "SELECT id, CASE bt WHEN 1 THEN 'yes' WHEN 0 THEN 'no' END AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: case_no_else
+    sql: "SELECT id, CASE WHEN sm > 0 THEN sm END AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: case_nested
+    sql: "SELECT id, CASE WHEN sm IS NULL THEN 0 ELSE CASE WHEN sm > 0 THEN 1 ELSE -1 END END AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: if_expression
+    sql: "SELECT id, IF sm > 0 THEN 'pos' ELSE 'other' ENDIF AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: argn
+    sql: "SELECT id, ARGN(2, vc, ch, 'z') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: greater_lesser
+    sql: "SELECT id, GREATER(sm, 5) AS a, LESSER(sm, 5) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: is_null_filter
+    sql: "SELECT id FROM t WHERE vc IS NULL OR it IS NULL ORDER BY id"
+    profile: iq17-default
+  - id: is_not_null_filter
+    sql: "SELECT id FROM t WHERE vc IS NOT NULL AND it IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: between_and_in
+    sql: "SELECT id FROM t WHERE sm BETWEEN -1 AND 100 AND id IN (1, 3, 4, 6, 7) ORDER BY id"
+    profile: iq17-default
+  - id: not_between
+    sql: "SELECT id FROM t WHERE it NOT BETWEEN 0 AND 100 ORDER BY id"
+    profile: iq17-default
+  - id: boolean_logic
+    sql: "SELECT id FROM t WHERE (sm > 0 OR it < 0) AND NOT (bt = 0) ORDER BY id"
+    profile: iq17-default

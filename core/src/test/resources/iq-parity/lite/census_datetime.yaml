@@ -1,0 +1,127 @@
+# The IQ scale program's real-life census (2026-10-25): datetime, one representative use per construct a
+# report writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md
+# has the keys.
+tests:
+  - id: year_month_day
+    sql: "SELECT id, YEAR(dt) AS y, MONTH(dt) AS m, DAY(dt) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: hour_minute_second
+    sql: "SELECT id, HOUR(ts) AS h, MINUTE(ts) AS m, SECOND(ts) AS s FROM t ORDER BY id"
+    profile: iq17-default
+  - id: quarter_dow
+    sql: "SELECT id, QUARTER(dt) AS q, DOW(dt) AS w FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dayname_monthname
+    sql: "SELECT id, DAYNAME(dt) AS a, MONTHNAME(dt) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datepart_year
+    sql: "SELECT id, DATEPART(year, dt) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datepart_parts
+    sql: "SELECT id, DATEPART(month, ts) AS m, DATEPART(weekday, dt) AS w, DATEPART(dayofyear, dt) AS y FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datepart_week
+    sql: "SELECT id, DATEPART(week, dt) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datename_month
+    sql: "SELECT id, DATENAME(month, dt) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dateadd_day
+    sql: "SELECT id, DATEADD(day, 5, dt) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dateadd_month
+    sql: "SELECT id, DATEADD(month, 1, dt) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dateadd_year_negative
+    sql: "SELECT id, DATEADD(year, -1, dt) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dateadd_hour
+    sql: "SELECT id, DATEADD(hour, 3, ts) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dateadd_minute
+    sql: "SELECT id, DATEADD(minute, 90, ts) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datediff_day
+    sql: "SELECT id, DATEDIFF(day, dt, '2026-12-31') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datediff_month
+    sql: "SELECT id, DATEDIFF(month, dt, '2026-12-31') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datediff_year
+    sql: "SELECT id, DATEDIFF(year, dt, '2026-12-31') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datediff_hour_ts
+    sql: "SELECT id, DATEDIFF(hour, ts, '2026-12-31 00:00:00') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datediff_second
+    sql: "SELECT id, DATEDIFF(second, ts, '2026-03-04 05:06:07') AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dateformat
+    sql: "SELECT id, DATEFORMAT(dt, 'yyyy-mm-dd') AS a, DATEFORMAT(ts, 'yyyy/mm/dd hh:nn') AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datefloor_ceiling_round
+    sql: "SELECT id, DATEFLOOR(hour, ts) AS a, DATECEILING(day, ts) AS b, DATEROUND(minute, ts) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: date_of_timestamp
+    sql: "SELECT id, DATE(ts) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: datetime_of_date
+    sql: "SELECT id, DATETIME(dt) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: days_years_months
+    sql: "SELECT id, DAYS(dt, 1) AS a, MONTHS(dt, 2) AS b, YEARS(dt, -1) AS c, WEEKS(dt, 1) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: hours_minutes_seconds
+    sql: "SELECT id, HOURS(ts, 2) AS a, MINUTES(ts, 30) AS b, SECONDS(ts, 10) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: days_between
+    sql: "SELECT id, DAYS(dt, CAST('2026-12-31' AS DATE)) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: ymd
+    sql: "SELECT YMD(2026, 3, 4) AS a, YMD(2026, 13, 1) AS b"
+    profile: iq17-default
+  - id: extract
+    sql: "SELECT id, EXTRACT(YEAR FROM dt) AS y, EXTRACT(MONTH FROM ts) AS m FROM t ORDER BY id"
+    profile: iq17-default
+  - id: isdate
+    sql: "SELECT ISDATE('2026-02-29') AS a, ISDATE('2024-02-29') AS b, ISDATE('x') AS c"
+    profile: iq17-default
+  - id: convert_style_101
+    sql: "SELECT id, CONVERT(VARCHAR(10), dt, 101) AS a, CONVERT(VARCHAR(10), dt, 112) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_style_120
+    sql: "SELECT id, CONVERT(VARCHAR(19), ts, 120) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: cast_timestamp_to_date
+    sql: "SELECT id, CAST(ts AS DATE) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: cast_string_to_date
+    sql: "SELECT CAST('2026-03-04' AS DATE) AS a, CAST('2026-03-04 10:11:12' AS TIMESTAMP) AS b"
+    profile: iq17-default
+  - id: cast_date_to_string
+    sql: "SELECT id, CAST(dt AS VARCHAR(10)) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: date_range_filter
+    sql: "SELECT id FROM t WHERE dt BETWEEN '2000-01-01' AND '2026-06-30' ORDER BY id"
+    profile: iq17-default
+  - id: date_comparison_ts
+    sql: "SELECT id FROM t WHERE ts >= '2026-01-01 00:00:00' ORDER BY id"
+    profile: iq17-default
+  - id: date_plus_integer
+    sql: "SELECT id, dt + 1 AS a, dt - 1 AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: date_minus_date
+    sql: "SELECT id, CAST('2026-12-31' AS DATE) - dt AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: current_date_relative
+    sql: "SELECT id, CASE WHEN dt < TODAY() THEN 1 ELSE 0 END AS past FROM t ORDER BY id"
+    profile: iq17-default
+  - id: getdate_relative
+    sql: "SELECT id, CASE WHEN ts < GETDATE() THEN 1 ELSE 0 END AS past FROM t ORDER BY id"
+    profile: iq17-default
+  - id: month_bucket
+    sql: "SELECT YEAR(dt) AS y, MONTH(dt) AS m, COUNT(*) AS n FROM t GROUP BY YEAR(dt), MONTH(dt) ORDER BY y, m"
+    profile: iq17-default
+  - id: date_trunc_by_dateformat
+    sql: "SELECT DATEFORMAT(dt, 'yyyy-mm') AS ym, COUNT(*) AS n FROM t GROUP BY DATEFORMAT(dt, 'yyyy-mm') ORDER BY ym"
+    profile: iq17-default

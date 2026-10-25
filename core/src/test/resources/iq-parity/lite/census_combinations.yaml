@@ -1,0 +1,49 @@
+# The IQ scale program's real-life census (2026-10-25): combinations, one representative use per construct a
+# report writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md
+# has the keys.
+tests:
+  - id: report_join_group_having_order
+    sql: "SELECT t.id, t.vc, COUNT(u.id) AS n, MAX(u.qty) AS q FROM t LEFT JOIN u ON u.t_id = t.id WHERE t.id < 7 GROUP BY t.id, t.vc HAVING COUNT(u.id) >= 0 ORDER BY n DESC, t.id"
+    profile: iq17-default
+  - id: report_monthly_with_running_total
+    sql: "SELECT YEAR(dt) AS y, MONTH(dt) AS m, SUM(v) AS s, SUM(SUM(v)) OVER (ORDER BY YEAR(dt), MONTH(dt)) AS run FROM g WHERE id < 10 AND dt IS NOT NULL GROUP BY YEAR(dt), MONTH(dt) ORDER BY y, m"
+    profile: iq17-default
+  - id: report_rank_within_group_of_joined
+    sql: "SELECT g.k, t.id, RANK() OVER (PARTITION BY g.k ORDER BY t.sm DESC) AS r FROM g JOIN t ON t.id = g.id WHERE g.id < 10 ORDER BY g.k, t.id"
+    profile: iq17-default
+  - id: report_case_buckets_and_share
+    sql: "SELECT CASE WHEN v < 0 THEN 'neg' WHEN v < 5 THEN 'low' ELSE 'high' END AS bucket, COUNT(*) AS n, 100.0 * COUNT(*) / SUM(COUNT(*)) OVER () AS pct FROM g WHERE id < 10 AND v IS NOT NULL GROUP BY CASE WHEN v < 0 THEN 'neg' WHEN v < 5 THEN 'low' ELSE 'high' END ORDER BY bucket"
+    profile: iq17-default
+  - id: report_cte_join_window_filter
+    sql: "WITH s AS (SELECT k, SUM(v) AS total FROM g WHERE id < 10 GROUP BY k), r AS (SELECT k, total, RANK() OVER (ORDER BY total DESC) AS rk FROM s) SELECT r.k, r.total, r.rk FROM r WHERE r.rk <= 3 ORDER BY r.rk, r.k"
+    profile: iq17-default
+  - id: report_correlated_latest
+    sql: "SELECT t.id, (SELECT TOP 1 u.label FROM u WHERE u.t_id = t.id ORDER BY u.id DESC) AS latest FROM t ORDER BY t.id"
+    profile: iq17-default
+  - id: report_dates_and_strings
+    sql: "SELECT id, UPPER(LEFT(vc, 1)) || LOWER(SUBSTRING(vc, 2)) AS name, DATEDIFF(day, dt, '2026-12-31') AS days_left, DATEFORMAT(dt, 'Mmm dd, yyyy') AS shown FROM t ORDER BY id"
+    profile: iq17-default
+  - id: report_pivot_by_case
+    sql: "SELECT k, SUM(CASE WHEN b = 1 THEN 1 ELSE 0 END) AS on_count, SUM(CASE WHEN b = 0 THEN 1 ELSE 0 END) AS off_count, AVG(CASE WHEN b = 1 THEN d END) AS on_avg FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: report_exists_and_aggregate
+    sql: "SELECT k, COUNT(*) AS n FROM g a WHERE a.id < 10 AND EXISTS (SELECT 1 FROM t WHERE t.id = a.id AND t.vc IS NOT NULL) GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: report_union_then_group
+    sql: "SELECT src, COUNT(*) AS n, MIN(id) AS lo FROM (SELECT 't' AS src, id FROM t UNION ALL SELECT 'u', id FROM u UNION ALL SELECT 'g', id FROM g WHERE id < 10) x GROUP BY src ORDER BY src"
+    profile: iq17-default
+  - id: report_moving_average_per_group
+    sql: "SELECT id, k, AVG(d) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS ma FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: report_top_per_group_with_join
+    sql: "SELECT x.k, x.id, t.vc FROM (SELECT k, id, ROW_NUMBER() OVER (PARTITION BY k ORDER BY v DESC, id) AS rn FROM g WHERE id < 10) x JOIN t ON t.id = x.id WHERE x.rn = 1 ORDER BY x.k"
+    profile: iq17-default
+  - id: report_nested_aggregates
+    sql: "SELECT AVG(n) AS avg_per_group, MAX(n) AS max_per_group FROM (SELECT k, COUNT(*) AS n FROM g WHERE id < 10 GROUP BY k) x"
+    profile: iq17-default
+  - id: report_coalesce_join_counts
+    sql: "SELECT t.id, COALESCE(x.n, 0) AS n FROM t LEFT JOIN (SELECT t_id, COUNT(*) AS n FROM u GROUP BY t_id) x ON x.t_id = t.id ORDER BY t.id"
+    profile: iq17-default
+  - id: report_lag_growth
+    sql: "SELECT dt, SUM(v) AS s, SUM(v) - LAG(SUM(v)) OVER (ORDER BY dt) AS growth FROM g WHERE id < 10 AND dt IS NOT NULL GROUP BY dt ORDER BY dt"
+    profile: iq17-default

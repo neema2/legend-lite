@@ -1,0 +1,85 @@
+# The IQ scale program's real-life census (2026-10-25): joins, one representative use per construct a
+# report writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md
+# has the keys.
+tests:
+  - id: inner_join
+    sql: "SELECT t.id, u.label FROM t JOIN u ON u.t_id = t.id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: inner_join_keyword
+    sql: "SELECT t.id, u.label FROM t INNER JOIN u ON u.t_id = t.id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: left_join
+    sql: "SELECT t.id, u.label FROM t LEFT JOIN u ON u.t_id = t.id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: left_outer_join
+    sql: "SELECT t.id, u.qty FROM t LEFT OUTER JOIN u ON u.t_id = t.id ORDER BY t.id, u.qty"
+    profile: iq17-default
+  - id: right_join
+    sql: "SELECT u.id, t.vc FROM t RIGHT JOIN u ON u.t_id = t.id ORDER BY u.id"
+    profile: iq17-default
+  - id: full_outer_join
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t FULL OUTER JOIN u ON u.t_id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: cross_join
+    sql: "SELECT t.id, u.id AS uid FROM t CROSS JOIN u WHERE t.id < 3 ORDER BY t.id, uid"
+    profile: iq17-default
+  - id: comma_join
+    sql: "SELECT t.id, u.label FROM t, u WHERE u.t_id = t.id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: self_join
+    sql: "SELECT a.id, b.id AS bid FROM t a JOIN t b ON b.id = a.id + 1 ORDER BY a.id"
+    profile: iq17-default
+  - id: join_two_conditions
+    sql: "SELECT t.id, u.label FROM t JOIN u ON u.t_id = t.id AND u.qty > 0 ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: non_equi_join
+    sql: "SELECT a.id, b.id AS bid FROM t a JOIN t b ON a.sm < b.sm ORDER BY a.id, bid"
+    profile: iq17-default
+  - id: left_join_anti
+    sql: "SELECT t.id FROM t LEFT JOIN u ON u.t_id = t.id WHERE u.id IS NULL ORDER BY t.id"
+    profile: iq17-default
+  - id: left_join_filter_in_on
+    sql: "SELECT t.id, u.label FROM t LEFT JOIN u ON u.t_id = t.id AND u.label LIKE 'o%' ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: join_three_tables
+    sql: "SELECT t.id, u.label, g.s FROM t JOIN u ON u.t_id = t.id JOIN g ON g.id = t.id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: mixed_inner_left
+    sql: "SELECT t.id, u.label, g.s FROM t LEFT JOIN u ON u.t_id = t.id JOIN g ON g.id = t.id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: join_to_derived
+    sql: "SELECT t.id, x.n FROM t JOIN (SELECT t_id, COUNT(*) AS n FROM u GROUP BY t_id) x ON x.t_id = t.id ORDER BY t.id"
+    profile: iq17-default
+  - id: join_to_cte
+    sql: "WITH x AS (SELECT t_id, MAX(qty) AS q FROM u GROUP BY t_id) SELECT t.id, x.q FROM t LEFT JOIN x ON x.t_id = t.id ORDER BY t.id"
+    profile: iq17-default
+  - id: join_grouped_result
+    sql: "SELECT g.k, COUNT(DISTINCT t.id) AS n FROM g JOIN t ON t.id = g.id GROUP BY g.k ORDER BY g.k"
+    profile: iq17-default
+  - id: join_on_expression
+    sql: "SELECT t.id, g.id AS gid FROM t JOIN g ON g.id = t.id * 2 ORDER BY t.id"
+    profile: iq17-default
+  - id: join_on_string
+    sql: "SELECT a.id, b.id AS bid FROM g a JOIN g b ON a.s = b.s AND a.id < b.id ORDER BY a.id, bid"
+    profile: iq17-default
+  - id: join_10_tables
+    sql: "SELECT a1.id FROM t a1 JOIN t a2 ON a2.id = a1.id JOIN t a3 ON a3.id = a2.id JOIN t a4 ON a4.id = a3.id JOIN t a5 ON a5.id = a4.id JOIN t a6 ON a6.id = a5.id JOIN t a7 ON a7.id = a6.id JOIN t a8 ON a8.id = a7.id JOIN t a9 ON a9.id = a8.id JOIN t a10 ON a10.id = a9.id ORDER BY a1.id"
+    profile: iq17-default
+  - id: left_join_chain_6
+    sql: "SELECT a1.id, a6.vc FROM t a1 LEFT JOIN t a2 ON a2.id = a1.id + 1 LEFT JOIN t a3 ON a3.id = a2.id + 1 LEFT JOIN t a4 ON a4.id = a3.id + 1 LEFT JOIN t a5 ON a5.id = a4.id + 1 LEFT JOIN t a6 ON a6.id = a5.id + 1 ORDER BY a1.id"
+    profile: iq17-default
+  - id: cross_apply
+    sql: "SELECT t.id, x.n FROM t CROSS APPLY (SELECT COUNT(*) AS n FROM u WHERE u.t_id = t.id) x ORDER BY t.id"
+    profile: iq17-default
+  - id: outer_apply_top
+    sql: "SELECT t.id, x.label FROM t OUTER APPLY (SELECT TOP 1 u.label FROM u WHERE u.t_id = t.id ORDER BY u.id) x ORDER BY t.id"
+    profile: iq17-default
+  - id: tsql_outer_join
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id *= u.t_id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: natural_join
+    sql: "SELECT id, sm FROM t NATURAL JOIN (SELECT id, 1 AS one FROM g) x ORDER BY id"
+    profile: iq17-default
+  - id: join_using
+    sql: "SELECT id, t.sm FROM t JOIN (SELECT id FROM g WHERE id < 5) x USING (id) ORDER BY id"
+    profile: iq17-default
