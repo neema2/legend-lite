@@ -3665,35 +3665,55 @@ public final class SqlToPure {
             mine.add(c);
         }
         // the IQ scale program, 2026-10-25 (the corpus lane's guarded ratios: CASE WHEN up + down > 0 THEN CAST(ROUND(up
-        // * 1.0 / (up + down) * 100, 2) AS DECIMAL(5,2)) ELSE 0 END, refused past the size bound): a searched CASE of one
-        // WHEN computes its result's operands only where its condition holds, so each long one is computed once there --
-        // a column of it where the condition is TRUE, NULL elsewhere -- and raises only where the CASE would. Where the
+        // * 1.0 / (up + down) * 100, 2) AS DECIMAL(5,2)) ELSE 0 END, refused past the size bound): a searched CASE
+        // computes a branch's operands only where the branch is taken, so each long one is computed once there -- a
+        // column of it where the branch is taken, NULL elsewhere -- and raises only where the CASE would. Where the
         // dialect computes every operand: one beside a NULL is computed as it is unhoisted
-        if (e instanceof SqlAst.Case k && k.operand() == null && k.whens().size() == 1 && dialect.computesEveryOperand()) {
-            SqlAst.When w = k.whens().get(0);
-            List<SqlAst.Expr> operands = new ArrayList<>();
-            eagerOperands(w.result(), operands);
-            ValueSpecification holds = null;
-            for (SqlAst.Expr c : operands) {
-                if (hoisted.containsKey(c)) {
-                    continue;
+        if (e instanceof SqlAst.Case k && k.operand() == null && dialect.computesEveryOperand()) {
+            for (int i = 0; i <= k.whens().size(); i++) {
+                SqlAst.Expr result = i < k.whens().size() ? k.whens().get(i).result() : k.otherwise();
+                if (result != null) {
+                    hoistTaken(k, i, result, scope, present, pre, mine);
                 }
-                Tx ct;
-                try {
-                    ct = tx(c, scope, row);
-                } catch (SqlTranslationException notAlone) {
-                    continue;
-                }
-                if (ct.kind() == Kind.BOOLEAN || ct.kind() == Kind.NULL || written(ct.vs()) < BOUND_OPERAND) {
-                    continue;
-                }
-                holds = holds != null ? holds : condition(w.condition(), scope, "CASE/WHEN");
-                String column = fresh(present);
-                pre.add(new ColSpec(column, lambda(row, call("if", holds, thunk(valueOf(ct)), thunk(empty()))), null,
-                        null));
-                hoisted.put(c, Col.of(column, ct.kind(), true, ct.detail()));
-                mine.add(c);
             }
+        }
+    }
+
+    /** {@code result}, branch {@code taken} of the searched CASE {@code k} (its ELSE past its WHENs): its long eager
+     *  operands, each a column computed where the branch is taken, NULL elsewhere ({@link #hoistOperands}). */
+    private void hoistTaken(SqlAst.Case k, int taken, SqlAst.Expr result, Scope scope, Set<String> present,
+            List<ColSpec> pre, List<SqlAst.Expr> mine) {
+        List<SqlAst.Expr> operands = new ArrayList<>();
+        eagerOperands(result, operands);
+        ValueSpecification where = null;
+        for (SqlAst.Expr c : operands) {
+            if (hoisted.containsKey(c)) {
+                continue;
+            }
+            Tx ct;
+            try {
+                ct = tx(c, scope, row);
+            } catch (SqlTranslationException notAlone) {
+                continue;
+            }
+            if (ct.kind() == Kind.BOOLEAN || ct.kind() == Kind.NULL || written(ct.vs()) < BOUND_OPERAND) {
+                continue;
+            }
+            if (where == null) {
+                // the branch's own test as the CASE reads it: each earlier WHEN first, nested, so that no later
+                // condition is computed where the CASE stops before it
+                where = taken < k.whens().size() ? condition(k.whens().get(taken).condition(), scope, "CASE/WHEN")
+                        : new CBoolean(true);
+                for (int j = taken - 1; j >= 0; j--) {
+                    where = call("if", condition(k.whens().get(j).condition(), scope, "CASE/WHEN"),
+                            thunk(new CBoolean(false)), thunk(where));
+                }
+            }
+            String column = fresh(present);
+            pre.add(new ColSpec(column, lambda(row, call("if", where, thunk(valueOf(ct)), thunk(empty()))), null,
+                    null));
+            hoisted.put(c, Col.of(column, ct.kind(), true, ct.detail()));
+            mine.add(c);
         }
     }
 
