@@ -316,3 +316,13 @@ lite/reports_web/device_mix_by_month@iq17-default	PASS	PASS
 lite/reports_web/visitors_who_bought_within_a_week@iq17-default	PASS	PASS	
 lite/reports_web/top_referrer_per_month@iq17-default	PASS	PASS	
 lite/reports_web/url_depth_and_length@iq17-default	PASS	PASS	
+lite/reports_whole_operations/reorder_plan_with_suppliers@iq17-default	PASS	PASS	
+lite/reports_whole_operations/last_touch_attribution@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/reports_whole_operations/cohort_revenue_triangle@iq17-default	PASS	PASS	
+lite/reports_whole_operations/unified_activity_timeline@iq17-default	PASS	PASS	
+lite/reports_whole_operations/price_change_audit@iq17-default	PASS	PASS	
+lite/reports_whole_reports/monthly_management_pack@iq17-default	PASS	PASS	
+lite/reports_whole_reports/customer_health_dashboard@iq17-default	PASS	PASS	
+lite/reports_whole_reports/product_profitability_waterfall@iq17-default	PASS	PASS	
+lite/reports_whole_reports/sales_rep_league_table@iq17-default	PASS	PASS	
+lite/reports_whole_reports/order_fulfilment_sla@iq17-default	PASS	PASS	

@@ -765,6 +765,19 @@ says so.
     quarter's or year's start read as a timestamp on Postgres was a timestamptz (date_trunc of the DATE Postgres writes
     for a date-grained date_trunc, typed TIMESTAMP after DuckDB's), now cast first. The root: 294 of 315 PASS, 14
     row-typed, 2 refused, 5 IQ's errors, no wrong value.
+  - **Reports part L judged** (whole reports in one statement, 10 cases snapped at 64ea0989): a monthly management
+    pack from five CTEs, a customer health dashboard, a profitability waterfall, a sales league table, a fulfilment SLA
+    report, a reorder plan picking each product's supplier, a cohort revenue triangle, a unified activity timeline and
+    a price-change audit -- 9 PASS on DuckDB and Postgres; last-touch attribution is IQ's -1001030 as lite predicts
+    (IQ reads the CTE's correlated scalar subquery inside the CASE that reads its column). The lint now covers a grouped
+    query's keys from a table its unique column joins (e6a33666). The root: 303 of 325 PASS, 14 row-typed, 2 refused,
+    6 IQ's errors, no wrong value.
+  - **TPC-H re-judged at 42b998b2** (tpch_iq, 9,427 runs, with its tie-break suite): 7,956 PASS, 722 PASS_UNORDERED,
+    9 PLACES; of 499 FAILs 129 remain after the tie-break, 116 ties and 13 row counts under TOP or RANK ties -- no
+    wrong value; 21 IQ's own plan limits (19 -1005015, 2 -1006000); 15 refused past 38 digits. **Fixed**: tpch-22676,
+    PASS before and refused past the size bound since -- LEFT JOIN s ON c.key = CAST(SUBSTRING(CAST(s.key AS VARCHAR),
+    1, 3) AS INTEGER) -- a join condition's compared operand that reads one side alone is computed once, a column of
+    that side before the join (0f3b90cf).
   - **The Snowflake lane at ac51fd9d** (the sibling session's run, its message refused for want of a trusted device; read
     from its transcript): 6,825 runs PASS on both; 9 that PASS on DuckDB are Snowflake's compile error "Unsupported
     subquery type cannot be evaluated" -- a correlated scalar subquery compared in a WHERE or an outer join's ON, an IN
