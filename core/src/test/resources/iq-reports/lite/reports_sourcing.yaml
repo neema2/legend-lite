@@ -1,0 +1,18 @@
+# The IQ scale program's realistic reports (2026-10-25): sourcing, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: cheapest_supplier_per_product
+    sql: "SELECT product_id, product, supplier, unit_cost, lead_days FROM ( SELECT p.id AS product_id, p.name AS product, TRIM(s.name) AS supplier, sp.unit_cost, sp.lead_days, ROW_NUMBER() OVER (PARTITION BY p.id ORDER BY sp.unit_cost, sp.lead_days, sp.id) AS rn FROM supplier_products sp JOIN products p ON p.id = sp.product_id JOIN suppliers s ON s.id = sp.supplier_id) x WHERE rn = 1 ORDER BY product_id"
+    profile: iq17-default
+  - id: lead_times_by_country
+    sql: "SELECT s.country, COUNT(*) AS offers, MIN(sp.lead_days) AS fastest, MAX(sp.lead_days) AS slowest, ROUND(AVG(sp.lead_days * 1.0), 1) AS avg_days, SUM(CASE WHEN sp.lead_days <= 7 THEN 1 ELSE 0 END) AS within_a_week FROM supplier_products sp JOIN suppliers s ON s.id = sp.supplier_id GROUP BY s.country ORDER BY avg_days, s.country"
+    profile: iq17-default
+  - id: sourcing_savings
+    sql: "SELECT p.id, p.name, p.unit_cost AS book_cost, MIN(sp.unit_cost) AS best_cost, p.unit_cost - MIN(sp.unit_cost) AS saving, COUNT(*) AS offers, CASE WHEN COUNT(*) = 1 THEN 'single source' ELSE '' END AS risk FROM products p JOIN supplier_products sp ON sp.product_id = p.id GROUP BY p.id, p.name, p.unit_cost ORDER BY saving DESC, p.id"
+    profile: iq17-default
+  - id: supplier_scorecard
+    sql: "SELECT s.id, TRIM(s.name) AS supplier, s.rating, COUNT(sp.id) AS products, MIN(sp.lead_days) AS fastest, DATEDIFF(YEAR, s.since, '2026-01-01') AS years, DENSE_RANK() OVER (PARTITION BY s.country ORDER BY s.rating DESC) AS rank_in_country, CASE WHEN s.rating >= 4.5 THEN 'preferred' WHEN s.rating >= 3.5 THEN 'approved' WHEN s.rating IS NULL THEN 'unrated' ELSE 'watch' END AS status FROM suppliers s LEFT JOIN supplier_products sp ON sp.supplier_id = s.id GROUP BY s.id, s.name, s.rating, s.since, s.country ORDER BY s.id"
+    profile: iq17-default
+  - id: minimum_order_values
+    sql: "SELECT sp.id, TRIM(s.name) AS supplier, p.name AS product, sp.min_order, sp.unit_cost, COALESCE(sp.min_order, 1) * sp.unit_cost AS min_order_value, CASE WHEN sp.min_order IS NULL THEN 'any quantity' WHEN sp.min_order >= 100 THEN 'bulk' ELSE 'standard' END AS terms FROM supplier_products sp JOIN suppliers s ON s.id = sp.supplier_id JOIN products p ON p.id = sp.product_id WHERE sp.id <= 25 ORDER BY sp.id"
+    profile: iq17-default

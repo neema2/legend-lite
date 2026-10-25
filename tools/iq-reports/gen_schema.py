@@ -253,13 +253,55 @@ for p in products:
 table("inventory", [("id", "integer"), ("product_id", "integer"), ("snapshot_date", "date"), ("on_hand", "integer"),
                     ("reorder_point", "smallint")], inventory)
 
+# The tables of part I (2026-10-26), from a generator of their own: international suppliers -- names and cities in
+# UTF-8 (accents, umlauts, a cedilla, Polish and Turkish letters, a sharp s), mixed case, padding, a name differing from
+# another only in case or accents -- and the products each supplies, with lead times and costs.
+rnd3 = random.Random(20261027)
+supplier_rows = [
+    ("Müller GmbH", "München", "Germany", "Jürgen Weiß", "j.weiss@mueller.de", "+49 89 1234567", "4.5", "2016-04-01"),
+    ("Société Générale de Café", "Lyon", "France", "Amélie Dubois", "amelie@sgcafe.fr", "+33 4 72 00 00 00", "3.9", "2018-09-15"),
+    ("Ñandú Imports", "Córdoba", "Argentina", "José Núñez", "jose@nandu.com.ar", "+54 351 555 0101", "4.1", "2020-01-20"),
+    ("Øresund Trading", "Malmö", "Sweden", "Åsa Lindqvist", "asa@oresund.se", "+46 40 123 456", "4.8", "2015-06-30"),
+    ("Łódź Textiles", "Łódź", "Poland", "Paweł Wójcik", "pawel@lodztex.pl", "+48 42 600 70 80", "3.2", "2021-03-03"),
+    ("São Paulo Couros", "São Paulo", "Brazil", "João Conceição", "joao@spcouros.com.br", "+55 11 4000 1234", "4.0", "2019-11-11"),
+    ("Zürich Präzision AG", "Zürich", "Switzerland", "Ursula Kälin", "u.kaelin@zprazision.ch", "+41 44 555 66 77", "4.9", "2014-02-14"),
+    ("Kraków Metal", "Kraków", "Poland", "Zofia Kowalczyk", None, "+48 12 345 67 89", "3.7", "2022-07-01"),
+    ("İstanbul Halı", "İstanbul", "Turkey", "Ayşe Yılmaz", "ayse@istanbulhali.com.tr", "+90 212 555 0000", "4.3", "2017-05-05"),
+    ("Ålesund Fisk", "Ålesund", "Norway", "Ole Øvrebø", "ole@alesundfisk.no", None, "4.6", "2016-12-01"),
+    ("Café Crème", "Paris", "France", "Hélène Béranger", "helene@cafecreme.fr", "+33 1 40 00 00 00", "3.5", "2023-02-28"),
+    ("Cafe Creme", "Montréal", "Canada", "Gaëtan Lévesque", "gaetan@cafecreme.ca", "+1 514 555 0199", "3.8", "2023-03-01"),
+    ("  Acme Supplies  ", "Chicago", "USA", "Wile Coyote", "WILE@ACME.COM", "(312) 555-0100", "2.9", "2012-01-01"),
+    ("ACME supplies", "Chicago", "USA", None, "orders@acme.com", "312.555.0101", None, "2024-06-15"),
+    ("Straße & Söhne", "Köln", "Germany", "Björn Groß", "bjoern@strasse-soehne.de", "+49 221 987654", "4.2", "2013-08-08"),
+    ("naïve design", "Bruxelles", "Belgium", "Zoë Peeters", "zoe@naive.be", "+32 2 555 12 12", "4.4", "2020-10-10"),
+    ("Smith & Sons", "Leeds", "UK", "Ian Smith", "ian@smithandsons.co.uk", "+44 113 496 0000", "3.1", "2011-05-20"),
+    ("Østfold Wood", "Fredrikstad", "Norway", "Kåre Ødegård", "kare@ostfoldwood.no", "+47 69 00 00 00", "4.0", "2019-04-04"),
+]
+suppliers = [(i + 1,) + r for i, r in enumerate(supplier_rows)]
+table("suppliers", [("id", "integer"), ("name", "varchar(40)"), ("city", "varchar(30)"), ("country", "varchar(20)"),
+                    ("contact", "varchar(40)"), ("email", "varchar(60)"), ("phone", "varchar(25)"),
+                    ("rating", "numeric(3,1)"), ("since", "date")], suppliers)
+
+supplies = []
+spid = 0
+for p in products:
+    for s in rnd3.sample(range(1, len(suppliers) + 1), rnd3.choice([1, 2, 2, 3])):
+        spid += 1
+        cost = round(float(p[6]) * rnd3.choice([0.85, 0.9, 0.95, 1.0, 1.05]), 2)
+        supplies.append((spid, s, p[0], rnd3.choice([3, 5, 7, 10, 14, 21, 30, 45]), "%.2f" % cost,
+                         None if spid % 11 == 0 else rnd3.choice([10, 25, 50, 100])))
+table("supplier_products", [("id", "integer"), ("supplier_id", "integer"), ("product_id", "integer"),
+                            ("lead_days", "smallint"), ("unit_cost", "numeric(8,2)"), ("min_order", "integer")],
+      supplies)
+
 with open(OUT, "w") as f:
     f.write("# The IQ scale program's realistic report schema (2026-10-25): a small retail database -- regions,\n"
             "# employees, customers, products, orders, their lines and payments -- with the data real tables hold\n"
             "# (NULLs where a value is not known yet, mixed-case e-mails, padded names, cancelled and pending orders,\n"
             "# partial payments) -- and, from part E (2026-10-26), monthly exchange rates, promotions over date ranges, a\n"
-            "# web shop's events, support tickets and inventory snapshots. Generated, deterministically, by the program's\n"
-            "# gen_schema.py; tools/iq-oracle's README.md has the format.\n"
+            "# web shop's events, support tickets and inventory snapshots; from part I, international suppliers (UTF-8\n"
+            "# names) and the products they supply. Generated, deterministically, by the program's gen_schema.py;\n"
+            "# tools/iq-oracle's README.md has the format.\n"
             "tables:\n")
     for name, cols, rows in tables:
         f.write("  - name: %s\n    columns:\n" % name)
