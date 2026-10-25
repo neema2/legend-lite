@@ -1,0 +1,3 @@
+# the #IQ{...}# island's realistic report cases (iq-reports/lite), each case's status per profile and lane: the ratchet
+# IqParityTest and IqParityPostgresTest hold over the iq-reports root (core/src/test/java/com/legend/testcases/IqParity.java)
+case	duckdb	postgres	snowflake

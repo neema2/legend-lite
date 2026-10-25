@@ -1,0 +1,13 @@
+# THE REALISTIC REPORTS' iq17-* RUNS' KNOWN DIVERGENCES FROM REAL SAP IQ 17.1 (IqParity.divergences; tools/iq-oracle/README.md, "The
+# live IQ"). IQ island, landing 4 (WP1), 2026-10-14: real IQ 17.1 became the oracle of the iq17-* profiles, and these
+# runs FAIL (a wrong answer), are a BUG (an answer where IQ raises an error) or an ERROR (an error where IQ answers),
+# because lite follows SQL Anywhere's semantics where IQ's engine differs. Each is listed, not hidden, with its cause
+# (measured on the live IQ by the corpus run of 2026-10-14, iqbuild/iqlive_corpus/report.md, and this snap).
+#
+# THE GUARD-FILE RULE (AGENTS.md; docs/FOUNDATIONS_PLAN.md §0.4): both IQ lanes fail on a FAIL, BUG or ERROR not
+# listed here for their lane (a run SQL Anywhere judges may never be listed), and on a listed run that no longer
+# diverges in a lane it lists (it PASSes, or is refused, or both error, or is skipped, or is gone): the list only
+# shrinks. An entry is added only in a block under a dated comment naming the task that measured it; a fix removes
+# its entries, and a cause no entry names any more.
+#
+# Lines: cause<TAB>id<TAB>what it is, then run<TAB>run key<TAB>cause id<TAB>lanes.

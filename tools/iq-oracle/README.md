@@ -220,6 +220,13 @@ The `sqlSha` of a case with settings has them as one more part, `settings=<text>
 
 ## The files
 
+**A second root** (the IQ scale program, 2026-10-25): `core/src/test/resources/iq-reports` holds the realistic report
+suite -- its own `schema.yaml` (a small retail database), `lite/reports_*.yaml`, `iq-answers.jsonl`, `ledger.tsv` and
+`iq17-divergences.tsv`, the same formats as below. Its cases are all iq17-default, so its answers carry the live IQ's
+meta part alone. Snap it with `--root core/src/test/resources/iq-reports` (`snap.sh --oracle iq --iq-user HDLADMIN
+--root core/src/test/resources/iq-reports --write`); the live IQ seeds its tables as `ll_<name>` beside the parity
+schema's, whose names differ. `//core:iq_reports_parity_test` and `//core:iq_reports_parity_postgres_test` judge it.
+
 ### `iq-parity/schema.yaml`
 
 The tables every case reads by bare name. The YAML is the subset `SqlParity.Yaml` reads, so the Java harness reads it

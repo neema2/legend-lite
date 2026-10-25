@@ -1,0 +1,33 @@
+# The IQ scale program's realistic reports (2026-10-25): strings, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: masked_emails
+    sql: "SELECT id, email, LEFT(email, 2) || REPEAT('*', LOCATE(email, '@') - 3) || SUBSTRING(email, LOCATE(email, '@')) AS masked FROM customers WHERE email IS NOT NULL AND LOCATE(email, '@') > 3 ORDER BY id"
+    profile: iq17-default
+  - id: formal_names
+    sql: "SELECT id, UPPER(LEFT(last_name, 1)) || LOWER(SUBSTRING(last_name, 2)) || ', ' || TRIM(first_name) AS formal, LENGTH(TRIM(first_name)) + LENGTH(last_name) AS name_length FROM customers ORDER BY last_name, id"
+    profile: iq17-default
+  - id: phone_area_codes
+    sql: "SELECT LEFT(REPLACE(REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', ''), ' ', ''), 3) AS area_code, COUNT(*) AS customers FROM customers WHERE phone IS NOT NULL GROUP BY LEFT(REPLACE(REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', ''), ' ', ''), 3) ORDER BY customers DESC, area_code"
+    profile: iq17-default
+  - id: city_labels
+    sql: "SELECT c.id, c.city || ' (' || r.name || ', ' || UPPER(r.country) || ')' AS location, CASE WHEN r.country = 'USA' THEN 'domestic' ELSE 'international' END AS market FROM customers c JOIN regions r ON r.id = c.region_id ORDER BY r.country, c.city, c.id"
+    profile: iq17-default
+  - id: product_search
+    sql: "SELECT id, name, category FROM products WHERE (LOWER(name) LIKE '%pro%' OR name LIKE 'Phone%' OR name LIKE '%Desk') AND discontinued = 0 AND unit_price BETWEEN 10 AND 2000 ORDER BY name, id"
+    profile: iq17-default
+  - id: sku_validation
+    sql: "SELECT id, sku, CASE WHEN sku LIKE '___-___-___' AND ISNUMERIC(RIGHT(sku, 3)) = 1 THEN 'valid' ELSE 'invalid' END AS check_result, LENGTH(sku) AS len FROM products ORDER BY id"
+    profile: iq17-default
+  - id: order_summary_lines
+    sql: "SELECT t.id, 'Order ' || CAST(t.id AS VARCHAR(10)) || ' (' || t.channel || '): ' || CAST(t.total AS VARCHAR(20)) || ' USD' AS summary FROM (SELECT o.id, o.customer_id, o.order_ts, o.channel, o.status, o.discount_pct, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS total FROM orders o JOIN order_items oi ON oi.order_id = o.id GROUP BY o.id, o.customer_id, o.order_ts, o.channel, o.status, o.discount_pct) t WHERE t.status = 'shipped' AND t.total > 2000 ORDER BY t.total DESC, t.id"
+    profile: iq17-default
+  - id: products_listed_per_order
+    sql: "SELECT o.id, COUNT(*) AS lines, LIST(p.name, '; ' ORDER BY oi.id) AS products FROM orders o JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id WHERE o.id BETWEEN 1 AND 20 GROUP BY o.id ORDER BY o.id"
+    profile: iq17-default
+  - id: contact_directory_union
+    sql: "SELECT 'customer' AS kind, id, TRIM(first_name) || ' ' || last_name AS name, COALESCE(email, '-') AS contact FROM customers WHERE is_active = 1 UNION ALL SELECT 'employee', id, first_name || ' ' || last_name, LOWER(first_name) || '.' || LOWER(last_name) || '@company.example' FROM employees ORDER BY 1, 3, 2"
+    profile: iq17-default
+  - id: email_quality
+    sql: "SELECT CASE WHEN email IS NULL THEN 'missing' WHEN email <> LOWER(email) THEN 'uppercase' WHEN email LIKE '%@gmail.com' OR email LIKE '%@yahoo.com' OR email LIKE '%@outlook.com' THEN 'personal' ELSE 'business' END AS kind, COUNT(*) AS customers FROM customers GROUP BY CASE WHEN email IS NULL THEN 'missing' WHEN email <> LOWER(email) THEN 'uppercase' WHEN email LIKE '%@gmail.com' OR email LIKE '%@yahoo.com' OR email LIKE '%@outlook.com' THEN 'personal' ELSE 'business' END ORDER BY kind"
+    profile: iq17-default

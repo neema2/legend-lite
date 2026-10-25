@@ -1,0 +1,18 @@
+# The IQ scale program's realistic reports (2026-10-25): payments, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: unpaid_and_partially_paid_orders
+    sql: "WITH due AS (SELECT o.id, ROUND(SUM(oi.quantity * oi.unit_price - oi.line_discount) * (1 - o.discount_pct), 2) AS amount_due FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status <> 'cancelled' GROUP BY o.id, o.discount_pct), paid AS (SELECT order_id, SUM(amount) AS amount_paid, COUNT(*) AS installments FROM payments GROUP BY order_id) SELECT d.id, d.amount_due, COALESCE(p.amount_paid, 0) AS amount_paid, COALESCE(p.installments, 0) AS installments, d.amount_due - COALESCE(p.amount_paid, 0) AS balance FROM due d LEFT JOIN paid p ON p.order_id = d.id WHERE COALESCE(p.amount_paid, 0) < d.amount_due - 0.01 ORDER BY balance DESC, d.id"
+    profile: iq17-default
+  - id: payment_methods_by_month
+    sql: "SELECT DATEFORMAT(paid_ts, 'YYYY-MM') AS ym, method, COUNT(*) AS payments, SUM(amount) AS collected FROM payments WHERE paid_ts >= '2025-01-01' GROUP BY DATEFORMAT(paid_ts, 'YYYY-MM'), method ORDER BY ym, method"
+    profile: iq17-default
+  - id: days_to_payment
+    sql: "SELECT o.channel, COUNT(*) AS paid_orders, ROUND(AVG(CAST(DATEDIFF(HOUR, o.order_ts, p.first_paid) AS DOUBLE)) / 24, 2) AS avg_days_to_pay FROM orders o JOIN (SELECT order_id, MIN(paid_ts) AS first_paid FROM payments GROUP BY order_id) p ON p.order_id = o.id GROUP BY o.channel ORDER BY o.channel"
+    profile: iq17-default
+  - id: installment_numbers
+    sql: "SELECT order_id, id AS payment_id, paid_ts, amount, ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY paid_ts, id) AS installment, SUM(amount) OVER (PARTITION BY order_id ORDER BY paid_ts, id ROWS UNBOUNDED PRECEDING) AS paid_so_far FROM payments WHERE order_id IN (SELECT order_id FROM payments GROUP BY order_id HAVING COUNT(*) > 1) ORDER BY order_id, installment"
+    profile: iq17-default
+  - id: collections_by_method_share
+    sql: "SELECT method, SUM(amount) AS collected, ROUND(100.0 * SUM(amount) / (SELECT SUM(amount) FROM payments), 2) AS share_pct FROM payments GROUP BY method ORDER BY collected DESC, method"
+    profile: iq17-default

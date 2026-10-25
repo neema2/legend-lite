@@ -1,0 +1,45 @@
+# The IQ scale program's realistic reports (2026-10-25): customers, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: customer_lifetime_value_top_ten
+    sql: "SELECT TOP 10 c.id, TRIM(c.first_name) || ' ' || c.last_name AS customer, COUNT(DISTINCT o.id) AS orders, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS lifetime_value, MIN(o.order_ts) AS first_order, MAX(o.order_ts) AS last_order FROM customers c JOIN orders o ON o.customer_id = c.id JOIN order_items oi ON oi.order_id = o.id WHERE o.status <> 'cancelled' GROUP BY c.id, c.first_name, c.last_name ORDER BY lifetime_value DESC, c.id"
+    profile: iq17-default
+  - id: customers_without_orders
+    sql: "SELECT c.id, c.first_name, c.last_name, c.signup_date FROM customers c WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id) ORDER BY c.id"
+    profile: iq17-default
+  - id: customers_without_shipped_orders_left_join
+    sql: "SELECT c.id, c.last_name, COUNT(o.id) AS shipped_orders FROM customers c LEFT JOIN orders o ON o.customer_id = c.id AND o.status = 'shipped' GROUP BY c.id, c.last_name HAVING COUNT(o.id) = 0 ORDER BY c.id"
+    profile: iq17-default
+  - id: email_domains
+    sql: "SELECT LOWER(SUBSTRING(email, CHARINDEX('@', email) + 1, LENGTH(email))) AS domain, COUNT(*) AS customers FROM customers WHERE email IS NOT NULL GROUP BY LOWER(SUBSTRING(email, CHARINDEX('@', email) + 1, LENGTH(email))) ORDER BY customers DESC, domain"
+    profile: iq17-default
+  - id: normalized_phone_digits
+    sql: "SELECT id, phone, REPLACE(REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', ''), ' ', '') AS digits, LENGTH(REPLACE(REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', ''), ' ', '')) AS n_digits FROM customers WHERE phone IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: display_names_and_initials
+    sql: "SELECT id, UPPER(LEFT(TRIM(first_name), 1)) || '. ' || last_name AS short_name, LEFT(TRIM(first_name), 1) || LEFT(last_name, 1) AS initials, COALESCE(LOWER(email), 'no email on file') AS contact FROM customers ORDER BY last_name, id"
+    profile: iq17-default
+  - id: customer_age_bands
+    sql: "SELECT CASE WHEN birth_date IS NULL THEN 'unknown' WHEN DATEDIFF(YEAR, birth_date, '2026-01-01') < 30 THEN 'under 30' WHEN DATEDIFF(YEAR, birth_date, '2026-01-01') < 50 THEN '30-49' WHEN DATEDIFF(YEAR, birth_date, '2026-01-01') < 65 THEN '50-64' ELSE '65+' END AS age_band, COUNT(*) AS customers, ROUND(AVG(credit_limit), 2) AS avg_credit FROM customers GROUP BY CASE WHEN birth_date IS NULL THEN 'unknown' WHEN DATEDIFF(YEAR, birth_date, '2026-01-01') < 30 THEN 'under 30' WHEN DATEDIFF(YEAR, birth_date, '2026-01-01') < 50 THEN '30-49' WHEN DATEDIFF(YEAR, birth_date, '2026-01-01') < 65 THEN '50-64' ELSE '65+' END ORDER BY age_band"
+    profile: iq17-default
+  - id: signup_cohorts_by_quarter
+    sql: "SELECT YEAR(c.signup_date) AS cohort_year, DATEPART(QUARTER, c.signup_date) AS cohort_qtr, COUNT(DISTINCT c.id) AS customers, COUNT(DISTINCT o.customer_id) AS buyers, ROUND(100.0 * COUNT(DISTINCT o.customer_id) / COUNT(DISTINCT c.id), 1) AS conversion_pct FROM customers c LEFT JOIN orders o ON o.customer_id = c.id AND o.status <> 'cancelled' GROUP BY YEAR(c.signup_date), DATEPART(QUARTER, c.signup_date) ORDER BY cohort_year, cohort_qtr"
+    profile: iq17-default
+  - id: days_between_orders
+    sql: "SELECT customer_id, id AS order_id, order_ts, DATEDIFF(DAY, LAG(order_ts) OVER (PARTITION BY customer_id ORDER BY order_ts, id), order_ts) AS days_since_prev FROM orders WHERE status <> 'cancelled' ORDER BY customer_id, order_ts, id"
+    profile: iq17-default
+  - id: rfm_segmentation
+    sql: "WITH rfm AS (SELECT c.id, DATEDIFF(DAY, MAX(o.order_ts), '2026-01-01') AS recency_days, COUNT(DISTINCT o.id) AS frequency, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS monetary FROM customers c JOIN orders o ON o.customer_id = c.id JOIN order_items oi ON oi.order_id = o.id WHERE o.status <> 'cancelled' GROUP BY c.id) SELECT id, recency_days, frequency, monetary, NTILE(3) OVER (ORDER BY recency_days DESC, id) AS r_score, NTILE(3) OVER (ORDER BY frequency, id) AS f_score, NTILE(3) OVER (ORDER BY monetary, id) AS m_score FROM rfm ORDER BY id"
+    profile: iq17-default
+  - id: customers_above_region_average
+    sql: "WITH spend AS (SELECT c.id, c.region_id, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS total FROM customers c JOIN orders o ON o.customer_id = c.id JOIN order_items oi ON oi.order_id = o.id WHERE o.status <> 'cancelled' GROUP BY c.id, c.region_id) SELECT s.id, s.region_id, s.total FROM spend s WHERE s.total > (SELECT AVG(s2.total) FROM spend s2 WHERE s2.region_id = s.region_id) ORDER BY s.region_id, s.total DESC, s.id"
+    profile: iq17-default
+  - id: first_and_latest_order_per_customer
+    sql: "SELECT c.id, c.last_name, (SELECT MIN(o.order_ts) FROM orders o WHERE o.customer_id = c.id) AS first_order, (SELECT MAX(o.order_ts) FROM orders o WHERE o.customer_id = c.id) AS latest_order, (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id AND o.status = 'returned') AS returns FROM customers c WHERE c.is_active = 1 ORDER BY c.id"
+    profile: iq17-default
+  - id: repeat_purchase_rate_by_region
+    sql: "WITH per AS (SELECT c.region_id, c.id, COUNT(o.id) AS n FROM customers c LEFT JOIN orders o ON o.customer_id = c.id AND o.status <> 'cancelled' GROUP BY c.region_id, c.id) SELECT r.name, COUNT(*) AS customers, SUM(CASE WHEN per.n >= 2 THEN 1 ELSE 0 END) AS repeaters, ROUND(100.0 * SUM(CASE WHEN per.n >= 2 THEN 1 ELSE 0 END) / COUNT(*), 1) AS repeat_pct FROM per JOIN regions r ON r.id = per.region_id GROUP BY r.name ORDER BY r.name"
+    profile: iq17-default
+  - id: credit_utilization
+    sql: "SELECT c.id, c.credit_limit, COALESCE(SUM(CASE WHEN o.status = 'pending' THEN oi.quantity * oi.unit_price - oi.line_discount END), 0) AS open_amount, CASE WHEN c.credit_limit = 0 THEN NULL ELSE ROUND(100.0 * COALESCE(SUM(CASE WHEN o.status = 'pending' THEN oi.quantity * oi.unit_price - oi.line_discount END), 0) / c.credit_limit, 2) END AS utilization_pct FROM customers c LEFT JOIN orders o ON o.customer_id = c.id LEFT JOIN order_items oi ON oi.order_id = o.id GROUP BY c.id, c.credit_limit ORDER BY utilization_pct DESC, c.id"
+    profile: iq17-default

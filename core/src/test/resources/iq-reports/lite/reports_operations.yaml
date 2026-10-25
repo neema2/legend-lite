@@ -1,0 +1,30 @@
+# The IQ scale program's realistic reports (2026-10-25): operations, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: shipping_lead_times
+    sql: "SELECT channel, COUNT(*) AS shipped, MIN(DATEDIFF(DAY, order_ts, ship_date)) AS fastest, MAX(DATEDIFF(DAY, order_ts, ship_date)) AS slowest, ROUND(AVG(CAST(DATEDIFF(DAY, order_ts, ship_date) AS NUMERIC(6,2))), 2) AS avg_days, SUM(CASE WHEN DATEDIFF(DAY, order_ts, ship_date) > 5 THEN 1 ELSE 0 END) AS late FROM orders WHERE ship_date IS NOT NULL GROUP BY channel ORDER BY channel"
+    profile: iq17-default
+  - id: pending_orders_aging
+    sql: "SELECT o.id, o.order_ts, c.last_name, DATEDIFF(DAY, o.order_ts, '2026-01-01') AS age_days, CASE WHEN DATEDIFF(DAY, o.order_ts, '2026-01-01') > 365 THEN 'stale' WHEN DATEDIFF(DAY, o.order_ts, '2026-01-01') > 90 THEN 'aging' ELSE 'fresh' END AS bucket FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.status = 'pending' ORDER BY o.order_ts, o.id"
+    profile: iq17-default
+  - id: order_numbers_and_week
+    sql: "SELECT id, 'ORD-' || RIGHT('00000' || CAST(id AS VARCHAR(10)), 5) AS order_no, DATEFORMAT(order_ts, 'YYYY-MM-DD') AS order_day, DATEPART(WEEK, order_ts) AS iso_week, CONVERT(VARCHAR(8), ship_date, 112) AS ship_yyyymmdd FROM orders WHERE id <= 25 ORDER BY id"
+    profile: iq17-default
+  - id: first_of_month_and_month_end
+    sql: "SELECT id, CAST(order_ts AS DATE) AS order_day, DATEADD(DAY, 1 - DAY(order_ts), CAST(order_ts AS DATE)) AS month_start, DATEADD(DAY, -1, DATEADD(MONTH, 1, DATEADD(DAY, 1 - DAY(order_ts), CAST(order_ts AS DATE)))) AS month_end FROM orders WHERE id BETWEEN 10 AND 30 ORDER BY id"
+    profile: iq17-default
+  - id: orders_in_the_last_90_days_of_2025
+    sql: "SELECT o.id, o.order_ts, o.status, c.city FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.order_ts >= DATEADD(DAY, -90, '2025-12-31') AND o.order_ts < '2026-01-01' AND (o.status = 'shipped' OR (o.status = 'pending' AND o.discount_pct > 0)) ORDER BY o.order_ts, o.id"
+    profile: iq17-default
+  - id: order_totals_with_fees_and_tax
+    sql: "SELECT o.id, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS subtotal, o.discount_pct, o.shipping_fee, ROUND(SUM(oi.quantity * oi.unit_price - oi.line_discount) * (1 - o.discount_pct) + o.shipping_fee, 2) AS total, ROUND((SUM(oi.quantity * oi.unit_price - oi.line_discount) * (1 - o.discount_pct) + o.shipping_fee) * 0.0825, 2) AS sales_tax FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status <> 'cancelled' GROUP BY o.id, o.discount_pct, o.shipping_fee HAVING SUM(oi.quantity * oi.unit_price - oi.line_discount) > 1000 ORDER BY total DESC, o.id"
+    profile: iq17-default
+  - id: big_orders_with_exists_and_in
+    sql: "SELECT o.id, o.customer_id, o.channel FROM orders o WHERE EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND oi.quantity >= 5) AND o.customer_id IN (SELECT c.id FROM customers c WHERE c.segment IN ('smb', 'enterprise')) AND o.status NOT IN ('cancelled') ORDER BY o.id"
+    profile: iq17-default
+  - id: returned_orders_detail
+    sql: "SELECT o.id, o.order_ts, p.name, oi.quantity, oi.unit_price, c.email FROM orders o JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id JOIN customers c ON c.id = o.customer_id WHERE o.status = 'returned' ORDER BY o.id, oi.id"
+    profile: iq17-default
+  - id: line_count_distribution
+    sql: "SELECT lines, COUNT(*) AS orders FROM (SELECT o.id, COUNT(oi.id) AS lines FROM orders o LEFT JOIN order_items oi ON oi.order_id = o.id GROUP BY o.id) per GROUP BY lines ORDER BY lines"
+    profile: iq17-default

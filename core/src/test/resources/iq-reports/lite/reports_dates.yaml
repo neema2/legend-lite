@@ -1,0 +1,33 @@
+# The IQ scale program's realistic reports (2026-10-25): dates, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: orders_by_week_start
+    sql: "SELECT DATEADD(DAY, 1 - DOW(order_ts), CAST(order_ts AS DATE)) AS week_start, COUNT(*) AS orders FROM orders WHERE order_ts >= '2025-10-01' AND order_ts < '2026-01-01' GROUP BY DATEADD(DAY, 1 - DOW(order_ts), CAST(order_ts AS DATE)) ORDER BY week_start"
+    profile: iq17-default
+  - id: age_at_signup
+    sql: "SELECT id, birth_date, signup_date, DATEDIFF(YEAR, birth_date, signup_date) - CASE WHEN MONTH(signup_date) * 100 + DAY(signup_date) < MONTH(birth_date) * 100 + DAY(birth_date) THEN 1 ELSE 0 END AS age_at_signup FROM customers WHERE birth_date IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: weekend_orders
+    sql: "SELECT CASE WHEN DOW(order_ts) IN (1, 7) THEN 'weekend' ELSE 'weekday' END AS day_type, channel, COUNT(*) AS orders FROM orders GROUP BY CASE WHEN DOW(order_ts) IN (1, 7) THEN 'weekend' ELSE 'weekday' END, channel ORDER BY day_type, channel"
+    profile: iq17-default
+  - id: quarter_boundaries
+    sql: "SELECT id, CAST(order_ts AS DATE) AS order_day, YEAR(order_ts) AS yr, DATEPART(QUARTER, order_ts) AS qtr, YMD(YEAR(order_ts), 3 * DATEPART(QUARTER, order_ts) - 2, 1) AS quarter_start, DATEADD(DAY, -1, DATEADD(MONTH, 3, YMD(YEAR(order_ts), 3 * DATEPART(QUARTER, order_ts) - 2, 1))) AS quarter_end FROM orders WHERE id <= 15 ORDER BY id"
+    profile: iq17-default
+  - id: formatted_timestamps
+    sql: "SELECT id, DATEFORMAT(order_ts, 'YYYY-MM-DD HH:NN') AS stamp, DATEFORMAT(order_ts, 'Mmm DD, YYYY') AS pretty, DATENAME(MONTH, order_ts) AS month_name, DATEPART(DAYOFYEAR, order_ts) AS day_of_year FROM orders WHERE id <= 12 ORDER BY id"
+    profile: iq17-default
+  - id: time_to_first_payment
+    sql: "SELECT o.id, DATEDIFF(MINUTE, o.order_ts, MIN(p.paid_ts)) AS minutes, CAST(DATEDIFF(MINUTE, o.order_ts, MIN(p.paid_ts)) / 60 AS VARCHAR(10)) || 'h ' || CAST(MOD(DATEDIFF(MINUTE, o.order_ts, MIN(p.paid_ts)), 60) AS VARCHAR(10)) || 'm' AS elapsed FROM orders o JOIN payments p ON p.order_id = o.id WHERE o.id <= 40 GROUP BY o.id, o.order_ts ORDER BY o.id"
+    profile: iq17-default
+  - id: signup_anniversaries_in_december
+    sql: "SELECT id, first_name, signup_date, DATEDIFF(YEAR, signup_date, '2025-12-31') AS years_with_us FROM customers WHERE MONTH(signup_date) = 12 OR (MONTH(signup_date) = 11 AND DAY(signup_date) > 15) ORDER BY signup_date, id"
+    profile: iq17-default
+  - id: ship_within_three_days_by_month
+    sql: "SELECT DATEFORMAT(order_ts, 'YYYY-MM') AS ym, COUNT(*) AS shipped, SUM(CASE WHEN DATEDIFF(DAY, order_ts, ship_date) <= 3 THEN 1 ELSE 0 END) AS fast, ROUND(100.0 * SUM(CASE WHEN DATEDIFF(DAY, order_ts, ship_date) <= 3 THEN 1 ELSE 0 END) / COUNT(*), 1) AS fast_pct FROM orders WHERE ship_date IS NOT NULL AND order_ts >= '2025-01-01' GROUP BY DATEFORMAT(order_ts, 'YYYY-MM') ORDER BY ym"
+    profile: iq17-default
+  - id: late_payments
+    sql: "SELECT p.id, p.order_id, o.order_ts, p.paid_ts, DATEDIFF(DAY, o.order_ts, p.paid_ts) AS days_late FROM payments p JOIN orders o ON o.id = p.order_id WHERE DATEDIFF(DAY, o.order_ts, p.paid_ts) > 7 ORDER BY days_late DESC, p.id"
+    profile: iq17-default
+  - id: hire_date_cohorts
+    sql: "SELECT YEAR(hire_date) AS hire_year, COUNT(*) AS hires, MIN(hire_date) AS first_hire, ROUND(AVG(salary), 2) AS avg_salary, DATEDIFF(MONTH, MIN(hire_date), MAX(hire_date)) AS span_months FROM employees GROUP BY YEAR(hire_date) ORDER BY hire_year"
+    profile: iq17-default

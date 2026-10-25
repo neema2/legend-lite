@@ -1,0 +1,45 @@
+# The IQ scale program's realistic reports (2026-10-25): sales, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: monthly_revenue_and_orders
+    sql: "SELECT YEAR(o.order_ts) AS yr, MONTH(o.order_ts) AS mon, COUNT(DISTINCT o.id) AS orders, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS gross, ROUND(SUM((oi.quantity * oi.unit_price - oi.line_discount) * (1 - o.discount_pct)), 2) AS net FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status <> 'cancelled' GROUP BY YEAR(o.order_ts), MONTH(o.order_ts) ORDER BY yr, mon"
+    profile: iq17-default
+  - id: quarterly_revenue_with_growth
+    sql: "WITH q AS (SELECT YEAR(o.order_ts) AS yr, DATEPART(QUARTER, o.order_ts) AS qtr, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS revenue FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status IN ('shipped', 'returned') GROUP BY YEAR(o.order_ts), DATEPART(QUARTER, o.order_ts)) SELECT yr, qtr, revenue, LAG(revenue) OVER (ORDER BY yr, qtr) AS prev_revenue, CASE WHEN LAG(revenue) OVER (ORDER BY yr, qtr) IS NULL THEN NULL ELSE ROUND(100.0 * (revenue - LAG(revenue) OVER (ORDER BY yr, qtr)) / LAG(revenue) OVER (ORDER BY yr, qtr), 1) END AS growth_pct FROM q ORDER BY yr, qtr"
+    profile: iq17-default
+  - id: year_to_date_running_total
+    sql: "SELECT YEAR(o.order_ts) AS yr, MONTH(o.order_ts) AS mon, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS revenue, SUM(SUM(oi.quantity * oi.unit_price - oi.line_discount)) OVER (PARTITION BY YEAR(o.order_ts) ORDER BY MONTH(o.order_ts) ROWS UNBOUNDED PRECEDING) AS ytd FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status IN ('shipped', 'returned') GROUP BY YEAR(o.order_ts), MONTH(o.order_ts) ORDER BY yr, mon"
+    profile: iq17-default
+  - id: revenue_by_category_share
+    sql: "SELECT p.category, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS revenue, ROUND(100.0 * SUM(oi.quantity * oi.unit_price - oi.line_discount) / SUM(SUM(oi.quantity * oi.unit_price - oi.line_discount)) OVER (), 2) AS share_pct FROM order_items oi JOIN products p ON p.id = oi.product_id JOIN orders o ON o.id = oi.order_id WHERE o.status IN ('shipped', 'returned') GROUP BY p.category ORDER BY revenue DESC, p.category"
+    profile: iq17-default
+  - id: top_two_products_per_category
+    sql: "SELECT category, name, units, revenue FROM ( SELECT p.category, p.name, p.id, SUM(oi.quantity) AS units, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS revenue, ROW_NUMBER() OVER (PARTITION BY p.category ORDER BY SUM(oi.quantity * oi.unit_price - oi.line_discount) DESC, p.id) AS rn FROM products p JOIN order_items oi ON oi.product_id = p.id JOIN orders o ON o.id = oi.order_id WHERE o.status <> 'cancelled' GROUP BY p.category, p.name, p.id) ranked WHERE rn <= 2 ORDER BY category, rn"
+    profile: iq17-default
+  - id: sales_by_channel_and_status_pivot
+    sql: "SELECT o.channel, COUNT(*) AS orders, SUM(CASE WHEN o.status = 'shipped' THEN 1 ELSE 0 END) AS shipped, SUM(CASE WHEN o.status = 'pending' THEN 1 ELSE 0 END) AS pending, SUM(CASE WHEN o.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled, SUM(CASE WHEN o.status = 'returned' THEN 1 ELSE 0 END) AS returned, ROUND(100.0 * SUM(CASE WHEN o.status = 'cancelled' THEN 1 ELSE 0 END) / COUNT(*), 1) AS cancel_rate FROM orders o GROUP BY o.channel ORDER BY o.channel"
+    profile: iq17-default
+  - id: average_order_value_by_segment
+    sql: "WITH totals AS (SELECT o.id, o.customer_id, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS order_total FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status <> 'cancelled' GROUP BY o.id, o.customer_id) SELECT c.segment, COUNT(*) AS orders, ROUND(AVG(t.order_total), 2) AS avg_order_value, MIN(t.order_total) AS smallest, MAX(t.order_total) AS largest FROM totals t JOIN customers c ON c.id = t.customer_id GROUP BY c.segment ORDER BY c.segment"
+    profile: iq17-default
+  - id: weekday_sales_profile
+    sql: "SELECT DATENAME(WEEKDAY, o.order_ts) AS weekday, DOW(o.order_ts) AS dow, COUNT(DISTINCT o.id) AS orders, SUM(oi.quantity) AS units FROM orders o JOIN order_items oi ON oi.order_id = o.id GROUP BY DATENAME(WEEKDAY, o.order_ts), DOW(o.order_ts) ORDER BY dow"
+    profile: iq17-default
+  - id: hour_of_day_buckets
+    sql: "SELECT CASE WHEN HOUR(order_ts) < 6 THEN '1 night' WHEN HOUR(order_ts) < 12 THEN '2 morning' WHEN HOUR(order_ts) < 18 THEN '3 afternoon' ELSE '4 evening' END AS daypart, COUNT(*) AS orders, ROUND(AVG(CAST(discount_pct AS DOUBLE)) * 100, 2) AS avg_discount_pct FROM orders GROUP BY CASE WHEN HOUR(order_ts) < 6 THEN '1 night' WHEN HOUR(order_ts) < 12 THEN '2 morning' WHEN HOUR(order_ts) < 18 THEN '3 afternoon' ELSE '4 evening' END ORDER BY daypart"
+    profile: iq17-default
+  - id: rollup_region_and_segment
+    sql: "SELECT r.name AS region, c.segment, GROUPING(r.name) AS g_region, GROUPING(c.segment) AS g_segment, COUNT(*) AS lines, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS revenue FROM orders o JOIN customers c ON c.id = o.customer_id JOIN regions r ON r.id = c.region_id JOIN order_items oi ON oi.order_id = o.id WHERE o.status IN ('shipped', 'returned') GROUP BY ROLLUP(r.name, c.segment) ORDER BY g_region, region, g_segment, c.segment"
+    profile: iq17-default
+  - id: fiscal_year_revenue
+    sql: "SELECT CASE WHEN MONTH(o.order_ts) >= 7 THEN YEAR(o.order_ts) + 1 ELSE YEAR(o.order_ts) END AS fiscal_year, COUNT(DISTINCT o.id) AS orders, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS revenue FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status IN ('shipped', 'returned') GROUP BY CASE WHEN MONTH(o.order_ts) >= 7 THEN YEAR(o.order_ts) + 1 ELSE YEAR(o.order_ts) END ORDER BY fiscal_year"
+    profile: iq17-default
+  - id: moving_average_of_monthly_revenue
+    sql: "WITH m AS (SELECT DATEFORMAT(o.order_ts, 'YYYY-MM') AS ym, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS revenue FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status IN ('shipped', 'returned') GROUP BY DATEFORMAT(o.order_ts, 'YYYY-MM')) SELECT ym, revenue, ROUND(AVG(revenue) OVER (ORDER BY ym ROWS BETWEEN 2 PRECEDING AND CURRENT ROW), 2) AS ma3 FROM m ORDER BY ym"
+    profile: iq17-default
+  - id: discount_impact_by_band
+    sql: "SELECT CASE WHEN o.discount_pct = 0 THEN 'none' WHEN o.discount_pct <= 0.10 THEN 'low' ELSE 'high' END AS band, COUNT(DISTINCT o.id) AS orders, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS gross, ROUND(SUM((oi.quantity * oi.unit_price - oi.line_discount) * o.discount_pct), 2) AS discount_given FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status <> 'cancelled' GROUP BY CASE WHEN o.discount_pct = 0 THEN 'none' WHEN o.discount_pct <= 0.10 THEN 'low' ELSE 'high' END ORDER BY band"
+    profile: iq17-default
+  - id: best_month_per_year
+    sql: "WITH m AS (SELECT YEAR(o.order_ts) AS yr, MONTH(o.order_ts) AS mon, SUM(oi.quantity * oi.unit_price - oi.line_discount) AS revenue FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status IN ('shipped', 'returned') GROUP BY YEAR(o.order_ts), MONTH(o.order_ts)) SELECT yr, mon, revenue FROM m m1 WHERE revenue = (SELECT MAX(m2.revenue) FROM m m2 WHERE m2.yr = m1.yr) ORDER BY yr, mon"
+    profile: iq17-default
