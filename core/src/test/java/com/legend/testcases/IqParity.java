@@ -1051,23 +1051,7 @@ public final class IqParity {
             Source src = sources.get(i);
             reached[i] = src.oneRow() || src.reachedBy(i, keys);
         }
-        List<SqlAst.Expr> equalities = new ArrayList<>();
-        if (s.where() != null) {
-            conjuncts(java.util.Objects.requireNonNull(s.where()), equalities);
-        }
-        for (SqlAst.FromItem f : s.from()) {
-            innerOns(f, equalities);
-        }
-        for (boolean more = true; more; ) {
-            more = false;
-            for (SqlAst.Expr eq : equalities) {
-                if (eq instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.EQ) {
-                    more |= determines(resolve(b.left(), s, sources, false), resolve(b.right(), s, sources, false),
-                            sources, reached) | determines(resolve(b.right(), s, sources, false),
-                            resolve(b.left(), s, sources, false), sources, reached);
-                }
-            }
-        }
+        closeOverEqualities(s, sources, reached);
         for (int i = 0; i < sources.size(); i++) {
             if (!reached[i]) {
                 return "orders by no unique column of " + sources.get(i).label();
@@ -1167,23 +1151,7 @@ public final class IqParity {
             Source src = sources.get(i);
             reached[i] = src.oneRow() || src.reachedBy(i, keys);
         }
-        List<SqlAst.Expr> equalities = new ArrayList<>();
-        if (s.where() != null) {
-            conjuncts(java.util.Objects.requireNonNull(s.where()), equalities);
-        }
-        for (SqlAst.FromItem f : s.from()) {
-            innerOns(f, equalities);
-        }
-        for (boolean more = true; more; ) {
-            more = false;
-            for (SqlAst.Expr e : equalities) {
-                if (e instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.EQ) {
-                    more |= determines(resolve(b.left(), s, sources, false), resolve(b.right(), s, sources, false),
-                            sources, reached) | determines(resolve(b.right(), s, sources, false),
-                            resolve(b.left(), s, sources, false), sources, reached);
-                }
-            }
-        }
+        closeOverEqualities(s, sources, reached);
         for (int i = 0; i < sources.size(); i++) {
             if (!reached[i]) {
                 return at + " orders by no unique column of " + sources.get(i).label();
@@ -1265,29 +1233,82 @@ public final class IqParity {
         for (int i = 0; i < sources.size(); i++) {
             reached[i] = i == at || sources.get(i).oneRow();
         }
-        List<SqlAst.Expr> equalities = new ArrayList<>();
-        if (s.where() != null) {
-            conjuncts(java.util.Objects.requireNonNull(s.where()), equalities);
-        }
-        for (SqlAst.FromItem f : s.from()) {
-            innerOns(f, equalities);
-        }
-        for (boolean more = true; more; ) {
-            more = false;
-            for (SqlAst.Expr eq : equalities) {
-                if (eq instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.EQ) {
-                    more |= determines(resolve(b.left(), s, sources, false), resolve(b.right(), s, sources, false),
-                            sources, reached) | determines(resolve(b.right(), s, sources, false),
-                            resolve(b.left(), s, sources, false), sources, reached);
-                }
-            }
-        }
+        closeOverEqualities(s, sources, reached);
         for (boolean r : reached) {
             if (!r) {
                 return false;
             }
         }
         return true;
+    }
+
+    /** Marks each source of {@code s} ordered that an equality determines from one ordered already, until none is
+     *  left: the WHERE's and the inner joins' ON's (a unique column of one equated with a column of another), and an
+     *  outer join's ON's for a source on its NULL-supplying side, from one outside it -- one row or none of it for
+     *  each row there (the IQ scale program, 2026-10-26, the realistic reports: quota q LEFT JOIN (SELECT
+     *  sales_rep_id, ... GROUP BY sales_rep_id) s ON s.sales_rep_id = q.id, ordered by q.id). */
+    private static void closeOverEqualities(SqlAst.Select s, List<Source> sources, boolean[] reached) {
+        List<SqlAst.Expr> equalities = new ArrayList<>();
+        if (s.where() != null) {
+            conjuncts(java.util.Objects.requireNonNull(s.where()), equalities);
+        }
+        List<SideOn> outer = new ArrayList<>();
+        int leaf = 0;
+        for (SqlAst.FromItem f : s.from()) {
+            innerOns(f, equalities);
+            leaf = outerOns(f, leaf, outer);
+        }
+        for (boolean more = true; more; ) {
+            more = false;
+            for (SqlAst.Expr e : equalities) {
+                if (e instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.EQ) {
+                    more |= determines(resolve(b.left(), s, sources, false), resolve(b.right(), s, sources, false),
+                            sources, reached) | determines(resolve(b.right(), s, sources, false),
+                            resolve(b.left(), s, sources, false), sources, reached);
+                }
+            }
+            for (SideOn o : outer) {
+                if (o.condition() instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.EQ) {
+                    String l = resolve(b.left(), s, sources, false);
+                    String r = resolve(b.right(), s, sources, false);
+                    more |= o.across(l, r) && determines(l, r, sources, reached)
+                            | o.across(r, l) && determines(r, l, sources, reached);
+                }
+            }
+        }
+    }
+
+    /** A conjunct of an outer join's ON, and its NULL-supplying side: the FROM's leaves {@code from} to {@code to}. */
+    private record SideOn(SqlAst.Expr condition, int from, int to) {
+
+        /** Whether {@code unique} is a column of a source on the NULL-supplying side and {@code other} of one off it. */
+        boolean across(@com.legend.base.Nullable String unique, @com.legend.base.Nullable String other) {
+            return columnKey(unique) && columnKey(other) && inside(unique) && !inside(other);
+        }
+
+        private boolean inside(String key) {
+            int i = Integer.parseInt(key.substring(0, key.indexOf('.')));
+            return i >= from && i < to;
+        }
+    }
+
+    /** The conjuncts of the ON of each LEFT and RIGHT join of {@code f}, whose leaves start at {@code start}, into
+     *  {@code out} with its NULL-supplying side; the index past {@code f}'s leaves. */
+    private static int outerOns(SqlAst.FromItem f, int start, List<SideOn> out) {
+        if (!(f instanceof SqlAst.Join j)) {
+            return start + 1;
+        }
+        int mid = outerOns(j.left(), start, out);
+        int end = outerOns(j.right(), mid, out);
+        if (j.on() != null && (j.type() == SqlAst.JoinType.LEFT || j.type() == SqlAst.JoinType.RIGHT)) {
+            List<SqlAst.Expr> conditions = new ArrayList<>();
+            conjuncts(java.util.Objects.requireNonNull(j.on()), conditions);
+            boolean left = j.type() == SqlAst.JoinType.LEFT;
+            for (SqlAst.Expr c : conditions) {
+                out.add(new SideOn(c, left ? mid : start, left ? end : mid));
+            }
+        }
+        return end;
     }
 
     /** The operands of the ANDs of {@code e}, into {@code out}. */
