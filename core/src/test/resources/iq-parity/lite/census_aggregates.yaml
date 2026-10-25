@@ -86,3 +86,8 @@ tests:
   - id: weighted_avg
     sql: "SELECT WEIGHTED_AVG(v, 3) OVER (ORDER BY id) AS w FROM g WHERE id < 10 ORDER BY id"
     profile: iq17-default
+  # the IQ scale program, 2026-10-26 (tpcds-6742): an AVG of a SUM of SUMs over a join's fan-out, its values past the
+  # digits lite's type of the sum says (IQ sizes a sum by its rows); DuckDB overflowed in a step of the exact quotient
+  - id: avg_of_a_sum_of_sums_past_its_type
+    sql: "WITH cs AS (SELECT c.id AS ck, SUM(ws.nm) AS tws, SUM(xs.nm) AS tcs, COUNT(DISTINCT ws.id) AS woc FROM t c LEFT JOIN t ws ON ws.id >= c.id LEFT JOIN t xs ON xs.id >= c.id CROSS JOIN t x1 CROSS JOIN t x2 CROSS JOIN t x3 CROSS JOIN t x4 CROSS JOIN t x5 GROUP BY c.id), sg AS (SELECT cd.bt AS g, SUM(tws) AS twg, SUM(tcs) AS tcg, SUM(woc) AS twog FROM cs JOIN t cd ON cs.ck = cd.id GROUP BY cd.bt), se AS (SELECT cd.sm AS ed, SUM(twg) AS tw, SUM(tcg) AS tc FROM sg JOIN t cd ON sg.g = cd.bt GROUP BY cd.sm) SELECT se.ed, SUM(tw) AS sw, AVG(tw) AS aw, AVG(tc) AS ac FROM se GROUP BY se.ed ORDER BY sw DESC, se.ed"
+    profile: iq17-default
