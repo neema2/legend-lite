@@ -49,7 +49,9 @@ export type ChartMark =
   // batch 3's leftovers: shares as cells (a Marimekko, a waffle), and a start and an end per row (a Gantt)
   | 'marimekko' | 'waffle' | 'gantt'
   // the trader screens (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K3): a price's open, high, low and close per period
-  | 'candlestick';
+  | 'candlestick'
+  // K15: a news feed -- each row a card, the newest first (ChartFeed)
+  | 'feed';
 
 /** Batch 5's maps: drawn by chart-maps.ts on Natural Earth's countries, fetched with the first of them. */
 export const MAP_MARKS: ReadonlySet<ChartMark> = new Set(['map', 'bubblemap']);
@@ -66,6 +68,36 @@ export const KIND_MARKS: ReadonlySet<ChartMark> = new Set([
   'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree', 'matrix', 'boxplot', 'marimekko', 'waffle', 'gantt',
   'candlestick',
 ]);
+
+/**
+ * A FEED'S CARDS (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K15): each of the cube's rows a card, the newest first, as a
+ * news terminal shows a story -- its headline and its time, and beside them what the columns named here hold: its
+ * source, its tags (a category, a region), its weight (FLASH the bad colour and bold, BRIEF quiet), its tickers (a text
+ * of space-separated tickers, each a chip), its tone (a number from -1 to 1: the bad colour below zero, the good above)
+ * and its body. `key` breaks a tie in time (a story's id) and keeps each card itself across ticks. Every slot a column
+ * of the cube, every value as the grid writes it; the cards are the cube's rows under its filter, so a feed is
+ * customised by its grid's filter -- a sector, tickers, a keyword (its own box: ChartPanel), a weight -- kept with the
+ * page.
+ */
+export interface ChartFeed {
+  readonly headline: string;
+  readonly time: string;
+  readonly body?: string;
+  readonly source?: string;
+  readonly tags?: readonly string[];
+  readonly weight?: string;
+  readonly tickers?: string;
+  readonly tone?: string;
+  readonly key?: string;
+}
+
+/** A feed's slots: each names a column; its tags a list of them. */
+export const FEED_SLOTS = ['headline', 'time', 'body', 'source', 'weight', 'tickers', 'tone', 'key'] as const;
+
+/** The columns a feed reads, its slots' in their order. */
+export function feedColumns(feed: ChartFeed): string[] {
+  return [...new Set([...FEED_SLOTS.map((k) => feed[k]), ...(feed.tags ?? [])].filter((c): c is string => c !== undefined))];
+}
 
 /** The kinds that plot ROWS, not groups: a scatter, and a scatter matrix (every pair of its values). */
 export function plotsRows(spec: Pick<ChartSpec, 'mark'>): boolean {
@@ -311,6 +343,8 @@ export interface ChartSpec {
   readonly calcs?: readonly ChartCalc[];
   /** Drilled down the grid's groupings. */
   readonly drill?: ChartDrill;
+  /** A feed's cards: which of the cube's columns fills each slot (K15). */
+  readonly feed?: ChartFeed;
   readonly options: ChartOptions;
   /**
    * The chart keeps its own grouping (PINNED: a hand on its axes pins it). Absent, it is DYNAMIC -- it follows the
@@ -433,7 +467,11 @@ const known = (words: Readonly<Record<string, true>>, v: unknown): boolean => ty
 // it has no place for -- a newer DataCube's, or one misspelt -- is refused by name, never ignored
 const SPEC_KEYS: Readonly<Record<keyof ChartSpec, true>> = {
   version: true, mark: true, x: true, grain: true, bins: true, y: true, split: true, size: true, label: true, colour: true,
-  tooltip: true, facet: true, at: true, layers: true, calcs: true, drill: true, options: true, frozen: true, kept: true,
+  tooltip: true, facet: true, at: true, layers: true, calcs: true, drill: true, feed: true, options: true, frozen: true,
+  kept: true,
+};
+const FEED_KEYS: Readonly<Record<keyof ChartFeed, true>> = {
+  headline: true, time: true, body: true, source: true, tags: true, weight: true, tickers: true, tone: true, key: true,
 };
 const KEPT_KEYS: Readonly<Record<keyof ChartKept, true>> = { filter: true };
 const PLACE_KEYS: Readonly<Record<keyof ChartPlace, true>> = { lat: true, lon: true };
@@ -659,6 +697,20 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
   }
   const drillExtra = isRecord(drill) ? unknownKey(drill, DRILL_KEYS, 'its drill') : null;
   if (drillExtra) return drillExtra;
+  const feed = spec['feed'];
+  if (feed !== undefined) {
+    if (!isRecord(feed) || typeof feed['headline'] !== 'string' || typeof feed['time'] !== 'string') {
+      return `its feed ${JSON.stringify(feed)} names no headline and time columns`;
+    }
+    const feedExtra = unknownKey(feed, FEED_KEYS, 'its feed');
+    if (feedExtra) return feedExtra;
+    const odd = FEED_SLOTS.find((k) => feed[k] !== undefined && typeof feed[k] !== 'string');
+    if (odd !== undefined) return `its feed's ${odd} ${JSON.stringify(feed[odd])} is not a column's name`;
+    const tags = feed['tags'];
+    if (tags !== undefined && !(Array.isArray(tags) && tags.every((t) => typeof t === 'string'))) {
+      return `its feed's tags ${JSON.stringify(tags)} are not a list of columns' names`;
+    }
+  }
   return null;
 }
 
@@ -708,6 +760,7 @@ export const CHART_MARKS: readonly { value: ChartMark; label: string }[] = [
   { value: 'waffle', label: 'Waffle' },
   { value: 'gantt', label: 'Gantt' },
   { value: 'candlestick', label: 'Candlestick' },
+  { value: 'feed', label: 'News feed' },
 ];
 
 /** A kind's name, as a sentence says it ("a Pareto", "a polar bar"). */
@@ -1271,7 +1324,17 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
  * dropped without a word. Part of a change by hand (editChart).
  */
 function asMark(spec: ChartSpec, mark: ChartMark, s: CubeSnapshot): ChartSpec {
-  const { x, split, grain, bins, at: _at, colour: _colour, ...rest } = spec;
+  // a feed draws its rows into its own slots: what a chart plots goes, its slots come -- its own, or the cube's first
+  // date-time and text columns as a start (the rules ask for what is still missing by name)
+  if (mark === 'feed') {
+    const {
+      x: _x, split: _split, grain: _grain, bins: _bins, at: _place, colour: _shade, size: _size, label: _label,
+      tooltip: _tooltip, facet: _facet, layers: _layers, drill: _drill, feed, ...bare
+    } = spec;
+    const started = feed ?? firstFeed(s);
+    return { ...bare, mark, y: [], ...(started ? { feed: started } : {}) };
+  }
+  const { x, split, grain, bins, at: _at, colour: _colour, feed: _feed, ...rest } = spec;
   // a bubble map's places go with it: no other kind places anything by latitude and longitude
   const at = mark === 'bubblemap' ? spec.at : undefined;
   // so does a treemap's colour by value: no other kind colours by one
@@ -1307,10 +1370,19 @@ function asMark(spec: ChartSpec, mark: ChartMark, s: CubeSnapshot): ChartSpec {
   };
 }
 
+/** A feed's slots as the cube suggests them: its first date-time its time, its first text its headline; none without
+ *  both. */
+function firstFeed(s: CubeSnapshot): ChartFeed | undefined {
+  const columns = rowColumns(s);
+  const time = columns.find((c) => isTemporal(c.type))?.name;
+  const headline = columns.find((c) => familyOf(c.type) === 'text')?.name;
+  return time !== undefined && headline !== undefined ? { headline, time } : undefined;
+}
+
 /** Whether a chart takes its grouping from the cube as the cube's grouping changes (followCube): a live chart of
  *  groups, not one of rows, nor one drawing the grid as shown. */
 function live(spec: ChartSpec): boolean {
-  return !spec.frozen && !plotsRows(spec) && !GRID_MARKS.has(spec.mark) && !MAP_MARKS.has(spec.mark);
+  return !spec.frozen && !plotsRows(spec) && !GRID_MARKS.has(spec.mark) && !MAP_MARKS.has(spec.mark) && spec.mark !== 'feed';
 }
 
 /**
@@ -1481,7 +1553,8 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   // a chart of the grid as shown (a treemap, a sunburst, a tree) is drawn from the grid's own rows and levels: the
   // column across, the values and the split it carries (kept for a change back to another kind) are not judged, as it
   // draws none of them; a slot it does not draw is refused as on any kind
-  const gridKind = GRID_MARKS.has(drilled.mark);
+  // a feed draws its rows into its own slots (ChartFeed): nothing across, nothing plotted, as a grid's kind
+  const gridKind = GRID_MARKS.has(drilled.mark) || drilled.mark === 'feed';
   // a drilled chart is checked as it draws: the level after its path across (the levels themselves are checked too)
   const spec = drilledView(drilled).spec;
   const known = new Set([...rowColumns(s), ...chartRowCalcs(spec)].map((c) => c.name));
@@ -1494,6 +1567,27 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     out.push('Pick a column across.');
   } else if (spec.x !== undefined && !known.has(spec.x)) out.push(`The cube has no column '${spec.x}'.`);
   if (spec.y.length === 0 && !gridKind) out.push('Pick something to plot.');
+  // A FEED'S SLOTS (K15): each a column of the cube; its time a date-time, its tone a number, its headline and tickers text
+  if (spec.mark === 'feed') {
+    const feed = spec.feed;
+    if (feed === undefined) out.push('A news feed needs its headline and time columns (feed: headline, time).');
+    else {
+      const typeOf = new Map(rowColumns(s).map((c) => [c.name, c.type]));
+      for (const column of feedColumns(feed)) if (!known.has(column)) out.push(`The cube has no column '${column}'.`);
+      const time = typeOf.get(feed.time);
+      if (time !== undefined && !isTemporal(time)) out.push(`A feed's time is a date or a date-time: '${feed.time}' is ${time}.`);
+      const tone = feed.tone === undefined ? undefined : typeOf.get(feed.tone);
+      if (tone !== undefined && !isNumeric(tone)) out.push(`A feed's tone is a number from -1 to 1: '${feed.tone}' is ${tone}.`);
+      for (const slot of ['headline', 'tickers'] as const) {
+        const column = feed[slot];
+        const type = column === undefined ? undefined : typeOf.get(column);
+        if (type !== undefined && familyOf(type) !== 'text') out.push(`A feed's ${slot} is text: '${column}' is ${type}.`);
+      }
+    }
+    if (spec.y.length > 0 || spec.x !== undefined || spec.split !== undefined) {
+      out.push('A news feed draws its rows into its slots: it has nothing across, nothing plotted and no split.');
+    }
+  } else if (spec.feed !== undefined) out.push(`A ${markLabel(spec.mark)} has no cards: a news feed has.`);
   // colour by value: a treemap's, a column the grid shows
   if (spec.colour !== undefined) {
     if (spec.mark !== 'treemap') out.push(`A ${markLabel(spec.mark)} has no colour by value: a treemap has.`);
@@ -1768,6 +1862,7 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
  * along as a "unique value".
  */
 export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapshot {
+  if (drilled.mark === 'feed') return feedSnapshot(s, drilled);
   // drilled, the level after the path across and the path as the chart's own conditions
   const view = drilledView(drilled);
   const conditions = view.conditions;
@@ -1905,6 +2000,32 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): QuerySnapsho
     measures: allMeasures,
     ...(keptGroup.length + shown.length > 0 ? { groupDerived: [...keptGroup, ...shown] } : {}),
     sorts,
+  };
+}
+
+/**
+ * A FEED'S QUERY (K15): the cube's rows as they are under its filter (the grid's, or a frozen feed's kept one), its
+ * slots' columns and what the filter reads, the newest first -- a tie in time broken by its key, newest first too, so
+ * that the order is the database's and the same on every tick.
+ */
+function feedSnapshot(s: CubeSnapshot, spec: ChartSpec): QuerySnapshot {
+  const feed = spec.feed;
+  if (feed === undefined) throw new CubeRefusal('a news feed names no headline and time columns');
+  const filter = chartFilter(spec, s.filter);
+  const reads = new Set([...feedColumns(feed), ...filterColumns(filter)]);
+  const {
+    pivotValues: _pv, pivotTotal: _pt, groupDerived: _gd, window: _w,
+    leafCount: _lc, childCount: _cc, filter: _gridFilter, ...rest
+  } = s as CubeSnapshot & Record<string, unknown>;
+  return {
+    ...(rest as CubeSnapshot),
+    columns: s.columns.filter((c) => reads.has(c.name)),
+    ...(filter ? { filter } : {}),
+    rows: [],
+    pivotOn: [],
+    measures: [],
+    sorts: [{ column: feed.time, direction: 'desc' },
+      ...(feed.key !== undefined && feed.key !== feed.time ? [{ column: feed.key, direction: 'desc' as const }] : [])],
   };
 }
 

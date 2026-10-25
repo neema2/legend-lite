@@ -270,17 +270,20 @@ try {
       await settle();
       const sheets = await page.locator('.dc-sheet-tab').evaluateAll((els) => els.map((e) => e.dataset.sheet));
       let drawnCharts = 0;
+      let feeds = 0;
       for (const sheet of sheets) {
         await page.locator(`.dc-sheet-tab[data-sheet="${sheet}"]`).click();
         await settle();
-        // every chart tile shown on this sheet has drawn -- a canvas -- or said why not (a problem, failed below)
+        // every chart tile shown on this sheet has drawn -- a canvas, or a news feed's cards (K15: no canvas) -- or said
+        // why not (a problem, failed below)
         await page.waitForFunction(() => {
           const shown = [...document.querySelectorAll('[data-tile] .dc-chart-tile')].filter((t) => t.offsetParent !== null);
-          return shown.every((t) => t.querySelector('.dc-chartpanel-chart canvas') || t.querySelector('.dc-chartpanel-bad'));
+          return shown.every((t) => t.querySelector('.dc-chartpanel-chart canvas') || t.querySelector('.dc-feed .dc-feed-card')
+            || t.querySelector('.dc-chartpanel-bad'));
         }, null, { timeout: 60_000 }).catch(async (e) => {
           // what each tile still undrawn says, beside the timeout
           const said = await page.locator('[data-tile] .dc-chart-tile').evaluateAll((els) => els
-            .filter((t) => t.offsetParent !== null && !t.querySelector('.dc-chartpanel-chart canvas'))
+            .filter((t) => t.offsetParent !== null && !t.querySelector('.dc-chartpanel-chart canvas') && !t.querySelector('.dc-feed .dc-feed-card'))
             .map((t) => `${t.closest('[data-tile]')?.dataset.tile}: ${t.querySelector('.dc-chartpanel-status')?.textContent ?? ''}`));
           throw new Error(`sheet ${sheet}: ${e.message}; undrawn: ${said.join(' | ')}`);
         });
@@ -289,8 +292,9 @@ try {
           els.filter((e) => e.offsetParent !== null).map((e) => e.textContent));
         if (bad.length) throw new Error(`sheet ${sheet}: ${bad.join(' | ')}`);
         drawnCharts += await page.locator('[data-tile] .dc-chart-tile canvas').evaluateAll((els) => els.filter((e) => e.offsetParent !== null).length);
+        feeds += await page.locator('[data-tile] .dc-chart-tile .dc-feed').evaluateAll((els) => els.filter((e) => e.offsetParent !== null && e.querySelector('.dc-feed-card')).length);
       }
-      return `${sheets.length} sheets, ${drawnCharts} canvases drawn`;
+      return `${sheets.length} sheets, ${drawnCharts} canvases drawn${feeds > 0 ? `, ${feeds} news feeds` : ''}`;
     });
   }
 

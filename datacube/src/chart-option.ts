@@ -1295,7 +1295,7 @@ const MARK_WORDS: Record<ChartSpec['mark'], string> = {
   parallel: 'Parallel coordinates', sankey: 'Sankey diagram', chord: 'Chord diagram', stream: 'Streamgraph',
   calendar: 'Calendar heatmap', gauge: 'Gauge', sunburst: 'Sunburst', tree: 'Tree', matrix: 'Scatter matrix',
   boxplot: 'Box plot', map: 'Map', bubblemap: 'Bubble map', marimekko: 'Marimekko chart', waffle: 'Waffle chart',
-  gantt: 'Gantt chart', candlestick: 'Candlestick chart',
+  gantt: 'Gantt chart', candlestick: 'Candlestick chart', feed: 'News feed',
 };
 
 /**

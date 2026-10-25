@@ -71,6 +71,17 @@ export const STOCK = `${TRADE}->project(~[seq:x|$x.sequenceNumber, ticker:x|$x.i
 export const LARGEST = 'products::Equity.all()->project(~[t:x|$x.ticker, cap:x|$x.marketCap])->sort(~cap->descending())'
   + '->limit(1)->select(~[t])';
 
+/** The market's `n`th largest name: the smallest of its `n` largest. */
+export const nthLargest = (n: number): string => 'products::Equity.all()->project(~[t:x|$x.ticker, cap:x|$x.marketCap])'
+  + `->sort(~cap->descending())->limit(${n})->sort(~cap->ascending())->limit(1)->select(~[t])`;
+
+/** THE NEWSWIRE (K15): every story -- its time, headline, body, source, category, weight (FLASH, STORY, BRIEF), tone
+ *  (the wire's sentiment) and the tickers it names -- with the name it is about (none: a sector's story or the
+ *  market's) and its sector (its name's, else its own). */
+export const NEWS = 'marketdata::NewsStory.all()->project(~[id:x|$x.storyId, at:x|$x.publishTime, headline:x|$x.headline,'
+  + ' body:x|$x.body, source:x|$x.source, category:x|$x.category, weight:x|$x.urgency, tone:x|$x.sentiment,'
+  + ' tickers:x|$x.tickers, region:x|$x.region, ticker:x|$x.instrument.ticker, sector:x|$x.sector.name])';
+
 // ---------------------------------------------------------------- writing a page
 
 /** The source as a saved page writes it down: the query it is, its text, on the market's runtime, a saved query of the
@@ -156,6 +167,29 @@ const configured = (reportTitle: string, columns: Readonly<Record<string, Column
   ...DEFAULT_CONFIGURATION, reportTitle, columns,
 });
 
+/** A story's time on the wire: to the second. */
+const STORY_TIME: ColumnConfiguration = { format: { kind: 'datetime', code: 'hh:mm:ss' } };
+/** The newswire as a grid shows it: its time, weight and category, its name, its headline, its source; the rest hidden. */
+const WIRE_COLUMNS: Readonly<Record<string, ColumnConfiguration>> = {
+  id: HIDDEN, body: HIDDEN, region: HIDDEN, at: STORY_TIME, headline: { widthMode: 'fixed', width: 460 },
+  tone: { format: { kind: 'number', decimals: 2 }, appearance: { negativeForeground: '#d64545', normalForeground: '#1f9d55' } },
+};
+/** A news feed's cards (K15): each slot a column of the newswire (NEWS). */
+const NEWS_FEED = {
+  headline: 'headline', time: 'at', body: 'body', source: 'source', tags: ['category'], weight: 'weight',
+  tickers: 'tickers', tone: 'tone', key: 'id',
+} as const;
+/** A grid of the newswire, the newest first, filtered by `filter`. */
+const wireOf = (name: string, title: string, source: QuerySource, columns: readonly ColumnSpec[], filter?: FilterNode): CubeDocument =>
+  cubeOf(name, source, cubeOver(columns, { ...(filter ? { filter } : {}), sorts: [{ column: 'at', direction: 'desc' }, { column: 'id', direction: 'desc' }] }),
+    configured(title, WIRE_COLUMNS));
+/** A feed of a grid of the newswire: its latest `limit` stories as cards, each linked -- a card or a ticker on it -- to
+ *  the grids `to`, by the name it is about. */
+const feedOf = (id: string, cube: string, title: string, to: readonly string[], limit = 60): ChartView => ({
+  ...chart(id, cube, title, { mark: 'feed', feed: NEWS_FEED, options: { limit } }),
+  link: { column: 'ticker', to },
+});
+
 // ---------------------------------------------------------------- K4, K14: the ticker
 
 async function tickerPage(types: SourceTypes, first: FirstValue): Promise<PageDocument> {
@@ -170,6 +204,7 @@ async function tickerPage(types: SourceTypes, first: FirstValue): Promise<PageDo
     high: { aggregate: 'max' }, low: { aggregate: 'min' }, close: { aggregate: 'maxBy', aggregateWeight: 'seq' },
   });
   const stockColumns = await columnsOf(types, STOCK, { seq: { kind: 'dimension' } });
+  const newsColumns = await columnsOf(types, NEWS);
   // the stock it opens on: the market's largest, as the market says now
   const symbol = await first(LARGEST);
 
@@ -195,6 +230,10 @@ async function tickerPage(types: SourceTypes, first: FirstValue): Promise<PageDo
       seq: HIDDEN, ticker: HIDDEN, prevClose: HIDDEN, ema: HIDDEN, at: PRINT_TIME, price: PRICE, size: SIZE,
     }));
 
+  // its news (K15): the stories about it, the newest first, a feed of them in front
+  const stockNews = wireOf('Its news', 'Its news', marketSource('The newswire', NEWS, newsColumns), newsColumns,
+    equal('ticker', symbol));
+
   // THE WATCHLIST SHEET: every name's quote, the tape, each name's day
   const watch = cubeOf('Watchlist', watchSource, cubeOver(watchColumns, { sorts: [{ column: 'ticker', direction: 'asc' }] }),
     configured('Watchlist', {
@@ -217,7 +256,7 @@ async function tickerPage(types: SourceTypes, first: FirstValue): Promise<PageDo
   const PRIOR = { column: 'prevClose', fn: 'max' } as const;
   const byTime = { sort: { by: 'x', direction: 'asc' }, zoom: true } as const;
   const views: PageView[] = [
-    { id: 'pick', kind: 'grid', cube: 'pick', title: 'Watchlist: pick a name', link: { column: 'ticker', to: ['prints', 'quote'] } },
+    { id: 'pick', kind: 'grid', cube: 'pick', title: 'Watchlist: pick a name', link: { column: 'ticker', to: ['prints', 'quote', 'newsTable'] } },
     chart('last', 'stock', 'Last', { mark: 'kpi', y: [LAST], layers: [{ kind: 'line', of: PRIOR, label: 'prior close' }] }),
     chart('vwap', 'stock', 'VWAP', { mark: 'kpi', y: [{ column: 'price', fn: 'wavg', weight: 'size' }] }),
     chart('high', 'stock', 'Day high', { mark: 'kpi', y: [{ column: 'price', fn: 'max' }] }),
@@ -242,6 +281,9 @@ async function tickerPage(types: SourceTypes, first: FirstValue): Promise<PageDo
     }),
     { id: 'prints', kind: 'grid', cube: 'stock', title: 'Its prints, newest first' },
     { id: 'quote', kind: 'grid', cube: 'quote', title: 'Its quote' },
+    // its news: a feed in front, its grid behind
+    { ...chart('news', 'stockNews', 'Its news', { mark: 'feed', feed: NEWS_FEED, options: { limit: 40 } }) },
+    { id: 'newsTable', kind: 'grid', cube: 'stockNews', title: 'Its news, as a grid' },
     { id: 'watchlist', kind: 'grid', cube: 'watch', title: 'Watchlist' },
     { id: 'tape', kind: 'grid', cube: 'tape', title: 'Time and sales' },
     { id: 'day', kind: 'grid', cube: 'day', title: 'The day by name: VWAP, range and turnover' },
@@ -255,7 +297,7 @@ async function tickerPage(types: SourceTypes, first: FirstValue): Promise<PageDo
         { node: tile('pick'), size: 0.2 },
         { node: column(
           [row(['last', 0.24], ['vwap', 0.19], ['high', 0.19], ['low', 0.19], ['volume', 0.19]), 0.16],
-          [{ stack: ['price', 'candles'] }, 0.56],
+          [{ split: 'row', parts: [{ node: { stack: ['price', 'candles'] }, size: 0.7 }, { node: { stack: ['news', 'newsTable'] }, size: 0.3 }] }, 0.56],
           [row(['prints', 0.45], ['quote', 0.55]), 0.28],
         ), size: 0.8 },
       ],
@@ -266,6 +308,7 @@ async function tickerPage(types: SourceTypes, first: FirstValue): Promise<PageDo
     name: 'Ticker',
     cubes: [
       { id: 'pick', cube: pick }, { id: 'stock', cube: stock }, { id: 'quote', cube: quote },
+      { id: 'stockNews', cube: stockNews },
       { id: 'watch', cube: watch }, { id: 'tape', cube: tape }, { id: 'day', cube: day },
     ],
     views: { views, sheets },
@@ -831,6 +874,85 @@ async function tcaPage(types: SourceTypes): Promise<PageDocument> {
   });
 }
 
+// ---------------------------------------------------------------- K15: the news
+
+async function newsPage(types: SourceTypes, first: FirstValue): Promise<PageDocument> {
+  const newsColumns = await columnsOf(types, NEWS);
+  const mixColumns = await columnsOf(types, NEWS, { id: { aggregate: 'count' }, tone: { aggregate: 'average' } });
+  const stockColumns = await columnsOf(types, STOCK, { seq: { kind: 'dimension' } });
+  // the market's five largest names (a desk's watchlist), the largest the chart's first
+  const largest = await Promise.all([1, 2, 3, 4, 5].map((n) => first(nthLargest(n))));
+  const symbol = largest[0]!;
+  const wire = marketSource('The newswire', NEWS, newsColumns);
+  // THE MONITOR: a news terminal's panes, each a feed of the newswire customised by its grid's filter -- the whole
+  // market's, macro and sector stories, the five largest names', a sector's, a keyword's (its own box) -- and the name
+  // a card picks, its price today
+  const hasWord = (column: string): FilterNode => ({ kind: 'condition', column, operator: 'containsCaseInsensitive', value: 'buyback' });
+  const keyword: FilterNode = { kind: 'or', children: [hasWord('headline'), hasWord('body')] };
+  const among = (column: string, values: readonly string[]): FilterNode => ({ kind: 'condition', column, operator: 'in', value: [...values] });
+  const cubes = [
+    { id: 'all', cube: wireOf('All news', 'All news', wire, newsColumns) },
+    { id: 'macro', cube: wireOf('Macro and sectors', 'Macro and sectors', wire, newsColumns, among('category', ['Macro', 'Industry'])) },
+    { id: 'names', cube: wireOf('The five largest names', 'The five largest names', wire, newsColumns, among('ticker', largest)) },
+    { id: 'tech', cube: wireOf('Technology', 'Technology', wire, newsColumns, equal('sector', 'Technology')) },
+    { id: 'word', cube: wireOf('Keyword', 'Keyword', wire, newsColumns, keyword) },
+    { id: 'stock', cube: cubeOf('The name picked', marketSource('The stock', STOCK, stockColumns),
+      cubeOver(stockColumns, { filter: equal('ticker', symbol), sorts: [{ column: 'seq', direction: 'desc' }] }),
+      configured('Its prints', { seq: HIDDEN, ticker: HIDDEN, prevClose: HIDDEN, ema: HIDDEN, at: PRINT_TIME, price: PRICE, size: SIZE })) },
+    // THE WIRE: every story as a grid, and the day's news by category
+    { id: 'wire', cube: wireOf('The wire', 'The wire: every story', wire, newsColumns) },
+    { id: 'mix', cube: cubeOf('News by category', marketSource('The newswire', NEWS, mixColumns),
+      cubeOver(mixColumns, { rows: ['category'], sorts: [{ column: 'id', direction: 'desc' }] }),
+      configured('News by category: its stories and their tone', {
+        id: { displayName: 'stories', format: { kind: 'number', decimals: 0 } }, at: HIDDEN, headline: HIDDEN, body: HIDDEN,
+        source: HIDDEN, weight: HIDDEN, tickers: HIDDEN, region: HIDDEN, ticker: HIDDEN, sector: HIDDEN,
+        tone: WIRE_COLUMNS['tone']!,
+      })) },
+  ];
+  const to = ['prints'];
+  const LAST = { column: 'price', fn: 'maxBy', weight: 'seq', title: 'last' } as const;
+  const PRIOR = { column: 'prevClose', fn: 'max' } as const;
+  const views: PageView[] = [
+    feedOf('allFeed', 'all', 'All news', to),
+    { id: 'allTable', kind: 'grid', cube: 'all', title: 'All news, as a grid' },
+    feedOf('macroFeed', 'macro', 'Macro and sectors', to),
+    { id: 'macroTable', kind: 'grid', cube: 'macro', title: 'Macro and sectors, as a grid' },
+    feedOf('namesFeed', 'names', `The five largest names: ${largest.join(', ')}`, to),
+    { id: 'namesTable', kind: 'grid', cube: 'names', title: 'The five largest names, as a grid' },
+    feedOf('techFeed', 'tech', 'Technology', to),
+    { id: 'techTable', kind: 'grid', cube: 'tech', title: 'Technology, as a grid' },
+    { ...feedOf('wordFeed', 'word', 'Keyword', to), selection: [keyword] },
+    { id: 'wordTable', kind: 'grid', cube: 'word', title: 'Keyword, as a grid' },
+    chart('price', 'stock', 'The name picked: today against its prior close', {
+      mark: 'area', x: 'at', grain: 'minute', y: [LAST],
+      layers: [{ kind: 'line', of: PRIOR, label: 'prior close' }, { kind: 'threshold', of: PRIOR }, { kind: 'last' }],
+      options: {
+        sort: { by: 'x', direction: 'asc' }, zoom: false, limit: 40_000, fitAxis: true, span: 0,
+        spans: [{ seconds: 300, grain: 'second' }, { seconds: 3600, grain: 'second' }, { seconds: 0, grain: 'minute' }],
+      },
+    }),
+    { id: 'prints', kind: 'grid', cube: 'stock', title: 'Its prints, newest first' },
+    { id: 'wire', kind: 'grid', cube: 'wire', title: 'The wire: every story, the newest first' },
+    { id: 'mix', kind: 'grid', cube: 'mix', title: 'News by category: its stories and their tone' },
+    chart('mixChart', 'mix', 'Stories by category', { mark: 'bar', x: 'category', y: [{ column: 'id', fn: 'count', title: 'stories' }] }),
+  ];
+  const column = (...parts: readonly (readonly [node: Node, size: number])[]): Node => ({
+    split: 'column', parts: parts.map(([node, size]) => ({ node, size })),
+  });
+  const stack = (...ids: string[]): Node => ({ stack: ids });
+  const sheets: PageSheet[] = [
+    sheet('sheet-1', 'Monitor', [[1, {
+      split: 'row', parts: [
+        { node: column([stack('allFeed', 'allTable'), 0.62], [stack('macroFeed', 'macroTable'), 0.38]), size: 0.34 },
+        { node: column([stack('namesFeed', 'namesTable'), 0.5], [stack('techFeed', 'techTable'), 0.5]), size: 0.33 },
+        { node: column([stack('wordFeed', 'wordTable'), 0.42], [stack('price', 'prints'), 0.58]), size: 0.33 },
+      ],
+    }]]),
+    sheet('sheet-2', 'The wire', [[0.6, tile('wire')], [0.4, row(['mix', 0.45], ['mixChart', 0.55])]]),
+  ];
+  return writePageOf({ name: 'News', cubes, views: { views, sheets } });
+}
+
 /** The trader screens, in the menu's order. */
 export const TRADER_PAGES: readonly TraderPage[] = [
   {
@@ -838,8 +960,17 @@ export const TRADER_PAGES: readonly TraderPage[] = [
     label: 'Ticker',
     about: 'Pick a name on the watchlist: its price today from the open, ticking -- green above its prior close, red '
       + 'below, its EMA, its volume beneath, the last minute to the whole day -- or its candles; its last, VWAP, range and '
-      + 'volume; its prints and quote. And every name\'s quote, the tape, each name\'s day so far.',
+      + 'volume; its news as it crosses; its prints and quote. And every name\'s quote, the tape, each name\'s day so far.',
     build: tickerPage,
+  },
+  {
+    id: 'news',
+    label: 'News',
+    about: 'A news terminal\'s monitor, ticking: the whole market\'s stories, macro and sector news, the five largest '
+      + 'names\', a sector\'s and a keyword\'s -- each pane a feed customised by its own filter (a sector, tickers, a '
+      + 'keyword in its box, a category, a weight), kept with the page -- a story\'s name, picked, charted beside them; '
+      + 'and every story as a grid, the day\'s news by category.',
+    build: newsPage,
   },
   {
     id: 'market-map',

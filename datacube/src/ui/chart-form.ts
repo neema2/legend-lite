@@ -17,6 +17,7 @@ import {
   grainsOf,
   UNSPLIT,
   type ChartChange,
+  type ChartFeed,
   type ChartLayer,
   type ChartLayerKind,
   type ChartMark,
@@ -30,7 +31,7 @@ import { SECOND_COLUMN, type AggregateFn, type CubeSnapshot } from '../snapshot.
 import { checkbox, dropdown, field, numberInput } from './form.ts';
 import { aggregatesFor } from './panel-column.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
-import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
+import { familyOf, isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
 
 /** What each kind calls its split. Which kinds draw one series (no split) and which need one are the rulebook's. */
 const SPLIT_LABELS: Readonly<Partial<Record<ChartMark, string>>> = {
@@ -74,6 +75,50 @@ function candleFields(h: FormHost, spec: ChartSpec, numbers: readonly { value: s
       (v) => price !== undefined && h.set({ y: candleMeasures(price, v ?? undefined, volume) }, true))),
     field(h.doc, 'Volume:', dropdown<string>(h.doc, volume, numbers,
       (v) => price !== undefined && h.set({ y: candleMeasures(price, order, v ?? undefined) }, true), { allowNone: true })),
+  ];
+}
+
+/** A FEED'S SLOTS (K15): which of the cube's columns fills each, its headline and time required, the rest each or none. */
+function feedFields(h: FormHost, spec: ChartSpec, columns: readonly { readonly name: string; readonly type?: string }[]): HTMLElement[] {
+  const feed = spec.feed;
+  const of = (keep: (type: string) => boolean): { value: string; label: string }[] =>
+    columns.filter((c) => c.type !== undefined && keep(c.type)).map((c) => ({ value: c.name, label: c.name }));
+  const text = of((t) => familyOf(t) === 'text');
+  const any = columns.map((c) => ({ value: c.name, label: c.name }));
+  /** One slot told: the feed as it is at the event with it changed (none: taken away); a headline or time, required. */
+  const slot = (key: Exclude<keyof ChartFeed, 'tags'>, label: string, choices: { value: string; label: string }[],
+    required = false): HTMLElement => field(h.doc, label, dropdown<string>(h.doc, feed?.[key], choices, (v) => {
+    if (required && !v) return;
+    const next: Record<string, unknown> = { ...current(h)?.feed };
+    if (v) next[key] = v;
+    else delete next[key];
+    if (typeof next['headline'] === 'string' && typeof next['time'] === 'string') h.set({ feed: next as unknown as ChartFeed });
+  }, { allowNone: !required }));
+  const tags = feed?.tags ?? [];
+  const tag = (i: number): HTMLElement => field(h.doc, `Tag ${i + 1}:`, dropdown<string>(h.doc, tags[i], any, (v) => {
+    const now = current(h)?.feed;
+    if (!now) return;
+    const next = [...(now.tags ?? [])];
+    if (v) next[i] = v;
+    else next.splice(i, 1);
+    const kept = next.filter((t) => t !== undefined);
+    const { tags: _tags, ...rest } = now;
+    h.set({ feed: kept.length > 0 ? { ...rest, tags: kept } : rest });
+  }, { allowNone: true }));
+  return [
+    slot('headline', 'Headline:', text, true),
+    slot('time', 'Time:', of(isTemporal), true),
+    slot('source', 'Source:', any),
+    tag(0),
+    tag(1),
+    slot('weight', 'Weight:', any),
+    slot('tickers', 'Tickers:', text),
+    slot('tone', 'Tone:', of(isNumeric)),
+    slot('body', 'Body:', text),
+    slot('key', 'Order ties by:', any),
+    field(h.doc, 'At most:', numberInput(h.doc, spec.options.limit, (v) => {
+      if (v !== undefined && Number.isInteger(v) && v >= 1) h.setOption('limit', v);
+    }, { width: 110 })),
   ];
 }
 
@@ -186,6 +231,11 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
       field(doc, 'Colour by:', dropdown<string>(doc, spec.split, dims, (v) => h.set({ split: v ?? null }),
         { allowNone: true })),
     );
+    return;
+  }
+  if (spec.mark === 'feed') {
+    // its rows into its cards: each slot a column of the cube
+    form.append(markField, ...feedFields(h, spec, [...new Map([...dimensions, ...measures].map((c) => [c.name, c])).values()]));
     return;
   }
   if (GRID_MARKS.has(spec.mark)) {

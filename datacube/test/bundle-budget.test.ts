@@ -327,8 +327,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  359,500 -> 361,000 (2026-10-25, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K14, the stock chart: the stock chart's words, which the chart rules read at startup (a measure in a
  *  pane beneath, a layer at a measure's value, the latest mark pinned, spans of time each with its grain), a grid linked
  *  to others (page-document.ts GridLink, the board's follow, the grid's row picked) and a KPI against a reference;
- *  within the user's sign-off of the same day, "bundle budget is fine", D9). Measured 360,791. */
-const BUDGET = 361_000;
+ *  within the user's sign-off of the same day, "bundle budget is fine", D9). Measured 360,791.
+ *  361,000 -> 363,000 (2026-10-25, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K15, the news feed: a feed's words, which the
+ *  chart rules read at startup (its slots, their reader and rules, its query of the cube's rows), the panel's feed and
+ *  its keyword box, a feed's link (page-document.ts), and a keyword said on a chart's chip -- its cards a chunk of their
+ *  own, ui/chart-feed.ts; within the user's sign-off, D9). Measured 362,471. */
+const BUDGET = 363_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -437,8 +441,9 @@ const BUDGET = 361_000;
  *  date). Measured 346,501.
  *  347,000 -> 347,500 (2026-10-24, K3's candlestick -- the grid-only page's note of the same date). Measured 347,124.
  *  347,500 -> 349,500 (2026-10-25, K14's stock chart, and the trader screens' steps before it -- the grid-only page's
- *  notes of the same date). Measured 349,124. */
-const ENGINE_BUDGET = 349_500;
+ *  notes of the same date). Measured 349,124.
+ *  349,500 -> 351,500 (2026-10-25, K15's news feed -- the grid-only page's note of the same date). Measured 350,821. */
+const ENGINE_BUDGET = 351_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -615,8 +620,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  366,000 -> 366,500 (2026-10-24, K3's candlestick -- the grid-only page's note of the same date). Measured 366,467.
  *  366,500 -> 367,000 (2026-10-25, the trader screens' DataCube steps -- the grid-only page's note of the same date).
  *  Measured 366,801.
- *  367,000 -> 369,000 (2026-10-25, K14's stock chart -- the grid-only page's note of the same date). Measured 368,547. */
-const WIDGET_BUDGET = 369_000;
+ *  367,000 -> 369,000 (2026-10-25, K14's stock chart -- the grid-only page's note of the same date). Measured 368,547.
+ *  369,000 -> 371,000 (2026-10-25, K15's news feed -- the grid-only page's note of the same date). Measured 370,719. */
+const WIDGET_BUDGET = 371_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
@@ -678,12 +684,15 @@ describe('the page loads ECharts only when a chart draws', () => {
     assert.ok(size <= MAPS_BUDGET, `batch 5's maps fetch ${size.toLocaleString()} bytes gzipped, over their budget of ${MAPS_BUDGET.toLocaleString()}`);
   });
 
-  it(`the options form and an example page are chunks of their own, each within its budget`, () => {
+  it(`the options form, a feed's cards and an example page are chunks of their own, each within its budget`, () => {
     const sized = (module: string): number => chunksOf().filter((f) => holds(f, module))
       .reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     for (const f of startup()) {
       assert.ok(!holds(f, 'src/ui/chart-form.ts') && !holds(f, 'src/examples/charts-dashboard.ts'), `${f} carries the form or an example`);
+      // a news feed's cards (K15), fetched with the first feed
+      assert.ok(!holds(f, 'src/ui/chart-feed.ts'), `${f} carries a feed's cards`);
     }
+    assert.ok(sized('src/ui/chart-feed.ts') > 0, 'a feed\'s cards are a chunk of the bundle');
     const form = sized('src/ui/chart-form.ts');
     const example = sized('src/examples/charts-dashboard.ts');
     assert.ok(form > 0 && form <= FORM_BUDGET, `the options form is ${form.toLocaleString()} bytes gzipped (budget ${FORM_BUDGET.toLocaleString()})`);

@@ -49,7 +49,7 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | K12 | **built 2026-10-25** (§7). **FX e-trading**: a rates ladder, cross rates by live joins, RFQ hit ratio | the same |
 | K13 | **built 2026-10-25** (§7). **TCA and markouts** (needs K7) | the same |
 | K14 | **built 2026-10-25** (§7). **The stock chart** (the user, 2026-10-25: "the stock ticker page with beautiful line graph ticking with the stock price"). K4 drew a coin's line (BTC-USD's last print each second against its EMA, over the minute the world has run), not a stock's, and for one symbol written into the page. So: **a symbol picked** for the sheet -- any name on the watchlist, equities first -- that every tile on it follows (today a page filter reaches grids over a class only: extended to a query grid by its column); **the day from the open**, not from when the world started -- the market world opening each name's session with its morning's prints (a bounded history, task 14's quote history), so a line has a day to draw; **the chart a trader expects**: the last price as a smooth line over a soft fill, green above the prior close and red below it, the prior close a dashed line, the last price tagged on the right axis and moving with it, volume bars beneath, a crosshair, ranges of a minute, five, an hour and the day (the bins a range asks), no point markers, drawn again each second with its axes held (C2); and the KPI tiles beside it (last, change, day's range, VWAP) for the symbol picked | a browser check: the line moves every second for the symbol picked, ends at the quote's last, sits on the right side of the prior close in its colour; another symbol picked redraws every tile; screenshots by eye |
-| K15 | **The news feed** (the user, 2026-10-25: "a ticking news feed that can be customized to general news, sector news or even specific tickers or keywords"). A news tile as a terminal's: each headline with its time, its source, its tickers as chips, its category (earnings, guidance, M&A, analyst rating, macro, regulatory, management, product, crypto) and its weight -- a flash in red, a story, a brief -- the newest sliding in at the top, a headline's ticker opening K14's chart. **Customized** by what the feed is filtered by, kept with the page: the whole market, a sector, the watchlist's names or tickers named, a keyword in the headline or its body (needs `contains` on Deephaven, a gap of §2's), a category or a weight. **The news is the world's own**: the market world writes a story for each name's jump and macro headlines that move the whole market (DH28's simulator always, its stories tied to its prices, so a headline and its move agree); a public feed where one can be reached -- SEC EDGAR's latest filings (8-K and the like, a public record) for the general channel, its place the simulator's where refused (DH28). **The tile**: drawn from a grid's rows as the KPI and the treemap are (a mark of its own, cards not cells), the grid itself its table view | the market lane: every story's tickers known, a jump's story within a second of its move; a browser check: the feed ticks, each filter (sector, tickers, keyword) keeps only its stories, a click opens the chart; screenshots |
+| K15 | **built 2026-10-25** (§7). **The news feed** (the user, 2026-10-25: "a ticking news feed that can be customized to general news, sector news or even specific tickers or keywords"). A news tile as a terminal's: each headline with its time, its source, its tickers as chips, its category (earnings, guidance, M&A, analyst rating, macro, regulatory, management, product, crypto) and its weight -- a flash in red, a story, a brief -- the newest sliding in at the top, a headline's ticker opening K14's chart. **Customized** by what the feed is filtered by, kept with the page: the whole market, a sector, the watchlist's names or tickers named, a keyword in the headline or its body (needs `contains` on Deephaven, a gap of §2's), a category or a weight. **The news is the world's own**: the market world writes a story for each name's jump and macro headlines that move the whole market (DH28's simulator always, its stories tied to its prices, so a headline and its move agree); a public feed where one can be reached -- SEC EDGAR's latest filings (8-K and the like, a public record) for the general channel, its place the simulator's where refused (DH28). **The tile**: drawn from a grid's rows as the KPI and the treemap are (a mark of its own, cards not cells), the grid itself its table view | the market lane: every story's tickers known, a jump's story within a second of its move; a browser check: the feed ticks, each filter (sector, tickers, keyword) keeps only its stories, a click opens the chart; screenshots |
 
 Alongside, as the demos reach them: the smaller target gaps (`round`, `mod`, `substring`, `contains`, a number as text,
 percentile; RIGHT and FULL joins shaped or refused for good -- `docs/DEEPHAVEN_START_HERE.md` "Gaps measured"); the tab's
@@ -64,6 +64,8 @@ Each row is a thing done outside the platform, to push into it.
 |---|---|---|---|
 | `risk.groovy` (D0) | the risk demo's reference data and prices | lite writes no rows into Deephaven yet | the modelled publisher (L5) over writes (W, Wr, L3w) |
 | `market/market.groovy`'s simulator (K2) | the equity market: names, prices that move together, quotes and trades at each name's pace; since K14 the session's morning before the world starts (`MARKET_MORNING`), on the tape as prints, a bounded number of them each that much larger | lite writes no rows into Deephaven yet, and a market's rows come from no source of record | a feed the store declares (DH16), its rows written by the platform (L3w, Wr) from a simulator that is a program of its own |
+| `market/market.groovy`'s newsroom (K15) | the newswire: a story for each name's jump at its instant (its category by chance, its wording by its sign, its size in the headline, a FLASH from 3%), macro and sector stories each moving the market or its sector by the shock its headline names, briefs (an analyst's note, a filing, an appointment, a dividend, a buyback) nudging their name or nothing, crypto's briefs from each coin's price against its prior close; `MARKET_NEWS` a minute besides the jumps, `MARKET_JUMPS` a name a day; every name, broker, fund and wire made up | lite writes no rows into Deephaven yet, and a newswire's stories come from a vendor's feed | a feed the store declares (DH16), a vendor's wire or the simulator a program of its own, its rows written by the platform (L3w, Wr) |
+| `market/market.groovy`'s EDGAR filings (K15) | SEC EDGAR's latest 8-K filings read each minute, each a brief at its own time -- asked only with the person's own contact (`MARKET_FILINGS_AGENT`: EDGAR's fair-access policy refuses a client without one), the newsroom's own filings in its place without it or when refused | no feed ingestion in lite | a feed declared in the store and started by the platform |
 | `market/market.groovy`'s Coinbase feed (K2) | crypto from Coinbase Exchange's public feed, the simulator in its place where it is refused | no feed ingestion in lite | a feed declared in the store and started by the platform; Kafka into Deephaven in production |
 | `market/market.groovy`'s `world` table (K2) | what each part of the world is and why (simulated, live, connecting) | the page has no other way to learn it | the feed's own status, a system table of the platform's |
 | `market/market.groovy`'s bank (K9-K13) | the bank's own day: desks, traders, books, positions at the prior close, limits; parent orders worked by algorithms into fills and routes on the market's own prices; FX prices; clients' RFQs quoted and done or missed; a listed option chain settled by Black and Scholes | lite writes no rows into Deephaven yet, and a bank's books and blotters come from its systems of record | each its own source -- an OMS's orders and fills, a position keeper, a pricing engine -- declared in the store and published by the platform (L5) |
@@ -409,7 +411,7 @@ execution context (`stress::AllMapping` on `market::LiveRuntime`); its columns c
 (`traders.ts`, `bazel run //datacube:deephaven_traders`) is DataCube's own page over the market world's Deephaven, and
 its Open… and Save are DataCube's (2026-10-25): Open… is the app's window (`CubeLibrary`) -- the pages saved in this
 browser, searched, sorted, opened, deleted, or a page file opened -- and, under them where the app lists its example
-pages (the chart pages), the seven trader screens, each with what it shows; Save, Save As… (the app's `saveDialog`) and
+pages (the chart pages), the eight trader screens (the News monitor among them since K15), each with what it shows; Save, Save As… (the app's `saveDialog`) and
 Export ▸ Page File keep the page as a person left it, in the tab's own store of saved pages by its rules
 (`src/services/browser-pages.ts`, moved out of the tab's services so both open it: legend-lite's SavedCubes, compiled to
 WebAssembly). A screen picked opens as a saved page is opened -- each grid made again over its source as it is now, by
@@ -576,3 +578,42 @@ fetched; a name picked moves the quote, the prints, the KPIs and the line to it 
 latest 300 s by the second, its window ending at the latest mark; the candles draw when their tab is shown; the page
 saved with its name picked and its span, and opened again so. The market lane checks the morning (22 checks): the tape
 starts at the session's open, every quote's volume its prints'.
+
+**K15, the news feed (2026-10-25).** A new screen, *News*, and a news tile on the Stock sheet. **The News monitor**: a
+news terminal's panes, each a feed of the newswire customised by its own grid's filter -- the whole market's, macro and
+sector stories, the five largest names', Technology's, and a keyword's ("buyback", typed in the pane's own box, any
+case, in the headline or the body) -- and beside them the name a card picks, its price today against its prior close.
+Each card as a terminal shows a story: its time, its weight (a FLASH in red, a BRIEF quiet), its source and category,
+its headline, two lines of its body, its tickers as chips, its tone on its edge (green above zero, red below, as strong
+as it is far from zero); a story crossing comes in at the top, lit a moment. A card picked, or a ticker chip on it,
+takes the chart beside the panes to that name (the feed's link: K14's, on a chart). A second sheet, *The wire*: every
+story as a grid, and the day's news by category (its stories and their average tone, a bar of each). **On the Stock
+sheet**: the name's own stories, a feed in front of its grid, followed with the name picked on the watchlist.
+
+**The news is the world's own** (the market world's newsroom, §3's ledger): a story for each jump at its instant, macro
+and sector stories that move the market or the sector by the shock their headline names, and briefs, so a headline and
+its move agree -- the market lane checks it: every story's tickers are the world's, a story about a name names it, a
+sector's names its leaders, a macro story neither, and each jump of 2% or more moved its name's price its way by at
+least half the headline's size from the print before it to the print after. SEC EDGAR's latest filings join the wire
+where the person gives EDGAR the contact its fair-access policy asks for (`MARKET_FILINGS_AGENT`); without one the world
+says so (its `world` table: filings simulated, and why) and files its own names' filings.
+
+What it took of the platform, built into it: **in the one trading model** (DH34), `marketdata::NewsStory` (NEWS_STORY)
+with a story's name and its sector as associations, seeded by expand.py, and the day's newswire written by hand beside
+the market's tape -- each story where the tape moved, two at one instant, a sector story, a macro story -- with four
+feature services the oracle answers (a keyword by `toLower` and `contains`, a name's feed, a sector's, the day by
+category): 35 new corpus tests, all passing on DuckDB and H2; `contains` and `toLower` already planned on Deephaven
+(STRPOS by `indexOf`, LOWER by `toLowerCase`: the scalars, above). **In DataCube's chart**: a kind of its own, `feed` --
+its slots each a column of the cube (`feed`: headline, time, body, source, tags, weight, tickers, tone, key), its query
+the cube's rows under its filter, the newest first and a tie by its key, its cards a chunk of their own drawn again at
+each tick with the ones it had kept (ui/chart-feed.ts); its rules, its reader and its options form as any kind's; a
+keyword box that puts its words on the feed's grid as the feed's own selection, said on its chip ("headline or body
+contains “buyback”"); and the gallery's feed of the sales sample. **In DataCube's page**: a chart's link
+(`ChartView.link`), a card or a ticker chip picked taking the grids it names to that name. The grid script grew 1.5 KB
+gzipped (361,000 -> 363,000, within the user's sign-off, D9).
+
+Measured (`//datacube:deephaven_traders_test`, 8 screens, a 100-name world at 90 stories a minute): the News screen open
+in 1.6 s, its panes' 2,600 morning stories each kept to its own (macro and sectors, the five largest, Technology, the
+keyword), a story reaching the top of its pane read from the rows followed -- nothing sent or fetched; "dividend" typed
+into the keyword pane's box keeps only its stories and is saved with the page; a ticker chip clicked charts that name;
+the Stock sheet's news followed the name picked. The market lane: 24 checks.

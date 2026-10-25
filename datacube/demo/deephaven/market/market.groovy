@@ -15,6 +15,9 @@
 //                 the prior close, as a consolidated quote carries them
 //   MARKET_TRADE  every print on the tape, in order: its sequence, time, price, size, aggressor (none off-exchange),
 //                 venue, condition (@ regular, I an odd lot)
+//   NEWS_STORY    the newswire (K15): each story's headline, time, source, category, weight (FLASH, STORY, BRIEF),
+//                 sentiment, tickers, and its name or its sector -- written where the simulator moves a price, so a
+//                 headline and its move agree; EDGAR's latest filings among them where asked for (MARKET_FILINGS_AGENT)
 // and one of its own, outside the corpus:
 //   world         what each part of the world is: simulated, live, connecting -- and why
 
@@ -29,6 +32,11 @@
 //   MARKET_MORNING   seconds of the session before the world starts (7200): the open that long ago, each equity's
 //                    morning on the tape, so a chart has a day to draw (0: the session opens as the world starts)
 //   MARKET_MORNING_PRINTS  the most prints the morning writes (400000): a thinner tape of larger prints past it
+//   MARKET_NEWS      stories a minute over the market besides each name's jump (12): macro, sector, briefs, crypto
+//   MARKET_JUMPS     a name's jumps a trading day (0.5): its news, a move of about 2%, each a story at its instant
+//   MARKET_FILINGS_AGENT  a contact ("name email") EDGAR's fair-access policy asks of a client: SEC EDGAR's latest 8-K
+//                    filings read each minute; unset (the default), the newsroom files its own names' filings instead
+//   MARKET_FILINGS_URL    EDGAR's latest filings' address (its Atom feed of 8-Ks)
 //
 // Realism, simulated: prices move together (one market factor, one per sector, each name's own, and rare jumps: news);
 // a cent tick; spreads by liquidity, a name's activity by its size (the largest names quote and trade most); quotes
@@ -269,6 +277,10 @@ class Simulator {
     final double quoteRate
     final double tradeRate
     final AtomicLong seq
+    /** the newswire (K15): its stories where the prices move, its shocks to them; none, no news */
+    Newsroom news
+    /** a name's jumps a trading day (its news, a 2% move about): one every two days */
+    double jumpsADay = 0.5d
 
     Simulator(Random random, List<Name> names, int sectors, double quoteRate, double tradeRate, AtomicLong seq) {
         this.random = random
@@ -295,12 +307,16 @@ class Simulator {
         double market = gauss() * 0.010d * root
         double[] sector = new double[sectors]
         for (int k = 0; k < sectors; k++) sector[k] = gauss() * 0.008d * root
+        // the newswire's macro and sector stories, their shocks the market's and their sectors'
+        if (news != null) market += news.beat(dt, now, sector, false)
         for (Name n : stepped) {
             double r = n.beta * market + 0.6d * sector[n.sectorIx] + gauss() * n.vol * root
-            // news: about one a name every two trading days, a 2% move
-            if (random.nextDouble() < dt / (2 * DAY)) r += gauss() * 0.02d
+            // news: about one a name every two trading days, a 2% move, reported as it happens
+            double jump = random.nextDouble() < dt * jumpsADay / DAY ? gauss() * 0.02d : 0d
+            r += jump
             n.mid = Math.max(n.tick, n.mid * Math.exp(r))
             n.drift = r
+            if (jump != 0d && news != null) news.jump(n, jump, now)
             int quotes = events(quoteRate * n.weight * dt)
             // a quote the price has left is moved, at once
             if (!n.quoted || n.mid <= n.bid || n.mid >= n.ask) quotes = Math.max(quotes, 1)
@@ -334,6 +350,7 @@ class Simulator {
      * tape keeps a `thin` share of them, each that much larger, so a minute's volume is a minute's at any thinning and
      * the morning's rows are bounded. Each second's prints are put in time order before they are numbered, so a
      * print's sequence is its place on the tape. The names' days (open, high, low, last, volume) are moved by them.
+     * The newswire's morning (K15) is written as it goes, each story at the start of its second.
      */
     MorningRows morning(double seconds, Instant open, double thin) {
         MorningRows out = new MorningRows(Math.max(16, (int) (tradeRate * thin * morningPace(seconds) * 1.2d)))
@@ -344,14 +361,19 @@ class Simulator {
             double market = gauss() * 0.010d * root
             double[] sector = new double[sectors]
             for (int k = 0; k < sectors; k++) sector[k] = gauss() * 0.008d * root
+            // the second's stories at its start, so a jump's story precedes the prints it moved
+            Instant start = open.plusSeconds(t)
+            if (news != null) market += news.beat(1d, start, sector, true)
             double pace = 1d + 2d * Math.exp(-t / 900d)
             second.clear()
             whose.clear()
             for (Name n : names) {
                 double r = n.beta * market + 0.6d * sector[n.sectorIx] + gauss() * n.vol * root
-                if (random.nextDouble() < 1d / (2 * DAY)) r += gauss() * 0.02d
+                double jump = random.nextDouble() < jumpsADay / DAY ? gauss() * 0.02d : 0d
+                r += jump
                 n.mid = Math.max(n.tick, n.mid * Math.exp(r))
                 n.drift = r
+                if (jump != 0d && news != null) news.jump(n, jump, start)
                 if (!n.quoted || n.mid <= n.bid || n.mid >= n.ask) requote(n)
                 int trades = events(tradeRate * n.weight * pace * thin)
                 // the name's prints in this second, in time order
@@ -435,6 +457,350 @@ class Simulator {
 }
 
 /**
+ * THE NEWSWIRE (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K15): the stories a terminal's feed shows, each the world's
+ * own, written where the simulator moves a price so that a headline and its move agree. A name's jump is reported at
+ * its instant (its category by chance, its wording by its sign, its size in the headline, a FLASH from 3%); a macro
+ * story moves the whole market and a sector's story its sector, each by the shock its headline names; a brief (an
+ * analyst's note, a filing, an appointment, a dividend) nudges its name its way or not at all; crypto's briefs say where
+ * a coin stands against its prior close, live or simulated. The names are the world's (made up), the brokers, funds and
+ * wires too; no story is about a real company. Its own random, so the prices' draws are the simulation's as they were.
+ * BESPOKE (the plan's §3), like the rest of the world.
+ */
+@CompileStatic
+class Newsroom {
+    static final String[] BROKERS = ['Halberd Securities', 'Northgate Capital', 'Ridgeway & Co', 'Pinecrest Research',
+                                     'Calder Partners', 'Ashby Markets'] as String[]
+    static final String[] FUNDS = ['Larkspur Capital', 'Greyfield Partners', 'Ostrander Value Fund', 'Kestrel Holdings'] as String[]
+    static final String[] FILING_ITEMS = ['results of operations', 'change in directors or officers',
+                                          'entry into a material agreement', 'Regulation FD disclosure', 'other events'] as String[]
+    /** each sector's name on the wire, and why it moves: up, then down (Simulator's sectors, in the world's order) */
+    static final String[] GROUPS = ['Tech stocks', 'Drugmakers', 'Banks', 'Retailers', 'Media and telecom shares',
+                                    'Industrials', 'Consumer staples', 'Energy shares', 'Utilities', 'Real estate shares',
+                                    'Miners'] as String[]
+    static final List<List<String>> RALLY = [
+            ['AI spending forecasts are raised', 'the chip demand outlook improves'],
+            ['a drug pricing plan is softened', 'the regulator speeds up approvals'],
+            ['yields climb and the curve steepens', 'stress tests clear the way for buybacks'],
+            ['consumer spending beats forecasts', 'the holiday sales outlook is raised'],
+            ['advertising spending rebounds', 'spectrum auction rules are eased'],
+            ['factory orders rise more than expected', 'an infrastructure bill clears its vote'],
+            ['investors seek defensive shares', 'input costs fall'],
+            ['oil rises on supply cuts', 'gas climbs on a cold forecast'],
+            ['bond yields fall', 'power demand forecasts rise on data centres'],
+            ['mortgage rates fall', 'office occupancy rises'],
+            ['metal prices rally on China demand', 'copper hits a six-month high']]
+    static final List<List<String>> SLIDE = [
+            ['export curbs on chips are widened', 'a bellwether\'s outlook disappoints'],
+            ['a drug pricing proposal is tightened', 'insurers flag higher costs'],
+            ['commercial property loan worries return', 'a regional lender cuts its outlook'],
+            ['consumer confidence falls', 'tariffs on imports are raised'],
+            ['the advertising outlook is cut', 'subscriber growth slows'],
+            ['factory activity contracts', 'freight volumes fall'],
+            ['input costs rise', 'a large grocer warns on margins'],
+            ['oil falls on demand worries', 'inventories rise more than forecast'],
+            ['bond yields rise', 'a regulator rejects a rate increase'],
+            ['mortgage rates climb', 'office vacancies rise'],
+            ['metal prices fall on weak China data', 'steel tariffs are lifted']]
+    static final List<List<String>> PRODUCTS = [
+            ['an AI accelerator', 'a cloud platform', 'a new chip line'], ['a cancer drug', 'a diabetes treatment', 'a heart device'],
+            ['a digital bank', 'a payments app', 'a wealth platform'], ['an electric SUV', 'a holiday collection', 'a store format'],
+            ['a streaming tier', 'a 5G network', 'an ad platform'], ['a jet engine', 'a freight network', 'a robotics line'],
+            ['a snack range', 'a beverage line', 'a store brand'], ['an offshore field', 'an LNG project', 'a refinery expansion'],
+            ['a grid upgrade', 'a solar farm', 'a new rate plan'], ['an office tower', 'a logistics park', 'a data centre campus'],
+            ['a copper mine', 'a lithium plant', 'a packaging line']]
+
+    final Random random
+    final List<Name> equities
+    final List<Name> coins
+    final List<String> sectorIds
+    /** each sector's largest names, the tickers a sector's story names */
+    final List<List<Name>> leaders
+    /** the equities' running weights, for a brief's name drawn by its share of the market's activity */
+    final double[] cumulative
+    /** stories a minute over the market, besides the jumps (the simulator's): macro, sector, briefs and crypto */
+    final double rate
+    /** EDGAR's filings live: the simulated ones stop */
+    volatile boolean filingsLive = false
+    long count = 0L
+    Instant lastAt = Instant.EPOCH
+    /** the stories since the last publish: NEWS_STORY's columns (30-store.pure), in its order */
+    final List<String> id = []
+    final List<Instant> ts = []
+    final List<String> headline = []
+    final List<String> body = []
+    final List<String> source = []
+    final List<String> category = []
+    final List<String> urgency = []
+    final List<Double> sentiment = []
+    final List<String> tickers = []
+    final List<String> region = []
+    final List<String> instrument = []
+    final List<String> sector = []
+
+    Newsroom(Random random, List<Name> equities, List<Name> coins, List<String> sectorIds, double rate) {
+        this.random = random
+        this.equities = equities
+        this.coins = coins
+        this.sectorIds = sectorIds
+        this.rate = rate
+        leaders = (0..<sectorIds.size()).collect { int k ->
+            equities.findAll { Name e -> e.sectorIx == k }.sort { Name e -> -e.weight }.take(3) } as List<List<Name>>
+        cumulative = new double[equities.size()]
+        double sum = 0d
+        for (int i = 0; i < equities.size(); i++) { sum += equities[i].weight; cumulative[i] = sum }
+    }
+
+    String pick(String[] xs) { return xs[random.nextInt(xs.length)] }
+    String pick(List<String> xs) { return xs[random.nextInt(xs.size())] }
+    /** a move's size as a headline writes it */
+    static String pct(double r) { return String.format('%.1f%%', Math.abs(Math.expm1(r) * 100d)) }
+    static String price(Name n) { return String.format(n.mid >= 10d ? '$%,.2f' : '$%,.4f', n.mid) }
+    /** the wire's score of a move: its share of `scale`, to a twentieth, within -1 and 1 */
+    static double score(double r, double scale) { return Math.round(Math.max(-1d, Math.min(1d, r / scale)) * 20d) / 20d }
+    String target(Name n, boolean up) {
+        return String.format('$%.0f', n.mid * (up ? 1.12d + 0.2d * random.nextDouble() : 0.88d - 0.15d * random.nextDouble()))
+    }
+
+    /** A story at `at`, kept in time order (two in one instant a millisecond apart, so its id is its place). */
+    void story(Instant at, String head, String text, String src, String cat, String urg, double sent, String syms,
+               String reg, Name n, String sectorId) {
+        Instant when = at.isAfter(lastAt) ? at : lastAt.plusMillis(1)
+        lastAt = when
+        id << String.format('NS-%07d', ++count); ts << when; headline << head; body << text; source << src
+        category << cat; urgency << urg; sentiment << (Double.isNaN(sent) ? Rows.NULL_DOUBLE : sent); tickers << syms
+        region << reg; instrument << n?.instrumentId; sector << (n != null ? n.sectorId : sectorId)
+    }
+
+    /** One step of `dt` seconds at `at`: the market's shock a macro story names (0 when none), a sector's added to its
+     *  factor in `factors`, the briefs and (not in the morning, crypto's day being the feed's) a coin's brief. */
+    double beat(double dt, Instant at, double[] factors, boolean morning) {
+        double perStory = dt * rate / 60d / 12d
+        double market = 0d
+        if (random.nextDouble() < perStory) market = macro(at)
+        if (random.nextDouble() < 1.5d * perStory) {
+            int k = random.nextInt(GROUPS.length)
+            factors[k] += industry(k, at)
+        }
+        double briefs = 9d * perStory
+        int b = (int) Math.floor(briefs) + (random.nextDouble() < briefs - Math.floor(briefs) ? 1 : 0)
+        for (int i = 0; i < b; i++) brief(at)
+        if (!morning && !coins.isEmpty() && random.nextDouble() < 0.5d * perStory) crypto(at)
+        return market
+    }
+
+    /** A macro headline and its shock to the market (a log move), its sign the headline's. */
+    double macro(Instant at) {
+        double size = 0.0012d + 0.004d * random.nextDouble() * random.nextDouble()
+        boolean up = random.nextBoolean()
+        String head
+        String reg = 'Americas'
+        switch (random.nextInt(7)) {
+            case 0:
+                head = up ? String.format('US jobless claims fall to %dK, fewer than forecast', 200 + random.nextInt(20))
+                        : String.format('US jobless claims rise to %dK, the most in two months', 230 + random.nextInt(20))
+                break
+            case 1:
+                head = String.format(up ? 'US inflation cools to %.1f%% annual pace, below estimates'
+                        : 'US inflation runs hotter than forecast at %.1f%% annual pace', 2.4d + random.nextDouble())
+                break
+            case 2:
+                head = up ? 'Fed official says rate cuts could come sooner than markets expect'
+                        : 'Fed minutes show officials wary of cutting rates too soon'
+                break
+            case 3:
+                head = String.format(up ? 'Treasury yields slide after soft retail sales; 10-year at %.2f%%'
+                        : 'US 10-year yield climbs to %.2f%%, highest in a month', 3.9d + random.nextDouble() * 0.8d)
+                break
+            case 4:
+                head = String.format(up ? 'Oil falls %.1f%% as supply concerns ease' : 'Oil jumps %.1f%% after a pipeline outage',
+                        1.5d + 2.5d * random.nextDouble())
+                break
+            case 5:
+                head = up ? 'ECB signals a rate cut at its next meeting' : 'ECB holds rates and pushes back on cut bets'
+                reg = 'EMEA'
+                break
+            default:
+                head = up ? 'China unveils stimulus for property and consumer spending'
+                        : 'China factory activity contracts for a third month'
+                reg = 'APAC'
+        }
+        double shock = up ? size : -size
+        String text = String.format('Stocks %s broadly on the headline, the market about %s %s.', up ? 'rise' : 'fall',
+                pct(shock), up ? 'higher' : 'lower')
+        story(at, head, text, 'Macro Desk', 'Macro', size >= 0.004d ? 'FLASH' : 'STORY', score(shock, 0.005d), null, reg,
+                null, null)
+        return shock
+    }
+
+    /** A sector's story and its shock to the sector's factor (a name takes 0.6 of it), its sign the headline's. */
+    double industry(int k, Instant at) {
+        double size = 0.003d + 0.012d * random.nextDouble() * random.nextDouble()
+        boolean up = random.nextBoolean()
+        double move = 0.6d * size * (up ? 1 : -1)
+        String head = GROUPS[k] + (up ? ' rally as ' : ' slide as ') + pick(up ? RALLY[k] : SLIDE[k])
+        List<Name> lead = leaders[k]
+        String text = String.format('The sector moves about %s %s; %s among the most active.', pct(move),
+                up ? 'higher' : 'lower', lead.collect { Name e -> e.name + ' (' + e.sym + ')' }.join(', '))
+        story(at, head, text, 'Market Wire', 'Industry', Math.abs(move) >= 0.006d ? 'FLASH' : 'STORY', score(move, 0.008d),
+                lead.collect { Name e -> e.sym }.join(' ') ?: null, 'Americas', null, sectorIds[k])
+        return size * (up ? 1 : -1)
+    }
+
+    /** A name's jump, reported at its instant, `n.mid` already moved: a story its size, a brief when it is small. */
+    void jump(Name n, double r, Instant at) {
+        boolean up = r > 0
+        if (n.kind == 'CRYPTO') {
+            story(at, String.format('%s %s %s as %s', n.name, up ? 'jumps' : 'slides', pct(r),
+                    up ? 'fund inflows accelerate' : 'exchange outflows rise'),
+                    String.format('%s trades at %s.', n.sym, price(n)), 'Crypto Desk', 'Crypto',
+                    Math.abs(r) >= 0.03d ? 'FLASH' : 'STORY', score(r, 0.05d), n.sym, null, n, null)
+            return
+        }
+        if (Math.abs(r) < 0.005d) {
+            String b = pick(BROKERS)
+            story(at, String.format('%s %s %s price target to %s', b, up ? 'raises' : 'cuts', n.name, target(n, up)),
+                    String.format('%s (%s) at %s.', n.name, n.sym, price(n)), 'Street Desk', 'Analyst', 'BRIEF',
+                    score(r, 0.04d), n.sym, 'Americas', n, null)
+            return
+        }
+        String p = pct(r)
+        String[] products = PRODUCTS[n.sectorIx] as String[]
+        String cat
+        String head
+        switch (random.nextInt(8)) {
+            case 0:
+                cat = 'Earnings'
+                head = up ? String.format('%s quarterly profit beats estimates; shares up %s', n.name, p)
+                        : String.format('%s misses quarterly estimates as margins narrow; shares down %s', n.name, p)
+                break
+            case 1:
+                cat = 'Guidance'
+                head = up ? n.name + ' raises its full-year outlook on strong demand'
+                        : n.name + ' cuts its full-year guidance, citing weaker orders'
+                break
+            case 2:
+                cat = 'M&A'
+                head = up ? String.format('%s jumps %s on a report of a takeover approach', n.name, p)
+                        : String.format('%s falls %s after agreeing a costly acquisition', n.name, p)
+                break
+            case 3:
+                cat = 'Analyst'
+                String b = pick(BROKERS)
+                head = String.format(up ? '%s upgrades %s to buy, target %s' : '%s downgrades %s to sell, target %s', b,
+                        n.name, target(n, up))
+                break
+            case 4:
+                cat = 'Regulatory'
+                head = up ? n.name + ' wins regulatory approval for ' + pick(products)
+                        : 'Regulator opens a probe into ' + n.name + ' -- filing'
+                break
+            case 5:
+                cat = 'Management'
+                head = up ? String.format('%s names a new chief executive; shares rise %s', n.name, p)
+                        : n.name + '\'s chief executive to step down'
+                break
+            default:
+                cat = 'Product'
+                head = up ? String.format('%s unveils %s; shares climb %s', n.name, pick(products), p)
+                        : String.format('%s recalls %s; shares drop %s', n.name, pick(products), p)
+        }
+        story(at, head, String.format('%s (%s) shares %s %s to %s.', n.name, n.sym, up ? 'rose' : 'fell', p, price(n)),
+                'Market Wire', cat, Math.abs(r) >= 0.03d ? 'FLASH' : 'STORY', score(r, 0.04d), n.sym, 'Americas', n, null)
+    }
+
+    /** A brief about a name drawn by its share of the market's activity: its nudge, a little its way, if any. */
+    void brief(Instant at) {
+        int i = Arrays.binarySearch(cumulative, random.nextDouble() * cumulative[cumulative.length - 1])
+        Name n = equities[i < 0 ? Math.min(-i - 1, equities.size() - 1) : i]
+        double nudge = 0d
+        String head
+        String cat
+        String src = 'Market Wire'
+        switch (random.nextInt(filingsLive ? 6 : 7)) {
+            case 0:
+                nudge = (random.nextBoolean() ? 1 : -1) * (0.002d + 0.003d * random.nextDouble())
+                head = String.format('%s %s %s price target to %s', pick(BROKERS), nudge > 0 ? 'raises' : 'cuts', n.name,
+                        target(n, nudge > 0))
+                cat = 'Analyst'
+                src = 'Street Desk'
+                break
+            case 1:
+                int rating = random.nextInt(3)
+                nudge = (rating - 1) * 0.002d
+                head = String.format('%s starts %s at %s', pick(BROKERS), n.name, ['sell', 'hold', 'buy'][rating])
+                cat = 'Analyst'
+                src = 'Street Desk'
+                break
+            case 2:
+                nudge = 0.001d + 0.002d * random.nextDouble()
+                head = String.format('%s discloses %.1f%% stake in %s -- filing', pick(FUNDS), 5d + 4d * random.nextDouble(), n.name)
+                cat = 'Filing'
+                src = 'Filings'
+                break
+            case 3:
+                head = n.name + (random.nextBoolean() ? ' appoints a new chief financial officer' : ' adds two directors to its board')
+                cat = 'Management'
+                break
+            case 4:
+                head = String.format('%s declares a quarterly dividend of $%.2f a share', n.name, n.mid * (0.002d + 0.006d * random.nextDouble()))
+                cat = 'Dividend'
+                break
+            case 5:
+                nudge = 0.001d + 0.002d * random.nextDouble()
+                head = String.format('%s authorises a $%.1fbn share buyback', n.name, Math.max(0.1d, n.shares * n.mid * 0.02d / 1e9d))
+                cat = 'Management'
+                break
+            default:
+                head = String.format('%s files 8-K: %s', n.name, pick(FILING_ITEMS))
+                cat = 'Filing'
+                src = 'Filings'
+        }
+        if (nudge != 0d) n.mid = Math.max(n.tick, n.mid * Math.exp(nudge))
+        story(at, head, String.format('%s (%s) at %s.', n.name, n.sym, price(n)), src, cat, 'BRIEF',
+                nudge == 0d ? Double.NaN : score(nudge, 0.01d), n.sym, 'Americas', n, null)
+    }
+
+    /** Where a coin stands against its prior close, from its price now: the feed's when live, else the simulator's. */
+    void crypto(Instant at) {
+        Name n = coins[Math.min(coins.size() - 1, (int) Math.floor(Math.pow(random.nextDouble(), 2) * coins.size()))]
+        double r = Math.log(n.mid / n.prevClose)
+        story(at, String.format('%s at %s, %s %s from its prior close', n.name, price(n), r >= 0 ? 'up' : 'down', pct(r)),
+                null, 'Crypto Desk', 'Crypto', 'BRIEF', score(r, 0.05d), n.sym, null, n, null)
+    }
+
+    /** A filing from EDGAR (a real company's, a public record), at its own time -- not moved after the stories before
+     *  it, so it can sit below them in a feed's newest-first order: EDGAR's wire carries no ticker. */
+    void filing(Instant at, String form, String company, String items) {
+        id << String.format('NS-%07d', ++count); ts << at; headline << (form + ': ' + company); body << items
+        source << 'SEC EDGAR'; category << 'Filing'; urgency << 'BRIEF'; sentiment << Rows.NULL_DOUBLE; tickers << null
+        region << 'Americas'; instrument << null; sector << null
+    }
+
+    boolean pending() { return !id.isEmpty() }
+
+    /** The stories so far as NEWS_STORY's rows, in its order; the newsroom's buffer emptied. */
+    Table table() {
+        Table t = TableTools.newTable(
+                TableTools.stringCol('STORY_ID', id as String[]),
+                TableTools.instantCol('PUBLISH_TIME', ts as Instant[]),
+                TableTools.stringCol('HEADLINE', headline as String[]),
+                TableTools.stringCol('BODY', body as String[]),
+                TableTools.stringCol('SOURCE', source as String[]),
+                TableTools.stringCol('CATEGORY', category as String[]),
+                TableTools.stringCol('URGENCY', urgency as String[]),
+                TableTools.doubleCol('SENTIMENT', sentiment as double[]),
+                TableTools.stringCol('TICKERS', tickers as String[]),
+                TableTools.stringCol('REGION', region as String[]),
+                TableTools.stringCol('INSTRUMENT_ID', instrument as String[]),
+                TableTools.stringCol('SECTOR_ID', sector as String[]))
+        [id, headline, body, source, category, urgency, tickers, region, instrument, sector].each { ((List) it).clear() }
+        ts.clear()
+        sentiment.clear()
+        return t
+    }
+}
+
+/**
  * CRYPTO FROM COINBASE EXCHANGE'S PUBLIC FEED (DH28): its ticker channel as quotes, its matches as trades (the
  * aggressor the maker's other side). Live from the first message to a close or an error; the world simulates crypto
  * whenever it is not, from the last price it had, and asks again a minute later.
@@ -509,6 +875,92 @@ class CoinbaseFeed implements WebSocket.Listener {
     }
 }
 
+/**
+ * FILINGS FROM SEC EDGAR (K15, DH28): its latest 8-K filings, a public record, polled each minute, each a brief on the
+ * newswire at its own time. EDGAR's fair-access policy asks every client for a contact in its User-Agent, so it is
+ * asked only with the person's own (MARKET_FILINGS_AGENT, "name email"); without one, or refused, the newsroom files
+ * its own names' filings in its place.
+ */
+@CompileStatic
+class EdgarFeed {
+    static final java.util.regex.Pattern ENTRY = java.util.regex.Pattern.compile('(?s)<entry>(.*?)</entry>')
+    static final java.util.regex.Pattern TITLE = java.util.regex.Pattern.compile('(?s)<title>(.*?)</title>')
+    static final java.util.regex.Pattern UPDATED = java.util.regex.Pattern.compile('<updated>([^<]+)</updated>')
+    static final java.util.regex.Pattern ID = java.util.regex.Pattern.compile('<id>([^<]+)</id>')
+    static final java.util.regex.Pattern SUMMARY = java.util.regex.Pattern.compile('(?s)<summary[^>]*>(.*?)</summary>')
+    /** "8-K - Company, Inc. (0001589149) (Filer)": the form and the company */
+    static final java.util.regex.Pattern PARTS = java.util.regex.Pattern.compile('^(\\S+) - (.*?) \\(\\d+\\)')
+    static final java.util.regex.Pattern ITEM = java.util.regex.Pattern.compile('Item (\\d+\\.\\d+): ([^<\\n]+)')
+    final URI url
+    final String agent
+    /** the filings read and not yet filed: [its time, its form, its company, its items] */
+    final ConcurrentLinkedQueue<String[]> filings = new ConcurrentLinkedQueue<>()
+    final Set<String> seen = new HashSet<>()
+    volatile String state = 'connecting'
+    volatile String detail = ''
+
+    EdgarFeed(URI url, String agent) {
+        this.url = url
+        this.agent = agent
+        this.detail = url.toString()
+    }
+
+    static String first(java.util.regex.Pattern p, String text) {
+        java.util.regex.Matcher m = p.matcher(text)
+        return m.find() ? m.group(1).trim() : null
+    }
+
+    static String unescape(String s) {
+        return s == null ? null : s.replace('&lt;', '<').replace('&gt;', '>').replace('&quot;', '"').replace('&#39;', "'")
+                .replace('&amp;', '&')
+    }
+
+    void poll() {
+        try {
+            HttpClient client = HttpClient.newBuilder().proxy(java.net.ProxySelector.getDefault())
+                    .connectTimeout(Duration.ofSeconds(5)).build()
+            java.net.http.HttpRequest ask = java.net.http.HttpRequest.newBuilder(url).timeout(Duration.ofSeconds(15))
+                    .header('User-Agent', agent).header('Accept', 'application/atom+xml').GET().build()
+            java.net.http.HttpResponse<String> got = client.send(ask, java.net.http.HttpResponse.BodyHandlers.ofString())
+            if (got.statusCode() != 200) {
+                refused('EDGAR answered ' + got.statusCode())
+                return
+            }
+            read(got.body())
+            state = 'live'
+            detail = 'SEC EDGAR\'s latest 8-K filings, read each minute'
+        } catch (Throwable e) {
+            refused(e.toString())
+        }
+    }
+
+    /** Each entry not seen before, oldest first, so their stories are filed in their order. */
+    void read(String atom) {
+        List<String[]> found = []
+        java.util.regex.Matcher m = ENTRY.matcher(atom)
+        while (m.find()) {
+            String e = m.group(1)
+            String accession = first(ID, e)
+            String title = unescape(first(TITLE, e))
+            String updated = first(UPDATED, e)
+            if (accession == null || title == null || updated == null || !seen.add(accession)) continue
+            java.util.regex.Matcher t = PARTS.matcher(title)
+            if (!t.find()) continue
+            List<String> items = []
+            java.util.regex.Matcher i = ITEM.matcher(unescape(first(SUMMARY, e)) ?: '')
+            while (i.find()) items << ('Item ' + i.group(1) + ': ' + i.group(2).trim())
+            found << ([java.time.OffsetDateTime.parse(updated).toInstant().toString(), t.group(1), t.group(2),
+                       items.join('; ')] as String[])
+        }
+        for (int k = found.size() - 1; k >= 0; k--) filings.add(found[k])
+    }
+
+    void refused(String why) {
+        state = 'refused'
+        detail = why.length() > 200 ? why.substring(0, 200) : why
+    }
+}
+
 /** The world: its names, the simulator, the feed, and the clock that steps them and publishes their rows. */
 @CompileStatic
 class World {
@@ -522,9 +974,14 @@ class World {
     final TablePublisher world
     final AtomicLong seq
     final String equitiesDetail
+    /** the newswire (K15): its stories' publisher, its newsroom, and EDGAR's filings where asked for (else none) */
+    TablePublisher news
+    Newsroom newsroom
+    EdgarFeed filings
     long lastStepNanos = System.nanoTime()
     long retryAtMs = 0L
     String said = ''
+    String newsDetail = 'none'
 
     World(Simulator simulator, CoinbaseFeed feed, TablePublisher quotes, TablePublisher trades, TablePublisher world,
           AtomicLong seq, String equitiesDetail) {
@@ -561,6 +1018,13 @@ class World {
             }
             if (!rows.qId.isEmpty()) quotes.add(rows.quotes())
             if (!rows.tId.isEmpty()) trades.add(rows.trades())
+            if (newsroom != null) {
+                newsroom.filingsLive = filings != null && filings.state == 'live'
+                for (String[] f; filings != null && (f = filings.filings.poll()) != null; ) {
+                    newsroom.filing(Instant.parse(f[0]), f[1], f[2], f[3])
+                }
+                if (newsroom.pending()) news.add(newsroom.table())
+            }
             say(live)
         } catch (Throwable e) {
             System.err.println('the market world\'s beat failed: ' + e)
@@ -599,16 +1063,23 @@ class World {
                 : live ? 'live|' + feed.detail
                 : feed.state == 'connecting' ? 'simulated|connecting to ' + feed.detail
                 : 'simulated|the feed was refused: ' + feed.detail
-        String text = crypto
+        String filed = filings == null
+                ? 'simulated|EDGAR asks for a contact in its User-Agent: MARKET_FILINGS_AGENT ("name email") reads its filings'
+                : filings.state == 'live' ? 'live|' + filings.detail
+                : filings.state == 'connecting' ? 'simulated|asking ' + filings.detail
+                : 'simulated|EDGAR was refused: ' + filings.detail
+        String text = crypto + '\n' + filed
         if (text == said) return
         said = text
         String[] c = crypto.split('\\|', 2)
+        String[] f = filed.split('\\|', 2)
         // said in the server's log too, as an operator reads it
         System.out.println('the market world\'s crypto is ' + c[0] + ': ' + c[1])
+        System.out.println('the market world\'s filings are ' + f[0] + ': ' + f[1])
         world.add(TableTools.newTable(
-                TableTools.stringCol('item', 'equities', 'crypto'),
-                TableTools.stringCol('state', 'simulated', c[0]),
-                TableTools.stringCol('detail', equitiesDetail, c[1])))
+                TableTools.stringCol('item', 'equities', 'crypto', 'news', 'filings'),
+                TableTools.stringCol('state', 'simulated', c[0], 'simulated', f[0]),
+                TableTools.stringCol('detail', equitiesDetail, c[1], newsDetail, f[1])))
     }
 }
 
@@ -1172,6 +1643,11 @@ FEED_URL = env.getOrDefault('MARKET_FEED_URL', 'wss://ws-feed.exchange.coinbase.
 HISTORY = Integer.parseInt(env.getOrDefault('MARKET_HISTORY', '0'))
 MORNING = Double.parseDouble(env.getOrDefault('MARKET_MORNING', '7200'))
 MORNING_PRINTS = Double.parseDouble(env.getOrDefault('MARKET_MORNING_PRINTS', '400000'))
+NEWS = Double.parseDouble(env.getOrDefault('MARKET_NEWS', '12'))
+JUMPS = Double.parseDouble(env.getOrDefault('MARKET_JUMPS', '0.5'))
+FILINGS_AGENT = env.get('MARKET_FILINGS_AGENT')
+FILINGS_URL = env.getOrDefault('MARKET_FILINGS_URL',
+        'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&count=40&output=atom')
 random = new Random(Long.parseLong(env.getOrDefault('MARKET_SEED', '20261024')))
 
 // ---------------------------------------------------------------- the names
@@ -1376,6 +1852,15 @@ tradePublisher = TablePublisher.of('trades', TableDefinition.of(
 MARKET_TRADE = HISTORY > 0 ? RingTableTools.of(tradePublisher.table(), HISTORY)
         : BlinkTableTools.blinkToAppendOnly(tradePublisher.table())
 
+// the newswire (K15): every story kept, in the order it crossed
+newsPublisher = TablePublisher.of('news', TableDefinition.of(
+        ColumnDefinition.ofString('STORY_ID'), ColumnDefinition.ofTime('PUBLISH_TIME'),
+        ColumnDefinition.ofString('HEADLINE'), ColumnDefinition.ofString('BODY'), ColumnDefinition.ofString('SOURCE'),
+        ColumnDefinition.ofString('CATEGORY'), ColumnDefinition.ofString('URGENCY'), ColumnDefinition.ofDouble('SENTIMENT'),
+        ColumnDefinition.ofString('TICKERS'), ColumnDefinition.ofString('REGION'),
+        ColumnDefinition.ofString('INSTRUMENT_ID'), ColumnDefinition.ofString('SECTOR_ID')), NO_FLUSH, NO_SHUTDOWN)
+NEWS_STORY = BlinkTableTools.blinkToAppendOnly(newsPublisher.table())
+
 worldPublisher = TablePublisher.of('world', TableDefinition.of(
         ColumnDefinition.ofString('item'), ColumnDefinition.ofString('state'), ColumnDefinition.ofString('detail')),
         NO_FLUSH, NO_SHUTDOWN)
@@ -1384,6 +1869,11 @@ world = worldPublisher.table().lastBy('item')
 // ---------------------------------------------------------------- the clock: a beat every 20 ms
 
 simulator = new Simulator(random, equities, SECTORS.size(), QUOTES, TRADES, seq)
+// the newswire on its own random, so the prices' draws are the simulation's as they were
+newsroom = new Newsroom(new Random(Long.parseLong(env.getOrDefault('MARKET_SEED', '20261024')) + 2L), equities, coins,
+        GICS.collect { 'SEC-' + it }, NEWS)
+simulator.news = newsroom
+simulator.jumpsADay = JUMPS
 // THE MORNING (K14): the session opened MORNING seconds ago, each equity's morning on the tape before the clock starts;
 // crypto's day is the feed's (or the simulator's from now), never made up before the world began
 sessionOpen = Instant.now().minusMillis((long) (MORNING * 1000d))
@@ -1392,6 +1882,7 @@ if (MORNING >= 1d) {
     long t0 = System.nanoTime()
     MorningRows morning = simulator.morning(MORNING, sessionOpen, thin)
     tradePublisher.add(morning.table())
+    if (newsroom.pending()) newsPublisher.add(newsroom.table())
     // each name's quote published at the clock's first beat, its day so far the morning's
     equities.each { Name n -> n.quoted = false }
     System.out.println(String.format('the market world\'s morning: the open %s, %,d prints (a %.3f share of its pace, each %.1f times a print) in %.1f s',
@@ -1403,6 +1894,14 @@ marketWorld = new World(simulator, feed, quotePublisher, tradePublisher, worldPu
         String.format('%d names, %,.0f quotes and %,.0f trades a second, the session open since %s', NAMES, QUOTES, TRADES,
                 sessionOpen.toString().replaceFirst('\\.\\d+Z$', 'Z')))
 (equities + coins).each { marketWorld.bySym.put(it.sym, it) }
+marketWorld.news = newsPublisher
+marketWorld.newsroom = newsroom
+marketWorld.newsDetail = String.format('%.0f stories a minute besides each name\'s jump, each where its move is', NEWS)
+if (FILINGS_AGENT != null && !FILINGS_AGENT.trim().isEmpty()) {
+    marketWorld.filings = new EdgarFeed(URI.create(FILINGS_URL), FILINGS_AGENT.trim())
+    filingsClock = Executors.newSingleThreadScheduledExecutor { r -> Thread t = new Thread(r, 'market-filings'); t.daemon = true; t }
+    filingsClock.scheduleWithFixedDelay({ marketWorld.filings.poll() } as Runnable, 0L, 60L, TimeUnit.SECONDS)
+}
 marketWorld.equities.addAll(equities)
 marketWorld.coins.addAll(coins)
 marketClock = Executors.newSingleThreadScheduledExecutor { r -> Thread t = new Thread(r, 'market-world'); t.daemon = true; t }

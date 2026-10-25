@@ -17,7 +17,7 @@ import { applyGridCommands, type GridCommand } from '../src/grid-commands.ts';
 import type { ExportPage } from '../src/export-model.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
 import { HOLD_MS } from '../src/ui/long-press.ts';
-import { gridCopyOf, newPage as freshPage, pageToJson, readPage, unnamedLabel, type PageDocument } from '../src/page-document.ts';
+import { gridCopyOf, newPage as freshPage, pageToJson, readPage, unnamedLabel, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { applyPageCommands, idsOf, type PageCommand, type PageDraft } from '../src/page-commands.ts';
@@ -335,6 +335,27 @@ describe('a page of its own', () => {
     // a link to no grid of the page is refused by name
     assert.throws(() => readPage(pageToJson({ ...linked, views: linked.views.map((v) => (v.id === a ? { ...v, link: { column: 'region', to: ['nowhere'] } } : v)) })),
       new RegExp(`grid ${a}'s link takes nowhere, no other grid of this page`));
+  });
+
+  it('a feed linked to grids (K15): its link read with the page, kept when saved, a grid it takes refused when none', async () => {
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    const b = page.addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const chart = await chartOf(a);
+    const doc = page.document('Q3')!;
+    const linked = { ...doc, views: doc.views.map((v) => (v.id === chart ? { ...v, link: { column: 'region', to: [b] } } : v)) };
+    const back = readPage(pageToJson(linked));
+    assert.deepEqual(back.views.find((v): v is ChartView => v.id === chart && v.kind === 'chart')?.link, { column: 'region', to: [b] });
+    page.dispose();
+    newPage();
+    page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])));
+    await settle();
+    assert.deepEqual(page.document('Q3')!.views.find((v): v is ChartView => v.id === chart && v.kind === 'chart')?.link, { column: 'region', to: [b] });
+    assert.throws(() => readPage(pageToJson({ ...linked, views: linked.views.map((v) => (v.id === chart ? { ...v, link: { column: 'region', to: [chart] } } : v)) })),
+      new RegExp(`chart ${chart}'s link takes ${chart}, no other grid of this page`));
+    assert.throws(() => readPage(pageToJson({ ...linked, views: linked.views.map((v) => (v.id === chart ? { ...v, link: { column: '', to: [b] } } : v)) })),
+      new RegExp(`chart ${chart}'s link is not a column and the grids it takes to its value`));
   });
 
   it("restored with the ids its keeper has held: none is given out again (B12, the S4 audit's 5)", async () => {

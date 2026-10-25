@@ -998,3 +998,82 @@ describe('the stock chart\'s words (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K1
   });
 });
 
+
+describe('a news feed (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K15): its slots read and judged, its query the cube\'s rows', () => {
+  const WIRE: CubeSnapshot = {
+    source: { query: element('news') },
+    columns: [
+      { name: 'id', type: 'String' },
+      { name: 'at', type: 'DateTime' },
+      { name: 'headline', type: 'String' },
+      { name: 'body', type: 'String' },
+      { name: 'category', type: 'String' },
+      { name: 'weight', type: 'String' },
+      { name: 'tone', type: 'Float' },
+      { name: 'tickers', type: 'String' },
+      { name: 'ticker', type: 'String' },
+      { name: 'sector', type: 'String' },
+    ],
+    derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1,
+    filter: { kind: 'condition', column: 'sector', operator: 'equal', value: 'Technology' },
+  };
+  const SLOTS = { headline: 'headline', time: 'at', body: 'body', tags: ['category'], weight: 'weight', tickers: 'tickers', tone: 'tone', key: 'id' };
+  const FEED: ChartSpec = { version: 2, mark: 'feed', y: [], feed: SLOTS, options: { ...OPTIONS, limit: 40 } };
+
+  it('a feed is read and drawn: its slots each a column of the cube', () => {
+    assert.deepEqual(chartProblems(FEED, WIRE), []);
+    const read = readChart(JSON.parse(JSON.stringify(FEED)));
+    assert.equal(typeof read, 'object', String(read));
+  });
+
+  it('its query: the cube\'s rows under its filter, its slots\' columns and the filter\'s, the newest first, a tie by its key', () => {
+    const { snapshot, scope } = chartQuery(WIRE, FEED);
+    assert.deepEqual(snapshot.rows, []);
+    assert.deepEqual(snapshot.measures, []);
+    assert.deepEqual(snapshot.columns.map((c) => c.name).sort(),
+      ['at', 'body', 'category', 'headline', 'id', 'sector', 'tickers', 'tone', 'weight']);
+    assert.deepEqual(snapshot.filter, WIRE.filter);
+    assert.deepEqual(snapshot.sorts, [{ column: 'at', direction: 'desc' }, { column: 'id', direction: 'desc' }]);
+    assert.equal(scope.limit, 40);
+  });
+
+  it('what stops one: no slots, a column the cube has not, a time not a time, a tone not a number, a headline not text', () => {
+    const { feed: _feed, ...bare } = FEED;
+    assert.deepEqual(chartProblems(bare, WIRE), ['A news feed needs its headline and time columns (feed: headline, time).']);
+    assert.deepEqual(chartProblems({ ...FEED, feed: { ...SLOTS, source: 'wire' } }, WIRE), ['The cube has no column \'wire\'.']);
+    assert.deepEqual(chartProblems({ ...FEED, feed: { ...SLOTS, time: 'headline' } }, WIRE),
+      ['A feed\'s time is a date or a date-time: \'headline\' is String.']);
+    assert.deepEqual(chartProblems({ ...FEED, feed: { ...SLOTS, tone: 'sector' } }, WIRE),
+      ['A feed\'s tone is a number from -1 to 1: \'sector\' is String.']);
+    assert.deepEqual(chartProblems({ ...FEED, feed: { ...SLOTS, headline: 'tone' } }, WIRE), ['A feed\'s headline is text: \'tone\' is Float.']);
+    assert.deepEqual(chartProblems({ ...FEED, x: 'sector' }, WIRE),
+      ['A news feed draws its rows into its slots: it has nothing across, nothing plotted and no split.']);
+    assert.ok(chartProblems({ ...of('bar', { x: 'sector' }), feed: SLOTS }, WIRE).includes('A bar has no cards: a news feed has.'));
+  });
+
+  it('a saved feed\'s slots are columns\' names, its words all known', () => {
+    assert.equal(refusal({ mark: 'feed', feed: { headline: 'h' } }), 'its feed {"headline":"h"} names no headline and time columns');
+    assert.equal(refusal({ mark: 'feed', feed: { headline: 'h', time: 't', colour: 'c' } }),
+      'there is no "colour" in its feed (it says headline, time, body, source, tags, weight, tickers, tone, key)');
+    assert.equal(refusal({ mark: 'feed', feed: { headline: 'h', time: 't', tone: 3 } }), 'its feed\'s tone 3 is not a column\'s name');
+    assert.equal(refusal({ mark: 'feed', feed: { headline: 'h', time: 't', tags: 'category' } }),
+      'its feed\'s tags "category" are not a list of columns\' names');
+  });
+
+  it('a chart made a feed by its kind: what it plotted goes, its slots start at the cube\'s first date-time and text', () => {
+    const made = editChart(of('bar', { x: 'sector', split: 'weight' }), { mark: 'feed' }, WIRE);
+    assert.equal(made.mark, 'feed');
+    assert.deepEqual(made.y, []);
+    assert.equal(made.x, undefined);
+    assert.equal(made.split, undefined);
+    assert.deepEqual(made.feed, { headline: 'id', time: 'at' });
+    // and back: its slots go with it, what a bar needs asked for by name
+    const back = editChart(FEED, { mark: 'bar' }, WIRE);
+    assert.equal(back.feed, undefined);
+    assert.ok(chartProblems(back, WIRE).includes('Pick a column across.'));
+  });
+
+  it('a feed follows no grouping: the cube\'s pivots leave it as it is', () => {
+    assert.equal(followCube(FEED, { ...WIRE, rows: ['sector'] }), FEED);
+  });
+});

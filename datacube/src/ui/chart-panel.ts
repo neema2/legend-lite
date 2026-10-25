@@ -38,6 +38,7 @@ import type { FormHost } from './chart-form.ts';
 import type { Brushed, GridShown, LabelOf, MarkKey, UnitOf } from '../chart-option.ts';
 // ECharts (about 218 KB gzipped) is loaded the first time a chart draws, never by a grid alone (plan F7)
 import type { ChartPicture, MountedChart } from '../chart-render.ts';
+import type { FeedPick, FeedView } from './chart-feed.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { CubeSnapshot, FilterNode } from '../snapshot.ts';
 import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
@@ -95,6 +96,8 @@ export interface ChartPanelOptions {
   readonly onSpec?: () => void;
   /** What the grid shows now: a treemap draws exactly that, not a query of its own. */
   readonly shown?: () => GridShown | null;
+  /** A feed's card picked, or a ticker chip on it (K15): its row, for the page to follow where the view links it. */
+  readonly onRow?: (pick: FeedPick) => void;
 }
 
 export class ChartPanel {
@@ -126,6 +129,10 @@ export class ChartPanel {
   #chartKnowsMaps = false;
   /** A KPI's trend line, mounted under its number (the number is the canvas's own, not a chart). */
   #trend: MountedChart | null = null;
+  /** A feed's cards (K15), the canvas's own, kept across ticks; its keyword box above it, and the keyword it asked for. */
+  #feed: FeedView | null = null;
+  #search!: HTMLInputElement;
+  #searched = '';
   #timer: ReturnType<typeof setTimeout> | undefined;
   #inflight: AbortController | null = null;
   #disposed = false;
@@ -262,10 +269,52 @@ export class ChartPanel {
     this.#spans.setAttribute('role', 'group');
     this.#spans.setAttribute('aria-label', 'Span of time shown');
     this.#spans.hidden = true;
-    right.append(this.#crumbs, this.#spans, this.#canvas, this.#status);
+    // A FEED'S KEYWORD (K15): its stories with it in the headline or the body, any case -- the feed's own selection on
+    // its grid (onPick), so it is kept with the page and said on the tile's chip as any chart's is
+    this.#search = doc.createElement('input');
+    this.#search.type = 'search';
+    this.#search.className = 'dc-chartpanel-search';
+    this.#search.placeholder = 'Keyword';
+    this.#search.setAttribute('aria-label', 'Filter the feed to a keyword');
+    this.#search.hidden = true;
+    let typed: ReturnType<typeof setTimeout> | undefined;
+    this.#search.addEventListener('input', () => {
+      clearTimeout(typed);
+      typed = setTimeout(() => this.#keyword(this.#search.value), 400);
+    });
+    this.#search.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      clearTimeout(typed);
+      this.#keyword(this.#search.value);
+    });
+    right.append(this.#crumbs, this.#spans, this.#search, this.#canvas, this.#status);
     this.#root.append(this.#form, right);
     this.#form.hidden = this.#options.formOpen === false;
     this.#paintForm();
+  }
+
+  /** The keyword typed into a feed's box, asked of its grid: none, its selection taken off. */
+  #keyword(text: string): void {
+    const feed = this.#spec?.feed;
+    const words = text.trim();
+    if (!feed || words === this.#searched) return;
+    this.#searched = words;
+    const has = (column: string): FilterNode => ({ kind: 'condition', column, operator: 'containsCaseInsensitive', value: words });
+    this.#options.onPick(words === '' ? []
+      : [feed.body !== undefined ? { kind: 'or', children: [has(feed.headline), has(feed.body)] } : has(feed.headline)]);
+  }
+
+  /**
+   * The chart's selection on its grid now, as the page has it (a page reopened, a chip cleared, an undo): a feed's box
+   * says its keyword -- but while the person types in it.
+   */
+  selected(conditions: readonly FilterNode[]): void {
+    const one = conditions.length === 1 ? conditions[0] : undefined;
+    const first = one?.kind === 'or' ? one.children[0] : one;
+    const words = first?.kind === 'condition' && first.operator === 'containsCaseInsensitive' && typeof first.value === 'string'
+      ? first.value : '';
+    this.#searched = words;
+    if (this.#doc.activeElement !== this.#search) this.#search.value = words;
   }
 
   #set(change: ChartChange, redrawForm = false): void {
@@ -293,6 +342,7 @@ export class ChartPanel {
   #paintForm(): void {
     this.#paintCrumbs();
     this.#paintSpans();
+    this.#search.hidden = this.#spec?.mark !== 'feed';
     if (this.#form.hidden) {
       this.#formStale = true;
       return;
@@ -359,6 +409,11 @@ export class ChartPanel {
       this.#say(problems.join(' '), true);
       return;
     }
+    if (spec.mark === 'feed') {
+      await this.#drawFeed(spec, cube, ticked);
+      return;
+    }
+    this.#clearFeed();
     // A TREEMAP DRAWS THE GRID AS SHOWN, with no query of its own (the old treemap's way, the user
     // 2026-09-30): following, the rows on screen now; frozen, the rows it last drew. So do a sunburst and a tree.
     if (GRID_MARKS.has(spec.mark)) {
@@ -573,6 +628,53 @@ export class ChartPanel {
     } finally {
       if (this.#inflight === abort) this.#canvas.removeAttribute('aria-busy');
     }
+  }
+
+  /**
+   * A FEED (K15): its query's rows -- the cube's under its filter, the newest first (chart-spec.ts feedSnapshot) -- as
+   * cards, drawn again on each tick with the cards it had kept (ui/chart-feed.ts, fetched with the first feed).
+   */
+  async #drawFeed(spec: ChartSpec, cube: CubeSnapshot, ticked: boolean): Promise<void> {
+    this.#inflight?.abort();
+    const abort = new AbortController();
+    this.#inflight = abort;
+    if (!ticked) this.#canvas.setAttribute('aria-busy', 'true');
+    try {
+      const { query, snapshot } = chartQuery(cube, spec);
+      const rows = await this.#options.run(query, snapshot, abort.signal);
+      if (abort.signal.aborted || this.#disposed || spec.feed === undefined) return;
+      const { FeedView, feedCards } = await lazily(() => import('./chart-feed.ts'));
+      if (abort.signal.aborted || this.#disposed) return;
+      if (this.#feed === null) {
+        // a chart or a KPI drawn before gives way to the cards
+        this.#clearKpi();
+        this.#chart?.dispose();
+        this.#chart = null;
+        this.#feed = new FeedView(this.#doc, (pick) => this.#options.onRow?.(pick));
+        this.#canvas.replaceChildren(this.#feed.element);
+        this.#canvas.classList.add('dc-chartpanel-feed');
+        // a list of stories to read and pick, not a picture
+        this.#canvas.setAttribute('role', 'region');
+      }
+      const cards = feedCards(spec.feed, rows, this.#options.label);
+      this.#feed.draw(cards, `News: ${cards.length === 0 ? 'no stories' : `the latest ${cards.length}, the newest first`}`);
+      this.#canvas.setAttribute('aria-label', 'News feed');
+      this.#say(cards.length === 0 ? 'No story matches its filter yet.' : '');
+    } catch (e) {
+      if (abort.signal.aborted || this.#disposed) return;
+      this.#say(e instanceof Error ? e.message : String(e), true);
+    } finally {
+      if (this.#inflight === abort) this.#canvas.removeAttribute('aria-busy');
+    }
+  }
+
+  /** A feed drawn before gives way to a chart: its cards gone. */
+  #clearFeed(): void {
+    if (this.#feed === null) return;
+    this.#feed = null;
+    this.#canvas.replaceChildren();
+    this.#canvas.classList.remove('dc-chartpanel-feed');
+    this.#canvas.setAttribute('role', 'img');
   }
 
   /** A KPI drawn before gives way to a chart: its number and its trend gone. */

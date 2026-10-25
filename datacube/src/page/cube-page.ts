@@ -55,6 +55,7 @@ import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { lazily } from '../lazily.ts';
+import { cellFilterValue } from '../value-filter.ts';
 
 /** How many arrangements Undo Layout goes back through. */
 const LAYOUT_STEPS = 50;
@@ -1261,6 +1262,9 @@ export class CubePage {
       shown: () => source().shown(),
       // a detached chart has no grid's filter to put a click on
       onPick: (mark) => { if (link.grid !== null) this.#select(id, mark); },
+      // a feed's card picked takes the grids it links to its row's value; a ticker chip on it, to that ticker (K15)
+      onRow: (pick) => this.#follow(id, (column) => pick.ticker
+        ?? cellFilterValue(pick.row.get(column), undefined)),
       formOpen: false,
     });
     // its states offered, the one it is in checked, each said in a line
@@ -1454,6 +1458,9 @@ export class CubePage {
       const reads = chart.link.grid ?? chart.link.detached?.from;
       const cube = reads === undefined ? undefined : cubeOf(reads);
       if (!spec || cube === undefined) continue;
+      // a feed's link to the grids still on the page, as a grid's
+      const link = this.#links.get(id);
+      const to = link?.to.filter((t) => this.#grids.has(t) || this.#unavailable.get(t)?.kind === 'grid') ?? [];
       views.push({
         id,
         kind: 'chart',
@@ -1461,6 +1468,7 @@ export class CubePage {
         title: this.title(id) ?? id,
         spec,
         ...(chart.conditions.length > 0 ? { selection: chart.conditions } : {}),
+        ...(link && to.length > 0 ? { link: { column: link.column, to } } : {}),
       });
     }
     // the text tiles in reading order, each its own title only when someone gave it one
@@ -1495,9 +1503,9 @@ export class CubePage {
     for (const view of page.views) {
       if (view.kind === 'grid' && view.title && this.#grids.has(view.id)) this.#sheetOf(view.id)?.board.rename(view.id, view.title);
     }
-    // each grid's link as the page has it
+    // each grid's link as the page has it, and each feed's
     this.#links.clear();
-    for (const view of page.views) if (view.kind === 'grid' && view.link) this.#links.set(view.id, view.link);
+    for (const view of page.views) if (view.kind !== 'text' && view.link) this.#links.set(view.id, view.link);
     const sheetFor = new Map(page.sheets.flatMap((s) => tiles(s.layout).map((t) => [t, s.id] as const)));
     for (const view of page.views) {
       if (view.kind !== 'text' || this.#texts.has(view.id)) continue;
@@ -1897,13 +1905,22 @@ export class CubePage {
     const source = this.#sourceOf(chart.link);
     // a value as `region: EMEA`; a range's ends (a period, a bin, a brush) as `sold ≥ 2024-03-01`
     const sign: Partial<Record<string, string>> = { greaterThanEqual: '\u2265', greaterThan: '>', lessThan: '<', lessThanEqual: '\u2264' };
+    // a word looked for (a feed's keyword, K15): `headline or body contains "buyback"`, in one or several columns
+    const contains = (c: FilterNode): c is FilterNode & { kind: 'condition' } => c.kind === 'condition'
+      && (c.operator === 'contains' || c.operator === 'containsCaseInsensitive');
     const words = chart.conditions.map((c) => c.kind === 'condition'
       ? (c.operator === 'isEmpty' ? `${source.label(c.column)}: (empty)`
-        : sign[c.operator] !== undefined ? `${source.label(c.column)} ${sign[c.operator]} ${String(c.value)}`
-          : `${source.label(c.column)}: ${String(c.value)}`)
-      : '');
+        : contains(c) ? `${source.label(c.column)} contains \u201c${String(c.value)}\u201d`
+          : sign[c.operator] !== undefined ? `${source.label(c.column)} ${sign[c.operator]} ${String(c.value)}`
+            : `${source.label(c.column)}: ${String(c.value)}`)
+      : c.kind === 'or' && c.children.length > 0 && c.children.every(contains)
+        && c.children.every((k) => sameValue((k as { value?: unknown }).value, (c.children[0] as { value?: unknown }).value))
+        ? `${c.children.map((k) => source.label((k as { column: string }).column)).join(' or ')} contains \u201c${String((c.children[0] as { value?: unknown }).value)}\u201d`
+        : '');
     chart.chip.hidden = words.length === 0;
     chart.chip.textContent = `${words.join(', ')} ×`;
+    // a feed's keyword box says its keyword
+    chart.panel.selected(chart.conditions);
     chart.chip.title = 'Filtered to this; click to clear';
     chart.chip.setAttribute('aria-label', `Clear the filter to ${words.join(', ')}`);
   }

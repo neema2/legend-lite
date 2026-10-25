@@ -27,6 +27,8 @@ const deephaven = startDeephaven({
     MARKET_MORNING_PRINTS: '100000',
     MARKET_FEED: 'coinbase',
     MARKET_FEED_URL: 'wss://127.0.0.1:9/',
+    // jumps forty times as often as the demo's, so a morning of fifty names has enough of them to check (K15)
+    MARKET_JUMPS: '20',
   },
 });
 const config = await deephaven.next('starting');
@@ -39,7 +41,7 @@ const files = {
   '/classes.wasm': ['application/wasm', readFileSync(runfileNamed('PLANNER', 'classes.wasm'))],
   // the one trading model (//scripts/corpus:trading_model), which the page holds
   '/trading-model.pure': ['text/plain; charset=utf-8', readFileSync(runfileFromEnv('TRADING_MODEL'))],
-  '/config.json': ['application/json', JSON.stringify({ url: config.url, psk: config.psk, names: NAMES, trades: TRADES, morning: MORNING })],
+  '/config.json': ['application/json', JSON.stringify({ url: config.url, psk: config.psk, names: NAMES, trades: TRADES, morning: MORNING, news: 12 })],
 };
 // the page's own origin, not the server's, served for real on the loopback (test/deephaven/deephaven.mjs says why)
 const site = createServer((req, res) => {
@@ -54,7 +56,7 @@ const site = createServer((req, res) => {
 });
 const sitePort = await new Promise((done) => site.listen(0, '127.0.0.1', () => done(site.address().port)));
 
-const CHECKS = 22;
+const CHECKS = 24;
 let failed = false;
 let browser;
 try {

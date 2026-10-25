@@ -3260,6 +3260,57 @@
 /* a drilled chart's path (batch 2 item 10): each step a way back up */
 .dc-chartpanel-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 0 var(--dc-pad-2); font-size: var(--dc-text-sm-size); color: var(--dc-muted); }
 /* the spans of time a chart offers (K14): a small segmented control at its top right, the one shown pressed */
+/* A NEWS FEED (ui/chart-feed.ts, K15): each story a card, the newest first, as a news terminal's pane -- its time, its
+   weight (a FLASH in the bad colour), its source and tags on a line, its headline, its body at most two lines, its
+   tickers as chips; its tone on its edge, good above zero, bad below, as strong as it is far from zero; a new one lit
+   a moment as it comes in. Its keyword box above it. */
+.dc-chartpanel-search {
+  flex: none; margin: 4px var(--dc-pad-2) 2px; padding: 2px 8px; border: 1px solid var(--dc-line);
+  border-radius: var(--dc-radius-sm); background: var(--dc-bg); color: var(--dc-chart-ink); font: inherit;
+  font-size: var(--dc-text-sm-size);
+}
+.dc-chartpanel-search[hidden] { display: none; }
+.dc-chartpanel-chart.dc-chartpanel-feed { display: flex; }
+.dc-feed {
+  flex: 1 1 auto; min-height: 0; margin: 0; padding: 0; list-style: none; overflow-y: auto;
+  color: var(--dc-chart-ink); font-size: 12.5px;
+}
+.dc-feed-card {
+  padding: 5px var(--dc-pad-2) 6px calc(var(--dc-pad-2) - 3px); border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--dc-chart-grid); cursor: pointer;
+}
+.dc-feed-card:hover { background: color-mix(in srgb, var(--dc-chart-grid) 40%, transparent); }
+.dc-feed-card:focus-visible { outline: 2px solid var(--dc-active); outline-offset: -2px; }
+.dc-feed-up { border-left-color: color-mix(in srgb, var(--dc-kpi-good) calc(var(--dc-feed-tone, 0.5) * 100%), transparent); }
+.dc-feed-down { border-left-color: color-mix(in srgb, var(--dc-kpi-bad) calc(var(--dc-feed-tone, 0.5) * 100%), transparent); }
+.dc-feed-meta {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 7px; color: var(--dc-chart-ink-secondary); font-size: 11px;
+}
+.dc-feed-time { font-variant-numeric: tabular-nums; }
+.dc-feed-weight { font-weight: 700; letter-spacing: 0.04em; }
+.dc-feed-flash .dc-feed-weight, .dc-feed-flash .dc-feed-headline { color: var(--dc-kpi-bad); }
+.dc-feed-source { font-weight: 600; }
+.dc-feed-tag { padding: 0 5px; border-radius: 3px; background: color-mix(in srgb, var(--dc-chart-grid) 75%, transparent); }
+.dc-feed-headline { margin-top: 1px; line-height: 1.35; }
+.dc-feed-flash .dc-feed-headline { font-weight: 600; }
+.dc-feed-brief .dc-feed-headline { color: var(--dc-chart-ink-secondary); }
+.dc-feed-body {
+  margin-top: 1px; overflow: hidden; color: var(--dc-chart-muted); font-size: 11.5px; line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.dc-feed-tickers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.dc-feed-ticker {
+  padding: 0 6px; border: 1px solid var(--dc-chart-axis); border-radius: 8px; background: transparent;
+  color: var(--dc-chart-ink); font: inherit; font-size: 10.5px; font-weight: 600; line-height: 15px; cursor: pointer;
+}
+.dc-feed-ticker:hover { border-color: var(--dc-chart-ink-secondary); background: var(--dc-chart-surface); }
+.dc-feed-new { animation: dc-feed-in 4s ease-out; }
+@keyframes dc-feed-in {
+  from { background: color-mix(in srgb, var(--dc-kpi-good) 18%, transparent); }
+  to { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .dc-feed-new { animation: none; } }
+
 .dc-chartpanel-spans { display: flex; justify-content: flex-end; gap: 2px; padding: 2px var(--dc-pad-2) 0; }
 .dc-chartpanel-spans[hidden] { display: none; }
 .dc-chartpanel-span {

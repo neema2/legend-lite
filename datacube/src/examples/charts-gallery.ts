@@ -123,6 +123,10 @@ export const GALLERY_SHEETS: readonly ExampleSheet[] = [
       of('matrix', 'Scatter matrix', 'each sale\'s revenue, cost and profit against each other', {
         y: [REVENUE, COST, PROFIT], split: 'channel',
       }),
+      of('feed', 'News feed', 'the latest sales as a ticking feed shows them, each a card', {
+        y: [], feed: { headline: 'product', time: 'sold', source: 'channel', tags: ['category', 'region'], tickers: 'country_code', key: 'order_id' },
+        options: { limit: 40 },
+      }),
     ],
   },
   {

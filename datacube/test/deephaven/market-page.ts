@@ -46,7 +46,7 @@ async function check(name: string, run: () => Promise<string | null>): Promise<v
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 try {
-  const config = await (await fetch('config.json')).json() as { url: string; psk: string; names: number; trades: number; morning: number };
+  const config = await (await fetch('config.json')).json() as { url: string; psk: string; names: number; trades: number; morning: number; news: number };
   const server: DeephavenServer = {
     url: config.url,
     signIn: { type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token: config.psk },
@@ -110,11 +110,15 @@ try {
   // the world's first beat quotes every name; a second for its trades to start
   await sleep(1500);
 
-  await check('the world says what it is: equities simulated, crypto simulated because its feed was refused', async () => {
+  await check('the world says what it is: equities simulated, crypto simulated because its feed was refused, the news'
+    + ' simulated, filings simulated for want of a contact EDGAR asks for', async () => {
     const got = await rows(`${W}->sort(~item->ascending())`);
-    const [crypto, eq] = got;
-    if (got.length !== 2 || crypto?.[0] !== 'crypto' || eq?.[0] !== 'equities') return `the world: ${JSON.stringify(got)}`;
+    const [crypto, eq, filings, news] = got;
+    if (got.length !== 4 || crypto?.[0] !== 'crypto' || eq?.[0] !== 'equities' || filings?.[0] !== 'filings'
+      || news?.[0] !== 'news') return `the world: ${JSON.stringify(got)}`;
     if (eq[1] !== 'simulated' || !String(eq[2]).startsWith(`${equities} names`)) return `equities: ${JSON.stringify(eq)}`;
+    if (news[1] !== 'simulated' || !String(news[2]).startsWith(`${config.news} stories a minute`)) return `news: ${JSON.stringify(news)}`;
+    if (filings[1] !== 'simulated' || !String(filings[2]).startsWith('EDGAR asks for a contact')) return `filings: ${JSON.stringify(filings)}`;
     return crypto[1] === 'simulated' && String(crypto[2]).startsWith('the feed was refused') ? null
       : `crypto: ${JSON.stringify(crypto)}`;
   });
@@ -350,6 +354,56 @@ try {
       return n > 0 && worst < 1e-5 && bad === 0 ? null
         : `${n} options: parity off by ${worst} of the spot at worst, ${bad} out of range (${(performance.now() - started).toFixed(0)} ms)`;
     });
+
+  const NEWS = 'marketdata::NewsStory.all()';
+  const CATEGORIES = new Set(['Earnings', 'Guidance', 'M&A', 'Analyst', 'Macro', 'Industry', 'Regulatory', 'Management',
+    'Product', 'Filing', 'Dividend', 'Crypto']);
+  const stories = await rows(`${NEWS}->project(~[id:x|$x.storyId, at:x|$x.publishTime, head:x|$x.headline, body:x|$x.body,`
+    + ' cat:x|$x.category, urg:x|$x.urgency, tickers:x|$x.tickers, sym:x|$x.instrument.ticker, sector:x|$x.sector.name])');
+  await check(`the newswire (K15): the morning's news at the world's pace, every ticker a name's, a story about a name`
+    + ' naming it, a sector\'s naming its leaders, a macro story neither', async () => {
+    const syms = new Set((await rows(`${INSTRUMENT}->project(~[t:x|$x.ticker])`)).map((r) => String(r[0])));
+    const wrong: string[] = [];
+    for (const [id, , head, , cat, urg, tickers, sym, sector] of stories) {
+      const named = tickers === null ? [] : String(tickers).split(' ');
+      if (!head || !CATEGORIES.has(String(cat)) || !['FLASH', 'STORY', 'BRIEF'].includes(String(urg))) wrong.push(`${id}: ill formed`);
+      if (named.some((t) => !syms.has(t))) wrong.push(`${id}: names ${String(tickers)}, not all the world's`);
+      if (sym !== null && !named.includes(String(sym))) wrong.push(`${id}: about ${String(sym)}, naming ${String(tickers)}`);
+      if (cat === 'Industry' && (sector === null || sym !== null || named.length === 0)) wrong.push(`${id}: a sector's story, ${String(sector)}`);
+      if (cat === 'Macro' && (sector !== null || sym !== null || tickers !== null)) wrong.push(`${id}: a macro story about ${String(sym ?? sector)}`);
+    }
+    // the morning's alone, at the macro, sector and brief stories' share of the pace (crypto's waits for the world)
+    const expected = (config.morning / 60) * config.news * (11.5 / 12);
+    if (stories.length < expected * 0.7) wrong.push(`${stories.length} stories, not about ${expected.toFixed(0)}`);
+    return wrong.length === 0 ? null : wrong.slice(0, 8).join('; ');
+  });
+
+  await check('a name\'s jump is its story, at its instant: the price before the story and after it moved its way, by'
+    + ' about the headline\'s size', async () => {
+    const jumps = stories
+      .map(([id, at, , body, , urg, , sym]) => ({ id, at: new Date(String(at)).getTime(), body: String(body), urg, sym,
+        said: /shares (rose|fell) ([\d.]+)%/.exec(String(body)) }))
+      .filter((j) => j.urg !== 'BRIEF' && j.sym !== null && j.said !== null && Number(j.said[2]) >= 2)
+      .slice(0, 8);
+    if (jumps.length < 3) return `${jumps.length} jumps of 2% or more to check`;
+    const wrong: string[] = [];
+    for (const j of jumps) {
+      const prints = (await rows(`${TRADE}->filter(x|$x.instrument.ticker == '${String(j.sym)}')`
+        + '->project(~[seq:x|$x.sequenceNumber, at:x|$x.printTime, px:x|$x.price])'))
+        .map(([seq, at, px]) => ({ seq: Number(seq), at: new Date(String(at)).getTime(), px: Number(px) }))
+        .sort((a, b) => a.seq - b.seq);
+      // the last print two seconds before the story, and the first at or after it
+      const before = prints.filter((p) => p.at < j.at - 2000).at(-1);
+      const after = prints.find((p) => p.at >= j.at);
+      if (before === undefined || after === undefined) continue;
+      const moved = after.px / before.px - 1;
+      const size = Number(j.said![2]) / 100 * (j.said![1] === 'rose' ? 1 : -1);
+      if (Math.sign(moved) !== Math.sign(size) || Math.abs(moved) < Math.abs(size) / 2) {
+        wrong.push(`${String(j.id)} (${String(j.sym)}): "${j.body}", the price ${before.px} then ${after.px}`);
+      }
+    }
+    return wrong.length === 0 ? null : wrong.join('; ');
+  });
 
   live.close();
   await session.close();

@@ -41,6 +41,8 @@ import { TRADER_PAGES, isMarketSource, type TraderPage } from './screens.ts';
 
 /** One grid as the page shows it, for a person and for its test. */
 interface ShownGrid {
+  /** The source it is a view of, by its name (a screen's saved query: 'The newswire'). */
+  source: string;
   views: number;
   ticks: number;
   /** Each tick's time from its rows arriving to the grid painted (the last 200), ms. */
@@ -58,8 +60,8 @@ interface ShownGrid {
   fetched: string[];
 }
 
-/** One chart as the page shows it: its draws after a tick, and what it draws now -- its first series' values, or a
- *  KPI's figure. */
+/** One chart as the page shows it: its draws after a tick, and what it draws now -- its first series' values, a KPI's
+ *  figure, or a feed's cards' keys. */
 interface ShownChart {
   grid: string;
   kind: string;
@@ -226,7 +228,10 @@ async function main(): Promise<void> {
   const grid = (name: string, snapshot: CubeSnapshot, source: Parameters<typeof isMarketSource>[0],
     opened: { readonly configuration: CubeConfiguration; readonly tree: TreeState }): GridMaker => (host, spawned, start) => {
     const reader = engine.reader();
-    const g: ShownGrid = { views: 0, ticks: 0, tickToPaint: [], columns: [], rows: [], window: null, firstViewMs: null, base: null, fetched: [] };
+    const g: ShownGrid = {
+      source: isMarketSource(source) ? source.name : source._type, views: 0, ticks: 0, tickToPaint: [],
+      columns: [], rows: [], window: null, firstViewMs: null, base: null, fetched: [],
+    };
     // a result answered from the rows a reader follows took no time on the wire (deephaven-engine.ts execute): one that
     // did was read from the server
     const execute = reader.execute.bind(reader);
@@ -449,6 +454,20 @@ async function main(): Promise<void> {
             const now = tileEl?.querySelector<HTMLElement>('.dc-kpi-value');
             if (now) drew(c, [now.textContent]);
           }).observe(tileEl!, { subtree: true, childList: true, characterData: true });
+          continue;
+        }
+        if (c.kind === 'feed') {
+          // a feed's cards (K15): its list drawn again at each tick, its label said again, its cards their stories' keys
+          const list = tileEl?.querySelector<HTMLElement>('.dc-feed');
+          if (!list) {
+            all = false;
+            continue;
+          }
+          if ((list as unknown as { __watched?: boolean }).__watched) continue;
+          (list as unknown as { __watched?: boolean }).__watched = true;
+          const keys = (): unknown[] => [...list.querySelectorAll('.dc-feed-card')].map((li) => li.getAttribute('data-key'));
+          c.values = keys();
+          new MutationObserver(() => drew(c, keys())).observe(list, { attributes: true, attributeFilter: ['aria-label'] });
           continue;
         }
         const el = tileEl?.querySelector<HTMLElement>('.dc-chartpanel-chart');

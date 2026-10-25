@@ -58,7 +58,8 @@ export interface GridView {
  * A GRID LINKED TO OTHERS (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K14, as Deephaven's own dashboards link tables): a
  * row picked in the grid -- clicked, or moved to by its arrow keys -- takes each grid `to` (views of this page) to that
  * row's `column`: its filter on the column made equal to the row's value, a step of that grid's own, undone as any. A
- * watchlist, and the chart and the prints of the name picked in it.
+ * watchlist, and the chart and the prints of the name picked in it. A news feed's (K15) the same: a card picked takes
+ * them to its row's value, a ticker chip on it to that ticker.
  */
 export interface GridLink {
   readonly column: string;
@@ -73,6 +74,8 @@ export interface ChartView {
   readonly spec: ChartSpec;
   /** The conditions this chart's last click put on its cube's filter, if any. */
   readonly selection?: readonly FilterNode[];
+  /** The grids a card picked in it takes to that card's value (a news feed's: GridLink). */
+  readonly link?: GridLink;
 }
 
 /** A text tile (page-text.ts): a page's title, a note -- its words in a small Markdown, no cube of its own. */
@@ -590,9 +593,9 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
   // a link takes this page's other grids
   const gridIds = new Set(views.filter((v) => v.kind === 'grid').map((v) => v.id));
   for (const v of views) {
-    if (v.kind !== 'grid' || v.link === undefined) continue;
+    if (v.kind === 'text' || v.link === undefined) continue;
     const wrong = v.link.to.filter((t) => t === v.id || !gridIds.has(t));
-    if (wrong.length > 0) throw new PageDocumentError(`grid ${v.id}'s link takes ${wrong.join(', ')}, no other grid of this page`);
+    if (wrong.length > 0) throw new PageDocumentError(`${v.kind} ${v.id}'s link takes ${wrong.join(', ')}, no other grid of this page`);
   }
 
   const sheets = readSheets(plain(raw['sheets']), viewIds);
@@ -761,18 +764,13 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
     if (v['title'] !== undefined && !named('tile', v['title'])) {
       throw new PageDocumentError(`grid ${id}'s title is blank`);
     }
-    const link = v['link'];
-    if (link !== undefined && !(isObject(link) && typeof link['column'] === 'string' && link['column'] !== ''
-      && Array.isArray(link['to']) && link['to'].length > 0 && link['to'].every((t) => typeof t === 'string')
-      && Object.keys(link).every((k) => k === 'column' || k === 'to'))) {
-      throw new PageDocumentError(`grid ${id}'s link is not a column and the grids it takes to its value`);
-    }
+    const link = readLink(v['link'], `grid ${id}`);
     return {
       id,
       kind: 'grid',
       cube: v['cube'],
       ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}),
-      ...(isObject(link) ? { link: { column: link['column'] as string, to: [...(link['to'] as string[])] } } : {}),
+      ...(link ? { link } : {}),
     };
   }
   if (v['kind'] !== 'chart') throw new PageDocumentError(`view ${id} is of an unknown kind ${JSON.stringify(v['kind'] ?? null)}`);
@@ -785,6 +783,7 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
   if (selection !== undefined && !Array.isArray(selection)) {
     throw new PageDocumentError(`chart ${id}'s selection is not a list`);
   }
+  const link = readLink(v['link'], `chart ${id}`);
   return {
     id,
     kind: 'chart',
@@ -792,7 +791,19 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
     title: v['title'],
     spec,
     ...(selection && selection.length > 0 ? { selection: selection as FilterNode[] } : {}),
+    ...(link ? { link } : {}),
   };
+}
+
+/** A view's link as saved (GridLink), or none; refused in words naming `what` (`grid g1`). */
+function readLink(link: unknown, what: string): GridLink | undefined {
+  if (link === undefined) return undefined;
+  if (!(isObject(link) && typeof link['column'] === 'string' && link['column'] !== ''
+    && Array.isArray(link['to']) && link['to'].length > 0 && link['to'].every((t) => typeof t === 'string')
+    && Object.keys(link).every((k) => k === 'column' || k === 'to'))) {
+    throw new PageDocumentError(`${what}'s link is not a column and the grids it takes to its value`);
+  }
+  return { column: link['column'] as string, to: [...(link['to'] as string[])] };
 }
 
 /**
