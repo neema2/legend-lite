@@ -401,6 +401,20 @@ class IqToPureTest {
     }
 
     @Test
+    void aJoinConditionPastTheSizeBoundComputesItsLongOperandOnItsSide() {
+        // the IQ scale program, 2026-10-26 (tpch-22676, PASS before, refused past the size bound): a compared operand
+        // that reads one side alone, a checked cast of a SUBSTRING, is computed once, a column of that side before the
+        // join, as a select item's long operands are
+        String operand = "REPLACE(SUBSTRING(b.vc || '', LOCATE(b.vc || '', '://') + 3, LOCATE(b.vc || '', '/',"
+                + " LOCATE(b.vc || '', '://') + 3) - LOCATE(b.vc || '', '://') - 3), 'www.', '')";
+        String p = pure("SELECT a.id, b.id AS bid FROM " + T + " a LEFT JOIN " + T + " b ON a.vc = " + operand,
+                IqProfile.IQ17_DEFAULT.settings());
+        int join = p.indexOf("->join(");
+        assertTrue(join >= 0 && p.indexOf("->extend(", join) > join && p.indexOf("->extend(", join) < p.indexOf(
+                "JoinKind.LEFT", join), p);
+    }
+
+    @Test
     void aListOrderedBySeveralKeysSortsANullableKeysNullsFirst() {
         // the IQ scale program, 2026-10-26 (the realistic reports: LIST(TRIM(subject), ' | ' ORDER BY opened_ts, id)):
         // each key in turn, a nullable one after a key of its NULL's place computed before the grouping (IQ's NULL

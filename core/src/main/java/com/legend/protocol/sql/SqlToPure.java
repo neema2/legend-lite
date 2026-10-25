@@ -2095,7 +2095,40 @@ public final class SqlToPure {
                 condition = call("and", condition, tests.get(i));
             }
         } else if (on != null) {
-            condition = condition(on, sides, "JOIN/ON");
+            List<SqlAst.Expr> mine = new ArrayList<>();
+            try {
+                try {
+                    condition = condition(on, sides, "JOIN/ON");
+                } catch (SqlTranslationException tooLarge) {
+                    if (!tooLarge.pastSizeBound()) {
+                        throw tooLarge;
+                    }
+                    // the IQ scale program, 2026-10-26 (tpch-22676: LEFT JOIN s ON c.key = CAST(SUBSTRING(CAST(s.key
+                    // AS VARCHAR), 1, 3) AS INTEGER), its checked cast repeating its operand past the size bound): a
+                    // compared operand that reads one side alone is computed once, a column of that side before the
+                    // join (each side's row has it, as each comparison computes it), then the condition is translated
+                    // again; past the bound still, it is refused as before
+                    List<ColSpec> leftPre = new ArrayList<>();
+                    List<ColSpec> rightPre = new ArrayList<>();
+                    hoistSideOperands(on, left.bindings(), leftRow, taken, leftPre, mine);
+                    hoistSideOperands(on, rights, rightRow, taken, rightPre, mine);
+                    if (leftPre.isEmpty() && rightPre.isEmpty()) {
+                        throw tooLarge;
+                    }
+                    // one extend each, bottom up: each reads the ones below it
+                    ValueSpecification leftRel = left.relation();
+                    for (ColSpec c : leftPre) {
+                        leftRel = call("extend", leftRel, new ColSpecArray(List.of(c)));
+                    }
+                    left = new Source(leftRel, left.bindings(), left.star());
+                    for (ColSpec c : rightPre) {
+                        rightRel = call("extend", rightRel, new ColSpecArray(List.of(c)));
+                    }
+                    condition = condition(on, sides, "JOIN/ON");
+                }
+            } finally {
+                mine.forEach(hoisted::remove);
+            }
         } else {
             condition = new CBoolean(true);
         }
@@ -3764,6 +3797,38 @@ public final class SqlToPure {
                     null));
             hoisted.put(c, Col.of(column, ct.kind(), true, ct.detail()));
             mine.add(c);
+        }
+    }
+
+    /** {@link #join}'s long compared operands of {@code on} ({@link #eagerOperands}) that read only the side whose
+     *  {@code bindings} are given: each a column {@code pre} computes on that side (bottom up, so each reads the ones
+     *  below it), read in the condition through the side's {@code parameter}; each noted in {@code mine}. */
+    private void hoistSideOperands(SqlAst.Expr on, List<Binding> bindings, String parameter, Set<String> taken,
+            List<ColSpec> pre, List<SqlAst.Expr> mine) {
+        Input side = new Input(bindings, List.of(), "JOIN conditions");
+        List<SqlAst.Expr> computed = new ArrayList<>();
+        for (SqlAst.Expr c : eagerOperands(on)) {
+            if (hoisted.containsKey(c)) {
+                continue;
+            }
+            Tx ct;
+            try {
+                ct = tx(c, side, row);
+            } catch (SqlTranslationException otherSide) {
+                continue;
+            }
+            if (ct.kind() == Kind.BOOLEAN || written(ct.vs()) < BOUND_OPERAND) {
+                continue;
+            }
+            String column = fresh(taken);
+            pre.add(new ColSpec(column, lambda(row, valueOf(ct)), null, null));
+            hoisted.put(c, Col.of(column, ct.kind(), ct.nullable(), ct.detail()));
+            computed.add(c);
+            mine.add(c);
+        }
+        // the side's own row computes them; the condition reads them through the side's parameter
+        for (SqlAst.Expr c : computed) {
+            hoisted.put(c, java.util.Objects.requireNonNull(hoisted.get(c)).via(parameter));
         }
     }
 
