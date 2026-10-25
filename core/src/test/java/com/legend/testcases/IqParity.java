@@ -1256,6 +1256,40 @@ public final class IqParity {
         return true;
     }
 
+    /** Whether each of {@code s}'s other sources is determined by its {@code at}th one: joined (INNER, or by its WHERE)
+     *  on an equality of its unique column with a column of a source determined already, so no row of the
+     *  {@code at}th repeats (the IQ scale program, 2026-10-25, the realistic reports: FROM payments p JOIN orders o ON
+     *  o.id = p.order_id has one row for each p.id). */
+    private static boolean determinedBy(SqlAst.Select s, List<Source> sources, int at) {
+        boolean[] reached = new boolean[sources.size()];
+        for (int i = 0; i < sources.size(); i++) {
+            reached[i] = i == at || sources.get(i).oneRow();
+        }
+        List<SqlAst.Expr> equalities = new ArrayList<>();
+        if (s.where() != null) {
+            conjuncts(java.util.Objects.requireNonNull(s.where()), equalities);
+        }
+        for (SqlAst.FromItem f : s.from()) {
+            innerOns(f, equalities);
+        }
+        for (boolean more = true; more; ) {
+            more = false;
+            for (SqlAst.Expr eq : equalities) {
+                if (eq instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.EQ) {
+                    more |= determines(resolve(b.left(), s, sources, false), resolve(b.right(), s, sources, false),
+                            sources, reached) | determines(resolve(b.right(), s, sources, false),
+                            resolve(b.left(), s, sources, false), sources, reached);
+                }
+            }
+        }
+        for (boolean r : reached) {
+            if (!r) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** The operands of the ANDs of {@code e}, into {@code out}. */
     private static void conjuncts(SqlAst.Expr e, List<SqlAst.Expr> out) {
         if (e instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.AND) {
@@ -1352,10 +1386,77 @@ public final class IqParity {
                     }
                 }
                 return new Source("the derived table " + q, q, names, unique, oneRow(d.query(), tables),
-                        groupKeyOutputs(d.query(), outputs, names, tables));
+                        compositeKey(d.query(), outputs, names, tables));
             }
             case SqlAst.Join j -> throw new IllegalStateException("a join is no FROM leaf");
         }
+    }
+
+    /** The output names of {@code q} that are together unique in its rows: a DISTINCT's every item, a UNION ALL's tag
+     *  and a column unique in each branch ({@link #taggedUnionKey}), a grouped query's GROUP BY keys
+     *  ({@link #groupKeyOutputs}); none where none is known (the IQ scale program, 2026-10-25, the realistic reports:
+     *  WITH months AS (SELECT DISTINCT customer_id, month_no ...), a ledger of invoices and payments). */
+    private static Set<String> compositeKey(SqlAst.Statement q, List<Output> outputs, List<String> names,
+            Map<String, SqlParity.Table> tables) {
+        if (names.stream().anyMatch(String::isEmpty)) {
+            return Set.of();
+        }
+        if (q instanceof SqlAst.Select s && s.distinct() && s.groupBy().isEmpty() && names.size() > 1) {
+            return Set.copyOf(names);
+        }
+        if (q instanceof SqlAst.SetOperation) {
+            return taggedUnionKey(q, names, tables);
+        }
+        return groupKeyOutputs(q, outputs, names, tables);
+    }
+
+    /** A UNION ALL's tag -- an item each branch shows as a literal, no two branches the same -- and an item unique in
+     *  each branch's rows: together unique in its rows ({@code SELECT 'invoice' AS kind, o.id AS ref ... UNION ALL
+     *  SELECT 'payment', p.id ...}); none where the query has no such pair or another set operation. */
+    private static Set<String> taggedUnionKey(SqlAst.Statement q, List<String> names,
+            Map<String, SqlParity.Table> tables) {
+        List<SqlAst.Select> branches = new ArrayList<>();
+        if (!unionAllBranches(q, branches)) {
+            return Set.of();
+        }
+        List<List<Output>> outputs = new ArrayList<>();
+        for (SqlAst.Select b : branches) {
+            List<Output> o = outputs(b, tables);
+            if (o == null || o.size() != names.size() || b.items().size() != names.size()) {
+                return Set.of();
+            }
+            outputs.add(o);
+        }
+        for (int tag = 0; tag < names.size(); tag++) {
+            Set<String> values = new java.util.HashSet<>();
+            boolean tagged = true;
+            for (SqlAst.Select b : branches) {
+                String value = !(b.items().get(tag) instanceof SqlAst.SelectExpr x) ? null
+                        : x.expr() instanceof SqlAst.StringLit l ? "'" + l.value()
+                        : x.expr() instanceof SqlAst.IntegerLit n ? n.value().toString() : null;
+                tagged &= value != null && values.add(value);
+            }
+            if (!tagged) {
+                continue;
+            }
+            for (int k = 0; k < names.size(); k++) {
+                final int at = k;
+                if (k != tag && outputs.stream().allMatch(o -> o.get(at).unique())) {
+                    return Set.of(names.get(tag), names.get(k));
+                }
+            }
+        }
+        return Set.of();
+    }
+
+    /** The SELECTs of a chain of UNION ALLs, into {@code out}; whether {@code q} is one. */
+    private static boolean unionAllBranches(SqlAst.Statement q, List<SqlAst.Select> out) {
+        return switch (q) {
+            case SqlAst.Select s -> out.add(s);
+            case SqlAst.SetOperation o -> o.op() == SqlAst.SetOp.UNION && o.all() && o.orderBy().isEmpty()
+                    && o.limit() == null && unionAllBranches(o.left(), out) && unionAllBranches(o.right(), out);
+            case SqlAst.With w -> false;
+        };
     }
 
     /** The output names of a grouped query {@code q} that show all its GROUP BY keys (together unique in its rows:
@@ -1475,9 +1576,9 @@ public final class IqParity {
                 unique = s.items().size() == 1;
             } else {
                 int dot = !columnKey(k) ? -1 : java.util.Objects.requireNonNull(k).indexOf('.');
-                unique = dot > 0 && multi <= 1 && sources.get(Integer.parseInt(k.substring(0, dot))).unique()
-                        .contains(k.substring(dot + 1)) && !sources.get(Integer.parseInt(k.substring(0, dot)))
-                        .oneRow();
+                int at = dot > 0 ? Integer.parseInt(k.substring(0, dot)) : -1;
+                unique = at >= 0 && sources.get(at).unique().contains(k.substring(dot + 1)) && !sources.get(at)
+                        .oneRow() && (multi <= 1 || determinedBy(s, sources, at));
             }
             out.add(new Output(name, unique, k));
         }

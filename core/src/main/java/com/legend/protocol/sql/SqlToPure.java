@@ -4148,7 +4148,10 @@ public final class SqlToPure {
             }
         }
         if (s.distinct()) {
-            Scope inputs = scope instanceof Grouped g ? g.input : scope;
+            // the FROM clause's scope under a grouping's and a window's (the IQ scale program, 2026-10-25, the
+            // realistic reports: SELECT DISTINCT o.customer_id, FIRST_VALUE(p.name) OVER (...) ... ORDER BY o.customer_id)
+            Scope inputs = scope instanceof WindowScope w ? w.base() : scope;
+            inputs = inputs instanceof Grouped g ? g.input : inputs;
             String canon = canon(e, inputScope(inputs));
             for (Output o : outputs) {
                 SqlAst.Expr oe = o.expr();

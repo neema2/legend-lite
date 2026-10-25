@@ -376,6 +376,18 @@ class IqToPureTest {
     }
 
     @Test
+    void aDistinctWithAWindowSortsByAnItemItShows() {
+        // the IQ scale program, 2026-10-25 (the realistic reports' crash, "not an input scope"): a DISTINCT with a
+        // window, ordered by a qualified column it shows, sorts by that item after the DISTINCT
+        String p = pure("SELECT DISTINCT x.sm, FIRST_VALUE(x.vc) OVER (PARTITION BY x.sm ORDER BY x.id ROWS BETWEEN"
+                + " UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS f FROM " + T + " x ORDER BY x.sm",
+                IqProfile.IQ17_DEFAULT.settings());
+        // (the DISTINCT a grouping by its items, a string's by its blank-padded key)
+        assertTrue(p.indexOf("->groupBy(~[sm, ") >= 0 && p.endsWith("->sort([~sm->ascending("
+                + "meta::pure::functions::relation::NullOrder.FIRST)])"), p);
+    }
+
+    @Test
     void arithmeticIqTypesAsNumericOrUnsignedIsRefused() {
         // IQ island, 2026-10-14 (M1a): DOUBLE arithmetic is read now (below), and NUMERIC arithmetic without FROM
         for (String sql : new String[] {"SELECT d % 2 AS n", "SELECT bt + bt AS n",
