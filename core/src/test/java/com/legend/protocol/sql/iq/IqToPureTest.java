@@ -423,6 +423,24 @@ class IqToPureTest {
     }
 
     @Test
+    void aTimestampCutToItsHourIsCheckedRowByRow() {
+        // the IQ scale program, 2026-10-26 (the realistic reports): DATEADD(HOUR, DATEDIFF(HOUR, base, x), base) may
+        // pass the year 7910 for a far x, where IQ drops the time: each row is checked, where the item was refused
+        String p = pure("SELECT DATEADD(HOUR, DATEDIFF(HOUR, '2000-01-01', dt), '2000-01-01') AS h FROM " + T,
+                IqProfile.IQ17_DEFAULT.settings());
+        assertTrue(p.contains("after the year 7910"), p);
+    }
+
+    @Test
+    void aSimpleCaseOfALongOperandComputesItOnce() {
+        // the IQ scale program, 2026-10-26 (the realistic reports' last weekday of a month): the operand, compared in
+        // each WHEN, was written once per WHEN past the size bound; computed once, before the item
+        String p = pure("SELECT CASE DOW(DATEADD(DAY, -1, DATEADD(MONTH, 1, YMD(YEAR(dt), MONTH(dt), 1)))) WHEN 1 THEN -2"
+                + " WHEN 7 THEN -1 ELSE 0 END AS c FROM " + T, IqProfile.IQ17_DEFAULT.settings());
+        assertTrue(p.indexOf("->extend(") >= 0, p);
+    }
+
+    @Test
     void aDistinctWithAWindowSortsByAnItemItShows() {
         // the IQ scale program, 2026-10-25 (the realistic reports' crash, "not an input scope"): a DISTINCT with a
         // window, ordered by a qualified column it shows, sorts by that item after the DISTINCT

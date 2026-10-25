@@ -3817,6 +3817,17 @@ public final class SqlToPure {
                 eagerOperands(c.operand(), out);
                 out.add(e);
             }
+            // the IQ scale program, 2026-10-26 (the realistic reports: CASE DOW(month_end) WHEN 1 THEN -2 WHEN 7 THEN -1
+            // ELSE 0 END): a simple CASE computes its operand whatever it answers, and a searched CASE its first WHEN's
+            // condition (the IQ reader's simple CASE is the searched one, its operand one node in every WHEN)
+            case SqlAst.Case k when k.operand() != null -> {
+                eagerOperands(java.util.Objects.requireNonNull(k.operand()), out);
+                out.add(e);
+            }
+            case SqlAst.Case k when !k.whens().isEmpty() -> {
+                eagerOperands(k.whens().get(0).condition(), out);
+                out.add(e);
+            }
             case SqlAst.FunctionCall f when !isAggregate(f) && f.filter() == null && f.orderBy().isEmpty()
                     && f.withinGroup().isEmpty() -> {
                 String fn = f.name().get(f.name().size() - 1).text().toLowerCase(Locale.ROOT);

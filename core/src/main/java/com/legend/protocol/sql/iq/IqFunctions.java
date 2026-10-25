@@ -3889,7 +3889,12 @@ final class IqFunctions {
         // year -- a stored column's (whose answer here was the calendar's: DATEADD(YEAR, 5885, ts) kept 05:06 where
         // both drop it) or a computed one's -- each row is checked: one reaching a year past 7910 with hours or
         // minutes is refused at run time, every other row answered
-        boolean perRow = latest == null;
+        // the IQ scale program, 2026-10-26 (the realistic reports: DATEADD(HOUR, DATEDIFF(HOUR, '2000-01-01', ts),
+        // '2000-01-01'), a timestamp cut to its hour): a timestamp of a known year moved by a count that may carry it
+        // past 7910 with a time of day is checked row by row too, where it was refused whole (a DATE's is still
+        // refused: its rows are not checked, lite/review4/m2_hours_of_a_date_in_the_last_years_are_refused)
+        boolean perRow = latest == null || d.kind() != Kind.DATE && end > IqDialect.LAST_TIMED_YEAR
+                && (subDay || !midnight(d));
         if (!perRow && end > IqDialect.LAST_TIMED_YEAR && (subDay || !midnight(d))) {
             throw SqlTranslationException.unsupported(name + "(" + part + ", ...) that may reach a timestamp after the"
                     + " year " + IqDialect.LAST_TIMED_YEAR + " is not supported: SQL Anywhere 17 drops the hours and"
