@@ -14,7 +14,9 @@ retail database, judged by the live SAP IQ 17.1 as the parity cases are.
   suite for `IqCorpusTest`'s coverage run.
 - The root `core/src/test/resources/iq-reports` is a second parity root (`tools/iq-oracle/README.md`, "A second
   root"): snapped with `snap.sh --oracle iq --root core/src/test/resources/iq-reports --write`, judged by
-  `//core:iq_reports_parity_test` and `//core:iq_reports_parity_postgres_test`.
+  `//core:iq_reports_parity_test` and `//core:iq_reports_parity_postgres_test`, and on a Snowflake account by
+  `//core:iq_reports_parity_snowflake_test` (manual: the account's properties file in
+  `LEGENDLITE_PCT_CLOUD_PROPERTIES`).
 
 Each query is deterministic for the parity harness's lint (`IqParity.determinism`): an ORDER BY or a window order that
 reaches each source's unique key (`id`), or a grouped derived table's keys.

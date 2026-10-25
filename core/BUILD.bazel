@@ -1157,6 +1157,36 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# the realistic report suite on a real Snowflake account, as :iq_parity_snowflake_test (the IQ scale program,
+# 2026-10-26): manual, the account's properties file in LEGENDLITE_PCT_CLOUD_PROPERTIES; its ledger's snowflake column
+junit_test(
+    name = "iq_reports_parity_snowflake_test",
+    memory_mb = 2048,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/IqParitySnowflakeTest.java"],
+    data = _IQ_REPORTS_DATA,
+    env_inherit = ["LEGENDLITE_PCT_CLOUD_PROPERTIES"],
+    jvm_flags = _IQ_REPORTS_FLAGS + ["--add-opens=java.base/java.nio=ALL-UNNAMED"],
+    select = ["--select-class=com.legend.integration.IqParitySnowflakeTest"],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    runtime_deps = [
+        ":drivers",
+        "@snowflake_jdbc//jar",
+    ],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
 # THE CYPHER PARITY LANES (docs/CYPHER_STUDY_2026_10_15.md §8.4; the eleventh line, 2026-10-15): the openCypher TCK
 # (cypher-parity/tck, Apache 2.0) and lite's own cases (cypher-parity/lite), each as a #Cypher{...}# island over the
 # model its graph implies, judged against Neo4j Community's snapped answers (tools/neo4j-oracle; Neo4j itself is GPLv3
