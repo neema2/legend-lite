@@ -25,6 +25,7 @@ cause	pg-double-overflow	a DOUBLE beyond the largest is NULL under IQ's engine, 
 cause	sf-lazy	Snowflake computes a select list's items for the rows TOP, START AT or a DISTINCT TOP keeps only, so IQ's error in a row they drop (a zero divisor) is not raised there, where IQ, SQL Anywhere and DuckDB compute every row's (the IQ scale program, 2026-10-23: the Snowflake lane)
 cause	derived-total	a SUM, a window's or a scalar subquery's, over a derived table's aggregate column (WITH s AS (SELECT k, SUM(n) AS sn ... GROUP BY k) SELECT sn / SUM(sn) OVER () FROM s): IQ's engine types it far wider than over a column (a NUMERIC(8,2) sum's total is a NUMERIC(23,2), a MAX's of a NUMERIC(7,2) divides as one of 20 digits, a COUNT's 35, an INTEGER sum's a NUMERIC(29,0)), by a rule not measured yet (p + 15 fits all but the INTEGER sum's); lite counts it as over a column, so the quotient has fewer places (the IQ scale program, 2026-10-25)
 cause	pg-full-join	Postgres runs a FULL JOIN only on a merge- or hash-joinable condition (an equality of columns): a non-equi or an OR condition is its error ("FULL JOIN is only supported with merge-joinable or hash-joinable join conditions"), where IQ, DuckDB and Snowflake answer (the IQ scale program, 2026-10-25)
+cause	iq-sum-cast	a SUM of a SUM IQ's engine casts to a NUMERIC its rows' estimate sizes (INT64(11,2) for a SUM of a NUMERIC(10,2)'s SUM over a cross join's fan-out), raising -1009145 where the value passes it, its own limit; lite answers the sum, and the AVG of it (the IQ scale program, 2026-10-26: tpcds-6742's shape)
 
 # IQ island, landing 4 (WP1), 2026-10-14: the first snap of the iq17-* runs from the live IQ (161 runs)
 run	lite/m0/bigint_minimum_divided_by_minus_one@iq17-default	D-N3	duckdb,postgres
@@ -98,3 +99,7 @@ run	lite/census2_shares_derived/a_count_through_a_cte@iq17-default	derived-total
 run	lite/census2_shares_derived/a_max_through_a_cte@iq17-default	derived-total	duckdb,postgres
 run	lite/census2_shares_derived/a_sum_through_a_derived_table@iq17-default	derived-total	duckdb,postgres
 run	lite/census2_shares_derived/a_sum_by_a_scalar_subquery_total@iq17-default	derived-total	duckdb,postgres
+
+# the IQ scale program, 2026-10-26 (the census's TPC-DS shapes, snapped at da97c347): an AVG of a SUM of SUMs past
+# its type, which IQ raises its own -1009145 for, where lite answers (DuckDB overflowed in the AVG's step before)
+run	lite/census_aggregates/avg_of_a_sum_of_sums_past_its_type@iq17-default	iq-sum-cast	duckdb,postgres

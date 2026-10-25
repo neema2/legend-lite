@@ -675,6 +675,8 @@ lite/census_aggregates/aggregate_over_empty@iq17-default	PASS	PASS
 lite/census_aggregates/ratio_of_aggregates@iq17-default	PASS	PASS	
 lite/census_aggregates/count_star_by_two_keys@iq17-default	PASS	PASS	
 lite/census_aggregates/weighted_avg@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/census_aggregates/avg_of_a_sum_of_sums_past_its_type@iq17-default	BUG	BUG	
+lite/census_aggregates/case_bands_of_one_percentage@iq17-default	PASS	PASS	
 lite/census_combinations/report_join_group_having_order@iq17-default	PASS	PASS	
 lite/census_combinations/report_monthly_with_running_total@iq17-default	BOTH_ERROR	BOTH_ERROR	
 lite/census_combinations/report_rank_within_group_of_joined@iq17-default	PASS	PASS	
