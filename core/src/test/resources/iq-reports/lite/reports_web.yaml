@@ -1,0 +1,39 @@
+# The IQ scale program's realistic reports (2026-10-25): web, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: url_parts
+    sql: "SELECT id, LOWER(SUBSTRING(url, LOCATE(url, '://') + 3, LOCATE(url, '/', LOCATE(url, '://') + 3) - (LOCATE(url, '://') + 3))) AS host, CASE WHEN LOCATE(url, '?') > 0 THEN SUBSTRING(url, LOCATE(url, '/', LOCATE(url, '://') + 3), LOCATE(url, '?') - LOCATE(url, '/', LOCATE(url, '://') + 3)) ELSE SUBSTRING(url, LOCATE(url, '/', LOCATE(url, '://') + 3)) END AS path, CASE WHEN LOCATE(url, '?') > 0 THEN SUBSTRING(url, LOCATE(url, '?') + 1) END AS query_string FROM web_events WHERE id <= 40 ORDER BY id"
+    profile: iq17-default
+  - id: utm_sources
+    sql: "WITH tagged AS ( SELECT id, customer_id, CASE WHEN LOCATE(url, 'utm_source=') = 0 THEN NULL WHEN LOCATE(url, '&', LOCATE(url, 'utm_source=')) = 0 THEN SUBSTRING(url, LOCATE(url, 'utm_source=') + 11) ELSE SUBSTRING(url, LOCATE(url, 'utm_source=') + 11, LOCATE(url, '&', LOCATE(url, 'utm_source=')) - LOCATE(url, 'utm_source=') - 11) END AS utm_source FROM web_events) SELECT COALESCE(utm_source, '(none)') AS source, COUNT(*) AS events, COUNT(DISTINCT customer_id) AS known_visitors FROM tagged GROUP BY COALESCE(utm_source, '(none)') ORDER BY events DESC, source"
+    profile: iq17-default
+  - id: referrer_domains
+    sql: "SELECT REPLACE(SUBSTRING(referrer, LOCATE(referrer, '://') + 3, LOCATE(referrer, '/', LOCATE(referrer, '://') + 3) - LOCATE(referrer, '://') - 3), 'www.', '') AS referrer_domain, COUNT(*) AS visits, MIN(event_ts) AS first_seen FROM web_events WHERE referrer IS NOT NULL GROUP BY REPLACE(SUBSTRING(referrer, LOCATE(referrer, '://') + 3, LOCATE(referrer, '/', LOCATE(referrer, '://') + 3) - LOCATE(referrer, '://') - 3), 'www.', '') ORDER BY visits DESC, referrer_domain"
+    profile: iq17-default
+  - id: product_page_views
+    sql: "SELECT p.id, p.name, COUNT(*) AS views, COUNT(DISTINCT v.customer_id) AS known_viewers FROM (SELECT id, customer_id, CASE WHEN url LIKE '%/products/%' THEN CAST(CASE WHEN LOCATE(url, '?') > 0 THEN SUBSTRING(url, LOCATE(url, '/products/') + 10, LOCATE(url, '?') - LOCATE(url, '/products/') - 10) ELSE SUBSTRING(url, LOCATE(url, '/products/') + 10) END AS INTEGER) END AS product_id FROM web_events) v JOIN products p ON p.id = v.product_id GROUP BY p.id, p.name ORDER BY views DESC, p.id"
+    profile: iq17-default
+  - id: search_terms
+    sql: "SELECT term, COUNT(*) AS searches, COUNT(DISTINCT device) AS devices FROM (SELECT REPLACE(CASE WHEN LOCATE(url, '&', LOCATE(url, 'q=')) > 0 THEN SUBSTRING(url, LOCATE(url, 'q=') + 2, LOCATE(url, '&', LOCATE(url, 'q=')) - LOCATE(url, 'q=') - 2) ELSE SUBSTRING(url, LOCATE(url, 'q=') + 2) END, '+', ' ') AS term, device FROM web_events WHERE url LIKE '%/search?q=%') s GROUP BY term ORDER BY searches DESC, term"
+    profile: iq17-default
+  - id: sessions_of_known_visitors
+    sql: "WITH e AS (SELECT id, customer_id, event_ts, url, CASE WHEN LAG(event_ts) OVER (PARTITION BY customer_id ORDER BY event_ts, id) IS NULL OR DATEDIFF(MINUTE, LAG(event_ts) OVER (PARTITION BY customer_id ORDER BY event_ts, id), event_ts) > 30 THEN 1 ELSE 0 END AS new_session FROM web_events WHERE customer_id IS NOT NULL), s AS (SELECT id, customer_id, event_ts, url, SUM(new_session) OVER (PARTITION BY customer_id ORDER BY event_ts, id ROWS UNBOUNDED PRECEDING) AS session_no FROM e) SELECT customer_id, session_no, MIN(event_ts) AS started, DATEDIFF(MINUTE, MIN(event_ts), MAX(event_ts)) AS minutes, COUNT(*) AS pages, MAX(CASE WHEN url LIKE '%/order/confirmation%' THEN 1 ELSE 0 END) AS converted FROM s GROUP BY customer_id, session_no ORDER BY customer_id, session_no"
+    profile: iq17-default
+  - id: funnel_by_device
+    sql: "WITH visits AS ( SELECT device, customer_id, CAST(event_ts AS DATE) AS day, MAX(CASE WHEN url LIKE '%/products/%' THEN 1 ELSE 0 END) AS saw_product, MAX(CASE WHEN url LIKE '%/cart' THEN 1 ELSE 0 END) AS saw_cart, MAX(CASE WHEN url LIKE '%/checkout%' THEN 1 ELSE 0 END) AS saw_checkout, MAX(CASE WHEN url LIKE '%/order/confirmation' THEN 1 ELSE 0 END) AS ordered FROM web_events GROUP BY device, customer_id, CAST(event_ts AS DATE)) SELECT device, COUNT(*) AS visits, SUM(saw_product) AS product, SUM(saw_cart) AS cart, SUM(saw_checkout) AS checkout, SUM(ordered) AS ordered FROM visits GROUP BY device ORDER BY device"
+    profile: iq17-default
+  - id: traffic_by_weekday_and_daypart
+    sql: "SELECT DOW(event_ts) AS dow, DATENAME(WEEKDAY, event_ts) AS weekday, SUM(CASE WHEN HOUR(event_ts) < 6 THEN 1 ELSE 0 END) AS night, SUM(CASE WHEN HOUR(event_ts) BETWEEN 6 AND 11 THEN 1 ELSE 0 END) AS morning, SUM(CASE WHEN HOUR(event_ts) BETWEEN 12 AND 17 THEN 1 ELSE 0 END) AS afternoon, SUM(CASE WHEN HOUR(event_ts) >= 18 THEN 1 ELSE 0 END) AS evening, COUNT(*) AS total FROM web_events GROUP BY DOW(event_ts), DATENAME(WEEKDAY, event_ts) ORDER BY dow"
+    profile: iq17-default
+  - id: device_mix_by_month
+    sql: "SELECT DATEFORMAT(event_ts, 'yyyy-mm') AS month, COUNT(*) AS events, ROUND(100.0 * SUM(CASE WHEN device = 'mobile' THEN 1 ELSE 0 END) / COUNT(*), 1) AS mobile_pct, ROUND(100.0 * SUM(CASE WHEN device = 'desktop' THEN 1 ELSE 0 END) / COUNT(*), 1) AS desktop_pct FROM web_events GROUP BY DATEFORMAT(event_ts, 'yyyy-mm') ORDER BY month"
+    profile: iq17-default
+  - id: visitors_who_bought_within_a_week
+    sql: "SELECT DATEFORMAT(w.event_ts, 'yyyy-mm') AS month, COUNT(DISTINCT w.customer_id) AS visitors, COUNT(DISTINCT o.customer_id) AS bought_within_7_days FROM web_events w LEFT JOIN orders o ON o.customer_id = w.customer_id AND o.order_ts BETWEEN w.event_ts AND DATEADD(DAY, 7, w.event_ts) WHERE w.customer_id IS NOT NULL GROUP BY DATEFORMAT(w.event_ts, 'yyyy-mm') ORDER BY month"
+    profile: iq17-default
+  - id: top_referrer_per_month
+    sql: "WITH r AS (SELECT DATEFORMAT(event_ts, 'yyyy-mm') AS month, REPLACE(SUBSTRING(referrer, LOCATE(referrer, '://') + 3, LOCATE(referrer, '/', LOCATE(referrer, '://') + 3) - LOCATE(referrer, '://') - 3), 'www.', '') AS domain, COUNT(*) AS visits FROM web_events WHERE referrer IS NOT NULL GROUP BY DATEFORMAT(event_ts, 'yyyy-mm'), REPLACE(SUBSTRING(referrer, LOCATE(referrer, '://') + 3, LOCATE(referrer, '/', LOCATE(referrer, '://') + 3) - LOCATE(referrer, '://') - 3), 'www.', '')) SELECT month, domain, visits FROM ( SELECT month, domain, visits, ROW_NUMBER() OVER (PARTITION BY month ORDER BY visits DESC, domain) AS rn FROM r) x WHERE rn = 1 ORDER BY month"
+    profile: iq17-default
+  - id: url_depth_and_length
+    sql: "SELECT id, CASE WHEN LOCATE(url, '?') > 0 THEN SUBSTRING(url, LOCATE(url, '/', LOCATE(url, '://') + 3), LOCATE(url, '?') - LOCATE(url, '/', LOCATE(url, '://') + 3)) ELSE SUBSTRING(url, LOCATE(url, '/', LOCATE(url, '://') + 3)) END AS path, LENGTH(CASE WHEN LOCATE(url, '?') > 0 THEN SUBSTRING(url, LOCATE(url, '/', LOCATE(url, '://') + 3), LOCATE(url, '?') - LOCATE(url, '/', LOCATE(url, '://') + 3)) ELSE SUBSTRING(url, LOCATE(url, '/', LOCATE(url, '://') + 3)) END) - LENGTH(REPLACE(CASE WHEN LOCATE(url, '?') > 0 THEN SUBSTRING(url, LOCATE(url, '/', LOCATE(url, '://') + 3), LOCATE(url, '?') - LOCATE(url, '/', LOCATE(url, '://') + 3)) ELSE SUBSTRING(url, LOCATE(url, '/', LOCATE(url, '://') + 3)) END, '/', '')) AS depth, LENGTH(url) AS url_length, CASE WHEN url <> LOWER(url) THEN 'mixed case' ELSE '' END AS note FROM web_events WHERE id BETWEEN 30 AND 80 ORDER BY id"
+    profile: iq17-default
