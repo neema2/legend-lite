@@ -166,6 +166,22 @@ lite/basics/integer_plus_a_constant@iq16-default	PASS	PASS	PASS
 lite/basics/integer_plus_a_constant@iq17-default	PASS	PASS	PASS
 lite/basics/tsql_alias@iq16-default	PASS	PASS	PASS
 lite/basics/tsql_alias@iq17-default	PASS	PASS	PASS
+lite/census2_grouping_keys/key_none@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/key_count@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/key_sum@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/key_max_or_min@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/two_keys_none@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/two_keys_count@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/two_keys_sum@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/two_keys_max_or_min@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/year_none@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/year_count@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/year_sum@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/year_max_or_min@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/case_none@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/case_count@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/case_sum@iq17-default	PASS	PASS	
+lite/census2_grouping_keys/case_max_or_min@iq17-default	PASS	PASS	
 lite/census2_grouping_matrix/key_none@iq17-default	BOTH_ERROR	BOTH_ERROR	
 lite/census2_grouping_matrix/key_count@iq17-default	BOTH_ERROR	BOTH_ERROR	
 lite/census2_grouping_matrix/two_keys_none@iq17-default	BOTH_ERROR	BOTH_ERROR	
@@ -253,6 +269,16 @@ lite/census2_shares/group_sum_divisor@iq17-default	PASS	PASS
 lite/census2_shares/group_sums_ratio@iq17-default	PASS	PASS	
 lite/census2_shares/over_a_derived_total@iq17-default	FAIL	FAIL	
 lite/census2_shares/over_a_derived_numeric_total@iq17-default	FAIL	FAIL	
+lite/census2_shares_derived/a_column_through_a_cte@iq17-default	PASS	PASS	
+lite/census2_shares_derived/a_count_through_a_cte@iq17-default	FAIL	FAIL	
+lite/census2_shares_derived/a_max_through_a_cte@iq17-default	FAIL	FAIL	
+lite/census2_shares_derived/a_sum_through_a_derived_table@iq17-default	FAIL	FAIL	
+lite/census2_shares_derived/a_sum_by_a_scalar_subquery_total@iq17-default	FAIL	FAIL	
+lite/census2_shares_derived/the_window_total_of_a_numeric_sum@iq17-default	PASS	PASS	
+lite/census2_shares_derived/the_window_total_of_an_integer_sum@iq17-default	PASS	PASS	
+lite/census2_shares_derived/a_constant_by_a_numeric_sum@iq17-default	PASS	PASS	
+lite/census2_shares_derived/a_constant_by_an_integer_sum@iq17-default	PASS	PASS	
+lite/census2_shares_derived/grouped_over_a_cte@iq17-default	PASS	PASS	
 lite/census2_subqueries_matrix/in_uncorrelated_1@iq17-default	PASS	PASS	
 lite/census2_subqueries_matrix/in_correlated_1@iq17-default	PASS	PASS	
 lite/census2_subqueries_matrix/in_uncorrelated_2@iq17-default	PASS	PASS	

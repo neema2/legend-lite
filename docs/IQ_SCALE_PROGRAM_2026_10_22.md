@@ -667,7 +667,19 @@ says so.
     m1review's MEDIAN of SMALLINT extremes the live IQ's alone, its front-end twin (sqla17-default) SQL Anywhere 17's -1;
     the Mac session's duplicate output names merged (1cf35a18), presentName stripping a repeated name's mark only (5
     pivot tests had broken).
-  - **Census 2 now:** 257 PASS, 14 BOTH_ERROR, 8 refused (IQ's defect), 4 FAIL listed, of 283.
+  - **Census 2 now:** 279 PASS, 14 BOTH_ERROR, 8 refused (IQ's defect), 8 FAIL listed, of 309.
   - **The Mac session's benchmark re-judges at dc45fbfd:** tpcds_iq 7,884 PASS and 366 unordered (FAIL 384 to 364, the
-    moves ties), job_iq unchanged (4,811 PASS), job_rows 3,453 PASS; tpch_iq (9,427 queries) dies of OutOfMemoryError
-    while typing, a regression since landing 5, being bisected.
+    moves ties), job_iq unchanged (4,811 PASS), job_rows 3,453 PASS. tpch_iq (9,427 queries) died of OutOfMemoryError:
+    not the translation. tpch-4324 joins ON r.rank = 1, which reads one side only, a cartesian product of tens of
+    millions of rows (IQ's own -1005015, Max_Cartesian_Result); its judge timed out and cancelled, but the executor kept
+    filling rows until the heap was gone, and the queries after it died. **Fixed:** the executor's tabular and
+    collection reads stop where the reading thread is interrupted, every 1,024 rows (`Executor.stopIfCancelled`,
+    `CancelledResultTest`), closing the statement. IQ's Max_Cartesian_Result is not modeled (it reads IQ's estimates).
+  - **Through a derived table** (`lite/census2_shares_derived`, 10, and the grouping matrix again,
+    `lite/census2_grouping_keys`, 16 PASS; snapped at 87edb356): a derived table's or a CTE's column is read as the type
+    IQ shows, a sum's narrower one staying inside (`InputDialect.readAcross`, IQ's: WITH s AS (SELECT k, SUM(v) AS sv
+    ...) SELECT 1.5 / sv has 22 places, where 1.0 * COUNT(*) / SUM(v) has 12). 6 of 10 PASS; a SUM over a derived
+    aggregate column is typed far wider (a NUMERIC(8,2) sum's total a NUMERIC(23,2), a COUNT's 35 digits, an INTEGER
+    sum's a NUMERIC(29,0)), listed (derived-total, 6 runs) until its rule is measured.
+  - **Census 3** (`lite/census3_idioms`, 59 report idioms, each combining several features) is with the Mac session to
+    snap: lite answers 58 and refuses one (a UNION's ORDER BY by a name, which it reads as IQ's -1005012).

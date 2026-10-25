@@ -188,6 +188,13 @@ public interface InputDialect {
         return false;
     }
 
+    /** A FROM source's column as the query reading it sees it -- a derived table's, a CTE's, a table's: its detail,
+     *  by default (the IQ scale program, 2026-10-25: IQ's engine reads a sum's column through a derived table as the
+     *  type it shows, IqDialect). */
+    default @com.legend.base.Nullable TypeDetail readAcross(@com.legend.base.Nullable TypeDetail detail) {
+        return detail;
+    }
+
     /** The detail of an integer the dialect's database types narrower than the island's integer, and computes
      *  arithmetic of at that width, raising past it (Postgres's smallint: a cast to smallint or an int2 constant, which
      *  the island writes as a wider integer; 2026-10-17); null where there is none, by default. The translator marks

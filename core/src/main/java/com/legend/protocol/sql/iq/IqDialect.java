@@ -6102,6 +6102,19 @@ public final class IqDialect implements InputDialect {
         return numericType(t, e, operator);
     }
 
+    /** IQ's engine reads a derived table's or a CTE's column as the type it shows: a sum's narrower type, which a
+     *  quotient by it counts ({@link IqType#quotientDigits}), stays inside (the IQ scale program, 2026-10-25, measured
+     *  on IQ 17.1: WITH s AS (SELECT k, SUM(v) AS sv ... GROUP BY k) SELECT 1.5 / sv FROM s has 22 places, where 1.0 *
+     *  COUNT(*) / SUM(v) has 12). A sum's type is a whole one: an integer's shown a NUMERIC(20,0). */
+    @Override
+    public InputDialect.@com.legend.base.Nullable TypeDetail readAcross(
+            InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+        if (detail instanceof IqType t && t.quotientDigits() != null) {
+            return t.dividingAs(t.family().equals("BIGINT") ? 20 : t.size());
+        }
+        return detail;
+    }
+
     /** The digits IQ's engine counts an integer type with in NUMERIC arithmetic: a BIT's 1, a SMALLINT's 5, an
      *  INTEGER's 10, a BIGINT's 19. */
     static int integerDigits(String family) {

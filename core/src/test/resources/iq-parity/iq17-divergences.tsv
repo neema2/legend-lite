@@ -23,7 +23,7 @@ cause	exp-underflow	EXP's underflow is NULL in IQ 17.1's front end, 0 in SQL Any
 cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is false where no row matches; the internal error -1006000 for ISNULL(LEFT(...)) beside a CASE of SUBSTRING; (IQ island, 2026-10-16) a filter of the null-supplying side of a LEFT JOIN inside a windowed derived table, or an outer join's condition on it, applied below its window functions (a RANK or a COUNT(*) OVER () of the filtered rows)
 cause	pg-double-overflow	a DOUBLE beyond the largest is NULL under IQ's engine, which the island answers; Postgres raises its own float8 overflow before the island's test can read the infinity
 cause	sf-lazy	Snowflake computes a select list's items for the rows TOP, START AT or a DISTINCT TOP keeps only, so IQ's error in a row they drop (a zero divisor) is not raised there, where IQ, SQL Anywhere and DuckDB compute every row's (the IQ scale program, 2026-10-23: the Snowflake lane)
-cause	derived-total	a window SUM over a derived table's aggregate column (WITH s AS (SELECT k, SUM(n) AS sn ... GROUP BY k) SELECT sn / SUM(sn) OVER () FROM s): IQ's engine types it far wider than over the aggregate itself (a NUMERIC(8,2)'s total divides as one of 21 digits, an INTEGER sum's as one of 29), by a rule not measured yet; lite counts it as the aggregate's, so the quotient has fewer places (the IQ scale program, 2026-10-25)
+cause	derived-total	a SUM, a window's or a scalar subquery's, over a derived table's aggregate column (WITH s AS (SELECT k, SUM(n) AS sn ... GROUP BY k) SELECT sn / SUM(sn) OVER () FROM s): IQ's engine types it far wider than over a column (a NUMERIC(8,2) sum's total is a NUMERIC(23,2), a MAX's of a NUMERIC(7,2) divides as one of 20 digits, a COUNT's 35, an INTEGER sum's a NUMERIC(29,0)), by a rule not measured yet (p + 15 fits all but the INTEGER sum's); lite counts it as over a column, so the quotient has fewer places (the IQ scale program, 2026-10-25)
 
 # IQ island, landing 4 (WP1), 2026-10-14: the first snap of the iq17-* runs from the live IQ (161 runs)
 run	lite/m0/bigint_minimum_divided_by_minus_one@iq17-default	D-N3	duckdb,postgres
@@ -87,3 +87,7 @@ run	lite/census2_windows_ranking/lead_string_default_all@iq17-default	iq-defect	
 run	lite/census2_windows_ranking/lead_string_default_by_k@iq17-default	iq-defect	duckdb,postgres
 run	lite/census2_shares/over_a_derived_total@iq17-default	derived-total	duckdb,postgres
 run	lite/census2_shares/over_a_derived_numeric_total@iq17-default	derived-total	duckdb,postgres
+run	lite/census2_shares_derived/a_count_through_a_cte@iq17-default	derived-total	duckdb,postgres
+run	lite/census2_shares_derived/a_max_through_a_cte@iq17-default	derived-total	duckdb,postgres
+run	lite/census2_shares_derived/a_sum_through_a_derived_table@iq17-default	derived-total	duckdb,postgres
+run	lite/census2_shares_derived/a_sum_by_a_scalar_subquery_total@iq17-default	derived-total	duckdb,postgres

@@ -1555,7 +1555,7 @@ public final class SqlToPure {
         List<BCol> cols = new ArrayList<>();
         List<Col> star = new ArrayList<>();
         for (OutCol c : renamed.columns()) {
-            Col col = Col.of(c.name(), c.kind(), c.nullable(), c.detail());
+            Col col = Col.of(c.name(), c.kind(), c.nullable(), dialect.readAcross(c.detail()));
             cols.add(new BCol(col, true));
             star.add(col);
         }
