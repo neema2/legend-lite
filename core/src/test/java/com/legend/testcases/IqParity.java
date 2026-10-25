@@ -2323,6 +2323,24 @@ public final class IqParity {
         };
     }
 
+    /** {@link #cellEquals}, but a NUMERIC's two values compared at the fewer places either shows, each cut there
+     *  (the IQ scale program, 2026-10-25, the corpus judge's PLACES: IQ types a quotient by its rows' estimate, which
+     *  lite cannot see, D-N3; the values must agree on every digit both show). */
+    public static boolean cellEqualsAtFewerPlaces(@com.legend.base.Nullable Object expected,
+            @com.legend.base.Nullable Object actual, String saType) {
+        if (expected != null && actual != null && (saType.equals("numeric") || saType.equals("decimal"))) {
+            BigDecimal e = exact(expected);
+            BigDecimal a = exact(actual);
+            if (e == null || a == null) {
+                return false;
+            }
+            int places = Math.min(e.scale(), a.scale());
+            return e.setScale(places, java.math.RoundingMode.DOWN).compareTo(
+                    a.setScale(places, java.math.RoundingMode.DOWN)) == 0;
+        }
+        return cellEquals(expected, actual, saType);
+    }
+
     /** How close two doubles must be when SQL Anywhere's column is a DOUBLE: a few units in the last place. */
     private static final double RELATIVE = 1e-15;
 

@@ -42,7 +42,9 @@ import org.junit.jupiter.api.Test;
  *
  * <p>The second phase (IQ island, 2026-10-15): with {@code -Diq.corpus.answers} (the live IQ's answers over the suite's
  * data, loaded into IQ and into each lane's database) each query is judged as a parity run is, into
- * {@code <suite>.judged.tsv}; a FAIL whose rows are IQ's as a multiset is PASS_UNORDERED (a real-world ORDER BY ties).
+ * {@code <suite>.judged.tsv}; a FAIL whose rows are IQ's as a multiset is PASS_UNORDERED (a real-world ORDER BY ties),
+ * and one whose only differences are a NUMERIC's places, its digits agreeing where both show them, is PLACES (the IQ
+ * scale program, 2026-10-25: IQ types a quotient by its rows' estimate, D-N3).
  * IQ island, 2026-10-16: {@code -Diq.corpus.rows} writes lite's own rows of each FAIL beside it, into
  * {@code <suite>.rows.jsonl}.
  */
@@ -134,6 +136,10 @@ class IqCorpusTest {
                                     && sameRowsUnordered(parityRun, snap, service, model, island, session)) {
                                 // a real-world query's ORDER BY may tie: the rows are IQ's, in another order
                                 verdict = "PASS_UNORDERED";
+                            } else if (o.status() == SqlParity.Status.FAIL && onlyPlaces(detail)
+                                    && samePlacesCut(parityRun, snap, service, model, island, session)) {
+                                // the IQ scale program, 2026-10-25: a NUMERIC's places differ, its digits agree
+                                verdict = "PLACES";
                             }
                         } catch (TimeoutException e) {
                             judged.cancel(true);
@@ -261,6 +267,64 @@ class IqCorpusTest {
                         same = IqParity.cellEquals(e.get(c), left.get(i).get(c), snap.types().get(c));
                     }
                     found = same ? i : -1;
+                }
+                if (found < 0) {
+                    return false;
+                }
+                left.remove(found);
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Whether every difference {@code detail} names is a NUMERIC column's places (IqParity.scale's message). */
+    private static boolean onlyPlaces(String detail) {
+        for (String part : detail.split("; ")) {
+            if (!part.contains("NUMERIC has ") || !part.contains(" places, legend-lite's value ")) {
+                return false;
+            }
+        }
+        return !detail.isEmpty();
+    }
+
+    /** The IQ scale program, 2026-10-25 (the corpus judge's PLACES): whether lite's rows are IQ's once each NUMERIC
+     *  cell pair is cut to the fewer places either shows ({@link IqParity#cellEqualsAtFewerPlaces}) -- in order, else
+     *  as a multiset. IQ types a quotient by its rows' estimate (row-typed, D-N3), so its places say nothing of lite's
+     *  answer; any digit both show that differs keeps the FAIL. */
+    private static boolean samePlacesCut(IqParity.Run run, com.legend.testcases.IqAnswers.Snap snap,
+            QueryService service, String model, String island, Connection session) {
+        try {
+            if (!(com.legend.testcases.IqAnswers.expected(run, snap) instanceof SqlParity.Rows rows)) {
+                return false;
+            }
+            SqlParity.Grid expected = rows.grid();
+            SqlParity.Grid actual = SqlParity.grid(service.execute(model, island, IqParity.RUNTIME, session));
+            if (expected.rows().size() != actual.rows().size() || expected.rows().size() > 5000
+                    || !expected.columns().equals(actual.columns())) {
+                return false;
+            }
+            java.util.function.BiPredicate<List<Object>, List<Object>> same = (e, a) -> {
+                for (int c = 0; c < e.size(); c++) {
+                    if (!IqParity.cellEqualsAtFewerPlaces(e.get(c), a.get(c), snap.types().get(c))) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+            boolean inOrder = true;
+            for (int i = 0; i < expected.rows().size() && inOrder; i++) {
+                inOrder = same.test(expected.rows().get(i), actual.rows().get(i));
+            }
+            if (inOrder) {
+                return true;
+            }
+            List<List<Object>> left = new ArrayList<>(actual.rows());
+            for (List<Object> e : expected.rows()) {
+                int found = -1;
+                for (int i = 0; i < left.size() && found < 0; i++) {
+                    found = same.test(e, left.get(i)) ? i : -1;
                 }
                 if (found < 0) {
                     return false;
