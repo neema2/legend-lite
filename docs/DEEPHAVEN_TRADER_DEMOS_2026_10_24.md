@@ -46,8 +46,8 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | K9 | **built 2026-10-25** (§7). **real-time P&L with limits**: day P&L against the prior close by desk and book, KPI tiles that turn red past a limit | the same |
 | K10 | **built 2026-10-25** (§7). **the execution blotter**: parent and child orders, fills, % filled, slippage against arrival in basis points, by strategy and venue | the same |
 | K11 | **built 2026-10-25** (§7). **the options desk**: greeks as Pure functions run by Deephaven as formulas (needs K5's `sqrt`), vega by expiry and strike | the same |
-| K12 | **FX e-trading**: a rates ladder, cross rates by live joins, RFQ hit ratio | the same |
-| K13 | **TCA and markouts** (needs K7) | the same |
+| K12 | **built 2026-10-25** (§7). **FX e-trading**: a rates ladder, cross rates by live joins, RFQ hit ratio | the same |
+| K13 | **built 2026-10-25** (§7). **TCA and markouts** (needs K7) | the same |
 
 Alongside, as the demos reach them: the smaller target gaps (`round`, `mod`, `substring`, `contains`, a number as text,
 percentile; RIGHT and FULL joins shaped or refused for good -- `docs/DEEPHAVEN_START_HERE.md` "Gaps measured"); the tab's
@@ -503,3 +503,25 @@ Measured (`//datacube:deephaven_traders_test`, five screens, the pinned Chromium
 open in 1.7 to 6.9 s (the options desk 13.5 s on a server that has not compiled its formulas yet), every sheet ticking
 with nothing sent or fetched, a tick on screen 21 to 51 ms after its rows (p50); the risk demo's cube and board tests
 pass on the changed bases.
+
+**K12, FX e-trading (2026-10-25).** *Rates*: the desk's ladder (each pair's bid, ask and mid, its spread and its change
+on the day in pips, the time of its price to the millisecond), each pair's change as bars, and each cross against the
+rate its legs imply -- EUR/JPY as EUR/USD by USD/JPY, GBP/JPY likewise, EUR/GBP as EUR/USD over GBP/USD, by live joins
+of the legs on a key every row shares -- the difference in pips. *RFQs*: the hit ratio, the notional done and the desk's
+average response (KPIs; the response red past 250 ms), the hit ratio by the spread quoted (it falls as the spread
+widens), every request newest first through its states, and each client's hit ratio (a heatmap), notional asked and
+done, average spread and response. Found on the way, fixed in the Deephaven dialect: a pip's size by its pair -- an
+if of two float literals, typed DECIMAL by their digits -- was cast to a double by a BigDecimal's own `doubleValue`,
+which a primitive has not (the server refused the batch); only a value that reads a DECIMAL column is a BigDecimal now.
+
+**K13, TCA and markouts (2026-10-25).** *TCA*: the day's slippage against arrival and markout after 5 seconds (KPIs),
+markouts by algorithm 1, 5 and 30 seconds after the fill, TCA by algorithm and venue, and slippage by venue. *Fills*: TCA
+by broker, and every fill with its slippage, its markouts and its commission in basis points. Each markout is the
+market's price at the horizon -- the latest print of the fill's name at or before it, by an as-of join to the tape (K7) --
+from the fill's price, positive when the market moved the fill's way; every figure notional-weighted (`wavg`). A fill
+younger than a horizon reads the latest print so far: a live window (`now()`) would leave it out, and is not shaped on
+Deephaven yet (DH30).
+
+Measured (`//datacube:deephaven_traders_test`, all seven screens in one run, the pinned Chromium, a world of 100
+names): each screen open in 2 to 8 s, every sheet ticking with nothing sent or fetched, a tick on screen 14 to 51 ms
+after its rows (p50), no name painted twice on any list.

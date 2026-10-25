@@ -14,6 +14,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -145,6 +146,16 @@ class DeephavenDialectTest {
         // the square root's guard reads its operand by name, its error's text too
         String c = b.substring(b.indexOf("\"c = "));
         assertTrue(c.contains("sqrt(b)") && !c.contains("t0__notional"), c);
+    }
+
+    @Test
+    void anIfOfTwoFloatLiteralsIsADoubleNotADecimalsDoubleValue() {
+        // typed DECIMAL by its digits, written as doubles: the server refused "(... ? 0.01 : 1.0E-4).doubleValue()" (a
+        // pip's size by its pair, the trader screens' FX ladder)
+        String b = batch("#>{risk::Ref.trades}#->extend(~[pip:x|if($x.desk == 'FX', |0.01, |0.0001)])"
+                + "->extend(~[pips:x|$x.notional->toOne() / $x.pip])");
+        assertFalse(b.contains("doubleValue"), b);
+        // a DECIMAL column, a BigDecimal, keeps its own doubleValue (aWholeNumberAsTextIsItsDigitsAndADecimalAsAFloat...)
     }
 
     @Test

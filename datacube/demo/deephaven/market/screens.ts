@@ -583,6 +583,210 @@ async function optionsPage(types: SourceTypes): Promise<PageDocument> {
   return writePageOf({ name: 'Options desk', cubes: [{ id: 'chain', cube: chainGrid }, { id: 'risk', cube: risk }], views: { views, sheets } });
 }
 
+// ---------------------------------------------------------------- K12: FX e-trading
+
+const FX = 'marketdata::FxRate.all()';
+const JPY = "['USD/JPY', 'EUR/JPY', 'GBP/JPY']";
+
+/** The desk's FX prices: each pair's bid and ask, its spread and its change on the day in pips (a hundredth of a yen
+ *  pair's, a ten-thousandth of the rest). */
+export const FX_RATES = `${FX}->project(~[pair:x|$x.currencyPair, bid:x|$x.bidRate, ask:x|$x.askRate, mid:x|$x.midRate,`
+  + ' chg:x|$x.dailyChange, chgPct:x|$x.dailyChangePct, at:x|$x.rateDate])'
+  + `->extend(~[pip:x|if($x.pair->in(${JPY}), |0.01, |0.0001)])`
+  + '->extend(~[spreadPips:x|($x.ask->toOne() - $x.bid->toOne()) / $x.pip, chgPips:x|$x.chg->toOne() / $x.pip])';
+
+/** One pair's mid as `name`, beside a key every row shares (`key`): what a cross is joined to its legs by. */
+const leg = (pair: string, name: string, key: string): string =>
+  `${FX}->filter(x|$x.currencyPair == '${pair}')->project(~[${name}:x|$x.midRate, ${key}:x|1])`;
+
+/** THE CROSSES BY LIVE JOINS: each cross's quoted mid against the mid its legs imply (EUR/JPY as EUR/USD by USD/JPY,
+ *  GBP/JPY likewise, EUR/GBP as EUR/USD over GBP/USD), and the difference in pips. */
+export const FX_CROSSES = `${FX}->filter(x|$x.currencyPair->in(['EUR/JPY', 'GBP/JPY', 'EUR/GBP']))`
+  + '->project(~[pair:x|$x.currencyPair, quoted:x|$x.midRate, k:x|1])'
+  + `->join(${leg('EUR/USD', 'eurusd', 'k1')}, ${JOIN_INNER}, {a, b|$a.k == $b.k1})`
+  + `->join(${leg('GBP/USD', 'gbpusd', 'k2')}, ${JOIN_INNER}, {a, b|$a.k == $b.k2})`
+  + `->join(${leg('USD/JPY', 'usdjpy', 'k3')}, ${JOIN_INNER}, {a, b|$a.k == $b.k3})`
+  + '->extend(~[implied:x|if($x.pair == \'EUR/JPY\', |$x.eurusd * $x.usdjpy, |if($x.pair == \'GBP/JPY\','
+  + ' |$x.gbpusd * $x.usdjpy, |$x.eurusd / $x.gbpusd)), pip:x|if($x.pair == \'EUR/GBP\', |0.0001, |0.01)])'
+  + '->extend(~[basisPips:x|($x.quoted - $x.implied) / $x.pip])';
+
+/** Every client's request for a quote: its client and tier, its dealer, pair, side, size and tenor, the desk's rate and
+ *  spread, its state and the desk's response time; whether it was hit, and the notional done. */
+export const RFQS = 'trading::Rfq.all()->project(~[rfq:x|$x.rfqId, at:x|$x.requestTime, client:x|$x.client.shortName,'
+  + ' tier:x|$x.client.tier, dealer:x|$x.dealer.lastName, pair:x|$x.currencyPair, side:x|$x.side, notional:x|$x.notional,'
+  + ' tenor:x|$x.tenor, rate:x|$x.quotedRate, spreadBps:x|$x.spreadBps, status:x|$x.status, responseMs:x|$x.responseTimeMs,'
+  + ' hitFlag:x|$x.isHit])'
+  + '->extend(~[hit:x|if($x.hitFlag, |1.0, |0.0), done:x|if($x.hitFlag, |$x.notional, |0.0)])';
+
+/** The requests the client answered (done, missed or let expire): a hit ratio is their hits' average. */
+export const RFQS_ANSWERED = `${RFQS}->filter(x|$x.status->in(['DONE', 'MISSED', 'EXPIRED']))`;
+
+async function fxPage(types: SourceTypes): Promise<PageDocument> {
+  const rates = await columnsOf(types, FX_RATES, {
+    bid: { aggregate: 'average' }, ask: { aggregate: 'average' }, mid: { aggregate: 'average' }, chg: { aggregate: 'average' },
+    chgPct: { aggregate: 'average' }, pip: { aggregate: 'average' }, spreadPips: { aggregate: 'average' }, chgPips: { aggregate: 'average' },
+  });
+  const crosses = await columnsOf(types, FX_CROSSES, {
+    quoted: { aggregate: 'average' }, implied: { aggregate: 'average' }, basisPips: { aggregate: 'average' },
+    k: { kind: 'dimension' }, k1: { kind: 'dimension' }, k2: { kind: 'dimension' }, k3: { kind: 'dimension' },
+  });
+  const rfqs = await columnsOf(types, RFQS, {
+    notional: { aggregate: 'sum' }, rate: { aggregate: 'average' }, spreadBps: { aggregate: 'average' },
+    responseMs: { aggregate: 'average' }, hit: { aggregate: 'sum' }, done: { aggregate: 'sum' },
+  });
+  const answered = await columnsOf(types, RFQS_ANSWERED, {
+    notional: { aggregate: 'sum' }, rate: { aggregate: 'average' }, spreadBps: { aggregate: 'average' },
+    responseMs: { aggregate: 'average' }, hit: { aggregate: 'average' }, done: { aggregate: 'sum' },
+  });
+  const RATE: ColumnConfiguration = { format: { kind: 'number', minimumFractionDigits: 4, maximumFractionDigits: 5 } };
+  const PIPS: ColumnConfiguration = { format: { kind: 'number', decimals: 1 }, appearance: { negativeForeground: '#d64545' } };
+  const ladder = cubeOf('Rates', marketSource('FX rates', FX_RATES, rates),
+    cubeOver(rates, { sorts: [{ column: 'pair', direction: 'asc' }] }),
+    configured('The rates', {
+      bid: RATE, ask: RATE, mid: RATE, chg: HIDDEN, pip: HIDDEN, at: PRINT_TIME,
+      spreadPips: { ...PIPS, displayName: 'spread (pips)' }, chgPips: { ...PIPS, displayName: 'change (pips)' },
+      chgPct: CHANGE_PCT,
+    }));
+  const crossGrid = cubeOf('Crosses', marketSource('FX crosses by their legs', FX_CROSSES, crosses), cubeOver(crosses),
+    configured('Each cross against its legs', {
+      k: HIDDEN, k1: HIDDEN, k2: HIDDEN, k3: HIDDEN, pip: HIDDEN, quoted: RATE, implied: RATE, eurusd: RATE, gbpusd: RATE,
+      usdjpy: RATE, basisPips: { ...PIPS, displayName: 'quoted less implied (pips)' },
+    }));
+  const rfqSource = marketSource('Requests for quote', RFQS, rfqs);
+  const blotter = cubeOf('RFQs', rfqSource, cubeOver(rfqs, { sorts: [{ column: 'at', direction: 'desc' }] }),
+    configured('Requests for quote, newest first', {
+      rfq: HIDDEN, hitFlag: HIDDEN, hit: HIDDEN, done: HIDDEN, at: PRINT_TIME, notional: MONEY, rate: RATE,
+      spreadBps: { format: { kind: 'number', decimals: 2 }, displayName: 'spread (bp)' },
+      responseMs: { format: { kind: 'number', decimals: 0 }, displayName: 'response (ms)' },
+    }));
+  const hits = cubeOf('Hit ratios', marketSource('Requests answered', RFQS_ANSWERED, answered),
+    cubeOver(answered, { rows: ['client'], sorts: [{ column: 'done', direction: 'desc' }] }),
+    configured('Each client: hit ratio and notional done', {
+      rfq: HIDDEN, at: HIDDEN, dealer: HIDDEN, pair: HIDDEN, side: HIDDEN, tenor: HIDDEN, status: HIDDEN, hitFlag: HIDDEN,
+      rate: HIDDEN, notional: { ...MONEY, displayName: 'notional asked' }, done: { ...MONEY, displayName: 'notional done' },
+      hit: { ...SHARE, displayName: 'hit ratio', heatmap: { from: '#f4a3a3', mid: '#ffe08a', to: '#9fd8b2', range: { min: 0, max: 1 } } },
+      spreadBps: { format: { kind: 'number', decimals: 2 }, displayName: 'average spread (bp)' },
+      responseMs: { format: { kind: 'number', decimals: 0 }, displayName: 'average response (ms)' },
+    }));
+  const views: PageView[] = [
+    { id: 'rates', kind: 'grid', cube: 'rates', title: 'The rates' },
+    chart('moves', 'rates', 'Each pair\'s change on the day', {
+      x: 'pair', y: [{ column: 'chgPct', fn: 'average', title: 'change' }],
+      options: { sort: { by: 'y', direction: 'desc' }, labels: true, legend: 'none' },
+    }),
+    { id: 'crosses', kind: 'grid', cube: 'crosses', title: 'Each cross against its legs (live joins)' },
+    chart('hit-ratio', 'hits', 'Hit ratio', { mark: 'kpi', y: [{ column: 'hit', fn: 'average' }] }),
+    chart('done', 'hits', 'Notional done', { mark: 'kpi', y: [{ column: 'done', fn: 'sum' }] }),
+    chart('response', 'blotter', 'Average response (ms)', { mark: 'kpi', y: [{ column: 'responseMs', fn: 'average' }],
+      options: { target: 250, better: 'lower' } }),
+    chart('by-spread', 'hits', 'Hit ratio by the spread quoted (bp)', {
+      x: 'spreadBps', bins: { width: 0.5 }, y: [{ column: 'hit', fn: 'average', title: 'hit ratio' }],
+      options: { sort: { by: 'x', direction: 'asc' }, legend: 'none' },
+    }),
+    { id: 'blotter', kind: 'grid', cube: 'blotter', title: 'Requests for quote, newest first' },
+    { id: 'hits', kind: 'grid', cube: 'hits', title: 'Each client: hit ratio and notional done' },
+  ];
+  const sheets: PageSheet[] = [
+    sheet('sheet-1', 'Rates', [[0.5, row(['rates', 0.6], ['moves', 0.4])], [0.5, tile('crosses')]]),
+    sheet('sheet-2', 'RFQs', [
+      [0.25, row(['hit-ratio', 0.2], ['done', 0.2], ['response', 0.2], ['by-spread', 0.4])],
+      [0.4, tile('blotter')],
+      [0.35, tile('hits')],
+    ]),
+  ];
+  return writePageOf({
+    name: 'FX e-trading',
+    cubes: [{ id: 'rates', cube: ladder }, { id: 'crosses', cube: crossGrid }, { id: 'blotter', cube: blotter }, { id: 'hits', cube: hits }],
+    views: { views, sheets },
+  });
+}
+
+// ---------------------------------------------------------------- K13: TCA and markouts
+
+/** The tape's prints of a name as of a time: `p` its price, `pi` its name, `pt` its time. */
+const printsAs = (p: string, pi: string, pt: string): string =>
+  `${TRADE}->project(~[${pi}:x|$x.instrument.instrumentId, ${pt}:x|$x.printTime, ${p}:x|$x.price])`;
+
+/** EVERY FILL'S COST AND ITS MARKOUTS: its slippage against its order's arrival, and the market's price 1, 5 and 30
+ *  seconds after it -- the latest print of its name at or before then, by as-of joins to the tape (K7) -- each in basis
+ *  points from the fill's price, positive when the market moved the fill's way (a buy that the market rose after). A
+ *  fill younger than a horizon reads the latest print so far. */
+export const MARKOUTS = 'trading::Execution.all()->project(~[exec:x|$x.executionId, at:x|$x.executionTime,'
+  + ' inst:x|$x.order.instrument.instrumentId, ticker:x|$x.order.instrument.ticker, side:x|$x.order.side,'
+  + ' strategy:x|$x.executionAlgo, venue:x|$x.venue, broker:x|$x.broker, qty:x|$x.filledQuantity, px:x|$x.fillPrice,'
+  + ' arrival:x|$x.arrivalPrice, commission:x|$x.commission])'
+  + '->extend(~[t1:x|$x.at->adjust(1, DurationUnit.SECONDS), t5:x|$x.at->adjust(5, DurationUnit.SECONDS),'
+  + ' t30:x|$x.at->adjust(30, DurationUnit.SECONDS)])'
+  + `->asOfJoin(${printsAs('p1', 'i1', 'pt1')}, {a, b|$a.t1 >= $b.pt1}, {a, b|$a.inst == $b.i1})`
+  + `->asOfJoin(${printsAs('p5', 'i5', 'pt5')}, {a, b|$a.t5 >= $b.pt5}, {a, b|$a.inst == $b.i5})`
+  + `->asOfJoin(${printsAs('p30', 'i30', 'pt30')}, {a, b|$a.t30 >= $b.pt30}, {a, b|$a.inst == $b.i30})`
+  + '->extend(~[sign:x|if($x.side == \'BUY\', |1.0, |-1.0), notional:x|$x.qty * $x.px])'
+  + '->extend(~[slipBps:x|$x.sign * (($x.px - $x.arrival->toOne()) / $x.arrival->toOne()) * 10000.0,'
+  + ' m1:x|$x.sign * (($x.p1->toOne() - $x.px) / $x.px) * 10000.0, m5:x|$x.sign * (($x.p5->toOne() - $x.px) / $x.px) * 10000.0,'
+  + ' m30:x|$x.sign * (($x.p30->toOne() - $x.px) / $x.px) * 10000.0, commissionBps:x|($x.commission->toOne() / $x.notional) * 10000.0])';
+
+async function tcaPage(types: SourceTypes): Promise<PageDocument> {
+  const weighted = { aggregate: 'wavg', aggregateWeight: 'notional' } as const;
+  const columns = await columnsOf(types, MARKOUTS, {
+    qty: { aggregate: 'sum' }, px: { aggregate: 'wavg', aggregateWeight: 'qty' }, arrival: { aggregate: 'average' },
+    commission: { aggregate: 'sum' }, notional: { aggregate: 'sum' }, sign: { aggregate: 'average' },
+    p1: { aggregate: 'average' }, p5: { aggregate: 'average' }, p30: { aggregate: 'average' },
+    slipBps: weighted, m1: weighted, m5: weighted, m30: weighted, commissionBps: weighted,
+  });
+  const source = marketSource('Fills and their markouts', MARKOUTS, columns);
+  const BP: ColumnConfiguration = { format: { kind: 'number', decimals: 2 }, appearance: { negativeForeground: '#d64545' } };
+  const keys: Readonly<Record<string, ColumnConfiguration>> = {
+    exec: HIDDEN, inst: HIDDEN, t1: HIDDEN, t5: HIDDEN, t30: HIDDEN, i1: HIDDEN, i5: HIDDEN, i30: HIDDEN, pt1: HIDDEN,
+    pt5: HIDDEN, pt30: HIDDEN, sign: HIDDEN, p1: HIDDEN, p5: HIDDEN, p30: HIDDEN, commission: HIDDEN, arrival: HIDDEN,
+    slipBps: { ...BP, displayName: 'slippage (bp)' }, m1: { ...BP, displayName: 'markout 1s (bp)' },
+    m5: { ...BP, displayName: 'markout 5s (bp)' }, m30: { ...BP, displayName: 'markout 30s (bp)' },
+    commissionBps: { ...BP, displayName: 'commission (bp)' }, notional: MONEY, qty: SIZE, px: PRICE,
+  };
+  const byStrategy = cubeOf('By algorithm', source,
+    cubeOver(columns, { rows: ['strategy', 'venue'], sorts: [{ column: 'notional', direction: 'desc' }] }),
+    configured('TCA by algorithm and venue (notional-weighted)', {
+      ...keys, at: HIDDEN, ticker: HIDDEN, side: HIDDEN, broker: HIDDEN, px: HIDDEN,
+    }));
+  const byBroker = cubeOf('By broker', source,
+    cubeOver(columns, { rows: ['broker'], sorts: [{ column: 'notional', direction: 'desc' }] }),
+    configured('TCA by broker (notional-weighted)', {
+      ...keys, at: HIDDEN, ticker: HIDDEN, side: HIDDEN, strategy: HIDDEN, venue: HIDDEN, px: HIDDEN,
+    }));
+  const fills = cubeOf('Fills', source, cubeOver(columns, { sorts: [{ column: 'at', direction: 'desc' }] }),
+    configured('Each fill, its slippage and markouts', { ...keys, at: PRINT_TIME, strategy: HIDDEN, broker: HIDDEN }));
+  const views: PageView[] = [
+    chart('cost', 'by-strategy', 'Slippage against arrival (bp)', { mark: 'kpi', y: [{ column: 'slipBps', fn: 'wavg', weight: 'notional' }],
+      options: { target: 0, better: 'lower' } }),
+    chart('markout', 'by-strategy', 'Markout after 5 seconds (bp)', { mark: 'kpi', y: [{ column: 'm5', fn: 'wavg', weight: 'notional' }],
+      options: { target: 0, better: 'higher' } }),
+    chart('horizons', 'by-strategy', 'Markouts by algorithm: 1, 5 and 30 seconds after the fill (bp)', {
+      x: 'strategy', y: [{ column: 'm1', fn: 'wavg', weight: 'notional', title: '1s' },
+        { column: 'm5', fn: 'wavg', weight: 'notional', title: '5s' }, { column: 'm30', fn: 'wavg', weight: 'notional', title: '30s' }],
+      layers: [{ kind: 'line', value: 0, label: 'the fill' }],
+      options: { sort: { by: 'x', direction: 'asc' }, legend: 'top' },
+    }),
+    { id: 'by-strategy', kind: 'grid', cube: 'by-strategy', title: 'TCA by algorithm and venue (notional-weighted)' },
+    chart('venue-cost', 'by-strategy', 'Slippage by venue (bp)', {
+      x: 'venue', y: [{ column: 'slipBps', fn: 'wavg', weight: 'notional', title: 'slippage' }],
+      options: { sort: { by: 'y', direction: 'asc' }, labels: true, legend: 'none', orientation: 'horizontal' },
+    }),
+    { id: 'by-broker', kind: 'grid', cube: 'by-broker', title: 'TCA by broker (notional-weighted)' },
+    { id: 'fills', kind: 'grid', cube: 'fills', title: 'Each fill, its slippage and markouts' },
+  ];
+  const sheets: PageSheet[] = [
+    sheet('sheet-1', 'TCA', [
+      [0.3, row(['cost', 0.2], ['markout', 0.2], ['horizons', 0.6])],
+      [0.7, row(['by-strategy', 0.62], ['venue-cost', 0.38])],
+    ]),
+    sheet('sheet-2', 'Fills', [[0.3, tile('by-broker')], [0.7, tile('fills')]]),
+  ];
+  return writePageOf({
+    name: 'TCA and markouts',
+    cubes: [{ id: 'by-strategy', cube: byStrategy }, { id: 'by-broker', cube: byBroker }, { id: 'fills', cube: fills }],
+    views: { views, sheets },
+  });
+}
+
 /** The trader screens, in the menu's order. */
 export const TRADER_PAGES: readonly TraderPage[] = [
   {
@@ -620,5 +824,19 @@ export const TRADER_PAGES: readonly TraderPage[] = [
       + 'database runs -- calls against puts by strike, and the smile; the derivatives books\' delta, gamma, vega, theta '
       + 'and day P&L by underlying and expiry.',
     build: optionsPage,
+  },
+  {
+    id: 'fx',
+    label: 'FX e-trading',
+    about: 'The desk\'s rates ladder, each cross against the rate its legs imply (live joins), and the clients\' requests '
+      + 'for quote as they are asked, quoted and done or missed -- hit ratios by client and by the spread quoted.',
+    build: fxPage,
+  },
+  {
+    id: 'tca',
+    label: 'TCA and markouts',
+    about: 'Every fill\'s cost against its order\'s arrival and the market 1, 5 and 30 seconds after it (as-of joins to '
+      + 'the tape), by algorithm, venue and broker.',
+    build: tcaPage,
   },
 ];

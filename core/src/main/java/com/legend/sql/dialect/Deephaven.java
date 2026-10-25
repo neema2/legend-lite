@@ -1419,6 +1419,12 @@ public final class Deephaven extends AnsiSqlRenderer {
         };
         if (target == SqlType.Scalar.DOUBLE && c.value().type() instanceof TypeFact.Typed from
                 && from.type() instanceof SqlType.Decimal) {
+            if (!readsDecimalColumn(c.value())) {
+                // a decimal the formula computes from no decimal column is a double already: its numbers are written
+                // as doubles (decimal literals are refused) -- an if of two literals, typed DECIMAL by their digits (the
+                // trader screens' FX pips, 2026-10-25: "(... ? 0.01 : 1.0E-4).doubleValue()" refused by the server)
+                return writer.append("(").expr(c.value(), 0).append(")");
+            }
             // a DECIMAL column is a BigDecimal (DeephavenBatch's DDL): its own doubleValue, a permitted method (DH33)
             if (nullable(c.value())) {
                 return writer.append("(isNull(").expr(c.value(), 0).append(") ? NULL_DOUBLE : ").expr(c.value(), 0)
@@ -1437,6 +1443,19 @@ public final class Deephaven extends AnsiSqlRenderer {
             return writer.append("(" + primitive + ") ").expr(c.value(), 0).append(")");
         }
         return writer.append("((" + primitive + ") ").expr(c.value(), 0).append(")");
+    }
+
+    /** Whether {@code e} reads a DECIMAL column (a BigDecimal), anywhere in it. */
+    private static boolean readsDecimalColumn(SqlExpr e) {
+        if (e instanceof SqlExpr.Column c) {
+            return c.type() instanceof TypeFact.Typed t && t.type() instanceof SqlType.Decimal;
+        }
+        for (SqlExpr child : e.children()) {
+            if (readsDecimalColumn(child)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** A value as text: a string is itself; a whole number its digits, by Java's string concatenation (SQL's CAST of
