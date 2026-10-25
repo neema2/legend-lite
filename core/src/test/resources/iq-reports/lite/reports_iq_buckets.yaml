@@ -1,0 +1,21 @@
+# The IQ scale program's realistic reports (2026-10-25): iq_buckets, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: event_buckets_of_minutes
+    sql: "SELECT id, event_ts, DATEFLOOR(MINUTE, event_ts, 15) AS m15, DATEFLOOR(MINUTE, event_ts, 7) AS m7, DATECEILING(MINUTE, event_ts, 15) AS up15, DATEROUND(MINUTE, event_ts, 15) AS near15, DATEROUND(MINUTE, event_ts, 7) AS near7 FROM web_events WHERE id <= 80 ORDER BY id"
+    profile: iq17-default
+  - id: event_buckets_of_hours
+    sql: "SELECT id, event_ts, DATEFLOOR(HOUR, event_ts, 6) AS h6, DATEFLOOR(HOUR, event_ts, 5) AS h5, DATECEILING(HOUR, event_ts, 6) AS up6, DATEROUND(HOUR, event_ts, 6) AS near6 FROM web_events WHERE id <= 80 ORDER BY id"
+    profile: iq17-default
+  - id: event_buckets_of_days
+    sql: "SELECT id, event_ts, DATEFLOOR(DAY, event_ts, 7) AS d7, DATEFLOOR(DAY, event_ts, 10) AS d10, DATECEILING(DAY, event_ts, 7) AS up7 FROM web_events WHERE id <= 80 ORDER BY id"
+    profile: iq17-default
+  - id: event_buckets_of_months
+    sql: "SELECT id, event_ts, DATEFLOOR(MONTH, event_ts, 3) AS mo3, DATEFLOOR(MONTH, event_ts, 5) AS mo5, DATEFLOOR(MONTH, event_ts, 6) AS half, DATECEILING(MONTH, event_ts, 3) AS up3 FROM web_events WHERE id <= 80 ORDER BY id"
+    profile: iq17-default
+  - id: order_buckets_of_years
+    sql: "SELECT id, order_ts, DATEFLOOR(YEAR, order_ts, 2) AS y2, DATEFLOOR(YEAR, order_ts, 10) AS y10, DATEFLOOR(QUARTER, order_ts, 2) AS q2, DATECEILING(YEAR, order_ts, 2) AS up2 FROM orders WHERE id <= 60 ORDER BY id"
+    profile: iq17-default
+  - id: ticket_load_by_quarter_hour
+    sql: "SELECT DATEFLOOR(MINUTE, opened_ts, 15) AS slot, COUNT(*) AS opened, MIN(priority) AS a_priority FROM support_tickets GROUP BY DATEFLOOR(MINUTE, opened_ts, 15) ORDER BY slot"
+    profile: iq17-default

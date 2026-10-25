@@ -1,0 +1,27 @@
+# The IQ scale program's realistic reports (2026-10-25): iq_dates, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: dates_in_regional_styles
+    sql: "SELECT id, CONVERT(VARCHAR(10), order_ts, 101) AS us_date, CONVERT(VARCHAR(10), order_ts, 103) AS uk_date, CONVERT(VARCHAR(8), order_ts, 112) AS compact, CONVERT(VARCHAR(19), order_ts, 120) AS iso_stamp, CONVERT(VARCHAR(8), order_ts, 108) AS clock FROM orders WHERE id <= 40 ORDER BY id"
+    profile: iq17-default
+  - id: dates_in_report_pictures
+    sql: "SELECT id, DATEFORMAT(order_ts, 'Mmm dd, yyyy') AS ordered, DATEFORMAT(order_ts, 'hh:nn') AS at_time, DATEFORMAT(ship_date, 'Dddd, Mmmm dd') AS shipped_on, MONTHNAME(ship_date) AS ship_month, DATEFORMAT(order_ts, 'yyyy') || '-Q' || CAST(QUARTER(order_ts) AS VARCHAR(1)) AS fiscal_quarter FROM orders WHERE id <= 40 ORDER BY id"
+    profile: iq17-default
+  - id: orders_by_weekday_name
+    sql: "SELECT DOW(order_ts) AS dow, DAYNAME(order_ts) AS weekday, DATENAME(WEEKDAY, order_ts) AS weekday_too, COUNT(*) AS orders, SUM(shipping_fee) AS fees, ROUND(AVG(shipping_fee), 2) AS avg_fee FROM orders GROUP BY DOW(order_ts), DAYNAME(order_ts), DATENAME(WEEKDAY, order_ts) ORDER BY dow"
+    profile: iq17-default
+  - id: monthly_buckets_by_datefloor
+    sql: "SELECT DATEFLOOR(MONTH, o.order_ts) AS month_start, DATEADD(DAY, -1, DATEADD(MONTH, 1, DATEFLOOR(MONTH, o.order_ts))) AS month_end, COUNT(DISTINCT o.id) AS orders, SUM(oi.quantity * oi.unit_price) AS gross FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status <> 'cancelled' GROUP BY DATEFLOOR(MONTH, o.order_ts) ORDER BY month_start"
+    profile: iq17-default
+  - id: hourly_load_by_dateceiling
+    sql: "SELECT DATECEILING(HOUR, event_ts) AS hour_ending, device, COUNT(*) AS events, COUNT(DISTINCT customer_id) AS visitors FROM web_events WHERE event_ts >= '2025-12-01' GROUP BY DATECEILING(HOUR, event_ts), device ORDER BY hour_ending, device"
+    profile: iq17-default
+  - id: tickets_rounded_to_quarter_hours
+    sql: "SELECT id, opened_ts, DATEROUND(MINUTE, opened_ts) AS opened_minute, DATEFLOOR(MINUTE, opened_ts, 15) AS quarter_hour, DATEFLOOR(DAY, opened_ts) AS opened_day, DATEDIFF(DAY, DATEFLOOR(WEEK, opened_ts), opened_ts) AS day_of_week_index FROM support_tickets WHERE id <= 30 ORDER BY id"
+    profile: iq17-default
+  - id: ages_and_tenures
+    sql: "SELECT id, birth_date, YEARS(birth_date, CAST('2026-01-01' AS DATE)) AS age, MONTHS(signup_date, CAST('2026-01-01' AS DATE)) AS tenure_months, WEEKS(signup_date, CAST('2026-01-01' AS DATE)) AS tenure_weeks, DAYS(signup_date, CAST('2026-01-01' AS DATE)) AS tenure_days, IF YEARS(birth_date, CAST('2026-01-01' AS DATE)) >= 65 THEN 'senior' ELSE 'adult' ENDIF AS band FROM customers ORDER BY id"
+    profile: iq17-default
+  - id: shipping_lag_with_date_and_datetime
+    sql: "SELECT id, DATE(order_ts) AS order_day, DATETIME(ship_date) AS ship_midnight, DATEDIFF(HOUR, order_ts, DATETIME(ship_date)) AS hours_to_ship, YMD(YEAR(order_ts), MONTH(order_ts), 1) AS month_start, DAYS(DATE(order_ts), ship_date) AS days_to_ship FROM orders WHERE ship_date IS NOT NULL AND id <= 40 ORDER BY id"
+    profile: iq17-default

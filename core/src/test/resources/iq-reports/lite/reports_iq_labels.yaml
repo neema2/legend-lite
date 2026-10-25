@@ -1,0 +1,18 @@
+# The IQ scale program's realistic reports (2026-10-25): iq_labels, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: tiers_with_if_endif
+    sql: "SELECT p.id, p.name, IF p.unit_price >= 1000 THEN 'premium' ELSE IF p.unit_price >= 100 THEN 'mid' ELSE 'value' ENDIF ENDIF AS tier, IF p.discontinued = 1 THEN 'retired' ELSE 'live' ENDIF AS state, IFNULL(p.subcategory, p.category) AS shelf FROM products p ORDER BY p.id"
+    profile: iq17-default
+  - id: stock_actions_by_cover
+    sql: "SELECT i.product_id, p.sku, i.on_hand, i.reorder_point, IF i.on_hand <= i.reorder_point THEN 'reorder' ELSE IF i.on_hand <= 2 * i.reorder_point THEN 'watch' ELSE 'ok' ENDIF ENDIF AS action, i.on_hand - i.reorder_point AS headroom, SIGN(i.on_hand - i.reorder_point) AS headroom_sign FROM inventory i JOIN products p ON p.id = i.product_id WHERE i.snapshot_date = (SELECT MAX(i2.snapshot_date) FROM inventory i2) ORDER BY i.product_id"
+    profile: iq17-default
+  - id: tickets_by_hour_band
+    sql: "SELECT IF HOUR(opened_ts) < 9 THEN 'before 9' ELSE IF HOUR(opened_ts) < 17 THEN 'office hours' ELSE 'evening' ENDIF ENDIF AS band, priority, COUNT(*) AS tickets, COUNT(closed_ts) AS closed, ROUND(AVG(IF closed_ts IS NULL THEN NULL ELSE DATEDIFF(MINUTE, opened_ts, closed_ts) * 1.0 ENDIF), 1) AS avg_minutes FROM support_tickets GROUP BY IF HOUR(opened_ts) < 9 THEN 'before 9' ELSE IF HOUR(opened_ts) < 17 THEN 'office hours' ELSE 'evening' ENDIF ENDIF, priority ORDER BY band, priority"
+    profile: iq17-default
+  - id: seasons_by_argn
+    sql: "SELECT ARGN(QUARTER(o.order_ts), 'winter', 'spring', 'summer', 'autumn') AS season, COUNT(*) AS orders, SUM(o.shipping_fee) AS fees, COUNT(DISTINCT o.customer_id) AS buyers FROM orders o GROUP BY ARGN(QUARTER(o.order_ts), 'winter', 'spring', 'summer', 'autumn') ORDER BY season"
+    profile: iq17-default
+  - id: contact_fallbacks
+    sql: "SELECT c.id, IFNULL(c.email, IFNULL(c.phone, 'no contact')) AS reach_by, IF c.email IS NULL AND c.phone IS NULL THEN 'none' ELSE IF c.email IS NULL THEN 'phone' ELSE 'email' ENDIF ENDIF AS channel, IF c.is_active = 1 THEN 'active' ELSE 'lapsed' ENDIF AS state FROM customers c ORDER BY c.id"
+    profile: iq17-default

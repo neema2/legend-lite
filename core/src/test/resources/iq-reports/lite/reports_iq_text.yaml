@@ -1,0 +1,21 @@
+# The IQ scale program's realistic reports (2026-10-25): iq_text, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: price_list_text
+    sql: "SELECT id, STR(unit_price, 9, 2) AS price_text, STR(unit_cost, 6) AS cost_whole, LCASE(sku) AS sku_lower, UCASE(LEFT(name, 1)) || SUBSTR(name, 2) AS display_name, STUFF(sku, 1, 0, 'P-') AS catalog_code, REPLICATE('#', CAST(FLOOR(unit_price / 100) AS INTEGER)) AS price_bar FROM products ORDER BY id"
+    profile: iq17-default
+  - id: sku_parts_by_patindex
+    sql: "SELECT id, sku, PATINDEX('%[0-9]%', sku) AS first_digit_at, LEFT(sku, PATINDEX('%[0-9]%', sku) - 1) AS prefix, CAST(SUBSTR(sku, PATINDEX('%[0-9]%', sku)) AS INTEGER) AS serial, STUFF(sku, 5, 3, LCASE(SUBSTR(sku, 5, 3))) AS mixed FROM products ORDER BY id"
+    profile: iq17-default
+  - id: masked_contacts
+    sql: "SELECT id, IF email IS NULL THEN NULL ELSE STUFF(email, 2, LOCATE(email, '@') - 3, REPLICATE('*', LOCATE(email, '@') - 3)) ENDIF AS masked_email, IF phone IS NULL THEN NULL ELSE REPLICATE('x', CHAR_LENGTH(phone) - 4) || RIGHT(phone, 4) ENDIF AS masked_phone FROM customers ORDER BY id"
+    profile: iq17-default
+  - id: ticket_durations_as_text
+    sql: "SELECT id, priority, IF closed_ts IS NULL THEN 'open' ELSE STRING(DATEDIFF(MINUTE, opened_ts, closed_ts) / 60, 'h ', MOD(DATEDIFF(MINUTE, opened_ts, closed_ts), 60), 'm') ENDIF AS took, STRING('#', id, ' ', UCASE(LEFT(priority, 1)), ' ', LEFT(subject, 20)) AS label FROM support_tickets ORDER BY id"
+    profile: iq17-default
+  - id: letter_numbers_and_codes
+    sql: "SELECT id, last_name, ASCII(UPPER(LEFT(TRIM(last_name), 1))) - 64 AS letter_number, CHAR(ASCII(UPPER(LEFT(TRIM(first_name), 1)))) || CHAR(ASCII(UPPER(LEFT(last_name, 1)))) AS initials, INSERTSTR(3, CAST(region_id AS VARCHAR(3)) || '0000', '-') AS region_code FROM customers ORDER BY id"
+    profile: iq17-default
+  - id: campaign_from_urls
+    sql: "SELECT IF LOCATE(url, 'utm_campaign=') = 0 THEN '(none)' ELSE SUBSTR(url || '&', LOCATE(url, 'utm_campaign=') + 13, LOCATE(url || '&', '&', LOCATE(url, 'utm_campaign=')) - LOCATE(url, 'utm_campaign=') - 13) ENDIF AS campaign, COUNT(*) AS hits, COUNT(DISTINCT customer_id) AS known_visitors, MIN(event_ts) AS first_seen FROM web_events GROUP BY IF LOCATE(url, 'utm_campaign=') = 0 THEN '(none)' ELSE SUBSTR(url || '&', LOCATE(url, 'utm_campaign=') + 13, LOCATE(url || '&', '&', LOCATE(url, 'utm_campaign=')) - LOCATE(url, 'utm_campaign=') - 13) ENDIF ORDER BY hits DESC, campaign"
+    profile: iq17-default
