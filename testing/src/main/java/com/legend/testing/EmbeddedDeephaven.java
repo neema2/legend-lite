@@ -270,12 +270,14 @@ public final class EmbeddedDeephaven implements AutoCloseable {
         }
     }
 
-    /** For a browser test's driver: starts the server, prints {@code {"url", "psk", "certificate"}} on one line, and
-     *  runs until standard input closes. */
+    /** For a browser test's driver: starts the server, prints {@code {"url", "psk", "certificate", "log"}} on one line
+     *  (the log the server writes as it runs, which a driver reads to find what the server logged under a reference it
+     *  handed a client), and runs until standard input closes. */
     public static void main(String[] args) throws IOException {
         try (EmbeddedDeephaven dh = start()) {
             System.out.println("{\"url\": \"" + dh.url() + "\", \"psk\": \"" + dh.psk() + "\", \"certificate\": \""
-                    + dh.certificate().toString().replace("\\", "\\\\") + "\"}");
+                    + dh.certificate().toString().replace("\\", "\\\\") + "\", \"log\": \""
+                    + dh.data.resolve("server.log").toString().replace("\\", "\\\\") + "\"}");
             System.out.flush();
             java.io.BufferedReader in = new java.io.BufferedReader(
                     new java.io.InputStreamReader(System.in, StandardCharsets.UTF_8));

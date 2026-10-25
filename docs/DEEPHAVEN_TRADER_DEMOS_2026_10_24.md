@@ -317,7 +317,9 @@ is a ternary of the branches' conditions. Measured on the pinned server (`page.t
 numbers, `dateDiff` in days, months, years, hours, minutes and milliseconds and `toEpochValue` (an instant before the
 epoch, nulls) answer exactly DuckDB's answers; guards no row takes compile there and answer; a row that divides by
 zero fails the query. The server logs Pure's message (`NumberFormatException: For input string: "Cannot divide 3 by
-zero"`, the marks around it) and hands the client only its reference ("Details Logged w/ID '...'"). Found on the way,
+zero"`, the marks around it) and hands the client only its reference ("Details Logged w/ID '...'"); the lane's driver
+reads the server's log and holds it to that (an operator's path: the reference a person reports leads to Pure's
+message, in the envelope `RaisedErrors` reads). Found on the way,
 fixed: the live reader never said that the server failed a table -- the library fires `requestfailed`, which nothing
 heard, so a page or a DataCube grid waited for rows that would not come; `follow` now takes a failure callback, and
 the engine says it as it says rows it cannot read. Still refused: `sqrt` (its message prints a float, and a float's

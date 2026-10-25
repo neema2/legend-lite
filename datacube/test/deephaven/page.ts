@@ -29,7 +29,13 @@ interface Outcome {
   readonly message: string;
 }
 
-const verdict: { outcomes: Outcome[]; setupError?: string; done: boolean } = { outcomes: [], done: false };
+/** `logged`: each reference the server handed the page for a failure, and the message its log must hold under it. */
+const verdict: {
+  outcomes: Outcome[];
+  logged: { reference: string; message: string }[];
+  setupError?: string;
+  done: boolean;
+} = { outcomes: [], logged: [], done: false };
 (window as unknown as { __deephaven: typeof verdict }).__deephaven = verdict;
 
 const MODEL = (port: number): string => `###Relational
@@ -508,7 +514,11 @@ try {
       const got = await answer(`${P}->extend(~[q:x|${Q}($x.pid, $x.pid - 3)])->select(~[pid, q])->sort(~pid->ascending())`);
       return `answered ${JSON.stringify(got)}`;
     } catch (e) {
-      return /failed the table .*Details Logged w\/ID '[0-9a-f-]+'/.test(String(e)) ? null : `failed otherwise: ${String(e)}`;
+      const reference = /failed the table .*Details Logged w\/ID '([0-9a-f-]+)'/.exec(String(e))?.[1];
+      if (reference === undefined) return `failed otherwise: ${String(e)}`;
+      // for the driver, which reads the server's log: Pure's message under this reference
+      verdict.logged.push({ reference, message: 'Cannot divide 3 by zero' });
+      return null;
     }
   });
   // A FILTER ON A NEW DATE-TIME OR DATE COMPILES NOTHING (DH25, K1): each in quotes, a range or match filter the

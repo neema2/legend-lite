@@ -82,6 +82,22 @@ try {
     console.log(`FAIL ${verdict.outcomes.length} checks ran, not 70`);
     failed = true;
   }
+  // WHAT AN OPERATOR FINDS (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K5): the server hands a client only a reference
+  // to a failure it logged; under that reference its log must hold Pure's own message, inside the platform's raise
+  // envelope (U+001F either side, RaisedErrors), so the reference a person reports leads to the cause
+  const log = readFileSync(config.log, 'latin1');
+  const records = log.split(/\n(?=\d{4}-\d\d-\d\dT)/);
+  for (const { reference, message } of verdict.logged) {
+    const record = records.find((r) => r.includes(`Internal Error '${reference}'`));
+    const ok = record !== undefined && record.includes(`\u001f${message}\u001f`);
+    console.log(`${ok ? 'ok  ' : 'FAIL'} the server's log holds Pure's "${message}" under the reference ${reference}`
+      + (ok ? '' : `\n${record === undefined ? 'no record of it' : record.slice(0, 2000)}`));
+    if (!ok) failed = true;
+  }
+  if (verdict.logged.length !== 1) {
+    console.log(`FAIL ${verdict.logged.length} logged failures were handed over, not 1`);
+    failed = true;
+  }
 } finally {
   await browser?.close();
   site.close();
