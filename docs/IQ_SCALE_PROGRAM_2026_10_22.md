@@ -750,4 +750,9 @@ says so.
     SUBSTRING by characters, transliteration by REPLACE. The root: 245 of 263 PASS, 14 row-typed, 2 refused, 2 IQ's
     errors, no wrong value. The live IQ dropped connections intermittently during the snap; every query answered on a
     retry, none is a crasher.
+  - **Reports part J judged** (23 analyst pitfalls, snapped at 311607ee): 22 PASS on DuckDB and Postgres -- NOT IN over
+    a NULL (no row), an outer join's NULL side filtered in WHERE against in ON, COUNT(*) against COUNT(column), integer
+    / and MOD of negatives cut toward zero, ROUND at a half, blank padding (a leading blank counts), NULL groups and
+    order, DISTINCT over NULLs; the 23rd, COALESCE((SELECT SUM ...), 0), is IQ's -1001030 as lite predicts. The root: 267
+    of 286 PASS, 14 row-typed, 2 refused, 3 IQ's errors, no wrong value.
   - **The Snowflake lane** (its sibling session idle since 10-23): its ledger column predates this day's typing.
