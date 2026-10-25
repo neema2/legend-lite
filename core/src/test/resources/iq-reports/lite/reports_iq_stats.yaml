@@ -1,0 +1,15 @@
+# The IQ scale program's realistic reports (2026-10-25): iq_stats, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: price_dispersion_by_category
+    sql: "SELECT category, COUNT(*) AS products, ROUND(VAR_POP(unit_price), 3) AS var_pop, ROUND(VAR_SAMP(unit_price), 3) AS var_samp, ROUND(COVAR_POP(unit_price, unit_cost), 3) AS covar, ROUND(REGR_SLOPE(unit_price, unit_cost), 4) AS markup_slope, ROUND(REGR_INTERCEPT(unit_price, unit_cost), 3) AS intercept, ROUND(REGR_R2(unit_price, unit_cost), 4) AS r2 FROM products GROUP BY category ORDER BY category"
+    profile: iq17-default
+  - id: fee_trend_by_channel
+    sql: "SELECT channel, REGR_COUNT(fee, lines) AS n, ROUND(REGR_SLOPE(fee, lines), 4) AS fee_per_line, ROUND(REGR_INTERCEPT(fee, lines), 3) AS base_fee, ROUND(REGR_AVGX(fee, lines), 3) AS avg_lines, ROUND(REGR_AVGY(fee, lines), 3) AS avg_fee, ROUND(CORR(fee, lines), 4) AS corr FROM (SELECT o.id, o.channel, o.shipping_fee AS fee, COUNT(oi.id) AS lines FROM orders o JOIN order_items oi ON oi.order_id = o.id GROUP BY o.id, o.channel, o.shipping_fee) x GROUP BY channel ORDER BY channel"
+    profile: iq17-default
+  - id: payments_near_in_value
+    sql: "SELECT id, method, amount, COUNT(*) OVER (PARTITION BY method ORDER BY amount RANGE BETWEEN 10 PRECEDING AND 10 FOLLOWING) AS near_count, SUM(amount) OVER (PARTITION BY method ORDER BY amount RANGE BETWEEN 10 PRECEDING AND 10 FOLLOWING) AS near_total, MAX(amount) OVER (PARTITION BY method ORDER BY amount RANGE BETWEEN UNBOUNDED PRECEDING AND 50 PRECEDING) AS below_by_50 FROM payments WHERE id <= 60 ORDER BY id"
+    profile: iq17-default
+  - id: salary_spread_by_region
+    sql: "SELECT r.name AS region, COUNT(*) AS staff, ROUND(STDDEV_POP(e.salary), 2) AS sd_pop, ROUND(VAR_POP(e.salary), 1) AS var_pop, ROUND(MAX(e.salary) / NULLIF(MIN(e.salary), 0), 3) AS max_to_min, ROUND(REGR_SLOPE(e.salary, DATEDIFF(DAY, e.hire_date, CAST('2026-01-01' AS DATE))), 4) AS pay_per_day_served FROM employees e JOIN regions r ON r.id = e.region_id GROUP BY r.name ORDER BY r.name"
+    profile: iq17-default
