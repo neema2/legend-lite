@@ -1660,11 +1660,22 @@ public final class IqDialect implements InputDialect {
                         java.util.Locale.ROOT) + code(-154, "37505"), f.pos());
             }
             constantArguments(name, f);
+            if (!settings.iq17() && STAND_IN_LACKS.contains(IqLexer.lower(name))) {
+                // the IQ scale program, 2026-10-26 (the syntax ratchet): IQ's functions, answered under IQ 17.1 (the
+                // real-life census), that SQL Anywhere 17, the other profiles' judge, has none of (its -265); the
+                // cases call them accept in one case and reject in another, so the reader gives neither verdict
+                throw SqlTranslationException.unsupported(name + "(...) under an IQ 16 profile is not supported: SQL"
+                        + " Anywhere 17, its judge, has no such function (its error -265), IQ 17.1 has", f.pos());
+            }
         }
         for (SqlAst.Expr child : children(e)) {
             knownFunctions(child);
         }
     }
+
+    /** IQ's functions SQL Anywhere 17, the judge of the profiles other than iq17's, has none of ({@link
+     *  #knownFunctions}). */
+    private static final Set<String> STAND_IN_LACKS = Set.of("width_bucket", "str_replace", "octet_length");
 
     /** IQ island, 2026-10-15 (measured on SQL Anywhere 17 and IQ 17.1): the errors a date function's constant arguments
      *  raise wherever it is computed, refused by name before translating: DATETIME of a number, YMD of constants

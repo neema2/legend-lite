@@ -206,15 +206,27 @@
 # c07_fn_d-58).
 # IQ island, 2026-10-17 (BIRD's table Match; measured on IQ 17.1): a reserved word right after FROM, JOIN or AS, not
 # opening a call, is IQ's syntax error -131, named now: reject REJECTED 1,037 -> 1,038 (REFUSED 745 -> 744).
-accept	parsed	3220
-accept	refused	1729
+# The IQ scale program, 2026-10-26 (the real-life census's functions, 9406ee67 and after, measured on IQ 17.1; this
+# ratchet left out of that work's gates, caught now): the reader now reads the statistical aggregates (VAR_POP,
+# STDDEV_POP, COVAR_POP, COVAR_SAMP, the REGR_ family), HASH, DATEFLOOR and DATECEILING, so 62 reject cases parse that
+# the reader refused before: each is refused when translated, under iq16-default and iq17-default alike (run through
+# IqCorpusTest's coverage, 62 of 62 REFUSED) -- a statistical aggregate of DISTINCT, DATEFLOOR and DATECEILING outside
+# IQ's engine or to a multiple of 0, HASH by an algorithm IQ has none of, a UNION of NUMERICs of other types -- so
+# none is answered. WIDTH_BUCKET, STR_REPLACE and OCTET_LENGTH, which the cases call accept in one case and reject in
+# another (SQL Anywhere 17, the judge of the profiles but iq17's, has none of them; IQ 17.1 has), are refused by name
+# under those profiles, as M1b refuses such forms: reject PARSED 27 -> 89, its list +62; no accept case rejected.
+# The other counts moved with the reader's work since 2026-10-17 (the pins not rewritten while the list grew): accept
+# PARSED 3,220 -> 3,403 (REFUSED 1,729 -> 1,546), flag PARSED 81 -> 86 (REFUSED 53 -> 48), reject REJECTED 1,041 ->
+# 1,065 (REFUSED 741 -> 655); the accept-rejected list unchanged.
+accept	parsed	3403
+accept	refused	1546
 accept-with-option	refused	90
 accept-with-option	rejected	1
-flag	parsed	81
-flag	refused	53
-reject	parsed	27
-reject	refused	741
-reject	rejected	1041
+flag	parsed	86
+flag	refused	48
+reject	parsed	89
+reject	refused	655
+reject	rejected	1065
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609
@@ -225,7 +237,10 @@ reject-parsed	a1_sa_lang-1634
 reject-parsed	a1_sa_lang-1643
 reject-parsed	a1_sa_lang-633
 reject-parsed	a1_sa_lang-634
+reject-parsed	a3_sa_fn1-475
+reject-parsed	a3_sa_fn1-481
 reject-parsed	a4_sa_fn2-255
+reject-parsed	a4_sa_fn2-307
 reject-parsed	a4_sa_fn2-40
 reject-parsed	a4_sa_fn2-44
 reject-parsed	a4_sa_fn2-48
@@ -234,10 +249,69 @@ reject-parsed	a4_sa_fn2-56
 reject-parsed	a4_sa_fn2-60
 reject-parsed	a4_sa_fn2-645
 reject-parsed	a4_sa_fn2-702
+reject-parsed	a5_sa_fn3-104
+reject-parsed	a5_sa_fn3-111
+reject-parsed	a5_sa_fn3-118
+reject-parsed	a5_sa_fn3-125
+reject-parsed	a5_sa_fn3-132
+reject-parsed	a5_sa_fn3-139
+reject-parsed	a5_sa_fn3-146
+reject-parsed	a5_sa_fn3-380
+reject-parsed	a5_sa_fn3-388
+reject-parsed	a5_sa_fn3-396
 reject-parsed	a5_sa_fn3-482
+reject-parsed	a5_sa_fn3-588
+reject-parsed	a5_sa_fn3-598
+reject-parsed	a5_sa_fn3-604
 reject-parsed	a5_sa_fn3-688
+reject-parsed	a5_sa_fn3-91
+reject-parsed	a5_sa_fn3-98
 reject-parsed	a6_sa_query-695
 reject-parsed	a6_sa_query-91
+reject-parsed	c04_fn_a-248
+reject-parsed	c04_fn_a-256
+reject-parsed	c04_fn_a-310
+reject-parsed	c04_fn_a-311
+reject-parsed	c04_fn_a-312
+reject-parsed	c04_fn_a-313
+reject-parsed	c04_fn_a-315
+reject-parsed	c04_fn_a-316
+reject-parsed	c04_fn_a-317
+reject-parsed	c04_fn_a-318
+reject-parsed	c04_fn_a-319
+reject-parsed	c04_fn_a-321
+reject-parsed	c04_fn_a-322
+reject-parsed	c04_fn_a-323
+reject-parsed	c04_fn_a-324
+reject-parsed	c04_fn_a-356
+reject-parsed	c04_fn_a-357
+reject-parsed	c04_fn_a-358
+reject-parsed	c04_fn_a-359
+reject-parsed	c04_fn_a-361
+reject-parsed	c04_fn_a-362
+reject-parsed	c04_fn_a-363
+reject-parsed	c04_fn_a-364
+reject-parsed	c04_fn_a-365
+reject-parsed	c04_fn_a-367
+reject-parsed	c04_fn_a-368
+reject-parsed	c04_fn_a-369
+reject-parsed	c04_fn_a-370
+reject-parsed	c05_fn_b-57
+reject-parsed	c06_fn_c-325
+reject-parsed	c06_fn_c-332
+reject-parsed	c06_fn_c-337
+reject-parsed	c06_fn_c-344
+reject-parsed	c06_fn_c-351
+reject-parsed	c06_fn_c-359
+reject-parsed	c06_fn_c-366
+reject-parsed	c06_fn_c-372
+reject-parsed	c06_fn_c-378
+reject-parsed	c07_fn_d-139
+reject-parsed	c07_fn_d-145
+reject-parsed	c07_fn_d-150
+reject-parsed	c07_fn_d-273
+reject-parsed	c13_olap-136
+reject-parsed	c13_olap-137
 reject-parsed	c13_olap-302
 reject-parsed	s1_lexical-1164
 reject-parsed	s1_lexical-614
