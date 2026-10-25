@@ -287,6 +287,8 @@ def _literal(v) -> str:
         return "true" if v else "false"
     # Before the plain-string branch: DateArg IS a str, and quoting it would produce
     # `'2024-02-01'` where Pure wants `%2024-02-01`.
+    if isinstance(v, query.DateTimeArg):
+        return "%" + v.replace(" ", "T")
     if isinstance(v, query.DateArg):
         return f"%{v}"
     if isinstance(v, str):
@@ -353,6 +355,8 @@ def query_text(spec: Spec) -> str:
             for f in spec.filters)
         lines.append(f"        ->filter({{{VAR}|{conds}}})")
     def expr(p):
+        if p.expr:
+            return p.expr
         if p.func:
             inner = ", ".join(_literal(a) for a in p.args)
             return f"${VAR}->{p.func}({inner})"
@@ -389,13 +393,19 @@ def query_text(spec: Spec) -> str:
         for i, col in enumerate(cols):
             lines.append(f"            {col}" + ("," if i < len(cols) - 1 else ""))
         lines.append("        ])")
+    if spec.asof is not None:
+        lines += _asof_text(spec.asof)
+    if spec.extends:
+        cols = ", ".join(f"{alias}:{VAR}|{e}" for alias, e, _kind in spec.extends)
+        lines.append(f"        ->extend(~[{cols}])")
+    lines += _windows_text(spec.windows)
     if spec.group_by and spec.paradigm != "tds":
         keys = ", ".join(spec.group_by)
         # The aggregate list is BRACKETED. The bare `~name: ... : ...` form parses only
         # with a SINGLE aggregate; with two it builds a colSpec whose function is null and
         # fails with "colSpec.function1 is null".
         parts = ",\n            ".join(
-            f"{name}: {VAR}|${VAR}.{src} : agg|$agg->{fn}()"
+            f"{name}: {VAR}|{_agg_source(src)} : agg|$agg->{_agg_call(fn)}"
             for name, src, fn in spec.aggs)
         lines.append(f"        ->groupBy(~[{keys}], ~[\n            {parts}\n        ])")
     if getattr(spec, "post_filters", None):
@@ -412,6 +422,115 @@ def query_text(spec: Spec) -> str:
     if spec.limit is not None:
         lines.append(f"        ->limit({spec.limit})")
     return "\n".join(lines) + ";"
+
+
+ROW_MAPPER = "meta::pure::functions::math::mathUtility::rowMapper"
+
+
+def _agg_source(src) -> str:
+    """A group aggregate's source: one column, or a (value, key-or-weight) pair as Pure's rowMapper -- what wavg, corr,
+    covar, maxBy and minBy take."""
+    if isinstance(src, tuple):
+        return f"{ROW_MAPPER}(${VAR}.{src[0]}, ${VAR}.{src[1]})"
+    return f"${VAR}.{src}"
+
+
+def _agg_call(fn: str) -> str:
+    """`sum` -> `sum()`; a call with arguments or a chain (`percentile(0.9)`, `distinct()->count()`) as written."""
+    return fn if "(" in fn else f"{fn}()"
+
+
+def _asof_text(a) -> list[str]:
+    right = query_text(a.right)
+    head = "    query: |"
+    if not right.startswith(head) or a.right.sort or a.right.limit is not None:
+        raise ValueError(f"as-of join's right side must be a plain projection: {a.right.name}")
+    body = right[len(head):-1].split("\n")
+    out = ["        ->asOfJoin(", "            " + body[0]]
+    out += ["        " + line for line in body[1:]]
+    out[-1] += ","
+    out.append(f"            {{a, b|$a.{a.at} {a.op} $b.{a.right_at}}}" + ("," if a.key else ""))
+    if a.key:
+        out.append(f"            {{a, b|$a.{a.key} == $b.{a.right_key}}}")
+    out.append("        )")
+    return out
+
+
+_DURATION = {"SECONDS", "MINUTES", "HOURS", "DAYS"}
+
+
+def _bound(v) -> str:
+    return "unbounded()" if v is None else str(v)
+
+
+def _frame(frame) -> str:
+    kind = frame[0]
+    if kind == "rows":
+        return f"rows({_bound(frame[1])}, {_bound(frame[2])})"
+    lo, hi, unit = frame[1], frame[2], frame[3]
+    if unit is None:
+        return f"_range({_bound(lo)}, {_bound(hi)})"
+    if unit not in _DURATION:
+        raise ValueError(f"a time range frame takes a fixed-length unit, not {unit}")
+    left = "unbounded()" if lo is None else f"{lo}, DurationUnit.{unit}"
+    right = "unbounded()" if hi is None else f"{hi}, DurationUnit.{unit}"
+    return f"_range({left}, {right})"
+
+
+def _over(w) -> str:
+    part = (f"~{w.partition[0]}" if len(w.partition) == 1
+            else "~[" + ", ".join(w.partition) + "]")
+    sorts = [f"~{a}->{'descending' if d else 'ascending'}()" for a, d in w.order]
+    args = [part] if w.partition else []
+    if sorts:
+        args.append(sorts[0] if len(sorts) == 1 else "[" + ", ".join(sorts) + "]")
+    if w.frame is not None:
+        args.append(_frame(w.frame))
+    return f"over({', '.join(args)})"
+
+
+_FRAME_AGGS = {"sum", "average", "min", "max", "count"}
+_RANKS = {"rank", "denseRank", "percentRank", "cumulativeDistribution"}
+
+
+def _window_column(w) -> str:
+    if w.fn in _FRAME_AGGS:
+        return f"{w.alias}:{{p,w,r|$r.{w.column}}}:y|$y->{w.fn}()"
+    if w.fn == "rowNumber":
+        return f"{w.alias}:{{p,w,r|$p->rowNumber($r)}}"
+    if w.fn == "ntile":
+        return f"{w.alias}:{{p,w,r|$p->ntile($r, {w.args[0]})}}"
+    if w.fn in _RANKS:
+        return f"{w.alias}:{{p,w,r|$p->{w.fn}($w, $r)}}"
+    if w.fn in ("lag", "lead"):
+        offset = f", {w.args[0]}" if w.args else ""
+        return f"{w.alias}:{{p,w,r|$p->{w.fn}($r{offset}).{w.column}}}"
+    if w.fn in ("first", "last"):
+        return f"{w.alias}:{{p,w,r|$p->{w.fn}($w, $r).{w.column}}}"
+    raise ValueError(f"unhandled window function {w.fn}")
+
+
+def _windows_text(windows) -> list[str]:
+    """One `->extend(over(...), ~[...])` per distinct window, in the order the columns were given."""
+    groups: list[tuple[str, list]] = []
+    for w in windows:
+        # One array per window AND per column kind: an array of aggregate columns (`a:{p,w,r|...}:y|...`) and one of
+        # plain ones (`b:{p,w,r|$p->lag($r).x}`) are two Pure types, and a mixed array is neither (legend-engine reads
+        # the first element to choose and casts the rest; legend-lite refuses the second kind by name).
+        key = (_over(w), w.fn in _FRAME_AGGS)
+        if groups and groups[-1][0] == key:
+            groups[-1][1].append(w)
+        else:
+            groups.append((key, [w]))
+    out = []
+    for (key, _agg), ws in groups:
+        cols = [_window_column(w) for w in ws]
+        if len(cols) == 1:
+            out.append(f"        ->extend({key}, ~{cols[0]})")
+        else:
+            out.append(f"        ->extend({key}, ~[\n            "
+                       + ",\n            ".join(cols) + "\n        ])")
+    return out
 
 
 def _multi_execution(spec: Spec) -> str:

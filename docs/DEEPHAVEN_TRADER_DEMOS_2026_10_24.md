@@ -208,6 +208,39 @@ suites on DuckDB (4,785 of 4,813 tests pass) and H2 (4,756), the differential, t
 tests -- and all 81 new services pass on both. Not yet run against legend-engine (the corpus's engine lane needs its
 runner and an engine).
 
-Next for the model: services for each Deephaven feature on the plan -- the scalars as derived properties, the
-aggregates, windows and as-of joins in the query spec -- each taught to the oracle, never relaxed.
+**The trader features as services (2026-10-25, `scripts/corpus/features.py`, `99-trader-services.pure`):** 21 services,
+one feature family each, so a target lacking a feature fails that service and no other. The scalars (Pure's round with
+a scale, mod, substring -- Java's contract, zero-based, F37 --, contains, toString, toEpochValue); the statistics (wavg,
+minBy and maxBy over a rowMapper, the sample and population standard deviations and variances, median, percentile,
+corr and the covariances, mode, a distinct count); windows (running and moving figures by rows and by a time range,
+lag and lead, first, the ranks, ntile, an unordered whole-partition window, top two per name as SQL's QUALIFY); five-
+minute candles; a fixed-clock window; and as-of joins both ways (the quote prevailing at a print, the next quote after
+it, and a booked trade's slippage against the mid). The query spec learnt the shapes (`query.py`: an expression
+projection, `Window`, `AsOf`, relation extends) and the oracle evaluates each from SQL's and Pure's stated semantics:
+frames with peers, NULLs left out of a frame's aggregate, ntile's larger first tiles, a LEFT as-of join; it refuses a
+tie in a window's order where the answer reads positions, two quotes at the winning instant, a bimodal mode, a
+half-way rounding.
+
+**The market's day (`scripts/corpus/tape.py`):** written by hand as the core seed is, 13 quotes and 24 prints for AAPL,
+MSFT and HSBA over the hand-written trades' own hours, appended to the expansion ring's rows AFTER the expansion (a
+table seeded before it leaves the ring's candidate list and shifts every later table's generated values). Its shapes
+are checked at build time: a print before the first quote, prints at a quote's instant, two prints in one second, prints
+with no aggressor, a quote with no sizes.
+
+**What the services found, fixed (each with its test):** the store resolver had no arm for an as-of join over two class
+queries ("class query under TypedAsOfJoin is not resolvable yet": now the join's own structural arm,
+`AsOfJoinCheckerTest.OverClassQueries`); the lowering lowered a scalar directly around a group's reducer but not through
+the `toOne` and `cast` Pure's typing puts between them (`$y->corr()->toOne()->cast(@Float)->round(6)`:
+`GroupByCheckerTest.testRoundedStatistics`); H2 has no ARG_MIN, ARG_MAX or time_bucket, which its dialect spelled by
+name or refused (now Postgres's ordered array and MariaDB's floored epoch: `H2ArgExtremeAndTimeBucketTest`). And one
+the corpus states rather than fixes: a statistic is approximate in every database -- DuckDB's sample variance of the
+three gilt prices (within 0.0075 of each other) is 178 units in the last place from the exact one, its AAPL correlation
+3 -- so the services ask for six places, as a screen shows them, and the oracle computes the exact value and refuses a
+rounding within a millionth of a step of half-way. Measured: all 21 pass on DuckDB (4,806 of 4,834) and H2 (4,777),
+the old failures unchanged (15 and 44). Not yet run against legend-engine or on Deephaven (task: the corpus on
+Deephaven).
+
+Not services, with the reason: an exponential moving average and a tick-to-tick delta (no Pure function names either);
+`now()`-relative windows (the corpus never reads the clock: a fixed instant here, the live ones on the live tape);
+`joinStrings` per group (its order is the database's).
 

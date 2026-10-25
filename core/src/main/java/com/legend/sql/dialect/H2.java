@@ -639,7 +639,7 @@ public class H2 extends AnsiSqlRenderer {
             case FROM_EPOCH_MS ->
                     throw new DialectCapability("a date from epoch milliseconds reached H2, which has no epoch_ms()");
             case DECODE_BASE64 -> throw new DialectCapability("decodeBase64 reached H2, which has no from_base64()");
-            case TIME_BUCKET -> throw new DialectCapability("a time bucket reached H2, which has no time_bucket()");
+            case TIME_BUCKET -> timeBucket(writer, c.args());
         };
     }
 
@@ -677,6 +677,48 @@ public class H2 extends AnsiSqlRenderer {
             }
         }
         return infix(writer, c, parentPrec);
+    }
+
+    /** DuckDB's time_bucket with its origins (1970-01-01; weeks the Monday 1969-12-29), which H2 has no function
+     *  for (the stress corpus's TF_TapeCandles, 2026-10-25): a fixed unit floors the microseconds since the origin to
+     *  the bucket's multiple (a floored modulo, so an instant before 1970 floors down too); months and years the month
+     *  index since 1970-01 -- MariaDB's and SQLite's decomposition. */
+    private SqlWriter timeBucket(SqlWriter writer, List<SqlExpr> a) {
+        com.legend.sql.DatePart unit = part(a.get(0));
+        SqlExpr n = a.get(1);
+        SqlExpr t = a.get(2);
+        Long micros = bucketMicros(unit);
+        if (micros != null) {
+            String origin = unit == com.legend.sql.DatePart.WEEK ? "TIMESTAMP '1969-12-29 00:00:00'"
+                    : "TIMESTAMP '1970-01-01 00:00:00'";
+            SqlWriter.Piece size = w -> w.append("(CAST(").expr(n, 0).append(" AS BIGINT) * " + micros + ")");
+            SqlWriter.Piece m = w -> w.append("DATEDIFF(MICROSECOND, " + origin + ", ").expr(t, 0).append(")");
+            return writer.append("DATEADD(MICROSECOND, ").piece(m).append(" - MOD(MOD(").piece(m).append(", ")
+                    .piece(size).append(") + ").piece(size).append(", ").piece(size).append("), " + origin + ")");
+        }
+        int months = unit == com.legend.sql.DatePart.MONTH ? 1 : unit == com.legend.sql.DatePart.YEAR ? 12 : 0;
+        if (months == 0) {
+            throw new DialectCapability("a " + unit + " time bucket has no H2 spelling");
+        }
+        SqlWriter.Piece k = w -> w.append("((EXTRACT(YEAR FROM ").expr(t, 0).append(") - 1970) * 12 + EXTRACT(MONTH FROM ")
+                .expr(t, 0).append(") - 1)");
+        SqlWriter.Piece size = w -> w.append("(CAST(").expr(n, 0).append(" AS BIGINT) * " + months + ")");
+        return writer.append("DATEADD(MONTH, ").piece(k).append(" - MOD(MOD(").piece(k).append(", ").piece(size)
+                .append(") + ").piece(size).append(", ").piece(size).append("), TIMESTAMP '1970-01-01 00:00:00')");
+    }
+
+    /** A fixed-length unit's length in microseconds; null for a calendar one. */
+    private static @com.legend.base.Nullable Long bucketMicros(com.legend.sql.DatePart unit) {
+        return switch (unit) {
+            case WEEK -> 7L * 86400000000L;
+            case DAY -> 86400000000L;
+            case HOUR -> 3600000000L;
+            case MINUTE -> 60000000L;
+            case SECOND -> 1000000L;
+            case MILLISECOND -> 1000L;
+            case MICROSECOND -> 1L;
+            case YEAR, QUARTER, MONTH, NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+        };
     }
 
     /** date_diff (P7): DATEDIFF(UNIT, a, b) — probed sign parity (10 / -10) with the reference
@@ -973,8 +1015,8 @@ public class H2 extends AnsiSqlRenderer {
             case CORR -> h2Aggregate(writer, "CORR", r);
             case COVAR_SAMP -> h2Aggregate(writer, "COVAR_SAMP", r);
             case COVAR_POP -> h2Aggregate(writer, "COVAR_POP", r);
-            case ARG_MAX -> h2Aggregate(writer, "ARG_MAX", r);
-            case ARG_MIN -> h2Aggregate(writer, "ARG_MIN", r);
+            case ARG_MAX -> argExtreme(writer, " DESC", r);
+            case ARG_MIN -> argExtreme(writer, " ASC", r);
             case BOOL_AND -> h2Aggregate(writer, "BOOL_AND", r);
             case BOOL_OR -> h2Aggregate(writer, "BOOL_OR", r);
             case VARIANCE -> h2Aggregate(writer, "VARIANCE", r);
@@ -984,6 +1026,19 @@ public class H2 extends AnsiSqlRenderer {
             case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
                  NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** {@code maxBy}/{@code minBy} (SQL's ARG_MAX/ARG_MIN, which H2 has neither of: "Function ARG_MIN not found",
+     *  the stress corpus's TF_InstrumentVwap, 2026-10-25): the value at the first place of the group's values ordered
+     *  by the key, the rows whose key is NULL left out (the key decides; a NULL key decides nothing) -- Postgres's
+     *  spelling. A tie on the key takes any of the tied rows' values, as ARG_MAX does. */
+    private SqlWriter argExtreme(SqlWriter writer, String direction, com.legend.sql.SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached H2");
+        }
+        return writer.append("ARRAY_GET(ARRAY_AGG(").expr(r.args().get(0), 0).append(" ORDER BY ")
+                .expr(r.args().get(1), 0).append(direction).append(") FILTER (WHERE ")
+                .expr(r.args().get(1), 0).append(" IS NOT NULL), 1)");
     }
 
     /** An aggregate by its name; an ordered one pins the reference NULL placement too (the sortKey pin's

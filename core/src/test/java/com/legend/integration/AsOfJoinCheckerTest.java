@@ -312,6 +312,43 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
     // ==================== Match + Key (4-param with two lambdas)
     // ====================
 
+    // ==================== Over class queries ====================
+
+    /** Both sides are CLASS queries through a mapping: the resolver rebuilds the as-of join over the two resolved
+     * pipelines as it rebuilds a join (the stress corpus's TF_TapePrevailingQuote found it walled, 2026-10-25). */
+    @Nested
+    @DisplayName("asOfJoin over two class queries")
+    class OverClassQueries {
+
+        private static final String PEOPLE = "model::Person.all()->project(~[name: x|$x.firstName, last: x|$x.lastName,"
+                + " age: x|$x.age])";
+        private static final String OTHERS = "model::Person.all()->project(~[other: x|$x.firstName,"
+                + " otherLast: x|$x.lastName, otherAge: x|$x.age])";
+
+        @Test
+        @DisplayName("each person beside the next younger one: match only")
+        void matchOnly() throws SQLException {
+            var result = executeRelation(PEOPLE + "->asOfJoin(" + OTHERS + ", {l, r | $l.age > $r.otherAge})");
+            assertEquals(3, result.rowCount(), "a LEFT as-of join keeps every person");
+            var byName = CheckerResults.collect(result, "name", "other");
+            assertEquals("Jane", byName.get("John"), "John (30) -> Jane (28)");
+            assertNull(byName.get("Jane"), "nobody is younger than Jane (28)");
+            assertEquals("John", byName.get("Bob"), "Bob (45) -> John (30), the latest below him");
+        }
+
+        @Test
+        @DisplayName("each person beside the next younger one of the same family: match and key")
+        void matchAndKey() throws SQLException {
+            var result = executeRelation(PEOPLE + "->asOfJoin(" + OTHERS + ", {l, r | $l.age > $r.otherAge},"
+                    + " {l, r | $l.last == $r.otherLast})");
+            assertEquals(3, result.rowCount());
+            var byName = CheckerResults.collect(result, "name", "other");
+            assertEquals("Jane", byName.get("John"), "John Smith (30) -> Jane Smith (28)");
+            assertNull(byName.get("Jane"));
+            assertNull(byName.get("Bob"), "no younger Jones");
+        }
+    }
+
     @Nested
     @DisplayName("asOfJoin(left, right, matchCondition, keyCondition)")
     class MatchWithKey {

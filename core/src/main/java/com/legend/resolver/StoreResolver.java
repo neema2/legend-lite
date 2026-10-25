@@ -575,6 +575,8 @@ public final class StoreResolver {
                     && Type.isRelation(nav.target().info().type()) ->
                     nav.withSource(resolveNode(nav.source(), context), nav.info());
             case TypedJoin j -> structural(j, context);
+            // an AS-OF join is a join: its two sides resolve, its match and key lambdas ride along over their columns
+            case com.legend.compiler.spec.typed.TypedAsOfJoin aj -> structural(aj, context);
             // map over RELATION rows above a class chain (the object-space
             // map arms matched earlier; this is the relation-space wrapper)
             case TypedMap m

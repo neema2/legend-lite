@@ -183,6 +183,10 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     EXPANSION_LAYERS.clear()
     EXPANSION_LAYERS.extend(layers)
     tables.update(expanded)
+    # The market's day, written by hand and appended to the ring's quotes and prints AFTER the expansion, so that no
+    # table's place in the ring -- and so no generated value -- moves (tape.py says why).
+    import tape
+    tape.overlay(tables)
     # Views are computed for the ORACLE only. They are not physical tables: nothing seeds
     # them, no DDL creates them, and the engine inlines the GROUP BY. Emitting one as
     # ###Data would create a real table that shadows the view and silently stop testing

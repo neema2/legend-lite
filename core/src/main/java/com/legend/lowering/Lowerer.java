@@ -1766,9 +1766,12 @@ public final class Lowerer {
     }
 
     /** The scalar-around-the-reducer shape: the ONE reducer among the
-     *  operands (direct, or inside an arithmetic run) lowers as the
-     *  aggregate, the rest as literals (no row scope), the scalar's rule
-     *  applies around it; null for any other shape. */
+     *  operands -- direct, inside an arithmetic run, or under the scalars,
+     *  casts and runs between it and the reduce's root (y|$y->corr()->toOne()
+     *  ->cast(@Float)->round(6): Pure's statistics are Number[0..1], round
+     *  with a scale takes Float[1]) -- lowers as the aggregate, every other
+     *  operand as a literal (no row scope), each scalar's rule and each cast's
+     *  policy applies around it in turn; null for any other shape. */
     private @com.legend.base.Nullable SqlExpr aroundReducer(SqlSelect base, TypedAggCol a,
             TypedNativeCall call) {
         if (Aggregates.reducerOrNull(call.callee()) != null || call.args().isEmpty()) {
@@ -1776,11 +1779,7 @@ public final class Lowerer {
         }
         List<TypedNativeCall> reducers = new ArrayList<>();
         for (TypedSpec arg : call.args()) {
-            for (TypedSpec e : arg instanceof TypedCollection run ? run.elements() : List.of(arg)) {
-                if (e instanceof TypedNativeCall rc && Aggregates.reducerOrNull(rc.callee()) != null) {
-                    reducers.add(rc);
-                }
-            }
+            reducersUnder(arg, reducers);
         }
         if (reducers.size() != 1) {
             return null;
@@ -1790,13 +1789,47 @@ public final class Lowerer {
                 new TypedLambda(a.reduce().parameters(),
                         List.of(reducer), a.reduce().info()),
                 a.order()));
-        java.util.function.Function<TypedSpec, SqlExpr> operand =
-                e -> e == reducer ? inner : scalar(e, noScope());
-        List<SqlExpr> wrapped = new ArrayList<>();
-        for (TypedSpec arg : call.args()) {
-            wrapped.add(arg instanceof TypedCollection run ? listLiteral(run, operand) : operand.apply(arg));
+        return around(call, reducer, inner);
+    }
+
+    /** The reducers in a reduce body's operand, through scalar calls, casts and
+     *  literal runs (never into a lambda: a reducer there is another scope's). */
+    private static void reducersUnder(TypedSpec e, List<TypedNativeCall> out) {
+        switch (e) {
+            case TypedNativeCall rc when Aggregates.reducerOrNull(rc.callee()) != null -> out.add(rc);
+            case TypedNativeCall nc -> nc.args().forEach(x -> reducersUnder(x, out));
+            case TypedCast c -> reducersUnder(c.source(), out);
+            case TypedCollection run -> run.elements().forEach(x -> reducersUnder(x, out));
+            default -> { }
         }
-        return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, wrapped, features, implementations));
+    }
+
+    /** {@code e} lowered with the reducer standing for {@code inner}: the operands that do not hold it are literals. */
+    private SqlExpr around(TypedSpec e, TypedNativeCall reducer, SqlExpr inner) {
+        if (e == reducer) {
+            return inner;
+        }
+        List<TypedNativeCall> held = new ArrayList<>();
+        reducersUnder(e, held);
+        if (!held.contains(reducer)) {
+            return scalar(e, noScope());
+        }
+        return switch (e) {
+            case TypedCast c -> CastPolicy.castByPolicy(around(c.source(), reducer, inner),
+                    c.source().info().type(), c.target(), c.wire());
+            case TypedCollection run -> listLiteral(run, x -> around(x, reducer, inner));
+            case TypedNativeCall nc -> {
+                List<SqlExpr> wrapped = new ArrayList<>(nc.args().size());
+                for (TypedSpec arg : nc.args()) {
+                    wrapped.add(arg instanceof TypedCollection run
+                            ? listLiteral(run, x -> around(x, reducer, inner)) : around(arg, reducer, inner));
+                }
+                yield NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals,
+                        Scalars.lower(nc, wrapped, features, implementations));
+            }
+            default -> throw new IllegalStateException("a reducer under " + e.getClass().getSimpleName()
+                    + " in an aggregate's reduce has no lowering");
+        };
     }
 
     /** The list literal a collection lowers to — ONE construction site;

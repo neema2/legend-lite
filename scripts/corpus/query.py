@@ -34,6 +34,15 @@ class DateArg(str):
     """
 
 
+class DateTimeArg(str):
+    """A Pure DATETIME literal argument: `%2024-06-03T09:30:00`.
+
+    Held in the seed's own spelling, `2024-06-03 09:30:00`, so the oracle compares it with a row's timestamp as it
+    compares two of them; only the emitted literal takes Pure's `T`. A fixed instant is how a window "over the last
+    fifteen minutes" is asked of a corpus that must never read the clock (oracle.REFUSED: now, today).
+    """
+
+
 @dataclass
 class Pred:
     path: list[str]
@@ -49,6 +58,12 @@ class Proj:
     args: list = field(default_factory=list)   # arguments to a QUALIFIED property
     # A standalone function called extension-style: `$x->stress::rules::isBuy()`.
     func: str | None = None
+    # A SCALAR expression over the row, in Pure: `round($x.notional / 1000.0, 2)`. Written in the prefix-call form the
+    # oracle's expression evaluator reads (oracle._Eval), every `$x.<path>` a property path from the root; `kind` is the
+    # result's, stated because the evaluator computes values, not types. Used by features.py for the scalar functions a
+    # screen's computed column calls (round, mod, substring, contains, a number as text).
+    expr: str | None = None
+    kind: str | None = None
 
 
 @dataclass
@@ -122,10 +137,51 @@ class Spec:
     # and the predicate is over the result, so the engine must decide whether it can be
     # pushed back down. Nothing in the corpus had ever asked it to.
     post_filters: list = field(default_factory=list)
+    # Window columns, added to the projected relation by `->extend(over(...), ~[...])` -- after the projection (and the
+    # as-of join and the extends below), before the post filters, the sort and the limit. Each a Window. features.py's.
+    windows: list = field(default_factory=list)
+    # An AS-OF JOIN of the projected relation to another spec's: an AsOf. Its columns are added to each row: the right
+    # row with the latest match at or before the left's, among those whose key equals the left's; none (NULLs) when no
+    # right row qualifies -- a LEFT as-of join.
+    asof: object | None = None
+    # Computed columns over the RELATION, `->extend(~[alias: x|<expr>])`, after the as-of join: (alias, expr, kind),
+    # each `$x.<column>` a column of the relation so far rather than a model path.
+    extends: list = field(default_factory=list)
 
     @property
     def short(self) -> str:
         return self.name.split("::")[-1]
+
+
+@dataclass
+class Window:
+    """One window column: `alias: {p,w,r|...}:y|$y->fn()` over `over(~partition, ~order->ascending(), frame)`.
+
+    fn: an aggregate over the frame (sum, average, min, max, count) of `column`; a rank (rowNumber, rank, denseRank,
+    percentRank, cumulativeDistribution, ntile with args [n]); an offset read of `column` (lag, lead, args [offset]);
+    or the frame's first or last row's `column` (first, last). order: [(alias, descending)]. frame: None (SQL's default:
+    the partition when unordered, else its start to the current row's last peer), ('rows', lo, hi) or
+    ('range', lo, hi, unit) with None for unbounded, unit a DurationUnit over a timestamp order or None over a number.
+    """
+    alias: str
+    fn: str
+    column: str | None = None
+    partition: list = field(default_factory=list)
+    order: list = field(default_factory=list)
+    frame: tuple | None = None
+    args: list = field(default_factory=list)
+
+
+@dataclass
+class AsOf:
+    """`->asOfJoin(<right>, {a,b|$a.<at> <op> $b.<right_at>}, {a,b|$a.<key> == $b.<right_key>})`: right is a Spec with
+    no sort or limit of its own, its column aliases disjoint from the left's."""
+    right: object
+    at: str
+    op: str
+    right_at: str
+    key: str | None = None
+    right_key: str | None = None
 
 
 _SERVICE = re.compile(r"^Service\s+([\w:]+)\s*$")

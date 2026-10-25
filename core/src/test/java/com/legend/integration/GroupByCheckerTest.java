@@ -632,6 +632,31 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
         }
 
         @Test
+        @DisplayName("a statistic rounded to a screen's places: the reducer under toOne, cast and round")
+        void testRoundedStatistics() throws SQLException {
+            // Pure's statistics are Number (corr Number[0..1]) and round with a scale takes Float[1], so a screen's
+            // rounded statistic is the reducer under a toOne, a cast and the round: one SQL aggregate inside the scalars
+            // (the stress corpus's TF_InstrumentDispersion and TF_InstrumentCorrelation, 2026-10-25)
+            var result = executeRelation("""
+                    |#TDS
+                    grp, px, qty
+                    1, 10.0, 1.0
+                    1, 20.0, 3.0
+                    1, 40.0, 2.0
+                    2, 100.0, 5.0
+                    2, 200.0, 1.0
+                    #->groupBy(~grp, ~[sd:x|$x.px:y|$y->stdDevSample()->cast(@Float)->round(3),
+                        c:x|meta::pure::functions::math::mathUtility::rowMapper($x.px, $x.qty):y|$y->corr()->toOne()->cast(@Float)->round(4)])""");
+            assertEquals(2, result.rowCount());
+            var sd = CheckerResults.collect(result, "grp", "sd");
+            assertEquals(15.275, ((Number) sd.get(1)).doubleValue(), 0.0, "sd of [10, 20, 40] = 15.2752...");
+            assertEquals(70.711, ((Number) sd.get(2)).doubleValue(), 0.0, "sd of [100, 200] = 70.7106...");
+            var corr = CheckerResults.collect(result, "grp", "c");
+            assertEquals(0.3273, ((Number) corr.get(1)).doubleValue(), 0.0, "corr = 0.32732...");
+            assertEquals(-1.0, ((Number) corr.get(2)).doubleValue(), 0.0, "two points lie on a falling line");
+        }
+
+        @Test
         @DisplayName("stdDev + average: analytics pattern")
         void testStdDevAndAverage() throws SQLException {
             var result = executeRelation("""

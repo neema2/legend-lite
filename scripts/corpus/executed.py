@@ -418,10 +418,12 @@ def all_specs(c: model.Corpus):
     import flat
     import spread
 
+    import features
+
     base = base_specs(c)
     tables = flat.all_tables(c)
     seeded = {k for k, v in tables.items() if v}
-    return base + spread.build(c, seeded, base)
+    return base + spread.build(c, seeded, base) + features.build()
 
 
 # Every taxonomy feature that a service can execute, all of them with a passing one today.

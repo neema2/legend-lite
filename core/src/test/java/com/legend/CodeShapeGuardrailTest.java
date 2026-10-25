@@ -243,6 +243,10 @@ class CodeShapeGuardrailTest {
             // DeephavenBatch IS the frame object, one per batch, scoped to one render() as the renderer's cursor is:
             // each operation's place in the batch, which the operations after it read it by
             "DeephavenBatch.ops",
+            // 2026-10-24 (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K6, found by //core:guardrails 2026-10-25): its
+            // window helper columns' counter -- the same frame, the same lifecycle: the helper columns a batch's windows
+            // read and make are numbered across the one batch, so no two share a name
+            "DeephavenBatch.windowColumns",
             // normalizer emission frame: Pipeline IS the frame object; expr
             // is the accumulating pipeline AST
             "Pipeline.expr",

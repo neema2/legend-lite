@@ -1971,9 +1971,13 @@ class _Eval:
     is written that way. isEmpty/isNotEmpty/orElse are the only things that inspect NULL.
     """
 
-    def __init__(self, tokens, lookup, params=None):
+    def __init__(self, tokens, lookup, params=None, pure=False):
         self.t, self.i, self.lookup = tokens, 0, lookup
         self._params = params or {}
+        # A QUERY's expression calls Pure's functions, a derived property's the registry's (which a mapping's
+        # dynafunctions share); the two differ where Pure's contract is not SQL's -- substring (F37) -- so a query's
+        # calls look in PURE_IMPL first.
+        self.pure = pure
 
     def param(self, name):
         if name not in self._params:
@@ -2066,6 +2070,8 @@ class _Eval:
                     args.append(arg())
             if self.take() != ")":
                 raise Unsupported(f"unbalanced parentheses in call to {tok}")
+            if self.pure and tok in PURE_IMPL:
+                return PURE_IMPL[tok](args)
             return _dynafunction(tok, args)
         if tok == "(":
             v = self.expr()
@@ -2484,6 +2490,9 @@ def _group(spec: Spec, rows: list[dict]) -> list[dict]:
     for key, members in groups.items():
         row = dict(zip(spec.group_by, key))
         for name, src, fn in spec.aggs:
+            if isinstance(src, tuple) or fn not in ("count", "sum", "max", "min", "average"):
+                row[name] = _wide_aggregate(spec, name, src, fn, members)
+                continue
             vals = [m[src] for m in members if m[src] is not None]
             if fn == "count":
                 row[name] = len(vals)
@@ -2534,7 +2543,7 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
     if spec.graph is not None:
         return evaluate_graph(c, spec, data)
     """Returns the rows the service must produce, as alias -> python value."""
-    plain = [p for p in spec.projections if p.agg is None and not p.func
+    plain = [p for p in spec.projections if p.agg is None and not p.func and not p.expr
              and not (len(p.path) == 2 and (spec.root, p.path[0]) in XSTORE_LINKS)]
     if any(c.to_many_on(spec.root, p.path) for p in plain):
         raise Fanout(f"{spec.short}: a non-aggregate projection crosses a to-many "
@@ -2546,6 +2555,7 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
             if all(_pred(c, data, r, spec.root, f) for f in spec.filters)]
 
     out = [{p.alias: (_agg(c, data, r, spec.root, p) if p.agg
+                      else _expression(c, data, r, spec.root, p.expr) if p.expr
                       else _value(c, data, r, spec.root, p.path, p.args, p.func))
             for p in spec.projections}
            for r in kept]
@@ -2565,6 +2575,12 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
             seen.add(k)
             deduped.append(r)
         out = deduped
+    if spec.asof is not None:
+        out = _asof_join(c, spec, out, data)
+    for alias, e, _kind in spec.extends:
+        out = [{**r, alias: _relation_expression(r, e)} for r in out]
+    if spec.windows:
+        out = _windows(spec, out)
     if spec.group_by:
         out = _group(spec, out)
     for f in getattr(spec, "post_filters", ()):
@@ -2600,6 +2616,316 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
                              f"{spec.limit}), so the surviving rows are ambiguous")
         out = out[:spec.limit]
     return out
+
+
+# ------------------------------------------- the trader features' shapes (features.py)
+#
+# A screen's computed column, its statistics, its moving figures and its as-of join, each evaluated here from SQL's and
+# Pure's stated semantics -- never from an engine's answer. Where the answer would depend on an order no query fixes (a
+# tie in a window's order, two right rows at one instant, the mode of a bimodal group) the oracle refuses, and the
+# generator picks a query whose answer is fixed.
+
+def _pure_round(vals):
+    """`round(x)` (to an Integer) or `round(x, scale)` (Pure's Float form): half-up, the half-way point refused --
+    dialects split between half-up and half-even, and binary floats put the point a hair either side."""
+    if len(vals) == 1:
+        return IMPL["round"](vals)
+    v, scale = vals
+    if v is None or scale is None:
+        return None
+    from decimal import ROUND_HALF_UP, Decimal
+    d = Decimal(repr(float(v)))
+    shifted = d.scaleb(int(scale))
+    # NEAR half-way too: the value rounded is a double the database computed, a few units in the last place from this
+    # one, and a millionth of a step is far more room than that
+    if abs(shifted - shifted.to_integral_value(rounding="ROUND_FLOOR") - Decimal("0.5")) < Decimal("1e-6"):
+        raise Unsupported(f"round({v}, {scale}) is half-way, where dialects disagree; the seed must not produce it")
+    return float(d.quantize(Decimal(1).scaleb(-int(scale)), rounding=ROUND_HALF_UP))
+
+
+def _pure_substring(vals):
+    """Pure's `substring(s, start, end)` is Java's: ZERO-based, the end exclusive (F37: the relational dynafunction of
+    the same name is SQL's, one-based, which is IMPL's). An index Java would throw on is refused."""
+    s, start = vals[0], vals[1]
+    if s is None:
+        return None
+    end = vals[2] if len(vals) > 2 else len(str(s))
+    if not 0 <= int(start) <= int(end) <= len(str(s)):
+        raise Unsupported(f"substring({s!r}, {start}, {end}) is out of range, which Java's contract throws on")
+    return str(s)[int(start):int(end)]
+
+
+def _epoch_seconds(vals):
+    """Pure's `toEpochValue(d)`: whole seconds since 1970-01-01T00:00:00 UTC (the seed's instants are UTC)."""
+    if vals[0] is None:
+        return None
+    if len(vals) > 1:
+        raise Unsupported("toEpochValue with a unit is not implemented here")
+    from datetime import datetime
+    return int((_dt(vals[0]) - datetime(1970, 1, 1)).total_seconds())
+
+
+# Pure's contract where it is not the registry's (a mapping's dynafunctions are SQL's).
+PURE_IMPL = {"round": _pure_round, "substring": _pure_substring, "toEpochValue": _epoch_seconds}
+
+
+def _expression(c: Corpus, data, row, root: str, expr: str):
+    """A query's scalar expression over the row: each `$x.<path>` read from the root as a projection would read it."""
+    e = _Eval(_tokenise(expr), lambda path: _value(c, data, row, root, path.split(".")), pure=True)
+    v = e.expr()
+    if e.peek() is not None:
+        raise Unsupported(f"trailing tokens in query expression {expr!r}")
+    return v
+
+
+def _relation_expression(row: dict, expr: str):
+    """An `->extend` over the relation: each `$x.<column>` the row's column."""
+    def column(name):
+        if name not in row:
+            raise Unsupported(f"extend reads {name!r}, which the relation does not have")
+        return row[name]
+    e = _Eval(_tokenise(expr), column, pure=True)
+    v = e.expr()
+    if e.peek() is not None:
+        raise Unsupported(f"trailing tokens in extend expression {expr!r}")
+    return v
+
+
+def _asof_join(c: Corpus, spec: Spec, left: list[dict], data) -> list[dict]:
+    """LEFT as-of join: each left row takes the right row whose `right_at` is the latest at-or-before its `at` (the
+    earliest at-or-after for `<`/`<=`) among those whose key equals its key; NULLs when none qualifies. A NULL key or
+    instant matches nothing. Two right rows at the winning instant would make the answer the database's choice: refused.
+    """
+    a = spec.asof
+    right = evaluate(c, a.right, data)
+    rcols = [p.alias for p in a.right.projections]
+    if set(rcols) & {k for r in left[:1] for k in r}:
+        raise Unsupported(f"{spec.short}: the as-of join's two sides share a column name")
+    later = a.op in (">", ">=")
+    out = []
+    for lr in left:
+        hits = [rr for rr in right
+                if (a.key is None or (lr.get(a.key) is not None and lr.get(a.key) == rr.get(a.right_key)))
+                and _cmp(a.op, lr.get(a.at), rr.get(a.right_at))]
+        best = None
+        if hits:
+            edge = (max if later else min)(rr[a.right_at] for rr in hits)
+            tied = [rr for rr in hits if rr[a.right_at] == edge]
+            if len(tied) > 1:
+                raise Fanout(f"{spec.short}: {len(tied)} right rows at {edge} match {lr}, so the as-of row is ambiguous")
+            best = tied[0]
+        out.append({**lr, **({c2: None for c2 in rcols} if best is None else best)})
+    return out
+
+
+_FLOAT_AGGREGATES = {"average", "median", "percentile", "stdDevSample", "stdDevPopulation", "varianceSample",
+                     "variancePopulation", "corr", "covarSample", "covarPopulation", "wavg"}
+
+
+def _calls(fn: str) -> list[tuple[str, list]]:
+    """`percentile(0.9)` -> [('percentile', [0.9])]; `distinct()->count()` -> [('distinct', []), ('count', [])];
+    `cast(@Float)` -> [('cast', ['@Float'])]."""
+    out = []
+    for part in fn.split("->"):
+        m = re.fullmatch(r"(\w+)(?:\((.*)\))?", part.strip())
+        if not m:
+            raise Unsupported(f"cannot read the aggregate {fn!r}")
+        args = [a.strip() if a.strip().startswith("@") else float(a) if "." in a else int(a)
+                for a in (m.group(2) or "").split(",") if a.strip()]
+        out.append((m.group(1), args))
+    return out
+
+
+# What may follow an aggregate in its reduce: the narrowing a scalar function needs, and the rounding a screen asks for.
+_AFTER = {"toOne", "cast", "round"}
+
+
+def _wide_aggregate(spec: Spec, name: str, src, fn: str, members: list[dict]):
+    """The group aggregates past count/sum/max/min/average, NULLs ignored as SQL's aggregates ignore them; then any
+    `->toOne()`, `->cast(@Float)` and `->round(k)` after it, in order (toOne of nothing refused, as Pure's fails)."""
+    calls = _calls(fn)
+    head = calls[:2] if [c0 for c0, _a in calls[:2]] == ["distinct", "count"] else calls[:1]
+    tail = calls[len(head):]
+    if any(c0 not in _AFTER for c0, _a in tail):
+        raise Unsupported(f"{spec.short}.{name}: {fn!r} chains past an aggregate with something other than "
+                          f"toOne, cast or round")
+    v = _aggregate_value(spec, name, src, "->".join(
+        f"{c0}({', '.join(str(a) for a in a0)})" if a0 else c0 for c0, a0 in head), members)
+    for c0, a0 in tail:
+        if c0 == "toOne" and v is None:
+            raise Unsupported(f"{spec.short}.{name}: toOne() of an empty aggregate fails in Pure")
+        if c0 == "cast" and v is not None:
+            if a0 != ["@Float"]:
+                raise Unsupported(f"{spec.short}.{name}: only cast(@Float) is modelled after an aggregate")
+            v = float(v)
+        if c0 == "round":
+            v = _pure_round([v, *a0])
+    return v
+
+
+def _aggregate_value(spec: Spec, name: str, src, fn: str, members: list[dict]):
+    if isinstance(src, tuple):
+        # rowMapper(value, other): the pairs whose OTHER is present -- the weight, the key, the second variable
+        pairs = [(m[src[0]], m[src[1]]) for m in members if m[src[1]] is not None]
+        (call, _args), = _calls(fn)
+        if call in ("maxBy", "minBy"):
+            if not pairs:
+                return None
+            edge = (max if call == "maxBy" else min)(k for _v, k in pairs)
+            picked = {v for v, k in pairs if k == edge}
+            if len(picked) > 1:
+                raise Unsupported(f"{spec.short}.{name}: {call} meets a tie on its key with different values")
+            v = picked.pop()
+            if v is None:
+                raise Unsupported(f"{spec.short}.{name}: {call} lands on a NULL value, which dialects treat apart")
+            return v
+        both = [(v, k) for v, k in pairs if v is not None]
+        if call == "wavg":
+            return _wavg([[p for p in both]])
+        if call in ("corr", "covarSample", "covarPopulation"):
+            return IMPL[call]([[p for p in both]])
+        raise Unsupported(f"{spec.short}.{name}: {call} is not a two-column aggregate here")
+    vals = [m[src] for m in members if m[src] is not None]
+    if fn == "distinct->count":
+        return len(set(vals))
+    calls = _calls(fn)
+    (call, args), = calls
+    if call == "mode":
+        if not vals:
+            return None
+        counts = {v: vals.count(v) for v in vals}
+        top = max(counts.values())
+        if sum(1 for n in counts.values() if n == top) > 1:
+            raise Unsupported(f"{spec.short}.{name}: the mode is not unique, so dialects pick apart")
+        return next(v for v, n in counts.items() if n == top)
+    if call == "percentile":
+        return _percentile([vals, *args])
+    if call in ("median", "stdDevSample", "stdDevPopulation", "varianceSample", "variancePopulation"):
+        return IMPL[call]([vals])
+    raise Unsupported(f"{spec.short}.{name}: aggregate {fn!r} is not implemented for a group-by spec")
+
+
+_ORDERED_ONLY = {"rowNumber", "ntile", "lag", "lead", "first", "last"}
+_SECONDS = {"SECONDS": 1, "MINUTES": 60, "HOURS": 3600, "DAYS": 86400}
+
+
+def _window_kind(w, base: dict[str, str]) -> str:
+    if w.fn in ("rowNumber", "rank", "denseRank", "ntile", "count"):
+        return "int"
+    if w.fn in ("percentRank", "cumulativeDistribution", "average"):
+        return "float"
+    return base[w.column]
+
+
+def _windows(spec: Spec, rows: list[dict]) -> list[dict]:
+    """Each window column over its partition in its order, SQL's semantics stated:
+
+      * partitions group NULL keys together; an ORDER key holding a NULL is refused (NULLS FIRST or LAST is the
+        dialect's), and so is a tie in the order where the answer reads row positions (row number, ntile, lag, lead,
+        first, last) -- the database orders peers as it likes;
+      * the default frame is the partition when unordered, else its start through the current row's LAST PEER (SQL's
+        RANGE UNBOUNDED PRECEDING); rows(lo, hi) counts rows; a range bounds the order key's distance in the order's
+        direction, in seconds for a time range;
+      * a frame's aggregate ignores NULLs (a sum or an average of none is NULL, a count 0); first and last read the
+        frame's first and last rows, NULLs and all; lag and lead read the row `offset` back or ahead, NULL off the end;
+      * ranks: rank counts the rows strictly before plus one, denseRank the distinct keys, percentRank is
+        (rank - 1) / (n - 1) and 0 alone, cumulativeDistribution the rows at or before the current's peers over n;
+        ntile deals n rows into k tiles, the first n % k tiles one row larger.
+    """
+    out = [dict(r) for r in rows]
+    for w in spec.windows:
+        parts: dict[tuple, list[int]] = {}
+        for i, r in enumerate(out):
+            parts.setdefault(tuple(r[k] for k in w.partition), []).append(i)
+        for idxs in parts.values():
+            for a, _d in w.order:
+                if any(out[i][a] is None for i in idxs):
+                    raise Fanout(f"{spec.short}.{w.alias}: order column {a!r} holds a NULL, whose place is the dialect's")
+            ordered = list(idxs)
+            for a, desc in reversed(w.order):
+                ordered.sort(key=lambda i: out[i][a], reverse=desc)
+            keys = [tuple(out[i][a] for a, _d in w.order) for i in ordered]
+            if w.fn in _ORDERED_ONLY and w.order and len(set(keys)) != len(keys):
+                raise Fanout(f"{spec.short}.{w.alias}: {w.fn} over an order with ties is the database's choice")
+            n = len(ordered)
+            for pos, i in enumerate(ordered):
+                out[i][w.alias] = _window_value(spec, w, out, ordered, keys, pos, n)
+    return out
+
+
+def _window_value(spec, w, out, ordered, keys, pos, n):
+    key = keys[pos]
+    if w.fn == "rowNumber":
+        return pos + 1
+    if w.fn in ("rank", "denseRank", "percentRank", "cumulativeDistribution"):
+        rank = 1 + sum(1 for k in keys if _before(k, key, w.order))
+        if w.fn == "rank":
+            return rank
+        if w.fn == "denseRank":
+            return 1 + len({k for k in keys if _before(k, key, w.order)})
+        if w.fn == "percentRank":
+            return 0.0 if n == 1 else (rank - 1) / (n - 1)
+        return sum(1 for k in keys if not _before(key, k, w.order)) / n
+    if w.fn == "ntile":
+        tiles = int(w.args[0])
+        q, r = divmod(n, tiles)
+        big = (q + 1) * r
+        return pos // (q + 1) + 1 if pos < big else r + (pos - big) // q + 1
+    if w.fn in ("lag", "lead"):
+        step = int(w.args[0]) if w.args else 1
+        at = pos - step if w.fn == "lag" else pos + step
+        return out[ordered[at]][w.column] if 0 <= at < n else None
+    frame = [ordered[j] for j in _frame_positions(spec, w, out, ordered, keys, pos, n)]
+    if w.fn in ("first", "last"):
+        return (out[frame[0]][w.column] if w.fn == "first" else out[frame[-1]][w.column]) if frame else None
+    vals = [out[i][w.column] for i in frame if out[i][w.column] is not None]
+    if w.fn == "count":
+        return len(vals)
+    if not vals:
+        return None
+    if w.fn == "sum":
+        return _exact_sum(vals)
+    if w.fn == "average":
+        return _exact_avg(vals)
+    if w.fn == "min":
+        return min(vals)
+    if w.fn == "max":
+        return max(vals)
+    raise Unsupported(f"{spec.short}.{w.alias}: window function {w.fn!r} is not implemented")
+
+
+def _before(a: tuple, b: tuple, order) -> bool:
+    """a sorts strictly before b in the window's order."""
+    for x, y, (_alias, desc) in zip(a, b, order):
+        if x != y:
+            return (x > y) if desc else (x < y)
+    return False
+
+
+def _frame_positions(spec, w, out, ordered, keys, pos, n) -> list[int]:
+    if w.frame is None:
+        if not w.order:
+            return list(range(n))
+        return [j for j in range(n) if not _before(keys[pos], keys[j], w.order)]
+    if w.frame[0] == "rows":
+        lo = 0 if w.frame[1] is None else max(0, pos + w.frame[1])
+        hi = n - 1 if w.frame[2] is None else min(n - 1, pos + w.frame[2])
+        return list(range(lo, hi + 1))
+    if len(w.order) != 1:
+        raise Unsupported(f"{spec.short}.{w.alias}: a range frame takes exactly one order key")
+    _kind, lo, hi, unit = w.frame
+    alias, desc = w.order[0]
+
+    def distance(j):
+        here, there = out[ordered[pos]][alias], out[ordered[j]][alias]
+        if unit is not None:
+            d = (_dt(there) - _dt(here)).total_seconds() / _SECONDS[unit]
+        else:
+            d = there - here
+        return -d if desc else d
+
+    return [j for j in range(n)
+            if (lo is None or distance(j) >= lo) and (hi is None or distance(j) <= hi)]
 
 
 # ------------------------------------------------------------------ rendering
@@ -2657,21 +2983,38 @@ def _dyna_kind(c: Corpus, owner: str, dyn) -> str:
 
 
 def kinds(c: Corpus, spec: Spec) -> dict[str, str]:
-    out = {}
+    base = _kinds_of_projections(c, spec)
+    if spec.asof is not None:
+        base.update(kinds(c, spec.asof.right))
+    for alias, _e, kind in spec.extends:
+        base[alias] = kind
+    for w in spec.windows:
+        base[w.alias] = _window_kind(w, base)
     if spec.group_by:
-        base = _kinds_of_projections(c, spec)
         k = {a: base[a] for a in spec.group_by}
         for name, src, fn in spec.aggs:
-            # An average of integers is a float; every other aggregate keeps its source kind.
-            k[name] = ("int" if fn == "count"
-                       else "float" if fn == "average" else base[src])
+            k[name] = _aggregate_kind(fn, src, base)
         return k
-    return _kinds_of_projections(c, spec)
+    return base
+
+
+def _aggregate_kind(fn: str, src, base: dict[str, str]) -> str:
+    """A count is a whole number; a mean, a spread, a quantile, a correlation or a weighted mean of anything is a float;
+    every other aggregate (sum, max, min, mode, maxBy, minBy) keeps its value's kind."""
+    name = fn.split("(")[0]
+    if name == "count" or fn == "distinct()->count()":
+        return "int"
+    if name in _FLOAT_AGGREGATES or "cast(@Float)" in fn:
+        return "float"
+    return base[src[0] if isinstance(src, tuple) else src]
 
 
 def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
     out = {}
     for p in spec.projections:
+        if p.expr:
+            out[p.alias] = p.kind
+            continue
         if p.agg == "count":
             out[p.alias] = "int"
             continue

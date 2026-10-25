@@ -8,7 +8,7 @@ load("//tools/guards:defs.bzl", "guards_package")
 # THE STRESS-CORPUS GENERATORS (spike S5). Ten committed files in
 # core/src/test/resources/stress are their outputs; //core:update_stress_corpus writes them
 # back and diff-tests them. Every input is declared: the hand-written stress sources
-# (//core:stress_sources -- the generated eleven excluded), the linked projects, and the
+# (//core:stress_sources -- the generated twelve excluded), the linked projects, and the
 # hand-written queries 92 is generated from.
 
 # Every corpus module: the gates' library (the generators run on their own closures, below). Stdlib only, except
@@ -28,6 +28,7 @@ py_library(
         "exactmath.py",
         "executed.py",
         "expand.py",
+        "features.py",
         "flat.py",
         "functest.py",
         "graphs.py",
@@ -42,6 +43,7 @@ py_library(
         "spread.py",
         "stacking.py",
         "stacks.py",
+        "tape.py",
         "taxonomy.py",
         "tomany.py",
         "views.py",
@@ -67,6 +69,7 @@ _BUILD_MODULES = [
     "exactmath",
     "executed",
     "expand",
+    "features",
     "flat",
     "functest",
     "graphs",
@@ -81,6 +84,7 @@ _BUILD_MODULES = [
     "spread",
     "stacking",
     "stacks",
+    "tape",
     "taxonomy",
     "tomany",
     "views",
@@ -100,6 +104,7 @@ _DENSE_MODULES = [
     "query",
     "rhs",
     "seed",
+    "tape",
     "views",
 ]
 
@@ -119,6 +124,7 @@ _DIFFERENTIAL_MODULES = [
     "rhs",
     "seed",
     "stacks",
+    "tape",
     "views",
 ]
 
@@ -195,7 +201,7 @@ run_binary(
 )
 
 # build.py reads the dense generator's OUTPUTS, not the committed 59/60/64, so a dense change
-# reaches 92-98 in the same update.
+# reaches 92-99 in the same update.
 run_binary(
     name = "gen_stress",
     srcs = _SOURCES + [
@@ -273,7 +279,7 @@ run_binary(
     name = "gen_differential",
     testonly = True,
     # what the oracle reads (model.py): the hand-written stress files, the committed dense three, the layout, the
-    # queries and the linked projects; not the generated 92-98, which it leaves out
+    # queries and the linked projects; not the generated 92-99, which it leaves out
     srcs = [
         "queries.pure",
         "//core:src/test/resources/com/legend/integration/stress-layout.json",
