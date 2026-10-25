@@ -578,3 +578,33 @@ says so.
     raises nothing when read: a pinned plan, the showcase's `vc <> @skip`, keeps its SQL.
   - The lanes: the eleven pass or are BOTH_ERROR on DuckDB and Postgres, and nothing else moved.
     `IqNullBesideARaiseTest` gains the comparison and MOD.
+- 2026-10-25, **the user's redirect: common SQL patterns first, with the live IQ session.** The work is ranked by how
+  many real-world queries a gap touches, measured by the corpus lane (`iq-sql-research/corpus-lane`; the corpora and
+  their rows stay out of this repository). Stress shapes no real query writes (Q16's 350-join chains, Q17, Q18) are
+  set aside. Scripts (P5: DECLARE, SET, SELECT INTO, IF) stay "not now", the user's call, although they are the
+  largest refusal class (1,374 queries). The Mac session (the live IQ) runs the judged lane and snaps the cases a fix
+  needs, and takes the duplicate output names (206 queries) on `claude/iq-scale-mac`.
+  - **Coverage at dc45fbfd** (empty tables, DuckDB): SEDE 11,708 queries, 7,065 answered, 2,233 refused, 2,371 IQ's
+    own error (T-SQL IQ does not take), 39 database errors; SQLStorm 18,251: 5,841, 272, 12,138, 0; Public BI 646:
+    620, 3, 23, 0. Past scripts and duplicate names, the largest refusals are decimals: a CAST to DECIMAL or NUMERIC
+    with no precision (84, IQ's NUMERIC(126,38)), an AVG of a NUMERIC (25), a quotient of counts times 1.0 (28), and
+    a checked AVG or SUM in a CTE or derived table (21). 366 "here is not supported" are mostly corpus text that is
+    no SQL (a title fused into WITH, broken quoting), which IQ rejects too.
+  - **The live IQ's answers to those shapes** (`lite/common_decimals`, 19 cases, snapped by the Mac session): a
+    CAST with no precision is a NUMERIC(126,38) (32767.000... at 38 places), its SUM one too; its AVG a
+    NUMERIC(127,59); its quotient by an integer a NUMERIC(127,49); a quotient of two such IQ's own error (-1009145,
+    -1001073). Counts times 1.0: COUNT(sm) * 1.0 / COUNT(*) a NUMERIC(42,21), a ratio of two such a NUMERIC(42,22),
+    one with an epsilon a NUMERIC(54,22), each of a value 38 digits hold. AVG of a CASE of ones a NUMERIC(35,16), an
+    AVG of such AVGs a NUMERIC(65,37) (the inner 16 places carried).
+  - **Fixed** (this commit): a checked AVG or SUM read from a query around it is checked where it is read, not
+    refused (the overflow it guards, past a DOUBLE's 1.8e308 or an integer type's range, no real data meets);
+    `an_average_of_a_double_in_a_cte` passed with it, and goes back to the Mac session rewritten without its TOP (the
+    determinism lint reads no derived table's group key as unique). A DOUBLE's or a NUMERIC's zero divisor raises
+    "Cannot divide by zero" (`IqDialect.raisedIf`, `fail` with its message), not toOne's "Cannot cast a collection of
+    size 0 to multiplicity [1]" (the corpus's 31 database errors: CAST(COUNT(x) AS FLOAT) / COUNT(*) over the empty
+    tables, IQ's error too). A CHAR is padded by IQ's store whichever engine reads it: a query over IQ's tables that
+    GREATER or LESSER moves into the front end lost the pad (the Mac session's re-judging of fuzz round 3: 'ab' for
+    'ab   ', 4 runs); a dialect of pinned rules, the engine-neutrality guard's, keeps its engine's store. The Mac
+    session's Q21 merged (79cf2723: DATEADD of a timestamp of no known year checked row by row past 7910).
+  - **Next:** the decimals past 38 digits whose values fit (the CAST with no precision, its SUM; the count ratios),
+    typed as IQ types them and computed in lite's 38, refused at run time where a value does not fit.

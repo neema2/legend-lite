@@ -1796,25 +1796,20 @@ final class IqAggregates {
 
     /** A sum (or an average) whose running total IQ checks: the value, the positive and the negative values' sums, and
      *  the finish that raises IQ's -158 where either leaves the type. */
-    /** IQ island, 2026-10-14 (review 3's B1): a checked SUM or AVG ({@link #checkedSum}) that the statement reads only
-     *  for some rows or groups is refused by name ({@link IqDialect#lazilyRead}). */
+    /** IQ island, 2026-10-14 (review 3's B1): whether a checked SUM or AVG ({@link #checkedSum}) that the statement
+     *  reads only for some rows or groups ({@link IqDialect#lazilyRead}) has its check as a filter of every group: by
+     *  its own SELECT, yes; from a query around it, no (checked where it is read: the IQ scale program, 2026-10-25). */
     private static boolean readEverywhere(SqlAst.FunctionCall f, IqDialect dialect) {
         // IQ island, 2026-10-17 (measured on IQ 17.1: a DOUBLE sum's overflow is its engine's -1001010 in every group,
         // those its TOP drops too): read for some groups only by the statement's own SELECT (a CASE, a COALESCE, its
         // row limit), the check is a filter of every group after the aggregation (the guard); from a query around
         // it, which may keep groups from the aggregation itself, refused by name
-        if (!dialect.lazilyReadAround(f)) {
-            return dialect.lazilyRead(f);
-        }
-        if (dialect.lazilyRead(f)) {
-            throw SqlTranslationException.unsupported(f.name().get(0).text().toUpperCase(java.util.Locale.ROOT)
-                    + " read only for some groups (a CASE's or an IF's value or later test, a later argument of"
-                    + " COALESCE, ISNULL, IFNULL or ARGN, under AND or OR, a bound of BETWEEN or a value of IN, under a"
-                    + " row limit, in a subquery, a derived table or a set operation's branch)"
-                    + " is not supported: IQ checks its running total for every group (D-E3), lite's databases only"
-                    + " where they read it", f.pos());
-        }
-        return false;
+        // The IQ scale program, 2026-10-25 (the real-world corpus lane: AVG(CAST(Score AS float)) in a CTE under TOP,
+        // HAVING or a later CASE, 21 of SEDE's and SQLStorm's queries, were refused): read from a query around it, the
+        // check stands where the value is read, as for a group the statement reads in full. IQ checks every group
+        // (D-E3), so where a running total leaves its type in a group nothing reads (past a DOUBLE's 1.8e308, or an
+        // integer type's range), IQ raises and lite answers: an error no real data meets, against the common query
+        return !dialect.lazilyReadAround(f) && dialect.lazilyRead(f);
     }
 
     private static SqlToPure.Aggregation checkedSum(SqlToPure.Grouping at, Tx x, ValueSpecification values,

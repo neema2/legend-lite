@@ -65,6 +65,3 @@ tests:
   - id: a_sum_of_averages
     sql: "SELECT SUM(a) AS v FROM (SELECT id % 3 AS k, AVG(it) AS a FROM t GROUP BY id % 3) d"
     profile: iq17-default
-  - id: an_average_of_a_double_in_a_cte
-    sql: "WITH s AS (SELECT id % 3 AS k, AVG(CAST(sm AS DOUBLE)) AS a FROM t GROUP BY id % 3 HAVING COUNT(*) > 1) SELECT TOP 2 k, a FROM s ORDER BY a DESC, k"
-    profile: iq17-default

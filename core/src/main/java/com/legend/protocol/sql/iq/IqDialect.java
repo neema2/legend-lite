@@ -122,6 +122,10 @@ public final class IqDialect implements InputDialect {
 
     private final IqSettings settings;
     private final @com.legend.base.Nullable Engine engine;
+    /** Whether the statement's tables are in IQ's store, which pads a CHAR whichever engine reads it (a query over
+     *  them that GREATER or LESSER moves into SQL Anywhere's front end too); a dialect of pinned rules has its
+     *  engine's store (the engine-neutrality guard's SQL Anywhere, whose store pads nothing). */
+    private final boolean iqStore;
     /** The comparisons that are (part of) a CASE's or an IF's condition, in the statement being read: SQL Anywhere's
      *  front end does not rewrite {@code = NULL} there under ansinull Off. */
     private final Set<SqlAst.Expr> caseConditions;
@@ -256,7 +260,8 @@ public final class IqDialect implements InputDialect {
      *  identity, with the dialect of the settings they made, which translates it ({@link #reading}). */
     private final Map<SqlAst.Statement, IqDialect> prefixed = new IdentityHashMap<>();
 
-    private IqDialect(IqSettings settings, @com.legend.base.Nullable Engine engine, Set<SqlAst.Expr> caseConditions,
+    private IqDialect(IqSettings settings, @com.legend.base.Nullable Engine engine, boolean iqStore,
+            Set<SqlAst.Expr> caseConditions,
             @com.legend.base.Nullable Set<String> referenced, Set<SqlAst.SelectExpr> shown,
             Set<String> derived, Set<SqlAst.Pos> starred,
             IqAggregates.Naming naming, Set<String> setDerived, Set<SqlAst.Expr> shownValues, Set<String> folded,
@@ -264,6 +269,7 @@ public final class IqDialect implements InputDialect {
             Map<SqlAst.Expr, Reading> twoValued, Map<SqlAst.Select, SqlAst.Select> grouped,
             Set<SqlAst.SetOperation> innerSets, Set<SqlAst.Expr> chained, Set<SqlAst.Expr> filters) {
         this.settings = settings;
+        this.iqStore = iqStore;
         this.filters = filters;
         this.innerSets = innerSets;
         this.chained = chained;
@@ -287,14 +293,14 @@ public final class IqDialect implements InputDialect {
     /** The dialect of an island written for {@code settings}: each statement's engine chosen by its FROM clause
      *  ({@link #engineOf}, the study's I3: {@code engine=auto}). */
     public static IqDialect of(IqSettings settings) {
-        return new IqDialect(settings, null, Set.of(), null, Set.of(), Set.of(), Set.of(),
+        return new IqDialect(settings, null, false, Set.of(), null, Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
                 Map.of(), Set.of(), Set.of(), Set.of());
     }
 
     /** The dialect under {@code settings} with {@code engine}'s rules whatever the statement. */
     public static IqDialect of(IqSettings settings, Engine engine) {
-        return new IqDialect(settings, engine, Set.of(), null, Set.of(), Set.of(), Set.of(),
+        return new IqDialect(settings, engine, engine == Engine.IQ, Set.of(), null, Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
                 Map.of(), Set.of(), Set.of(), Set.of());
     }
@@ -1873,7 +1879,8 @@ public final class IqDialect implements InputDialect {
                 }
             }
         }
-        IqDialect read = new IqDialect(settings, chosen, inCase, names, shownHere, derivedHere,
+        boolean iqStore = engine != null ? engine == Engine.IQ : storeOf(statement, settings) == Engine.IQ;
+        IqDialect read = new IqDialect(settings, chosen, iqStore, inCase, names, shownHere, derivedHere,
                 starredHere, groupedNames, setDerivedHere, valuesHere, folded(statement), IqKeys.of(statement, settings),
                 lazyAggregates(statement), chains(statement), twoValuedPlaces(statement, groupedHere), groupedHere,
                 innerSetsHere, chainedHere, filtersHere);
@@ -5332,7 +5339,10 @@ public final class IqDialect implements InputDialect {
                 throw SqlTranslationException.unsupported("the column '" + column + "' is of store type CHAR with no"
                         + " length, which the #IQ{...}# island does not read", pos);
             }
-            if (engine != Engine.IQ) {
+            // IQ's store pads a CHAR, whichever engine reads it: a query over IQ's tables that GREATER or LESSER moves
+            // into SQL Anywhere's front end reads 'ab   ' (the IQ scale program, 2026-10-25, the live IQ 17.1's
+            // answers to the fuzzer's round 3); SQL Anywhere's own store returns it unpadded
+            if (!iqStore) {
                 return null;
             }
             Tx padded = SqlToPure.strict(Kind.STRING, List.of(stored), v -> SqlToPure.call("rpad", v.get(0),
@@ -5980,8 +5990,9 @@ public final class IqDialect implements InputDialect {
             ValueSpecification value = divide
                     ? IqFunctions.quotient(x, lt[1], lt[0] - lt[1], y, rt[1], rt[0] - rt[1], fp, fs)
                     : IqFunctions.remainder(x, lt[1], lt[0] - lt[1], y, rt[1], rt[0] - rt[1]);
-            return divisor != null ? value : ifThen(SqlToPure.call("equal", y, new CInteger(0L)), nullOnZero
-                    ? SqlToPure.nullOf(Kind.DECIMAL).vs() : raiseDecimal(), value);
+            ValueSpecification zero = SqlToPure.call("equal", y, new CInteger(0L));
+            return divisor != null ? value : nullOnZero ? ifThen(zero, SqlToPure.nullOf(Kind.DECIMAL).vs(), value)
+                    : raisedIf(zero, ZERO_DIVISOR, new CDecimal(BigDecimal.ZERO), value);
         });
         return Tx.value(result.vs(), Kind.DECIMAL, result.nullable() || nullOnZero, numeric(p, s));
     }
@@ -6038,8 +6049,9 @@ public final class IqDialect implements InputDialect {
                 value = IqFunctions.refusedPast(SqlToPure.call("greaterThanEqual", SqlToPure.call("abs", x),
                         new CDecimal(BigDecimal.TEN.pow(dividendDigits))), past, value, raiseDecimal());
             }
-            return divisor != null ? value : ifThen(SqlToPure.call("equal", new CInteger(0L), y), nullOnZero
-                    ? SqlToPure.nullOf(Kind.DECIMAL).vs() : raiseDecimal(), value);
+            ValueSpecification zero = SqlToPure.call("equal", new CInteger(0L), y);
+            return divisor != null ? value : nullOnZero ? ifThen(zero, SqlToPure.nullOf(Kind.DECIMAL).vs(), value)
+                    : raisedIf(zero, ZERO_DIVISOR, new CDecimal(BigDecimal.ZERO), value);
         });
         return Tx.value(result.vs(), Kind.DECIMAL, result.nullable() || nullOnZero, numeric(whole1 + rt[1] + s + 1,
                 s));
@@ -6405,9 +6417,12 @@ public final class IqDialect implements InputDialect {
             ValueSpecification finite = pending ? value : ifThen(SqlToPure.call("greaterThan", SqlToPure.call("abs",
                     value), new com.legend.protocol.spec.CFloat(DOUBLE_MAX)), iq ? SqlToPure.nullOf(Kind.FLOAT).vs()
                     : floatRaise(), value);
-            return op == SqlAst.BinaryOp.DIVIDE ? ifThen(SqlToPure.call("equal", y,
-                    new com.legend.protocol.spec.CFloat(0.0)), nullOnZero ? SqlToPure.nullOf(Kind.FLOAT).vs()
-                    : floatRaise(), finite) : finite;
+            if (op != SqlAst.BinaryOp.DIVIDE) {
+                return finite;
+            }
+            ValueSpecification zero = SqlToPure.call("equal", y, new com.legend.protocol.spec.CFloat(0.0));
+            return nullOnZero ? ifThen(zero, SqlToPure.nullOf(Kind.FLOAT).vs(), finite) : raisedIf(zero, ZERO_DIVISOR,
+                    new com.legend.protocol.spec.CFloat(0.0), finite);
         });
         if (pending) {
             // the body never empty where the guard is false: carried apart for the next operation to merge
@@ -6828,6 +6843,19 @@ public final class IqDialect implements InputDialect {
     /** A value that raises when computed: an empty value read as one, typed Integer. */
     static ValueSpecification raise() {
         return SqlToPure.call("toOne", SqlToPure.call("cast", SqlToPure.empty(), SqlToPure.typeArg("Integer")));
+    }
+
+    /** The message lite raises for a zero divisor of a DOUBLE or a NUMERIC: Pure's own for an integer's
+     *  ("Cannot divide 5 by zero") but for the dividend, and no SQLCODE, as IQ's is measured for an integer's only. */
+    static final String ZERO_DIVISOR = "Cannot divide by zero";
+
+    /** {@code if(test, |fail(message); placeholder, |otherwise)}: an error with its message where {@code test} holds,
+     *  typed as {@code placeholder} (the IQ scale program, 2026-10-25: the real-world corpus lane's ratios over a zero
+     *  COUNT, CAST(COUNT(x) AS FLOAT) / COUNT(*), raised "Cannot cast a collection of size 0 to multiplicity [1]"). */
+    static ValueSpecification raisedIf(ValueSpecification test, String message, ValueSpecification placeholder,
+            ValueSpecification otherwise) {
+        return SqlToPure.call("if", test, new com.legend.protocol.spec.LambdaFunction(List.of(), List.of(
+                SqlToPure.call("fail", new CString(message)), placeholder)), SqlToPure.thunk(otherwise));
     }
 
     /** {@code if(test, |then, |otherwise)}. */

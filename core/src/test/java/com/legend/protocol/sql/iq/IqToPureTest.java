@@ -1036,9 +1036,10 @@ class IqToPureTest {
             assertTrue(saNumbers(sql).contains("running total leaves its type in a group"), sql);
             assertTrue(numbers(sql).contains("sum()"), sql);
         }
-        // from a query around it, which may keep groups from the aggregation itself, still refused
-        assertTrue(saNumbersRefusal("SELECT * FROM (SELECT sm, SUM(i) AS s FROM " + T + " GROUP BY sm) d WHERE sm = 1")
-                .getMessage().contains("D-E3"));
+        // from a query around it, which may keep groups from the aggregation itself, checked where it is read (the IQ
+        // scale program, 2026-10-25: refused before, it kept the real-world corpus's AVG in a CTE from an answer)
+        assertTrue(saNumbers("SELECT * FROM (SELECT sm, SUM(i) AS s FROM " + T + " GROUP BY sm) d WHERE sm = 1")
+                .contains("sum()"));
         assertTrue(saNumbers("SELECT sm, SUM(i) AS s FROM " + T + " GROUP BY sm HAVING SUM(i) > 0").contains("sum()"));
         for (String sql : List.of("SELECT sm FROM " + T + " GROUP BY sm HAVING NOT (SUM(d) <= 0)",
                 "SELECT sm, IF SUM(i) > 0 THEN 1 ELSE 0 ENDIF AS s FROM " + T + " GROUP BY sm",
