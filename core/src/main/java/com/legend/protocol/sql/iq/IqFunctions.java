@@ -3692,10 +3692,14 @@ final class IqFunctions {
         int end = latest == null ? 9999 : latest + forwardYears(part, times, java.util.Objects.requireNonNull(count));
         boolean subDay = part == Part.HOUR || part == Part.MINUTE || part == Part.SECOND
                 || part == Part.MICROSECOND;
-        // a column's date of no known year is a stored one (a computed date carries its year): the parity schema holds
-        // none past 7910 (the study's §2.5), and lite's answer there is the calendar's
-        boolean stored = latest == null && f.args().get(2) instanceof SqlAst.ColumnRef;
-        if (!stored && end > IqDialect.LAST_TIMED_YEAR && (subDay || !midnight(d))) {
+        // 2026-10-24 (the IQ scale program's Q21, measured on IQ 17.1 and SQL Anywhere 17,
+        // lite/timestamps_past_7910): IQ 17.1 drops them too, under its engine and in its front end, row by row; a
+        // nested DATEADD drops at each step in SQL Anywhere and at the end under IQ's engine. Of a date of no known
+        // year -- a stored column's (whose answer here was the calendar's: DATEADD(YEAR, 5885, ts) kept 05:06 where
+        // both drop it) or a computed one's -- each row is checked: one reaching a year past 7910 with hours or
+        // minutes is refused at run time, every other row answered
+        boolean perRow = latest == null;
+        if (!perRow && end > IqDialect.LAST_TIMED_YEAR && (subDay || !midnight(d))) {
             throw SqlTranslationException.unsupported(name + "(" + part + ", ...) that may reach a timestamp after the"
                     + " year " + IqDialect.LAST_TIMED_YEAR + " is not supported: SQL Anywhere 17 drops the hours and"
                     + " minutes of such a timestamp (its defect), so no answer of it judges lite's", f.pos());
@@ -3721,13 +3725,21 @@ final class IqFunctions {
         // adjust is of a Date: here of a DateTime, so one; a result outside IQ's years 1 to 9999 is IQ's -158
         // (IQ island, 2026-10-14, review 3's B4, measured: DATEADD(DAY, 1, '9999-12-31'), DATEADD(YEAR, -2026,
         // '2026-01-01'))
+        String pastTimed = IqDialect.REFUSED_AT_RUN_TIME + name + " reaching a timestamp after the year "
+                + IqDialect.LAST_TIMED_YEAR + " with hours or minutes is not supported: IQ 17.1 and SQL Anywhere 17"
+                + " drop them there, each at its own step";
+        boolean checkRows = perRow && !date;
         return strict(Kind.DATETIME, type, List.of(n, d), v -> {
             ValueSpecification moved = typed(SqlToPure.call("adjust", timestamp(v.get(1), date), by == 1 ? v.get(0)
                     : AppliedFunction.infixRun("times", List.of(v.get(0), integer(by))), new EnumValue(DURATION_UNIT,
                     unit)), "DateTime");
             ValueSpecification year = SqlToPure.call("year", moved);
+            ValueSpecification value = !checkRows ? moved : refusedPast(SqlToPure.call("and", SqlToPure.call(
+                    "greaterThan", year, integer(IqDialect.LAST_TIMED_YEAR)), SqlToPure.call("or", SqlToPure.call(
+                    "greaterThan", SqlToPure.call("hour", moved), integer(0)), SqlToPure.call("greaterThan",
+                    SqlToPure.call("minute", moved), integer(0)))), pastTimed, moved, raise("DateTime"));
             return ifThen(SqlToPure.call("or", SqlToPure.call("greaterThan", year, integer(9999)), lt(year,
-                    integer(1))), raise("DateTime"), moved);
+                    integer(1))), raise("DateTime"), value);
         });
     }
 

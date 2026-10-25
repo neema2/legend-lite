@@ -1,0 +1,41 @@
+# The IQ scale program's Q21 (docs/IQ_SCALE_PROGRAM_2026_10_22.md, 2026-10-24): whether IQ 17.1 shares SQL Anywhere
+# 17's defect past the year 7910 (review 4's M2: from 7911-01-01 a timestamp's hours and minutes are dropped, its
+# seconds kept, by a constant's reading and by DATEADD alike). Measured first with the Mac session's live-IQ tools:
+# IQ 17.1 drops them too, under its engine and in its front end; adding an hour past 7910 is 00:00 under its engine
+# and the front end's -158. Each run is judged by its oracle's answer in iq-answers.jsonl: SQL Anywhere 17 for
+# iq16-default, the live IQ 17.1 for iq17-default. Row 1 of t holds ts = 2026-03-04 05:06:07.123456.
+tests:
+
+  # ---- under IQ's engine (a query over t)
+  - id: a_timestamp_constant_past_7910
+    sql: "SELECT id, CAST('7911-03-04 05:06:07' AS TIMESTAMP) AS v FROM t WHERE id = 1"
+  - id: timestamp_constants_either_side_of_7911
+    sql: "SELECT id, CAST('7910-12-31 23:59:59' AS TIMESTAMP) AS a, CAST('7911-01-01 00:00:01' AS TIMESTAMP) AS b FROM t WHERE id = 1"
+  - id: dateadd_of_years_to_a_column_past_7910
+    sql: "SELECT id, DATEADD(year, 5884, ts) AS y7910, DATEADD(year, 5885, ts) AS y7911, DATEADD(year, 7973, ts) AS y9999 FROM t WHERE id = 1"
+  - id: dateadd_of_a_second_after_7910
+    sql: "SELECT id, DATEADD(second, 1, DATEADD(year, 5885, ts)) AS v FROM t WHERE id = 1"
+  - id: dateadd_of_an_hour_and_minutes_past_7910
+    sql: "SELECT id, DATEADD(hour, 1, CAST('7911-01-01 00:00:00' AS TIMESTAMP)) AS a, DATEADD(minute, 90, CAST('9999-12-31 00:00:00' AS TIMESTAMP)) AS b FROM t WHERE id = 1"
+  - id: dateadd_of_years_to_every_row
+    sql: "SELECT id, DATEADD(year, 5885, ts) AS v FROM t ORDER BY id"
+  - id: dateadd_of_days_months_weeks_and_quarters_past_7910
+    sql: "SELECT id, DATEADD(day, 2154000, ts) AS d, DATEADD(month, 70620, ts) AS m, DATEADD(week, 308000, ts) AS w, DATEADD(quarter, 23540, ts) AS q FROM t WHERE id = 1"
+  - id: dateadd_of_minutes_past_7910
+    sql: "SELECT id, DATEADD(minute, 30, DATEADD(year, 5885, ts)) AS v FROM t WHERE id = 1"
+  - id: dateadd_of_hours_to_every_row_moved_past_7910
+    sql: "SELECT id, DATEADD(hour, 2, DATEADD(year, 5885, ts)) AS v FROM t ORDER BY id"
+  # IQ's engine keeps a DATE moved a DATE (D-T2), which SQL Anywhere, judging the iq16 run, makes a TIMESTAMP
+  - id: dateadd_of_years_to_a_date_past_7910
+    sql: "SELECT id, DATEADD(year, 5885, dt) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dateadd_of_days_to_a_column_before_7910
+    sql: "SELECT id, DATEADD(day, 2147483, ts) AS v FROM t WHERE id = 1"
+
+  # ---- in the front end (no table)
+  - id: a_timestamp_constant_past_7910_without_from
+    sql: "SELECT CAST('7911-03-04 05:06:07' AS TIMESTAMP) AS v"
+  - id: dateadd_of_years_past_7910_without_from
+    sql: "SELECT DATEADD(year, 5885, CAST('2026-03-04 05:06:07.123456' AS TIMESTAMP)) AS v"
+  - id: dateadd_of_an_hour_past_7910_without_from
+    sql: "SELECT DATEADD(hour, 1, CAST('7911-01-01 00:00:00' AS TIMESTAMP)) AS a"
