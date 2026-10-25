@@ -418,7 +418,15 @@ its EMA (lite's `ema`, over the tape in the source), and the coin's prints with 
 of DataCube, built into it: a chart's value axis fitted to its values (`fitAxis`: a price's line, which a zero baseline
 flattened), a measure's own title in the legend (`title`: "last print", not "maxBy of price by seq"), and a second's
 fraction in a format code (`ss.000`, Excel's: the digits stored, cut). Measured (`//datacube:deephaven_traders_test`,
-the pinned Chromium, a world of 100 names, 2,000 quotes and 400 prints a second, crypto simulated): the page live in
-33 s from a cold tab (the planner holding the trading model, then the screen), the screen open in 7.3 s, again in 0.5 s
-from the page saved; five grids and four charts, each sheet ticking with nothing sent or fetched, a tick on screen 20-24
-ms after its rows on the chart sheet and 33 ms on the watchlist sheet (p50, five grids ticking on one thread).
+the pinned Chromium, a world of 100 names, 2,000 quotes and 400 prints a second, crypto simulated): five grids and four
+charts, each sheet ticking with nothing sent or fetched, a tick on screen 20-25 ms after its rows (p50, five grids
+ticking on one thread); the screen open in 6.4 s from a cold tab, 0.5 s again from the page saved; the page live in
+10 s from a cold tab (its planner's module 3.5 s, the screen 6.4 s).
+
+**The cold open, fixed in the planner (2026-10-25).** First measured at 20 s: DataCube types each grid's queries by
+`pure/v1`'s `lambdaRelationType`, whose request carries the model's text, and the tab's module compiled it again for
+each distinct query -- 2.7 s each for the 2.3 MB trading model, in a tab that held it already (595 typing calls, 64 s
+summed). The contract is unchanged: `PureV1Api` takes a host's `Models` (a text model compiled for one use, by default
+for it alone), and the tab's and Python's boundary answers a request whose model text it holds over the held model
+(`HeldModels.withText`, by content hash, under the model's lock), compiled no more. Measured: those calls 2.2 s summed,
+the screen 6.4 s cold. A server holds nothing, so compiles per request as before.

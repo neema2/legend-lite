@@ -30,6 +30,11 @@ sealed interface ModelInput {
         }
 
         @Override
+        public <T> T with(PureV1Api.Models models, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
+            return models.with(code, use);
+        }
+
+        @Override
         public List<String> compileErrors() {
             return com.legend.Compiler.compileErrors(code);
         }
@@ -52,6 +57,12 @@ sealed interface ModelInput {
         }
 
         @Override
+        public <T> T with(PureV1Api.Models models, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
+            // records hold no text to name a held model by: compiled for this use
+            return use.apply(compile());
+        }
+
+        @Override
         public List<String> compileErrors() {
             return com.legend.Compiler.compileErrors(model);
         }
@@ -64,6 +75,10 @@ sealed interface ModelInput {
 
     /** The model compiled: its elements, a body only when asked (as {@code Compiler.compileModel}). */
     com.legend.compiler.element.ModelContext compile();
+
+    /** {@code use} of the model compiled -- a text's by {@code models} (a host's held model for that text, when it holds
+     *  one), a JSON model's for this use alone. */
+    <T> T with(PureV1Api.Models models, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use);
 
     /** The model compiled whole, every body included: its errors ({@code Compiler.compileErrors}). */
     List<String> compileErrors();

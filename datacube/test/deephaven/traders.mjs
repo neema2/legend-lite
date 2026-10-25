@@ -45,7 +45,6 @@ try {
   const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1600, height: 1000 } })).newPage();
   page.on('pageerror', (e) => fail(`page error: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') console.log(`[page ${m.type()}] ${m.text().slice(0, 300)}`); });
-  const started = Date.now();
   await page.goto(`${site.url}/`);
   const state = () => page.evaluate(() => JSON.parse(JSON.stringify(window.__traders)));
   const until = async (test, what, ms = 240_000) => {
@@ -111,7 +110,8 @@ try {
 
   const first = await checkScreen('Ticker', 1);
   console.log(`     the planner's calls: ${Object.entries(first.state.planner).map(([k, v]) => `${k} ${v.calls} in ${(v.ms / 1000).toFixed(1)} s`).join(', ')}`);
-  ok(`the page started in ${((Date.now() - started) / 1000).toFixed(1)} s: ${Object.entries(first.state.startup).map(([k, v]) => `${k} ${(v / 1000).toFixed(1)} s`).join(', ')}`);
+  const startup = Object.values(first.state.startup).reduce((a, b) => a + b, 0);
+  ok(`the page live in ${(startup / 1000).toFixed(1)} s from a cold tab: ${Object.entries(first.state.startup).map(([k, v]) => `${k} ${(v / 1000).toFixed(1)} s`).join(', ')}`);
   const screens = first.state.screens;
 
   // B2: THE SCREEN SAVED AND OPENED AGAIN -- every grid made again over its source as it is now, its charts as saved

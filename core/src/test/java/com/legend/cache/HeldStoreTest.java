@@ -37,6 +37,19 @@ class HeldStoreTest {
     }
 
     @Test
+    @DisplayName("a value named by its key: the one held, when someone holds it; else the fallback, holding nothing")
+    void usedByItsKey() {
+        HeldStore<String> store = new HeldStore<>();
+        Hash key = Hash.ofUtf8("a definition");
+        assertEquals("built for this use", store.withKeyOr(key, v -> v, () -> "built for this use"), "none held");
+        assertEquals(0, store.size(), "the fallback holds nothing");
+        int a = store.hold(key, () -> "held");
+        assertEquals("held", store.withKeyOr(key, v -> v, () -> "built for this use"), "the one held");
+        store.release(a);
+        assertEquals("built for this use", store.withKeyOr(key, v -> v, () -> "built for this use"), "let go");
+    }
+
+    @Test
     @DisplayName("a build that throws holds nothing")
     void aFailedBuildHoldsNothing() {
         HeldStore<String> store = new HeldStore<>();

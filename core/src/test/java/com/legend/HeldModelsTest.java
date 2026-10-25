@@ -52,6 +52,22 @@ class HeldModelsTest {
     }
 
     @Test
+    @DisplayName("a model named by its text: the one held, compiled no more; one not held, compiled for its use")
+    void usedByItsText() {
+        int h = held.hold(MODEL);
+        try {
+            ModelContext first = held.with(h, ctx -> ctx);
+            assertSame(first, held.withText(MODEL, ctx -> ctx), "held: the one context");
+            String other = MODEL + "\n// another\n";
+            int before = held.size();
+            assertNotSame(first, held.withText(other, ctx -> ctx), "not held: compiled for this use");
+            assertEquals(before, held.size(), "and not held after");
+        } finally {
+            held.release(h);
+        }
+    }
+
+    @Test
     @DisplayName("held while anyone holds it; gone with its last holder, and then refused by name")
     void heldWhileHeld() {
         int before = held.size();

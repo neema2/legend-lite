@@ -440,6 +440,37 @@ class PureV1ApiTest {
                 PureV1Api.jsonAnswer(graph.json(), "[{\"tradeId\":1}]").json());
     }
 
+    /**
+     * A host's models (PureV1Api.Models): a model given as text is compiled by the host's hook -- a held model's, where
+     * the host holds that text -- and answered exactly as when compiled for the request, on every route that compiles one.
+     */
+    @Test
+    void route_compilesATextModelByTheHostsModels() {
+        com.legend.HeldModels held = new com.legend.HeldModels();
+        int handle = held.hold(model);
+        try {
+            int[] uses = new int[1];
+            PureV1Api.Models models = new PureV1Api.Models() {
+                @Override
+                public <T> T with(String t, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
+                    uses[0]++;
+                    return held.withText(t, use);
+                }
+            };
+            String typed = "{\"model\":" + textModel() + ",\"lambda\":" + lambda + "}";
+            String plan = "{\"function\":" + lambda + ",\"model\":" + textModel() + "}";
+            assertEquals(PureV1Api.lambdaRelationType(typed),
+                    PureV1Api.route("/api/pure/v1/compilation/lambdaRelationType", null, typed, NO_RUN, models));
+            assertEquals(PureV1Api.lambdaReturnType(typed),
+                    PureV1Api.route("/api/pure/v1/compilation/lambdaReturnType", null, typed, NO_RUN, models));
+            assertEquals(PureV1Api.generatePlan(plan),
+                    PureV1Api.route("/api/pure/v1/execution/generatePlan", null, plan, NO_RUN, models));
+            assertEquals(3, uses[0], "each route compiled its model through the host's hook");
+        } finally {
+            held.release(handle);
+        }
+    }
+
     /** route: each path answers as its endpoint does; any other is 404 in the engine's shape; execute runs through the runner. */
     @Test
     void route_answersEachPathAsItsEndpoint() {

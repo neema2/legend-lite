@@ -172,8 +172,7 @@ async function main(): Promise<void> {
         const lambda = await planner.parse(text);
         const query = lambda.body[0];
         if (query === undefined) throw new Error(`a screen's source parsed to no expression: ${text}`);
-        // typed over the model the planner holds (relationType's pure/v1 route compiles the model's text again: 2.7 s
-        // a source for the trading model, the task's to fix in the planner)
+        // typed as Pure text over the model the planner holds
         const columns = (await planner.relationTypeText(text)).map((c) => ({ name: c.name, type: c.type }));
         return { query, columns };
       })();

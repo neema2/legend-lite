@@ -51,8 +51,17 @@ public final class Boundary {
                 (model, lambda, runtime, rows) -> {
                     throw new IllegalArgumentException("this engine answers execute in upstream's Arrow format: "
                             + "ask with ?serializationFormat=ARROW_IPC");
-                });
+                }, HELD);
     }
+
+    /** A request's model given as text: the one this host holds for that text, compiled no more, else compiled for the
+     *  request (HeldModels.withText). */
+    private static final com.legend.server.PureV1Api.Models HELD = new com.legend.server.PureV1Api.Models() {
+        @Override
+        public <T> T with(String text, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
+            return MODELS.withText(text, use);
+        }
+    };
 
     /**
      * Execute's plan half in upstream's Arrow format (PureV1Api.arrowPlan): the SQL to run and the Arrow schema

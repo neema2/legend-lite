@@ -94,11 +94,35 @@ public final class PureV1Api {
     }
 
     /**
+     * How a host compiles a request's model given as text, for one use: by default compiled for it alone (a server holds
+     * nothing: a request has no holder); a host that holds models answers over the one it holds for that text, compiled
+     * no more ({@code HeldModels.withText}). The answer is the same either way -- a held model is a function of its
+     * text alone -- only its time differs.
+     */
+    public interface Models {
+        <T> T with(String text, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use);
+
+        /** Each use compiles its text. */
+        Models COMPILED = new Models() {
+            @Override
+            public <T> T with(String text, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
+                return use.apply(com.legend.Compiler.compileModel(text));
+            }
+        };
+    }
+
+    /**
      * One call by its path ({@code /api/pure/v1/...}) and raw query string, as both of legend-lite's hosts
      * route it: its server ({@code LegendHttpServer}) and the compiler's boundary. An execute runs through
      * {@code runner}; a path this API does not serve is answered 404 in the engine's error shape.
      */
     public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner) {
+        return route(path, rawQuery, body, runner, Models.COMPILED);
+    }
+
+    /** {@link #route(String, String, String, Runner)}, a model given as text compiled by {@code models}. */
+    public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner,
+            Models models) {
         boolean sourceInformation = rawQuery == null || !rawQuery.contains("returnSourceInformation=false");
         return switch (path) {
             case "/api/pure/v1/grammar/grammarToJson/lambda" -> grammarToJsonLambda(body, sourceInformation);
@@ -108,11 +132,11 @@ public final class PureV1Api {
             case "/api/pure/v1/grammar/jsonToGrammar/lambda/batch" ->
                     jsonToGrammarLambdaBatch(body, queryParam(rawQuery, "renderStyle"));
             case "/api/pure/v1/grammar/jsonToGrammar/model" -> jsonToGrammarModel(body, queryParam(rawQuery, "renderStyle"));
-            case "/api/pure/v1/compilation/lambdaRelationType" -> lambdaRelationType(body);
+            case "/api/pure/v1/compilation/lambdaRelationType" -> lambdaRelationType(body, models);
             case "/api/pure/v1/compilation/compile" -> compile(body);
-            case "/api/pure/v1/compilation/lambdaReturnType" -> lambdaReturnType(body);
-            case "/api/pure/v1/execution/generatePlan" -> generatePlan(body);
-            case "/api/pure/v1/execution/execute" -> execute(body, runner);
+            case "/api/pure/v1/compilation/lambdaReturnType" -> lambdaReturnType(body, models);
+            case "/api/pure/v1/execution/generatePlan" -> generatePlan(body, models);
+            case "/api/pure/v1/execution/execute" -> execute(body, runner, models);
             case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
@@ -265,11 +289,17 @@ public final class PureV1Api {
      * path, a primitive its name; a failure is 400 COMPILATION.
      */
     public static Answer lambdaReturnType(String body) {
+        return lambdaReturnType(body, Models.COMPILED);
+    }
+
+    /** {@link #lambdaReturnType(String)}, a model given as text compiled by {@code models}. */
+    public static Answer lambdaReturnType(String body, Models models) {
         return answer(400, "COMPILATION", () -> {
             Json.Obj request = request(body);
             ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
-            com.legend.compiler.element.type.Type t = com.legend.Compiler.query(model.compile(), lambda).resultType().type();
+            com.legend.compiler.element.type.Type t = model.with(models,
+                    ctx -> com.legend.Compiler.query(ctx, lambda).resultType().type());
             String path = com.legend.compiler.element.type.Type.schemaView(t) != null
                     ? "meta::pure::metamodel::relation::Relation"
                     : UpstreamRelationType.typePath(t);
@@ -300,12 +330,17 @@ public final class PureV1Api {
 
     /** E5: {@code {model, lambda}} to the query's {@code RelationType}. */
     public static Answer lambdaRelationType(String body) {
+        return lambdaRelationType(body, Models.COMPILED);
+    }
+
+    /** {@link #lambdaRelationType(String)}, a model given as text compiled by {@code models}. */
+    public static Answer lambdaRelationType(String body, Models models) {
         return answer(400, "COMPILATION", () -> {
             Json.Obj request = request(body);
             ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
-            return Json.toCompact(UpstreamRelationType.of(
-                    com.legend.Compiler.query(model.compile(), lambda).resultType()));
+            return model.with(models, ctx -> Json.toCompact(UpstreamRelationType.of(
+                    com.legend.Compiler.query(ctx, lambda).resultType())));
         });
     }
 
@@ -315,18 +350,25 @@ public final class PureV1Api {
 
     /** E9: an {@code ExecuteInput} to the relational TDS {@code SingleExecutionPlan}. */
     public static Answer generatePlan(String body) {
+        return generatePlan(body, Models.COMPILED);
+    }
+
+    /** {@link #generatePlan(String)}, a model given as text compiled by {@code models}. */
+    public static Answer generatePlan(String body, Models models) {
         // the engine answers generatePlan's and execute's compile errors 500 (measured)
         return answer(500, "COMPILATION", () -> {
             Json.Obj request = request(body);
             ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("function"));
             // compiled and typed once: the target it names and its plan come off the one typed query
-            com.legend.TypedQuery query = com.legend.Compiler.query(model.compile(), lambda);
-            com.legend.Compiler.Target target = query.target();
-            String runtime = runtimeOf(request, target);
-            QueryPlan plan = query.plan(runtime);
-            return Json.toCompact(executionPlan(plan,
-                    connectionOf(model.records(), runtime, target.store())));
+            return model.with(models, ctx -> {
+                com.legend.TypedQuery query = com.legend.Compiler.query(ctx, lambda);
+                com.legend.Compiler.Target target = query.target();
+                String runtime = runtimeOf(request, target);
+                QueryPlan plan = query.plan(runtime);
+                return Json.toCompact(executionPlan(plan,
+                        connectionOf(model.records(), runtime, target.store())));
+            });
         });
     }
 
@@ -340,20 +382,26 @@ public final class PureV1Api {
      * database renders every value; Java arranges the rows into {@code {"values": [...]}}.
      */
     public static Answer execute(String body, Runner runner) {
+        return execute(body, runner, Models.COMPILED);
+    }
+
+    /** {@link #execute(String, Runner)}, a model given as text compiled by {@code models}. */
+    public static Answer execute(String body, Runner runner, Models models) {
         return answer(500, "COMPILATION", () -> {
             Json.Obj request = request(body);
-            // the model compiled ONCE (leg 8 step 3: it was compiled here for the query's target, then again by the
-            // runner from its text), and handed on -- the seam the execution plan's step 4 builds on
-            com.legend.compiler.element.ModelContext model = ModelInput.of(request.getObj("model")).compile();
             LambdaFunction lambda = ProtocolReader.lambda(
                     boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
-            String runtime = runtimeOf(request, com.legend.Compiler.query(model, lambda).target());
-            java.io.StringWriter rows = new java.io.StringWriter();
-            QueryPlan plan = runner.run(model, lambda, runtime, rows);
-            if (plan.shape() == com.legend.plan.ResultShape.GRAPH) {
-                return graphResult(rows.toString());
-            }
-            return tdsResult(plan, rows.toString());
+            // the model compiled ONCE (leg 8 step 3: it was compiled here for the query's target, then again by the
+            // runner from its text), and handed on -- the seam the execution plan's step 4 builds on
+            return ModelInput.of(request.getObj("model")).with(models, model -> {
+                String runtime = runtimeOf(request, com.legend.Compiler.query(model, lambda).target());
+                java.io.StringWriter rows = new java.io.StringWriter();
+                QueryPlan plan = runner.run(model, lambda, runtime, rows);
+                if (plan.shape() == com.legend.plan.ResultShape.GRAPH) {
+                    return graphResult(rows.toString());
+                }
+                return tdsResult(plan, rows.toString());
+            });
         });
     }
 

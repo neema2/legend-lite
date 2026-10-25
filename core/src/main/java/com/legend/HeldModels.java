@@ -50,6 +50,16 @@ public final class HeldModels {
         return models.with(handle, use);
     }
 
+    /**
+     * {@code use} of the model {@code model} (its text): the one held, under its lock, when some planner holds that text
+     * -- compiled no more -- else compiled for this use alone, holding nothing. How a host's {@code pure/v1} route answers
+     * a request whose model the host holds already (the trader screens, 2026-10-25: each grid's query typed by
+     * {@code lambdaRelationType} compiled the 2.3 MB trading model again, 2.7 s each, in a tab that held it).
+     */
+    public <T> T withText(String model, Function<ModelContext, T> use) {
+        return models.withKeyOr(Hash.ofUtf8(model), use, () -> use.apply(Compiler.compileModel(model)));
+    }
+
     /** How many models are held now: for tests and a host's diagnostics. */
     public int size() {
         return models.size();

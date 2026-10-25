@@ -112,6 +112,24 @@ public final class HeldStore<T> {
         }
     }
 
+    /**
+     * {@code use} of the value held for {@code key}, under that entry's own lock, when someone holds it; else
+     * {@code otherwise}, outside every lock, holding nothing. For a caller that names a value by its content and holds
+     * no handle of its own (a request carrying a model's text that a holder has compiled already).
+     */
+    public <R> R withKeyOr(Hash key, Function<T, R> use, Supplier<R> otherwise) {
+        Entry<T> entry;
+        synchronized (this) {
+            entry = byKey.get(key.hex());
+        }
+        if (entry == null) {
+            return otherwise.get();
+        }
+        synchronized (entry) {
+            return use.apply(entry.value);
+        }
+    }
+
     /** How many values are held now (each once, however many handles hold it). */
     public synchronized int size() {
         return byKey.size();
