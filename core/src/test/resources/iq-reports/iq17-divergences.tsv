@@ -11,3 +11,20 @@
 # its entries, and a cause no entry names any more.
 #
 # Lines: cause<TAB>id<TAB>what it is, then run<TAB>run key<TAB>cause id<TAB>lanes.
+#
+# The IQ scale program, 2026-10-25 (the realistic reports' first judgement; the live IQ's probes of the same day, measured
+# on IQ 17.1): IQ's engine sizes a SUM -- a group's, a window's, a scalar subquery's -- by its input's estimated rows, its
+# digits the argument's and those of the rows less one (SUM(COUNT(*)) OVER () GROUP BY a column is NUMERIC(21,0) over 5
+# rows, (22,0) over 11 to 100, (23,0) over 619, (24,0) over 1,196 to 1,500, (25,0) over 15,000 to 60,175), so a quotient
+# by a total has more places over more rows; lite types a SUM as over the parity tables' few rows. The value is the same,
+# its NUMERIC's places are not.
+cause	row-typed	a quotient by a SUM, whose NUMERIC IQ's engine sizes by its input's estimated rows (the digits of the rows less one past the argument's), where lite sizes it as over a few rows: the same value with other places
+run	lite/reports_analyses/revenue_concentration_by_quintile@iq17-default	row-typed	duckdb,postgres
+run	lite/reports_analyses/pareto_of_products@iq17-default	row-typed	duckdb,postgres
+run	lite/reports_analyses/categories_with_healthy_margins@iq17-default	row-typed	duckdb,postgres
+run	lite/reports_analyses/year_over_year_month_pivot@iq17-default	row-typed	duckdb,postgres
+run	lite/reports_long/product_performance_report@iq17-default	row-typed	duckdb,postgres
+run	lite/reports_long/basket_analysis_by_size@iq17-default	row-typed	duckdb,postgres
+run	lite/reports_payments/collections_by_method_share@iq17-default	row-typed	duckdb,postgres
+run	lite/reports_sales/quarterly_revenue_with_growth@iq17-default	row-typed	duckdb,postgres
+run	lite/reports_sales/revenue_by_category_share@iq17-default	row-typed	duckdb,postgres

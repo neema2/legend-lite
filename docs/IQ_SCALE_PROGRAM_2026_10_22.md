@@ -702,4 +702,19 @@ says so.
     Python's statistics.stdev of each frame to the last digit). Through the lens 86 of 96 answered, 10 refused (MIN of
     strings over a frame after the partition's first row, IQ's NUL bytes). With census 3 on claude/iq-census-4, to snap
     when the live IQ answers again (it drops connections, -832, since the afternoon).
+  - **Census 3 and 4 judged** (snapped at cbbe9744, merged 971c8023): idioms 57 PASS of 59 (IQ errs on both others: a
+    UNION's ORDER BY by a name, -1005012, as lite predicted; LAG(COUNT(*)), -1005028), ratios 8 of 8, frames 86 PASS
+    and 10 refused. **Fixed:** a COUNT(*) anywhere in LAG's or LEAD's first argument is IQ's -1005028 (the live IQ's
+    probes: LAG(COUNT(*) + 0) and LEAD(COUNT(*), 1, 0) refused, LAG(COUNT(id)), LAG(SUM(v)), LAG(MAX(v)) answered); a
+    whole NUMERIC of up to 18 digits converts to a DOUBLE (CAST(SUM(b) AS FLOAT)).
+  - **The realistic reports** (`core/src/test/resources/iq-reports`, a second parity root over a retail schema: 107
+    report queries, `tools/iq-reports`; snapped at 69249c87, all 107 answered): 98 PASS on DuckDB and on Postgres, 9
+    FAIL, each a quotient's places only. **Measured** (the live IQ's probes): IQ's engine sizes a SUM -- a group's, a
+    window's, a scalar subquery's -- by its input's estimated rows, its digits the argument's and those of the rows
+    less one (SUM(COUNT(*)) OVER () GROUP BY a column: NUMERIC(21,0) over 5 rows, (22,0) over 11 to 100, (23,0) over
+    619, (24,0) over 1,196 to 1,500, (25,0) over 15,000 to 60,175). The census's "+1 for a group's SUM, +2 for a
+    window's over one" is this rule over its 9 filtered rows; the corpus's 9 new places FAILs (sede-892182 and the
+    others) and the reports' 9 are it over more rows. Data-typed as D-N3 is: listed (row-typed, 9 runs), not modeled;
+    derived-total is likely the same rule over a derived table's estimate. Part D (48 more: aging, ledgers,
+    commissions, cohorts, gaps and islands, GROUPING SETS and CUBE, percentiles, ANY and ALL) follows to snap.
   - **The Snowflake lane** (its sibling session idle since 10-23): its ledger column predates this day's typing.
