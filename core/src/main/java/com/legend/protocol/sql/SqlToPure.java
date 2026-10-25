@@ -248,6 +248,7 @@ public final class SqlToPure {
         }
         InputDialect reading = dialect.reading(statement);
         SqlToPure translation = new SqlToPure(sources, reading, new Env(Map.of(), null, null, 0));
+        translation.resultSelect = namingSelect(statement);
         Rel translated;
         try {
             translated = translation.statement(statement);
@@ -3802,6 +3803,39 @@ public final class SqlToPure {
         return new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
     }
 
+    /** IQ island, 2026-10-24 (the IQ scale program; measured on IQ 17.1, lite/repeated_names): the mark between a name
+     *  and its count that a statement's result gives a select item whose name an earlier item already has. SAP IQ
+     *  returns both columns under the one name (SELECT a.id, b.id; SELECT * over a join), where Pure's relations need
+     *  distinct names: the relation carries {@code id} and {@code id\u00A0#2}, and the result shows {@code id} twice
+     *  ({@code Type.RelationType.presentName}). */
+    public static final String REPEATED_NAME_MARK = "\u00A0#";
+
+    /** The select that names the statement's result (its outermost, or a set operation's first branch), whose repeated
+     *  names the result shows where the dialect does ({@link InputDialect#showsRepeatedNames}). */
+    private SqlAst.@com.legend.base.Nullable Select resultSelect;
+
+    /** The names a select's items repeat, by select: reading one unqualified is ambiguous (IQ's -144). */
+    private final Map<SqlAst.Select, Set<String>> repeated = new java.util.IdentityHashMap<>();
+
+    /** The select whose items name {@code statement}'s result. */
+    private static SqlAst.Select namingSelect(SqlAst.Statement statement) {
+        return switch (statement) {
+            case SqlAst.Select s -> s;
+            case SqlAst.SetOperation o -> namingSelect(o.left());
+            case SqlAst.With w -> namingSelect(w.body());
+        };
+    }
+
+    /** {@code name} marked with the first count no other output name holds ({@link #REPEATED_NAME_MARK}). */
+    private static String repeatedName(String name, Set<String> shown, Set<String> present) {
+        for (int n = 2; ; n++) {
+            String marked = name + REPEATED_NAME_MARK + n;
+            if (!shown.contains(marked) && !present.contains(marked)) {
+                return marked;
+            }
+        }
+    }
+
     /** The column a computed output is built in: its own name when that is free, else a fresh one (renamed last). */
     private String internalFor(String name, Set<String> present) {
         if (!present.contains(name) && !name.startsWith(SYNTHETIC)) {
@@ -3824,9 +3858,24 @@ public final class SqlToPure {
     private Rel assemble(SqlAst.Select s, Scope scope, ValueSpecification relation, Set<String> present,
             List<Output> outputs) {
         Set<String> shown = new HashSet<>();
+        Set<String> internals = new HashSet<>();
         for (int i = 0; i < outputs.size(); i++) {
             Output o = outputs.get(i);
             if (!shown.add(o.name())) {
+                if (s == resultSelect && dialect.showsRepeatedNames()) {
+                    // the statement's result shows the name again (IQ island, 2026-10-24, measured on IQ 17.1): its
+                    // relation marks it, a column it reads copied under a name of its own (renamed last, where the
+                    // source's name may be another output's: SELECT b.*, a.id)
+                    String marked = repeatedName(o.name(), shown, present);
+                    shown.add(marked);
+                    repeated.computeIfAbsent(s, k -> taken()).add(o.name());
+                    boolean copied = o.value() == null;
+                    outputs.set(i, new Output(marked, copied ? fresh(present) : o.internal(), copied
+                            ? property(row, o.internal()) : o.value(), o.expr(), o.kind(), o.nullable(), o.detail(),
+                            o.pre()));
+                    internals.add(outputs.get(i).internal());
+                    continue;
+                }
                 if (!dialect.namesUnread(s)) {
                     throw SqlTranslationException.unsupported("the output column name \"" + o.name() + "\" appears"
                             + " twice; Pure relations need distinct column names, so give one an alias", s.pos());
@@ -3836,6 +3885,7 @@ public final class SqlToPure {
                 outputs.set(i, new Output(fresh(present), o.internal(), o.value(), o.expr(), o.kind(), o.nullable(),
                         o.detail(), o.pre()));
             }
+            internals.add(outputs.get(i).internal());
         }
         // a DISTINCT's keys: the values themselves, or a dialect's key whose group shows one of its values (IQ island,
         // 2026-10-15), the least (a min, a [0..1] whatever the values)
@@ -4023,6 +4073,12 @@ public final class SqlToPure {
             return sortedBy(outputs.get(n.value().intValue() - 1), s, n.pos(), computed, present, afterDistinct, preOf);
         }
         if (e instanceof SqlAst.ColumnRef ref && ref.parts().size() == 1) {
+            Set<String> twice = repeated.get(s);
+            if (twice != null && twice.contains(ref.parts().get(0).text())) {
+                // a name the select list holds twice (IQ island, 2026-10-24, measured on IQ 17.1: its -144)
+                throw SqlTranslationException.invalid(dialect.message(Problem.AMBIGUOUS_COLUMN,
+                        ref.parts().get(0).text()), e.pos());
+            }
             String found = dialect.resolve(ref.parts().get(0), outputs.stream().map(Output::name).toList(),
                     "column");
             // a DISTINCT's ORDER BY reads its outputs whatever the dialect (its keys are the outputs)

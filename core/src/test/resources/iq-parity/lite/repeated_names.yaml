@@ -1,0 +1,47 @@
+# A statement's result with two columns of one name (the IQ scale program, 2026-10-24: 168 of the corpus lane's SEDE
+# queries refused for it -- 98 naming columns of two tables alike, 59 SELECT * over a join, 11 a.*, b.*). SAP IQ
+# returns both columns under the one name; reading the name unqualified is its -144 (ORDER BY it; a derived table's or
+# a CTE's * that holds it). Each run is judged by its oracle's answer in iq-answers.jsonl: SQL Anywhere 17 for
+# iq16-default, the live IQ 17.1 for iq17-default.
+tests:
+
+  # ---- the result shows the name twice
+  - id: two_columns_of_one_name
+    sql: "SELECT a.id, b.id FROM t a JOIN u b ON b.t_id = a.id ORDER BY a.id, b.id"
+  # (iq17 alone where the star reads t's CHAR(5): IQ's store pads it, which SQL Anywhere's database, judging the
+  # iq16 run, does not -- D-S1)
+  - id: star_over_a_join
+    sql: "SELECT * FROM t a JOIN u b ON b.t_id = a.id ORDER BY a.id, b.id"
+    profile: iq17-default
+  - id: star_over_a_join_with_a_filter
+    sql: "SELECT * FROM t a JOIN u b ON b.t_id = a.id WHERE b.qty > 1 ORDER BY a.id, b.id"
+    profile: iq17-default
+  - id: a_table_star_and_a_column
+    sql: "SELECT b.*, a.id FROM t a JOIN u b ON b.t_id = a.id ORDER BY a.id, b.id"
+  - id: two_table_stars
+    sql: "SELECT a.*, b.* FROM t a JOIN u b ON b.t_id = a.id ORDER BY a.id, b.id"
+    profile: iq17-default
+  - id: a_column_twice
+    sql: "SELECT a.id, a.id FROM t a WHERE a.id < 3 ORDER BY 1"
+  - id: a_column_and_a_computed_one_of_its_name
+    sql: "SELECT a.id, a.id + 1 AS id FROM t a WHERE a.id < 3 ORDER BY 1"
+  - id: a_union_named_by_its_first_branch
+    sql: "SELECT a.id, b.id FROM t a JOIN u b ON b.t_id = a.id UNION ALL SELECT 1, 2 ORDER BY 1, 2"
+  - id: distinct_with_a_repeated_name
+    sql: "SELECT DISTINCT a.id, b.t_id AS id FROM t a JOIN u b ON b.t_id = a.id ORDER BY 1"
+  - id: top_with_a_repeated_name
+    sql: "SELECT TOP 2 a.dt, b.label, a.dt FROM t a JOIN u b ON b.t_id = a.id ORDER BY 1, 2, a.id, b.id"
+  - id: a_repeated_name_grouped
+    sql: "SELECT a.id, COUNT(*) AS id FROM t a JOIN u b ON b.t_id = a.id GROUP BY a.id ORDER BY 1"
+
+  # ---- reading the name unqualified is IQ's -144
+  - id: order_by_a_repeated_name
+    sql: "SELECT a.id, b.id FROM t a JOIN u b ON b.t_id = a.id ORDER BY id"
+  - id: star_of_a_derived_table_with_a_repeated_name
+    sql: "SELECT * FROM (SELECT a.id, b.id FROM t a JOIN u b ON b.t_id = a.id) x"
+  - id: star_of_a_cte_with_a_repeated_name
+    sql: "WITH c AS (SELECT a.id, b.id FROM t a JOIN u b ON b.t_id = a.id) SELECT * FROM c"
+
+  # ---- a derived table's repeated name that no one reads
+  - id: a_derived_table_with_a_repeated_name_counted
+    sql: "SELECT COUNT(*) AS n FROM (SELECT a.id, b.id FROM t a JOIN u b ON b.t_id = a.id) x"
