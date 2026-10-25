@@ -475,7 +475,8 @@ public final class Deephaven extends AnsiSqlRenderer {
     }
 
     /** The operands' null guard, then the comparison: a comparison with a null operand is neither true nor false. */
-    private SqlWriter comparison(SqlWriter writer, List<SqlExpr> a, String op) {
+    private SqlWriter comparison(SqlWriter writer, List<SqlExpr> given, String op) {
+        List<SqlExpr> a = asBooleans(given);
         writer.append("(");
         guard(writer, a);
         return writer.expr(a.get(0), 0).append(op).expr(a.get(1), 0).append(")");
@@ -699,7 +700,27 @@ public final class Deephaven extends AnsiSqlRenderer {
 
     /** A column and a literal compared, either way round (a literal first is mirrored); {@code guard}: the column's
      *  nulls are filtered off first, when it may hold one. */
-    private @com.legend.base.Nullable Bare compared(List<SqlExpr> a, String op, boolean guard) {
+    /**
+     * Two compared operands, a boolean's 0 or 1 read as false or true: SQL compares a BIT column with a number (a store
+     * filter's {@code IS_INTERPOLATED = 0}), where the server's Boolean equals no number (the stress corpus on Deephaven,
+     * task 15: a curve's quoted pillars matched none).
+     */
+    private static List<SqlExpr> asBooleans(List<SqlExpr> a) {
+        if (a.size() != 2) {
+            return a;
+        }
+        List<SqlExpr> out = new java.util.ArrayList<>(a);
+        for (int side = 0; side < 2; side++) {
+            if (a.get(side).type() instanceof TypeFact.Typed t && t.type() == SqlType.Scalar.BOOLEAN
+                    && a.get(1 - side) instanceof SqlExpr.IntLit n && (n.value() == 0 || n.value() == 1)) {
+                out.set(1 - side, new SqlExpr.BoolLit(n.value() == 1));
+            }
+        }
+        return out;
+    }
+
+    private @com.legend.base.Nullable Bare compared(List<SqlExpr> given, String op, boolean guard) {
+        List<SqlExpr> a = asBooleans(given);
         for (int side = 0; side < 2; side++) {
             SqlExpr x = a.get(side);
             String column = bareColumn(x);
@@ -800,10 +821,10 @@ public final class Deephaven extends AnsiSqlRenderer {
                  STARTS_WITH, ENDS_WITH -> booleanValue(writer, c);
             // the formula language's arithmetic is null-propagating over the primitive columns' sentinels (to
             // measure on the lanes, DH7); a division of integers answers a double, as DIVIDE asks
-            case PLUS -> infixArithmetic(writer, a, " + ");
-            case MINUS -> infixArithmetic(writer, a, " - ");
-            case TIMES -> infixArithmetic(writer, a, " * ");
-            case DIVIDE -> infixArithmetic(writer, a, " / ");
+            case PLUS -> infixArithmetic(writer, c, " + ");
+            case MINUS -> infixArithmetic(writer, c, " - ");
+            case TIMES -> infixArithmetic(writer, c, " * ");
+            case DIVIDE -> infixArithmetic(writer, c, " / ");
             case NEGATE -> writer.append("(-").expr(a.get(0), 0).append(")");
             case ABS -> function(writer, "abs", a);
             case SQRT -> function(writer, "sqrt", a);
@@ -820,7 +841,11 @@ public final class Deephaven extends AnsiSqlRenderer {
             case ASIN -> function(writer, "asin", a);
             case ACOS -> function(writer, "acos", a);
             case ATAN -> function(writer, "atan", a);
-            case COALESCE -> coalesce(writer, a, 0);
+            // in doubles when it is a double's, or when its values are a BigDecimal and a double (bigDecimal says why)
+            case COALESCE -> a.stream().anyMatch(Deephaven::bigDecimal)
+                    && (c.type() instanceof TypeFact.Typed t && t.type() == SqlType.Scalar.DOUBLE
+                        || !a.stream().allMatch(Deephaven::bigDecimal))
+                    ? coalesceInDoubles(writer, a, 0) : coalesce(writer, a, 0);
             case CONCAT -> concat(writer, c);
             // the scalars a screen's computed column calls (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md §2, the stress
             // corpus's TF_TradeScalars): Pure's round is half-even (SqlFn's contract), as Java's rint is; mod is the
@@ -875,15 +900,71 @@ public final class Deephaven extends AnsiSqlRenderer {
         };
     }
 
-    private SqlWriter infixArithmetic(SqlWriter writer, List<SqlExpr> a, String op) {
+    /**
+     * Arithmetic in the formula language. A double's arithmetic over a DECIMAL column (a BigDecimal: DeephavenBatch's
+     * DDL) takes the decimal as its own {@code doubleValue} first, as SQL does: a decimal over an integer is a DOUBLE
+     * (DuckDB's {@code /}), computed in doubles -- Deephaven's own BigDecimal division keeps fewer digits (the stress
+     * corpus on Deephaven, task 15: 1666666.66666667 where SQL answers 1666666.6666666667).
+     */
+    private SqlWriter infixArithmetic(SqlWriter writer, SqlExpr.Call c, String op) {
+        List<SqlExpr> a = c.args();
+        boolean inDoubles = c.type() instanceof TypeFact.Typed t && t.type() == SqlType.Scalar.DOUBLE;
         writer.append("(");
         for (int i = 0; i < a.size(); i++) {
             if (i > 0) {
                 writer.append(op);
             }
-            writer.expr(a.get(i), 0);
+            if (inDoubles) {
+                asDouble(writer, a.get(i), nullable(a.get(i)));
+            } else {
+                writer.expr(a.get(i), 0);
+            }
         }
         return writer.append(")");
+    }
+
+    /**
+     * Whether {@code e} is WRITTEN as a BigDecimal: a DECIMAL column (the DDL's), arithmetic over one, a COALESCE whose
+     * every value is one. A decimal the formula computes from no decimal column is a double (its literals are written
+     * as doubles), and so is a COALESCE of a BigDecimal and a double -- the server has no condition of the two
+     * ("Incompatible types in condition operation"), so it is written in doubles ({@link #coalesceInDoubles}), and
+     * arithmetic over it is a double's.
+     */
+    static boolean bigDecimal(SqlExpr e) {
+        if (!(e.type() instanceof TypeFact.Typed t) || !(t.type() instanceof SqlType.Decimal)) {
+            return false;
+        }
+        if (e instanceof SqlExpr.Call c) {
+            return switch (c.fn()) {
+                case COALESCE -> c.args().stream().allMatch(Deephaven::bigDecimal);
+                case PLUS, MINUS, TIMES, DIVIDE, NEGATE -> c.args().stream().anyMatch(Deephaven::bigDecimal);
+                default -> readsDecimalColumn(e);
+            };
+        }
+        return readsDecimalColumn(e);
+    }
+
+    /** {@code e} as a double: a BigDecimal by its own {@code doubleValue} (a null kept null when it {@code mayBeNull}),
+     *  anything else as it is. */
+    private SqlWriter asDouble(SqlWriter writer, SqlExpr e, boolean mayBeNull) {
+        if (!bigDecimal(e)) {
+            return writer.expr(e, 0);
+        }
+        if (mayBeNull) {
+            return writer.append("(isNull(").expr(e, 0).append(") ? NULL_DOUBLE : ").expr(e, 0).append(".doubleValue())");
+        }
+        return writer.append("(").expr(e, 0).append(".doubleValue())");
+    }
+
+    /** COALESCE in doubles: each argument a double first -- a condition of a BigDecimal and a double is refused by the
+     *  server ("Incompatible types in condition operation": the stress corpus on Deephaven, task 15). */
+    private SqlWriter coalesceInDoubles(SqlWriter writer, List<SqlExpr> a, int from) {
+        if (from == a.size() - 1) {
+            return asDouble(writer, a.get(from), nullable(a.get(from)));
+        }
+        writer.append("(!isNull(").expr(a.get(from), 0).append(") ? ");
+        asDouble(writer, a.get(from), false).append(" : ");
+        return coalesceInDoubles(writer, a, from + 1).append(")");
     }
 
     private SqlWriter function(SqlWriter writer, String name, List<SqlExpr> a) {
@@ -1419,10 +1500,11 @@ public final class Deephaven extends AnsiSqlRenderer {
         };
         if (target == SqlType.Scalar.DOUBLE && c.value().type() instanceof TypeFact.Typed from
                 && from.type() instanceof SqlType.Decimal) {
-            if (!readsDecimalColumn(c.value())) {
+            if (!bigDecimal(c.value())) {
                 // a decimal the formula computes from no decimal column is a double already: its numbers are written
                 // as doubles (decimal literals are refused) -- an if of two literals, typed DECIMAL by their digits (the
-                // trader screens' FX pips, 2026-10-25: "(... ? 0.01 : 1.0E-4).doubleValue()" refused by the server)
+                // trader screens' FX pips, 2026-10-25: "(... ? 0.01 : 1.0E-4).doubleValue()" refused by the server) --
+                // and so is one written in doubles (bigDecimal)
                 return writer.append("(").expr(c.value(), 0).append(")");
             }
             // a DECIMAL column is a BigDecimal (DeephavenBatch's DDL): its own doubleValue, a permitted method (DH33)

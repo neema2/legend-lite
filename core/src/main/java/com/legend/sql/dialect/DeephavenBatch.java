@@ -1085,8 +1085,8 @@ final class DeephavenBatch {
                     throw new DialectCapability("aggregate " + r.fn() + " over " + r.args().size()
                             + " arguments reached Deephaven: no shape yet");
                 }
-                arg = r.args().isEmpty() ? null : averaged(r.fn(), r.args().get(0));
-                by = ordered || pair ? r.args().get(1) : null;
+                arg = r.args().isEmpty() ? null : inDoubles(r, averaged(r.fn(), r.args().get(0)));
+                by = ordered || pair ? inDoubles(r, r.args().get(1)) : null;
             } else {
                 arg = uniqueValueOf(reducers.get(j));
             }
@@ -1442,6 +1442,18 @@ final class DeephavenBatch {
      * is an integer on some (H2) -- is the server's already, and the column is read as it is (G1: one formula fewer for
      * the server to parse). Any other argument as the lowering wrote it.
      */
+    /**
+     * A statistic in doubles over a DECIMAL column (a BigDecimal: the DDL's) takes its argument as a double first, as SQL
+     * computes it -- an average of decimals is a DOUBLE (DuckDB's AVG), where the server's own average of BigDecimals
+     * keeps their scale (the stress corpus on Deephaven, task 15: a curve's mean 2.905, SQL's 2.9045833333333335). A
+     * value at the first or last of an order keeps its type.
+     */
+    private static SqlExpr inDoubles(SqlAgg.Reducer r, SqlExpr arg) {
+        boolean doubles = r.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == com.legend.sql.SqlType.Scalar.DOUBLE;
+        return doubles && r.fn() != SqlAgg.Fn.ARG_MIN && r.fn() != SqlAgg.Fn.ARG_MAX && Deephaven.bigDecimal(arg)
+                ? new SqlExpr.Cast(arg, com.legend.sql.SqlType.Scalar.DOUBLE) : arg;
+    }
+
     private static SqlExpr averaged(SqlAgg.Fn fn, SqlExpr arg) {
         if (fn == SqlAgg.Fn.AVG && arg instanceof SqlExpr.Call times && times.fn() == com.legend.sql.SqlFn.TIMES
                 && times.args().size() == 2 && times.args().get(0) instanceof SqlExpr.FloatLit one && one.value() == 1.0

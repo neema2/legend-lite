@@ -1421,6 +1421,34 @@ legend_java_binary(
     ],
 )
 
+# THE STRESS CORPUS ON DEEPHAVEN (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, task 15): every stress:: service test over
+# the corpus's store, its plan on a Deephaven runtime and its expectation (`cases OUT`: cases.json, tables.json), and the
+# rows a Deephaven server answered judged as the stress suites judge them (`judge CASES RESULTS OUT`). The browser lane
+# //datacube:deephaven_corpus_test sends the plans between the two (lite has no Java sender to Deephaven yet).
+legend_java_binary(
+    name = "stress_deephaven",
+    testonly = True,
+    jvm_flags = ["-Duser.timezone=GMT"],
+    main_class = "com.legend.integration.StressOnDeephaven",
+    tags = ["manual"],
+    visibility = ["//datacube:__pkg__"],
+    # it only plans and judges: no database driver
+    runtime_deps = [":core_tests_lib"],
+)
+
+genrule(
+    name = "stress_deephaven_cases",
+    testonly = True,
+    outs = [
+        "stress-deephaven/cases.json",
+        "stress-deephaven/tables.json",
+    ],
+    cmd = "$(location :stress_deephaven) cases $(RULEDIR)/stress-deephaven > /dev/null",
+    tags = ["manual"],
+    tools = [":stress_deephaven"],
+    visibility = ["//datacube:__pkg__"],
+)
+
 # COMPILE-ONLY LATENCY (the compiler plan's W1.0b under D25): what a user feels per query, no database; the stress
 # corpus's service tests or a NAME-TAB-QUERY set against a model. A measuring tool for a quiet machine, never a test:
 #   bazel run //core:compile_latency -- --corpus stress [--passes 2] [--out DIR]

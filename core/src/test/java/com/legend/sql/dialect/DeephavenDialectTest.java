@@ -364,6 +364,84 @@ class DeephavenDialectTest {
     }
 
     // ==================================================================
+    // The stress corpus on Deephaven, against the oracle (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, task 15): what it
+    // found the dialect writing that SQL does not compute
+    // ==================================================================
+
+    @Test
+    void aDoublesArithmeticTakesADecimalColumnAsItsDoubleValueFirst() {
+        // a decimal over a whole number is a DOUBLE (DuckDB's /), computed in doubles: the server's own BigDecimal division
+        // kept fewer digits (1666666.66666667 where SQL answers 1666666.6666666667)
+        String books = "#>{risk::Ref.books}#";
+        formulaOver(books, "bid", "$x.used / $x.bid", "((t0__used.doubleValue()) / t0__bid)");
+    }
+
+    @Test
+    void aCoalesceOfADecimalColumnAndADoubleIsWrittenInDoubles() {
+        // the server has no condition of a BigDecimal and a double ("Incompatible types in condition operation"): each
+        // value a double first, and the arithmetic over it a double's, with no doubleValue of its own
+        String b = batch("#>{risk::Ref.books}#->extend(~r:x|coalesce($x.lim, 0.0) / 10000.0)"
+                + "->select(~[bid, r])");
+        assertTrue(b.contains("(!isNull(t0__lim) ? (t0__lim.doubleValue()) : 0.0)"), b);
+        assertFalse(b.contains(").doubleValue())"), b);
+    }
+
+    @Test
+    void anAverageOfADecimalColumnIsAveragedInDoubles() {
+        // SQL's average of decimals is a DOUBLE; the server's own average of BigDecimals keeps their scale (a curve's mean
+        // 2.905 where SQL answers 2.9045833333333335)
+        String b = batch("#>{risk::Ref.books}#->groupBy(~[], ~[m:x|$x.used:y|$y->average()])");
+        assertTrue(b.contains("__a0 = ((1.0 * t0__used).doubleValue())"), b);
+    }
+
+    @Test
+    void aBitComparedWithZeroOrOneIsComparedWithFalseOrTrue() {
+        // SQL compares a BIT column with a number (a store filter's IS_INTERPOLATED = 0); the server's Boolean equals none
+        String model = """
+                ###Pure
+                Class risk::Pillar
+                {
+                  pid: Integer[1];
+                }
+                ###Relational
+                Database risk::Curve
+                (
+                  Table points (pid INTEGER PRIMARY KEY, interp BIT)
+                  Filter Quoted(points.interp = 0)
+                )
+                ###Mapping
+                Mapping risk::CurveMap
+                (
+                  risk::Pillar: Relational
+                  {
+                    ~filter [risk::Curve]Quoted
+                    ~mainTable [risk::Curve]points
+                    pid: [risk::Curve]points.pid
+                  }
+                )
+                ###Connection
+                RelationalDatabaseConnection risk::CurveConn
+                {
+                  store: risk::Curve;
+                  type: DuckDB;
+                  specification: DuckDB { };
+                  auth: Test;
+                }
+                ###Runtime
+                Runtime risk::CurveRT
+                {
+                  mappings: [ risk::CurveMap ];
+                  connections: [ risk::Curve: [ c: risk::CurveConn ] ];
+                }
+                """;
+        var ctx = Compiler.compileModel(model);
+        String b = new Deephaven().render(Compiler.query(ctx, "risk::Pillar.all()->project(~[pid:x|$x.pid])")
+                .lower("risk::CurveRT", false).plan());
+        assertTrue(b.contains("interp == false"), b);
+        assertFalse(b.contains("== 0L"), b);
+    }
+
+    // ==================================================================
     // K5: the runtime error and whole-number division (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md §2)
     // ==================================================================
 
