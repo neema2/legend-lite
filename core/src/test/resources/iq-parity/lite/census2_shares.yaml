@@ -1,0 +1,63 @@
+# The IQ scale program's real-life census, its second wave (2026-10-25): shares, the permutations a report
+# writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: integer_partitioned
+    sql: "SELECT id, 100.0 * v / SUM(v) OVER (PARTITION BY k) AS pct FROM g WHERE id < 10 AND v > 0 ORDER BY id"
+    profile: iq17-default
+  - id: bigint
+    sql: "SELECT id, 100.0 * w / SUM(w) OVER () AS pct FROM g WHERE id < 10 AND w IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: smallint
+    sql: "SELECT id, 100.0 * k / SUM(k) OVER () AS pct FROM g WHERE id < 10 AND k IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: numeric
+    sql: "SELECT id, n / SUM(n) OVER () AS r FROM g WHERE id < 10 AND n IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: numeric_times_100
+    sql: "SELECT id, 100 * n / SUM(n) OVER () AS pct FROM g WHERE id < 10 AND n IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: integer_times_100_whole
+    sql: "SELECT id, v * 100 / SUM(v) OVER () AS pct FROM g WHERE id < 10 AND v IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: nullif_guarded
+    sql: "SELECT id, 100.0 * v / NULLIF(SUM(v) OVER (), 0) AS pct FROM g WHERE id < 10 AND v IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: running_share
+    sql: "SELECT id, 100.0 * SUM(v) OVER (ORDER BY id) / SUM(v) OVER () AS pct FROM g WHERE id < 10 AND v IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: cast_dividend
+    sql: "SELECT id, CAST(v AS NUMERIC(10,2)) / SUM(v) OVER () AS r FROM g WHERE id < 10 AND v IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: grouped_integer
+    sql: "SELECT k, 100.0 * SUM(v) / SUM(SUM(v)) OVER () AS pct FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: grouped_numeric
+    sql: "SELECT k, SUM(n) * 100 / SUM(SUM(n)) OVER () AS pct FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: grouped_count
+    sql: "SELECT k, 100.0 * COUNT(*) / SUM(COUNT(*)) OVER () AS pct FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: grouped_count_partitioned
+    sql: "SELECT k, b, COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY k) AS pct FROM g WHERE id < 10 GROUP BY k, b ORDER BY k, b"
+    profile: iq17-default
+  - id: grouped_count_times_one
+    sql: "SELECT k, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER () AS r FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: grouped_smallint
+    sql: "SELECT j, 100.0 * SUM(k) / SUM(SUM(k)) OVER () AS pct FROM g WHERE id < 10 AND j IS NOT NULL GROUP BY j ORDER BY j"
+    profile: iq17-default
+  - id: grouped_bigint
+    sql: "SELECT k, 100.0 * SUM(w) / SUM(SUM(w)) OVER () AS pct FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: group_sum_divisor
+    sql: "SELECT k, 1.0 * COUNT(*) / SUM(v) AS r FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: group_sums_ratio
+    sql: "SELECT k, SUM(n) / SUM(v) AS r FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: over_a_derived_total
+    sql: "WITH s AS (SELECT k, SUM(v) AS sv FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k) SELECT k, 100.0 * sv / SUM(sv) OVER () AS pct FROM s ORDER BY k"
+    profile: iq17-default
+  - id: over_a_derived_numeric_total
+    sql: "WITH s AS (SELECT k, SUM(n) AS sn FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k) SELECT k, sn / SUM(sn) OVER () AS r FROM s ORDER BY k"
+    profile: iq17-default

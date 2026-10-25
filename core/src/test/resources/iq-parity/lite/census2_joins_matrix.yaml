@@ -1,0 +1,180 @@
+# The IQ scale program's real-life census, its second wave (2026-10-25): joins_matrix, the permutations a report
+# writes, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: inner_equi_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t JOIN u ON u.t_id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: inner_equi_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t JOIN u ON u.t_id = t.id GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: inner_equi_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t JOIN u ON u.t_id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: inner_equi_filtered_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t JOIN u ON u.t_id = t.id AND u.qty > 0 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: inner_equi_filtered_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t JOIN u ON u.t_id = t.id AND u.qty > 0 GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: inner_equi_filtered_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t JOIN u ON u.t_id = t.id AND u.qty > 0 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: inner_non_equi_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t JOIN u ON u.t_id >= t.id + 2 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: inner_non_equi_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t JOIN u ON u.t_id >= t.id + 2 GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: inner_non_equi_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t JOIN u ON u.t_id >= t.id + 2 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: inner_or_condition_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t JOIN u ON u.t_id = t.id OR u.id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: inner_or_condition_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t JOIN u ON u.t_id = t.id OR u.id = t.id GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: inner_or_condition_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t JOIN u ON u.t_id = t.id OR u.id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: left_equi_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: left_equi_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t LEFT JOIN u ON u.t_id = t.id GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: left_equi_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t LEFT JOIN u ON u.t_id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: left_equi_filtered_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id AND u.qty > 0 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: left_equi_filtered_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t LEFT JOIN u ON u.t_id = t.id AND u.qty > 0 GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: left_equi_filtered_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t LEFT JOIN u ON u.t_id = t.id AND u.qty > 0 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: left_non_equi_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t LEFT JOIN u ON u.t_id >= t.id + 2 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: left_non_equi_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t LEFT JOIN u ON u.t_id >= t.id + 2 GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: left_non_equi_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t LEFT JOIN u ON u.t_id >= t.id + 2 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: left_or_condition_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t LEFT JOIN u ON u.t_id = t.id OR u.id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: left_or_condition_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t LEFT JOIN u ON u.t_id = t.id OR u.id = t.id GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: left_or_condition_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t LEFT JOIN u ON u.t_id = t.id OR u.id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: right_equi_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t RIGHT JOIN u ON u.t_id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: right_equi_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t RIGHT JOIN u ON u.t_id = t.id GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: right_equi_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t RIGHT JOIN u ON u.t_id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: right_equi_filtered_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t RIGHT JOIN u ON u.t_id = t.id AND u.qty > 0 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: right_equi_filtered_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t RIGHT JOIN u ON u.t_id = t.id AND u.qty > 0 GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: right_equi_filtered_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t RIGHT JOIN u ON u.t_id = t.id AND u.qty > 0 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: right_non_equi_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t RIGHT JOIN u ON u.t_id >= t.id + 2 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: right_non_equi_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t RIGHT JOIN u ON u.t_id >= t.id + 2 GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: right_non_equi_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t RIGHT JOIN u ON u.t_id >= t.id + 2 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: right_or_condition_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t RIGHT JOIN u ON u.t_id = t.id OR u.id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: right_or_condition_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t RIGHT JOIN u ON u.t_id = t.id OR u.id = t.id GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: right_or_condition_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t RIGHT JOIN u ON u.t_id = t.id OR u.id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: full_equi_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t FULL OUTER JOIN u ON u.t_id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: full_equi_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t FULL OUTER JOIN u ON u.t_id = t.id GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: full_equi_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t FULL OUTER JOIN u ON u.t_id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: full_equi_filtered_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t FULL OUTER JOIN u ON u.t_id = t.id AND u.qty > 0 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: full_equi_filtered_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t FULL OUTER JOIN u ON u.t_id = t.id AND u.qty > 0 GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: full_equi_filtered_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t FULL OUTER JOIN u ON u.t_id = t.id AND u.qty > 0 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: full_non_equi_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t FULL OUTER JOIN u ON u.t_id >= t.id + 2 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: full_non_equi_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t FULL OUTER JOIN u ON u.t_id >= t.id + 2 GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: full_non_equi_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t FULL OUTER JOIN u ON u.t_id >= t.id + 2 ORDER BY tid, uid"
+    profile: iq17-default
+  - id: full_or_condition_rows
+    sql: "SELECT t.id AS tid, u.id AS uid FROM t FULL OUTER JOIN u ON u.t_id = t.id OR u.id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: full_or_condition_grouped
+    sql: "SELECT t.id AS tid, COUNT(u.id) AS n, SUM(u.qty) AS q FROM t FULL OUTER JOIN u ON u.t_id = t.id OR u.id = t.id GROUP BY t.id ORDER BY tid"
+    profile: iq17-default
+  - id: full_or_condition_windowed
+    sql: "SELECT t.id AS tid, u.id AS uid, COUNT(*) OVER (PARTITION BY t.id) AS n FROM t FULL OUTER JOIN u ON u.t_id = t.id OR u.id = t.id ORDER BY tid, uid"
+    profile: iq17-default
+  - id: chain_of_3_inner
+    sql: "SELECT a1.id, a3.vc FROM t a1 JOIN t a2 ON a2.id = a1.id JOIN t a3 ON a3.id = a2.id ORDER BY a1.id"
+    profile: iq17-default
+  - id: chain_of_3_mixed
+    sql: "SELECT a1.id, COUNT(*) AS c FROM t a1 JOIN t a2 ON a2.id = a1.id LEFT JOIN t a3 ON a3.id = a2.id GROUP BY a1.id ORDER BY a1.id"
+    profile: iq17-default
+  - id: chain_of_5_inner
+    sql: "SELECT a1.id, a5.vc FROM t a1 JOIN t a2 ON a2.id = a1.id JOIN t a3 ON a3.id = a2.id JOIN t a4 ON a4.id = a3.id JOIN t a5 ON a5.id = a4.id ORDER BY a1.id"
+    profile: iq17-default
+  - id: chain_of_5_mixed
+    sql: "SELECT a1.id, COUNT(*) AS c FROM t a1 JOIN t a2 ON a2.id = a1.id LEFT JOIN t a3 ON a3.id = a2.id JOIN t a4 ON a4.id = a1.id LEFT JOIN t a5 ON a5.id = a4.id GROUP BY a1.id ORDER BY a1.id"
+    profile: iq17-default
+  - id: chain_of_8_inner
+    sql: "SELECT a1.id, a8.vc FROM t a1 JOIN t a2 ON a2.id = a1.id JOIN t a3 ON a3.id = a2.id JOIN t a4 ON a4.id = a3.id JOIN t a5 ON a5.id = a4.id JOIN t a6 ON a6.id = a5.id JOIN t a7 ON a7.id = a6.id JOIN t a8 ON a8.id = a7.id ORDER BY a1.id"
+    profile: iq17-default
+  - id: chain_of_8_mixed
+    sql: "SELECT a1.id, COUNT(*) AS c FROM t a1 JOIN t a2 ON a2.id = a1.id LEFT JOIN t a3 ON a3.id = a2.id JOIN t a4 ON a4.id = a1.id LEFT JOIN t a5 ON a5.id = a4.id JOIN t a6 ON a6.id = a1.id LEFT JOIN t a7 ON a7.id = a6.id JOIN t a8 ON a8.id = a1.id GROUP BY a1.id ORDER BY a1.id"
+    profile: iq17-default
+  - id: chain_of_12_inner
+    sql: "SELECT a1.id, a12.vc FROM t a1 JOIN t a2 ON a2.id = a1.id JOIN t a3 ON a3.id = a2.id JOIN t a4 ON a4.id = a3.id JOIN t a5 ON a5.id = a4.id JOIN t a6 ON a6.id = a5.id JOIN t a7 ON a7.id = a6.id JOIN t a8 ON a8.id = a7.id JOIN t a9 ON a9.id = a8.id JOIN t a10 ON a10.id = a9.id JOIN t a11 ON a11.id = a10.id JOIN t a12 ON a12.id = a11.id ORDER BY a1.id"
+    profile: iq17-default
+  - id: chain_of_12_mixed
+    sql: "SELECT a1.id, COUNT(*) AS c FROM t a1 JOIN t a2 ON a2.id = a1.id LEFT JOIN t a3 ON a3.id = a2.id JOIN t a4 ON a4.id = a1.id LEFT JOIN t a5 ON a5.id = a4.id JOIN t a6 ON a6.id = a1.id LEFT JOIN t a7 ON a7.id = a6.id JOIN t a8 ON a8.id = a1.id LEFT JOIN t a9 ON a9.id = a8.id JOIN t a10 ON a10.id = a1.id LEFT JOIN t a11 ON a11.id = a10.id JOIN t a12 ON a12.id = a1.id GROUP BY a1.id ORDER BY a1.id"
+    profile: iq17-default
+  - id: chain_of_16_inner
+    sql: "SELECT a1.id, a16.vc FROM t a1 JOIN t a2 ON a2.id = a1.id JOIN t a3 ON a3.id = a2.id JOIN t a4 ON a4.id = a3.id JOIN t a5 ON a5.id = a4.id JOIN t a6 ON a6.id = a5.id JOIN t a7 ON a7.id = a6.id JOIN t a8 ON a8.id = a7.id JOIN t a9 ON a9.id = a8.id JOIN t a10 ON a10.id = a9.id JOIN t a11 ON a11.id = a10.id JOIN t a12 ON a12.id = a11.id JOIN t a13 ON a13.id = a12.id JOIN t a14 ON a14.id = a13.id JOIN t a15 ON a15.id = a14.id JOIN t a16 ON a16.id = a15.id ORDER BY a1.id"
+    profile: iq17-default
+  - id: chain_of_16_mixed
+    sql: "SELECT a1.id, COUNT(*) AS c FROM t a1 JOIN t a2 ON a2.id = a1.id LEFT JOIN t a3 ON a3.id = a2.id JOIN t a4 ON a4.id = a1.id LEFT JOIN t a5 ON a5.id = a4.id JOIN t a6 ON a6.id = a1.id LEFT JOIN t a7 ON a7.id = a6.id JOIN t a8 ON a8.id = a1.id LEFT JOIN t a9 ON a9.id = a8.id JOIN t a10 ON a10.id = a1.id LEFT JOIN t a11 ON a11.id = a10.id JOIN t a12 ON a12.id = a1.id LEFT JOIN t a13 ON a13.id = a12.id JOIN t a14 ON a14.id = a1.id LEFT JOIN t a15 ON a15.id = a14.id JOIN t a16 ON a16.id = a1.id GROUP BY a1.id ORDER BY a1.id"
+    profile: iq17-default
+  - id: star_join_three_dimensions
+    sql: "SELECT g.k, t.vc, u.label, COUNT(*) AS n FROM g JOIN t ON t.id = g.id LEFT JOIN u ON u.t_id = t.id WHERE g.id < 10 GROUP BY g.k, t.vc, u.label ORDER BY g.k, t.vc, u.label"
+    profile: iq17-default
