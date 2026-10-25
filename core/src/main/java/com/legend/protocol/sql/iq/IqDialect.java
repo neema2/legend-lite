@@ -6009,14 +6009,28 @@ public final class IqDialect implements InputDialect {
      * {@code l / r} where either is a NUMERIC, under IQ's engine (IQ island, 2026-10-15; the research's D-N1, measured
      * on IQ 17.1): a NUMERIC of scale max(6, s1 + (p2 - s2) + 1) -- the divisor's digits before its point counted as
      * IQ counts them, a constant's by its value (100: 3), a SMALLINT's 5, an INTEGER's 10, a BIGINT's 19, a BIT's 1,
-     * a COUNT's 20 -- its value the quotient cut toward zero there (-0.5 / 3 is -.166666), wherever it is read; a zero
+     * a COUNT's 20, a sum's as IQ's engine computes it ({@link IqType#quotientDigits}) -- its value the quotient cut
+     * toward zero there (-0.5 / 3 is -.166666), wherever it is read; a zero
      * divisor is IQ's error. IQ reads an integer column's digits from its data (a column of 1 to 7 divides as one
      * digit, D-N3), lite from its type. Refused by name: a step of more than lite's 38 digits.
      */
     private Tx iqQuotient(SqlAst.Binary b, Tx l, Tx r) {
+        if (!decimal(l) && r.detail() instanceof IqType total && total.quotientDigits() != null
+                && total.quotientDigits() <= 18) {
+            // the IQ scale program, 2026-10-25 (the census's shares of a total, measured on IQ 17.1): IQ's engine
+            // computes an INTEGER's total as an integer (IqType.quotientDigits), and an integer by it divides whole: v *
+            // 100 / SUM(v) OVER () is the BIGINT 38, SUM(v) * 100 / SUM(SUM(v)) OVER () the BIGINT 23
+            Tx whole = SqlToPure.strict(Kind.INTEGER, List.of(r), v -> SqlToPure.call("floor", v.get(0)));
+            return integerArithmetic(b, l, new Tx(whole.vs(), Kind.INTEGER, whole.nullable(), null, IqType.integer(
+                    "BIGINT", IqType.BIGINT_MIN, IqType.BIGINT_MAX, true), whole.guard(), whole.body()));
+        }
         int[] lt = iqNumericType(l, b.left());
         int[] rt = iqNumericType(r, b.right());
-        int s = Math.max(6, lt[1] + rt[0] - rt[1] + 1);
+        // the IQ scale program, 2026-10-25 (the share of a total; measured on IQ 17.1): the divisor's digits as IQ's
+        // engine computes it, where they are not its type's (IqType.quotientDigits: a window SUM's)
+        int counted = r.detail() instanceof IqType q && q.quotientDigits() != null ? q.quotientDigits()
+                : rt[0] - rt[1];
+        int s = Math.max(6, lt[1] + counted + 1);
         int whole1 = lt[0] - lt[1];
         int whole2 = rt[0] - rt[1];
         // IQ island, 2026-10-15 (the corpus lane: COUNT(id) * 100.0 / COUNT(*), IQ's NUMERIC(44,21), in 168 of the
@@ -6082,16 +6096,22 @@ public final class IqDialect implements InputDialect {
                 return new int[] {20, 0};
             }
             if (type.isInteger() && integerLiteral(e) == null) {
-                return new int[] {switch (type.family()) {
-                    case "BIT" -> 1;
-                    case "SMALLINT" -> 5;
-                    case "INTEGER" -> 10;
-                    case "BIGINT" -> 19;
-                    default -> throw new IllegalStateException("an integer family IQ divides by: " + type.family());
-                }, 0};
+                return new int[] {integerDigits(type.family()), 0};
             }
         }
         return numericType(t, e, operator);
+    }
+
+    /** The digits IQ's engine counts an integer type with in NUMERIC arithmetic: a BIT's 1, a SMALLINT's 5, an
+     *  INTEGER's 10, a BIGINT's 19. */
+    static int integerDigits(String family) {
+        return switch (family) {
+            case "BIT" -> 1;
+            case "SMALLINT" -> 5;
+            case "INTEGER" -> 10;
+            case "BIGINT" -> 19;
+            default -> throw new IllegalStateException("an integer family IQ divides by: " + family);
+        };
     }
 
     /** A number literal's written value, signs applied ({@code 1.5}, {@code -2}); null for any other expression. */

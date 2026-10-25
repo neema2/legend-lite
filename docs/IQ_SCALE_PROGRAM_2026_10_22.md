@@ -640,3 +640,34 @@ says so.
     to classify. BIRD 350 PASS and 132 BOTH_ERROR of 500, 3 FAIL (ties); TPC-H 19 PASS of 20, 1 BOTH_ERROR; TPC-DS 64
     PASS and 19 BOTH_ERROR of 87, 4 FAIL (the share of total's places). No wrong answer to a query IQ answers that is
     a translation's defect.
+- 2026-10-25, **the census's second wave: the permutations, and a share of a total typed as IQ computes it.**
+  - **The cases** (`lite/census2_*`, iq17-default, snapped by the Mac session from the live IQ, d925a0ac, each
+    confirmed by a second run): each of eight aggregates over each of eight frame forms, partitioned or not (120); the
+    ranking and offset functions by three orders (56); each join kind by four kinds of condition, read as rows, grouped
+    and windowed, and chains of 3 to 16, inner and mixed (59); subqueries by kind, correlation and depth (20); GROUP BY
+    keys by HAVING forms (8: each MIN(s) reads the select list's alias s, SUM(v), so IQ raises -156, a nested
+    aggregate, and lite does; the four HAVING ... AND cases the D-E2 lint flags were dropped); twenty shares of a total.
+  - **Judged at 0c17fe0b, translation alone:** 246 PASS and 18 BOTH_ERROR of 287. Joins 59 of 59, subqueries 20 of 20;
+    frames 112 and 8 refused (MAX of a string over a frame that starts after the partition's first row: IQ answers NUL
+    bytes, its defect, which the snaps show); ranking 48 and 6 of IQ's -1005028 (CUME_DIST of a composite key), lite
+    raising each. 14 FAIL: 12 shares' places, 2 LEADs.
+  - **A share of a total**, from the Mac session's executed types (EXPRTYPE describes the front end's rules only, not
+    the engine's): IQ's engine computes a sum in a narrower type than it shows, and a quotient by it counts those digits
+    (`IqType.quotientDigits`). A window SUM in its argument's digits and one more (an INTEGER's 11: 100.0 * v / SUM(v)
+    OVER () has 12 places; a BIGINT's 20; a NUMERIC(p,s)'s a NUMERIC(p+1,s)), two more over an aggregate (SUM(SUM(v))
+    OVER () 13, of COUNTs 22, of a SMALLINT's sum 21); a group SUM of an INTEGER or a BIGINT in one more (1.0 *
+    COUNT(*) / SUM(v) has 12 places), of a SMALLINT the BIGINT it shows. An INTEGER's total is an integer: an integer
+    by it divides whole (v * 100 / SUM(v) OVER () is the BIGINT 38). NULLIF takes the shown NUMERIC(20,0) (21 places).
+    18 of the 20 shares PASS, and the census's share_of_total and windows/share_of_the_total_is_refused (IQ's BIGINT 23).
+  - **Listed:** LEAD's string default, cut by IQ 17.1 to a length its earlier rows leave ('none' shown 'n' or 'no':
+    iq-defect); a window total over a derived table's aggregate column, typed far wider by IQ (a NUMERIC(8,2) sum's
+    divides as 21 digits) by a rule not measured yet (derived-total). Its probes (`lite/census2_shares_derived`, 10)
+    and the grouping matrix written again (`lite/census2_grouping_keys`, 16) are with the Mac session to snap.
+  - **Also:** DATEFLOOR, DATECEILING and DATEROUND refused outside IQ's engine (its front end's -134) and to a multiple;
+    m1review's MEDIAN of SMALLINT extremes the live IQ's alone, its front-end twin (sqla17-default) SQL Anywhere 17's -1;
+    the Mac session's duplicate output names merged (1cf35a18), presentName stripping a repeated name's mark only (5
+    pivot tests had broken).
+  - **Census 2 now:** 257 PASS, 14 BOTH_ERROR, 8 refused (IQ's defect), 4 FAIL listed, of 283.
+  - **The Mac session's benchmark re-judges at dc45fbfd:** tpcds_iq 7,884 PASS and 366 unordered (FAIL 384 to 364, the
+    moves ties), job_iq unchanged (4,811 PASS), job_rows 3,453 PASS; tpch_iq (9,427 queries) dies of OutOfMemoryError
+    while typing, a regression since landing 5, being bisected.

@@ -20,9 +20,15 @@ import java.util.Set;
  * variable's (its value written as a literal, which lite's lowering widens near 2^63, a HUGEINT on DuckDB, a NUMERIC(38)
  * on Postgres), and anything computed from one; a constant there is too ({@link #wider}) -- so that a BIGINT result
  * over it is checked by the island, not left to the database's own 64-bit overflow, which never comes.
+ *
+ * <p>The IQ scale program, 2026-10-25 (the share of a total; measured on IQ 17.1): {@code quotientDigits}, the digits
+ * before its point IQ's engine counts a value with as a quotient's divisor, where they are not its type's -- a sum's:
+ * IQ computes it in a narrower type than it shows (a window SUM of an INTEGER shows a NUMERIC(20,0) and divides as one
+ * of 11 digits: 100.0 * v / SUM(v) OVER () has 12 places); null, its type's.
  */
 public record IqType(String spelling, boolean widened, @com.legend.base.Nullable BigInteger low,
-        @com.legend.base.Nullable BigInteger high, boolean loose) implements InputDialect.TypeDetail {
+        @com.legend.base.Nullable BigInteger high, boolean loose, @com.legend.base.Nullable Integer quotientDigits)
+        implements InputDialect.TypeDetail {
 
     /** IQ's integer types this island computes with, narrowest first: BIT is an integer, 0 or 1, in IQ. TINYINT and
      *  the unsigned types are not among them (their arithmetic widens to unsigned types, refused by name). */
@@ -41,13 +47,24 @@ public record IqType(String spelling, boolean widened, @com.legend.base.Nullable
 
     /** A type with nothing known of its values beyond it: a column's declared type. */
     public IqType(String spelling) {
-        this(spelling, false, null, null, false);
+        this(spelling, false, null, null, false, null);
     }
 
     /** A type of a value in {@code low..high}, never computed wider than 64 bits. */
     public IqType(String spelling, boolean widened, @com.legend.base.Nullable BigInteger low,
             @com.legend.base.Nullable BigInteger high) {
-        this(spelling, widened, low, high, false);
+        this(spelling, widened, low, high, false, null);
+    }
+
+    /** A type of a value in {@code low..high}, which the database may compute wider than 64 bits when {@code loose}. */
+    public IqType(String spelling, boolean widened, @com.legend.base.Nullable BigInteger low,
+            @com.legend.base.Nullable BigInteger high, boolean loose) {
+        this(spelling, widened, low, high, loose, null);
+    }
+
+    /** This type, divided by as a value of {@code digits} before its point ({@code quotientDigits}). */
+    IqType dividingAs(int digits) {
+        return new IqType(spelling, widened, low, high, loose, digits);
     }
 
     /** {@code family} of a value in {@code low..high}, computed in 64 bits by the database when {@code widened}. */

@@ -959,8 +959,16 @@ final class IqWindows {
                 ColSpec s = new ColSpec(at.name(), at.overWindow(SqlToPure.valueOf(dec)), at.overGroup(
                         SqlToPure.call("sum", at.values())), null);
                 // measured on IQ 17.1: a SUM of COUNTs (UNSIGNED BIGINTs) is a NUMERIC(22,0)
-                return new SqlToPure.WindowFunction(List.of(s), null, Kind.DECIMAL, true, new IqType(unsigned
-                        ? "NUMERIC(22,0)" : "NUMERIC(20,0)"));
+                IqType total = new IqType(unsigned ? "NUMERIC(22,0)" : "NUMERIC(20,0)");
+                // the IQ scale program, 2026-10-25 (the census's shares of a total, measured on IQ 17.1): IQ's engine
+                // computes the total in one digit more than its argument's (an INTEGER's 11: 100.0 * v / SUM(v) OVER ()
+                // has 12 places; a BIGINT's 20), two more over an aggregate (SUM(SUM(v)) OVER () 13, of COUNTs 22, of a
+                // SMALLINT's sum 21), and an INTEGER's as an integer, which a quotient by it counts
+                // (IqType.quotientDigits)
+                Integer counted = java.util.Objects.requireNonNull(type, "an integer's type").quotientDigits();
+                int digits = (counted != null ? counted : unsigned ? 20 : IqDialect.integerDigits(family))
+                        + (IqAggregates.hasAggregateCall(f.args().get(0)) ? 2 : 1);
+                return new SqlToPure.WindowFunction(List.of(s), null, Kind.DECIMAL, true, total.dividingAs(digits));
             }
             int precision = switch (family) {
                 case "SMALLINT" -> 35;
@@ -989,8 +997,12 @@ final class IqWindows {
             if (!average) {
                 ColSpec spec = new ColSpec(at.name(), at.overWindow(SqlToPure.valueOf(dec)), at.overGroup(
                         SqlToPure.call("sum", at.values())), null);
+                // under IQ's engine one digit more than a column's, two more than an aggregate's (the IQ scale
+                // program, 2026-10-25, measured on IQ 17.1: n / SUM(n) OVER () has 9 places, SUM(SUM(n)) OVER () is a
+                // NUMERIC(10,2))
                 return new SqlToPure.WindowFunction(List.of(spec), null, Kind.DECIMAL, true,
-                        new IqType("NUMERIC(" + (iqEngine ? p + 2 : Math.min(p + 8, 38)) + "," + s + ")"));
+                        new IqType("NUMERIC(" + (iqEngine ? p + (IqAggregates.hasAggregateCall(f.args().get(0))
+                                ? 2 : 1) : Math.min(p + 8, 38)) + "," + s + ")"));
             }
             if (!iqEngine) {
                 throw SqlTranslationException.unsupported("AVG of a NUMERIC over a window is not supported in SQL"

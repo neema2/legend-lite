@@ -268,7 +268,8 @@ final class IqAggregates {
         }
     }
 
-    private static boolean hasAggregateCall(SqlAst.Expr e) {
+    /** Whether {@code e} calls an aggregate anywhere in it. */
+    static boolean hasAggregateCall(SqlAst.Expr e) {
         return e instanceof SqlAst.FunctionCall f && named(f) || IqDialect.children(e).stream().anyMatch(
                 IqAggregates::hasAggregateCall);
     }
@@ -1688,7 +1689,9 @@ final class IqAggregates {
                 return new SqlToPure.Aggregation(List.of(spec), null, Kind.INTEGER, true, new IqType("NUMERIC(18,0)"));
             }
             if (engine == IqDialect.Engine.IQ) {
-                return iqIntegerSum(at, x, values, family);
+                // a SMALLINT's sum IQ computes as the BIGINT it shows (the census's grouped_smallint)
+                return iqIntegerSum(at, x, values, family, family.equals("SMALLINT") ? null
+                        : IqDialect.integerDigits(family) + 1);
             }
             boolean guard = readEverywhere(f, dialect);
             boolean bigint = family.equals("BIGINT");
@@ -1701,7 +1704,7 @@ final class IqAggregates {
                 "UNSIGNED BIGINT")) {
             // IQ island, 2026-10-15 (the corpus lane; measured on IQ 17.1): a SUM of COUNTs (a derived table's) is a
             // NUMERIC(35,0), read as iqIntegerSum reads an INTEGER's: a whole number of 64 bits
-            return iqIntegerSum(at, x, values, "BIGINT");
+            return iqIntegerSum(at, x, values, "BIGINT", null);
         }
         if ((kind == Kind.DECIMAL || kind == Kind.INTEGER) && type != null && type.family().equals("NUMERIC")) {
             if (engine == IqDialect.Engine.IQ) {
@@ -1777,14 +1780,18 @@ final class IqAggregates {
      * sum. IQ types a SMALLINT's sum a BIGINT, an INTEGER's or a BIGINT's a NUMERIC(20,0) (whatever the values); lite
      * reads each as a whole number of 64 bits (the scale-0 NUMERIC IQ shows holds the same value), so that arithmetic
      * on it is integer arithmetic, which IQ's engine widens as it does a column's. A sum of BIGINTs past 64 bits is the
-     * database's own overflow, where IQ answers the NUMERIC.
+     * database's own overflow, where IQ answers the NUMERIC. The IQ scale program, 2026-10-25 (the share of a total,
+     * measured on IQ 17.1): IQ's engine computes an INTEGER's or a BIGINT's sum in one digit more than its argument's
+     * ({@code digits}: 1.0 * COUNT(*) / SUM(v) has 12 places), which a quotient by it counts
+     * ({@link IqType#quotientDigits}); null, the type's (a SMALLINT's sum divides as the BIGINT it is).
      */
     private static SqlToPure.Aggregation iqIntegerSum(SqlToPure.Grouping at, Tx x, ValueSpecification values,
-            String family) {
+            String family, @com.legend.base.Nullable Integer digits) {
         ColSpec spec = new ColSpec(at.name(), at.overRow(SqlToPure.valueOf(x)), at.overGroup(SqlToPure.call("sum",
                 values)), null);
-        return new SqlToPure.Aggregation(List.of(spec), null, Kind.INTEGER, true, IqType.integer("BIGINT",
-                IqType.BIGINT_MIN, IqType.BIGINT_MAX, true, family.equals("BIGINT")));
+        IqType type = IqType.integer("BIGINT", IqType.BIGINT_MIN, IqType.BIGINT_MAX, true, family.equals("BIGINT"));
+        return new SqlToPure.Aggregation(List.of(spec), null, Kind.INTEGER, true, digits == null ? type
+                : type.dividingAs(digits));
     }
 
     /**
