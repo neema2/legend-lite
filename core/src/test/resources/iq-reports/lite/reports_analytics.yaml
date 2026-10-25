@@ -1,0 +1,18 @@
+# The IQ scale program's realistic reports (2026-10-25): analytics, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: time_on_page_by_lead
+    sql: "SELECT id, customer_id, event_ts, url, DATEDIFF(SECOND, event_ts, LEAD(event_ts) OVER (PARTITION BY customer_id, device ORDER BY event_ts, id)) AS seconds_on_page FROM web_events WHERE customer_id BETWEEN 1 AND 6 ORDER BY customer_id, event_ts, id"
+    profile: iq17-default
+  - id: exit_pages
+    sql: "SELECT CASE WHEN LOCATE(url, '?') > 0 THEN SUBSTRING(url, 25, LOCATE(url, '?') - 25) ELSE SUBSTRING(url, 25) END AS page, COUNT(*) AS exits FROM (SELECT id, LOWER(url) AS url, LEAD(id) OVER (PARTITION BY customer_id, device ORDER BY event_ts, id) AS next_id FROM web_events WHERE customer_id IS NOT NULL) e WHERE next_id IS NULL GROUP BY CASE WHEN LOCATE(url, '?') > 0 THEN SUBSTRING(url, 25, LOCATE(url, '?') - 25) ELSE SUBSTRING(url, 25) END ORDER BY exits DESC, page"
+    profile: iq17-default
+  - id: bounce_rate_by_device
+    sql: "WITH visits AS (SELECT device, customer_id, CAST(event_ts AS DATE) AS day, COUNT(*) AS pages FROM web_events WHERE customer_id IS NOT NULL GROUP BY device, customer_id, CAST(event_ts AS DATE)) SELECT device, COUNT(*) AS visits, SUM(CASE WHEN pages = 1 THEN 1 ELSE 0 END) AS bounces, ROUND(100.0 * SUM(CASE WHEN pages = 1 THEN 1 ELSE 0 END) / COUNT(*), 1) AS bounce_pct, MAX(pages) AS deepest FROM visits GROUP BY device ORDER BY device"
+    profile: iq17-default
+  - id: entry_and_exit_per_visit
+    sql: "SELECT DISTINCT customer_id, device, CAST(event_ts AS DATE) AS day, FIRST_VALUE(url) OVER (PARTITION BY customer_id, device, CAST(event_ts AS DATE) ORDER BY event_ts, id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS entry_url, LAST_VALUE(url) OVER (PARTITION BY customer_id, device, CAST(event_ts AS DATE) ORDER BY event_ts, id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS exit_url FROM web_events WHERE customer_id BETWEEN 1 AND 10 ORDER BY customer_id, device, day"
+    profile: iq17-default
+  - id: conditional_running_counts
+    sql: "SELECT id, customer_id, event_ts, SUM(CASE WHEN url LIKE '%/cart%' THEN 1 ELSE 0 END) OVER (PARTITION BY customer_id ORDER BY event_ts, id ROWS UNBOUNDED PRECEDING) AS carts_so_far, SUM(CASE WHEN url LIKE '%/order/confirmation%' THEN 1 ELSE 0 END) OVER (PARTITION BY customer_id) AS orders_total FROM web_events WHERE customer_id IN (2, 4, 6, 8) ORDER BY customer_id, event_ts, id"
+    profile: iq17-default

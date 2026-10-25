@@ -1,0 +1,12 @@
+# The IQ scale program's realistic reports (2026-10-25): stock, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: abc_xyz_matrix
+    sql: "WITH monthly AS (SELECT oi.product_id, MONTH(o.order_ts) AS mo, SUM(oi.quantity) AS units FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE YEAR(o.order_ts) = 2025 AND o.status <> 'cancelled' GROUP BY oi.product_id, MONTH(o.order_ts)), stats AS (SELECT product_id, SUM(units) AS units, COUNT(*) AS months_sold, MAX(units) - MIN(units) AS swing FROM monthly GROUP BY product_id) SELECT s.product_id, p.name, s.units, s.months_sold, CASE WHEN s.units >= 30 THEN 'A' WHEN s.units >= 10 THEN 'B' ELSE 'C' END AS volume_class, CASE WHEN s.months_sold >= 6 AND s.swing <= 5 THEN 'X' WHEN s.months_sold >= 3 THEN 'Y' ELSE 'Z' END AS steadiness FROM stats s JOIN products p ON p.id = s.product_id ORDER BY s.units DESC, s.product_id"
+    profile: iq17-default
+  - id: reorder_suggestions
+    sql: "SELECT p.id, p.name, i.on_hand, i.reorder_point, GREATER(i.reorder_point * 2 - i.on_hand, 0) AS suggested_order, CASE WHEN i.on_hand = 0 THEN 'urgent' WHEN i.on_hand < i.reorder_point THEN 'soon' ELSE 'none' END AS urgency FROM inventory i JOIN products p ON p.id = i.product_id WHERE i.snapshot_date = '2025-12-01' AND p.discontinued = 0 ORDER BY suggested_order DESC, p.id"
+    profile: iq17-default
+  - id: months_out_of_stock_per_category
+    sql: "SELECT p.category, SUM(CASE WHEN i.on_hand = 0 THEN 1 ELSE 0 END) AS product_months_out, COUNT(DISTINCT CASE WHEN i.on_hand = 0 THEN i.product_id END) AS products_affected, COUNT(*) AS snapshots FROM inventory i JOIN products p ON p.id = i.product_id GROUP BY p.category ORDER BY p.category"
+    profile: iq17-default
