@@ -1442,14 +1442,16 @@ DESK = TableTools.newTable(
         TableTools.doubleCol('PNL_TARGET', DESKS.collect { Math.round(deskGross[it.id] * 0.0005d / 1e3d) * 1e3d } as double[]),
         TableTools.stringCol('BUSINESS_UNIT_ID', (['BU-MARKETS'] * nd) as String[]))
 
-// each desk's limits: its day's loss (set so a bad day breaches it: about a fifth of a percent of its gross), and its
-// gross notional; the derivatives desk's vega too
+// each desk's limits: its day's loss, set by how far its book moves in a day (a quarter of a percent of an equity desk's
+// gross, about a bad day's; crypto's and options' moves are wider), so a bad day breaches it; and its gross notional,
+// with some room above the prior close's
 limitRows = []
 DESKS.each { d ->
     double gross = deskGross[d.id] as double
     if (gross <= 0) return
-    limitRows << [id: 'LIM-' + d.id.substring(5) + '-LOSS', type: 'DAY_LOSS', amount: Math.max(2.5e4d, Math.round(gross * 0.0025d / 1e4d) * 1e4d), desk: d.id]
-    limitRows << [id: 'LIM-' + d.id.substring(5) + '-GROSS', type: 'GROSS_NOTIONAL', amount: Math.round(gross * 1.25d / 1e6d) * 1e6d, desk: d.id]
+    double loss = d.asset == 'CRYPTO' ? 0.012d : d.asset == 'EQUITY_DERIVATIVES' ? 0.04d : 0.0025d
+    limitRows << [id: 'LIM-' + d.id.substring(5) + '-LOSS', type: 'DAY_LOSS', amount: Math.max(2.5e4d, Math.round(gross * loss / 1e4d) * 1e4d), desk: d.id]
+    limitRows << [id: 'LIM-' + d.id.substring(5) + '-GROSS', type: 'GROSS_NOTIONAL', amount: Math.round(gross * (1.1d + 0.5d * bank.nextDouble()) / 1e6d) * 1e6d, desk: d.id]
 }
 int nl = limitRows.size()
 RISK_LIMIT = TableTools.newTable(

@@ -294,6 +294,295 @@ async function marketMapPage(types: SourceTypes): Promise<PageDocument> {
   });
 }
 
+// ---------------------------------------------------------------- K9: real-time P&L with limits
+
+const JOIN_INNER = 'meta::pure::functions::relation::JoinKind.INNER';
+
+/** Every cash position (a stock's, a coin's) marked to its live mid: its day's P&L against the prior close, its value,
+ *  its gross and its P&L against its cost. */
+export const POSITIONS_LIVE = 'positions::Position.all()->filter(x|$x.instrument.assetClass != \'OPTION\')->project(~['
+  + 'desk:x|$x.book.desk.name, book:x|$x.book.name, ticker:x|$x.instrument.ticker, sector:x|$x.instrument.sector.name,'
+  + ' inst:x|$x.instrument.instrumentId, qty:x|$x.quantity, cost:x|$x.averageCost])'
+  + `->join(${QUOTE}->project(~[qinst:x|$x.instrument.instrumentId, mid:x|$x.mid, close:x|$x.closePrice]), ${JOIN_INNER},`
+  + ' {p, q|$p.inst == $q.qinst})'
+  + '->extend(~[mv:x|$x.qty * $x.mid, dayPnl:x|$x.qty * ($x.mid - $x.close->toOne()), gross:x|abs($x.qty * $x.mid),'
+  + ' sinceCost:x|$x.qty * ($x.mid - $x.cost)])';
+
+/** A desk's limit of `type`, by its desk's name, as `name`. */
+const limitOf = (type: string, as: string, desk: string): string => 'risk::RiskLimit.all()'
+  + `->filter(x|$x.limitType == '${type}')->project(~[${desk}:x|$x.desk.name, ${as}:x|$x.limitAmount])`;
+
+/** Each desk's day against its limits: its P&L against its day's loss limit, its gross against its gross limit -- each
+ *  used as a share, and a status (a breach at the limit, a warning at four fifths of it). */
+export const DESK_LIMITS = `${POSITIONS_LIVE}->groupBy(~[desk], ~[pnl:x|$x.dayPnl:y|$y->sum(), gross:x|$x.gross:y|$y->sum()])`
+  + `->join(${limitOf('DAY_LOSS', 'lossLimit', 'ldesk')}, ${JOIN_INNER}, {a, b|$a.desk == $b.ldesk})`
+  + `->join(${limitOf('GROSS_NOTIONAL', 'grossLimit', 'gdesk')}, ${JOIN_INNER}, {a, b|$a.desk == $b.gdesk})`
+  + '->extend(~[lossUsed:x|if($x.pnl < 0.0, |(0.0 - $x.pnl) / $x.lossLimit, |0.0), grossUsed:x|$x.gross / $x.grossLimit])'
+  + '->extend(~[headroom:x|1.0 - $x.lossUsed, status:x|if($x.lossUsed >= 1.0, |\'BREACH\','
+  + ' |if($x.lossUsed >= 0.8, |\'WARNING\', |\'OK\')), breach:x|if($x.lossUsed >= 1.0, |1, |0),'
+  + ' warning:x|if(($x.lossUsed >= 0.8) && ($x.lossUsed < 1.0), |1, |0)])';
+
+const MONEY: ColumnConfiguration = { format: { kind: 'number', decimals: 0, negativeParens: true }, appearance: { negativeForeground: '#d64545' } };
+const SHARE: ColumnConfiguration = { format: { kind: 'percent', decimals: 1 } };
+
+async function pnlPage(types: SourceTypes): Promise<PageDocument> {
+  const positions = await columnsOf(types, POSITIONS_LIVE, {
+    qty: { aggregate: 'sum' }, cost: { aggregate: 'average' }, mid: { aggregate: 'average' }, close: { aggregate: 'average' },
+    mv: { aggregate: 'sum' }, dayPnl: { aggregate: 'sum' }, gross: { aggregate: 'sum' }, sinceCost: { aggregate: 'sum' },
+  });
+  const limits = await columnsOf(types, DESK_LIMITS, {
+    breach: { aggregate: 'sum' }, warning: { aggregate: 'sum' }, pnl: { aggregate: 'sum' }, gross: { aggregate: 'sum' },
+  });
+  const book = cubeOf('P&L', marketSource('Positions, live', POSITIONS_LIVE, positions),
+    cubeOver(positions, { rows: ['desk', 'book'], sorts: [{ column: 'dayPnl', direction: 'asc' }] }),
+    configured('Day P&L by desk, book and name', {
+      // a desk's or a book's quantity and price mean nothing summed or averaged over its names: the names' own, when opened
+      inst: HIDDEN, qinst: HIDDEN, sector: HIDDEN, cost: HIDDEN, close: HIDDEN, mid: HIDDEN, qty: HIDDEN,
+      dayPnl: { ...MONEY, displayName: 'day P&L' }, mv: { ...MONEY, displayName: 'value' }, gross: MONEY,
+      sinceCost: { ...MONEY, displayName: 'P&L since cost' },
+    }), 1);
+  const desks = cubeOf('Limits', marketSource('Desks against their limits', DESK_LIMITS, limits),
+    cubeOver(limits, { sorts: [{ column: 'lossUsed', direction: 'desc' }] }),
+    configured('Each desk against its limits', {
+      ldesk: HIDDEN, gdesk: HIDDEN, breach: HIDDEN, warning: HIDDEN, headroom: { ...SHARE, hidden: true },
+      pnl: { ...MONEY, displayName: 'day P&L' }, lossLimit: { ...MONEY, displayName: 'loss limit' },
+      lossUsed: { ...SHARE, displayName: 'loss limit used', heatmap: { from: '#e8f5ec', mid: '#ffe08a', to: '#f4a3a3', range: { min: 0, max: 1 } } },
+      gross: MONEY, grossLimit: { ...MONEY, displayName: 'gross limit' },
+      grossUsed: { ...SHARE, displayName: 'gross limit used', heatmap: { from: '#e8f5ec', mid: '#ffe08a', to: '#f4a3a3', range: { min: 0, max: 1 } } },
+    }));
+  const views: PageView[] = [
+    chart('firm-pnl', 'book', 'Firm day P&L', { mark: 'kpi', y: [{ column: 'dayPnl', fn: 'sum' }], options: { target: 0, better: 'higher' } }),
+    chart('breaches', 'desks', 'Desks past their loss limit', { mark: 'kpi', y: [{ column: 'breach', fn: 'sum' }], options: { target: 0, better: 'lower' } }),
+    chart('warnings', 'desks', 'Desks past four fifths of it', { mark: 'kpi', y: [{ column: 'warning', fn: 'sum' }], options: { target: 0, better: 'lower' } }),
+    chart('by-desk', 'book', 'Day P&L by desk', {
+      x: 'desk', y: [{ column: 'dayPnl', fn: 'sum', title: 'day P&L' }],
+      options: { sort: { by: 'y', direction: 'desc' }, labels: true, legend: 'none' },
+    }),
+    chart('by-sector', 'book', 'Day P&L by sector', {
+      x: 'sector', y: [{ column: 'dayPnl', fn: 'sum', title: 'day P&L' }],
+      options: { sort: { by: 'y', direction: 'desc' }, legend: 'none', orientation: 'horizontal' },
+    }),
+    { id: 'pnl', kind: 'grid', cube: 'book', title: 'Day P&L by desk, book and name' },
+    chart('headroom', 'desks', 'Loss limit left by desk (red: under a fifth left)', {
+      x: 'desk', y: [{ column: 'headroom', fn: 'sum', title: 'loss limit left' }],
+      layers: [{ kind: 'threshold', value: 0.2, label: 'a fifth left' }, { kind: 'line', value: 0, label: 'the limit' }],
+      options: { sort: { by: 'y', direction: 'asc' }, labels: true, legend: 'none' },
+    }),
+    { id: 'limits', kind: 'grid', cube: 'desks', title: 'Each desk against its limits' },
+  ];
+  const sheets: PageSheet[] = [
+    sheet('sheet-1', 'P&L', [
+      [0.28, row(['firm-pnl', 0.22], ['by-desk', 0.4], ['by-sector', 0.38])],
+      [0.72, tile('pnl')],
+    ]),
+    sheet('sheet-2', 'Limits', [
+      [0.3, row(['breaches', 0.2], ['warnings', 0.2], ['headroom', 0.6])],
+      [0.7, tile('limits')],
+    ]),
+  ];
+  return writePageOf({ name: 'P&L and limits', cubes: [{ id: 'book', cube: book }, { id: 'desks', cube: desks }], views: { views, sheets } });
+}
+
+// ---------------------------------------------------------------- K10: the execution blotter
+
+const JOIN_LEFT = 'meta::pure::functions::relation::JoinKind.LEFT';
+
+/** Every fill: its order's name and side, its algorithm, venue and broker, its size and price against the order's
+ *  arrival price -- its slippage in basis points, positive a cost (paid above it to buy, sold below it). */
+export const FILLS = 'trading::Execution.all()->project(~[exec:x|$x.executionId, at:x|$x.executionTime, order:x|$x.order.orderId,'
+  + ' ticker:x|$x.order.instrument.ticker, side:x|$x.order.side, strategy:x|$x.executionAlgo, venue:x|$x.venue,'
+  + ' broker:x|$x.broker, qty:x|$x.filledQuantity, px:x|$x.fillPrice, arrival:x|$x.arrivalPrice, commission:x|$x.commission,'
+  + ' seq:x|$x.sequenceNumber])'
+  + '->extend(~[notional:x|$x.qty * $x.px, slipBps:x|if($x.side == \'BUY\', |1.0, |-1.0) * ($x.px - $x.arrival->toOne())'
+  + ' / $x.arrival->toOne() * 10000.0])';
+
+/** Every parent order: its trader, desk and book, name, side, algorithm, size and how much is done; its fills' average
+ *  price and its slippage against its arrival, from its fills grouped by order and joined to it. */
+export const ORDERS = 'trading::Order.all()->project(~[order:x|$x.orderId, created:x|$x.createdTime, trader:x|$x.trader.lastName,'
+  + ' desk:x|$x.book.desk.name, book:x|$x.book.name, ticker:x|$x.instrument.ticker, side:x|$x.side, strategy:x|$x.algoStrategy,'
+  + ' qty:x|$x.quantity, filled:x|$x.filledQuantity, status:x|$x.status, limit:x|$x.limitPrice, tif:x|$x.timeInForce])'
+  + '->join(trading::Execution.all()->project(~[eo:x|$x.order.orderId, eq:x|$x.filledQuantity, epx:x|$x.fillPrice,'
+  + ' earrival:x|$x.arrivalPrice])->extend(~[en:x|$x.eq * $x.epx])->groupBy(~[eo], ~[fills:x|$x.eq:y|$y->count(),'
+  + ` fillNotional:x|$x.en:y|$y->sum(), arrival:x|$x.earrival:y|$y->max()]), ${JOIN_LEFT}, {o, e|$o.order == $e.eo})`
+  + '->extend(~[pctFilled:x|$x.filled->toOne() / $x.qty, avgPx:x|$x.fillNotional->toOne() / $x.filled->toOne(),'
+  + ' open:x|if($x.status->in([\'NEW\', \'WORKING\', \'PARTIALLY_FILLED\']), |1, |0)])'
+  + '->extend(~[slipBps:x|if($x.side == \'BUY\', |1.0, |-1.0) * ($x.avgPx - $x.arrival->toOne()) / $x.arrival->toOne() * 10000.0])';
+
+const BPS: ColumnConfiguration = { format: { kind: 'number', decimals: 1 }, appearance: { negativeForeground: '#1f9d55' } };
+
+async function blotterPage(types: SourceTypes): Promise<PageDocument> {
+  const fills = await columnsOf(types, FILLS, {
+    seq: { kind: 'dimension' }, qty: { aggregate: 'sum' }, px: { aggregate: 'wavg', aggregateWeight: 'qty' },
+    arrival: { aggregate: 'average' }, commission: { aggregate: 'sum' }, notional: { aggregate: 'sum' },
+    slipBps: { aggregate: 'wavg', aggregateWeight: 'notional' },
+  });
+  const orders = await columnsOf(types, ORDERS, {
+    qty: { aggregate: 'sum' }, filled: { aggregate: 'sum' }, fills: { aggregate: 'sum' }, fillNotional: { aggregate: 'sum' },
+    open: { aggregate: 'sum' }, pctFilled: { aggregate: 'average' }, slipBps: { aggregate: 'average' },
+  });
+  const ordersSource = marketSource('Orders', ORDERS, orders);
+  const fillsSource = marketSource('Fills', FILLS, fills);
+  const orderGrid = cubeOf('Orders', ordersSource, cubeOver(orders, { sorts: [{ column: 'created', direction: 'desc' }] }),
+    configured('Orders', {
+      eo: HIDDEN, fillNotional: HIDDEN, arrival: PRICE, open: HIDDEN, desk: HIDDEN, book: HIDDEN, tif: HIDDEN, limit: PRICE,
+      created: PRINT_TIME, qty: SIZE, filled: SIZE, fills: { format: { kind: 'number', decimals: 0 } },
+      pctFilled: { ...SHARE, displayName: '% filled', heatmap: { from: '#ffffff', to: '#9fd8b2', range: { min: 0, max: 1 } } },
+      avgPx: { ...PRICE, displayName: 'average price' }, slipBps: { ...BPS, displayName: 'slippage (bp)' },
+    }));
+  const fillGrid = cubeOf('Fills', fillsSource, cubeOver(fills, { sorts: [{ column: 'seq', direction: 'desc' }] }),
+    configured('Fills, newest first', {
+      exec: HIDDEN, seq: HIDDEN, order: HIDDEN, arrival: HIDDEN, commission: HIDDEN, notional: MONEY, at: PRINT_TIME,
+      qty: SIZE, px: PRICE, slipBps: { ...BPS, displayName: 'slippage (bp)' },
+    }));
+  // grouped, a fill's sequence counts its fills
+  const counted = fills.map((c) => (c.name === 'seq' ? { name: c.name, type: c.type, aggregate: 'count' as const } : c));
+  const venues = cubeOf('By strategy and venue', fillsSource,
+    cubeOver(counted, { rows: ['strategy', 'venue'], sorts: [{ column: 'notional', direction: 'desc' }] }),
+    configured('Fills by strategy and venue', {
+      exec: HIDDEN, at: HIDDEN, order: HIDDEN, ticker: HIDDEN, side: HIDDEN, broker: HIDDEN, arrival: HIDDEN, px: HIDDEN,
+      seq: { displayName: 'fills', format: { kind: 'number', decimals: 0 } }, qty: SIZE, notional: MONEY, commission: MONEY,
+      slipBps: { ...BPS, displayName: 'slippage (bp, notional-weighted)' },
+    }));
+  const views: PageView[] = [
+    chart('working', 'orders', 'Orders working', { mark: 'kpi', y: [{ column: 'open', fn: 'sum' }] }),
+    chart('filled', 'fills', 'Notional filled', { mark: 'kpi', y: [{ column: 'notional', fn: 'sum' }] }),
+    chart('slippage', 'fills', 'Slippage against arrival (bp, notional-weighted; lower is better)', {
+      mark: 'kpi', y: [{ column: 'slipBps', fn: 'wavg', weight: 'notional' }], options: { target: 0, better: 'lower' },
+    }),
+    { id: 'orders', kind: 'grid', cube: 'orders', title: 'Orders' },
+    { id: 'fills', kind: 'grid', cube: 'fills', title: 'Fills, newest first' },
+    chart('by-strategy', 'fills', 'Slippage by algorithm (bp, notional-weighted)', {
+      x: 'strategy', y: [{ column: 'slipBps', fn: 'wavg', weight: 'notional', title: 'slippage (bp)' }],
+      layers: [{ kind: 'line', value: 0, label: 'arrival' }],
+      options: { sort: { by: 'y', direction: 'asc' }, labels: true, legend: 'none' },
+    }),
+    chart('by-venue', 'fills', 'Notional by venue', {
+      mark: 'pie', x: 'venue', y: [{ column: 'notional', fn: 'sum', title: 'notional' }], options: { sort: { by: 'y', direction: 'desc' } },
+    }),
+    { id: 'venues', kind: 'grid', cube: 'venues', title: 'Fills by strategy and venue' },
+  ];
+  const sheets: PageSheet[] = [
+    sheet('sheet-1', 'Blotter', [
+      [0.2, row(['working', 0.25], ['filled', 0.25], ['slippage', 0.5])],
+      [0.45, tile('orders')],
+      [0.35, tile('fills')],
+    ]),
+    sheet('sheet-2', 'Algorithms and venues', [
+      [0.45, row(['by-strategy', 0.55], ['by-venue', 0.45])],
+      [0.55, tile('venues')],
+    ]),
+  ];
+  return writePageOf({
+    name: 'Execution blotter',
+    cubes: [{ id: 'orders', cube: orderGrid }, { id: 'fills', cube: fillGrid }, { id: 'venues', cube: venues }],
+    views: { views, sheets },
+  });
+}
+
+// ---------------------------------------------------------------- K11: the options desk
+
+/** The listed chain, live: each option priced, and its greeks, by Black and Scholes (the model's own functions,
+ *  market::options) from its underlying's live mid, its implied volatility and its time to expiry from the quote's time;
+ *  its change against its settlement at the prior close. */
+export const OPTION_CHAIN = 'products::Option.all()->project(~[underlying:x|$x.underlying.ticker, uinst:x|$x.underlying.instrumentId,'
+  + ' inst:x|$x.instrument.instrumentId, option:x|$x.optionId, type:x|$x.optionType, strike:x|$x.strikePrice,'
+  + ' expiry:x|$x.expirationDate, iv:x|$x.impliedVolatility, settle:x|$x.premium, size:x|$x.contractSize])'
+  + `->join(${QUOTE}->project(~[qinst:x|$x.instrument.instrumentId, spot:x|$x.mid, at:x|$x.quoteTime]), ${JOIN_INNER},`
+  + ' {o, q|$o.uinst == $q.qinst})'
+  + '->extend(~[t:x|dateDiff($x.at, $x.expiry, DurationUnit.DAYS) / 365.0, call:x|$x.type == \'CALL\','
+  + ' vol:x|$x.iv->toOne()])'
+  + '->extend(~[rootT:x|sqrt($x.t), disc:x|exp(0.0 - (0.05 * $x.t))])'
+  + '->extend(~[d1:x|market::options::d1($x.spot, $x.strike, $x.t, $x.vol, 0.05, $x.rootT)])'
+  + '->extend(~[d2:x|market::options::d2($x.d1, $x.vol, $x.rootT), nd1:x|market::options::pdf($x.d1),'
+  + ' cd1:x|market::options::cdf($x.d1), cmd1:x|market::options::cdf(0.0 - $x.d1)])'
+  + '->extend(~[cd2:x|market::options::cdf($x.d2), cmd2:x|market::options::cdf(0.0 - $x.d2)])'
+  + '->extend(~[price:x|market::options::price($x.call, $x.spot, $x.strike, $x.disc, $x.cd1, $x.cd2, $x.cmd1, $x.cmd2),'
+  + ' delta:x|market::options::delta($x.call, $x.cd1), gamma:x|market::options::gamma($x.spot, $x.vol, $x.rootT, $x.nd1),'
+  + ' vega:x|market::options::vega($x.spot, $x.rootT, $x.nd1),'
+  + ' theta:x|market::options::theta($x.call, $x.spot, $x.strike, $x.vol, 0.05, $x.rootT, $x.disc, $x.nd1, $x.cd2, $x.cmd2)])'
+  + '->extend(~[chg:x|$x.price - $x.settle, moneyness:x|$x.strike / $x.spot])';
+
+/** The derivatives books' option positions with the chain's live price and greeks: each position's delta (in shares
+ *  and dollars), gamma, vega, theta, value and day's P&L. */
+export const OPTION_BOOK = 'positions::Position.all()->filter(x|$x.instrument.assetClass == \'OPTION\')->project(~['
+  + 'book:x|$x.book.name, pinst:x|$x.instrument.instrumentId, contracts:x|$x.quantity])'
+  + `->join(${OPTION_CHAIN}, ${JOIN_INNER}, {p, o|$p.pinst == $o.inst})`
+  + '->extend(~[units:x|$x.contracts * $x.size->toFloat()])'
+  + '->extend(~[posDelta:x|$x.units * $x.delta, posGamma:x|$x.units * $x.gamma, posVega:x|$x.units * $x.vega,'
+  + ' posTheta:x|$x.units * $x.theta, mv:x|$x.units * $x.price, dayPnl:x|$x.units * $x.chg])'
+  + '->extend(~[dollarDelta:x|$x.posDelta * $x.spot])';
+
+/** The columns a chain's or a book's grid leaves out: its keys, its inputs. */
+const OPTION_INPUTS: Readonly<Record<string, ColumnConfiguration>> = {
+  uinst: HIDDEN, inst: HIDDEN, qinst: HIDDEN, option: HIDDEN, at: HIDDEN, t: HIDDEN, call: HIDDEN, vol: HIDDEN, size: HIDDEN,
+  d1: HIDDEN, d2: HIDDEN, rootT: HIDDEN, disc: HIDDEN, nd1: HIDDEN, cd1: HIDDEN, cd2: HIDDEN, cmd1: HIDDEN, cmd2: HIDDEN,
+  moneyness: HIDDEN, settle: HIDDEN, pinst: HIDDEN,
+};
+
+async function optionsPage(types: SourceTypes): Promise<PageDocument> {
+  const average = { aggregate: 'average' } as const;
+  const chain = await columnsOf(types, OPTION_CHAIN, {
+    strike: { kind: 'dimension' }, size: { kind: 'dimension' }, iv: average, settle: average, spot: average, t: average,
+    vol: average, d1: average, d2: average, rootT: average, disc: average, nd1: average, cd1: average, cd2: average,
+    cmd1: average, cmd2: average, price: average, delta: average, gamma: average, vega: average, theta: average, chg: average, moneyness: average,
+  });
+  const book = await columnsOf(types, OPTION_BOOK, {
+    strike: { kind: 'dimension' }, size: { kind: 'dimension' }, iv: average, settle: average, spot: average, t: average,
+    vol: average, d1: average, d2: average, rootT: average, disc: average, nd1: average, cd1: average, cd2: average,
+    cmd1: average, cmd2: average, price: average, delta: average, gamma: average, vega: average, theta: average, chg: average, moneyness: average,
+    contracts: { aggregate: 'sum' }, units: { aggregate: 'sum' }, posDelta: { aggregate: 'sum' }, posGamma: { aggregate: 'sum' },
+    posVega: { aggregate: 'sum' }, posTheta: { aggregate: 'sum' }, mv: { aggregate: 'sum' }, dayPnl: { aggregate: 'sum' },
+    dollarDelta: { aggregate: 'sum' },
+  });
+  // the chain as a list, each option a row, by underlying, expiry and strike: one query read by a window (a pivot of calls
+  // against puts by strike is a tree's level queries, each re-read as the four busiest names re-quote: the trader screens
+  // measured it at 850 ms a tick on one thread)
+  const chainGrid = cubeOf('The chain', marketSource('The option chain, live', OPTION_CHAIN, chain),
+    cubeOver(chain, { sorts: [{ column: 'underlying', direction: 'asc' }, { column: 'expiry', direction: 'asc' },
+      { column: 'strike', direction: 'asc' }, { column: 'type', direction: 'asc' }] }),
+    configured('The chain', {
+      ...OPTION_INPUTS, spot: PRICE, strike: PRICE, price: PRICE, delta: { format: { kind: 'number', decimals: 3 } },
+      gamma: { format: { kind: 'number', decimals: 4 } }, vega: PRICE, theta: PRICE, iv: { ...SHARE, displayName: 'vol' },
+      chg: { ...CHANGE, displayName: 'change' },
+    }));
+  const GREEK = { format: { kind: 'number', decimals: 0, negativeParens: true } } as const;
+  const risk = cubeOf('Risk', marketSource('The options books, live', OPTION_BOOK, book),
+    cubeOver(book, { rows: ['underlying', 'expiry'], sorts: [{ column: 'posVega', direction: 'desc' }] }),
+    configured('Risk by underlying and expiry', {
+      ...OPTION_INPUTS, book: HIDDEN, type: HIDDEN, strike: HIDDEN, iv: HIDDEN, spot: HIDDEN, price: HIDDEN, delta: HIDDEN,
+      gamma: HIDDEN, vega: HIDDEN, theta: HIDDEN, chg: HIDDEN, contracts: HIDDEN, units: HIDDEN, expiry: {},
+      posDelta: { ...GREEK, displayName: 'delta (shares)' }, dollarDelta: { ...MONEY, displayName: 'delta ($)' },
+      posGamma: { ...GREEK, displayName: 'gamma (shares a $)' }, posVega: { ...MONEY, displayName: 'vega ($ a vol point)' },
+      posTheta: { ...MONEY, displayName: 'theta ($ a day)' }, mv: { ...MONEY, displayName: 'value' },
+      dayPnl: { ...MONEY, displayName: 'day P&L' },
+    }), 1);
+  const views: PageView[] = [
+    { id: 'chain', kind: 'grid', cube: 'chain', title: 'The chain, live: each option priced by Black and Scholes' },
+    chart('smile', 'chain', 'The smile: implied volatility by strike over spot, each expiry a line', {
+      mark: 'line', x: 'moneyness', bins: { width: 0.05 }, split: 'expiry', y: [{ column: 'iv', fn: 'average', title: 'implied vol' }],
+      options: { sort: { by: 'x', direction: 'asc' }, fitAxis: true },
+    }),
+    chart('delta', 'risk', 'Delta ($)', { mark: 'kpi', y: [{ column: 'dollarDelta', fn: 'sum' }] }),
+    chart('vega', 'risk', 'Vega ($ a vol point)', { mark: 'kpi', y: [{ column: 'posVega', fn: 'sum' }] }),
+    chart('theta', 'risk', 'Theta ($ a day)', { mark: 'kpi', y: [{ column: 'posTheta', fn: 'sum' }] }),
+    chart('options-pnl', 'risk', 'Day P&L', { mark: 'kpi', y: [{ column: 'dayPnl', fn: 'sum' }], options: { target: 0, better: 'higher' } }),
+    chart('vega-map', 'risk', 'Vega by expiry and underlying', {
+      mark: 'heatmap', x: 'expiry', split: 'underlying', y: [{ column: 'posVega', fn: 'sum', title: 'vega' }],
+      options: { labels: true, sort: { by: 'x', direction: 'asc' } },
+    }),
+    { id: 'risk', kind: 'grid', cube: 'risk', title: 'Risk by underlying and expiry' },
+  ];
+  const sheets: PageSheet[] = [
+    sheet('sheet-1', 'Chain', [[0.65, tile('chain')], [0.35, tile('smile')]]),
+    sheet('sheet-2', 'Risk', [
+      [0.22, row(['delta', 0.25], ['vega', 0.25], ['theta', 0.25], ['options-pnl', 0.25])],
+      [0.38, tile('vega-map')],
+      [0.4, tile('risk')],
+    ]),
+  ];
+  return writePageOf({ name: 'Options desk', cubes: [{ id: 'chain', cube: chainGrid }, { id: 'risk', cube: risk }], views: { views, sheets } });
+}
+
 /** The trader screens, in the menu's order. */
 export const TRADER_PAGES: readonly TraderPage[] = [
   {
@@ -309,5 +598,27 @@ export const TRADER_PAGES: readonly TraderPage[] = [
     about: 'Every equity as a block sized by its value and coloured by its change on the day, by sector; the day\'s '
       + 'breadth, each sector\'s value-weighted change, and the top gainers, losers and most active names.',
     build: marketMapPage,
+  },
+  {
+    id: 'pnl',
+    label: 'P&L and limits',
+    about: 'Every position marked to the live market: the firm\'s and each desk\'s, book\'s and name\'s day P&L against '
+      + 'the prior close; each desk against its day\'s loss limit and its gross limit, a breach and a warning said.',
+    build: pnlPage,
+  },
+  {
+    id: 'blotter',
+    label: 'Execution blotter',
+    about: 'Every parent order as its algorithm works it -- how much is done, its average price and its slippage against '
+      + 'its arrival -- its fills as they print, and the day\'s fills by algorithm and venue.',
+    build: blotterPage,
+  },
+  {
+    id: 'options',
+    label: 'Options desk',
+    about: 'The listed chain priced live -- each option and its greeks by Black and Scholes, functions of the model the '
+      + 'database runs -- calls against puts by strike, and the smile; the derivatives books\' delta, gamma, vega, theta '
+      + 'and day P&L by underlying and expiry.',
+    build: optionsPage,
   },
 ];

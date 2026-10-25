@@ -134,6 +134,20 @@ class DeephavenDialectTest {
     }
 
     @Test
+    void aChainOfCalculatedColumnsReadsEachEarlierOneByItsName() {
+        // each extend's column is its whole expression where a later one reads it (SQL wants no other): a chain of them
+        // grew in each formula as it went -- a price's Black and Scholes, 109 s for the server to compile (K11). Within
+        // one view a later column names an earlier one.
+        String b = batch("#>{risk::Ref.trades}#->extend(~[a:x|($x.notional->toOne() * 2.0) + 1.0])"
+                + "->extend(~[b:x|($x.a * $x.a) - $x.a])->extend(~[c:x|sqrt($x.b) + $x.b])");
+        assertTrue(b.contains("\"a = ((t0__notional * 2.0) + 1.0)\""), b);
+        assertTrue(b.contains("\"b = ((a * a) - a)\""), b);
+        // the square root's guard reads its operand by name, its error's text too
+        String c = b.substring(b.indexOf("\"c = "));
+        assertTrue(c.contains("sqrt(b)") && !c.contains("t0__notional"), c);
+    }
+
+    @Test
     void anIfOfTwoConditionsIsTheConditionOfTheBranchItTakes() {
         // a print off the exchange has no side; one on it a buyer's or a seller's: TRUE when the branch taken is TRUE,
         // FALSE (its negation, which keeps what the branch's FALSE keeps) likewise

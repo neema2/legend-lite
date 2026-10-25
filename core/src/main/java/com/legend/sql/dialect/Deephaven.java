@@ -83,6 +83,12 @@ public final class Deephaven extends AnsiSqlRenderer {
         scopes.pop();
     }
 
+    /** The current select's columns computed by expression ({@link Scope#computed}), or null outside a select. */
+    java.util.@com.legend.base.Nullable Map<SqlExpr, String> computedOrNull() {
+        Scope s = scopes.peek();
+        return s == null ? null : s.computed;
+    }
+
     private Scope scope() {
         Scope s = scopes.peek();
         if (s == null) {

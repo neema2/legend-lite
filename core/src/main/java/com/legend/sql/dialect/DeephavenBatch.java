@@ -99,21 +99,54 @@ final class DeephavenBatch {
         return "\"sourceId\": " + DeephavenJson.offset(op);
     }
 
-    /** {@code view} (only the columns it names) or {@code updateView} (every column, and these): each column a formula,
-     *  {@code name = formula}, or a kept column's name. */
+    /**
+     * {@code view} (only the columns it names) or {@code updateView} (every column, and these): each column a formula,
+     * {@code name = formula}, or a kept column's name.
+     *
+     * <p>A COLUMN THE VIEW HAS COMPUTED IS READ BY ITS NAME in its later columns (the server evaluates a view's columns in
+     * order, a later one reading an earlier one): a select's computed columns are each its whole expression, an extend's
+     * column written into every later one that reads it, so a chain of them grew in each formula as it went -- the
+     * trader screens' Black and Scholes (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K11): a time to expiry written into
+     * d1, d1 into d2, both into a price, measured at 30,000 characters and 109 s for the server to compile one price.
+     * Named only within this view, so nothing outside it reads a column it may not have.
+     */
     private int view(String name, int src, List<Spec> specs) {
         open(name);
         w.append(source(src)).append(", \"columnSpecs\": [");
+        java.util.Map<SqlExpr, String> computed = dialect.computedOrNull();
+        List<SqlExpr> named = new ArrayList<>();
         for (int i = 0; i < specs.size(); i++) {
             Spec s = specs.get(i);
             w.append(i > 0 ? ", \"" : "\"").append(s.text());
             if (s.expr() != null) {
                 w.append(" = ").expr(s.expr(), 0);
+                if (computed != null && worthNaming(s.expr())) {
+                    for (SqlExpr form : forms(s.expr())) {
+                        if (!computed.containsKey(form)) {
+                            computed.put(form, s.text());
+                            named.add(form);
+                        }
+                    }
+                }
             }
             w.append("\"");
         }
+        if (computed != null) {
+            named.forEach(computed::remove);
+        }
         w.append("]");
         return close();
+    }
+
+    /** An expression worth reading by its column's name: one that computes, not a column or a value as it is. */
+    private static boolean worthNaming(SqlExpr e) {
+        return e instanceof SqlExpr.Call || e instanceof SqlExpr.Case || e instanceof SqlExpr.Cast
+                || e instanceof SqlExpr.Group g && worthNaming(g.inner());
+    }
+
+    /** The forms an expression is read in elsewhere: as it is, and without its parentheses. */
+    private static List<SqlExpr> forms(SqlExpr e) {
+        return e instanceof SqlExpr.Group g ? List.of(e, g.inner()) : List.of(e);
     }
 
     /** The rows where {@code condition} is TRUE: its filter list ({@link Deephaven#filters}, what the server can read

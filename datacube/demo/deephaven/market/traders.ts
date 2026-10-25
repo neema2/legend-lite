@@ -6,10 +6,10 @@
 // charts read, and a tick runs that grid again from the live rows and draws its charts again. Save and Open keep the
 // page as it is now in this browser: a screen moved about, a grid regrouped, a chart added, all kept.
 //
-// THE GRIDS READ THEIR SOURCES AS WRITTEN (the plan's ledger, §3): no base kept on the server (src/server-base.ts B1).
-// A base re-declares the planner's model, and the trading model takes 4.4 s to hold (scripts/corpus/trading_model.py):
-// a page of five grids would hold it six times before it showed. The fix is the planner's (a base's Database held over
-// the held model, not in its text); until then each query joins its own way to the classes it reads.
+// EACH GRID READS A BASE ON THE SERVER (src/server-base.ts B1): its source -- the joins to the classes it reads, its
+// calculated columns (an option's Black and Scholes) -- computed once into a table the server keeps, every query of the
+// grid and its charts reading that table's plain columns. The bases are declared in a model of their own (the market's
+// connection and their Database, `connectionOf`), so the page's planner holds the trading model once.
 
 import { getInstanceByDom } from 'echarts/core';
 import { CubeApp } from '../../../src/app.ts';
@@ -20,13 +20,13 @@ import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../../../src/conf
 import { LitePlanner } from '../../../src/lite-planner.ts';
 import { pageToJson, readPage, type PageDocument } from '../../../src/page-document.ts';
 import { PageApp, type GridMaker } from '../../../src/page/page-app.ts';
-import { PlanThenRun } from '../../../src/runner.ts';
+import { ServerBases } from '../../../src/server-base.ts';
 import type { ColumnSpec, CubeSnapshot } from '../../../src/snapshot.ts';
 import type { TreeState } from '../../../src/tree.ts';
 import type { MenuItem } from '../../../src/ui/menu.ts';
 import type { ValueSpecification } from '../../../../pure-protocol/src/index.ts';
 import { DeephavenEngine, type DeephavenCounts } from '../../../../engine-client/src/deephaven-engine.ts';
-import { MARKET_MODEL, MARKET_RUNTIME } from './model.ts';
+import { MARKET_CONNECTION, MARKET_MODEL, MARKET_RUNTIME } from './model.ts';
 import { TRADER_PAGES, isMarketSource, type TraderPage } from './screens.ts';
 
 /** One grid as the page shows it, for a person and for its test. */
@@ -40,6 +40,9 @@ interface ShownGrid {
   window: { offset: number; total: number } | null;
   /** Its first view's time from the page's opening, ms. */
   firstViewMs: number | null;
+  /** The table its base is kept in on the server (none: its queries read its source as written), and how many of its
+   *  queries read the base, read the source, and bases it moved to. */
+  base: { table: string | null; based: number; asWritten: number; made: number } | null;
   /** The queries whose rows were read from the server after the grid's first view, not from rows it follows: what a
    *  tick should never do (the last 20, each its plan's first 300 characters). */
   fetched: string[];
@@ -71,7 +74,7 @@ interface Shown {
    *  source typed (the planner holding the trading model), the first screen written and opened. */
   startup: Record<string, number>;
   /** The planner's calls, by kind: how many, and their time from asked to answered (overlapping calls each counted). */
-  planner: Record<string, { calls: number; ms: number }>;
+  planner: Record<string, { calls: number; ms: number; slowest: number }>;
   grids: Record<string, ShownGrid>;
   charts: Record<string, ShownChart>;
   counts: DeephavenCounts | null;
@@ -140,9 +143,11 @@ async function main(): Promise<void> {
       try {
         return await call(...args);
       } finally {
-        const e = shown.planner[kind] ??= { calls: 0, ms: 0 };
+        const e = shown.planner[kind] ??= { calls: 0, ms: 0, slowest: 0 };
+        const took = performance.now() - t0;
         e.calls++;
-        e.ms = Math.round(e.ms + performance.now() - t0);
+        e.ms = Math.round(e.ms + took);
+        e.slowest = Math.max(e.slowest, Math.round(took));
       }
     };
   }
@@ -160,6 +165,10 @@ async function main(): Promise<void> {
   await holding;
   took('model held');
   addEventListener('pagehide', () => { engine.close().catch(() => { /* the page is gone */ }); });
+  // the page's bases: one per source and its calculated columns, whichever grids read it, in a model of their own
+  const bases = new ServerBases(planner, engine, {
+    model, connection: 'market::Live', stores: ['store::DB'], connectionOf: MARKET_CONNECTION(at.hostname, Number(at.port)),
+  });
   // the engine's counts as they are when read: a test's two readings bracket exactly what happened between them
   Object.defineProperty(shown, 'counts', { get: () => engine.counts, enumerable: true });
 
@@ -192,7 +201,7 @@ async function main(): Promise<void> {
   const grid = (name: string, snapshot: CubeSnapshot, source: Parameters<typeof isMarketSource>[0],
     opened: { readonly configuration: CubeConfiguration; readonly tree: TreeState }): GridMaker => (host, spawned, start) => {
     const reader = engine.reader();
-    const g: ShownGrid = { views: 0, ticks: 0, tickToPaint: [], columns: [], rows: [], window: null, firstViewMs: null, fetched: [] };
+    const g: ShownGrid = { views: 0, ticks: 0, tickToPaint: [], columns: [], rows: [], window: null, firstViewMs: null, base: null, fetched: [] };
     // a result answered from the rows a reader follows took no time on the wire (deephaven-engine.ts execute): one that
     // did was read from the server
     const execute = reader.execute.bind(reader);
@@ -204,9 +213,10 @@ async function main(): Promise<void> {
       }
       return result;
     };
-    const runner = new PlanThenRun(planner, reader);
+    const runner = bases.runner(reader);
     shown.grids[name] = g;
     const show = (view: CubeView): void => {
+      g.base = { table: runner.baseTable, ...runner.counts };
       g.columns = view.rows.columns.map((c) => c.name);
       g.rows = Array.from({ length: Math.min(view.rows.rowCount, 50) }, (_, r) => view.rows.columns.map((c) => {
         const v = c.values[r];
@@ -236,6 +246,7 @@ async function main(): Promise<void> {
       onTicked: show,
       onDispose: () => {
         if (apps.get(name) === app) apps.delete(name);
+        runner.close();
         void reader.close();
       },
     });

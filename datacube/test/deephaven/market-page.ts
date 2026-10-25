@@ -298,6 +298,31 @@ try {
       ? null : `the chain by underlying: ${JSON.stringify(chain)}`;
   });
 
+  await check('the chain priced live by the model\'s Black and Scholes (K11): put-call parity on every option, deltas in range',
+    async () => {
+      const started = performance.now();
+      const [counted] = await rows('products::Option.all()->project(~[u:x|$x.underlying.instrumentId, k:x|$x.strikePrice,'
+        + ' e:x|$x.expirationDate, v:x|$x.impliedVolatility])'
+        + `->join(${QUOTE}->project(~[q:x|$x.instrument.instrumentId, s:x|$x.mid, at:x|$x.quoteTime]),`
+        + ' meta::pure::functions::relation::JoinKind.INNER, {o, q|$o.u == $q.q})'
+        + '->extend(~[t:x|dateDiff($x.at, $x.e, DurationUnit.DAYS) / 365.0, vol:x|$x.v->toOne()])'
+        + '->extend(~[rootT:x|sqrt($x.t), disc:x|exp(0.0 - (0.05 * $x.t))])'
+        + '->extend(~[d1:x|market::options::d1($x.s, $x.k, $x.t, $x.vol, 0.05, $x.rootT)])'
+        + '->extend(~[d2:x|market::options::d2($x.d1, $x.vol, $x.rootT), cd1:x|market::options::cdf($x.d1),'
+        + ' cmd1:x|market::options::cdf(0.0 - $x.d1)])'
+        + '->extend(~[cd2:x|market::options::cdf($x.d2), cmd2:x|market::options::cdf(0.0 - $x.d2)])'
+        + '->extend(~[c:x|market::options::price(true, $x.s, $x.k, $x.disc, $x.cd1, $x.cd2, $x.cmd1, $x.cmd2),'
+        + ' p:x|market::options::price(false, $x.s, $x.k, $x.disc, $x.cd1, $x.cd2, $x.cmd1, $x.cmd2),'
+        + ' dc:x|market::options::delta(true, $x.cd1)])'
+        + '->extend(~[parity:x|abs(($x.c - $x.p) - ($x.s - ($x.k * exp(0.0 - (0.05 * $x.t))))) / $x.s,'
+        + ' bad:x|($x.dc < 0.0) || ($x.dc > 1.0) || ($x.c < 0.0) || ($x.p < 0.0)])'
+        + '->groupBy(~[], ~[n:x|$x.k:y|$y->count(), worst:x|$x.parity:y|$y->max(), bad:x|if($x.bad, |1, |[]):y|$y->count()])');
+      const [n, worst, bad] = [Number(counted?.[0]), Number(counted?.[1]), Number(counted?.[2])];
+      // parity is exact in Black and Scholes; the normal distribution's approximation leaves a few millionths
+      return n > 0 && worst < 1e-5 && bad === 0 ? null
+        : `${n} options: parity off by ${worst} of the spot at worst, ${bad} out of range (${(performance.now() - started).toFixed(0)} ms)`;
+    });
+
   live.close();
   await session.close();
 } catch (e) {

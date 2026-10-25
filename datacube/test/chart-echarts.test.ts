@@ -316,6 +316,16 @@ describe('the drawing', () => {
     const heat = chartOption({ ...BAR, mark: 'heatmap', split: 'desk' }, cells);
     assert.deepEqual(heat.keyAt(0, 1), { region: 'AMER', desk: 'Rates' });
     assert.match(chartSvg(heat), /<svg/);
+    // a cell's label is its value as the grid writes it, never a raw float
+    const third = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'AMER'] },
+      { name: 'desk', type: 'String', values: ['FX', 'Rates'] },
+      { name: 'sum_notional', type: 'Float', values: [1 / 3, 9] },
+    ]);
+    const labelled = chartOption({ ...BAR, mark: 'heatmap', split: 'desk', options: { ...BAR.options, labels: true } }, third,
+      undefined, ((v: unknown) => (typeof v === 'number' ? v.toFixed(2) : String(v))) as never);
+    const cellLabel = (labelled.option as { series: { label: { formatter: (p: unknown) => string } }[] }).series[0]!.label;
+    assert.equal(cellLabel.formatter({ value: [0, 0, 1 / 3] }), '0.33');
 
     const points = table([
       { name: 'notional', type: 'Float', values: [1, 2, 3] },

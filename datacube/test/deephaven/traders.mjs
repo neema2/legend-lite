@@ -45,7 +45,9 @@ try {
   const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1600, height: 1000 } })).newPage();
   page.on('pageerror', (e) => fail(`page error: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') console.log(`[page ${m.type()}] ${m.text().slice(0, 300)}`); });
-  await page.goto(`${site.url}/`);
+  // one screen alone, by its id, when asked (a screen being built: --test_env=TRADERS_ONLY=<id>)
+  const only = process.env.TRADERS_ONLY;
+  await page.goto(`${site.url}/${only ? `#${only}` : ''}`);
   const state = () => page.evaluate(() => JSON.parse(JSON.stringify(window.__traders)));
   const until = async (test, what, ms = 240_000) => {
     const end = Date.now() + ms;
@@ -55,7 +57,11 @@ try {
       if (test(s)) return s;
       await sleep(250);
     }
-    throw new Error(`not ${what} in ${ms / 1000} s: ${JSON.stringify(await state()).slice(0, 1500)}`);
+    // stalled: what the page shows, and what each grid's own status line says
+    await page.screenshot({ path: join(outputs, 'stalled.png') });
+    const lines = await page.evaluate(() => [...document.querySelectorAll('[data-tile]')].map((t) =>
+      `${t.getAttribute('data-tile')}: ${[...t.querySelectorAll('.dc-status-note-text, .dc-error, [role="alert"]')].map((e) => e.textContent).join(' | ')}`));
+    throw new Error(`not ${what} in ${ms / 1000} s: ${lines.join('; ')}\n${JSON.stringify(await state()).slice(0, 1500)}`);
   };
   const status = () => page.evaluate(() => ({ text: document.getElementById('status')?.textContent ?? '',
     kind: document.getElementById('status')?.className ?? '' }));
@@ -78,6 +84,7 @@ try {
     } else {
       fail(`${name}: no rows in ${empty.join(', ')}`);
     }
+    for (const [n, g] of grids) console.log(`     ${n}: base ${JSON.stringify(g.base)}`);
     const doc = JSON.parse(await page.evaluate(() => window.__traders.save()));
     // each sheet shown, ticking: its grids ran again and its charts drew again, nothing sent or fetched
     for (const [i, sheet] of doc.sheets.entries()) {
@@ -96,6 +103,7 @@ try {
       const fetched = b.counts.fetched - a.counts.fetched;
       const ticks = Object.entries(b.grids).map(([n, g]) => `${n} ${g.ticks - (a.grids[n]?.ticks ?? 0)}`).join(', ');
       const p50 = quantile(Object.values(b.grids).flatMap((g) => g.tickToPaint.slice(-20)), 0.5);
+      console.log(`     ${name} ▸ ${label}: ${b.counts.following} results followed, the planner's ${JSON.stringify(b.planner.plan)}`);
       if (still.length === 0 && sent === 0 && fetched === 0) {
         ok(`${name} ▸ ${label}: ticking (${ticks}; ${charts.length} charts drawn again), on screen ${f1(p50)} ms after its rows (p50), nothing sent or fetched`);
       } else {
@@ -109,6 +117,12 @@ try {
     return { state: await state(), doc };
   };
 
+  if (only) {
+    const one = await checkScreen(only, 1);
+    for (const [n, g] of Object.entries(one.state.grids)) console.log(`     ${n}: base ${JSON.stringify(g.base)}`);
+    console.log(`     the planner's calls: ${Object.entries(one.state.planner).map(([k, v]) => `${k} ${v.calls} in ${(v.ms / 1000).toFixed(1)} s (slowest ${v.slowest} ms)`).join(', ')}`);
+    throw new Error(`only ${only} was checked (TRADERS_ONLY): not a run of every screen`);
+  }
   const first = await checkScreen('Ticker', 1);
   console.log(`     the planner's calls: ${Object.entries(first.state.planner).map(([k, v]) => `${k} ${v.calls} in ${(v.ms / 1000).toFixed(1)} s`).join(', ')}`);
   const startup = Object.values(first.state.startup).reduce((a, b) => a + b, 0);

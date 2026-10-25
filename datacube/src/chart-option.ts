@@ -418,7 +418,16 @@ export function chartOption(
           name: measureName(first),
           data,
           itemStyle: { borderColor: theme.surface, borderWidth: 2 },
-          label: { show: spec.options.labels, color: theme.ink },
+          // each cell's value as the grid writes its column (the trader screens: a vega's raw float, 17 digits), legible
+          // on a dark cell as on a light one
+          label: {
+            show: spec.options.labels, color: theme.ink, textBorderColor: theme.surface, textBorderWidth: 2,
+            formatter: (p: { value?: unknown }) => {
+              const v = Array.isArray(p.value) ? p.value[2] : null;
+              return typeof v === 'number' ? measureText(first, v, rows, label) : '';
+            },
+          },
+          tooltip: { valueFormatter: (v: unknown) => (typeof v === 'number' ? measureText(first, v, rows, label) : String(v ?? '')) },
         }],
       }),
       keyAt: (_s, i) => {

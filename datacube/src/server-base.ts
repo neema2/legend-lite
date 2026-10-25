@@ -35,6 +35,15 @@ export interface ServerBaseOptions {
   readonly model: string;
   readonly connection: string;
   readonly stores: readonly string[];
+  /**
+   * THE BASES IN A MODEL OF THEIR OWN: the connection's text (named `connection`), its store `store`. Given, the bases'
+   * Database is declared beside that connection alone, in a planner of its own -- never in the page's model, so the
+   * page's planner holds its model once however many bases its grids make (the trader screens, 2026-10-25: the one
+   * trading model, 2.3 MB, held again for each new base took 4.4 s). A query read from a base names only the base's
+   * columns, so it plans there; one that calls a function of the page's model (a group's calculated column) is refused
+   * there, by name.
+   */
+  readonly connectionOf?: (store: string) => string;
 }
 
 /** A base as the page holds it: the table the server keeps it in -- or null, its columns no table declares, so its
@@ -59,6 +68,7 @@ interface Base {
 
 /** A plan column's type as the base's table declares it; null: one the fragment does not write. */
 function columnType(c: PlanColumn): string | null {
+  if (familyOf(c.type) === 'boolean') return 'BIT';
   if (isNumeric(c.type) && !isFractional(c.type)) return 'BIGINT';
   if (isFloat(c.type)) return 'DOUBLE';
   if (familyOf(c.type) === 'text') return 'VARCHAR(65535)';
@@ -81,10 +91,15 @@ export class ServerBases {
   /** Each base's columns as its table is declared, by its table: the fragment's tables. */
   readonly #declared = new Map<string, string>();
 
+  /** The bases' own planner, when they are declared in a model of their own (`connectionOf`). */
+  readonly #bases: LitePlanner | null;
+
   constructor(planner: LitePlanner, engine: DeephavenEngine, options: ServerBaseOptions) {
     this.#planner = planner;
     this.#engine = engine;
     this.#options = options;
+    // the page's planner's module, a model of its own: held when a base is first declared in it
+    this.#bases = options.connectionOf ? planner.withModel(this.#basesModel(), BASES_RUNTIME) : null;
   }
 
   /** The tables the page's grids read their bases from now. */
@@ -92,9 +107,11 @@ export class ServerBases {
     return [...this.#declared.keys()];
   }
 
-  /** A grid's runner: its queries planned by the page's planner and run by `reader`, its own. */
+  /** A grid's runner: its queries planned by the page's planner -- read from a base, by the bases' own, when they have
+   *  one -- and run by `reader`, its own. */
   runner(reader: QueryEngine = this.#engine): ServerBaseRunner {
-    return new ServerBaseRunner(this, new PlanThenRun(this.#planner, reader));
+    return new ServerBaseRunner(this, new PlanThenRun(this.#planner, reader),
+      this.#bases ? new PlanThenRun(this.#bases, reader) : undefined);
   }
 
   /** The base `key` held for one more grid: made the first time a grid reads it, and made again when the session that
@@ -161,8 +178,13 @@ export class ServerBases {
     return { name: kept.name, columns };
   }
 
-  /** The planner's model: the page's, and every base a grid reads declared in one Database bound beside its stores. */
+  /** The planner's model: the page's, and every base a grid reads declared in one Database bound beside its stores --
+   *  or, the bases in a model of their own, theirs alone. */
   #declare(): void {
+    if (this.#bases) {
+      this.#bases.useModel(this.#basesModel(), BASES_RUNTIME);
+      return;
+    }
     const tables = [...this.#declared].map(([name, columns]) => `  Table ${name} (${columns})`).join('\n');
     const bound = [...this.#options.stores, BASES].map((s) => `${s}: [ c: ${this.#options.connection} ]`).join(', ');
     this.#planner.useModel(`${this.#options.model}
@@ -178,6 +200,24 @@ Runtime ${BASES_RUNTIME}
   connections: [ ${bound} ];
 }`, BASES_RUNTIME);
   }
+
+  /** The bases' own model (`connectionOf`): their Database, the connection, and a runtime binding the one to the other. */
+  #basesModel(): string {
+    const tables = [...this.#declared].map(([name, columns]) => `  Table ${name} (${columns})`).join('\n');
+    return `###Relational
+Database ${BASES}
+(
+${tables}
+)
+###Connection
+${this.#options.connectionOf!(BASES)}
+###Runtime
+Runtime ${BASES_RUNTIME}
+{
+  mappings: [];
+  connections: [ ${BASES}: [ c: ${this.#options.connection} ] ];
+}`;
+  }
 }
 
 /** A grid's runner (B1): every query reads the grid's base from the table the page keeps it in (`ServerBases`). */
@@ -185,16 +225,31 @@ export class ServerBaseRunner implements QueryRunner {
   readonly name = 'deephaven';
   readonly #bases: ServerBases;
   readonly #inner: PlanThenRun;
-  #base: Base | null = null;
-  #making: { readonly key: string; readonly base: Promise<Base> } | null = null;
+  /** Its queries read from a base, planned by the bases' own planner when they have one. */
+  readonly #based: PlanThenRun;
+  /**
+   * THE BASES ITS GRID AND CHARTS READ NOW, by key, the one read latest last: a chart of calculated columns of its own (a
+   * bin across) reads another base than its grid's, and a runner that held one base at a time moved between the two at
+   * every tick -- each move a hold, a release and its queries planned again (the trader screens' option chain and its
+   * smile, 2026-10-25: 175 moves in a minute, and results read again from the server). The one read least lately is let
+   * go past `HOLDS`.
+   */
+  readonly #held = new Map<string, Base>();
+  /** The bases being made for it, by key. */
+  readonly #making = new Map<string, Promise<Base>>();
+  /** The base its latest query read. */
+  #latest: Base | null = null;
   #closed = false;
+  /** The most bases a grid's runner holds at once: its grid's, and a few of its charts'. */
+  static readonly HOLDS = 4;
   #counts = { based: 0, asWritten: 0, made: 0 };
   /** A window of a query's result (V1), read from the base as the query's rows are. */
   readonly window: RunWindow;
 
-  constructor(bases: ServerBases, inner: PlanThenRun) {
+  constructor(bases: ServerBases, inner: PlanThenRun, based?: PlanThenRun) {
     this.#bases = bases;
     this.#inner = inner;
+    this.#based = based ?? inner;
     this.window = async (query, snapshot, window, signal) => {
       const read = (await this.#on(query, snapshot)).window;
       if (read === undefined) throw new QueryFailure(new Error('the Deephaven engine reads no window of a result'), query);
@@ -202,14 +257,14 @@ export class ServerBaseRunner implements QueryRunner {
     };
   }
 
-  /** Queries read from a base on the server, queries that read the base as written, and bases this grid moved to. */
+  /** Queries read from a base on the server, queries that read the base as written, and bases held for this grid. */
   get counts(): { readonly based: number; readonly asWritten: number; readonly made: number } {
     return { ...this.#counts };
   }
 
-  /** The table the grid's base is kept in now, if it is. */
+  /** The table the base its latest query read is kept in, if it is. */
   get baseTable(): string | null {
-    return this.#base?.name ?? null;
+    return this.#latest?.name ?? null;
   }
 
   async run(query: Lambda, snapshot: CubeSnapshot, scope?: LevelScope, signal?: AbortSignal): Promise<RunOutcome> {
@@ -238,26 +293,31 @@ export class ServerBaseRunner implements QueryRunner {
     return this.#inner.print(query, style, signal);
   }
 
-  /** The runner for `snapshot`'s base: the page's, held for this grid when it moves to it. */
+  /** The runner for `snapshot`'s base: the page's, held for this grid while its grid or a chart of it reads it. */
   async #on(query: Lambda, snapshot: CubeSnapshot): Promise<QueryRunner> {
     const live = sourceWithDerived(snapshot).node;
     const key = toJson(live);
     let base: Base;
     try {
-      const now = this.#base;
-      if (now !== null && now.key === key) {
+      const held = this.#held.get(key);
+      if (held !== undefined) {
         // the page's base as kept now: made again if the session that kept it went
         const made = await this.#bases.current(key, snapshot);
-        base = made.name === now.name ? now : this.#runnerOver(key, live, made);
-        this.#base = base;
+        base = made.name === held.name ? held : this.#runnerOver(key, live, made);
+        // read latest: last in the order they are let go in
+        this.#held.delete(key);
+        this.#held.set(key, base);
       } else {
-        if (this.#making?.key !== key) {
-          const making = { key, base: this.#moveTo(key, live, snapshot) };
-          this.#making = making;
-          making.base.finally(() => { if (this.#making === making) this.#making = null; }).catch(() => { /* said below */ });
+        let making = this.#making.get(key);
+        if (making === undefined) {
+          const made = this.#hold(key, live, snapshot);
+          this.#making.set(key, made);
+          made.finally(() => { if (this.#making.get(key) === made) this.#making.delete(key); }).catch(() => { /* said below */ });
+          making = made;
         }
-        base = await (this.#making as { readonly base: Promise<Base> }).base;
+        base = await making;
       }
+      this.#latest = base;
     } catch (error) {
       throw new QueryFailure(error, query);
     }
@@ -266,26 +326,30 @@ export class ServerBaseRunner implements QueryRunner {
     return base.runner;
   }
 
-  /** The grid is gone (B2): the base it reads let go, and one it is moving to let go once it is held. */
+  /** The grid is gone (B2): every base it reads let go, and one being made for it let go once it is held. */
   close(): void {
     this.#closed = true;
-    const base = this.#base;
-    this.#base = null;
-    if (base !== null) this.#bases.release(base.key);
+    this.#latest = null;
+    for (const key of this.#held.keys()) this.#bases.release(key);
+    this.#held.clear();
   }
 
-  /** This grid moved to the base `key`: held for it, and the one it read before let go. */
-  async #moveTo(key: string, live: ValueSpecification, snapshot: CubeSnapshot): Promise<Base> {
+  /** The base `key` held for this grid, the one read least lately let go past `HOLDS`. */
+  async #hold(key: string, live: ValueSpecification, snapshot: CubeSnapshot): Promise<Base> {
     const made = await this.#bases.hold(key, snapshot);
     if (this.#closed) {
       this.#bases.release(key);
       throw new Error('the grid is closed: it reads no base');
     }
-    const old = this.#base;
     const base = this.#runnerOver(key, live, made);
-    this.#base = base;
+    this.#held.set(key, base);
     if (made.name !== null) this.#counts.made++;
-    if (old !== null && old.key !== key) this.#bases.release(old.key);
+    for (const old of this.#held.keys()) {
+      if (this.#held.size <= ServerBaseRunner.HOLDS) break;
+      if (old === key) continue;
+      this.#held.delete(old);
+      this.#bases.release(old);
+    }
     return base;
   }
 
@@ -293,6 +357,6 @@ export class ServerBaseRunner implements QueryRunner {
     // the base as each query writes it: with its calculated columns, or, having none, the source alone
     return made.name === null
       ? { key, name: null, runner: this.#inner }
-      : { key, name: made.name, runner: rebased(this.#inner, live, accessor(BASES, made.name)) };
+      : { key, name: made.name, runner: rebased(this.#based, live, accessor(BASES, made.name)) };
   }
 }

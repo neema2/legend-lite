@@ -43,9 +43,9 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | K6 | **built 2026-10-24** (§5), but for NTH_VALUE; EMA and delta 2026-10-25 (§6). **Windows as `updateBy`**: running and moving figures (by rows and by time), lag and lead, first and last, the ranks; top-N per group (a row number filtered, SQL's QUALIFY: no `headBy` needed); DataCube's window functions and show-as | each against DuckDB's answer |
 | K7 | **built 2026-10-25** (§6). **as-of joins as `aj`** (DH20) | the same |
 | K8 | **built 2026-10-25** (§7). **the market map**: a treemap of every name, sized by value, coloured by the day's change, ticking | a browser check |
-| K9 | **real-time P&L with limits**: day P&L against the prior close by desk and book, KPI tiles that turn red past a limit | the same |
-| K10 | **the execution blotter**: parent and child orders, fills, % filled, slippage against arrival in basis points, by strategy and venue | the same |
-| K11 | **the options desk**: greeks as Pure functions run by Deephaven as formulas (needs K5's `sqrt`), vega by expiry and strike | the same |
+| K9 | **built 2026-10-25** (§7). **real-time P&L with limits**: day P&L against the prior close by desk and book, KPI tiles that turn red past a limit | the same |
+| K10 | **built 2026-10-25** (§7). **the execution blotter**: parent and child orders, fills, % filled, slippage against arrival in basis points, by strategy and venue | the same |
+| K11 | **built 2026-10-25** (§7). **the options desk**: greeks as Pure functions run by Deephaven as formulas (needs K5's `sqrt`), vega by expiry and strike | the same |
 | K12 | **FX e-trading**: a rates ladder, cross rates by live joins, RFQ hit ratio | the same |
 | K13 | **TCA and markouts** (needs K7) | the same |
 
@@ -65,7 +65,6 @@ Each row is a thing done outside the platform, to push into it.
 | `market/market.groovy`'s Coinbase feed (K2) | crypto from Coinbase Exchange's public feed, the simulator in its place where it is refused | no feed ingestion in lite | a feed declared in the store and started by the platform; Kafka into Deephaven in production |
 | `market/market.groovy`'s `world` table (K2) | what each part of the world is and why (simulated, live, connecting) | the page has no other way to learn it | the feed's own status, a system table of the platform's |
 | `market/market.groovy`'s bank (K9-K13) | the bank's own day: desks, traders, books, positions at the prior close, limits; parent orders worked by algorithms into fills and routes on the market's own prices; FX prices; clients' RFQs quoted and done or missed; a listed option chain settled by Black and Scholes | lite writes no rows into Deephaven yet, and a bank's books and blotters come from its systems of record | each its own source -- an OMS's orders and fills, a position keeper, a pricing engine -- declared in the store and published by the platform (L5) |
-| `market/traders.ts`'s grids read as written (K4) | each trader screen's grid plans its queries in the tab and runs them on its own reader, with no base kept on the server (`src/server-base.ts`, B1) | a base re-declares the planner's model in its text, and the one trading model takes 4.4 s to hold: a screen of five grids would hold it six times before it showed | a base's Database held over the held model (an overlay of the held `ModelContext`, as a runtime and connection already are), never in its text |
 | `market/traders.ts`, the host (K4) | the page around DataCube's: its menu of trader screens, each written by `screens.ts` and opened as a saved page is | the screens are saved pages of a demo of their own, not yet a project's | a project's saved pages, listed by DataCube's own Open window |
 
 ## 4. Realistic speeds
@@ -461,3 +460,46 @@ utilisation, live greeks: null), so the database computes each. Checked on the p
 classes (`//datacube:deephaven_market_test`, 19 checks): the desks, books and traders by their associations; every
 position its book's and on a listed instrument; each desk's limits; every order's fills summing to its filled
 quantity; ten pairs, bid under ask; requests consistent with their states; the chain.
+
+**K9, P&L and limits (2026-10-25).** *P&L*: the firm's day P&L (a KPI against zero), by desk and by sector, and a grid by
+desk, book and name -- every cash position marked to its live mid against the prior close (positions joined to quotes
+by the database). *Limits*: each desk's day P&L against its day's loss limit and its gross against its gross limit,
+each used as a share (a heatmap from green to red), a status (a breach at the limit, a warning at four fifths), the
+desks past either (KPIs that turn red above zero), and each desk's loss limit left (red under a fifth).
+
+**K10, the execution blotter (2026-10-25).** *Blotter*: orders working, notional filled and the day's slippage against
+arrival (KPIs); every parent order as its algorithm works it -- % filled, its fills' average price and its slippage in
+basis points, from its fills grouped by order and joined to it -- and its fills as they print. *Algorithms and venues*:
+slippage by algorithm, notional by venue, and the fills by algorithm and venue.
+
+**K11, the options desk (2026-10-25).** *Chain*: every listed option priced live by Black and Scholes -- functions of the
+market's model (`market::options`, `datacube/demo/deephaven/market/model.ts`), programs the compiler inlines, so the
+database computes every price and greek from the underlying's live mid -- with its change against its settlement, and
+the smile (implied volatility by strike over spot, each expiry a line). *Risk*: the derivatives books' dollar delta,
+vega, theta and day P&L (KPIs), vega by expiry and underlying (a heatmap), and the books' greeks by underlying and expiry.
+Checked on the server (`//datacube:deephaven_market_test`): put-call parity on every option within a millionth of the
+spot (the normal distribution's approximation), every delta in range.
+
+**What the options desk found in the platform, fixed (2026-10-25):**
+- *Deephaven: a chain of calculated columns grew in each formula as it went.* SQL wants each extend's column written
+  as its whole expression where a later one reads it, so the lowering writes it there; Deephaven compiles each formula
+  as written, and a price's Black and Scholes reached 30,000 characters and 109 s for the server to compile (and
+  `sqrt`'s runtime-error guard prints its operand into its message, a dozen times more). Within one `view` a later
+  column now names an earlier one (`DeephavenBatch.view`: the server evaluates a view's columns in order); the market
+  lane went from 171 s to 49 s, and the 76 answers on the server are unchanged. The program helps too: the screen's
+  source computes the square root, the discount, d1, the density and the four normal distributions once each, as
+  columns, and the price and greeks are small formulas over them.
+- *A page's server bases (B1) on a big model.* Each new base re-declared the page's whole model, so the trader host
+  read every source as written; with no base, each distinct query of a grid shipped the whole Black and Scholes source
+  and the server compiled it again (53 s to open the options desk). The bases can now be declared in a model of their
+  own (`ServerBaseOptions.connectionOf`: the connection's text and their Database, nothing of the page's), so the page's
+  planner holds the trading model once; a Boolean column is declared `BIT`. Every trader screen's grid now reads a base.
+- *A grid's runner held one base at a time*: a chart of calculated columns of its own (the smile's bins) reads another
+  base than its grid's, so the two took turns at every tick -- 175 moves a minute, each a hold, a release and its
+  queries planned again. It now holds the few its grid and charts read (the one read least lately let go past four).
+- *A heatmap's labels* were raw floats (a vega's 17 digits): each is now its value as the grid writes its column.
+
+Measured (`//datacube:deephaven_traders_test`, five screens, the pinned Chromium, a world of 100 names): each screen
+open in 1.7 to 6.9 s (the options desk 13.5 s on a server that has not compiled its formulas yet), every sheet ticking
+with nothing sent or fetched, a tick on screen 21 to 51 ms after its rows (p50); the risk demo's cube and board tests
+pass on the changed bases.
