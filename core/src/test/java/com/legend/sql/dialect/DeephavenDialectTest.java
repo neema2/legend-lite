@@ -33,6 +33,7 @@ class DeephavenDialectTest {
               Table instrument (iid VARCHAR(16) PRIMARY KEY, sector VARCHAR(16), ccy VARCHAR(3) NOT NULL)
               Table fills (fid INTEGER PRIMARY KEY, tm TIMESTAMP NOT NULL, ts TIMESTAMP, d DATE, px DOUBLE)
               Table prints (pid INTEGER PRIMARY KEY, sym VARCHAR(8), tm TIMESTAMP NOT NULL, px DOUBLE, sz DOUBLE NOT NULL)
+              Table books (bid INTEGER PRIMARY KEY, lim DECIMAL(18,2), used DECIMAL(18,2) NOT NULL)
             )
             ###Connection
             RelationalDatabaseConnection risk::Conn
@@ -264,6 +265,62 @@ class DeephavenDialectTest {
         assertTrue(b.contains("{\"crossJoin\": {"), b);
         assertTrue(b.contains("{\"unstructuredFilter\": {\"sourceId\": {\"batchOffset\": 1}, \"filters\": [\"")
                 && b.contains(" != null\""), b);
+    }
+
+    // ==================================================================
+    // A screen's scalars (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md §2, the stress corpus's TF_TradeScalars)
+    // ==================================================================
+
+    /** One formula of {@code source->extend(~r:x|lambda)}: the plan holds it as {@code r = formula}. */
+    private static void formulaOver(String source, String key, String lambda, String expected) {
+        String b = batch(source + "->extend(~r:x|" + lambda + ")->select(~[" + key + ", r])");
+        assertTrue(b.contains("\"r = " + expected.replace("\"", "\\\"") + "\""), b);
+    }
+
+    @Test
+    void aRoundIsHalfEvenAsJavasRintIs() {
+        // Pure's round is half-even (SqlFn's contract): rint, to an Integer the whole number it lands on
+        formulaOver(P, "pid", "($x.sz / 4.0)->round()", "((long) rint((t0__sz / 4.0)))");
+        // to a scale: the value scaled by the literal power of ten, rint, scaled back (ROUND_EVEN(x, 2)'s two steps)
+        formulaOver(P, "pid", "($x.sz / 3.0)->round(2)", "(rint((t0__sz / 3.0) * 100.0) / 100.0)");
+    }
+
+    @Test
+    void aModIsTheRemainderWithTheDivisorsSign() {
+        // Pure's mod is floored (the divisor's sign), its rem truncated (the dividend's, Java's %)
+        formulaOver(P, "pid", "$x.pid->mod(3)", "(((t0__pid % 3L) + 3L) % 3L)");
+        formulaOver(P, "pid", "$x.pid->rem(3)", "(t0__pid % 3L)");
+    }
+
+    @Test
+    void aSubstringAndAPlaceAreSqlsReadThroughStringsOwnMethods() {
+        String instrument = "#>{risk::Ref.instrument}#";
+        // the platform's SUBSTRING (one-based start, a length), each index held to the string's length
+        formulaOver(instrument, "iid", "$x.ccy->substring(1, 3)", "t0__ccy.substring((t0__ccy.length() < 0 ?"
+                + " t0__ccy.length() : 0), (t0__ccy.length() < 3 ? t0__ccy.length() : 3))");
+        // a start below 1 held at 1, as H2 holds it and DuckDB's SubstringClamp does
+        formulaOver(instrument, "iid", "$x.ccy->substring(0, 2)", "t0__ccy.substring((t0__ccy.length() < 0 ?"
+                + " t0__ccy.length() : 0), (t0__ccy.length() < 2 ? t0__ccy.length() : 2))");
+        // a string that may be null stays null
+        formulaOver(instrument, "iid", "$x.sector->toOne()->substring(1)",
+                "(isNull(t0__sector) ? (String) null : t0__sector.substring((t0__sector.length() < 0 ?"
+                        + " t0__sector.length() : 0)))");
+        // contains is a place past 0
+        formulaOver(instrument, "iid", "$x.ccy->contains('U')", "((t0__ccy.indexOf(`U`) + 1) > 0L)");
+    }
+
+    @Test
+    void aWholeNumberAsTextIsItsDigitsAndADecimalAsAFloatItsOwnDoubleValue() {
+        formulaOver(P, "pid", "$x.pid->toString()", "(`` + t0__pid)");
+        // a DECIMAL column is a BigDecimal: its doubleValue (DH33 permits BigDecimal's methods), a null kept null
+        String books = "#>{risk::Ref.books}#";
+        formulaOver(books, "bid", "$x.used->toFloat()", "(t0__used.doubleValue())");
+        formulaOver(books, "bid", "$x.lim->toOne()->toFloat()",
+                "(isNull(t0__lim) ? NULL_DOUBLE : t0__lim.doubleValue())");
+        // a float's text is Java's where SQL's differs (1.0E7 against 10000000.0): refused by name
+        DialectCapability text = assertThrows(DialectCapability.class,
+                () -> batch(P + "->extend(~r:x|$x.sz->toString())->select(~[pid, r])"));
+        assertTrue(text.getMessage().contains("reached Deephaven"), text.getMessage());
     }
 
     @Test

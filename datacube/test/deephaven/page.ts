@@ -41,6 +41,7 @@ Database risk::Ref
   Table ticks (sym VARCHAR(8), px DOUBLE)
   Table fills (fid INTEGER PRIMARY KEY, tm TIMESTAMP NOT NULL, ts TIMESTAMP, d DATE, px DOUBLE NOT NULL)
   Table prints (pid INTEGER PRIMARY KEY, sym VARCHAR(8), tm TIMESTAMP NOT NULL, px DOUBLE, sz DOUBLE NOT NULL)
+  Table books (bid INTEGER PRIMARY KEY, lim DECIMAL(18,2), used DECIMAL(18,2) NOT NULL)
 )
 ###Connection
 RelationalDatabaseConnection risk::Conn
@@ -96,6 +97,12 @@ prints = newTable(
     at("09:32:30"), at("09:33:00.001"), at("09:33:00")),
   doubleCol("px", 10.0d, 10.5d, 20.0d, NULL_DOUBLE, 11.0d, 19.5d, 5.0d, 10.0d, NULL_DOUBLE),
   doubleCol("sz", 100.0d, 200.0d, 50.0d, 300.0d, 100.0d, 75.0d, 10.0d, 50.0d, 25.0d))
+// books for decimals (the stress corpus's 1,582 services over a DECIMAL column): a BigDecimal column each, one null
+def dec = { String v -> v == null ? null : new java.math.BigDecimal(v) }
+books = newTable(
+  intCol("bid", 1, 2, 3),
+  col("lim", [dec("1000.50"), dec(null), dec("0.10")] as java.math.BigDecimal[]),
+  col("used", [dec("250.25"), dec("0.00"), dec("12.34")] as java.math.BigDecimal[]))
 `;
 
 const T = '#>{risk::Ref.trades}#';
@@ -269,6 +276,39 @@ const WINDOWS: readonly { readonly query: string; readonly rows: readonly (reado
 
 /** DataCube's shapes, L2's eighteen (the two the compiler refuses, a string operation on a nullable column, are not
  *  the target's): each must plan, be sent and be created, and answer rows. */
+const I = '#>{risk::Ref.instrument}#';
+const B = '#>{risk::Ref.books}#';
+
+/** SCALARS (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md §2, the stress corpus's TF_TradeScalars): a screen's computed
+ *  column, each answer DuckDB's over the same rows -- every one a formula, Deephaven's own library and String's and
+ *  BigDecimal's own methods (DH33). */
+const SCALARS: readonly { readonly query: string; readonly rows: readonly (readonly unknown[])[] }[] = [
+  // round half-even (SqlFn's contract: 12.5 and 2.5 to the even below), to a scale; mod with the divisor's sign, rem
+  // with the dividend's
+  { query: `${P}->extend(~[r0:x|($x.sz / 4.0)->round(), r2:x|($x.sz / 3.0)->round(2), m:x|$x.pid->mod(3), `
+      + `n:x|$x.pid->rem(3), nm:x|(0 - $x.pid)->mod(4), nr:x|(0 - $x.pid)->rem(4)])->select(~[pid, r0, r2, `
+      + `m, n, nm, nr])->sort(~pid->ascending())`,
+    // rem is Pure's Number (rem(Number, Number)), which the tab reads as exact text, as it reads a Decimal
+    rows: [[1, 25, 33.33, 1, '1', 3, '-1'], [2, 50, 66.67, 2, '2', 2, '-2'], [3, 12, 16.67, 0, '0', 1, '-3'],
+      [4, 75, 100, 1, '1', 0, '0'], [5, 25, 33.33, 2, '2', 3, '-1'], [6, 19, 25, 0, '0', 2, '-2'],
+      [7, 2, 3.33, 1, '1', 1, '-3'], [8, 12, 16.67, 2, '2', 0, '0'], [9, 6, 8.33, 0, '0', 3, '-1']] },
+  // the platform's SUBSTRING, one-based, a start below 1 held at 1 and an index past the end held there; contains;
+  // a null string kept null
+  { query: `${I}->extend(~[h:x|$x.ccy->substring(1, 3), z:x|$x.ccy->substring(0, 2), e:x|$x.ccy->substring(2), `
+      + `c:x|$x.ccy->contains('U'), s:x|$x.sector->toOne()->substring(1, 2)])->select(~[iid, h, z, e, c, `
+      + `s])->sort(~iid->ascending())`,
+    rows: [['I1', 'USD', 'US', 'SD', true, 'Te'], ['I2', 'EUR', 'EU', 'UR', true, null],
+      ['I3', 'JPY', 'JP', 'PY', false, 'Ba']] },
+  // a whole number as its digits, a null kept null
+  { query: `${T}->extend(~[t:x|$x.id->toString(), q:x|$x.qty->toOne()->toString()])->select(~[id, t, `
+      + `q])->sort(~id->ascending())`,
+    rows: [[1, '1', '10'], [2, '2', '5'], [3, '3', null], [4, '4', '20'], [5, '5', '1'], [6, '6', '3']] },
+  // a DECIMAL column read as it is (exact text, as the tab reads a BigDecimal), and as a Float by its own doubleValue
+  { query: `${B}->extend(~[u:x|$x.used->toFloat() * 2.0, l:x|$x.lim->toOne()->toFloat()])->select(~[bid, used, `
+      + `u, l])->sort(~bid->ascending())`,
+    rows: [[1, '250.25', 500.5, 1000.5], [2, '0', 0, null], [3, '12.34', 24.68, 0.1]] },
+];
+
 const SHAPES: readonly string[] = [
   `${T}->groupBy(~[region, country], ~['2023__|__total':x|if($x.year == 2023, |$x.notional, |[]):y|$y->sum(),`
     + ` total:x|$x.notional:y|$y->sum()])->sort([~region->ascending(), ~country->ascending()])`,
@@ -395,7 +435,7 @@ try {
   }
   // a date or a date-time is read by its plan's column type, as DataCube's engine reads it (followedTable): an instant
   // its nanoseconds' UTC wall-clock, a date its day
-  for (const k of [...TIMES, ...WINDOWS]) {
+  for (const k of [...TIMES, ...WINDOWS, ...SCALARS]) {
     await check(`answers ${k.query}`, async () => {
       const plan = planned(k.query);
       const got = await answer(k.query, (rows) => {

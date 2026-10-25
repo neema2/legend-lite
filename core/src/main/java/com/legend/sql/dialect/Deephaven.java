@@ -796,6 +796,16 @@ public final class Deephaven extends AnsiSqlRenderer {
             case ATAN -> function(writer, "atan", a);
             case COALESCE -> coalesce(writer, a, 0);
             case CONCAT -> concat(writer, c);
+            // the scalars a screen's computed column calls (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md §2, the stress
+            // corpus's TF_TradeScalars): Pure's round is half-even (SqlFn's contract), as Java's rint is; mod is the
+            // remainder with the divisor's sign, rem with the dividend's (Java's %); substring and strpos SQL's,
+            // one-based, read through String's own methods (DH33)
+            case ROUND -> round(writer, c);
+            case MOD -> writer.append("(((").expr(a.get(0), 0).append(" % ").expr(a.get(1), 0).append(") + ")
+                    .expr(a.get(1), 0).append(") % ").expr(a.get(1), 0).append(")");
+            case REM -> writer.append("(").expr(a.get(0), 0).append(" % ").expr(a.get(1), 0).append(")");
+            case SUBSTRING -> substring(writer, c);
+            case STRPOS -> strpos(writer, c);
             case UPPER -> stringMethod(writer, c, "toUpperCase");
             case LOWER -> stringMethod(writer, c, "toLowerCase");
             case LENGTH -> stringMethod(writer, c, "length");
@@ -809,12 +819,12 @@ public final class Deephaven extends AnsiSqlRenderer {
                     + " view's rows are filtered when they change, not again as time passes, so a filter on the time"
                     + " now would keep a row it has aged out; not shaped until a live window is designed"
                     + " (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md DH30)");
-            case MOD, REM, PARSE_INT, GREATEST, LEAST, CONCAT_JOIN, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT,
+            case PARSE_INT, GREATEST, LEAST, CONCAT_JOIN, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT,
                  LIST_GET, LIST_POSITION, LIST_EXISTS, LIST_FOR_ALL, STRUCT_INSERT, UNNEST, LIST_FLATTEN,
-                 JSON_MERGE_PATCH, CBRT, PI, ATAN2, SINH, COSH, TANH, ROUND, XOR, BIT_AND, BIT_OR, BIT_XOR,
+                 JSON_MERGE_PATCH, CBRT, PI, ATAN2, SINH, COSH, TANH, XOR, BIT_AND, BIT_OR, BIT_XOR,
                  BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE,
                  REGEXP_FULL_MATCH, MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT, MAP_KEYS, MAP_VALUES,
-                 MAP_CONCAT, SUBSTRING, STRPOS, MATCHES, LEFT, RIGHT, LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE,
+                 MAP_CONCAT, MATCHES, LEFT, RIGHT, LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE,
                  SPLIT, SPLIT_PART, TRANSLATE, PURE_SPLIT_PART, REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST,
                  ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT, HASH, MD5, SHA1, SHA256, RANDOM,
                  MAKE_DATE, MAKE_TIMESTAMP, DATE_DIFF,
@@ -888,6 +898,59 @@ public final class Deephaven extends AnsiSqlRenderer {
     }
 
     /** A string's method, null when the string is: a method of a null string fails the operation. */
+    /** Half-even, as SqlFn.ROUND is: {@code rint} of the value, or of the value scaled by a literal power of ten and
+     *  scaled back (SQL's ROUND_EVEN(x, s) is the same two steps); the library's {@code rint} keeps a null a null. */
+    private SqlWriter round(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 1) {
+            return writer.append("rint(").expr(a.get(0), 0).append(")");
+        }
+        if (!(a.get(1) instanceof SqlExpr.IntLit scale) || scale.value() < 0 || scale.value() > 15) {
+            throw new DialectCapability("a round to a computed or negative scale reached Deephaven: no shape yet");
+        }
+        String power = java.math.BigDecimal.TEN.pow((int) scale.value()).toPlainString() + ".0";
+        return writer.append("(rint(").expr(a.get(0), 0).append(" * " + power + ") / " + power + ")");
+    }
+
+    /** The platform's SUBSTRING(s, from[, length]) over a literal start and length: one-based, a start below 1 held
+     *  at 1 (H2's at its runtime, DuckDB's by SubstringClamp), each index held to the string's length as SQL holds it
+     *  (a start past the end is the empty string) -- String's own substring. */
+    private SqlWriter substring(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        SqlExpr s = a.get(0);
+        if (!(a.get(1) instanceof SqlExpr.IntLit from)
+                || a.size() > 2 && !(a.get(2) instanceof SqlExpr.IntLit length && length.value() >= 0)) {
+            throw new DialectCapability("a substring at a computed place reached Deephaven: no shape yet");
+        }
+        long begin = Math.max(from.value(), 1) - 1;
+        SqlWriter.Piece len = w -> w.expr(s, 0).append(".length()");
+        SqlWriter.Piece held = w -> w.append("(").piece(len).append(" < " + begin + " ? ").piece(len)
+                .append(" : " + begin + ")");
+        if (nullable(s)) {
+            writer.append("(isNull(").expr(s, 0).append(") ? ").append(typedNull(c.type(), "a substring")).append(" : ");
+        }
+        writer.expr(s, 0).append(".substring(").piece(held);
+        if (a.size() > 2) {
+            long end = begin + ((SqlExpr.IntLit) a.get(2)).value();
+            writer.append(", (").piece(len).append(" < " + end + " ? ").piece(len).append(" : " + end + ")");
+        }
+        writer.append(")");
+        return nullable(s) ? writer.append(")") : writer;
+    }
+
+    /** SQL's STRPOS(s, sub): the one-based place of the first {@code sub} in {@code s}, 0 where there is none. */
+    private SqlWriter strpos(SqlWriter writer, SqlExpr.Call c) {
+        SqlExpr s = c.args().get(0);
+        SqlExpr sub = c.args().get(1);
+        boolean guard = nullable(s) || nullable(sub);
+        if (guard) {
+            writer.append("(isNull(").expr(s, 0).append(") || isNull(").expr(sub, 0).append(") ? ")
+                    .append(typedNull(c.type(), "a string's place")).append(" : ");
+        }
+        writer.append("(").expr(s, 0).append(".indexOf(").expr(sub, 0).append(") + 1)");
+        return guard ? writer.append(")") : writer;
+    }
+
     private SqlWriter stringMethod(SqlWriter writer, SqlExpr.Call c, String method) {
         SqlExpr s = c.args().get(0);
         if (nullable(s)) {
@@ -1129,7 +1192,8 @@ public final class Deephaven extends AnsiSqlRenderer {
     }
 
     /** A numeric widening cast, a null kept null (a primitive cast of a null sentinel would answer a number); a
-     *  date-time to its UTC date and a date to its UTC midnight (DH29). */
+     *  decimal to a double by its own {@code doubleValue}; a date-time to its UTC date and a date to its UTC midnight
+     *  (DH29). */
     private SqlWriter cast(SqlWriter writer, SqlExpr.Cast c) {
         if (!(c.target() instanceof SqlType.Scalar target)) {
             throw new DialectCapability("a cast to " + c.target() + " reached Deephaven: no shape yet");
@@ -1140,15 +1204,28 @@ public final class Deephaven extends AnsiSqlRenderer {
         if (target == SqlType.Scalar.TIMESTAMP) {
             return asInstant(writer, c.value(), "a cast to a date-time");
         }
+        if (target == SqlType.Scalar.VARCHAR) {
+            return text(writer, c);
+        }
         String primitive = switch (target) {
             case DOUBLE -> "double";
             case BIGINT -> "long";
-            default -> throw new DialectCapability("a cast to " + target + " reached Deephaven: no shape yet");
+            default -> throw new DialectCapability("a cast to " + target + " (from " + c.value().type()
+                    + ") reached Deephaven: no shape yet");
         };
+        if (target == SqlType.Scalar.DOUBLE && c.value().type() instanceof TypeFact.Typed from
+                && from.type() instanceof SqlType.Decimal) {
+            // a DECIMAL column is a BigDecimal (DeephavenBatch's DDL): its own doubleValue, a permitted method (DH33)
+            if (nullable(c.value())) {
+                return writer.append("(isNull(").expr(c.value(), 0).append(") ? NULL_DOUBLE : ").expr(c.value(), 0)
+                        .append(".doubleValue())");
+            }
+            return writer.append("(").expr(c.value(), 0).append(".doubleValue())");
+        }
         if (!(c.value().type() instanceof TypeFact.Typed from) || !(from.type() instanceof SqlType.Scalar f)
                 || !(f == SqlType.Scalar.INTEGER || f == SqlType.Scalar.BIGINT || f == SqlType.Scalar.DOUBLE)) {
-            throw new DialectCapability("a cast of a non-numeric value to " + target + " reached Deephaven: no shape"
-                    + " yet");
+            throw new DialectCapability("a cast of a non-numeric value (" + c.value().type() + ") to " + target
+                    + " reached Deephaven: no shape yet");
         }
         if (nullable(c.value())) {
             writer.append("(isNull(").expr(c.value(), 0).append(") ? ").append(typedNull(c.type(), "a cast"))
@@ -1156,6 +1233,27 @@ public final class Deephaven extends AnsiSqlRenderer {
             return writer.append("(" + primitive + ") ").expr(c.value(), 0).append(")");
         }
         return writer.append("((" + primitive + ") ").expr(c.value(), 0).append(")");
+    }
+
+    /** A value as text: a string is itself; a whole number its digits, by Java's string concatenation (SQL's CAST of
+     *  an INTEGER or a BIGINT to VARCHAR), a null kept null. A float's text and a date's differ between Java and SQL,
+     *  and are refused by name until shaped. */
+    private SqlWriter text(SqlWriter writer, SqlExpr.Cast c) {
+        SqlType.Scalar from = c.value().type() instanceof TypeFact.Typed t && t.type() instanceof SqlType.Scalar f
+                ? f : null;
+        if (from == SqlType.Scalar.VARCHAR) {
+            return writer.expr(c.value(), 0);
+        }
+        if (from != SqlType.Scalar.INTEGER && from != SqlType.Scalar.BIGINT) {
+            throw new DialectCapability("a cast to VARCHAR (from " + c.value().type() + ") reached Deephaven: no shape"
+                    + " yet");
+        }
+        String empty = stringLiteral("");
+        if (nullable(c.value())) {
+            return writer.append("(isNull(").expr(c.value(), 0).append(") ? (String) null : (" + empty + " + ")
+                    .expr(c.value(), 0).append("))");
+        }
+        return writer.append("(" + empty + " + ").expr(c.value(), 0).append(")");
     }
 
     // ==================================================================

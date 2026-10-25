@@ -184,6 +184,19 @@ run on DuckDB (`chart-queries.test.ts`); the same chart's query planned for a De
 kinds' chunk grows by ECharts' candlestick (68,000 -> 70,500, measured 70,117) and the startup pages by its rules
 (grid 358,500 -> 359,000). Python reaches it by a value's dict (`{'column': 'px', 'fn': 'minBy', 'weight': 'seq'}`).
 
+**The scalars (2026-10-25), first of the corpus's order (§6).** A screen's computed column on Deephaven, each a formula
+of the server's own library or of a permitted method (DH33): Pure's `round` half-even, as SqlFn's ROUND is (`rint`, to a
+literal scale by its power of ten and back -- SQL's ROUND_EVEN's two steps); `mod` floored and `rem` truncated (Java's
+`%`); the platform's SUBSTRING (one-based, a start below 1 held at 1 as H2 holds it and DuckDB's SubstringClamp does,
+each index held to the string's length) by String's `substring`; STRPOS (contains) by `indexOf`; a whole number as
+text by Java's concatenation; and a DECIMAL column (a `BigDecimal`, DeephavenBatch's DDL) to a Float by its own
+`doubleValue` -- the arithmetic of 1,582 corpus services over a Float property on a DECIMAL column. A float's text and
+a date-time's are refused by name (Java's and SQL's differ: 1.0E7 against 10000000.0). Measured: the dialect's tests,
+and four answers on the pinned server equal to DuckDB's over the same rows (`page.ts` SCALARS, a BigDecimal table among
+them: 63 checks); the corpus planned on a Deephaven runtime goes from 2,304 to 3,885 of its 4,776 services. What they
+refuse next, by count: a JSON value as text (459: graph fetch's rows), `dateDiff` (270), K5's whole-number division and
+error (82), a join with no equality (27), a schema (27), `EXISTS` (15), K7's as-of joins.
+
 ## 6. The one trading model (DH34)
 
 **Measured first (2026-10-25):** every stress-corpus service on its runtime, 4,675, planned on DuckDB and on a Deephaven
