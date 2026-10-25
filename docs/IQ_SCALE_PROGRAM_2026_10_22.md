@@ -744,4 +744,10 @@ says so.
     listed. **Fixed** on the way (54fe2883): a timestamp cut to its hour by DATEADD of a DATEDIFF is checked row by row
     for IQ's dropped hours past 7910, where it was refused; a CASE's compared operand is computed once. The root: 230
     of 248 PASS, 14 row-typed, 2 refused, 2 IQ's errors, no wrong value.
+  - **Reports part I judged** (two tables of international suppliers, UTF-8 names and cities; snapped at 343e67fc,
+    their bytes and characters checked against schema.yaml row by row): 15 of 15 PASS on DuckDB and Postgres -- UTF8BIN
+    order, ASCII-only UPPER and LOWER, LENGTH against BYTE_LENGTH, LIKE's _ over a multibyte character, LEFT, RIGHT and
+    SUBSTRING by characters, transliteration by REPLACE. The root: 245 of 263 PASS, 14 row-typed, 2 refused, 2 IQ's
+    errors, no wrong value. The live IQ dropped connections intermittently during the snap; every query answered on a
+    retry, none is a crasher.
   - **The Snowflake lane** (its sibling session idle since 10-23): its ledger column predates this day's typing.
