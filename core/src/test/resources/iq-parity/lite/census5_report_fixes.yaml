@@ -1,0 +1,31 @@
+# The IQ scale program's census, wave 5 (2026-10-26): what the realistic reports' parts D and E found -- a LIST ordered
+# by several keys or by an expression, positions computed from LOCATE, a DISTINCT with a window -- over the parity
+# tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: list_by_two_keys
+    sql: "SELECT k, LIST(id, ',' ORDER BY v, id) AS l FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: list_by_two_keys_descending
+    sql: "SELECT k, LIST(id, ',' ORDER BY v DESC, id DESC) AS l FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: list_of_strings_by_date_then_id
+    sql: "SELECT j, LIST(s, '|' ORDER BY dt, id) AS l FROM g WHERE id < 10 GROUP BY j ORDER BY j"
+    profile: iq17-default
+  - id: list_by_an_expression_then_id
+    sql: "SELECT LIST(id, ',' ORDER BY v + 1, id) AS l FROM g WHERE id < 10 AND id <> 3"
+    profile: iq17-default
+  - id: list_by_three_keys_mixed
+    sql: "SELECT LIST(id, ',' ORDER BY j DESC, v, id) AS l FROM g"
+    profile: iq17-default
+  - id: locate_from_a_computed_start
+    sql: "SELECT id, vc, LOCATE(vc, 'l', LOCATE(vc, 'l') + 1) AS second_l, LOCATE(vc, 'e', LOCATE(vc, 'l') - 1) AS e_near_l FROM t ORDER BY id"
+    profile: iq17-default
+  - id: substring_between_markers
+    sql: "SELECT id, vc, CASE WHEN LOCATE(vc, 'e') > 0 AND LOCATE(vc, 'o', LOCATE(vc, 'e') + 1) > LOCATE(vc, 'e') + 1 THEN SUBSTRING(vc, LOCATE(vc, 'e') + 1, LOCATE(vc, 'o', LOCATE(vc, 'e') + 1) - LOCATE(vc, 'e') - 1) END AS between_e_and_o FROM t ORDER BY id"
+    profile: iq17-default
+  - id: left_of_a_marker_and_length_after
+    sql: "SELECT id, LEFT(vc, LOCATE(vc, 'l') - 1) AS before_l, LENGTH(vc) - LOCATE(vc, 'l') AS after_l, LENGTH(vc) - LENGTH(REPLACE(vc, 'l', '')) AS ls FROM t WHERE LOCATE(vc, 'l') > 0 ORDER BY id"
+    profile: iq17-default
+  - id: distinct_with_a_window_ordered_by_a_qualified_column
+    sql: "SELECT DISTINCT x.k, FIRST_VALUE(x.id) OVER (PARTITION BY x.k ORDER BY x.id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS first_id FROM g x ORDER BY x.k"
+    profile: iq17-default
