@@ -38,3 +38,10 @@ run	lite/reports_mixed/payroll_by_region_with_share@iq17-default	row-typed	duckd
 # orders_30_days_before), 2) over a derived table's SUM columns -- IQ's quotient has 40 places, lite's 20: its divisor a
 # product of a derived total, typed far wider (derived-total), the value the same
 run	lite/reports_commerce/promotion_lift_by_join@iq17-default	row-typed	duckdb,postgres
+#
+# The IQ scale program, 2026-10-26 (parts F, G and H judged, snapped at a50271cd): quotients by a SUM, a group's or a
+# window's over a derived table -- a discount rate, a cumulative share, a share of a region -- whose places IQ sizes by
+# its rows' estimate: the same value with other places
+run	lite/reports_calculations/weighted_and_simple_averages@iq17-default	row-typed	duckdb,postgres
+run	lite/reports_combinations/abc_classes_by_cumulative_share@iq17-default	row-typed	duckdb,postgres
+run	lite/reports_combinations/derived_chain_with_windows@iq17-default	row-typed	duckdb,postgres

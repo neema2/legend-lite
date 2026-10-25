@@ -737,4 +737,11 @@ says so.
     invoices) follow to snap; lite answers all of F, and all of G but one it reads as IQ's -156 (SUM(units) AS units
     beside MAX(units), the alias read inside the aggregate). The lint reads an outer join's ON for its NULL-supplying
     side (662a9ad1).
+  - **Reports parts F, G and H judged** (snapped at a50271cd, 55 cases): 50 PASS on DuckDB and Postgres;
+    abc_xyz_matrix is IQ's -156 as lite predicts (IQ reads a select-list alias inside an aggregate: SUM(units) AS units
+    beside MAX(units)); capped_attainment, LESSER over a NUMERIC quotient, is refused (the statement runs in SQL
+    Anywhere's front end, whose quotient lite reads only where it is shown); three quotients by a total are row-typed,
+    listed. **Fixed** on the way (54fe2883): a timestamp cut to its hour by DATEADD of a DATEDIFF is checked row by row
+    for IQ's dropped hours past 7910, where it was refused; a CASE's compared operand is computed once. The root: 230
+    of 248 PASS, 14 row-typed, 2 refused, 2 IQ's errors, no wrong value.
   - **The Snowflake lane** (its sibling session idle since 10-23): its ledger column predates this day's typing.
