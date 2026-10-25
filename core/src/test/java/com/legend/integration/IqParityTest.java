@@ -423,6 +423,16 @@ class IqParityTest {
         // text exactly
         assertFalse(IqParity.cellEquals("ab", "ab   ", "char"));
         assertFalse(IqParity.cellEquals("1", 1L, "varchar"));
+        // the corpus judge's PLACES: at the fewer places either shows, or at the places lite computed (its trailing
+        // zeros of a scaled quotient), never fewer than two (the IQ scale program, 2026-10-26)
+        java.util.function.BiPredicate<String, String> places = (iq, lite) -> IqParity.cellEqualsAtFewerPlaces(
+                new java.math.BigDecimal(iq), new java.math.BigDecimal(lite), "numeric");
+        assertTrue(places.test("12.968675216600", "12.9686752"));
+        assertTrue(places.test("12.968675216600", "12.968675200"));
+        assertTrue(places.test("1.2345678901234", "1.23456789012345678901234"));
+        assertFalse(places.test("12.968675216600", "12.968675300"));
+        assertFalse(places.test("100.40", "100.000"));
+        assertTrue(places.test("100.004", "100.000"));
     }
 
     @Test

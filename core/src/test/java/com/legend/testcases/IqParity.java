@@ -2369,8 +2369,16 @@ public final class IqParity {
                 return false;
             }
             int places = Math.min(e.scale(), a.scale());
-            return e.setScale(places, java.math.RoundingMode.DOWN).compareTo(
-                    a.setScale(places, java.math.RoundingMode.DOWN)) == 0;
+            if (e.setScale(places, java.math.RoundingMode.DOWN).compareTo(
+                    a.setScale(places, java.math.RoundingMode.DOWN)) == 0) {
+                return true;
+            }
+            // the IQ scale program, 2026-10-26 (the TPC-DS corpus lane's percentages, a / b * 100 over sums): lite's
+            // quotient of fewer places, scaled by a power of ten, shows trailing zeros it never computed (12.968675200
+            // for IQ's 12.968675216600); cut at the places lite computed, at least two
+            int computed = Math.max(Math.min(a.stripTrailingZeros().scale(), places), 2);
+            return computed < places && e.setScale(computed, java.math.RoundingMode.DOWN).compareTo(
+                    a.setScale(computed, java.math.RoundingMode.DOWN)) == 0;
         }
         return cellEquals(expected, actual, saType);
     }

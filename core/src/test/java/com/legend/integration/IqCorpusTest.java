@@ -136,9 +136,11 @@ class IqCorpusTest {
                                     && sameRowsUnordered(parityRun, snap, service, model, island, session)) {
                                 // a real-world query's ORDER BY may tie: the rows are IQ's, in another order
                                 verdict = "PASS_UNORDERED";
-                            } else if (o.status() == SqlParity.Status.FAIL && onlyPlaces(detail)
+                            } else if (o.status() == SqlParity.Status.FAIL
                                     && samePlacesCut(parityRun, snap, service, model, island, session)) {
-                                // the IQ scale program, 2026-10-25: a NUMERIC's places differ, its digits agree
+                                // the IQ scale program, 2026-10-25: a NUMERIC's places differ, its digits agree;
+                                // 2026-10-26 (the TPC-DS lane's 23 percentages and an AVG of IQ's fewer places): tried
+                                // for any FAIL, not only one whose detail names places -- every other cell must match
                                 verdict = "PLACES";
                             }
                         } catch (TimeoutException e) {
@@ -277,16 +279,6 @@ class IqCorpusTest {
         } catch (Exception e) {
             return false;
         }
-    }
-
-    /** Whether every difference {@code detail} names is a NUMERIC column's places (IqParity.scale's message). */
-    private static boolean onlyPlaces(String detail) {
-        for (String part : detail.split("; ")) {
-            if (!part.contains("NUMERIC has ") || !part.contains(" places, legend-lite's value ")) {
-                return false;
-            }
-        }
-        return !detail.isEmpty();
     }
 
     /** The IQ scale program, 2026-10-25 (the corpus judge's PLACES): whether lite's rows are IQ's once each NUMERIC

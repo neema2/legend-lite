@@ -3744,8 +3744,18 @@ public final class SqlToPure {
             }
             String column = fresh(present);
             pre.add(new ColSpec(column, lambda(row, valueOf(ct)), null, null));
-            hoisted.put(c, Col.of(column, ct.kind(), ct.nullable(), ct.detail()));
+            Col computed = Col.of(column, ct.kind(), ct.nullable(), ct.detail());
+            hoisted.put(c, computed);
             mine.add(c);
+            // the IQ scale program, 2026-10-26 (tpcds-1626: CASE WHEN ROUND(a / NULLIF(b, 0) * 100, 2) BETWEEN 5 AND 10
+            // THEN ... WHEN ROUND(a / NULLIF(b, 0) * 100, 2) BETWEEN 10 AND 20 ..., past the size bound): the operand,
+            // computed for every row, is the value of each copy of it the item writes elsewhere, read from its column
+            for (SqlAst.Expr same : copiesOf(c, e)) {
+                if (!hoisted.containsKey(same)) {
+                    hoisted.put(same, computed);
+                    mine.add(same);
+                }
+            }
         }
         // the IQ scale program, 2026-10-25 (the corpus lane's guarded ratios: CASE WHEN up + down > 0 THEN CAST(ROUND(up
         // * 1.0 / (up + down) * 100, 2) AS DECIMAL(5,2)) ELSE 0 END, refused past the size bound): a searched CASE
@@ -3761,6 +3771,43 @@ public final class SqlToPure {
             }
         }
     }
+
+    /** The nodes of {@code item} other than {@code c} that write {@code c} again, positions aside, in {@code c}'s row:
+     *  not inside an aggregate's or a window's arguments (another row's) nor a subquery's (another query's); none
+     *  where {@code c} calls a function whose value is new at each call. */
+    private List<SqlAst.Expr> copiesOf(SqlAst.Expr c, SqlAst.Expr item) {
+        String text = positionless(c);
+        if (VOLATILE.matcher(text).find()) {
+            return List.of();
+        }
+        List<SqlAst.Expr> out = new ArrayList<>();
+        java.util.ArrayDeque<SqlAst.Expr> todo = new java.util.ArrayDeque<>();
+        todo.push(item);
+        while (!todo.isEmpty()) {
+            SqlAst.Expr x = todo.pop();
+            if (x != c && x.getClass() == c.getClass() && positionless(x).equals(text)) {
+                out.add(x);
+                continue;
+            }
+            if (x instanceof SqlAst.Window || x instanceof SqlAst.FunctionCall f && isAggregate(f)) {
+                continue;
+            }
+            children(x).forEach(todo::push);
+        }
+        return out;
+    }
+
+    /** {@code e}'s text, its positions left out. */
+    private static String positionless(SqlAst.Expr e) {
+        return POSITION.matcher(e.toString()).replaceAll("");
+    }
+
+    private static final java.util.regex.Pattern POSITION = java.util.regex.Pattern.compile(
+            "pos=Pos\\[line=-?\\d+, column=-?\\d+\\]");
+
+    /** A call of a function whose value is new at each call (by its name, in a node's text). */
+    private static final java.util.regex.Pattern VOLATILE = java.util.regex.Pattern.compile(
+            "text=(?i:rand|newid|uuid|now|getdate|today|current[_ ]?timestamp|current[_ ]?time|sysdate)\\b");
 
     /** {@code result}, branch {@code taken} of the searched CASE {@code k} (its ELSE past its WHENs): its long eager
      *  operands, each a column computed where the branch is taken, NULL elsewhere ({@link #hoistOperands}). */
@@ -3880,6 +3927,13 @@ public final class SqlToPure {
             }
             case SqlAst.Cast c -> {
                 eagerOperands(c.operand(), out);
+                out.add(e);
+            }
+            // the IQ scale program, 2026-10-26 (tpcds-1626): a BETWEEN computes its operand and both its bounds
+            case SqlAst.Between b -> {
+                eagerOperands(b.operand(), out);
+                eagerOperands(b.low(), out);
+                eagerOperands(b.high(), out);
                 out.add(e);
             }
             // the IQ scale program, 2026-10-26 (the realistic reports: CASE DOW(month_end) WHEN 1 THEN -2 WHEN 7 THEN -1
