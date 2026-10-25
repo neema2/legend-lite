@@ -1,0 +1,180 @@
+# The IQ scale program's real-life census, its third wave (2026-10-25): report idioms, each combining several
+# features, over the parity tables, judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: top_n_per_group
+    sql: "SELECT k, id, v FROM (SELECT k, id, v, ROW_NUMBER() OVER (PARTITION BY k ORDER BY v DESC, id) AS rn FROM g WHERE id < 10 AND k IS NOT NULL) x WHERE rn <= 2 ORDER BY k, rn"
+    profile: iq17-default
+  - id: dedup_latest_per_string
+    sql: "SELECT id, s, dt FROM (SELECT id, s, dt, ROW_NUMBER() OVER (PARTITION BY s ORDER BY dt DESC, id DESC) AS rn FROM g WHERE id < 10 AND s IS NOT NULL) x WHERE rn = 1 ORDER BY id"
+    profile: iq17-default
+  - id: running_total_by_month
+    sql: "SELECT YEAR(dt) AS y, MONTH(dt) AS m, SUM(n) AS total, SUM(SUM(n)) OVER (ORDER BY YEAR(dt), MONTH(dt) ROWS UNBOUNDED PRECEDING) AS running FROM g WHERE id < 10 AND dt IS NOT NULL GROUP BY YEAR(dt), MONTH(dt) ORDER BY y, m"
+    profile: iq17-default
+  - id: moving_average_of_three
+    sql: "SELECT id, v, AVG(CAST(v AS NUMERIC(10,2))) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS ma3 FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: delta_and_trend
+    sql: "SELECT id, v, v - LAG(v) OVER (ORDER BY id) AS delta, CASE WHEN LAG(v) OVER (ORDER BY id) IS NULL THEN 'first' WHEN v > LAG(v) OVER (ORDER BY id) THEN 'up' WHEN v < LAG(v) OVER (ORDER BY id) THEN 'down' ELSE 'flat' END AS trend FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: pivot_by_case
+    sql: "SELECT k, SUM(CASE WHEN b = 1 THEN n ELSE 0 END) AS on_n, SUM(CASE WHEN b = 0 THEN n ELSE 0 END) AS off_n, COUNT(CASE WHEN b = 1 THEN 1 END) AS on_count FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: having_count_distinct
+    sql: "SELECT k, COUNT(DISTINCT s) AS ds FROM g WHERE id < 10 GROUP BY k HAVING COUNT(DISTINCT s) > 1 ORDER BY k"
+    profile: iq17-default
+  - id: anti_join_by_left_join
+    sql: "SELECT t.id FROM t LEFT JOIN u ON u.t_id = t.id WHERE u.id IS NULL ORDER BY t.id"
+    profile: iq17-default
+  - id: anti_join_by_not_exists
+    sql: "SELECT t.id, t.vc FROM t WHERE NOT EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id) ORDER BY t.id"
+    profile: iq17-default
+  - id: not_in_over_a_null
+    sql: "SELECT id FROM t WHERE id NOT IN (SELECT t_id FROM u) ORDER BY id"
+    profile: iq17-default
+  - id: not_in_without_nulls
+    sql: "SELECT id FROM t WHERE id NOT IN (SELECT t_id FROM u WHERE t_id IS NOT NULL) ORDER BY id"
+    profile: iq17-default
+  - id: latest_per_key_correlated
+    sql: "SELECT g1.k, g1.id, g1.dt FROM g g1 WHERE g1.id < 10 AND g1.dt = (SELECT MAX(g2.dt) FROM g g2 WHERE g2.k = g1.k AND g2.id < 10) ORDER BY g1.k, g1.id"
+    profile: iq17-default
+  - id: join_to_an_aggregated_derived_table
+    sql: "SELECT t.id, t.vc, x.n, x.q FROM t JOIN (SELECT t_id, COUNT(*) AS n, SUM(qty) AS q FROM u GROUP BY t_id) x ON x.t_id = t.id ORDER BY t.id"
+    profile: iq17-default
+  - id: percent_of_group
+    sql: "SELECT id, k, n, 100.0 * n / SUM(n) OVER (PARTITION BY k) AS pct FROM g WHERE id < 10 AND k IS NOT NULL AND n > 0 ORDER BY id"
+    profile: iq17-default
+  - id: rank_with_ties
+    sql: "SELECT id, v, RANK() OVER (ORDER BY v DESC) AS r, DENSE_RANK() OVER (ORDER BY v DESC) AS dr FROM g WHERE id < 10 AND v IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: quartiles
+    sql: "SELECT id, v, NTILE(4) OVER (ORDER BY v, id) AS q FROM g WHERE id < 10 AND v IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: proper_case_and_lengths
+    sql: "SELECT id, UPPER(LEFT(vc, 1)) || LOWER(SUBSTRING(vc, 2)) AS proper, LENGTH(vc) AS len, TRIM(ch) AS trimmed FROM t WHERE vc IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: count_by_year_and_quarter
+    sql: "SELECT YEAR(dt) AS y, DATEPART(QUARTER, dt) AS q, COUNT(*) AS n FROM g WHERE id < 10 AND dt IS NOT NULL GROUP BY YEAR(dt), DATEPART(QUARTER, dt) ORDER BY y, q"
+    profile: iq17-default
+  - id: days_left_and_next_month
+    sql: "SELECT id, DATEDIFF(DAY, dt, '2026-12-31') AS days_left, DATEADD(MONTH, 1, dt) AS next_month FROM g WHERE id < 10 AND dt IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: buckets_by_case
+    sql: "SELECT CASE WHEN v < 0 THEN 'negative' WHEN v = 0 THEN 'zero' WHEN v < 5 THEN 'small' ELSE 'large' END AS bucket, COUNT(*) AS n, MIN(v) AS lo, MAX(v) AS hi FROM g WHERE id < 10 AND v IS NOT NULL GROUP BY CASE WHEN v < 0 THEN 'negative' WHEN v = 0 THEN 'zero' WHEN v < 5 THEN 'small' ELSE 'large' END ORDER BY lo"
+    profile: iq17-default
+  - id: defaults_over_an_outer_join
+    sql: "SELECT t.id, COALESCE(u.label, 'none') AS label, ISNULL(u.qty, 0) AS qty FROM t LEFT JOIN u ON u.t_id = t.id ORDER BY t.id, label"
+    profile: iq17-default
+  - id: union_all_of_summaries
+    sql: "SELECT 'g' AS src, COUNT(*) AS n, SUM(v) AS total FROM g WHERE id < 10 UNION ALL SELECT 'o', COUNT(*), SUM(v) FROM o ORDER BY src"
+    profile: iq17-default
+  - id: semi_join_count
+    sql: "SELECT COUNT(*) AS n FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id AND u.qty > 0)"
+    profile: iq17-default
+  - id: self_join_pairs
+    sql: "SELECT a.id AS a_id, b.id AS b_id FROM g a JOIN g b ON a.k = b.k AND a.id < b.id WHERE a.id < 10 AND b.id < 10 ORDER BY a_id, b_id"
+    profile: iq17-default
+  - id: join_on_two_keys
+    sql: "SELECT a.id, b.id AS bid FROM g a JOIN g b ON a.k = b.k AND a.b = b.b AND a.id <> b.id WHERE a.id < 10 AND b.id < 10 ORDER BY a.id, bid"
+    profile: iq17-default
+  - id: range_join_by_between
+    sql: "SELECT g.id, u.id AS uid FROM g JOIN u ON u.qty BETWEEN g.n - 1 AND g.n + 1 WHERE g.id < 10 ORDER BY g.id, uid"
+    profile: iq17-default
+  - id: rollup_with_grouping
+    sql: "SELECT k, b, GROUPING(k) AS gk, GROUPING(b) AS gb, SUM(n) AS total FROM g WHERE id < 10 GROUP BY ROLLUP(k, b) ORDER BY gk, k, gb, b"
+    profile: iq17-default
+  - id: list_ordered_by_another_column
+    sql: "SELECT k, LIST(s, ',' ORDER BY id) AS ss FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: top_n_overall
+    sql: "SELECT TOP 3 id, v FROM g WHERE id < 10 ORDER BY v DESC, id"
+    profile: iq17-default
+  - id: paging_with_start_at
+    sql: "SELECT TOP 3 START AT 4 id, v FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: two_ctes_with_a_rank
+    sql: "WITH a AS (SELECT k, SUM(n) AS total FROM g WHERE id < 10 GROUP BY k), b AS (SELECT k, total, RANK() OVER (ORDER BY total DESC) AS r FROM a) SELECT k, total, r FROM b WHERE r <= 2 ORDER BY r, k"
+    profile: iq17-default
+  - id: ratio_to_a_scalar_subquery
+    sql: "SELECT id, v, (SELECT MAX(v) FROM g WHERE id < 10) AS mx, v * 1.0 / (SELECT MAX(v) FROM g WHERE id < 10) AS ratio FROM g WHERE id < 10 AND v IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: like_or_in_list
+    sql: "SELECT id, vc FROM t WHERE vc LIKE '%e%' OR id IN (1, 3, 5) ORDER BY id"
+    profile: iq17-default
+  - id: like_with_a_character_class
+    sql: "SELECT id, vc FROM t WHERE vc LIKE '[a-h]%' ORDER BY id"
+    profile: iq17-default
+  - id: case_insensitive_compare
+    sql: "SELECT id FROM t WHERE LOWER(vc) = 'hello' ORDER BY id"
+    profile: iq17-default
+  - id: numeric_rounding_report
+    sql: "SELECT id, ROUND(nm, 1) AS r1, CAST(nm AS INTEGER) AS i, TRUNCNUM(nm, 0) AS tr, CEILING(nm) AS ce FROM t WHERE id IN (1, 3, 4, 6, 7) ORDER BY id"
+    profile: iq17-default
+  - id: codes_by_concatenation
+    sql: "SELECT id, CAST(it AS VARCHAR(20)) || '-' || CAST(sm AS VARCHAR(10)) AS code, CONVERT(VARCHAR(10), dt, 112) AS ymd FROM t WHERE id IN (3, 4, 6, 7) ORDER BY id"
+    profile: iq17-default
+  - id: null_aware_aggregates
+    sql: "SELECT COUNT(*) AS n, COUNT(v) AS nv, SUM(v) AS s, AVG(CAST(v AS DOUBLE)) AS a, COUNT(DISTINCT k) AS dk FROM g WHERE id < 10"
+    profile: iq17-default
+  - id: having_an_average
+    sql: "SELECT k, AVG(n) AS a FROM g WHERE id < 10 GROUP BY k HAVING AVG(n) > 0 ORDER BY k"
+    profile: iq17-default
+  - id: first_and_last_per_group
+    sql: "SELECT DISTINCT k, FIRST_VALUE(id) OVER (PARTITION BY k ORDER BY id) AS first_id, LAST_VALUE(id) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_id FROM g WHERE id < 10 ORDER BY k"
+    profile: iq17-default
+  - id: distribution
+    sql: "SELECT id, v, CUME_DIST() OVER (ORDER BY v) AS cd, PERCENT_RANK() OVER (ORDER BY v) AS pr FROM g WHERE id < 10 AND v IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: previous_year_by_lag
+    sql: "SELECT YEAR(dt) AS y, COUNT(*) AS n, LAG(COUNT(*)) OVER (ORDER BY YEAR(dt)) AS prev FROM g WHERE id < 10 AND dt IS NOT NULL GROUP BY YEAR(dt) ORDER BY y"
+    profile: iq17-default
+  - id: four_table_report
+    sql: "SELECT t.id, t.vc, u.label, g.s, o.v FROM t JOIN u ON u.t_id = t.id LEFT JOIN g ON g.id = u.id LEFT JOIN o ON o.id = t.id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: exists_or_in
+    sql: "SELECT id FROM g WHERE id < 10 AND (EXISTS (SELECT 1 FROM u WHERE u.id = g.id) OR k IN (SELECT t_id FROM u WHERE t_id IS NOT NULL)) ORDER BY id"
+    profile: iq17-default
+  - id: bands_by_coalesce
+    sql: "SELECT id, CASE WHEN COALESCE(v, 0) > 3 THEN 'hi' WHEN COALESCE(v, 0) BETWEEN 1 AND 3 THEN 'mid' ELSE 'lo' END AS band, NULLIF(k, 1) AS k2 FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: distinct_of_an_expression
+    sql: "SELECT DISTINCT YEAR(dt) AS y, b FROM g WHERE id < 10 ORDER BY y, b"
+    profile: iq17-default
+  - id: count_by_hour
+    sql: "SELECT DATEPART(HOUR, ts) AS h, COUNT(*) AS n FROM t WHERE ts IS NOT NULL GROUP BY DATEPART(HOUR, ts) ORDER BY h"
+    profile: iq17-default
+  - id: a_piece_of_a_string
+    sql: "SELECT id, CHARINDEX('l', vc) AS pos, SUBSTRING(vc, CHARINDEX('l', vc), 2) AS piece FROM t WHERE vc LIKE '%l%' ORDER BY id"
+    profile: iq17-default
+  - id: replace_and_concatenate
+    sql: "SELECT id, REPLACE(vc, 'l', 'L') + '!' AS shout FROM t WHERE vc IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: grouped_with_rank_and_total
+    sql: "SELECT k, COUNT(*) AS n, RANK() OVER (ORDER BY COUNT(*) DESC, k) AS r, SUM(COUNT(*)) OVER () AS total FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k ORDER BY r"
+    profile: iq17-default
+  - id: median_by_group
+    sql: "SELECT k, MEDIAN(v) AS med FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: if_expression
+    sql: "SELECT id, IF v > 2 THEN 'big' ELSE 'small' ENDIF AS sz FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: filter_on_a_running_total
+    sql: "SELECT id, v, run FROM (SELECT id, v, SUM(v) OVER (ORDER BY id) AS run FROM g WHERE id < 10) x WHERE run > 5 ORDER BY id"
+    profile: iq17-default
+  - id: having_by_a_scalar_subquery
+    sql: "SELECT k, SUM(v) AS s FROM g WHERE id < 10 GROUP BY k HAVING SUM(v) > (SELECT AVG(v) FROM g WHERE id < 10) ORDER BY k"
+    profile: iq17-default
+  - id: correlated_count_in_select
+    sql: "SELECT t.id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n_u FROM t ORDER BY t.id"
+    profile: iq17-default
+  - id: star_beside_a_joined_column
+    sql: "SELECT t.*, u.label FROM t JOIN u ON u.t_id = t.id ORDER BY t.id, u.label"
+    profile: iq17-default
+  - id: order_by_a_case
+    sql: "SELECT id, s FROM g WHERE id < 10 ORDER BY CASE WHEN s IS NULL THEN 1 ELSE 0 END, s, id"
+    profile: iq17-default
+  - id: year_over_year_by_join
+    sql: "SELECT a.y, a.n, b.n AS prev_n FROM (SELECT YEAR(dt) AS y, COUNT(*) AS n FROM g WHERE id < 10 AND dt IS NOT NULL GROUP BY YEAR(dt)) a LEFT JOIN (SELECT YEAR(dt) AS y, COUNT(*) AS n FROM g WHERE id < 10 AND dt IS NOT NULL GROUP BY YEAR(dt)) b ON b.y = a.y - 1 ORDER BY a.y"
+    profile: iq17-default
+  - id: string_bucket_counts
+    sql: "SELECT CASE WHEN vc IS NULL THEN 'missing' WHEN LENGTH(TRIM(vc)) = 0 THEN 'blank' WHEN vc LIKE '[A-Z]%' THEN 'capital' ELSE 'other' END AS kind, COUNT(*) AS n FROM t GROUP BY CASE WHEN vc IS NULL THEN 'missing' WHEN LENGTH(TRIM(vc)) = 0 THEN 'blank' WHEN vc LIKE '[A-Z]%' THEN 'capital' ELSE 'other' END ORDER BY kind"
+    profile: iq17-default
