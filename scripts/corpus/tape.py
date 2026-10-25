@@ -23,6 +23,16 @@ Shapes the features turn on, each on purpose:
   * off-exchange prints with no aggressor (a TRF print): a NULL in a column a group reads
   * a quote with no sizes (a delayed feed's): NULLs in a column a window reads
   * three instruments in three currencies' price scales (190, 415, 6.9): a statistic that pools them is visibly wrong
+
+And the day's newswire (K15, the news feed), each story where the tape says it moved the price -- AAPL's guidance
+before its 09:14 rise and its regulator's flash before the 09:26 fall, MSFT's cloud guidance before its 09:16 jump,
+HSBC's results before its 09:36 rise -- with these shapes:
+
+  * a macro story with neither a name nor a sector, and a sector story with a sector and no name: a filter on the
+    story's name, or on its sector, drops each, an outer join keeps it
+  * two stories at one instant (09:24:30 on the 3rd): the newest-first order ties on the time, the id breaks it
+  * a story naming two tickers ("AAPL MSFT"), and one with no sentiment: a NULL in a column an average reads
+  * every sentiment a multiple of a quarter, so an average is exact in binary and in decimal alike
 """
 from __future__ import annotations
 
@@ -78,6 +88,40 @@ _PRINTS = [
 ]
 
 
+# (id, time, headline, source, category, urgency, sentiment, tickers, region, instrument, sector)
+_NEWS = [
+    ("NS-D-001", "2024-06-03 08:30:00", "US manufacturing survey due at ten; index futures flat", "Desk", "Macro",
+     "BRIEF", None, None, "Americas", None, None),
+    ("NS-D-002", "2024-06-03 09:12:45", "Apple supplier raises guidance on stronger handset orders", "Wire",
+     "Guidance", "STORY", 0.5, "AAPL", "Americas", "INST-AAPL", "SEC-45"),
+    ("NS-D-003", "2024-06-03 09:24:30", "EU regulator to fine Apple over app store terms -- sources", "Wire",
+     "Regulatory", "FLASH", -0.75, "AAPL", "EMEA", "INST-AAPL", "SEC-45"),
+    ("NS-D-004", "2024-06-03 09:24:30", "Digital markets review widens to Apple and Microsoft platforms", "Wire",
+     "Regulatory", "STORY", -0.25, "AAPL MSFT", "EMEA", None, "SEC-45"),
+    ("NS-D-005", "2024-06-03 09:45:10", "Analyst cuts Apple to neutral, sees slower upgrade cycle", "Street",
+     "Analyst", "STORY", -0.5, "AAPL", "Americas", "INST-AAPL", "SEC-45"),
+    ("NS-D-006", "2024-06-04 07:00:00", "Microsoft to show new assistant features at developer event", "Wire",
+     "Product", "BRIEF", 0.25, "MSFT", "Americas", "INST-MSFT", "SEC-45"),
+    ("NS-D-007", "2024-06-04 09:15:30", "Microsoft raises cloud revenue guidance for the year", "Wire", "Guidance",
+     "FLASH", 0.75, "MSFT", "Americas", "INST-MSFT", "SEC-45"),
+    ("NS-D-008", "2024-06-04 09:20:00", "Banks steady as rate cut bets firm before central bank meeting", "Desk",
+     "Macro", "STORY", 0.25, "HSBA", "EMEA", None, "SEC-40"),
+    ("NS-D-009", "2024-06-05 09:29:00", "HSBC first-half profit beats estimates; buyback raised", "Wire", "Earnings",
+     "STORY", 0.75, "HSBA", "EMEA", "INST-HSBA", "SEC-40"),
+    ("NS-D-010", "2024-06-05 09:31:00", "HSBC names new chief financial officer", "Wire", "Management", "BRIEF",
+     None, "HSBA", "EMEA", "INST-HSBA", "SEC-40"),
+    ("NS-D-011", "2024-06-05 09:40:00", "Bitcoin rises as fund inflows resume", "Desk", "Crypto", "BRIEF", 0.5,
+     "BTC", None, None, None),
+]
+
+
+def news() -> list[dict]:
+    return [{"STORY_ID": sid, "PUBLISH_TIME": at, "HEADLINE": head, "BODY": None, "SOURCE": src, "CATEGORY": cat,
+             "URGENCY": urg, "SENTIMENT": sent, "TICKERS": tickers, "REGION": region, "INSTRUMENT_ID": inst,
+             "SECTOR_ID": sector}
+            for sid, at, head, src, cat, urg, sent, tickers, region, inst, sector in _NEWS]
+
+
 def quotes() -> list[dict]:
     out = []
     for qid, inst, at, bid, ask, bsz, asz, last, vol, src, delayed in _QUOTES:
@@ -101,7 +145,7 @@ def prints() -> list[dict]:
 
 def overlay(tables: dict[str, list[dict]]) -> None:
     """Append the day to the ring's rows. Every column the table declares is named, so nothing is left to a default."""
-    for name, rows in (("MARKET_QUOTE", quotes()), ("MARKET_TRADE", prints())):
+    for name, rows in (("MARKET_QUOTE", quotes()), ("MARKET_TRADE", prints()), ("NEWS_STORY", news())):
         have = {k for r in tables[name][:1] for k in r}
         for r in rows:
             if have and set(r) != have:
@@ -129,4 +173,18 @@ def check(tables: dict[str, list[dict]]) -> list[str]:
         bad.append("tape: no print without an aggressor")
     if not any(r["BID_SIZE"] is None for r in q):
         bad.append("tape: no quote without sizes")
+    n = [r for r in tables["NEWS_STORY"] if r["STORY_ID"].startswith("NS-D-")]
+    if not any(r["INSTRUMENT_ID"] is None and r["SECTOR_ID"] is None for r in n):
+        bad.append("news: no story with neither a name nor a sector")
+    if not any(r["INSTRUMENT_ID"] is None and r["SECTOR_ID"] is not None for r in n):
+        bad.append("news: no sector story without a name")
+    stamps = [r["PUBLISH_TIME"] for r in n]
+    if len(set(stamps)) == len(stamps):
+        bad.append("news: no two stories share an instant")
+    if not any(r["TICKERS"] and " " in r["TICKERS"] for r in n):
+        bad.append("news: no story naming two tickers")
+    if not any(r["SENTIMENT"] is None for r in n):
+        bad.append("news: no story without a sentiment")
+    if any(r["SENTIMENT"] is not None and (r["SENTIMENT"] * 4) % 1 for r in n):
+        bad.append("news: a sentiment not a multiple of a quarter (an average inexact in binary)")
     return bad

@@ -316,6 +316,18 @@ Association cross::MarketTrade_Instrument
     prints: marketdata::MarketTrade[*];
 }
 
+Association cross::NewsStory_Instrument
+{
+    instrument: products::Instrument[0..1];
+    news: marketdata::NewsStory[*];
+}
+
+Association cross::NewsStory_Sector
+{
+    sector: refdata::Sector[0..1];
+    news: marketdata::NewsStory[*];
+}
+
 Association cross::Order_Trader
 {
     trader: org::Trader[0..1];

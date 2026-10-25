@@ -11,6 +11,10 @@ Mapping marketdata::MarketdataMapping
         ~mainTable [store::DB] MARKET_TRADE
         printId: [store::DB] MARKET_TRADE.PRINT_ID, sequenceNumber: [store::DB] MARKET_TRADE.SEQUENCE_NUMBER, printTime: [store::DB] MARKET_TRADE.PRINT_TIME, price: [store::DB] MARKET_TRADE.PRICE, quantity: [store::DB] MARKET_TRADE.QUANTITY, aggressorSide: [store::DB] MARKET_TRADE.AGGRESSOR_SIDE, venue: [store::DB] MARKET_TRADE.VENUE, tradeCondition: [store::DB] MARKET_TRADE.TRADE_CONDITION, isOffExchange: [store::DB] MARKET_TRADE.IS_OFF_EXCHANGE
     }
+    marketdata::NewsStory: Relational {
+        ~mainTable [store::DB] NEWS_STORY
+        storyId: [store::DB] NEWS_STORY.STORY_ID, publishTime: [store::DB] NEWS_STORY.PUBLISH_TIME, headline: [store::DB] NEWS_STORY.HEADLINE, body: [store::DB] NEWS_STORY.BODY, source: [store::DB] NEWS_STORY.SOURCE, category: [store::DB] NEWS_STORY.CATEGORY, urgency: [store::DB] NEWS_STORY.URGENCY, sentiment: [store::DB] NEWS_STORY.SENTIMENT, tickers: [store::DB] NEWS_STORY.TICKERS, region: [store::DB] NEWS_STORY.REGION
+    }
     marketdata::FxRate: Relational {
         ~mainTable [store::DB] FX_RATE
         rateId: [store::DB] FX_RATE.RATE_ID, currencyPair: [store::DB] FX_RATE.CURRENCY_PAIR, spotRate: [store::DB] FX_RATE.SPOT_RATE, bidRate: [store::DB] FX_RATE.BID_RATE, askRate: [store::DB] FX_RATE.ASK_RATE, rateDate: [store::DB] FX_RATE.RATE_DATE, source: [store::DB] FX_RATE.SOURCE, midRate: [store::DB] FX_RATE.MID_RATE, dailyChange: [store::DB] FX_RATE.DAILY_CHANGE, dailyChangePct: [store::DB] FX_RATE.DAILY_CHANGE_PCT, isOfficial: [store::DB] FX_RATE.IS_OFFICIAL, fixingTime: [store::DB] FX_RATE.FIXING_TIME

@@ -26,10 +26,16 @@ from query import AsOf, DateTimeArg, Pred, Proj, Spec, Window
 TRADE = "trading::Trade"
 PRINT = "marketdata::MarketTrade"
 QUOTE = "marketdata::MarketQuote"
+NEWS = "marketdata::NewsStory"
 
 # The market's day: the tape's rows and none of the expansion ring's (whose prints are months apart).
 DAY = [Pred(["printTime"], ">=", DateTimeArg("2024-06-03 00:00:00")),
        Pred(["printTime"], "<", DateTimeArg("2024-06-06 00:00:00"))]
+# The day's newswire (tape.py's), none of the ring's stories (months later, or with no time at all).
+NEWS_DAY = [Pred(["publishTime"], ">=", DateTimeArg("2024-06-03 00:00:00")),
+            Pred(["publishTime"], "<", DateTimeArg("2024-06-06 00:00:00"))]
+# A feed's order: the newest first, the id breaking a tie of two stories at one instant.
+NEWEST = [("publishTime", True), ("storyId", True)]
 MINUTES = "MINUTES"
 DURATION = "meta::pure::functions::date::DurationUnit"
 # A statistic to the six places a screen shows: Number narrowed to Float, then Pure's round with a scale.
@@ -331,8 +337,52 @@ def asof() -> list[Spec]:
     return out
 
 
+def _story_columns() -> list[Proj]:
+    return [_p("storyId"), _p("publishTime"), _p("headline"), _p("category"), _p("urgency")]
+
+
+def news() -> list[Spec]:
+    """A news feed's filters (K15): a keyword, a name, a sector; and a desk's count of the day's news by category."""
+    out = []
+    k = _spec("NewsKeyword",
+              "A feed customised by a keyword: the day's stories whose headline, lowered, contains 'guidance', the "
+              "newest first -- toLower and contains, the match a column the relation filters on.", NEWS)
+    k.projections = _story_columns() + [_x("hit", "contains(toLower($x.headline), 'guidance')", "bool")]
+    k.filters = list(NEWS_DAY)
+    k.post_filters = [Pred(["hit"], "==", True)]
+    k.sort = list(NEWEST)
+    out.append(k)
+
+    n = _spec("NewsForName",
+              "A feed for one name, as a stock's chart shows it: the day's stories about AAPL, the newest first -- a "
+              "story's name through its to-one association, a sector or macro story (no name) not among them.", NEWS)
+    n.projections = _story_columns() + [_p("sentiment")]
+    n.filters = list(NEWS_DAY) + [Pred(["instrument", "ticker"], "==", "AAPL")]
+    n.sort = list(NEWEST)
+    out.append(n)
+
+    t = _spec("NewsSector",
+              "A sector's feed: the day's stories in Information Technology, its names' and its own (a story about "
+              "the sector names none, an outer join's NULL), the newest first.", NEWS)
+    t.projections = _story_columns() + [_p("ticker", "instrument.ticker"), _p("tickers")]
+    t.filters = list(NEWS_DAY) + [Pred(["sector", "name"], "==", "Information Technology")]
+    t.sort = list(NEWEST)
+    out.append(t)
+
+    m = _spec("NewsCategoryMix",
+              "The day's news by category: its stories, the latest, and their average sentiment (a story with none "
+              "not counted in it).", NEWS)
+    m.projections = [_p("category"), _p("storyId"), _p("publishTime"), _p("sentiment")]
+    m.filters = list(NEWS_DAY)
+    m.group_by = ["category"]
+    m.aggs = [("stories", "storyId", "count"), ("latest", "publishTime", "max"), ("mood", "sentiment", "average")]
+    m.sort = ("category", False)
+    out.append(m)
+    return out
+
+
 def build() -> list[Spec]:
-    return scalars() + aggregates() + windows() + tape() + asof()
+    return scalars() + aggregates() + windows() + tape() + asof() + news()
 
 
 if __name__ == "__main__":

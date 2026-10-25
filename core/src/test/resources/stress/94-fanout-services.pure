@@ -10126,6 +10126,65 @@ Service stress::D_ImpliedVolPointDense
   ]
 }
 
+Service stress::D_NewsStoryDense
+{
+    pattern: '/stress/d_newsstory';
+    documentation: 'Dense stack on marketdata::NewsStory: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |marketdata::NewsStory.all()
+        ->filter({x|($x.region > ' ')})
+        ->project(~[
+            storyId:x|$x.storyId,
+            sectorName:x|$x.sector.name,
+            instrumentEquityInstrumentCurrency:x|$x.instrument.equity.instrument.currency,
+            instrumentInstrumentCurrencyCountryName:x|$x.instrument.instrumentCurrency.country.name
+        ])
+        ->sort(~storyId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_NewsStoryDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 14 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"storyId":"NS-0002","sectorName":null,"instrumentEquityInstrumentCurrency":null,"instrumentInstrumentCurrencyCountryName":null},{"storyId":"NS-0003","sectorName":"Information Technology","instrumentEquityInstrumentCurrency":"USD","instrumentInstrumentCurrencyCountryName":"United States"},{"storyId":"NS-0004","sectorName":"Financials","instrumentEquityInstrumentCurrency":"USD","instrumentInstrumentCurrencyCountryName":"United States"},{"storyId":"NS-0005","sectorName":"Health Care","instrumentEquityInstrumentCurrency":"GBP","instrumentInstrumentCurrencyCountryName":"United Kingdom"},{"storyId":"NS-D-001","sectorName":null,"instrumentEquityInstrumentCurrency":null,"instrumentInstrumentCurrencyCountryName":null},{"storyId":"NS-D-002","sectorName":"Information Technology","instrumentEquityInstrumentCurrency":"USD","instrumentInstrumentCurrencyCountryName":"United States"},{"storyId":"NS-D-003","sectorName":"Information Technology","instrumentEquityInstrumentCurrency":"USD","instrumentInstrumentCurrencyCountryName":"United States"},{"storyId":"NS-D-004","sectorName":"Information Technology","instrumentEquityInstrumentCurrency":null,"instrumentInstrumentCurrencyCountryName":null},{"storyId":"NS-D-005","sectorName":"Information Technology","instrumentEquityInstrumentCurrency":"USD","instrumentInstrumentCurrencyCountryName":"United States"},{"storyId":"NS-D-006","sectorName":"Information Technology","instrumentEquityInstrumentCurrency":"USD","instrumentInstrumentCurrencyCountryName":"United States"},{"storyId":"NS-D-007","sectorName":"Information Technology","instrumentEquityInstrumentCurrency":"USD","instrumentInstrumentCurrencyCountryName":"United States"},{"storyId":"NS-D-008","sectorName":"Financials","instrumentEquityInstrumentCurrency":null,"instrumentInstrumentCurrencyCountryName":null},{"storyId":"NS-D-009","sectorName":"Financials","instrumentEquityInstrumentCurrency":"GBP","instrumentInstrumentCurrencyCountryName":"United Kingdom"},{"storyId":"NS-D-010","sectorName":"Financials","instrumentEquityInstrumentCurrency":"GBP","instrumentInstrumentCurrencyCountryName":"United Kingdom"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::D_VolatilitySurfaceDense
 {
     pattern: '/stress/d_volatilitysurface';
@@ -11904,7 +11963,7 @@ Service stress::GG_SalesPersonTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"salesPersonId":"SLS-002","clientCount":388,"phone":"PHONE-001","revenueTarget":2125.0,"commissionStructure":null,"desk":null},{"salesPersonId":"SLS-003","clientCount":395,"phone":null,"revenueTarget":null,"commissionStructure":null,"desk":null},{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","revenueTarget":2200.0,"commissionStructure":{"structureId":"CS-0001","acceleratorPct":null,"capAmount":1300.0},"desk":{"deskId":"DSK-CASH","assetClass":"EQUITY","building":"200 West","businessUnit":{"buId":"BU-EQ","budget":400.0}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"salesPersonId":"SLS-002","clientCount":395,"phone":"PHONE-001","revenueTarget":2162.5,"commissionStructure":null,"desk":null},{"salesPersonId":"SLS-003","clientCount":402,"phone":null,"revenueTarget":null,"commissionStructure":null,"desk":null},{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","revenueTarget":2237.5,"commissionStructure":{"structureId":"CS-0001","acceleratorPct":null,"capAmount":1300.0},"desk":{"deskId":"DSK-CASH","assetClass":"EQUITY","building":"200 West","businessUnit":{"buId":"BU-EQ","budget":400.0}}}]}';
                   }#;
               }#
           ]
@@ -12003,7 +12062,7 @@ Service stress::GG_SettlementTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"settlementId":"STL-0001","amount":190500.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"netting":null},{"settlementId":"STL-0002","amount":477500.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"netting":null},{"settlementId":"STL-0003","amount":250000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"netting":{"nettingId":"NET-003","savingsAmount":2312.5}},{"settlementId":"STL-0004","amount":250000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"netting":null},{"settlementId":"STL-0005","amount":250000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"netting":null},{"settlementId":"STL-0006","amount":250000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"netting":{"nettingId":"NET-006","savingsAmount":null}},{"settlementId":"STL-0007","amount":282000.0,"currency":"USD","custodian":"Northern Trust","counterparty":null,"netting":null},{"settlementId":"STL-0008","amount":576750.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"netting":null},{"settlementId":"STL-0009","amount":498000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"netting":{"nettingId":"NET-009","savingsAmount":2387.5}},{"settlementId":"STL-0010","amount":167300.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"netting":null},{"settlementId":"STL-0011","amount":171250.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"netting":null},{"settlementId":"STL-0012","amount":69000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0004","counterpartyType":"BROKER_DEALER","creditRating":null,"country":{"countryCode":"JP","capitalCity":"Tokyo"}},"netting":{"nettingId":"NET-012","savingsAmount":2425.0}},{"settlementId":"STL-0013","amount":35000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"netting":null},{"settlementId":"STL-0014","amount":264600.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"netting":null},{"settlementId":"STL-0015","amount":385000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0004","counterpartyType":"BROKER_DEALER","creditRating":null,"country":{"countryCode":"JP","capitalCity":"Tokyo"}},"netting":{"nettingId":"NET-015","savingsAmount":2462.5}},{"settlementId":"STL-0016","amount":4912500.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"netting":null},{"settlementId":"STL-0017","amount":1960000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"netting":null},{"settlementId":"STL-9999","amount":1.0,"currency":"USD","custodian":"Northern Trust","counterparty":null,"netting":null}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"settlementId":"STL-0001","amount":190500.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"netting":null},{"settlementId":"STL-0002","amount":477500.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"netting":null},{"settlementId":"STL-0003","amount":250000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"netting":{"nettingId":"NET-003","savingsAmount":2350.0}},{"settlementId":"STL-0004","amount":250000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"netting":null},{"settlementId":"STL-0005","amount":250000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"netting":null},{"settlementId":"STL-0006","amount":250000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"netting":{"nettingId":"NET-006","savingsAmount":null}},{"settlementId":"STL-0007","amount":282000.0,"currency":"USD","custodian":"Northern Trust","counterparty":null,"netting":null},{"settlementId":"STL-0008","amount":576750.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"netting":null},{"settlementId":"STL-0009","amount":498000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"netting":{"nettingId":"NET-009","savingsAmount":2425.0}},{"settlementId":"STL-0010","amount":167300.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"netting":null},{"settlementId":"STL-0011","amount":171250.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"netting":null},{"settlementId":"STL-0012","amount":69000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0004","counterpartyType":"BROKER_DEALER","creditRating":null,"country":{"countryCode":"JP","capitalCity":"Tokyo"}},"netting":{"nettingId":"NET-012","savingsAmount":2462.5}},{"settlementId":"STL-0013","amount":35000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"netting":null},{"settlementId":"STL-0014","amount":264600.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"netting":null},{"settlementId":"STL-0015","amount":385000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0004","counterpartyType":"BROKER_DEALER","creditRating":null,"country":{"countryCode":"JP","capitalCity":"Tokyo"}},"netting":{"nettingId":"NET-015","savingsAmount":2500.0}},{"settlementId":"STL-0016","amount":4912500.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"netting":null},{"settlementId":"STL-0017","amount":1960000.0,"currency":"USD","custodian":"Northern Trust","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"netting":null},{"settlementId":"STL-9999","amount":1.0,"currency":"USD","custodian":"Northern Trust","counterparty":null,"netting":null}]}';
                   }#;
               }#
           ]
@@ -13467,6 +13526,107 @@ Service stress::GG_MarketQuoteTree
   ]
 }
 
+Service stress::GG_NewsStoryTree
+{
+    pattern: '/stress/gg_newsstory';
+    documentation: 'Generated graph fetch on marketdata::NewsStory: 6 keys, 2 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    execution: Single
+    {
+    query: |marketdata::NewsStory.all()
+        ->graphFetch(#{
+  marketdata::NewsStory
+  {
+    storyId,
+    body,
+    region,
+    sentiment,
+    instrument
+    {
+      instrumentId,
+      assetClass,
+      currency,
+      equity
+      {
+        equityId,
+        beta
+      }
+    },
+    sector
+    {
+      sectorId,
+      description,
+      gicsCode
+    }
+  }
+}#)
+        ->serialize(#{
+  marketdata::NewsStory
+  {
+    storyId,
+    body,
+    region,
+    sentiment,
+    instrument
+    {
+      instrumentId,
+      assetClass,
+      currency,
+      equity
+      {
+        equityId,
+        beta
+      }
+    },
+    sector
+    {
+      sectorId,
+      description,
+      gicsCode
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    GG_NewsStoryTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"storyId":"NS-0001","body":"BODY-001","region":null,"sentiment":1637.5,"instrument":null,"sector":null},{"storyId":"NS-0002","body":"BODY-002","region":"EMEA","sentiment":1675.0,"instrument":null,"sector":null},{"storyId":"NS-0003","body":"BODY-003","region":"APAC","sentiment":1712.5,"instrument":{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0003","beta":1075.0}},"sector":{"sectorId":"SEC-45","description":"Technology hardware and software","gicsCode":"45"}},{"storyId":"NS-0004","body":"BODY-004","region":"Americas","sentiment":null,"instrument":{"instrumentId":"INST-MSFT","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0004","beta":1112.5}},"sector":{"sectorId":"SEC-40","description":"Banks and capital markets","gicsCode":"40"}},{"storyId":"NS-0005","body":null,"region":"EMEA","sentiment":1787.5,"instrument":{"instrumentId":"INST-HSBA","assetClass":"EQUITY","currency":"GBP","equity":{"equityId":"E-0005","beta":null}},"sector":{"sectorId":"SEC-35","description":"Pharmaceuticals and providers","gicsCode":"35"}},{"storyId":"NS-D-001","body":null,"region":"Americas","sentiment":null,"instrument":null,"sector":null},{"storyId":"NS-D-002","body":null,"region":"Americas","sentiment":0.5,"instrument":{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0003","beta":1075.0}},"sector":{"sectorId":"SEC-45","description":"Technology hardware and software","gicsCode":"45"}},{"storyId":"NS-D-003","body":null,"region":"EMEA","sentiment":-0.75,"instrument":{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0003","beta":1075.0}},"sector":{"sectorId":"SEC-45","description":"Technology hardware and software","gicsCode":"45"}},{"storyId":"NS-D-004","body":null,"region":"EMEA","sentiment":-0.25,"instrument":null,"sector":{"sectorId":"SEC-45","description":"Technology hardware and software","gicsCode":"45"}},{"storyId":"NS-D-005","body":null,"region":"Americas","sentiment":-0.5,"instrument":{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0003","beta":1075.0}},"sector":{"sectorId":"SEC-45","description":"Technology hardware and software","gicsCode":"45"}},{"storyId":"NS-D-006","body":null,"region":"Americas","sentiment":0.25,"instrument":{"instrumentId":"INST-MSFT","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0004","beta":1112.5}},"sector":{"sectorId":"SEC-45","description":"Technology hardware and software","gicsCode":"45"}},{"storyId":"NS-D-007","body":null,"region":"Americas","sentiment":0.75,"instrument":{"instrumentId":"INST-MSFT","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0004","beta":1112.5}},"sector":{"sectorId":"SEC-45","description":"Technology hardware and software","gicsCode":"45"}},{"storyId":"NS-D-008","body":null,"region":"EMEA","sentiment":0.25,"instrument":null,"sector":{"sectorId":"SEC-40","description":"Banks and capital markets","gicsCode":"40"}},{"storyId":"NS-D-009","body":null,"region":"EMEA","sentiment":0.75,"instrument":{"instrumentId":"INST-HSBA","assetClass":"EQUITY","currency":"GBP","equity":{"equityId":"E-0005","beta":null}},"sector":{"sectorId":"SEC-40","description":"Banks and capital markets","gicsCode":"40"}},{"storyId":"NS-D-010","body":null,"region":"EMEA","sentiment":null,"instrument":{"instrumentId":"INST-HSBA","assetClass":"EQUITY","currency":"GBP","equity":{"equityId":"E-0005","beta":null}},"sector":{"sectorId":"SEC-40","description":"Banks and capital markets","gicsCode":"40"}},{"storyId":"NS-D-011","body":null,"region":null,"sentiment":0.5,"instrument":null,"sector":null}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::GG_TradeExceptionTree
 {
     pattern: '/stress/gg_tradeexception';
@@ -13558,7 +13718,7 @@ Service stress::GG_TradeExceptionTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"exceptionId":"TE-0001","ageInDays":465,"assignedTo":"ASSIGNED-TO-001","resolution":null,"incident":null,"trade":null},{"exceptionId":"TE-0002","ageInDays":null,"assignedTo":"ASSIGNED-TO-002","resolution":"RESOLUTION-002","incident":null,"trade":null},{"exceptionId":"TE-0003","ageInDays":479,"assignedTo":null,"resolution":"RESOLUTION-003","incident":{"incidentId":"OI-0001","currency":"USD","impactAssessment":"IMPACT-ASSESSM-001"},"trade":{"tradeId":"TRD-0001","commission":95.25,"createdTime":"2024-06-03T09:07:00.000000000+0000","avgPriceTrade":null}},{"exceptionId":"TE-0004","ageInDays":486,"assignedTo":"ASSIGNED-TO-004","resolution":"RESOLUTION-004","incident":{"incidentId":"OI-0002","currency":"GBP","impactAssessment":null},"trade":{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","avgPriceTrade":null}},{"exceptionId":"TE-0005","ageInDays":493,"assignedTo":"ASSIGNED-TO-005","resolution":"RESOLUTION-005","incident":{"incidentId":"OI-0003","currency":null,"impactAssessment":"IMPACT-ASSESSM-003"},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":null}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"exceptionId":"TE-0001","ageInDays":472,"assignedTo":"ASSIGNED-TO-001","resolution":null,"incident":null,"trade":null},{"exceptionId":"TE-0002","ageInDays":null,"assignedTo":"ASSIGNED-TO-002","resolution":"RESOLUTION-002","incident":null,"trade":null},{"exceptionId":"TE-0003","ageInDays":486,"assignedTo":null,"resolution":"RESOLUTION-003","incident":{"incidentId":"OI-0001","currency":"USD","impactAssessment":"IMPACT-ASSESSM-001"},"trade":{"tradeId":"TRD-0001","commission":95.25,"createdTime":"2024-06-03T09:07:00.000000000+0000","avgPriceTrade":null}},{"exceptionId":"TE-0004","ageInDays":493,"assignedTo":"ASSIGNED-TO-004","resolution":"RESOLUTION-004","incident":{"incidentId":"OI-0002","currency":"GBP","impactAssessment":null},"trade":{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","avgPriceTrade":null}},{"exceptionId":"TE-0005","ageInDays":500,"assignedTo":"ASSIGNED-TO-005","resolution":"RESOLUTION-005","incident":{"incidentId":"OI-0003","currency":null,"impactAssessment":"IMPACT-ASSESSM-003"},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":null}}]}';
                   }#;
               }#
           ]
@@ -13992,7 +14152,7 @@ Service stress::GG_SyntheticPositionTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"syntheticId":"SP-0001","currentPrice":2425.0,"dividendEntitlement":2425.0,"endDate":"2024-03-09","instrument":null,"pbAccount":null},{"syntheticId":"SP-0002","currentPrice":2462.5,"dividendEntitlement":2462.5,"endDate":"2024-04-10","instrument":null,"pbAccount":null},{"syntheticId":"SP-0003","currentPrice":2500.0,"dividendEntitlement":null,"endDate":"2024-05-11","instrument":{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0003","beta":1075.0}},"pbAccount":{"pbAccountId":"PBA-0001","annualFee":1937.5,"closeDate":"2024-02-23","counterparty":null}},{"syntheticId":"SP-0004","currentPrice":2537.5,"dividendEntitlement":2537.5,"endDate":"2024-06-12","instrument":{"instrumentId":"INST-MSFT","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0004","beta":1112.5}},"pbAccount":{"pbAccountId":"PBA-0002","annualFee":1975.0,"closeDate":"2024-03-24","counterparty":null}},{"syntheticId":"SP-0005","currentPrice":null,"dividendEntitlement":2575.0,"endDate":null,"instrument":{"instrumentId":"INST-HSBA","assetClass":"EQUITY","currency":"GBP","equity":{"equityId":"E-0005","beta":null}},"pbAccount":{"pbAccountId":"PBA-0003","annualFee":2012.5,"closeDate":null,"counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"syntheticId":"SP-0001","currentPrice":2462.5,"dividendEntitlement":2462.5,"endDate":"2024-04-10","instrument":null,"pbAccount":null},{"syntheticId":"SP-0002","currentPrice":2500.0,"dividendEntitlement":2500.0,"endDate":"2024-05-11","instrument":null,"pbAccount":null},{"syntheticId":"SP-0003","currentPrice":2537.5,"dividendEntitlement":null,"endDate":"2024-06-12","instrument":{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0003","beta":1075.0}},"pbAccount":{"pbAccountId":"PBA-0001","annualFee":1975.0,"closeDate":"2024-03-24","counterparty":null}},{"syntheticId":"SP-0004","currentPrice":2575.0,"dividendEntitlement":2575.0,"endDate":"2024-07-13","instrument":{"instrumentId":"INST-MSFT","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0004","beta":1112.5}},"pbAccount":{"pbAccountId":"PBA-0002","annualFee":2012.5,"closeDate":"2024-04-25","counterparty":null}},{"syntheticId":"SP-0005","currentPrice":null,"dividendEntitlement":2612.5,"endDate":null,"instrument":{"instrumentId":"INST-HSBA","assetClass":"EQUITY","currency":"GBP","equity":{"equityId":"E-0005","beta":null}},"pbAccount":{"pbAccountId":"PBA-0003","annualFee":2050.0,"closeDate":null,"counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}}}]}';
                   }#;
               }#
           ]
@@ -14103,7 +14263,7 @@ Service stress::GG_ProductsOptionTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"optionId":"O-0001","delta":1637.5,"gamma":1637.5,"impliedVolatility":1637.5,"instrument":null,"underlying":null},{"optionId":"O-0002","delta":1675.0,"gamma":1675.0,"impliedVolatility":null,"instrument":null,"underlying":null},{"optionId":"O-0003","delta":null,"gamma":1712.5,"impliedVolatility":1712.5,"instrument":{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0003","beta":1075.0}},"underlying":{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0003","beta":1075.0}}},{"optionId":"O-0004","delta":1750.0,"gamma":null,"impliedVolatility":1750.0,"instrument":{"instrumentId":"INST-MSFT","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0004","beta":1112.5}},"underlying":{"instrumentId":"INST-MSFT","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0004","beta":1112.5}}},{"optionId":"O-0005","delta":1787.5,"gamma":1787.5,"impliedVolatility":1787.5,"instrument":{"instrumentId":"INST-HSBA","assetClass":"EQUITY","currency":"GBP","equity":{"equityId":"E-0005","beta":null}},"underlying":{"instrumentId":"INST-HSBA","assetClass":"EQUITY","currency":"GBP","equity":{"equityId":"E-0005","beta":null}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"optionId":"O-0001","delta":1675.0,"gamma":1675.0,"impliedVolatility":1675.0,"instrument":null,"underlying":null},{"optionId":"O-0002","delta":1712.5,"gamma":1712.5,"impliedVolatility":null,"instrument":null,"underlying":null},{"optionId":"O-0003","delta":null,"gamma":1750.0,"impliedVolatility":1750.0,"instrument":{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0003","beta":1075.0}},"underlying":{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0003","beta":1075.0}}},{"optionId":"O-0004","delta":1787.5,"gamma":null,"impliedVolatility":1787.5,"instrument":{"instrumentId":"INST-MSFT","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0004","beta":1112.5}},"underlying":{"instrumentId":"INST-MSFT","assetClass":"EQUITY","currency":"USD","equity":{"equityId":"E-0004","beta":1112.5}}},{"optionId":"O-0005","delta":1825.0,"gamma":1825.0,"impliedVolatility":1825.0,"instrument":{"instrumentId":"INST-HSBA","assetClass":"EQUITY","currency":"GBP","equity":{"equityId":"E-0005","beta":null}},"underlying":{"instrumentId":"INST-HSBA","assetClass":"EQUITY","currency":"GBP","equity":{"equityId":"E-0005","beta":null}}}]}';
                   }#;
               }#
           ]
@@ -14527,7 +14687,7 @@ Service stress::GG_ClientCoverageTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"coverageId":"CC-0001","endDate":"2024-04-16","lastContactDate":null,"notes":"NOTES-001","counterparty":null,"salesPerson":null},{"coverageId":"CC-0002","endDate":"2024-05-17","lastContactDate":"2024-05-17","notes":null,"counterparty":null,"salesPerson":null},{"coverageId":"CC-0003","endDate":"2024-06-18","lastContactDate":"2024-06-18","notes":"NOTES-003","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"salesPerson":{"salesPersonId":"SLS-002","clientCount":388,"phone":"PHONE-001","commissionStructure":null}},{"coverageId":"CC-0004","endDate":"2024-07-19","lastContactDate":"2024-07-19","notes":"NOTES-004","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"salesPerson":{"salesPersonId":"SLS-003","clientCount":395,"phone":null,"commissionStructure":null}},{"coverageId":"CC-0005","endDate":null,"lastContactDate":"2024-08-20","notes":"NOTES-005","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"salesPerson":{"salesPersonId":"SLS-002","clientCount":388,"phone":"PHONE-001","commissionStructure":null}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"coverageId":"CC-0001","endDate":"2024-04-16","lastContactDate":null,"notes":"NOTES-001","counterparty":null,"salesPerson":null},{"coverageId":"CC-0002","endDate":"2024-05-17","lastContactDate":"2024-05-17","notes":null,"counterparty":null,"salesPerson":null},{"coverageId":"CC-0003","endDate":"2024-06-18","lastContactDate":"2024-06-18","notes":"NOTES-003","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"salesPerson":{"salesPersonId":"SLS-002","clientCount":395,"phone":"PHONE-001","commissionStructure":null}},{"coverageId":"CC-0004","endDate":"2024-07-19","lastContactDate":"2024-07-19","notes":"NOTES-004","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"salesPerson":{"salesPersonId":"SLS-003","clientCount":402,"phone":null,"commissionStructure":null}},{"coverageId":"CC-0005","endDate":null,"lastContactDate":"2024-08-20","notes":"NOTES-005","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"salesPerson":{"salesPersonId":"SLS-002","clientCount":395,"phone":"PHONE-001","commissionStructure":null}}]}';
                   }#;
               }#
           ]
@@ -14638,7 +14798,7 @@ Service stress::GG_SalesCreditTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"creditId":"SC-0001","creditAmount":76.2,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-002","clientCount":388,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0001","commission":95.25,"createdTime":"2024-06-03T09:07:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0002","creditAmount":191.0,"creditDate":"2024-06-03","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-003","clientCount":395,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0003","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0004","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-002","clientCount":388,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0004","commission":125.0,"createdTime":"2024-06-03T09:28:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0005","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-003","clientCount":395,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0005","commission":100.0,"createdTime":"2024-06-03T09:35:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0006","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0006","commission":80.0,"createdTime":"2024-06-03T09:42:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0007","creditAmount":112.8,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-002","clientCount":388,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0007","commission":142.5,"createdTime":"2024-06-03T09:49:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0008","creditAmount":7.59,"creditDate":"2024-06-04","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-003","clientCount":395,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0008","commission":null,"createdTime":"2024-06-04T09:56:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0009","creditAmount":230.7,"creditDate":"2024-06-04","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0009","commission":285.0,"createdTime":"2024-06-04T09:03:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0010","creditAmount":199.2,"creditDate":"2024-06-04","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-002","clientCount":388,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0010","commission":249.0,"createdTime":"2024-06-04T09:10:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0011","creditAmount":66.92,"creditDate":"2024-06-04","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-003","clientCount":395,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0011","commission":41.8,"createdTime":"2024-06-04T09:17:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0012","creditAmount":147.6,"creditDate":"2024-06-05","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0012","commission":90.0,"createdTime":"2024-06-05T09:24:00.000000000+0000","avgPriceTrade":null}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"creditId":"SC-0001","creditAmount":76.2,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-002","clientCount":395,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0001","commission":95.25,"createdTime":"2024-06-03T09:07:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0002","creditAmount":191.0,"creditDate":"2024-06-03","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-003","clientCount":402,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0003","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0004","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-002","clientCount":395,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0004","commission":125.0,"createdTime":"2024-06-03T09:28:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0005","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-003","clientCount":402,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0005","commission":100.0,"createdTime":"2024-06-03T09:35:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0006","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0006","commission":80.0,"createdTime":"2024-06-03T09:42:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0007","creditAmount":112.8,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-002","clientCount":395,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0007","commission":142.5,"createdTime":"2024-06-03T09:49:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0008","creditAmount":7.59,"creditDate":"2024-06-04","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-003","clientCount":402,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0008","commission":null,"createdTime":"2024-06-04T09:56:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0009","creditAmount":230.7,"creditDate":"2024-06-04","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0009","commission":285.0,"createdTime":"2024-06-04T09:03:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0010","creditAmount":199.2,"creditDate":"2024-06-04","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-002","clientCount":395,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0010","commission":249.0,"createdTime":"2024-06-04T09:10:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0011","creditAmount":66.92,"creditDate":"2024-06-04","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-003","clientCount":402,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0011","commission":41.8,"createdTime":"2024-06-04T09:17:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0012","creditAmount":147.6,"creditDate":"2024-06-05","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0012","commission":90.0,"createdTime":"2024-06-05T09:24:00.000000000+0000","avgPriceTrade":null}}]}';
                   }#;
               }#
           ]
@@ -14860,7 +15020,7 @@ Service stress::GG_RfqTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"rfqId":"R-0001","quotedRate":2050.0,"responseTimeMs":null,"spreadBps":2050.0,"client":null,"dealer":null},{"rfqId":"R-0002","quotedRate":2087.5,"responseTimeMs":381,"spreadBps":2087.5,"client":null,"dealer":null},{"rfqId":"R-0003","quotedRate":null,"responseTimeMs":388,"spreadBps":2125.0,"client":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"dealer":{"traderId":"TRD-001","badge":"B10041","firstName":"Maria","desk":{"deskId":"DSK-CASH","assetClass":"EQUITY"}}},{"rfqId":"R-0004","quotedRate":2162.5,"responseTimeMs":395,"spreadBps":null,"client":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"dealer":{"traderId":"TRD-002","badge":"B10077","firstName":"Kenji","desk":{"deskId":"DSK-CASH","assetClass":"EQUITY"}}},{"rfqId":"R-0005","quotedRate":2200.0,"responseTimeMs":402,"spreadBps":2200.0,"client":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"dealer":{"traderId":"TRD-003","badge":"B10102","firstName":"Aoife","desk":{"deskId":"DSK-DERIV","assetClass":"EQUITY"}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"rfqId":"R-0001","quotedRate":2087.5,"responseTimeMs":null,"spreadBps":2087.5,"client":null,"dealer":null},{"rfqId":"R-0002","quotedRate":2125.0,"responseTimeMs":388,"spreadBps":2125.0,"client":null,"dealer":null},{"rfqId":"R-0003","quotedRate":null,"responseTimeMs":395,"spreadBps":2162.5,"client":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}},"dealer":{"traderId":"TRD-001","badge":"B10041","firstName":"Maria","desk":{"deskId":"DSK-CASH","assetClass":"EQUITY"}}},{"rfqId":"R-0004","quotedRate":2200.0,"responseTimeMs":402,"spreadBps":null,"client":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}},"dealer":{"traderId":"TRD-002","badge":"B10077","firstName":"Kenji","desk":{"deskId":"DSK-CASH","assetClass":"EQUITY"}}},{"rfqId":"R-0005","quotedRate":2237.5,"responseTimeMs":409,"spreadBps":2237.5,"client":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"dealer":{"traderId":"TRD-003","badge":"B10102","firstName":"Aoife","desk":{"deskId":"DSK-DERIV","assetClass":"EQUITY"}}}]}';
                   }#;
               }#
           ]
@@ -16854,10 +17014,10 @@ Service stress::TM_ProductsInstrumentEmpty
             corporateActionsAny:x|$x.corporateActions->isNotEmpty(),
             instrumentGreeksEmpty:x|$x.instrumentGreeks->isEmpty(),
             instrumentGreeksAny:x|$x.instrumentGreeks->isNotEmpty(),
+            newsEmpty:x|$x.news->isEmpty(),
+            newsAny:x|$x.news->isNotEmpty(),
             optionsEmpty:x|$x.options->isEmpty(),
-            optionsAny:x|$x.options->isNotEmpty(),
-            ordersEmpty:x|$x.orders->isEmpty(),
-            ordersAny:x|$x.orders->isNotEmpty()
+            optionsAny:x|$x.options->isNotEmpty()
         ])
         ->sort(~instrumentId->ascending());
         mapping: stress::AllMapping;
@@ -16893,7 +17053,7 @@ Service stress::TM_ProductsInstrumentEmpty
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"instrumentId":"INST-AAPL","corporateActionsEmpty":false,"corporateActionsAny":true,"instrumentGreeksEmpty":false,"instrumentGreeksAny":true,"optionsEmpty":false,"optionsAny":true,"ordersEmpty":false,"ordersAny":true},{"instrumentId":"INST-GILT30","corporateActionsEmpty":true,"corporateActionsAny":false,"instrumentGreeksEmpty":false,"instrumentGreeksAny":true,"optionsEmpty":true,"optionsAny":false,"ordersEmpty":true,"ordersAny":false},{"instrumentId":"INST-HSBA","corporateActionsEmpty":false,"corporateActionsAny":true,"instrumentGreeksEmpty":true,"instrumentGreeksAny":false,"optionsEmpty":false,"optionsAny":true,"ordersEmpty":false,"ordersAny":true},{"instrumentId":"INST-MSFT","corporateActionsEmpty":false,"corporateActionsAny":true,"instrumentGreeksEmpty":false,"instrumentGreeksAny":true,"optionsEmpty":false,"optionsAny":true,"ordersEmpty":false,"ordersAny":true},{"instrumentId":"INST-NESN","corporateActionsEmpty":true,"corporateActionsAny":false,"instrumentGreeksEmpty":true,"instrumentGreeksAny":false,"optionsEmpty":true,"optionsAny":false,"ordersEmpty":true,"ordersAny":false},{"instrumentId":"INST-SAP","corporateActionsEmpty":true,"corporateActionsAny":false,"instrumentGreeksEmpty":true,"instrumentGreeksAny":false,"optionsEmpty":true,"optionsAny":false,"ordersEmpty":true,"ordersAny":false}]';
+                    data: '[{"instrumentId":"INST-AAPL","corporateActionsEmpty":false,"corporateActionsAny":true,"instrumentGreeksEmpty":false,"instrumentGreeksAny":true,"newsEmpty":false,"newsAny":true,"optionsEmpty":false,"optionsAny":true},{"instrumentId":"INST-GILT30","corporateActionsEmpty":true,"corporateActionsAny":false,"instrumentGreeksEmpty":false,"instrumentGreeksAny":true,"newsEmpty":true,"newsAny":false,"optionsEmpty":true,"optionsAny":false},{"instrumentId":"INST-HSBA","corporateActionsEmpty":false,"corporateActionsAny":true,"instrumentGreeksEmpty":true,"instrumentGreeksAny":false,"newsEmpty":false,"newsAny":true,"optionsEmpty":false,"optionsAny":true},{"instrumentId":"INST-MSFT","corporateActionsEmpty":false,"corporateActionsAny":true,"instrumentGreeksEmpty":false,"instrumentGreeksAny":true,"newsEmpty":false,"newsAny":true,"optionsEmpty":false,"optionsAny":true},{"instrumentId":"INST-NESN","corporateActionsEmpty":true,"corporateActionsAny":false,"instrumentGreeksEmpty":true,"instrumentGreeksAny":false,"newsEmpty":true,"newsAny":false,"optionsEmpty":true,"optionsAny":false},{"instrumentId":"INST-SAP","corporateActionsEmpty":true,"corporateActionsAny":false,"instrumentGreeksEmpty":true,"instrumentGreeksAny":false,"newsEmpty":true,"newsAny":false,"optionsEmpty":true,"optionsAny":false}]';
                   }#;
               }#
           ]
@@ -133738,7 +133898,7 @@ Service stress::DSLocal_ProductsOption
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"optionId":"O-0001","exerciseStyle":"EXERCISE-STYLE-001","contractSize":297},{"optionId":"O-0003","exerciseStyle":"EXERCISE-STYLE-003","contractSize":311},{"optionId":"O-0004","exerciseStyle":"EXERCISE-STYLE-004","contractSize":318},{"optionId":"O-0005","exerciseStyle":"EXERCISE-STYLE-005","contractSize":null}]';
+                    data: '[{"optionId":"O-0001","exerciseStyle":"EXERCISE-STYLE-001","contractSize":304},{"optionId":"O-0003","exerciseStyle":"EXERCISE-STYLE-003","contractSize":318},{"optionId":"O-0004","exerciseStyle":"EXERCISE-STYLE-004","contractSize":325},{"optionId":"O-0005","exerciseStyle":"EXERCISE-STYLE-005","contractSize":null}]';
                   }#;
               }#
           ]
@@ -133799,7 +133959,7 @@ Service stress::DSAgg_ProductsOption
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"exerciseStyle":"EXERCISE-STYLE-001","n":1,"total":297},{"exerciseStyle":"EXERCISE-STYLE-003","n":1,"total":311},{"exerciseStyle":"EXERCISE-STYLE-004","n":1,"total":318},{"exerciseStyle":"EXERCISE-STYLE-005","n":1,"total":null}]';
+                    data: '[{"exerciseStyle":"EXERCISE-STYLE-001","n":1,"total":304},{"exerciseStyle":"EXERCISE-STYLE-003","n":1,"total":318},{"exerciseStyle":"EXERCISE-STYLE-004","n":1,"total":325},{"exerciseStyle":"EXERCISE-STYLE-005","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -133980,7 +134140,7 @@ Service stress::DSGroup_ProductsOption
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"underlyingInstrumentCurrencyCountryName":"United Kingdom","n":1,"total":null},{"underlyingInstrumentCurrencyCountryName":"United States","n":2,"total":629}]';
+                    data: '[{"underlyingInstrumentCurrencyCountryName":"United Kingdom","n":1,"total":null},{"underlyingInstrumentCurrencyCountryName":"United States","n":2,"total":643}]';
                   }#;
               }#
           ]
@@ -136187,7 +136347,7 @@ Service stress::DSLocal_TradeException
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"exceptionId":"TE-0001","status":"ACTIVE","ageInDays":465},{"exceptionId":"TE-0003","status":"CLOSED","ageInDays":479},{"exceptionId":"TE-0004","status":"SUSPENDED","ageInDays":486},{"exceptionId":"TE-0005","status":"ACTIVE","ageInDays":493}]';
+                    data: '[{"exceptionId":"TE-0001","status":"ACTIVE","ageInDays":472},{"exceptionId":"TE-0003","status":"CLOSED","ageInDays":486},{"exceptionId":"TE-0004","status":"SUSPENDED","ageInDays":493},{"exceptionId":"TE-0005","status":"ACTIVE","ageInDays":500}]';
                   }#;
               }#
           ]
@@ -136248,7 +136408,7 @@ Service stress::DSAgg_TradeException
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"status":"ACTIVE","n":2,"total":958},{"status":"CLOSED","n":1,"total":479},{"status":"SUSPENDED","n":1,"total":486}]';
+                    data: '[{"status":"ACTIVE","n":2,"total":972},{"status":"CLOSED","n":1,"total":486},{"status":"SUSPENDED","n":1,"total":493}]';
                   }#;
               }#
           ]
@@ -139653,6 +139813,325 @@ Service stress::DSTree_MarketQuote
   ]
 }
 
+Service stress::DSLocal_NewsStory
+{
+    pattern: '/stress/dslocal_newsstory';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on marketdata::NewsStory -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |marketdata::NewsStory.all()
+        ->filter({x|($x.region > ' ')})
+        ->project(~[
+            storyId:x|$x.storyId,
+            region:x|$x.region
+        ])
+        ->sort(~storyId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_NewsStory_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 14 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"storyId":"NS-0002","region":"EMEA"},{"storyId":"NS-0003","region":"APAC"},{"storyId":"NS-0004","region":"Americas"},{"storyId":"NS-0005","region":"EMEA"},{"storyId":"NS-D-001","region":"Americas"},{"storyId":"NS-D-002","region":"Americas"},{"storyId":"NS-D-003","region":"EMEA"},{"storyId":"NS-D-004","region":"EMEA"},{"storyId":"NS-D-005","region":"Americas"},{"storyId":"NS-D-006","region":"Americas"},{"storyId":"NS-D-007","region":"Americas"},{"storyId":"NS-D-008","region":"EMEA"},{"storyId":"NS-D-009","region":"EMEA"},{"storyId":"NS-D-010","region":"EMEA"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSDeep_NewsStory
+{
+    pattern: '/stress/dsdeep_newsstory';
+    documentation: 'The deepest to-one reach marketdata::NewsStory offers, filtered on a NAVIGATED column rather than a local one, composite-sorted and limited. A predicate over a joined column has to be placed relative to the join, which a filter on the root never tests. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |marketdata::NewsStory.all()
+        ->filter({x|($x.instrument.instrumentCurrency.country.name > ' ') && ($x.region > ' ')})
+        ->project(~[
+            storyId:x|$x.storyId,
+            instrumentInstrumentCurrencyCountryName:x|$x.instrument.instrumentCurrency.country.name,
+            instrumentExchangeCountryName:x|$x.instrument.exchange.country.name,
+            instrumentEquityCompanyName:x|$x.instrument.equity.companyName,
+            instrumentSectorName:x|$x.instrument.sector.name
+        ])
+        ->sort(~storyId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSDeep_NewsStory_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 10 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"storyId":"NS-0003","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":"Aldgate","instrumentSectorName":"Information Technology"},{"storyId":"NS-0004","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":null,"instrumentSectorName":"Information Technology"},{"storyId":"NS-0005","instrumentInstrumentCurrencyCountryName":"United Kingdom","instrumentExchangeCountryName":"United Kingdom","instrumentEquityCompanyName":"Thameside","instrumentSectorName":"Financials"},{"storyId":"NS-D-002","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":"Aldgate","instrumentSectorName":"Information Technology"},{"storyId":"NS-D-003","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":"Aldgate","instrumentSectorName":"Information Technology"},{"storyId":"NS-D-005","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":"Aldgate","instrumentSectorName":"Information Technology"},{"storyId":"NS-D-006","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":null,"instrumentSectorName":"Information Technology"},{"storyId":"NS-D-007","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":null,"instrumentSectorName":"Information Technology"},{"storyId":"NS-D-009","instrumentInstrumentCurrencyCountryName":"United Kingdom","instrumentExchangeCountryName":"United Kingdom","instrumentEquityCompanyName":"Thameside","instrumentSectorName":"Financials"},{"storyId":"NS-D-010","instrumentInstrumentCurrencyCountryName":"United Kingdom","instrumentExchangeCountryName":"United Kingdom","instrumentEquityCompanyName":"Thameside","instrumentSectorName":"Financials"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSPost_NewsStory
+{
+    pattern: '/stress/dspost_newsstory';
+    documentation: 'The same rows as DSDeepNewsStory, filtered AFTER project on the projected alias rather than before it on the model path. The join has already happened by then, so the engine has to decide whether the predicate can be pushed back down; the two services must agree. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |marketdata::NewsStory.all()
+        ->project(~[
+            storyId:x|$x.storyId,
+            instrumentInstrumentCurrencyCountryName:x|$x.instrument.instrumentCurrency.country.name,
+            instrumentExchangeCountryName:x|$x.instrument.exchange.country.name,
+            instrumentEquityCompanyName:x|$x.instrument.equity.companyName,
+            instrumentSectorName:x|$x.instrument.sector.name
+        ])
+        ->filter({x|($x.instrumentInstrumentCurrencyCountryName > ' ')})
+        ->sort(~storyId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSPost_NewsStory_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 10 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"storyId":"NS-0003","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":"Aldgate","instrumentSectorName":"Information Technology"},{"storyId":"NS-0004","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":null,"instrumentSectorName":"Information Technology"},{"storyId":"NS-0005","instrumentInstrumentCurrencyCountryName":"United Kingdom","instrumentExchangeCountryName":"United Kingdom","instrumentEquityCompanyName":"Thameside","instrumentSectorName":"Financials"},{"storyId":"NS-D-002","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":"Aldgate","instrumentSectorName":"Information Technology"},{"storyId":"NS-D-003","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":"Aldgate","instrumentSectorName":"Information Technology"},{"storyId":"NS-D-005","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":"Aldgate","instrumentSectorName":"Information Technology"},{"storyId":"NS-D-006","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":null,"instrumentSectorName":"Information Technology"},{"storyId":"NS-D-007","instrumentInstrumentCurrencyCountryName":"United States","instrumentExchangeCountryName":"United States","instrumentEquityCompanyName":null,"instrumentSectorName":"Information Technology"},{"storyId":"NS-D-009","instrumentInstrumentCurrencyCountryName":"United Kingdom","instrumentExchangeCountryName":"United Kingdom","instrumentEquityCompanyName":"Thameside","instrumentSectorName":"Financials"},{"storyId":"NS-D-010","instrumentInstrumentCurrencyCountryName":"United Kingdom","instrumentExchangeCountryName":"United Kingdom","instrumentEquityCompanyName":"Thameside","instrumentSectorName":"Financials"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSGroup_NewsStory
+{
+    pattern: '/stress/dsgroup_newsstory';
+    documentation: 'The same reach as DSDeepNewsStory, then grouped on a NAVIGATED key with aggregates over it. The key came through a join, so a groupBy that grouped before the join would return the same columns and different numbers. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |marketdata::NewsStory.all()
+        ->filter({x|($x.instrument.instrumentCurrency.country.name > ' ')})
+        ->project(~[
+            instrumentInstrumentCurrencyCountryName:x|$x.instrument.instrumentCurrency.country.name,
+            storyId:x|$x.storyId
+        ])
+        ->groupBy(~[instrumentInstrumentCurrencyCountryName], ~[
+            n: x|$x.storyId : agg|$agg->count()
+        ])
+        ->sort(~instrumentInstrumentCurrencyCountryName->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSGroup_NewsStory_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentInstrumentCurrencyCountryName":"United Kingdom","n":3},{"instrumentInstrumentCurrencyCountryName":"United States","n":7}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSTree_NewsStory
+{
+    pattern: '/stress/dstree_newsstory';
+    documentation: 'A graphFetch 3 levels deep from marketdata::NewsStory. A sub-object that is wholly ABSENT and one whose every field is null are the same row in a projection and different objects in a tree, so this asserts something the DSDeep service over the same reach cannot. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |marketdata::NewsStory.all()
+        ->graphFetch(#{
+  marketdata::NewsStory
+  {
+    storyId,
+    instrument
+    {
+      instrumentCurrency
+      {
+        country
+        {
+          name,
+          countryCode
+        }
+      }
+    }
+  }
+}#)
+        ->serialize(#{
+  marketdata::NewsStory
+  {
+    storyId,
+    instrument
+    {
+      instrumentCurrency
+      {
+        country
+        {
+          name,
+          countryCode
+        }
+      }
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSTree_NewsStory_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"storyId":"NS-0001","instrument":null},{"storyId":"NS-0002","instrument":null},{"storyId":"NS-0003","instrument":{"instrumentCurrency":{"country":{"name":"United States","countryCode":"US"}}}},{"storyId":"NS-0004","instrument":{"instrumentCurrency":{"country":{"name":"United States","countryCode":"US"}}}},{"storyId":"NS-0005","instrument":{"instrumentCurrency":{"country":{"name":"United Kingdom","countryCode":"GB"}}}},{"storyId":"NS-D-001","instrument":null},{"storyId":"NS-D-002","instrument":{"instrumentCurrency":{"country":{"name":"United States","countryCode":"US"}}}},{"storyId":"NS-D-003","instrument":{"instrumentCurrency":{"country":{"name":"United States","countryCode":"US"}}}},{"storyId":"NS-D-004","instrument":null},{"storyId":"NS-D-005","instrument":{"instrumentCurrency":{"country":{"name":"United States","countryCode":"US"}}}},{"storyId":"NS-D-006","instrument":{"instrumentCurrency":{"country":{"name":"United States","countryCode":"US"}}}},{"storyId":"NS-D-007","instrument":{"instrumentCurrency":{"country":{"name":"United States","countryCode":"US"}}}},{"storyId":"NS-D-008","instrument":null},{"storyId":"NS-D-009","instrument":{"instrumentCurrency":{"country":{"name":"United Kingdom","countryCode":"GB"}}}},{"storyId":"NS-D-010","instrument":{"instrumentCurrency":{"country":{"name":"United Kingdom","countryCode":"GB"}}}},{"storyId":"NS-D-011","instrument":null}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::DSLocal_CashSettlement
 {
     pattern: '/stress/dslocal_cashsettlement';
@@ -141755,7 +142234,7 @@ Service stress::DSLocal_SettlementSettlementFail
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"failId":"SF-0001","currency":"USD","ageInDays":null},{"failId":"SF-0002","currency":"GBP","ageInDays":416},{"failId":"SF-0004","currency":"USD","ageInDays":430},{"failId":"SF-0005","currency":"JPY","ageInDays":437}]';
+                    data: '[{"failId":"SF-0001","currency":"USD","ageInDays":null},{"failId":"SF-0002","currency":"GBP","ageInDays":423},{"failId":"SF-0004","currency":"USD","ageInDays":437},{"failId":"SF-0005","currency":"JPY","ageInDays":444}]';
                   }#;
               }#
           ]
@@ -141816,7 +142295,7 @@ Service stress::DSAgg_SettlementSettlementFail
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"GBP","n":1,"total":416},{"currency":"JPY","n":1,"total":437},{"currency":"USD","n":2,"total":430}]';
+                    data: '[{"currency":"GBP","n":1,"total":423},{"currency":"JPY","n":1,"total":444},{"currency":"USD","n":2,"total":437}]';
                   }#;
               }#
           ]
@@ -145117,7 +145596,7 @@ Service stress::DSLocal_PositionBreak
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"breakId":"PB-0001","status":"ACTIVE","ageInDays":339},{"breakId":"PB-0002","status":"PENDING","ageInDays":346},{"breakId":"PB-0004","status":"SUSPENDED","ageInDays":360},{"breakId":"PB-0005","status":"ACTIVE","ageInDays":367}]';
+                    data: '[{"breakId":"PB-0001","status":"ACTIVE","ageInDays":346},{"breakId":"PB-0002","status":"PENDING","ageInDays":353},{"breakId":"PB-0004","status":"SUSPENDED","ageInDays":367},{"breakId":"PB-0005","status":"ACTIVE","ageInDays":374}]';
                   }#;
               }#
           ]
@@ -145178,7 +145657,7 @@ Service stress::DSAgg_PositionBreak
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"status":"ACTIVE","n":2,"total":706},{"status":"PENDING","n":1,"total":346},{"status":"SUSPENDED","n":1,"total":360}]';
+                    data: '[{"status":"ACTIVE","n":2,"total":720},{"status":"PENDING","n":1,"total":353},{"status":"SUSPENDED","n":1,"total":367}]';
                   }#;
               }#
           ]
@@ -145504,7 +145983,7 @@ Service stress::DSLocal_PositionSnapshot
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"snapshotId":"PS-0001","currency":"USD","version":346},{"snapshotId":"PS-0002","currency":"GBP","version":null},{"snapshotId":"PS-0003","currency":"EUR","version":360},{"snapshotId":"PS-0005","currency":"JPY","version":374}]';
+                    data: '[{"snapshotId":"PS-0001","currency":"USD","version":353},{"snapshotId":"PS-0002","currency":"GBP","version":null},{"snapshotId":"PS-0003","currency":"EUR","version":367},{"snapshotId":"PS-0005","currency":"JPY","version":381}]';
                   }#;
               }#
           ]
@@ -145565,7 +146044,7 @@ Service stress::DSAgg_PositionSnapshot
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":360},{"currency":"GBP","n":1,"total":null},{"currency":"JPY","n":1,"total":374},{"currency":"USD","n":1,"total":346}]';
+                    data: '[{"currency":"EUR","n":1,"total":367},{"currency":"GBP","n":1,"total":null},{"currency":"JPY","n":1,"total":381},{"currency":"USD","n":1,"total":353}]';
                   }#;
               }#
           ]
@@ -147570,7 +148049,7 @@ Service stress::DSLocal_PnLAttribution
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"attributionId":"PL-0002","currency":"GBP","version":null},{"attributionId":"PL-0003","currency":"EUR","version":325},{"attributionId":"PL-0004","currency":"USD","version":332},{"attributionId":"PL-0005","currency":"JPY","version":339}]';
+                    data: '[{"attributionId":"PL-0002","currency":"GBP","version":null},{"attributionId":"PL-0003","currency":"EUR","version":332},{"attributionId":"PL-0004","currency":"USD","version":339},{"attributionId":"PL-0005","currency":"JPY","version":346}]';
                   }#;
               }#
           ]
@@ -147631,7 +148110,7 @@ Service stress::DSAgg_PnLAttribution
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":325},{"currency":"GBP","n":1,"total":null},{"currency":"JPY","n":1,"total":339},{"currency":"USD","n":1,"total":332}]';
+                    data: '[{"currency":"EUR","n":1,"total":332},{"currency":"GBP","n":1,"total":null},{"currency":"JPY","n":1,"total":346},{"currency":"USD","n":1,"total":339}]';
                   }#;
               }#
           ]
@@ -151770,7 +152249,7 @@ Service stress::DSLocal_Rfq
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"rfqId":"R-0001","status":"ACTIVE","responseTimeMs":null},{"rfqId":"R-0002","status":"PENDING","responseTimeMs":381},{"rfqId":"R-0003","status":"CLOSED","responseTimeMs":388},{"rfqId":"R-0004","status":"SUSPENDED","responseTimeMs":395}]';
+                    data: '[{"rfqId":"R-0001","status":"ACTIVE","responseTimeMs":null},{"rfqId":"R-0002","status":"PENDING","responseTimeMs":388},{"rfqId":"R-0003","status":"CLOSED","responseTimeMs":395},{"rfqId":"R-0004","status":"SUSPENDED","responseTimeMs":402}]';
                   }#;
               }#
           ]
@@ -151831,7 +152310,7 @@ Service stress::DSAgg_Rfq
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"status":"ACTIVE","n":1,"total":null},{"status":"CLOSED","n":1,"total":388},{"status":"PENDING","n":1,"total":381},{"status":"SUSPENDED","n":1,"total":395}]';
+                    data: '[{"status":"ACTIVE","n":1,"total":null},{"status":"CLOSED","n":1,"total":395},{"status":"PENDING","n":1,"total":388},{"status":"SUSPENDED","n":1,"total":402}]';
                   }#;
               }#
           ]
@@ -276242,7 +276721,7 @@ Service stress::DSLocal_SalesPerson
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"salesPersonId":"SLS-002","region":"Americas","clientCount":388},{"salesPersonId":"SLS-003","region":"EMEA","clientCount":395}]';
+                    data: '[{"salesPersonId":"SLS-002","region":"Americas","clientCount":395},{"salesPersonId":"SLS-003","region":"EMEA","clientCount":402}]';
                   }#;
               }#
           ]
@@ -276303,7 +276782,7 @@ Service stress::DSAgg_SalesPerson
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"region":"Americas","n":1,"total":388},{"region":"EMEA","n":1,"total":395}]';
+                    data: '[{"region":"Americas","n":1,"total":395},{"region":"EMEA","n":1,"total":402}]';
                   }#;
               }#
           ]
@@ -281170,7 +281649,7 @@ Service stress::DSLocal_SanctionsCheck
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"checkId":"SC-0001","status":"ACTIVE","falsePositiveCount":395},{"checkId":"SC-0002","status":"PENDING","falsePositiveCount":null},{"checkId":"SC-0003","status":"CLOSED","falsePositiveCount":409},{"checkId":"SC-0005","status":"ACTIVE","falsePositiveCount":423}]';
+                    data: '[{"checkId":"SC-0001","status":"ACTIVE","falsePositiveCount":402},{"checkId":"SC-0002","status":"PENDING","falsePositiveCount":null},{"checkId":"SC-0003","status":"CLOSED","falsePositiveCount":416},{"checkId":"SC-0005","status":"ACTIVE","falsePositiveCount":430}]';
                   }#;
               }#
           ]
@@ -281231,7 +281710,7 @@ Service stress::DSAgg_SanctionsCheck
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"status":"ACTIVE","n":2,"total":818},{"status":"CLOSED","n":1,"total":409},{"status":"PENDING","n":1,"total":null}]';
+                    data: '[{"status":"ACTIVE","n":2,"total":832},{"status":"CLOSED","n":1,"total":416},{"status":"PENDING","n":1,"total":null}]';
                   }#;
               }#
           ]

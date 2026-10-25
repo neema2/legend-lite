@@ -45,6 +45,25 @@ Class marketdata::MarketTrade
     isOffExchange: Boolean[1];
 }
 
+// A STORY ON THE NEWSWIRE: what a terminal's news feed shows -- its headline, when it crossed, whose wire, what it is
+// about (a category: earnings, guidance, M&A, an analyst's rating, macro, regulatory, management, product, crypto) and
+// its weight (FLASH, STORY, BRIEF). A story about one name carries its instrument; one about a sector, its sector; a
+// macro story neither. Its tickers are every name it mentions, space-separated, the wire's own codes; its sentiment, the
+// wire's score from -1 to 1 where it gives one.
+Class marketdata::NewsStory
+{
+    storyId: String[1];
+    publishTime: DateTime[1];
+    headline: String[1];
+    body: String[0..1];
+    source: String[1];
+    category: String[1];
+    urgency: String[1];
+    sentiment: Float[0..1];
+    tickers: String[0..1];
+    region: String[0..1];
+}
+
 Class marketdata::FxRate
 {
     rateId: String[1];

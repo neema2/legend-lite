@@ -81,7 +81,9 @@ MAX_ROOTS = 2100
 # by the sixteen so that no root's deep variants are lost -- the new roots are varied, not one more copy of a taxonomy.
 # 416 -> 417 (2026-10-25, DH34, the market world's screens): an equity's instrument mapped (products::Equity_Instrument)
 # gives products::Equity reach; it outranked CustodiedCryptoHolding, whose deep variants the cap then dropped.
-DEEP_ROOTS = 417
+# 417 -> 418 (2026-10-25, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K15, the news feed): a story's instrument and sector
+# give marketdata::NewsStory reach; it outranked CustodiedCryptoHolding again, whose deep variants the cap then dropped.
+DEEP_ROOTS = 418
 
 
 # Single-construct mapping FIXTURES, each with its own store, runtime and data element.

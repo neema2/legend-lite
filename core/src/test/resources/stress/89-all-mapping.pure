@@ -413,6 +413,18 @@ Mapping stress::AllMapping
             prints: [store::DB] @MarketTrade_Instrument
         )
     }
+    cross::NewsStory_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @NewsStory_Instrument,
+            news: [store::DB] @NewsStory_Instrument
+        )
+    }
+    cross::NewsStory_Sector: Relational {
+        AssociationMapping (
+            sector: [store::DB] @NewsStory_Sector,
+            news: [store::DB] @NewsStory_Sector
+        )
+    }
     cross::Order_Trader: Relational {
         AssociationMapping (
             trader: [store::DB] @Order_Trader,
