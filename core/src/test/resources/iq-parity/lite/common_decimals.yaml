@@ -1,0 +1,70 @@
+# The IQ scale program's common patterns (2026-10-25): the real-world corpus lane's largest refusals after scripts and
+# duplicate names, as the queries write them (SEDE and SQLStorm, about 140 queries): a CAST to DECIMAL or NUMERIC with
+# no precision (IQ's PRECISION and SCALE options make it a NUMERIC(126,38)), averages and sums of such values, ratios
+# of them, an AVG of a CASE of ones, an average of averages, a count times 1.0 as a ratio's divisor. Judged by the live
+# IQ (iq17-default): lite follows IQ's engine for a query over an IQ database's tables. Each answer's columns carry
+# IQ's precision and scale, which lite's typing needs. tools/iq-oracle's README.md has the keys.
+tests:
+
+  # ---- a CAST with no precision
+  - id: a_cast_of_a_smallint_to_decimal
+    sql: "SELECT id, CAST(sm AS DECIMAL) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_cast_of_a_numeric_to_numeric
+    sql: "SELECT id, CAST(nm AS NUMERIC) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_convert_to_decimal
+    sql: "SELECT id, CONVERT(DECIMAL, it) AS v FROM t ORDER BY id"
+    profile: iq17-default
+  - id: an_average_of_a_cast_to_decimal
+    sql: "SELECT AVG(CAST(sm AS DECIMAL)) AS v FROM t"
+    profile: iq17-default
+  - id: a_sum_of_a_cast_to_decimal
+    sql: "SELECT SUM(CAST(it AS DECIMAL)) AS v FROM t"
+    profile: iq17-default
+  - id: a_rounded_average_of_a_cast_to_numeric
+    sql: "SELECT ROUND(AVG(CAST(it AS NUMERIC)), 2) AS v FROM t"
+    profile: iq17-default
+  - id: a_ratio_of_two_casts_to_decimal
+    sql: "SELECT id, CAST(it AS DECIMAL) / CAST(sm AS DECIMAL) AS v FROM t WHERE sm <> 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_ratio_of_a_cast_to_decimal_and_an_integer
+    sql: "SELECT id, CAST(sm AS DECIMAL) / it AS v FROM t WHERE it <> 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_percentage_of_two_casts_to_decimal
+    sql: "SELECT id, CAST(sm AS DECIMAL) * 100 / CAST(it AS DECIMAL) AS v FROM t WHERE it <> 0 ORDER BY id"
+    profile: iq17-default
+  - id: a_grouped_ratio_of_casts_to_decimal
+    sql: "SELECT id % 3 AS k, CAST(SUM(sm) AS DECIMAL) / CAST(COUNT(*) AS DECIMAL) AS v FROM t GROUP BY id % 3 ORDER BY k"
+    profile: iq17-default
+
+  # ---- ratios of counts
+  - id: a_ratio_of_a_count_times_one_point_zero
+    sql: "SELECT COUNT(sm) * 1.0 / COUNT(*) AS v FROM t"
+    profile: iq17-default
+  - id: a_ratio_of_two_counts_times_one_point_zero
+    sql: "SELECT SUM(CASE WHEN sm > 0 THEN 1 ELSE 0 END) * 1.0 / (COUNT(*) * 1.0) AS v FROM t"
+    profile: iq17-default
+  - id: a_ratio_of_counts_of_a_derived_table
+    sql: "SELECT a / q * 100 AS v FROM (SELECT COUNT(*) * 1.0 AS q, SUM(CASE WHEN sm > 0 THEN 1 ELSE 0 END) * 1.0 AS a FROM t) x"
+    profile: iq17-default
+  - id: a_ratio_of_a_count_and_a_count_plus_an_epsilon
+    sql: "SELECT COUNT(sm) / (COUNT(*) + 0.000000001) * 100 AS v FROM t"
+    profile: iq17-default
+  - id: a_percentage_cast_to_decimal_5_1_as_text
+    sql: "SELECT CAST(CAST(SUM(CASE WHEN sm > 0 THEN 1 ELSE 0 END) * 1.0 / COUNT(*) * 100 AS DECIMAL(5,1)) AS VARCHAR(5)) + '%' AS v FROM t"
+    profile: iq17-default
+
+  # ---- averages of integers and of averages
+  - id: an_average_of_a_case_of_ones
+    sql: "SELECT AVG(CASE WHEN sm > 0 THEN 1 ELSE 0 END) AS v FROM t"
+    profile: iq17-default
+  - id: an_average_of_averages
+    sql: "SELECT AVG(a) AS v FROM (SELECT id % 3 AS k, AVG(CASE WHEN sm > 0 THEN 1 ELSE 0 END) AS a FROM t GROUP BY id % 3) d"
+    profile: iq17-default
+  - id: a_sum_of_averages
+    sql: "SELECT SUM(a) AS v FROM (SELECT id % 3 AS k, AVG(it) AS a FROM t GROUP BY id % 3) d"
+    profile: iq17-default
+  - id: an_average_of_a_double_in_a_cte
+    sql: "WITH s AS (SELECT id % 3 AS k, AVG(CAST(sm AS DOUBLE)) AS a FROM t GROUP BY id % 3 HAVING COUNT(*) > 1) SELECT TOP 2 k, a FROM s ORDER BY a DESC, k"
+    profile: iq17-default
