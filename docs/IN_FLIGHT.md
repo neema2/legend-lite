@@ -2282,9 +2282,14 @@ repros will be in the study's §9.
     - `protocol/sql/SqlToPure.java` (`assemble`, `sortKey`, `translate`) and `InputDialect.showsRepeatedNames` (IQ's
       true): the result's select marks a repeated name (`REPEATED_NAME_MARK`, U+00A0 `#n`); an unqualified ORDER BY of
       it is IQ's -144.
-    - `compiler/element/type/Type.java`: `RelationType.presentName`, the mark stripped, then `presentPivotName`.
+    - `compiler/element/type/Type.java`: `RelationType.presentName`, the mark stripped (2026-10-25: and nothing else; it
+      quoted a pivot's name through `presentPivotName` too, which broke five pivot tests in `core_tests_integration`).
     - `exec/Executor.java` (the positional result columns) and `lowering/Render.java` (the CSV wire header) show the
       name as IQ does; a JSON row keeps the marked key, its keys distinct.
+  - **The executor's `exec/Executor.java` (`tabular`, the COLLECTION shape), 2026-10-25:** a result whose reading thread
+    is interrupted (its caller's `Future.cancel(true)`) stops every 1,024 rows (`stopIfCancelled`, a
+    CancellationException), its result set and statement closed with it. A TPC-H-suite query of a cartesian join of tens
+    of millions of rows (IQ's own -1005015) kept filling rows after the corpus judge's timeout, until the heap was gone.
 
 ## An eleventh line, 2026-10-15: Cypher in Pure, the `#Cypher{...}#` island (the user's ask, rule 5)
 

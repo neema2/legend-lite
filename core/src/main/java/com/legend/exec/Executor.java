@@ -382,7 +382,9 @@ public final class Executor {
                 case COLLECTION -> {
                     List<Object> values = new ArrayList<>();
                     boolean anyRow = false;
+                    int read = 0;
                     while (rs.next()) {
+                        stopIfCancelled(++read);
                         anyRow = true;
                         Cell c = cellRead(rs, plan, dialect, anyRoot, variantRoot);
                         Object v = c.value();
@@ -891,11 +893,26 @@ public final class Executor {
         int n = rs.getMetaData().getColumnCount() - (rider == null ? 0 : rider.canonColumns());
         List<Column> columns = resolveColumns(rs, plan, schema, n, dialect);
         List<Row> rows = new ArrayList<>();
+        int read = 0;
         while (rs.next()) {
+            stopIfCancelled(++read);
             rows.addAll(shapeRow(rs, n, plan, dialect, schema, columns));
             harvestCanon(rs, rider);
         }
         return new ExecutionResult.Tabular(columns, rows, rootType.type());
+    }
+
+    /**
+     * Stops a result whose caller was cancelled: the reading thread interrupted (a timed-out caller's
+     * {@code Future.cancel(true)}) -- checked every 1,024 rows, the result set and its statement then closed by their
+     * try-with-resources, which ends the database's query. IQ island, 2026-10-25 (the IQ scale program): a TPC-H
+     * suite's query whose join of tens of millions of rows timed out kept filling rows after its judge gave up, until
+     * the heap was gone, and the queries after it died of it.
+     */
+    private static void stopIfCancelled(int read) {
+        if ((read & 1023) == 0 && Thread.currentThread().isInterrupted()) {
+            throw new java.util.concurrent.CancellationException("the query was cancelled after " + read + " rows");
+        }
     }
 
     /** The relation schema of a TABULAR root, struct columns flattened. */
