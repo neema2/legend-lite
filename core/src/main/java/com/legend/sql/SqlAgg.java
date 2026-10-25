@@ -24,6 +24,9 @@ public sealed interface SqlAgg {
         QUANTILE_DISC, CORR, COVAR_SAMP, COVAR_POP, ARG_MAX, ARG_MIN,
         WAVG, HASH_LIST, BOOL_AND, BOOL_OR, IS_DISTINCT_MARK,
         UNIQUE_VALUE_ONLY, VARIANCE, STDDEV,
+        // an ordered window's exponential moving average (lite's ema): its value, then alpha; a reducer in form, the
+        // lowering refusing it where no order is
+        EMA,
         ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE,
         LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE;
 

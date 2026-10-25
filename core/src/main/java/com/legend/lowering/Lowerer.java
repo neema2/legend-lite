@@ -1289,6 +1289,9 @@ public final class Lowerer {
         List<SqlSelect.Projection> ps = new ArrayList<>(aggs.size());
         for (TypedAggCol a : aggs) {
             SqlExpr av = aggValue(base, a, cal == null ? null : cal.get(a));
+            if (Windows.holdsEma(av)) {
+                throw Windows.unordered();
+            }
             // §3b: the obligation sees through wrapping Calls
             if (Fold.orderUnionAggregateExpr(base, av)
                     instanceof Fold.OrderedAggExpr oa) {

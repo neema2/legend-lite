@@ -40,7 +40,7 @@ Each lands with its tests and what it measured, as the line's other landings (`d
 | K3 | **built 2026-10-24** (§5); its ticking in a browser is K4's page. **A candlestick chart** in DataCube: open, high, low, close and volume by time bucket, drawn again at its grid's tick with its axes held (C2) | DataCube's chart tests; the chart ticking in a browser check |
 | K4 | **the ticker**: a watchlist (last, change, bid/ask, volume, day VWAP, high/low), the tape, time and sales, and a live candle chart for the symbol picked | a browser check of every part ticking; the speeds of §4 measured |
 | K5 | **built 2026-10-25** (§6). **The runtime error on Deephaven**: the lowering's guard (Pure fails on `sqrt` of a negative, on an Integer division by zero) writes an `ERROR` no Deephaven formula holds yet; a formula that fails by name, so `sqrt` and Integer `/` plan | the dialect's tests; a failing row failing the view, said, on the server |
-| K6 | **built 2026-10-24** (§5), but for EMA, delta and NTH_VALUE. **Windows as `updateBy`**: running and moving figures (by rows and by time), lag and lead, first and last, the ranks; top-N per group (a row number filtered, SQL's QUALIFY: no `headBy` needed); DataCube's window functions and show-as | each against DuckDB's answer |
+| K6 | **built 2026-10-24** (§5), but for NTH_VALUE; EMA and delta 2026-10-25 (§6). **Windows as `updateBy`**: running and moving figures (by rows and by time), lag and lead, first and last, the ranks; top-N per group (a row number filtered, SQL's QUALIFY: no `headBy` needed); DataCube's window functions and show-as | each against DuckDB's answer |
 | K7 | **as-of joins as `aj`** (DH20) | the same |
 | K8 | **the market map**: a treemap of every name, sized by value, coloured by the day's change, ticking | a browser check |
 | K9 | **real-time P&L with limits**: day P&L against the prior close by desk and book, KPI tiles that turn red past a limit | the same |
@@ -344,3 +344,26 @@ Measured, the corpus on a Deephaven runtime (the throwaway probe of §6): 4,170 
 `dateDiff` (270), whole-number division (55) and the runtime error (27) are gone, and `EXISTS` shows 87 (from 15:
 services that stopped at `dateDiff` reach it now). Of the 21 trader feature services, 16 plan; the rest are K7's three
 as-of joins and two windows of time over a time that may be null (live time windows).
+
+**EMA and delta (2026-10-25).** A tick-to-tick delta needs nothing new: a price less the previous print's (`lag`)
+already plans on Deephaven and is checked on the server (K6). An exponential moving average had no Pure function
+(legend-pure and legend-engine know only the simple moving average, a window's `average` over a frame), so the platform
+gains one, by the user's choice a name of its own rather than an overload of `average`, whose signature is upstream's
+verbatim and which is order-free where an EMA is not: `meta::legend::lite::ema(numbers:Number[*], alpha:Float[1]):
+Float[0..1]`, user-facing (`LITE_SURFACE`, its ceiling 4 -> 5, dated; census row; S105). It folds an ordered window's
+values in its order: the first, then `alpha * value + (1 - alpha) * so far`, a null skipped, a NaN carried, null with
+none -- a 20-period EMA is `alpha = 2 / 21`. The MIR gains `SqlAgg.Fn.EMA`, every dialect an arm: DuckDB folds the
+window's values as a list (`list_reduce` over `list(CAST(x AS DOUBLE)) OVER (...)`: a fold's accumulator is its list's
+element type, measured 1.4.4), Deephaven runs its own tick-decayed EMA (`updateBy` `ema`, the running frame, alpha a
+literal in (0, 1) as the server's `-1 / ln(1 - alpha)` ticks, nulls skipped and a NaN poisoning, as the fold does: the
+server's default skips a NaN), the rest refuse it by name; the lowering refuses one where its values have no order (a
+group's, an unordered window's). Measured: `EmaTest` executes it on DuckDB (two partitions, a leading null, a null
+mid-run, a whole-number column); on the pinned server two EMAs of each name, a null skipped, answer DuckDB's answers to
+six places (`page.ts`, 73 checks); the corpus's `TF_TapeEma` (each name's fast and slow EMA of its price and an EMA of
+its size over the tape) passes on DuckDB (4,809 of 4,837, the old failures unchanged at 15) and is refused by name on H2
+(4,779; 45 failures, the 44 before and this one); on the market world's live tape every name's running EMA stays inside
+its running range (`//datacube:deephaven_market_test`). Not built here: a
+time-decayed EMA (irregular ticks; Deephaven has one) and a weighted moving average, each its own small function if a
+screen needs it. Not verified in this cloud session: the generated-file drift checks of the catalog (`Pure.java`'s
+overload groups, `native-claims.tsv`), whose generators read the legend-pure checkout this session cannot fetch; the
+two lines were written as the generators write them, and CI checks them.

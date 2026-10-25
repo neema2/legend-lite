@@ -171,8 +171,9 @@ public final class DuckDb extends AnsiSqlRenderer {
             case VARIANCE -> aggregate(writer, "VARIANCE", r);
             case STDDEV -> aggregate(writer, "STDDEV", r);
             case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
-            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
-            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it), and so is
+            // an exponential moving average (an ordered window's: the lowering refuses one anywhere else)
+            case EMA, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
                  NTH_VALUE -> throw windowFunction(r);
         };
     }
@@ -751,6 +752,30 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     // ---- list idioms: DuckDB is the lambda backend ----
+
+    /** An ordered window's exponential moving average (lite's {@code ema(values, alpha)}): DuckDB has none, so the
+     *  window's values as a list, folded in its order -- {@code list_reduce} starts at the first, then
+     *  {@code alpha * v + (1 - alpha) * acc}, a null skipped (the fold so far kept), a NaN carried as arithmetic
+     *  carries it; a frame of no rows, or of nulls only, is null. The values as doubles: a fold's accumulator is
+     *  its list's element type (measured 1.4.4). Every other window call as the base writes it. */
+    @Override
+    protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
+        if (!(w.fn() instanceof com.legend.sql.SqlAgg.Reducer r) || r.fn() != com.legend.sql.SqlAgg.Fn.EMA) {
+            return super.windowCall(writer, w);
+        }
+        SqlExpr alpha = r.args().get(1);
+        SqlExpr values = new SqlExpr.WindowCall(new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.LIST,
+                List.of(new SqlExpr.Cast(r.args().get(0), com.legend.sql.SqlType.Scalar.DOUBLE)), false, List.of()),
+                w.partitionBy(), w.orderBy(), w.frame());
+        SqlExpr acc = SqlExpr.Column.param("acc", values);
+        SqlExpr v = SqlExpr.Column.param("v", values);
+        SqlExpr step = new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v), acc),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, acc), v)),
+                SqlExpr.Call.of(SqlFn.PLUS, SqlExpr.Call.of(SqlFn.TIMES, alpha, v),
+                        SqlExpr.Call.of(SqlFn.TIMES, SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.FloatLit(1.0), alpha), acc)));
+        return writer.expr(SqlExpr.Call.of(SqlFn.LIST_REDUCE, values, new SqlExpr.Lambda(List.of("acc", "v"), step)), 0);
+    }
 
     @Override
     protected SqlWriter lambda(SqlWriter writer, SqlExpr.Lambda l) {

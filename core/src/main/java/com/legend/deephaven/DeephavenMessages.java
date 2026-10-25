@@ -199,6 +199,7 @@ public final class DeephavenMessages {
                     f("sum", 1, Kind.MESSAGE, SPEC + "UpdateByCumulativeSum", Card.PRESENT),
                     f("min", 2, Kind.MESSAGE, SPEC + "UpdateByCumulativeMin", Card.PRESENT),
                     f("max", 3, Kind.MESSAGE, SPEC + "UpdateByCumulativeMax", Card.PRESENT),
+                    f("ema", 6, Kind.MESSAGE, SPEC + "UpdateByEma", Card.PRESENT),
                     f("rollingSum", 7, Kind.MESSAGE, SPEC + "UpdateByRollingSum", Card.PRESENT),
                     f("rollingGroup", 8, Kind.MESSAGE, SPEC + "UpdateByRollingGroup", Card.PRESENT),
                     f("rollingAvg", 9, Kind.MESSAGE, SPEC + "UpdateByRollingAvg", Card.PRESENT),
@@ -209,6 +210,13 @@ public final class DeephavenMessages {
             m(SPEC + "UpdateByCumulativeSum"),
             m(SPEC + "UpdateByCumulativeMin"),
             m(SPEC + "UpdateByCumulativeMax"),
+            // an exponential moving average (lite's ema): its decay in ticks, a null skipped and a NaN poisoning
+            m(SPEC + "UpdateByEma",
+                    f("options", 1, Kind.MESSAGE, "UpdateByEmOptions", Card.SINGLE),
+                    f("windowScale", 2, Kind.MESSAGE, "UpdateByWindowScale", Card.SINGLE)),
+            m("UpdateByEmOptions",
+                    f("onNullValue", 1, Kind.ENUM, "BadDataBehavior", Card.SINGLE),
+                    f("onNanValue", 2, Kind.ENUM, "BadDataBehavior", Card.SINGLE)),
             rolling("UpdateByRollingSum"),
             rolling("UpdateByRollingGroup"),
             rolling("UpdateByRollingAvg"),
@@ -252,6 +260,7 @@ public final class DeephavenMessages {
     private static final Map<String, Map<String, Integer>> ENUMS = enumIndex(
             e("SortDescriptor.SortDirection", "UNKNOWN", 0, "DESCENDING", -1, "ASCENDING", 1, "REVERSE", 2),
             e("NullValue", "NULL_VALUE", 0),
+            e("BadDataBehavior", "BAD_DATA_BEHAVIOR_NOT_SPECIFIED", 0, "THROW", 1, "RESET", 2, "SKIP", 3, "POISON", 4),
             e("NaturalJoinTablesRequest.JoinType", "JOIN_TYPE_NOT_SPECIFIED", 0, "ERROR_ON_DUPLICATE", 1,
                     "FIRST_MATCH", 2, "LAST_MATCH", 3, "EXACTLY_ONE_MATCH", 4));
 

@@ -196,18 +196,23 @@ try {
     return names > 0 && off === 0 ? null : `${names} names traded, ${off} with a VWAP outside their range`;
   });
 
-  await check('windows over the tape (K6): a running VWAP inside its running range, a previous print for all but the'
-    + ' first of each name', async () => {
-    // one query, so the prints windowed are the prints counted; a running low and high are Pure's [0..1]
+  await check('windows over the tape (K6): a running VWAP and a running EMA inside their running range, a previous print'
+    + ' for all but the first of each name', async () => {
+    // one query, so the prints windowed are the prints counted; a running low and high are Pure's [0..1], and so is an
+    // EMA (lite's ema: a weighted mean of the prices so far, never outside their range)
     const [counted] = await rows(`${PRINTS}->extend(over(~sym, ~seq->ascending(), rows(unbounded(), 0)),`
       + ` ~[pv:{p,w,r|$r.px * $r.sz}:y|$y->plus(), v:{p,w,r|$r.sz}:y|$y->plus(), hi:{p,w,r|$r.px}:y|$y->max(),`
-      + ` lo:{p,w,r|$r.px}:y|$y->min()])->extend(over(~sym, ~seq->ascending()), ~prev:{p,w,r|$p->lag($r).px})`
-      + `->extend(~[off:x|(($x.pv / $x.v) < ($x.lo->toOne() - 0.000001)) || (($x.pv / $x.v) > ($x.hi->toOne() + 0.000001))])`
+      + ` lo:{p,w,r|$r.px}:y|$y->min(), e:{p,w,r|$r.px}:y|$y->ema(0.2)])`
+      + `->extend(over(~sym, ~seq->ascending()), ~prev:{p,w,r|$p->lag($r).px})`
+      + `->extend(~[off:x|(($x.pv / $x.v) < ($x.lo->toOne() - 0.000001)) || (($x.pv / $x.v) > ($x.hi->toOne() + 0.000001)),`
+      + ` emaOff:x|($x.e->toOne() < ($x.lo->toOne() - 0.000001)) || ($x.e->toOne() > ($x.hi->toOne() + 0.000001))])`
       + `->groupBy(~[], ~[all:x|$x.seq:y|$y->count(), off:x|if($x.off, |1, |[]):y|$y->count(),`
+      + ` emaOff:x|if($x.emaOff, |1, |[]):y|$y->count(),`
       + ` firsts:x|if($x.prev->isEmpty(), |1, |[]):y|$y->count(), names:x|$x.sym:y|$y->distinct()->count()])`);
-    const [all = 0, off = 0, firsts = 0, names = 0] = (counted ?? []).map(Number);
-    return all > 0 && off === 0 && firsts === names ? null
-      : `${all} prints: ${off} with a VWAP outside their range, ${firsts} with no previous print for ${names} names`;
+    const [all = 0, off = 0, emaOff = 0, firsts = 0, names = 0] = (counted ?? []).map(Number);
+    return all > 0 && off === 0 && emaOff === 0 && firsts === names ? null
+      : `${all} prints: ${off} with a VWAP and ${emaOff} with an EMA outside their range, ${firsts} with no previous`
+        + ` print for ${names} names`;
   });
 
   await check('crypto ticks, simulated, with its feed refused: every coin traded, each print the simulator\'s', async () => {

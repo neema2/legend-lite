@@ -430,6 +430,13 @@ public final class Pure {
          *  island's W11, 2026-10-17); Pure's own {@code minBy} and {@code maxBy} take a number key. */
         public static final String MIN_BY = PKG + "minBy";
         public static final String MAX_BY = PKG + "maxBy";
+        /** An exponential moving average (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, the trader screens' EMA,
+         *  2026-10-25): {@code ema(values, alpha)} folds a window's values in its order -- the first value, then each
+         *  {@code alpha * value + (1 - alpha) * so far}, a null skipped, a NaN carried -- the lowering's EMA. An
+         *  ordered window's aggregate only: a group's rows have no order. legend-pure and legend-engine have no
+         *  moving average but a window's {@code average} over a frame (the simple one), so none of this. User-facing
+         *  (LITE_SURFACE). */
+        public static final String EMA = PKG + "ema";
         public static final String AT_TIME = PKG + "atTime";
         /** A named zone, read by the database (2026-10-16, the Cypher island's zoned date-time leg):
          *  {@code instantIn(local, zone)} the instant a wall time names in the zone, {@code localIn(instant, zone)}
@@ -614,7 +621,8 @@ public final class Pure {
             java.util.Set.of(liteLocalName(Lite.NAVIGATE),
                     liteLocalName(Lite.SOURCE_URL),
                     liteLocalName(Lite.JOIN_WITH_PREFIX),
-                    liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX));
+                    liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX),
+                    liteLocalName(Lite.EMA));
 
     /** The same surface by FUNCTION ID: each bare name ({@link #LITE_SURFACE}) and the lite overloads it stands for,
      *  the catalog's generated AT_ groups. EngineHandlers adds them to the engine surface, joined by id like the
@@ -624,7 +632,8 @@ public final class Pure {
                 liteLocalName(Lite.NAVIGATE), AT_LEGEND_LITE_NAVIGATE,
                 liteLocalName(Lite.SOURCE_URL), AT_LEGEND_LITE_SOURCE_URL,
                 liteLocalName(Lite.JOIN_WITH_PREFIX), AT_LEGEND_LITE_JOIN_WITH_PREFIX,
-                liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX), AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX);
+                liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX), AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX,
+                liteLocalName(Lite.EMA), AT_LEGEND_LITE_EMA);
     }
 
     /** Every registered native in the lite-internal package — the
@@ -1016,6 +1025,8 @@ public final class Pure {
     /** The value at the smallest (largest) text key over {@code rowMapper(value, key)} rows ({@link Lite#MIN_BY},
      *  {@link Lite#MAX_BY}: the lowering's ARG_MIN and ARG_MAX, a text key where Pure's own take a number). */
     public static final NativeFunctionDefinition LITE_MIN_BY__ROW_MAPPER_MANY = signature("native function meta::legend::lite::minBy<T>(colRows:meta::pure::functions::math::mathUtility::RowMapper<T, meta::pure::metamodel::type::String>[*]):T[0..1];");
+    /** {@link Lite#EMA}: an ordered window's exponential moving average of its values. */
+    public static final NativeFunctionDefinition LITE_EMA__NUMBER_MANY__FLOAT_1 = signature("native function meta::legend::lite::ema(numbers:meta::pure::metamodel::type::Number[*], alpha:meta::pure::metamodel::type::Float[1]):meta::pure::metamodel::type::Float[0..1];");
     public static final NativeFunctionDefinition LITE_MAX_BY__ROW_MAPPER_MANY = signature("native function meta::legend::lite::maxBy<T>(colRows:meta::pure::functions::math::mathUtility::RowMapper<T, meta::pure::metamodel::type::String>[*]):T[0..1];");
     public static final NativeFunctionDefinition TIME_OF__DATE_1 = signature("native function meta::legend::lite::timeOf(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::StrictTime[1];");
     public static final NativeFunctionDefinition AT_TIME__DATE_1__STRICT_TIME_1 = signature("native function meta::legend::lite::atTime(d:meta::pure::metamodel::type::Date[1], t:meta::pure::metamodel::type::StrictTime[1]):meta::pure::metamodel::type::DateTime[1];");
@@ -2440,6 +2451,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DATE_TIME_OF_TEXT = com.legend.model.FunctionId.ofAll(DATE_TIME_OF_TEXT__STRING_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DIVIDE_ROUND = com.legend.model.FunctionId.ofAll(DIVIDE_ROUND__NUMBER_1__NUMBER_1__INTEGER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ELEMENT_ID = com.legend.model.FunctionId.ofAll(ELEMENT_ID__ANY_0_1, ELEMENT_ID__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_EMA = com.legend.model.FunctionId.ofAll(LITE_EMA__NUMBER_MANY__FLOAT_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN = com.legend.model.FunctionId.ofAll(GREATER_THAN_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN_EQUAL = com.legend.model.FunctionId.ofAll(GREATER_THAN_EQUAL_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GROUP_BY_COMPUTED_KEYS = com.legend.model.FunctionId.ofAll(GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1, GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1);

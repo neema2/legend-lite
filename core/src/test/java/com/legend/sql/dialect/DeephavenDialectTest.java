@@ -392,6 +392,20 @@ class DeephavenDialectTest {
     }
 
     @Test
+    void anEmaIsTheServersTickDecayedEmaSkippingNullsAndPoisonedByNaN() {
+        // alpha 0.2 is the server's decay of -1 / ln(0.8) ticks; the running frame of rows only
+        String b = batch(P + "->extend(over(~sym, ~pid->ascending(), rows(unbounded(), 0)), ~e:{p,w,r|$r.px}:y|$y->ema(0.2))");
+        assertTrue(b.contains("{\"ema\": {\"options\": {\"onNullValue\": \"SKIP\", \"onNanValue\": \"POISON\"},"
+                + " \"windowScale\": {\"ticks\": {\"ticks\": " + (-1 / Math.log1p(-0.2)) + "}}}}"), b);
+        DialectCapability moving = assertThrows(DialectCapability.class, () -> batch(P + "->extend(over(~sym,"
+                + " ~pid->ascending(), rows(-3, 0)), ~e:{p,w,r|$r.px}:y|$y->ema(0.2))"));
+        assertTrue(moving.getMessage().contains("other than the running one"), moving.getMessage());
+        DialectCapability alpha = assertThrows(DialectCapability.class, () -> batch(P + "->extend(over(~sym,"
+                + " ~pid->ascending(), rows(unbounded(), 0)), ~e:{p,w,r|$r.px}:y|$y->ema(1.0))"));
+        assertTrue(alpha.getMessage().contains("not a literal between 0 and 1"), alpha.getMessage());
+    }
+
+    @Test
     void whatHasNoShapeIsRefusedByName() {
         DialectCapability window = assertThrows(DialectCapability.class, () -> batch("#>{risk::Ref.trades}#"
                 + "->extend(over(~desk, ~pnl->descending()), ~[r:{p, w, r | $p->nth($w, $r, 2).id}])"));

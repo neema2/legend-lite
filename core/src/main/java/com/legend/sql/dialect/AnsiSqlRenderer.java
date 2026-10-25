@@ -1273,6 +1273,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
     }
 
+    /** An aggregate this dialect has no spelling for yet (an ordered window's exponential moving average, lite's
+     *  {@code ema}, 2026-10-25): refused by name. */
+    protected final DialectCapability unspelled(SqlAgg.Reducer r) {
+        return new DialectCapability("aggregate " + r.fn() + " reached " + getClass().getSimpleName() + ": no spelling"
+                + " yet");
+    }
+
     /** A window function as an aggregate: it is a ranking or value function, which {@code windowCall} writes. */
     protected static IllegalStateException windowFunction(SqlAgg.Reducer r) {
         return new IllegalStateException(r.fn() + " is a window function: windowCall writes it");

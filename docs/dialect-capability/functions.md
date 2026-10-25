@@ -148,7 +148,7 @@ Database types planned with it: H2.
 | `DATE_TRUNC` | emulated | `dateTruncDateGrained` |  | 0 |
 | `ADD_INTERVAL` | emulated | `dateUnit, part: dateadd(…, …, …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiffArm` |  | 53 |
-| `TIME_BUCKET` | refused | `a time bucket reached H2, which has no time_bucket()` |  | 109 |
+| `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | spelled | `timezone` |  | 6 |
 | `DATE_AT_TIME` | spelled | `an operator (+)` |  | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
@@ -337,7 +337,7 @@ Database types planned with it: no database type's own (it extends `H2`). No PCT
 | `DATE_TRUNC` | emulated | `dateTruncDateGrained` | `as H2` | — |
 | `ADD_INTERVAL` | emulated | `dateUnit, part: dateadd(…, …, …)` | `as H2` | — |
 | `DATE_DIFF` | emulated | `dateDiffArm` | `as H2` | — |
-| `TIME_BUCKET` | refused | `a time bucket reached H2, which has no time_bucket()` | `as H2` | — |
+| `TIME_BUCKET` | emulated | `timeBucket` | `as H2` | — |
 | `TIMEZONE` | spelled | `timezone` | `as H2` | — |
 | `DATE_AT_TIME` | spelled | `an operator (+)` | `as H2` | — |
 | `EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as H2` | — |
@@ -2499,8 +2499,8 @@ Database types planned with it: Deephaven.
 | `MINUS` | emulated | `infixArithmetic:  - ` |  | 0 |
 | `TIMES` | emulated | `infixArithmetic:  * ` |  | 0 |
 | `DIVIDE` | emulated | `infixArithmetic:  / ` |  | 0 |
-| `MOD` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `REM` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `MOD` | emulated | `(((… % …) + …) % …)` |  | 0 |
+| `REM` | spelled | `an operator (%)` |  | 0 |
 | `NEGATE` | emulated | `(-…)` |  | 0 |
 | `ABS` | emulated | `function: abs` |  | 0 |
 | `IS_NULL` | emulated | `booleanValue` |  | 0 |
@@ -2545,7 +2545,7 @@ Database types planned with it: Deephaven.
 | `TANH` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `CEILING` | emulated | `function: ceil` |  | 0 |
 | `FLOOR` | emulated | `function: floor` |  | 0 |
-| `ROUND` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `ROUND` | emulated | `round` |  | 0 |
 | `SIGN` | emulated | `function: signum` |  | 0 |
 | `XOR` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `BIT_AND` | refused | `function reached Deephaven: no shape yet` |  | 0 |
@@ -2565,8 +2565,8 @@ Database types planned with it: Deephaven.
 | `MAP_KEYS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `MAP_VALUES` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `MAP_CONCAT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `SUBSTRING` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `STRPOS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `SUBSTRING` | emulated | `substring` |  | 0 |
+| `STRPOS` | emulated | `strpos` |  | 0 |
 | `STARTS_WITH` | emulated | `booleanValue` |  | 0 |
 | `ENDS_WITH` | emulated | `booleanValue` |  | 0 |
 | `MATCHES` | refused | `function reached Deephaven: no shape yet` |  | 0 |
@@ -2596,23 +2596,23 @@ Database types planned with it: Deephaven.
 | `SHA1` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `SHA256` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `RANDOM` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `EXTRACT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `TODAY` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `NOW` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `DATE_TRUNC_DAY` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `EXTRACT` | emulated | `extract` |  | 0 |
+| `TODAY` | refused | `the time now () reached Deephaven: a live view's rows are filtered when they change, not again as time passes, so a filter on the time no...` |  | 0 |
+| `NOW` | refused | `the time now () reached Deephaven: a live view's rows are filtered when they change, not again as time passes, so a filter on the time no...` |  | 0 |
+| `DATE_TRUNC_DAY` | emulated | `asDate: datePart` |  | 0 |
 | `MAKE_DATE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `MAKE_TIMESTAMP` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `DATE_TRUNC` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `ADD_INTERVAL` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `DATE_DIFF` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `TIME_BUCKET` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `DATE_TRUNC` | emulated | `dateTrunc` |  | 0 |
+| `ADD_INTERVAL` | emulated | `addInterval` |  | 0 |
+| `DATE_DIFF` | emulated | `dateDiff` |  | 0 |
+| `TIME_BUCKET` | emulated | `timeBucket` |  | 0 |
 | `TIMEZONE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `DATE_AT_TIME` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `EPOCH_NS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `FROM_EPOCH_NS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `ADD_INTERVAL_TEMPORAL` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `EPOCH_SECONDS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `EPOCH_MS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `EPOCH_MS` | emulated | `epochMillis` |  | 0 |
 | `FROM_EPOCH_SECONDS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `FROM_EPOCH_MS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `DAYNAME` | refused | `function reached Deephaven: no shape yet` |  | 0 |
@@ -2620,7 +2620,7 @@ Database types planned with it: Deephaven.
 | `COT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `RADIANS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `DEGREES` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `INT_DIVIDE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `INT_DIVIDE` | emulated | `intDivide` |  | 0 |
 | `REPEAT_STR` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `JARO_WINKLER` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `DECODE_BASE64` | refused | `function reached Deephaven: no shape yet` |  | 0 |
@@ -2656,13 +2656,13 @@ Database types planned with it: Deephaven.
 | `LIST_REVERSE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `TYPEOF` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `ROUND_HALF_UP` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `ERROR` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `ERROR` | emulated | `raise: a runtime error` |  | 0 |
 | `FLOOR_RAW` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `TO_VARIANT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `BOOL_TO_TEXT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `FLOAT_CANON` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `FLOAT_PRINT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
-| `FLOAT_PRINT_ENGINE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `FLOAT_PRINT` | emulated | `floatPrint` |  | 0 |
+| `FLOAT_PRINT_ENGINE` | emulated | `floatPrint` |  | 0 |
 | `VARIANT_ELEMENTS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `VARIANT_GET` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `JSON_TYPE` | refused | `function reached Deephaven: no shape yet` |  | 0 |

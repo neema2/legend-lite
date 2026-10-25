@@ -1494,7 +1494,8 @@ public final class Deephaven extends AnsiSqlRenderer {
             case STRING_AGG, LIST, QUANTILE_DISC, BOOL_AND, BOOL_OR -> throw new DialectCapability("aggregate "
                     + r.fn() + " reached Deephaven: no shape yet");
             case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
-            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+            // an ordered window's (the lowering refuses one in a group), which DeephavenBatch's windows write
+            case EMA, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
                  NTH_VALUE -> throw windowFunction(r);
         };
         return writer.append(aggregation);

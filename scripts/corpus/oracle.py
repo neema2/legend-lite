@@ -2805,14 +2805,14 @@ def _aggregate_value(spec: Spec, name: str, src, fn: str, members: list[dict]):
     raise Unsupported(f"{spec.short}.{name}: aggregate {fn!r} is not implemented for a group-by spec")
 
 
-_ORDERED_ONLY = {"rowNumber", "ntile", "lag", "lead", "first", "last"}
+_ORDERED_ONLY = {"rowNumber", "ntile", "lag", "lead", "first", "last", "ema"}
 _SECONDS = {"SECONDS": 1, "MINUTES": 60, "HOURS": 3600, "DAYS": 86400}
 
 
 def _window_kind(w, base: dict[str, str]) -> str:
     if w.fn in ("rowNumber", "rank", "denseRank", "ntile", "count"):
         return "int"
-    if w.fn in ("percentRank", "cumulativeDistribution", "average"):
+    if w.fn in ("percentRank", "cumulativeDistribution", "average", "ema"):
         return "float"
     return base[w.column]
 
@@ -2878,6 +2878,16 @@ def _window_value(spec, w, out, ordered, keys, pos, n):
     frame = [ordered[j] for j in _frame_positions(spec, w, out, ordered, keys, pos, n)]
     if w.fn in ("first", "last"):
         return (out[frame[0]][w.column] if w.fn == "first" else out[frame[-1]][w.column]) if frame else None
+    if w.fn == "ema":
+        # lite's ema (its census row): the frame's values folded in its order -- the first, then alpha * value +
+        # (1 - alpha) * so far, in doubles as the database computes it; a NULL skipped, none at all NULL
+        alpha = float(w.args[0])
+        acc = None
+        for i in frame:
+            v = out[i][w.column]
+            if v is not None:
+                acc = float(v) if acc is None else alpha * float(v) + (1.0 - alpha) * acc
+        return acc
     vals = [out[i][w.column] for i in frame if out[i][w.column] is not None]
     if w.fn == "count":
         return len(vals)

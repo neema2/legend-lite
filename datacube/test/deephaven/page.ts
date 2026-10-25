@@ -278,6 +278,13 @@ const WINDOWS: readonly { readonly query: string; readonly rows: readonly (reado
   // buckets and percent ranks across every print: no partition
   { query: `${P}->extend(over(~pid->ascending()), ~[nt:{p,w,r|$p->ntile($r, 4)}, pr:{p,w,r|$p->percentRank($w, $r)}])->select(~[pid, nt, pr])->sort(~pid->ascending())`,
     rows: [[1, 1, 0.0], [2, 1, 0.125], [3, 1, 0.25], [4, 2, 0.375], [5, 2, 0.5], [6, 3, 0.625], [7, 3, 0.75], [8, 4, 0.875], [9, 4, 1.0]] },
+  // lite's ema (the trader screens' EMA): each name's running exponential moving average, a null price skipped (AAA's
+  // at 4 holds 10.25), rounded to six places as a screen shows it (the server's decay ticks and DuckDB's alpha differ
+  // in the last place)
+  { query: `${P}->extend(over(~sym, ~pid->ascending(), rows(unbounded(), 0)), ~[e5:{p,w,r|$r.px}:y|$y->ema(0.5)->toOne()`
+      + `->round(6), e2:{p,w,r|$r.px}:y|$y->ema(0.2)->toOne()->round(6)])->select(~[pid, e5, e2])->sort(~pid->ascending())`,
+    rows: [[1, 10, 10], [2, 10.25, 10.1], [3, 20, 20], [4, 10.25, 10.1], [5, 10.625, 10.28], [6, 19.75, 19.9], [7, 5, 5],
+      [8, 10.3125, 10.224], [9, 19.75, 19.9]] },
 ];
 
 /** DataCube's shapes, L2's eighteen (the two the compiler refuses, a string operation on a nullable column, are not

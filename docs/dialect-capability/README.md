@@ -36,23 +36,23 @@ input).
 
 | dialect | database types | spelled | emulated | refused | not here | written, not reached by PCT |
 |---|---|---:|---:|---:|---:|---:|
-| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 85 | 72 | 50 | 15 | 26 |
-| H2Modern ([functions](functions.md#h2modern), [aggregates](aggregates.md#h2modern)) | no database type's own (it extends `H2`) | 84 | 74 | 49 | 15 | — |
-| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 74 | 125 | 8 | 15 | 32 |
-| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 94 | 108 | 5 | 15 | 36 |
-| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 82 | 121 | 4 | 15 | 36 |
-| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 70 | 126 | 11 | 15 | 33 |
-| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 96 | 105 | 6 | 15 | 34 |
-| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 145 | 62 | 0 | 15 | 41 |
-| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 65 | 136 | 6 | 15 | 34 |
-| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 144 | 7 | 15 | 35 |
-| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 52 | 148 | 7 | 15 | 34 |
-| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 52 | 148 | 7 | 15 | 34 |
-| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 197 | 10 | 15 | 197 |
-| Deephaven ([functions](functions.md#deephaven), [aggregates](aggregates.md#deephaven)) | Deephaven | 0 | 50 | 157 | 15 | 50 |
-| EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 105 | 84 | 18 | 15 | — |
-| EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 107 | 82 | 18 | 15 | — |
-| EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 108 | 81 | 18 | 15 | — |
+| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 85 | 73 | 50 | 15 | 26 |
+| H2Modern ([functions](functions.md#h2modern), [aggregates](aggregates.md#h2modern)) | no database type's own (it extends `H2`) | 84 | 75 | 49 | 15 | — |
+| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 74 | 125 | 9 | 15 | 32 |
+| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 94 | 108 | 6 | 15 | 36 |
+| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 82 | 121 | 5 | 15 | 36 |
+| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 70 | 126 | 12 | 15 | 33 |
+| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 96 | 105 | 7 | 15 | 34 |
+| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 145 | 62 | 0 | 16 | 41 |
+| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 65 | 136 | 7 | 15 | 34 |
+| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 144 | 8 | 15 | 35 |
+| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 52 | 148 | 8 | 15 | 34 |
+| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 52 | 148 | 8 | 15 | 34 |
+| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 197 | 11 | 15 | 197 |
+| Deephaven ([functions](functions.md#deephaven), [aggregates](aggregates.md#deephaven)) | Deephaven | 1 | 67 | 132 | 23 | 68 |
+| EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 105 | 84 | 19 | 15 | — |
+| EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 107 | 82 | 19 | 15 | — |
+| EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 108 | 81 | 19 | 15 | — |
 
 ## Functions
 
@@ -71,8 +71,8 @@ input).
 | `MINUS` | S | S | S | S | S | S | S | S | S | S | S | S | E· | E· | S | S | S |
 | `TIMES` | S | S | S | S | S | S | S | S | S | S | S | S | E· | E· | S | S | S |
 | `DIVIDE` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E· | E | E | E |
-| `MOD` | E | E | E | E | E | E | E | E | E | E | E | E | E· | R | E | E | E |
-| `REM` | E | E | E | E | E | E | E | E | E | E | E | E | E· | R | E | E | E |
+| `MOD` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E· | E | E | E |
+| `REM` | E | E | E | E | E | E | E | E | E | E | E | E | E· | S· | E | E | E |
 | `NEGATE` | S· | S | S· | S· | S· | E· | S· | S | S· | E· | E· | E· | E· | E· | S | S | S |
 | `ABS` | S | S | S | S | S | S | S | S | E | S | S | S | E· | E· | S | S | S |
 | `IS_NULL` | S | S | S | S | S | S | S | S | S | S | S | S | E· | E· | S | S | S |
@@ -117,7 +117,7 @@ input).
 | `TANH` | S | S | S | S | S | S | S | S | E | S | E | E | E· | R | S | S | S |
 | `CEILING` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E· | E | E | E |
 | `FLOOR` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E· | E | E | E |
-| `ROUND` | E | E | E | E | E | E | E | E | E | E | E | E | E· | R | E | E | E |
+| `ROUND` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E· | E | E | E |
 | `SIGN` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E· | E | E | E |
 | `XOR` | E | E | E | E | E | E | E | E | E | E | E | E | E· | R | E | E | E |
 | `BIT_AND` | R | R | E | S | S | S | E | S | S | S | E | E | E· | R | R | R | R |
@@ -137,8 +137,8 @@ input).
 | `MAP_KEYS` | S | S | E | S | S | E | S | S | S | E | E | E | E· | R | S | S | S |
 | `MAP_VALUES` | S | S | E | E | S | E | S | S | S | E | E | E | E· | R | S | S | S |
 | `MAP_CONCAT` | S | S | E | E | S | E | E | S | S | E | S | S | E· | R | S | S | S |
-| `SUBSTRING` | S | S | S | S | S | S | S | S | S | S | S | S | E· | R | S | S | S |
-| `STRPOS` | S | S | S | S | S | S | S | S | E | S | S | S | E· | R | S | S | S |
+| `SUBSTRING` | S | S | S | S | S | S | S | S | S | S | S | S | E· | E· | S | S | S |
+| `STRPOS` | S | S | S | S | S | S | S | S | E | S | S | S | E· | E· | S | S | S |
 | `STARTS_WITH` | E | E | S | S | S | S | S | S | S | E | E | E | E· | E· | S | S | S |
 | `ENDS_WITH` | E | E | E | S | E | S | S | S | S | E | E | E | E· | E· | S | S | S |
 | `MATCHES` | S | S | E | E | S | S | S | S | S | E | E | E | E· | R | S | S | S |
@@ -168,23 +168,23 @@ input).
 | `SHA1` | E | E | E | S | E | E | S | S | E | E | S | S | R | R | E | E | E |
 | `SHA256` | E | E | E | E | E | E | E | S | E | E | E | E | R | R | E | E | E |
 | `RANDOM` | S· | S | S· | E· | S· | S· | S· | S· | S· | E· | S· | S· | E· | R | S | S | S |
-| `EXTRACT` | E | E | E | E | E | E | E | E | E | E | E | E | E· | R | E | E | E |
+| `EXTRACT` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E· | E | E | E |
 | `TODAY` | S· | S | S· | S· | S· | S· | S· | S· | R | E· | S· | S· | E· | R | E | E | E |
 | `NOW` | S· | S | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· | E· | R | S | S | S |
-| `DATE_TRUNC_DAY` | E | E | E | E | E | E | E | E | S | S | S | S | E· | R | E | E | E |
+| `DATE_TRUNC_DAY` | E | E | E | E | E | E | E | E | S | S | S | S | E· | E· | E | E | E |
 | `MAKE_DATE` | S | S | E | S | E | E | S | S | S | E | E | E | E· | R | S | S | S |
 | `MAKE_TIMESTAMP` | R | R | E | E | E | E | E | E | E | E | E | E | E· | R | E | E | E |
-| `DATE_TRUNC` | E· | E | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R | E | E | E |
-| `ADD_INTERVAL` | E | E | E | E | E | E | E | E | E | E | E | E | E· | R | E | E | E |
-| `DATE_DIFF` | E | E | E | E | E | E | E | E | E | E | E | E | E· | R | E | E | E |
-| `TIME_BUCKET` | R | R | E | E | E | E | E | E | E | E | E | E | E· | R | E | E | E |
+| `DATE_TRUNC` | E· | E | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
+| `ADD_INTERVAL` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E· | E | E | E |
+| `DATE_DIFF` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E· | E | E | E |
+| `TIME_BUCKET` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E· | E | E | E |
 | `TIMEZONE` | S | S | S | E | E | E | S | S | E | E | E | E | E· | R | S | S | S |
 | `DATE_AT_TIME` | S· | S | S· | S· | E· | S· | R | S· | R | E· | S· | S· | R | R | R | R | R |
 | `EPOCH_NS` | R | R | R | R | R | R | R | S· | R | R | R | R | R | R | R | R | R |
 | `FROM_EPOCH_NS` | R | R | R | R | R | R | R | S· | R | R | R | R | R | R | R | R | R |
 | `ADD_INTERVAL_TEMPORAL` | E· | E | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R | E | E | E |
 | `EPOCH_SECONDS` | E· | E | E· | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· | R | S | S | S |
-| `EPOCH_MS` | E | E | E | E | E | E | E | S | E | E | E | E | E· | R | S | S | S |
+| `EPOCH_MS` | E | E | E | E | E | E | E | S | E | E | E | E | E· | E· | S | S | S |
 | `FROM_EPOCH_SECONDS` | S· | S | E· | E· | E· | E· | S· | S· | E· | E· | E· | E· | E· | R | S | S | S |
 | `FROM_EPOCH_MS` | R | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R | E | E | E |
 | `DAYNAME` | S· | S | E· | E· | E· | E· | E· | S· | E· | E· | S· | S· | E· | R | S | S | S |
@@ -192,7 +192,7 @@ input).
 | `COT` | S | S | S | S | E | S | S | S | E | S | S | S | E· | R | S | S | S |
 | `RADIANS` | S | S | S | S | S | E | S | S | S | S | S | S | E· | R | S | S | S |
 | `DEGREES` | S | S | S | S | S | E | S | S | S | S | S | S | E· | R | S | S | S |
-| `INT_DIVIDE` | E | E | E | E | E | E | S | E | E | E | E | E | E· | R | E | E | E |
+| `INT_DIVIDE` | E | E | E | E | E | E | S | E | E | E | E | E | E· | E· | E | E | E |
 | `REPEAT_STR` | S | S | S | S | E | S | S | S | E | E | E | E | E· | R | S | S | S |
 | `JARO_WINKLER` | S | S | E | E | E | R | E | S | S | E | E | E | E· | R | S | S | S |
 | `DECODE_BASE64` | R | R | E | S | E | E | E | E | S | E | E | E | E· | R | E | E | E |
@@ -228,13 +228,13 @@ input).
 | `LIST_REVERSE` | R | R | E | S | S | S | S | S | S | E | E | E | E· | R | E | E | E |
 | `TYPEOF` | R | R | R | E· | S· | R | S· | S· | E· | R | R | R | E· | R | E | E | E |
 | `ROUND_HALF_UP` | S | S | E | E | E | E | S | S | E | E | E | E | E· | R | S | S | S |
-| `ERROR` | E | E | E | E | E | E | E | E | E | E | E | E | E· | R | E | E | E |
+| `ERROR` | E | E | E | E | E | E | E | E | E | E | E | E | E· | E· | E | E | E |
 | `FLOOR_RAW` | S | S | S | S | S | S | E | S | S | S | S | S | E· | R | S | S | S |
 | `TO_VARIANT` | E | E | E | E | E | E | E | E | E | E | E | E | E· | R | R | R | R |
 | `BOOL_TO_TEXT` | E | E | E | E | E | E | E | E | S | E | E | E | E· | R | E | E | E |
 | `FLOAT_CANON` | E· | E | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E· | R | E | E | E |
-| `FLOAT_PRINT` | E· | E | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R | E | E | E |
-| `FLOAT_PRINT_ENGINE` | E· | E | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R | E | E | E |
+| `FLOAT_PRINT` | E· | E | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
+| `FLOAT_PRINT_ENGINE` | E· | E | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
 | `VARIANT_ELEMENTS` | R | R | E | E | E | E | E | E | E | E | E | E | E· | R | R | R | R |
 | `VARIANT_GET` | R | E | E | E | E | E | E | E | E | E | E | E | E· | R | R | R | R |
 | `JSON_TYPE` | S | S | E | E | E | E | E | S | E | E | E | E | E· | R | S | S | S |
@@ -252,20 +252,20 @@ input).
 | `MAX` | E | E | E | S | S | S | S | S | E | S | S | S | E· | E· | S | S | S |
 | `ANY_VALUE` | E· | E | S· | S· | S· | S· | S· | S· | E· | E· | E· | E· | E· | E· | E | E | E |
 | `STDDEV_SAMP` | E | E | S | S | S | S | S | S | E | E | E | E | E· | E· | S | S | S |
-| `STDDEV_POP` | E | E | S | S | S | S | S | S | E | E | E | E | E· | R | S | S | S |
+| `STDDEV_POP` | E | E | S | S | S | S | S | S | E | E | E | E | E· | – | S | S | S |
 | `VAR_SAMP` | E | E | S | S | S | S | S | S | E | E | E | E | E· | E· | S | S | S |
-| `VAR_POP` | E | E | S | S | S | S | S | S | E | E | E | E | E· | R | S | S | S |
+| `VAR_POP` | E | E | S | S | S | S | S | S | E | E | E | E | E· | – | S | S | S |
 | `MEDIAN` | E | E | E | E | E | E | S | S | E | E | E | E | E· | E· | S | S | S |
-| `MODE` | E | E | E | S | E | E | S | S | E | E | E | E | E· | R | S | S | S |
+| `MODE` | E | E | E | S | E | E | S | S | E | E | E | E | E· | – | S | S | S |
 | `STRING_AGG` | E | E | S | E | E | E | E | S | E | E | E | E | E· | R | E | E | E |
 | `LIST` | E | E | E | E | E | E | E | S | E | E | E | E | E· | R | S | S | S |
-| `QUANTILE_CONT` | E | E | E | E | E | E | E | S· | E | E | E | E | E· | R | E | E | E |
+| `QUANTILE_CONT` | E | E | E | E | E | E | E | S· | E | E | E | E | E· | – | E | E | E |
 | `QUANTILE_DISC` | E | E | E | E | E | E | E | S· | E | E | E | E | E· | R | E | E | E |
-| `CORR` | E | E | S | S | E | S | S | S | E | E | E | E | E· | R | S | S | S |
-| `COVAR_SAMP` | E | E | S | S | E | S | S | S | E | E | E | E | E· | R | S | S | S |
-| `COVAR_POP` | E | E | S | S | E | S | S | S | E | E | E | E | E· | R | S | S | S |
-| `ARG_MAX` | E | E | E | E | E | E | E | S | E | E | E | E | E· | R | S | S | S |
-| `ARG_MIN` | E | E | E | E | E | E | E | S | E | E | E | E | E· | R | S | S | S |
+| `CORR` | E | E | S | S | E | S | S | S | E | E | E | E | E· | – | S | S | S |
+| `COVAR_SAMP` | E | E | S | S | E | S | S | S | E | E | E | E | E· | – | S | S | S |
+| `COVAR_POP` | E | E | S | S | E | S | S | S | E | E | E | E | E· | – | S | S | S |
+| `ARG_MAX` | E | E | E | E | E | E | E | S | E | E | E | E | E· | E· | S | S | S |
+| `ARG_MIN` | E | E | E | E | E | E | E | S | E | E | E | E | E· | E· | S | S | S |
 | `WAVG` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
 | `HASH_LIST` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
 | `BOOL_AND` | E· | E | S· | S· | S· | E· | S· | S· | E· | E· | E· | E· | E· | R | S | S | S |
@@ -274,6 +274,7 @@ input).
 | `UNIQUE_VALUE_ONLY` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
 | `VARIANCE` | E· | E | S· | S· | S· | S· | S· | S· | E· | E· | E· | E· | E· | E· | S | S | S |
 | `STDDEV` | E· | E | S· | S· | S· | S· | S· | S· | E· | E· | E· | E· | E· | E· | S | S | S |
+| `EMA` | R | R | R | R | R | R | R | – | R | R | R | R | R | – | R | R | R |
 | `ROW_NUMBER` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
 | `RANK` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
 | `DENSE_RANK` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |

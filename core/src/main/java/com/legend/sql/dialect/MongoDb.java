@@ -2077,6 +2077,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             case VAR_SAMP, VAR_POP, VARIANCE, MEDIAN, STRING_AGG, QUANTILE_CONT, QUANTILE_DISC, MODE, CORR,
                  COVAR_SAMP, COVAR_POP, ARG_MAX, ARG_MIN -> pushed(writer, r);
             case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            case EMA -> throw unspelled(r);
             case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
                  NTH_VALUE -> throw windowFunction(r);
         };
@@ -2382,6 +2383,8 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " \"$$a\", \"sortBy\": {\"y\": 1}}}, 0]}}, \"in\": \"$$p.x\"}}");
             case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw new IllegalStateException(
                     "lowering marker " + fn + " reached the renderer");
+            // an exponential moving average is an ordered window's: a reduction has no order
+            case EMA -> throw new IllegalStateException("window-only function " + fn + " in a reduction");
             case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
                  NTH_VALUE -> throw new IllegalStateException("window-only function " + fn + " in a reduction");
         };

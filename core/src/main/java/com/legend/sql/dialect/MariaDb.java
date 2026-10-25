@@ -3015,6 +3015,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case ARG_MIN -> argExtreme(writer, r, true);
             case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
             // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case EMA -> throw unspelled(r);
             case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
                  NTH_VALUE -> throw windowFunction(r);
         };

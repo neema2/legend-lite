@@ -48,8 +48,8 @@ Database types planned with it: H2.
 | `CORR` | emulated | `h2Aggregate: CORR` |  | 4 |
 | `COVAR_SAMP` | emulated | `h2Aggregate: COVAR_SAMP` |  | 5 |
 | `COVAR_POP` | emulated | `h2Aggregate: COVAR_POP` |  | 4 |
-| `ARG_MAX` | emulated | `h2Aggregate: ARG_MAX` |  | 1 |
-| `ARG_MIN` | emulated | `h2Aggregate: ARG_MIN` |  | 1 |
+| `ARG_MAX` | emulated | `argExtreme:  DESC` |  | 1 |
+| `ARG_MIN` | emulated | `argExtreme:  ASC` |  | 1 |
 | `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `BOOL_AND` | emulated | `h2Aggregate: BOOL_AND` |  | 0 |
@@ -58,6 +58,7 @@ Database types planned with it: H2.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | emulated | `h2Aggregate: VARIANCE` |  | 0 |
 | `STDDEV` | emulated | `h2Aggregate: STDDEV` |  | 0 |
+| `EMA` | refused | `aggregate reached : no spelling yet` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
@@ -95,8 +96,8 @@ Database types planned with it: no database type's own (it extends `H2`). No PCT
 | `CORR` | emulated | `h2Aggregate: CORR` | `as H2` | — |
 | `COVAR_SAMP` | emulated | `h2Aggregate: COVAR_SAMP` | `as H2` | — |
 | `COVAR_POP` | emulated | `h2Aggregate: COVAR_POP` | `as H2` | — |
-| `ARG_MAX` | emulated | `h2Aggregate: ARG_MAX` | `as H2` | — |
-| `ARG_MIN` | emulated | `h2Aggregate: ARG_MIN` | `as H2` | — |
+| `ARG_MAX` | emulated | `argExtreme:  DESC` | `as H2` | — |
+| `ARG_MIN` | emulated | `argExtreme:  ASC` | `as H2` | — |
 | `WAVG` | not_here | `lowering marker reached the renderer` | `as H2` | — |
 | `HASH_LIST` | not_here | `lowering marker reached the renderer` | `as H2` | — |
 | `BOOL_AND` | emulated | `h2Aggregate: BOOL_AND` | `as H2` | — |
@@ -105,6 +106,7 @@ Database types planned with it: no database type's own (it extends `H2`). No PCT
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` | `as H2` | — |
 | `VARIANCE` | emulated | `h2Aggregate: VARIANCE` | `as H2` | — |
 | `STDDEV` | emulated | `h2Aggregate: STDDEV` | `as H2` | — |
+| `EMA` | refused | `aggregate reached : no spelling yet` | `as H2` | — |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
 | `RANK` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
@@ -152,6 +154,7 @@ Database types planned with it: Postgres.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | spelled | `VARIANCE` |  | 0 |
 | `STDDEV` | spelled | `STDDEV` |  | 0 |
+| `EMA` | refused | `aggregate reached : no spelling yet` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
@@ -199,6 +202,7 @@ Database types planned with it: Snowflake.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | spelled | `VARIANCE (unordered)` |  | 0 |
 | `STDDEV` | spelled | `STDDEV (unordered)` |  | 0 |
+| `EMA` | refused | `aggregate reached : no spelling yet` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
@@ -246,6 +250,7 @@ Database types planned with it: Trino.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | spelled | `VARIANCE (unordered)` |  | 0 |
 | `STDDEV` | spelled | `STDDEV (unordered)` |  | 0 |
+| `EMA` | refused | `aggregate reached : no spelling yet` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
@@ -293,6 +298,7 @@ Database types planned with it: BigQuery.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | spelled | `VARIANCE (unordered)` |  | 0 |
 | `STDDEV` | spelled | `STDDEV (unordered)` |  | 0 |
+| `EMA` | refused | `aggregate reached : no spelling yet` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
@@ -340,6 +346,7 @@ Database types planned with it: Databricks.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | spelled | `VARIANCE (unordered)` |  | 0 |
 | `STDDEV` | spelled | `STDDEV (unordered)` |  | 0 |
+| `EMA` | refused | `aggregate reached : no spelling yet` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
@@ -387,6 +394,7 @@ Database types planned with it: DuckDB.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | spelled | `VARIANCE` |  | 0 |
 | `STDDEV` | spelled | `STDDEV` |  | 0 |
+| `EMA` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
@@ -434,6 +442,7 @@ Database types planned with it: ClickHouse.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | emulated | `sampled: varSampStableOrNull` |  | 0 |
 | `STDDEV` | emulated | `sampled: stddevSampStableOrNull` |  | 0 |
+| `EMA` | refused | `aggregate reached : no spelling yet` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
@@ -481,6 +490,7 @@ Database types planned with it: SQLite.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | emulated | `aggregateArgs: variance(…)` |  | 0 |
 | `STDDEV` | emulated | `aggregateArgs: stdev(…)` |  | 0 |
+| `EMA` | refused | `aggregate reached : no spelling yet` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
@@ -528,6 +538,7 @@ Database types planned with it: MariaDB.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | emulated | `aggregateArgs: VAR_SAMP(…)` |  | 0 |
 | `STDDEV` | emulated | `aggregateArgs: STDDEV_SAMP(…)` |  | 0 |
+| `EMA` | refused | `aggregate reached : no spelling yet` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
@@ -575,6 +586,7 @@ Database types planned with it: MySQL.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` | `as MariaDb` | 0 |
 | `VARIANCE` | emulated | `aggregateArgs: VAR_SAMP(…)` | `as MariaDb` | 0 |
 | `STDDEV` | emulated | `aggregateArgs: STDDEV_SAMP(…)` | `as MariaDb` | 0 |
+| `EMA` | refused | `aggregate reached : no spelling yet` | `as MariaDb` | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` | `as MariaDb` | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` | `as MariaDb` | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` | `as MariaDb` | 0 |
@@ -622,6 +634,7 @@ Database types planned with it: MongoDB.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | emulated | `pushed` |  | 0 |
 | `STDDEV` | emulated | `accumulate: $stdDevSamp` |  | 0 |
+| `EMA` | refused | `aggregate reached : no spelling yet` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
@@ -647,20 +660,20 @@ Database types planned with it: Deephaven.
 | `MAX` | emulated | `columns: {"max": {}}` |  | 0 |
 | `ANY_VALUE` | emulated | `columns: {"first": {}}` |  | 0 |
 | `STDDEV_SAMP` | emulated | `columns: {"std": {}}` |  | 0 |
-| `STDDEV_POP` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `STDDEV_POP` | not_here | `aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it` |  | 0 |
 | `VAR_SAMP` | emulated | `columns: {"var": {}}` |  | 0 |
-| `VAR_POP` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `VAR_POP` | not_here | `aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it` |  | 0 |
 | `MEDIAN` | emulated | `columns: {"median": {"averageEvenlyDivided": true}}` |  | 0 |
-| `MODE` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `MODE` | not_here | `aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it` |  | 0 |
 | `STRING_AGG` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
 | `LIST` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
-| `QUANTILE_CONT` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `QUANTILE_CONT` | not_here | `aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it` |  | 0 |
 | `QUANTILE_DISC` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
-| `CORR` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
-| `COVAR_SAMP` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
-| `COVAR_POP` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
-| `ARG_MAX` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
-| `ARG_MIN` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
+| `CORR` | not_here | `aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it` |  | 0 |
+| `COVAR_SAMP` | not_here | `aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it` |  | 0 |
+| `COVAR_POP` | not_here | `aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it` |  | 0 |
+| `ARG_MAX` | emulated | `sorted: sortedLast` |  | 0 |
+| `ARG_MIN` | emulated | `sorted: sortedFirst` |  | 0 |
 | `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `BOOL_AND` | refused | `aggregate reached Deephaven: no shape yet` |  | 0 |
@@ -669,6 +682,7 @@ Database types planned with it: Deephaven.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | emulated | `columns: {"var": {}}` |  | 0 |
 | `STDDEV` | emulated | `columns: {"std": {}}` |  | 0 |
+| `EMA` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
@@ -716,6 +730,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | — |
 | `VARIANCE` | spelled | `variance` |  | — |
 | `STDDEV` | spelled | `stddev` |  | — |
+| `EMA` | refused | `aggregate reached : no spelling yet` |  | — |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | — |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | — |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | — |
@@ -763,6 +778,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` | `as EngineStyleH2` | — |
 | `VARIANCE` | spelled | `variance` | `as EngineStyleH2` | — |
 | `STDDEV` | spelled | `stddev` | `as EngineStyleH2` | — |
+| `EMA` | refused | `aggregate reached : no spelling yet` | `as EngineStyleH2` | — |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
 | `RANK` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
@@ -810,6 +826,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `VARIANCE` | spelled | `variance` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `STDDEV` | spelled | `stddev` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `EMA` | refused | `aggregate reached : no spelling yet` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `RANK` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |

@@ -86,6 +86,8 @@ public final class Aggregates {
         // lite's minBy and maxBy over a TEXT key (the Cypher island's orderability, W11): the same reducers
         family(SqlAgg.Fn.ARG_MAX, Pure.AT_LEGEND_LITE_MAX_BY);
         family(SqlAgg.Fn.ARG_MIN, Pure.AT_LEGEND_LITE_MIN_BY);
+        // lite's ema(values, alpha): alpha rides as the reduce call's extra argument, as percentile's does
+        family(SqlAgg.Fn.EMA, Pure.AT_LEGEND_LITE_EMA);
         // wavg has NO single SQL reducer: SUM(v*w)/SUM(w), composed in
         // aggExpr — the marker name never reaches the renderer.
         family(SqlAgg.Fn.WAVG, Pure.AT_MATH_WAVG);

@@ -217,6 +217,19 @@ def tape() -> list[Spec]:
     s.sort = ("printId", False)
     out.append(s)
 
+    e = _spec("TapeEma",
+              "A chart's technical lines over the market's day: each name's fast and slow exponential moving averages of "
+              "its price (lite's ema, alpha 0.5 and 0.2) and of its print size, over the running frame by sequence -- "
+              "the first value, then alpha * value + (1 - alpha) * so far, a NULL skipped.", PRINT)
+    e.projections = _print_columns()
+    e.filters = list(DAY)
+    running = dict(by_seq, frame=("rows", None, 0))
+    e.windows = [Window("emaFast", "ema", "price", args=[0.5], **running),
+                 Window("emaSlow", "ema", "price", args=[0.2], **running),
+                 Window("emaSize", "ema", "quantity", args=[0.2], **running)]
+    e.sort = ("printId", False)
+    out.append(e)
+
     r = _spec("TapeRollingFiveMinutes",
               "The last five minutes at each print (a time range frame over the print time; two prints share an "
               "instant, so the frame holds its peers): volume, high, low and prints.", PRINT)

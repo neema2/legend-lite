@@ -91,6 +91,29 @@ final class Windows {
         }
     }
 
+    /** An exponential moving average where its values have no order: a group's, or a window's with none. */
+    static com.legend.error.ModelException unordered() {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER,
+                "ema folds its values in their order, and these have none: an exponential moving average is a"
+                        + " window's, ordered (over(~partition, ~key->ascending(), rows(unbounded(), 0)))");
+    }
+
+    /** Whether {@code e} holds an exponential moving average outside any window. */
+    static boolean holdsEma(SqlExpr e) {
+        if (e instanceof SqlAgg.Reducer r && r.fn() == SqlAgg.Fn.EMA) {
+            return true;
+        }
+        if (e instanceof SqlExpr.WindowCall) {
+            return false;
+        }
+        for (SqlExpr c : e.children()) {
+            if (holdsEma(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The SQL reducer for a 4-arg window-aggregate callee, or null. */
     static com.legend.sql.SqlAgg.@com.legend.base.Nullable Fn aggregate(TypedFunction callee) {
         com.legend.sql.SqlAgg.Fn fn = AGGREGATES.get(callee.id());
@@ -118,8 +141,12 @@ final class Windows {
             SqlExpr.WindowCall.@com.legend.base.Nullable Frame frame) {
         return switch (e) {
             case SqlExpr.TempTableInSplice t -> t;
-            case SqlAgg.Reducer r ->
-                    new SqlExpr.WindowCall(r, partitionBy, orderBy, frame);
+            case SqlAgg.Reducer r -> {
+                if (r.fn() == SqlAgg.Fn.EMA && orderBy.isEmpty()) {
+                    throw unordered();
+                }
+                yield new SqlExpr.WindowCall(r, partitionBy, orderBy, frame);
+            }
             case SqlExpr.Call c -> new SqlExpr.Call(c.fn(), c.args().stream()
                     .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
             case SqlExpr.Cast c ->

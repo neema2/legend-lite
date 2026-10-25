@@ -1234,7 +1234,7 @@ public final class SqlTyping {
                 return T_BOOLEAN;
             }
             case STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, STDDEV,
-                    VARIANCE, CORR, COVAR_SAMP, COVAR_POP -> {
+                    VARIANCE, CORR, COVAR_SAMP, COVAR_POP, EMA -> {
                 return T_DOUBLE;
             }
             default -> {

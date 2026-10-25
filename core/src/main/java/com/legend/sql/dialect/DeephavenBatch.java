@@ -388,7 +388,7 @@ final class DeephavenBatch {
             // and the last value are the order's
             boolean ordering = switch (kind) {
                 case SUM, MIN, MAX, AVG, COUNT -> false;
-                case ROW_NUMBER, SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, FIRST, LAST -> true;
+                case ROW_NUMBER, SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, FIRST, LAST, EMA -> true;
             };
             if (ordering && call.orderBy().isEmpty()) {
                 throw new DialectCapability("a window function (" + call.fn().fn() + ") with no order reached Deephaven:"
@@ -422,7 +422,7 @@ final class DeephavenBatch {
     /** What a window function is on the server: an aggregation's figure, a row's place, a row's neighbour's value, or
      *  the first or the last value of its frame. */
     private enum WindowFn { SUM, MIN, MAX, AVG, COUNT, ROW_NUMBER, SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE,
-        FIRST, LAST }
+        FIRST, LAST, EMA }
 
     private static WindowFn windowFn(SqlAgg.Fn fn) {
         return switch (fn) {
@@ -440,6 +440,7 @@ final class DeephavenBatch {
             case NTILE -> WindowFn.NTILE;
             case FIRST_VALUE -> WindowFn.FIRST;
             case LAST_VALUE -> WindowFn.LAST;
+            case EMA -> WindowFn.EMA;
             case ANY_VALUE, STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, MEDIAN, MODE, STRING_AGG, LIST, QUANTILE_CONT,
                  QUANTILE_DISC, CORR, COVAR_SAMP, COVAR_POP, ARG_MAX, ARG_MIN, BOOL_AND, BOOL_OR, VARIANCE, STDDEV,
                  NTH_VALUE ->
@@ -505,7 +506,7 @@ final class DeephavenBatch {
                 case COUNT -> !in.nullable() ? "{\"count\": {\"columnName\": \"" + out + "\"}}"
                         : "{\"countWhere\": {\"columnName\": \"" + out + "\", \"filters\": "
                                 + DeephavenJson.strings(List.of(Deephaven.notNullFilter(in.arg()))) + "}}";
-                case ROW_NUMBER, SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, FIRST, LAST ->
+                case ROW_NUMBER, SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, FIRST, LAST, EMA ->
                         throw new IllegalStateException("a window function (" + in.fn() + ") of an order reached the"
                                 + " whole partition's");
             });
@@ -680,6 +681,19 @@ final class DeephavenBatch {
                                 + ")");
                     }
                 }
+                case EMA -> {
+                    // the server's own, running only: to the row and its ties, the last tie's (a tie's own order
+                    // is none the platform names)
+                    if (!(fromStart && toRow)) {
+                        throw new DialectCapability("an exponential moving average over a frame other than the running"
+                                + " one reached Deephaven: no shape yet");
+                    }
+                    String column = range ? helper("x") : out;
+                    if (range) {
+                        tieLasts.add(out + "=" + column);
+                    }
+                    ops.add(ema(call, in, column));
+                }
                 case SUM, MIN, MAX, AVG, COUNT, ROW_NUMBER -> {
                     boolean running = fromStart && toRow;
                     // a row's number counts the rows to it, ties or none: the rows as they are
@@ -749,7 +763,7 @@ final class DeephavenBatch {
                 ops.add(in.nullable() ? countWhere(count, in.arg()) : operation("{\"sum\": {}}", count + "=" + ones));
                 after.add(column + " = (" + count + " == 0 ? NULL_DOUBLE : (double) " + sum + " / " + count + ")");
             }
-            case SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, FIRST, LAST ->
+            case SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, FIRST, LAST, EMA ->
                     throw new IllegalStateException("a " + in.fn() + " reached the running figures");
         }
     }
@@ -765,7 +779,7 @@ final class DeephavenBatch {
             case AVG -> "rollingAvg";
             case COUNT -> "rollingCount";
             case ROW_NUMBER -> throw new DialectCapability("a " + in.fn() + " over a frame reached Deephaven: no shape yet");
-            case SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, FIRST, LAST ->
+            case SHIFT, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, FIRST, LAST, EMA ->
                     throw new IllegalStateException("a " + in.fn() + " reached the rolling figures");
         };
         // a count of every row counts the column of ones
@@ -837,6 +851,23 @@ final class DeephavenBatch {
     private int updateBy(int cur, List<String> operations, List<String> partition) {
         return simple("updateBy", source(cur) + ", \"operations\": [" + String.join(", ", operations) + "]"
                 + (partition.isEmpty() ? "" : ", \"groupByColumns\": " + DeephavenJson.strings(partition)));
+    }
+
+    /** An exponential moving average of {@code in}'s values to {@code column} (lite's {@code ema(values, alpha)}): the
+     *  server's tick-decayed EMA, which steps {@code a * so far + (1 - a) * value} with {@code a = exp(-1 / ticks)},
+     *  so the ticks are alpha's {@code -1 / ln(1 - alpha)} -- alpha a literal strictly between 0 and 1 (the server's
+     *  ticks are a number of the message, never a formula). A null skipped and a NaN poisoning what follows, as the
+     *  platform's fold over the frame (DuckDB's list_reduce) does; the server's default skips a NaN. */
+    private static String ema(SqlExpr.WindowCall call, Input in, String column) {
+        SqlExpr a = call.fn().args().get(1);
+        double alpha = a instanceof SqlExpr.FloatLit f ? f.value() : Double.NaN;
+        if (!(alpha > 0 && alpha < 1)) {
+            throw new DialectCapability("an exponential moving average whose alpha is not a literal between 0 and 1 ("
+                    + a + ") reached Deephaven: no shape yet");
+        }
+        double ticks = -1 / Math.log1p(-alpha);
+        return operation("{\"ema\": {\"options\": {\"onNullValue\": \"SKIP\", \"onNanValue\": \"POISON\"},"
+                + " \"windowScale\": {\"ticks\": {\"ticks\": " + ticks + "}}}}", column + "=" + in.arg());
     }
 
     /** LAG(v, k) and LEAD(v, k): the value k rows before or after, within the partition, null where there is none --

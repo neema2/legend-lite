@@ -121,7 +121,7 @@ H2	H2	call	MAKE_TIMESTAMP	refused	a date-time constructor reached H2, which has 
 H2	H2	call	DATE_TRUNC	emulated	dateTruncDateGrained		0
 H2	H2	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)		93
 H2	H2	call	DATE_DIFF	emulated	dateDiffArm		53
-H2	H2	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()		109
+H2	H2	call	TIME_BUCKET	emulated	timeBucket		109
 H2	H2	call	TIMEZONE	spelled	timezone		6
 H2	H2	call	DATE_AT_TIME	spelled	an operator (+)		0
 H2	H2	call	EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
@@ -203,8 +203,8 @@ H2	H2	reducer	QUANTILE_DISC	emulated	by its operands: …PERCENTILE_DISC / …QU
 H2	H2	reducer	CORR	emulated	h2Aggregate: CORR		4
 H2	H2	reducer	COVAR_SAMP	emulated	h2Aggregate: COVAR_SAMP		5
 H2	H2	reducer	COVAR_POP	emulated	h2Aggregate: COVAR_POP		4
-H2	H2	reducer	ARG_MAX	emulated	h2Aggregate: ARG_MAX		1
-H2	H2	reducer	ARG_MIN	emulated	h2Aggregate: ARG_MIN		1
+H2	H2	reducer	ARG_MAX	emulated	argExtreme:  DESC		1
+H2	H2	reducer	ARG_MIN	emulated	argExtreme:  ASC		1
 H2	H2	reducer	WAVG	not_here	lowering marker reached the renderer		0
 H2	H2	reducer	HASH_LIST	not_here	lowering marker reached the renderer		0
 H2	H2	reducer	BOOL_AND	emulated	h2Aggregate: BOOL_AND		0
@@ -213,6 +213,7 @@ H2	H2	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		0
 H2	H2	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
 H2	H2	reducer	VARIANCE	emulated	h2Aggregate: VARIANCE		0
 H2	H2	reducer	STDDEV	emulated	h2Aggregate: STDDEV		0
+H2	H2	reducer	EMA	refused	aggregate reached : no spelling yet		0
 H2	H2	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
 H2	H2	reducer	RANK	not_here	is a window function: windowCall writes it		0
 H2	H2	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
@@ -343,7 +344,7 @@ H2Modern	-	call	MAKE_TIMESTAMP	refused	a date-time constructor reached H2, which
 H2Modern	-	call	DATE_TRUNC	emulated	dateTruncDateGrained	as H2	-
 H2Modern	-	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)	as H2	-
 H2Modern	-	call	DATE_DIFF	emulated	dateDiffArm	as H2	-
-H2Modern	-	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()	as H2	-
+H2Modern	-	call	TIME_BUCKET	emulated	timeBucket	as H2	-
 H2Modern	-	call	TIMEZONE	spelled	timezone	as H2	-
 H2Modern	-	call	DATE_AT_TIME	spelled	an operator (+)	as H2	-
 H2Modern	-	call	EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as H2	-
@@ -425,8 +426,8 @@ H2Modern	-	reducer	QUANTILE_DISC	emulated	by its operands: …PERCENTILE_DISC / 
 H2Modern	-	reducer	CORR	emulated	h2Aggregate: CORR	as H2	-
 H2Modern	-	reducer	COVAR_SAMP	emulated	h2Aggregate: COVAR_SAMP	as H2	-
 H2Modern	-	reducer	COVAR_POP	emulated	h2Aggregate: COVAR_POP	as H2	-
-H2Modern	-	reducer	ARG_MAX	emulated	h2Aggregate: ARG_MAX	as H2	-
-H2Modern	-	reducer	ARG_MIN	emulated	h2Aggregate: ARG_MIN	as H2	-
+H2Modern	-	reducer	ARG_MAX	emulated	argExtreme:  DESC	as H2	-
+H2Modern	-	reducer	ARG_MIN	emulated	argExtreme:  ASC	as H2	-
 H2Modern	-	reducer	WAVG	not_here	lowering marker reached the renderer	as H2	-
 H2Modern	-	reducer	HASH_LIST	not_here	lowering marker reached the renderer	as H2	-
 H2Modern	-	reducer	BOOL_AND	emulated	h2Aggregate: BOOL_AND	as H2	-
@@ -435,6 +436,7 @@ H2Modern	-	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the rendere
 H2Modern	-	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer	as H2	-
 H2Modern	-	reducer	VARIANCE	emulated	h2Aggregate: VARIANCE	as H2	-
 H2Modern	-	reducer	STDDEV	emulated	h2Aggregate: STDDEV	as H2	-
+H2Modern	-	reducer	EMA	refused	aggregate reached : no spelling yet	as H2	-
 H2Modern	-	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it	as H2	-
 H2Modern	-	reducer	RANK	not_here	is a window function: windowCall writes it	as H2	-
 H2Modern	-	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it	as H2	-
@@ -657,6 +659,7 @@ Postgres	Postgres	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the 
 Postgres	Postgres	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
 Postgres	Postgres	reducer	VARIANCE	spelled	VARIANCE		0
 Postgres	Postgres	reducer	STDDEV	spelled	STDDEV		0
+Postgres	Postgres	reducer	EMA	refused	aggregate reached : no spelling yet		0
 Postgres	Postgres	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
 Postgres	Postgres	reducer	RANK	not_here	is a window function: windowCall writes it		0
 Postgres	Postgres	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
@@ -879,6 +882,7 @@ Snowflake	Snowflake	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached th
 Snowflake	Snowflake	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
 Snowflake	Snowflake	reducer	VARIANCE	spelled	VARIANCE (unordered)		0
 Snowflake	Snowflake	reducer	STDDEV	spelled	STDDEV (unordered)		0
+Snowflake	Snowflake	reducer	EMA	refused	aggregate reached : no spelling yet		0
 Snowflake	Snowflake	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
 Snowflake	Snowflake	reducer	RANK	not_here	is a window function: windowCall writes it		0
 Snowflake	Snowflake	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
@@ -1101,6 +1105,7 @@ Trino	Trino	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the render
 Trino	Trino	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
 Trino	Trino	reducer	VARIANCE	spelled	VARIANCE (unordered)		0
 Trino	Trino	reducer	STDDEV	spelled	STDDEV (unordered)		0
+Trino	Trino	reducer	EMA	refused	aggregate reached : no spelling yet		0
 Trino	Trino	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
 Trino	Trino	reducer	RANK	not_here	is a window function: windowCall writes it		0
 Trino	Trino	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
@@ -1323,6 +1328,7 @@ BigQuery	BigQuery	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the 
 BigQuery	BigQuery	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
 BigQuery	BigQuery	reducer	VARIANCE	spelled	VARIANCE (unordered)		0
 BigQuery	BigQuery	reducer	STDDEV	spelled	STDDEV (unordered)		0
+BigQuery	BigQuery	reducer	EMA	refused	aggregate reached : no spelling yet		0
 BigQuery	BigQuery	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
 BigQuery	BigQuery	reducer	RANK	not_here	is a window function: windowCall writes it		0
 BigQuery	BigQuery	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
@@ -1545,6 +1551,7 @@ Databricks	Databricks	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached 
 Databricks	Databricks	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
 Databricks	Databricks	reducer	VARIANCE	spelled	VARIANCE (unordered)		0
 Databricks	Databricks	reducer	STDDEV	spelled	STDDEV (unordered)		0
+Databricks	Databricks	reducer	EMA	refused	aggregate reached : no spelling yet		0
 Databricks	Databricks	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
 Databricks	Databricks	reducer	RANK	not_here	is a window function: windowCall writes it		0
 Databricks	Databricks	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
@@ -1767,6 +1774,7 @@ DuckDb	DuckDB	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the rend
 DuckDb	DuckDB	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
 DuckDb	DuckDB	reducer	VARIANCE	spelled	VARIANCE		0
 DuckDb	DuckDB	reducer	STDDEV	spelled	STDDEV		0
+DuckDb	DuckDB	reducer	EMA	not_here	is a window function: windowCall writes it		0
 DuckDb	DuckDB	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
 DuckDb	DuckDB	reducer	RANK	not_here	is a window function: windowCall writes it		0
 DuckDb	DuckDB	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
@@ -1989,6 +1997,7 @@ ClickHouse	ClickHouse	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached 
 ClickHouse	ClickHouse	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
 ClickHouse	ClickHouse	reducer	VARIANCE	emulated	sampled: varSampStableOrNull		0
 ClickHouse	ClickHouse	reducer	STDDEV	emulated	sampled: stddevSampStableOrNull		0
+ClickHouse	ClickHouse	reducer	EMA	refused	aggregate reached : no spelling yet		0
 ClickHouse	ClickHouse	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
 ClickHouse	ClickHouse	reducer	RANK	not_here	is a window function: windowCall writes it		0
 ClickHouse	ClickHouse	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
@@ -2211,6 +2220,7 @@ SQLite	SQLite	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the rend
 SQLite	SQLite	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
 SQLite	SQLite	reducer	VARIANCE	emulated	aggregateArgs: variance(…)		0
 SQLite	SQLite	reducer	STDDEV	emulated	aggregateArgs: stdev(…)		0
+SQLite	SQLite	reducer	EMA	refused	aggregate reached : no spelling yet		0
 SQLite	SQLite	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
 SQLite	SQLite	reducer	RANK	not_here	is a window function: windowCall writes it		0
 SQLite	SQLite	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
@@ -2433,6 +2443,7 @@ MariaDb	MariaDB	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the re
 MariaDb	MariaDB	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
 MariaDb	MariaDB	reducer	VARIANCE	emulated	aggregateArgs: VAR_SAMP(…)		0
 MariaDb	MariaDB	reducer	STDDEV	emulated	aggregateArgs: STDDEV_SAMP(…)		0
+MariaDb	MariaDB	reducer	EMA	refused	aggregate reached : no spelling yet		0
 MariaDb	MariaDB	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
 MariaDb	MariaDB	reducer	RANK	not_here	is a window function: windowCall writes it		0
 MariaDb	MariaDB	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
@@ -2655,6 +2666,7 @@ MySql	MySQL	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the render
 MySql	MySQL	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer	as MariaDb	0
 MySql	MySQL	reducer	VARIANCE	emulated	aggregateArgs: VAR_SAMP(…)	as MariaDb	0
 MySql	MySQL	reducer	STDDEV	emulated	aggregateArgs: STDDEV_SAMP(…)	as MariaDb	0
+MySql	MySQL	reducer	EMA	refused	aggregate reached : no spelling yet	as MariaDb	0
 MySql	MySQL	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it	as MariaDb	0
 MySql	MySQL	reducer	RANK	not_here	is a window function: windowCall writes it	as MariaDb	0
 MySql	MySQL	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it	as MariaDb	0
@@ -2877,6 +2889,7 @@ MongoDb	MongoDB	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the re
 MongoDb	MongoDB	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
 MongoDb	MongoDB	reducer	VARIANCE	emulated	pushed		0
 MongoDb	MongoDB	reducer	STDDEV	emulated	accumulate: $stdDevSamp		0
+MongoDb	MongoDB	reducer	EMA	refused	aggregate reached : no spelling yet		0
 MongoDb	MongoDB	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
 MongoDb	MongoDB	reducer	RANK	not_here	is a window function: windowCall writes it		0
 MongoDb	MongoDB	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
@@ -2901,8 +2914,8 @@ Deephaven	Deephaven	call	PLUS	emulated	infixArithmetic:  + 		0
 Deephaven	Deephaven	call	MINUS	emulated	infixArithmetic:  - 		0
 Deephaven	Deephaven	call	TIMES	emulated	infixArithmetic:  * 		0
 Deephaven	Deephaven	call	DIVIDE	emulated	infixArithmetic:  / 		0
-Deephaven	Deephaven	call	MOD	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	REM	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	MOD	emulated	(((… % …) + …) % …)		0
+Deephaven	Deephaven	call	REM	spelled	an operator (%)		0
 Deephaven	Deephaven	call	NEGATE	emulated	(-…)		0
 Deephaven	Deephaven	call	ABS	emulated	function: abs		0
 Deephaven	Deephaven	call	IS_NULL	emulated	booleanValue		0
@@ -2947,7 +2960,7 @@ Deephaven	Deephaven	call	COSH	refused	function reached Deephaven: no shape yet		
 Deephaven	Deephaven	call	TANH	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	CEILING	emulated	function: ceil		0
 Deephaven	Deephaven	call	FLOOR	emulated	function: floor		0
-Deephaven	Deephaven	call	ROUND	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	ROUND	emulated	round		0
 Deephaven	Deephaven	call	SIGN	emulated	function: signum		0
 Deephaven	Deephaven	call	XOR	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	BIT_AND	refused	function reached Deephaven: no shape yet		0
@@ -2967,8 +2980,8 @@ Deephaven	Deephaven	call	MAP_EXTRACT	refused	function reached Deephaven: no shap
 Deephaven	Deephaven	call	MAP_KEYS	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	MAP_VALUES	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	MAP_CONCAT	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	SUBSTRING	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	STRPOS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	SUBSTRING	emulated	substring		0
+Deephaven	Deephaven	call	STRPOS	emulated	strpos		0
 Deephaven	Deephaven	call	STARTS_WITH	emulated	booleanValue		0
 Deephaven	Deephaven	call	ENDS_WITH	emulated	booleanValue		0
 Deephaven	Deephaven	call	MATCHES	refused	function reached Deephaven: no shape yet		0
@@ -2998,23 +3011,23 @@ Deephaven	Deephaven	call	MD5	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	SHA1	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	SHA256	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	RANDOM	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	EXTRACT	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	TODAY	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	NOW	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	DATE_TRUNC_DAY	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	EXTRACT	emulated	extract		0
+Deephaven	Deephaven	call	TODAY	refused	the time now () reached Deephaven: a live view's rows are filtered when they change, not again as time passes, so a filter on the time no...		0
+Deephaven	Deephaven	call	NOW	refused	the time now () reached Deephaven: a live view's rows are filtered when they change, not again as time passes, so a filter on the time no...		0
+Deephaven	Deephaven	call	DATE_TRUNC_DAY	emulated	asDate: datePart		0
 Deephaven	Deephaven	call	MAKE_DATE	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	MAKE_TIMESTAMP	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	DATE_TRUNC	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	ADD_INTERVAL	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	DATE_DIFF	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	TIME_BUCKET	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	DATE_TRUNC	emulated	dateTrunc		0
+Deephaven	Deephaven	call	ADD_INTERVAL	emulated	addInterval		0
+Deephaven	Deephaven	call	DATE_DIFF	emulated	dateDiff		0
+Deephaven	Deephaven	call	TIME_BUCKET	emulated	timeBucket		0
 Deephaven	Deephaven	call	TIMEZONE	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	DATE_AT_TIME	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	EPOCH_NS	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	FROM_EPOCH_NS	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	ADD_INTERVAL_TEMPORAL	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	EPOCH_SECONDS	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	EPOCH_MS	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	EPOCH_MS	emulated	epochMillis		0
 Deephaven	Deephaven	call	FROM_EPOCH_SECONDS	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	FROM_EPOCH_MS	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	DAYNAME	refused	function reached Deephaven: no shape yet		0
@@ -3022,7 +3035,7 @@ Deephaven	Deephaven	call	MONTHNAME	refused	function reached Deephaven: no shape 
 Deephaven	Deephaven	call	COT	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	RADIANS	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	DEGREES	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	INT_DIVIDE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	INT_DIVIDE	emulated	intDivide		0
 Deephaven	Deephaven	call	REPEAT_STR	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	JARO_WINKLER	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	DECODE_BASE64	refused	function reached Deephaven: no shape yet		0
@@ -3058,13 +3071,13 @@ Deephaven	Deephaven	call	PARSE_DATE	refused	function reached Deephaven: no shape
 Deephaven	Deephaven	call	LIST_REVERSE	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	TYPEOF	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	ROUND_HALF_UP	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	ERROR	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	ERROR	emulated	raise: a runtime error		0
 Deephaven	Deephaven	call	FLOOR_RAW	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	TO_VARIANT	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	BOOL_TO_TEXT	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	FLOAT_CANON	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	FLOAT_PRINT	refused	function reached Deephaven: no shape yet		0
-Deephaven	Deephaven	call	FLOAT_PRINT_ENGINE	refused	function reached Deephaven: no shape yet		0
+Deephaven	Deephaven	call	FLOAT_PRINT	emulated	floatPrint		0
+Deephaven	Deephaven	call	FLOAT_PRINT_ENGINE	emulated	floatPrint		0
 Deephaven	Deephaven	call	VARIANT_ELEMENTS	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	VARIANT_GET	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	JSON_TYPE	refused	function reached Deephaven: no shape yet		0
@@ -3077,20 +3090,20 @@ Deephaven	Deephaven	reducer	MIN	emulated	columns: {"min": {}}		0
 Deephaven	Deephaven	reducer	MAX	emulated	columns: {"max": {}}		0
 Deephaven	Deephaven	reducer	ANY_VALUE	emulated	columns: {"first": {}}		0
 Deephaven	Deephaven	reducer	STDDEV_SAMP	emulated	columns: {"std": {}}		0
-Deephaven	Deephaven	reducer	STDDEV_POP	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	STDDEV_POP	not_here	aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it		0
 Deephaven	Deephaven	reducer	VAR_SAMP	emulated	columns: {"var": {}}		0
-Deephaven	Deephaven	reducer	VAR_POP	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	VAR_POP	not_here	aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it		0
 Deephaven	Deephaven	reducer	MEDIAN	emulated	columns: {"median": {"averageEvenlyDivided": true}}		0
-Deephaven	Deephaven	reducer	MODE	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	MODE	not_here	aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it		0
 Deephaven	Deephaven	reducer	STRING_AGG	refused	aggregate reached Deephaven: no shape yet		0
 Deephaven	Deephaven	reducer	LIST	refused	aggregate reached Deephaven: no shape yet		0
-Deephaven	Deephaven	reducer	QUANTILE_CONT	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	QUANTILE_CONT	not_here	aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it		0
 Deephaven	Deephaven	reducer	QUANTILE_DISC	refused	aggregate reached Deephaven: no shape yet		0
-Deephaven	Deephaven	reducer	CORR	refused	aggregate reached Deephaven: no shape yet		0
-Deephaven	Deephaven	reducer	COVAR_SAMP	refused	aggregate reached Deephaven: no shape yet		0
-Deephaven	Deephaven	reducer	COVAR_POP	refused	aggregate reached Deephaven: no shape yet		0
-Deephaven	Deephaven	reducer	ARG_MAX	refused	aggregate reached Deephaven: no shape yet		0
-Deephaven	Deephaven	reducer	ARG_MIN	refused	aggregate reached Deephaven: no shape yet		0
+Deephaven	Deephaven	reducer	CORR	not_here	aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it		0
+Deephaven	Deephaven	reducer	COVAR_SAMP	not_here	aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it		0
+Deephaven	Deephaven	reducer	COVAR_POP	not_here	aggregate reached Deephaven's aggregation, which DeephavenBatch computes after it		0
+Deephaven	Deephaven	reducer	ARG_MAX	emulated	sorted: sortedLast		0
+Deephaven	Deephaven	reducer	ARG_MIN	emulated	sorted: sortedFirst		0
 Deephaven	Deephaven	reducer	WAVG	not_here	lowering marker reached the renderer		0
 Deephaven	Deephaven	reducer	HASH_LIST	not_here	lowering marker reached the renderer		0
 Deephaven	Deephaven	reducer	BOOL_AND	refused	aggregate reached Deephaven: no shape yet		0
@@ -3099,6 +3112,7 @@ Deephaven	Deephaven	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached th
 Deephaven	Deephaven	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
 Deephaven	Deephaven	reducer	VARIANCE	emulated	columns: {"var": {}}		0
 Deephaven	Deephaven	reducer	STDDEV	emulated	columns: {"std": {}}		0
+Deephaven	Deephaven	reducer	EMA	not_here	is a window function: windowCall writes it		0
 Deephaven	Deephaven	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
 Deephaven	Deephaven	reducer	RANK	not_here	is a window function: windowCall writes it		0
 Deephaven	Deephaven	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
@@ -3321,6 +3335,7 @@ EngineStyleH2	-	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the re
 EngineStyleH2	-	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		-
 EngineStyleH2	-	reducer	VARIANCE	spelled	variance		-
 EngineStyleH2	-	reducer	STDDEV	spelled	stddev		-
+EngineStyleH2	-	reducer	EMA	refused	aggregate reached : no spelling yet		-
 EngineStyleH2	-	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		-
 EngineStyleH2	-	reducer	RANK	not_here	is a window function: windowCall writes it		-
 EngineStyleH2	-	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		-
@@ -3543,6 +3558,7 @@ EngineStyleDB2	-	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the r
 EngineStyleDB2	-	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer	as EngineStyleH2	-
 EngineStyleDB2	-	reducer	VARIANCE	spelled	variance	as EngineStyleH2	-
 EngineStyleDB2	-	reducer	STDDEV	spelled	stddev	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	EMA	refused	aggregate reached : no spelling yet	as EngineStyleH2	-
 EngineStyleDB2	-	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
 EngineStyleDB2	-	reducer	RANK	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
 EngineStyleDB2	-	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
@@ -3765,6 +3781,7 @@ EngineStyleComposite	-	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached
 EngineStyleComposite	-	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	reducer	VARIANCE	spelled	variance	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	reducer	STDDEV	spelled	stddev	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	EMA	refused	aggregate reached : no spelling yet	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	reducer	RANK	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-

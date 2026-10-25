@@ -176,7 +176,12 @@ class NativeCatalogGovernanceTest {
         // asOfJoinWithPrefix — the relation join with a right-column PREFIX, a
         // lite-dialect feature kept on purpose (upstream resolves collisions by
         // rename before the join); the user spelling join(…, 'p_') routes by arity.
-        assertTrue(Pure.LITE_SURFACE.size() <= 4,
+        // +1 2026-10-25 (USER, the trader screens' EMA, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md; census row in
+        // docs/LITE_INVENTION_CENSUS.md): ema(values, alpha) -- an ordered window's exponential moving average, a
+        // reducer refused where its values have no order. legend-pure and legend-engine have no moving average but a
+        // window's average over a frame (the simple one), so no upstream name to adopt; the user chose a name of its
+        // own over an overload of average (whose signature is upstream's, verbatim). 4 -> 5.
+        assertTrue(Pure.LITE_SURFACE.size() <= 5,
                 "LITE_SURFACE grew: " + Pure.LITE_SURFACE);
     }
 

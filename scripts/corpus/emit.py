@@ -496,6 +496,9 @@ _RANKS = {"rank", "denseRank", "percentRank", "cumulativeDistribution"}
 def _window_column(w) -> str:
     if w.fn in _FRAME_AGGS:
         return f"{w.alias}:{{p,w,r|$r.{w.column}}}:y|$y->{w.fn}()"
+    if w.fn == "ema":
+        # lite's exponential moving average, its alpha the reduce call's argument
+        return f"{w.alias}:{{p,w,r|$r.{w.column}}}:y|$y->ema({w.args[0]})"
     if w.fn == "rowNumber":
         return f"{w.alias}:{{p,w,r|$p->rowNumber($r)}}"
     if w.fn == "ntile":
@@ -517,7 +520,7 @@ def _windows_text(windows) -> list[str]:
         # One array per window AND per column kind: an array of aggregate columns (`a:{p,w,r|...}:y|...`) and one of
         # plain ones (`b:{p,w,r|$p->lag($r).x}`) are two Pure types, and a mixed array is neither (legend-engine reads
         # the first element to choose and casts the rest; legend-lite refuses the second kind by name).
-        key = (_over(w), w.fn in _FRAME_AGGS)
+        key = (_over(w), w.fn in _FRAME_AGGS or w.fn == "ema")
         if groups and groups[-1][0] == key:
             groups[-1][1].append(w)
         else:
