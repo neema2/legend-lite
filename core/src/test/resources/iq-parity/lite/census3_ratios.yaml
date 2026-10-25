@@ -1,0 +1,27 @@
+# The IQ scale program, 2026-10-25: ratios as real reports write them (the corpus lane's vote ratios, CAST(up AS
+# FLOAT) / (up + down) inside a CASE and a ROUND, refused past the size bound), judged by the live IQ.
+tests:
+  - id: vote_ratio_in_a_case
+    sql: "WITH r AS (SELECT k, SUM(CASE WHEN b = 1 THEN 1 ELSE 0 END) AS up, SUM(CASE WHEN b = 0 THEN 1 ELSE 0 END) AS down FROM g GROUP BY k) SELECT k, CASE WHEN up + down > 0 THEN ROUND(CAST(up AS FLOAT) / (up + down) * 100, 2) ELSE 0 END AS pct FROM r ORDER BY k"
+    profile: iq17-default
+  - id: vote_ratio_rounded
+    sql: "WITH r AS (SELECT k, SUM(CASE WHEN b = 1 THEN 1 ELSE 0 END) AS up, SUM(CASE WHEN b = 0 THEN 1 ELSE 0 END) AS down FROM g GROUP BY k) SELECT k, ROUND(CAST(up AS FLOAT) / (up + down) * 100, 2) AS pct FROM r ORDER BY k"
+    profile: iq17-default
+  - id: vote_ratio
+    sql: "WITH r AS (SELECT k, SUM(CASE WHEN b = 1 THEN 1 ELSE 0 END) AS up, SUM(CASE WHEN b = 0 THEN 1 ELSE 0 END) AS down FROM g GROUP BY k) SELECT k, CAST(up AS FLOAT) / (up + down) AS ratio FROM r ORDER BY k"
+    profile: iq17-default
+  - id: a_double_sum_by_a_count
+    sql: "SELECT k, CAST(SUM(v) AS DOUBLE) / COUNT(*) AS a FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: a_numeric_percent_rounded
+    sql: "SELECT k, ROUND(SUM(v) * 100.0 / COUNT(*), 2) AS p FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: a_float_share_by_nullif
+    sql: "SELECT k, ROUND(CAST(SUM(b) AS FLOAT) / NULLIF(COUNT(*), 0) * 100, 2) AS p FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: a_real_by_a_real
+    sql: "SELECT id, CAST(v AS REAL) / CAST(j AS REAL) AS r FROM g WHERE id < 10 AND j IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: a_double_by_a_double
+    sql: "SELECT id, d / (d * d + 1) AS r FROM g WHERE id < 10 AND d IS NOT NULL ORDER BY id"
+    profile: iq17-default
