@@ -144,6 +144,7 @@ public final class DeephavenMessages {
                     f("avg", 3, Kind.MESSAGE, "AggSpec.AggSpecAvg", Card.PRESENT),
                     f("countDistinct", 4, Kind.MESSAGE, "AggSpec.AggSpecCountDistinct", Card.PRESENT),
                     f("first", 6, Kind.MESSAGE, "AggSpec.AggSpecFirst", Card.PRESENT),
+                    f("group", 9, Kind.MESSAGE, "AggSpec.AggSpecGroup", Card.PRESENT),
                     f("last", 10, Kind.MESSAGE, "AggSpec.AggSpecLast", Card.PRESENT),
                     f("max", 11, Kind.MESSAGE, "AggSpec.AggSpecMax", Card.PRESENT),
                     f("median", 12, Kind.MESSAGE, "AggSpec.AggSpecMedian", Card.PRESENT),
@@ -158,6 +159,9 @@ public final class DeephavenMessages {
             m("AggSpec.AggSpecCountDistinct",
                     f("countNulls", 1, Kind.BOOL, null, Card.SINGLE)),
             m("AggSpec.AggSpecFirst"),
+            // a group's values as one vector, which a formula after the group reads (a correlation, a covariance, an
+            // interpolated percentile: the library's cor, cov, sort and nth over it)
+            m("AggSpec.AggSpecGroup"),
             // a group's last row's value: a window's running figure at the last of each tie, which every tie takes (K6)
             m("AggSpec.AggSpecLast"),
             m("AggSpec.AggSpecMax"),

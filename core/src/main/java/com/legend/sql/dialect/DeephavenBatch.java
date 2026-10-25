@@ -44,7 +44,7 @@ import java.util.Map;
 final class DeephavenBatch {
 
     /** The names this writer gives its helper columns: an output named like one is renamed by its place. */
-    private static final java.util.regex.Pattern HELPER = java.util.regex.Pattern.compile("__[acgnprswx][0-9]+");
+    private static final java.util.regex.Pattern HELPER = java.util.regex.Pattern.compile("__[a-z][0-9]+");
 
     private final Deephaven dialect;
     private final SqlWriter w;
@@ -1000,30 +1000,51 @@ final class DeephavenBatch {
         }
         List<@com.legend.base.Nullable Cell> cells = cells(reducers, keys);
         List<String> inputs = new ArrayList<>();
+        // the aggregates computed after the group, from what it gathered (a vector, a count), by one update
+        Map<Integer, After> after = new LinkedHashMap<>();
+        // the modes, each from an aggregation of its own joined back by the keys: its input column by its place
+        Map<Integer, String> modes = new LinkedHashMap<>();
         for (int j = 0; j < reducers.size(); j++) {
             if (cells.get(j) != null) {
                 inputs.add("");
                 continue;
             }
             SqlExpr arg;
-            // the value's order for a value at the first or last of an order (ARG_MIN, ARG_MAX: K3a), else none
+            // the value's order for a value at the first or last of an order (ARG_MIN, ARG_MAX: K3a), or a statistic's
+            // second variable (CORR, COVAR_*), else none
             SqlExpr by = null;
             if (reducers.get(j) instanceof SqlAgg.Reducer r) {
                 boolean ordered = r.fn() == SqlAgg.Fn.ARG_MIN || r.fn() == SqlAgg.Fn.ARG_MAX;
-                if (r.args().size() > (ordered ? 2 : 1)) {
+                boolean pair = BIVARIATE.contains(r.fn());
+                int arity = ordered || pair || r.fn() == SqlAgg.Fn.QUANTILE_CONT ? 2 : 1;
+                if (r.args().size() > arity) {
                     throw new DialectCapability("aggregate " + r.fn() + " over " + r.args().size()
                             + " arguments reached Deephaven: no shape yet");
                 }
                 arg = r.args().isEmpty() ? null : averaged(r.fn(), r.args().get(0));
-                by = ordered ? r.args().get(1) : null;
+                by = ordered || pair ? r.args().get(1) : null;
             } else {
                 arg = uniqueValueOf(reducers.get(j));
             }
             String input = input(arg, "__a" + j, keys, pre);
             inputs.add(input);
             if (reducers.get(j) instanceof SqlAgg.Reducer r) {
-                scope.aggregates.put(r, by == null ? new String[] {"__r" + j, input}
-                        : new String[] {"__r" + j, input, input(by, "__b" + j, keys, pre)});
+                String second = by == null ? null : input(by, "__b" + j, keys, pre);
+                if (AFTER.contains(r.fn())) {
+                    after.put(j, new After(r, input, second));
+                } else if (r.fn() == SqlAgg.Fn.MODE) {
+                    if (r.distinct() || !r.orderBy().isEmpty()) {
+                        throw new DialectCapability("a distinct or ordered MODE reached Deephaven: no shape yet");
+                    }
+                    modes.put(j, input);
+                } else if (second != null && (Deephaven.nullable(r.args().get(0)) || Deephaven.nullable(r.args().get(1)))) {
+                    // SQL's ARG_MIN and ARG_MAX skip a row whose value or order is null; the server's sortedFirst
+                    // sorts a null first: such a row's value is made null and its order the last there is
+                    scope.aggregates.put(r, skipped(r, j, input, second, pre));
+                } else {
+                    scope.aggregates.put(r, second == null ? new String[] {"__r" + j, input}
+                            : new String[] {"__r" + j, input, second});
+                }
             }
         }
         if (!pre.isEmpty()) {
@@ -1035,7 +1056,7 @@ final class DeephavenBatch {
         boolean first = true;
         for (int j = 0; j < reducers.size(); j++) {
             Cell cell = cells.get(j);
-            if (cell != null && cell.fn() != SqlAgg.Fn.COUNT) {
+            if (cell != null && cell.fn() != SqlAgg.Fn.COUNT || modes.containsKey(j)) {
                 continue;
             }
             w.append(first ? "" : ", ");
@@ -1048,6 +1069,8 @@ final class DeephavenBatch {
                 }
                 w.append("{\"countWhere\": {\"columnName\": \"__r" + j + "\", \"filters\": "
                         + DeephavenJson.strings(filters) + "}}");
+            } else if (after.containsKey(j)) {
+                w.append(gathered(j, java.util.Objects.requireNonNull(after.get(j))));
             } else if (reducers.get(j) instanceof SqlAgg.Reducer r) {
                 dialect.reducer(w, r);
             } else {
@@ -1065,6 +1088,14 @@ final class DeephavenBatch {
             w.append(", \"preserveEmpty\": true");
         }
         int grouped = spread(cur, close(), keys, cells);
+        for (Map.Entry<Integer, String> m : modes.entrySet()) {
+            grouped = mode(grouped, cur, keys, m.getKey(), m.getValue());
+        }
+        if (!after.isEmpty()) {
+            List<Spec> finals = new ArrayList<>();
+            after.forEach((j, a) -> finals.addAll(computed(j, a)));
+            grouped = view("update", grouped, finals);
+        }
         for (int i = 0; i < s.groupBy().size(); i++) {
             scope.computed.put(s.groupBy().get(i), keys.get(i));
         }
@@ -1073,6 +1104,136 @@ final class DeephavenBatch {
         }
         scope.grouped = true;
         return grouped;
+    }
+
+    /** The statistics of two variables: over the rows where neither is null, as SQL's are. */
+    private static final java.util.Set<SqlAgg.Fn> BIVARIATE = java.util.Set.of(SqlAgg.Fn.CORR,
+            SqlAgg.Fn.COVAR_SAMP, SqlAgg.Fn.COVAR_POP);
+
+    /** The aggregates the server has no aggregation for, computed by a formula after the group from what it gathered:
+     *  a correlation and the covariances (the library's cor and cov over the group's two vectors), the population
+     *  variance and deviation (the sample variance's aggregation, rescaled by the count), and the interpolated
+     *  percentile (the group's vector sorted, two of its places read, weighted). */
+    private static final java.util.Set<SqlAgg.Fn> AFTER = java.util.Set.of(SqlAgg.Fn.CORR, SqlAgg.Fn.COVAR_SAMP,
+            SqlAgg.Fn.COVAR_POP, SqlAgg.Fn.VAR_POP, SqlAgg.Fn.STDDEV_POP, SqlAgg.Fn.QUANTILE_CONT);
+
+    /** An aggregate computed after its group: its reducer and the columns it reads (the second a pair's). */
+    private record After(SqlAgg.Reducer r, String input, @com.legend.base.Nullable String second) {
+    }
+
+    /** What the group gathers for an aggregate computed after it: the vectors and the count of the rows that count. */
+    private String gathered(int j, After a) {
+        if (a.r().distinct() || !a.r().orderBy().isEmpty()) {
+            throw new DialectCapability("a distinct or ordered " + a.r().fn() + " reached Deephaven: no shape yet");
+        }
+        String n = countWhere("__n" + j, a.second() == null ? List.of(a.input()) : List.of(a.input(), a.second()));
+        return switch (a.r().fn()) {
+            case CORR, COVAR_SAMP, COVAR_POP -> "{\"columns\": {\"spec\": {\"group\": {}}, \"matchPairs\": "
+                    + DeephavenJson.strings(List.of("__v" + j + "=" + a.input(),
+                            "__w" + j + "=" + java.util.Objects.requireNonNull(a.second()))) + "}}, " + n;
+            case VAR_POP, STDDEV_POP -> "{\"columns\": {\"spec\": {\"var\": {}}, \"matchPairs\": "
+                    + DeephavenJson.strings(List.of("__v" + j + "=" + a.input())) + "}}, " + n;
+            case QUANTILE_CONT -> "{\"columns\": {\"spec\": {\"group\": {}}, \"matchPairs\": "
+                    + DeephavenJson.strings(List.of("__v" + j + "=" + a.input())) + "}}";
+            default -> throw new IllegalStateException(a.r().fn() + " is not computed after its group");
+        };
+    }
+
+    /**
+     * SQL's MODE, which the server has no aggregation for: the group's values that are not null counted, each, by the
+     * keys and the value; each group's value of the greatest count taken by sortedLast of it; joined back to
+     * {@code grouped} by the keys into {@code __r<j>} -- a group with no value has no row there, so its mode is null, as
+     * SQL's. A tie of counts is any of the tied values, as SQL's MODE is.
+     */
+    private int mode(int grouped, int source, List<String> keys, int j, String input) {
+        int present = filterText(source, List.of(Deephaven.notNullFilter(input)));
+        List<String> byValue = new ArrayList<>(keys);
+        byValue.add(input);
+        int counted = simple("aggregate", source(present) + ", \"groupByColumns\": " + DeephavenJson.strings(byValue)
+                + ", \"aggregations\": [{\"count\": {\"columnName\": \"__m" + j + "\"}}]");
+        int best = simple("aggregate", source(counted) + ", \"groupByColumns\": " + DeephavenJson.strings(keys)
+                + ", \"aggregations\": [{\"columns\": {\"spec\": {\"sortedLast\": {\"columns\": [{\"columnName\": \"__m"
+                + j + "\"}]}}, \"matchPairs\": " + DeephavenJson.strings(List.of("__r" + j + "=" + input)) + "}}]");
+        return joinOp("naturalJoin", grouped, best, keys, List.of("__r" + j), false);
+    }
+
+    /** The rows where every one of {@code columns} is not null, counted into {@code out}. */
+    private static String countWhere(String out, List<String> columns) {
+        return "{\"countWhere\": {\"columnName\": \"" + out + "\", \"filters\": "
+                + DeephavenJson.strings(columns.stream().map(Deephaven::notNullFilter).toList()) + "}}";
+    }
+
+    /**
+     * An aggregate computed after its group, into {@code __r<j>}, SQL's rules kept: a covariance of no pair, or a
+     * sample one or a correlation of fewer than two, is null; the server's cov is the population covariance (the
+     * sums of the pairs over n), so the sample's is rescaled by n / (n - 1); a population variance of one value is 0
+     * (the server's sample variance of it is not a number); the interpolated percentile reads, among the group's
+     * values that are not null (sorted, its nulls first: the library's sort), the places either side of p * (n - 1).
+     */
+    private List<Spec> computed(int j, After a) {
+        String r = "__r" + j;
+        String v = "__v" + j;
+        String n = "__n" + j;
+        return switch (a.r().fn()) {
+            case COVAR_POP -> List.of(new Spec(r + " = (" + n + " == 0 ? NULL_DOUBLE : cov(" + v + ", __w" + j + "))",
+                    null));
+            case COVAR_SAMP -> List.of(new Spec(r + " = (" + n + " < 2 ? NULL_DOUBLE : cov(" + v + ", __w" + j + ") * "
+                    + n + " / (" + n + " - 1))", null));
+            case CORR -> List.of(new Spec(r + " = (" + n + " < 2 ? NULL_DOUBLE : cor(" + v + ", __w" + j + "))", null));
+            case VAR_POP -> List.of(new Spec(r + " = " + populationVariance(v, n), null));
+            case STDDEV_POP -> List.of(new Spec(r + " = (" + n + " == 0 ? NULL_DOUBLE : sqrt(" + populationVariance(v, n)
+                    + "))", null));
+            case QUANTILE_CONT -> {
+                if (!(a.r().args().get(1) instanceof SqlExpr.FloatLit p) || !(p.value() >= 0 && p.value() <= 1)) {
+                    throw new DialectCapability("a percentile at a computed place reached Deephaven: no shape yet");
+                }
+                String c = "__c" + j;
+                String k = "__k" + j;
+                String o = "__o" + j;
+                String sorted = "__s" + j;
+                String lo = "nth(" + o + " + (long) floor(" + k + "), " + sorted + ")";
+                String hi = "nth(" + o + " + (long) ceil(" + k + "), " + sorted + ")";
+                yield List.of(new Spec(c + " = count(" + v + ")", null),
+                        new Spec(o + " = len(" + v + ") - " + c, null),
+                        new Spec(k + " = " + Deephaven.doubleLiteral(p.value()) + " * (" + c + " - 1)", null),
+                        new Spec(sorted + " = sort(" + v + ")", null),
+                        new Spec(r + " = (" + c + " == 0 ? NULL_DOUBLE : " + lo + " + (" + hi + " - " + lo + ") * ("
+                                + k + " - floor(" + k + ")))", null));
+            }
+            default -> throw new IllegalStateException(a.r().fn() + " is not computed after its group");
+        };
+    }
+
+    /** The population variance from the group's sample variance {@code v} of {@code n} values: null of none, 0 of one. */
+    private static String populationVariance(String v, String n) {
+        return "(" + n + " == 0 ? NULL_DOUBLE : " + n + " == 1 ? 0.0 : " + v + " * (" + n + " - 1) / " + n + ")";
+    }
+
+    /**
+     * ARG_MIN's and ARG_MAX's inputs with SQL's skipped rows made harmless: a row whose value or order is null gets a
+     * null value and the order that sorts it out of the way -- the greatest there is for ARG_MIN's sortedFirst, the
+     * server's null (which sorts first) for ARG_MAX's sortedLast -- so the row the server takes is SQL's, and a group
+     * every row of which is skipped answers null. An order that is not a number or a date-time has no greatest value
+     * to write and is refused by name.
+     */
+    private String[] skipped(SqlAgg.Reducer r, int j, String value, String order, List<Spec> pre) {
+        SqlExpr k = r.args().get(1);
+        String skip = "(isNull(" + value + ") || isNull(" + order + "))";
+        pre.add(new Spec("__x" + j + " = " + skip + " ? " + dialect.typedNull(r.args().get(0).type(), "a skipped value")
+                + " : " + value, null));
+        String last = switch (k.type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() instanceof com.legend.sql.SqlType.Scalar sc ? sc : com.legend.sql.SqlType.Scalar.JSON) {
+            case INTEGER -> r.fn() == SqlAgg.Fn.ARG_MIN ? "2147483647" : "NULL_INT";
+            case BIGINT -> r.fn() == SqlAgg.Fn.ARG_MIN ? "9223372036854775807L" : "NULL_LONG";
+            case DOUBLE -> r.fn() == SqlAgg.Fn.ARG_MIN ? "1.7976931348623157E308" : "NULL_DOUBLE";
+            default -> null;
+        };
+        if (last == null) {
+            throw new DialectCapability("aggregate " + r.fn() + " over an order of " + k.type() + " that may be null"
+                    + " reached Deephaven: no shape yet");
+        }
+        pre.add(new Spec("__y" + j + " = " + skip + " ? " + last + " : " + order, null));
+        return new String[] {"__r" + j, "__x" + j, "__y" + j, "skipped"};
     }
 
     /** The column an aggregate reads {@code arg} from: a column as it is by its own name, anything computed (or a

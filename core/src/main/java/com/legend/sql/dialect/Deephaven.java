@@ -273,7 +273,7 @@ public final class Deephaven extends AnsiSqlRenderer {
                 ? Long.toString(i.value()) : i.value() + "L";
     }
 
-    private static String doubleLiteral(double v) {
+    static String doubleLiteral(double v) {
         if (Double.isNaN(v) || Double.isInfinite(v)) {
             throw new DialectCapability("a non-finite float literal reached Deephaven: no shape yet");
         }
@@ -1290,9 +1290,12 @@ public final class Deephaven extends AnsiSqlRenderer {
             // the value at the first or the last of an order (a candle's open and close: K3a)
             case ARG_MIN -> sorted(r, "sortedFirst", out, names);
             case ARG_MAX -> sorted(r, "sortedLast", out, names);
-            case STDDEV_POP, VAR_POP, MODE, STRING_AGG, LIST, QUANTILE_CONT, QUANTILE_DISC, CORR, COVAR_SAMP,
-                 COVAR_POP, BOOL_AND, BOOL_OR -> throw new DialectCapability("aggregate " + r.fn()
-                    + " reached Deephaven: no shape yet");
+            // computed after their group by DeephavenBatch (AFTER, and a mode by its own aggregation joined back),
+            // never an aggregation of their own
+            case STDDEV_POP, VAR_POP, QUANTILE_CONT, CORR, COVAR_SAMP, COVAR_POP, MODE -> throw new IllegalStateException(
+                    "aggregate " + r.fn() + " reached Deephaven's aggregation, which DeephavenBatch computes after it");
+            case STRING_AGG, LIST, QUANTILE_DISC, BOOL_AND, BOOL_OR -> throw new DialectCapability("aggregate "
+                    + r.fn() + " reached Deephaven: no shape yet");
             case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
             case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
                  NTH_VALUE -> throw windowFunction(r);
@@ -1324,9 +1327,10 @@ public final class Deephaven extends AnsiSqlRenderer {
         if (r.distinct() || names.length < 3) {
             throw new IllegalStateException("aggregate " + r.fn() + " reached Deephaven without its order's column");
         }
-        if (nullable(r.args().get(0)) || nullable(r.args().get(1))) {
-            throw new DialectCapability("aggregate " + r.fn() + " over a value or an order that may be null reached"
-                    + " Deephaven: SQL skips a null order where the server sorts it first; no shape yet");
+        // a value or an order that may be null is made harmless first (DeephavenBatch.skipped: its fourth name)
+        if (names.length < 4 && (nullable(r.args().get(0)) || nullable(r.args().get(1)))) {
+            throw new IllegalStateException("aggregate " + r.fn() + " over a value or an order that may be null"
+                    + " reached Deephaven unskipped");
         }
         return "{\"columns\": {\"spec\": {\"" + spec + "\": {\"columns\": [{\"columnName\": "
                 + DeephavenJson.string(names[2]) + "}]}}, \"matchPairs\": "

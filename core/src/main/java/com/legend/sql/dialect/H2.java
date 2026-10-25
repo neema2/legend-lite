@@ -1030,15 +1030,16 @@ public class H2 extends AnsiSqlRenderer {
 
     /** {@code maxBy}/{@code minBy} (SQL's ARG_MAX/ARG_MIN, which H2 has neither of: "Function ARG_MIN not found",
      *  the stress corpus's TF_InstrumentVwap, 2026-10-25): the value at the first place of the group's values ordered
-     *  by the key, the rows whose key is NULL left out (the key decides; a NULL key decides nothing) -- Postgres's
-     *  spelling. A tie on the key takes any of the tied rows' values, as ARG_MAX does. */
+     *  by the key, the rows whose key or value is NULL left out, as DuckDB's arg_min leaves them -- Postgres's spelling
+     *  (which leaves out the NULL keys only). A tie on the key takes any of the tied rows' values, as ARG_MAX does. */
     private SqlWriter argExtreme(SqlWriter writer, String direction, com.legend.sql.SqlAgg.Reducer r) {
         if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
             throw new DialectCapability(r.fn() + " of this shape reached H2");
         }
         return writer.append("ARRAY_GET(ARRAY_AGG(").expr(r.args().get(0), 0).append(" ORDER BY ")
                 .expr(r.args().get(1), 0).append(direction).append(") FILTER (WHERE ")
-                .expr(r.args().get(1), 0).append(" IS NOT NULL), 1)");
+                .expr(r.args().get(1), 0).append(" IS NOT NULL AND ").expr(r.args().get(0), 0)
+                .append(" IS NOT NULL), 1)");
     }
 
     /** An aggregate by its name; an ordered one pins the reference NULL placement too (the sortKey pin's

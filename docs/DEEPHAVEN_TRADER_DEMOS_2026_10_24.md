@@ -197,6 +197,25 @@ them: 63 checks); the corpus planned on a Deephaven runtime goes from 2,304 to 3
 refuse next, by count: a JSON value as text (459: graph fetch's rows), `dateDiff` (270), K5's whole-number division and
 error (82), a join with no equality (27), a schema (27), `EXISTS` (15), K7's as-of joins.
 
+**The aggregates (2026-10-25), second.** The statistics the server has no aggregation for, each computed from what the
+group gathered, SQL's rules kept (read from the pinned server's own library, 42.7, its bytecode): a correlation and the
+covariances by the library's `cor` and `cov` over the group's two vectors (`group`, a new AggSpec in the message table)
+and a count of the pairs where neither is null -- the server's `cov` is the population's (its sums over n), the
+sample's rescaled by n / (n - 1), and either of fewer than two pairs is null; the population variance and deviation
+from the server's sample variance, rescaled by the count (0 of one value, where the server's is not a number); the
+interpolated percentile (SQL's PERCENTILE_CONT -- the library's `percentile` rounds to the nearest rank) from the
+group's vector sorted (nulls first: the library's `sort`) and two of its places read by `nth`, weighted; a mode by its
+own aggregation (each value counted by the keys and the value, the greatest count's taken by `sortedLast`) joined back by
+the keys. And `minBy`/`maxBy` where a value or an order may be null: SQL's skip the row (DuckDB's `arg_min` skips a null
+value as well as a null order), so such a row's value is made null and its order sorts it out of the way -- the greatest
+there is for `sortedFirst`, the server's null (first) for `sortedLast`; an order with no greatest value written (a
+decimal) is refused by name. H2's `minBy` spelling, made this morning, now skips a null value too (Postgres's still
+skips the null order only). Measured: the dialect's tests and three more answers on the pinned server equal to DuckDB's,
+each statistic rounded to six places as a screen shows it (66 checks) -- but one: a single pair's correlation is null,
+SQL's rule and the oracle's, where DuckDB's `corr` answers NaN. The corpus on a Deephaven runtime: 3,888 of 4,776
+services, 15 of the 21 trader features (the six left: K5's whole-number division, K7's as-of joins, a time range over
+a date-time that may be null).
+
 ## 6. The one trading model (DH34)
 
 **Measured first (2026-10-25):** every stress-corpus service on its runtime, 4,675, planned on DuckDB and on a Deephaven

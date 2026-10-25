@@ -303,6 +303,27 @@ const SCALARS: readonly { readonly query: string; readonly rows: readonly (reado
   { query: `${T}->extend(~[t:x|$x.id->toString(), q:x|$x.qty->toOne()->toString()])->select(~[id, t, `
       + `q])->sort(~id->ascending())`,
     rows: [[1, '1', '10'], [2, '2', '5'], [3, '3', null], [4, '4', '20'], [5, '5', '1'], [6, '6', '3']] },
+  // STATISTICS THE SERVER HAS NO AGGREGATION FOR (the stress corpus's TF_InstrumentDispersion and TF_InstrumentCorrelation):
+  // formulas over what the group gathered, each rounded to six places as a screen shows them (the server's float and
+  // DuckDB's differ in the last place); a group of one pair has no correlation and no sample covariance (null: SQL's
+  // rule, and the corpus oracle's -- DuckDB's corr answers NaN there), a population covariance and variance of 0
+  { query: `${P}->groupBy(~[sym], ~[c:x|${RM}($x.px, $x.sz):y|$y->corr()->toOne()->cast(@Float)->round(6),`
+      + ` cs:x|${RM}($x.px, $x.sz):y|$y->covarSample()->toOne()->cast(@Float)->round(6),`
+      + ` cp:x|${RM}($x.px, $x.sz):y|$y->covarPopulation()->toOne()->cast(@Float)->round(6),`
+      + ` v:x|$x.px:y|$y->variancePopulation()->cast(@Float)->round(6),`
+      + ` s:x|$x.px:y|$y->stdDevPopulation()->cast(@Float)->round(6),`
+      + ` p9:x|$x.sz:y|$y->percentile(0.9)->toOne()->cast(@Float)->round(6),`
+      + ` p25:x|$x.px:y|$y->percentile(0.25)->toOne()->cast(@Float)->round(6)])->sort(~sym->ascending())`,
+    rows: [['AAA', 0.345857, 10.416667, 7.8125, 0.171875, 0.414578, 260, 10],
+      ['BBB', -1, -6.25, -3.125, 0.0625, 0.25, 70, 19.625], [null, null, null, 0, 0, 0, 10, 5]] },
+  // a mode, which the server has no aggregation for: each region's commonest year (EMEA's 2024, twice), beside a count
+  { query: `${T}->groupBy(~[region], ~[m:x|$x.year:y|$y->mode(), n:x|$x.id:y|$y->count()])->sort(~region->ascending())`,
+    rows: [['AMER', 2023, 1], ['APAC', 2023, 1], ['EMEA', 2024, 3], [null, 2022, 1]] },
+  // a value at the first or last of an order where a value may be null: SQL skips the row (BBB's last print has no
+  // price, so its close is the print before it)
+  { query: `${P}->groupBy(~[sym], ~[o:x|${RM}($x.px, $x.pid):y|$y->minBy(), c:x|${RM}($x.px, $x.pid):y|$y->maxBy()])`
+      + `->sort(~sym->ascending())`,
+    rows: [['AAA', 10, 10], ['BBB', 20, 19.5], [null, 5, 5]] },
   // a DECIMAL column read as it is (exact text, as the tab reads a BigDecimal), and as a Float by its own doubleValue
   { query: `${B}->extend(~[u:x|$x.used->toFloat() * 2.0, l:x|$x.lim->toOne()->toFloat()])->select(~[bid, used, `
       + `u, l])->sort(~bid->ascending())`,

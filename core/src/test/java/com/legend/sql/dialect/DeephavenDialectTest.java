@@ -451,9 +451,63 @@ class DeephavenDialectTest {
         assertTrue(b.contains("{\"columns\": {\"spec\": {\"sortedFirst\": {\"columns\": [{\"columnName\": \"t0__fid\"}]}},"
                 + " \"matchPairs\": [\"__r0=t0__tm\"]}}"), b);
         assertTrue(b.contains("{\"sortedLast\": {\"columns\": [{\"columnName\": \"t0__fid\"}]}}"), b);
-        DialectCapability nullable = assertThrows(DialectCapability.class, () -> batch(F + "->groupBy(~[d], ~[o:x|"
-                + rm + "($x.px, $x.fid):y|$y->minBy()])"));
-        assertTrue(nullable.getMessage().contains("may be null"), nullable.getMessage());
+        // a value that may be null: SQL skips the row (DuckDB's arg_min skips a null value and a null order), so its
+        // value is made null and its order sorts it out of the way -- the greatest there is for sortedFirst, the
+        // server's null (first) for sortedLast; a group every row of which is skipped answers null
+        String nullable = batch(F + "->groupBy(~[d], ~[o:x|" + rm + "($x.px, $x.fid):y|$y->minBy(), c:x|" + rm
+                + "($x.px, $x.fid):y|$y->maxBy()])");
+        assertTrue(nullable.contains("\"__x0 = (isNull(t0__px) || isNull(t0__fid)) ? NULL_DOUBLE : t0__px\", \"__y0 ="
+                + " (isNull(t0__px) || isNull(t0__fid)) ? 9223372036854775807L : t0__fid\""), nullable);
+        assertTrue(nullable.contains("\"__y1 = (isNull(t0__px) || isNull(t0__fid)) ? NULL_LONG : t0__fid\""), nullable);
+        assertTrue(nullable.contains("{\"sortedFirst\": {\"columns\": [{\"columnName\": \"__y0\"}]}}, \"matchPairs\":"
+                + " [\"__r0=__x0\"]"), nullable);
+        // an order with no greatest value written yet (a decimal) is refused by name
+        DialectCapability decimal = assertThrows(DialectCapability.class, () -> batch("#>{risk::Ref.books}#"
+                + "->groupBy(~[bid], ~[o:x|" + rm + "($x.bid, $x.lim->toOne()):y|$y->minBy()])"));
+        assertTrue(decimal.getMessage().contains("may be null"), decimal.getMessage());
+    }
+
+    @Test
+    void aModeIsItsOwnAggregationJoinedBackByTheKeys() {
+        // the values that are not null counted by the keys and the value, each key's greatest count's value by
+        // sortedLast, joined back; the group's other aggregates stay in its one aggregation
+        String b = batch("#>{risk::Ref.trades}#->groupBy(~[region], ~[m:x|$x.year:y|$y->mode(), n:x|$x.id:y|$y->count()])");
+        assertTrue(b.contains("\"aggregations\": [{\"count\": {\"columnName\": \"__r1\"}}]"), b);
+        assertTrue(b.contains("{\"unstructuredFilter\": {\"sourceId\": {\"batchOffset\": 0}, \"filters\": [\"t0__year"
+                + " != null\"]}}"), b);
+        assertTrue(b.contains("\"groupByColumns\": [\"t0__region\", \"t0__year\"], \"aggregations\": [{\"count\":"
+                + " {\"columnName\": \"__m0\"}}]"), b);
+        assertTrue(b.contains("{\"sortedLast\": {\"columns\": [{\"columnName\": \"__m0\"}]}}, \"matchPairs\":"
+                + " [\"__r0=t0__year\"]"), b);
+        assertTrue(b.contains("\"columnsToMatch\": [\"t0__region\"], \"columnsToAdd\": [\"__r0\"]"), b);
+    }
+
+    @Test
+    void aStatisticTheServerHasNoAggregationForIsAFormulaOverWhatTheGroupGathered() {
+        String rm = "meta::pure::functions::math::mathUtility::rowMapper";
+        // a correlation and the covariances: the library's cor and cov over the group's two vectors, the pairs where
+        // neither is null counted; the server's cov is the population's, the sample's rescaled by n / (n - 1)
+        String pair = batch(P + "->groupBy(~[sym], ~[c:x|" + rm + "($x.px, $x.sz):y|$y->corr(), s:x|" + rm
+                + "($x.px, $x.sz):y|$y->covarSample(), p:x|" + rm + "($x.px, $x.sz):y|$y->covarPopulation()])");
+        assertTrue(pair.contains("{\"columns\": {\"spec\": {\"group\": {}}, \"matchPairs\": [\"__v0=t0__px\","
+                + " \"__w0=t0__sz\"]}}, {\"countWhere\": {\"columnName\": \"__n0\", \"filters\": [\"t0__px != null\","
+                + " \"t0__sz != null\"]}}"), pair);
+        assertTrue(pair.contains("{\"update\": {\"sourceId\": {\"batchOffset\": 1}, \"columnSpecs\": [\"__r0 = (__n0 < 2"
+                + " ? NULL_DOUBLE : cor(__v0, __w0))\", \"__r1 = (__n1 < 2 ? NULL_DOUBLE : cov(__v1, __w1) * __n1 / (__n1 -"
+                + " 1))\", \"__r2 = (__n2 == 0 ? NULL_DOUBLE : cov(__v2, __w2))\"]}}"), pair);
+        // the population variance and deviation: the server's sample variance rescaled, 0 of one value
+        String spread = batch(P + "->groupBy(~[sym], ~[v:x|$x.px:y|$y->variancePopulation(),"
+                + " d:x|$x.px:y|$y->stdDevPopulation()])");
+        assertTrue(spread.contains("\"__r0 = (__n0 == 0 ? NULL_DOUBLE : __n0 == 1 ? 0.0 : __v0 * (__n0 - 1) / __n0)\""),
+                spread);
+        assertTrue(spread.contains("{\"columns\": {\"spec\": {\"var\": {}}, \"matchPairs\": [\"__v1=t0__px\"]}}"),
+                spread);
+        // the interpolated percentile: the group's vector sorted (its nulls first), two places read, weighted
+        String pct = batch(P + "->groupBy(~[sym], ~[p:x|$x.sz:y|$y->percentile(0.9)])");
+        assertTrue(pct.contains("\"__c0 = count(__v0)\", \"__o0 = len(__v0) - __c0\", \"__k0 = 0.9 * (__c0 - 1)\","
+                + " \"__s0 = sort(__v0)\", \"__r0 = (__c0 == 0 ? NULL_DOUBLE : nth(__o0 + (long) floor(__k0), __s0) +"
+                + " (nth(__o0 + (long) ceil(__k0), __s0) - nth(__o0 + (long) floor(__k0), __s0)) * (__k0 -"
+                + " floor(__k0)))\""), pct);
     }
 
     @Test
