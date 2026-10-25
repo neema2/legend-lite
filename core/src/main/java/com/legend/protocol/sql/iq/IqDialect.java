@@ -6373,7 +6373,22 @@ public final class IqDialect implements InputDialect {
      *  computed from the left, stopping at the first NULL; under IQ's engine every one is. */
     private Tx strict(Kind kind, SqlAst.Expr node, List<Tx> operands,
             java.util.function.Function<List<ValueSpecification>, ValueSpecification> build) {
-        return SqlToPure.strict(kind, operands, raises(node, operands.size()), engine != Engine.IQ, build);
+        List<Boolean> raises = new ArrayList<>(raises(node, operands.size()));
+        if (node instanceof SqlAst.Binary b && operands.size() == 2) {
+            for (int i = 0; i < 2; i++) {
+                if (exactReal(i == 0 ? b.left() : b.right(), operands.get(i))) {
+                    raises.set(i, false);
+                }
+            }
+        }
+        return SqlToPure.strict(kind, operands, raises, engine != Engine.IQ, build);
+    }
+
+    /** Whether {@code e}, computing {@code t}, is a CAST to REAL of an integer that raises nothing: a REAL of a known
+     *  range, which no conversion of an integer leaves (the IQ scale program, 2026-10-25; IqFunctions' toReal). */
+    private boolean exactReal(SqlAst.Expr e, Tx t) {
+        return e instanceof SqlAst.Cast c && !mayRaise(c.operand()) && IqFunctions.real(t)
+                && t.detail() instanceof IqType type && type.low() != null;
     }
 
     /** A DOUBLE NULL. */
@@ -6439,7 +6454,12 @@ public final class IqDialect implements InputDialect {
         // a guard is computed only where both operands read a column: Postgres folds an operand of no column in every
         // branch of it, where a scaled constant could overflow; with one such operand the product is as before (an
         // underflow there is recorded, not guarded)
-        boolean guard = guarded && readsRows(b.left()) && readsRows(b.right());
+        // the IQ scale program, 2026-10-25 (the corpus lane's vote ratios, CAST(up AS FLOAT) / (up + down), refused past
+        // the size bound, where each check repeated its operands): operands that are integers, NUMERICs or REALs -- at
+        // most about 3.4E38 in magnitude, and none nearer 0 than about 1.4E-45 but 0 -- give a result no step of which
+        // overflows or underflows a DOUBLE, so neither is checked
+        boolean bounded = (!lf || IqFunctions.real(l)) && (!rf || IqFunctions.real(r));
+        boolean guard = guarded && !bounded && readsRows(b.left()) && readsRows(b.right());
         // IQ island, 2026-10-15 (the census's scale suite): under IQ's engine a value beyond the largest DOUBLE is NULL,
         // tested once where a chain of + - * ends (an infinity or a NaN within it stays one to the end, where abs(v)
         // exceeds the largest on DuckDB and Postgres alike); its operands' NULL guards merge where they cannot raise,
@@ -6458,7 +6478,7 @@ public final class IqDialect implements InputDialect {
             if (reals) {
                 value = IqFunctions.single(value);
             }
-            ValueSpecification finite = pending ? value : ifThen(SqlToPure.call("greaterThan", SqlToPure.call("abs",
+            ValueSpecification finite = pending || bounded ? value : ifThen(SqlToPure.call("greaterThan", SqlToPure.call("abs",
                     value), new com.legend.protocol.spec.CFloat(DOUBLE_MAX)), iq ? SqlToPure.nullOf(Kind.FLOAT).vs()
                     : floatRaise(), value);
             if (op != SqlAst.BinaryOp.DIVIDE) {

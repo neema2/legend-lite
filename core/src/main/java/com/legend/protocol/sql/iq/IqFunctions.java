@@ -4701,6 +4701,15 @@ final class IqFunctions {
             return stringToReal(x, type);
         }
         Tx d = asDouble(x, c.operand(), what);
+        if (x.kind() == Kind.INTEGER && x.detail() instanceof IqType it && it.isInteger()) {
+            // the IQ scale program, 2026-10-25 (the corpus lane's vote ratios, CAST(up AS FLOAT) / (up + down)): an
+            // integer is never beyond the largest REAL nor below the smallest normal one but 0, so it is only rounded,
+            // raises nothing, and keeps its NULL guard for the operation reading it to merge (the REAL's range known:
+            // IqDialect's operands that cannot raise)
+            Tx r = SqlToPure.strict(Kind.FLOAT, List.of(d), v -> rounded(v.get(0)));
+            return new Tx(r.vs(), Kind.FLOAT, r.nullable(), null, new IqType("REAL", false, it.lo(), it.hi()),
+                    r.guard(), r.body());
+        }
         Tx r = SqlToPure.strict(Kind.FLOAT, List.of(d), v -> single(v.get(0)));
         return Tx.value(r.vs(), Kind.FLOAT, r.nullable(), type);
     }
@@ -4747,12 +4756,15 @@ final class IqFunctions {
      * 0).
      */
     static ValueSpecification single(ValueSpecification x) {
-        ValueSpecification c = AppliedFunction.infixRun("times", List.of(x, new CFloat(536870913.0)));
-        ValueSpecification rounded = AppliedFunction.infixRun("minus", List.of(c, AppliedFunction.infixRun("minus",
-                List.of(c, x))));
         ValueSpecification magnitude = SqlToPure.call("abs", x);
         return ifThen(SqlToPure.call("greaterThan", magnitude, new CFloat(SINGLE_MAX)), raise("Float"),
-                ifThen(lt(magnitude, new CFloat(SINGLE_MIN)), new CFloat(0.0), rounded));
+                ifThen(lt(magnitude, new CFloat(SINGLE_MIN)), new CFloat(0.0), rounded(x)));
+    }
+
+    /** {@code x} rounded to 24 significant bits by Veltkamp's split ({@link #single} without its range). */
+    private static ValueSpecification rounded(ValueSpecification x) {
+        ValueSpecification c = AppliedFunction.infixRun("times", List.of(x, new CFloat(536870913.0)));
+        return AppliedFunction.infixRun("minus", List.of(c, AppliedFunction.infixRun("minus", List.of(c, x))));
     }
 
     /**
