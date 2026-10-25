@@ -120,7 +120,8 @@ try {
   });
 
   await check(`every name is an instrument: ${equities} equities and 8 coins, in eleven sectors and crypto`, async () => {
-    const kinds = await rows(`${INSTRUMENT}->project(~[kind:x|$x.assetClass, id:x|$x.instrumentId,`
+    // the listed options are instruments too (the derivatives desk's, K11): counted by the options' own check
+    const kinds = await rows(`${INSTRUMENT}->filter(x|$x.assetClass != 'OPTION')->project(~[kind:x|$x.assetClass, id:x|$x.instrumentId,`
       + ` sector:x|$x.sector.name])->groupBy(~[kind], ~[n:x|$x.id:y|$y->count(), s:x|$x.sector:y|$y->distinct()->count()])`
       + `->sort(~kind->ascending())`);
     return JSON.stringify(kinds) === JSON.stringify([['CRYPTO', 8, 1], ['EQUITY', equities, 11]]) ? null
@@ -228,6 +229,73 @@ try {
     await rows(`${QUOTE}->filter(x|$x.instrument.ticker == '${largest}')->project(~[bid:x|$x.bid, ask:x|$x.ask,`
       + ` bsz:x|$x.bidSize, asz:x|$x.askSize])`, 2000, (now) => seen.add(JSON.stringify(now)));
     return seen.size >= 3 ? null : `${largest}'s quote seen ${seen.size} ways in two seconds`;
+  });
+
+  // THE BANK'S OWN DAY (K9-K13): its desks, books, positions and limits; its orders worked into fills; its FX prices
+  // and the clients' requests; the listed options -- each read through the corpus's classes
+  await check('the bank: six desks, ten books, eighteen traders, each book its desk\'s', async () => {
+    const desks = await number('org::Desk.all()->project(~[d:x|$x.deskId])->groupBy(~[], ~[n:x|$x.d:y|$y->count()])');
+    const traders = await number('org::Trader.all()->project(~[t:x|$x.traderId, d:x|$x.desk.deskId])'
+      + '->filter(x|$x.d->isNotEmpty())->groupBy(~[], ~[n:x|$x.t:y|$y->count()])');
+    const books = await number('positions::Book.all()->project(~[b:x|$x.bookId, d:x|$x.desk.name])'
+      + '->filter(x|$x.d->isNotEmpty())->groupBy(~[], ~[n:x|$x.b:y|$y->count()])');
+    return desks === 6 && traders === 18 && books === 10 ? null : `${desks} desks, ${traders} traders, ${books} books`;
+  });
+
+  await check('every position is its book\'s, on an instrument the world lists, its value its quantity at its price', async () => {
+    const [counted] = await rows('positions::Position.all()->project(~[p:x|$x.positionId, b:x|$x.book.bookId,'
+      + ' i:x|$x.instrument.instrumentId, q:x|$x.quantity, mv:x|$x.marketValue])'
+      + '->extend(~[bad:x|$x.b->isEmpty() || $x.i->isEmpty() || ($x.q == 0.0) || (($x.q > 0.0) != ($x.mv > 0.0))])'
+      + '->groupBy(~[], ~[all:x|$x.p:y|$y->count(), bad:x|if($x.bad, |1, |[]):y|$y->count()])');
+    const [all, bad] = [Number(counted?.[0]), Number(counted?.[1])];
+    return all > 100 && bad === 0 ? null : `${bad} of ${all} positions ill formed`;
+  });
+
+  await check('each desk that holds positions has a day\'s loss limit and a gross limit', async () => {
+    const limits = await rows('risk::RiskLimit.all()->project(~[d:x|$x.desk.deskId, t:x|$x.limitType, a:x|$x.limitAmount])'
+      + '->groupBy(~[t], ~[n:x|$x.d:y|$y->distinct()->count(), least:x|$x.a:y|$y->min()])->sort(~t->ascending())');
+    return JSON.stringify(limits.map((r) => [r[0], r[1]])) === JSON.stringify([['DAY_LOSS', 5], ['GROSS_NOTIONAL', 5]])
+      && limits.every((r) => Number(r[2]) > 0) ? null : `the limits: ${JSON.stringify(limits)}`;
+  });
+
+  await check('orders are worked into fills: each fill its order\'s, an order\'s fills its filled quantity', async () => {
+    await sleep(3000);
+    const [counted] = await rows('trading::Order.all()->project(~[o:x|$x.orderId, q:x|$x.quantity, f:x|$x.filledQuantity,'
+      + ' s:x|$x.status, sym:x|$x.instrument.ticker, b:x|$x.book.bookId, t:x|$x.trader.traderId])'
+      + '->join(trading::Execution.all()->project(~[eo:x|$x.order.orderId, eq:x|$x.filledQuantity])'
+      + '->groupBy(~[eo], ~[done:x|$x.eq:y|$y->sum()]), meta::pure::functions::relation::JoinKind.LEFT, {a, b|$a.o == $b.eo})'
+      + '->extend(~[bad:x|$x.sym->isEmpty() || $x.b->isEmpty() || $x.t->isEmpty()'
+      + ' || (abs($x.f->toOne() - if($x.done->isEmpty(), |0.0, |$x.done->toOne())) > 0.000001)'
+      + ' || ($x.f->toOne() > ($x.q + 0.000001))])'
+      + '->groupBy(~[], ~[all:x|$x.o:y|$y->count(), bad:x|if($x.bad, |1, |[]):y|$y->count(),'
+      + ' filled:x|if($x.s == \'FILLED\', |1, |[]):y|$y->count()])');
+    const [all, bad, filled] = [Number(counted?.[0]), Number(counted?.[1]), Number(counted?.[2])];
+    return all > 0 && bad === 0 ? null : `${bad} of ${all} orders disagree with their fills (${filled} filled)`;
+  });
+
+  await check('FX: ten pairs priced, each bid under its ask', async () => {
+    const [counted] = await rows('marketdata::FxRate.all()->project(~[p:x|$x.currencyPair, b:x|$x.bidRate, a:x|$x.askRate])'
+      + '->groupBy(~[], ~[n:x|$x.p:y|$y->distinct()->count(), crossed:x|if($x.b->toOne() >= $x.a->toOne(), |1, |[]):y|$y->count()])');
+    return Number(counted?.[0]) === 10 && Number(counted?.[1]) === 0 ? null : `the rates: ${JSON.stringify(counted)}`;
+  });
+
+  await check('RFQs: quoted unless declined, a hit only when done, some done', async () => {
+    const [counted] = await rows('trading::Rfq.all()->project(~[r:x|$x.rfqId, s:x|$x.status, h:x|$x.isHit, q:x|$x.quotedRate,'
+      + ' c:x|$x.client.shortName, d:x|$x.dealer.traderId])'
+      + '->extend(~[bad:x|($x.h && ($x.s != \'DONE\')) || (($x.s == \'DECLINED\') && $x.q->isNotEmpty())'
+      + ' || ($x.s->in([\'QUOTED\', \'DONE\', \'MISSED\', \'EXPIRED\']) && $x.q->isEmpty()) || $x.c->isEmpty() || $x.d->isEmpty()])'
+      + '->groupBy(~[], ~[all:x|$x.r:y|$y->count(), bad:x|if($x.bad, |1, |[]):y|$y->count(),'
+      + ' done:x|if($x.s == \'DONE\', |1, |[]):y|$y->count()])');
+    const [all, bad, done] = [Number(counted?.[0]), Number(counted?.[1]), Number(counted?.[2])];
+    return all > 0 && bad === 0 && done > 0 ? null : `${all} requests: ${bad} ill formed, ${done} done`;
+  });
+
+  await check('the option chain: four underlyings, each option its own instrument, calls and puts at each strike', async () => {
+    const chain = await rows('products::Option.all()->project(~[u:x|$x.underlying.ticker, k:x|$x.instrument.assetClass,'
+      + ' t:x|$x.optionType, id:x|$x.optionId])->groupBy(~[u], ~[n:x|$x.id:y|$y->count(),'
+      + ' calls:x|if($x.t == \'CALL\', |1, |[]):y|$y->count(), kinds:x|$x.k:y|$y->distinct()->count()])');
+    return chain.length === 4 && chain.every((r) => Number(r[1]) > 0 && Number(r[2]) * 2 === Number(r[1]) && Number(r[3]) === 1)
+      ? null : `the chain by underlying: ${JSON.stringify(chain)}`;
   });
 
   live.close();

@@ -64,6 +64,7 @@ Each row is a thing done outside the platform, to push into it.
 | `market/market.groovy`'s simulator (K2) | the equity market: names, prices that move together, quotes and trades at each name's pace | lite writes no rows into Deephaven yet, and a market's rows come from no source of record | a feed the store declares (DH16), its rows written by the platform (L3w, Wr) from a simulator that is a program of its own |
 | `market/market.groovy`'s Coinbase feed (K2) | crypto from Coinbase Exchange's public feed, the simulator in its place where it is refused | no feed ingestion in lite | a feed declared in the store and started by the platform; Kafka into Deephaven in production |
 | `market/market.groovy`'s `world` table (K2) | what each part of the world is and why (simulated, live, connecting) | the page has no other way to learn it | the feed's own status, a system table of the platform's |
+| `market/market.groovy`'s bank (K9-K13) | the bank's own day: desks, traders, books, positions at the prior close, limits; parent orders worked by algorithms into fills and routes on the market's own prices; FX prices; clients' RFQs quoted and done or missed; a listed option chain settled by Black and Scholes | lite writes no rows into Deephaven yet, and a bank's books and blotters come from its systems of record | each its own source -- an OMS's orders and fills, a position keeper, a pricing engine -- declared in the store and published by the platform (L5) |
 | `market/traders.ts`'s grids read as written (K4) | each trader screen's grid plans its queries in the tab and runs them on its own reader, with no base kept on the server (`src/server-base.ts`, B1) | a base re-declares the planner's model in its text, and the one trading model takes 4.4 s to hold: a screen of five grids would hold it six times before it showed | a base's Database held over the held model (an overlay of the held `ModelContext`, as a runtime and connection already are), never in its text |
 | `market/traders.ts`, the host (K4) | the page around DataCube's: its menu of trader screens, each written by `screens.ts` and opened as a saved page is | the screens are saved pages of a demo of their own, not yet a project's | a project's saved pages, listed by DataCube's own Open window |
 
@@ -446,3 +447,17 @@ redrew its first row alone, the rest kept from older blocks: a list re-sorted at
 prices. The grid now draws again when its height changes (its sheet shown, its tile grown). The browser check reads
 every list's view and the rows painted on screen at each tick and refuses a name shown twice (210 views and screens,
 none), and the grid's own test ticks a grid hidden and shows it.
+
+**The bank's own day, published (2026-10-25; item 8).** The market world publishes the corpus's tables the remaining
+screens read, every column each declares: a business unit, six desks (TMT, healthcare and financials, cyclicals and
+defensives, digital assets, equity derivatives, FX), three traders a desk, ten books, 188 positions at the prior close
+(an equity book's names its desk's sectors, crypto's the coins, the derivatives books' listed options), each desk's
+day's loss and gross limits, twenty FX clients; a listed chain on the four largest names (three expiries, nine strikes,
+calls and puts, each an instrument of its own, settled at the prior close by Black and Scholes on a smile); and ticking,
+parent orders (0.8 a second, `MARKET_ORDERS`) worked by VWAP, TWAP, POV, IS and dark algorithms into fills and routes on
+the market's own quotes, ten FX pairs, and the clients' requests for quotes (2 a second, `MARKET_RFQS`) quoted after the
+desk's response and done, missed, expired or declined. The source keeps no figure a screen should compute (slippage,
+utilisation, live greeks: null), so the database computes each. Checked on the pinned server through the corpus's
+classes (`//datacube:deephaven_market_test`, 19 checks): the desks, books and traders by their associations; every
+position its book's and on a listed instrument; each desk's limits; every order's fills summing to its filled
+quantity; ten pairs, bid under ask; requests consistent with their states; the chain.
