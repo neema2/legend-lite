@@ -313,6 +313,10 @@ class IqFuzzTest {
         for (int n : new int[] {8 * f, 16 * f}) {
             shapes.put("a sum of quotients by a column " + n, "SELECT id, " + "it / sm + ".repeat(n - 1) + "it / sm"
                     + " AS v FROM t WHERE id = 1");
+            // 2026-10-25 (the corpus lane's guarded ratios): a CASE of one WHEN whose result is a chain of them -- its
+            // long operands computed once where the condition holds (SqlToPure.hoistOperands)
+            shapes.put("a guarded ratio " + n, "SELECT id, CASE WHEN sm <> 0 THEN ROUND((" + "CAST(it AS FLOAT) / sm + "
+                    .repeat(n - 1) + "CAST(it AS FLOAT) / sm) * 100, 2) ELSE 0 END AS v FROM t WHERE id = 1");
         }
         return shapes;
     }
@@ -474,7 +478,7 @@ class IqFuzzTest {
             }
         }
         // a chain twice as long writes SQL about twice as long (a check copying its operand would square it)
-        for (String family : List.of("divisions by a column", "a sum of quotients by a column")) {
+        for (String family : List.of("divisions by a column", "a sum of quotients by a column", "a guarded ratio")) {
             Long eight = sizes.get(family + " " + 8 * f);
             Long sixteen = sizes.get(family + " " + 16 * f);
             if (eight != null && sixteen != null && sixteen > 3 * eight) {

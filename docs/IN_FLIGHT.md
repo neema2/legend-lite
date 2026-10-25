@@ -2207,6 +2207,11 @@ repros will be in the study's §9.
       columns before it. The hoist was reverted on 10-23 and is back now that IQ 17.1 measured the raise it gives.
     - Judged by both parity lanes of each island, the core suites, the relational corpus on DuckDB and H2, and the
       scale probe.
+    - 2026-10-25: `InputDialect.readAcross` (default the detail itself): a FROM source's column as the reading query
+      sees it, applied where `bound` binds a source's columns (IQ's: a sum's narrower type stays inside a derived
+      table). And `hoistOperands` also hoists the long operands of a one-WHEN searched CASE's result, each a column
+      `if(condition, operand, [])` computed only where the condition holds, where the dialect computes every operand
+      (the corpus lane's guarded ratios, refused past the size bound). Judged as above.
   - **The compiler line's `lowering/Scalars.java` (`quotient`), 2026-10-23:** a literal divisor that is not zero has
     no zero guard, as `rem`'s had none (the guard's message copied the dividend, so nested divisions doubled a level).
   - **The dialect package, 2026-10-23:** a common render pass, `ConstantAggregateOrder` (`AnsiSqlRenderer.renderPasses`,

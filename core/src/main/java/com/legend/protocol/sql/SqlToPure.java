@@ -3664,6 +3664,37 @@ public final class SqlToPure {
             hoisted.put(c, Col.of(column, ct.kind(), ct.nullable(), ct.detail()));
             mine.add(c);
         }
+        // the IQ scale program, 2026-10-25 (the corpus lane's guarded ratios: CASE WHEN up + down > 0 THEN CAST(ROUND(up
+        // * 1.0 / (up + down) * 100, 2) AS DECIMAL(5,2)) ELSE 0 END, refused past the size bound): a searched CASE of one
+        // WHEN computes its result's operands only where its condition holds, so each long one is computed once there --
+        // a column of it where the condition is TRUE, NULL elsewhere -- and raises only where the CASE would. Where the
+        // dialect computes every operand: one beside a NULL is computed as it is unhoisted
+        if (e instanceof SqlAst.Case k && k.operand() == null && k.whens().size() == 1 && dialect.computesEveryOperand()) {
+            SqlAst.When w = k.whens().get(0);
+            List<SqlAst.Expr> operands = new ArrayList<>();
+            eagerOperands(w.result(), operands);
+            ValueSpecification holds = null;
+            for (SqlAst.Expr c : operands) {
+                if (hoisted.containsKey(c)) {
+                    continue;
+                }
+                Tx ct;
+                try {
+                    ct = tx(c, scope, row);
+                } catch (SqlTranslationException notAlone) {
+                    continue;
+                }
+                if (ct.kind() == Kind.BOOLEAN || ct.kind() == Kind.NULL || written(ct.vs()) < BOUND_OPERAND) {
+                    continue;
+                }
+                holds = holds != null ? holds : condition(w.condition(), scope, "CASE/WHEN");
+                String column = fresh(present);
+                pre.add(new ColSpec(column, lambda(row, call("if", holds, thunk(valueOf(ct)), thunk(empty()))), null,
+                        null));
+                hoisted.put(c, Col.of(column, ct.kind(), true, ct.detail()));
+                mine.add(c);
+            }
+        }
     }
 
     /** The written size, in Pure nodes, from which an operand of an item past the size bound is computed once
