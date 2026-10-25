@@ -1,0 +1,33 @@
+# The IQ scale program, 2026-10-25: a share of a total read through a derived table or a CTE -- how IQ's engine types
+# a total over a derived column, its quotients by it (the census's over_a_derived_total), judged by the live IQ.
+tests:
+  - id: a_column_through_a_cte
+    sql: "WITH s AS (SELECT id, n FROM g WHERE id < 10 AND n IS NOT NULL) SELECT id, n / SUM(n) OVER () AS r FROM s ORDER BY id"
+    profile: iq17-default
+  - id: a_count_through_a_cte
+    sql: "WITH s AS (SELECT k, COUNT(*) AS c FROM g WHERE id < 10 GROUP BY k) SELECT k, 100.0 * c / SUM(c) OVER () AS pct FROM s ORDER BY k"
+    profile: iq17-default
+  - id: a_max_through_a_cte
+    sql: "WITH s AS (SELECT k, MAX(n) AS mn FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k) SELECT k, mn / SUM(mn) OVER () AS r FROM s ORDER BY k"
+    profile: iq17-default
+  - id: a_sum_through_a_derived_table
+    sql: "SELECT k, sn / SUM(sn) OVER () AS r FROM (SELECT k, SUM(n) AS sn FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k) d ORDER BY k"
+    profile: iq17-default
+  - id: a_sum_by_a_scalar_subquery_total
+    sql: "WITH s AS (SELECT k, SUM(n) AS sn FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k) SELECT k, sn / (SELECT SUM(sn) FROM s) AS r FROM s ORDER BY k"
+    profile: iq17-default
+  - id: the_window_total_of_a_numeric_sum
+    sql: "WITH s AS (SELECT k, SUM(n) AS sn FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k) SELECT k, SUM(sn) OVER () AS t FROM s ORDER BY k"
+    profile: iq17-default
+  - id: the_window_total_of_an_integer_sum
+    sql: "WITH s AS (SELECT k, SUM(v) AS sv FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k) SELECT k, SUM(sv) OVER () AS t FROM s ORDER BY k"
+    profile: iq17-default
+  - id: a_constant_by_a_numeric_sum
+    sql: "WITH s AS (SELECT k, SUM(n) AS sn FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k) SELECT k, 3.5 / sn AS r FROM s ORDER BY k"
+    profile: iq17-default
+  - id: a_constant_by_an_integer_sum
+    sql: "WITH s AS (SELECT k, SUM(v) AS sv FROM g WHERE id < 10 AND k IS NOT NULL GROUP BY k) SELECT k, 1.5 / sv AS r FROM s ORDER BY k"
+    profile: iq17-default
+  - id: grouped_over_a_cte
+    sql: "WITH s AS (SELECT k, n FROM g WHERE id < 10 AND k IS NOT NULL) SELECT k, SUM(n) / SUM(SUM(n)) OVER () AS r FROM s GROUP BY k ORDER BY k"
+    profile: iq17-default
