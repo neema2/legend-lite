@@ -318,12 +318,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  painter a tick draws with (grid.ts #cell), measured again at a tick). Measured 358,132.
  *  358,500 -> 359,000 (2026-10-24, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K3: the candlestick's rules, its values and
  *  a value's second column (chart-spec.ts candleMeasures, the spec's `weight`), which the chart's rules read at startup;
- *  for the user's sign-off, D9). Measured 358,756.
+ *  signed off by the user 2026-10-25, D9). Measured 358,756.
  *  359,000 -> 359,500 (2026-10-25, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K4, K8-K13, the trader screens: a format
  *  code's fraction of a second (format-code.ts `ss.000`, a print's time to the millisecond), a grid drawn again when its
  *  height changes (grid.ts: one drawn on a sheet not shown painted a name twice once shown), and the chart rules' new
  *  keys read at startup -- an axis fitted to its values, a treemap's colour by a value and its reach, a measure's title
- *  (chart-spec.ts); for the user's sign-off, D9). Measured 359,107. */
+ *  (chart-spec.ts); signed off by the user 2026-10-25, D9). Measured 359,107. */
 const BUDGET = 359_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
@@ -466,7 +466,7 @@ const ENGINE_BUDGET = 347_500;
  *  304,000 -> 304,500 (2026-10-25, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K4, K8-K13, the trader screens): an axis
  *  fitted to its values (`fitAxis`), a treemap of a grid's rows coloured by a value from red through grey to green
  *  (`treemapOfGrid`'s colour, `colourReach`), a heatmap's cells labelled in the measure's format, a measure's own title
- *  (chart-option.ts); for the user's sign-off, D9. Measured 304,219. */
+ *  (chart-option.ts); signed off by the user 2026-10-25, D9. Measured 304,219. */
 const CHART_BUDGET = 304_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
@@ -483,7 +483,7 @@ const isKinds = (file: string): boolean => /[\\/]chart-(?:render-)?kinds-[^\\/]+
  *  batch 3's leftovers -- a Marimekko, a waffle, a Gantt -- and ECharts code these kinds share only with the maps,
  *  counted here since phase 6's audit). Measured 66,807.
  *  68,000 -> 70,500 (2026-10-24, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K3, the trader screens: the candlestick --
- *  ECharts' candlestick series, the candles and the volume beneath them; for the user's sign-off, D9). Measured
+ *  ECharts' candlestick series, the candles and the volume beneath them; signed off by the user 2026-10-25, D9). Measured
  *  70,117. */
 const KINDS_BUDGET = 70_500;
 

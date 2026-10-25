@@ -538,7 +538,7 @@ Measured (`//datacube:deephaven_traders_test`, all seven screens in one run, the
 names): each screen open in 2 to 8 s, every sheet ticking with nothing sent or fetched, a tick on screen 14 to 51 ms
 after its rows (p50), no name painted twice on any list.
 
-**The bundle budgets (2026-10-25), for the user's sign-off (D9).** The screens' DataCube steps -- an axis fitted to its
+**The bundle budgets (2026-10-25), signed off by the user the same day (D9: "bundle budget is fine").** The screens' DataCube steps -- an axis fitted to its
 values, a treemap coloured by a value and its reach, a heatmap's labels, a measure's title, a second's fraction in a
 format code, a grid drawn again when its height changes -- grew the scripts the budgets measure: the grid-only page
 359,000 -> 359,500 (measured 359,107), a first chart 304,000 -> 304,500 (304,219), a notebook's cube 366,500 -> 367,000
