@@ -5,7 +5,11 @@ Mapping marketdata::MarketdataMapping
 (
     marketdata::MarketQuote: Relational {
         ~mainTable [store::DB] MARKET_QUOTE
-        quoteId: [store::DB] MARKET_QUOTE.QUOTE_ID, quoteTime: [store::DB] MARKET_QUOTE.QUOTE_TIME, bid: [store::DB] MARKET_QUOTE.BID, ask: [store::DB] MARKET_QUOTE.ASK, mid: [store::DB] MARKET_QUOTE.MID, last: [store::DB] MARKET_QUOTE.LAST, volume: [store::DB] MARKET_QUOTE.VOLUME, openPrice: [store::DB] MARKET_QUOTE.OPEN_PRICE, highPrice: [store::DB] MARKET_QUOTE.HIGH_PRICE, lowPrice: [store::DB] MARKET_QUOTE.LOW_PRICE, closePrice: [store::DB] MARKET_QUOTE.CLOSE_PRICE, source: [store::DB] MARKET_QUOTE.SOURCE, isDelayed: [store::DB] MARKET_QUOTE.IS_DELAYED
+        quoteId: [store::DB] MARKET_QUOTE.QUOTE_ID, quoteTime: [store::DB] MARKET_QUOTE.QUOTE_TIME, bid: [store::DB] MARKET_QUOTE.BID, ask: [store::DB] MARKET_QUOTE.ASK, mid: [store::DB] MARKET_QUOTE.MID, last: [store::DB] MARKET_QUOTE.LAST, volume: [store::DB] MARKET_QUOTE.VOLUME, openPrice: [store::DB] MARKET_QUOTE.OPEN_PRICE, highPrice: [store::DB] MARKET_QUOTE.HIGH_PRICE, lowPrice: [store::DB] MARKET_QUOTE.LOW_PRICE, closePrice: [store::DB] MARKET_QUOTE.CLOSE_PRICE, source: [store::DB] MARKET_QUOTE.SOURCE, isDelayed: [store::DB] MARKET_QUOTE.IS_DELAYED, bidSize: [store::DB] MARKET_QUOTE.BID_SIZE, askSize: [store::DB] MARKET_QUOTE.ASK_SIZE
+    }
+    marketdata::MarketTrade: Relational {
+        ~mainTable [store::DB] MARKET_TRADE
+        printId: [store::DB] MARKET_TRADE.PRINT_ID, sequenceNumber: [store::DB] MARKET_TRADE.SEQUENCE_NUMBER, printTime: [store::DB] MARKET_TRADE.PRINT_TIME, price: [store::DB] MARKET_TRADE.PRICE, quantity: [store::DB] MARKET_TRADE.QUANTITY, aggressorSide: [store::DB] MARKET_TRADE.AGGRESSOR_SIDE, venue: [store::DB] MARKET_TRADE.VENUE, tradeCondition: [store::DB] MARKET_TRADE.TRADE_CONDITION, isOffExchange: [store::DB] MARKET_TRADE.IS_OFF_EXCHANGE
     }
     marketdata::FxRate: Relational {
         ~mainTable [store::DB] FX_RATE

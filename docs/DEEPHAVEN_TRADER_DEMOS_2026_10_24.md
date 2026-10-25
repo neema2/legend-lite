@@ -20,6 +20,7 @@ either built into it here (the target, DataCube) or done bespoke and written dow
 
 | # | question | decision |
 |---|---|---|
+| DH34 | the trading model | **one: the stress corpus's** (the user, 2026-10-25: "one trading model for everything"). Its 20-domain financial model -- instruments, books, desks, traders, trades, parent orders and child executions, positions, P&L, limits, greeks, quotes, FX, volatility -- every expectation its Python oracle's, run on DuckDB and H2 and against legend-engine. The screens query its classes through `stress::AllMapping`; the market world publishes its tables live (not its own `market::Store`); what the screens need that it lacks is added to it, through its generators and its oracle, never beside it (§6) |
 | DH28 | the data | **a simulator always; a public crypto feed where it can be reached, the simulator in its place where not** (the user: "only do both if crypto is a runtime dependency that could be blocked by enterprise so that people who cannot access the data can still see a demo"). Measured from a cloud session, 2026-10-24: Coinbase's and Kraken's public market data answer, Binance's answers 451 -- a feed can be refused by where a person is, not only by a firewall. The page says which world it shows. Real-time equities data is exchange-licensed: never in this public repository |
 | DH29 | time on Deephaven | **Pure's DateTime is UTC wall-clock**, as on every SQL lane (DuckDB's `TIMESTAMP`); on Deephaven an `Instant`, a StrictDate a `LocalDate`. Every calendar function reads the instant in UTC (`timeZone("UTC")` in the formula); `timeBucket` is `lowerBin` from the Unix epoch (a week's from Monday 1969-12-29, DuckDB's origin); a calendar unit Deephaven's bins do not hold (months, years) is refused by name until a case |
 | DH30 | `now()` | **refused by name on Deephaven** until a live view's sliding window is designed: Deephaven evaluates a filter on a row when the row changes, not as time passes, so `ts > now() - 5 minutes` would keep a row that has aged out -- a wrong answer at a tick (invariant 4, DH27) |
@@ -182,4 +183,31 @@ run on DuckDB (`chart-queries.test.ts`); the same chart's query planned for a De
 `lowerBin` and `sortedFirst` and `sortedLast` by the number (`window-columns.test.ts`), K3a's measured shapes. The
 kinds' chunk grows by ECharts' candlestick (68,000 -> 70,500, measured 70,117) and the startup pages by its rules
 (grid 358,500 -> 359,000). Python reaches it by a value's dict (`{'column': 'px', 'fn': 'minBy', 'weight': 'seq'}`).
+
+## 6. The one trading model (DH34)
+
+**Measured first (2026-10-25):** every stress-corpus service on its runtime, 4,675, planned on DuckDB and on a Deephaven
+runtime over the same store (a scratch probe). DuckDB plans all of them; Deephaven 2,235. Its refusals, by count:
+`DECIMAL` columns (1,582: the target has no decimal column; Deephaven's is `BigDecimal`), a value as text (440),
+`dateDiff` (267), K5's whole-number division and runtime error (81), joins with no equality (26), schema-qualified
+tables (27), `EXISTS` (15), a LEFT join's extra condition (2). Over the trading domains alone (trading, market data,
+products, positions, P&L, risk, org, reference data, counterparty) 262 of 335 plan; all 12 hand-written core trading
+services do. That count orders the Deephaven work (§2).
+
+**What the screens needed that the corpus lacked, added (2026-10-25):** the public tape (`marketdata::MarketTrade`,
+`MARKET_TRADE`: a print's sequence, time, price, quantity, aggressor, venue, condition -- the market's trade, not the
+bank's); a quote's sizes (`MarketQuote.bidSize`, `askSize`); requests for quote (`trading::Rfq`, `RFQ`, with their
+client and dealer); an order's trader and book; an option's own instrument (its positions and greeks); a volatility
+surface's underlying instrument. Seeded as the corpus's next ring is, by `expand.py` (a NULL key, a dangling one, a
+parent with no children, by construction); the generators read the new links, so 81 services over the trading classes
+are new -- deep stacks over orders, executions, fills, quotes, the tape, options and surfaces among them -- every
+expectation the oracle's. The deep-stack cap moved 400 -> 416 so that no root's deep variants were dropped for them
+(`deepstack.py`, dated); one budgeted spread service changed its choice (`SP_defClearedTradeEmpty` ->
+`SP_defTradeExceptionEmpty`, the greedy's own, by feature gain). Measured: every gate of the corpus green -- the stress
+suites on DuckDB (4,785 of 4,813 tests pass) and H2 (4,756), the differential, the generators' gates, the diff
+tests -- and all 81 new services pass on both. Not yet run against legend-engine (the corpus's engine lane needs its
+runner and an engine).
+
+Next for the model: services for each Deephaven feature on the plan -- the scalars as derived properties, the
+aggregates, windows and as-of joins in the query spec -- each taught to the oracle, never relaxed.
 

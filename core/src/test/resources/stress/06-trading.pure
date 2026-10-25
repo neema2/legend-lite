@@ -239,6 +239,23 @@ Class trading::AveragePriceTrade
     currency: String[1];
 }
 
+// A REQUEST FOR QUOTE: a client asking the desk to price a currency pair -- quoted or not, done or missed. An FX desk's
+// hit ratio is its DONE requests over those it quoted; its response time how fast it answered.
+Class trading::Rfq
+{
+    rfqId: String[1];
+    requestTime: DateTime[1];
+    currencyPair: String[1];
+    side: String[1];
+    notional: Float[1];
+    tenor: String[1];
+    quotedRate: Float[0..1];   // none when the desk did not quote
+    spreadBps: Float[0..1];
+    status: String[1];         // DONE, MISSED, EXPIRED, DECLINED
+    responseTimeMs: Integer[0..1];
+    isHit: Boolean[1];
+}
+
 // ---- Intra-domain Associations ----
 
 Association trading::Order_Trade

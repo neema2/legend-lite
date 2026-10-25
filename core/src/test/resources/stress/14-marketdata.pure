@@ -23,6 +23,26 @@ Class marketdata::MarketQuote
     closePrice: Float[0..1];
     source: String[1];
     isDelayed: Boolean[1];
+    // The size at the top of the book: what a watchlist shows beside the price. None on a quote that carries prices only
+    // (an end-of-day close, a delayed feed).
+    bidSize: Float[0..1];
+    askSize: Float[0..1];
+}
+
+// A PRINT ON THE PUBLIC TAPE: the market's trade, not the bank's (a trading::Trade is booked; this is what the exchange
+// printed) -- what a ticker's time and sales, a candle and a VWAP read, and what a fill's markout is measured against.
+// Its sequence number orders a day's prints; the aggressor is the side that crossed the spread, none on a cross.
+Class marketdata::MarketTrade
+{
+    printId: String[1];
+    sequenceNumber: Integer[1];
+    printTime: DateTime[1];
+    price: Float[1];
+    quantity: Float[1];
+    aggressorSide: String[0..1];
+    venue: String[1];
+    tradeCondition: String[0..1];
+    isOffExchange: Boolean[1];
 }
 
 Class marketdata::FxRate

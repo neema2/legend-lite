@@ -407,4 +407,46 @@ Mapping stress::AllMapping
             syntheticPositions: [store::DB] @SyntheticPosition_Instrument
         )
     }
+    cross::MarketTrade_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @MarketTrade_Instrument,
+            prints: [store::DB] @MarketTrade_Instrument
+        )
+    }
+    cross::Order_Trader: Relational {
+        AssociationMapping (
+            trader: [store::DB] @Order_Trader,
+            orders: [store::DB] @Order_Trader
+        )
+    }
+    cross::Order_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @Order_Book,
+            orders: [store::DB] @Order_Book
+        )
+    }
+    cross::Option_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @Option_Instrument,
+            listedOption: [store::DB] @Option_Instrument
+        )
+    }
+    cross::VolatilitySurface_Underlying: Relational {
+        AssociationMapping (
+            underlyingInstrument: [store::DB] @VolatilitySurface_Underlying,
+            volatilitySurfaces: [store::DB] @VolatilitySurface_Underlying
+        )
+    }
+    cross::Rfq_Counterparty: Relational {
+        AssociationMapping (
+            client: [store::DB] @Rfq_Counterparty,
+            rfqs: [store::DB] @Rfq_Counterparty
+        )
+    }
+    cross::Rfq_Trader: Relational {
+        AssociationMapping (
+            dealer: [store::DB] @Rfq_Trader,
+            rfqs: [store::DB] @Rfq_Trader
+        )
+    }
 )

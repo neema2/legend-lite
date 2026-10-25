@@ -1427,14 +1427,16 @@ Mapping stress::DenseMapping
       scope([store::DB]MARKET_QUOTE)
       (
          ask: ASK,
+         askSize: ASK_SIZE,
          bid: BID,
+         bidSize: BID_SIZE,
          closePrice: CLOSE_PRICE,
          highPrice: HIGH_PRICE,
-         isDelayed: IS_DELAYED,
-         last: LAST
+         isDelayed: IS_DELAYED
       ),
       scope([store::DB])
       (
+         last: MARKET_QUOTE.LAST,
          lowPrice: MARKET_QUOTE.LOW_PRICE,
          mid: MARKET_QUOTE.MID,
          openPrice: MARKET_QUOTE.OPEN_PRICE,

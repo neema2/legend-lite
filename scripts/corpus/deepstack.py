@@ -74,7 +74,12 @@ MAX_ROOTS = 2100
 # an edge, but the taxonomies are homogeneous -- the same book.desk.businessUnit chain 1300
 # times -- so the 1300th adds a service and no coverage. Roots are ranked by reach, so this
 # takes the deepest and most varied, and the flat-root variants still cover everything.
-DEEP_ROOTS = 400
+#
+# 400 -> 416 (2026-10-25, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, the trader screens' shapes: the tape, an order's
+# trader and book, an option's own instrument, a surface's underlying, a request for quote's client and dealer). Those
+# links give sixteen trading roots more reach than sixteen of the old 400, which the ranking then dropped; the cap grows
+# by the sixteen so that no root's deep variants are lost -- the new roots are varied, not one more copy of a taxonomy.
+DEEP_ROOTS = 416
 
 
 # Single-construct mapping FIXTURES, each with its own store, runtime and data element.

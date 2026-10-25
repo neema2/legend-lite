@@ -307,3 +307,47 @@ Association cross::Settlement_Counterparty
     counterparty: counterparty::Counterparty[1];
     settlementsWithCpty: settlement::Settlement[*];
 }
+
+// ---- The trader screens (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md) ----
+
+Association cross::MarketTrade_Instrument
+{
+    instrument: products::Instrument[1];
+    prints: marketdata::MarketTrade[*];
+}
+
+Association cross::Order_Trader
+{
+    trader: org::Trader[0..1];
+    orders: trading::Order[*];
+}
+
+Association cross::Order_Book
+{
+    book: positions::Book[0..1];
+    orders: trading::Order[*];
+}
+
+Association cross::Option_Instrument
+{
+    instrument: products::Instrument[1];
+    listedOption: products::Option[0..1];
+}
+
+Association cross::VolatilitySurface_Underlying
+{
+    underlyingInstrument: products::Instrument[0..1];
+    volatilitySurfaces: marketdata::VolatilitySurface[*];
+}
+
+Association cross::Rfq_Counterparty
+{
+    client: counterparty::Counterparty[0..1];
+    rfqs: trading::Rfq[*];
+}
+
+Association cross::Rfq_Trader
+{
+    dealer: org::Trader[0..1];
+    rfqs: trading::Rfq[*];
+}

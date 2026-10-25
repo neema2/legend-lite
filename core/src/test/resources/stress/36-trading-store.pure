@@ -41,6 +41,10 @@ Mapping trading::TradingMapping
         ~mainTable [store::DB] TRADE_CORRECTION
         correctionId: [store::DB] TRADE_CORRECTION.CORRECTION_ID, correctionDate: [store::DB] TRADE_CORRECTION.CORRECTION_DATE, correctionType: [store::DB] TRADE_CORRECTION.CORRECTION_TYPE, originalValue: [store::DB] TRADE_CORRECTION.ORIGINAL_VALUE, correctedValue: [store::DB] TRADE_CORRECTION.CORRECTED_VALUE, fieldCorrected: [store::DB] TRADE_CORRECTION.FIELD_CORRECTED, reason: [store::DB] TRADE_CORRECTION.REASON, performedBy: [store::DB] TRADE_CORRECTION.PERFORMED_BY, approvedBy: [store::DB] TRADE_CORRECTION.APPROVED_BY, status: [store::DB] TRADE_CORRECTION.STATUS, isReversed: [store::DB] TRADE_CORRECTION.IS_REVERSED
     }
+    trading::Rfq: Relational {
+        ~mainTable [store::DB] RFQ
+        rfqId: [store::DB] RFQ.RFQ_ID, requestTime: [store::DB] RFQ.REQUEST_TIME, currencyPair: [store::DB] RFQ.CURRENCY_PAIR, side: [store::DB] RFQ.SIDE, notional: [store::DB] RFQ.NOTIONAL, tenor: [store::DB] RFQ.TENOR, quotedRate: [store::DB] RFQ.QUOTED_RATE, spreadBps: [store::DB] RFQ.SPREAD_BPS, status: [store::DB] RFQ.STATUS, responseTimeMs: [store::DB] RFQ.RESPONSE_TIME_MS, isHit: [store::DB] RFQ.IS_HIT
+    }
     trading::AveragePriceTrade: Relational {
         ~mainTable [store::DB] AVERAGE_PRICE_TRADE
         avgTradeId: [store::DB] AVERAGE_PRICE_TRADE.AVG_TRADE_ID, avgPrice: [store::DB] AVERAGE_PRICE_TRADE.AVG_PRICE, totalQuantity: [store::DB] AVERAGE_PRICE_TRADE.TOTAL_QUANTITY, totalNotional: [store::DB] AVERAGE_PRICE_TRADE.TOTAL_NOTIONAL, numberOfFills: [store::DB] AVERAGE_PRICE_TRADE.NUMBER_OF_FILLS, vwapPrice: [store::DB] AVERAGE_PRICE_TRADE.VWAP_PRICE, twapPrice: [store::DB] AVERAGE_PRICE_TRADE.TWAP_PRICE, arrivalPrice: [store::DB] AVERAGE_PRICE_TRADE.ARRIVAL_PRICE, closePrice: [store::DB] AVERAGE_PRICE_TRADE.CLOSE_PRICE, tradeDate: [store::DB] AVERAGE_PRICE_TRADE.TRADE_DATE, side: [store::DB] AVERAGE_PRICE_TRADE.SIDE, currency: [store::DB] AVERAGE_PRICE_TRADE.CURRENCY
