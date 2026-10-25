@@ -33,3 +33,8 @@ run	lite/reports_sales/revenue_by_category_share@iq17-default	row-typed	duckdb,p
 # SUM(SUM(e.salary)) OVER (), 2) over employees LEFT JOIN regions -- IQ's window total over the group's NUMERIC(9,2) sums
 # has 22 digits before its point (26 places), lite's 9 (13): sized by the join's estimate
 run	lite/reports_mixed/payroll_by_region_with_share@iq17-default	row-typed	duckdb,postgres
+#
+# The IQ scale program, 2026-10-26 (part E's judgement, snapped at c3e5333c): ROUND(promo_orders * 30.0 / (promo_days *
+# orders_30_days_before), 2) over a derived table's SUM columns -- IQ's quotient has 40 places, lite's 20: its divisor a
+# product of a derived total, typed far wider (derived-total), the value the same
+run	lite/reports_commerce/promotion_lift_by_join@iq17-default	row-typed	duckdb,postgres

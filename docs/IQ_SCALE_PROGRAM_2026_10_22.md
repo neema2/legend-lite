@@ -729,4 +729,12 @@ says so.
     189 of 193: MEDIAN of a BIGINT (not measured), a quotient past 38 digits (set aside), and one IQ error lite
     predicts (a derived table's scalar subquery read in a CASE, -1001030). The fixes' cases: `lite/census5_report_fixes`
     (9), at claude/iq-census-5 to snap.
+  - **Reports part E judged** (the root re-snapped at c3e5333c over the five new tables; 192 of 193 answered, the 193rd
+    IQ's -1001030 as lite predicts): 35 of E's 38 PASS on DuckDB and Postgres, one BOTH_ERROR, one refused (a quotient
+    past 38 digits), one row-typed (a quotient by a derived table's total, listed). The root: 180 of 193 PASS, 11
+    row-typed, none wrong. Parts F (22: EXISTS cohorts, DATEADD of a DATEDIFF, a median by row numbers, ABC classes,
+    basket pairs, a twelve-month pivot) and G (15: time on page by LEAD, bounces, days sales outstanding, formatted
+    invoices) follow to snap; lite answers all of F, and all of G but one it reads as IQ's -156 (SUM(units) AS units
+    beside MAX(units), the alias read inside the aggregate). The lint reads an outer join's ON for its NULL-supplying
+    side (662a9ad1).
   - **The Snowflake lane** (its sibling session idle since 10-23): its ledger column predates this day's typing.
