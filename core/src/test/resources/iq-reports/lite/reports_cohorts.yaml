@@ -1,0 +1,24 @@
+# The IQ scale program's realistic reports (2026-10-25): cohorts, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: cohort_retention_by_first_year
+    sql: "WITH firsts AS (SELECT customer_id, MIN(order_ts) AS first_ts FROM orders WHERE status <> 'cancelled' GROUP BY customer_id), activity AS (SELECT o.customer_id, YEAR(f.first_ts) AS cohort_year, DATEDIFF(MONTH, f.first_ts, o.order_ts) AS months_after FROM orders o JOIN firsts f ON f.customer_id = o.customer_id WHERE o.status <> 'cancelled') SELECT cohort_year, COUNT(DISTINCT customer_id) AS customers, COUNT(DISTINCT CASE WHEN months_after BETWEEN 1 AND 6 THEN customer_id END) AS active_m1_6, COUNT(DISTINCT CASE WHEN months_after BETWEEN 7 AND 12 THEN customer_id END) AS active_m7_12, COUNT(DISTINCT CASE WHEN months_after > 12 THEN customer_id END) AS active_after_m12 FROM activity GROUP BY cohort_year ORDER BY cohort_year"
+    profile: iq17-default
+  - id: long_gaps_between_orders
+    sql: "SELECT customer_id, id, order_ts, prev_ts, DATEDIFF(DAY, prev_ts, order_ts) AS gap_days FROM (SELECT customer_id, id, order_ts, LAG(order_ts) OVER (PARTITION BY customer_id ORDER BY order_ts, id) AS prev_ts FROM orders) x WHERE DATEDIFF(DAY, prev_ts, order_ts) > 180 ORDER BY customer_id, order_ts, id"
+    profile: iq17-default
+  - id: islands_of_consecutive_months
+    sql: "WITH months AS (SELECT DISTINCT customer_id, YEAR(order_ts) * 12 + MONTH(order_ts) - 1 AS month_no FROM orders WHERE status <> 'cancelled'), numbered AS (SELECT customer_id, month_no, month_no - ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY month_no) AS island FROM months) SELECT customer_id, island, MIN(month_no) AS first_month_no, MAX(month_no) AS last_month_no, COUNT(*) AS months_in_a_row FROM numbered GROUP BY customer_id, island HAVING COUNT(*) >= 2 ORDER BY customer_id, island"
+    profile: iq17-default
+  - id: first_basket_categories
+    sql: "WITH first_orders AS (SELECT id, customer_id, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_ts, id) AS rn FROM orders WHERE status <> 'cancelled') SELECT p.category, COUNT(DISTINCT f.customer_id) AS customers, SUM(oi.quantity) AS units FROM first_orders f JOIN order_items oi ON oi.order_id = f.id JOIN products p ON p.id = oi.product_id WHERE f.rn = 1 GROUP BY p.category ORDER BY customers DESC, p.category"
+    profile: iq17-default
+  - id: recency_buckets
+    sql: "SELECT CASE WHEN l.last_ts IS NULL THEN 'never' WHEN DATEDIFF(MONTH, l.last_ts, '2026-01-01') <= 3 THEN '0-3 months' WHEN DATEDIFF(MONTH, l.last_ts, '2026-01-01') <= 12 THEN '4-12 months' ELSE 'over a year' END AS recency, COUNT(*) AS customers, AVG(c.credit_limit) AS avg_limit FROM customers c LEFT JOIN (SELECT customer_id, MAX(order_ts) AS last_ts FROM orders GROUP BY customer_id) l ON l.customer_id = c.id GROUP BY CASE WHEN l.last_ts IS NULL THEN 'never' WHEN DATEDIFF(MONTH, l.last_ts, '2026-01-01') <= 3 THEN '0-3 months' WHEN DATEDIFF(MONTH, l.last_ts, '2026-01-01') <= 12 THEN '4-12 months' ELSE 'over a year' END ORDER BY recency"
+    profile: iq17-default
+  - id: weekly_orders_rolling_four_weeks
+    sql: "WITH weekly AS (SELECT DATEADD(DAY, 1 - DOW(order_ts), CAST(order_ts AS DATE)) AS week_start, COUNT(DISTINCT customer_id) AS active, COUNT(*) AS orders FROM orders WHERE order_ts >= '2025-07-01' GROUP BY DATEADD(DAY, 1 - DOW(order_ts), CAST(order_ts AS DATE))) SELECT week_start, active, orders, SUM(orders) OVER (ORDER BY week_start ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) AS orders_4wk, MAX(active) OVER (ORDER BY week_start ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) AS peak_active_4wk FROM weekly ORDER BY week_start"
+    profile: iq17-default
+  - id: new_vs_repeat_revenue_by_quarter
+    sql: "WITH firsts AS (SELECT customer_id, MIN(order_ts) AS first_ts FROM orders WHERE status = 'shipped' GROUP BY customer_id) SELECT YEAR(o.order_ts) AS yr, QUARTER(o.order_ts) AS qtr, SUM(CASE WHEN o.order_ts = f.first_ts THEN oi.quantity * oi.unit_price - oi.line_discount ELSE 0 END) AS first_order_revenue, SUM(CASE WHEN o.order_ts > f.first_ts THEN oi.quantity * oi.unit_price - oi.line_discount ELSE 0 END) AS repeat_revenue, COUNT(DISTINCT CASE WHEN o.order_ts > f.first_ts THEN o.customer_id END) AS repeat_customers FROM orders o JOIN firsts f ON f.customer_id = o.customer_id JOIN order_items oi ON oi.order_id = o.id WHERE o.status = 'shipped' GROUP BY YEAR(o.order_ts), QUARTER(o.order_ts) ORDER BY yr, qtr"
+    profile: iq17-default
