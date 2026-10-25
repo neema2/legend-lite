@@ -682,8 +682,11 @@ brief moves as often down as up (a stake cut, a share offering). Measured on the
 declining after half an hour, moves of a tenth of a percent to 2.8%, the largest name 0.8% up across its prior close.
 *Blocks were 44% of the tape*: a thinned morning's print stands for several (the tape keeps a share of the morning's
 prints, each that much larger), so it is now the tape's own bunched trade (condition B), never a block; the desk counts
-34 blocks in 140,944 prints. *A tab's name was cut* ("Mark…", "Optio…") with half the bar empty: a sheet's tab is now its
-label's width (`app.css`), never the strip's average. *The coins were listed by volume in coins* (DOGE first, BTC last):
+34 blocks in 140,944 prints. *A tab's name was cut* ("Mark…", "Optio…") with half the bar empty: measured in the browser, the tabs' strip came
+out at 802px of the bar's 1,529 free -- Chrome sizes it by its tabs' intrinsic widths, which their 160px flex basis does
+not set -- so ten tabs took 76px each and the empty status beside them the rest. A tab's width is now 160px too
+(`app.css`), its basis as before: ten tabs are 149px each on a 1680px screen, three are 160px, and on a narrow one they
+shrink alike as designed. *The coins were listed by volume in coins* (DOGE first, BTC last):
 by price now, the majors first. *Every grid's drag zones* took two rows of each tile: a screen's grids are saved with
 them folded (`showDragZones`), their chevron bringing them back.
 
