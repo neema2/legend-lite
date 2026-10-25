@@ -1,10 +1,11 @@
 // THE TRADER SCREENS, CHECKED (//datacube:deephaven_traders_test; docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K4, K8-K13),
 // run in the pinned Chromium. Node only drives: it starts the pinned Deephaven running the market world (a small one,
 // its crypto feed refused so the world simulates it), serves the trader screens (demo/deephaven/market/traders.ts), and
-// opens each screen from the page's menu as a person does. For each: every grid shows rows and every chart draws; at
+// opens each screen from the page's Open… as a person does. For each: every grid shows rows and every chart draws; at
 // every tick each grid runs again and the charts on the sheet shown draw again, from the live rows -- nothing sent,
-// nothing fetched; and the page saved and opened again, every grid and chart back and ticking. A screenshot of each
-// sheet of each screen is its output.
+// nothing fetched. The first is saved by Save As… under a name of its own, found in Open… and opened from it, every
+// grid and chart back and ticking -- and found there again after the tab is reloaded. A screenshot of each sheet of
+// each screen is its output.
 
 // first: points Playwright at the Chromium Bazel fetched
 import '../../../tools/browser/pinned-chromium.mjs';
@@ -65,6 +66,18 @@ try {
   };
   const status = () => page.evaluate(() => ({ text: document.getElementById('status')?.textContent ?? '',
     kind: document.getElementById('status')?.className ?? '' }));
+  /** The page's menu entry `label` clicked, as a person does: the menu opened, the entry's group hovered if it is in one. */
+  const menu = async (label) => {
+    await page.click('.dc-titlebar-menu');
+    const item = page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("${label}"))`).first();
+    if (!(await item.isVisible())) await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("File"))').first().hover();
+    await item.click();
+  };
+  /** Open…, as a person opens it: its window, its saved pages listed. */
+  const openWindow = async () => {
+    await menu('Open\u2026');
+    await page.locator('#cubeswin #cubelib').waitFor({ timeout: 10_000 });
+  };
 
   /** The screen on the page now, checked: every grid's rows, every chart drawn, each sheet ticking; `name` says which. */
   const checkScreen = async (name, opened) => {
@@ -129,15 +142,33 @@ try {
   ok(`the page live in ${(startup / 1000).toFixed(1)} s from a cold tab: ${Object.entries(first.state.startup).map(([k, v]) => `${k} ${(v / 1000).toFixed(1)} s`).join(', ')}`);
   const screens = first.state.screens;
 
-  // B2: THE SCREEN SAVED AND OPENED AGAIN -- every grid made again over its source as it is now, its charts as saved
-  const saved = await page.evaluate(() => window.__traders.save());
-  const doc = JSON.parse(saved);
-  await page.evaluate((text) => window.__traders.open(text), saved);
-  const again = await checkScreen('Ticker, saved and opened again', first.state.opened + 1);
+  // B2: THE SCREEN SAVED BY SAVE AS…, UNDER A NAME, AND OPENED AGAIN FROM OPEN… -- the tab's own store of saved pages;
+  // every grid made again over its source as it is now, its charts as saved
+  const doc = JSON.parse(await page.evaluate(() => window.__traders.save()));
+  const NAME = 'My ticker';
+  await menu('Save As\u2026');
+  await page.locator('.dc-save').waitFor({ timeout: 10_000 });
+  await page.fill('.dc-save-input', NAME);
+  await page.locator('.dc-save-foot .dc-primary').click();
+  await page.locator('.dc-save').waitFor({ state: 'detached', timeout: 30_000 });
+  const savedSaid = await status();
+  if (savedSaid.text.includes(NAME) && savedSaid.kind === 'ok') ok(`saved by Save As…: the page says “${savedSaid.text}”`);
+  else fail(`Save As… said ${JSON.stringify(savedSaid)}`);
+  await openWindow();
+  await page.locator('#cubelib .dc-lib-row', { hasText: NAME }).waitFor({ timeout: 10_000 });
+  await page.screenshot({ path: join(outputs, 'open.png') });
+  const listed = await page.locator('#cubeswin .dc-open-example .dc-open-example-name').allTextContents();
+  if (JSON.stringify(listed) === JSON.stringify(screens.map((x) => x.label))) ok(`Open… lists the ${listed.length} trader screens: ${listed.join(', ')}`);
+  else fail(`Open… lists the screens ${JSON.stringify(listed)}`);
+  const row = page.locator('#cubelib .dc-lib-row', { hasText: NAME });
+  await row.waitFor({ timeout: 10_000 });
+  await row.locator('.dc-lib-button', { hasText: 'Open' }).click();
+  const again = await checkScreen(`${NAME}, saved and opened again from Open…`, first.state.opened + 1);
+  if (await page.locator('#cubeswin').count() !== 0) fail('Open… stayed open after the page opened');
   const same = JSON.stringify(Object.keys(again.state.grids).sort()) === JSON.stringify(Object.keys(first.state.grids).sort())
     && JSON.stringify(Object.keys(again.state.charts).sort()) === JSON.stringify(Object.keys(first.state.charts).sort());
-  if (same && again.doc.cubes.length === doc.cubes.length) ok(`saved and opened again: the same ${doc.cubes.length} grids and ${Object.keys(again.state.charts).length} charts`);
-  else fail(`opened again: grids ${Object.keys(again.state.grids).join(', ')}; charts ${Object.keys(again.state.charts).join(', ')}`);
+  if (same && again.doc.cubes.length === doc.cubes.length && again.doc.name === NAME) ok(`saved and opened again: “${again.doc.name}”, the same ${doc.cubes.length} grids and ${Object.keys(again.state.charts).length} charts`);
+  else fail(`opened again as “${again.doc.name}”: grids ${Object.keys(again.state.grids).join(', ')}; charts ${Object.keys(again.state.charts).join(', ')}`);
 
   /** A list of names, one row a name, never names one twice -- in any view it shows while it ticks, nor on screen (a
    *  window over a result re-sorted at every tick: the trader screens, 2026-10-25, painted a name twice at two prices,
@@ -181,10 +212,11 @@ try {
   };
   await noRepeats('Watchlist', [{ name: 'Watchlist', tile: 'watchlist' }], 'ticker', 3000);
 
-  // EVERY OTHER SCREEN, opened from the menu's list
+  // EVERY OTHER SCREEN, opened from Open…'s list of them
   let opened = again.state.opened;
   for (const screen of screens.slice(1)) {
-    await page.evaluate((id) => window.__traders.openScreen(id), screen.id);
+    await openWindow();
+    await page.locator(`#cubeswin .dc-open-example[data-example="${screen.id}"]`).click();
     opened++;
     await checkScreen(screen.label, opened);
     if (screen.id === 'market-map') {
@@ -193,6 +225,18 @@ try {
     }
   }
   ok(`${screens.length} trader screens: ${screens.map((x) => x.label).join(', ')}`);
+
+  // THE SAVED PAGE KEPT: the tab reloaded, it is in Open… still, and opens
+  await page.reload();
+  await until((x) => x.status === 'live' && x.opened >= 1, 'live again after a reload');
+  await openWindow();
+  const kept = page.locator('#cubelib .dc-lib-row', { hasText: NAME });
+  await kept.waitFor({ timeout: 10_000 });
+  const before = (await state()).opened;
+  await kept.locator('.dc-lib-button', { hasText: 'Open' }).click();
+  await until((x) => x.status === 'live' && x.opened > before && x.screen === 'saved'
+    && Object.values(x.grids).every((g) => g.views >= 1 && g.rows.length > 0), `“${NAME}” open after a reload`);
+  ok(`after a reload, “${NAME}” is in Open… still, and opens with every grid's rows`);
 } catch (e) {
   fail(e?.stack ?? String(e));
 } finally {

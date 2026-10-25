@@ -65,7 +65,7 @@ Each row is a thing done outside the platform, to push into it.
 | `market/market.groovy`'s Coinbase feed (K2) | crypto from Coinbase Exchange's public feed, the simulator in its place where it is refused | no feed ingestion in lite | a feed declared in the store and started by the platform; Kafka into Deephaven in production |
 | `market/market.groovy`'s `world` table (K2) | what each part of the world is and why (simulated, live, connecting) | the page has no other way to learn it | the feed's own status, a system table of the platform's |
 | `market/market.groovy`'s bank (K9-K13) | the bank's own day: desks, traders, books, positions at the prior close, limits; parent orders worked by algorithms into fills and routes on the market's own prices; FX prices; clients' RFQs quoted and done or missed; a listed option chain settled by Black and Scholes | lite writes no rows into Deephaven yet, and a bank's books and blotters come from its systems of record | each its own source -- an OMS's orders and fills, a position keeper, a pricing engine -- declared in the store and published by the platform (L5) |
-| `market/traders.ts`, the host (K4) | the page around DataCube's: its menu of trader screens, each written by `screens.ts` and opened as a saved page is | the screens are saved pages of a demo of their own, not yet a project's | a project's saved pages, listed by DataCube's own Open window |
+| `market/traders.ts`, the host (K4) | the page around DataCube's: the trader screens, each written by `screens.ts`, listed in DataCube's own Open window (its library, its examples' place) and opened as a saved page is; Save and Open on the tab's own store | the screens are pages of a demo of their own, not yet a project's, and the tab's app (`datacube-app.ts`) opens no grid on Deephaven, so the host builds the Open window's frame the app builds (about 60 lines) | a project's saved pages on Deephaven, opened by the app itself |
 
 ## 4. Realistic speeds
 
@@ -404,10 +404,16 @@ and see from datacube -- can be different tabs or different saved pages similar 
 by DataCube's own writers (`writeCube`, `writePageOf`) as the example pages are: its grids and charts, a sheet (a tab)
 per view of the desk. Every grid's source is a saved query over the one trading model's classes, its text and its
 execution context (`stress::AllMapping` on `market::LiveRuntime`); its columns come from the tab's planner. The host
-(`traders.ts`, `bazel run //datacube:deephaven_traders`) is DataCube's own page over the market world's Deephaven: its
-menu (Trader screens ▸) opens a screen as a saved page is opened -- each grid made again over its source as it is now,
-by `openCube` -- and its Save and Open keep the page as a person left it in the browser. Every grid has its own reader
-and ticks from the rows it follows.
+(`traders.ts`, `bazel run //datacube:deephaven_traders`) is DataCube's own page over the market world's Deephaven, and
+its Open… and Save are DataCube's (2026-10-25): Open… is the app's window (`CubeLibrary`) -- the pages saved in this
+browser, searched, sorted, opened, deleted, or a page file opened -- and, under them where the app lists its example
+pages (the chart pages), the seven trader screens, each with what it shows; Save, Save As… (the app's `saveDialog`) and
+Export ▸ Page File keep the page as a person left it, in the tab's own store of saved pages by its rules
+(`src/services/browser-pages.ts`, moved out of the tab's services so both open it: legend-lite's SavedCubes, compiled to
+WebAssembly). A screen picked opens as a saved page is opened -- each grid made again over its source as it is now, by
+`openCube` -- and so does a saved page; the menu's Trader screens ▸ opens them too. Every grid has its own reader and
+ticks from the rows it follows. The test opens every screen from Open…, saves the first by Save As… under a name of its
+own, opens it from Open…, and finds it there again after the tab is reloaded.
 
 **K4, the ticker (2026-10-25).** Two sheets. *Watchlist*: every name's quote (last, bid, ask and their sizes, the day's
 open, high and low, volume, the change against the prior close in green and red, the spread in basis points); the tape
@@ -525,3 +531,9 @@ Deephaven yet (DH30).
 Measured (`//datacube:deephaven_traders_test`, all seven screens in one run, the pinned Chromium, a world of 100
 names): each screen open in 2 to 8 s, every sheet ticking with nothing sent or fetched, a tick on screen 14 to 51 ms
 after its rows (p50), no name painted twice on any list.
+
+**The bundle budgets (2026-10-25), for the user's sign-off (D9).** The screens' DataCube steps -- an axis fitted to its
+values, a treemap coloured by a value and its reach, a heatmap's labels, a measure's title, a second's fraction in a
+format code, a grid drawn again when its height changes -- grew the scripts the budgets measure: the grid-only page
+359,000 -> 359,500 (measured 359,107), a first chart 304,000 -> 304,500 (304,219), a notebook's cube 366,500 -> 367,000
+(366,801); each dated in `datacube/test/bundle-budget.test.ts`.

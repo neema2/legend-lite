@@ -318,8 +318,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  painter a tick draws with (grid.ts #cell), measured again at a tick). Measured 358,132.
  *  358,500 -> 359,000 (2026-10-24, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K3: the candlestick's rules, its values and
  *  a value's second column (chart-spec.ts candleMeasures, the spec's `weight`), which the chart's rules read at startup;
- *  for the user's sign-off, D9). Measured 358,756. */
-const BUDGET = 359_000;
+ *  for the user's sign-off, D9). Measured 358,756.
+ *  359,000 -> 359,500 (2026-10-25, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K4, K8-K13, the trader screens: a format
+ *  code's fraction of a second (format-code.ts `ss.000`, a print's time to the millisecond), a grid drawn again when its
+ *  height changes (grid.ts: one drawn on a sheet not shown painted a name twice once shown), and the chart rules' new
+ *  keys read at startup -- an axis fitted to its values, a treemap's colour by a value and its reach, a measure's title
+ *  (chart-spec.ts); for the user's sign-off, D9). Measured 359,107. */
+const BUDGET = 359_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -457,8 +462,12 @@ const ENGINE_BUDGET = 347_500;
  *  is theirs). Measured 302,497.
  *  303,000 -> 304,000 (2026-10-23, docs/DEEPHAVEN_PLAN_2026_10_22.md C2, the user's "a chart's scale held while it
  *  ticks"): the drawing says each value axis's extent (chart-option.ts `hold`) and the renderer holds it on a tick
- *  (chart-render.ts `heldOption`, `drawnExtents`). Measured 303,067. */
-const CHART_BUDGET = 304_000;
+ *  (chart-render.ts `heldOption`, `drawnExtents`). Measured 303,067.
+ *  304,000 -> 304,500 (2026-10-25, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K4, K8-K13, the trader screens): an axis
+ *  fitted to its values (`fitAxis`), a treemap of a grid's rows coloured by a value from red through grey to green
+ *  (`treemapOfGrid`'s colour, `colourReach`), a heatmap's cells labelled in the measure's format, a measure's own title
+ *  (chart-option.ts); for the user's sign-off, D9. Measured 304,219. */
+const CHART_BUDGET = 304_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -591,8 +600,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  grid-only page's note of the same date). Measured 362,642.
  *  363,000 -> 366,000 (2026-10-24, main (PR #72) merged into the Deephaven line -- the grid-only page's note of the same
  *  date). Measured 365,842.
- *  366,000 -> 366,500 (2026-10-24, K3's candlestick -- the grid-only page's note of the same date). Measured 366,467. */
-const WIDGET_BUDGET = 366_500;
+ *  366,000 -> 366,500 (2026-10-24, K3's candlestick -- the grid-only page's note of the same date). Measured 366,467.
+ *  366,500 -> 367,000 (2026-10-25, the trader screens' DataCube steps -- the grid-only page's note of the same date).
+ *  Measured 366,801. */
+const WIDGET_BUDGET = 367_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

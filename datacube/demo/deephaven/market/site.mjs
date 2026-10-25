@@ -1,7 +1,8 @@
 // THE TRADER SCREENS' SITE (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K4, K8-K13), for the hand tool (serve.mjs) and the
 // test (test/deephaven/traders.mjs): the trader screens' page (traders.html) served at / on the loopback from Bazel's
-// runfiles, beside DataCube's styles, the planner's module, the one trading model the page holds, and the market
-// world's address and key (config.json). The server itself is started by ../site.mjs's startDeephaven.
+// runfiles, beside DataCube's styles, the planner's module, the saved pages' module, the one trading model the page
+// holds, and the market world's address and key (config.json). The server itself is started by ../site.mjs's
+// startDeephaven.
 
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -18,6 +19,9 @@ export async function serveTraders(config, port = 0) {
     '/theme.css': style('theme.css'),
     '/wasm-gc-module-runtime.js': ['text/javascript', readFileSync(runfileNamed('PLANNER', 'wasm-gc-module-runtime.js'))],
     '/classes.wasm': ['application/wasm', readFileSync(runfileNamed('PLANNER', 'classes.wasm'))],
+    // the saved pages' rules (Open…, Save), the tab's own store's module
+    '/queries/wasm-gc-module-runtime.js': ['text/javascript', readFileSync(runfileNamed('QUERIES', 'wasm-gc-module-runtime.js'))],
+    '/queries/classes.wasm': ['application/wasm', readFileSync(runfileNamed('QUERIES', 'classes.wasm'))],
     // the one trading model (//scripts/corpus:trading_model), which the page holds
     '/trading-model.pure': ['text/plain; charset=utf-8', readFileSync(runfileFromEnv('TRADING_MODEL'))],
     '/config.json': ['application/json', JSON.stringify({ url: config.url, psk: config.psk })],

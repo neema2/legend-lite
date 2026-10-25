@@ -3,8 +3,13 @@
 // (screens.ts) opened from the page's menu (Trader screens ▸) as any saved page is opened: each grid made again over its
 // source as it is now -- a saved query over the one trading model's classes, typed by the tab's planner -- and its
 // charts and sheets as saved. Every grid has its own reader (`DeephavenEngine.reader()`): it follows what its views and
-// charts read, and a tick runs that grid again from the live rows and draws its charts again. Save and Open keep the
-// page as it is now in this browser: a screen moved about, a grid regrouped, a chart added, all kept.
+// charts read, and a tick runs that grid again from the live rows and draws its charts again.
+//
+// OPEN… AND SAVE ARE DATACUBE'S (src/app/datacube-app.ts): Open… lists the pages saved in this browser -- searched,
+// sorted, opened, deleted, or a page file opened -- and, under them as its examples are, the trader screens, each
+// written afresh from its definition; Save, Save As… and Export ▸ Page File keep the page as it is now, in the tab's
+// own store of saved pages and by its rules (src/services/browser-pages.ts): a screen moved about, a grid regrouped,
+// a chart added, all kept, and opened again over the market as it is then.
 //
 // EACH GRID READS A BASE ON THE SERVER (src/server-base.ts B1): its source -- the joins to the classes it reads, its
 // calculated columns (an option's Black and Scholes) -- computed once into a table the server keeps, every query of the
@@ -18,13 +23,18 @@ import { tiles } from '../../../src/layout/bands.ts';
 import { openCube } from '../../../src/cube-document.ts';
 import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../../../src/config.ts';
 import { LitePlanner } from '../../../src/lite-planner.ts';
-import { pageToJson, readPage, type PageDocument } from '../../../src/page-document.ts';
+import { NOTHING_TO_SAVE, pageSaving, pageToJson, readPage, readSaved, savedPage, type PageDocument } from '../../../src/page-document.ts';
 import { PageApp, type GridMaker } from '../../../src/page/page-app.ts';
 import { ServerBases } from '../../../src/server-base.ts';
+import { browserBasics } from '../../../src/services/browser-basics.ts';
+import { browserPages } from '../../../src/services/browser-pages.ts';
+import { CubeLibrary } from '../../../src/ui/cube-library.ts';
+import { saveDialog } from '../../../src/ui/save-dialog.ts';
 import type { ColumnSpec, CubeSnapshot } from '../../../src/snapshot.ts';
 import type { TreeState } from '../../../src/tree.ts';
 import type { MenuItem } from '../../../src/ui/menu.ts';
 import type { ValueSpecification } from '../../../../pure-protocol/src/index.ts';
+import { loadQueriesModule } from '../../../../query-store/src/wasm-server.ts';
 import { DeephavenEngine, type DeephavenCounts } from '../../../../engine-client/src/deephaven-engine.ts';
 import { MARKET_CONNECTION, MARKET_MODEL, MARKET_RUNTIME } from './model.ts';
 import { TRADER_PAGES, isMarketSource, type TraderPage } from './screens.ts';
@@ -61,9 +71,9 @@ interface ShownChart {
 interface Shown {
   status: 'starting' | 'opening' | 'live' | 'reconnecting' | 'failed';
   error: string;
-  /** The screen on the page now, by its id (a page opened from this browser: 'saved'). */
+  /** The screen on the page now, by its id (a page saved in this browser, or a page file: 'saved'). */
   screen: string;
-  /** The screens the menu opens. */
+  /** The screens Open… and the menu open. */
   screens: readonly { readonly id: string; readonly label: string }[];
   reconnects: number;
   opened: number;
@@ -93,8 +103,6 @@ const shown: Shown = {
   reconnects: 0, opened: 0, openMs: 0, openSteps: {}, startup: {}, planner: {}, grids: {}, charts: {}, counts: null, paused: false,
 };
 (window as unknown as { __traders: Shown }).__traders = shown;
-/** Where Save keeps the page: this browser's storage. */
-const SAVED = 'legend-lite.deephaven.traders';
 
 const byId = (id: string): HTMLElement => {
   const e = document.getElementById(id);
@@ -305,35 +313,35 @@ async function main(): Promise<void> {
     said('live');
   };
 
+  // THE SAVED PAGES: the tab's store and its rules (src/services/browser-pages.ts), in this browser for this page's
+  // address; the rules' module (query-store's, WebAssembly) fetched at the store's first call
+  const pages = await browserPages(() => loadQueriesModule(new URL('queries/', location.href).href));
+  let showOpen = (): void => undefined;
+  let saveAs = (_asNew: boolean): void => undefined;
   const screenItems = (): MenuItem[] => TRADER_PAGES.map((p) => ({
     id: `host.screen.${p.id}` as const, label: p.label, ...(shown.screen === p.id ? { checked: true } : {}),
   }));
   const page: PageApp = new PageApp({
     host: byId('cube'),
     title: 'Trader screens',
-    empty: (slot) => { slot.textContent = 'No grids: open a screen from the menu (Trader screens ▸)'; },
+    empty: (slot) => { slot.textContent = 'No grids: open a screen from the menu (Open…, or Trader screens ▸)'; },
     hostMenu: () => [
+      // the app's own entries (src/app/datacube-app.ts), the screens a submenu beside them
+      { id: 'host.save' as const, label: 'Save', section: 'file' as const },
+      { id: 'host.saveAs' as const, label: 'Save As\u2026', section: 'file' as const },
+      { id: 'host.open' as const, label: 'Open\u2026', section: 'file' as const },
       { label: 'Trader screens', section: 'file' as const, submenu: screenItems() },
-      { id: 'host.save' as const, label: 'Save in this browser', section: 'file' as const },
-      { id: 'host.open' as const, label: 'Open from this browser', section: 'file' as const },
     ],
     onHostMenu: (item) => {
       const id = item.id ?? '';
-      if (id.startsWith('host.screen.')) {
-        openScreen(id.slice('host.screen.'.length)).catch((e: unknown) => failedToOpen(e));
-      } else if (id === 'host.save') {
-        try {
-          localStorage.setItem(SAVED, save());
-          said('saved in this browser', 'ok', true);
-        } catch (e) {
-          said(`could not save: ${e instanceof Error ? e.message : String(e)}`, 'error');
-        }
-      } else if (id === 'host.open') {
-        const saved = localStorage.getItem(SAVED);
-        if (saved === null) said('nothing saved in this browser', 'warn');
-        else open(saved, 'saved').catch((e: unknown) => failedToOpen(e));
-      }
+      if (id.startsWith('host.screen.')) openScreen(id.slice('host.screen.'.length)).catch((e: unknown) => failedToOpen(e));
+      else if (id === 'host.save') saveAs(false);
+      else if (id === 'host.saveAs') saveAs(true);
+      else if (id === 'host.open') showOpen();
     },
+    // Export ▸ Page File (JSON): the page as Save writes it, for Open…'s "Open a cube file…" here or anywhere
+    download: (name, mime, content) => browserBasics.download(name, mime, content),
+    refuse: (text) => said(text, 'error'),
   });
   const failedToOpen = (e: unknown): void => {
     shown.status = 'live';
@@ -347,6 +355,52 @@ async function main(): Promise<void> {
     const doc = page.document(page.title);
     if (doc === undefined) throw new Error('the page could not write itself down');
     return pageToJson(doc);
+  };
+
+  /** The page saved in the store as `name`: over the saved page it is, or, Save As (`asNew`), a new one -- the record
+   *  by DataCube's one rule (pageSaving), as the tab's Save writes it. */
+  const saveTo = async (name: string, asNew: boolean): Promise<void> => {
+    const refused = page.saveRefusal();
+    if (refused !== undefined) throw new Error(refused);
+    const doc = page.document(name);
+    if (doc === undefined) throw new Error('This page cannot be saved yet: a grid on it does not know its source.');
+    const saving = pageSaving(name, doc, crypto.randomUUID(), asNew);
+    if ('refused' in saving) throw new Error(saving.refused);
+    const { record } = saving;
+    if (saving.over) await pages.store.update(record.id, record);
+    else await pages.store.create(record);
+    page.savedAs(record.id);
+    page.rename(record.name);
+    await pages.persist();
+    library.sync();
+    said(`saved “${record.name}” ${pages.where}`, 'ok', true);
+  };
+  // SAVE AND SAVE AS: the app's window (src/ui/save-dialog.ts) -- the name, where it is kept, what is kept and what not
+  saveAs = (asNew) => {
+    if (page.empty) {
+      said(NOTHING_TO_SAVE, 'warn', true);
+      return;
+    }
+    void (async () => {
+      const record = page.record;
+      const over = record !== undefined ? await pages.store.get(record).catch(() => undefined) : undefined;
+      const views = page.views().views;
+      const charts = views.filter((v) => v.kind === 'chart').length;
+      const grids = views.filter((v) => v.kind === 'grid').length;
+      await saveDialog(document, {
+        purpose: asNew || over === undefined ? 'saveAs' : 'save',
+        name: over?.name ?? page.suggestedName,
+        ...(over !== undefined ? { over: { name: over.name, ...(over.lastUpdatedAt !== undefined ? { savedAt: over.lastUpdatedAt } : {}) } } : {}),
+        where: pages.where,
+        keeps: [
+          `${grids} grid${grids === 1 ? '' : 's'}, each grouped, filtered and calculated as it is now`,
+          `${charts} visualization${charts === 1 ? '' : 's'}, the page's ${page.sheets.length} sheet${page.sheets.length === 1 ? '' : 's'} and their layouts`,
+          "Each grid's formats, widths, colours and settings",
+        ],
+        leaves: 'Not the rows: opening it reads each grid\'s source from the market on Deephaven again, live.',
+        save: (name, saveAsNew) => saveTo(name, saveAsNew),
+      });
+    })().catch((e: unknown) => said(`could not save: ${e instanceof Error ? e.message : String(e)}`, 'error'));
   };
 
   /** The charts `ids` watched as they draw: their values (a KPI's figure), and their time from their grid's tick. */
@@ -463,6 +517,105 @@ async function main(): Promise<void> {
     if (screen === undefined) throw new Error(`no trader screen '${id}'`);
     const doc = await screen.build(async (text) => (await typeOf(text)).columns);
     await open(doc, id);
+  };
+
+  // OPEN…: the app's window (src/app/datacube-app.ts) -- the saved pages, and the trader screens under them as its
+  // examples are; it closes once a page opens, and what failed is said in it
+  const libraryRoot = document.createElement('div');
+  libraryRoot.id = 'cubelib';
+  const library = new CubeLibrary(libraryRoot, pages.store, {
+    currentId: () => page.record,
+    open: async (id) => {
+      await open(savedPage(readSaved((await pages.store.get(id)).content)), 'saved');
+      closeOpen?.();
+    },
+    openText: async (text) => {
+      await open(savedPage(readSaved(text)), 'saved');
+      closeOpen?.();
+    },
+    forget: async (id) => { if (page.record === id) page.savedAs(null); },
+  });
+  let closeOpen: (() => void) | undefined;
+  showOpen = () => {
+    if (!closeOpen) {
+      const backdrop = document.createElement('div');
+      backdrop.id = 'cubeswin';
+      backdrop.className = 'dc-picker-backdrop';
+      const win = document.createElement('div');
+      win.className = 'dc-picker dc-open dc-app-floating';
+      win.setAttribute('role', 'dialog');
+      win.setAttribute('aria-modal', 'true');
+      win.setAttribute('aria-labelledby', 'dc-open-title');
+      const head = document.createElement('div');
+      head.className = 'dc-picker-head';
+      const titles = document.createElement('div');
+      titles.className = 'dc-picker-titles';
+      const title = document.createElement('h2');
+      title.className = 'dc-picker-title';
+      title.id = 'dc-open-title';
+      title.textContent = 'Open a saved page';
+      const sub = document.createElement('p');
+      sub.className = 'dc-picker-subtitle';
+      sub.textContent = `Saved ${pages.where}. Each reopens over the market on Deephaven as it is then, live; or open a trader screen.`;
+      titles.append(title, sub);
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'dc-picker-close';
+      close.setAttribute('aria-label', 'Close');
+      close.textContent = '\u00d7';
+      head.append(titles, close);
+      const body = document.createElement('div');
+      body.className = 'dc-open-body';
+      body.append(libraryRoot, screensList());
+      win.append(head, body);
+      backdrop.append(win);
+      document.body.append(backdrop);
+      const onKey = (e: KeyboardEvent): void => {
+        if (e.key === 'Escape') { e.preventDefault(); closeOpen?.(); }
+      };
+      document.addEventListener('keydown', onKey, true);
+      closeOpen = () => {
+        document.removeEventListener('keydown', onKey, true);
+        backdrop.remove();
+        closeOpen = undefined;
+      };
+      close.addEventListener('click', () => closeOpen?.());
+      backdrop.addEventListener('mousedown', (e) => { if (e.target === backdrop) closeOpen?.(); });
+    }
+    library.sync();
+    void library.refresh();
+    (libraryRoot.querySelector('.dc-lib-search') as HTMLElement | null)?.focus();
+  };
+  /** The trader screens, under the saved pages as the app's examples are: each written afresh when it is picked. */
+  const screensList = (): HTMLElement => {
+    const box = document.createElement('section');
+    box.className = 'dc-open-examples';
+    box.setAttribute('aria-label', 'Trader screens');
+    const heading = document.createElement('h3');
+    heading.className = 'dc-open-examples-title';
+    heading.textContent = 'Trader screens';
+    box.append(heading);
+    for (const screen of TRADER_PAGES) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'dc-open-example';
+      item.dataset['example'] = screen.id;
+      const name = document.createElement('span');
+      name.className = 'dc-open-example-name';
+      name.textContent = screen.label;
+      const about = document.createElement('span');
+      about.className = 'dc-open-example-about';
+      about.textContent = screen.about;
+      item.append(name, about);
+      item.addEventListener('click', () => {
+        item.disabled = true;
+        openScreen(screen.id).then(() => closeOpen?.(), (e: unknown) => {
+          library.say(`Could not open ${screen.label}: ${e instanceof Error ? e.message : String(e)}`, 'warn');
+        }).finally(() => { item.disabled = false; });
+      });
+      box.append(item);
+    }
+    return box;
   };
 
   shown.openScreen = openScreen;

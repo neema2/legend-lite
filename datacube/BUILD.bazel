@@ -2228,6 +2228,8 @@ _DEEPHAVEN_TRADERS_DATA = [
     ":deephaven_market_fixture",
     ":deephaven_market_fixture_executable",
     ":deephaven_traders_bundle",
+    # the saved pages' rules (Open…, Save: the tab's store, src/services/browser-pages.ts)
+    "//query-store:page",
     "//scripts/corpus:trading_model",
     "//wasm:planner",
 ]
@@ -2239,6 +2241,7 @@ _DEEPHAVEN_TRADERS_ENV = {
     "CUBE_STYLES": "$(rlocationpaths :deephaven_cube_styles)",
     "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
     "PLANNER": "$(rlocationpaths //wasm:planner)",
+    "QUERIES": "$(rlocationpaths //query-store:page)",
 }
 
 # `bazel run //datacube:deephaven_traders`: the trader screens by hand, their address printed (a hand tool: manual,
@@ -2259,9 +2262,9 @@ js_binary(
     tags = ["manual"],
 )
 
-# Every trader screen opened from the page's menu, in the pinned Chromium, over a small market world (its crypto feed
+# Every trader screen opened from the page's Open…, in the pinned Chromium, over a small market world (its crypto feed
 # refused): every grid's rows and every chart drawn, each sheet ticking with nothing sent or fetched, the page saved
-# and opened again. A screenshot of each sheet is its output. Manual, beside the market world's test.
+# by Save As… and opened again from Open…. A screenshot of each sheet is its output. Manual, beside the market world's test.
 browser_test(
     name = "deephaven_traders_test",
     size = "large",

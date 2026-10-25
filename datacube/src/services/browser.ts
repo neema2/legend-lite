@@ -12,22 +12,18 @@ import type { ProjectDatabases, ProjectDataSource } from '../../../engine-client
 import type { WarehouseBinding } from '../../../engine-client/src/warehouse.ts';
 import type { QueriesModule, QueryReader } from '../../../query-store/src/index.ts';
 import type { Planner } from '../cube.ts';
-import {
-  BrowserRecords, CubeStoreClient, LOCAL_CUBES_API, MemoryRecords, openCubeDatabase, persistStorage, wasmCubeServer, type CubeRecords,
-} from '../cube-store.ts';
-import { FileHandles } from '../file-handles.ts';
 import type { TableModels } from '../infer.ts';
 import { writesModels, type ModelWriter } from '../model-writer.ts';
 import type { ModelOptions } from '../planner.ts';
 import { PlanThenRun } from '../runner.ts';
 import { forgetUpload, ingestFile, mountRemoteView } from '../upload.ts';
 import { browserBasics, tabTitle } from './browser-basics.ts';
+import { browserPages } from './browser-pages.ts';
 import type {
   ConfiguredProject,
   DatabaseService,
   ModelHomeService,
   ModelWriting,
-  PageService,
   PlaneService,
   QueryService,
   Services,
@@ -140,32 +136,6 @@ function tabDatabase(duck: { readonly engine: DuckDbEngine; readonly db: AsyncDu
     ingestFile: (file, options) => ingestFile(engine, db, file, tables, options),
     forgetFile: (fileName, table) => forgetUpload(engine, tables, db, fileName, table),
     mountRemote: (url, s3, name) => mountRemoteView(engine, tables, { url, name, ...(s3 ? { s3 } : {}) }),
-  };
-}
-
-/** SAVED PAGES, in this browser: IndexedDB when the browser gives it, else memory (this visit only, and said so), by
- *  legend-lite's own rules (core's SavedCubes, compiled to WebAssembly; the program's B6). One database holds the pages
- *  and their files' handles. */
-async function browserPages(load: () => Promise<QueriesModule>): Promise<PageService> {
-  let records: CubeRecords;
-  let handles: FileHandles | undefined;
-  let memoryOnly = false;
-  try {
-    const database = openCubeDatabase();
-    await database;
-    records = new BrowserRecords(database);
-    handles = new FileHandles(database);
-  } catch {
-    records = new MemoryRecords();
-    memoryOnly = true;
-  }
-  const user = 'this browser';
-  return {
-    store: new CubeStoreClient(LOCAL_CUBES_API, wasmCubeServer({ load, records, user }).fetch, user),
-    where: memoryOnly ? 'for this visit only (this browser refused storage)' : 'in this browser',
-    memoryOnly,
-    ...(handles ? { handles } : {}),
-    persist: persistStorage,
   };
 }
 
