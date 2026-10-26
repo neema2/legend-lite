@@ -626,7 +626,8 @@ export class TimeseriesView {
     const signal = new AbortController().signal;
     const rows = new Map<string, ResultTable>();
     const failed = new Map<string, string>();
-    await Promise.all(spec.series.filter((s) => this.#results.has(s.id) && !this.#results.get(s.id)!.query.band).map(async (s) => {
+    // a band's and a condition's none: drawn, never figures of their own
+    await Promise.all(spec.series.filter((s) => this.#results.has(s.id) && !this.#results.get(s.id)!.query.band && !this.#results.get(s.id)!.query.shade).map(async (s) => {
       try {
         rows.set(s.id, (await this.#run(s, (inputs) => statsQuery(inputs, spec, s, window), signal, opened)).table);
       } catch (e) {
@@ -818,10 +819,11 @@ export class TimeseriesView {
       chip.append(swatch, el(doc, 'span', 'dc-ts-chip-name', l.name));
       // its latest value in the window shown: a point the database answered, read
       const at = l.points.findLastIndex((p) => p[1] !== null && (w.to === undefined || p[0].slice(0, 10) <= w.to));
-      // a band says its edges there, a line its value
+      // a band says its edges there, a condition whether it holds, a line its value
       const said = at < 0 ? undefined : l.band
         ? `${valueText(l, l.lower?.[at] ?? null, this.#formatOf(l))} – ${valueText(l, l.upper?.[at] ?? null, this.#formatOf(l))}`
-        : valueText(l, l.points[at]![1], this.#formatOf(l));
+        : l.shades !== undefined ? (l.points[at]![1] === 1 ? 'holds' : 'does not')
+          : valueText(l, l.points[at]![1], this.#formatOf(l));
       if (said !== undefined) chip.append(el(doc, 'span', 'dc-ts-chip-value', said));
       const pct = this.#stat(l, 'pct');
       if (pct !== null && (l.unit === 'same' || l.unit === 'index')) {
@@ -917,7 +919,7 @@ export class TimeseriesView {
     head.append(el(doc, 'th', undefined, 'Line'), ...columns.map((c) => el(doc, 'th', undefined, c.label)));
     table.append(head);
     const grain = this.#spec.grain ?? 'day';
-    for (const l of this.#lines.filter((x) => !x.band && !x.series.hidden)) {
+    for (const l of this.#lines.filter((x) => !x.band && !x.shades && !x.series.hidden)) {
       const tr = el(doc, 'tr');
       const name = el(doc, 'td', 'dc-ts-table-name');
       const swatch = el(doc, 'span', 'dc-ts-swatch');

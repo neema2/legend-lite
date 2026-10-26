@@ -53,7 +53,12 @@ export type TsExpr =
     readonly params?: Readonly<Record<string, number | string>>;
   };
 
-export type TsOperator = '+' | '-' | '*' | '/';
+export type TsOperator = '+' | '-' | '*' | '/' | TsComparison | 'and' | 'or';
+/** A comparison: 1 where it holds, 0 where it does not -- a series of them, a CONDITION, drawn as the periods it holds. */
+export type TsComparison = '<' | '<=' | '>' | '>=' | '==' | '!=';
+export const TS_COMPARISONS: readonly TsComparison[] = ['<', '<=', '>', '>=', '==', '!='];
+/** Whether an operator makes a condition: a comparison, or two conditions joined (and, or). */
+export const isConditionOp = (op: TsOperator): boolean => op === 'and' || op === 'or' || (TS_COMPARISONS as readonly string[]).includes(op);
 
 /** How a series is drawn. */
 export interface TsStyle {
@@ -404,7 +409,7 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
     case 'number':
       return typeof e['value'] === 'number' && Number.isFinite(e['value']) ? null : `${what} is not a finite number`;
     case 'binary':
-      if (!['+', '-', '*', '/'].includes(e['op'] as string)) return `${what}'s operator ${JSON.stringify(e['op'])} is not +, -, * or /`;
+      if (!['+', '-', '*', '/', ...TS_COMPARISONS, 'and', 'or'].includes(e['op'] as string)) return `${what}'s operator ${JSON.stringify(e['op'])} is not +, -, *, /, a comparison, and or or`;
       return exprProblem(e['left'], `${what}'s left side`, depth + 1) ?? exprProblem(e['right'], `${what}'s right side`, depth + 1);
     case 'call': {
       const f = typeof e['fn'] === 'string' && Object.hasOwn(TS_SIGNATURES, e['fn']) ? TS_SIGNATURES[e['fn'] as TsFunctionName] : undefined;

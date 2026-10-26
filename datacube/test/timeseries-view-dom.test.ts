@@ -191,6 +191,38 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
     }
   });
 
+  // the expert functions (2026-10-26): a condition, shaded where it holds across every pane -- the database's runs
+  it('a condition shaded where it holds, across every pane; its chip says whether it holds; no statistics of it', async () => {
+    const spec: TimeseriesSpec = {
+      ...SPEC,
+      series: [...SPEC.series, { id: 'C', expr: parseExpr('close[SPX] > mean(close[SPX], 21)'), name: 'Above its 21-day' }],
+    };
+    const { root, drawn, view } = viewer(spec);
+    try {
+      await until(() => statRows(root).length === 2 && drawn.length > 0, 'its lines and their statistics');
+      const option = drawn.at(-1)!;
+      const shading = (option.series as { id: string; markArea?: { data: unknown[] } }[]).filter((x) => x.id === 'C' || x.id.startsWith('C:'));
+      assert.equal(shading.length, 2, 'across both panes');
+      assert.ok(shading.every((x) => (x.markArea?.data.length ?? 0) >= 1), 'each its periods');
+      // its periods: where the close is above its 21-day mean, each from its first date to its last
+      const spx = of('SPX');
+      const mean = spx.closes.map((_, i) => (i < 20 ? null : spx.closes.slice(i - 20, i + 1).reduce((a, b) => a + b, 0) / 21));
+      const holds = spx.closes.map((c, i) => mean[i] !== null && c > mean[i]!);
+      const runs: [string, string][] = [];
+      holds.forEach((h, i) => {
+        if (!h) return;
+        if (i > 0 && holds[i - 1]) runs.at(-1)![1] = spx.days[i]!;
+        else runs.push([spx.days[i]!, spx.days[i]!]);
+      });
+      assert.deepEqual(shading[0]!.markArea!.data.map((d) => (d as { xAxis: string }[]).map((e) => e.xAxis.slice(0, 10))), runs);
+      const chip = chips(root).find((c) => c.startsWith('Above its 21-day'))!;
+      assert.match(chip, holds.at(-1) ? /holds$/ : /does not$/);
+      assert.ok(!statRows(root).some((r) => r[0] === 'Above its 21-day'), 'a condition has no statistics');
+    } finally {
+      view.dispose();
+    }
+  });
+
   it('a range told as the page\'s spec, the zoom moved to it; a line hidden is drawn again from the rows it has', async () => {
     const { root, drawn, told, zooms, view } = viewer(SPEC);
     try {
@@ -254,7 +286,9 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
         return pop.querySelector('.dc-ts-error')?.textContent ?? '';
       };
       assert.match(typed('vola($A)'), /there is no function vola/);
-      assert.match(typed('macd($A)'), /recursion/);
+      assert.match(typed('seasonally_adjusted($A)'), /seasonal decomposition/);
+      // gs-quant's recursions are built now (the expert functions, 2026-10-26): read as typed
+      assert.equal(typed('macd($A)'), '');
       assert.equal(typed('mean($A, 50)'), '');
       [...pop.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'OK')!.click();
       const added = told.at(-1)!.series.at(-1)!;

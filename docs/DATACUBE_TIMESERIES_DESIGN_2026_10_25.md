@@ -279,6 +279,13 @@ over the series' own rows does.
   `percentileofscore`, kind=mean: the share below, those equal counted half), `median` and `percentile` (pandas'
   quantile, the database's continuous percentile; a percentile of no window the whole series', gs-quant's scalar drawn
   as a line). The planner takes the percentile's fraction as a literal alone: gs-quant's `n` of 100 is spelled as one.
+- **Conditions, shaded** (gs-quant's `algebra` comparisons; Bloomberg's and FRED's shaded periods): `<`, `<=`, `>`,
+  `>=`, `==`, `!=` and `and`, `or` -- each 1 where it holds, 0 where not, none where a side has none, so a condition
+  reads as a number too (`(returns($A) > 0) * returns($B)`). A series that IS a condition (its expression's top) is
+  drawn as the periods it holds, shaded in its colour across every pane, on no axis: its runs the database's (each
+  change of it begins one, numbered by a running count; each date that holds carries its run's first and last date,
+  `TS_FROM`, `TS_TO`), the drawing placing each once. Its chip says whether it holds at the date shown last; it has
+  no statistics, as a band has none.
 
 ### 5.4 Proven so far
 

@@ -33,6 +33,12 @@ const ROUND_TRIPS = [
   'returns(close[AAPL], 1y)',
   'correlation($A, $B, 6m)',
   'volatility($A, 2w, log)',
+  // conditions: comparisons, and, or -- 1 where they hold
+  'close > mean(close, 50)',
+  'close[AAPL] >= 100 and close[MSFT] < 300',
+  'rates:yield[10Y] - rates:yield[2Y] < 0 or $A == 1',
+  '(close > 100) * 2',
+  'returns(close) != 0',
   'correlation(px:close[SPX], rates:yield[10Y], 126)',
   'bollinger_bands(close[AAPL], 20, 2.5)',
   'close[AAPL] / close[MSFT]',
@@ -103,6 +109,7 @@ describe('the expression language', () => {
     refused('mean(close, 3q)', /w is a whole number of observations or a calendar period \(3m, 1y\)/);
     refused('returns(close, 0y)', /obs is a whole number of observations or a calendar period/);
     refused('mean(close, 2.5)', /w is a whole number/);
+    refused('close < 1 < 2', /a comparison compares two sides/);
     const at = ((): number => {
       try {
         parseExpr('returns(close, x)');

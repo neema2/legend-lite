@@ -33,9 +33,10 @@ import { isDay, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts
 import {
   filterRead,
   MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, tenorOf, TS_POINT_LIMIT, TS_RANGES, type TimeseriesSpec, type TsAggregate,
-  type TsExpr, type TsMatch, type TsRangeWord, type TsSeries, type TsSource, type TsTenor,
+  type TsExpr, type TsMatch, type TsOperator, type TsRangeWord, type TsSeries, type TsSource, type TsTenor,
+  isConditionOp,
 } from './timeseries-spec.ts';
-import { inlined, isBand, isCandles, levelOf, paramOf, seriesName, sourceAlias, sourcesOf, splitName, unitOf, type TsUnit } from './timeseries-expr.ts';
+import { inlined, isBand, isCandles, isCondition, levelOf, paramOf, seriesName, sourceAlias, sourcesOf, splitName, unitOf, type TsUnit } from './timeseries-expr.ts';
 import type { TimeGrain } from './chart-spec.ts';
 
 /** The columns a series' query answers with. */
@@ -50,6 +51,9 @@ export const TS_OPEN = '__ts_open';
 export const TS_HIGH = '__ts_high';
 export const TS_LOW = '__ts_low';
 export const TS_SPLIT = '__ts_split';
+/** A condition's run each date where it holds is in: its first date and its last (none where it does not hold). */
+export const TS_FROM = '__ts_from';
+export const TS_TO = '__ts_to';
 /** How many of the grid's rows each period's value was one of (rows at its latest time): more than one is said. */
 export const TS_ROWS = '__ts_rows';
 /** The periods a year a series of a tile of no frequency was annualized by, as the database inferred them from its dates
@@ -104,6 +108,8 @@ export interface TsQuery {
   readonly band: boolean;
   /** It draws a candle per period (ohlc): its answer's TS_OPEN, TS_HIGH, TS_LOW and its close, TS_VALUE. */
   readonly candles?: boolean;
+  /** It is a condition, drawn as the periods it holds: its answer's TS_FROM and TS_TO, each date's run's. */
+  readonly shade?: boolean;
   readonly split?: string;
   /** Whether a period's value may be taken from several rows (a series of no instrument): its rows are counted. */
   readonly counted: boolean;
@@ -145,6 +151,9 @@ interface Built {
   readonly rows?: string;
   /** The periods a year it was annualized by, as the database inferred them (a tile of no frequency). */
   readonly perYear?: string;
+  /** A condition's run each date where it holds is in: its first date and its last. */
+  readonly shadeFrom?: string;
+  readonly shadeTo?: string;
   /** What wrote it: a query over it (its statistics) goes on writing, so a column it adds is named after the series' own. */
   readonly writer: Writer;
 }
@@ -347,10 +356,13 @@ class Writer {
 
   /** An aggregate over a frame of the periods: `extend(over(...), ~[name:{p,w,r|<read>}:y|$y-><reduce>()])` -- of a
    *  calendar period, over the periods whose dates are within it (#calendar). */
-  window(what: string, reduce: string, read: ValueSpecification, frame: Frame): string {
-    if (isTenor(frame)) return this.#calendar(what, reduce, read, frame);
+  window(what: string, reduce: string, read: ValueSpecification, frame: Frame, by?: string): string {
+    if (isTenor(frame)) {
+      if (by !== undefined) throw new Error('a calendar period\'s window is of its line alone');
+      return this.#calendar(what, reduce, read, frame);
+    }
     const name = this.fresh(what);
-    this.rel = this.rel.extend([agg(name, lambda(['p', 'w', 'r'], read), lambda(['y'], fn(reduce, variable('y'))))], this.#over(frame));
+    this.rel = this.rel.extend([agg(name, lambda(['p', 'w', 'r'], read), lambda(['y'], fn(reduce, variable('y'))))], this.#over(frame, by));
     return name;
   }
 
@@ -809,6 +821,23 @@ function joined(sh: Shared, nodes: readonly { readonly w: Writer; readonly v: Va
 
 const OPS: Readonly<Record<'+' | '-' | '*' | '/', string>> = { '+': 'plus', '-': 'minus', '*': 'times', '/': 'divide' };
 
+/** A condition's test as the database's: a comparison of the two sides, or two conditions joined (each true unless 0). */
+function conditionTest(o: TsOperator, l: ValueSpecification, r: ValueSpecification): ValueSpecification {
+  const holds = (x: ValueSpecification): ValueSpecification => fn('not', fn('equal', x, lit.integer(0)));
+  switch (o) {
+    case '<': return fn('lessThan', l, r);
+    case '<=': return fn('lessThanEqual', l, r);
+    case '>': return fn('greaterThan', l, r);
+    case '>=': return fn('greaterThanEqual', l, r);
+    case '==': return fn('equal', l, r);
+    case '!=': return fn('not', fn('equal', l, r));
+    case 'and': return and(holds(l), holds(r));
+    case 'or': return or(holds(l), holds(r));
+    case '+': case '-': case '*': case '/':
+      throw new Error(`${o} is no condition`);
+  }
+}
+
 /** A node of the expression, written: its own columns after those of what it reads. */
 function write(sh: Shared, e: TsExpr): Node {
   switch (e.kind) {
@@ -821,14 +850,23 @@ function write(sh: Shared, e: TsExpr): Node {
     case 'binary': {
       const l = write(sh, e.left);
       const r = write(sh, e.right);
-      if ('constant' in l && 'constant' in r) return { constant: op(OPS[e.op], l.constant, r.constant) };
+      // a condition: 1 where it holds, 0 where not, none where a side has none (the expert functions, 2026-10-26)
+      if (isConditionOp(e.op)) {
+        if ('constant' in l && 'constant' in r) return { constant: when(conditionTest(e.op, l.constant, r.constant), lit.integer(1), lit.integer(0)) };
+        const wc = 'constant' in l ? (r as Exclude<Node, { constant: unknown }>).w
+          : 'constant' in r ? l.w : joined(sh, [l, r as Exclude<Node, { constant: unknown }>]);
+        const missing = [l, r].flatMap((x) => ('constant' in x ? [] : [fn('isEmpty', col(columnOfValue(x.v)))]));
+        return { w: wc, v: { column: wc.row('cond', when(missing.length === 1 ? missing[0]! : or(...missing), none(),
+          when(conditionTest(e.op, asOperand(l), asOperand(r)), lit.integer(1), lit.integer(0)))) } };
+      }
+      if ('constant' in l && 'constant' in r) return { constant: op(OPS[e.op as '+' | '-' | '*' | '/'], l.constant, r.constant) };
       const w = 'constant' in l ? (r as Exclude<Node, { constant: unknown }>).w
         : 'constant' in r ? l.w : joined(sh, [l, r as Exclude<Node, { constant: unknown }>]);
       if (e.op === '/') {
         const denominator = 'constant' in r ? w.row('num', r.constant) : columnOfValue(r.v);
         return { w, v: { column: w.ratio('div', asOperand(l), denominator) } };
       }
-      return { w, v: { column: w.row('op', op(OPS[e.op], asOperand(l), asOperand(r))) } };
+      return { w, v: { column: w.row('op', op(OPS[e.op as '+' | '-' | '*' | '/'], asOperand(l), asOperand(r))) } };
     }
     case 'call':
       return call(sh, e);
@@ -1228,6 +1266,19 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
     }
     built = { value, ...(value !== own ? { levelValue: own } : {}) };
   }
+  // a CONDITION's runs (gaps and islands, the database's): each change of it begins a run, numbered by a running count
+  // of them; each date where it holds carries its run's first date and its last -- what the drawing shades
+  let shade: { readonly shadeFrom: string; readonly shadeTo: string } | undefined;
+  if (isCondition(expr)) {
+    const flag = built.value;
+    const prev = w.lag(flag, 1);
+    const change = w.row('sh_chg', when(or(fn('isEmpty', col(prev)), fn('not', fn('equal', one(flag), one(prev)))), lit.integer(1), lit.integer(0)));
+    const runs = w.window('sh_run', 'plus', Writer.read(change), 'running');
+    const first = w.window('sh_first', 'min', Writer.read(w.at), 'all', runs);
+    const last = w.window('sh_last', 'max', Writer.read(w.at), 'all', runs);
+    const holds = fn('equal', one(flag), lit.integer(1));
+    shade = { shadeFrom: w.row('sh_from', when(holds, col(first), none())), shadeTo: w.row('sh_to', when(holds, col(last), none())) };
+  }
   // the most rows any of its columns took one of, at a period: more than one, and the drawing says so
   const rows = w.rows.length === 0 ? undefined : w.rows.length === 1 ? w.rows[0]!
     : w.row('rows', w.rows.slice(1).reduce<ValueSpecification>((most, c) => when(fn('greaterThan', one(c), most), one(c), most), one(w.rows[0]!)));
@@ -1236,7 +1287,7 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
   const perYear = w.years.length <= 1 ? w.years[0]
     : w.row('per_year_all', when(or(...w.years.map((c) => fn('isEmpty', col(c)))), none(), one(w.years[0]!)));
   return {
-    rel: w.rel, period: PERIOD, ord: ORD, at: w.at, periodType: sh.periodType!, ...built, ...(split !== undefined ? { split } : {}),
+    rel: w.rel, period: PERIOD, ord: ORD, at: w.at, periodType: sh.periodType!, ...built, ...(shade ?? {}), ...(split !== undefined ? { split } : {}),
     unit, level, ...(rows !== undefined ? { rows } : {}), ...(perYear !== undefined ? { perYear } : {}), sources: read, writer: w,
   };
 }
@@ -1263,6 +1314,7 @@ export function seriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeri
     ...(b.upper !== undefined ? [derive(TS_UPPER, row(col(b.upper)))] : []),
     ...(b.width !== undefined ? [derive(TS_WIDTH, row(col(b.width)))] : []),
     ...(b.open !== undefined ? [derive(TS_OPEN, row(col(b.open))), derive(TS_HIGH, row(col(b.high!))), derive(TS_LOW, row(col(b.low!)))] : []),
+    ...(b.shadeFrom !== undefined ? [derive(TS_FROM, row(col(b.shadeFrom))), derive(TS_TO, row(col(b.shadeTo!)))] : []),
     ...(b.split !== undefined ? [derive(TS_SPLIT, row(col(b.split)))] : []),
     ...(b.rows !== undefined ? [derive(TS_ROWS, row(col(b.rows)))] : []),
     ...(b.perYear !== undefined ? [derive(TS_PER_YEAR, row(col(b.perYear)))] : []),
@@ -1280,6 +1332,7 @@ export function seriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeri
     unit: b.unit,
     band: b.lower !== undefined,
     ...(b.open !== undefined ? { candles: true } : {}),
+    ...(b.shadeFrom !== undefined ? { shade: true } : {}),
     ...(b.split !== undefined ? { split: b.split } : {}),
     level: b.level,
     counted: b.rows !== undefined,

@@ -9,7 +9,7 @@
 
 import { isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import {
-  AGGREGATES, ALIAS, seriesWords, tenorOf, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
+  AGGREGATES, ALIAS, isConditionOp, seriesWords, tenorOf, TS_COMPARISONS, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
   type TsOperator, type TsParamShape, type TsSeries, type TsSource,
 } from './timeseries-spec.ts';
 
@@ -479,6 +479,8 @@ export function unitOf(e: TsExpr): TsUnit {
     case 'number':
       return 'number';
     case 'binary': {
+      // a condition: 1 where it holds, 0 where not
+      if (isConditionOp(e.op)) return 'number';
       const l = unitOf(e.left);
       const r = unitOf(e.right);
       // a level times or over a number is still a level; two levels divided are a number (a ratio of prices)
@@ -525,6 +527,7 @@ export function levelOf(e: TsExpr): boolean {
       const l = levelOf(e.left);
       const r = levelOf(e.right);
       const positive = (x: TsExpr): boolean => x.kind === 'number' && x.value > 0;
+      if (isConditionOp(e.op)) return false;
       // a basket of levels is one; a level shifted by a number, or a spread of two, is none -- its start can be zero or
       // below, which compare would divide by (the second audit's B1: index(close) - 1, rebase(close) - 100)
       if (e.op === '+') return l && r;
@@ -549,6 +552,12 @@ export function boundsOf(e: TsExpr): readonly [number, number] | undefined {
 /** Whether an expression draws a band (a Bollinger band): two lines, nothing reading it. */
 export function isBand(e: TsExpr): boolean {
   return e.kind === 'call' && TS_FUNCTION.get(e.fn)?.band === true;
+}
+
+/** Whether an expression is a CONDITION -- a comparison, or conditions joined by and, or -- drawn as the periods it
+ *  holds, shaded (timeseries-option.ts), its runs the database's (timeseries-query.ts). */
+export function isCondition(e: TsExpr): boolean {
+  return e.kind === 'binary' && isConditionOp(e.op);
 }
 
 /** Whether an expression draws candles (ohlc): a candle per period, nothing reading it. */
@@ -655,7 +664,14 @@ function tokenize(text: string): Token[] {
       i = end + 1;
       continue;
     }
-    if ('+-*/(),[]=.:'.includes(c)) {
+    // a comparison (a condition): two characters before one
+    const two = text.slice(i, i + 2);
+    if (two === '<=' || two === '>=' || two === '==' || two === '!=') {
+      out.push({ t: 'op', v: two, at });
+      i += 2;
+      continue;
+    }
+    if ('+-*/(),[]=.:<>'.includes(c)) {
       out.push({ t: 'op', v: c, at });
       i++;
       continue;
@@ -695,6 +711,41 @@ export function parseExpr(text: string): TsExpr {
     if (t.t !== 'op' || t.v !== v) throw new TsSyntaxError(`a "${v}" was expected here`, t.at);
   };
 
+  // conditions: `a or b`, `a and b`, a comparison of two sums -- each 1 where it holds, 0 where not
+  const word = (w: string): boolean => {
+    const t = peek();
+    return t.t === 'id' && !t.quoted && t.v.toLowerCase() === w;
+  };
+  const either = (): TsExpr => {
+    let left = both();
+    while (word('or')) {
+      next();
+      left = { kind: 'binary', op: 'or', left, right: both() };
+    }
+    return left;
+  };
+  const both = (): TsExpr => {
+    let left = comparison();
+    while (word('and')) {
+      next();
+      left = { kind: 'binary', op: 'and', left, right: comparison() };
+    }
+    return left;
+  };
+  const comparison = (): TsExpr => {
+    const left = sum();
+    const t = peek();
+    if (t.t === 'op' && (TS_COMPARISONS as readonly string[]).includes(t.v)) {
+      next();
+      const right = sum();
+      const again = peek();
+      if (again.t === 'op' && (TS_COMPARISONS as readonly string[]).includes(again.v)) {
+        throw new TsSyntaxError('a comparison compares two sides: join two with and, or', again.at);
+      }
+      return { kind: 'binary', op: t.v as TsOperator, left, right };
+    }
+    return left;
+  };
   const sum = (): TsExpr => {
     let left = product();
     while (isOp('+') || isOp('-')) {
@@ -786,7 +837,7 @@ export function parseExpr(text: string): TsExpr {
           continue;
         }
         if (args.length < f.series) {
-          args.push(sum());
+          args.push(either());
           continue;
         }
         const param = f.params[positional++];
@@ -826,7 +877,7 @@ export function parseExpr(text: string): TsExpr {
     if (t.t === 'num') return { kind: 'number', value: t.v };
     if (t.t === 'ref') return { kind: 'ref', series: t.v };
     if (t.t === 'op' && t.v === '(') {
-      const inner = sum();
+      const inner = either();
       expect(')');
       return inner;
     }
@@ -847,14 +898,16 @@ export function parseExpr(text: string): TsExpr {
     throw new TsSyntaxError(`"${t.t === 'str' ? t.v : (t as { v: string }).v}" was not expected here`, t.at);
   };
 
-  const e = sum();
+  const e = either();
   const last = peek();
   if (last.t !== 'end') throw new TsSyntaxError('the expression goes on past its end', last.at);
   return e;
 }
 
 const WORD = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const PRECEDENCE: Readonly<Record<TsOperator, number>> = { '+': 1, '-': 1, '*': 2, '/': 2 };
+const PRECEDENCE: Readonly<Record<TsOperator, number>> = {
+  'or': 1, 'and': 2, '<': 3, '<=': 3, '>': 3, '>=': 3, '==': 3, '!=': 3, '+': 4, '-': 4, '*': 5, '/': 5,
+};
 
 /** A number as an expression writes it. */
 function numberText(n: number): string {
@@ -890,9 +943,10 @@ export function exprText(e: TsExpr, outer = 0): string {
     }
     case 'binary': {
       const mine = PRECEDENCE[e.op];
-      // a minus or a division binds its right side tighter: a - (b - c), a / (b * c)
-      const right = e.op === '-' || e.op === '/' ? mine + 1 : mine;
-      const text = `${exprText(e.left, mine)} ${e.op} ${exprText(e.right, right)}`;
+      // a minus or a division binds its right side tighter: a - (b - c), a / (b * c); a comparison both (it is no chain)
+      const compares = mine === PRECEDENCE['<'];
+      const right = e.op === '-' || e.op === '/' || compares ? mine + 1 : mine;
+      const text = `${exprText(e.left, compares ? mine + 1 : mine)} ${e.op} ${exprText(e.right, right)}`;
       return mine < outer ? `(${text})` : text;
     }
     case 'call': {

@@ -18,7 +18,7 @@ import { parseExpr } from '../src/timeseries-expr.ts';
 import {
   boundsQuery, drawdownsQuery, keyValuesQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN,
   TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
-  TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_PER_YEAR, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
+  TS_FROM, TS_TO, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_PER_YEAR, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
 } from '../src/timeseries-query.ts';
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
 import type { FileSource } from '../src/cube-document.ts';
@@ -653,6 +653,46 @@ const quantile = (v: number[], q: number): number => {
 const rankIn = (window: number[], v: number): number =>
   ((window.filter((x) => x < v).length + window.filter((x) => x <= v).length) / 2 / window.length) * 100;
 
+// -- conditions (the expert functions, 2026-10-26): 1 where they hold, 0 where not, each date's run the database's --
+
+describe('conditions: a comparison, and two joined, each date\'s run where it holds', () => {
+  it('close above its 5-day mean: 1 or 0 a date, none before its mean; each date that holds its run\'s first and last', async () => {
+    const ts = spec({ A: 'close[AAA] > mean(close[AAA], 5)' });
+    const q = seriesQuery(inputs, ts, ts.series[0]!);
+    assert.equal(q.shade, true);
+    assert.equal(q.level, false);
+    const t = await run(q);
+    const mean5 = rolling(AAA, 5, avg);
+    const flag: Line = AAA.map((v, i) => (mean5[i] === null ? null : v > mean5[i]! ? 1 : 0));
+    assert.deepEqual(values(t, TS_VALUE).map(num).reverse(), flag);
+    // the runs, as plain arithmetic: a run of the same flag, from its first date to its last
+    const runOf = flag.map((f, i) => {
+      if (f !== 1) return null;
+      let a = i;
+      while (a > 0 && flag[a - 1] === 1) a--;
+      let b = i;
+      while (b < flag.length - 1 && flag[b + 1] === 1) b++;
+      return [DAYS[a]!, DAYS[b]!] as const;
+    });
+    const day = (n: string): (string | null)[] => values(t, n).map((d) => (d === null ? null : String(d).slice(0, 10))).reverse();
+    assert.deepEqual(day(TS_FROM), runOf.map((r) => r?.[0] ?? null), 'each run\'s first date');
+    assert.deepEqual(day(TS_TO), runOf.map((r) => r?.[1] ?? null), 'and its last');
+    assert.ok(new Set(runOf.filter((r) => r !== null).map((r) => r![0])).size >= 2, 'more than one run in the fixture');
+  });
+
+  it('two joined: and, or -- and a comparison read as 1 and 0 by arithmetic', async () => {
+    const both = await line(spec({ A: 'close[AAA] > 101 and close[BBB] < 50.5' }));
+    close(both.values, AAA.map((v, i) => (v > 101 && BBB[i]! < 50.5 ? 1 : 0)), 'and', 0);
+    const either = await line(spec({ A: 'close[AAA] <= 100 or close[BBB] >= 51' }));
+    close(either.values, AAA.map((v, i) => (v <= 100 || BBB[i]! >= 51 ? 1 : 0)), 'or', 0);
+    const signal = await line(spec({ A: '(returns(close[AAA]) > 0) * returns(close[BBB])' }));
+    const ra = simple(AAA);
+    const rb = simple(BBB);
+    close(signal.values, ra.map((r, i) => (r === null ? null : (r > 0 ? 1 : 0) * rb[i]!)), 'a signal times a return', 1e-12);
+    assert.equal(seriesQuery(inputs, spec({ A: '(close[AAA] > 100) * 2' }), spec({ A: '(close[AAA] > 100) * 2' }).series[0]!).shade, undefined, 'no condition, drawn as a line');
+  });
+});
+
 describe('a window by its rows: percentile ranks, medians and percentiles', () => {
   it('percentiles: each value\'s rank among its window\'s, 0 to 100 -- over 10, from the start, over 2w', async () => {
     close((await line(spec({ A: 'percentiles(close[AAA], 10)' }))).values,
@@ -1228,8 +1268,8 @@ describe('a series combining two grids, planned over one model of their tables (
 // grid's alone by its own planner, the series across both grids over one model of their tables (openSources), as the
 // tab runs them.
 /** The gallery's series: every function at least once, and the ways to view (2026-10-26: 92, the regression tile's four;
- *  102, the exponential averages', volatilities' and MACD's ten; 106, the percentiles' four). */
-const GALLERY_SERIES = 106;
+ *  102, the exponential averages', volatilities' and MACD's ten; 106, the percentiles' four; 109, a condition's three). */
+const GALLERY_SERIES = 109;
 
 describe('the timeseries examples: every series of every tile, on its own samples', () => {
   const pages = [

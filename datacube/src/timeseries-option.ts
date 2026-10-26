@@ -19,7 +19,7 @@ import {
 } from './timeseries-spec.ts';
 import { boundsOf, exprText, inlined, seriesName, splitName, type TsUnit } from './timeseries-expr.ts';
 import {
-  TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH, seriesNotes, type TsQuery,
+  TS_DATE, TS_FROM, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_SPLIT, TS_TO, TS_UPPER, TS_VALUE, TS_WIDTH, seriesNotes, type TsQuery,
 } from './timeseries-query.ts';
 
 /** A series' query and what the database answered. */
@@ -57,6 +57,9 @@ export interface TsLine {
   readonly width?: readonly (number | null)[];
   /** A candle line's opens, highs and lows, point by point, as its points (its closes). */
   readonly candles?: { readonly open: readonly (number | null)[]; readonly high: readonly (number | null)[]; readonly low: readonly (number | null)[] };
+  /** A condition's periods where it holds, each its first date and its last, as the database ran them: shaded across
+   *  every pane, drawn on no axis. */
+  readonly shades?: readonly (readonly [string, string])[];
   /** The grid's column whose format its values take (a level's own); undefined for a figure of its own unit. */
   readonly formatColumn?: string;
   /** The source whose grid formats it: the one its series reads first. */
@@ -120,6 +123,8 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
     const highs = column(t, TS_HIGH);
     const lows = column(t, TS_LOW);
     const splits = column(t, TS_SPLIT);
+    const runFrom = column(t, TS_FROM);
+    const runTo = column(t, TS_TO);
     if (t.rowCount > TS_POINT_LIMIT) notes.push(`${seriesName(s)}: its latest ${TS_POINT_LIMIT.toLocaleString(UI_LOCALE)} points (it has more).`);
     // what its rows say a reader should know -- several rows a date, no frequency to annualize by -- by the rule
     // Python's frame says them by too (timeseries-query.ts seriesNotes)
@@ -156,6 +161,20 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
       const hi = take(upper);
       const wd = take(width);
       const candle = r.query.candles && opens && highs && lows ? { open: take(opens)!, high: take(highs)!, low: take(lows)! } : undefined;
+      // a condition's runs, each once: the first and the last date the database gave each date of it
+      let shades: (readonly [string, string])[] | undefined;
+      if (r.query.shade) {
+        if (!runFrom || !runTo) throw new Error(`series ${s.id}'s answer has no runs of its condition`);
+        const seen = new Set<string>();
+        shades = [];
+        for (const i of g.at) {
+          const a = dateText(runFrom[i]);
+          const b = dateText(runTo[i]);
+          if (a === null || b === null || seen.has(a)) continue;
+          seen.add(a);
+          shades.push([a, b]);
+        }
+      }
       lines.push({
         key: g.split === undefined ? s.id : `${s.id}\u0000${String(g.split)}`,
         series: s,
@@ -171,6 +190,7 @@ export function tsLines(ts: TimeseriesSpec, results: readonly TsResult[], theme:
         ...(hi ? { upper: hi } : {}),
         ...(wd ? { width: wd } : {}),
         ...(candle ? { candles: candle } : {}),
+        ...(shades ? { shades } : {}),
         ...(formatColumn !== undefined ? { formatColumn } : {}),
         ...(formatColumn !== undefined && r.query.sources[0] !== undefined ? { formatSource: r.query.sources[0] } : {}),
         ...(bounds !== undefined ? { bounds } : {}),
@@ -246,7 +266,8 @@ export function tickText(unit: TsUnit, v: number): string {
 
 /** The panes in use, top to bottom: each its index, its share of the height, its scale. */
 export function panesOf(ts: TimeseriesSpec, lines: readonly TsLine[]): { index: number; height: number; log: boolean }[] {
-  const used = new Set<number>([0, ...lines.filter((l) => !l.series.hidden).map((l) => l.series.pane ?? 0)]);
+  // a condition is shaded across every pane: it makes none of its own
+  const used = new Set<number>([0, ...lines.filter((l) => !l.series.hidden && !l.shades).map((l) => l.series.pane ?? 0)]);
   return [...used].filter((p) => p < MAX_PANES).sort((a, b) => a - b).map((index) => ({
     index,
     height: ts.panes?.[index]?.height ?? (index === 0 ? 3 : 1),
@@ -289,7 +310,9 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
   const bottom = AXIS_LABELS + (navigator ? NAVIGATOR + 8 : 0);
   const room = Math.max(60, total - TOP - bottom - PANE_GAP * (panes.length - 1));
   const weight = panes.reduce((a, p) => a + p.height, 0);
-  const shown = lines.filter((l) => !l.series.hidden);
+  // the lines drawn on an axis; a condition's periods are shaded across the panes, on none (below)
+  const shown = lines.filter((l) => !l.series.hidden && !l.shades);
+  const shaded = lines.filter((l) => !l.series.hidden && l.shades !== undefined);
   // room on the right for each line's latest value, tagged at its end (the axes' labels are inside the grid already)
   const lastValues = viewSetting(ts, 'lastValues');
   const tag = lastValues ? Math.max(0, ...shown.filter((l) => !l.band && !l.candles && !['bars', 'dots'].includes(l.series.style?.kind ?? 'line'))
@@ -472,6 +495,27 @@ export function timeseriesOption(ts: TimeseriesSpec, lines: readonly TsLine[], c
       },
     });
   });
+  // each condition's periods where it holds, shaded in its colour across every pane -- the database's runs; its legend
+  // chip shows and hides it, as a line's
+  for (const l of shaded) {
+    panes.forEach((_, gi) => {
+      series.push({
+        id: gi === 0 ? l.key : `${l.key}:${gi}`,
+        name: l.name,
+        type: 'line',
+        xAxisIndex: gi,
+        yAxisIndex: axisOf.get(`${gi}|left`)!,
+        data: [],
+        silent: true,
+        tooltip: { show: false },
+        markArea: {
+          silent: true,
+          itemStyle: { color: l.color, opacity: 0.14 },
+          data: l.shades!.map(([from, to]) => [{ xAxis: from }, { xAxis: to }]),
+        },
+      });
+    });
+  }
   const allX = panes.map((_, gi) => gi);
   const view = ctx.view ?? {};
   const zoomAt = { ...(view.from !== undefined ? { startValue: view.from } : {}), ...(view.to !== undefined ? { endValue: view.to } : {}) };

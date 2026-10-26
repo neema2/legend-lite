@@ -557,8 +557,11 @@ const CHART_BUDGET = 303_500;
  *  panel's Drawdowns tab, asked when shown). Measured 40,933.
  *  41,800 -> 43,000 (2026-10-26, the expert functions' exponential averages -- gs-quant's EMA, exponential deviation
  *  and volatilities, MACD, Wilder's smoothing and RSI -- each a recursion written in its closed form
- *  (timeseries-query.ts Writer.ewm, ewmStd, smoothed) with their words). Measured 42,136. */
-const TIMESERIES_BUDGET = 43_000;
+ *  (timeseries-query.ts Writer.ewm, ewmStd, smoothed) with their words). Measured 42,136.
+ *  43,000 -> 44,700 (2026-10-26, the expert functions' percentiles by each window's rows (Writer.ofWindow, a self-join)
+ *  and conditions -- comparisons, and, or, their runs the database's, shaded across the panes (timeseries-expr.ts,
+ *  timeseries-query.ts, timeseries-option.ts)). Measured 43,802. */
+const TIMESERIES_BUDGET = 44_700;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

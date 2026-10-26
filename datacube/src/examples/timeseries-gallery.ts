@@ -417,6 +417,16 @@ const WAYS: GallerySheet = {
       range: { last: '6m' },
       panes: [{ height: 2 }, { height: 1 }, { height: 1 }],
     }),
+    tile('condition', 'Shaded where it holds: the S&P 500 while the curve is inverted (the 10-year below the 2-year)', {
+      sources: [PRICES, RATES],
+      series: [
+        s('A', 'px:close[SPX]', { name: 'S&P 500' }),
+        s('B', 'rates:yield[10Y] - rates:yield[2Y] < 0', { name: 'The curve inverted' }),
+        s('C', 'rates:yield[10Y] - rates:yield[2Y]', { name: '10s2s', pane: 1 }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }],
+      annotations: [{ kind: 'level', value: 0, pane: 1 }],
+    }),
     tile('two-grids', 'Two grids: the S&P 500 against the 2-year yield, their correlation read in one query', {
       sources: [PRICES, RATES],
       series: [
