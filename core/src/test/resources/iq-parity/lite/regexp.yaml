@@ -9,8 +9,12 @@ tests:
     sql: "SELECT id FROM t WHERE vc REGEXP 'h.*' ORDER BY id"
   - id: regexp_negated_leaves_null_out
     sql: "SELECT id FROM t WHERE vc NOT REGEXP '[A-Z].*' ORDER BY id"
+  # D-S1: ch is CHAR(5), matched padded to five under the IQ engine ('ab   ' is no [a-z]*); SQL Anywhere 17 matches it
+  # unpadded (its w is 1 for 'ab', 'zz' and '')
   - id: regexp_reads_a_char_padded
     sql: "SELECT id, CASE WHEN ch REGEXP 'ab *' THEN 1 ELSE 0 END AS m, CASE WHEN ch REGEXP '[a-z]*' THEN 1 ELSE 0 END AS w FROM t ORDER BY id"
+    decision: D-S1
+    expect: '[["1","1","0"],["2","0","0"],["3","0","0"],["4","0","0"],["5","0","0"],["6","0","0"],["7","0","0"]]'
   - id: regexp_groups_and_alternation
     sql: "SELECT id FROM t WHERE vc REGEXP 'H(ello|i)' OR vc REGEXP '(ap|x)(ple| +)' ORDER BY id"
   - id: regexp_dot_and_counts_over_accents
