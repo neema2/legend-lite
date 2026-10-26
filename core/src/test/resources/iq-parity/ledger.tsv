@@ -1321,7 +1321,7 @@ lite/common_decimals/a_grouped_ratio_of_casts_to_decimal@iq17-default	BOTH_ERROR
 lite/common_decimals/a_ratio_of_a_count_times_one_point_zero@iq17-default	PASS	PASS	
 lite/common_decimals/a_ratio_of_two_counts_times_one_point_zero@iq17-default	PASS	PASS	
 lite/common_decimals/a_ratio_of_counts_of_a_derived_table@iq17-default	PASS	PASS	
-lite/common_decimals/a_ratio_of_a_count_and_a_count_plus_an_epsilon@iq17-default	REFUSED	REFUSED	
+lite/common_decimals/a_ratio_of_a_count_and_a_count_plus_an_epsilon@iq17-default	PASS	PASS	
 lite/common_decimals/a_percentage_cast_to_decimal_5_1_as_text@iq17-default	PASS	PASS	
 lite/common_decimals/an_average_of_a_case_of_ones@iq17-default	PASS	PASS	
 lite/common_decimals/an_average_of_averages@iq17-default	REFUSED	REFUSED	

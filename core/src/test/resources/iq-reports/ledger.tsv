@@ -430,4 +430,4 @@ lite/reports_window_reports/previous_and_next_order_with_defaults@iq17-default	F
 lite/reports_window_reports/weekly_orders_weeks_starting_sunday@iq17-default	PASS	PASS	
 lite/reports_window_reports/first_touch_attribution@iq17-default	PASS	PASS	
 lite/reports_window_reports/active_days_running_count@iq17-default	PASS	PASS	
-lite/reports_window_reports/price_bands_against_category_average@iq17-default	REFUSED	REFUSED	
+lite/reports_window_reports/price_bands_against_category_average@iq17-default	PASS	PASS	

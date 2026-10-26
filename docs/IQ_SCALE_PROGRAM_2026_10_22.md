@@ -949,3 +949,16 @@ says so.
   - **The full re-judge at a93a4f7e is clean** (the Mac, every suite): across TPC-H, TPC-DS and JOB lite refuses
     nothing IQ answers; every remaining difference is a tie, a row-estimated type, IQ's own plan or data limit
     (the BUG groups above), or tpcds-23370's string percentage.
+  - **A quotient's steps fit by their values** (part R's price / AVG(price) OVER (...), IQ's AVG a NUMERIC(30,23); IQ
+    answers, its CAST truncating 2.6366 to 2.63): truncatedDivisionFits counted the steps by their declared types --
+    the divisor's digits beside the quotient's, one more -- and refused every quotient by an AVG. Measured on DuckDB
+    1.4's JDBC: DECIMAL(38,0) * DECIMAL(30,23) is a DECIMAL(38,23), DECIMAL(12,2) - DECIMAL(38,23) a DECIMAL(38,23),
+    each raising only where its value passes 38 digits (Postgres's numeric is unbounded; Snowflake keeps a product's
+    scale up to max(s1, s2, 12)). The steps' values are bounded: n = |x| * 10^s below 10^(w1 + s) at x's scale, the
+    quotient below 10^(w1 + s + s2), each q * |y| at most n (an estimate never exceeds the quotient), each rest at most
+    n -- so s <= 38, w1 + s + s2 <= 38, w1 + s + max(s1, s2) <= 38 and w2 + s2 <= 38 suffice. Moves: part R's
+    price_bands_against_category_average and common_decimals' a_ratio_of_a_count_and_a_count_plus_an_epsilon REFUSED
+    -> PASS on DuckDB and Postgres; TPC-DS Q4's growth ratios now divide in one step (no WHERE hoist needed, its rows
+    unchanged). The LEAD default's NULs, measured by the Mac: IQ writes a default into the previous output row's buffer
+    -- NUL-padded to that row's byte length, or cut to it; the first output the argument's estimated width -- a
+    VARCHAR-only defect (a CHAR's default is blank padded), listed.

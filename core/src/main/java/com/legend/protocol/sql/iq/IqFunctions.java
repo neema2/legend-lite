@@ -2903,9 +2903,18 @@ final class IqFunctions {
                 raise("Decimal"));
     }
 
-    /** Whether {@link #truncatedDivision}'s steps fit lite's 38 digits, scales counted. */
+    /**
+     * Whether {@link #truncatedDivision}'s steps fit lite's 38 digits, scales counted, by the values each step holds: n =
+     * |x| * 10^s below 10^(whole1 + s) at x's scale, the whole quotient below 10^(whole1 + s + s2), each q * |y| at most
+     * n at y's scale (an estimate never exceeds the quotient), each rest at most n at the larger scale. The IQ scale
+     * program, 2026-10-26 (part R's price / AVG(price) OVER (...), the divisor IQ's NUMERIC(30,23); measured on DuckDB
+     * 1.4: DECIMAL(38,0) * DECIMAL(30,23) is a DECIMAL(38,23), a difference of a DECIMAL(12,2) and a DECIMAL(38,23) a
+     * DECIMAL(38,23), each raising only where its value passes 38 digits; Postgres's numeric is unbounded; Snowflake
+     * keeps a product's scale up to max(s1, s2, 12)): no longer by the steps' declared types (the divisor's digits
+     * beside the quotient's, one more), which refused every quotient by an AVG.
+     */
     static boolean truncatedDivisionFits(int s1, int whole1, int s2, int whole2, int s) {
-        return s <= 38 && whole1 + s + s2 <= 38 && Math.max(whole1 + s + s2, whole2) + 1 + Math.max(s1, s2) <= 38;
+        return s <= 38 && whole1 + s + s2 <= 38 && whole1 + s + Math.max(s1, s2) <= 38 && whole2 + s2 <= 38;
     }
 
     /** Whether {@link #truncatedQuotient}'s steps fit lite's 38 digits, scales counted (n keeps x's scale, unless x

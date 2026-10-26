@@ -523,16 +523,12 @@ class IqToPureTest {
      *  compared operands are computed once, a column before the filter, each where the conjuncts before it hold. */
     @Test
     void aWheresLongComparedOperandsAreComputedOnce() {
-        List<Col> sales = List.of(new Col("i", "Integer", false, "INTEGER"), new Col("p", "Decimal", true,
-                "NUMERIC(7,2)"), new Col("c", "Decimal", true, "NUMERIC(7,2)"), new Col("d", "Decimal", true,
-                "NUMERIC(7,2)"));
-        // (Q4's year_total: SUM(((list - wholesale - discount) + sales) / 2), its NUMERIC(7,2)s)
-        String yt = "WITH yt AS (SELECT i, SUM(((p - c - d) + p) / 2) AS t FROM " + T + " GROUP BY i) SELECT a.i FROM yt a"
-                + " JOIN yt b ON a.i = b.i JOIN yt c ON c.i = a.i JOIN yt d ON d.i = a.i WHERE a.i > 0 AND CASE WHEN"
-                + " a.t > 0 THEN b.t / a.t ELSE NULL END > CASE WHEN c.t > 0 THEN d.t / c.t ELSE NULL END AND CASE WHEN"
-                + " c.t > 0 THEN d.t / c.t ELSE NULL END > CASE WHEN b.t > 0 THEN a.t / b.t ELSE NULL END";
-        String q = pure(yt, IqProfile.IQ17_DEFAULT.settings(), sales);
-        // each CASE a column of the joined rows, NULL where a.i > 0 does not hold, read by the filter
+        // (the realistic reports' URL parsing, nested LOCATEs past the size bound, compared in a WHERE)
+        String operand = "REPLACE(SUBSTRING(vc || '', LOCATE(vc || '', '://') + 3, LOCATE(vc || '', '/',"
+                + " LOCATE(vc || '', '://') + 3) - LOCATE(vc || '', '://') - 3), 'www.', '')";
+        String q = pure("SELECT id FROM " + T + " WHERE id > 0 AND " + operand + " = 'example.com'",
+                IqProfile.IQ17_DEFAULT.settings());
+        // the operand a column of the rows, NULL where id > 0 does not hold, read by the filter
         assertTrue(q.contains("->extend(") && q.indexOf("->extend(") < q.lastIndexOf("->filter("), q);
     }
 
