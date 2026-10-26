@@ -115,10 +115,20 @@ describe('the expression language', () => {
   });
 
   it('refuses gs-quant\'s functions DataCube does not compute, saying why', () => {
-    refused('exponential_moving_average(close)', /recursion/);
-    refused('macd(close)', /recursion/);
-    refused('ema(close)', /recursion/);
     refused('median(close)', /rolling median/);
+    refused('seasonally_adjusted(close)', /seasonal decomposition/);
+  });
+
+  // the expert functions (2026-10-26): gs-quant's recursions, read with its defaults; a weight of 1 or more refused
+  it('reads the exponential averages, MACD and Wilder\'s, with gs-quant\'s defaults', () => {
+    assert.deepEqual(parseExpr('ema(close)'), { kind: 'call', fn: 'exponential_moving_average', args: [{ kind: 'column', column: 'close' }] });
+    assert.equal(exprText(parseExpr('exponential_volatility(close, 0.94)')), 'exponential_volatility(close, 0.94)');
+    assert.equal(exprText(parseExpr('macd(close, 12, 26, 9)')), 'macd(close, 12, 26, 9)');
+    assert.equal(exprText(parseExpr('macd(close, 12, 26, 1)')), 'macd(close)');
+    refused('exponential_moving_average(close, 1)', /beta is below 1/);
+    refused('exponential_std(close, -0.1)', /beta is at least 0/);
+    refused('smoothed_moving_average(close, 3m)', /w is a number|whole/);
+    refused('rsi(close, 1m)', /w is a number|whole/);
   });
 
   it('every function in the catalog says what it is, and what of gs-quant it is', () => {
@@ -238,7 +248,8 @@ describe('the saved spec\'s reader', () => {
       [with_({ sources: [{ alias: 'px', cube: 'g', date: 'd' }, { alias: 'px', cube: 'h', date: 'd' }] }), /two sources are called px/],
       [with_({ grain: 'hour' }), /frequency "hour"/],
       [with_({ series: [{ id: 'a', expr: { kind: 'number', value: 1 } }] }), /not a capital letter/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'macd', args: [] } }] }), /calls "macd", which this DataCube does not compute/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'median', args: [] } }] }), /calls "median", which this DataCube does not compute/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'exponential_moving_average', args: [{ kind: 'column', column: 'c' }], params: { beta: 1 } } }] }), /beta 1 is not below 1/],
       [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'returns', args: [{ kind: 'column', column: 'c' }], params: { obs: 0 } } }] }), /obs 0 is below 1/],
       [with_({ series: [{ id: 'A', expr: { kind: 'column', source: 'fx', column: 'c' } }] }), /reads fx:..., which is none of its sources/],
       [with_({ series: [{ id: 'A', expr: { kind: 'column', column: 'c' }, pane: 4 }] }), /pane 4 is not one of 0 to 3/],

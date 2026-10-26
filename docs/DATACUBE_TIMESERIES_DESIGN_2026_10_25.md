@@ -259,6 +259,19 @@ over the series' own rows does.
   `lowering/Fold.java` filterSlot: PCT `testExtendFilterOutNull`) -- so the window sees the filtered rows. A query here
   never filters after a window whose input it must keep whole: it computes what reads every row before (a first try
   read each run's recovery as a `lead` after the depth filter, and got the next drawdown's peak).
+- **Exponential averages, exact, in closed form** (gs-quant's `exponential_moving_average`, `exponential_std`,
+  `exponential_volatility`, `exponential_spread_volatility`, `macd`, `smoothed_moving_average`, and RSI now Wilder's,
+  as gs-quant's). Each is a recursion, `y = beta·y[-1] + (1 - beta)·x` (pandas `ewm(adjust=False)`). A window frame
+  cannot recurse -- its reducer must be an aggregate: the planner refuses a `fold` there ("aggregate reduce must be a
+  native reducer call"), so a recursive form would be a core compiler change of its own, and the databases' recursive
+  queries are not reachable from a relation's Pure. So the DATABASE computes the recursion's CLOSED FORM: `y_t =
+  (1 - beta)·Σ beta^(t-i)·x'_i`, `x'_0 = x_0 / (1 - beta)`, summed in blocks of W values (W the fewest with `beta^W`
+  under 2^-60, so `beta^-pos` stays under 2^60 in a double): a running sum within a block, the block before carried in
+  whole by a join, the blocks before it weighing under 2^-60 -- below a double's precision, so the value is the
+  recursion's to its last bits on every database (`Writer.ewm`). The bias-corrected deviation is the weighted mean
+  square less the squared weighted mean (of each value less the line's first) over 1 less the sum of squared weights
+  (pandas' correction, its closed form). MACD's spans weigh `2 / (k + 1)`; Wilder's starts from the mean of w, as
+  gs-quant's ramp has it. Pinned against the recursions themselves (and pandas' `ewmcov` loop) over 700 days.
 
 ### 5.4 Proven so far
 

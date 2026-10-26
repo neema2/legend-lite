@@ -171,6 +171,18 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
     label: 'Drawdown', family: 'Risk', unit: 'ratio', params: { w: 'observations its peak is taken over; 0 from the start' },
     about: 'Below its running peak, as a share of it: x / max(x) - 1.', gsQuant: 'DataCube (econometrics.max_drawdown\'s first step)',
   },
+  exponential_volatility: {
+    label: 'Exponential volatility', family: 'Risk', unit: 'percent', params: { beta: 'the weight of the returns before, 0 to under 1' },
+    about: 'The annualized exponentially weighted standard deviation of its returns, in percent (20% is 20).',
+    gsQuant: 'technicals.exponential_volatility', aliases: ['ewvol', 'ewma_volatility'],
+    differs: 'a return of none between others is passed over, as pandas\' ignore_na (gs-quant\'s weights decay across it)',
+  },
+  exponential_spread_volatility: {
+    label: 'Exponential spread volatility', family: 'Risk', unit: 'same', params: { beta: 'the weight of the changes before, 0 to under 1' },
+    about: 'The annualized exponentially weighted standard deviation of its changes, in its own units (a spread\'s, a yield\'s).',
+    gsQuant: 'technicals.exponential_spread_volatility',
+    differs: 'a change of none between others is passed over, as pandas\' ignore_na (gs-quant\'s weights decay across it)',
+  },
   max_drawdown: {
     label: 'Maximum drawdown', family: 'Risk', unit: 'ratio', about: 'The deepest drawdown over the last w observations (-0.2 for 20%).',
     gsQuant: 'econometrics.max_drawdown',
@@ -236,10 +248,38 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
     gsQuant: 'DataCube (PlotTool Pro\'s candlesticks)',
   },
   rsi: {
-    label: 'Relative strength index', family: 'Technicals', unit: 'number',
-    about: '100 - 100 / (1 + average gain / average loss) over the last w changes: 0 to 100.',
+    label: 'Relative strength index', family: 'Technicals', unit: 'number', params: { w: 'the changes its gains and losses are smoothed over' },
+    about: '100 - 100 / (1 + average gain / average loss), each Wilder\'s smoothed average of the last w changes: 0 to 100.',
     gsQuant: 'technicals.relative_strength_index', aliases: ['relative_strength_index'], bounds: [0, 100],
-    differs: 'simple averages of the gains and losses (Cutler\'s); gs-quant smooths them (Wilder\'s), a recursion the database\'s windows have not',
+    differs: 'w a whole number of changes (gs-quant also takes a calendar period, its smoothing then over each date\'s count)',
+  },
+  macd: {
+    label: 'MACD', family: 'Technicals', unit: 'same',
+    params: { m: 'the short average\'s span', n: 'the long average\'s span', s: 'the span its difference is averaged over (1: as it is)' },
+    about: 'The short exponential average less the long one, itself averaged over s -- a span k weighs each new value 2 / (k + 1).',
+    gsQuant: 'technicals.macd',
+  },
+  // exponentially weighted (the expert functions, 2026-10-26): each a recursion, y = beta·y[-1] + (1 - beta)·x, which
+  // the database computes in its closed form (timeseries-query.ts Writer.ewm)
+  exponential_moving_average: { level: 'keeps',
+    label: 'Exponential moving average', family: 'Rolling statistics', unit: 'same',
+    params: { beta: 'the weight of the average before, 0 to under 1' },
+    about: 'Each value the average before weighed beta and the series 1 - beta: y0 = x0, y = beta·y[-1] + (1 - beta)·x.',
+    gsQuant: 'technicals.exponential_moving_average', aliases: ['ema', 'ewma'],
+    differs: 'a value of none between others is passed over, as pandas\' ignore_na (gs-quant\'s weights decay across it)',
+  },
+  exponential_std: {
+    label: 'Exponential standard deviation', family: 'Rolling statistics', unit: 'same',
+    params: { beta: 'the weight of the observations before, 0 to under 1' },
+    about: 'The exponentially weighted standard deviation, bias-corrected (pandas\' ewm(alpha = 1 - beta, adjust=False).std()).',
+    gsQuant: 'statistics.exponential_std', aliases: ['ewm_std', 'ewstd'],
+    differs: 'a value of none between others is passed over, as pandas\' ignore_na (gs-quant\'s weights decay across it)',
+  },
+  smoothed_moving_average: { level: 'keeps',
+    label: 'Smoothed moving average', family: 'Rolling statistics', unit: 'same', params: { w: 'the observations it is smoothed over' },
+    about: 'Wilder\'s: from the mean of w observations, each value (w - 1) parts the one before and one part the series.',
+    gsQuant: 'technicals.smoothed_moving_average', aliases: ['smma', 'wilder'],
+    differs: 'w defaults to 14 observations (gs-quant: every observation); a whole number of them (gs-quant also takes a calendar period)',
   },
   // math
   log: { label: 'Natural log', family: 'Math', unit: 'number', about: 'ln x.', gsQuant: 'algebra.log' },
@@ -268,7 +308,7 @@ export const TS_FUNCTIONS: readonly TsFunction[] = (Object.keys(WORDS) as TsFunc
     return { ...p, about: said };
   });
   // every rolling figure's ramp, and beta's calendar, said where they differ (the second audit's N1, N2: undeclared)
-  const differs = [words.differs, sig.params.some((p) => p.name === 'w') ? RAMP_DIFFERS : undefined,
+  const differs = [words.differs, sig.params.some((p) => p.name === 'w' && p.kind === 'span') ? RAMP_DIFFERS : undefined,
     sig.params.some((p) => p.name === 'obs') ? OBS_DIFFERS : undefined,
     name === 'beta' ? BETA_DIFFERS : undefined].filter((d): d is string => d !== undefined);
   return { name, series: sig.series, params, ...words, ...(differs.length > 0 ? { differs: differs.join('; ') } : {}) };
@@ -282,12 +322,6 @@ export const TS_FUNCTION: ReadonlyMap<TsFunctionName, TsFunction> = new Map(TS_F
  * read as a column of the grid.
  */
 export const NOT_BUILT: Readonly<Record<string, string>> = {
-  exponential_moving_average: 'an exponential average is a recursion (each value from the one before), which the database\'s windows have not: use mean(x, w)',
-  ema: 'an exponential average is a recursion (each value from the one before), which the database\'s windows have not: use mean(x, w)',
-  macd: 'MACD is a difference of exponential averages, a recursion the database\'s windows have not',
-  exponential_volatility: 'an exponentially weighted volatility is a recursion the database\'s windows have not: use volatility(x, w)',
-  exponential_std: 'an exponentially weighted deviation is a recursion the database\'s windows have not: use std(x, w)',
-  smoothed_moving_average: 'a smoothed average is a recursion the database\'s windows have not: use mean(x, w)',
   seasonally_adjusted: 'a seasonal decomposition is a model fitted to the series, not a window over it',
   trend: 'a trend from a seasonal decomposition is a model fitted to the series, not a window over it',
   median: 'a rolling median is a window the planner does not write yet: use mean(x, w) or zscores(x, w)',
@@ -766,6 +800,7 @@ export function parseExpr(text: string): TsExpr {
     if (n === undefined) throw new TsSyntaxError(param.kind === 'span' ? `${param.name} is a whole number of observations or a calendar period (3m, 1y)` : `${param.name} is a number`, t.at);
     if ((param.kind === 'whole' || param.kind === 'span') && !Number.isInteger(n)) throw new TsSyntaxError(`${param.name} is a whole number`, t.at);
     if (param.min !== undefined && n < param.min) throw new TsSyntaxError(`${param.name} is at least ${param.min}`, t.at);
+    if (param.below !== undefined && n >= param.below) throw new TsSyntaxError(`${param.name} is below ${param.below}`, t.at);
     return n;
   };
   const primary = (): TsExpr => {

@@ -238,6 +238,8 @@ export type TsFunctionName =
   | 'volatility' | 'drawdown' | 'max_drawdown' | 'sharpe_ratio'
   | 'correlation' | 'beta' | 'cov' | 'alpha' | 'r_squared' | 'hedge_ratio' | 'residual'
   | 'bollinger_bands' | 'rsi' | 'ohlc'
+  | 'exponential_moving_average' | 'exponential_std' | 'exponential_volatility' | 'exponential_spread_volatility' | 'macd'
+  | 'smoothed_moving_average'
   | 'log' | 'exp' | 'sqrt' | 'abs' | 'power' | 'floor' | 'ceil';
 
 /** A function's parameter as a spec holds it: a whole number, a span (a window, a lag: a whole number of observations
@@ -249,6 +251,8 @@ export interface TsParamShape {
   readonly words?: readonly string[];
   /** The least a number may be. */
   readonly min?: number;
+  /** What a number must be below (an exponential average's weight: under 1). */
+  readonly below?: number;
 }
 
 /**
@@ -268,6 +272,10 @@ const OBS: TsParamShape = { name: 'obs', kind: 'span', default: 1, min: 1 };
 const RETURN_TYPE: TsParamShape = { name: 'type', kind: 'word', default: 'simple', words: ['simple', 'log', 'absolute'] };
 const num = (name: string, fallback: number, min?: number): TsParamShape =>
   ({ name, kind: 'number', default: fallback, ...(min !== undefined ? { min } : {}) });
+/** A whole number of observations alone (a recursion's: Wilder's smoothing counts them). */
+const whole = (name: string, fallback: number, min = 1): TsParamShape => ({ name, kind: 'whole', default: fallback, min });
+/** An exponential average's weight of the one before, 0 to under 1 (gs-quant's beta: 0.75). */
+const BETA: TsParamShape = { name: 'beta', kind: 'number', default: 0.75, min: 0, below: 1 };
 const one = (...params: TsParamShape[]): TsSignature => ({ series: 1, params });
 
 /** Every function's signature, gs-quant's names (PlotTool Pro's words), in the catalog's order. */
@@ -280,7 +288,10 @@ export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
   correlation: { series: 2, params: [W(63)] }, beta: { series: 2, params: [W(63)] }, cov: { series: 2, params: [W(63)] },
   alpha: { series: 2, params: [W(63)] }, r_squared: { series: 2, params: [W(63)] }, hedge_ratio: { series: 2, params: [W(63)] },
   residual: { series: 2, params: [W(63)] },
-  bollinger_bands: one(W(20), num('k', 2, 0)), rsi: one(W(14)), ohlc: { series: 4, params: [] },
+  bollinger_bands: one(W(20), num('k', 2, 0)), rsi: one(whole('w', 14)), ohlc: { series: 4, params: [] },
+  exponential_moving_average: one(BETA), exponential_std: one(BETA), exponential_volatility: one(BETA),
+  exponential_spread_volatility: one(BETA), macd: one(whole('m', 12), whole('n', 26), whole('s', 1)),
+  smoothed_moving_average: one(whole('w', 14)),
   log: one(), exp: one(), sqrt: one(), abs: one(), power: one(num('y', 2)), floor: one(num('value', 0)), ceil: one(num('value', 0)),
 };
 
@@ -419,6 +430,7 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
             if (typeof v !== 'number' || !Number.isFinite(v)) return `${fn}'s ${name} ${JSON.stringify(v)} is not a number`;
             if ((q.kind === 'whole' || q.kind === 'span') && !Number.isInteger(v)) return `${fn}'s ${name} ${v} is not a whole number`;
             if (q.min !== undefined && v < q.min) return `${fn}'s ${name} ${v} is below ${q.min}`;
+            if (q.below !== undefined && v >= q.below) return `${fn}'s ${name} ${v} is not below ${q.below}`;
           }
         }
       }

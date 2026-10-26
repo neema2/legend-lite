@@ -157,6 +157,18 @@ const ROLLING: GallerySheet = {
       ],
       range: { last: '3m' },
     }),
+  ], [
+    tile('exponential', 'Exponential and Wilder\'s averages: the S&P 500, its EMA, its smoothed average, its exponential deviation', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[SPX]', { name: 'S&P 500' }),
+        s('B', 'exponential_moving_average(close[SPX], 0.95)', { name: 'EMA (beta 0.95)', style: { width: 1 } }),
+        s('C', 'smoothed_moving_average(close[SPX], 20)', { name: 'Wilder 20', style: { width: 1, dash: 'dashed' } }),
+        s('D', 'exponential_std(close[SPX], 0.95)', { name: 'Exponential deviation', pane: 1, style: { kind: 'area' } }),
+      ],
+      range: { last: '1y' },
+      panes: [{ height: 2 }, { height: 1 }],
+    }),
   ]],
 };
 
@@ -196,6 +208,15 @@ const RISK: GallerySheet = {
         s('B', 'max_drawdown(close[NDX], 252)', { name: 'Nasdaq 100' }),
       ],
       annotations: [...MARKS],
+    }),
+    tile('exponential-volatility', 'Exponential volatility: the S&P 500\'s RiskMetrics-style, beside its realized, and the curve\'s spread\'s', {
+      sources: [PRICES, RATES],
+      series: [
+        s('A', 'exponential_volatility(px:close[SPX], 0.94)', { name: 'Exponential (0.94)' }),
+        s('B', 'volatility(px:close[SPX], 63)', { name: 'Realized, 3 months', style: { dash: 'dashed', width: 1 } }),
+        s('C', 'exponential_spread_volatility(rates:yield[10Y] - rates:yield[2Y], 0.94)', { name: '10s2s spread, points a year', pane: 1 }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }],
     }),
   ]],
 };
@@ -285,6 +306,16 @@ const TECHNICALS: GallerySheet = {
       ],
       range: { last: '3m' },
       panes: [{ height: 3 }, { height: 1 }],
+    }),
+    tile('macd', 'MACD: the S&P 500\'s 12- and 26-day exponential averages apart, and its 9-day signal', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'macd(close[SPX])', { name: 'MACD (12, 26)' }),
+        s('B', 'macd(close[SPX], 12, 26, 9)', { name: 'Signal (9)', style: { dash: 'dashed' } }),
+        s('C', '$A - $B', { name: 'Histogram', style: { kind: 'bars' } }),
+      ],
+      range: { last: '1y' },
+      annotations: [{ kind: 'level', value: 0 }],
     }),
   ]],
 };

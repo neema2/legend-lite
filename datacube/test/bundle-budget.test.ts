@@ -554,8 +554,11 @@ const CHART_BUDGET = 303_500;
  *  Summary and Risk tabs (ui/timeseries-view.ts RISK_COLUMNS)). Measured 39,100.
  *  39,900 -> 41,800 (2026-10-26, the expert functions' rolling regression (alpha, R², hedge ratio, residual: their words
  *  and their queries) and a level's deepest drawdowns, a query of its own (timeseries-query.ts drawdownsQuery) and the
- *  panel's Drawdowns tab, asked when shown). Measured 40,933. */
-const TIMESERIES_BUDGET = 41_800;
+ *  panel's Drawdowns tab, asked when shown). Measured 40,933.
+ *  41,800 -> 43,000 (2026-10-26, the expert functions' exponential averages -- gs-quant's EMA, exponential deviation
+ *  and volatilities, MACD, Wilder's smoothing and RSI -- each a recursion written in its closed form
+ *  (timeseries-query.ts Writer.ewm, ewmStd, smoothed) with their words). Measured 42,136. */
+const TIMESERIES_BUDGET = 43_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

@@ -111,6 +111,50 @@ const cov = (a: number[], b: number[]): number => {
   const mb = avg(b);
   return a.reduce((s, v, i) => s + (v - ma) * (b[i]! - mb), 0) / (a.length - 1);
 };
+/** An exponential average as its recursion (pandas' ewm, adjust=False): y0 = x0, y = beta·y[-1] + (1 - beta)·x. */
+const ema = (x: number[], beta: number): number[] => {
+  const out: number[] = [];
+  for (const v of x) out.push(out.length === 0 ? v : beta * out.at(-1)! + (1 - beta) * v);
+  return out;
+};
+/** pandas' ewm(alpha = 1 - beta, adjust=False).std(), its own loop (pandas/_libs/window/aggregations.pyx ewmcov). */
+const ewmStd = (x: number[], beta: number): Line => {
+  const alpha = 1 - beta;
+  let mean = x[0]!;
+  let cov = 0;
+  let sumWt = 1;
+  let sumWt2 = 1;
+  let oldWt = 1;
+  const out: Line = [null];
+  for (let i = 1; i < x.length; i++) {
+    const cur = x[i]!;
+    sumWt *= beta;
+    sumWt2 *= beta * beta;
+    oldWt *= beta;
+    const oldMean = mean;
+    if (mean !== cur) mean = (oldWt * oldMean + alpha * cur) / (oldWt + alpha);
+    cov = (oldWt * (cov + (oldMean - mean) * (oldMean - mean)) + alpha * (cur - mean) * (cur - mean)) / (oldWt + alpha);
+    sumWt += alpha;
+    sumWt2 += alpha * alpha;
+    oldWt += alpha;
+    sumWt /= oldWt;
+    sumWt2 /= oldWt * oldWt;
+    oldWt = 1;
+    const numerator = sumWt * sumWt;
+    const denominator = numerator - sumWt2;
+    out.push(denominator > 0 ? Math.sqrt((numerator / denominator) * cov) : null);
+  }
+  return out;
+};
+/** gs-quant's smoothed_moving_average over w (technicals.py): none to the w-th, there the mean of the w values ending at
+ *  it, then ((w - 1)·y[-1] + x) / w. */
+const smma = (x: number[], w: number): Line => {
+  const out: Line = [];
+  for (let i = 0; i < x.length; i++) {
+    out.push(i < w ? null : i === w ? avg(x.slice(1, w + 1)) : ((w - 1) * out[i - 1]! + x[i]!) / w);
+  }
+  return out;
+};
 const pairs = (a: Line, b: Line, w: number, f: (p: number[], q: number[]) => number): Line => a.map((_, i) => {
   if (i < w - 1) return null;
   const p = a.slice(i - w + 1, i + 1);
@@ -322,6 +366,14 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     assert.deepEqual(kept.dates, DAYS.slice(10, 21));
     close(kept.values, all.values.slice(10, 21), 'the window\'s volatility, as over every date');
     assert.ok(kept.values[0] !== null, 'its first value has its five returns');
+    // a value that is a window itself (a running sum, a running drawdown, a lag): every one over every date too -- a
+    // plain filter after a window's extend is folded into its WHERE (core lowering/Fold.java filterSlot), never so here
+    for (const text of ['sum(close[AAA], 0)', 'drawdown(close[AAA])', 'lag(close[AAA], 3)', 'max(close[AAA], 0)']) {
+      const every = await line(spec({ A: text }));
+      const cut = await line(spec({ A: text }), 'A', {}, { from, to });
+      assert.deepEqual(cut.dates, DAYS.slice(10, 21), text);
+      close(cut.values, every.values.slice(10, 21), `${text} over the window, as over every date`);
+    }
   });
 
   it('diff and lag', async () => {
@@ -441,16 +493,12 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close(l.upper!, rolling(AAA, 5, (v) => avg(v) + 2 * sd(v)), 'upper', 1e-7);
   });
 
-  it('RSI of simple averages of the gains and the losses', async () => {
-    const d = zip(AAA, lagged(AAA, 1), (v, p) => v - p);
-    const want = d.map((_, i) => {
-      if (i < 6) return null;
-      const win = d.slice(i - 5, i + 1) as number[];
-      const up = avg(win.map((v) => Math.max(v, 0)));
-      const down = avg(win.map((v) => Math.max(-v, 0)));
-      return down === 0 ? 100 : 100 - 100 / (1 + up / down);
-    });
-    close((await line(spec({ A: 'rsi(close[AAA], 6)' }))).values, want, 'rsi', 1e-7);
+  it('RSI of Wilder\'s smoothed averages of the gains and the losses (gs-quant\'s)', async () => {
+    const c = AAA.slice(1).map((v, i) => v - AAA[i]!);
+    const up = smma(c.map((v) => Math.max(v, 0)), 6);
+    const down = smma(c.map((v) => Math.max(-v, 0)), 6);
+    const want: Line = [null, ...c.map((_, j) => (up[j] === null ? null : down[j] === 0 ? 100 : 100 - 100 / (1 + up[j]! / down[j]!)))];
+    close((await line(spec({ A: 'rsi(close[AAA], 6)' }))).values, want, 'rsi', 1e-9);
   });
 
   // the second audit's S5: initial at the first date -- gs-quant's product over the returns to date, as pandas' prod
@@ -586,6 +634,55 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
     const of = (sym: string): Line => l.values.filter((_, i) => l.split![i] === sym);
     const start = onBy(DAYS[0]!, 1, 'w');
     close(of('BBB'), DAYS.map((d) => (d < start ? null : BBB.filter((_, j) => DAYS[j]! > backBy(d, 1, 'w') && DAYS[j]! <= d).reduce((x, y) => x + y, 0))), 'BBB', 1e-9);
+  });
+});
+
+// -- exponentially weighted (the expert functions, 2026-10-26): each a recursion the database computes in its closed form,
+// held here to the recursion itself, run over 700 days so its blocks of values turn over several times --
+
+describe('exponential averages: gs-quant\'s recursions, the database\'s closed form', () => {
+  const N = 700;
+  const LONG = Array.from({ length: N }, (_, i) => round(100 * Math.exp(0.002 * i + 0.05 * Math.sin(i / 7) + 0.03 * Math.cos(i / 3.1))));
+  const LONG_DAYS = Array.from({ length: N }, (_, i) => new Date(Date.UTC(2021, 0, 1) + i * 86_400_000).toISOString().slice(0, 10));
+  let long: TsInputs;
+  let own: LitePlanner;
+  before(async () => {
+    const csv = ['symbol,day,close', ...LONG_DAYS.map((d, i) => `L,${d},${LONG[i]}`)].join('\n');
+    const r = await ingestFile(engine, files, new File([csv], 'ewm-long.csv'), writer, { table: 'ewm_long' });
+    own = plannerFor(r.model, r.runtime);
+    long = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
+  });
+  const longLine = async (text: string): Promise<Line> => {
+    const ts = spec({ A: text });
+    const t = await engine.execute(await own.plan(seriesQuery(long, ts, ts.series[0]!).query), 0);
+    return values(t, TS_VALUE).map(num).reverse();
+  };
+
+  it('exponential_moving_average: y0 = x0, y = beta·y[-1] + (1 - beta)·x, to its last bits over many blocks', async () => {
+    close(await longLine('exponential_moving_average(close, 0.75)'), ema(LONG, 0.75), 'beta 0.75', 1e-12);
+    close(await longLine('ema(close, 0.97)'), ema(LONG, 0.97), 'beta 0.97', 1e-12);
+    close((await line(spec({ A: 'exponential_moving_average(close[AAA], 0.1)' }))).values, ema(AAA, 0.1), 'beta 0.1, three blocks of 40', 1e-12);
+    close((await line(spec({ A: 'exponential_moving_average(close[AAA], 0)' }))).values, AAA, 'beta 0: the series', 0);
+  });
+
+  it('exponential_std, pandas\' bias-corrected; exponential_volatility of the returns, annualized, in percent', async () => {
+    close(await longLine('exponential_std(close)'), ewmStd(LONG, 0.75), 'std, beta 0.75', 1e-9);
+    const r = LONG.slice(1).map((v, i) => v / LONG[i]! - 1);
+    // a day apart, every day: 252 a year as the database infers it from the dates (gs-quant's buckets: under 2.1 days)
+    close(await longLine('exponential_volatility(close, 0.9)'), [null, ...ewmStd(r, 0.9).map((v) => (v === null ? null : v * Math.sqrt(252) * 100))], 'volatility', 1e-9);
+    const d = LONG.slice(1).map((v, i) => v - LONG[i]!);
+    close(await longLine('exponential_spread_volatility(close)'), [null, ...ewmStd(d, 0.75).map((v) => (v === null ? null : v * Math.sqrt(252)))], 'spread volatility', 1e-9);
+  });
+
+  it('macd: the 12-span average less the 26-span one, itself averaged over s', async () => {
+    const span = (x: number[], k: number): number[] => ema(x, (k - 1) / (k + 1));
+    const raw = span(LONG, 12).map((v, i) => v - span(LONG, 26)[i]!);
+    close(await longLine('macd(close)'), raw, 'macd(12, 26)', 1e-10);
+    close(await longLine('macd(close, 12, 26, 9)'), span(raw, 9), 'macd(12, 26, 9)', 1e-10);
+  });
+
+  it('smoothed_moving_average: Wilder\'s, from the mean of w', async () => {
+    close(await longLine('smoothed_moving_average(close, 14)'), smma(LONG, 14), 'smma 14', 1e-10);
   });
 });
 
@@ -1097,8 +1194,9 @@ describe('a series combining two grids, planned over one model of their tables (
 // tile -- its statistics and its sources' bounds too -- planned by legend-lite's planner and answered by the database: a
 // grid's alone by its own planner, the series across both grids over one model of their tables (openSources), as the
 // tab runs them.
-/** The gallery's series: every function at least once, and the ways to view (92: the regression tile's four, 2026-10-26). */
-const GALLERY_SERIES = 92;
+/** The gallery's series: every function at least once, and the ways to view (2026-10-26: 92, the regression tile's four;
+ *  102, the exponential averages', volatilities' and MACD's ten). */
+const GALLERY_SERIES = 102;
 
 describe('the timeseries examples: every series of every tile, on its own samples', () => {
   const pages = [
