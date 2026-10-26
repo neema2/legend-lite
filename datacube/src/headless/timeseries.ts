@@ -8,8 +8,10 @@ import { readPage, type PageDocument } from '../page-document.ts';
 import { gridTitle } from '../page-ids.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot } from '../snapshot.ts';
 import {
-  readsAnchor, seriesNotes, seriesQuery, seriesSources, TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_ROWS, TS_SPLIT,
-  TS_UPPER, TS_VALUE, type TsInputs, type TsQuery, type TsWindow,
+  correlationsQuery, drawdownsQuery, readsAnchor, seriesNotes, seriesQuery, seriesSources, statName, statsQuery, tableSeries,
+  TS_CORR, TS_CORR_A, TS_CORR_B, TS_CORR_N, TS_DATE, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED,
+  TS_DD_RECOVERY, TS_DD_TROUGH, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STATS, TS_UPPER, TS_VALUE,
+  type TsInputs, type TsQuery, type TsTable, type TsWindow,
 } from '../timeseries-query.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { HostTables } from './host-tables.ts';
@@ -191,6 +193,71 @@ export interface SeriesAsked {
   readonly host: HostTables;
   /** The copies the host holds, by table (Python's held_copies): a snapped grid is read over its copy. */
   readonly copies?: Readonly<Record<string, unknown>>;
+  /** Absent, the series' points; else one of its tables over the window (the statistics panel's tabs) -- of
+   *  correlations, the series' lines with `with`'s. */
+  readonly table?: TsTable;
+  readonly with?: string;
+}
+
+/**
+ * WHAT A HOST ASKS OF A TILE'S SERIES, written: its points (seriesQuery, every point of the window) or one of its tables
+ * over the window (the screen's own: statsQuery, drawdownsQuery, correlationsQuery), and its answer's words -- the names
+ * of the columns it answers with, by role.
+ */
+export function askedOf(asked: Pick<SeriesAsked, 'table' | 'with' | 'window'>, inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries): string {
+  const window = asked.window ?? {};
+  switch (asked.table) {
+    case undefined: {
+      // its first date its base where it reads one (an index, compare), and the window's dates alone kept -- by the
+      // database; every point of them (the drawing's limit is the drawing's: the owner, 2026-10-25, the review's P5)
+      const q = seriesQuery(inputs, ts, series, readsAnchor(ts, series) && window.from !== undefined ? { from: window.from } : {}, window, null);
+      return `"query":${toJson(q.query)},${answerOf(q, series)}`;
+    }
+    case 'statistics': {
+      const q = statsQuery(inputs, ts, series, window);
+      const columns = Object.fromEntries([['split', TS_SPLIT], ...TS_STATS.map((st) => [st, statName(st)])]);
+      return `"query":${toJson(q.query)},"table":"statistics","columns":${JSON.stringify(columns)},"split":${JSON.stringify(q.split ?? null)},"name":${JSON.stringify(series.name ?? null)}`;
+    }
+    case 'drawdowns': {
+      const q = drawdownsQuery(inputs, ts, series, window);
+      const columns = { split: TS_SPLIT, rank: TS_DD_RANK, peak: TS_DD_PEAK, trough: TS_DD_TROUGH, recovered: TS_DD_RECOVERED, depth: TS_DD_DEPTH, decline: TS_DD_DECLINE, recovery: TS_DD_RECOVERY };
+      return `"query":${toJson(q.query)},"table":"drawdowns","columns":${JSON.stringify(columns)},"split":${JSON.stringify(q.split ?? null)},"name":${JSON.stringify(series.name ?? null)}`;
+    }
+    case 'correlations': {
+      const other = asked.with === undefined ? undefined : ts.series.find((x) => x.id === asked.with);
+      if (!other) throw new Problem(`a correlation of ${series.id} is with another series of the tile: ${JSON.stringify(asked.with ?? null)} is none`);
+      const q = correlationsQuery(inputs, ts, series, other, window);
+      const columns = { a: TS_CORR_A, b: TS_CORR_B, corr: TS_CORR, n: TS_CORR_N };
+      return `"query":${toJson(q.query)},"table":"correlations","columns":${JSON.stringify(columns)},"split":${JSON.stringify(series.split ?? null)},"withSplit":${JSON.stringify(other.split ?? null)},`
+        + `"name":${JSON.stringify(series.name ?? null)},"withName":${JSON.stringify(other.name ?? null)}`;
+    }
+    default:
+      // a host's JSON: a word the tile has no table of, refused by name
+      throw new Problem(`a timeseries has no table ${JSON.stringify(asked.table)} (statistics, drawdowns, correlations)`);
+  }
+}
+
+/** The sources a host's ask reads, by alias: the series', and of a correlation the other's too. */
+export function askedSources(asked: Pick<SeriesAsked, 'table' | 'with'>, ts: TimeseriesSpec, series: TsSeries): string[] {
+  const other = asked.table === 'correlations' && asked.with !== undefined ? ts.series.find((x) => x.id === asked.with) : undefined;
+  return [...new Set([...seriesSources(ts, series), ...(other ? seriesSources(ts, other) : [])])];
+}
+
+/**
+ * THE SERIES A TILE'S TABLES READ, HEADLESS: tile `tile` of `page` by the one rule its screen's tabs read
+ * (timeseries-query.ts tableSeries) -- for Python's Timeseries tables. JSON: `{statistics, drawdowns, correlations}`
+ * (ids; correlations each a pair), or `{problems}`.
+ */
+export function timeseriesTables(page: string, tile: string): string {
+  try {
+    const doc = readPage(JSON.parse(page), { empty: true });
+    const view = doc.views.find((v) => v.id === tile);
+    if (!view || view.kind !== 'timeseries') throw new Problem(`'${tile}' is no timeseries tile of the page`);
+    return JSON.stringify(tableSeries(view.spec));
+  } catch (e) {
+    if (e instanceof Problem) return JSON.stringify({ problems: [e.message] });
+    throw e;
+  }
 }
 
 /** What a series' query answers with, by role, as a host reads its answer. */
@@ -255,7 +322,7 @@ export async function timeseriesQuery(spec: string): Promise<string> {
     const { ts, series } = seriesOf(page, asked.tile, asked.series);
     let aliases: string[];
     try {
-      aliases = seriesSources(ts, series);
+      aliases = askedSources(asked, ts, series);
     } catch (e) {
       throw new Problem(`series ${series.id}: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -281,11 +348,7 @@ export async function timeseriesQuery(spec: string): Promise<string> {
       const snapshot: CubeSnapshot = { ...query, source: { query: relation }, epoch: 0 };
       return [alias, { snapshot, filter: query.filter }] as const;
     }));
-    const window = asked.window ?? {};
-    // its first date its base where it reads one (an index, compare), and the window's dates alone kept -- by the
-    // database; every point of them (the drawing's limit is the drawing's: the owner, 2026-10-25, the review's P5)
-    const q = seriesQuery(inputs, ts, series, readsAnchor(ts, series) && window.from !== undefined ? { from: window.from } : {}, window, null);
-    return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},"query":${toJson(q.query)},${answerOf(q, series)}}`;
+    return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},${askedOf(asked, inputs, ts, series)}}`;
   } catch (e) {
     if (e instanceof Problem || e instanceof CubeRefusal) return JSON.stringify({ problems: [e.message] });
     throw e;

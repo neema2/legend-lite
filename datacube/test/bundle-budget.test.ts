@@ -560,8 +560,11 @@ const CHART_BUDGET = 303_500;
  *  (timeseries-query.ts Writer.ewm, ewmStd, smoothed) with their words). Measured 42,136.
  *  43,000 -> 44,700 (2026-10-26, the expert functions' percentiles by each window's rows (Writer.ofWindow, a self-join)
  *  and conditions -- comparisons, and, or, their runs the database's, shaded across the panes (timeseries-expr.ts,
- *  timeseries-query.ts, timeseries-option.ts)). Measured 43,802. */
-const TIMESERIES_BUDGET = 44_700;
+ *  timeseries-query.ts, timeseries-option.ts)). Measured 43,802.
+ *  44,700 -> 46,100 (2026-10-26, the expert tables' last: the correlations of every pair of lines (correlationsQuery)
+ *  and the panel's Correlations tab, and the one rule of which series each table reads (tableSeries), which Python's
+ *  tables read too). Measured 45,224. */
+const TIMESERIES_BUDGET = 46_100;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

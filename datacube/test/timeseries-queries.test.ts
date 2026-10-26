@@ -16,9 +16,9 @@ import type { LitePlanner } from '../src/lite-planner.ts';
 import { type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import {
-  boundsQuery, drawdownsQuery, keyValuesQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN,
+  boundsQuery, correlationsQuery, drawdownsQuery, keyValuesQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN,
   TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
-  TS_FROM, TS_TO, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_PER_YEAR, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
+  TS_CORR, TS_CORR_A, TS_CORR_B, TS_CORR_N, TS_FROM, TS_TO, TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_PER_YEAR, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
 } from '../src/timeseries-query.ts';
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
 import type { FileSource } from '../src/cube-document.ts';
@@ -654,6 +654,45 @@ const rankIn = (window: number[], v: number): number =>
   ((window.filter((x) => x < v).length + window.filter((x) => x <= v).length) / 2 / window.length) * 100;
 
 // -- conditions (the expert functions, 2026-10-26): 1 where they hold, 0 where not, each date's run the database's --
+
+// -- the correlations of the lines over the dates shown (the expert tables, 2026-10-26) --
+
+describe('correlations: each pair of lines over the dates shown', () => {
+  it('two levels\' returns, over the dates both have shown; a level with a return its returns with the return', async () => {
+    const ts = spec({ A: 'close[AAA]', B: 'close[BBB]', C: 'returns(close[CCC])' });
+    const [A, B, C] = ts.series;
+    const view = { from: DAYS[5]!, to: DAYS[34]! };
+    const t = await run(correlationsQuery(inputs, ts, A!, B!, view));
+    const shownA = AAA.slice(5, 35);
+    const shownB = BBB.slice(5, 35);
+    const ra = shownA.slice(1).map((x, i) => x / shownA[i]! - 1);
+    const rb = shownB.slice(1).map((x, i) => x / shownB[i]! - 1);
+    close([num(values(t, TS_CORR)[0])], [cov(ra, rb) / (sd(ra) * sd(rb))], 'AAA ~ BBB', 1e-9);
+    assert.equal(Number(values(t, TS_CORR_N)[0]), ra.length);
+    // CCC trades every third day: its returns over its own dates, the AAA returns on those dates beside them
+    const ct = await run(correlationsQuery(inputs, ts, A!, C!, view));
+    const cIdx = DAYS.map((_, i) => i).filter((i) => i % 3 === 0);
+    const cR = new Map(cIdx.slice(1).map((d, k) => [d, CCC[d]! / CCC[cIdx[k]!]! - 1] as const));
+    const both = DAYS.map((_, i) => i).filter((i) => i > 5 && i <= 34 && cR.has(i));
+    const x = both.map((i) => AAA[i]! / AAA[i - 1]! - 1);
+    const z = both.map((i) => cR.get(i)!);
+    close([num(values(ct, TS_CORR)[0])], [cov(x, z) / (sd(x) * sd(z))], 'AAA ~ returns(CCC)', 1e-9);
+  });
+
+  it('a split series\' lines against each other, each pair once', async () => {
+    const ts = spec({ A: 'close' }, {}, 'symbol');
+    const t = await run(correlationsQuery(inputs, ts, ts.series[0]!, ts.series[0]!));
+    const pairs = values(t, TS_CORR_A).map((a, i) => `${String(a)}~${String(values(t, TS_CORR_B)[i])}`);
+    assert.deepEqual(pairs.sort(), ['AAA~BBB', 'AAA~CCC', 'BBB~CCC']);
+    const ab = values(t, TS_CORR)[pairs.indexOf('AAA~BBB')];
+    const at = values(t, TS_CORR_A).findIndex((a, i) => a === 'AAA' && values(t, TS_CORR_B)[i] === 'BBB');
+    const ra = simple(AAA).slice(1) as number[];
+    const rb = simple(BBB).slice(1) as number[];
+    close([num(values(t, TS_CORR)[at])], [cov(ra, rb) / (sd(ra) * sd(rb))], 'AAA ~ BBB, split', 1e-9);
+    void ab;
+    assert.throws(() => correlationsQuery(inputs, spec({ A: 'close[AAA]' }), spec({ A: 'close[AAA]' }).series[0]!, spec({ A: 'close[AAA]' }).series[0]!), /with itself is 1/);
+  });
+});
 
 describe('conditions: a comparison, and two joined, each date\'s run where it holds', () => {
   it('close above its 5-day mean: 1 or 0 a date, none before its mean; each date that holds its run\'s first and last', async () => {

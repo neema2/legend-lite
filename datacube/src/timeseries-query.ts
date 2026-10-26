@@ -36,7 +36,7 @@ import {
   type TsExpr, type TsMatch, type TsOperator, type TsRangeWord, type TsSeries, type TsSource, type TsTenor,
   isConditionOp,
 } from './timeseries-spec.ts';
-import { inlined, isBand, isCandles, isCondition, levelOf, paramOf, seriesName, sourceAlias, sourcesOf, splitName, unitOf, type TsUnit } from './timeseries-expr.ts';
+import { inlined, isBand, isCandles, isCondition, levelOf, TsInlineError, paramOf, seriesName, sourceAlias, sourcesOf, splitName, unitOf, type TsUnit } from './timeseries-expr.ts';
 import type { TimeGrain } from './chart-spec.ts';
 
 /** The columns a series' query answers with. */
@@ -1453,6 +1453,107 @@ export function drawdownsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsS
   return {
     series: series.id, query: rel.lambda(), unit: b.unit, band: false, ...(b.split !== undefined ? { split: b.split } : {}),
     level: true, counted: false, sources: b.sources,
+  };
+}
+
+/** The columns a correlations query answers with, a row per pair of lines: each line's split value (none: the series'
+ *  one line), their correlation over the dates both have shown, and how many dates that is. */
+export const TS_CORR_A = '__ts_corr_a';
+export const TS_CORR_B = '__ts_corr_b';
+export const TS_CORR = '__ts_corr';
+export const TS_CORR_N = '__ts_corr_n';
+
+/**
+ * THE CORRELATIONS OF TWO SERIES' LINES over the dates shown (the expert tables, 2026-10-26: the statistics panel's
+ * Correlations tab): each line of `a` with each of `b` -- of one split series, each pair of its lines once -- their
+ * correlation over the periods both have: a level's simple returns (gs-quant's correlation reads returns), anything
+ * else as it is; each side cut to the dates shown, then its returns, then the two joined on the period and every pair
+ * of lines aggregated -- the database's. Of a series with itself and no split there is nothing to ask (it is 1).
+ */
+export function correlationsQuery(inputs: TsInputs, ts: TimeseriesSpec, a: TsSeries, b: TsSeries, view: TsWindow = {}): TsQuery {
+  if (a.id === b.id && a.split === undefined) throw new Error(`series ${a.id} with itself is 1: nothing to ask`);
+  const names = { n: 0 };
+  let periodType: string | undefined;
+  const side = (s: TsSeries): { readonly w: Writer; readonly v: string; readonly sources: readonly string[] } => {
+    const expr = candled(inlined(s.expr, ts.series));
+    if (isBand(expr) || isCandles(expr) || isCondition(expr)) throw new CubeRefusal(`series ${s.id} is drawn, never correlated: a band, candles or a condition`);
+    const read = sourcesOf(ts, expr);
+    if (read.length === 0) throw new CubeRefusal(`series ${s.id} reads no column of a grid`);
+    const sh: Shared = { ts, grain: ts.grain, series: s, inputs, split: s.split, first: read[0]!, anchor: view.from, periodType: undefined, names };
+    const node = write(sh, expr);
+    if ('constant' in node) throw new CubeRefusal(`series ${s.id} reads no column of a grid`);
+    if (s.split !== undefined && !node.w.split) {
+      throw new CubeRefusal(`series ${s.id} is split by ${s.split}, but reads one ${s.split}'s rows alone: a line per ${s.split} needs a column of every one`);
+    }
+    if (periodType === undefined) periodType = sh.periodType;
+    else if (sh.periodType !== periodType) throw new CubeRefusal(`series ${a.id} and ${b.id} are of dates of two types: give the tile a frequency (Daily) to read both by day`);
+    const w = node.w;
+    const own = columnOfValue(node.v);
+    const shown: ValueSpecification[] = [fn('isNotEmpty', col(own))];
+    if (view.from !== undefined) shown.push(fn('greaterThanEqual', one(w.at), dateLiteral(view.from, sh.periodType!)));
+    if (view.to !== undefined) shown.push(fn('lessThanEqual', one(w.at), dateLiteral(`${view.to}${isDay(sh.periodType!) ? '' : 'T23:59:59'}`, sh.periodType!)));
+    w.rel = w.rel.filter(row(and(...shown)));
+    return { w, v: levelOf(expr) ? w.simple(own) : own, sources: read };
+  };
+  const A = side(a);
+  const la = names.n++;
+  const pa = `__ts_corr_pa_${la}`;
+  const va = `__ts_corr_va_${la}`;
+  const left = A.w.rel.select([A.w.part, PERIOD, A.v]).rename(A.w.part, pa).rename(A.v, va);
+  let pairs: Relation;
+  let sources = A.sources;
+  const bp = `__ts_corr_pb_${names.n}`;
+  const bper = `__ts_corr_per_${names.n}`;
+  const vb = `__ts_corr_vb_${names.n++}`;
+  const on = (also: ValueSpecification[]): Lambda =>
+    lambda(['l', 'r'], and(fn('equal', property(variable('l'), PERIOD), property(variable('r'), bper)), ...also));
+  if (a.id === b.id) {
+    // one split series' lines against each other, each pair once (by their values' order)
+    const right = A.w.rel.select([A.w.part, PERIOD, A.v]).rename(A.w.part, bp).rename(PERIOD, bper).rename(A.v, vb);
+    pairs = left.join(right, 'INNER', on([fn('lessThan', property(variable('l'), pa), property(variable('r'), bp))]));
+  } else {
+    const B = side(b);
+    sources = [...new Set([...A.sources, ...B.sources])];
+    const right = B.w.rel.select([B.w.part, PERIOD, B.v]).rename(B.w.part, bp).rename(PERIOD, bper).rename(B.v, vb);
+    pairs = left.join(right, 'INNER', on([]));
+  }
+  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
+  let rel = pairs.groupBy([pa, bp], [
+    agg(TS_CORR, row(fn('rowMapper', col(va), col(vb))), y('corr')),
+    agg(TS_CORR_N, row(col(va)), y('count')),
+  ]);
+  // each line by its split value: a series of one line has none to say
+  const lines = [...(a.split !== undefined ? [derive(TS_CORR_A, row(col(pa)))] : []), ...(b.split !== undefined ? [derive(TS_CORR_B, row(col(bp)))] : [])];
+  if (lines.length > 0) rel = rel.extend(lines);
+  rel = rel.select([...(a.split !== undefined ? [TS_CORR_A] : []), ...(b.split !== undefined ? [TS_CORR_B] : []), TS_CORR, TS_CORR_N]);
+  return { series: a.id, query: rel.lambda(), unit: 'number', band: false, level: false, counted: false, sources };
+}
+
+/** The tables of a tile's series (the statistics panel's tabs, and Python's Timeseries tables). */
+export type TsTable = 'statistics' | 'drawdowns' | 'correlations';
+
+/**
+ * THE SERIES EACH OF A TILE'S TABLES READS -- the one rule the screen's tabs and Python's tables read: the statistics,
+ * every series drawn on an axis (no band, no condition: drawn, never figures of their own); the drawdowns, every
+ * level's; the correlations, each pair of those drawn on an axis but candles, once, a split series with itself (its
+ * lines against each other). A series that cannot be read (it reads itself, or one there is not) has none: it is said
+ * where it is drawn.
+ */
+export function tableSeries(ts: TimeseriesSpec): { readonly statistics: readonly string[]; readonly drawdowns: readonly string[]; readonly correlations: readonly (readonly [string, string])[] } {
+  const read = ts.series.flatMap((s) => {
+    try {
+      return [{ s, e: inlined(s.expr, ts.series) }];
+    } catch (e) {
+      if (e instanceof TsInlineError) return [];
+      throw e;
+    }
+  });
+  const onAxis = read.filter(({ e }) => !isBand(e) && !isCondition(e));
+  const paired = onAxis.filter(({ e }) => !isCandles(e));
+  return {
+    statistics: onAxis.map(({ s }) => s.id),
+    drawdowns: onAxis.filter(({ e }) => levelOf(e)).map(({ s }) => s.id),
+    correlations: paired.flatMap(({ s }, i) => paired.slice(i).flatMap(({ s: t }) => (s.id !== t.id || s.split !== undefined ? [[s.id, t.id] as const] : []))),
   };
 }
 

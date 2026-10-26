@@ -843,8 +843,8 @@ class Document(Paged):
         # refused in DataCube's words: what its parser cannot read, what DataCube does not compute, a word it has not
         with self.assertRaisesRegex(ValueError, r'series D: there is no function vola'):
             tile.plot('vola($A)')
-        with self.assertRaisesRegex(ValueError, 'recursion'):
-            tile.plot('macd($A)')
+        with self.assertRaisesRegex(ValueError, 'seasonal decomposition'):
+            tile.plot('seasonally_adjusted($A)')
         with self.assertRaisesRegex(ValueError, 'frequency "hour"'):
             tile.options(grain='hour')
         # its values, every figure the database's (headless timeseriesQuery, the viewer's own queries): a grid's series,
@@ -884,6 +884,42 @@ class Document(Paged):
         self.assertEqual(again.timeseries_tiles[0].spec, tile.spec)
         page.remove(alone)
         self.assertNotIn(alone, page.timeseries_tiles)
+
+    def test_a_timeseries_tables_are_its_screens_each_figure_the_databases(self):
+        # the expert tables (2026-10-26): the screen's statistics panel's Summary, Risk, Drawdowns and Correlations tabs,
+        # each the same query (headless timeseriesQuery's table), held here to pandas' own figures
+        page = ll.Page('Tables')
+        days = pd.date_range('2024-01-01', periods=12, freq='D').date
+        s = [100.0, 102.0, 101.0, 104.0, 99.0, 97.0, 103.0, 106.0, 105.0, 108.0, 104.0, 110.0]
+        t = [50.0, 50.5, 51.0, 50.0, 49.0, 49.5, 51.5, 52.0, 51.0, 53.0, 52.5, 54.0]
+        prices = pd.DataFrame({'symbol': ['S'] * 12 + ['T'] * 12, 'day': list(days) * 2, 'close': s + t})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ['close[S]', 'close[T]', 'returns(close[S])'])
+        stats = tile.statistics()
+        self.assertEqual(list(stats.index), ['A', 'B', 'C'])
+        self.assertEqual((stats.loc['A', 'count'], stats.loc['A', 'last'], stats.loc['A', 'high']), (12, 110.0, 110.0))
+        rs = pd.Series(s).pct_change().dropna()
+        self.assertAlmostEqual(stats.loc['A', 'skew'], rs.skew(), places=9)
+        self.assertAlmostEqual(stats.loc['A', 'kurtosis'], rs.kurt(), places=9)
+        self.assertAlmostEqual(stats.loc['A', 'worst'], rs.min(), places=12)
+        self.assertAlmostEqual(stats.loc['A', 'var'], rs.quantile(0.05), places=12)
+        self.assertTrue(pd.isna(stats.loc['C', 'vol']), 'a return is no level: no volatility')
+        drawdowns = tile.drawdowns()
+        self.assertEqual(sorted(set(drawdowns['line'])), ['A', 'B'], 'the levels alone')
+        deepest = drawdowns[drawdowns['line'] == 'A'].iloc[0]
+        self.assertEqual([str(deepest[k])[:10] for k in ('peak', 'trough', 'recovered')], ['2024-01-04', '2024-01-06', '2024-01-08'])
+        self.assertAlmostEqual(deepest['depth'], 97.0 / 104.0 - 1, places=12)
+        self.assertEqual((deepest['rank'], deepest['decline'], deepest['recovery']), (1, 2, 2))
+        corr = tile.correlations()
+        self.assertEqual(list(corr.index), ['A', 'B', 'C'])
+        rt = pd.Series(t).pct_change().dropna()
+        self.assertAlmostEqual(corr.loc['A', 'B'], rs.corr(rt), places=9)
+        self.assertAlmostEqual(corr.loc['B', 'A'], rs.corr(rt), places=9)
+        self.assertAlmostEqual(corr.loc['A', 'C'], 1.0, places=9, msg="a level's returns with the same returns")
+        self.assertEqual(corr.loc['B', 'B'], 1.0)
+        # over a window: the dates kept by the database before every figure
+        late = tile.statistics(start='2024-01-06')
+        self.assertEqual((late.loc['A', 'count'], late.loc['A', 'first']), (7, 97.0))
 
     def test_a_timeseries_is_changed_by_its_viewers_one_rule_and_refused_what_its_viewer_cannot_draw(self):
         # the review's A2, A3, A5, A6, A10 (docs/TIMESERIES_REVIEW_2026_10_25.md): every change Python makes is the tile's

@@ -286,6 +286,17 @@ over the series' own rows does.
   change of it begins one, numbered by a running count; each date that holds carries its run's first and last date,
   `TS_FROM`, `TS_TO`), the drawing placing each once. Its chip says whether it holds at the date shown last; it has
   no statistics, as a band has none.
+- **Correlations** (`correlationsQuery`, the panel's Correlations tab, asked when shown): a matrix of the lines drawn on
+  an axis (the first 12), each pair's correlation over the dates both have shown -- a level's simple returns (as
+  gs-quant's correlation reads them), anything else as it is -- one query per pair of series: each side written in its
+  own Shared (one name counter), cut to the dates shown, its returns, the two joined on the period across their lines
+  (one split series' lines against each other, each pair once), and every pair of lines aggregated. Each cell tinted by
+  its sign and size, drawn.
+- **One rule for the tables, the screen's and Python's** (`tableSeries`): the statistics every series drawn on an axis
+  (no band, no condition), the drawdowns every level's, the correlations each pair but candles. Python's
+  `Timeseries.statistics()`, `drawdowns()` and `correlations()` ask `timeseriesQuery` with a `table` -- the same queries
+  the tabs run (headless `askedOf`), planned and run where the rows are -- each a pandas DataFrame, held in the Python
+  tests to pandas' own skew, kurtosis, quantile and correlation.
 
 ### 5.4 Proven so far
 

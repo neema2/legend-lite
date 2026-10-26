@@ -4719,6 +4719,9 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-ts-table td { padding: 2px 6px; border-bottom: 1px solid var(--dc-line-faint); }
 .dc-ts-table tr:hover td { background: var(--dc-row-hover); }
 .dc-ts-table-num { text-align: right; }
+/* a correlation's cell tinted by its sign, as strong as it is (the database's figure, drawn) */
+.dc-ts-corr-pos { background: rgba(46, 160, 67, calc(var(--dc-ts-corr, 0) * 0.35)); }
+.dc-ts-corr-neg { background: rgba(218, 54, 51, calc(var(--dc-ts-corr, 0) * 0.35)); }
 .dc-ts-table-date { text-align: right; color: var(--dc-muted-strong); }
 .dc-ts-table-name { display: flex; align-items: center; gap: 6px; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; }
 

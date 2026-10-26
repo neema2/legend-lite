@@ -31,8 +31,8 @@ import {
   editTimeseries, firstTimeseries as firstOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
 } from '../timeseries-edit.ts';
 import {
-  boundsQuery, drawdownsQuery, keyValuesQuery, rangeStartName, readsAnchor, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_LATEST,
-  TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
+  boundsQuery, correlationsQuery, drawdownsQuery, keyValuesQuery, rangeStartName, readsAnchor, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_LATEST,
+  TS_CORR, TS_CORR_A, TS_CORR_B, TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
   TS_SPLIT, TS_STAT_LEVEL_LOW, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
 import {
@@ -253,8 +253,11 @@ const STAT_TABS: readonly (readonly [StatsTab, string, string])[] = [
   ['summary', 'Summary', 'Each line\'s first, last, change, extremes, mean and deviation over the dates shown'],
   ['risk', 'Risk', 'Each level\'s returns\' risk over the dates shown: volatility, Sharpe, Sortino, Calmar, drawdown, skew, kurtosis, value at risk'],
   ['drawdowns', 'Drawdowns', 'Each level\'s deepest drawdowns over the dates shown: from its peak, to its trough, to its recovery'],
+  ['correlations', 'Correlations', 'Each pair of lines\' correlation over the dates shown: of a level\'s returns, of anything else as it is'],
 ];
-type StatsTab = 'summary' | 'risk' | 'drawdowns';
+type StatsTab = 'summary' | 'risk' | 'drawdowns' | 'correlations';
+/** The most lines the correlations' matrix has: its first, in the legend's order. */
+const MAX_CORRELATED = 12;
 
 export class TimeseriesView {
   readonly #root: HTMLElement;
@@ -274,6 +277,11 @@ export class TimeseriesView {
   #drawdowns: Map<string, ResultTable> | undefined;
   #drawdownsFailed = new Map<string, string>();
   #drawdownsAsking = false;
+  /** Each pair of lines' correlation over the dates shown, by their keys (both orders), as the database answered them;
+   *  undefined until asked (the Correlations tab shown); what it refused, by its pair's words. */
+  #correlations: Map<string, number | null> | undefined;
+  #correlationsFailed: string[] = [];
+  #correlationsAsking = false;
   /** Its editor's content, in its window while one is open. */
   #pop: HTMLElement;
   /** Its editor's window, while one is open; and what lets its listeners go when it closes. */
@@ -439,9 +447,15 @@ export class TimeseriesView {
    * tables (the host's together).
    */
   async #run(series: TsSeries, make: (inputs: TsInputs) => TsQuery, signal: AbortSignal, opened: Opened): Promise<TsResult> {
-    const spec = this.#spec;
-    const aliases = seriesSources(spec, series);
+    const aliases = seriesSources(this.#spec, series);
     if (aliases.length === 0) throw new Error(`series ${series.id} reads no column of a grid`);
+    return this.#runOn(aliases, make, signal, opened);
+  }
+
+  /** A query of the sources `aliases` run where they run: of one grid, by that grid's runner; of several, over one model
+   *  of their tables (the host's together, opened once a round). */
+  async #runOn(aliases: readonly string[], make: (inputs: TsInputs) => TsQuery, signal: AbortSignal, opened: Opened): Promise<TsResult> {
+    const spec = this.#spec;
     if (aliases.length === 1) {
       const alias = aliases[0]!;
       const own = this.#input(alias);
@@ -639,8 +653,9 @@ export class TimeseriesView {
     this.#statRows = rows;
     this.#statsFailed = failed;
     this.#statsAsked = true;
-    // the dates shown or the rows moved: the drawdowns too, asked again when their tab is shown
+    // the dates shown or the rows moved: the drawdowns and the correlations too, asked again when their tab is shown
     this.#drawdowns = undefined;
+    this.#correlations = undefined;
     this.#paintLegend();
     this.#paintStats();
     this.#paintBanner();
@@ -914,6 +929,10 @@ export class TimeseriesView {
       this.#stats.replaceChildren(head_, ...this.#drawdownsTable());
       return;
     }
+    if (this.#statsTab === 'correlations') {
+      this.#stats.replaceChildren(head_, ...this.#correlationsTable());
+      return;
+    }
     const table = el(doc, 'table', 'dc-ts-table');
     const head = el(doc, 'tr');
     head.append(el(doc, 'th', undefined, 'Line'), ...columns.map((c) => el(doc, 'th', undefined, c.label)));
@@ -1015,6 +1034,107 @@ export class TimeseriesView {
       }
     }
     return [table, ...(said.length > 0 ? [el(doc, 'div', 'dc-ts-stats-blanks', said.join(' '))] : [])];
+  }
+
+  /** The lines a correlation is of: those drawn on an axis (no band, no candles, no condition, none hidden), the first
+   *  MAX_CORRELATED. */
+  #correlatedLines(): TsLine[] {
+    return this.#lines.filter((l) => !l.band && !l.candles && !l.shades && !l.series.hidden).slice(0, MAX_CORRELATED);
+  }
+
+  /**
+   * THE CORRELATIONS TAB: a matrix of the lines, each cell the pair's correlation over the dates shown, as the database
+   * answered it (timeseries-query.ts correlationsQuery) -- asked the first time the tab is shown for the answers drawn.
+   * Each cell tinted by its sign and size: drawn, not computed.
+   */
+  #correlationsTable(): HTMLElement[] {
+    const doc = this.#doc;
+    const lines = this.#correlatedLines();
+    if (lines.length < 2) return [el(doc, 'div', 'dc-ts-stats-blanks', 'A correlation is of two lines: draw another.')];
+    if (this.#correlations === undefined) {
+      void this.#askCorrelations();
+      return [el(doc, 'div', 'dc-ts-stats-blanks', 'Asking the database for each pair of lines\' correlation…')];
+    }
+    const table = el(doc, 'table', 'dc-ts-table dc-ts-corr');
+    const head = el(doc, 'tr');
+    head.append(el(doc, 'th', undefined, 'Line'), ...lines.map((l) => el(doc, 'th', undefined, l.name)));
+    table.append(head);
+    for (const a of lines) {
+      const tr = el(doc, 'tr');
+      const name = el(doc, 'td', 'dc-ts-table-name');
+      const swatch = el(doc, 'span', 'dc-ts-swatch');
+      swatch.style.background = a.color;
+      name.append(swatch, doc.createTextNode(a.name));
+      tr.append(name);
+      for (const b of lines) {
+        const v = a.key === b.key ? 1 : this.#correlations.get(`${a.key}|${b.key}`);
+        const td = el(doc, 'td', 'dc-ts-table-num', v === undefined || v === null ? '—' : v.toLocaleString(UI_LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        if (v !== undefined && v !== null && a.key !== b.key) {
+          td.classList.add(v >= 0 ? 'dc-ts-corr-pos' : 'dc-ts-corr-neg');
+          td.style.setProperty('--dc-ts-corr', String(Math.min(1, Math.abs(v))));
+        }
+        tr.append(td);
+      }
+      table.append(tr);
+    }
+    const said = [...this.#correlationsFailed];
+    if (this.#lines.filter((l) => !l.band && !l.candles && !l.shades && !l.series.hidden).length > MAX_CORRELATED) {
+      said.push(`The first ${MAX_CORRELATED} lines.`);
+    }
+    said.push('A level\'s returns are correlated, anything else as it is, over the dates each pair has shown.');
+    return [table, el(doc, 'div', 'dc-ts-stats-blanks', said.join(' '))];
+  }
+
+  /** Each pair of series' lines' correlations asked of the database over the dates shown, once, then painted. */
+  async #askCorrelations(): Promise<void> {
+    if (this.#correlationsAsking) return;
+    this.#correlationsAsking = true;
+    const gen = this.#gen;
+    const spec = this.#spec;
+    const window = this.#window();
+    const signal = new AbortController().signal;
+    const opened: Opened = new Map();
+    const cells = new Map<string, number | null>();
+    const failed: string[] = [];
+    try {
+      const lines = this.#correlatedLines();
+      const ids = [...new Set(lines.map((l) => l.series.id))];
+      const keyOf = (s: TsSeries, split: unknown): string => (s.split === undefined ? s.id : `${s.id}\u0000${String(split)}`);
+      const pairs: (readonly [TsSeries, TsSeries])[] = [];
+      ids.forEach((x, i) => ids.slice(i).forEach((y) => {
+        const a = spec.series.find((s) => s.id === x)!;
+        const b = spec.series.find((s) => s.id === y)!;
+        if (x !== y || a.split !== undefined) pairs.push([a, b]);
+      }));
+      await Promise.all(pairs.map(async ([a, b]) => {
+        try {
+          const aliases = [...new Set([...seriesSources(spec, a), ...seriesSources(spec, b)])];
+          const t = (await this.#runOn(aliases, (inputs) => correlationsQuery(inputs, spec, a, b, window), signal, opened)).table;
+          const column = (n: string): readonly unknown[] | undefined => t.columns.find((c) => c.name === n)?.values;
+          const corr = column(TS_CORR) ?? [];
+          corr.forEach((v, i) => {
+            const ka = keyOf(a, column(TS_CORR_A)?.[i]);
+            const kb = keyOf(b, column(TS_CORR_B)?.[i]);
+            const n = toNumber(v as Scalar);
+            cells.set(`${ka}|${kb}`, n);
+            cells.set(`${kb}|${ka}`, n);
+          });
+        } catch (e) {
+          failed.push(`${a.id} with ${b.id} was refused: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }));
+    } finally {
+      putAway(opened);
+      this.#correlationsAsking = false;
+    }
+    if (this.#disposed) return;
+    if (gen !== this.#gen) {
+      if (this.#statsTab === 'correlations' && this.#correlations === undefined) void this.#askCorrelations();
+      return;
+    }
+    this.#correlations = cells;
+    this.#correlationsFailed = failed;
+    this.#paintStats();
   }
 
   /** Each level series' drawdowns asked of the database over the dates shown, once, then the tab painted again. */

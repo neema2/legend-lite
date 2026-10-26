@@ -10,8 +10,8 @@
 // Each call opens the grid afresh from the cube document it is given: the document is the grid's state, Python's
 // page keeps it, and nothing here holds a grid between calls.
 
-import { readsAnchor, seriesQuery, seriesSources, type TsInputs, type TsWindow } from '../timeseries-query.ts';
-import { answerOf, Problem, seriesOf } from './timeseries.ts';
+import { type TsInputs, type TsTable, type TsWindow } from '../timeseries-query.ts';
+import { askedOf, askedSources, Problem, seriesOf } from './timeseries.ts';
 import { snapRefusal } from '../../../engine-client/src/snap.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
@@ -1138,17 +1138,18 @@ export async function gridRelation(spec: GridSpec): Promise<string> {
 export async function gridTimeseries(spec: GridSpec, asked: string): Promise<string> {
   try {
     return await using(spec, async ({ planner, lens, state }) => {
-      const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series: string; readonly window?: TsWindow };
+      const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series: string; readonly window?: TsWindow; readonly table?: TsTable; readonly with?: string };
       const { ts, series } = seriesOf(readPage(a.page, { empty: true }), a.tile, a.series);
-      const aliases = seriesSources(ts, series);
+      const aliases = askedSources(a, ts, series);
       if (aliases.length !== 1) {
         throw new Problem(`series ${series.id} reads ${aliases.length} grids: it is read over their tables together (timeseriesQuery)`);
       }
       const inputs: TsInputs = new Map([[aliases[0]!, { snapshot: state.snapshot, filter: state.snapshot.filter }]]);
-      const window = a.window ?? {};
-      const q = seriesQuery(inputs, ts, series, readsAnchor(ts, series) && window.from !== undefined ? { from: window.from } : {}, window, null);
-      const text = await planner.compose(planner.sent(lens ? lens(q.query) : q.query), 'STANDARD');
-      return `{"query":${JSON.stringify(text)},${answerOf(q, series)}}`;
+      // its points, or one of its tables (headless timeseries.ts askedOf): the query composed as it is sent
+      const said = JSON.parse(`{${askedOf(a, inputs, ts, series)}}`) as Record<string, unknown>;
+      const query = fromJson(JSON.stringify(said['query'])) as Lambda;
+      const text = await planner.compose(planner.sent(lens ? lens(query) : query), 'STANDARD');
+      return JSON.stringify({ ...said, query: text });
     });
   } catch (e) {
     if (e instanceof Problem || e instanceof CubeRefusal) return JSON.stringify({ problems: [e.message] });

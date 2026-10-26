@@ -191,6 +191,41 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
     }
   });
 
+  it('the statistics\' Correlations tab: a matrix of the lines, each pair the database\'s, asked when shown', async () => {
+    const asked: string[] = [];
+    const { root, view } = viewer(SPEC, (q) => { asked.push(q); return false; });
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      assert.ok(!asked.some((q) => q.includes('__ts_corr')), 'no correlations asked before their tab is shown');
+      [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-stats-tab')].find((b) => b.textContent === 'Correlations')!.click();
+      await until(() => statRows(root).length === 2 && !statRows(root)[0]!.includes('—'), 'its matrix');
+      assert.deepEqual([...root.querySelectorAll('.dc-ts-table th')].map((th) => th.textContent), ['Line', 'S&P 500', '21d vol']);
+      const [spx, vol] = statRows(root);
+      assert.equal(spx![1], '1.00');
+      assert.equal(vol![2], '1.00');
+      assert.equal(spx![2], vol![1], 'the matrix is symmetric');
+      // the S&P's returns (a level) against the volatility as it is, over the dates both have
+      const c = of('SPX').closes;
+      const r = c.map((v, i) => (i === 0 ? null : v / c[i - 1]! - 1));
+      const vols = r.map((_, i) => {
+        if (i < 21) return null;
+        const w = r.slice(i - 20, i + 1) as number[];
+        const m = w.reduce((x, y) => x + y, 0) / w.length;
+        return Math.sqrt(w.reduce((x, y) => x + (y - m) ** 2, 0) / (w.length - 1)) * Math.sqrt(252) * 100;
+      });
+      const at = r.map((_, i) => i).filter((i) => vols[i] !== null);
+      const xs = at.map((i) => r[i]!);
+      const ys = at.map((i) => vols[i]!);
+      const mean = (v: number[]): number => v.reduce((x, y) => x + y, 0) / v.length;
+      const [mx, my] = [mean(xs), mean(ys)];
+      const corr = xs.reduce((acc, x, k) => acc + (x - mx) * (ys[k]! - my), 0)
+        / Math.sqrt(xs.reduce((acc, x) => acc + (x - mx) ** 2, 0) * ys.reduce((acc, y) => acc + (y - my) ** 2, 0));
+      assert.equal(spx![2], corr.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    } finally {
+      view.dispose();
+    }
+  });
+
   // the expert functions (2026-10-26): a condition, shaded where it holds across every pane -- the database's runs
   it('a condition shaded where it holds, across every pane; its chip says whether it holds; no statistics of it', async () => {
     const spec: TimeseriesSpec = {
