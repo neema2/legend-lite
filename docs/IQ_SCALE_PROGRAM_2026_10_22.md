@@ -927,3 +927,13 @@ says so.
     grouped alike). Under iq17 profiles lite now answers every other combination and refuses that one by name; IQ 16's
     engine, not measured, refuses as before (SQL Anywhere 17, its judge, raises -904). m1c's
     two_lists_ordered_differently_under_the_iq_engine_are_refused REFUSED -> PASS (iq17).
+  - **The corpus BUG verdicts, classified** (the Mac at fcbf12ec: 21 tpch_iq, 8 tpcds_iq, 2 job_rows, IQ raises where
+    lite answers), all listed, none modeled, each hanging on IQ's estimates, plan or data: -1005015 (23: a JOIN whose ON
+    has no equality between its sides -- a one-sided filter, an IN or a scalar subquery, an inequality -- whose
+    estimated product passes Max_Cartesian_Result; the same shapes over smaller inputs answer, many PASS); -1009145
+    (5: IQ's own two-phase SUM(SUM(x)) of a NUMERIC(7,2) under a multi-fact LEFT JOIN fan-out, its partial sum sized
+    from the row estimate: the listed iq-sum-cast); -1006000 (2: a hash-join internal error, a CTE filtered by a
+    scalar AVG over another CTE read through a correlated EXISTS); -1001043 (1: an internal error evaluating a CTE
+    column that reuses its source column's name). Reports part R (11, windows and sets) on claude/iq-reports
+    17a66983 to snap; lite refuses a quotient by a window AVG (NUMERIC(30,23): a step past 38 digits) and a ROLLUP
+    ordered by keys that are no select items (GROUPING(...)), and claims INTERSECT and EXCEPT as IQ's -1001030.
