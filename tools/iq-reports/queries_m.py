@@ -45,14 +45,14 @@ PATTERNS = [
      """SELECT p.id, p.paid_ts, p.amount AS usd,
            (SELECT r.usd_rate FROM exchange_rates r WHERE r.currency = 'EUR'
               AND r.rate_date = (SELECT MAX(r2.rate_date) FROM exchange_rates r2
-                                 WHERE r2.currency = 'EUR' AND r2.rate_date <= CAST(p.paid_ts AS DATE))) AS eur_rate,
+                                 WHERE r2.currency = 'EUR' AND r2.rate_date <= p.paid_ts)) AS eur_rate,
            CAST(ROUND(p.amount / (SELECT r.usd_rate FROM exchange_rates r WHERE r.currency = 'EUR'
               AND r.rate_date = (SELECT MAX(r2.rate_date) FROM exchange_rates r2
-                                 WHERE r2.currency = 'EUR' AND r2.rate_date <= CAST(p.paid_ts AS DATE))), 2) AS NUMERIC(12,2)) AS eur
+                                 WHERE r2.currency = 'EUR' AND r2.rate_date <= p.paid_ts)), 2) AS NUMERIC(12,2)) AS eur
          FROM payments p WHERE p.paid_ts >= '2025-01-01' ORDER BY p.id"""),
     ("monthly_receipts_in_pounds_by_an_as_of_join",
      """WITH rated AS (SELECT p.id, p.paid_ts, p.amount, MAX(r.rate_date) AS rate_date
-                      FROM payments p JOIN exchange_rates r ON r.currency = 'GBP' AND r.rate_date <= CAST(p.paid_ts AS DATE)
+                      FROM payments p JOIN exchange_rates r ON r.currency = 'GBP' AND r.rate_date <= p.paid_ts
                       GROUP BY p.id, p.paid_ts, p.amount)
          SELECT DATEFORMAT(x.paid_ts, 'yyyy-mm') AS ym, COUNT(*) AS payments, SUM(x.amount) AS usd,
            CAST(SUM(x.amount / r.usd_rate) AS NUMERIC(12,2)) AS gbp, MIN(r.usd_rate) AS lowest_rate, MAX(r.usd_rate) AS highest_rate
@@ -65,7 +65,7 @@ PATTERNS = [
            CAST(ROUND(COALESCE(SUM(CASE WHEN pr.category IS NULL OR p.category = pr.category THEN oi.quantity * oi.unit_price END), 0)
                       / (DATEDIFF(DAY, pr.starts, pr.ends) + 1), 2) AS NUMERIC(10,2)) AS promo_gross_per_day
          FROM promotions pr
-           LEFT JOIN orders o ON CAST(o.order_ts AS DATE) BETWEEN pr.starts AND pr.ends AND o.status <> 'cancelled'
+           LEFT JOIN orders o ON o.order_ts >= pr.starts AND o.order_ts < DATEADD(DAY, 1, pr.ends) AND o.status <> 'cancelled'
            LEFT JOIN order_items oi ON oi.order_id = o.id
            LEFT JOIN products p ON p.id = oi.product_id
          GROUP BY pr.code, pr.category, pr.starts, pr.ends ORDER BY pr.starts, pr.code"""),
