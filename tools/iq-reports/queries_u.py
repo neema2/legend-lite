@@ -92,9 +92,9 @@ OPERATIONS = [
     ("stock_out_streaks",
      """WITH flagged AS (
            SELECT i.product_id, i.snapshot_date, i.on_hand, i.reorder_point,
-                  ROW_NUMBER() OVER (PARTITION BY i.product_id ORDER BY i.snapshot_date)
+                  ROW_NUMBER() OVER (PARTITION BY i.product_id ORDER BY i.snapshot_date, i.id)
                   - ROW_NUMBER() OVER (PARTITION BY i.product_id, CASE WHEN i.on_hand < i.reorder_point THEN 1 ELSE 0 END
-                                       ORDER BY i.snapshot_date) AS streak_key
+                                       ORDER BY i.snapshot_date, i.id) AS streak_key
            FROM inventory i),
          streaks AS (
            SELECT product_id, streak_key, MIN(snapshot_date) AS from_month, MAX(snapshot_date) AS to_month,
@@ -105,9 +105,9 @@ OPERATIONS = [
          ORDER BY s.months DESC, s.product_id, s.from_month"""),
     ("stock_first_and_last_levels",
      """SELECT DISTINCT i.product_id,
-           FIRST_VALUE(i.on_hand) OVER (PARTITION BY i.product_id ORDER BY i.snapshot_date
+           FIRST_VALUE(i.on_hand) OVER (PARTITION BY i.product_id ORDER BY i.snapshot_date, i.id
                                         ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS january_on_hand,
-           LAST_VALUE(i.on_hand) OVER (PARTITION BY i.product_id ORDER BY i.snapshot_date
+           LAST_VALUE(i.on_hand) OVER (PARTITION BY i.product_id ORDER BY i.snapshot_date, i.id
                                        ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS december_on_hand,
            MIN(i.on_hand) OVER (PARTITION BY i.product_id) AS lowest_on_hand,
            SUM(CASE WHEN i.on_hand < i.reorder_point THEN 1 ELSE 0 END) OVER (PARTITION BY i.product_id) AS months_below_reorder
