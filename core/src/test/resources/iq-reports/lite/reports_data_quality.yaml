@@ -1,0 +1,21 @@
+# The IQ scale program's realistic reports (2026-10-25): data_quality, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: customers_with_invalid_contact_details
+    sql: "SELECT c.id, c.last_name, CASE WHEN c.email IS NULL THEN 'missing' WHEN NOT (c.email REGEXP '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}') THEN 'malformed' WHEN c.email <> LOWER(c.email) THEN 'mixed case' ELSE 'ok' END AS email_check, CASE WHEN c.phone IS NULL THEN 'missing' WHEN c.phone REGEXP '\\([0-9]{3}\\) [0-9]{3}-[0-9]{4}' THEN 'ok' WHEN c.phone REGEXP '[0-9]{3}-[0-9]{3}-[0-9]{4}' THEN 'unformatted' ELSE 'malformed' END AS phone_check FROM customers c WHERE c.email IS NULL OR c.phone IS NULL OR c.email <> LOWER(c.email) OR NOT (c.phone REGEXP '\\([0-9]{3}\\) [0-9]{3}-[0-9]{4}') ORDER BY c.id"
+    profile: iq17-default
+  - id: sku_pattern_audit
+    sql: "SELECT p.category, COUNT(*) AS products, SUM(CASE WHEN p.sku REGEXP '[A-Z]{3}-[A-Z]{3}-[0-9]{3}' THEN 1 ELSE 0 END) AS well_formed, SUM(CASE WHEN LEFT(p.sku, 3) = UPPER(LEFT(p.category, 3)) THEN 1 ELSE 0 END) AS prefix_matches_category, MIN(p.sku) AS first_sku, MAX(p.sku) AS last_sku FROM products p GROUP BY p.category ORDER BY p.category"
+    profile: iq17-default
+  - id: order_flags_bitmask
+    sql: "WITH flagged AS ( SELECT o.id, (CASE WHEN o.ship_date IS NULL THEN 1 ELSE 0 END) | (CASE WHEN o.discount_pct > 0 THEN 2 ELSE 0 END) | (CASE WHEN o.shipping_fee = 0 THEN 4 ELSE 0 END) | (CASE WHEN o.sales_rep_id IS NULL THEN 8 ELSE 0 END) AS flags FROM orders o) SELECT flags, COUNT(*) AS orders, CASE WHEN flags & 1 = 1 THEN 'unshipped ' ELSE '' END || CASE WHEN flags & 2 = 2 THEN 'discounted ' ELSE '' END || CASE WHEN flags & 4 = 4 THEN 'free-shipping ' ELSE '' END || CASE WHEN flags & 8 = 8 THEN 'no-rep' ELSE '' END AS meaning FROM flagged GROUP BY flags ORDER BY flags"
+    profile: iq17-default
+  - id: web_urls_by_pattern
+    sql: "SELECT CASE WHEN LOWER(w.url) REGEXP 'https://shop\\.example\\.com/(products|category)/.*' THEN 'browse' WHEN LOWER(w.url) REGEXP 'https://shop\\.example\\.com/(cart|checkout).*' THEN 'checkout' WHEN LOWER(w.url) REGEXP 'https://shop\\.example\\.com/order/confirmation' THEN 'purchase' WHEN LOWER(w.url) REGEXP 'https://shop\\.example\\.com/search\\?q=.*' THEN 'search' ELSE 'other' END AS page_kind, w.device, COUNT(*) AS events, COUNT(DISTINCT w.customer_id) AS customers FROM web_events w GROUP BY CASE WHEN LOWER(w.url) REGEXP 'https://shop\\.example\\.com/(products|category)/.*' THEN 'browse' WHEN LOWER(w.url) REGEXP 'https://shop\\.example\\.com/(cart|checkout).*' THEN 'checkout' WHEN LOWER(w.url) REGEXP 'https://shop\\.example\\.com/order/confirmation' THEN 'purchase' WHEN LOWER(w.url) REGEXP 'https://shop\\.example\\.com/search\\?q=.*' THEN 'search' ELSE 'other' END, w.device ORDER BY 1, 2"
+    profile: iq17-default
+  - id: masked_customer_emails
+    sql: "SELECT c.id, LEFT(LOWER(c.email), 2) || REPLICATE('*', LOCATE(c.email, '@') - 3) || SUBSTRING(LOWER(c.email), LOCATE(c.email, '@')) AS masked_email, STUFF(c.phone, 2, 3, 'XXX') AS masked_phone, UPPER(LEFT(TRIM(c.first_name), 1)) || '. ' || TRIM(c.last_name) AS display_name FROM customers c WHERE c.email IS NOT NULL AND LOCATE(c.email, '@') > 3 ORDER BY c.id"
+    profile: iq17-default
+  - id: supplier_name_duplicates
+    sql: "SELECT a.id AS first_id, b.id AS second_id, TRIM(a.name) AS first_name, TRIM(b.name) AS second_name, a.city FROM suppliers a JOIN suppliers b ON a.id < b.id AND a.city = b.city AND LOWER(TRIM(a.name)) = LOWER(TRIM(b.name)) ORDER BY a.id, b.id"
+    profile: iq17-default
