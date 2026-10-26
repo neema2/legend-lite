@@ -1,0 +1,18 @@
+# The IQ scale program's realistic reports (2026-10-25): behavior_reports, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: funnel_to_cart_within_30_minutes
+    sql: "WITH views AS ( SELECT w.id, w.customer_id, w.device, w.event_ts FROM web_events w WHERE w.customer_id IS NOT NULL AND w.url LIKE '%/products/%'), carted AS ( SELECT DISTINCT v.id FROM views v JOIN web_events c ON c.customer_id = v.customer_id AND c.url LIKE '%/cart%' AND c.event_ts > v.event_ts AND DATEDIFF(MINUTE, v.event_ts, c.event_ts) <= 30) SELECT v.device, COUNT(*) AS product_views, COUNT(k.id) AS carted_within_30, CAST(100.0 * COUNT(k.id) / COUNT(*) AS NUMERIC(5,1)) AS conversion_pct FROM views v LEFT JOIN carted k ON k.id = v.id GROUP BY v.device ORDER BY v.device"
+    profile: iq17-default
+  - id: products_bought_together
+    sql: "WITH baskets AS (SELECT DISTINCT order_id, product_id FROM order_items), singles AS (SELECT product_id, COUNT(*) AS orders_with FROM baskets GROUP BY product_id) SELECT a.product_id AS first_product, b.product_id AS second_product, COUNT(*) AS orders_together, s.orders_with AS orders_with_first, CAST(100.0 * COUNT(*) / s.orders_with AS NUMERIC(5,1)) AS confidence_pct FROM baskets a JOIN baskets b ON b.order_id = a.order_id AND b.product_id > a.product_id JOIN singles s ON s.product_id = a.product_id GROUP BY a.product_id, b.product_id, s.orders_with HAVING COUNT(*) >= 2 ORDER BY orders_together DESC, first_product, second_product"
+    profile: iq17-default
+  - id: web_sessions_cut_at_30_idle_minutes
+    sql: "WITH gaps AS ( SELECT w.id, w.customer_id, w.event_ts, w.device, CASE WHEN LAG(w.event_ts) OVER (PARTITION BY w.customer_id ORDER BY w.event_ts, w.id) IS NULL OR DATEDIFF(MINUTE, LAG(w.event_ts) OVER (PARTITION BY w.customer_id ORDER BY w.event_ts, w.id), w.event_ts) > 30 THEN 1 ELSE 0 END AS starts_session FROM web_events w WHERE w.customer_id IS NOT NULL), numbered AS ( SELECT id, customer_id, event_ts, device, SUM(starts_session) OVER (PARTITION BY customer_id ORDER BY event_ts, id ROWS UNBOUNDED PRECEDING) AS session_no FROM gaps) SELECT customer_id, session_no, MIN(event_ts) AS started, MAX(event_ts) AS ended, DATEDIFF(MINUTE, MIN(event_ts), MAX(event_ts)) AS minutes, COUNT(*) AS pages, MIN(device) AS device FROM numbered WHERE customer_id <= 10 GROUP BY customer_id, session_no ORDER BY customer_id, session_no"
+    profile: iq17-default
+  - id: last_referrer_seen
+    sql: "SELECT w.customer_id, w.id, w.event_ts, w.referrer, LAST_VALUE(w.referrer IGNORE NULLS) OVER (PARTITION BY w.customer_id ORDER BY w.event_ts, w.id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS last_referrer FROM web_events w WHERE w.customer_id IN (2, 3, 5, 8) ORDER BY w.customer_id, w.event_ts, w.id"
+    profile: iq17-default
+  - id: customers_without_an_order_in_signup_quarter
+    sql: "SELECT c.id, TRIM(c.last_name) AS customer, c.signup_date, YEAR(c.signup_date) * 10 + QUARTER(c.signup_date) AS signup_quarter FROM customers c LEFT JOIN orders o ON o.customer_id = c.id AND o.status <> 'cancelled' AND YEAR(o.order_ts) = YEAR(c.signup_date) AND QUARTER(o.order_ts) = QUARTER(c.signup_date) WHERE o.id IS NULL ORDER BY c.id"
+    profile: iq17-default

@@ -1,0 +1,18 @@
+# The IQ scale program's realistic reports (2026-10-25): comparison_reports, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: top_three_by_correlated_count
+    sql: "SELECT p.category, p.id, p.name, p.unit_price FROM products p WHERE (SELECT COUNT(*) FROM products q WHERE q.category = p.category AND (q.unit_price > p.unit_price OR q.unit_price = p.unit_price AND q.id < p.id)) < 3 ORDER BY p.category, p.unit_price DESC, p.id"
+    profile: iq17-default
+  - id: first_and_last_words_of_names
+    sql: "SELECT id, name, CASE WHEN LOCATE(name, ' ') = 0 THEN name ELSE LEFT(name, LOCATE(name, ' ') - 1) END AS first_word, CASE WHEN LOCATE(name, ' ') = 0 THEN name ELSE SUBSTR(name, LOCATE(name, ' ', -1) + 1) END AS last_word, LENGTH(name) - LENGTH(REPLACE(name, ' ', '')) + 1 AS words FROM products ORDER BY words DESC, id"
+    profile: iq17-default
+  - id: payments_at_the_as_of_rate
+    sql: "SELECT p.id, CAST(p.paid_ts AS DATE) AS paid_on, p.amount, r.rate_date, r.usd_rate, CAST(p.amount / r.usd_rate AS NUMERIC(12,2)) AS amount_in_cad FROM payments p JOIN exchange_rates r ON r.currency = 'CAD' AND r.rate_date = (SELECT MAX(r2.rate_date) FROM exchange_rates r2 WHERE r2.currency = 'CAD' AND r2.rate_date <= p.paid_ts) WHERE p.paid_ts >= '2024-05-01' AND p.paid_ts < '2024-10-01' ORDER BY p.id"
+    profile: iq17-default
+  - id: month_share_of_its_quarter
+    sql: "WITH monthly AS ( SELECT YEAR(o.order_ts) AS yr, QUARTER(o.order_ts) AS qtr, MONTH(o.order_ts) AS mon, SUM(oi.quantity * oi.unit_price) AS revenue FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status <> 'cancelled' GROUP BY YEAR(o.order_ts), QUARTER(o.order_ts), MONTH(o.order_ts)) SELECT yr, qtr, mon, revenue, SUM(revenue) OVER (PARTITION BY yr, qtr) AS quarter_revenue, CAST(100 * revenue / SUM(revenue) OVER (PARTITION BY yr, qtr) AS NUMERIC(5,1)) AS share_of_quarter FROM monthly WHERE yr = 2024 ORDER BY yr, mon"
+    profile: iq17-default
+  - id: monthly_year_over_year_by_self_join
+    sql: "WITH monthly AS ( SELECT YEAR(o.order_ts) AS yr, MONTH(o.order_ts) AS mon, COUNT(DISTINCT o.id) AS order_count, SUM(oi.quantity * oi.unit_price) AS revenue FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status <> 'cancelled' GROUP BY YEAR(o.order_ts), MONTH(o.order_ts)) SELECT cur.yr, cur.mon, cur.revenue, prev.revenue AS revenue_year_before, cur.revenue - COALESCE(prev.revenue, 0) AS change, CASE WHEN prev.revenue IS NULL THEN NULL ELSE CAST(100 * (cur.revenue - prev.revenue) / prev.revenue AS NUMERIC(8,1)) END AS change_pct FROM monthly cur LEFT JOIN monthly prev ON prev.yr = cur.yr - 1 AND prev.mon = cur.mon WHERE cur.yr = 2025 ORDER BY cur.mon"
+    profile: iq17-default
