@@ -1,6 +1,5 @@
-// THE HAND TOOLS' CERTIFICATE (the user, 2026-10-26: "build it with mkcert"): the Deephaven a hand tool starts
-// (serve.mjs, market/serve.mjs, market/desk.mjs) serves a certificate mkcert makes for localhost and 127.0.0.1, signed
-// by mkcert's local CA. A browser on a machine where `mkcert -install` ran trusts it and asks nothing -- and the page's
+// THE HAND TOOL'S CERTIFICATE (the user, 2026-10-26: "build it with mkcert"): the Deephaven the trading desk's hand tool
+// starts (market/desk.mjs) serves a certificate mkcert makes for localhost and 127.0.0.1, signed by mkcert's local CA. A browser on a machine where `mkcert -install` ran trusts it and asks nothing -- and the page's
 // own requests to Deephaven, which no browser lets a person accept, just work. It is made each run (the trust is in the
 // CA, so nothing need be kept), under the system's temporary directory, removed when the tool exits. Without mkcert the
 // fixture makes its own, as the tests' does, and the browser asks to accept it: said plainly, with how to get mkcert.

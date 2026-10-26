@@ -1,5 +1,6 @@
-// THE RISK DEMO'S SITE (docs/DEEPHAVEN_PLAN_2026_10_22.md D0, DH23, DH24), for the hand tool (serve.mjs), the test
-// (test/deephaven/cube.mjs) and the benchmarks (bench/deephaven/): the pinned Deephaven started with the demo's
+// THE RISK DEMO'S SITE (docs/DEEPHAVEN_PLAN_2026_10_22.md D0, DH23, DH24), for the tests (test/deephaven/cube.mjs,
+// board.mjs) and the benchmarks (bench/deephaven/) -- its hand tool went 2026-10-26, the trading desk the one demo --
+// and every Deephaven hand tool's and test's server (startDeephaven): the pinned Deephaven started with the demo's
 // application, and DataCube on Deephaven (cube.html) served at / on the loopback from Bazel's runfiles, beside the
 // planner's module and the server's address and key (config.json).
 

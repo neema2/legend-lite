@@ -433,7 +433,7 @@ and see from datacube -- can be different tabs or different saved pages similar 
 by DataCube's own writers (`writeCube`, `writePageOf`) as the example pages are: its grids and charts, a sheet (a tab)
 per view of the desk. Every grid's source is a saved query over the one trading model's classes, its text and its
 execution context (`stress::AllMapping` on `market::LiveRuntime`); its columns come from the tab's planner. The host
-(`traders.ts`, `bazel run //datacube:deephaven_traders`) is DataCube's own page over the market world's Deephaven, and
+(`traders.ts`; its hand tool, `deephaven_traders`, deleted 2026-10-26) is DataCube's own page over the market world's Deephaven, and
 its Open… and Save are DataCube's (2026-10-25): Open… is the app's window (`CubeLibrary`) -- the pages saved in this
 browser, searched, sorted, opened, deleted, or a page file opened -- and, under them where the app lists its example
 pages (the chart pages), the eight trader screens (the News monitor among them since K15), each with what it shows; Save, Save As… (the app's `saveDialog`) and
@@ -691,6 +691,18 @@ Chromium's store here): the desk opened in the pinned Chromium with certificate 
 filled, no request to the server failed; the same Chromium with an empty store was refused
 (`ERR_CERT_AUTHORITY_INVALID`); the fixture served the given certificate before and after a restart, the given
 directory deleted.
+
+**One demo: the trading desk (the user, 2026-10-26: "why we need 3 different demos instead of single one in real
+datacube saved as one page with different tabs?", then "do it").** Three hand tools served three things: the desk
+(DataCube's own page, one saved page of ten tabs), the trader screens (`traders.ts`, a host of its own around DataCube's
+page showing the same ten screens one page at a time, from before the app could open a grid on Deephaven) and the risk
+demo (`cube.html`, `board.html` over `risk.groovy`'s book: the first steps, D0, J1, V2). Nothing the other two showed
+is missing from the desk; they stayed because tests hang off their pages. Now `deephaven_desk` is the only hand tool:
+`deephaven_traders` and `deephaven_demo` are deleted with their entry points. The risk pages stay as the engine's test
+benches (`deephaven_cube_test`, `deephaven_board_test`, the session and network benchmarks: one base a grid, nothing
+sent on a tick, a restart recovered, a chart's axis held); `traders.ts` goes once its test's checks of the screens'
+interactions (a name picked on the watchlist, the news panes' filters, a span picked, a ticker clicked on a card) run
+on the desk.
 
 **What the desk's screenshots showed, fixed (2026-10-25):** *The market rose 10-20% in half an hour* (93 names
 advancing, 6 declining): the newsroom's briefs moved their names only up where they moved them (a stake disclosed, a

@@ -53,14 +53,17 @@ Bottom N's rank window (K6).
 ## Run it
 
 ```
-bazel run //datacube:deephaven_demo -- --port=8080        # prints the Deephaven URL and the page's
-DEMO_STORM=1 DEMO_POSITIONS=100000 DEMO_INSTRUMENTS=2000 bazel run //datacube:deephaven_demo -- --port=8080
+bazel run //datacube:deephaven_desk -- --port=8080        # prints the Deephaven URL and the desk's
+MARKET_NAMES=2000 MARKET_TRADES=4000 bazel run //datacube:deephaven_desk -- --port=8080   # a larger world (market.groovy's knobs)
 ```
 
-Open the printed Deephaven `https://` address first and accept its certificate (the test server's own, made by
-`keytool` at each start: `testing/.../EmbeddedDeephaven.java`; HTTPS because Deephaven's browser protocol needs HTTP/2),
-then `http://127.0.0.1:8080/` (one cube) and `/board.html` (three grids, two charts). `restart` + Enter restarts
-Deephaven. Verified on Linux only.
+**The one demo is the trading desk** (2026-10-26, the user: "why we need 3 different demos instead of single one in
+real datacube"): DataCube's own page, the desk one saved page of ten tabs (Open… ▸ Examples lists it first), each tab
+read when first shown. The risk demo's and the trader screens' hand tools are deleted; their pages (`cube.html`,
+`board.html`, `traders.ts`) are their tests' benches. The server's certificate is mkcert's where mkcert is installed:
+run `mkcert -install` once and the browser asks nothing (`datacube/demo/deephaven/mkcert.mjs`); without mkcert it is
+the test server's own, made by `keytool` at each start, and the printed Deephaven `https://` address must be opened
+and accepted first (HTTPS because Deephaven's browser protocol needs HTTP/2). `restart` + Enter restarts Deephaven.
 
 **Checks** (the browser ones start the pinned server): `//datacube:deephaven_test` (answers worked out by hand, and
 K1's and K6's DuckDB's), `deephaven_market_test` (the trader screens' market world, K2, and windows over its tape),
@@ -155,5 +158,6 @@ and a simulator in its place (K2), a candlestick chart (K3), the page (K4).
 | Encoder | `core/src/main/java/com/legend/deephaven/` (`DeephavenWire`, `DeephavenMessages`, `ProtoWire`) |
 | Tab's sender and engine | `engine-client/src/deephaven.ts` (session), `deephaven-engine.ts` (engine, readers, following), `deephaven-live.ts` (the JS library), `deephaven-rows.ts`, `timeline.ts` |
 | DataCube | `datacube/src/server-base.ts` (bases), `runner.ts`, `app.ts` (tick, window), `grid/grid.ts` (`tickRows`, flash), `chart-render.ts` (held axes), `treeview.ts` |
-| Demos | `datacube/demo/deephaven/` (`cube.ts`, `board.ts`, `risk.ts`, `risk.groovy`, `site.mjs`, `serve.mjs`) |
+| Demo | `datacube/demo/deephaven/market/` (`desk.mjs`, the hand tool; `host.ts`, `screens.ts`, `market.groovy`); `mkcert.mjs` |
+| Test benches | `datacube/demo/deephaven/` (`cube.ts`, `board.ts`, `risk.ts`, `risk.groovy`, `site.mjs`); `market/traders.ts` |
 | Tests and tools | `datacube/test/deephaven/`, `datacube/bench/deephaven/`, `testing/.../EmbeddedDeephaven.java`, `tools/deephaven/` |

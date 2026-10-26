@@ -1,6 +1,6 @@
-// THE TRADER SCREENS' SITE (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K4, K8-K13), for the hand tool (serve.mjs) and the
-// test (test/deephaven/traders.mjs): the trader screens' page (traders.html) served at / on the loopback from Bazel's
-// runfiles, beside DataCube's styles, the planner's module, the saved pages' module, the one trading model the page
+// THE TRADER SCREENS' SITE (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K4, K8-K13), for the test
+// (test/deephaven/traders.mjs; the hand tool went 2026-10-26): the trader screens' page (traders.html) served at / on
+// the loopback from Bazel's runfiles, beside DataCube's styles, the planner's module, the saved pages' module, the one trading model the page
 // holds, and the market world's address and key (config.json). The server itself is started by ../site.mjs's
 // startDeephaven.
 

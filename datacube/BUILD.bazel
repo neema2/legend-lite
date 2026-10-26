@@ -2068,11 +2068,9 @@ build_test(
         ":make_link_dictionary",
         ":serve",
         ":verify_app",
-        # the live risk demo's hand tool (bazel run //datacube:deephaven_demo, 2026-10-23)
-        ":deephaven_demo",
-        # the trader screens' hand tool (bazel run //datacube:deephaven_traders, 2026-10-25)
-        ":deephaven_traders",
-        # the trading desk in DataCube's own page, by hand (bazel run //datacube:deephaven_desk, 2026-10-25)
+        # the trading desk in DataCube's own page, by hand (bazel run //datacube:deephaven_desk, 2026-10-25): the one
+        # Deephaven demo since 2026-10-26 (the user: "why we need 3 different demos instead of single one in real
+        # datacube"), the risk demo's and the trader screens' hand tools deleted, their pages their tests' benches
         ":deephaven_desk",
     ],
 )
@@ -2295,8 +2293,8 @@ browser_test(
 # THE TRADER SCREENS (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K4, K8-K13; the user, 2026-10-25): each screen a saved
 # DataCube page (demo/deephaven/market/screens.ts) over the market world, opened from DataCube's own page's menu
 # (demo/deephaven/market/traders.ts) -- its grids and charts, a sheet per view of the desk -- every query planned in the
-# tab over the one trading model's classes and run on the Deephaven server, ticking. `bazel run
-# //datacube:deephaven_traders` serves them by hand; :deephaven_traders_test opens each one and checks it ticks.
+# tab over the one trading model's classes and run on the Deephaven server, ticking. :deephaven_traders_test opens each
+# one and checks it ticks (its hand tool went 2026-10-26: the trading desk, :deephaven_desk, is the one demo).
 esbuild_bundle(
     name = "deephaven_traders_bundle",
     testonly = True,
@@ -2339,26 +2337,6 @@ _DEEPHAVEN_TRADERS_ENV = {
     "PLANNER": "$(rlocationpaths //wasm:planner)",
     "QUERIES": "$(rlocationpaths //query-store:page)",
 }
-
-# `bazel run //datacube:deephaven_traders`: the trader screens by hand, their address printed (a hand tool: manual,
-# built by :tools_build_test)
-js_binary(
-    name = "deephaven_traders",
-    testonly = True,
-    data = _DEEPHAVEN_TRADERS_DATA + [
-        "demo/deephaven/market/serve.mjs",
-        # its certificate mkcert's, where mkcert is installed (the user, 2026-10-26)
-        "demo/deephaven/mkcert.mjs",
-        "//tools/js:runfiles",
-    ],
-    entry_point = "demo/deephaven/market/serve.mjs",
-    env = _DEEPHAVEN_TRADERS_ENV,
-    node_options = [
-        "--experimental-strip-types",
-        "--disable-warning=ExperimentalWarning",
-    ],
-    tags = ["manual"],
-)
 
 # Every trader screen opened from the page's Open…, in the pinned Chromium, over a small market world (its crypto feed
 # refused): every grid's rows and every chart drawn, each sheet ticking with nothing sent or fetched, the page saved
@@ -2483,8 +2461,9 @@ browser_test(
 # THE LIVE RISK DEMO (docs/DEEPHAVEN_PLAN_2026_10_22.md D0, DH23, DH24): DataCube on Deephaven over a risk book whose
 # reference data and price simulator are Deephaven's start-up script (demo/deephaven/risk.groovy, marked temporary:
 # lite's modelled publisher replaces it, L5). The plain page that stood in for DataCube until it ticked went on
-# 2026-10-23 (DH24): the cube's test checks all it did. `bazel run //datacube:deephaven_demo` serves the cube by hand;
-# :deephaven_cube_test checks it.
+# 2026-10-23 (DH24): the cube's test checks all it did. :deephaven_cube_test checks the cube, :deephaven_board_test the
+# board (their hand tool went 2026-10-26: the trading desk, :deephaven_desk, is the one demo; these pages are the
+# engine's test benches).
 #
 # the demo's Deephaven (//testing EmbeddedDeephaven) running the demo's application: prints its URL and key once it has
 # started, restarts on a `restart` line, and runs until its stdin closes
@@ -2582,26 +2561,6 @@ _DEEPHAVEN_DEMO_ENV = {
     "CUBE_STYLES": "$(rlocationpaths :deephaven_cube_styles)",
     "PLANNER": "$(rlocationpaths //wasm:planner)",
 }
-
-# `bazel run //datacube:deephaven_demo`: the demo by hand, its address printed (a hand tool: manual, built by
-# :tools_build_test)
-js_binary(
-    name = "deephaven_demo",
-    testonly = True,
-    data = _DEEPHAVEN_DEMO_DATA + [
-        "demo/deephaven/serve.mjs",
-        # its certificate mkcert's, where mkcert is installed (the user, 2026-10-26)
-        "demo/deephaven/mkcert.mjs",
-        "//tools/js:runfiles",
-    ],
-    entry_point = "demo/deephaven/serve.mjs",
-    env = _DEEPHAVEN_DEMO_ENV,
-    node_options = [
-        "--experimental-strip-types",
-        "--disable-warning=ExperimentalWarning",
-    ],
-    tags = ["manual"],
-)
 
 # THE TICK BENCHMARK (bench/deephaven/README.md, 2026-10-23): how fast a tick on a Deephaven server reaches a page, by
 # transport -- Deephaven's own JS library's viewport and full subscriptions and setViewport (the baseline they replaced,
