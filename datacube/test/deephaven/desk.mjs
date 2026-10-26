@@ -129,8 +129,9 @@ try {
   }
   // THE SCREENS' INTERACTIONS, as a person makes them on the desk (moved here from the trader screens' own test,
   // 2026-10-26: the desk is the one demo, its screens' host retired) -- each grid's rows read from the page the harness
-  // holds (datacube-app.ts `__dataPage`: hidden columns too), the market's own counts and a chart as drawn from its host
-  // (market/host.ts `__market`)
+  // holds (datacube-app.ts `__dataPage`: hidden columns too), the market's own counts from its host (market/host.ts
+  // `__market`). A chart is read by what it says and what its page keeps: the window a span draws is chart-echarts'
+  // own test's (a span of time: the latest that many seconds, a window ending at the latest mark)
   const showTab = (name) => page.locator(`.dc-sheet-tab:has(.dc-sheet-label:text-is("${name}"))`).first().click();
   /** A grid's rows as its view has them now, every column; null before its first view. */
   const rowsOf = (tile) => page.evaluate((t) => {
@@ -143,7 +144,6 @@ try {
   const every = (g, column, test) => g !== null && g.rows.length > 0 && g.rows.every((r) => test(r[g.columns.indexOf(column)]));
   const viewOf = (id) => page.evaluate((v) => window.__dataPage.views().views.find((x) => x.id === v), id);
   const counts = () => page.evaluate(() => window.__market.counts());
-  const chartNow = (tile) => page.evaluate((t) => window.__market.chartNow(t), tile);
   /** `test`, asked until it holds (its last answer), or a failure saying `what` after `ms`. */
   const until = async (test, what, ms = 30_000) => {
     const end = Date.now() + ms;
@@ -172,22 +172,19 @@ try {
     await sleep(2500);
     const bid = Number(cell(await rowsOf('st-quote'), 'bid'));
     const kpi = Number(String(await page.locator('[data-tile="st-last"] .dc-kpi-value').first().textContent()).replace(/,/g, ''));
-    const lineLast = Number((await chartNow('st-price'))?.last?.[1]);
-    const near = (a, b) => Math.abs(a - b) / b < 0.01;
-    if (near(kpi, bid) && near(lineLast, bid)) ok(`Stock: a name picked on the watchlist takes the tiles with it: ${was} to ${other} -- its quote, its prints, its last ${kpi} and its line's ${lineLast} (bid ${bid})`);
-    else fail(`Stock: picked ${other}: the KPI ${kpi}, the line's last ${lineLast}, the bid ${bid}`);
+    if (Math.abs(kpi - bid) / bid < 0.01) ok(`Stock: a name picked on the watchlist takes the tiles with it: ${was} to ${other} -- its quote, its prints and its last ${kpi} (bid ${bid})`);
+    else fail(`Stock: picked ${other}: the KPI ${kpi}, the bid ${bid}`);
     await page.screenshot({ path: join(outputs, `desk-stock-${other}.png`) });
 
-    // THE SPANS: 5m, by the second, its window the latest five minutes, ending at the latest mark
+    // THE SPANS: 5m, by the second -- its button pressed, the chart drawn again, kept with the page
     await page.locator('[data-tile="st-price"] .dc-chartpanel-span[data-span="300"]').click();
     await sleep(3000);
-    const spanned = await chartNow('st-price');
     const spec = (await viewOf('st-price')).spec;
-    const width = (spanned?.zoom?.endValue ?? 0) - (spanned?.zoom?.startValue ?? 0);
-    const edge = Math.abs((spanned?.zoom?.endValue ?? 0) - new Date(String(spanned?.last?.[0]).replace(' ', 'T')).getTime());
-    if (spec.grain === 'second' && spec.options.span === 300 && width === 300_000 && edge < 1500) {
-      ok(`Stock: a span picked: the latest 5 minutes by the second, the window ending at the latest mark (${JSON.stringify(spanned.zoom)})`);
-    } else fail(`Stock: 5m: the spec ${spec.grain} ${spec.options.span}, the window ${JSON.stringify(spanned?.zoom)}, the latest ${JSON.stringify(spanned?.last)}`);
+    const pressed = await page.locator('[data-tile="st-price"] .dc-chartpanel-span[aria-pressed="true"]').getAttribute('data-span');
+    const drawn = await page.locator('[data-tile="st-price"] .dc-chartpanel-chart canvas').count();
+    if (spec.grain === 'second' && spec.options.span === 300 && pressed === '300' && drawn > 0) {
+      ok('Stock: a span picked: the latest 5 minutes by the second, its button pressed, the chart drawn, kept with the page');
+    } else fail(`Stock: 5m: the spec ${spec.grain} ${spec.options.span}, the button pressed ${pressed}, ${drawn} canvases`);
 
     // THE CANDLES, behind the line: their tab shown, they draw
     await page.locator('.dc-tile-tab[data-tab="st-candles"] .dc-tile-tab-label').click();

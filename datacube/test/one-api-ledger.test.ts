@@ -114,8 +114,11 @@ interface Entry {
 // 2026-10-25 (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K14, the stock chart): L1_ROUTES 5 -> 6 -- a row picked in a
 // linked grid (page-document.ts GridLink) refilters each grid it links to, by the grid's own refilter command, told as
 // any: the route a chart's click takes (#select), for the grids a watchlist picks a name for.
+// 2026-10-26 (lazy tabs, the user: "if we need lazy tab loading then we should do that"): L1_GRID 5 -> 6 -- a saved
+// page's saved query on live rows is typed before its grid's first view (CubeAppOptions.prepares), and where it reads
+// otherwise than saved the grid starts there (#first): the start the eager open would have made, before any view.
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 5, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
+  L1_GRID: 6, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
   L8_KINDS: 1, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
 };
 
@@ -143,6 +146,9 @@ const L1_GRID: Record<string, Entry> = {
   // a retry stays a retry: the refused change run again, its commands kept and told when it lands
   // (cube-transactions.test.ts G13)
   'submit:#owner.retryRefused': { items: [], why: 'the refused change run again (signed in again): the commands it was told as they land, or, an undo or a redo among it, the commands between (W3)' },
+  // 2026-10-26 (lazy tabs, the user: a saved page's saved query on live rows typed before its grid's first view --
+  // sources.ts reopenedSavedQuery, CubeAppOptions.prepares)
+  '#first:#owner.change': { items: [], why: "its start, not an edit: a saved query typed before the grid's first view reads otherwise than saved, so the grid starts where the eager open would have made it -- before any view, no step, nothing told, as a grid made is told nothing; never on a page another editor serves (its grids are opened by the host: sources.ts reopened)" },
 };
 
 /** Every call of the command path, by where it is made: the ones with a change of their own beside the commands. */
@@ -748,8 +754,9 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/sources.ts:openedRemote:local': { other: `${BOTH} snapped into the tab's copy, or the host's`, ability: 'snap' },
   'src/app/sources.ts:openedJoin:local': { other: `${BOTH} a saved join opened in the tab; on a host's page, by the host (reopened)`, ability: 'join' },
   'src/app/sources.ts:openedFrame:database.frame': { other: `${NATURE} a dataframe lives in Python` },
-  'src/app/sources.ts:openedRecord:queries': { other: `${BOTH} a saved query read from the host's query store`, ability: 'queries' },
-  'src/app/sources.ts:openedRecord:modelHome': { other: `${BOTH} a query of an unconfigured project read through the host's model home`, ability: 'queries' },
+  // 2026-10-26 (lazy tabs: a saved query's model fetched by modelOf, for openedRecord and reopenedSavedQuery alike)
+  'src/app/sources.ts:modelOf:queries': { other: `${BOTH} a saved query read from the host's query store`, ability: 'queries' },
+  'src/app/sources.ts:modelOf:modelHome': { other: `${BOTH} a query of an unconfigured project read through the host's model home`, ability: 'queries' },
   // the trading desk (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, 2026-10-25): a project's own rows loaded into the tab's
   // database only where the tab runs them -- a host's runner reads its own
   'src/app/sources.ts:openedRecord:local': { other: `${BOTH} a project's own rows in the tab's database where the tab runs them; Python's in its own`, ability: 'queries' },
