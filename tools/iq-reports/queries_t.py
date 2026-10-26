@@ -88,7 +88,6 @@ CUSTOMERS = [
          FROM billed b LEFT JOIN paid p ON p.order_id = b.id
          GROUP BY b.customer_id
          HAVING SUM(b.amount_billed) - SUM(COALESCE(p.amount_paid, 0)) > 1
-             OR SUM(CASE WHEN p.order_id IS NULL THEN 1 ELSE 0 END) > 0
          ORDER BY open_balance DESC, b.customer_id"""),
 ]
 

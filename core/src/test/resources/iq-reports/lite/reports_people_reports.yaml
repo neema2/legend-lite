@@ -1,0 +1,12 @@
+# The IQ scale program's realistic reports (2026-10-25): people_reports, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: salary_position_within_title
+    sql: "SELECT e.id, TRIM(e.first_name) || ' ' || TRIM(e.last_name) AS employee, e.title, e.salary, CAST(AVG(e.salary) OVER (PARTITION BY e.title) AS NUMERIC(10,2)) AS title_average, e.salary - AVG(e.salary) OVER (PARTITION BY e.title) AS above_title_average, CAST(PERCENT_RANK() OVER (ORDER BY e.salary) AS NUMERIC(5,3)) AS salary_percent_rank, CAST(CUME_DIST() OVER (ORDER BY e.salary) AS NUMERIC(5,3)) AS salary_cume_dist, DATEDIFF(MONTH, e.hire_date, CAST('2025-12-31' AS DATE)) / 12 AS years_of_service FROM employees e ORDER BY e.salary DESC, e.id"
+    profile: iq17-default
+  - id: paid_more_than_their_manager
+    sql: "SELECT e.id, TRIM(e.last_name) AS employee, e.salary, m.id AS boss_id, TRIM(m.last_name) AS manager, m.salary AS manager_salary, e.salary - m.salary AS difference, CAST(100.0 * (e.salary - m.salary) / m.salary AS NUMERIC(6,2)) AS difference_pct FROM employees e JOIN employees m ON m.id = e.manager_id WHERE e.salary > 0.6 * m.salary ORDER BY difference DESC, e.id"
+    profile: iq17-default
+  - id: direct_and_indirect_reports
+    sql: "SELECT m.id, TRIM(m.first_name) || ' ' || TRIM(m.last_name) AS manager, m.title, (SELECT COUNT(*) FROM employees d WHERE d.manager_id = m.id) AS direct_reports, (SELECT COUNT(*) FROM employees d JOIN employees i ON i.manager_id = d.id WHERE d.manager_id = m.id) AS second_level_reports, (SELECT COALESCE(SUM(d.salary), 0) FROM employees d WHERE d.manager_id = m.id) AS direct_payroll FROM employees m WHERE EXISTS (SELECT 1 FROM employees d WHERE d.manager_id = m.id) ORDER BY direct_reports DESC, m.id"
+    profile: iq17-default
