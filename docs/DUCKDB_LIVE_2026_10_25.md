@@ -96,6 +96,51 @@ Not measured in stage A (stage B's, the app wired): a group expanded, a total ro
 floor -- and drawing (the same on any engine: the Deephaven desk measured 6-54 ms p50 a tick). The figures are this
 container's (4 cores of a 2.8 GHz Xeon, 16 GB), said with each run.
 
+### Stage A, the baseline (2026-10-26, the engine as committed in 3580c468)
+
+Each tab's measured 20 s, ms (p95 unless said); "alone" the clock stopped, nothing else in flight. Budgets: refresh 100,
+write 30, click 150, tick 500, beat 4.
+
+| tape | tab | refresh p50/p95 | write | click p50/p95 | tick | DuckDB in use | alone: write ms/trips | alone: refresh ms/trips |
+|---|---|---|---|---|---|---|---|---|
+| 25k | Markets | 111/150 | 155 | 5/19 | 348 | 45% | 83/49 | 70/40 |
+| 25k | Stock | 686/1230 | 1221 | 22/363 | 2104 | 92% | 87/49 | 683/45 |
+| 25k | News | 197/511 | 928 | 12/318 | 740 | 77% | 79/49 | 289/12 |
+| 25k | Order flow | 409/645 | 358 | 13/77 | 1042 | 82% | 81/49 | 313/54 |
+| 25k | Crypto | 289/368 | 246 | 11/38 | 781 | 68% | 79/49 | 148/52 |
+| 25k | Blotter | 55/157 | 187 | 5/18 | 361 | 46% | 70/49 | 81/36 |
+| 25k | TCA | 944/1098 | 1191 | 44/163 | 1783 | 90% | 90/49 | 599/34 |
+| 25k | P&L and risk | 144/187 | 212 | 12/27 | 401 | 64% | 83/49 | 84/32 |
+| 25k | Options | 450/590 | 613 | 24/69 | 1077 | 83% | 96/49 | 438/32 |
+| 25k | FX | 115/174 | 162 | 7/19 | 363 | 51% | 79/49 | 65/43 |
+| 100k | Markets | 127/169 | 163 | 8/24 | 359 | 53% | 79/49 | 67/40 |
+| 100k | Stock | 14961 | 14894 | 111/5173 | 25181 | 100% | 102/49 | 8827/51 |
+| 100k | News | 4318/8867 | 13305 | 24/4151 | 9023 | 97% | 121/56 | 4848/68 |
+| 100k | Order flow | 1914/2353 | 1433 | 38/111 | 4349 | 100% | 113/49 | 1144/93 |
+| 100k | Crypto | 735/961 | 672 | 33/156 | 1776 | 89% | 89/49 | 447/55 |
+| 100k | Blotter | 69/180 | 210 | 8/24 | 374 | 53% | 76/49 | 76/36 |
+| 100k | TCA | 559/2332 | 2701 | 145/328 | 2696 | 95% | 97/49 | 1405/40 |
+| 100k | P&L and risk | 136/180 | 191 | 9/24 | 383 | 60% | 83/49 | 84/32 |
+| 100k | Options | 470/622 | 659 | 22/70 | 1122 | 82% | 102/49 | 406/32 |
+| 100k | FX | 115/173 | 175 | 6/20 | 378 | 51% | 94/49 | 62/43 |
+| 250k | Stock | out of memory: DuckDB at 3.1 of 3.1 GiB on a Stock tile's first query | | | | | | |
+
+What it says:
+
+- **Two kinds of tab.** Markets, Blotter, P&L and risk and FX barely move from 25k to 100k: a refresh alone ~60-85 ms,
+  in its round trips (40 of them), the worker in use half the time, a click's wait ~20 ms, a tick ~0.35-0.4 s. Stock,
+  News, Order flow, TCA, Crypto and Options are DuckDB's own work, and grow with the tape: Stock's refresh alone 683 ms
+  at 25k, 8.8 s at 100k -- four times the rows, thirteen times the time -- so some query shape there costs more than
+  its rows (a join or window over the tape), named by the next run's per-query timings.
+- **Round trips.** A write alone is 49 of them whatever the tab (each table's batch: a staging table dropped, loaded,
+  inserted from, dropped; each statement streamed in two or three), ~70-100 ms; a streamed statement's round trips are
+  each ~1.3-4.8 ms (more under load).
+- **Work done twice.** A grid's run at its tick was answered from the kept results less often than it should be (Order
+  flow: 116 served, 216 run again; Crypto 215, 266): the write's timer and the refresh's are apart, so a write lands
+  between a refresh and the grid's run, and the grid's queries run again.
+- **Start.** The market's own start is 7-9 s at 25-100k, of which the planner's writing the tables' DDL is 6.5-7.6 s
+  (the whole trading model compiled for it): over its 5 s budget, and a planner cost, not DuckDB's.
+
 ## 3. Incremental views, when measured
 
 ClickHouse's lesson (its insert-triggered materialized views, aggregate states that merge): an append-only table's
