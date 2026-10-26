@@ -841,7 +841,7 @@ export class TimeseriesView {
           : valueText(l, l.points[at]![1], this.#formatOf(l));
       if (said !== undefined) chip.append(el(doc, 'span', 'dc-ts-chip-value', said));
       const pct = this.#stat(l, 'pct');
-      if (pct !== null && (l.unit === 'same' || l.unit === 'index')) {
+      if (pct !== null && l.level && (l.unit === 'same' || l.unit === 'index')) {
         chip.append(el(doc, 'span', `dc-ts-chip-change ${pct >= 0 ? 'dc-ts-up' : 'dc-ts-down'}`, `${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct * 100).toLocaleString(UI_LOCALE, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}%`));
       }
       chip.addEventListener('click', () => this.#edit({ kind: 'hide', id: l.series.id, hidden: l.series.hidden !== true }));

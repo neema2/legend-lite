@@ -150,6 +150,20 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
     }
   });
 
+  // a level's change in percent beside its value; a spread's start may be zero or below, so its legend says none
+  it('the legend\'s change in percent: a level\'s, and none for a spread of the same unit', async () => {
+    const spec: TimeseriesSpec = { ...SPEC, series: [SPEC.series[0]!, { id: 'C', expr: parseExpr('close[SPX] - 4000'), name: 'Over 4000' }] };
+    const { root, view } = viewer(spec);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      const [spx, spread] = chips(root);
+      assert.match(spx!, /[▲▼] \d+\.\d\d%$/, `the S&P's change: ${spx}`);
+      assert.doesNotMatch(spread!, /[▲▼]/, `no change in percent for a spread: ${spread}`);
+    } finally {
+      view.dispose();
+    }
+  });
+
   // the expert statistics (2026-10-26): the panel's Risk tab, a level's returns' risk; a volatility (no level) none
   it('the statistics\' Risk tab: a level\'s Sortino, Calmar, skew, kurtosis, value at risk; none of what is no level', async () => {
     const { root, view } = viewer(SPEC);

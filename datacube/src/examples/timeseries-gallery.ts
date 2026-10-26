@@ -162,7 +162,7 @@ const ROLLING: GallerySheet = {
       sources: ON_PRICES,
       series: [
         s('A', 'close[SPX]', { name: 'S&P 500' }),
-        s('B', 'exponential_moving_average(close[SPX], 0.95)', { name: 'EMA (beta 0.95)', style: { width: 1 } }),
+        s('B', 'exponential_moving_average(close[SPX], 0.9)', { name: 'EMA (beta 0.9)', style: { width: 1 } }),
         s('C', 'smoothed_moving_average(close[SPX], 20)', { name: 'Wilder 20', style: { width: 1, dash: 'dashed' } }),
         s('D', 'exponential_std(close[SPX], 0.95)', { name: 'Exponential deviation', pane: 1, style: { kind: 'area' } }),
       ],

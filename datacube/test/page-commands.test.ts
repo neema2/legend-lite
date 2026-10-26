@@ -327,7 +327,7 @@ describe('a timeseries tile: added, its spec set, titled and removed by the page
   it('refused in words: a source no grid shows, a spec of a word it does not know, a chart set as a timeseries', () => {
     refused(() => apply(add({ spec: { ...SPEC, sources: [{ alias: 'x', cube: 'nowhere', date: 'd' }] } })), /source x reads 'nowhere', which is no cube of the page/);
     refused(() => apply(add({ spec: { ...SPEC, grain: 'hour' } as never })), /frequency "hour"/);
-    refused(() => apply(add({ spec: { ...SPEC, series: [{ id: 'A', expr: { kind: 'call', fn: 'macd', args: [] } }] } as never })), /calls "macd", which this DataCube does not compute/);
+    refused(() => apply(add({ spec: { ...SPEC, series: [{ id: 'A', expr: { kind: 'call', fn: 'trend', args: [] } }] } as never })), /calls "trend", which this DataCube does not compute/);
     refused(() => apply(add({ sheet: 'sheet-9' })), /'sheet-9' is not a sheet of the page/);
     refused(() => apply(add({ near: 'grid-2' })), /'grid-2' is not on sheet-1/);
     refused(() => apply({ kind: 'setTimeseries', tile: 'chart', spec: SPEC }), /'chart' is a chart, not a timeseries tile/);
