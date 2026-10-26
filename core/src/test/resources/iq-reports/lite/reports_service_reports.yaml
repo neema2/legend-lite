@@ -1,0 +1,18 @@
+# The IQ scale program's realistic reports (2026-10-25): service_reports, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: support_sla_by_priority
+    sql: "SELECT priority, COUNT(*) AS tickets, COUNT(closed_ts) AS closed, SUM(CASE WHEN closed_ts IS NULL THEN 1 ELSE 0 END) AS still_open, CAST(AVG(DATEDIFF(MINUTE, opened_ts, closed_ts) / 60.0) AS NUMERIC(8,1)) AS average_hours, MAX(DATEDIFF(HOUR, opened_ts, closed_ts)) AS longest_hours, SUM(CASE WHEN DATEDIFF(HOUR, opened_ts, closed_ts) > CASE priority WHEN 'urgent' THEN 4 WHEN 'high' THEN 24 WHEN 'normal' THEN 48 ELSE 120 END THEN 1 ELSE 0 END) AS sla_breaches FROM support_tickets GROUP BY priority ORDER BY CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END"
+    profile: iq17-default
+  - id: ticket_topics_from_subjects
+    sql: "SELECT topic, COUNT(*) AS tickets, COUNT(DISTINCT customer_id) AS customers, SUM(CASE WHEN order_id IS NULL THEN 1 ELSE 0 END) AS without_order, MAX(LENGTH(TRIM(subject))) AS longest_subject FROM (SELECT customer_id, order_id, subject, CASE WHEN LOWER(subject) LIKE '%refund%' THEN 'refund' WHEN LOWER(subject) LIKE '%cancel%' THEN 'cancellation' WHEN LOWER(subject) LIKE '%damaged%' OR LOWER(subject) LIKE '%missing%' OR LOWER(subject) LIKE '%wrong%' THEN 'fulfilment issue' WHEN LOWER(subject) LIKE '%where is%' OR LOWER(subject) LIKE '%shipping%' THEN 'delivery' WHEN LOWER(subject) LIKE '%login%' THEN 'account' ELSE 'other' END AS topic FROM support_tickets) t GROUP BY topic ORDER BY tickets DESC, topic"
+    profile: iq17-default
+  - id: business_days_to_ship_inclusive
+    sql: "WITH shipped AS ( SELECT id, channel, CAST(order_ts AS DATE) AS ordered, ship_date FROM orders WHERE ship_date IS NOT NULL) SELECT id, channel, ordered, ship_date, DATEDIFF(DAY, ordered, ship_date) AS calendar_days, DATEDIFF(DAY, ordered, ship_date) + 1 - 2 * DATEDIFF(WEEK, ordered, ship_date) - CASE WHEN DOW(ordered) = 1 THEN 1 ELSE 0 END - CASE WHEN DOW(ship_date) = 7 THEN 1 ELSE 0 END AS business_days FROM shipped WHERE id <= 40 ORDER BY id"
+    profile: iq17-default
+  - id: sku_parts_and_product_slugs
+    sql: "SELECT id, sku, LEFT(sku, 3) AS category_code, SUBSTRING(sku, 5, 3) AS subcategory_code, CAST(RIGHT(sku, 3) AS INTEGER) AS sequence_no, LOWER(REPLACE(TRIM(name), ' ', '-')) || '-' || CAST(id AS VARCHAR(5)) AS slug, CASE WHEN weight_kg IS NULL THEN 'unknown' WHEN weight_kg < 1 THEN 'light' WHEN weight_kg < 5 THEN 'medium' ELSE 'heavy' END AS weight_class, CAST(ROUND(100 * (unit_price - unit_cost) / unit_price, 1) AS NUMERIC(5,1)) AS margin_pct FROM products ORDER BY category_code, sequence_no"
+    profile: iq17-default
+  - id: supplier_directory_cleaned
+    sql: "SELECT s.id, UPPER(LEFT(TRIM(s.name), 1)) || SUBSTRING(TRIM(s.name), 2) AS supplier, COALESCE(NULLIF(TRIM(s.contact), ''), '(no contact)') AS contact_name, LOWER(TRIM(s.email)) AS clean_email, CASE WHEN s.email IS NULL THEN 'missing' WHEN LOCATE(s.email, '@') = 0 THEN 'invalid' ELSE 'ok' END AS email_check, DATEDIFF(YEAR, s.since, CAST('2025-12-31' AS DATE)) AS years_as_supplier, (SELECT COUNT(*) FROM supplier_products sp WHERE sp.supplier_id = s.id) AS products_supplied FROM suppliers s ORDER BY s.id"
+    profile: iq17-default
