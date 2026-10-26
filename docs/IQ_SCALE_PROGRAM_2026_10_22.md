@@ -894,3 +894,14 @@ says so.
     already (the linear long division). And where a quotient's whole part is refused from 10^(38 - s) <= 10^15
     (scales of 23 and up: TPC-H's ratios of NUMERIC(36,4) sums), the long division's first rest is the remainder of
     |x| by y and its whole part that difference by y as a double rounds it, in place of whole()'s three estimates.
+  - **LIST(DISTINCT x [, d] [ORDER BY x [DESC]]) of a string under IQ's engine** (region_directory_formatted's
+    LIST(DISTINCT c.segment, '/' ORDER BY c.segment), 'enterprise/retail/smb' on IQ 17.1): each text without its
+    trailing spaces once (in a case-sensitive database a collation key is one such text), in those texts' byte order
+    (IQ's blank-padded order but for a character below a space, a group holding one refused at run time by an aggregate
+    of its own, so that the list's DISTINCT and ORDER BY read one deterministic value: DuckDB and Postgres match a
+    DISTINCT aggregate's ORDER BY to its argument, and no expression holding a raise). In Pure,
+    `$y->distinct()->sort()->joinStrings(d)` (`->reverse()` for DESC) in the aggregate's reduce; the Lowerer reads a
+    reduce's values sorted by themselves as the SQL aggregate's ORDER BY its own value. And a COUNT, IQ's UNSIGNED
+    BIGINT, is a REPEAT's count as a BIGINT is (REPEAT('#', COUNT(c.id))). Moves: census_aggregates/list_distinct and
+    m1gaps/list_distinct_of_strings_is_refused REFUSED -> PASS (iq17), reports' region_directory_formatted REFUSED ->
+    PASS, on DuckDB and Postgres.

@@ -5483,12 +5483,16 @@ final class IqFunctions {
         if (t.kind() == Kind.NULL) {
             return t;
         }
-        if (t.kind() == Kind.INTEGER && t.detail() instanceof IqType type && type.isInteger()) {
+        // the IQ scale program, 2026-10-26 (the realistic reports' REPEAT('#', COUNT(c.id)), measured on IQ 17.1: a bar of
+        // as many #s): a COUNT under IQ's engine, an UNSIGNED BIGINT, is read as a BIGINT is
+        boolean counted = t.kind() == Kind.INTEGER && t.detail() instanceof IqType u
+                && u.family().equals("UNSIGNED BIGINT");
+        if (t.kind() == Kind.INTEGER && t.detail() instanceof IqType type && (type.isInteger() || counted)) {
             // a value whose range lies in 32 bits needs no check, whatever it is computed in (the IQ scale program,
             // 2026-10-26: LOCATE(url, '/', LOCATE(url, '://') + 3) over a VARCHAR(160), its start 3 to 163)
-            boolean within = type.lo().compareTo(BigInteger.valueOf(Integer.MIN_VALUE)) >= 0
+            boolean within = !counted && type.lo().compareTo(BigInteger.valueOf(Integer.MIN_VALUE)) >= 0
                     && type.hi().compareTo(BigInteger.valueOf(Integer.MAX_VALUE)) <= 0;
-            if ((type.family().equals("BIGINT") || type.wide() && !type.exact()) && !within) {
+            if ((type.family().equals("BIGINT") || counted || type.wide() && !type.exact()) && !within) {
                 String past = IqDialect.REFUSED_AT_RUN_TIME + fn + " with a count or position past 32 bits is not"
                         + " supported: IQ raises its error for a computed one, and reads a BIGINT column's otherwise";
                 Tx checked = SqlToPure.strict(Kind.INTEGER, List.of(t), v -> refusedPast(SqlToPure.call("or",

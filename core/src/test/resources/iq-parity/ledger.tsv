@@ -676,7 +676,7 @@ lite/census_aggregates/conditional_sum@iq17-default	PASS	PASS
 lite/census_aggregates/conditional_count@iq17-default	PASS	PASS	
 lite/census_aggregates/count_distinct_grouped@iq17-default	PASS	PASS	
 lite/census_aggregates/list@iq17-default	PASS	PASS	
-lite/census_aggregates/list_distinct@iq17-default	REFUSED	REFUSED	
+lite/census_aggregates/list_distinct@iq17-default	PASS	PASS	
 lite/census_aggregates/median@iq17-default	PASS	PASS	
 lite/census_aggregates/stddev_variance@iq17-default	PASS	PASS	
 lite/census_aggregates/stddev_grouped@iq17-default	PASS	PASS	
@@ -6604,7 +6604,7 @@ lite/m1gaps/list_of_an_integer_group_key@iq17-default	PASS	PASS	PASS
 lite/m1gaps/list_of_one_of_two_group_keys@iq16-default	PASS	PASS	PASS
 lite/m1gaps/list_of_one_of_two_group_keys@iq17-default	PASS	PASS	PASS
 lite/m1gaps/list_distinct_of_strings_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
-lite/m1gaps/list_distinct_of_strings_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1gaps/list_distinct_of_strings_is_refused@iq17-default	PASS	PASS	REFUSED
 lite/m1gaps/list_distinct_filtered_is_refused@iq16-default	REFUSED	REFUSED	REFUSED
 lite/m1gaps/list_distinct_filtered_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
 lite/m1gaps/list_of_a_group_key_ordered_by_another_column@iq16-default	PASS	PASS	PASS

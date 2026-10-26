@@ -2349,9 +2349,12 @@ final class IqAggregates {
         // its group has rows (once under DISTINCT), whatever the order; DISTINCT of anything else is refused (lite's
         // Postgres orders a DISTINCT aggregate only by its argument, here the value's text)
         boolean keyed = at.groupKey(value);
+        if (f.distinct() && !keyed && distinctTexts(f, at, x, dialect)) {
+            return distinctList(f, at, x);
+        }
         if (f.distinct() && !keyed) {
-            throw SqlTranslationException.unsupported("LIST(DISTINCT ...) is not supported yet but of a GROUP BY key:"
-                    + " lite's Postgres orders a DISTINCT list only by its text", f.pos());
+            throw SqlTranslationException.unsupported("LIST(DISTINCT ...) is not supported yet but of a GROUP BY key or"
+                    + " of strings under IQ's engine, ordered by themselves or not at all", f.pos());
         }
         String delimiter = ",";
         if (f.args().size() == 2) {
@@ -2465,5 +2468,55 @@ final class IqAggregates {
                 SqlToPure.call("toOne", listed));
         return new SqlToPure.Aggregation(List.of(spec), new ColSpec(at.name(), at.overRow(finish), null, null),
                 Kind.STRING, false, new IqType("LONG VARCHAR"));
+    }
+
+    /** Whether {@link #distinctList} lists {@code LIST(DISTINCT x ...)}: a string under IQ's engine, ordered by itself
+     *  or not at all, in a database where each of its collation keys is one text once its trailing spaces are
+     *  dropped. */
+    private static boolean distinctTexts(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x, IqDialect dialect) {
+        SqlAst.Expr value = f.args().get(0);
+        return dialect.engine() == IqDialect.Engine.IQ && x.kind() == Kind.STRING && (f.orderBy().isEmpty()
+                || f.orderBy().size() == 1 && at.same(f.orderBy().get(0).expr(), value))
+                && (f.args().size() == 1 || f.args().get(1) instanceof SqlAst.StringLit)
+                && (dialect.keys().own(value) || dialect.settings().caseSensitive() && !dialect.settings().latin1());
+    }
+
+    /**
+     * LIST(DISTINCT {@code x} [, delimiter] [ORDER BY x [DESC]]) of a string under IQ's engine (the IQ scale program,
+     * 2026-10-26, the realistic reports' region_directory_formatted, measured on IQ 17.1: LIST(DISTINCT c.segment, '/'
+     * ORDER BY c.segment) is 'enterprise/retail/smb'): each value without its trailing spaces, as LIST lists it, once --
+     * in a case-sensitive database a collation key is one such text -- in those texts' order, which is IQ's
+     * blank-padded order but for a character below a space (a tab, a line break), whose row is refused at run time, as
+     * an ordered LIST's is: Pure's {@code $y->distinct()->sort()->joinStrings(d)}, the SQL aggregate's DISTINCT and its
+     * ORDER BY its own value. Without ORDER BY the order is the plan's (none asked). NULL over no values.
+     */
+    private static SqlToPure.Aggregation distinctList(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x) {
+        String delimiter = f.args().size() == 2 ? ((SqlAst.StringLit) f.args().get(1)).value() : ",";
+        // a group holding a value below a space is refused where it is listed (an aggregate of its own: the list's
+        // DISTINCT and ORDER BY read one value, which a database matches only where it raises nothing)
+        Tx below = SqlToPure.strict(Kind.INTEGER, List.of(x), v -> IqDialect.ifThen(SqlToPure.call("or",
+                SqlToPure.call("or", SqlToPure.call("contains", v.get(0), new CString("\t")), SqlToPure.call(
+                        "contains", v.get(0), new CString("\n"))), SqlToPure.call("contains", v.get(0),
+                        new CString("\r"))), new CInteger(1L), new CInteger(0L)));
+        Tx text = SqlToPure.strict(Kind.STRING, List.of(x), v -> IqFunctions.trailingSpacesDropped(v.get(0)));
+        ValueSpecification values = SqlToPure.call("distinct", at.values());
+        if (!f.orderBy().isEmpty()) {
+            values = SqlToPure.call("sort", values);
+            if (f.orderBy().get(0).descending()) {
+                values = SqlToPure.call("reverse", values);
+            }
+        }
+        String flag = at.fresh();
+        String raw = at.fresh();
+        ColSpec flagged = new ColSpec(flag, at.overRow(SqlToPure.valueOf(below)), at.overGroup(SqlToPure.call("max",
+                at.values())), null);
+        ColSpec spec = new ColSpec(raw, at.overRow(SqlToPure.valueOf(text)), at.overGroup(SqlToPure.call(
+                "joinStrings", values, new CString(delimiter))), null);
+        ValueSpecification listed = IqFunctions.refusedPast(SqlToPure.call("and", SqlToPure.call("isNotEmpty",
+                at.column(flag)), SqlToPure.call("equal", SqlToPure.call("toOne", at.column(flag)), new CInteger(1L))),
+                IqDialect.REFUSED_AT_RUN_TIME + "LIST of a string holding a tab or a line break: IQ orders it by blank"
+                + " padding", at.column(raw), SqlToPure.empty());
+        return new SqlToPure.Aggregation(List.of(flagged, spec), new ColSpec(at.name(), at.overRow(listed), null, null),
+                Kind.STRING, true, new IqType("LONG VARCHAR"));
     }
 }

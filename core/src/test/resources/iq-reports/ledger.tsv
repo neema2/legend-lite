@@ -298,7 +298,7 @@ lite/reports_quality_and_calendar/quarterly_category_pivot_2025@iq17-default	PAS
 lite/reports_quality_and_calendar/reorder_rhythm_per_customer@iq17-default	PASS	PASS	
 lite/reports_quality_and_calendar/cheapest_supplier_offer@iq17-default	PASS	PASS	
 lite/reports_quality_and_calendar/weekly_ticket_backlog@iq17-default	PASS	PASS	
-lite/reports_quality_and_calendar/region_directory_formatted@iq17-default	REFUSED	REFUSED	
+lite/reports_quality_and_calendar/region_directory_formatted@iq17-default	PASS	PASS	
 lite/reports_rankings/top_three_customers_per_region@iq17-default	PASS	PASS	
 lite/reports_rankings/product_rank_change_2024_to_2025@iq17-default	PASS	PASS	
 lite/reports_rankings/order_value_quartiles@iq17-default	PASS	PASS	

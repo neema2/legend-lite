@@ -1278,7 +1278,29 @@ public final class Lowerer {
         TypedCast valueCast = null;
         boolean distinctValues = false;
         boolean descending = false;
-        for (TypedSpec argSpec : call.args()) {
+        // y|$y->distinct()->sort()->joinStrings(sep) (->reverse() after sort
+        // for the descending order): the group's values ordered by
+        // themselves, the SQL aggregate's ORDER BY its own value (the IQ
+        // scale program, 2026-10-26: SAP IQ's LIST(DISTINCT x ORDER BY x),
+        // which Postgres takes only so -- a DISTINCT aggregate orders by its
+        // argument alone)
+        Boolean sortedByValue = null;
+        for (TypedSpec spec : call.args()) {
+            TypedSpec argSpec = spec;
+            if (argSpec instanceof TypedNativeCall rv
+                    && com.legend.builtin.Pure.AT_COLLECTION_REVERSE.contains(rv.callee().id())
+                    && rv.args().size() == 1
+                    && rv.args().get(0) instanceof TypedNativeCall sc
+                    && com.legend.builtin.Pure.AT_COLLECTION_SORT.contains(sc.callee().id())
+                    && sc.args().size() == 1) {
+                sortedByValue = false;
+                argSpec = sc.args().get(0);
+            } else if (argSpec instanceof TypedNativeCall sc
+                    && com.legend.builtin.Pure.AT_COLLECTION_SORT.contains(sc.callee().id())
+                    && sc.args().size() == 1) {
+                sortedByValue = true;
+                argSpec = sc.args().get(0);
+            }
             if (argSpec instanceof TypedNativeCall dn
                     && dn.callee().qualifiedName().equals(
                             "meta::pure::functions::collection::distinct")
@@ -1382,6 +1404,14 @@ public final class Lowerer {
         if (valueCast != null) {
             value = CastPolicy.castByPolicy(value,
                     valueCast.source().info().type(), valueCast.target(), valueCast.wire());
+        }
+        if (sortedByValue != null) {
+            if (fn != SqlAgg.Fn.STRING_AGG || !aggOrder.isEmpty()) {
+                throw new IllegalStateException("a group's values sorted by"
+                        + " themselves are read only before joinStrings, and"
+                        + " beside no other order");
+            }
+            aggOrder = List.of(new SqlSelect.SortKey(value, sortedByValue, null, null));
         }
         // isDistinct over a group: COUNT(DISTINCT x) = COUNT(x) (engine testGroupByIsDistinct)
         if (fn == SqlAgg.Fn.IS_DISTINCT_MARK) {

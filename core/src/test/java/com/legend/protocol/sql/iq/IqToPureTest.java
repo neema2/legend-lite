@@ -481,6 +481,22 @@ class IqToPureTest {
         assertTrue(bare.length() < 40_000 && wrapped.length() < 80_000, bare.length() + " " + wrapped.length());
     }
 
+    /** The IQ scale program, 2026-10-26 (measured on IQ 17.1: LIST(DISTINCT c.segment, '/' ORDER BY c.segment) is
+     *  'enterprise/retail/smb'): LIST(DISTINCT x [ORDER BY x]) of a string under IQ's engine, its texts once, ordered by
+     *  themselves; another order, or SQL Anywhere's front end, refused as before. */
+    @Test
+    void aDistinctListOfStringsIsItsTextsOnceInTheirOrder() {
+        IqSettings iq17 = IqProfile.IQ17_DEFAULT.settings();
+        String asc = pure("SELECT id, LIST(DISTINCT vc, '/' ORDER BY vc) AS l FROM " + T + " GROUP BY id", iq17);
+        assertTrue(asc.contains("->distinct()->sort()->joinStrings('/')"), asc);
+        String desc = pure("SELECT id, LIST(DISTINCT vc ORDER BY vc DESC) AS l FROM " + T + " GROUP BY id", iq17);
+        assertTrue(desc.contains("->distinct()->sort()->reverse()->joinStrings(',')"), desc);
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id, LIST(DISTINCT vc ORDER BY id) AS l"
+                + " FROM " + T + " GROUP BY id", iq17, COLUMNS).kind());
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id, LIST(DISTINCT vc ORDER BY vc) AS l"
+                + " FROM " + T + " GROUP BY id").kind());
+    }
+
     /** The IQ scale program, 2026-10-26 (TPC-DS's Q4, refused past the size bound at 62,032 nodes): a WHERE's long
      *  compared operands are computed once, a column before the filter, each where the conjuncts before it hold. */
     @Test
