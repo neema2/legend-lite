@@ -791,3 +791,20 @@ says so.
     under a `*`, is read nowhere too), an item read reads the items its alias names, and a CAST to LONG VARCHAR (TEXT)
     in such a column is a NULL string as the calls are. Read in the output, a WHERE, a top-level `*` or another
     item, IQ's -265 and -1001006 stay; a missing name stays -143.
+  - **The unread-column cases snapped** (lite/corpus_gaps, 9 cases, the Mac's snap c71e92d5): 5 PASS, 4 BOTH_ERROR
+    (CONCAT_WS read by the output's `*`, a WHERE, another item's alias, IQ's -265; CAST AS TEXT read, -1001006). The
+    Mac's run of the corpus lanes' 4 at bdf89bda: tpcds-4908, job-1742, job-22017 PASS, tpcds-26588 PASS_UNORDERED.
+  - **Reports part M judged** (22 analyst patterns, e97ab7a8 and 2a785c8f): gaps and islands, 30-minute sessions,
+    market baskets, as-of exchange rates, promotion windows, latest snapshots, retention, top three per category,
+    percentiles, HOURS/MINUTES SLAs, TOP ... START AT, NOT EXISTS, e-mail and phone cleanup, badges, LEAD and
+    LAST_VALUE, CUME_DIST bands -- 20 PASS on DuckDB and Postgres; GROUPING SETS and INTERSECT over IQ tables are
+    IQ's -1001030 as lite predicts. The evaluation-order lint (D-E2) no longer counts integer + - * under IQ's engine
+    for an iq17 run (it widens, D-N3); three joins that compared CAST(ts AS DATE) now compare the DATE with the
+    TIMESTAMP (re-snapped, the same rows).
+  - **The bitwise operators** `&`, `|`, `^` and prefix `~` (were refused by name): read at the research's measured
+    precedence (one level, left to right, tighter than `*` and `+`; a sign looser, an operand's own after an
+    operator; `~` tighter still) and translated for SMALLINT, INTEGER and BIGINT operands to Pure's bitAnd, bitOr,
+    bitXor and bitNot, typed as the larger operand; a NULL operand is NULL; a BIT, a COUNT, a NUMERIC, a DOUBLE or a
+    string refused by name. The Mac's probe on IQ's engine over the parity table matches lite on all 7 rows. The
+    syntax cases: accept PARSED 3,403 -> 3,437; a condition as an operand is IQ's -131. Eight cases to snap
+    (claude/iq-snap 676fa5b1).
