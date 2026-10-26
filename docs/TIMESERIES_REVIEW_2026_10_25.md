@@ -192,8 +192,7 @@ of its grids still on the board; the editor's selects sized as the toolbar's; th
 
 ## 9. Follow-ups (not fixed here)
 
-- Q (numbers): `($A + $B) / 2` is no level (no compare, no level
-  statistics, N6); a month dated at its last row though that row's value is none (N7); the point limit cuts a split's
+- Q (numbers): a month dated at its last row though that row's value is none (N7); the point limit cuts a split's
   lines unevenly (Q12).
 - P (paths): `frame()` pivots and sorts in pandas, no value computed (P6); a date-time range start cut to its day and
   a Decimal read as a double for the legend, statistics and CSV (P7); split lines ordered on the client while the
@@ -223,3 +222,6 @@ of its grids still on the board; the editor's selects sized as the toolbar's; th
   (an inner pass with no frequency: its functions, its arithmetic, its joins), and each period then takes the first
   open, the highest high, the lowest low and the last close of those dates, the database's (`candle`). Pinned:
   `timeseries-queries` N4 (a ratio's weekly candles, a 5-day mean's), the weekly-candles and Q9 tests unchanged.
+- N6, `($A + $B) / 2` no level: did not reproduce -- written against the rule before the second audit's B1
+  (`ced3a738`: a level plus a number alone), which already made a basket of levels a level. Pinned now by its query:
+  `timeseries-queries` N6 (rebased from its start, its volatility).

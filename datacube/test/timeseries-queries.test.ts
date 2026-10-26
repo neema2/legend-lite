@@ -263,6 +263,21 @@ describe('a column along the dates', () => {
     close(values(mt, TS_OPEN).map(num).reverse(), shown.map((w) => has(w)[0]!), 'a mean\'s open', 1e-9);
   });
 
+  // the review's N6: an average of levels is a level -- compared from its start, with a level's statistics (already
+  // so since the second audit's B1, a basket of levels; pinned here, by its query)
+  it('N6: an average of two levels is a level: rebased from its start, and its volatility', async () => {
+    const ts: TimeseriesSpec = { ...spec({ A: 'close[AAA]', B: 'close[BBB]', C: '($A + $B) / 2' }, { view: { compare: 'rebase' } }) };
+    const c = ts.series.find((x) => x.id === 'C')!;
+    const q = seriesQuery(inputs, ts, c);
+    assert.equal(q.level, true);
+    const got = values(await run(q), TS_VALUE).map(num).reverse();
+    const basket = AAA.map((a, i) => (a + BBB[i]!) / 2);
+    close(got, basket.map((v) => (v / basket[0]!) * 100), 'rebased', 1e-9);
+    const st = await run(statsQuery(inputs, ts, c));
+    const lr = basket.slice(1).map((x, i) => Math.log(x / basket[i]!));
+    close([num(values(st, statName('vol'))[0])], [sd(lr) * Math.sqrt(252) * 100], 'its volatility', 1e-7);
+  });
+
   it('the grid\'s filter narrows every series', async () => {
     const filtered: TsInputs = new Map([['px', { ...input, filter: { kind: 'condition', column: 'day', operator: 'greaterThanEqual', value: DAYS[30]! } }]]);
     const series = spec({ A: 'close[AAA]' }).series[0]!;
