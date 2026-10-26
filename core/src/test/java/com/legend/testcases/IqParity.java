@@ -2379,6 +2379,11 @@ public final class IqParity {
                     a.setScale(places, java.math.RoundingMode.DOWN)) == 0) {
                 return true;
             }
+            // the IQ scale program, 2026-10-26 (tpcds-29313, the Mac's re-judge at 74962876): where IQ shows the fewer
+            // places, it may have rounded half up there (an AVG: 35480.4172558139535 for lite's ...55813953488372)
+            if (e.scale() < a.scale() && e.compareTo(a.setScale(e.scale(), java.math.RoundingMode.HALF_UP)) == 0) {
+                return true;
+            }
             // the IQ scale program, 2026-10-26 (the TPC-DS corpus lane's percentages, a / b * 100 over sums): lite's
             // quotient of fewer places, scaled by a power of ten, shows trailing zeros it never computed (12.968675200
             // for IQ's 12.968675216600); cut at the places lite computed, at least two

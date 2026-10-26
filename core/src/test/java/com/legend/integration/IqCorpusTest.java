@@ -404,28 +404,31 @@ class IqCorpusTest {
                 }
                 return true;
             };
+            // a pair that differs uncut: by value, or by its places alone (2026-10-26, the Mac's re-judge at 74962876:
+            // tpcds-731's 1.130000000 for IQ's 1.130000000000, ROUND(x, 2) at the quotient's scale)
             java.util.function.BiPredicate<List<Object>, List<Object>> cut = (e, a) -> {
                 for (int c = 0; c < e.size(); c++) {
-                    if (!IqParity.cellEquals(e.get(c), a.get(c), snap.types().get(c))) {
+                    if (!IqParity.cellEquals(e.get(c), a.get(c), snap.types().get(c)) || e.get(c) != null
+                            && a.get(c) != null && !String.valueOf(e.get(c)).equals(String.valueOf(a.get(c)))
+                            && places(e.get(c)) != places(a.get(c))) {
                         return true;
                     }
                 }
                 return false;
             };
             boolean inOrder = true;
-            boolean places = false;
             for (int i = 0; i < expected.rows().size() && inOrder; i++) {
                 inOrder = same.test(expected.rows().get(i), actual.rows().get(i));
-                places |= inOrder && cut.test(expected.rows().get(i), actual.rows().get(i));
             }
             if (inOrder) {
-                return places;
+                // the very rows judged FAIL, in order and equal at the fewer places: the places are what differ
+                return true;
             }
+            boolean places = false;
             if (expected.rows().size() > 5000) {
                 // 2026-10-26 (tpcds-5378's 8,303 rows): in order at any size; as a multiset, quadratic, to 5,000
                 return false;
             }
-            places = false;
             List<List<Object>> left = new ArrayList<>(actual.rows());
             for (List<Object> e : expected.rows()) {
                 int found = -1;
@@ -442,6 +445,16 @@ class IqCorpusTest {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /** The places a numeric cell shows (its text's digits after the point); -1 for any other cell. */
+    private static int places(Object cell) {
+        String text = String.valueOf(cell);
+        if (!text.matches("-?\\d*\\.?\\d+")) {
+            return -1;
+        }
+        int point = text.indexOf('.');
+        return point < 0 ? 0 : text.length() - point - 1;
     }
 
     /** Each line of a {@code queries.jsonl}: its id and its SQL (the lane's own reading of the two string fields). */

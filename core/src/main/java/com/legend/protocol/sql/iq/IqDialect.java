@@ -167,6 +167,10 @@ public final class IqDialect implements InputDialect {
     /** IQ island, 2026-10-17: the calls of no function of IQ's in columns read nowhere, read as a NULL string
      *  ({@link #unreadUnknownFunctions}). */
     private final Set<SqlAst.Expr> placeheld = Collections.newSetFromMap(new IdentityHashMap<>());
+
+    /** The quotients a CAST, a ROUND or a TRUNCNUM reads at fewer places than IQ's scale, by the places read
+     *  ({@link #quotientPlaces}). */
+    private final Map<SqlAst.Binary, Integer> placesRead = new IdentityHashMap<>();
     /** The error held while the statement is translated ({@link #hold}), raised once it is ({@link #translated}). */
     private final SqlTranslationException[] held = {null};
     /** A subquery's placement error, named before translating and held while it is ({@link #failed}). */
@@ -1900,6 +1904,7 @@ public final class IqDialect implements InputDialect {
         read.innerJoins.addAll(innerHere);
         read.joinedByName.addAll(joinedByName(statement));
         read.placeheld.addAll(placeheldHere);
+        quotientPlaces(statement, read.placesRead);
         read.claims(placement, recursives.get(statement));
         read.lateClaimed(lateClaim(statement, chosen));
         read.derivedRenderings.putAll(read.derivedRenderings(statement));
@@ -6130,7 +6135,10 @@ public final class IqDialect implements InputDialect {
         // / SUM(COUNT(*)) OVER () is the NUMERIC(46,23) 28.57142857142857142857142, SUM(...) * 1.0 / (COUNT(*) * 1.0)
         // the NUMERIC(42,22) .4285714285714285714285: the real-world corpus's ratios of counts)
         boolean guardable = !(decimal(r) && rt[1] == 0 && !decimal(l));
-        while (held > 0 && !IqFunctions.truncatedDivisionFits(lt[1], held, rt[1], whole2, s)) {
+        // the IQ scale program, 2026-10-26: computed at the places a CAST or a ROUND reads, where fewer
+        // (quotientPlaces), the type IQ's
+        int computed = placesRead.containsKey(b) ? Math.min(s, placesRead.get(b)) : s;
+        while (held > 0 && !IqFunctions.truncatedDivisionFits(lt[1], held, rt[1], whole2, computed)) {
             held = guardable ? held - 1 : 0;
         }
         if (held == 0) {
@@ -6156,7 +6164,7 @@ public final class IqDialect implements InputDialect {
             if (divisor != null && divisor.signum() == 0) {
                 return raiseDecimal();
             }
-            ValueSpecification value = IqFunctions.truncatedDivision(x, lt[1], dividendDigits, y, rt[1], s);
+            ValueSpecification value = IqFunctions.truncatedDivision(x, lt[1], dividendDigits, y, rt[1], computed);
             if (past != null) {
                 value = IqFunctions.refusedPast(SqlToPure.call("greaterThanEqual", SqlToPure.call("abs", x),
                         new CDecimal(BigDecimal.TEN.pow(dividendDigits))), past, value, raiseDecimal());
@@ -6167,6 +6175,62 @@ public final class IqDialect implements InputDialect {
         });
         return Tx.value(result.vs(), Kind.DECIMAL, result.nullable() || nullOnZero, numeric(whole1 + rt[1] + s + 1,
                 s));
+    }
+
+    /**
+     * The IQ scale program, 2026-10-26 (the realistic reports' part N, CAST(AVG(months) / 12.0 AS NUMERIC(5,1)); the
+     * TPC-H lane's 15 run-time refusals of a dividend's digits): the quotients whose places a CAST to a NUMERIC(p, n) or
+     * an integer, a ROUND(q, n) or a TRUNCNUM(q, n) reads -- directly, or times a power of ten, j places more -- by the
+     * places read: n + 1 (rounding at n reads the next place alone; an integer as n = 0), TRUNCNUM's n. IQ cuts its
+     * quotient toward zero at its scale, so the quotient cut there and read at those places is the quotient cut at
+     * them; its steps at IQ's scale may need more than lite's 38 digits for a dividend these hold.
+     */
+    private static void quotientPlaces(SqlAst.Statement statement, Map<SqlAst.Binary, Integer> out) {
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                readExpressions(s).forEach(e -> quotientPlaces(e, out));
+            }
+        }
+    }
+
+    private static void quotientPlaces(SqlAst.Expr e, Map<SqlAst.Binary, Integer> out) {
+        if (e instanceof SqlAst.Cast c) {
+            String target = c.type().name().startsWith(IqParser.CONVERT)
+                    ? c.type().name().substring(IqParser.CONVERT.length()) : c.type().name();
+            List<Integer> sizes = c.type().modifiers();
+            if ((target.equals("NUMERIC") || target.equals("DECIMAL")) && sizes.size() == 2) {
+                placesOf(c.operand(), sizes.get(1) + 1, out);
+            } else if (BITWISE_SIZES.contains(target)) {
+                placesOf(c.operand(), 1, out);
+            }
+        }
+        if (e instanceof SqlAst.FunctionCall f && f.name().size() == 1 && f.args().size() == 2
+                && integerLiteral(f.args().get(1)) instanceof BigInteger n && n.bitLength() < 16) {
+            String name = IqLexer.lower(f.name().get(0).text());
+            if (name.equals("round")) {
+                placesOf(f.args().get(0), Math.max(n.intValue(), 0) + 1, out);
+            } else if (name.equals("truncnum")) {
+                placesOf(f.args().get(0), Math.max(n.intValue(), 0), out);
+            }
+        }
+        for (SqlAst.Expr child : children(e)) {
+            quotientPlaces(child, out);
+        }
+    }
+
+    /** {@code e}'s quotient read at {@code places}: e itself, or the quotient a power of ten multiplies. */
+    private static void placesOf(SqlAst.Expr e, int places, Map<SqlAst.Binary, Integer> out) {
+        if (e instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.DIVIDE) {
+            out.merge(b, places, Math::max);
+        } else if (e instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.TIMES) {
+            for (int side = 0; side < 2; side++) {
+                BigInteger k = integerLiteral(side == 0 ? b.right() : b.left());
+                String digits = k == null ? "" : k.toString();
+                if (digits.matches("10*") && digits.length() > 1) {
+                    placesOf(side == 0 ? b.left() : b.right(), places + digits.length() - 1, out);
+                }
+            }
+        }
     }
 
     /** An operand of IQ's engine's NUMERIC quotient as a NUMERIC(p, s) ({@link #iqQuotient}): a NUMERIC its own, an
@@ -9187,8 +9251,9 @@ public final class IqDialect implements InputDialect {
      * &}, {@code |} and {@code ^} (AND, OR, XOR) and prefix {@code ~} (NOT) of SMALLINTs, INTEGERs and BIGINTs, each of
      * its larger operand's type (the research's SEMANTICS: bitwise on unscaled integers, the larger size wins), its
      * value the 64-bit operation's, which is a narrower type's too (two's complement); never out of its type's range.
-     * A NULL operand is NULL. Refused by name: a BIT, a COUNT's unsigned, a NUMERIC, a DOUBLE, a string or a binary
-     * operand, which IQ converts or truncates by rules not read yet. A T-SQL outer join's {@code *=} is the
+     * A NULL operand is NULL; a NUMERIC of at most 18 digits before its point is the BIGINT of its value cut toward zero
+     * (measured on IQ 17.1). Refused by name: a BIT, a COUNT's unsigned, a wider NUMERIC, a DOUBLE, a string or a binary
+     * operand, which IQ converts by rules not read yet. A T-SQL outer join's {@code *=} is the
      * translator's (null here).
      */
     @Override
@@ -9211,6 +9276,20 @@ public final class IqDialect implements InputDialect {
         boolean nullOperand = false;
         for (SqlAst.Expr node : nodes) {
             Tx t = at.tx(node);
+            if (t.kind() == Kind.DECIMAL && t.detail() instanceof IqType d && (d.family().equals("NUMERIC")
+                    || d.family().equals("DECIMAL"))) {
+                int[] ps = iqNumericType(t, node, o.operator());
+                if (ps[0] - ps[1] <= 18) {
+                    // the IQ scale program, 2026-10-26 (measured on IQ 17.1: nm & 1 over t's nm, a BIGINT of each
+                    // value cut toward zero, -99999999.99 & 1 is 1): a NUMERIC operand is the BIGINT of its value cut
+                    // toward zero
+                    Tx cut = SqlToPure.strict(Kind.INTEGER, List.of(t), v -> ifThen(SqlToPure.call("greaterThanEqual",
+                            v.get(0), new CInteger(0L)), SqlToPure.call("floor", v.get(0)),
+                            SqlToPure.call("ceiling", v.get(0))));
+                    t = new Tx(cut.vs(), Kind.INTEGER, cut.nullable(), null, new IqType("BIGINT"), cut.guard(),
+                            cut.body());
+                }
+            }
             operands.add(t);
             if (t.kind() == Kind.NULL) {
                 nullOperand = true;

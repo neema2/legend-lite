@@ -480,7 +480,25 @@ class IqToPureTest {
         assertTrue(p.contains("a:r|2 * $r.id->floor()->bitAnd(1)") && p.contains("b:r|-$r.id->floor()->bitAnd(3)"), p);
         // a condition is no operand (IQ's -131); a NUMERIC is refused by name
         assertTrue(refusal("SELECT id FROM " + T + " WHERE (id = 1) & (id = 2)").getMessage().contains("-131"));
-        refusal("SELECT nm & 1 AS x FROM " + T, IqProfile.IQ16_DEFAULT.settings(), NUMBERS);
+        // a NUMERIC operand is its value cut toward zero, a BIGINT (measured on IQ 17.1); a DOUBLE is refused by name
+        String n = pure("SELECT nm & 1 AS x FROM " + T, IqProfile.IQ17_DEFAULT.settings(), NUMBERS);
+        assertTrue(n.contains("->floor()") && n.contains("->ceiling()") && n.contains("bitAnd(1)"), n);
+        refusal("SELECT d & 1 AS x FROM " + T, IqProfile.IQ16_DEFAULT.settings(), NUMBERS);
+    }
+
+    @Test
+    void aQuotientACastOrARoundReadsIsComputedAtThePlacesRead() {
+        // the IQ scale program, 2026-10-26 (the realistic reports' part N): AVG of an INTEGER is a NUMERIC of 16 places,
+        // its quotient by 12.0 one of 19, whose steps hold a dividend of 2 digits before its point; cast to one place,
+        // the quotient is computed at 2, which holds one of 18 -- refused past 2 at run time no longer
+        String full = pure("SELECT AVG(sm) / 12.0 AS a FROM " + T, IqProfile.IQ17_DEFAULT.settings(), NUMBERS);
+        String cast = pure("SELECT CAST(AVG(sm) / 12.0 AS NUMERIC(5,1)) AS a FROM " + T, IqProfile.IQ17_DEFAULT.settings(),
+                NUMBERS);
+        String round = pure("SELECT ROUND(AVG(sm) / 12.0 * 100, 1) AS a FROM " + T, IqProfile.IQ17_DEFAULT.settings(),
+                NUMBERS);
+        assertTrue(full.contains("dividend has more than 2 digits"), full);
+        assertFalse(cast.contains("dividend has more than 2 digits"), cast);
+        assertFalse(round.contains("dividend has more than 2 digits"), round);
     }
 
     @Test
