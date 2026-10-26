@@ -192,7 +192,7 @@ of its grids still on the board; the editor's selects sized as the toolbar's; th
 
 ## 9. Follow-ups (not fixed here)
 
-- Q (numbers): CAGR over a short span (8,507% over 4 days, N3); `candled` sets a period's aggregate on bare columns
+- Q (numbers): `candled` sets a period's aggregate on bare columns
   alone (`ohlc(close / 2, ...)` weekly draws flat candles, N4); `($A + $B) / 2` is no level (no compare, no level
   statistics, N6); a month dated at its last row though that row's value is none (N7); the point limit cuts a split's
   lines unevenly (Q12).
@@ -214,3 +214,9 @@ of its grids still on the board; the editor's selects sized as the toolbar's; th
   filter of it to keep, said), where Python freezes it from the page's own cube document.
 - Not run in this container: `//datacube:verify_app_test` (its embedded Postgres refuses root; CI runs it).
 
+## 10. Follow-ups fixed (2026-10-26)
+
+- N3, CAGR over a short span: compound annual growth only over a calendar year or more, the database's date arithmetic
+  deciding (`adjust(from, 1, YEARS) <= to`; a leap year's 366 days a year); under a year none, its % change its growth,
+  and the statistics say so. Pinned: `timeseries-queries` N3 (a day short of a year, a year to the day, over a leap
+  day, two years, compared), `timeseries-view-dom` (the note).

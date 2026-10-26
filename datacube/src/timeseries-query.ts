@@ -1034,7 +1034,11 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
     derived.push(
       derive(S('vol'), row(above(op('times', op('times', one('__ts_stat_logsd'), perYear), lit.integer(100))))),
       derive(S('mdd'), row(above(one('__ts_stat_mdd_all')))),
-      derive(S('cagr'), row(when(or(fn('lessThanEqual', days, lit.integer(0)), fn('lessThanEqual', one(TS_STAT_LEVEL_LOW), lit.integer(0))), none(),
+      // compound annual growth over a calendar year or more, the database's own date arithmetic deciding (a leap
+      // year's 366 days a year): under a year, none -- a return of under a year is never annualized (GIPS; the
+      // review's N3: 8,507% over four days), its % change its growth, and the viewer says so
+      derive(S('cagr'), row(when(or(fn('lessThan', one(S('to')), fn('adjust', one(S('from')), lit.integer(1), enumValue(DURATION, 'YEARS'))),
+        fn('lessThanEqual', one(TS_STAT_LEVEL_LOW), lit.integer(0))), none(),
         op('minus', fn('pow', fn('divide', llast, lfirst), fn('divide', float(365.25), days)), lit.integer(1))))),
       derive(S('sharpe'), row(above(when(fn('equal', one('__ts_stat_rsd'), lit.integer(0)), none(),
         op('times', fn('divide', one('__ts_stat_rmean'), one('__ts_stat_rsd')), perYear))))),

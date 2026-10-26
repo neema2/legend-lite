@@ -484,10 +484,37 @@ describe('a series\' statistics over the dates shown', () => {
       peak = Math.max(peak, x);
       return x / peak - 1;
     }))], 'mdd', 1e-9);
-    const days = (Date.parse(DAYS[34]!) - Date.parse(DAYS[5]!)) / 86400000;
-    close([num(v('cagr'))], [(shown[29]! / shown[0]!) ** (365.25 / days) - 1], 'cagr', 1e-7);
+    // under a year, no compound annual growth: its % change is its growth (follow-up N3, GIPS: a return of under a
+    // year is never annualized)
+    assert.equal(v('cagr'), null, 'no growth annualized over 30 weekdays');
     const r = shown.slice(1).map((x, i) => x / shown[i]! - 1);
     close([num(v('sharpe'))], [(avg(r) / sd(r)) * Math.sqrt(252)], 'sharpe', 1e-7);
+  });
+
+  // follow-up N3 (the first review's Q11): CAGR over four days read 8,507%. Annualized only over a calendar year or
+  // more, the database's own date arithmetic deciding (a leap year's 366 days a year)
+  it('N3: compound annual growth over a year or more, none under a year', async () => {
+    const dates = ['2022-02-28', '2022-09-30', '2023-02-27', '2023-02-28', '2024-02-29', '2024-03-01'];
+    const levels = [100, 104, 107, 108, 115, 116];
+    const csv = ['symbol,day,close', ...dates.map((d, i) => `Y,${d},${levels[i]}`)].join('\n');
+    const r = await ingestFile(engine, files, new File([csv], 'yearly.csv'), writer, { table: 'n3_yearly' });
+    const own = plannerFor(r.model, r.runtime);
+    const yearly: TsInputs = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
+    const ts = spec({ A: 'close' });
+    const cagr = async (view: TsWindow): Promise<unknown> =>
+      values(await engine.execute(await own.plan(statsQuery(yearly, ts, ts.series[0]!, view).query), 0), statName('cagr'))[0];
+    const days = (a: string, b: string): number => (Date.parse(b) - Date.parse(a)) / 86400000;
+    // a day short of a year: none; a year to the day: its growth
+    assert.equal(await cagr({ from: '2022-02-28', to: '2023-02-27' }), null, 'a day short of a year');
+    close([num(await cagr({ from: '2022-02-28', to: '2023-02-28' }))], [(108 / 100) ** (365.25 / 365) - 1], 'a year to the day', 1e-9);
+    // over a leap day: 2023-02-28 to 2024-02-29 is a year; 2024-02-29 to 2024-03-01 none
+    close([num(await cagr({ from: '2023-02-28', to: '2024-02-29' }))], [(115 / 108) ** (365.25 / days('2023-02-28', '2024-02-29')) - 1], 'over a leap day', 1e-9);
+    assert.equal(await cagr({ from: '2024-02-29' }), null, 'a day');
+    close([num(await cagr({}))], [(116 / 100) ** (365.25 / days('2022-02-28', '2024-03-01')) - 1], 'two years', 1e-9);
+    // compared as its % change, the level's own growth (the third review's 5)
+    const pct = spec({ A: 'close' }, { view: { compare: 'percent' } });
+    const compared = await engine.execute(await own.plan(statsQuery(yearly, pct, pct.series[0]!, {}).query), 0);
+    close([num(values(compared, statName('cagr'))[0])], [(116 / 100) ** (365.25 / days('2022-02-28', '2024-03-01')) - 1], 'compared', 1e-9);
   });
 
   it('a return\'s statistics leave out what only a level has', async () => {
@@ -645,7 +672,8 @@ describe('the review\'s findings on the numbers, each pinned', () => {
     const plain = await run(statsQuery(inputs, spec({ A: 'close[AAA]' }), spec({ A: 'close[AAA]' }).series[0]!, { from: DAYS[5]! }));
     const pct = spec({ A: 'close[AAA]' }, { view: { compare: 'percent' } });
     const compared = await run(statsQuery(inputs, pct, pct.series[0]!, { from: DAYS[5]! }));
-    for (const stat of ['vol', 'mdd', 'cagr', 'sharpe'] as const) {
+    // (its growth over these 35 weekdays none, compared or not: under a year, N3 below)
+    for (const stat of ['vol', 'mdd', 'sharpe'] as const) {
       const want = Number(values(plain, statName(stat))[0]);
       assert.ok(Number.isFinite(want), `${stat} of the price`);
       close([Number(values(compared, statName(stat))[0])], [want], `${stat} compared as its % change`, 1e-9);

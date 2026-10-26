@@ -854,6 +854,10 @@ export class TimeseriesView {
       if (this.#statColumn(l, TS_STAT_PER_YEAR) === null) {
         out.push(`${l.name}: its dates are no frequency to annualize its volatility and Sharpe ratio by: choose the tile's frequency.`);
       }
+      // the database's growth blank above zero: these dates span under a year (the review's N3)
+      if (low !== undefined && low !== null && this.#statColumn(l, statName('cagr')) === null) {
+        out.push(`${l.name}: these dates span under a year, so its growth is not annualized: its % change is its growth.`);
+      }
     }
     return out;
   }

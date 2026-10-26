@@ -218,7 +218,9 @@ in the join's words (`leafRefusal`) -- it is still plotted on its own, by its ow
   % change, the least and the most and when, the mean, the standard deviation; for a level its annualized volatility
   (of log returns), deepest drawdown, compound annual growth and Sharpe ratio -- each the database's, over what is shown.
   Annualized by the tile's frequency, or its dates' spacing (§4); a candle series' least and most its lows' and highs'
-  (Q9); a % change over the start's size, so a start below zero rising is a rise (Q11).
+  (Q9); a % change over the start's size, so a start below zero rising is a rise (Q11); compound annual growth only
+  over a calendar year or more (`adjust(from, 1, YEARS) <= to`, the database's): under a year none, its % change its
+  growth, and the viewer says so (GIPS; the review's N3, 8,507% over four days).
 
 ### 5.4 Proven so far
 

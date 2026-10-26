@@ -307,7 +307,7 @@ describe('a refusal said where it lands, never shown as something missing', () =
   });
 
   // the second audit's P-2b and S1: a level's statistics blank -- a "—" that said nothing -- said why, line by line
-  it("a level's blank statistics said why: at or below zero over the dates shown", async () => {
+  it("a level's blank statistics said why: at or below zero over the dates shown, or under a year", async () => {
     const below: TsGrid = { ...grid, snapshot: { ...grid.snapshot,
       derived: [{ name: 'gap', type: 'Float', lambda: lambda(['x'], minus(fn('toOne', col('x', 'close')), lit.integer(1_000_000))) }] } };
     const { root, view } = viewer({ sources: SPEC.sources, series: [{ id: 'A', expr: parseExpr('gap[SPX]'), name: 'Gap' }], view: { stats: true } }, undefined, below);
@@ -317,11 +317,12 @@ describe('a refusal said where it lands, never shown as something missing', () =
     } finally {
       view.dispose();
     }
-    // above zero, nothing to say
+    // above zero over 200 business days, under a year: its growth not annualized (the review's N3), and said so alone
     const plain = viewer(SPEC);
     try {
       await until(() => statRows(plain.root).length === 2, 'its statistics');
-      assert.equal(plain.root.querySelector('.dc-ts-stats-blanks'), null);
+      assert.equal(plain.root.querySelector('.dc-ts-stats-blanks')?.textContent,
+        'S&P 500: these dates span under a year, so its growth is not annualized: its % change is its growth.');
     } finally {
       plain.view.dispose();
     }
