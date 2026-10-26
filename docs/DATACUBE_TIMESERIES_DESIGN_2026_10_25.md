@@ -225,6 +225,19 @@ have moved: a snap, a rebuild). Statistics are asked only while the table or the
   over a calendar year or more (`adjust(from, 1, YEARS) <= to`, the database's): under a year none, its % change its
   growth, and the viewer says so (GIPS; the review's N3, 8,507% over four days).
 
+### 5.3½ The expert functions (the user, 2026-10-26: "do all, including recursive and self-joins where the database supports it")
+
+Each the database's, written in Pure as the rest are; where a window frame (which counts rows) cannot say it, a join
+over the series' own rows does.
+
+- **Calendar periods** (gs-quant's tenors, `helper._to_offset`: `3m`, `1y`, `2w`, `10d`) for any window `w` and any lag
+  `obs`. A window of a period is a SELF-JOIN of the line's periods to every one of its own whose date is in
+  `(adjust(date, -n, unit), date]` (gs-quant's `rolling_offset`), its read aggregated per period and joined back
+  (`Writer #calendar`); drawn from the input's first date that period on (gs-quant's `apply_ramp` of a `DateOffset`).
+  A lag of a period is an AS-OF JOIN: the value as of `adjust(date, -n, unit)`, its last at or before
+  (`Writer #valueBack`) -- where gs-quant's `lag` moves each date on and keeps only the dates it lands on, so a year
+  back from a Monday whose date a year before was a Sunday has none there (the catalog says so).
+
 ### 5.4 Proven so far
 
 `datacube/test/timeseries-queries.test.ts` plans every function through legend-lite's planner and runs it on DuckDB,

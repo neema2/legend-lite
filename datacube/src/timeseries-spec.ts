@@ -240,10 +240,11 @@ export type TsFunctionName =
   | 'bollinger_bands' | 'rsi' | 'ohlc'
   | 'log' | 'exp' | 'sqrt' | 'abs' | 'power' | 'floor' | 'ceil';
 
-/** A function's parameter as a spec holds it: a whole number (a window, a lag), a number, or a word (a kind of return). */
+/** A function's parameter as a spec holds it: a whole number, a span (a window, a lag: a whole number of observations
+ *  or a calendar period, `3m`), a number, or a word (a kind of return). */
 export interface TsParamShape {
   readonly name: string;
-  readonly kind: 'whole' | 'number' | 'word';
+  readonly kind: 'whole' | 'span' | 'number' | 'word';
   readonly default: number | string;
   readonly words?: readonly string[];
   /** The least a number may be. */
@@ -262,8 +263,8 @@ export interface TsSignature {
   readonly params: readonly TsParamShape[];
 }
 
-const W = (fallback: number): TsParamShape => ({ name: 'w', kind: 'whole', default: fallback, min: 0 });
-const OBS: TsParamShape = { name: 'obs', kind: 'whole', default: 1, min: 1 };
+const W = (fallback: number): TsParamShape => ({ name: 'w', kind: 'span', default: fallback, min: 0 });
+const OBS: TsParamShape = { name: 'obs', kind: 'span', default: 1, min: 1 };
 const RETURN_TYPE: TsParamShape = { name: 'type', kind: 'word', default: 'simple', words: ['simple', 'log', 'absolute'] };
 const num = (name: string, fallback: number, min?: number): TsParamShape =>
   ({ name, kind: 'number', default: fallback, ...(min !== undefined ? { min } : {}) });
@@ -280,6 +281,26 @@ export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
   bollinger_bands: one(W(20), num('k', 2, 0)), rsi: one(W(14)), ohlc: { series: 4, params: [] },
   log: one(), exp: one(), sqrt: one(), abs: one(), power: one(num('y', 2)), floor: one(num('value', 0)), ceil: one(num('value', 0)),
 };
+
+/**
+ * A CALENDAR PERIOD as a window or a lag takes it (gs-quant's tenor, `helper._to_offset`): a whole number of days, weeks,
+ * months or years -- `3m`, `1y` -- as the compiler's `adjust` takes it (a DurationUnit). gs-quant's hours are not taken:
+ * a timeseries is read along its dates.
+ */
+export interface TsTenor {
+  readonly n: number;
+  readonly unit: 'DAYS' | 'WEEKS' | 'MONTHS' | 'YEARS';
+}
+
+const TENOR = /^([1-9][0-9]*)([dwmy])$/;
+const TENOR_UNITS: Readonly<Record<string, TsTenor['unit']>> = { d: 'DAYS', w: 'WEEKS', m: 'MONTHS', y: 'YEARS' };
+
+/** A span's calendar period (`3m`), or undefined: a whole number of observations, or no period. */
+export function tenorOf(v: number | string): TsTenor | undefined {
+  if (typeof v !== 'string') return undefined;
+  const m = TENOR.exec(v);
+  return m ? { n: Number(m[1]), unit: TENOR_UNITS[m[2]!]! } : undefined;
+}
 
 /** How many series a function reads, in words: one, two, or a candle's four. */
 export function seriesWords(n: TsSignature['series']): string {
@@ -390,9 +411,11 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
           if (!q) return `${fn} has no parameter ${JSON.stringify(name)} (it has ${f.params.map((x) => x.name).join(', ') || 'none'})`;
           if (q.kind === 'word') {
             if (!q.words!.includes(v as string)) return `${fn}'s ${name} ${JSON.stringify(v)} is not one of ${q.words!.join(', ')}`;
+          } else if (q.kind === 'span' && typeof v === 'string') {
+            if (tenorOf(v) === undefined) return `${fn}'s ${name} ${JSON.stringify(v)} is neither a whole number nor a calendar period (3m, 1y)`;
           } else {
             if (typeof v !== 'number' || !Number.isFinite(v)) return `${fn}'s ${name} ${JSON.stringify(v)} is not a number`;
-            if (q.kind === 'whole' && !Number.isInteger(v)) return `${fn}'s ${name} ${v} is not a whole number`;
+            if ((q.kind === 'whole' || q.kind === 'span') && !Number.isInteger(v)) return `${fn}'s ${name} ${v} is not a whole number`;
             if (q.min !== undefined && v < q.min) return `${fn}'s ${name} ${v} is below ${q.min}`;
           }
         }

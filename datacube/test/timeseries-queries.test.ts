@@ -484,6 +484,89 @@ describe('from the first date shown', () => {
   });
 });
 
+// -- calendar periods (gs-quant's tenors: Window('3m'), returns(x, '1y')) --
+
+/** A date a calendar period back, as the database's `adjust` takes it: a month back from the 31st is the month's last
+ *  day (written here as plain arithmetic over the dates, the reference). */
+function backBy(d: string, n: number, unit: 'd' | 'w' | 'm'): string {
+  const at = new Date(`${d}T00:00:00Z`);
+  if (unit !== 'm') return new Date(at.getTime() - n * (unit === 'w' ? 7 : 1) * 86_400_000).toISOString().slice(0, 10);
+  const y = at.getUTCFullYear();
+  const m = at.getUTCMonth() - n;
+  const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(y, m, Math.min(at.getUTCDate(), last))).toISOString().slice(0, 10);
+}
+/** A date a calendar period on. */
+const onBy = (d: string, n: number, unit: 'd' | 'w' | 'm'): string => backBy(d, -n, unit);
+
+describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s tenors)', () => {
+  it('mean over 2w: the dates after two weeks back, to this one; drawn from the first date two weeks on', async () => {
+    const l = await line(spec({ A: 'mean(close[AAA], 2w)' }));
+    const start = onBy(DAYS[0]!, 2, 'w');
+    close(l.values, DAYS.map((d) => (d < start ? null : avg(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d)))), 'mean 2w', 1e-9);
+  });
+
+  it('returns over 1w: each date against the value as of a week before, its last at or before', async () => {
+    const l = await line(spec({ A: 'returns(close[AAA], 1w)' }));
+    const want = DAYS.map((d, i) => {
+      const j = DAYS.findLastIndex((x) => x <= backBy(d, 1, 'w'));
+      return j < 0 ? null : AAA[i]! / AAA[j]! - 1;
+    });
+    close(l.values, want, 'returns 1w', 1e-9);
+    // the same as of a date for CCC, which trades on every third day: its last at or before, never the next
+    const c = await line(spec({ A: 'diff(close[CCC], 1w)' }));
+    const cDays = DAYS.filter((_, i) => i % 3 === 0);
+    const cVals = CCC.filter((_, i) => i % 3 === 0);
+    close(c.values, cDays.map((d, i) => {
+      const j = cDays.findLastIndex((x) => x <= backBy(d, 1, 'w'));
+      return j < 0 ? null : cVals[i]! - cVals[j]!;
+    }), 'diff 1w of CCC', 1e-9);
+  });
+
+  it('volatility over 1m: its returns\' deviation over each month back, annualized, from its first return a month on', async () => {
+    const l = await line(spec({ A: 'volatility(close[AAA], 1m)' }));
+    const r = simple(AAA);
+    const start = onBy(DAYS[1]!, 1, 'm');
+    close(l.values, DAYS.map((d) => {
+      if (d < start) return null;
+      const vals = r.filter((v, j) => v !== null && DAYS[j]! > backBy(d, 1, 'm') && DAYS[j]! <= d) as number[];
+      return vals.length < 2 ? null : sd(vals) * Math.sqrt(252) * 100;
+    }), 'volatility 1m', 1e-9);
+  });
+
+  it('correlation over 3w: two series\' returns over the dates both have, each three weeks back', async () => {
+    const l = await line(spec({ A: 'correlation(close[AAA], close[BBB], 3w)' }));
+    const ra = simple(AAA);
+    const rb = simple(BBB);
+    const start = onBy(DAYS[1]!, 3, 'w');
+    close(l.values, DAYS.map((d) => {
+      if (d < start) return null;
+      const js = DAYS.map((_, j) => j).filter((j) => ra[j] !== null && DAYS[j]! > backBy(d, 3, 'w') && DAYS[j]! <= d);
+      const a = js.map((j) => ra[j]!);
+      const b = js.map((j) => rb[j]!);
+      return cov(a, b) / (sd(a) * sd(b));
+    }), 'correlation 3w', 1e-9);
+  });
+
+  it('nested: a z-score over three weeks of a volatility over two, planned and run', async () => {
+    const l = await line(spec({ A: 'zscores(volatility(close[AAA], 2w), 3w)' }));
+    const vol = (await line(spec({ A: 'volatility(close[AAA], 2w)' }))).values;
+    const start = onBy(DAYS.find((_, i) => vol[i] !== null)!, 3, 'w');
+    close(l.values, DAYS.map((d, i) => {
+      if (d < start || vol[i] === null) return null;
+      const vals = vol.filter((v, j) => v !== null && DAYS[j]! > backBy(d, 3, 'w') && DAYS[j]! <= d) as number[];
+      return (vol[i]! - avg(vals)) / sd(vals);
+    }), 'zscores of a volatility', 1e-7);
+  });
+
+  it('a split series: each line\'s window its own', async () => {
+    const l = await line(spec({ A: 'sum(close, 1w)' }, {}, 'symbol'));
+    const of = (sym: string): Line => l.values.filter((_, i) => l.split![i] === sym);
+    const start = onBy(DAYS[0]!, 1, 'w');
+    close(of('BBB'), DAYS.map((d) => (d < start ? null : BBB.filter((_, j) => DAYS[j]! > backBy(d, 1, 'w') && DAYS[j]! <= d).reduce((x, y) => x + y, 0))), 'BBB', 1e-9);
+  });
+});
+
 describe('a series of no instrument says how many rows each date had', () => {
   it('close with no [AAA] and no split: each date three rows or two, counted', async () => {
     const q = seriesQuery(inputs, spec({ A: 'close' }), spec({ A: 'close' }).series[0]!);

@@ -9,7 +9,7 @@
 
 import { isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import {
-  AGGREGATES, ALIAS, seriesWords, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
+  AGGREGATES, ALIAS, seriesWords, tenorOf, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
   type TsOperator, type TsParamShape, type TsSeries, type TsSource,
 } from './timeseries-spec.ts';
 
@@ -72,14 +72,17 @@ export interface TsFunction {
 type TsWords = Omit<TsFunction, 'name' | 'series' | 'params'> & { readonly params?: Readonly<Record<string, string>> };
 
 const PARAM_ABOUT: Readonly<Record<string, string>> = {
-  w: 'observations in the window; 0 from the start',
-  obs: 'observations back',
+  w: 'observations in the window, or a calendar period (3m, 1y: the dates after one that far back, to this one); 0 from the start',
+  obs: 'observations back, or a calendar period back (1y: the value as of a year before, its last at or before)',
   type: 'simple: x / x[-obs] - 1; log: ln x - ln x[-obs]; absolute: x - x[-obs]',
 };
 
 /** Where every rolling figure's first value differs from gs-quant's: drawn at the observation its window first holds
  *  w, where gs-quant's ramp (apply_ramp, x[w:]) drops that one too. */
-const RAMP_DIFFERS = 'drawn from the observation its window first holds w (gs-quant\'s ramp starts one observation later)';
+const RAMP_DIFFERS = 'a window of w observations drawn from the observation it first holds w (gs-quant\'s ramp starts one observation later); of a calendar period, from its first date that period on, as gs-quant\'s';
+/** Where a lag by a calendar period differs: the value as of the date that far back, where gs-quant's lag moves each
+ *  date on by the period and keeps only the dates it lands on. */
+const OBS_DIFFERS = 'obs a calendar period back is the value as of that date, its last at or before it (gs-quant\'s only on the dates whose date that far back has a value)';
 /** Where beta differs on two calendars: each series' returns on its own dates, joined on the dates both have. */
 const BETA_DIFFERS = 'on two calendars, over the dates both have (gs-quant takes the covariance over every date either has, over the benchmark\'s own variance)';
 
@@ -99,8 +102,7 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
   },
   diff: { label: 'Difference', family: 'Returns', unit: 'same', about: 'The change over obs observations: x - x[-obs].', gsQuant: 'analysis.diff' },
   lag: { level: 'keeps',
-    label: 'Lag', family: 'Returns', unit: 'same', about: 'The value obs observations before.', gsQuant: 'analysis.lag',
-    differs: 'a whole number of observations; gs-quant also takes a calendar period (1m), not built',
+    label: 'Lag', family: 'Returns', unit: 'same', about: 'The value obs observations before, or as of a calendar period before.', gsQuant: 'analysis.lag',
   },
   annualize: {
     label: 'Annualize', family: 'Returns', unit: 'same',
@@ -243,6 +245,7 @@ export const TS_FUNCTIONS: readonly TsFunction[] = (Object.keys(WORDS) as TsFunc
   });
   // every rolling figure's ramp, and beta's calendar, said where they differ (the second audit's N1, N2: undeclared)
   const differs = [words.differs, sig.params.some((p) => p.name === 'w') ? RAMP_DIFFERS : undefined,
+    sig.params.some((p) => p.name === 'obs') ? OBS_DIFFERS : undefined,
     name === 'beta' ? BETA_DIFFERS : undefined].filter((d): d is string => d !== undefined);
   return { name, series: sig.series, params, ...words, ...(differs.length > 0 ? { differs: differs.join('; ') } : {}) };
 });
@@ -727,11 +730,17 @@ export function parseExpr(text: string): TsExpr {
       if (v === undefined || !param.words!.includes(v)) throw new TsSyntaxError(`${param.name} is one of ${param.words!.join(', ')}`, t.at);
       return v;
     }
+    // a span's calendar period: `3m`, `1y` (the lexer reads a number run into letters as one word)
+    if (param.kind === 'span' && t.t === 'id' && !t.quoted) {
+      const v = t.v.toLowerCase();
+      if (tenorOf(v) === undefined) throw new TsSyntaxError(`${param.name} is a whole number of observations or a calendar period (3m, 1y)`, t.at);
+      return v;
+    }
     let n: number | undefined;
     if (t.t === 'num') n = t.v;
     else if (t.t === 'op' && t.v === '-' && peek().t === 'num') n = -(next() as { v: number }).v;
-    if (n === undefined) throw new TsSyntaxError(`${param.name} is a number`, t.at);
-    if (param.kind === 'whole' && !Number.isInteger(n)) throw new TsSyntaxError(`${param.name} is a whole number`, t.at);
+    if (n === undefined) throw new TsSyntaxError(param.kind === 'span' ? `${param.name} is a whole number of observations or a calendar period (3m, 1y)` : `${param.name} is a number`, t.at);
+    if ((param.kind === 'whole' || param.kind === 'span') && !Number.isInteger(n)) throw new TsSyntaxError(`${param.name} is a whole number`, t.at);
     if (param.min !== undefined && n < param.min) throw new TsSyntaxError(`${param.name} is at least ${param.min}`, t.at);
     return n;
   };

@@ -351,8 +351,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  375,000 -> 376,000 (2026-10-26, the second audit's A-B1 and a timeseries' states, the user's ask: the one rule of the
  *  cubes a page holds (page-document.ts cubesRead, cubesHeld, a page written out refused without one) and the timeseries
  *  tile's state button in its header -- Dynamic, Frozen, Detached, in a chart's words -- with the reader of what a frozen
- *  source keeps (timeseries-spec.ts)). Measured 375,280. */
-const BUDGET = 376_000;
+ *  source keeps (timeseries-spec.ts)). Measured 375,280.
+ *  376,000 -> 377,000 (2026-10-26, the timeseries review's follow-ups and the first of its expert functions,
+ *  docs/TIMESERIES_REVIEW_2026_10_25.md §10: the converge's kept cubes and a frozen tile's unopened cube (live-converge.ts,
+ *  page-app.ts, cube-page.ts), and a window's or a lag's calendar period read by the spec's reader at a page's start
+ *  (timeseries-spec.ts tenorOf)). Measured 376,090. */
+const BUDGET = 377_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -541,8 +545,11 @@ const CHART_BUDGET = 303_500;
  *  only over a year, and said (N3); a candle's series computed on their own dates, then each period's first, highest,
  *  lowest and last (N4, timeseries-query.ts candle); a combination's grids opened together once a round of asking, and
  *  no statistics asked while nothing shows them (ui/timeseries-view.ts Opened, #statistics) -- the headroom ~2%).
- *  Measured 37,063. */
-const TIMESERIES_BUDGET = 37_800;
+ *  Measured 37,063.
+ *  37,800 -> 38,800 (2026-10-26, the expert functions, the user's ask: a window of a calendar period, a self-join over its
+ *  dates, and a lag as of a date a period back, an as-of join (timeseries-query.ts #calendar, #valueBack) -- gs-quant's
+ *  tenors). Measured 38,061. */
+const TIMESERIES_BUDGET = 38_800;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -694,8 +701,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  374,500 -> 385,000 (2026-10-26, main merged into the timeseries branch, its own steps there 363,000 -> 372,000 ->
  *  373,500: the timeseries tile and the review's G4 -- the grid-only page's note of the same date). Measured 384,453.
  *  385,000 -> 386,000 (2026-10-26, the one rule of the cubes a page holds and a timeseries' states -- the grid-only
- *  page's note of the same date). Measured 385,234. */
-const WIDGET_BUDGET = 386_000;
+ *  page's note of the same date). Measured 385,234.
+ *  386,000 -> 387,000 (2026-10-26, the timeseries review's follow-ups and the first of its expert functions -- the
+ *  grid-only page's note of the same date). Measured 386,104. */
+const WIDGET_BUDGET = 387_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

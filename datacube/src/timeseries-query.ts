@@ -32,8 +32,8 @@ import type { ResultTable } from '../../engine-client/src/result.ts';
 import { isDay, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import {
   filterRead,
-  MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, TS_POINT_LIMIT, TS_RANGES, type TimeseriesSpec, type TsAggregate,
-  type TsExpr, type TsMatch, type TsRangeWord, type TsSeries, type TsSource,
+  MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, tenorOf, TS_POINT_LIMIT, TS_RANGES, type TimeseriesSpec, type TsAggregate,
+  type TsExpr, type TsMatch, type TsRangeWord, type TsSeries, type TsSource, type TsTenor,
 } from './timeseries-spec.ts';
 import { inlined, isBand, isCandles, levelOf, paramOf, seriesName, sourceAlias, sourcesOf, splitName, unitOf, type TsUnit } from './timeseries-expr.ts';
 import type { TimeGrain } from './chart-spec.ts';
@@ -227,6 +227,54 @@ interface Shared {
 /** A fresh name of the series' query. */
 const freshName = (sh: Shared, what: string): string => `__ts_${what}_${sh.names.n++}`;
 
+/** A window or a lag as a function takes it: a whole number of observations, or a calendar period (`3m`, gs-quant's
+ *  tenor). */
+type Span = number | TsTenor;
+/** A window's frame: running from the start, every period, the last n observations, or a calendar period. */
+type Frame = 'running' | 'all' | number | TsTenor;
+const isTenor = (f: Frame): f is TsTenor => typeof f === 'object';
+/** A span of at least `k` observations (a deviation needs two); a calendar period as it is. */
+const atLeast = (s: Span, k: number): Span => (typeof s === 'number' ? Math.max(s, k) : s);
+/** `adjust(<date>, -n, <unit>)`: a calendar period before a date, the database's date arithmetic. */
+const back = (date: ValueSpecification, t: TsTenor): ValueSpecification => fn('adjust', date, lit.integer(-t.n), enumValue(DURATION, t.unit));
+
+/** A frame's read (`$r.c`, `rowMapper($r.a, $r.b)`) as a row of a self-join reads it: each `$r.c` the joined row's column
+ *  `c` is under (`$x.<names[c]>`). */
+function readOver(read: ValueSpecification, names: ReadonlyMap<string, string>): ValueSpecification {
+  switch (read._type) {
+    case 'property': {
+      const on = read.parameters[0];
+      if (read.parameters.length === 1 && on?._type === 'var' && on.name === 'r') {
+        const name = names.get(read.property);
+        if (name === undefined) throw new Error(`a window reads ${read.property}, which its self-join does not carry`);
+        return property(x(), name);
+      }
+      return { ...read, parameters: read.parameters.map((v) => readOver(v, names)) };
+    }
+    case 'func':
+      return { ...read, parameters: read.parameters.map((v) => readOver(v, names)) };
+    case 'collection':
+      return { ...read, values: read.values.map((v) => readOver(v, names)) };
+    default:
+      return read;
+  }
+}
+
+/** The columns a frame's read reads of its rows (`$r.c`), each once. */
+function rowColumnsOf(read: ValueSpecification): string[] {
+  const out = new Set<string>();
+  const walk = (v: ValueSpecification): void => {
+    if (v._type === 'property') {
+      const on = v.parameters[0];
+      if (v.parameters.length === 1 && on?._type === 'var' && on.name === 'r') out.add(v.property);
+      else v.parameters.forEach(walk);
+    } else if (v._type === 'func') v.parameters.forEach(walk);
+    else if (v._type === 'collection') v.values.forEach(walk);
+  };
+  walk(read);
+  return [...out];
+}
+
 /**
  * A PART OF A SERIES' QUERY, written in steps: a relation of one row per line and period -- a column's own rows (its
  * source's, matched), a function over a part, two parts joined -- each date a part has its own (the review's Q1: a
@@ -290,19 +338,78 @@ class Writer {
     return fn('over', ...args);
   }
 
-  /** An aggregate over a frame of the periods: `extend(over(...), ~[name:{p,w,r|<read>}:y|$y-><reduce>()])`. */
-  window(what: string, reduce: string, read: ValueSpecification, frame: 'running' | 'all' | number): string {
+  /** An aggregate over a frame of the periods: `extend(over(...), ~[name:{p,w,r|<read>}:y|$y-><reduce>()])` -- of a
+   *  calendar period, over the periods whose dates are within it (#calendar). */
+  window(what: string, reduce: string, read: ValueSpecification, frame: Frame): string {
+    if (isTenor(frame)) return this.#calendar(what, reduce, read, frame);
     const name = this.fresh(what);
     this.rel = this.rel.extend([agg(name, lambda(['p', 'w', 'r'], read), lambda(['y'], fn(reduce, variable('y'))))], this.#over(frame));
     return name;
   }
 
-  /** A column `n` periods back: `$p->lag($r, n).<column>`. */
-  lag(column: string, n: number): string {
+  /**
+   * A WINDOW OF A CALENDAR PERIOD (gs-quant's `Window('3m')`, helper.rolling_offset: the dates after one that far back,
+   * to this one): its line's periods joined to every one of its own whose date is in (adjust(date, -n, unit), date], the
+   * read aggregated over each period's, and joined back by the period -- a self-join, the database's, since a window
+   * frame counts rows, never dates.
+   */
+  #calendar(what: string, reduce: string, read: ValueSpecification, t: TsTenor): string {
+    const name = this.fresh(what);
+    const from = this.fresh('cal_from');
+    const read_ = rowColumnsOf(read);
+    const names = new Map(read_.map((c) => [c, this.fresh('cal_r')] as const));
+    const rp = this.fresh('cal_rp');
+    const ra = this.fresh('cal_ra');
+    let right = this.rel.select([this.part, this.at, ...read_.filter((c) => c !== this.part && c !== this.at)]);
+    // a read of the part or the date itself (a count of dates) reads the joined row's own
+    right = right.rename(this.part, rp).rename(this.at, ra);
+    const as = new Map(names);
+    if (read_.includes(this.part)) as.set(this.part, rp);
+    if (read_.includes(this.at)) as.set(this.at, ra);
+    for (const c of read_) if (c !== this.part && c !== this.at) right = right.rename(c, names.get(c)!);
+    const left = this.rel.select([this.part, PERIOD, this.at]).extend([derive(from, row(back(one(this.at), t)))]);
+    const inWindow = lambda(['l', 'r'], and(
+      fn('equal', property(variable('l'), this.part), property(variable('r'), rp)),
+      fn('greaterThan', property(variable('r'), ra), property(variable('l'), from)),
+      fn('lessThanEqual', property(variable('r'), ra), property(variable('l'), this.at)),
+    ));
+    const gp = this.fresh('cal_gp');
+    const gper = this.fresh('cal_gper');
+    const grouped = left.join(right, 'INNER', inWindow)
+      .groupBy([this.part, PERIOD], [agg(name, row(readOver(read, as)), lambda(['y'], fn(reduce, variable('y'))))])
+      .rename(this.part, gp).rename(PERIOD, gper);
+    this.rel = this.rel.join(grouped, 'LEFT', lambda(['l', 'r'], and(
+      fn('equal', property(variable('l'), this.part), property(variable('r'), gp)),
+      fn('equal', property(variable('l'), PERIOD), property(variable('r'), gper)),
+    )));
+    return name;
+  }
+
+  /** A column `n` periods back: `$p->lag($r, n).<column>` -- or a calendar period back, as of that date (#valueBack). */
+  lag(column: string, n: Span): string {
+    if (typeof n !== 'number') return this.#valueBack(column, n);
     const name = this.fresh('lag');
     const call = fn('lag', variable('p'), variable('r'), ...(n !== 1 ? [lit.integer(n)] : []));
     this.rel = this.rel.extend([derive(name, lambda(['p', 'w', 'r'], property(call, column)))], this.#over(null));
     return name;
+  }
+
+  /**
+   * A COLUMN AS OF A CALENDAR PERIOD BACK (gs-quant's lag by a tenor, as of): of its line's periods where it has a
+   * value, the latest whose date is at or before adjust(date, -n, unit) -- an as-of join, the database's; none before
+   * the line's first date that far back.
+   */
+  #valueBack(column: string, t: TsTenor): string {
+    const target = this.fresh('back_at');
+    const lp = this.fresh('back_part');
+    const la = this.fresh('back_date');
+    const value = this.fresh('back');
+    const right = this.rel.filter(row(fn('isNotEmpty', col(column)))).select([this.part, this.at, column])
+      .rename(this.part, lp).rename(this.at, la).rename(column, value);
+    this.rel = this.rel.extend([derive(target, row(back(one(this.at), t)))]).asOfJoin(right,
+      lambda(['l', 'r'], fn('greaterThanEqual', property(variable('l'), target), property(variable('r'), la))),
+      lambda(['l', 'r'], fn('equal', property(variable('l'), this.part), property(variable('r'), lp))));
+    return value;
   }
 
   /** A column's value on a frame's rows, as a window reads it. */
@@ -310,16 +417,21 @@ class Writer {
     return property(variable('r'), column);
   }
 
-  /** `w` periods of `column` (0: from the start): its frame. */
-  static frame(w: number): 'running' | number {
+  /** `w` periods of `column` (0: from the start), or a calendar period: its frame. */
+  static frame(w: Span): 'running' | number | TsTenor {
     return w === 0 ? 'running' : w;
   }
 
   /**
    * A rolling figure drawn once its window holds `need` of `input`'s values: empty before (gs-quant's ramp), counted
-   * over the figure's own frame -- the last `w`, or from the start (w 0).
+   * over the figure's own frame -- the last `w`, or from the start (w 0). Of a calendar period, from `input`'s first date
+   * that period on (gs-quant's apply_ramp of a DateOffset: x.loc[x.index[0] + r:]).
    */
-  ramped(value: string, input: string, need: number, frame: 'running' | number = need): string {
+  ramped(value: string, input: string, need: Span, frame: 'running' | number | TsTenor = need): string {
+    if (typeof need !== 'number') {
+      const first = this.window('ramp_first', 'min', Writer.read(this.row('ramp_at', when(fn('isNotEmpty', col(input)), col(this.at), none()))), 'all');
+      return this.row('ramped', when(fn('lessThan', one(this.at), fn('adjust', one(first), lit.integer(need.n), enumValue(DURATION, need.unit))), none(), col(value)));
+    }
     if (need <= 1) return value;
     const count = this.window('n', 'count', Writer.read(input), frame);
     return this.row('ramped', when(fn('lessThan', one(count), lit.integer(need)), none(), col(value)));
@@ -356,8 +468,8 @@ class Writer {
     return this.window('anchor', 'max', Writer.read(value), 'all');
   }
 
-  /** Returns over `obs` periods, of a type (gs-quant's econometrics.returns). */
-  returns(a: string, obs: number, type: string): string {
+  /** Returns over `obs` periods (or a calendar period back, as of its date), of a type (gs-quant's econometrics.returns). */
+  returns(a: string, obs: Span, type: string): string {
     const p = this.lag(a, obs);
     switch (type) {
       case 'log':
@@ -404,9 +516,10 @@ class Writer {
     return fn('sqrt', this.perYear());
   }
 
-  /** A sample standard deviation over `w` periods (0 from the start), drawn once its window holds two. */
-  std(a: string, w: number): string {
-    return this.ramped(this.window('std', 'stdDevSample', Writer.read(a), Writer.frame(w)), a, Math.max(w, 2), Writer.frame(w));
+  /** A sample standard deviation over `w` periods (0 from the start, or a calendar period), drawn once its window holds
+   *  two. */
+  std(a: string, w: Span): string {
+    return this.ramped(this.window('std', 'stdDevSample', Writer.read(a), Writer.frame(w)), a, atLeast(w, 2), Writer.frame(w));
   }
 
   /** Simple returns, for the functions gs-quant reads them for (a correlation's, a beta's, a Sharpe ratio's). */
@@ -647,6 +760,14 @@ function candle(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
 
 function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   const n = (name: string): number => paramOf(e, name) as number;
+  // a window or a lag: a whole number of observations, or a calendar period (the spec's reader holds it to one)
+  const span = (name: string): Span => {
+    const v = paramOf(e, name);
+    if (typeof v === 'number') return v;
+    const t = tenorOf(v);
+    if (t === undefined) throw new CubeRefusal(`${e.fn}'s ${name} ${JSON.stringify(v)} is neither a whole number nor a calendar period (3m, 1y)`);
+    return t;
+  };
   const word = (name: string): string => paramOf(e, name) as string;
   const R = Writer.read;
   // the pairs and the candle: each series on its own dates, then joined
@@ -657,7 +778,7 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     const ra = e.fn === 'cov' ? columnOfValue(a.v) : a.w.simple(columnOfValue(a.v));
     const rb = e.fn === 'cov' ? columnOfValue(b.v) : b.w.simple(columnOfValue(b.v));
     const w = joined(sh, [{ w: a.w, v: { column: ra } }, { w: b.w, v: { column: rb } }]);
-    const size = n('w');
+    const size = span('w');
     const frame = Writer.frame(size);
     const pair = fn('rowMapper', R(ra), R(rb));
     let v: string;
@@ -668,7 +789,7 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       const variance = w.window('var', 'varianceSample', R(rb), frame);
       v = w.ratio('beta', one(cov), variance);
     }
-    return { w, v: { column: w.ramped(v, ra, Math.max(size, 2), frame) } };
+    return { w, v: { column: w.ramped(v, ra, atLeast(size, 2), frame) } };
   }
   if (e.fn === 'ohlc') return candle(sh, e);
   const x = seriesArg(sh, e, 0);
@@ -677,7 +798,7 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   const done = (column: string): Node => ({ w, v: { column } });
   switch (e.fn) {
     case 'returns':
-      return done(w.returns(a, n('obs'), word('type')));
+      return done(w.returns(a, span('obs'), word('type')));
     case 'prices': {
       const initial = float(n('initial'));
       const type = word('type');
@@ -701,9 +822,9 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
         op('times', op('times', initial, fn('pow', float(-1), one(negatives))), fn('exp', logs)))));
     }
     case 'diff':
-      return done(w.row('diff', op('minus', one(a), one(w.lag(a, n('obs'))))));
+      return done(w.row('diff', op('minus', one(a), one(w.lag(a, span('obs'))))));
     case 'lag':
-      return done(w.lag(a, n('obs')));
+      return done(w.lag(a, span('obs')));
     case 'annualize':
       return done(w.row('ann', op('times', one(a), w.annual())));
     case 'index':
@@ -722,24 +843,24 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     case 'sum':
     case 'min':
     case 'max': {
-      const size = n('w');
+      const size = span('w');
       const reduce = e.fn === 'mean' ? 'average' : e.fn === 'sum' ? 'plus' : e.fn;
       return done(w.ramped(w.window(e.fn, reduce, R(a), Writer.frame(size)), a, size, Writer.frame(size)));
     }
     case 'range': {
-      const size = n('w');
+      const size = span('w');
       const hi = w.window('max', 'max', R(a), Writer.frame(size));
       const lo = w.window('min', 'min', R(a), Writer.frame(size));
       return done(w.ramped(w.row('rng', op('minus', one(hi), one(lo))), a, size, Writer.frame(size)));
     }
     case 'std':
-      return done(w.std(a, n('w')));
+      return done(w.std(a, span('w')));
     case 'var': {
-      const size = n('w');
-      return done(w.ramped(w.window('var', 'varianceSample', R(a), Writer.frame(size)), a, Math.max(size, 2), Writer.frame(size)));
+      const size = span('w');
+      return done(w.ramped(w.window('var', 'varianceSample', R(a), Writer.frame(size)), a, atLeast(size, 2), Writer.frame(size)));
     }
     case 'zscores': {
-      const size = n('w');
+      const size = span('w');
       const frame = size === 0 ? 'all' : size;
       const mean = w.window('mean', 'average', R(a), frame);
       const sd = w.window('std', 'stdDevSample', R(a), frame);
@@ -756,23 +877,23 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     }
     case 'volatility': {
       const r = w.returns(a, 1, word('type'));
-      const sd = w.std(r, n('w'));
+      const sd = w.std(r, span('w'));
       return done(w.row('vol', op('times', op('times', one(sd), w.annual()), lit.integer(100))));
     }
     case 'drawdown': {
-      const size = n('w');
+      const size = span('w');
       const peak = w.window('peak', 'max', R(a), Writer.frame(size));
       const dd = w.row('dd', when(fn('equal', one(peak), lit.integer(0)), none(), op('minus', fn('divide', one(a), one(peak)), lit.integer(1))));
       return done(size === 0 ? dd : w.ramped(dd, a, size));
     }
     case 'max_drawdown': {
-      const size = n('w');
+      const size = span('w');
       const peak = w.window('peak', 'max', R(a), Writer.frame(size));
       const dd = w.row('dd', when(fn('equal', one(peak), lit.integer(0)), none(), op('minus', fn('divide', one(a), one(peak)), lit.integer(1))));
       return done(w.ramped(w.window('mdd', 'min', R(dd), Writer.frame(size)), a, size));
     }
     case 'sharpe_ratio': {
-      const size = n('w');
+      const size = span('w');
       const r = w.simple(a);
       const mean = w.window('mean', 'average', R(r), Writer.frame(size));
       const sd = w.std(r, size);
@@ -780,7 +901,7 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
         op('times', fn('divide', one(mean), one(sd)), w.annual()))), r, size, Writer.frame(size)));
     }
     case 'bollinger_bands': {
-      const size = n('w');
+      const size = span('w');
       const k = float(n('k'));
       const mean = w.ramped(w.window('mean', 'average', R(a), Writer.frame(size)), a, size, Writer.frame(size));
       const sd = w.std(a, size);
@@ -789,7 +910,7 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       return { w, v: { lower, upper, width: w.row('width', op('minus', one(upper), one(lower))) } };
     }
     case 'rsi': {
-      const size = n('w');
+      const size = span('w');
       const d = w.row('d', op('minus', one(a), one(w.lag(a, 1))));
       const gain = w.row('gain', when(fn('isEmpty', col(d)), none(), when(fn('greaterThan', one(d), lit.integer(0)), one(d), float(0))));
       const loss = w.row('loss', when(fn('isEmpty', col(d)), none(), when(fn('lessThan', one(d), lit.integer(0)), op('minus', float(0), one(d)), float(0))));

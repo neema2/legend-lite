@@ -28,6 +28,11 @@ const ROUND_TRIPS = [
   'volatility($A, 63)',
   'volatility($A, 63, log)',
   'zscores($A, 252)',
+  // calendar periods: a window of dates, a lag as of a date (gs-quant's tenors)
+  'mean(close, 3m)',
+  'returns(close[AAPL], 1y)',
+  'correlation($A, $B, 6m)',
+  'volatility($A, 2w, log)',
   'correlation(px:close[SPX], rates:yield[10Y], 126)',
   'bollinger_bands(close[AAPL], 20, 2.5)',
   'close[AAPL] / close[MSFT]',
@@ -94,6 +99,10 @@ describe('the expression language', () => {
     refused('close.median', /a period's value is one of/);
     refused('close[', /a value was expected/);
     refused('#', /means nothing here/);
+    // a calendar period is days, weeks, months or years
+    refused('mean(close, 3q)', /w is a whole number of observations or a calendar period \(3m, 1y\)/);
+    refused('returns(close, 0y)', /obs is a whole number of observations or a calendar period/);
+    refused('mean(close, 2.5)', /w is a whole number/);
     const at = ((): number => {
       try {
         parseExpr('returns(close, x)');
@@ -217,6 +226,8 @@ describe('the saved spec\'s reader', () => {
 
   it('reads a spec of every slot', () => {
     assert.equal(tsProblem(JSON.parse(JSON.stringify(OK))), null);
+    // a window of a calendar period, and a lag of one
+    assert.equal(tsProblem(with_({ series: [{ id: 'A', expr: parseExpr('returns(mean(close, 3m), 1y)') }] })), null);
   });
 
   it('refuses a word, a key or a number it has no place for, by name', () => {
@@ -232,6 +243,8 @@ describe('the saved spec\'s reader', () => {
       [with_({ series: [{ id: 'A', expr: { kind: 'column', source: 'fx', column: 'c' } }] }), /reads fx:..., which is none of its sources/],
       [with_({ series: [{ id: 'A', expr: { kind: 'column', column: 'c' }, pane: 4 }] }), /pane 4 is not one of 0 to 3/],
       [with_({ series: [{ id: 'A', expr: { kind: 'column', column: 'c' }, style: { kind: 'candles' } }] }), /style "candles"/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'mean', args: [{ kind: 'column', column: 'c' }], params: { w: '3q' } } }] }), /w "3q" is neither a whole number nor a calendar period/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'mean', args: [{ kind: 'column', column: 'c' }], params: { w: 2.5 } } }] }), /w 2.5 is not a whole number/],
       [with_({ range: { last: '7y' } }), /range "7y"/],
       [with_({ range: { from: '2024-02-01', to: '2024-01-01' } }), /ends before it starts/],
       [with_({ range: { last: '1y', from: '2024-01-01' } }), /not both/],
