@@ -250,6 +250,15 @@ over the series' own rows does.
   risk-free rate of zero), `r_squared` (the returns' correlation squared), `hedge_ratio` (the least-squares slope of
   the levels) and `residual` (the level less its fitted value, the spread of a pairs trade -- with `zscores`, its
   signal). Each from the window's covariance, variance and means, as beta is.
+- **Drawdowns** (`drawdownsQuery`, the panel's Drawdowns tab, asked when shown): each level line's deepest five over
+  the dates shown, each a run from a peak (a date at or above every one before it) to the next, its recovery (none: not
+  yet), its trough the least between -- the peaks a running maximum, the runs numbered by a running count of them,
+  each run's recovery the first peak after its dates (a window over the dates after each, read before the runs are
+  grouped), grouped, ranked by depth. **A rule this taught (2026-10-26):** a plain filter written right after a
+  window's extend is folded into that window's WHERE -- legend-engine's own behaviour, which legend-lite keeps (core
+  `lowering/Fold.java` filterSlot: PCT `testExtendFilterOutNull`) -- so the window sees the filtered rows. A query here
+  never filters after a window whose input it must keep whole: it computes what reads every row before (a first try
+  read each run's recovery as a `lead` after the depth filter, and got the next drawdown's peak).
 
 ### 5.4 Proven so far
 

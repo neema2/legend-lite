@@ -551,8 +551,11 @@ const CHART_BUDGET = 303_500;
  *  tenors). Measured 38,061.
  *  38,800 -> 39,900 (2026-10-26, the expert statistics: a level's returns' moments, downside, hit rate, best and worst,
  *  historical value at risk and expected shortfall, Calmar (timeseries-query.ts statsQuery), and the statistics panel's
- *  Summary and Risk tabs (ui/timeseries-view.ts RISK_COLUMNS)). Measured 39,100. */
-const TIMESERIES_BUDGET = 39_900;
+ *  Summary and Risk tabs (ui/timeseries-view.ts RISK_COLUMNS)). Measured 39,100.
+ *  39,900 -> 41,800 (2026-10-26, the expert functions' rolling regression (alpha, R², hedge ratio, residual: their words
+ *  and their queries) and a level's deepest drawdowns, a query of its own (timeseries-query.ts drawdownsQuery) and the
+ *  panel's Drawdowns tab, asked when shown). Measured 40,933. */
+const TIMESERIES_BUDGET = 41_800;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

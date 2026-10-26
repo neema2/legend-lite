@@ -31,7 +31,8 @@ import {
   editTimeseries, firstTimeseries as firstOf, judgedEdit, TsEditRefusal, type TsChange, type TsGridColumns, type TsSeriesTold,
 } from '../timeseries-edit.ts';
 import {
-  boundsQuery, keyValuesQuery, rangeStartName, readsAnchor, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_LATEST,
+  boundsQuery, drawdownsQuery, keyValuesQuery, rangeStartName, readsAnchor, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_LATEST,
+  TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
   TS_SPLIT, TS_STAT_LEVEL_LOW, TS_STAT_PER_YEAR, TS_VALUE, type TsInput, type TsInputs, type TsQuery, type TsStat, type TsWindow,
 } from '../timeseries-query.ts';
 import {
@@ -251,8 +252,9 @@ const RISK_COLUMNS: readonly StatColumn[] = [
 const STAT_TABS: readonly (readonly [StatsTab, string, string])[] = [
   ['summary', 'Summary', 'Each line\'s first, last, change, extremes, mean and deviation over the dates shown'],
   ['risk', 'Risk', 'Each level\'s returns\' risk over the dates shown: volatility, Sharpe, Sortino, Calmar, drawdown, skew, kurtosis, value at risk'],
+  ['drawdowns', 'Drawdowns', 'Each level\'s deepest drawdowns over the dates shown: from its peak, to its trough, to its recovery'],
 ];
-type StatsTab = 'summary' | 'risk';
+type StatsTab = 'summary' | 'risk' | 'drawdowns';
 
 export class TimeseriesView {
   readonly #root: HTMLElement;
@@ -267,6 +269,11 @@ export class TimeseriesView {
   #stats!: HTMLElement;
   /** The statistics panel's tab shown: a viewing choice, as the zoom is (not the page's: nothing of it is saved). */
   #statsTab: StatsTab = 'summary';
+  /** Each level series' deepest drawdowns over the dates shown, as the database answered them (asked when the Drawdowns
+   *  tab is shown: lazy Work), and what it refused; undefined until asked for the answers drawn. */
+  #drawdowns: Map<string, ResultTable> | undefined;
+  #drawdownsFailed = new Map<string, string>();
+  #drawdownsAsking = false;
   /** Its editor's content, in its window while one is open. */
   #pop: HTMLElement;
   /** Its editor's window, while one is open; and what lets its listeners go when it closes. */
@@ -631,6 +638,8 @@ export class TimeseriesView {
     this.#statRows = rows;
     this.#statsFailed = failed;
     this.#statsAsked = true;
+    // the dates shown or the rows moved: the drawdowns too, asked again when their tab is shown
+    this.#drawdowns = undefined;
     this.#paintLegend();
     this.#paintStats();
     this.#paintBanner();
@@ -887,6 +896,7 @@ export class TimeseriesView {
     this.#stats.hidden = false;
     const columns = this.#statsTab === 'risk' ? RISK_COLUMNS : STAT_COLUMNS;
     const tabs = el(doc, 'div', 'dc-ts-stats-tabs', undefined, { role: 'tablist' });
+    const window = this.#window();
     for (const [tab, label, title] of STAT_TABS) {
       const b = button(doc, label, title, () => {
         this.#statsTab = tab;
@@ -895,6 +905,12 @@ export class TimeseriesView {
       b.setAttribute('role', 'tab');
       b.setAttribute('aria-selected', String(tab === this.#statsTab));
       tabs.append(b);
+    }
+    const head_ = el(doc, 'div', 'dc-ts-stats-head');
+    head_.append(tabs, doc.createTextNode(`Over ${window.from ?? 'the first date'} to ${window.to ?? 'the latest'}: every figure the database's`));
+    if (this.#statsTab === 'drawdowns') {
+      this.#stats.replaceChildren(head_, ...this.#drawdownsTable());
+      return;
     }
     const table = el(doc, 'table', 'dc-ts-table');
     const head = el(doc, 'tr');
@@ -932,12 +948,107 @@ export class TimeseriesView {
       }
       table.append(tr);
     }
-    const window = this.#window();
     const blanks = this.#statBlanks();
-    const head_ = el(doc, 'div', 'dc-ts-stats-head');
-    head_.append(tabs, doc.createTextNode(`Over ${window.from ?? 'the first date'} to ${window.to ?? 'the latest'}: every figure the database's`));
     this.#stats.replaceChildren(head_, table,
       ...(blanks.length > 0 ? [el(doc, 'div', 'dc-ts-stats-blanks', blanks.join(' '))] : []));
+  }
+
+  /** The lines a level's tables are of: its levels drawn (no band, none hidden). */
+  #levelLines(): TsLine[] {
+    return this.#lines.filter((l) => l.level && !l.band && !l.series.hidden);
+  }
+
+  /**
+   * THE DRAWDOWNS TAB: each level line's deepest drawdowns over the dates shown, as the database answered them
+   * (timeseries-query.ts drawdownsQuery) -- asked the first time the tab is shown for the answers drawn.
+   */
+  #drawdownsTable(): HTMLElement[] {
+    const doc = this.#doc;
+    const lines = this.#levelLines();
+    if (lines.length === 0) return [el(doc, 'div', 'dc-ts-stats-blanks', 'No line is a level: a return, a difference or a deviation has no drawdowns.')];
+    if (this.#drawdowns === undefined) {
+      void this.#askDrawdowns();
+      return [el(doc, 'div', 'dc-ts-stats-blanks', 'Asking the database for each line\'s drawdowns…')];
+    }
+    const table = el(doc, 'table', 'dc-ts-table');
+    const head = el(doc, 'tr');
+    head.append(...['Line', '#', 'Peak', 'Trough', 'Recovered', 'Depth', 'Days down', 'Days back'].map((t) => el(doc, 'th', undefined, t)));
+    table.append(head);
+    const grain = this.#spec.grain ?? 'day';
+    const said: string[] = [];
+    for (const l of lines) {
+      const refused = this.#drawdownsFailed.get(l.series.id);
+      const name = (): HTMLElement => {
+        const td = el(doc, 'td', 'dc-ts-table-name');
+        const swatch = el(doc, 'span', 'dc-ts-swatch');
+        swatch.style.background = l.color;
+        td.append(swatch, doc.createTextNode(l.name));
+        return td;
+      };
+      if (refused !== undefined) {
+        const tr = el(doc, 'tr');
+        tr.append(name(), el(doc, 'td', 'dc-ts-table-refused', `Refused: ${refused}`, { colspan: '7' }));
+        table.append(tr);
+        continue;
+      }
+      const t = this.#drawdowns.get(l.series.id);
+      if (!t) continue;
+      const column = (n: string): readonly unknown[] => t.columns.find((c) => c.name === n)?.values ?? [];
+      const splits = column(TS_SPLIT);
+      const mine = column(TS_DD_RANK).map((_, i) => i).filter((i) => l.split === undefined || splits[i] === l.split);
+      if (mine.length === 0) said.push(`${l.name} has no drawdown over these dates: it never fell below a peak.`);
+      for (const i of mine) {
+        const tr = el(doc, 'tr');
+        const date = (n: string): HTMLElement => {
+          const v = column(n)[i];
+          return el(doc, 'td', 'dc-ts-table-date', v === null || v === undefined ? 'not yet' : dateLabel(String(v), grain));
+        };
+        const count = (n: string): HTMLElement => {
+          const v = toNumber(column(n)[i] as Scalar);
+          return el(doc, 'td', 'dc-ts-table-num', v === null ? '—' : v.toLocaleString(UI_LOCALE));
+        };
+        tr.append(name(), count(TS_DD_RANK), date(TS_DD_PEAK), date(TS_DD_TROUGH), date(TS_DD_RECOVERED),
+          el(doc, 'td', 'dc-ts-table-num', valueText({ unit: 'ratio' }, toNumber(column(TS_DD_DEPTH)[i] as Scalar))), count(TS_DD_DECLINE), count(TS_DD_RECOVERY));
+        table.append(tr);
+      }
+    }
+    return [table, ...(said.length > 0 ? [el(doc, 'div', 'dc-ts-stats-blanks', said.join(' '))] : [])];
+  }
+
+  /** Each level series' drawdowns asked of the database over the dates shown, once, then the tab painted again. */
+  async #askDrawdowns(): Promise<void> {
+    if (this.#drawdownsAsking) return;
+    this.#drawdownsAsking = true;
+    const gen = this.#gen;
+    const spec = this.#spec;
+    const window = this.#window();
+    const signal = new AbortController().signal;
+    const opened: Opened = new Map();
+    const rows = new Map<string, ResultTable>();
+    const failed = new Map<string, string>();
+    try {
+      const ids = [...new Set(this.#levelLines().map((l) => l.series.id))];
+      await Promise.all(ids.map(async (id) => {
+        const s = spec.series.find((x) => x.id === id)!;
+        try {
+          rows.set(id, (await this.#run(s, (inputs) => drawdownsQuery(inputs, spec, s, window), signal, opened)).table);
+        } catch (e) {
+          failed.set(id, e instanceof Error ? e.message : String(e));
+        }
+      }));
+    } finally {
+      putAway(opened);
+      this.#drawdownsAsking = false;
+    }
+    if (this.#disposed) return;
+    // asked again since: this answer is of what was drawn before -- asked again for what is drawn now, if still shown
+    if (gen !== this.#gen) {
+      if (this.#statsTab === 'drawdowns' && this.#drawdowns === undefined) void this.#askDrawdowns();
+      return;
+    }
+    this.#drawdowns = rows;
+    this.#drawdownsFailed = failed;
+    this.#paintStats();
   }
 
   /**

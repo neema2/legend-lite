@@ -1148,6 +1148,92 @@ export function boundsQuery(input: TsInput, src: TsSource): Lambda {
   return rel.extend(starts).select([TS_LATEST, TS_EARLIEST, ...starts.map((c) => c.name)]).lambda();
 }
 
+/** A series' relation cut to the dates shown (`view`: from, to; either open): each period's value's date, its last
+ *  observation (the review's Q6). */
+function onlyShown(b: Built, view: TsWindow): void {
+  const shown: ValueSpecification[] = [fn('isNotEmpty', col(b.value))];
+  if (view.from !== undefined) shown.push(fn('greaterThanEqual', one(b.at), dateLiteral(view.from, b.periodType)));
+  if (view.to !== undefined) shown.push(fn('lessThanEqual', one(b.at), dateLiteral(`${view.to}${isDay(b.periodType) ? '' : 'T23:59:59'}`, b.periodType)));
+  b.writer.rel = b.writer.rel.filter(row(and(...shown)));
+}
+
+/** The columns a series' drawdowns query answers with, a row per drawdown: its peak's date, its trough's and its
+ *  recovery's (the next date at or above the peak; none, not recovered), its depth (-0.2 for 20%), the days from the
+ *  peak to the trough and from the trough to the recovery, and its rank among the line's (1 the deepest). */
+export const TS_DD_PEAK = '__ts_dd_peak';
+export const TS_DD_TROUGH = '__ts_dd_trough';
+export const TS_DD_RECOVERED = '__ts_dd_recovered';
+export const TS_DD_DEPTH = '__ts_dd_depth';
+export const TS_DD_DECLINE = '__ts_dd_decline';
+export const TS_DD_RECOVERY = '__ts_dd_recovery';
+export const TS_DD_RANK = '__ts_dd_rank';
+/** The most drawdowns a line's table lists: its deepest. */
+export const MAX_DRAWDOWNS = 5;
+
+/**
+ * A LEVEL'S DEEPEST DRAWDOWNS over the dates shown, per line (the expert tables, 2026-10-26): each a run from a peak --
+ * a date at or above every one before it shown -- to the next such date, its recovery (none: it has not recovered),
+ * its trough the least between; the deepest MAX_DRAWDOWNS of the line's, deepest first. Every date, depth and length
+ * the database's: the peaks a running maximum, each run numbered by a running count of them, grouped, the next run's
+ * peak its recovery (a lead), ranked. Of the level itself, compared or not; a level at or below zero has none.
+ */
+export function drawdownsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, view: TsWindow = {}): TsQuery {
+  const b = seriesRelation(inputs, ts, series, view.from);
+  if (!b.level) throw new CubeRefusal(`series ${series.id} is no level: a return, a difference or a deviation has no drawdowns`);
+  const w = b.writer;
+  onlyShown(b, view);
+  const lv = b.levelValue ?? b.value;
+  const R = Writer.read;
+  const peak = w.window('dd_peak', 'max', R(lv), 'running');
+  const atPeak = fn('greaterThanEqual', one(lv), one(peak));
+  const top = w.row('dd_top', when(atPeak, lit.integer(1), lit.integer(0)));
+  const run = w.window('dd_run', 'plus', R(top), 'running');
+  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
+  const key = b.split ?? w.part;
+  const at = b.at;
+  // each date's next peak: the first date after it at or above every one before it -- its run's recovery. A window
+  // over the dates after each, before the runs are grouped: a filter after a window's extend is the window's own input
+  // (legend-engine's folding of a plain predicate into the window's WHERE, core lowering/Fold.java filterSlot), so no
+  // run is filtered before this is read
+  const peakAt = w.row('dd_peak_at', when(atPeak, col(at), none()));
+  const next = w.fresh('dd_next');
+  w.rel = w.rel.extend([agg(next, lambda(['p', 'w', 'r'], Writer.read(peakAt)), y('min'))],
+    fn('over', { _type: 'classInstance', type: 'colSpecArray', value: { colSpecs: [{ name: w.part }] } }, collection([asc(PERIOD)]),
+      fn('rows', lit.integer(1), fn('unbounded'))));
+  const peakV = w.fresh('dd_peak_v');
+  const low = w.fresh('dd_low');
+  const lowest = w.fresh('dd_level_low');
+  let rel = w.rel.groupBy([key, run], [
+    agg(TS_DD_PEAK, row(col(at)), y('min')),
+    agg(peakV, row(col(lv)), y('max')),
+    agg(low, row(col(lv)), y('min')),
+    agg(TS_DD_TROUGH, row(fn('rowMapper', col(at), col(lv))), y('minBy')),
+    agg(TS_DD_RECOVERED, row(col(next)), y('min')),
+  ]);
+  // the line's least level shown, beside each run: at or below zero, no drawdowns (a yield's ratios mean nothing)
+  const lk = w.fresh('dd_lk');
+  rel = rel.join(w.rel.groupBy([key], [agg(lowest, row(col(lv)), y('min'))]).rename(key, lk), 'LEFT',
+    lambda(['l', 'r'], fn('equal', property(variable('l'), key), property(variable('r'), lk))));
+  const over = (order: AppliedFunction): AppliedFunction =>
+    fn('over', { _type: 'classInstance', type: 'colSpecArray', value: { colSpecs: [{ name: key }] } }, collection([order]));
+  rel = rel
+    .extend([derive(TS_DD_DEPTH, row(when(fn('lessThanEqual', one(lowest), lit.integer(0)), none(), op('minus', fn('divide', one(low), one(peakV)), lit.integer(1)))))])
+    .filter(row(fn('lessThan', one(TS_DD_DEPTH), lit.integer(0))))
+    .extend([derive(TS_DD_RANK, lambda(['p', 'w', 'r'], fn('rowNumber', variable('p'), variable('r'))))], over(asc(TS_DD_DEPTH)))
+    .filter(row(fn('lessThanEqual', col(TS_DD_RANK), lit.integer(MAX_DRAWDOWNS))))
+    .extend([
+      derive(TS_DD_DECLINE, row(fn('dateDiff', one(TS_DD_PEAK), one(TS_DD_TROUGH), enumValue(DURATION, 'DAYS')))),
+      derive(TS_DD_RECOVERY, row(when(fn('isEmpty', col(TS_DD_RECOVERED)), none(), fn('dateDiff', one(TS_DD_TROUGH), one(TS_DD_RECOVERED), enumValue(DURATION, 'DAYS'))))),
+    ]);
+  const out = [TS_DD_PEAK, TS_DD_TROUGH, TS_DD_RECOVERED, TS_DD_DEPTH, TS_DD_DECLINE, TS_DD_RECOVERY, TS_DD_RANK];
+  if (b.split !== undefined) rel = rel.extend([derive(TS_SPLIT, row(col(b.split)))]);
+  rel = rel.select([...(b.split !== undefined ? [TS_SPLIT] : []), ...out]).sort([...(b.split !== undefined ? [asc(TS_SPLIT)] : []), asc(TS_DD_RANK)]);
+  return {
+    series: series.id, query: rel.lambda(), unit: b.unit, band: false, ...(b.split !== undefined ? { split: b.split } : {}),
+    level: true, counted: false, sources: b.sources,
+  };
+}
+
 /**
  * A SERIES' STATISTICS over the dates shown (`view`: from, to; either open), per line: how many, the first and the last
  * date, the first and the last value and the change between them, the least and the most (and when), the mean and the
@@ -1165,11 +1251,7 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
   const inferred = level && ts.grain === undefined;
   const perYear = level ? w.perYear() : undefined;
   const yearly = inferred ? w.row('stat_py', perYear!) : undefined;
-  // the dates shown: each period's value's date, its last observation (the review's Q6)
-  const shown: ValueSpecification[] = [fn('isNotEmpty', col(v))];
-  if (view.from !== undefined) shown.push(fn('greaterThanEqual', one(b.at), dateLiteral(view.from, b.periodType)));
-  if (view.to !== undefined) shown.push(fn('lessThanEqual', one(b.at), dateLiteral(`${view.to}${isDay(b.periodType) ? '' : 'T23:59:59'}`, b.periodType)));
-  w.rel = w.rel.filter(row(and(...shown)));
+  onlyShown(b, view);
   // a level's figures of its returns, its drawdown and its growth: of the level itself, compared or not
   const lv = b.levelValue ?? v;
   const rLog = level ? w.returns(lv, 1, 'log') : undefined;

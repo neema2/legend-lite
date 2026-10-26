@@ -16,7 +16,8 @@ import type { LitePlanner } from '../src/lite-planner.ts';
 import { type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import {
-  boundsQuery, keyValuesQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN,
+  boundsQuery, drawdownsQuery, keyValuesQuery, rangeStartName, seriesQuery, seriesSources, statName, statsQuery, TS_DATE, TS_EARLIEST, TS_HIGH, TS_LATEST, TS_LOW, TS_LOWER, TS_OPEN,
+  TS_DD_DECLINE, TS_DD_DEPTH, TS_DD_PEAK, TS_DD_RANK, TS_DD_RECOVERED, TS_DD_RECOVERY, TS_DD_TROUGH,
   TS_PER_YEAR, TS_ROWS, TS_SPLIT, TS_STAT_PER_YEAR, TS_UPPER, TS_VALUE, type TsInput, type TsInputs, type TsWindow,
 } from '../src/timeseries-query.ts';
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
@@ -703,6 +704,46 @@ describe('a series\' statistics over the dates shown', () => {
     const days = (Date.parse(dates.at(-1)!) - Date.parse(dates[0]!)) / 86400000;
     const cagr = (125 / 100) ** (365.25 / days) - 1;
     close([num(values(t, statName('calmar'))[0])], [cagr / Math.abs(88 / 110 - 1)], 'calmar', 1e-9);
+  });
+
+  // the expert tables (2026-10-26): a level's deepest drawdowns, each from a peak to its recovery, the database's
+  it('drawdowns: each from a peak to the next date at or above it, its trough between; the deepest five, deepest first', async () => {
+    const ts = spec({ A: 'close[AAA]' });
+    const t = await run(drawdownsQuery(inputs, ts, ts.series[0]!));
+    // the reference, as plain arithmetic: runs from each date at or above every one before it to the next
+    const runs: { peak: number; low: number; trough: number; next: number | null }[] = [];
+    let best = -Infinity;
+    for (let i = 0; i < AAA.length; i++) {
+      if (AAA[i]! >= best) {
+        best = AAA[i]!;
+        if (runs.length > 0) runs.at(-1)!.next = i;
+        runs.push({ peak: i, low: AAA[i]!, trough: i, next: null });
+      } else if (AAA[i]! < runs.at(-1)!.low) {
+        runs.at(-1)!.low = AAA[i]!;
+        runs.at(-1)!.trough = i;
+      }
+    }
+    const want = runs.filter((r) => r.low < AAA[r.peak]!).map((r) => ({ ...r, depth: r.low / AAA[r.peak]! - 1 }))
+      .sort((a, b) => a.depth - b.depth).slice(0, 5);
+    assert.ok(want.length >= 2, `${want.length} drawdowns in the fixture`);
+    const day = (n: string): string[] => values(t, n).map((d) => (d === null ? '' : String(d).slice(0, 10)));
+    assert.deepEqual(day(TS_DD_PEAK), want.map((r) => DAYS[r.peak]!), 'the peaks');
+    assert.deepEqual(day(TS_DD_TROUGH), want.map((r) => DAYS[r.trough]!), 'the troughs');
+    assert.deepEqual(day(TS_DD_RECOVERED), want.map((r) => (r.next === null ? '' : DAYS[r.next]!)), 'the recoveries');
+    close(values(t, TS_DD_DEPTH).map(num), want.map((r) => r.depth), 'the depths', 1e-12);
+    const span = (a: number, b: number): number => (Date.parse(DAYS[b]!) - Date.parse(DAYS[a]!)) / 86_400_000;
+    assert.deepEqual(values(t, TS_DD_DECLINE).map(Number), want.map((r) => span(r.peak, r.trough)), 'days down');
+    assert.deepEqual(values(t, TS_DD_RECOVERY).map((v) => (v === null ? null : Number(v))), want.map((r) => (r.next === null ? null : span(r.trough, r.next))), 'days back');
+    assert.deepEqual(values(t, TS_DD_RANK).map(Number), want.map((_, i) => i + 1));
+    // split by symbol: each line's its own, as the one instrument's alone
+    const split = await run(drawdownsQuery(inputs, spec({ A: 'close' }, {}, 'symbol'), spec({ A: 'close' }, {}, 'symbol').series[0]!));
+    const bbb = await run(drawdownsQuery(inputs, spec({ A: 'close[BBB]' }), spec({ A: 'close[BBB]' }).series[0]!));
+    const of = (n: string): unknown[] => values(split, n).filter((_, i) => values(split, TS_SPLIT)[i] === 'BBB');
+    assert.deepEqual(of(TS_DD_PEAK), values(bbb, TS_DD_PEAK), "BBB's line, its own peaks");
+    close(of(TS_DD_DEPTH).map(num), values(bbb, TS_DD_DEPTH).map(num), "BBB's depths", 1e-12);
+    assert.ok(new Set(values(split, TS_SPLIT)).size >= 2, 'a line per symbol');
+    // a return is no level: refused in words
+    assert.throws(() => drawdownsQuery(inputs, spec({ A: 'returns(close[AAA])' }), spec({ A: 'returns(close[AAA])' }).series[0]!), /is no level: .* has no drawdowns/);
   });
 
   it('a return\'s statistics leave out what only a level has', async () => {

@@ -171,6 +171,26 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
     }
   });
 
+  it('the statistics\' Drawdowns tab: each level\'s deepest, from peak to trough to recovery, asked when shown', async () => {
+    const asked: string[] = [];
+    const { root, view } = viewer(SPEC, (q) => { asked.push(q); return false; });
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      assert.ok(!asked.some((q) => q.includes('__ts_dd_rank')), 'no drawdowns asked before their tab is shown');
+      [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-stats-tab')].find((b) => b.textContent === 'Drawdowns')!.click();
+      await until(() => statRows(root).length > 0, 'its drawdowns');
+      assert.deepEqual([...root.querySelectorAll('.dc-ts-table th')].map((th) => th.textContent), ['Line', '#', 'Peak', 'Trough', 'Recovered', 'Depth', 'Days down', 'Days back']);
+      const rows = statRows(root);
+      assert.ok(rows.length >= 1 && rows.length <= 5, `${rows.length} drawdowns`);
+      assert.ok(rows.every((r) => r[0] === 'S&P 500'), 'the S&P alone: a volatility is no level');
+      assert.deepEqual(rows.map((r) => r[1]), rows.map((_, i) => String(i + 1)), 'deepest first');
+      assert.ok(rows.every((r) => /^-/.test(r[5]!)), `each below its peak: ${rows.map((r) => r[5]).join(', ')}`);
+      assert.ok(asked.some((q) => q.includes('__ts_dd_rank')), 'asked once shown');
+    } finally {
+      view.dispose();
+    }
+  });
+
   it('a range told as the page\'s spec, the zoom moved to it; a line hidden is drawn again from the rows it has', async () => {
     const { root, drawn, told, zooms, view } = viewer(SPEC);
     try {
