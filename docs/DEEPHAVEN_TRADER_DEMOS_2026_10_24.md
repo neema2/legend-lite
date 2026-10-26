@@ -673,6 +673,25 @@ start, where Open…'s Examples hold the desk first. Save or Save As… keeps it
 store of saved pages, which Open… lists and opens again over the market as it is then. The old trader host
 (`traders.ts`) stays as the screens' test bench for now (§3).
 
+**The hand tools' certificate is mkcert's (the user, 2026-10-26: "can we fix the cert to be self signed properly?",
+then "build it with mkcert").** The test server's certificate was made by `keytool` each run, self-signed, on a fresh
+port: a browser trusts no such certificate, so a person had to open the server's address and accept it every run, and a
+page whose server was not yet accepted failed without asking (no browser lets a person accept a page's own requests).
+Now the three hand tools (`deephaven_demo`, `deephaven_traders`, `deephaven_desk`) have mkcert make the server's
+certificate for `localhost`, `127.0.0.1` and `::1` each run, signed by mkcert's local CA
+(`datacube/demo/deephaven/mkcert.mjs`), and the fixture serves it (`-Dembedded.deephaven.identity`, copied beside the
+server's data so a restart keeps it): on a machine where `mkcert -install` ran once, the browser asks nothing. What
+mkcert says of a trust store without its CA is printed after the server's address; without mkcert the tool says so,
+with how to install it, and runs as before. Why mkcert and not a certificate of our own trusted directly: mkcert is
+the well-known tool, puts its CA in every store a browser reads (the system's, and Firefox's with `nss`), and leaves
+only "use these files" to write; its CA's key could sign for any site, which mkcert's own README warns of: a
+developer's machine's usual trade. The tests are unchanged (their certificate is made each run, accepted by the test's
+browser), and nothing joins the build. Checked (2026-10-26, mkcert 1.4.4 built from its source, its CA put in
+Chromium's store here): the desk opened in the pinned Chromium with certificate checks on, its first tab's grids
+filled, no request to the server failed; the same Chromium with an empty store was refused
+(`ERR_CERT_AUTHORITY_INVALID`); the fixture served the given certificate before and after a restart, the given
+directory deleted.
+
 **What the desk's screenshots showed, fixed (2026-10-25):** *The market rose 10-20% in half an hour* (93 names
 advancing, 6 declining): the newsroom's briefs moved their names only up where they moved them (a stake disclosed, a
 buyback), drawn by activity, so the largest names took hundreds of up-nudges at a busy wire's pace; and every macro or

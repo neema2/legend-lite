@@ -28,8 +28,11 @@ import java.util.concurrent.TimeUnit;
  * <p>The server runs on THIS JVM's Java as its child, from its main class (its start script passes a flag Java 25
  * removed), with the JVM options its build ships for Java 25. Its certificate is made here by the JDK's own
  * {@code keytool} (a self-signed key pair for {@code localhost} and {@code 127.0.0.1}) and written as the PEM files the
- * server reads; a browser told to accept it is the test's. Its Groovy console is on, so a test seeds its tables the
- * way a person would, and only here: a deployment turns it off (DH21).
+ * server reads; a browser told to accept it is the test's. With {@code -Dembedded.deephaven.identity=<a directory>}
+ * it serves that directory's {@code cert.pem} and {@code key.pem} instead: a hand tool's, made by mkcert and signed by
+ * its local CA, so a browser on a machine that trusts that CA asks nothing (datacube/demo/deephaven/mkcert.mjs; the
+ * user, 2026-10-26). Its Groovy console is on, so a test seeds its tables the way a person would, and only here: a
+ * deployment turns it off (DH21).
  *
  * <p>With {@code -Dembedded.deephaven.application=$(rlocationpath <an .app file>)}, the server runs the Deephaven
  * application that file defines (its start-up script, beside it) every time it starts: a demo's data, seeded again by
@@ -98,7 +101,12 @@ public final class EmbeddedDeephaven implements AutoCloseable {
             for (String d : List.of("cache", "data", "config")) {
                 Files.createDirectories(data.resolve(d));
             }
-            certificate(data);
+            String identity = System.getProperty("embedded.deephaven.identity");
+            if (identity == null) {
+                certificate(data);
+            } else {
+                given(Path.of(identity), data);
+            }
             byte[] key = new byte[24];
             new SecureRandom().nextBytes(key);
             String psk = HexFormat.of().formatHex(key);
@@ -216,6 +224,18 @@ public final class EmbeddedDeephaven implements AutoCloseable {
             Files.writeString(data.resolve("cert.pem"), pem("CERTIFICATE", cert.getEncoded()), StandardCharsets.UTF_8);
         } catch (java.security.GeneralSecurityException e) {
             throw new IOException("the certificate keytool made could not be read: " + e.getMessage(), e);
+        }
+    }
+
+    /** A certificate and key given ({@code -Dembedded.deephaven.identity}), copied beside the server's data: the server
+     *  serves them on every start, restarts included, whatever becomes of the directory they came from. */
+    private static void given(Path identity, Path data) throws IOException {
+        for (String file : List.of("cert.pem", "key.pem")) {
+            Path from = identity.resolve(file);
+            if (!Files.isRegularFile(from)) {
+                throw new IOException("-Dembedded.deephaven.identity names " + identity + ", which holds no " + file);
+            }
+            Files.copy(from, data.resolve(file));
         }
     }
 

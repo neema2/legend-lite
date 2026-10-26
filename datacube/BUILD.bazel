@@ -2347,6 +2347,8 @@ js_binary(
     testonly = True,
     data = _DEEPHAVEN_TRADERS_DATA + [
         "demo/deephaven/market/serve.mjs",
+        # its certificate mkcert's, where mkcert is installed (the user, 2026-10-26)
+        "demo/deephaven/mkcert.mjs",
         "//tools/js:runfiles",
     ],
     entry_point = "demo/deephaven/market/serve.mjs",
@@ -2402,6 +2404,8 @@ js_binary(
     testonly = True,
     data = _DEEPHAVEN_DESK_DATA + [
         "demo/deephaven/market/desk.mjs",
+        # its certificate mkcert's, where mkcert is installed (the user, 2026-10-26)
+        "demo/deephaven/mkcert.mjs",
         # a node_test has it already
         "//tools/js:runfiles",
     ],
@@ -2586,6 +2590,8 @@ js_binary(
     testonly = True,
     data = _DEEPHAVEN_DEMO_DATA + [
         "demo/deephaven/serve.mjs",
+        # its certificate mkcert's, where mkcert is installed (the user, 2026-10-26)
+        "demo/deephaven/mkcert.mjs",
         "//tools/js:runfiles",
     ],
     entry_point = "demo/deephaven/serve.mjs",

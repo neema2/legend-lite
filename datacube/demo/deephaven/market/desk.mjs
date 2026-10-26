@@ -8,18 +8,21 @@
 // page of ten tabs, and Open…'s Examples list it first, above the chart pages. Every query is planned in the tab and
 // run on the Deephaven server, ticking. The world's size is the process's own environment (MARKET_NAMES, MARKET_QUOTES,
 // MARKET_TRADES, MARKET_FEED: market.groovy says each). Type `restart` and Enter to restart Deephaven; Ctrl-C stops.
-// The test server's certificate is its own: the browser asks once to accept it (open the Deephaven URL it prints
-// first, or start the browser with --ignore-certificate-errors).
+// Its certificate is mkcert's where mkcert is installed, so a browser on a machine that ran `mkcert -install` asks
+// nothing (../mkcert.mjs); without mkcert it is the test server's own, and the browser asks once to accept it (open the
+// Deephaven URL it prints first).
 
 import { createInterface } from 'node:readline';
+import { mkcertIdentity } from '../mkcert.mjs';
 import { startDeephaven } from '../site.mjs';
 import { serveDesk } from './desk-site.mjs';
 
-const deephaven = startDeephaven({ quiet: true, fixture: 'MARKET_FIXTURE' });
+const identity = mkcertIdentity();
+const deephaven = startDeephaven({ quiet: true, fixture: 'MARKET_FIXTURE', args: identity.args });
 const config = await deephaven.next('on starting');
 const port = Number(process.argv.find((a) => a.startsWith('--port='))?.slice(7) ?? 0);
 const site = await serveDesk(config, port);
-console.log(`\nDeephaven: ${config.url} (its certificate is the test server's own: accept it once)`);
+console.log(`\nDeephaven: ${config.url} ${identity.said}`);
 console.log(`The trading desk, in DataCube: ${site.desk}`);
 console.log(`DataCube itself (the desk under Open… ▸ Examples): ${site.url}/demo/index.html\n`);
 console.log('Type restart and Enter to restart Deephaven; Ctrl-C to stop.');
