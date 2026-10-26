@@ -134,7 +134,7 @@ PLANNING = [
            (SELECT MAX(t.priority) FROM support_tickets t WHERE t.order_id = o.id) AS top_priority
          FROM orders o
          WHERE EXISTS (SELECT 1 FROM support_tickets t WHERE t.order_id = o.id)
-           AND (o.ship_date IS NULL OR o.ship_date > CAST(o.order_ts AS DATE))
+           AND o.status IN ('pending', 'shipped')
          ORDER BY days_waiting DESC, o.id"""),
 ]
 
