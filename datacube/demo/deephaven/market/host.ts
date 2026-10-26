@@ -61,6 +61,21 @@ export async function openMarket(config: MarketConfig, planner: LitePlanner): Pr
   }
   await holding;
   addEventListener('pagehide', () => { engine.close().catch(() => { /* the page is gone */ }); });
+  // For the browser harness ONLY (test/deephaven/desk.mjs, beside the app's own `__dataPage`): the market's counts and a
+  // chart as drawn -- what a check cannot read off the page (a chart is a canvas). Not product code.
+  (window as unknown as { __market?: unknown }).__market = {
+    counts: () => engine.counts,
+    chartNow: async (tile: string) => {
+      const el = document.querySelector<HTMLElement>(`[data-tile="${tile}"] .dc-chartpanel-chart`);
+      const chart = el ? (await import('echarts/core')).getInstanceByDom(el) : undefined;
+      const option = chart?.getOption() as { dataZoom?: { startValue?: number; endValue?: number }[]; series?: { data?: unknown[] }[] } | undefined;
+      if (option === undefined) return null;
+      const zoom = option.dataZoom?.[0];
+      const data = option.series?.[0]?.data ?? [];
+      const last = data[data.length - 1];
+      return { zoom: zoom ? { startValue: zoom.startValue, endValue: zoom.endValue } : null, last: Array.isArray(last) ? last : null };
+    },
+  };
   // each source's base on the server, in a model of its own: the page's module holds the trading model once
   const bases = new ServerBases(market, engine, {
     model, connection: 'market::Live', stores: ['store::DB'], connectionOf: MARKET_CONNECTION(host, port),
