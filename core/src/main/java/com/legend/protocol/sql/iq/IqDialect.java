@@ -6177,11 +6177,13 @@ public final class IqDialect implements InputDialect {
         // of a BIGINT's 18 digits, by long division (IqFunctions.longQuotient, as an AVG divides), each step within 38
         // digits: x * 10^s2 by |y| * 10^s2, a whole divisor; both refused at run time past the digits that leaves
         int wanted = Math.min(whole1, 18);
+        // (its rests of the larger scale: IqFunctions.longQuotient)
+        int restScale = Math.max(lt[1], rt[1]);
         int dividendScaled = Math.min(whole1 + rt[1], 38 - lt[1]);
-        int divisorScaled = Math.min(whole2 + rt[1], 37 - lt[1] - (s + 2) / 3);
+        int divisorScaled = Math.min(whole2 + rt[1], 37 - restScale - (s + 2) / 3);
         boolean longDivision = guardable && held < wanted && !placesRead.containsKey(b) && s >= lt[1] && s <= 37
                 && dividendScaled - rt[1] >= wanted && divisorScaled - rt[1] >= Math.min(whole2, 18)
-                && Math.min(38 - divisorScaled - lt[1] - 1, 13) >= 1;
+                && Math.min(38 - divisorScaled - restScale - 1, 13) >= 1;
         if (longDivision) {
             held = whole1;
         }
@@ -6218,7 +6220,7 @@ public final class IqDialect implements InputDialect {
                 ValueSpecification xs = AppliedFunction.infixRun("times", List.of(x, scale));
                 ValueSpecification ys = AppliedFunction.infixRun("times", List.of(SqlToPure.call("abs", y), scale));
                 ValueSpecification q = java.util.Objects.requireNonNull(IqFunctions.longQuotient(xs, lt[1],
-                        dividendScaled, ys, divisorScaled, s, pastLong));
+                        dividendScaled, ys, rt[1], divisorScaled, s, pastLong));
                 ValueSpecification signed = AppliedFunction.infixRun("times", List.of(q, ifThen(SqlToPure.call("lessThan",
                         y, new CInteger(0L)), new CDecimal(BigDecimal.ONE.negate()), new CDecimal(BigDecimal.ONE))));
                 ValueSpecification guarded = IqFunctions.refusedPast(SqlToPure.call("or", SqlToPure.call(
@@ -9356,6 +9358,9 @@ public final class IqDialect implements InputDialect {
      */
     @Override
     public @com.legend.base.Nullable Tx operator(SqlAst.Operator o, SqlToPure.At at) {
+        if (IqParser.patternTest(o)) {
+            return patternTest(o, at);
+        }
         String fn = switch (o.operator()) {
             case "&" -> "bitAnd";
             case "|" -> "bitOr";
@@ -9410,6 +9415,42 @@ public final class IqDialect implements InputDialect {
         return checkedInteger(o, o.operator(), result, result.min(), result.max(), operands, types,
                 constants(nodes, operands), false, v -> v.size() == 1 ? SqlToPure.call(fn, v.get(0))
                         : SqlToPure.call(fn, v.get(0), v.get(1)));
+    }
+
+    /**
+     * {@code x REGEXP p} (the IQ scale program, 2026-10-26, measured on IQ 17.1 over a VARCHAR
+     * and a CHAR(5)): REGEXP matches the whole of x ('Hello' REGEXP 'h.*' is false, 'x  ' REGEXP '[a-z]+' false), with
+     * case, groups and alternation ('Hello' REGEXP 'H(ello|i)'), [a-z] by character ('Résumé' REGEXP '[a-z]+' false), a
+     * CHAR(n)'s value blank padded ('ab   ' REGEXP 'ab *'; the value lite reads there, D-S1); a NULL either side is
+     * unknown. Read for a constant pattern every database means alike as a whole-string match
+     * ({@link IqFunctions#wholePattern}), its {@code .} matching a line break as REGEXP_SUBSTR's does; refused by name
+     * otherwise: a POSIX class (IQ's [[:upper:]] matches É), a backslash class, a case-insensitive database.
+     */
+    private Tx patternTest(SqlAst.Operator o, SqlToPure.At at) {
+        SqlAst.Expr operandNode = java.util.Objects.requireNonNull(o.left());
+        Tx unknown = Tx.condition(new CBoolean(false), new CBoolean(false), true);
+        if (operandNode instanceof SqlAst.NullLit || o.right() instanceof SqlAst.NullLit) {
+            return unknown;
+        }
+        if (!settings.caseSensitive()) {
+            throw SqlTranslationException.unsupported("REGEXP in a case-insensitive database is not supported yet",
+                    o.pos());
+        }
+        if (!(o.right() instanceof SqlAst.StringLit lit)) {
+            throw SqlTranslationException.unsupported("REGEXP with a pattern that is no constant is not supported yet",
+                    o.right().pos());
+        }
+        String pattern = IqFunctions.wholePattern(lit.value(), "REGEXP", lit.pos());
+        Tx operand = at.tx(operandNode);
+        if (operand.kind() == Kind.NULL) {
+            return unknown;
+        }
+        if (operand.kind() != Kind.STRING) {
+            throw SqlTranslationException.unsupported("REGEXP over " + kindName(operand.kind()) + " is not supported"
+                    + " yet: IQ matches its text, written by its own format", operandNode.pos());
+        }
+        return bounded(SqlToPure.strictTest(List.of(operand), v -> SqlToPure.call("matches", v.get(0),
+                new CString("(?s)" + pattern))), o);
     }
 
     /** The integer types a bitwise operator reads, the narrowest first. */

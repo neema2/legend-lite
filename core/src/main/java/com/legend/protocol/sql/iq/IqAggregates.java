@@ -1918,7 +1918,7 @@ final class IqAggregates {
             int held = 38 - ps[1];
             if (held > sumWhole && (IqFunctions.truncatedFits(sumScale, held, scale) || IqFunctions.longQuotient(
                     new CDecimal(java.math.BigDecimal.ONE), sumScale, held, new CDecimal(java.math.BigDecimal.ONE),
-                    COUNT_DIGITS, scale, "") != null)) {
+                    0, COUNT_DIGITS, scale, "") != null)) {
                 sumWhole = held;
             }
             // IQ island, 2026-10-17: past 38 digits IQ's type holds what lite's 38 do (longQuotient refuses at run time
@@ -1936,7 +1936,7 @@ final class IqAggregates {
         String past = IqDialect.REFUSED_AT_RUN_TIME + "an AVG of more than " + (38 - scale) + " digits before its point"
                 + " is not supported: its " + spelling + " needs more than the 38 digits lite's decimals hold";
         if (chunked && IqFunctions.longQuotient(new CDecimal(java.math.BigDecimal.ONE), sumScale, sumWhole,
-                new CDecimal(java.math.BigDecimal.ONE), COUNT_DIGITS, scale, past) == null) {
+                new CDecimal(java.math.BigDecimal.ONE), 0, COUNT_DIGITS, scale, past) == null) {
             throw SqlTranslationException.unsupported("AVG of " + java.util.Objects.requireNonNull(type).spelling()
                     + " under IQ's engine needs a step"
                     + " of more than the 38 digits lite's decimals hold", f.pos());
@@ -1955,7 +1955,7 @@ final class IqAggregates {
         int whole1 = sumWhole;
         Tx quotient = SqlToPure.strict(Kind.DECIMAL, List.of(total, n), v -> chunked
                 ? java.util.Objects.requireNonNull(IqFunctions.longQuotient(IqDialect.wide(v.get(0)), s1, whole1,
-                        SqlToPure.call("toDecimal", v.get(1)), COUNT_DIGITS, scale, past))
+                        SqlToPure.call("toDecimal", v.get(1)), 0, COUNT_DIGITS, scale, past))
                 : IqFunctions.truncatedQuotient(IqDialect.wide(v.get(0)), s1, whole1, SqlToPure.call("toDecimal",
                         v.get(1)), scale));
         return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(quotient.vs()), null, null),

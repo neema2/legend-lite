@@ -1059,7 +1059,7 @@ final class IqWindows {
         CDecimal one1 = new CDecimal(java.math.BigDecimal.ONE);
         int whole = held > typed && (IqFunctions.cutQuotient(one1, s1, held, one1, 19, scale) != null
                 || IqFunctions.truncatedFits(s1, held, scale)
-                || IqFunctions.longQuotient(one1, s1, held, one1, 19, scale, "") != null) ? held : typed;
+                || IqFunctions.longQuotient(one1, s1, held, one1, 0, 19, scale, "") != null) ? held : typed;
         String total = at.fresh();
         String count = at.fresh();
         Tx t = Tx.value(at.column(total), Kind.DECIMAL, true);
@@ -1076,7 +1076,7 @@ final class IqWindows {
                 return one;
             }
             return IqFunctions.truncatedFits(s1, whole, scale) ? IqFunctions.truncatedQuotient(x, s1, whole, y, scale)
-                    : IqFunctions.longQuotient(x, s1, whole, y, 19, scale, past);
+                    : IqFunctions.longQuotient(x, s1, whole, y, 0, 19, scale, past);
         };
         if (divided.apply(at.column(total), at.column(count)) == null) {
             throw SqlTranslationException.unsupported("AVG over a window needs a step of more than the 38 digits"

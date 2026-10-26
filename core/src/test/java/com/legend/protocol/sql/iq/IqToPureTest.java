@@ -469,6 +469,49 @@ class IqToPureTest {
                 COLUMNS);
     }
 
+    /** The IQ scale program, 2026-10-26 (the TPC-H lane's ratios of two totals, refused past the size bound at 41,345
+     *  to 138,588 nodes): a quotient by long division grows with its chunks, not by a factor each. */
+    @Test
+    void aRatioOfTwoTotalsByLongDivisionStaysSmall() {
+        IqSettings iq17 = IqProfile.IQ17_DEFAULT.settings();
+        String g = "WITH g AS (SELECT i, SUM(nm * (1 - nm)) AS r, SUM(nm * sm) AS c FROM " + T + " GROUP BY i) ";
+        String bare = pure(g + "SELECT i, r / c AS q FROM g", iq17, NUMBERS);
+        String wrapped = pure(g + "SELECT i, COALESCE(r / NULLIF(c, 0), 0) AS q FROM g", iq17, NUMBERS);
+        assertTrue(bare.contains("or whose divisor more than") && bare.contains("rem("), bare);
+        assertTrue(bare.length() < 40_000 && wrapped.length() < 80_000, bare.length() + " " + wrapped.length());
+    }
+
+    /** The IQ scale program, 2026-10-26 (measured on IQ 17.1): REGEXP matches the whole string, with case, groups and
+     *  alternation, a CHAR(n) blank padded; refused by name past the patterns every database means alike. */
+    @Test
+    void regexpMatchesTheWholeStringOfASafePattern() {
+        IqSettings iq17 = IqProfile.IQ17_DEFAULT.settings();
+        String where = pure("SELECT id FROM " + T + " WHERE vc REGEXP 'H(ello|i)'", iq17);
+        assertTrue(where.contains("matches('(?s)H(ello|i)')"), where);
+        String not = pure("SELECT id FROM " + T + " WHERE vc NOT REGEXP '[a-z]+'", iq17);
+        assertTrue(not.contains("matches('(?s)[a-z]+')") && not.contains("isNotEmpty"), not);
+        // a CHAR(5)'s padding is part of the matched string: no trim before it
+        String ch = pure("SELECT CASE WHEN ch REGEXP 'ab *' THEN 1 ELSE 0 END AS m FROM " + T, iq17, WITH_CHAR);
+        assertTrue(ch.contains("matches('(?s)ab *')") && !ch.contains("regexpReplace(' +$'"), ch);
+        // a NULL either side is unknown
+        assertFalse(pure("SELECT id FROM " + T + " WHERE vc REGEXP NULL", iq17).contains("matches"));
+        for (String[] r : new String[][] {
+                {"vc REGEXP '[[:upper:]].*'", "POSIX class"},
+                {"vc REGEXP '\\d+'", "backslash class"},
+                {"vc REGEXP 'a(?:b)'", "extension"},
+                {"vc REGEXP 'a|'", "empty group or alternative"},
+                {"vc REGEXP '[é]'", "past ASCII"},
+                {"vc REGEXP 'a{300}'", "count from 0 to 255"},
+                {"vc REGEXP 'a{,3}'", "count from 0 to 255"},
+                {"vc REGEXP 'a*?'", "lazy"},
+                {"vc REGEXP 'a^b'", "anchor inside"},
+                {"vc REGEXP vc", "no constant"},
+                {"id REGEXP '1+'", "IQ matches its text"}}) {
+            SqlTranslationException e = refusal("SELECT id FROM " + T + " WHERE " + r[0], iq17, COLUMNS);
+            assertTrue(e.getMessage().contains(r[1]), r[0] + ": " + e.getMessage());
+        }
+    }
+
     @Test
     void bitwiseOperatorsBindTighterThanArithmeticAndTypeAsTheLargerOperand() {
         // the IQ scale program, 2026-10-26 (the research's GRAMMAR E6-E8, measured on SQL Anywhere 17): & | ^ one level,

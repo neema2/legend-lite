@@ -220,8 +220,10 @@
 # 1,065 (REFUSED 741 -> 655); the accept-rejected list unchanged.
 # The IQ scale program, 2026-10-26: the bitwise operators & | ^ ~ read (were refused by name): accept PARSED 3,403 ->
 # 3,437, reject REJECTED 1,065 -> 1,066 (a condition as an operand, (1 = 1) & (2 = 2), IQ's -131).
-accept	parsed	3437
-accept	refused	1512
+# The IQ scale program, 2026-10-26: x [NOT] REGEXP p reads (was refused by name): accept PARSED 3,437 -> 3,523
+# (REFUSED 1,512 -> 1,426); SIMILAR TO stays refused, so its three reject cases stay unparsed.
+accept	parsed	3523
+accept	refused	1426
 accept-with-option	refused	90
 accept-with-option	rejected	1
 flag	parsed	86

@@ -2844,32 +2844,45 @@ final class IqFunctions {
      * IQ island, 2026-10-17 (the TPC-H and TPC-DS corpus lanes' 900 AVGs of a NUMERIC whose type IQ's engine makes
      * wider than 38 digits, NUMERIC(p+22, s+21)): {@code x / y} cut toward zero at scale {@code s} by long division, so
      * that no step needs more than 38 digits -- the whole quotient of |x| by y ({@link #whole}), then the places in
-     * chunks of at most k digits, each the whole quotient of the rest times 10^k -- with x's sign. x is a decimal of
-     * scale {@code s1} with at most {@code whole1} digits before its point, y a whole decimal above 0 of at most
-     * {@code wholeY}. A quotient of 38 - s digits or more before its point is refused at run time ({@code refusal}):
-     * lite's decimals hold no more, where IQ's type does. Null where a step would still need more than 38 digits.
+     * chunks of at most k digits -- with x's sign. x is a decimal of scale {@code s1} with at most {@code whole1}
+     * digits before its point, y a whole decimal above 0 of scale {@code sy} with at most {@code wholeY}. A quotient
+     * of 38 - s digits or more before its point is refused at run time ({@code refusal}): lite's decimals hold no
+     * more, where IQ's type does. Null where a step would still need more than 38 digits.
+     * <p>
+     * The IQ scale program, 2026-10-26 (the TPC-H lane's ratios of two totals, 41,345 to 138,588 nodes): each chunk's
+     * rest is the remainder of the one before it times 10^k by y (both databases' remainder of two decimals of one
+     * scale is exact), its digits that rest's quotient less its remainder by y, a whole number below 10^k that a
+     * double's estimate finds to within far less than a half -- so each chunk reads the rest before it twice, not
+     * whole()'s estimate and correction each time over: the expression grows with the chunks, not by a factor each.
      */
     static @com.legend.base.Nullable ValueSpecification longQuotient(ValueSpecification x, int s1, int whole1,
-            ValueSpecification y, int wholeY, int s, String refusal) {
-        // a chunk of at most 13 digits takes whole() one estimate: fewer repeats of the rest (2026-10-17)
-        int k = Math.min(38 - wholeY - s1 - 1, 13);
-        // each chunk reads the rest the one before it leaves, so the expression grows with their count: past three
-        // (a quotient of many places over a dividend of many, an AVG of an AVG) the plan is refused by name
+            ValueSpecification y, int sy, int wholeY, int s, String refusal) {
+        // the rests are of the larger scale, so that each remainder is of two decimals of one scale
+        int m = Math.max(s1, sy);
+        // a chunk of at most 13 digits, a quotient a double's estimate finds exactly (2026-10-17)
+        int k = Math.min(38 - wholeY - m - 1, 13);
+        // past three chunks (a quotient of many places over a dividend of many, an AVG of an AVG) the plan is refused
+        // by name
         if (k < 1 || s < s1 || s > 37 || whole1 + s1 > 38 || (s + k - 1) / k > LONG_QUOTIENT_CHUNKS) {
             return null;
         }
         ValueSpecification ax = SqlToPure.call("abs", x);
         ValueSpecification q0 = whole(ax, y, pow10(whole1));
         ValueSpecification rest = AppliedFunction.infixRun("minus", List.of(ax, times(q0, y)));
+        // (y at that scale whatever its type: a count's is an integer's)
+        ValueSpecification divisor = atScale(y, m);
         ValueSpecification result = q0;
         int done = 0;
         while (done < s) {
             int step = Math.min(k, s - done);
             ValueSpecification a = times(rest, new CDecimal(pow10(step)));
-            ValueSpecification q = whole(a, y, pow10(step));
+            ValueSpecification left = SqlToPure.call("rem", a, divisor);
+            ValueSpecification q = SqlToPure.call("toDecimal", SqlToPure.call("floor", AppliedFunction.infixRun("plus",
+                    List.of(SqlToPure.call("divide", AppliedFunction.infixRun("minus", List.of(a, left)), y),
+                            new CFloat(0.5)))));
             done += step;
             result = AppliedFunction.infixRun("plus", List.of(result, times(q, new CDecimal(pow10(-done)))));
-            rest = AppliedFunction.infixRun("minus", List.of(a, times(q, y)));
+            rest = left;
         }
         ValueSpecification signed = times(result, ifThen(lt(x, integer(0)), new CDecimal(BigDecimal.ONE.negate()),
                 new CDecimal(BigDecimal.ONE)));
@@ -3404,6 +3417,121 @@ final class IqFunctions {
         }
         return p;
     }
+
+    /**
+     * The IQ scale program, 2026-10-26: the REGEXP pattern {@code p}, a whole-string match ({@link IqDialect}'s REGEXP),
+     * as RE2, Postgres and Snowflake read it alike, for the subset {@link #simplePattern} reads with groups and
+     * alternation too -- the whole string matches or not whichever alternative a search would prefer -- and ASCII
+     * characters alone in a bracket class (IQ's matching of others is not read); refused by name otherwise. A group
+     * opens no extension ({@code (?}), no group or alternative is empty, and a count is from 0 to 255 (Postgres's most).
+     */
+    static String wholePattern(String p, String name, SqlAst.Pos pos) {
+        int[] at = {0};
+        int n = p.length();
+        if (n > 0 && p.charAt(0) == '^') {
+            at[0]++;
+        }
+        int end = n > at[0] && p.charAt(n - 1) == '$' && (n < 2 || p.charAt(n - 2) != '\\') ? n - 1 : n;
+        alternatives(p, at, end, name, pos);
+        if (at[0] != end) {
+            throw refusedPattern(name, pos, "'" + p.charAt(at[0]) + "' where no atom starts (an unopened group, a"
+                    + " quantifier with nothing before it, or an anchor inside)");
+        }
+        return p;
+    }
+
+    /** {@link #wholePattern}'s alternatives from {@code at[0]}, to a {@code )} or {@code end}. */
+    private static void alternatives(String p, int[] at, int end, String name, SqlAst.Pos pos) {
+        while (true) {
+            int start = at[0];
+            sequence(p, at, end, name, pos);
+            if (at[0] == start) {
+                throw refusedPattern(name, pos, "an empty group or alternative");
+            }
+            if (at[0] < end && p.charAt(at[0]) == '|') {
+                at[0]++;
+                continue;
+            }
+            return;
+        }
+    }
+
+    /** {@link #wholePattern}'s atoms, each with a greedy quantifier or none, from {@code at[0]}, to a {@code |}, a
+     *  {@code )} or {@code end}. */
+    private static void sequence(String p, int[] at, int end, String name, SqlAst.Pos pos) {
+        String meta = ".[]()*+?{}|^$\\";
+        while (at[0] < end) {
+            int i = at[0];
+            char c = p.charAt(i);
+            if (c == '|' || c == ')') {
+                return;
+            }
+            if (c == '\\') {
+                if (i + 1 >= end || meta.indexOf(p.charAt(i + 1)) < 0 && p.charAt(i + 1) != '-'
+                        && p.charAt(i + 1) != '/') {
+                    throw refusedPattern(name, pos, "a backslash class or escape (IQ's classes are Unicode's)");
+                }
+                i += 2;
+            } else if (c == '[') {
+                int j = i + 1;
+                if (j < end && p.charAt(j) == '^') {
+                    j++;
+                }
+                if (j >= end || p.charAt(j) == ']') {
+                    throw refusedPattern(name, pos, "an empty class or one that starts with ']'");
+                }
+                while (j < end && p.charAt(j) != ']') {
+                    char k = p.charAt(j);
+                    if (k == '[' || k == '\\') {
+                        throw refusedPattern(name, pos, "a POSIX class or an escape in a bracket class (IQ's"
+                                + " [[:upper:]] matches É)");
+                    }
+                    if (k > 127) {
+                        throw refusedPattern(name, pos, "a character past ASCII in a bracket class");
+                    }
+                    j++;
+                }
+                if (j >= end) {
+                    throw refusedPattern(name, pos, "a class without its ']' (IQ's error -1135)");
+                }
+                i = j + 1;
+            } else if (c == '(') {
+                if (i + 1 < end && p.charAt(i + 1) == '?') {
+                    throw refusedPattern(name, pos, "a group's extension '(?'");
+                }
+                at[0] = i + 1;
+                alternatives(p, at, end, name, pos);
+                if (at[0] >= end || p.charAt(at[0]) != ')') {
+                    throw refusedPattern(name, pos, "a group without its ')'");
+                }
+                i = at[0] + 1;
+            } else if (meta.indexOf(c) >= 0 && c != '.') {
+                return;
+            } else {
+                i++;
+            }
+            // its quantifier, greedy
+            if (i < end && (p.charAt(i) == '*' || p.charAt(i) == '+' || p.charAt(i) == '?')) {
+                i++;
+            } else if (i < end && p.charAt(i) == '{') {
+                java.util.regex.Matcher m = COUNT.matcher(p).region(i, end);
+                if (!m.lookingAt() || Integer.parseInt(m.group(1)) > 255 || m.group(2) != null
+                        && (Integer.parseInt(m.group(2)) > 255 || Integer.parseInt(m.group(2))
+                        < Integer.parseInt(m.group(1)))) {
+                    throw refusedPattern(name, pos, "a brace that is no count from 0 to 255");
+                }
+                i = m.end();
+            }
+            if (i < end && (p.charAt(i) == '?' || p.charAt(i) == '+' || p.charAt(i) == '*' || p.charAt(i) == '{')) {
+                throw refusedPattern(name, pos, "a lazy, possessive or doubled quantifier (IQ's error -1135)");
+            }
+            at[0] = i;
+        }
+    }
+
+    /** A count's {@code {n}}, {@code {n,}} or {@code {n,m}}, its digits ASCII. */
+    private static final java.util.regex.Pattern COUNT = java.util.regex.Pattern.compile(
+            "\\{([0-9]{1,3})(?:,([0-9]{1,3})?)?}");
 
     private static SqlTranslationException refusedPattern(String name, SqlAst.Pos pos, String what) {
         return SqlTranslationException.unsupported(name + " with " + what + " in its pattern is not supported", pos);

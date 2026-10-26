@@ -1915,11 +1915,41 @@ public final class IqParser {
             expectOp(")");
             return new SqlAst.InList(left, values, negated, predicate.pos());
         }
-        if (predicate.isWord("similar") || predicate.isWord("regexp") || predicate.is("contains")) {
+        if (predicate.isWord("regexp")) {
+            // the IQ scale program, 2026-10-26 (measured on IQ 17.1): x [NOT] REGEXP p, an Operator of its spelling
+            // (IqDialect#operator), NOT the negation of it
+            take();
+            if (negated) {
+                take();
+            }
+            value(left, REGEXP);
+            SqlAst.Expr pattern = concatenation();
+            value(pattern, REGEXP);
+            if (peek().is("escape")) {
+                throw SqlSyntaxException.unsupported("REGEXP with ESCAPE is not supported yet", peek().pos());
+            }
+            SqlAst.Expr test = new SqlAst.Operator(REGEXP, left, pattern, predicate.pos());
+            return negated ? new SqlAst.Unary(SqlAst.UnaryOp.NOT, test, t.pos()) : test;
+        }
+        if (predicate.isWord("similar")) {
+            // the IQ scale program, 2026-10-26 (measured on IQ 17.1): over IQ's tables, IQ's error -660 under its engine
+            // ("Query Decomposition: Unknown Node Type"); SQL Anywhere's own patterns are not read
+            throw SqlSyntaxException.unsupported("SIMILAR TO is not supported yet (over IQ's tables it is IQ's error"
+                    + " -660 under its engine)", predicate.pos());
+        }
+        if (predicate.is("contains")) {
             throw SqlSyntaxException.unsupported(predicate.text().toUpperCase(java.util.Locale.ROOT)
                     + " is not supported yet", predicate.pos());
         }
         return null;
+    }
+
+    /** The spelling of the {@link SqlAst.Operator} that is a pattern condition ({@link #patternTest}). */
+    static final String REGEXP = "REGEXP";
+
+    /** Whether {@code o} is {@code x REGEXP p}: a condition, not a value. */
+    static boolean patternTest(SqlAst.Operator o) {
+        return o.operator().equals(REGEXP);
     }
 
     private static SqlAst.BinaryOp comparison(String op) {
@@ -3331,7 +3361,7 @@ public final class IqParser {
             case SqlAst.InSubquery n -> true;
             case SqlAst.Quantified n -> true;
             // IQ island, 2026-10-15 (checklist 0.6): a T-SQL outer join's predicate (a bitwise operator is a value)
-            case SqlAst.Operator o -> tsqlOuterJoin(o);
+            case SqlAst.Operator o -> tsqlOuterJoin(o) || patternTest(o);
             default -> false;
         };
     }

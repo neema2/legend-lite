@@ -852,3 +852,34 @@ says so.
     30 digits or a divisor of 19 there. A tried alternative -- such a quotient shown at fewer places -- turned twelve
     PASSing ratios of counts (small dividends at IQ's scale) to FAIL, and was dropped. Checked against the exact
     quotient of the reports' data (Electronics' 5456107.5826089044167015633).
+  - **The long division grows with its chunks** (the Mac's re-judge at 29eb033b: of tpch_iq's 11 ratios 2 PASS, 2
+    PLACES -- lite's scale 27 where IQ's row-typed sums gave 24, the digits alike -- and 7 refused past the size bound
+    at 38,696 to 138,588 nodes, the bare `total_revenue / c` alone 41,345): each chunk's quotient read the rest before
+    it through whole()'s estimate and correction, and the next rest that quotient again, so each chunk multiplied the
+    expression. Now each chunk's rest is the remainder of the rest before it times 10^k by the divisor (both
+    databases' remainder of two decimals of one scale is exact; the rests are of the larger scale, the divisor
+    padded to it), its digits that value less its remainder by the divisor, a whole number below 10^13 that a
+    double's estimate finds to within far less than a half: linear in the chunks. The AVGs' long division is the
+    same function. Checked exact against Python's decimals on dividends of 14 digits and divisors of 16, negative
+    either side, quotients from 1e-18 to 8e8 (the 29 places of NUMERIC(60,29)); `COALESCE(r / NULLIF(c, 0), 0)` over
+    two such sums now translates.
+  - **REGEXP** (the Mac's probes on IQ 17.1 over a VARCHAR and a CHAR(5)): `x [NOT] REGEXP p` matches the whole
+    string ('Hello' REGEXP 'h.*' false, 'x  ' REGEXP '[a-z]+' false), with case, groups and alternation ('H(ello|i)'),
+    [a-z] by character ('Résumé' not in it), a CHAR(n) blank padded ('ab   ' REGEXP 'ab *'); [[:upper:]] matches É.
+    Read for a constant pattern every database means alike as a whole-string match (IqFunctions.wholePattern:
+    REGEXP_SUBSTR's atoms with groups and alternation -- a whole string matches or not whichever alternative a search
+    prefers --, ASCII alone in a bracket class, counts to 255), Pure's matches with (?s); refused by name: a POSIX
+    or backslash class, a group's (?, an empty group or alternative, a case-insensitive database, a pattern no
+    constant, a value no string. SIMILAR TO over IQ's tables is IQ's -660 under its engine ("Query Decomposition:
+    Unknown Node Type"): still refused by the parser, naming it (parsing it would read three of SQL Anywhere's
+    rejected patterns the syntax ratchet pins). lite/regexp (12 cases) on claude/iq-snap to snap.
+  - **Reports part P** (19, `tools/iq-reports/queries_p.py`, claude/iq-reports 9f1a006a, to snap): data quality and
+    operations -- contact details validated by REGEXP, SKUs audited against their pattern, an order's flags packed
+    into a bitmask and read back with &, LEAD's gap to the next order, FIRST_VALUE and LAST_VALUE over a whole
+    partition, GREATER and LESSER of list and sold prices, masked e-mails by REPLICATE and STUFF, payments reconciled
+    against order totals, tickets against an SLA, overlapping promotions, gaps in the rate feed, the second-highest
+    salary by nested subqueries, days of cover to a run-out date. Lite answers all 19. Writing them found a report
+    pitfall IQ shares, not a lite bug: `SUM(value) AS value` beside a later `SUM(value)` reads the alias, a nested
+    aggregate, IQ's -156 (lite says so). LIST(DISTINCT x ORDER BY x) of a non-key stays refused: the platform's
+    group-lambda aggregate carries an ORDER BY or a DISTINCT, not both (GroupLambdaAggs), and Postgres orders a
+    DISTINCT aggregate only by its argument.

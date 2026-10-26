@@ -130,7 +130,10 @@ class IqParserTest {
                 // one-pass formulas (IqAggregates.statistic)
                 {"SELECT dba.f(id) FROM t", "owner-qualified"},
                 // IQ island, 2026-10-14 (M1a): LIKE, IN lists and the truth tests are read now; these are not
-                {"SELECT id FROM t WHERE vc SIMILAR TO 'a%'", "SIMILAR"},
+                // the IQ scale program, 2026-10-26: REGEXP reads now (below), an ESCAPE beside it not; SIMILAR TO over
+                // IQ's tables is IQ's -660
+                {"SELECT id FROM t WHERE vc SIMILAR TO 'a%'", "-660"},
+                {"SELECT id FROM t WHERE vc NOT REGEXP 'a.*' ESCAPE '!'", "REGEXP with ESCAPE"},
                 // IQ island, 2026-10-14 (M1b): IN (subquery) and scalar subqueries are read now (below); KEY JOIN
                 // stays refused (IQ island, 2026-10-16, checklist 2.16c: APPLY is read)
                 {"SELECT a.id FROM t a KEY JOIN u b", "KEY JOIN"},
@@ -160,6 +163,21 @@ class IqParserTest {
             assertTrue(e.unsupported(), r[0] + ": " + e.reason());
             assertTrue(e.reason().contains(r[1]), r[0] + ": " + e.reason());
         }
+    }
+
+    /** The IQ scale program, 2026-10-26: {@code x [NOT] REGEXP p} is a condition, an Operator of its spelling, NOT the
+     *  negation of one; a value where a condition is expected. */
+    @Test
+    void patternTestsAreConditions() {
+        SqlAst.Operator regexp = assertInstanceOf(SqlAst.Operator.class, select(
+                "SELECT id FROM t WHERE vc REGEXP 'a' || '.*'").where());
+        assertEquals("REGEXP", regexp.operator());
+        assertInstanceOf(SqlAst.Binary.class, regexp.right());
+        SqlAst.Unary not = assertInstanceOf(SqlAst.Unary.class, select("SELECT id FROM t WHERE vc NOT REGEXP 'a'")
+                .where());
+        assertEquals("REGEXP", assertInstanceOf(SqlAst.Operator.class, not.operand()).operator());
+        assertInstanceOf(SqlAst.Binary.class, select("SELECT id FROM t WHERE vc REGEXP 'a' AND id = 1").where());
+        assertTrue(error("SELECT vc REGEXP 'a' FROM t").reason().contains("SQLCODE -131"));
     }
 
     /** IQ island, 2026-10-15 (the corpus lane: 1,691 of SEDE's queries end so; measured on IQ 17.1): a statement's
