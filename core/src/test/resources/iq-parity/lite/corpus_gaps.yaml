@@ -1313,6 +1313,35 @@ tests:
   - id: format_in_an_unread_column_of_a_distinct_derived_table_is_iqs_error
     sql: "SELECT n FROM (SELECT DISTINCT id AS n, FORMAT(dt, 'yy-MM') AS f FROM t) d ORDER BY n"
     profile: iq17-default
+  # the IQ scale program, 2026-10-26 (the corpus lanes' 4 refusals): a column one more CTE passes along, by name or
+  # under a *, and no one reads after, is read nowhere; a CAST to TEXT there too
+  - id: concat_ws_passed_along_unread_is_dropped
+    sql: "WITH a AS (SELECT t.id, CONCAT_WS(',', t.vc, t.ch) AS full_address FROM t), b AS (SELECT id, full_address FROM a) SELECT id FROM b ORDER BY id"
+    profile: iq17-default
+  - id: concat_ws_passed_along_under_a_star_is_dropped
+    sql: "WITH a AS (SELECT t.id, CONCAT_WS(',', t.vc, t.ch) AS full_address FROM t), b AS (SELECT a.*, u.label FROM a JOIN u ON u.t_id = a.id) SELECT id, label FROM b ORDER BY id, label"
+    profile: iq17-default
+  - id: concat_ws_under_the_statements_star_is_iqs_error
+    sql: "WITH a AS (SELECT t.id, CONCAT_WS(',', t.vc, t.ch) AS full_address FROM t), b AS (SELECT a.*, u.label FROM a JOIN u ON u.t_id = a.id) SELECT * FROM b ORDER BY id"
+    profile: iq17-default
+  - id: concat_ws_passed_along_and_filtered_is_iqs_error
+    sql: "WITH a AS (SELECT t.id, CONCAT_WS(',', t.vc, t.ch) AS full_address FROM t), b AS (SELECT id, full_address FROM a) SELECT id FROM b WHERE full_address IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: concat_ws_named_by_a_read_items_alias_is_iqs_error
+    sql: "WITH a AS (SELECT t.id, CONCAT_WS(',', t.vc, t.ch) AS fa, UPPER(fa) AS up FROM t) SELECT id, up FROM a ORDER BY id"
+    profile: iq17-default
+  - id: cast_as_text_in_an_unread_column_is_dropped
+    sql: "WITH a AS (SELECT t.id, CASE WHEN t.dt IS NULL THEN 'Unknown' ELSE CAST(t.id AS TEXT) END AS year_string FROM t) SELECT id FROM a ORDER BY id"
+    profile: iq17-default
+  - id: cast_as_text_passed_along_unread_is_dropped
+    sql: "WITH a AS (SELECT t.id, 'Rank ' || CAST(t.id AS TEXT) AS status FROM t), b AS (SELECT id, status FROM a) SELECT id FROM b ORDER BY id"
+    profile: iq17-default
+  - id: cast_as_text_passed_under_a_star_unread_is_dropped
+    sql: "WITH a AS (SELECT t.id, CAST(t.vc AS TEXT) AS s FROM t), b AS (SELECT * FROM a) SELECT id FROM b ORDER BY id"
+    profile: iq17-default
+  - id: cast_as_text_read_is_iqs_error
+    sql: "WITH a AS (SELECT t.id, CAST(t.id AS TEXT) AS s FROM t) SELECT id, s FROM a ORDER BY id"
+    profile: iq17-default
 
   # ---- IQ carries a derived table's column's NULL rejection into it (SQLStorm's CTE whose LEFT JOIN's ON holds a
   # subquery, joined on its column; measured on IQ 17.1, 2026-10-17): the derived LEFT JOIN is inner there, before a
