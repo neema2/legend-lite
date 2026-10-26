@@ -496,7 +496,9 @@ class IqToPureTest {
                 NUMBERS);
         String round = pure("SELECT ROUND(AVG(sm) / 12.0 * 100, 1) AS a FROM " + T, IqProfile.IQ17_DEFAULT.settings(),
                 NUMBERS);
-        assertTrue(full.contains("dividend has more than 2 digits"), full);
+        // (bare, by long division, each step within 38 digits: its dividend and divisor guarded at run time far past 2)
+        assertTrue(!full.contains("dividend has more than 2 digits") && full.contains("or whose divisor more than"),
+                full);
         assertFalse(cast.contains("dividend has more than 2 digits"), cast);
         assertFalse(round.contains("dividend has more than 2 digits"), round);
         // and its value at IQ's scale again, so that the CAST's cut reads one scale (DuckDB's 100.00 % 0.1 is a double's)

@@ -6172,15 +6172,33 @@ public final class IqDialect implements InputDialect {
                 || computed < s && held + rt[1] + s > 38)) {
             held = guardable ? held - 1 : 0;
         }
+        // the IQ scale program, 2026-10-26 (the TPC-H lane's 11 ratios of two totals, a SUM's NUMERIC(36,4) by
+        // another, IQ's NUMERIC(60,26..29), refused past a dividend of 2 to 6 digits): where IQ's scale holds no dividend
+        // of a BIGINT's 18 digits, by long division (IqFunctions.longQuotient, as an AVG divides), each step within 38
+        // digits: x * 10^s2 by |y| * 10^s2, a whole divisor; both refused at run time past the digits that leaves
+        int wanted = Math.min(whole1, 18);
+        int dividendScaled = Math.min(whole1 + rt[1], 38 - lt[1]);
+        int divisorScaled = Math.min(whole2 + rt[1], 37 - lt[1] - (s + 2) / 3);
+        boolean longDivision = guardable && held < wanted && !placesRead.containsKey(b) && s >= lt[1] && s <= 37
+                && dividendScaled - rt[1] >= wanted && divisorScaled - rt[1] >= Math.min(whole2, 18)
+                && Math.min(38 - divisorScaled - lt[1] - 1, 13) >= 1;
+        if (longDivision) {
+            held = whole1;
+        }
         if (held == 0) {
             throw SqlTranslationException.unsupported("this / of a NUMERIC(" + lt[0] + "," + lt[1] + ") and a NUMERIC("
                     + rt[0] + "," + rt[1] + ") is a NUMERIC of scale " + s + ", a step of which needs more than the 38"
                     + " digits lite's decimals hold", b.pos());
         }
         int dividendDigits = held;
+        int at = computed;
         String past = held < whole1 ? REFUSED_AT_RUN_TIME + "a / whose dividend has more than " + held + " digits"
                 + " before its point is not supported: its NUMERIC(" + (whole1 + rt[1] + s + 1) + "," + s + ") needs"
                 + " more than the 38 digits lite's decimals hold" : null;
+        String pastLong = REFUSED_AT_RUN_TIME + "a / whose dividend has more than " + (dividendScaled - rt[1])
+                + " digits before its point, or whose divisor more than " + (divisorScaled - rt[1]) + ", is not supported:"
+                + " its NUMERIC(" + (whole1 + rt[1] + s + 1) + "," + s + ") needs more than the 38 digits lite's"
+                + " decimals hold";
         BigDecimal divisor = numberLiteral(b.right());
         boolean nullOnZero = !settings.divideByZeroError() && (divisor == null || divisor.signum() == 0)
                 && zeroGuarded(b, "/");
@@ -6195,8 +6213,24 @@ public final class IqDialect implements InputDialect {
             if (divisor != null && divisor.signum() == 0) {
                 return raiseDecimal();
             }
-            ValueSpecification value = IqFunctions.truncatedDivision(x, lt[1], dividendDigits, y, rt[1], computed);
-            if (computed < s) {
+            if (longDivision) {
+                ValueSpecification scale = new CDecimal(BigDecimal.TEN.pow(rt[1]));
+                ValueSpecification xs = AppliedFunction.infixRun("times", List.of(x, scale));
+                ValueSpecification ys = AppliedFunction.infixRun("times", List.of(SqlToPure.call("abs", y), scale));
+                ValueSpecification q = java.util.Objects.requireNonNull(IqFunctions.longQuotient(xs, lt[1],
+                        dividendScaled, ys, divisorScaled, s, pastLong));
+                ValueSpecification signed = AppliedFunction.infixRun("times", List.of(q, ifThen(SqlToPure.call("lessThan",
+                        y, new CInteger(0L)), new CDecimal(BigDecimal.ONE.negate()), new CDecimal(BigDecimal.ONE))));
+                ValueSpecification guarded = IqFunctions.refusedPast(SqlToPure.call("or", SqlToPure.call(
+                        "greaterThanEqual", SqlToPure.call("abs", xs), new CDecimal(BigDecimal.TEN.pow(dividendScaled))),
+                        SqlToPure.call("greaterThanEqual", ys, new CDecimal(BigDecimal.TEN.pow(divisorScaled)))), pastLong,
+                        signed, raiseDecimal());
+                ValueSpecification zero = SqlToPure.call("equal", new CInteger(0L), y);
+                return divisor != null ? guarded : nullOnZero ? ifThen(zero, SqlToPure.nullOf(Kind.DECIMAL).vs(),
+                        guarded) : raisedIf(zero, ZERO_DIVISOR, new CDecimal(BigDecimal.ZERO), guarded);
+            }
+            ValueSpecification value = IqFunctions.truncatedDivision(x, lt[1], dividendDigits, y, rt[1], at);
+            if (at < s) {
                 value = IqFunctions.atScale(value, s);
             }
             if (past != null) {
@@ -6209,6 +6243,32 @@ public final class IqDialect implements InputDialect {
         });
         return Tx.value(result.vs(), Kind.DECIMAL, result.nullable() || nullOnZero, numeric(whole1 + rt[1] + s + 1,
                 s));
+    }
+
+    /** Whether {@code b} is a value the statement only shows ({@link #shownValues}): an item itself, or a result of a CASE
+     *  that is one. */
+    private boolean shownQuotient(SqlAst.Binary b) {
+        for (SqlAst.Expr e : shownValues) {
+            if (resultOf(e, b)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean resultOf(SqlAst.Expr e, SqlAst.Expr b) {
+        if (e == b) {
+            return true;
+        }
+        if (e instanceof SqlAst.Case c) {
+            for (SqlAst.When w : c.whens()) {
+                if (resultOf(w.result(), b)) {
+                    return true;
+                }
+            }
+            return c.otherwise() != null && resultOf(java.util.Objects.requireNonNull(c.otherwise()), b);
+        }
+        return false;
     }
 
     /**

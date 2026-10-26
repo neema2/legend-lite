@@ -844,3 +844,11 @@ says so.
       TRUNCNUM reads is its exact quotient cut at the places read (was refused but as a shown item), a CAST's
       whatever SQL Anywhere would type its operands;
     - the determinism lint reads a plain SELECT over a grouped CTE as keyed by that CTE's GROUP BY keys.
+  - **A ratio of two totals by long division** (the TPC-H lane's 11 run-time refusals at 68caeac5: `total_revenue /
+    NULLIF(total_supplycost, 0)`, two SUMs IQ types NUMERIC(36,4), its quotient NUMERIC(60,26..29), whose steps at
+    that scale held a dividend of 2 to 6 digits): where IQ's scale holds no dividend of a BIGINT's 18 digits, the
+    quotient is divided as an AVG is (IqFunctions.longQuotient), x * 10^s2 by |y| * 10^s2 in chunks of at most 13
+    places, each step within 38 digits, exact at IQ's full scale; refused at run time only past a dividend of up to
+    30 digits or a divisor of 19 there. A tried alternative -- such a quotient shown at fewer places -- turned twelve
+    PASSing ratios of counts (small dividends at IQ's scale) to FAIL, and was dropped. Checked against the exact
+    quotient of the reports' data (Electronics' 5456107.5826089044167015633).
