@@ -207,7 +207,10 @@ headless `joinTogether`) -- and either way the series' one query is written by t
 planned and run where the grids' rows are (the host's plan-and-run). A source's tables are where its rows are now: a
 grid over a file reads its table; a snapped grid its copy (D3), on the tab and on Python's host alike -- its copy's
 table, held by the session (the review's P1, P3); a source anywhere else is refused for the combination
-in the join's words (`leafRefusal`) -- it is still plotted on its own, by its own grid's runner.
+in the join's words (`leafRefusal`) -- it is still plotted on its own, by its own grid's runner. The grids are opened
+together once a round of asking -- a fetch, or the window moved: every series and statistic of it -- and put away when
+it is done (`ui/timeseries-view.ts Opened`); a grid's view landing asks again, and opens them again (its tables may
+have moved: a snap, a rebuild). Statistics are asked only while the table or the legend shows them.
 
 ### 5.3 The tile's bounds and statistics
 

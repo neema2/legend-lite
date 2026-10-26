@@ -65,6 +65,17 @@ export interface TsTogether {
   dispose(): void;
 }
 
+/** The grids opened together in one round of asking (a fetch, the window moved: its series and their statistics), by
+ *  the cubes they are: each set opened once and put away when the round is done (the review's P9: opened again for
+ *  every query, the joint model written again each time). */
+type Opened = Map<string, Promise<TsTogether>>;
+
+/** A round's grids opened together, put away. One that could not be opened has nothing to put away: its refusal was
+ *  said by every query that asked for it (#run), so it is not said again here. */
+function putAway(opened: Opened): void {
+  for (const p of opened.values()) void p.then((t) => t.dispose(), () => undefined);
+}
+
 /** A series' answer as its query asked it, its dates and its values among its columns: else the series' failure, said on
  *  its line -- never drawn as no points (timeseries-option.ts tsLines reads them). */
 function answered(r: TsResult): TsResult {
@@ -245,6 +256,8 @@ export class TimeseriesView {
   /** What the database refused of each series' statistics, and of each source's dates (its range buttons' starts): said
    *  in the banner and on the line's row, never shown as figures missing (the review's P4: invariant 4). */
   #statsFailed = new Map<string, string>();
+  /** Whether the statistics were asked for the answers drawn: none while nothing shows them (#statistics). */
+  #statsAsked = false;
   #bounds = new Map<string, ResultTable>();
   #boundsFailed = new Map<string, string>();
   #lines: TsLine[] = [];
@@ -362,6 +375,8 @@ export class TimeseriesView {
       // has (D4) -- and the window moved, what reads its first date asked again, and the statistics
       void this.#draw();
       if (moved) void this.#windowed();
+      // the statistics shown again, asked if nothing showed them when the lines were
+      else if (!this.#statsAsked && (viewSetting(spec, 'stats') || viewSetting(spec, 'legend'))) void this.#statistics(this.#gen);
       else this.#paintStats();
     }
   }
@@ -387,7 +402,7 @@ export class TimeseriesView {
    * A series' query run where it runs (D2, D5): of one grid, by that grid's runner; of several, over one model of their
    * tables (the host's together).
    */
-  async #run(series: TsSeries, make: (inputs: TsInputs) => TsQuery, signal: AbortSignal): Promise<TsResult> {
+  async #run(series: TsSeries, make: (inputs: TsInputs) => TsQuery, signal: AbortSignal, opened: Opened): Promise<TsResult> {
     const spec = this.#spec;
     const aliases = seriesSources(spec, series);
     if (aliases.length === 0) throw new Error(`series ${series.id} reads no column of a grid`);
@@ -402,19 +417,26 @@ export class TimeseriesView {
     const grids = sources.map((s) => this.#host.grid(s.cube));
     const missing = sources.find((_, i) => grids[i] === undefined);
     if (missing) throw new Error(`source ${missing.alias}'s grid is not on the page`);
-    const together = await this.#host.together(sources.map((s) => s.cube));
-    try {
-      const inputs: TsInputs = new Map(sources.map((s, i) => {
-        const g = grids[i]!;
-        const relation = together.relations.get(s.cube);
-        if (!relation) throw new Error(`${s.alias} was not opened with the others`);
-        return [s.alias, { snapshot: { ...g.snapshot, source: { query: relation } }, filter: g.filter }] as const;
-      }));
-      const query = make(inputs);
-      return { query, table: await together.run(query.query) };
-    } finally {
-      together.dispose();
+    const together = await this.#together(opened, sources.map((s) => s.cube));
+    const inputs: TsInputs = new Map(sources.map((s, i) => {
+      const g = grids[i]!;
+      const relation = together.relations.get(s.cube);
+      if (!relation) throw new Error(`${s.alias} was not opened with the others`);
+      return [s.alias, { snapshot: { ...g.snapshot, source: { query: relation } }, filter: g.filter }] as const;
+    }));
+    const query = make(inputs);
+    return { query, table: await together.run(query.query) };
+  }
+
+  /** The grids of `cubes` opened together, once a round: by the set they are, whatever order a series reads them in. */
+  #together(opened: Opened, cubes: readonly string[]): Promise<TsTogether> {
+    const key = JSON.stringify([...cubes].sort());
+    let together = opened.get(key);
+    if (together === undefined) {
+      together = this.#host.together(cubes);
+      opened.set(key, together);
     }
+    return together;
   }
 
   /** The window shown: the person's zoom, else the range's -- a period back from the latest date any source has. */
@@ -445,8 +467,18 @@ export class TimeseriesView {
     return { ...(r.from !== undefined ? { from: r.from } : {}), ...(r.to !== undefined ? { to: r.to } : {}) };
   }
 
-  /** Every series asked again: the bounds, then the series, then the statistics. */
+  /** Every series asked again: the bounds, then the series, then the statistics -- the grids a combination reads opened
+   *  together once for all of them. */
   async #fetch(): Promise<void> {
+    const opened: Opened = new Map();
+    try {
+      await this.#fetchOver(opened);
+    } finally {
+      putAway(opened);
+    }
+  }
+
+  async #fetchOver(opened: Opened): Promise<void> {
     const gen = ++this.#gen;
     const spec = this.#spec;
     this.#asked = queryKey(spec);
@@ -483,7 +515,7 @@ export class TimeseriesView {
         return;
       }
       try {
-        results.set(s.id, answered(await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, readsAnchor(spec, s) && window.from ? { from: window.from } : {}), signal)));
+        results.set(s.id, answered(await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, readsAnchor(spec, s) && window.from ? { from: window.from } : {}), signal, opened)));
       } catch (e) {
         failed.set(s.id, e instanceof Error ? e.message : String(e));
       }
@@ -492,7 +524,7 @@ export class TimeseriesView {
     this.#results = results;
     this.#failed = failed;
     await this.#draw();
-    await this.#statistics(gen);
+    await this.#statistics(gen, opened);
     // busy until its statistics are answered too: a refused one is said by then (the second audit's G notes: a browser
     // check that waited for the drawing alone met none)
     if (gen === this.#gen && !this.#disposed) this.#canvas.removeAttribute('aria-busy');
@@ -500,6 +532,15 @@ export class TimeseriesView {
 
   /** The window moved (a zoom, a range): the series that read its first date asked again, and the statistics. */
   async #windowed(): Promise<void> {
+    const opened: Opened = new Map();
+    try {
+      await this.#windowedOver(opened);
+    } finally {
+      putAway(opened);
+    }
+  }
+
+  async #windowedOver(opened: Opened): Promise<void> {
     const gen = ++this.#gen;
     const spec = this.#spec;
     const window = this.#window();
@@ -508,7 +549,7 @@ export class TimeseriesView {
     if (anchored.length > 0) {
       const again = await Promise.all(anchored.map(async (s) => {
         try {
-          return [s.id, answered(await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, window.from ? { from: window.from } : {}), signal))] as const;
+          return [s.id, answered(await this.#run(s, (inputs) => seriesQuery(inputs, spec, s, window.from ? { from: window.from } : {}), signal, opened))] as const;
         } catch (e) {
           this.#failed.set(s.id, e instanceof Error ? e.message : String(e));
           return undefined;
@@ -520,11 +561,30 @@ export class TimeseriesView {
     } else {
       this.#paintLegend();
     }
-    await this.#statistics(gen);
+    await this.#statistics(gen, opened);
   }
 
-  /** Each line's statistics over the window shown (the database's), for the legend's change and the table. */
-  async #statistics(gen: number): Promise<void> {
+  /** Each line's statistics over the window shown (the database's), for the legend's change and the table -- none asked
+   *  while neither shows them (the review's follow-up: asked with Stats and the legend both off), asked when one does
+   *  (#apply). `opened`: the round's grids opened together, else its own. */
+  async #statistics(gen: number, opened?: Opened): Promise<void> {
+    if (!viewSetting(this.#spec, 'stats') && !viewSetting(this.#spec, 'legend')) {
+      this.#statsAsked = false;
+      this.#statRows = new Map();
+      this.#statsFailed = new Map();
+      this.#paintBanner();
+      return;
+    }
+    if (opened !== undefined) return this.#statisticsOver(gen, opened);
+    const own: Opened = new Map();
+    try {
+      await this.#statisticsOver(gen, own);
+    } finally {
+      putAway(own);
+    }
+  }
+
+  async #statisticsOver(gen: number, opened: Opened): Promise<void> {
     const spec = this.#spec;
     const window = this.#window();
     const signal = new AbortController().signal;
@@ -532,7 +592,7 @@ export class TimeseriesView {
     const failed = new Map<string, string>();
     await Promise.all(spec.series.filter((s) => this.#results.has(s.id) && !this.#results.get(s.id)!.query.band).map(async (s) => {
       try {
-        rows.set(s.id, (await this.#run(s, (inputs) => statsQuery(inputs, spec, s, window), signal)).table);
+        rows.set(s.id, (await this.#run(s, (inputs) => statsQuery(inputs, spec, s, window), signal, opened)).table);
       } catch (e) {
         // refused: said on its row and in the banner, never as figures missing
         failed.set(s.id, e instanceof Error ? e.message : String(e));
@@ -541,6 +601,7 @@ export class TimeseriesView {
     if (gen !== this.#gen || this.#disposed) return;
     this.#statRows = rows;
     this.#statsFailed = failed;
+    this.#statsAsked = true;
     this.#paintLegend();
     this.#paintStats();
     this.#paintBanner();

@@ -196,9 +196,7 @@ of its grids still on the board; the editor's selects sized as the toolbar's; th
   lines unevenly (Q12).
 - P (paths): `frame()` pivots and sorts in pandas, no value computed (P6); a date-time range start cut to its day and
   a Decimal read as a double for the legend, statistics and CSV (P7); split lines ordered on the client while the
-  database cuts them at 20 by its own order (P8); a combination's joint model written again on every query, and on
-  every view landing since P2 (P9); the statistics asked with Stats and the legend both off; the tab's snapped-copy
-  branch of a combination run by no test (its shared copy path is: `join-open.ts`).
+  database cuts them at 20 by its own order (P8); the tab's snapped-copy branch of a combination run by no test (its shared copy path is: `join-open.ts`).
 - A (one API, suspected): a cube the screen keeps already is not replaced when a later `setTimeseries` carries its
   `kept` document or copy; another editor's undo bringing back a cube this tab never held is refused ("maker is
   gone"); a detached chart shares both. Python's `frame()` defaults to the first series by a rule of its own; a
@@ -225,3 +223,9 @@ of its grids still on the board; the editor's selects sized as the toolbar's; th
 - N6, `($A + $B) / 2` no level: did not reproduce -- written against the rule before the second audit's B1
   (`ced3a738`: a level plus a number alone), which already made a basket of levels a level. Pinned now by its query:
   `timeseries-queries` N6 (rebased from its start, its volatility).
+- P9, a combination's joint model written again for every query: opened together once a round of asking (a fetch, the
+  window moved: its series and their statistics), by the set of cubes, and put away when the round is done; a view
+  landing still opens it once again (the tables may have moved: no model kept across rounds). Pinned:
+  `timeseries-view-dom` P9 (two series and their statistics, one opening; asked again, one more).
+- The statistics asked with Stats and the legend both off: none asked while nothing shows them, asked when one does.
+  Pinned: `timeseries-view-dom` (none asked; Stats on, each line's once).

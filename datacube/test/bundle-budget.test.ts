@@ -532,8 +532,13 @@ const CHART_BUDGET = 303_500;
  *  seriesNotes), the catalog's ramp and beta said where they differ, a tick never "-0"). Measured 35,705.
  *  36,000 -> 36,900 (2026-10-26, the tile in PR #73's design, the user's ask: its series editor and Settings a window
  *  beside it among the page's windows (ui/timeseries-view.ts #open over ui/window.ts, which the charts' chunk already
- *  brings), its Properties for its right-click -- the headroom ~2%, as the review's G8 asked). Measured 36,189. */
-const TIMESERIES_BUDGET = 36_900;
+ *  brings), its Properties for its right-click -- the headroom ~2%, as the review's G8 asked). Measured 36,189.
+ *  36,900 -> 37,800 (2026-10-26, the review's follow-ups, docs/TIMESERIES_REVIEW_2026_10_25.md §10: growth annualized
+ *  only over a year, and said (N3); a candle's series computed on their own dates, then each period's first, highest,
+ *  lowest and last (N4, timeseries-query.ts candle); a combination's grids opened together once a round of asking, and
+ *  no statistics asked while nothing shows them (ui/timeseries-view.ts Opened, #statistics) -- the headroom ~2%).
+ *  Measured 37,063. */
+const TIMESERIES_BUDGET = 37_800;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

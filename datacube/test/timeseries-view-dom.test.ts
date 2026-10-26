@@ -20,7 +20,7 @@ import type { MountedTimeseries } from '../src/timeseries-render.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { ingestFile } from '../src/upload.ts';
-import { TimeseriesView, type TsGrid } from '../src/ui/timeseries-view.ts';
+import { TimeseriesView, type TsGrid, type TsTogether } from '../src/ui/timeseries-view.ts';
 import { MARKET_SPECS } from '../src/examples/markets.ts';
 import { plannerFor } from './catalog-builder.ts';
 
@@ -34,6 +34,7 @@ const of = (symbol: string): { days: string[]; closes: number[] } => {
 
 let engine: DuckDbEngine;
 let grid: TsGrid;
+let plan: (query: Parameters<TsGrid['run']>[0]) => Promise<ResultTable>;
 let runs = 0;
 /** The database the grid reads, and its table: a test changes the rows under the grid's query. */
 let database: Awaited<ReturnType<typeof openDatabase>>;
@@ -47,6 +48,7 @@ before(async () => {
   const r = await ingestFile(engine, db.files, new File([CSV], 'sample-markets.csv'), writer);
   table = r.table;
   const planner = plannerFor(r.model, r.runtime);
+  plan = async (query) => engine.execute(await planner.plan(query), 0);
   const snapshot: CubeSnapshot = {
     source: { query: r.source }, columns: [...MARKET_SPECS], derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1,
   };
@@ -325,6 +327,79 @@ describe('a refusal said where it lands, never shown as something missing', () =
         'S&P 500: these dates span under a year, so its growth is not annualized: its % change is its growth.');
     } finally {
       plain.view.dispose();
+    }
+  });
+});
+
+// the review's follow-ups P9 and the statistics unseen (docs/TIMESERIES_REVIEW_2026_10_25.md §9): a combination's grids
+// opened together again for every query -- each series', each statistics' -- and the statistics asked with nothing
+// showing them
+describe('asking the database what is shown, once', () => {
+  /** A viewer over two grids of the same rows (two cubes), a combination's grids opened together counted. */
+  function pair(spec: TimeseriesSpec, asked: string[] = []): { view: TimeseriesView; root: HTMLElement; opens: () => number; disposed: () => number } {
+    let opens = 0;
+    let disposed = 0;
+    const counted = (g: TsGrid): TsGrid => ({ ...g, run: (query, snapshot, signal) => { asked.push(toJson(query)); return g.run(query, snapshot, signal); } });
+    const grids = new Map([['prices', counted(grid)], ['prices2', counted({ ...grid, cube: 'prices2', title: 'Prices again' })]]);
+    const dom = new JSDOM('<!doctype html><div id="t" style="height:600px"></div><div id="w"></div>');
+    const root = dom.window.document.getElementById('t') as unknown as HTMLElement;
+    const view = new TimeseriesView(root, {
+      grid: (cube) => grids.get(cube),
+      grids: () => [...grids.values()],
+      together: async (cubes): Promise<TsTogether> => {
+        opens += 1;
+        return {
+          relations: new Map(cubes.map((c) => [c, grids.get(c)!.snapshot.source.query] as const)),
+          run: (query) => { asked.push(toJson(query)); return plan(query); },
+          dispose: () => { disposed += 1; },
+        };
+      },
+      setSpec: () => {},
+      windowHost: dom.window.document.getElementById('w') as unknown as HTMLElement,
+      title: () => 'Markets',
+      mount: () => ({
+        show: () => {}, zoomTo: () => {}, zoomed: () => ({}), highlight: () => {}, height: () => 480, picture: () => null, pngUrl: () => null, dispose: () => {},
+      }),
+    }, spec);
+    return { view, root, opens: () => opens, disposed: () => disposed };
+  }
+
+  it('P9: a combination\'s grids opened together once a fetch -- its series and their statistics -- and put away', async () => {
+    const spec: TimeseriesSpec = {
+      sources: [{ alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }, { alias: 'qx', cube: 'prices2', date: 'date', key: 'symbol' }],
+      series: [
+        { id: 'A', expr: parseExpr('px:close[SPX] / qx:close[NDX]'), name: 'Ratio' },
+        { id: 'B', expr: parseExpr('px:close[SPX] + qx:close[NDX]'), name: 'Sum' },
+      ],
+      view: { stats: true },
+    };
+    const { view, root, opens, disposed } = pair(spec);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      assert.equal(opens(), 1, 'opened together once for both series and their statistics');
+      assert.equal(disposed(), 1, 'and put away once asked');
+      view.refresh(0);
+      await until(() => opens() === 2 && disposed() === 2, 'asked again: opened once more, as the grids are now');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('no statistics asked while neither the table nor the legend shows them; asked once one does', async () => {
+    const asked: string[] = [];
+    const spec: TimeseriesSpec = { ...SPEC, view: { stats: false, legend: false } };
+    const { view, root } = pair(spec, asked);
+    const stats = (): number => asked.filter((q) => q.includes('__ts_stat_')).length;
+    try {
+      await until(() => asked.some((q) => q.includes('__ts_value')) && root.getAttribute('aria-busy') === null
+        && !root.querySelector('[aria-busy="true"]'), 'its lines');
+      await new Promise((r) => setTimeout(r, 50));
+      assert.equal(stats(), 0, 'nothing shows them: none asked');
+      view.update({ ...SPEC, view: { stats: true, legend: false } });
+      await until(() => statRows(root).length === 2, 'its statistics, once shown');
+      assert.equal(stats(), 2, 'each line\'s, once');
+    } finally {
+      view.dispose();
     }
   });
 });
