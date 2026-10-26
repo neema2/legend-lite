@@ -1,0 +1,21 @@
+# The IQ scale program's realistic reports (2026-10-25): window_reports, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: order_value_moving_sum_over_id_range
+    sql: "WITH totals AS ( SELECT o.id, o.customer_id, SUM(oi.quantity * oi.unit_price) AS total FROM orders o JOIN order_items oi ON oi.order_id = o.id GROUP BY o.id, o.customer_id) SELECT id, total, SUM(total) OVER (ORDER BY id RANGE BETWEEN 4 PRECEDING AND CURRENT ROW) AS last_five_ids_total, COUNT(*) OVER (ORDER BY id RANGE BETWEEN 4 PRECEDING AND CURRENT ROW) AS orders_in_range FROM totals WHERE id <= 30 ORDER BY id"
+    profile: iq17-default
+  - id: previous_and_next_order_with_defaults
+    sql: "SELECT o.customer_id, o.id, CAST(o.order_ts AS DATE) AS ordered, LAG(o.id, 1, 0) OVER (PARTITION BY o.customer_id ORDER BY o.order_ts, o.id) AS previous_order, LEAD(o.id, 1, 0) OVER (PARTITION BY o.customer_id ORDER BY o.order_ts, o.id) AS next_order, LEAD(o.status, 1, 'none') OVER (PARTITION BY o.customer_id ORDER BY o.order_ts, o.id) AS next_status FROM orders o WHERE o.customer_id <= 6 ORDER BY o.customer_id, o.order_ts, o.id"
+    profile: iq17-default
+  - id: weekly_orders_weeks_starting_sunday
+    sql: "SELECT DATEADD(DAY, 1 - DOW(CAST(o.order_ts AS DATE)), CAST(o.order_ts AS DATE)) AS week_start, COUNT(*) AS orders, COUNT(DISTINCT o.customer_id) AS customers, SUM(CASE WHEN o.channel = 'web' THEN 1 ELSE 0 END) AS web_orders FROM orders o WHERE o.order_ts >= '2025-09-01' AND o.order_ts < '2025-11-01' GROUP BY DATEADD(DAY, 1 - DOW(CAST(o.order_ts AS DATE)), CAST(o.order_ts AS DATE)) ORDER BY 1"
+    profile: iq17-default
+  - id: first_touch_attribution
+    sql: "WITH touches AS ( SELECT w.customer_id, w.event_ts, CASE WHEN w.referrer IS NULL THEN 'direct' WHEN LOCATE(w.referrer, 'google') > 0 THEN 'search' WHEN LOCATE(w.referrer, 'facebook') > 0 THEN 'social' WHEN LOCATE(w.referrer, 'mail') > 0 THEN 'email' ELSE 'partner' END AS channel, FIRST_VALUE(CASE WHEN w.referrer IS NULL THEN 'direct' WHEN LOCATE(w.referrer, 'google') > 0 THEN 'search' WHEN LOCATE(w.referrer, 'facebook') > 0 THEN 'social' WHEN LOCATE(w.referrer, 'mail') > 0 THEN 'email' ELSE 'partner' END) OVER (PARTITION BY w.customer_id ORDER BY w.event_ts, w.id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS first_touch FROM web_events w WHERE w.customer_id IS NOT NULL) SELECT first_touch, COUNT(DISTINCT customer_id) AS customers, COUNT(*) AS events FROM touches GROUP BY first_touch ORDER BY customers DESC, first_touch"
+    profile: iq17-default
+  - id: active_days_running_count
+    sql: "WITH days AS ( SELECT DISTINCT w.customer_id, CAST(w.event_ts AS DATE) AS d FROM web_events w WHERE w.customer_id IS NOT NULL AND w.customer_id <= 8) SELECT customer_id, d, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY d) AS active_day_number, DATEDIFF(DAY, LAG(d) OVER (PARTITION BY customer_id ORDER BY d), d) AS days_since_last FROM days ORDER BY customer_id, d"
+    profile: iq17-default
+  - id: price_bands_against_category_average
+    sql: "SELECT p.category, p.id, p.name, p.unit_price, CAST(AVG(p.unit_price) OVER (PARTITION BY p.category) AS NUMERIC(10,2)) AS category_average, CAST(p.unit_price / AVG(p.unit_price) OVER (PARTITION BY p.category) AS NUMERIC(6,2)) AS price_index, CASE WHEN p.unit_price >= 1.5 * AVG(p.unit_price) OVER (PARTITION BY p.category) THEN 'premium' WHEN p.unit_price <= 0.5 * AVG(p.unit_price) OVER (PARTITION BY p.category) THEN 'budget' ELSE 'core' END AS band FROM products p ORDER BY p.category, p.unit_price DESC, p.id"
+    profile: iq17-default

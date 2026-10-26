@@ -1,0 +1,18 @@
+# The IQ scale program's realistic reports (2026-10-25): set_reports, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: customers_buying_in_both_years
+    sql: "SELECT customer_id FROM orders WHERE YEAR(order_ts) = 2024 AND status <> 'cancelled' INTERSECT SELECT customer_id FROM orders WHERE YEAR(order_ts) = 2025 AND status <> 'cancelled' ORDER BY 1"
+    profile: iq17-default
+  - id: customers_lost_after_2024
+    sql: "SELECT c.id, TRIM(c.last_name) AS last_name FROM customers c WHERE c.id IN (SELECT customer_id FROM orders WHERE YEAR(order_ts) = 2024 EXCEPT SELECT customer_id FROM orders WHERE YEAR(order_ts) = 2025) ORDER BY c.id"
+    profile: iq17-default
+  - id: revenue_rollup_with_labels
+    sql: "SELECT CASE WHEN GROUPING(p.category) = 1 THEN 'All categories' ELSE p.category END AS category, CASE WHEN GROUPING(o.channel) = 1 THEN 'All channels' ELSE o.channel END AS channel, COUNT(DISTINCT o.id) AS orders, SUM(oi.quantity * oi.unit_price) AS revenue FROM orders o JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id WHERE o.status <> 'cancelled' GROUP BY ROLLUP(p.category, o.channel) ORDER BY GROUPING(p.category), p.category, GROUPING(o.channel), o.channel"
+    profile: iq17-default
+  - id: management_chain_two_levels
+    sql: "SELECT e.id, TRIM(e.first_name) || ' ' || TRIM(e.last_name) AS employee, e.title, COALESCE(TRIM(m.first_name) || ' ' || TRIM(m.last_name), '(none)') AS manager, COALESCE(TRIM(g.first_name) || ' ' || TRIM(g.last_name), '(none)') AS managers_manager, CASE WHEN m.id IS NULL THEN 1 WHEN g.id IS NULL THEN 2 ELSE 3 END AS level FROM employees e LEFT JOIN employees m ON m.id = e.manager_id LEFT JOIN employees g ON g.id = m.manager_id ORDER BY level, e.id"
+    profile: iq17-default
+  - id: products_never_ordered_or_only_cancelled
+    sql: "SELECT p.id, p.name, 'never ordered' AS reason FROM products p WHERE NOT EXISTS (SELECT 1 FROM order_items oi WHERE oi.product_id = p.id) UNION ALL SELECT p.id, p.name, 'only cancelled orders' FROM products p WHERE EXISTS (SELECT 1 FROM order_items oi WHERE oi.product_id = p.id) AND NOT EXISTS (SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE oi.product_id = p.id AND o.status <> 'cancelled') ORDER BY 1"
+    profile: iq17-default
