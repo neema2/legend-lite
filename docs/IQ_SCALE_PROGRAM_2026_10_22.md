@@ -808,3 +808,11 @@ says so.
     string refused by name. The Mac's probe on IQ's engine over the parity table matches lite on all 7 rows. The
     syntax cases: accept PARSED 3,403 -> 3,437; a condition as an operand is IQ's -131. Eight cases to snap
     (claude/iq-snap 676fa5b1).
+  - **The Mac's re-judge at aac1ff9a** (moves against 42b998b2): the 15 starved TPC-H followers PASS alone, tpch_iq's
+    TIMEOUTs 24 -> 6 (the six that led each run of followers, heavy themselves); tpcds-1626 REFUSED -> PLACES,
+    tpcds-6742 ERROR -> PASS; 37 tpcds_iq and 25 tpcds_tb percentages FAIL -> PLACES. **A judge defect it found, fixed
+    here**: the unordered and places checks ran the query again, so a TOP or ROW_NUMBER over ties drew its rows again
+    and a lucky draw was read as PLACES (44 of tpch_iq's 53 named no places). Both now read the rows the judge
+    judged, PLACES needs a cell that differs uncut, and the in-order places cut takes any row count (tpcds-5378's
+    8,303). Checked with part M's answers doctored: rows reversed are PASS_UNORDERED, a mean with two places more
+    PLACES.

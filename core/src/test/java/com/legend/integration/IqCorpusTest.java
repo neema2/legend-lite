@@ -129,10 +129,19 @@ class IqCorpusTest {
                         // now runs on a connection of its own, interrupted when stopped (stop)
                         Connection one = own(session);
                         java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+                        // the IQ scale program, 2026-10-26 (the Mac's re-judge at aac1ff9a: 44 of TPC-H's 53 PLACES named
+                        // no places): the rows judged are the rows the later checks read -- a query run again draws its
+                        // ORDER BY's ties again, and a lucky draw read as IQ's
+                        java.util.concurrent.atomic.AtomicReference<com.legend.exec.ExecutionResult> ran =
+                                new java.util.concurrent.atomic.AtomicReference<>();
                         Future<SqlParity.Outcome> judged = pool.submit(() -> {
                             try {
-                                return IqParity.outcome(parityRun, snap, tables, names, is -> service.execute(model, is,
-                                        IqParity.RUNTIME, one));
+                                return IqParity.outcome(parityRun, snap, tables, names, is -> {
+                                    com.legend.exec.ExecutionResult r = service.execute(model, is, IqParity.RUNTIME,
+                                            one);
+                                    ran.set(r);
+                                    return r;
+                                });
                             } finally {
                                 done.countDown();
                             }
@@ -144,12 +153,12 @@ class IqCorpusTest {
                             SqlParity.Outcome o = judged.get(budget, TimeUnit.MILLISECONDS);
                             verdict = o.status().name();
                             detail = o.detail().replaceAll("\\s+", " ").strip();
-                            if (o.status() == SqlParity.Status.FAIL && !detail.contains("Column")
-                                    && sameRowsUnordered(parityRun, snap, service, model, island, one)) {
+                            SqlParity.Grid rows = o.status() == SqlParity.Status.FAIL && ran.get() != null
+                                    ? SqlParity.grid(java.util.Objects.requireNonNull(ran.get())) : null;
+                            if (rows != null && !detail.contains("Column") && sameRowsUnordered(parityRun, snap, rows)) {
                                 // a real-world query's ORDER BY may tie: the rows are IQ's, in another order
                                 verdict = "PASS_UNORDERED";
-                            } else if (o.status() == SqlParity.Status.FAIL
-                                    && samePlacesCut(parityRun, snap, service, model, island, one)) {
+                            } else if (rows != null && samePlacesCut(parityRun, snap, rows)) {
                                 // the IQ scale program, 2026-10-25: a NUMERIC's places differ, its digits agree;
                                 // 2026-10-26 (the TPC-DS lane's 23 percentages and an AVG of IQ's fewer places): tried
                                 // for any FAIL, not only one whose detail names places -- every other cell must match
@@ -170,8 +179,9 @@ class IqCorpusTest {
                         if (rowsOut != null && verdict.equals("FAIL")) {
                             // IQ island, 2026-10-16: lite's own rows, for reading a FAIL beside the live IQ's
                             try {
-                                SqlParity.Grid g = SqlParity.grid(service.execute(model, island, IqParity.RUNTIME,
-                                        one));
+                                SqlParity.Grid g = ran.get() != null
+                                        ? SqlParity.grid(java.util.Objects.requireNonNull(ran.get()))
+                                        : SqlParity.grid(service.execute(model, island, IqParity.RUNTIME, one));
                                 rowsOut.append("{\"id\":").append(json(q.id())).append(",\"columns\":[");
                                 rowsOut.append(String.join(",", g.columns().stream().map(IqCorpusTest::json)
                                         .toList())).append("],\"rows\":[");
@@ -276,13 +286,12 @@ class IqCorpusTest {
     /** Whether lite's rows are the live IQ's as a multiset, each cell compared by IQ's type
      *  ({@link IqParity#cellEquals}): a judged FAIL that only orders tied rows otherwise. */
     private static boolean sameRowsUnordered(IqParity.Run run, com.legend.testcases.IqAnswers.Snap snap,
-            QueryService service, String model, String island, Connection session) {
+            SqlParity.Grid actual) {
         try {
             if (!(com.legend.testcases.IqAnswers.expected(run, snap) instanceof SqlParity.Rows rows)) {
                 return false;
             }
             SqlParity.Grid expected = rows.grid();
-            SqlParity.Grid actual = SqlParity.grid(service.execute(model, island, IqParity.RUNTIME, session));
             if (expected.rows().size() != actual.rows().size() || expected.rows().size() > 5000) {
                 return false;
             }
@@ -374,18 +383,17 @@ class IqCorpusTest {
 
     /** The IQ scale program, 2026-10-25 (the corpus judge's PLACES): whether lite's rows are IQ's once each NUMERIC
      *  cell pair is cut to the fewer places either shows ({@link IqParity#cellEqualsAtFewerPlaces}) -- in order, else
-     *  as a multiset. IQ types a quotient by its rows' estimate (row-typed, D-N3), so its places say nothing of lite's
-     *  answer; any digit both show that differs keeps the FAIL. */
+     *  as a multiset -- and some pair differs uncut (2026-10-26: else the rows are IQ's, in order or not, no places).
+     *  IQ types a quotient by its rows' estimate (row-typed, D-N3), so its places say nothing of lite's answer; any
+     *  digit both show that differs keeps the FAIL. */
     private static boolean samePlacesCut(IqParity.Run run, com.legend.testcases.IqAnswers.Snap snap,
-            QueryService service, String model, String island, Connection session) {
+            SqlParity.Grid actual) {
         try {
             if (!(com.legend.testcases.IqAnswers.expected(run, snap) instanceof SqlParity.Rows rows)) {
                 return false;
             }
             SqlParity.Grid expected = rows.grid();
-            SqlParity.Grid actual = SqlParity.grid(service.execute(model, island, IqParity.RUNTIME, session));
-            if (expected.rows().size() != actual.rows().size() || expected.rows().size() > 5000
-                    || !expected.columns().equals(actual.columns())) {
+            if (expected.rows().size() != actual.rows().size() || !expected.columns().equals(actual.columns())) {
                 return false;
             }
             java.util.function.BiPredicate<List<Object>, List<Object>> same = (e, a) -> {
@@ -396,13 +404,28 @@ class IqCorpusTest {
                 }
                 return true;
             };
+            java.util.function.BiPredicate<List<Object>, List<Object>> cut = (e, a) -> {
+                for (int c = 0; c < e.size(); c++) {
+                    if (!IqParity.cellEquals(e.get(c), a.get(c), snap.types().get(c))) {
+                        return true;
+                    }
+                }
+                return false;
+            };
             boolean inOrder = true;
+            boolean places = false;
             for (int i = 0; i < expected.rows().size() && inOrder; i++) {
                 inOrder = same.test(expected.rows().get(i), actual.rows().get(i));
+                places |= inOrder && cut.test(expected.rows().get(i), actual.rows().get(i));
             }
             if (inOrder) {
-                return true;
+                return places;
             }
+            if (expected.rows().size() > 5000) {
+                // 2026-10-26 (tpcds-5378's 8,303 rows): in order at any size; as a multiset, quadratic, to 5,000
+                return false;
+            }
+            places = false;
             List<List<Object>> left = new ArrayList<>(actual.rows());
             for (List<Object> e : expected.rows()) {
                 int found = -1;
@@ -412,9 +435,10 @@ class IqCorpusTest {
                 if (found < 0) {
                     return false;
                 }
+                places |= cut.test(e, left.get(found));
                 left.remove(found);
             }
-            return true;
+            return places;
         } catch (Exception e) {
             return false;
         }
