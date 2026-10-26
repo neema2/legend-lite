@@ -110,6 +110,11 @@ function report(r) {
   const line = (cells) => `  ${cells.map((c, i) => String(c).padEnd(widths[i])).join('  ')}`;
   console.log(line(cols));
   for (const row of rows) console.log(line(row));
+  // each tab's queries alone, the slowest first: where a heavy tab's time goes
+  for (const t of r.tabs) {
+    if (t.slowest === undefined) continue;
+    console.log(`  ${t.tab}: its queries alone ${t.allQueriesMs} ms; slowest ${t.slowest.map((q) => `${q.tile} "${q.title}" ${q.kind} ${q.ms} ms (${q.rows} rows)`).join('; ')}`);
+  }
   // the round trips by kind, over every tab's measured span: how many a second, and each one's mean
   const trips = {};
   for (const t of r.tabs) {

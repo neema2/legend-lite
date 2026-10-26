@@ -364,8 +364,26 @@ async function main(): Promise<void> {
       alone.refresh.push(performance.now() - t);
       alone.refreshTrips.push(TASKS.length - k);
     }
+    // EACH TILE'S QUERY ALONE: its run's median of three, on a connection of its own, no kept result answering it -- what
+    // a refresh pays for it at this tape
+    const perQuery: { tile: string; title: string; kind: string; ms: number; rows: number }[] = [];
+    for (const v of shown) {
+      const p = plans.get(v.id);
+      if (p === undefined) continue;
+      const times: number[] = [];
+      let rows = 0;
+      for (let i = 0; i < 3; i++) {
+        const t = performance.now();
+        rows = (await probe.run(p.sql, 0)).rowCount;
+        times.push(performance.now() - t);
+      }
+      times.sort((a, b) => a - b);
+      perQuery.push({ tile: v.id, title: v.title ?? '', kind: v.kind, ms: Math.round(times[1]! * 10) / 10, rows });
+    }
+    perQuery.sort((a, b) => b.ms - a.ms);
     for (const r of readers) await r.reader.close();
     const result = {
+      slowest: perQuery.slice(0, 5), allQueriesMs: Math.round(perQuery.reduce((s, q) => s + q.ms, 0)),
       tab: name, tiles: shown.length, readers: readers.length, queries: readers.reduce((s, r) => s + r.plans.length, 0),
       openMs: Math.round(openMs), emit: emit.summary, flush: flush.summary, probe: probeWait.summary, tick: tick.summary,
       tickRun: tickRun.summary, beat: beat.summary, ticks, served, ran, failures,
