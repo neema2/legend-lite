@@ -59,8 +59,10 @@ MARKET_NAMES=2000 MARKET_TRADES=4000 bazel run //datacube:deephaven_desk -- --po
 
 **The one demo is the trading desk** (2026-10-26, the user: "why we need 3 different demos instead of single one in
 real datacube"): DataCube's own page, the desk one saved page of ten tabs (Open… ▸ Examples lists it first), each tab
-read when first shown. The risk demo's and the trader screens' hand tools are deleted; their pages (`cube.html`,
-`board.html`, `traders.ts`) are their tests' benches. The server's certificate is mkcert's where mkcert is installed:
+read when first shown (its charts and its saved queries' typing too). The risk demo's and the trader screens' hand
+tools are deleted; the risk pages (`cube.html`, `board.html`) are the engine's test benches, and the trader screens'
+own page (`traders.ts`) is deleted, its checks the desk test's (`//datacube:deephaven_desk_test`, manual). The
+server's certificate is mkcert's where mkcert is installed:
 run `mkcert -install` once and the browser asks nothing (`datacube/demo/deephaven/mkcert.mjs`); without mkcert it is
 the test server's own, made by `keytool` at each start, and the printed Deephaven `https://` address must be opened
 and accepted first (HTTPS because Deephaven's browser protocol needs HTTP/2). `restart` + Enter restarts Deephaven.
@@ -159,5 +161,5 @@ and a simulator in its place (K2), a candlestick chart (K3), the page (K4).
 | Tab's sender and engine | `engine-client/src/deephaven.ts` (session), `deephaven-engine.ts` (engine, readers, following), `deephaven-live.ts` (the JS library), `deephaven-rows.ts`, `timeline.ts` |
 | DataCube | `datacube/src/server-base.ts` (bases), `runner.ts`, `app.ts` (tick, window), `grid/grid.ts` (`tickRows`, flash), `chart-render.ts` (held axes), `treeview.ts` |
 | Demo | `datacube/demo/deephaven/market/` (`desk.mjs`, the hand tool; `host.ts`, `screens.ts`, `market.groovy`); `mkcert.mjs` |
-| Test benches | `datacube/demo/deephaven/` (`cube.ts`, `board.ts`, `risk.ts`, `risk.groovy`, `site.mjs`); `market/traders.ts` |
+| Test benches | `datacube/demo/deephaven/` (`cube.ts`, `board.ts`, `risk.ts`, `risk.groovy`, `site.mjs`) |
 | Tests and tools | `datacube/test/deephaven/`, `datacube/bench/deephaven/`, `testing/.../EmbeddedDeephaven.java`, `tools/deephaven/` |

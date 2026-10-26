@@ -3,13 +3,14 @@
 // different saved pages similar to our chart pages"): each screen a DataCube page -- its grids and charts, a sheet (a
 // tab) per view of the desk -- written by DataCube's own writers (writeCube, writePageOf), as the example pages are
 // (src/examples/). Every grid's source is a saved query over the one trading model's classes (the stress corpus's),
-// read through stress::AllMapping on the market world's runtime; the server computes every value, ticking. The host
-// (traders.ts) opens them from its menu, each grid made again over its source as it is now.
+// read through stress::AllMapping on the market world's runtime; the server computes every value, ticking. Since
+// 2026-10-25 they are the trading desk's tabs (DESK, below: one page, a tab a screen), which DataCube's app opens first
+// under Open…'s Examples (host.ts); the host of their own (traders.ts), which opened each as a page, went 2026-10-26.
 
 import { element } from '../../../../pure-protocol/src/index.ts';
 import { CHART_VERSION, DEFAULT_OPTIONS, candleMeasures, type ChartOptions, type ChartSpec } from '../../../src/chart-spec.ts';
 import { DEFAULT_CONFIGURATION, type ColumnConfiguration, type CubeConfiguration } from '../../../src/config.ts';
-import { writeCube, type CubeDocument, type CubeSource, type QuerySource } from '../../../src/cube-document.ts';
+import { writeCube, type CubeDocument, type QuerySource } from '../../../src/cube-document.ts';
 import { openedState } from '../../../src/cube-state.ts';
 import { tiles, type Node } from '../../../src/layout/bands.ts';
 import { writePageOf, type ChartView, type PageDocument, type PageSheet, type PageView } from '../../../src/page-document.ts';
@@ -100,12 +101,6 @@ export function marketSource(name: string, content: string, columns: readonly Co
     },
     columns: columns.map((c) => ({ name: c.name, type: c.type })),
   };
-}
-
-/** Whether a saved cube's source is a screen's: a saved query on the market's runtime, its text the source's. */
-export function isMarketSource(source: CubeSource): source is QuerySource {
-  const context = source._type === 'savedQuery' ? source.query.executionContext : undefined;
-  return context?._type === 'explicitExecutionContext' && context.runtime === MARKET_RUNTIME;
 }
 
 /** A source's columns as a screen shows them: the compiler's names and types, each with what the screen sets on it
@@ -1228,82 +1223,3 @@ export const DESK: TraderPage = {
     + 'markouts; P&L against limits; the options chain and its risk; FX rates, crosses and RFQs.',
   build: pageOf(deskParts),
 };
-
-/** The trader screens, in the menu's order (the old host's, traders.ts: the screens' test bench; the trading desk is
- *  the app's own, host.ts). */
-export const TRADER_PAGES: readonly TraderPage[] = [
-  {
-    id: 'ticker',
-    label: 'Ticker',
-    about: 'Pick a name on the watchlist: its price today from the open, ticking -- green above its prior close, red '
-      + 'below, its EMA, its volume beneath, the last minute to the whole day -- or its candles; its last, VWAP, range and '
-      + 'volume; its news as it crosses; its prints and quote. And every name\'s quote, the tape, each name\'s day so far.',
-    build: pageOf(tickerParts),
-  },
-  {
-    id: 'news',
-    label: 'News',
-    about: 'A news terminal\'s monitor, ticking: the whole market\'s stories, macro and sector news, the five largest '
-      + 'names\', a sector\'s and a keyword\'s -- each pane a feed customised by its own filter (a sector, tickers, a '
-      + 'keyword in its box, a category, a weight), kept with the page -- a story\'s name, picked, charted beside them; '
-      + 'and every story as a grid, the day\'s news by category.',
-    build: pageOf(newsParts),
-  },
-  {
-    id: 'market-map',
-    label: 'Market map',
-    about: 'Every equity as a block sized by its value and coloured by its change on the day, by sector; the day\'s '
-      + 'breadth, each sector\'s value-weighted change, and the top gainers, losers and most active names.',
-    build: pageOf(marketMapParts),
-  },
-  {
-    id: 'pnl',
-    label: 'P&L and limits',
-    about: 'Every position marked to the live market: the firm\'s and each desk\'s, book\'s and name\'s day P&L against '
-      + 'the prior close; each desk against its day\'s loss limit and its gross limit, a breach and a warning said.',
-    build: pageOf(pnlParts),
-  },
-  {
-    id: 'blotter',
-    label: 'Execution blotter',
-    about: 'Every parent order as its algorithm works it -- how much is done, its average price and its slippage against '
-      + 'its arrival -- its fills as they print, and the day\'s fills by algorithm and venue.',
-    build: pageOf(blotterParts),
-  },
-  {
-    id: 'options',
-    label: 'Options desk',
-    about: 'The listed chain priced live -- each option and its greeks by Black and Scholes, functions of the model the '
-      + 'database runs -- calls against puts by strike, and the smile; the derivatives books\' delta, gamma, vega, theta '
-      + 'and day P&L by underlying and expiry.',
-    build: pageOf(optionsParts),
-  },
-  {
-    id: 'fx',
-    label: 'FX e-trading',
-    about: 'The desk\'s rates ladder, each cross against the rate its legs imply (live joins), and the clients\' requests '
-      + 'for quote as they are asked, quoted and done or missed -- hit ratios by client and by the spread quoted.',
-    build: pageOf(fxParts),
-  },
-  {
-    id: 'tca',
-    label: 'TCA and markouts',
-    about: 'Every fill\'s cost against its order\'s arrival and the market 1, 5 and 30 seconds after it (as-of joins to '
-      + 'the tape), by algorithm, venue and broker.',
-    build: pageOf(tcaParts),
-  },
-  {
-    id: 'flow',
-    label: 'Order flow',
-    about: 'The tape read for who crossed the spread: bought against sold each minute, the net flow by sector and by '
-      + 'name, the block prints of a quarter of a million dollars or more, time and sales, and the notional by venue.',
-    build: pageOf(flowParts),
-  },
-  {
-    id: 'crypto',
-    label: 'Crypto desk',
-    about: 'The coins, live from Coinbase\'s public feed where the server reaches it (simulated where it does not): pick '
-      + 'one -- its price and EMA, candles, prints -- each coin\'s net flow, and the crypto book marked to the market.',
-    build: pageOf(cryptoParts),
-  },
-];

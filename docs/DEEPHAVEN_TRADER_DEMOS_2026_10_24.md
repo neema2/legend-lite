@@ -69,7 +69,7 @@ Each row is a thing done outside the platform, to push into it.
 | `market/market.groovy`'s Coinbase feed (K2) | crypto from Coinbase Exchange's public feed, the simulator in its place where it is refused | no feed ingestion in lite | a feed declared in the store and started by the platform; Kafka into Deephaven in production |
 | `market/market.groovy`'s `world` table (K2) | what each part of the world is and why (simulated, live, connecting) | the page has no other way to learn it | the feed's own status, a system table of the platform's |
 | `market/market.groovy`'s bank (K9-K13) | the bank's own day: desks, traders, books, positions at the prior close, limits; parent orders worked by algorithms into fills and routes on the market's own prices; FX prices; clients' RFQs quoted and done or missed; a listed option chain settled by Black and Scholes | lite writes no rows into Deephaven yet, and a bank's books and blotters come from its systems of record | each its own source -- an OMS's orders and fills, a position keeper, a pricing engine -- declared in the store and published by the platform (L5) |
-| `market/traders.ts`, the host (K4) | the page around DataCube's: the trader screens, each written by `screens.ts`, listed in DataCube's own Open window (its library, its examples' place) and opened as a saved page is; Save and Open on the tab's own store | the screens were pages of a demo of their own, and the tab's app (`datacube-app.ts`) opened no grid on Deephaven, so the host built the Open window's frame the app builds (about 60 lines). Since the trading desk (2026-10-25) the app itself opens them (`market/host.ts`): this host is the screens' test bench (`//datacube:deephaven_traders_test`'s per-grid tick timings) until those checks move onto the app | the app, as `//datacube:deephaven_desk` serves it |
+| `market/traders.ts`, the host (K4) | the page around DataCube's: the trader screens, each written by `screens.ts`, listed in DataCube's own Open window (its library, its examples' place) and opened as a saved page is; Save and Open on the tab's own store | the screens were pages of a demo of their own, and the tab's app (`datacube-app.ts`) opened no grid on Deephaven, so the host built the Open window's frame the app builds (about 60 lines). Since the trading desk (2026-10-25) the app itself opens them (`market/host.ts`). **Retired 2026-10-26**: its test's checks of the screens' interactions run on the desk (`//datacube:deephaven_desk_test`), and the host, its page, its site and its test are deleted | the app, as `//datacube:deephaven_desk` serves it (done) |
 | `market/host.ts`'s project and elements (the trading desk) | the market's project (the one trading model and the market's part, a page-made file) added to the tab's saved-query projects; the model's elements answered from the trading corpus's | the screens' saved queries name a project no SDLC or depot holds yet; the app reads a project's elements through the drop-in surface (pure/v1's `grammarToJson`), which refuses lite's own Pure (the Deephaven connection), and the market's part declares no data space or enumeration -- all the app reads them for | the screens as a project's saved queries in a model home; a lite-surface reader of a model's elements in the module |
 
 ## 4. Realistic speeds
@@ -700,9 +700,14 @@ demo (`cube.html`, `board.html` over `risk.groovy`'s book: the first steps, D0, 
 is missing from the desk; they stayed because tests hang off their pages. Now `deephaven_desk` is the only hand tool:
 `deephaven_traders` and `deephaven_demo` are deleted with their entry points. The risk pages stay as the engine's test
 benches (`deephaven_cube_test`, `deephaven_board_test`, the session and network benchmarks: one base a grid, nothing
-sent on a tick, a restart recovered, a chart's axis held); `traders.ts` goes once its test's checks of the screens'
-interactions (a name picked on the watchlist, the news panes' filters, a span picked, a ticker clicked on a card) run
-on the desk.
+sent on a tick, a restart recovered, a chart's axis held). `traders.ts` went the same day, its test's checks of the
+screens' interactions moved onto the desk's (`test/deephaven/desk.mjs`): a name picked on the watchlist taking the
+stock's quote, prints and last with it; a span picked, kept with the page; the candles behind the line; its news
+following the pick; the newswire ticking into its pane with nothing sent or fetched; each pane its own stories; a
+keyword typed into a pane, kept with the page; a ticker clicked on a card; no name twice among the movers. Grids are
+read from the app's harness page (`__dataPage`), the server's counts from the market host's (`__market`, which imports
+no ECharts: that import put 3 KB on a first chart's download); the window a span draws is `chart-echarts.test.ts`'s
+own check. Checked (2026-10-26): the desk's test passes, every tab drawn and ticking, every interaction above.
 
 **What the desk's screenshots showed, fixed (2026-10-25):** *The market rose 10-20% in half an hour* (93 names
 advancing, 6 declining): the newsroom's briefs moved their names only up where they moved them (a stake disclosed, a

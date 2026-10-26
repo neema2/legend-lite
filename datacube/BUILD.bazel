@@ -2290,69 +2290,6 @@ browser_test(
     },
 )
 
-# THE TRADER SCREENS (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K4, K8-K13; the user, 2026-10-25): each screen a saved
-# DataCube page (demo/deephaven/market/screens.ts) over the market world, opened from DataCube's own page's menu
-# (demo/deephaven/market/traders.ts) -- its grids and charts, a sheet per view of the desk -- every query planned in the
-# tab over the one trading model's classes and run on the Deephaven server, ticking. :deephaven_traders_test opens each
-# one and checks it ticks (its hand tool went 2026-10-26: the trading desk, :deephaven_desk, is the one demo).
-esbuild_bundle(
-    name = "deephaven_traders_bundle",
-    testonly = True,
-    srcs = glob(["demo/deephaven/market/*.ts"]) + [
-        ":node_modules/echarts",
-        ":src",
-    ],
-    outs = ["demo/deephaven/market/traders.js"],
-    args = [
-        "demo/deephaven/market/traders.ts",
-        "--bundle",
-        "--format=esm",
-        "--target=es2022",
-        "--log-level=warning",
-        "--outfile=demo/deephaven/market/traders.js",
-    ],
-)
-
-_DEEPHAVEN_TRADERS_DATA = [
-    "demo/deephaven/market/site.mjs",
-    "demo/deephaven/market/traders.html",
-    "demo/deephaven/site.mjs",
-    ":deephaven_cube_styles",
-    # the binary for its runfiles (the server's jars and Java, the market world), its executable to start it by
-    ":deephaven_market_fixture",
-    ":deephaven_market_fixture_executable",
-    ":deephaven_traders_bundle",
-    # the saved pages' rules (Open…, Save: the tab's store, src/services/browser-pages.ts)
-    "//query-store:page",
-    "//scripts/corpus:trading_model",
-    "//wasm:planner",
-]
-
-_DEEPHAVEN_TRADERS_ENV = {
-    "MARKET_FIXTURE": "$(rlocationpath :deephaven_market_fixture_executable)",
-    "TRADERS_BUNDLE": "$(rlocationpath :deephaven_traders_bundle)",
-    "TRADERS_PAGE": "$(rlocationpath demo/deephaven/market/traders.html)",
-    "CUBE_STYLES": "$(rlocationpaths :deephaven_cube_styles)",
-    "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
-    "PLANNER": "$(rlocationpaths //wasm:planner)",
-    "QUERIES": "$(rlocationpaths //query-store:page)",
-}
-
-# Every trader screen opened from the page's Open…, in the pinned Chromium, over a small market world (its crypto feed
-# refused): every grid's rows and every chart drawn, each sheet ticking with nothing sent or fetched, the page saved
-# by Save As… and opened again from Open…. A screenshot of each sheet is its output. Manual, beside the market world's test.
-browser_test(
-    name = "deephaven_traders_test",
-    size = "large",
-    tags = ["manual"],
-    data = _DEEPHAVEN_TRADERS_DATA + [
-        "test/deephaven/traders.mjs",
-        ":node_modules/playwright",
-    ],
-    entry_point = "test/deephaven/traders.mjs",
-    env = _DEEPHAVEN_TRADERS_ENV,
-)
-
 # THE TRADING DESK IN DATACUBE ITSELF (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, the trading desk; the user,
 # 2026-10-25): DataCube's own site (:site, as :serve serves it) with its config.json naming the market world's Deephaven,
 # so the tab's own page opens the trading desk -- one saved page, ten tabs -- and lists it first under Open…'s Examples

@@ -1,6 +1,5 @@
-// THE SAVED PAGES IN THIS BROWSER: the tab's (services/browser.ts) and any page of DataCube's opened on its own over a
-// server of its own -- the trader screens on Deephaven (demo/deephaven/market/traders.ts) -- the one store and its
-// rules, kept by this browser for this origin.
+// THE SAVED PAGES IN THIS BROWSER: the tab's (services/browser.ts) -- the one store and its rules, kept by this browser
+// for this origin.
 
 import type { QueriesModule } from '../../../query-store/src/index.ts';
 import {
