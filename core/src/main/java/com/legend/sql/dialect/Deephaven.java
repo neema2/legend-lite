@@ -1533,6 +1533,12 @@ public final class Deephaven extends AnsiSqlRenderer {
             throw new DialectCapability("a cast of a non-numeric value (" + c.value().type() + ") to " + target
                     + " reached Deephaven: no shape yet");
         }
+        if (f == target) {
+            // a value of the type it is cast to is itself, a null kept null: the guard and its error's text around a
+            // double cast to a double wrote it ten times, a square root's formula 1,700 characters, and the server's
+            // parse of a formula grows faster than its length (2026-10-26, the trading desk's options chain)
+            return writer.append("(").expr(c.value(), 0).append(")");
+        }
         if (nullable(c.value())) {
             writer.append("(isNull(").expr(c.value(), 0).append(") ? ").append(typedNull(c.type(), "a cast"))
                     .append(" : ");

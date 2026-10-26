@@ -148,6 +148,8 @@ class DeephavenDialectTest {
         // the square root's guard reads its operand by name, its error's text too
         String c = b.substring(b.indexOf("\"c = "));
         assertTrue(c.contains("sqrt(b)") && !c.contains("t0__notional"), c);
+        // 2026-10-26: a double cast to a double is itself -- the guard's comparison and its error's text read b as it is
+        assertFalse(c.contains("(double) b") || c.contains("NULL_DOUBLE : (double)"), c);
     }
 
     @Test
@@ -468,10 +470,11 @@ class DeephavenDialectTest {
         formulaOver(P, "pid", "$x.pid->rem($x.pid)", "((t0__pid == 0L) ? parseLong((`` + (char) 31 + (((((`Cannot divide ` + (`` + t0__pid))) + ` by zero`))) + (char) 31)) : (t0__pid % t0__pid))");
         formulaOver(P, "pid", "$x.pid / ($x.pid - 3)", "(((t0__pid - 3L) == 0L) ? ((double) parseLong((`` + (char) 31"
                 + " + (`Division by zero`) + (char) 31))) : (t0__pid / (t0__pid - 3L)))");
-        // sqrt of a negative: Pure's message prints the float as Pure does
+        // sqrt of a negative: Pure's message prints the float as Pure does (sz a double: its cast to a double is itself,
+        // 2026-10-26)
         String b = batch(P + "->extend(~r:x|$x.sz->sqrt())->select(~[pid, r])");
-        assertTrue(b.contains("? ((double) parseLong((`` + (char) 31 + (((`Unable to compute sqrt of ` + ((`` + ((double)"
-                + " t0__sz)).indexOf(`E`) < 0 ?"), b);
+        assertTrue(b.contains("? ((double) parseLong((`` + (char) 31 + (((`Unable to compute sqrt of ` + ((`` +"
+                + " (t0__sz)).indexOf(`E`) < 0 ?"), b);
         assertTrue(b.contains(": sqrt(t0__sz))"), b);
     }
 
