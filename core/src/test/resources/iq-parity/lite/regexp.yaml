@@ -1,0 +1,34 @@
+# REGEXP (the IQ scale program, 2026-10-26): a whole-string match, case-sensitive, groups and alternation, a CHAR(n)
+# blank padded, [a-z] by character, NULL either side unknown (measured on IQ 17.1 over a VARCHAR and a CHAR(5)); the
+# patterns lite reads in WHERE, in a CASE, under NOT, over a concatenation, with counts, and one it refuses by name
+# (a POSIX class); and SIMILAR TO, IQ's error -660 under its engine. Judged by the live IQ. Every case is deterministic.
+tests:
+  - id: regexp_matches_the_whole_string
+    sql: "SELECT id FROM t WHERE vc REGEXP '[a-z]+' ORDER BY id"
+  - id: regexp_is_anchored_and_case_sensitive
+    sql: "SELECT id FROM t WHERE vc REGEXP 'h.*' ORDER BY id"
+  - id: regexp_negated_leaves_null_out
+    sql: "SELECT id FROM t WHERE vc NOT REGEXP '[A-Z].*' ORDER BY id"
+  # D-S1: ch is CHAR(5), matched padded to five under the IQ engine ('ab   ' is no [a-z]*); SQL Anywhere 17 matches it
+  # unpadded (its w is 1 for 'ab', 'zz' and '')
+  - id: regexp_reads_a_char_padded
+    sql: "SELECT id, CASE WHEN ch REGEXP 'ab *' THEN 1 ELSE 0 END AS m, CASE WHEN ch REGEXP '[a-z]*' THEN 1 ELSE 0 END AS w FROM t ORDER BY id"
+    decision: D-S1
+    expect: '[["1","1","0"],["2","0","0"],["3","0","0"],["4","0","0"],["5","0","0"],["6","0","0"],["7","0","0"]]'
+  - id: regexp_groups_and_alternation
+    sql: "SELECT id FROM t WHERE vc REGEXP 'H(ello|i)' OR vc REGEXP '(ap|x)(ple| +)' ORDER BY id"
+  - id: regexp_dot_and_counts_over_accents
+    sql: "SELECT id, CASE WHEN vc REGEXP 'R.sum.' THEN 1 ELSE 0 END AS r, CASE WHEN vc REGEXP '.{5,6}' THEN 1 ELSE 0 END AS n, CASE WHEN vc REGEXP '[A-Za-z]{5}' THEN 1 ELSE 0 END AS a FROM t ORDER BY id"
+  - id: regexp_classifies_in_a_case
+    sql: "SELECT id, CASE WHEN vc REGEXP '[A-Z][a-z]*' THEN 'capitalized' WHEN vc REGEXP '[a-z]+' THEN 'lower' WHEN vc IS NULL THEN 'none' ELSE 'other' END AS shape FROM t ORDER BY id"
+  - id: regexp_of_a_concatenation_and_escapes
+    sql: "SELECT id FROM t WHERE vc || '.' REGEXP '[a-z]+\\.' OR CAST(id AS VARCHAR(10)) || '+' REGEXP '[67]\\+' ORDER BY id"
+  - id: regexp_beside_null
+    sql: "SELECT id, CASE WHEN vc REGEXP NULL THEN 1 WHEN NOT (vc REGEXP NULL) THEN 2 ELSE 3 END AS k FROM t WHERE id < 4 ORDER BY id"
+  - id: regexp_counts_by_shape
+    sql: "SELECT CASE WHEN vc REGEXP '[a-z]+' THEN 'lower' ELSE 'not' END AS shape, COUNT(*) AS n FROM t GROUP BY CASE WHEN vc REGEXP '[a-z]+' THEN 'lower' ELSE 'not' END ORDER BY 1"
+  - id: regexp_posix_class_is_refused
+    sql: "SELECT id FROM t WHERE vc NOT REGEXP '[[:upper:]].*' ORDER BY id"
+  - id: similar_to_is_iqs_error
+    sql: "SELECT id FROM t WHERE vc SIMILAR TO '[a-z]%' ORDER BY id"
+    profile: iq17-default
