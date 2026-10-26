@@ -154,7 +154,7 @@ QUALITY_AND_CALENDAR = [
            p.name, LENGTH(p.name) AS name_length, REPLACE(LOWER(p.name), ' ', '-') AS slug
          FROM products p ORDER BY dept, line, seq"""),
     ("receipts_seven_day_moving_average",
-     """WITH days AS (SELECT DATEADD(DAY, g.row_num - 1, CAST('2025-09-01' AS DATE)) AS d FROM sa_rowgenerator(1, 61) g),
+     """WITH days AS (SELECT DATEADD(DAY, n.id - 1, CAST('2025-09-01' AS DATE)) AS d FROM order_items n WHERE n.id <= 61),
              daily AS (SELECT d.d, COALESCE(SUM(p.amount), 0) AS receipts
                        FROM days d LEFT JOIN payments p ON CAST(p.paid_ts AS DATE) = d.d GROUP BY d.d)
          SELECT d, receipts, CAST(AVG(receipts) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS NUMERIC(10,2)) AS avg_7d,
