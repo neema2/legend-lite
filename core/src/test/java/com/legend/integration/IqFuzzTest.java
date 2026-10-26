@@ -505,7 +505,11 @@ class IqFuzzTest {
                 + " WHERE x0.id < 3 ORDER BY x0.id");
         boolean plans = !"false".equals(System.getProperty("iq.show.plans"));
         String profile = System.getProperty("iq.fuzz.profile", "iq17-default");
-        List<SqlParity.Table> tables = IqParity.schema(Runfile.property("iq.parity.schema"));
+        // the IQ scale program, 2026-10-26: -Diq.show.schema=<a schema.yaml> reads the queries over another root's tables
+        // (the realistic reports'), the parity schema else
+        String schema = System.getProperty("iq.show.schema");
+        List<SqlParity.Table> tables = IqParity.schema(schema != null ? Path.of(schema)
+                : Runfile.property("iq.parity.schema"));
         Set<String> names = IqParity.tableNames(tables);
         String model = IqParity.model(tables, PLATFORM.connectionBody());
         try (Connection session = PLATFORM.open()) {
