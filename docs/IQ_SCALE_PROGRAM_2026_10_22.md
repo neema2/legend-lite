@@ -784,3 +784,10 @@ says so.
     within an IN correlated to the outer query, an EXISTS over a GROUP BY expression -- 4 of them matched DuckDB at
     476bb731; 3 refused by name; 8 IQ's errors lite answers on Snowflake (the iq16 BIGINT overflows and a lazy
     TOP), unchanged. The report suite's run waits on the user's approval in that session.
+  - **Unread columns passed along** (the corpus lanes' 4 refusals: tpcds-4908 and tpcds-26588's CONCAT_WS(...) AS
+    full_address, job-1742 and job-22017's CAST(... AS TEXT), each in a CTE column the statement never reads; IQ
+    answers them all): lite already read a derived table's unknown call as a NULL string where its column is read
+    nowhere. Now an outer query's own items no one reads read nothing (a column one more CTE passes along, by name or
+    under a `*`, is read nowhere too), an item read reads the items its alias names, and a CAST to LONG VARCHAR (TEXT)
+    in such a column is a NULL string as the calls are. Read in the output, a WHERE, a top-level `*` or another
+    item, IQ's -265 and -1001006 stay; a missing name stays -143.

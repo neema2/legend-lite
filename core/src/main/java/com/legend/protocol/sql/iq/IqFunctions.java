@@ -4328,6 +4328,12 @@ final class IqFunctions {
             throw SqlTranslationException.unsupported(what + " to " + target + " in SQL Anywhere's front end is not"
                     + " supported yet", c.pos());
         }
+        if (engine == IqDialect.Engine.IQ && target.equals("LONG VARCHAR") && dialect.placeheld(c)) {
+            // the IQ scale program, 2026-10-26 (the JOB corpus lane's 2; measured on IQ 17.1): a column IQ drops before
+            // it computes it, read nowhere (IqDialect.unreadUnknownFunctions), its operand read so its names bind
+            return Tx.value(SqlToPure.call("cast", SqlToPure.empty(), SqlToPure.typeArg("String")), Kind.STRING, true,
+                    new IqType("LONG VARCHAR"));
+        }
         if (engine == IqDialect.Engine.IQ && target.equals("LONG VARCHAR") && readsColumn(c.operand())) {
             // IQ island, 2026-10-15 (measured on IQ 17.1): IQ's engine converts no column's value to LONG VARCHAR
             // (or TEXT): its -1001006, of a string, a number and a timestamp alike

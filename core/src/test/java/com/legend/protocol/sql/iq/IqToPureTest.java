@@ -470,6 +470,25 @@ class IqToPureTest {
     }
 
     @Test
+    void aColumnPassedAlongUnreadIsReadNowhere() {
+        // the IQ scale program, 2026-10-26 (the corpus lanes' 4 refusals; measured on IQ 17.1): a common table
+        // expression's column one more passes along, by name or under a *, and no one reads after, is never computed
+        IqSettings iq17 = IqProfile.IQ17_DEFAULT.settings();
+        String a = "WITH a AS (SELECT id, CONCAT_WS(',', vc, vc) AS fa, 'n ' || CAST(sm AS TEXT) AS s FROM " + T + ")";
+        pure(a + ", b AS (SELECT id, fa, s FROM a) SELECT id FROM b ORDER BY id", iq17);
+        pure(a + ", b AS (SELECT a.*, 1 AS one FROM a) SELECT id, one FROM b ORDER BY id", iq17);
+        pure("WITH a AS (SELECT id, CASE WHEN dt IS NULL THEN 'none' ELSE CAST(dt AS TEXT) END AS d FROM " + T + ")"
+                + " SELECT id FROM a", iq17);
+        // read: its output, the passing table's WHERE, a * of the statement's own, another item's alias
+        for (String sql : new String[] {a + ", b AS (SELECT id, fa FROM a) SELECT id, fa FROM b",
+                a + ", b AS (SELECT id, fa FROM a) SELECT id FROM b WHERE fa > 'a'",
+                a + ", b AS (SELECT a.*, 1 AS one FROM a) SELECT * FROM b",
+                "WITH a AS (SELECT id, CAST(sm AS TEXT) AS s, UPPER(s) AS u FROM " + T + ") SELECT id, u FROM a"}) {
+            refusal(sql, iq17, COLUMNS);
+        }
+    }
+
+    @Test
     void aSimpleCaseOfALongOperandComputesItOnce() {
         // the IQ scale program, 2026-10-26 (the realistic reports' last weekday of a month): the operand, compared in
         // each WHEN, was written once per WHEN past the size bound; computed once, before the item

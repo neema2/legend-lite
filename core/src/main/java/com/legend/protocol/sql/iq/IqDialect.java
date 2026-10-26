@@ -166,7 +166,7 @@ public final class IqDialect implements InputDialect {
     private final Set<SqlAst.Pos> joinedByName = new java.util.HashSet<>();
     /** IQ island, 2026-10-17: the calls of no function of IQ's in columns read nowhere, read as a NULL string
      *  ({@link #unreadUnknownFunctions}). */
-    private final Set<SqlAst.FunctionCall> placeheld = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<SqlAst.Expr> placeheld = Collections.newSetFromMap(new IdentityHashMap<>());
     /** The error held while the statement is translated ({@link #hold}), raised once it is ({@link #translated}). */
     private final SqlTranslationException[] held = {null};
     /** A subquery's placement error, named before translating and held while it is ({@link #failed}). */
@@ -1808,7 +1808,7 @@ public final class IqDialect implements InputDialect {
         shown(first(statement), shownHere);
         Engine chosen = engine != null ? engine : engineOf(statement, settings);
         Set<SqlAst.Join> innerHere = Collections.newSetFromMap(new IdentityHashMap<>());
-        Set<SqlAst.FunctionCall> placeheldHere = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<SqlAst.Expr> placeheldHere = Collections.newSetFromMap(new IdentityHashMap<>());
         SqlTranslationException placement = placements(statement, chosen, innerHere, placeheldHere);
         // IQ island, 2026-10-14 (the third landing; measured on SQL Anywhere 17): a row limit in a subquery or a
         // derived table keeps its rows as the statement's own does; IQ's engine restricts it (the research's D-R1, IQ
@@ -3450,8 +3450,19 @@ public final class IqDialect implements InputDialect {
      * call is read as a NULL string ({@code placeheld}; its arguments translated, so their names bind and their
      * grouping is checked). Any other such call in a column the
      * outer query's own clauses do not read is refused by name rather than claim the -265.
+     *
+     * <p>The IQ scale program, 2026-10-26 (the corpus lanes' 4 refusals, TPC-DS's CONCAT_WS and JOB's CAST(... AS
+     * TEXT) in a common table expression's column the statement never reads, which IQ 17.1 answers; measured there: a
+     * column one more CTE passes along unread, by name or under a *, is read nowhere too): what an outer query reads is
+     * its clauses and the items of its own someone reads ({@code readOf}, the derived tables around it first), a {@code
+     * *} of a derived table every column the outer query's own columns show that someone reads; an item read names the
+     * items of its own table its alias names; and a CAST of a column to LONG VARCHAR (TEXT), IQ's -1001006 where read,
+     * is read as a NULL string in a column read nowhere, as the calls are.
      */
-    private static void unreadUnknownFunctions(SqlAst.Statement statement, Set<SqlAst.FunctionCall> placeheld) {
+    private static void unreadUnknownFunctions(SqlAst.Statement statement, Set<SqlAst.Expr> placeheld) {
+        // a derived table's names someone reads (absent: every one), and its column list, by its SELECT
+        Map<SqlAst.Select, Set<String>> readOf = new IdentityHashMap<>();
+        Map<SqlAst.Select, List<SqlAst.Ident>> columnsOf = new IdentityHashMap<>();
         for (SqlAst.Statement q : queries(statement)) {
             if (!(q instanceof SqlAst.Select outer)) {
                 continue;
@@ -3462,6 +3473,22 @@ public final class IqDialect implements InputDialect {
                 joins(f, joins);
                 matched |= joins.stream().anyMatch(j -> j.natural() || !j.using().isEmpty());
             }
+            Set<String> outerRead = readOf.get(outer);
+            List<SqlAst.Ident> outerColumns = columnsOf.getOrDefault(outer, List.of());
+            // what the outer query reads: its clauses, and its items someone reads
+            List<SqlAst.Expr> live = new ArrayList<>();
+            for (SqlAst.Expr e : readExpressions(outer)) {
+                if (outer.items().stream().noneMatch(i -> i instanceof SqlAst.SelectExpr x && x.expr() == e)) {
+                    live.add(e);
+                }
+            }
+            for (int i = 0; i < outer.items().size(); i++) {
+                String name = itemName(outer, i, outerColumns);
+                if (outer.items().get(i) instanceof SqlAst.SelectExpr x && (outerRead == null || name == null
+                        || outerRead.contains(name))) {
+                    live.add(x.expr());
+                }
+            }
             for (SqlAst.FromItem f : outer.from()) {
                 for (SqlAst.FromItem leaf : leaves(f)) {
                     if (!(leaf instanceof SqlAst.SubqueryFrom d) || !(d.query() instanceof SqlAst.Select ds)
@@ -3470,13 +3497,25 @@ public final class IqDialect implements InputDialect {
                     }
                     String alias = d.alias() == null ? null
                             : IqLexer.lower(java.util.Objects.requireNonNull(d.alias()).text());
-                    if (outer.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns a && (a.qualifier() == null
-                            || IqLexer.lower(java.util.Objects.requireNonNull(a.qualifier()).text()).equals(alias)))) {
+                    Set<String> read = new java.util.HashSet<>();
+                    boolean starred = false;
+                    for (SqlAst.SelectItem i : outer.items()) {
+                        if (i instanceof SqlAst.AllColumns a && (a.qualifier() == null || IqLexer.lower(
+                                java.util.Objects.requireNonNull(a.qualifier()).text()).equals(alias))) {
+                            // the outer query's columns the * shows, by their names: those someone reads
+                            if (outerRead == null || !outerColumns.isEmpty()) {
+                                starred = true;
+                            } else {
+                                read.addAll(outerRead);
+                            }
+                        }
+                    }
+                    if (starred) {
                         continue;
                     }
-                    Set<String> read = new java.util.HashSet<>();
+                    columnsOf.put(ds, d.columnAliases());
                     Set<String> readDeep = new java.util.HashSet<>();
-                    for (SqlAst.Expr e : readExpressions(outer)) {
+                    for (SqlAst.Expr e : live) {
                         namesRead(e, alias, read);
                         List<SqlAst.Statement> subs = new ArrayList<>();
                         subqueries(e, subs);
@@ -3495,9 +3534,28 @@ public final class IqDialect implements InputDialect {
                             namesRead(e, null, readDeep);
                         }
                     }
+                    // and its items someone reads, which may too
+                    for (boolean grew = true; grew; ) {
+                        grew = false;
+                        for (int i = 0; i < ds.items().size(); i++) {
+                            String name = itemName(ds, i, d.columnAliases());
+                            if (ds.items().get(i) instanceof SqlAst.SelectExpr x && (name == null
+                                    || readDeep.contains(name))) {
+                                Set<String> named = new java.util.HashSet<>();
+                                namesRead(x.expr(), null, named);
+                                grew |= readDeep.addAll(named);
+                            }
+                        }
+                    }
+                    if (!matched) {
+                        readOf.put(ds, readDeep);
+                    }
                     for (int i = 0; i < ds.items().size(); i++) {
                         String name = itemName(ds, i, d.columnAliases());
                         if (name != null && !read.contains(name) && ds.items().get(i) instanceof SqlAst.SelectExpr x) {
+                            if (!matched && !readDeep.contains(name)) {
+                                textCasts(x.expr(), placeheld);
+                            }
                             List<SqlAst.FunctionCall> arrays = new ArrayList<>();
                             arrayAggregates(x.expr(), arrays);
                             if (!arrays.isEmpty()) {
@@ -3541,6 +3599,24 @@ public final class IqDialect implements InputDialect {
                 }
             }
         }
+    }
+
+    /** Into {@code out}, each CAST in {@code e} (outside its subqueries) to LONG VARCHAR (or TEXT): of a column IQ's
+     *  -1001006 under its engine where read ({@link IqFunctions#cast}), a NULL string where read nowhere ({@link
+     *  #unreadUnknownFunctions}). */
+    private static void textCasts(SqlAst.Expr e, Set<SqlAst.Expr> out) {
+        if (e instanceof SqlAst.Cast c && c.type().name().equals("LONG VARCHAR")) {
+            out.add(c);
+        }
+        for (SqlAst.Expr child : children(e)) {
+            textCasts(child, out);
+        }
+    }
+
+    /** Whether {@code e} is a call or a CAST read as a NULL string, its column read nowhere ({@link
+     *  #unreadUnknownFunctions}). */
+    boolean placeheld(SqlAst.Expr e) {
+        return placeheld.contains(e);
     }
 
     /** The names of no function of IQ's whose call is a string (other dialects'), read as a NULL string where the
@@ -7360,7 +7436,7 @@ public final class IqDialect implements InputDialect {
      *  error; measured on IQ 17.1): IQ raises those first, so the statement is translated on, and this is raised where
      *  it fails otherwise or once it is translated. */
     private static @com.legend.base.Nullable SqlTranslationException placements(SqlAst.Statement statement,
-            Engine chosen, Set<SqlAst.Join> innerHere, Set<SqlAst.FunctionCall> placeheldHere) {
+            Engine chosen, Set<SqlAst.Join> innerHere, Set<SqlAst.Expr> placeheldHere) {
         if (chosen == Engine.IQ) {
             // its refusals are no claims; the calls it reads as NULL strings are known before any claim is held
             unreadUnknownFunctions(statement, placeheldHere);
@@ -7413,7 +7489,7 @@ public final class IqDialect implements InputDialect {
      * (-149) and conversions (-157), and before a subquery's placement (-1005004); not where a column no one reads
      * holds it ({@code placeheld}, {@link #unreadUnknownFunctions}).
      */
-    private static void arrayAggregates(SqlAst.Statement statement, Set<SqlAst.FunctionCall> placeheld) {
+    private static void arrayAggregates(SqlAst.Statement statement, Set<SqlAst.Expr> placeheld) {
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.Select s) {
                 for (SqlAst.Expr e : readExpressions(s)) {
