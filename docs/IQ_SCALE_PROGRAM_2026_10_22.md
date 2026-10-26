@@ -962,3 +962,18 @@ says so.
     unchanged). The LEAD default's NULs, measured by the Mac: IQ writes a default into the previous output row's buffer
     -- NUL-padded to that row's byte length, or cut to it; the first output the argument's estimated width -- a
     VARCHAR-only defect (a CHAR's default is blank padded), listed.
+  - **A COALESCE's integer constant, as each engine counts it** (measured by the Mac on IQ 17.1): IQ's engine counts an
+    integer beside a NUMERIC in COALESCE or ISNULL by its type -- a column's SMALLINT 5, INTEGER 10, BIGINT 19 digits,
+    and a constant the SMALLINT's or INTEGER's that holds it, else its own digits (COALESCE(nm, 1000000) of a
+    NUMERIC(10,2) is a NUMERIC(12,2), COALESCE(CAST(nm AS NUMERIC(5,2)), 0) a NUMERIC(7,2), COALESCE(nm, 123456789012)
+    a NUMERIC(14,2)); its front end counts a constant by its value's digits and every integer column below a BIGINT as
+    10 (EXPRTYPE reads the front end's, again). Lite counted a constant by its value under both, so a quotient by such a
+    COALESCE had 11 places where IQ has 13 (nm / COALESCE(nm, 1000000)) and 6 where it has 8. The front end now also
+    types a quotient whose operand is a COALESCE or an ISNULL that reads a column, of operands typed exactly
+    (100.0 * COALESCE(revenue, 0) / (salary * 2)), and one a CAST or a ROUND reads past lite's 38 digits (IQ 17's
+    front end holds 40) is computed, as under IQ's engine, for a dividend of the most digits lite holds, a row whose
+    dividend has more refused at run time. Part H's capped_attainment stays refused, now on its LESSER: 100 against
+    ROUND(q, 1), a NUMERIC(40,11), needs a decimal of 40 digits to compare. A CAST that alone reads an IQ-engine
+    quotient at fewer places than IQ's scale is typed at those places (no padding to IQ's scale first). Reports parts S
+    (finance, 8) and T (customer hygiene and service, 12) on claude/iq-reports 9755a670, snapped by the Mac at
+    b20d792a: 18 answered, 2 IQ's -1001030 (a subquery predicate, and a scalar subquery, inside a CASE: two wordings).

@@ -481,6 +481,38 @@ class IqToPureTest {
         assertTrue(bare.length() < 40_000 && wrapped.length() < 80_000, bare.length() + " " + wrapped.length());
     }
 
+    /** The IQ scale program, 2026-10-26 (measured on IQ 17.1, its engine): an integer constant beside a NUMERIC in
+     *  COALESCE or ISNULL counts as the SMALLINT or INTEGER that holds it, so COALESCE(nm, 1000000) of a NUMERIC(10,2)
+     *  is a NUMERIC(12,2), and a quotient by it has 13 places, where by its value's 7 digits it had 11. */
+    @Test
+    void aCoalescesIntegerConstantCountsByItsTypeUnderIqsEngine() {
+        IqSettings iq17 = IqProfile.IQ17_DEFAULT.settings();
+        String wide = pure("SELECT nm / COALESCE(nm, 1000000) AS a FROM " + T, iq17, NUMBERS);
+        String narrow = pure("SELECT nm / COALESCE(CAST(nm AS NUMERIC(5,2)), 0) AS b FROM " + T, iq17, NUMBERS);
+        assertTrue(wide.contains("|-1E-13D, |1E-13D"), wide);
+        assertTrue(narrow.contains("|-1E-8D, |1E-8D"), narrow);
+    }
+
+    /** The IQ scale program, 2026-10-26 (the realistic reports' capped attainment; measured on IQ 17.1's front end):
+     *  a quotient of a COALESCE that reads a column, of operands typed exactly, is typed as SQL Anywhere types it; a
+     *  COALESCE of constants alone, which it may fold, stays refused. */
+    @Test
+    void aFrontEndQuotientOfACoalesceIsTyped() {
+        String q = saNumbers("SELECT 100.0 * COALESCE(nm, 0) / (i * 2) AS q FROM " + T);
+        assertTrue(q.contains("coalesce(") && q.contains("0.9999999999999432"), q);
+        assertTrue(saNumbersRefusal("SELECT COALESCE(1, 2.5) / nm AS q FROM " + T).getMessage()
+                .contains("constant integer expression"));
+        assertTrue(saNumbersRefusal("SELECT COALESCE(SUM(nm), 0) / 3 AS q FROM " + T).getMessage()
+                .contains("constant integer expression"));
+        // under IQ 17's front end (its PRECISION 40; a LESSER puts the statement there), one a CAST reads, of a
+        // NUMERIC(39,13) past lite's 38 digits, is computed for a dividend of 25 digits, a row whose dividend has more
+        // refused at run time
+        String held = pure("SELECT LESSER(i, 2) AS f, CAST(nm * nm * i / CAST(i AS NUMERIC(8,0)) AS NUMERIC(30,1)) AS q"
+                + " FROM " + T, IqProfile.IQ17_DEFAULT.settings(), NUMBERS);
+        assertTrue(held.contains("a / whose dividend has more than 25 digits before its point is not supported: its"
+                + " NUMERIC(39,13)"), held);
+    }
+
     /** The IQ scale program, 2026-10-26 (the realistic reports' totals last): a ROLLUP ordered by keys that are none
      *  of its items -- GROUPING(k), a key not shown -- each item named; an item with no name refused as before. */
     @Test
@@ -595,8 +627,11 @@ class IqToPureTest {
                 full);
         assertFalse(cast.contains("dividend has more than 2 digits"), cast);
         assertFalse(round.contains("dividend has more than 2 digits"), round);
-        // and its value at IQ's scale again, so that the CAST's cut reads one scale (DuckDB's 100.00 % 0.1 is a double's)
-        assertTrue(cast.contains("toDecimal(0) + 0E-19D"), cast);
+        // a CAST alone reads it: typed at the places computed, which the CAST cuts at one scale, no padding (the IQ scale
+        // program, 2026-10-26: part S's quotient by a window AVG, NUMERIC(36,23), past 38 digits padded); a ROUND shows
+        // its operand's scale, so its quotient is padded to IQ's again
+        assertFalse(cast.contains("toDecimal(0) + 0E-19D"), cast);
+        assertTrue(round.contains("toDecimal(0) + 0E-19D") || round.contains("+ 0E-"), round);
     }
 
     @Test

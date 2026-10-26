@@ -6162,8 +6162,18 @@ public final class IqDialect implements InputDialect {
                         + " it in fewer, which is not supported", b.pos());
             }
         }
-        boolean fits = read != null ? read <= s && IqFunctions.truncatedDivisionFits(lt[1], lt[0] - lt[1], rt[1],
-                rt[0] - rt[1], read) && lt[0] - lt[1] + rt[1] + s <= 38
+        // the IQ scale program, 2026-10-26 (the realistic reports' capped attainment, ROUND(100.0 * COALESCE(revenue, 0)
+        // / (salary * 2), 1), a NUMERIC(40,11)): one a CAST or a ROUND reads is computed, as under IQ's engine
+        // (iqQuotient), for a dividend of the most digits lite's 38 hold at its type's scale, and a row whose dividend
+        // has more is refused there, at run time
+        int whole1 = lt[0] - lt[1];
+        int most = whole1;
+        while (read != null && most > 0 && (!IqFunctions.truncatedDivisionFits(lt[1], most, rt[1], rt[0] - rt[1], read)
+                || most + rt[1] + s > 38)) {
+            most--;
+        }
+        int held = most;
+        boolean fits = read != null ? read <= s && held > 0
                 : divide ? IqFunctions.quotientFits(lt[1], lt[0] - lt[1], rt[1], rt[0] - rt[1], p, s)
                 : IqFunctions.remainderFits(lt[1], lt[0] - lt[1], rt[1], rt[0] - rt[1]);
         if (!fits) {
@@ -6189,9 +6199,15 @@ public final class IqDialect implements InputDialect {
                 return raiseDecimal();
             }
             ValueSpecification value = read != null ? IqFunctions.atScale(IqFunctions.truncatedDivision(x, lt[1],
-                    lt[0] - lt[1], y, rt[1], read), fs)
+                    held, y, rt[1], read), fs)
                     : divide ? IqFunctions.quotient(x, lt[1], lt[0] - lt[1], y, rt[1], rt[0] - rt[1], fp, fs)
                     : IqFunctions.remainder(x, lt[1], lt[0] - lt[1], y, rt[1], rt[0] - rt[1]);
+            if (held < whole1) {
+                value = IqFunctions.refusedPast(SqlToPure.call("greaterThanEqual", SqlToPure.call("abs", x),
+                        new CDecimal(BigDecimal.TEN.pow(held))), REFUSED_AT_RUN_TIME + "a / whose dividend has more"
+                        + " than " + held + " digits before its point is not supported: its NUMERIC(" + fp + "," + fs
+                        + ") needs more than the 38 digits lite's decimals hold", value, raiseDecimal());
+            }
             ValueSpecification zero = SqlToPure.call("equal", y, new CInteger(0L));
             return divisor != null ? value : nullOnZero ? ifThen(zero, SqlToPure.nullOf(Kind.DECIMAL).vs(), value)
                     : raisedIf(zero, ZERO_DIVISOR, new CDecimal(BigDecimal.ZERO), value);
@@ -6240,10 +6256,15 @@ public final class IqDialect implements InputDialect {
         // the IQ scale program, 2026-10-26: computed at the places a CAST or a ROUND reads, where fewer
         // (quotientPlaces), the type IQ's
         int computed = placesRead.containsKey(b) ? Math.min(s, placesRead.get(b)) : s;
-        // its value at IQ's scale again (a CAST's or a ROUND's cut reads its places by its type's: DuckDB's remainder of
-        // two decimals of two scales is a double's, 100.00 % 0.1 not 0), which a quotient below 10^(held + s2) holds
+        // the IQ scale program, 2026-10-26 (part S's CAST(total / AVG(total) OVER (...) AS NUMERIC(6,3))): one a CAST
+        // alone reads is typed at the places computed, which the CAST cuts as it would IQ's (IQ's CAST truncates), no
+        // padding needed
+        boolean castOnly = computed < s && castRead.contains(b);
+        // else its value at IQ's scale again (a ROUND shows its operand's scale; a CAST's or a ROUND's cut reads its
+        // places by its type's: DuckDB's remainder of two decimals of two scales is a double's, 100.00 % 0.1 not 0),
+        // which a quotient below 10^(held + s2) holds
         while (held > 0 && (!IqFunctions.truncatedDivisionFits(lt[1], held, rt[1], whole2, computed)
-                || computed < s && held + rt[1] + s > 38)) {
+                || computed < s && !castOnly && held + rt[1] + s > 38)) {
             held = guardable ? held - 1 : 0;
         }
         // the IQ scale program, 2026-10-26 (the TPC-H lane's 11 ratios of two totals, a SUM's NUMERIC(36,4) by
@@ -6306,7 +6327,7 @@ public final class IqDialect implements InputDialect {
                         guarded) : raisedIf(zero, ZERO_DIVISOR, new CDecimal(BigDecimal.ZERO), guarded);
             }
             ValueSpecification value = IqFunctions.truncatedDivision(x, lt[1], dividendDigits, y, rt[1], at);
-            if (at < s) {
+            if (at < s && !castOnly) {
                 value = IqFunctions.atScale(value, s);
             }
             if (past != null) {
@@ -6317,8 +6338,9 @@ public final class IqDialect implements InputDialect {
             return divisor != null ? value : nullOnZero ? ifThen(zero, SqlToPure.nullOf(Kind.DECIMAL).vs(), value)
                     : raisedIf(zero, ZERO_DIVISOR, new CDecimal(BigDecimal.ZERO), value);
         });
-        return Tx.value(result.vs(), Kind.DECIMAL, result.nullable() || nullOnZero, numeric(whole1 + rt[1] + s + 1,
-                s));
+        int typed = castOnly ? computed : s;
+        return Tx.value(result.vs(), Kind.DECIMAL, result.nullable() || nullOnZero, numeric(whole1 + rt[1] + typed + 1,
+                typed));
     }
 
     /** Whether {@code b} is a value the statement only shows ({@link #shownValues}): an item itself, or a result of a CASE
@@ -6497,6 +6519,13 @@ public final class IqDialect implements InputDialect {
             };
             case SqlAst.Cast c -> (c.type().name().equals("NUMERIC") || c.type().name().equals("DECIMAL"))
                     && !c.type().modifiers().isEmpty() || INTEGER_TYPES.contains(c.type().name()) && readsColumn(c);
+            // the IQ scale program, 2026-10-26 (the realistic reports' capped attainment, 100.0 * COALESCE(revenue, 0)
+            // / (salary * 2); measured on IQ 17.1's front end: COALESCE of a NUMERIC and an integer constant is a
+            // NUMERIC of their most integer digits, the constant's its value's, and their largest scale --
+            // iqNumericUnify's under it): a COALESCE or an ISNULL that reads a column, of operands typed exactly
+            case SqlAst.FunctionCall f when f.name().size() == 1 && f.args().size() >= 2 && readsColumn(f)
+                    && Set.of("coalesce", "isnull").contains(IqLexer.lower(f.name().get(0).text())) ->
+                    f.args().stream().allMatch(this::exactlyTyped);
             default -> false;
         };
     }
@@ -9195,6 +9224,17 @@ public final class IqDialect implements InputDialect {
             // SQL Anywhere's front end (measured on SQL Anywhere 17, 2026-10-17): an integer below a BIGINT -- a BIT, a
             // SMALLINT -- as a NUMERIC(10,0), a BIGINT a NUMERIC(20,0) (numericType), where IQ's engine sizes each
             int[] ps = engine == Engine.IQ ? iqNumericType(v, exprs.get(i)) : numericType(v, exprs.get(i), what);
+            BigInteger constant = engine == Engine.IQ && (what.equals("COALESCE") || what.equals("ISNULL"))
+                    ? integerLiteral(exprs.get(i)) : null;
+            if (constant != null) {
+                // the IQ scale program, 2026-10-26 (measured on IQ 17.1, its engine: COALESCE(nm, 1000000) of a
+                // NUMERIC(10,2) is a NUMERIC(12,2), COALESCE(CAST(nm AS NUMERIC(5,2)), 0) a NUMERIC(7,2), with
+                // 123456789012 a NUMERIC(14,2); its front end counts each by its value, numericType's): an integer
+                // constant beside a NUMERIC in COALESCE or ISNULL counts as a SMALLINT's 5 digits where one holds it,
+                // an INTEGER's 10, else its own
+                int digits = constant.abs().toString().length();
+                ps = new int[] {constant.bitLength() < 16 ? 5 : constant.bitLength() < 32 ? 10 : digits, 0};
+            }
             whole = Math.max(whole, ps[0] - ps[1]);
             scale = Math.max(scale, ps[1]);
             held = Math.max(held, Math.min(ps[0] - ps[1], 38 - ps[1]));
