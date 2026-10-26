@@ -1,0 +1,36 @@
+# The IQ scale program's realistic reports (2026-10-25): quality_and_calendar, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: customers_by_city_cohort
+    sql: "SELECT c.city, c.id, c.last_name, COUNT(*) OVER (PARTITION BY c.city) AS same_city, ROW_NUMBER() OVER (PARTITION BY c.city ORDER BY c.signup_date, c.id) AS signup_order, FIRST_VALUE(c.last_name) OVER (PARTITION BY c.city ORDER BY c.signup_date, c.id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS first_in_city FROM customers c ORDER BY c.city, signup_order"
+    profile: iq17-default
+  - id: null_rate_profile
+    sql: "SELECT 'orders' AS tbl, COUNT(*) AS rows_total, SUM(CASE WHEN ship_date IS NULL THEN 1 ELSE 0 END) AS nulls_a, SUM(CASE WHEN sales_rep_id IS NULL THEN 1 ELSE 0 END) AS nulls_b, CAST(100.0 * SUM(CASE WHEN ship_date IS NULL THEN 1 ELSE 0 END) / COUNT(*) AS NUMERIC(5,1)) AS pct_a FROM orders UNION ALL SELECT 'customers', COUNT(*), SUM(CASE WHEN phone IS NULL THEN 1 ELSE 0 END), SUM(CASE WHEN birth_date IS NULL THEN 1 ELSE 0 END), CAST(100.0 * SUM(CASE WHEN phone IS NULL THEN 1 ELSE 0 END) / COUNT(*) AS NUMERIC(5,1)) FROM customers UNION ALL SELECT 'web_events', COUNT(*), SUM(CASE WHEN customer_id IS NULL THEN 1 ELSE 0 END), SUM(CASE WHEN referrer IS NULL THEN 1 ELSE 0 END), CAST(100.0 * SUM(CASE WHEN customer_id IS NULL THEN 1 ELSE 0 END) / COUNT(*) AS NUMERIC(5,1)) FROM web_events ORDER BY 1"
+    profile: iq17-default
+  - id: integrity_checks
+    sql: "SELECT 'order without items' AS check_name, COUNT(*) AS violations FROM orders o WHERE NOT EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id) UNION ALL SELECT 'payments above the bill', COUNT(*) FROM (SELECT order_id, SUM(amount) AS paid FROM payments GROUP BY order_id) x JOIN (SELECT order_id, SUM(quantity * unit_price) AS billed FROM order_items GROUP BY order_id) y ON y.order_id = x.order_id WHERE x.paid > y.billed UNION ALL SELECT 'ticket on another customer''s order', COUNT(*) FROM support_tickets t JOIN orders o ON o.id = t.order_id WHERE o.customer_id <> t.customer_id UNION ALL SELECT 'shipped before ordered', COUNT(*) FROM orders WHERE ship_date < CAST(order_ts AS DATE) UNION ALL SELECT 'stock below zero', COUNT(*) FROM inventory WHERE on_hand < 0 ORDER BY 1"
+    profile: iq17-default
+  - id: days_without_orders_in_june
+    sql: "SELECT DATEADD(DAY, g.row_num - 1, CAST('2025-06-01' AS DATE)) AS day, DATENAME(WEEKDAY, DATEADD(DAY, g.row_num - 1, CAST('2025-06-01' AS DATE))) AS weekday, COUNT(o.id) AS orders FROM sa_rowgenerator(1, 30) g LEFT JOIN orders o ON CAST(o.order_ts AS DATE) = DATEADD(DAY, g.row_num - 1, CAST('2025-06-01' AS DATE)) GROUP BY g.row_num ORDER BY g.row_num"
+    profile: iq17-default
+  - id: sku_parsing
+    sql: "SELECT p.sku, LEFT(p.sku, LOCATE(p.sku, '-') - 1) AS dept, SUBSTR(p.sku, LOCATE(p.sku, '-') + 1, LOCATE(p.sku, '-', LOCATE(p.sku, '-') + 1) - LOCATE(p.sku, '-') - 1) AS line, CAST(SUBSTR(p.sku, LOCATE(p.sku, '-', LOCATE(p.sku, '-') + 1) + 1) AS INTEGER) AS seq, CASE WHEN UPPER(LEFT(p.subcategory, 3)) = SUBSTR(p.sku, 5, 3) THEN 'consistent' ELSE 'check' END AS sku_matches, p.name, LENGTH(p.name) AS name_length, REPLACE(LOWER(p.name), ' ', '-') AS slug FROM products p ORDER BY dept, line, seq"
+    profile: iq17-default
+  - id: receipts_seven_day_moving_average
+    sql: "WITH days AS (SELECT DATEADD(DAY, g.row_num - 1, CAST('2025-09-01' AS DATE)) AS d FROM sa_rowgenerator(1, 61) g), daily AS (SELECT d.d, COALESCE(SUM(p.amount), 0) AS receipts FROM days d LEFT JOIN payments p ON CAST(p.paid_ts AS DATE) = d.d GROUP BY d.d) SELECT d, receipts, CAST(AVG(receipts) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS NUMERIC(10,2)) AS avg_7d, SUM(receipts) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS sum_7d FROM daily ORDER BY d"
+    profile: iq17-default
+  - id: quarterly_category_pivot_2025
+    sql: "SELECT p.category, SUM(CASE WHEN QUARTER(o.order_ts) = 1 THEN oi.quantity * oi.unit_price ELSE 0 END) AS q1, SUM(CASE WHEN QUARTER(o.order_ts) = 2 THEN oi.quantity * oi.unit_price ELSE 0 END) AS q2, SUM(CASE WHEN QUARTER(o.order_ts) = 3 THEN oi.quantity * oi.unit_price ELSE 0 END) AS q3, SUM(CASE WHEN QUARTER(o.order_ts) = 4 THEN oi.quantity * oi.unit_price ELSE 0 END) AS q4, SUM(oi.quantity * oi.unit_price) AS total, CASE WHEN SUM(CASE WHEN QUARTER(o.order_ts) = 4 THEN oi.quantity * oi.unit_price ELSE 0 END) > SUM(CASE WHEN QUARTER(o.order_ts) = 1 THEN oi.quantity * oi.unit_price ELSE 0 END) THEN 'up' ELSE 'flat or down' END AS q4_vs_q1 FROM orders o JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id WHERE YEAR(o.order_ts) = 2025 AND o.status <> 'cancelled' GROUP BY p.category ORDER BY p.category"
+    profile: iq17-default
+  - id: reorder_rhythm_per_customer
+    sql: "WITH seq AS (SELECT customer_id, id, order_ts, LAG(order_ts) OVER (PARTITION BY customer_id ORDER BY order_ts, id) AS prev_ts FROM orders WHERE status <> 'cancelled') SELECT customer_id, COUNT(*) AS orders, MIN(order_ts) AS first_order, MAX(order_ts) AS last_order, CAST(AVG(DATEDIFF(DAY, prev_ts, order_ts)) AS NUMERIC(8,1)) AS avg_days_between, MAX(DATEDIFF(DAY, prev_ts, order_ts)) AS longest_gap, DATEADD(DAY, CAST(AVG(DATEDIFF(DAY, prev_ts, order_ts)) AS INTEGER), MAX(order_ts)) AS next_expected FROM seq GROUP BY customer_id HAVING COUNT(*) >= 3 ORDER BY customer_id"
+    profile: iq17-default
+  - id: cheapest_supplier_offer
+    sql: "SELECT p.id, p.name, s.name AS supplier, x.unit_cost, x.lead_days, x.offers, p.unit_price - x.unit_cost AS margin_per_unit FROM (SELECT sp.product_id, sp.supplier_id, sp.unit_cost, sp.lead_days, COUNT(*) OVER (PARTITION BY sp.product_id) AS offers, ROW_NUMBER() OVER (PARTITION BY sp.product_id ORDER BY sp.unit_cost, sp.lead_days, sp.id) AS rn FROM supplier_products sp) x JOIN products p ON p.id = x.product_id JOIN suppliers s ON s.id = x.supplier_id WHERE x.rn = 1 ORDER BY p.id"
+    profile: iq17-default
+  - id: weekly_ticket_backlog
+    sql: "SELECT DATEADD(WEEK, g.row_num, CAST('2025-01-05' AS DATE)) AS week_end, COUNT(t.id) AS open_tickets, SUM(CASE WHEN t.priority IN ('urgent', 'high') THEN 1 ELSE 0 END) AS open_high FROM sa_rowgenerator(1, 12) g LEFT JOIN support_tickets t ON t.opened_ts < DATEADD(WEEK, g.row_num, CAST('2025-01-05' AS DATE)) AND (t.closed_ts IS NULL OR t.closed_ts >= DATEADD(WEEK, g.row_num, CAST('2025-01-05' AS DATE))) GROUP BY g.row_num ORDER BY g.row_num"
+    profile: iq17-default
+  - id: region_directory_formatted
+    sql: "SELECT r.id, r.name AS region, COUNT(c.id) AS customers, RIGHT(SPACE(12) || CAST(COALESCE(SUM(c.credit_limit), 0) AS VARCHAR(20)), 12) AS credit_right_aligned, UPPER(LEFT(r.country, 3)) || '-' || RIGHT('00' || CAST(r.id AS VARCHAR(2)), 2) AS region_code, REPEAT('#', COUNT(c.id)) AS bar, LIST(DISTINCT c.segment, '/' ORDER BY c.segment) AS segments FROM regions r LEFT JOIN customers c ON c.region_id = r.id GROUP BY r.id, r.name, r.country ORDER BY r.id"
+    profile: iq17-default
