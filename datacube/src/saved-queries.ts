@@ -128,17 +128,36 @@ export interface QueryReading {
   parse(text: string): Promise<Lambda>;
 }
 
+/** A saved query read: the runtime and mapping it runs on and the model's enumerations (`how`), and its one expression
+ *  with each parameter's saved value (`source`). */
+export interface SavedQueryRead {
+  readonly runtime: string;
+  readonly how: ModelOptions;
+  readonly source: ValueSpecification;
+}
+
 /**
  * A SAVED QUERY OPENED AS A GRID'S BASE, the one rule (the tab's app/sources.ts openedRecord; headless host-tables.ts, a
  * page on the host: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md X1, X5): rules 1-4 over its project's model text (`model`)
  * -- the mapping and runtime it runs on and the model's enumerations (`how`), its one expression with each parameter's
  * saved value, and each column the compiler types with an enumeration read as its value's name (rule 4: typed by
- * `typerOf`, a typer over the model through the runtime and mapping found).
+ * `typerOf`, a typer over the model through the runtime and mapping found). Its two halves, `savedQueryRead` (rules 1-3:
+ * knowledge, read) and `savedQueryTyped` (rule 4: work, the compiler's), are taken apart where a grid opens before it
+ * reads its rows (a saved page's grid on a sheet not shown: typed when the sheet is).
  */
 export async function savedQueryOpened(
   q: Pick<Query, 'name' | 'groupId' | 'artifactId' | 'versionId' | 'content' | 'executionContext' | 'defaultParameterValues'>,
   model: string, reading: QueryReading, typerOf: (runtime: string, how: ModelOptions) => RelationTyper,
-): Promise<{ readonly runtime: string; readonly how: ModelOptions; readonly source: ValueSpecification }> {
+): Promise<SavedQueryRead> {
+  const read = await savedQueryRead(q, model, reading);
+  return savedQueryTyped(read, typerOf(read.runtime, read.how));
+}
+
+/** Rules 1-3 of a saved query (savedQueryOpened): what it runs on, and its expression with its parameters' values. */
+export async function savedQueryRead(
+  q: Pick<Query, 'name' | 'groupId' | 'artifactId' | 'versionId' | 'content' | 'executionContext' | 'defaultParameterValues'>,
+  model: string, reading: QueryReading,
+): Promise<SavedQueryRead> {
   const elements = await reading.elements(model) as ModelElement[];
   const context = contextOf(q, elements);
   const parsed = await reading.parse(q.content);
@@ -147,11 +166,14 @@ export async function savedQueryOpened(
     const value = (await reading.parse(`|${v.content}`)).body[0];
     if (value) values.set(v.name, value);
   }
-  let source = sourceOf(parsed, values);
   // its rows its project's own (C5): a host that plans and runs them reads them there, never its own tables (F28)
   const how: ModelOptions = { mapping: context.mapping, enumerations: [...enumerationsOf(elements)], project: true };
-  // rule 4: an enumeration column is read as its value's name
-  const named = new Set((await typerOf(context.runtime, how).relationType(lambda([], source))).filter((c) => c.enumeration).map((c) => c.name));
-  if (named.size > 0) source = enumsAsStrings(source, named);
-  return { runtime: context.runtime, how, source };
+  return { runtime: context.runtime, how, source: sourceOf(parsed, values) };
+}
+
+/** Rule 4 of a saved query (savedQueryOpened), by the compiler (`typer`): an enumeration column read as its value's
+ *  name. */
+export async function savedQueryTyped(read: SavedQueryRead, typer: RelationTyper): Promise<SavedQueryRead> {
+  const named = new Set((await typer.relationType(lambda([], read.source))).filter((c) => c.enumeration).map((c) => c.name));
+  return named.size > 0 ? { ...read, source: enumsAsStrings(read.source, named) } : read;
 }

@@ -248,6 +248,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         ...(start?.tree ? { tree: start.tree } : place.tree && !start ? { tree: place.tree } : {}),
         ...(place.heldCopy ? { heldCopy: place.heldCopy } : {}),
         ...(opensWhen ? { opensWhen } : {}),
+        // its saved query typed before its first view (sources.ts reopenedSavedQuery) -- not a copy's, nor the same grid
+        // made again by an undo: each starts where a grid already typed is
+        ...(place.prepares && !start ? { prepares: place.prepares } : {}),
         ...(place.label !== undefined ? { sourceLabel: place.label } : {}),
         compact: true,
         // a copy is a grid added beside others; the same grid made again folds as it did

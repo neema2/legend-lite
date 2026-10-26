@@ -98,6 +98,12 @@ export interface ChartPanelOptions {
   readonly shown?: () => GridShown | null;
   /** A feed's card picked, or a ticker chip on it (K15): its row, for the page to follow where the view links it. */
   readonly onRow?: (pick: FeedPick) => void;
+  /**
+   * Whether it waits to draw: it is on a sheet not shown (the page's), so its query is not run -- lazy about work
+   * (docs/TENETS.md; the user, 2026-10-26: the trading desk's ten tabs ran every chart's query as the page opened). A draw
+   * asked while it waits is drawn when `wake` is called.
+   */
+  readonly held?: () => boolean;
 }
 
 export class ChartPanel {
@@ -225,6 +231,15 @@ export class ChartPanel {
   /** Whether a tick's draw runs, and whether another tick came meanwhile. */
   #ticking = false;
   #tickAgain = false;
+  /** A draw asked while it was held (`ChartPanelOptions.held`): drawn when it is woken. */
+  #waiting = false;
+
+  /** Its sheet is shown: a draw asked while it waited is drawn now. */
+  wake(): void {
+    if (!this.#waiting || this.#disposed) return;
+    this.#waiting = false;
+    this.refresh(0);
+  }
 
   /** Show or hide the options; answers whether they are now shown. */
   toggleForm(): boolean {
@@ -397,6 +412,10 @@ export class ChartPanel {
 
   async #draw(ticked = false): Promise<void> {
     if (this.#disposed) return;
+    if (this.#options.held?.()) {
+      this.#waiting = true;
+      return;
+    }
     const spec = this.#spec;
     const cube = this.#options.snapshot();
     if (!spec) return;

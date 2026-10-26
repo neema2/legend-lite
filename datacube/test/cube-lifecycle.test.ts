@@ -4,7 +4,8 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { app, dom, engine, menu, remount, root, settle, setUp, tearDown } from './cube-fixture.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
+import { SNAPSHOT, app, dom, engine, menu, remount, root, settle, setUp, statuses, tearDown } from './cube-fixture.ts';
 
 beforeEach(setUp);
 afterEach(tearDown);
@@ -72,5 +73,46 @@ describe('lifecycle (B3)', () => {
     assert.equal(field.value, 'a draft', 'and the draft with it');
     win.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     assert.equal(root.querySelector('[data-window="Properties"]:not([hidden])'), null, 'Escape on the window itself closes it');
+  });
+});
+
+// A GRID THAT CHECKS BEFORE ITS FIRST VIEW (CubeAppOptions.prepares; the user, 2026-10-26): a saved page's saved query on
+// live rows, typed when its grid first reads them (app/sources.ts reopenedSavedQuery) -- a grid on a sheet not shown,
+// when its sheet is (opensWhen).
+describe('a grid that checks before its first view (prepares)', () => {
+  it('nothing answered: checked once its first view is due, before its rows are read; it reads them as it was made', async () => {
+    let due!: () => void;
+    const opensWhen = new Promise<void>((resolve) => { due = resolve; });
+    const checked: number[] = [];
+    const before = engine.queries;
+    await remount({ opensWhen, prepares: async () => { checked.push(engine.queries - before); return undefined; } });
+    assert.deepEqual(checked, [], 'nothing checked before its first view is due');
+    assert.equal(engine.queries, before, 'nor read');
+    due();
+    await settle();
+    assert.deepEqual(checked, [0], 'checked once, before its rows were read');
+    assert.equal(engine.queries, before + 1);
+    assert.deepEqual(app.snapshot.rows, ['region', 'desk']);
+    assert.equal(app.canUndo, false);
+  });
+
+  it('a start answered: the grid starts there, its notes on its status bar, as no step of its history', async () => {
+    const before = engine.queries;
+    await remount({ prepares: async () => ({
+      start: { snapshot: { ...SNAPSHOT, rows: ['desk'] }, configuration: DEFAULT_CONFIGURATION },
+      notes: ['its column trader is gone'],
+    }) });
+    assert.equal(engine.queries, before + 1, 'one first view, from the start answered');
+    assert.deepEqual(app.snapshot.rows, ['desk']);
+    assert.equal(app.canUndo, false);
+    assert.equal(root.querySelector('.dc-status-note-text')?.textContent, 'its column trader is gone');
+  });
+
+  it('a refusal: said as a first query\'s would be, and nothing read', async () => {
+    const before = engine.queries;
+    statuses.length = 0;
+    await remount({ prepares: async () => { throw new Error('the saved query no longer compiles'); } });
+    assert.equal(engine.queries, before);
+    assert.ok(statuses.some(([text, kind]) => kind === 'error' && text === 'the saved query no longer compiles'), JSON.stringify(statuses));
   });
 });

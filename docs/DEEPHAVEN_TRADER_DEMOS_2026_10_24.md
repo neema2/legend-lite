@@ -747,6 +747,35 @@ pages and opened from there in 14.3 s: its ten tabs, the first drawn and ticking
 of each tab is the test's output. Not yet: the desk's open is the page written (each screen's sources typed, the market
 asked for its largest names) and its 35 saved queries opened one after another, each parsed and typed again.
 
+**Nor do its charts run, nor its saved queries type (the user, 2026-10-26: "if we need lazy tab loading then we should
+do that").** Measured first, on the desk tool's own world (500 names, a fresh Chromium profile each run, each step a
+measure on the browser's timeline): the tabs appeared at 10.5 s and the first tab filled at 17.0 s, and before it did
+the page had made 52 plans and 53 requests of the server -- the first tab needs about 20. Two things still ran for the
+tabs not shown. **Every chart, KPI and feed on every tab ran its query as the page opened**: a chart draws as it is made
+(`ChartPanel`'s constructor), and only grids waited for their sheet. The server was busy with the other nine tabs'
+charts until 25 s: the first tab filled 6.3 s after the tabs appeared, and Blotter, clicked then, took 9.1 s. Now a
+chart on a sheet not shown waits to draw (`ChartPanelOptions.held`, the page's `#offScreen`) and draws when its sheet
+is shown (`ChartPanel.wake`, from the page's sheet changes), every page alike -- a test (`cube-page-shell.test.ts`: a
+chart on a sheet not shown runs its query once its sheet is shown, not before). **Each of the 35 saved queries was typed,
+one after another, before any tab showed**: 2.1-3.3 s, 95% of it the compiler typing each query (rule 4's
+enumerations, ~47 ms each; reading and parsing it ~1.4 ms). Now a saved page's saved query on live rows opens with the
+columns the page saved, and is typed when its grid first reads its rows (`saved-queries.ts` `savedQueryRead` and
+`savedQueryTyped`, the one rule's two halves; `sources.ts` `reopenedSavedQuery`; `CubeAppOptions.prepares`, run after
+`opensWhen`): a grid on a tab not shown is typed when the tab is. Typed otherwise than saved (the model changed since),
+the grid starts as it reads now (`rebuilt`), its notes on its status bar, as no step of its history; a refusal is said
+as its first query's would be (`cube-lifecycle.test.ts`). A saved query whose rows are not live, or a cube saved without
+its columns, is typed as it opens, as before. After both: the tabs at 7.5-8.6 s, the first tab filled at 10.4-13.3 s
+(the higher a server's first open, its query formulas compiled), the open's 35 saved queries 0.4 s, 25 requests of the
+server before the first tab filled, Blotter's first click 1.8-3.3 s.
+
+**Not done: the example written ahead of time.** The plan said to build the Examples desk page before it is asked for
+instead of at each open. Measured, writing it takes about 1 s once the server is warm (2.7 s when it is cold): 0.9 s
+typing its 26 sources, the rest the server answering the page's first values (the market's largest names, which only
+the market knows). Written ahead, it would still ask the server for those, and it would need a planner run at build
+time and a scheme to put the live values into the written page -- for 0.9 s. Left as it is. What remains of the open is
+knowledge, eager by the tenet: the page and the planner loaded (about 2 s) and the market opened (3.7-4.0 s: its model
+held by the planner, the server signed in to).
+
 **Found, not fixed (2026-10-25):** `//datacube:deephaven_board_test`'s reopen check failed twice in five runs with the
 same code that passed it the other three (and on the pushed commit): the saved board opened again, its book's first view
 landed with a window of 0 rows (`{"offset":0,"total":0}`), the next tick filling it. The board's path is the risk demo's

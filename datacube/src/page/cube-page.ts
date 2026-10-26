@@ -496,6 +496,20 @@ export class CubePage {
     return this.#sheets.find((s) => s.board.title(tile) !== undefined);
   }
 
+  /** Whether tile `id` is on a sheet not shown (or a saved page puts it on one): a chart there waits to draw
+   *  (ChartPanelOptions.held). A tile on no sheet yet is not: it draws. */
+  #offScreen(id: string): boolean {
+    const sheet = this.#sheetOf(id) ?? this.#planned.get(id);
+    return sheet !== undefined && sheet !== this.#shown;
+  }
+
+  /** The sheets changed or another is shown: the charts now on the sheet shown that waited draw (ChartPanel.wake), and
+   *  the page's host told. */
+  #sheetsChanged(): void {
+    for (const [id, chart] of this.#charts) if (!this.#offScreen(id)) chart.panel.wake();
+    this.#options.onSheets?.();
+  }
+
   /**
    * A tile on its sheet: the one a saved page put it on (`setSheets`), else the sheet of `near` -- under it (bands.ts
    * add) -- else the sheet shown.
@@ -784,7 +798,7 @@ export class CubePage {
     const back = this.#sheets.find((s) => !sheetsBefore.has(s.id));
     if (back) this.showSheet(back.id);
     this.#releaseKept();
-    this.#options.onSheets?.();
+    this.#sheetsChanged();
     this.#options.onTiles?.();
     this.#options.onChange();
   }
@@ -803,7 +817,7 @@ export class CubePage {
     this.#shown.host.hidden = true;
     next.host.hidden = false;
     this.#shown = next;
-    this.#options.onSheets?.();
+    this.#sheetsChanged();
   }
 
   /** A sheet after the last, shown (`sync` shows a sheet that comes). */
@@ -1029,7 +1043,7 @@ export class CubePage {
   setEditing(editing: boolean): void {
     this.#editing = editing;
     for (const sheet of this.#sheets) sheet.board.setEditing(editing);
-    this.#options.onSheets?.();
+    this.#sheetsChanged();
   }
 
   /** How many tiles are on the page besides the cube's own grid: charts and added grids. */
@@ -1274,6 +1288,8 @@ export class CubePage {
       // the page's charts with the same column across share a crosshair
       crosshair: this.#crosshair,
       shown: () => source().shown(),
+      // on a sheet not shown, its query waits until the sheet is (lazy about work: the trading desk's ten tabs)
+      held: () => this.#offScreen(id),
       // a detached chart has no grid's filter to put a click on
       onPick: (mark) => { if (link.grid !== null) this.#select(id, mark); },
       // a feed's card picked takes the grids it links to its row's value; a ticker chip on it, to that ticker (K15)

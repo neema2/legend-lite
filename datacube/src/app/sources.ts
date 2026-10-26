@@ -17,7 +17,7 @@ import type { Query, QueryReader } from '../../../query-store/src/index.ts';
 import { from, fromJson, lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { ClassAt, ClassElement, ClassGiven } from '../class-source.ts';
 import type { ClassOf } from '../class-tree.ts';
-import type { HeldCopy } from '../app.ts';
+import type { CubeAppOptions, HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { HostSnap, Planner, SnapTarget } from '../cube.ts';
 import {
@@ -48,7 +48,7 @@ import type { ModelOptions } from '../planner.ts';
 import { inferFormat, type S3Credentials } from '../remote.ts';
 import type { PlanAndRun, QueryRunner } from '../runner.ts';
 import { SAMPLES, sampleById, sampleFileName, type Sample } from '../samples.ts';
-import type { CubeSnapshot } from '../snapshot.ts';
+import { sameValue, type CubeSnapshot } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import type { TreeState } from '../tree.ts';
 import { pickSource, type DatabaseSession, type PickerSections, type RemoteCredentials, type SectionId } from '../ui/source-picker.ts';
@@ -106,6 +106,8 @@ export type GridPlace = {
   readonly tables?: readonly string[];
   /** Its columns panel folded at the start: a grid added beside others; open, one opened alone. */
   readonly foldPanel?: boolean;
+  /** What it checks before its first view (CubeAppOptions.prepares): a saved query typed when its rows are first read. */
+  readonly prepares?: CubeAppOptions['prepares'];
 };
 
 /**
@@ -983,20 +985,25 @@ export function pageSources(d: SourcesOf): PageSources {
     return openedRecord(await store.get(id));
   }
 
+  /** A saved query's project's model text, fetched once: the page's own project (config.json projects[]), else the
+   *  version opened by name from Depot (design Phase 3). */
+  async function modelOf(q: SavedQueryRecord): Promise<string> {
+    if (!queries) throw new Error(`“${q.name}” is a saved query: this page reads none`);
+    const { projectOf } = await savedQueries();
+    const project = projectFor(q);
+    if (!project && !modelHome) throw new Error(`“${q.name}” belongs to ${projectOf(q)}, which this page has no model for (config.json projects[], or a depot)`);
+    return once(projectModels, projectOf(q), async () => (project
+      ? (await Promise.all(project.models.map((url) => queries.fetchText(url)))).join('\n')
+      : (await lazily(() => import('../../../depot-client/src/model-text.ts'))).modelText((await modelHome!.connect()).depot, q.groupId, q.artifactId, q.versionId)));
+  }
+
   /** A saved query's record -- from a store, or as a share link carries it -- as a cube's source. */
   async function openedRecord(q: SavedQueryRecord): Promise<OpenedQuery> {
-    if (!queries) throw new Error(`“${q.name}” is a saved query: this page reads none`);
     // read by the host's compiler (the tab's planner, Python's native library: C5), planned over its project's
     // mapping, its rows the project's own Data rows where the host's runs its project databases (C5)
     const { reading } = services.engine;
-    const { projectOf, savedQueryOpened } = await savedQueries();
-    const project = projectFor(q);
-    if (!project && !modelHome) throw new Error(`“${q.name}” belongs to ${projectOf(q)}, which this page has no model for (config.json projects[], or a depot)`);
-    const key = projectOf(q);
-    // the page's own project (config.json projects[]), else the version opened by name from Depot (design Phase 3)
-    const model = await once(projectModels, key, async () => (project
-      ? (await Promise.all(project.models.map((url) => queries.fetchText(url)))).join('\n')
-      : (await lazily(() => import('../../../depot-client/src/model-text.ts'))).modelText((await modelHome!.connect()).depot, q.groupId, q.artifactId, q.versionId)));
+    const { savedQueryOpened } = await savedQueries();
+    const model = await modelOf(q);
     // rules 1-4, the one rule (saved-queries.ts savedQueryOpened), typed over its rows where the host reads them
     let rows: GridRows | undefined;
     const { runtime, how, source } = await savedQueryOpened(q, model, reading, (at, options) => {
@@ -1016,6 +1023,43 @@ export function pageSources(d: SourcesOf): PageSources {
       _type: 'savedQuery', name: q.name, query: sharedPart(q), columns: columns.map((c) => ({ name: c.name, type: c.type })),
     };
     return { label: q.name, model, runtime, how, source, columns, rows, cubeSource, ...(versioned ? { engine: versioned } : {}) };
+  }
+
+  /**
+   * A SAVED PAGE'S SAVED QUERY ON LIVE ROWS (a server's, followed: a host's runner -- the trading desk's), its grid made
+   * at once with the columns the page saved, its query typed when the grid first reads its rows (rule 4 and its columns:
+   * saved-queries.ts savedQueryTyped, CubeAppOptions.prepares) -- a grid on a sheet not shown reads them when the sheet
+   * is: lazy about work (docs/TENETS.md; the user, 2026-10-26: the desk's ten tabs typed every grid's query before any
+   * showed). Typed otherwise than saved, the grid starts as it reads now (cube-document.ts rebuilt), its notes on its
+   * status bar. A saved query whose rows are not live, or a cube saved with no columns, is typed as it opens.
+   */
+  async function reopenedSavedQuery(src: QuerySource, saved: CubeDocument, capped: boolean): Promise<Opened> {
+    const q = src.query;
+    const model = await modelOf(q);
+    const { savedQueryRead, savedQueryTyped } = await savedQueries();
+    const read = await savedQueryRead(q, model, services.engine.reading);
+    const rows = services.engine.rows(model, read.runtime, read.how);
+    if (rows.live === undefined || src.columns.length === 0) {
+      letGo(rows);
+      return openedSavedQuery(await openedRecord(q), saved, capped);
+    }
+    const savedColumns = src.columns.map((c) => ({ name: c.name, type: c.type }));
+    const r = rebuilt(saved, read.source, savedColumns, q.name, capped);
+    const prepares: CubeAppOptions['prepares'] = async () => {
+      const typed = await savedQueryTyped(read, typer(rows));
+      const columns = await sourceColumns(typer(rows), typed.source);
+      if (sameValue(typed.source, read.source) && sameValue(columns, savedColumns)) return undefined;
+      const now = rebuilt(saved, typed.source, columns, q.name, capped);
+      return { start: { snapshot: now.snapshot, configuration: now.configuration, ...(now.tree ? { tree: now.tree } : {}) }, notes: now.notes };
+    };
+    return {
+      label: q.name,
+      notes: r.notes,
+      make: gridMaker(r.snapshot, r.configuration, [], {
+        ...rowsPlace(rows), cubeSource: src, label: q.name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped, prepares,
+      }),
+      discard: async () => letGo(rows),
+    };
   }
 
   /** A saved query for a grid: its own planner over its project's model, its version's rows; the query written down. */
@@ -1143,7 +1187,7 @@ export function pageSources(d: SourcesOf): PageSources {
       return openedOnHost(src, doc, several);
     }
     // `several`: one of a page's grids, its columns panel folded as a grid added beside others is
-    if (src._type === 'savedQuery') return openedSavedQuery(await openedRecord(src.query), doc, several);
+    if (src._type === 'savedQuery') return reopenedSavedQuery(src, doc, several);
     if (src._type === 'warehouseTable') return reopenTable(src, doc, several);
     if (src._type === 'remoteFile') return reopenRemote(src, doc, several);
     // a dataframe's rows are the Python's that serves it: opened where the host has its frames, refused elsewhere

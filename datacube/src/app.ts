@@ -110,7 +110,7 @@ import type { HeatmapSpec } from './style.ts';
 import { measuresOf, relatedName, relatedOffers, type ClassOf, type RelatedOffer } from './class-tree.ts';
 import type { ModelMeasure } from './model-measures.ts';
 import { TreeState, parsePathKey, pathKey, type TreeRow } from './tree.ts';
-import { CubeStateOwner, type ChangeOptions, type CubeState, type OwnerEvent, type Outcome } from './cube-state.ts';
+import { CubeStateOwner, openedState, type ChangeOptions, type CubeState, type OwnerEvent, type Outcome } from './cube-state.ts';
 
 /** What a grid says while its page converges on its keeper's (hold): every way of changing it is refused with this --
  *  a command, an undo or redo, Properties applied, a snap or going live (the D19 audit's third round's 1; its fourth
@@ -337,6 +337,17 @@ export interface CubeAppBaseOptions {
    * reads its rows once this does. Absent: it reads them as it opens.
    */
   readonly opensWhen?: Promise<void>;
+  /**
+   * WHAT IT CHECKS BEFORE ITS FIRST VIEW (a saved query typed when its grid first reads its rows -- a saved page's grid
+   * on a sheet not shown, typed when the sheet is: app/sources.ts; the user, 2026-10-26): run once that view is due
+   * (after `opensWhen`). Where it answers a start, the grid starts there instead -- its saved query reads otherwise now,
+   * as `notes` say on its status bar -- as no step of its history; nothing, as it was made. A refusal is said as its
+   * first query's would be.
+   */
+  readonly prepares?: () => Promise<{
+    readonly start: { readonly snapshot: CubeSnapshot; readonly configuration: CubeConfiguration; readonly tree?: TreeState };
+    readonly notes: readonly string[];
+  } | undefined>;
   /** A grid on a page of its own: the page around it for its export (its charts, this grid as the table). */
   readonly exportPage?: () => ExportPage | undefined;
   /** A grid made on a page whose bar is folded: its title bar setting starts hidden, as the page's other grids say. */
@@ -1078,10 +1089,35 @@ export class CubeApp {
     const when = this.#options.opensWhen;
     if (when !== undefined) {
       // opened now, its rows read when its host says (a sheet showing it shown): the page waits for none of it
-      void when.then(() => { if (!this.#disposed) void this.#owner.refresh(); });
+      void when.then(() => { if (!this.#disposed) void this.#first(); });
       return;
     }
-    await this.#owner.refresh();
+    await this.#first();
+  }
+
+  /** Its first view: what it checks first (`prepares`), then its rows read -- where the check says, from its start. */
+  async #first(): Promise<void> {
+    const prepares = this.#options.prepares;
+    if (prepares === undefined) {
+      await this.#owner.refresh();
+      return;
+    }
+    let ready: Awaited<ReturnType<typeof prepares>>;
+    try {
+      ready = await prepares();
+    } catch (e) {
+      if (!this.#disposed) this.#reportFailure(e);
+      return;
+    }
+    if (this.#disposed) return;
+    if (ready === undefined) {
+      await this.#owner.refresh();
+      return;
+    }
+    if (ready.notes.length > 0) this.note(ready.notes.join(' '));
+    const { snapshot, configuration, tree } = ready.start;
+    await this.#owner.change(() => openedState(snapshot, configuration, tree ?? newGridTree(configuration)),
+      { record: false, label: 'Open', force: true });
   }
 
   /** Where its rows come from, as it is saved (a class: a dashboard's tile, which the page's filters reach). */

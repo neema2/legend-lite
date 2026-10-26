@@ -711,6 +711,34 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     assert.equal(sheetOf(b), second);
   });
 
+  it('a chart on a sheet not shown runs its query once its sheet is shown, not before (lazy about work: the trading desk)', async () => {
+    newPage();
+    const a = pg().addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    chartMenu(chart).find((i) => label(i) === 'New Sheet')!.click();
+    await settle();
+    reopen(pg().document('Q3')!);
+    await drawn();
+    const first = pg().shownSheet;
+    const other = sheetOf(chart);
+    assert.ok(other !== undefined && other !== first, 'the page opens on its grid\'s sheet, the chart on another');
+    const queried = engine.queries;
+    assert.equal(getInstanceByDom(tile(chart).querySelector('.dc-chartpanel-chart') as HTMLElement), undefined, 'not drawn');
+    // its grid ticks, its page is edited: still nothing of the chart's run while its sheet is not shown
+    pg().showSheet(first);
+    await drawn();
+    assert.equal(engine.queries, queried, 'no query of the chart\'s');
+    pg().showSheet(other);
+    await drawn();
+    assert.equal(engine.queries, queried + 1, 'its one query, run as its sheet is shown');
+    assert.ok(getInstanceByDom(tile(chart).querySelector('.dc-chartpanel-chart') as HTMLElement), 'drawn');
+    // shown once, it follows its grid as any chart does, its sheet shown or not
+    pg().showSheet(first);
+    await drawn();
+    assert.equal(engine.queries, queried + 1);
+  });
+
   it('one page undo for every sheet, step by step: a sheet added is undone first, then the arrangement before it', async () => {
     newPage();
     const a = pg().addGrid(over('trades.csv'));
