@@ -36,9 +36,10 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>With {@code -Dembedded.deephaven.application=$(rlocationpath <an .app file>)}, the server runs the Deephaven
  * application that file defines (its start-up script, beside it) every time it starts: a demo's data, seeded again by
- * every restart. {@code -Dembedded.deephaven.cycleMs} sets its update cycle (100 ms unless given), and
- * {@code -Dembedded.deephaven.serverFlags} adds the server's own flags, space-separated (a tree benchmark's: its
- * performance logs' interval): a benchmark's knobs.
+ * every restart. {@code -Dembedded.deephaven.cycleMs} sets its update cycle (100 ms unless given),
+ * {@code -Dembedded.deephaven.heap} its heap (1g unless given: a test's world; the trading desk's hand tool gives its
+ * market of 500 names 4g, every tab's tables made: 2026-10-26), and {@code -Dembedded.deephaven.serverFlags} adds the
+ * server's own flags, space-separated (a tree benchmark's: its performance logs' interval): a benchmark's knobs.
  *
  * <p>As a program ({@link #main}), for a browser test's driver: it prints one JSON line, the server's URL, key and
  * certificate, then runs until its input closes; a {@code restart} line restarts the server (on the same port, with the
@@ -134,7 +135,8 @@ public final class EmbeddedDeephaven implements AutoCloseable {
         Files.deleteIfExists(log);
         String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         Path etc = root.resolve("etc");
-        List<String> command = new ArrayList<>(List.of(java, "-server", "-Xmx1g",
+        List<String> command = new ArrayList<>(List.of(java, "-server",
+                "-Xmx" + System.getProperty("embedded.deephaven.heap", "1g"),
                 "--add-exports", "java.management/sun.management=ALL-UNNAMED",
                 "--add-exports", "java.base/jdk.internal.misc=ALL-UNNAMED",
                 "--add-opens", "java.base/java.nio=ALL-UNNAMED",

@@ -781,6 +781,43 @@ time and a scheme to put the live values into the written page -- for 0.9 s. Lef
 knowledge, eager by the tenet: the page and the planner loaded (about 2 s) and the market opened (3.7-4.0 s: its model
 held by the planner, the server signed in to).
 
+**Then the first click of a tab not shown (the user, 2026-10-26: "whole point of lazy was to go faster? ... first tab
+first and then rest in parallel").** Lazy tabs moved the options desk's server work -- its Black and Scholes compiled --
+to its first click: 17-18 s. Measured on the desk tool's world (a 4-core machine; the server profiled with its flight
+recorder, the page with the browser's profiler, each step a measure on the browser's timeline), and fixed where the
+measures said:
+
+- *One formula text in every plan* (the dialect's `Scope#copies`): the same maths under another plan's aliases was
+  another class for the server to compile. *One tick a server cycle* (`DeephavenLiveReader.changed`, a `setTimeout`
+  where a microtask ticked once a message), *a tree's rows indexed* (`treeview.ts` `assemble`), and *the desk's cycle
+  250 ms* (the tests' 100 ms ran each tile ten times a second): Markets 62 ticks a second to 18, its plans 3,786 to 615
+  in 5.7 s; the options desk 17.6 s to 10.6.
+- *The sheets not shown, warmed* (the market host's `warmAhead`): once every grid asked for rows has its first view,
+  each grid not asked yet has its base made on the server (`ServerBaseRunner.warm`; the app hands the host each unread
+  grid's snapshot, `LiveGrid.warm`), four at a time, no row read and nothing followed; a sheet shown later reads what is
+  made. On a server just started, the options desk clicked 10 s after the first tab filled: 9-16 s one at a time, 4.6-6.8
+  s four at a time (eight no sooner). It lives in the host, the market's own chunk: in the app it put the grid-only page's
+  script 92-149 bytes over its budget. Every tab's tables made, the server's heap is 4g (`DESK_HEAP`; the tests' 1g ran out).
+- *The server's formula parser*: profiled opening the options desk, 40% of the server's time was javaparser's
+  lexical-preserving printer (Deephaven's parser self-checks each formula with it; its cost grows faster than the
+  formula's length), javac 15%. The chain's normal distribution as one function read its variable five times in its
+  polynomial and its tail in both branches -- ten copies, 1,500 characters a formula; now its variable and its tail are
+  columns of their own (`market::options::k`, `tail`, `cdf(x, tail)`: the tail at -x is the one at x, exactly). And a
+  double cast to a double is the value (the Deephaven dialect's `cast`): the square root's guard had written it ten
+  times, 1,700 characters. The options desk's first open on a server just started: 7.7-11.1 s to 4.6-7.0.
+- *The model held sooner and faster*: the first query left the page 5.8 s after it was asked for, 3.2 s of it the tab's
+  planner holding the trading model (2.3 MB, the stress corpus's), most of that one quadratic scan in the normalizer (a
+  pin's set found by scanning every set of the model: 627,520 ids computed a compile; now `ModelBuilder`'s index,
+  `legacySetsWithId`) -- held in 2.15 s; and the market opened beside the tab's DuckDB start, not after it (`boot.ts`).
+  The first query leaves at 4.7 s.
+
+Tried, not kept: *an extend chain as one view* (the chain's eight extends, sixteen views and eight compiles, written
+into one): on a server just started its batch took 3.70 s, 3.55 s without -- the server's per-compile overhead was not
+the cost. Measured after (the desk tool, a server just started each time): the first tab filled at 10.5 s; the options
+desk clicked 10 s after it, 2.6-4.8 s; `//datacube:deephaven_desk_test` (1g, 100 ms, each tab clicked as the last
+drew) the options desk 9.3 s to 6.4. Not yet: the first tab's batches come in waves (its base, then its views, then
+its charts), and the model's elements, read for its enumerations, are the whole model printed as JSON (650 ms).
+
 **Found, not fixed (2026-10-25):** `//datacube:deephaven_board_test`'s reopen check failed twice in five runs with the
 same code that passed it the other three (and on the pushed commit): the saved board opened again, its book's first view
 landed with a window of 0 rows (`{"offset":0,"total":0}`), the next tick filling it. The board's path is the risk demo's

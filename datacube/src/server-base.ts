@@ -271,6 +271,16 @@ export class ServerBaseRunner implements QueryRunner {
     return (await this.#on(query, snapshot)).run(query, snapshot, scope, signal);
   }
 
+  /**
+   * `snapshot`'s base made on the server and held for this grid, no query of it run and no row read: what its first
+   * view reads, ready before the view is asked (a grid on a sheet not yet shown, warmed once the sheet shown is drawn:
+   * the server's work -- a base's formulas compiled, its table made -- done before a person opens the sheet, and
+   * nothing followed into the page meanwhile).
+   */
+  async warm(snapshot: CubeSnapshot): Promise<void> {
+    await this.#on(sourceWithDerived(snapshot).lambda(), snapshot);
+  }
+
   async stream(query: Lambda, snapshot: CubeSnapshot, onChunk: (chunk: ResultTable) => void,
     signal?: AbortSignal): Promise<void> {
     return (await this.#on(query, snapshot)).stream(query, snapshot, onChunk, signal);

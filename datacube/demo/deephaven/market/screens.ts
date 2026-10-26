@@ -617,8 +617,12 @@ export const OPTION_CHAIN = 'products::Option.all()->project(~[underlying:x|$x.u
   + '->extend(~[rootT:x|sqrt($x.t), disc:x|exp(0.0 - (0.05 * $x.t))])'
   + '->extend(~[d1:x|market::options::d1($x.spot, $x.strike, $x.t, $x.vol, 0.05, $x.rootT)])'
   + '->extend(~[d2:x|market::options::d2($x.d1, $x.vol, $x.rootT), nd1:x|market::options::pdf($x.d1),'
-  + ' cd1:x|market::options::cdf($x.d1), cmd1:x|market::options::cdf(0.0 - $x.d1)])'
-  + '->extend(~[cd2:x|market::options::cdf($x.d2), cmd2:x|market::options::cdf(0.0 - $x.d2)])'
+  + ' k1:x|market::options::k($x.d1)])'
+  + '->extend(~[nd2:x|market::options::pdf($x.d2), k2:x|market::options::k($x.d2),'
+  + ' tail1:x|market::options::tail($x.nd1, $x.k1)])'
+  + '->extend(~[tail2:x|market::options::tail($x.nd2, $x.k2), cd1:x|market::options::cdf($x.d1, $x.tail1),'
+  + ' cmd1:x|market::options::cdf(0.0 - $x.d1, $x.tail1)])'
+  + '->extend(~[cd2:x|market::options::cdf($x.d2, $x.tail2), cmd2:x|market::options::cdf(0.0 - $x.d2, $x.tail2)])'
   + '->extend(~[price:x|market::options::price($x.call, $x.spot, $x.strike, $x.disc, $x.cd1, $x.cd2, $x.cmd1, $x.cmd2),'
   + ' delta:x|market::options::delta($x.call, $x.cd1), gamma:x|market::options::gamma($x.spot, $x.vol, $x.rootT, $x.nd1),'
   + ' vega:x|market::options::vega($x.spot, $x.rootT, $x.nd1),'
@@ -638,7 +642,8 @@ export const OPTION_BOOK = 'positions::Position.all()->filter(x|$x.instrument.as
 /** The columns a chain's or a book's grid leaves out: its keys, its inputs. */
 const OPTION_INPUTS: Readonly<Record<string, ColumnConfiguration>> = {
   uinst: HIDDEN, inst: HIDDEN, qinst: HIDDEN, option: HIDDEN, at: HIDDEN, t: HIDDEN, call: HIDDEN, vol: HIDDEN, size: HIDDEN,
-  d1: HIDDEN, d2: HIDDEN, rootT: HIDDEN, disc: HIDDEN, nd1: HIDDEN, cd1: HIDDEN, cd2: HIDDEN, cmd1: HIDDEN, cmd2: HIDDEN,
+  d1: HIDDEN, d2: HIDDEN, rootT: HIDDEN, disc: HIDDEN, nd1: HIDDEN, nd2: HIDDEN, k1: HIDDEN, k2: HIDDEN, tail1: HIDDEN,
+  tail2: HIDDEN, cd1: HIDDEN, cd2: HIDDEN, cmd1: HIDDEN, cmd2: HIDDEN,
   moneyness: HIDDEN, settle: HIDDEN, pinst: HIDDEN,
 };
 
@@ -646,12 +651,14 @@ async function optionsParts(types: SourceTypes): Promise<Parts> {
   const average = { aggregate: 'average' } as const;
   const chain = await columnsOf(types, OPTION_CHAIN, {
     strike: { kind: 'dimension' }, size: { kind: 'dimension' }, iv: average, settle: average, spot: average, t: average,
-    vol: average, d1: average, d2: average, rootT: average, disc: average, nd1: average, cd1: average, cd2: average,
+    vol: average, d1: average, d2: average, rootT: average, disc: average, nd1: average, nd2: average, k1: average,
+    k2: average, tail1: average, tail2: average, cd1: average, cd2: average,
     cmd1: average, cmd2: average, price: average, delta: average, gamma: average, vega: average, theta: average, chg: average, moneyness: average,
   });
   const book = await columnsOf(types, OPTION_BOOK, {
     strike: { kind: 'dimension' }, size: { kind: 'dimension' }, iv: average, settle: average, spot: average, t: average,
-    vol: average, d1: average, d2: average, rootT: average, disc: average, nd1: average, cd1: average, cd2: average,
+    vol: average, d1: average, d2: average, rootT: average, disc: average, nd1: average, nd2: average, k1: average,
+    k2: average, tail1: average, tail2: average, cd1: average, cd2: average,
     cmd1: average, cmd2: average, price: average, delta: average, gamma: average, vega: average, theta: average, chg: average, moneyness: average,
     contracts: { aggregate: 'sum' }, units: { aggregate: 'sum' }, posDelta: { aggregate: 'sum' }, posGamma: { aggregate: 'sum' },
     posVega: { aggregate: 'sum' }, posTheta: { aggregate: 'sum' }, mv: { aggregate: 'sum' }, dayPnl: { aggregate: 'sum' },

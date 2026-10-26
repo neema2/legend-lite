@@ -86,14 +86,59 @@ export async function openMarket(config: MarketConfig, planner: LitePlanner): Pr
   /** A source's rows on the server: typed by the module's planner; each grid made over them (a copy too) its own. */
   const rowsOnServer = (): GridRows => ({ runner: new PlanThenRun(market, engine), live: gridOnServer });
 
+  /**
+   * THE SHEETS NOT SHOWN, WARMED (the user, 2026-10-26: "first tab first and then rest"): once every grid asked for rows
+   * has its first view -- the sheet shown drawn -- each grid not asked yet has its base made on the server, its formulas
+   * compiled, no row read and nothing followed, four at a time in the order the page made them; a sheet shown later
+   * reads what is made (the options desk waited seconds on the server's compiler when first shown). Four at a time
+   * (measured 2026-10-26 on a server just started, the options desk shown 10 s after the first tab): one at a time had
+   * not reached it, 9-16 s to fill; four filled it in 4.6-6.8 s, eight no sooner.
+   */
+  const ahead = new Map<object, () => Promise<void>>();
+  /** The grids asked for rows whose first view has not landed. */
+  const reading = new Set<object>();
+  let warming = false;
+  const warmAhead = (): void => {
+    if (warming || ahead.size === 0 || reading.size > 0) return;
+    warming = true;
+    const pause = (ms: number): Promise<unknown> => new Promise((resolve) => setTimeout(resolve, ms));
+    // each warmer takes the next grid none has
+    const warmer = async (): Promise<void> => {
+      for (const [grid, warm] of ahead) {
+        // a sheet a person has just shown comes first: its grids drawn before the next is warmed
+        while (reading.size > 0) await pause(200);
+        // a refusal is the grid's to say, at its first view when its sheet is shown
+        if (ahead.delete(grid)) await warm().catch(() => undefined);
+      }
+    };
+    // the sheet shown's charts drawn first: its grids' views landed, what draws from them has its moment
+    void pause(2000).then(() => Promise.all([warmer(), warmer(), warmer(), warmer()]))
+      .finally(() => { warming = false; warmAhead(); });
+  };
+
   /** One grid's rows on the server: its own reader, its queries read from its bases, its views followed. */
   const gridOnServer = (): LiveGrid => {
     const reader = engine.reader();
     const based = bases.runner(reader);
     let stop: (() => void) | undefined;
+    const grid = {};
+    let drawn = false;
+    // its first view landed, or refused: the sheet shown waits for it no more
+    const drew = (): void => {
+      if (drawn) return;
+      drawn = true;
+      reading.delete(grid);
+      warmAhead();
+    };
+    // its rows asked for: made now, not ahead, and the sheet shown not drawn until its first view lands
+    const asked = (): void => {
+      ahead.delete(grid);
+      if (!drawn) reading.add(grid);
+    };
     const followed: LiveRows = {
       viewed: (epoch) => {
         reader.follow(epoch).catch((e: unknown) => console.warn('a market grid could not follow its view', e));
+        drew();
       },
       onChange: (grid) => {
         stop?.();
@@ -112,11 +157,17 @@ export async function openMarket(config: MarketConfig, planner: LitePlanner): Pr
       },
       close: () => {
         stop?.();
+        ahead.delete(grid);
+        reading.delete(grid);
         based.close();
         void reader.close();
       },
     };
-    return { runner: new OnServer(based, localHost(market, reader)), rows: followed };
+    return {
+      runner: new OnServer(based, localHost(market, reader), asked, drew),
+      rows: followed,
+      warm: (snapshot) => { ahead.set(grid, () => based.warm(snapshot)); },
+    };
   };
 
   /** A source's columns as the compiler types them, by its text: over the model the module holds. */
@@ -182,20 +233,32 @@ export async function openMarket(config: MarketConfig, planner: LitePlanner): Pr
  */
 class OnServer extends PlanAndRun {
   readonly #based: ServerBaseRunner;
+  /** Said at each query run, and at a query refused: the grid's rows asked for, and its view refused (the sheets not
+   *  shown warmed once the sheet shown is drawn, gridOnServer). */
+  readonly #asked: () => void;
+  readonly #refused: () => void;
   override readonly window: RunWindow;
 
-  constructor(based: ServerBaseRunner, host: PlanAndRunHost) {
+  constructor(based: ServerBaseRunner, host: PlanAndRunHost, asked: () => void, refused: () => void) {
     super(host);
     this.#based = based;
+    this.#asked = asked;
+    this.#refused = refused;
     this.window = based.window;
   }
 
   override run(...args: Parameters<QueryRunner['run']>): ReturnType<QueryRunner['run']> {
-    return this.#based.run(...args);
+    this.#asked();
+    const answered = this.#based.run(...args);
+    answered.catch(this.#refused);
+    return answered;
   }
 
   override stream(...args: Parameters<QueryRunner['stream']>): ReturnType<QueryRunner['stream']> {
-    return this.#based.stream(...args);
+    this.#asked();
+    const answered = this.#based.stream(...args);
+    answered.catch(this.#refused);
+    return answered;
   }
 
   override compile(...args: Parameters<QueryRunner['compile']>): ReturnType<QueryRunner['compile']> {

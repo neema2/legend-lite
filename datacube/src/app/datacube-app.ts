@@ -382,6 +382,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
             open();
           };
           waitingOpens.set(id, shown);
+          // its server's part made ahead, when its host sees fit (LiveGrid.warm), unless it reopens a grid's own state
+          if (!start) ticking.warm?.(created.snapshot);
           queueMicrotask(shown);
         }
       }

@@ -100,6 +100,13 @@ export type GridRows =
 export interface LiveGrid {
   readonly runner: PlanAndRun;
   readonly rows: LiveRows;
+  /**
+   * The grid made and not read yet, `snapshot` its state: what its first view reads, for its host to make ready on its
+   * server when it sees fit, no row read (a server's base: its formulas compiled, its table made) -- the market's host
+   * makes a sheet's not shown once the sheet shown is drawn, so the sheet, when opened, reads what is made. Absent:
+   * nothing to make ahead.
+   */
+  readonly warm?: (snapshot: CubeSnapshot) => void;
 }
 
 /**

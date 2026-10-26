@@ -295,6 +295,13 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   // the deployment's settings (config.json, the address's overrides), read once: the services hold what they say
   const configured = pageConfig();
   configured.catch(() => {});
+  // A MARKET, where the deployment names one (page-config.ts `market`: the market world's site serves it): its Deephaven
+  // signed in to and its model held by the page's module -- its code a chunk of its own, never fetched without one --
+  // begun once the planner is, beside the tab's DuckDB, which it needs nothing of (the trading desk's model held 3 s,
+  // waiting on DuckDB's start before: 2026-10-26)
+  const marketOpened = Promise.all([configured, engineReady]).then(([config, chosen]) =>
+    config.market ? openMarket(config.market, chosen.planner, config.vendor) : undefined);
+  marketOpened.catch(() => {});
   status.textContent = 'starting DuckDB and the planner…';
 
   // the one start of a tab's DuckDB (engine-client's startDuckDbInTab): its files and extensions from ./vendor/, its
@@ -358,10 +365,8 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   const chosen = await engineReady;
   const { planner, source, label } = chosen;
   status.textContent = label;
-  // A MARKET, where the deployment names one (page-config.ts `market`: the market world's site serves it): its Deephaven
-  // signed in to and its model held by the page's module -- its code a chunk of its own, never fetched without one
   const config = await configured;
-  const market = config.market ? await openMarket(config.market, chosen.planner, config.vendor) : undefined;
+  const market = await marketOpened;
   // THE TAB'S SERVICES (src/services/browser.ts): everything below reads its planner, its database, its stores and its
   // browser through them -- the market's added to them
   const tab: Services = await browserServices({

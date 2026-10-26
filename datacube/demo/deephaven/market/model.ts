@@ -62,10 +62,14 @@ ${connections}
 // BLACK AND SCHOLES, as functions of the model (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K11): a European option's
 // price and greeks from its underlying's price s, its strike k, its volatility v, the rate r -- and what a query computes
 // once each, as columns, and hands on: the square root of its time to expiry (rootT), its discount (disc), d1, the normal
-// density at d1 (nd1) and the normal distribution at d1, d2 and their negations (cd1, cd2, cmd1, cmd2). Each function is
-// inlined where it is called, so a value written into a function would be written into each formula as often as the
-// function reads it. Programs, not the platform's: the database computes every price and greek, live. The normal
-// distribution by Abramowitz and Stegun 26.2.17 (|error| < 7.5e-8).
+// density at d1 and d2 (nd1, nd2), the polynomial's variable at each (k1, k2), the normal's tail beyond each (tail1,
+// tail2), and the normal distribution at d1, d2 and their negations (cd1, cd2, cmd1, cmd2). Each function is inlined
+// where it is called, so a value written into a function would be written into each formula as often as the function
+// reads it: the distribution as one function, its variable read five times in its polynomial and its tail in both its
+// branches, was ten copies of it in each formula, 1,500 characters, and the server's parse of a formula grows faster
+// than its length (2026-10-26: seconds of the options desk's first show). The tail is the same at x and at -x, so a
+// negation's distribution reads its value's tail. Programs, not the platform's: the database computes every price and
+// greek, live. The normal distribution by Abramowitz and Stegun 26.2.17 (|error| < 7.5e-8).
 function market::options::pdf(x: Float[1]): Float[1]
 {
   0.3989422804014327 * exp(0.0 - (($x * $x) / 2.0))
@@ -74,13 +78,17 @@ function market::options::poly(t: Float[1]): Float[1]
 {
   $t * (0.319381530 + ($t * ((0.0 - 0.356563782) + ($t * (1.781477937 + ($t * ((0.0 - 1.821255978) + ($t * 1.330274429))))))))
 }
-function market::options::tail(x: Float[1]): Float[1]
+function market::options::k(x: Float[1]): Float[1]
 {
-  market::options::pdf($x) * market::options::poly(1.0 / (1.0 + (0.2316419 * abs($x))))
+  1.0 / (1.0 + (0.2316419 * abs($x)))
 }
-function market::options::cdf(x: Float[1]): Float[1]
+function market::options::tail(nx: Float[1], k: Float[1]): Float[1]
 {
-  if($x >= 0.0, |1.0 - market::options::tail($x), |market::options::tail($x))
+  $nx * market::options::poly($k)
+}
+function market::options::cdf(x: Float[1], tail: Float[1]): Float[1]
+{
+  if($x >= 0.0, |1.0 - $tail, |$tail)
 }
 function market::options::d1(s: Float[1], k: Float[1], t: Float[1], v: Float[1], r: Float[1], rootT: Float[1]): Float[1]
 {
