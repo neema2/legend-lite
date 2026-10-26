@@ -640,6 +640,39 @@ describe('calendar periods: windows of dates, and lags as of a date (gs-quant\'s
 // -- exponentially weighted (the expert functions, 2026-10-26): each a recursion the database computes in its closed form,
 // held here to the recursion itself, run over 700 days so its blocks of values turn over several times --
 
+// -- by each window's rows (the expert functions, 2026-10-26): a self-join of each date to its window's --
+
+/** pandas' quantile (linear, numpy's default): between the two nearest of the sorted values. */
+const quantile = (v: number[], q: number): number => {
+  const sorted = [...v].sort((a, b) => a - b);
+  const at = q * (sorted.length - 1);
+  const lo = Math.floor(at);
+  return sorted[lo]! + (sorted[Math.ceil(at)]! - sorted[lo]!) * (at - lo);
+};
+/** scipy's percentileofscore(window, value, kind='mean'): the share below it, those equal counted half, in percent. */
+const rankIn = (window: number[], v: number): number =>
+  ((window.filter((x) => x < v).length + window.filter((x) => x <= v).length) / 2 / window.length) * 100;
+
+describe('a window by its rows: percentile ranks, medians and percentiles', () => {
+  it('percentiles: each value\'s rank among its window\'s, 0 to 100 -- over 10, from the start, over 2w', async () => {
+    close((await line(spec({ A: 'percentiles(close[AAA], 10)' }))).values,
+      AAA.map((v, i) => (i < 9 ? null : rankIn(AAA.slice(i - 9, i + 1), v))), 'over 10', 1e-12);
+    close((await line(spec({ A: 'percentiles(close[AAA])' }))).values, AAA.map((v, i) => rankIn(AAA.slice(0, i + 1), v)), 'from the start', 1e-12);
+    const start = onBy(DAYS[0]!, 2, 'w');
+    close((await line(spec({ A: 'percentiles(close[AAA], 2w)' }))).values, DAYS.map((d, i) => (d < start ? null
+      : rankIn(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d), AAA[i]!))), 'over 2w', 1e-12);
+    // a constant series: every value equal to every other, each the middle of its window
+    close((await line(spec({ A: 'percentiles(close[AAA] * 0, 5)' }))).values, AAA.map((_, i) => (i < 4 ? null : 50)), 'all equal', 1e-12);
+  });
+
+  it('median and percentile: pandas\' quantile over each window, a percentile of the whole series a line', async () => {
+    close((await line(spec({ A: 'median(close[AAA], 5)' }))).values, AAA.map((_, i) => (i < 4 ? null : quantile(AAA.slice(i - 4, i + 1), 0.5))), 'median of 5', 1e-12);
+    close((await line(spec({ A: 'median(close[AAA], 4)' }))).values, AAA.map((_, i) => (i < 3 ? null : quantile(AAA.slice(i - 3, i + 1), 0.5))), 'median of 4: the two middle ones\' mean', 1e-12);
+    close((await line(spec({ A: 'percentile(close[AAA], 90, 10)' }))).values, AAA.map((_, i) => (i < 9 ? null : quantile(AAA.slice(i - 9, i + 1), 0.9))), '90th of 10', 1e-12);
+    close((await line(spec({ A: 'percentile(close[AAA], 25)' }))).values, AAA.map(() => quantile(AAA, 0.25)), 'the 25th of every one', 1e-12);
+  });
+});
+
 describe('exponential averages: gs-quant\'s recursions, the database\'s closed form', () => {
   const N = 700;
   const LONG = Array.from({ length: N }, (_, i) => round(100 * Math.exp(0.002 * i + 0.05 * Math.sin(i / 7) + 0.03 * Math.cos(i / 3.1))));
@@ -1195,8 +1228,8 @@ describe('a series combining two grids, planned over one model of their tables (
 // grid's alone by its own planner, the series across both grids over one model of their tables (openSources), as the
 // tab runs them.
 /** The gallery's series: every function at least once, and the ways to view (2026-10-26: 92, the regression tile's four;
- *  102, the exponential averages', volatilities' and MACD's ten). */
-const GALLERY_SERIES = 102;
+ *  102, the exponential averages', volatilities' and MACD's ten; 106, the percentiles' four). */
+const GALLERY_SERIES = 106;
 
 describe('the timeseries examples: every series of every tile, on its own samples', () => {
   const pages = [

@@ -156,6 +156,25 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
     about: 'How many standard deviations from the mean: over the last w observations, or (0) every one.',
     gsQuant: 'statistics.zscores', aliases: ['zscore', 'z'],
   },
+  // by each window's rows (the expert functions, 2026-10-26): a self-join of each date to its window's
+  percentiles: {
+    label: 'Rolling percentile rank', family: 'Rolling statistics', unit: 'number', bounds: [0, 100],
+    params: { w: 'observations in the window, or a calendar period (3m, 1y); 0 every one to it' },
+    about: 'Where each value ranks among those of its window, 0 to 100: the share below it, those equal to it counted half (scipy\'s percentileofscore, kind=mean).',
+    gsQuant: 'statistics.percentiles', aliases: ['percentile_rank', 'pctrank'],
+    differs: 'a series ranked in its own window (gs-quant also ranks a second series\' values in the first\'s)',
+  },
+  median: { level: 'keeps',
+    label: 'Rolling median', family: 'Rolling statistics', unit: 'same',
+    about: 'The middle value over the last w observations (of an even count, the mean of the two middle ones).',
+    gsQuant: 'statistics.median', differs: 'w defaults to 22 observations (gs-quant: every observation)',
+  },
+  percentile: { level: 'keeps',
+    label: 'Rolling percentile', family: 'Rolling statistics', unit: 'same',
+    params: { n: 'the percentile, 0 to 100', w: 'observations in the window, or a calendar period (3m, 1y); 0 every observation' },
+    about: 'The n-th percentile of the values over the last w observations, between the two nearest (pandas\' quantile); 0 the whole series\'.',
+    gsQuant: 'statistics.percentile', aliases: ['quantile'],
+  },
   winsorize: { level: 'keeps',
     label: 'Winsorize', family: 'Rolling statistics', unit: 'same', params: { limit: 'standard deviations from the mean it is held within' },
     about: 'Held within limit standard deviations of its mean over every observation.', gsQuant: 'statistics.winsorize',
@@ -324,8 +343,6 @@ export const TS_FUNCTION: ReadonlyMap<TsFunctionName, TsFunction> = new Map(TS_F
 export const NOT_BUILT: Readonly<Record<string, string>> = {
   seasonally_adjusted: 'a seasonal decomposition is a model fitted to the series, not a window over it',
   trend: 'a trend from a seasonal decomposition is a model fitted to the series, not a window over it',
-  median: 'a rolling median is a window the planner does not write yet: use mean(x, w) or zscores(x, w)',
-  percentiles: 'a rolling percentile rank is a window the planner does not write yet',
   excess_returns: 'excess returns need a risk-free rate series: divide by one of your own',
 };
 
@@ -801,6 +818,7 @@ export function parseExpr(text: string): TsExpr {
     if ((param.kind === 'whole' || param.kind === 'span') && !Number.isInteger(n)) throw new TsSyntaxError(`${param.name} is a whole number`, t.at);
     if (param.min !== undefined && n < param.min) throw new TsSyntaxError(`${param.name} is at least ${param.min}`, t.at);
     if (param.below !== undefined && n >= param.below) throw new TsSyntaxError(`${param.name} is below ${param.below}`, t.at);
+    if (param.max !== undefined && n > param.max) throw new TsSyntaxError(`${param.name} is at most ${param.max}`, t.at);
     return n;
   };
   const primary = (): TsExpr => {

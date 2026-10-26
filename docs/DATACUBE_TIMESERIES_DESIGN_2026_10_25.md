@@ -272,6 +272,13 @@ over the series' own rows does.
   square less the squared weighted mean (of each value less the line's first) over 1 less the sum of squared weights
   (pandas' correction, its closed form). MACD's spans weigh `2 / (k + 1)`; Wilder's starts from the mean of w, as
   gs-quant's ramp has it. Pinned against the recursions themselves (and pandas' `ewmcov` loop) over 700 days.
+- **By each window's rows** (`Writer.ofWindow`, a SELF-JOIN): each period joined to every period of its window (the
+  last w, from the start, every one, or a calendar period's dates), aggregated per period and joined back -- what a
+  window frame cannot say (the period's own value against each of its window's) or not on every database (a
+  percentile, which Postgres takes in a GROUP BY but not as a window function). `percentiles` (scipy's
+  `percentileofscore`, kind=mean: the share below, those equal counted half), `median` and `percentile` (pandas'
+  quantile, the database's continuous percentile; a percentile of no window the whole series', gs-quant's scalar drawn
+  as a line). The planner takes the percentile's fraction as a literal alone: gs-quant's `n` of 100 is spelled as one.
 
 ### 5.4 Proven so far
 

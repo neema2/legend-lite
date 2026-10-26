@@ -115,8 +115,9 @@ describe('the expression language', () => {
   });
 
   it('refuses gs-quant\'s functions DataCube does not compute, saying why', () => {
-    refused('median(close)', /rolling median/);
     refused('seasonally_adjusted(close)', /seasonal decomposition/);
+    refused('excess_returns(close)', /risk-free rate/);
+    refused('percentile(close, 101)', /n is at most 100/);
   });
 
   // the expert functions (2026-10-26): gs-quant's recursions, read with its defaults; a weight of 1 or more refused
@@ -248,7 +249,8 @@ describe('the saved spec\'s reader', () => {
       [with_({ sources: [{ alias: 'px', cube: 'g', date: 'd' }, { alias: 'px', cube: 'h', date: 'd' }] }), /two sources are called px/],
       [with_({ grain: 'hour' }), /frequency "hour"/],
       [with_({ series: [{ id: 'a', expr: { kind: 'number', value: 1 } }] }), /not a capital letter/],
-      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'median', args: [] } }] }), /calls "median", which this DataCube does not compute/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'trend', args: [] } }] }), /calls "trend", which this DataCube does not compute/],
+      [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'percentile', args: [{ kind: 'column', column: 'c' }], params: { n: 120 } } }] }), /n 120 is above 100/],
       [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'exponential_moving_average', args: [{ kind: 'column', column: 'c' }], params: { beta: 1 } } }] }), /beta 1 is not below 1/],
       [with_({ series: [{ id: 'A', expr: { kind: 'call', fn: 'returns', args: [{ kind: 'column', column: 'c' }], params: { obs: 0 } } }] }), /obs 0 is below 1/],
       [with_({ series: [{ id: 'A', expr: { kind: 'column', source: 'fx', column: 'c' } }] }), /reads fx:..., which is none of its sources/],

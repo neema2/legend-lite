@@ -239,7 +239,7 @@ export type TsFunctionName =
   | 'correlation' | 'beta' | 'cov' | 'alpha' | 'r_squared' | 'hedge_ratio' | 'residual'
   | 'bollinger_bands' | 'rsi' | 'ohlc'
   | 'exponential_moving_average' | 'exponential_std' | 'exponential_volatility' | 'exponential_spread_volatility' | 'macd'
-  | 'smoothed_moving_average'
+  | 'smoothed_moving_average' | 'percentiles' | 'median' | 'percentile'
   | 'log' | 'exp' | 'sqrt' | 'abs' | 'power' | 'floor' | 'ceil';
 
 /** A function's parameter as a spec holds it: a whole number, a span (a window, a lag: a whole number of observations
@@ -253,6 +253,8 @@ export interface TsParamShape {
   readonly min?: number;
   /** What a number must be below (an exponential average's weight: under 1). */
   readonly below?: number;
+  /** The most a number may be (a percentile's: 100). */
+  readonly max?: number;
 }
 
 /**
@@ -292,6 +294,7 @@ export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
   exponential_moving_average: one(BETA), exponential_std: one(BETA), exponential_volatility: one(BETA),
   exponential_spread_volatility: one(BETA), macd: one(whole('m', 12), whole('n', 26), whole('s', 1)),
   smoothed_moving_average: one(whole('w', 14)),
+  percentiles: one(W(0)), median: one(W(22)), percentile: one({ name: 'n', kind: 'number', default: 50, min: 0, max: 100 }, W(0)),
   log: one(), exp: one(), sqrt: one(), abs: one(), power: one(num('y', 2)), floor: one(num('value', 0)), ceil: one(num('value', 0)),
 };
 
@@ -431,6 +434,7 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
             if ((q.kind === 'whole' || q.kind === 'span') && !Number.isInteger(v)) return `${fn}'s ${name} ${v} is not a whole number`;
             if (q.min !== undefined && v < q.min) return `${fn}'s ${name} ${v} is below ${q.min}`;
             if (q.below !== undefined && v >= q.below) return `${fn}'s ${name} ${v} is not below ${q.below}`;
+            if (q.max !== undefined && v > q.max) return `${fn}'s ${name} ${v} is above ${q.max}`;
           }
         }
       }

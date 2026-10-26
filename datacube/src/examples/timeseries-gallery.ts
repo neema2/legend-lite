@@ -169,6 +169,17 @@ const ROLLING: GallerySheet = {
       range: { last: '1y' },
       panes: [{ height: 2 }, { height: 1 }],
     }),
+    tile('percentiles', 'Percentiles: gold within its year -- its median, its 90th percentile, and where it ranks', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'close[GLD]', { name: 'Gold' }),
+        s('B', 'median(close[GLD], 1y)', { name: '1-year median', style: { width: 1 } }),
+        s('C', 'percentile(close[GLD], 90, 1y)', { name: '1-year 90th percentile', style: { width: 1, dash: 'dashed' } }),
+        s('D', 'percentiles(close[GLD], 1y)', { name: 'Its rank in the year', pane: 1, style: { kind: 'area' } }),
+      ],
+      panes: [{ height: 2 }, { height: 1 }],
+      annotations: [{ kind: 'level', value: 90, pane: 1 }, { kind: 'level', value: 10, pane: 1 }],
+    }),
   ]],
 };
 
