@@ -1,0 +1,33 @@
+# The IQ scale program's realistic reports (2026-10-25): analyst_sets_and_strings, as analysts write them, over the retail
+# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.
+tests:
+  - id: revenue_by_grouping_sets
+    sql: "SELECT CASE WHEN GROUPING(r.name) = 1 THEN 'All regions' ELSE r.name END AS region, CASE WHEN GROUPING(o.channel) = 1 THEN 'All channels' ELSE o.channel END AS channel, COUNT(DISTINCT o.id) AS orders, SUM(oi.quantity * oi.unit_price) AS revenue FROM orders o JOIN customers c ON c.id = o.customer_id JOIN regions r ON r.id = c.region_id JOIN order_items oi ON oi.order_id = o.id WHERE o.status <> 'cancelled' GROUP BY GROUPING SETS ((r.name, o.channel), (r.name), (o.channel), ()) ORDER BY GROUPING(r.name), region, GROUPING(o.channel), channel"
+    profile: iq17-default
+  - id: customers_buying_electronics_and_home
+    sql: "SELECT o.customer_id FROM orders o JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id WHERE p.category = 'Electronics' AND o.status <> 'cancelled' INTERSECT SELECT o.customer_id FROM orders o JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id WHERE p.category = 'Home' AND o.status <> 'cancelled' ORDER BY 1"
+    profile: iq17-default
+  - id: contacts_who_never_bought
+    sql: "SELECT DISTINCT t.customer_id, 'ticket' AS via FROM support_tickets t WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = t.customer_id AND o.status <> 'cancelled') UNION ALL SELECT DISTINCT w.customer_id, 'web' FROM web_events w WHERE w.customer_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = w.customer_id AND o.status <> 'cancelled') ORDER BY 1, 2"
+    profile: iq17-default
+  - id: email_domain_hygiene
+    sql: "SELECT LOWER(SUBSTR(c.email, LOCATE(c.email, '@') + 1)) AS domain, COUNT(*) AS customers, SUM(CASE WHEN c.email LIKE '%_@_%._%' THEN 1 ELSE 0 END) AS well_formed, SUM(CASE WHEN c.email <> LOWER(c.email) THEN 1 ELSE 0 END) AS not_lower_case, LIST(c.first_name, ', ' ORDER BY c.first_name) AS names, MIN(LENGTH(c.email)) AS shortest, MAX(LENGTH(c.email)) AS longest FROM customers c WHERE c.email IS NOT NULL GROUP BY LOWER(SUBSTR(c.email, LOCATE(c.email, '@') + 1)) ORDER BY customers DESC, domain"
+    profile: iq17-default
+  - id: phone_numbers_cleaned
+    sql: "WITH d AS (SELECT id, phone, REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', ''), ' ', ''), '.', ''), '+', '') AS digits FROM customers) SELECT id, phone, digits, LENGTH(digits) AS n_digits, CASE WHEN LENGTH(digits) = 10 THEN '(' || LEFT(digits, 3) || ') ' || SUBSTR(digits, 4, 3) || '-' || RIGHT(digits, 4) WHEN LENGTH(digits) = 11 AND LEFT(digits, 1) = '1' THEN '(' || SUBSTR(digits, 2, 3) || ') ' || SUBSTR(digits, 5, 3) || '-' || RIGHT(digits, 4) WHEN digits IS NULL THEN 'missing' ELSE 'check' END AS formatted FROM d ORDER BY id"
+    profile: iq17-default
+  - id: staff_directory_badges
+    sql: "SELECT e.id, UPPER(LEFT(e.first_name, 1)) || '. ' || e.last_name AS short_name, LEFT(e.first_name, 1) || LEFT(e.last_name, 1) AS initials, LOWER(e.first_name) || '.' || LOWER(e.last_name) || '@corp.example.com' AS email_guess, REPEAT('*', CAST(e.salary / 25000 AS INTEGER)) AS salary_bar, RIGHT('0000' || CAST(e.id AS VARCHAR(4)), 4) AS badge, DATEDIFF(YEAR, e.hire_date, CAST('2026-01-01' AS DATE)) AS tenure_years, LTRIM(RTRIM(m.first_name || ' ' || m.last_name)) AS manager, CAST(ROUND(100 * e.salary / NULLIF(m.salary, 0), 1) AS NUMERIC(5,1)) AS pct_of_manager_salary, RANK() OVER (ORDER BY e.salary DESC) AS salary_rank FROM employees e LEFT JOIN employees m ON m.id = e.manager_id ORDER BY e.id"
+    profile: iq17-default
+  - id: cumulative_new_customers
+    sql: "WITH firsts AS (SELECT customer_id, MIN(order_ts) AS first_ts FROM orders WHERE status <> 'cancelled' GROUP BY customer_id), monthly AS (SELECT DATEFORMAT(o.order_ts, 'yyyy-mm') AS ym, COUNT(DISTINCT o.customer_id) AS active, COUNT(DISTINCT CASE WHEN DATEFORMAT(f.first_ts, 'yyyy-mm') = DATEFORMAT(o.order_ts, 'yyyy-mm') THEN o.customer_id END) AS new_customers FROM orders o JOIN firsts f ON f.customer_id = o.customer_id WHERE o.status <> 'cancelled' GROUP BY DATEFORMAT(o.order_ts, 'yyyy-mm')) SELECT ym, active, new_customers, SUM(new_customers) OVER (ORDER BY ym ROWS UNBOUNDED PRECEDING) AS cumulative_customers, active - new_customers AS returning, LEAD(active) OVER (ORDER BY ym) AS next_month_active, LAST_VALUE(active) OVER (ORDER BY ym ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS latest_active FROM monthly ORDER BY ym"
+    profile: iq17-default
+  - id: products_gone_quiet
+    sql: "SELECT p.id, p.sku, p.name, p.category, (SELECT MAX(o.order_ts) FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE oi.product_id = p.id) AS last_sold, DATEDIFF(DAY, (SELECT MAX(o.order_ts) FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE oi.product_id = p.id), CAST('2026-01-01' AS TIMESTAMP)) AS days_since FROM products p WHERE p.discontinued = 0 AND NOT EXISTS (SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE oi.product_id = p.id AND o.status <> 'cancelled' AND o.order_ts >= DATEADD(DAY, -90, CAST('2026-01-01' AS TIMESTAMP))) ORDER BY days_since DESC, p.id"
+    profile: iq17-default
+  - id: same_month_last_year
+    sql: "WITH m AS (SELECT YEAR(o.order_ts) AS y, MONTH(o.order_ts) AS mo, SUM(oi.quantity * oi.unit_price) AS revenue FROM orders o JOIN order_items oi ON oi.order_id = o.id WHERE o.status <> 'cancelled' GROUP BY YEAR(o.order_ts), MONTH(o.order_ts)) SELECT cur.y, cur.mo, DATENAME(MONTH, YMD(cur.y, cur.mo, 1)) AS month_name, cur.revenue, prev.revenue AS last_year, cur.revenue - prev.revenue AS change, CAST(ROUND(100 * (cur.revenue - prev.revenue) / NULLIF(prev.revenue, 0), 1) AS NUMERIC(7,1)) AS yoy_pct FROM m cur LEFT JOIN m prev ON prev.y = cur.y - 1 AND prev.mo = cur.mo ORDER BY cur.y, cur.mo"
+    profile: iq17-default
+  - id: order_value_bands
+    sql: "WITH t AS (SELECT o.id, o.customer_id, SUM(oi.quantity * oi.unit_price) AS total FROM orders o JOIN order_items oi ON oi.order_id = o.id GROUP BY o.id, o.customer_id) SELECT id, customer_id, total, NTILE(4) OVER (ORDER BY total, id) AS quartile, CAST(CUME_DIST() OVER (ORDER BY total) AS NUMERIC(6,4)) AS cume, CASE WHEN total >= 1000 THEN 'large' WHEN total >= 250 THEN 'medium' ELSE 'small' END AS band, total - AVG(total) OVER () AS vs_mean FROM t ORDER BY total DESC, id"
+    profile: iq17-default
