@@ -350,6 +350,10 @@ first text tile; tested in `test/page-text.test.ts` and `test/page-text-dom.test
 
 ### 8. Files in the text box (the user, 2026-10-25: the end of the roadmap)
 
+**Superseded after step 1 by `docs/DATACUBE_DOCUMENTS_DESIGN_2026_10_26.md`** (the user, 2026-10-25: "the real thing we
+want to do with docs is chunk/embed/vectorize/text extract for search and join with other data"): the formats below
+become rows a grid reads, searches and joins, not only previews.
+
 Now that the text box reads and edits Markdown, it should also open files. Open or drag-and-drop one file or several
 onto it and preview them in the tile.
 
