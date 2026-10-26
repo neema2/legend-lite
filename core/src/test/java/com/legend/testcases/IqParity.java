@@ -768,7 +768,12 @@ public final class IqParity {
                 s.from().forEach(f -> onConditions(f, conditions));
             }
         }
-        if (conditions.stream().noneMatch(IqParity::raisesBesideAndOr)) {
+        // the IQ scale program, 2026-10-26 (the realistic reports' part M: b.mi = a.mi + 1 beside AND in an ON): under IQ's
+        // engine, which the live IQ judges an iq17 run by, integer +, - and * widen and raise nothing (D-N3, measured on
+        // IQ 17.1); a quotient, a remainder, a function and a CAST still may
+        boolean widens = run.profile().settings().iq17()
+                && IqDialect.engineOf(statement, run.settings()) == IqDialect.Engine.IQ;
+        if (conditions.stream().noneMatch(c -> raisesBesideAndOr(c, widens))) {
             return null;
         }
         return "EVALUATION ORDER: " + run.key() + " puts an operation that can raise beside AND or OR in a WHERE, an"
@@ -788,34 +793,35 @@ public final class IqParity {
 
     /** Whether a search condition has an AND or OR (outside a CASE) one of whose operands holds an operation that
      *  can raise. */
-    private static boolean raisesBesideAndOr(SqlAst.Expr e) {
+    private static boolean raisesBesideAndOr(SqlAst.Expr e, boolean widens) {
         return switch (e) {
             case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.AND || b.op() == SqlAst.BinaryOp.OR ->
-                    canRaise(b.left()) || canRaise(b.right()) || raisesBesideAndOr(b.left())
-                            || raisesBesideAndOr(b.right());
-            case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.NOT -> raisesBesideAndOr(u.operand());
+                    canRaise(b.left(), widens) || canRaise(b.right(), widens) || raisesBesideAndOr(b.left(), widens)
+                            || raisesBesideAndOr(b.right(), widens);
+            case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.NOT -> raisesBesideAndOr(u.operand(), widens);
             // IQ island, 2026-10-14 (M1a): a truth test's condition is the condition the AND or OR stands in
-            case SqlAst.IsTruth t -> raisesBesideAndOr(t.operand());
+            case SqlAst.IsTruth t -> raisesBesideAndOr(t.operand(), widens);
             default -> false;
         };
     }
 
     /** Whether {@code e} holds integer arithmetic, a minus or NULLIF over a column (a CASE's or an IF's branches
      *  included: IQ evaluates the one it takes). */
-    private static boolean canRaise(SqlAst.Expr e) {
+    private static boolean canRaise(SqlAst.Expr e, boolean widens) {
         boolean here = switch (e) {
             case SqlAst.Binary b -> switch (b.op()) {
-                case PLUS, MINUS, TIMES, DIVIDE, MODULO -> readsAColumn(e);
+                case PLUS, MINUS, TIMES -> !widens && readsAColumn(e);
+                case DIVIDE, MODULO -> readsAColumn(e);
                 default -> false;
             };
-            case SqlAst.Unary u -> u.op() == SqlAst.UnaryOp.MINUS && readsAColumn(e);
+            case SqlAst.Unary u -> !widens && u.op() == SqlAst.UnaryOp.MINUS && readsAColumn(e);
             // IQ island, 2026-10-14 (M1d): the functions and the CASTs that can raise IQ's errors over a column
             case SqlAst.FunctionCall f -> RAISING_FUNCTIONS.contains(f.name().get(f.name().size() - 1).text()
                     .toLowerCase(Locale.ROOT)) && readsAColumn(e);
             case SqlAst.Cast c -> readsAColumn(e);
             default -> false;
         };
-        return here || subexpressions(e).stream().anyMatch(IqParity::canRaise);
+        return here || subexpressions(e).stream().anyMatch(x -> canRaise(x, widens));
     }
 
     /** The functions whose result can be IQ's run-time error (NULLIF's conversion; M1d's: SUBSTRING's negative length,

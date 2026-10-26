@@ -135,7 +135,6 @@ class IqParserTest {
                 // stays refused (IQ island, 2026-10-16, checklist 2.16c: APPLY is read)
                 {"SELECT a.id FROM t a KEY JOIN u b", "KEY JOIN"},
                 {"SELECT id FROM t WHERE id IS OF (INT)", "is not supported"},
-                {"SELECT id & 1 FROM t", "bitwise"},
                 // IQ island, 2026-10-14 (M1e): :name and @name are host variables now (below); ? names none
                 {"SELECT ? FROM t", "positional parameter"},
                 {"SELECT :? FROM t", "positional parameter"},

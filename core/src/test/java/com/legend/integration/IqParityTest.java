@@ -492,6 +492,12 @@ class IqParityTest {
                 != null);
         assertTrue(order.apply("SELECT k FROM g GROUP BY k HAVING COUNT(*) > 2 AND SUM(v) > 0", null) != null);
         assertEquals(null, order.apply("SELECT k FROM g GROUP BY k HAVING COUNT(*) > 2 AND MAX(v) > 0", null));
+        // the IQ scale program, 2026-10-26: under IQ's engine, judging an iq17 run, integer + - * raise nothing (D-N3)
+        java.util.function.Function<String, String> iq17 = sql -> IqParity.evaluationOrder(IqParity.runs(List.of(
+                new IqParity.Case("lite/x.yaml", "a", sql, List.of("iq17-default"), null, null, null, null))).get(0));
+        assertEquals(null, iq17.apply("SELECT id FROM t WHERE id > 1 AND it + 1 > 0"));
+        assertTrue(iq17.apply("SELECT id FROM t WHERE id > 1 AND 100 / sm > 1") != null);
+        assertTrue(iq17.apply("SELECT id FROM t WHERE id > 1 AND CAST(vc AS INT) > 0") != null);
     }
 
     /**
