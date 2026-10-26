@@ -673,9 +673,30 @@ node_test(
     wasm = True,
 )
 
+# THE MARKET WORLD IN THE TAB (demo/market-sim, docs/DUCKDB_LIVE_2026_10_25.md L2): Java's random exactly, every table's
+# shape the trading model's declaration, a world run on the test's own clock -- no server, no feed
+filegroup(
+    name = "market_sim",
+    srcs = glob(["demo/market-sim/*.ts"]),
+)
+
+node_test(
+    name = "market_sim_test",
+    size = "small",
+    data = [
+        ":market_sim",
+        ":src_base",
+        "//engine-client:engine_client",
+        "//scripts/corpus:trading_model",
+    ],
+    entry_point = "test/market-sim/market-sim.test.ts",
+    env = {"TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)"},
+)
+
 test_suite(
     name = "tests",
     tests = [t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test" for t in _TESTS] + [
+        ":market_sim_test",
         ":typecheck_test",
         ":pivot_rows_test",
         ":json_read_test",

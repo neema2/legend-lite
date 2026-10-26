@@ -51,6 +51,26 @@ describe('rows a page makes, as Arrow', () => {
     ]);
   });
 
+  it('days, and a null in any kind: DATE, and NULL where a row has no value', async () => {
+    await engine.loadArrow({ table: 'made_nulls' }, once(arrowIpcStream(3, {
+      d: { doubles: (i) => (i === 1 ? null : i / 2) },
+      n: { integers: (i) => (i === 0 ? null : -i) },
+      t: { text: ['a', 'b'], pick: (i) => (i === 2 ? null : i) },
+      stamp: { instants: (i) => (i === 1 ? null : Date.UTC(2026, 9, 26, i)) },
+      ok: { truths: (i) => (i === 0 ? null : i === 1) },
+      day: { days: (i) => (i === 2 ? null : 20_000 + i) },
+    })));
+    const types = await engine.run(
+      "SELECT data_type FROM information_schema.columns WHERE table_name = 'made_nulls' AND column_name = 'day'", 0);
+    assert.deepEqual(types.columns[0]!.values, ['DATE']);
+    const rows = await engine.run(
+      "SELECT d, CAST(n AS VARCHAR) AS n, t, strftime(stamp, '%H') AS stamp, ok, strftime(day, '%Y-%m-%d') AS day FROM made_nulls", 0);
+    assert.deepEqual(rows.columns.map((c) => c.values), [
+      [0, null, 1], [null, '-1', '-2'], ['a', 'b', null], ['00', null, '02'], [null, true, false],
+      ['2024-10-04', '2024-10-05', null],
+    ]);
+  });
+
   it('a value outside its kind is refused, by its row', () => {
     assert.throws(() => arrowIpcStream(1, { at: { instants: () => 0.5 } }), /row 0: 0.5 is not a whole number of milliseconds/);
     assert.throws(() => arrowIpcStream(1, { n: { integers: () => 2 ** 31 } }), /row 0: 2147483648 is not a 32-bit whole number/);

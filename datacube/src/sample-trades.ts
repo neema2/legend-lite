@@ -42,13 +42,15 @@ export function sampleTradesCsv(rows = SAMPLE_TRADES): string {
   return `${out.join('\n')}\n`;
 }
 
-/** A made column's value in row `i`, as a CSV cell. */
+/** A made column's value in row `i`, as a CSV cell (a null, none). */
 function csvValue(c: MadeColumn, i: number): string {
-  if ('text' in c) return c.text[c.pick(i)]!;
-  if ('doubles' in c) return String(c.doubles(i));
-  if ('integers' in c) return String(c.integers(i));
-  if ('instants' in c) return new Date(c.instants(i)).toISOString();
-  return String(c.truths(i));
+  const v = 'text' in c ? c.pick(i) : 'doubles' in c ? c.doubles(i) : 'integers' in c ? c.integers(i)
+    : 'instants' in c ? c.instants(i) : 'days' in c ? c.days(i) : c.truths(i);
+  if (v === null) return '';
+  if ('text' in c) return c.text[v as number]!;
+  if ('instants' in c) return new Date(v as number).toISOString();
+  if ('days' in c) return new Date((v as number) * 86_400_000).toISOString().slice(0, 10);
+  return String(v);
 }
 
 /** The sample these trades are as a file (samples.ts): what a page saved over the start's grid rebuilds. */
