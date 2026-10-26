@@ -787,8 +787,10 @@ final class IqWindows {
             }
             case NTILE -> {
                 BigInteger n = java.util.Objects.requireNonNull(literal(f.args().get(0)));
+                // the IQ scale program, 2026-10-26 (the realistic reports' RFM codes, CAST(NTILE(3) OVER (...) AS
+                // VARCHAR(1))): its value 1 to n, which a CAST or an arithmetic reads by its range
                 return one(at, SqlToPure.call("ntile", p, r, new CInteger(n.longValue())), Kind.INTEGER, false,
-                        new IqType("UNSIGNED INT"));
+                        IqType.integer("UNSIGNED INT", BigInteger.ONE, n.max(BigInteger.ONE), false));
             }
             case LAG, LEAD -> {
                 return offsetValue(f, fn, upper, at, dialect);

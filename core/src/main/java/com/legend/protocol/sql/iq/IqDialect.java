@@ -1877,7 +1877,7 @@ public final class IqDialect implements InputDialect {
             // -- so D-T13 holds in SQL Anywhere's front end alone (there GETDATE() is 3 microseconds from NOW())
             clocks(statement);
         }
-        IqAggregates.Naming groupedNames = IqAggregates.read(statement, chosen, spans);
+        IqAggregates.Naming groupedNames = IqAggregates.read(statement, chosen, settings.iq17(), spans);
         Set<SqlAst.Expr> valuesHere = statement instanceof SqlAst.Select s ? shownOnly(s)
                 : Collections.newSetFromMap(new IdentityHashMap<>());
         Map<SqlAst.Select, SqlAst.Select> groupedHere = new IdentityHashMap<>();

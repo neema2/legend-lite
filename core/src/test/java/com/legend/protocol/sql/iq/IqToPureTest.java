@@ -481,6 +481,16 @@ class IqToPureTest {
         assertTrue(bare.length() < 40_000 && wrapped.length() < 80_000, bare.length() + " " + wrapped.length());
     }
 
+    /** The IQ scale program, 2026-10-26 (the realistic reports' RFM codes): NTILE(n)'s value is 1 to n, so a CAST of
+     *  it to text reads; its arithmetic stays refused by name (IQ's unsigned result type). */
+    @Test
+    void anNtileIsCastToTextByItsRange() {
+        IqSettings iq17 = IqProfile.IQ17_DEFAULT.settings();
+        pure("SELECT id, CAST(NTILE(3) OVER (ORDER BY id) AS VARCHAR(1)) AS c FROM " + T, iq17);
+        assertTrue(refusal("SELECT id, NTILE(3) OVER (ORDER BY id) * 10 AS m FROM " + T, iq17, COLUMNS).getMessage()
+                .contains("UNSIGNED INT"));
+    }
+
     /** The IQ scale program, 2026-10-26 (measured on IQ 17.1: LIST(DISTINCT c.segment, '/' ORDER BY c.segment) is
      *  'enterprise/retail/smb'): LIST(DISTINCT x [ORDER BY x]) of a string under IQ's engine, its texts once, ordered by
      *  themselves; another order, or SQL Anywhere's front end, refused as before. */
@@ -1261,6 +1271,14 @@ class IqToPureTest {
         assertTrue(pure("SELECT LIST(id) AS l FROM " + T).contains("joinStrings"));
         assertTrue(refusal("SELECT LIST(row_num ORDER BY row_num), LIST(row_num ORDER BY row_num DESC) FROM"
                 + " sa_rowgenerator(1, 3)").getMessage().contains("-904"));
+        // the IQ scale program, 2026-10-26 (measured on IQ 17.1): under IQ's engine each LIST keeps its own order, but
+        // one of the same value and keys as an earlier one in another direction, which IQ computes as that one (D-A1)
+        IqSettings iq17 = IqProfile.IQ17_DEFAULT.settings();
+        assertTrue(pure("SELECT LIST(id ORDER BY id), LIST(sm ORDER BY sm DESC) FROM " + T, iq17).contains(
+                "joinStrings"));
+        assertTrue(refusal("SELECT LIST(id ORDER BY id), LIST(id ORDER BY id DESC) FROM " + T, iq17, COLUMNS)
+                .getMessage().contains("D-A1"));
+        // (IQ 16's engine, not measured, as before)
         assertTrue(refusal("SELECT LIST(id ORDER BY id), LIST(sm ORDER BY sm) FROM " + T).getMessage().contains(
                 "D-A1"));
         // IQ's errors raised before running: -154, -949, -152

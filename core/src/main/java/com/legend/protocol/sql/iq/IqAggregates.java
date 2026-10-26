@@ -790,14 +790,15 @@ final class IqAggregates {
      *       COUNT(DISTINCT id + 1), SUM(DISTINCT sm * 2) and SELECT DISTINCT COUNT(DISTINCT sm + 1).</li>
      * </ul>
      */
-    static Naming read(SqlAst.Statement statement, IqDialect.Engine engine, Map<SqlAst.Expr, String> spans) {
+    static Naming read(SqlAst.Statement statement, IqDialect.Engine engine, boolean iq17,
+            Map<SqlAst.Expr, String> spans) {
         Naming naming = new Naming(spans);
         for (SqlAst.Statement q : IqDialect.queries(statement)) {
             if (q instanceof SqlAst.Select raw && grouped(raw)) {
                 SqlAst.Select s = grouping(raw);
                 constantKeys(s, engine);
                 keyMatches(s);
-                lists(s, engine);
+                lists(s, engine, iq17);
                 if (engine != IqDialect.Engine.IQ) {
                     // IQ island, 2026-10-16 (the corpus lane: 56 queries; measured on IQ 17.1): IQ's engine names a
                     // grouped query's items as an ungrouped query's, each by its own spelling (SELECT SM + 1 ... GROUP
@@ -936,10 +937,18 @@ final class IqAggregates {
         }
     }
 
-    /** The LISTs of one query ordered alike: else SQL Anywhere's error -904, and the IQ engine's D-A1 (every LIST
-     *  ordered by the first's ORDER BY), refused. */
-    private static void lists(SqlAst.Select s, IqDialect.Engine engine) {
+    /**
+     * The LISTs of one query: under SQL Anywhere's front end ordered alike, else its error -904. Under IQ's engine each
+     * LIST keeps its own order (the IQ scale program, 2026-10-26, the Mac's probes on IQ 17.1: LIST(c.segment ORDER BY
+     * c.segment), LIST(o.channel ORDER BY o.channel), LIST(c.city ORDER BY c.city DESC) of one query each in its own
+     * order), but for one of the same value and the same ORDER BY keys as an earlier one in another direction, which
+     * IQ computes as the earlier one (LIST(id ORDER BY id), LIST(id ORDER BY id DESC) are both ascending; the research's
+     * D-A1, so narrowed): refused by name. IQ 16's engine, not measured, has every two LISTs ordered differently
+     * refused, as before.
+     */
+    private static void lists(SqlAst.Select s, IqDialect.Engine engine, boolean iq17) {
         String order = null;
+        Map<String, String> directions = new HashMap<>();
         for (SqlAst.Expr e : allExpressions(s)) {
             for (SqlAst.FunctionCall f : aggregateCalls(e)) {
                 if (!IqLexer.lower(f.name().get(0).text()).equals("list") || f.orderBy().isEmpty()) {
@@ -948,21 +957,37 @@ final class IqAggregates {
                 // a constant key orders nothing, a repeated one nothing more (measured: (x, 'a') and (x, 'b', x) are
                 // one order)
                 StringBuilder b = new StringBuilder();
+                StringBuilder keys = new StringBuilder();
+                StringBuilder ways = new StringBuilder();
                 Set<String> seen = new java.util.HashSet<>();
                 for (SqlAst.SortItem o : f.orderBy()) {
                     String key = shape(o.expr());
                     if (!columns(o.expr()).isEmpty() && seen.add(key)) {
                         b.append(key).append(o.descending() ? " desc;" : " asc;");
+                        keys.append(key).append(';');
+                        ways.append(o.descending() ? 'd' : 'a');
                     }
+                }
+                if (engine == IqDialect.Engine.IQ && !iq17 && order != null && !order.equals(b.toString())) {
+                    // IQ 16's engine is not measured: refused as before
+                    throw SqlTranslationException.unsupported("two LISTs ordered differently in one query are not"
+                            + " supported under IQ 16's engine (the research's D-A1, measured on IQ 17.1 alone)",
+                            f.pos());
+                }
+                if (engine == IqDialect.Engine.IQ && iq17) {
+                    String prior = directions.putIfAbsent((f.args().isEmpty() ? "" : shape(f.args().get(0))) + " by "
+                            + keys, ways.toString());
+                    if (prior != null && !prior.equals(ways.toString())) {
+                        throw SqlTranslationException.unsupported("a LIST of the same value and ORDER BY keys as an"
+                                + " earlier LIST of the query, in another direction, is not supported under IQ's"
+                                + " engine, which computes it as the earlier one, in that one's direction (the"
+                                + " research's D-A1, measured on IQ 17.1)", f.pos());
+                    }
+                    continue;
                 }
                 if (order == null) {
                     order = b.toString();
                 } else if (!order.equals(b.toString())) {
-                    if (engine == IqDialect.Engine.IQ) {
-                        throw SqlTranslationException.unsupported("two LISTs ordered differently in one query are not"
-                                + " supported under IQ's engine, which orders both by the first's ORDER BY (the"
-                                + " research's D-A1, not yet verified)", f.pos());
-                    }
                     throw SqlTranslationException.invalid("two LISTs of one query are ordered differently"
                             + code(-904, "42W90"), f.pos());
                 }

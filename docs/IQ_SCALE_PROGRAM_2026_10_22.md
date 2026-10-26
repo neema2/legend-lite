@@ -914,3 +914,16 @@ says so.
     19 (all PASS on DuckDB and Postgres) and the 7-day moving average (SKIP -> PASS). Three part P queries put a
     raising operation beside OR in a WHERE or ordered a window by too few keys (the parity lints): rewritten on
     claude/iq-reports 08ac905c, to re-snap.
+  - **Reports part Q** (11, `tools/iq-reports/queries_q.py`, snapped at 4c30f365): RFM codes by NTILE, UTM source and
+    medium parsed from landing URLs, an hour-by-weekday heat map, signup-cohort retention, each region's distinct
+    segments, channels and cities listed, a fiscal year from July, the top three products per category, the median
+    days to ship, a reorder plan against supplier lead times, a sales-rep leaderboard, orders with tickets waiting.
+    All 11 PASS on DuckDB and Postgres. What they found, fixed here: NTILE(n)'s UNSIGNED INT now carries its range 1
+    to n, so CAST(NTILE(3) OVER (...) AS VARCHAR(1)) reads (its arithmetic stays refused by name).
+  - **D-A1 measured** (the Mac's probes on IQ 17.1): LISTs of one query each keep their own order -- segments,
+    channels and cities each in its own -- but for a later LIST of the same value and the same ORDER BY keys as an
+    earlier one in another direction, which IQ computes as the earlier one (LIST(id ORDER BY id), LIST(id ORDER BY id
+    DESC) both ascending; DESC first, both descending; LIST(id ORDER BY sm, id) and (sm DESC, id) both the first's;
+    grouped alike). Under iq17 profiles lite now answers every other combination and refuses that one by name; IQ 16's
+    engine, not measured, refuses as before (SQL Anywhere 17, its judge, raises -904). m1c's
+    two_lists_ordered_differently_under_the_iq_engine_are_refused REFUSED -> PASS (iq17).

@@ -4399,7 +4399,7 @@ lite/m1c/two_lists_ordered_alike@iq17-default	PASS	PASS	PASS
 lite/m1c/two_lists_ordered_differently@iq16-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
 lite/m1c/two_lists_ordered_differently@iq17-default	ERROR	ERROR	ERROR
 lite/m1c/two_lists_ordered_differently_under_the_iq_engine_are_refused@iq16-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
-lite/m1c/two_lists_ordered_differently_under_the_iq_engine_are_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/m1c/two_lists_ordered_differently_under_the_iq_engine_are_refused@iq17-default	PASS	PASS	REFUSED
 lite/m1c/list_without_order_by@iq16-default	PASS	PASS	PASS
 lite/m1c/list_without_order_by@iq17-default	PASS	PASS	PASS
 lite/m1c/list_of_strings_without_order_by@iq16-default	PASS	PASS	PASS

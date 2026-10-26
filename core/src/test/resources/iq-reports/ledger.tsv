@@ -215,6 +215,11 @@ lite/reports_long/monthly_kpis_with_targets@iq17-default	PASS	PASS
 lite/reports_long/basket_analysis_by_size@iq17-default	FAIL	FAIL	
 lite/reports_long/churn_risk_list@iq17-default	PASS	PASS	
 lite/reports_long/union_of_activity_feed@iq17-default	PASS	PASS	
+lite/reports_marketing_reports/rfm_segments@iq17-default	PASS	PASS	
+lite/reports_marketing_reports/utm_sources_of_first_events@iq17-default	PASS	PASS	
+lite/reports_marketing_reports/traffic_heatmap_hour_by_weekday@iq17-default	PASS	PASS	
+lite/reports_marketing_reports/signup_cohort_month_two_retention@iq17-default	PASS	PASS	
+lite/reports_marketing_reports/region_directory_of_segments_and_channels@iq17-default	PASS	PASS	
 lite/reports_mixed/rollup_year_and_quarter@iq17-default	PASS	PASS	
 lite/reports_mixed/cube_segment_by_year@iq17-default	PASS	PASS	
 lite/reports_mixed/priced_above_every_home_product@iq17-default	PASS	PASS	
@@ -297,6 +302,12 @@ lite/reports_pitfalls/nullif_to_avoid_division_by_zero@iq17-default	PASS	PASS
 lite/reports_pitfalls/coalesce_chains_and_isnull@iq17-default	PASS	PASS	
 lite/reports_pitfalls/having_versus_where@iq17-default	PASS	PASS	
 lite/reports_pitfalls/timestamps_compared_to_dates@iq17-default	PASS	PASS	
+lite/reports_planning_reports/fiscal_year_starting_july@iq17-default	PASS	PASS	
+lite/reports_planning_reports/category_top_three_by_revenue@iq17-default	PASS	PASS	
+lite/reports_planning_reports/median_days_to_ship_by_channel@iq17-default	PASS	PASS	
+lite/reports_planning_reports/reorder_plan_against_lead_times@iq17-default	PASS	PASS	
+lite/reports_planning_reports/sales_rep_leaderboard@iq17-default	PASS	PASS	
+lite/reports_planning_reports/orders_with_open_tickets_and_late_shipping@iq17-default	PASS	PASS	
 lite/reports_products/product_margins@iq17-default	PASS	PASS	
 lite/reports_products/sku_parts@iq17-default	PASS	PASS	
 lite/reports_products/price_bands_with_counts@iq17-default	PASS	PASS	
