@@ -237,6 +237,14 @@ over the series' own rows does.
   A lag of a period is an AS-OF JOIN: the value as of `adjust(date, -n, unit)`, its last at or before
   (`Writer #valueBack`) -- where gs-quant's `lag` moves each date on and keeps only the dates it lands on, so a year
   back from a Monday whose date a year before was a Sunday has none there (the catalog says so).
+- **Risk statistics** (`statsQuery`, the panel's Risk tab): of a level's simple returns over the dates shown, pandas'
+  definitions -- skew the adjusted Fisher-Pearson coefficient (`Series.skew`), kurtosis the bias-corrected excess one
+  (`Series.kurt`), each from the returns' moments about their mean (a window over the shown rows, then aggregates);
+  Sortino the mean return over the root mean square of those below zero, annualized; the share of periods up; the best
+  and the worst; a historical value at risk, the 5% quantile the database interpolates (`percentile`, continuous), and
+  the expected shortfall, the average at or below it (the quantile per line joined back beside each return); Calmar the
+  growth over the deepest drawdown's depth (a year or more, a drawdown below zero). None of a level at or below zero.
+  The panel's tab (Summary, Risk) is a viewing choice, as the zoom is: not saved.
 
 ### 5.4 Proven so far
 

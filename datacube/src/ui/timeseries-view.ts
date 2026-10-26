@@ -212,7 +212,8 @@ const FAMILIES: readonly TsFamily[] = ['Returns', 'Level', 'Rolling statistics',
 /** Its editors' window: as a chart's options' is sized (chart-panel.ts CHART_WINDOW), narrower -- one column of fields. */
 const TS_WINDOW = { width: 440, height: 640, minWidth: 300, minHeight: 240 } as const;
 
-const STAT_COLUMNS: readonly { readonly stat: TsStat; readonly label: string; readonly as: 'value' | 'ratio' | 'percent' | 'number' | 'date' | 'count' }[] = [
+type StatColumn = { readonly stat: TsStat; readonly label: string; readonly as: 'value' | 'ratio' | 'percent' | 'number' | 'date' | 'count' };
+const STAT_COLUMNS: readonly StatColumn[] = [
   { stat: 'first', label: 'First', as: 'value' },
   { stat: 'last', label: 'Last', as: 'value' },
   { stat: 'change', label: 'Change', as: 'value' },
@@ -230,6 +231,29 @@ const STAT_COLUMNS: readonly { readonly stat: TsStat; readonly label: string; re
   { stat: 'count', label: 'Obs', as: 'count' },
 ];
 
+/** The statistics panel's Risk tab: a level's returns' risk (the expert statistics, 2026-10-26), each the database's. */
+const RISK_COLUMNS: readonly StatColumn[] = [
+  { stat: 'vol', label: 'Vol (ann.)', as: 'percent' },
+  { stat: 'sharpe', label: 'Sharpe', as: 'number' },
+  { stat: 'sortino', label: 'Sortino', as: 'number' },
+  { stat: 'calmar', label: 'Calmar', as: 'number' },
+  { stat: 'mdd', label: 'Max DD', as: 'ratio' },
+  { stat: 'skew', label: 'Skew', as: 'number' },
+  { stat: 'kurtosis', label: 'Kurtosis', as: 'number' },
+  { stat: 'hit', label: 'Up periods', as: 'ratio' },
+  { stat: 'best', label: 'Best', as: 'ratio' },
+  { stat: 'worst', label: 'Worst', as: 'ratio' },
+  { stat: 'var', label: 'VaR 95%', as: 'ratio' },
+  { stat: 'es', label: 'ES 95%', as: 'ratio' },
+];
+
+/** The statistics panel's tabs, in their order. */
+const STAT_TABS: readonly (readonly [StatsTab, string, string])[] = [
+  ['summary', 'Summary', 'Each line\'s first, last, change, extremes, mean and deviation over the dates shown'],
+  ['risk', 'Risk', 'Each level\'s returns\' risk over the dates shown: volatility, Sharpe, Sortino, Calmar, drawdown, skew, kurtosis, value at risk'],
+];
+type StatsTab = 'summary' | 'risk';
+
 export class TimeseriesView {
   readonly #root: HTMLElement;
   readonly #doc: Document;
@@ -241,6 +265,8 @@ export class TimeseriesView {
   #banner!: HTMLElement;
   #canvas!: HTMLElement;
   #stats!: HTMLElement;
+  /** The statistics panel's tab shown: a viewing choice, as the zoom is (not the page's: nothing of it is saved). */
+  #statsTab: StatsTab = 'summary';
   /** Its editor's content, in its window while one is open. */
   #pop: HTMLElement;
   /** Its editor's window, while one is open; and what lets its listeners go when it closes. */
@@ -859,9 +885,20 @@ export class TimeseriesView {
       return;
     }
     this.#stats.hidden = false;
+    const columns = this.#statsTab === 'risk' ? RISK_COLUMNS : STAT_COLUMNS;
+    const tabs = el(doc, 'div', 'dc-ts-stats-tabs', undefined, { role: 'tablist' });
+    for (const [tab, label, title] of STAT_TABS) {
+      const b = button(doc, label, title, () => {
+        this.#statsTab = tab;
+        this.#paintStats();
+      }, 'dc-ts-stats-tab');
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', String(tab === this.#statsTab));
+      tabs.append(b);
+    }
     const table = el(doc, 'table', 'dc-ts-table');
     const head = el(doc, 'tr');
-    head.append(el(doc, 'th', undefined, 'Line'), ...STAT_COLUMNS.map((c) => el(doc, 'th', undefined, c.label)));
+    head.append(el(doc, 'th', undefined, 'Line'), ...columns.map((c) => el(doc, 'th', undefined, c.label)));
     table.append(head);
     const grain = this.#spec.grain ?? 'day';
     for (const l of this.#lines.filter((x) => !x.band && !x.series.hidden)) {
@@ -873,11 +910,11 @@ export class TimeseriesView {
       tr.append(name);
       const refused = this.#statsFailed.get(l.series.id);
       if (refused !== undefined) {
-        tr.append(el(doc, 'td', 'dc-ts-table-refused', `Refused: ${refused}`, { colspan: String(STAT_COLUMNS.length) }));
+        tr.append(el(doc, 'td', 'dc-ts-table-refused', `Refused: ${refused}`, { colspan: String(columns.length) }));
         table.append(tr);
         continue;
       }
-      for (const c of STAT_COLUMNS) {
+      for (const c of columns) {
         const raw = this.#statValue(l, c.stat);
         const n = toNumber(raw as Scalar);
         let text = '';
@@ -897,7 +934,9 @@ export class TimeseriesView {
     }
     const window = this.#window();
     const blanks = this.#statBlanks();
-    this.#stats.replaceChildren(el(doc, 'div', 'dc-ts-stats-head', `Over ${window.from ?? 'the first date'} to ${window.to ?? 'the latest'}: every figure the database's`), table,
+    const head_ = el(doc, 'div', 'dc-ts-stats-head');
+    head_.append(tabs, doc.createTextNode(`Over ${window.from ?? 'the first date'} to ${window.to ?? 'the latest'}: every figure the database's`));
+    this.#stats.replaceChildren(head_, table,
       ...(blanks.length > 0 ? [el(doc, 'div', 'dc-ts-stats-blanks', blanks.join(' '))] : []));
   }
 
@@ -912,7 +951,7 @@ export class TimeseriesView {
       // the level's own least, before compare took it from its start (a % change from its start is zero there)
       const low = this.#statColumn(l, TS_STAT_LEVEL_LOW);
       if (low !== undefined && low !== null && low <= 0) {
-        out.push(`${l.name} is at or below zero over these dates: it has no volatility, drawdown, growth or Sharpe ratio.`);
+        out.push(`${l.name} is at or below zero over these dates: it has no volatility, drawdown, growth or Sharpe ratio, nor any figure of its returns' risk.`);
         continue;
       }
       if (this.#statColumn(l, TS_STAT_PER_YEAR) === null) {

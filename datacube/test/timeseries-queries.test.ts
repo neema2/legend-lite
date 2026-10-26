@@ -645,6 +645,45 @@ describe('a series\' statistics over the dates shown', () => {
     close([num(values(compared, statName('cagr'))[0])], [(116 / 100) ** (365.25 / days('2022-02-28', '2024-03-01')) - 1], 'compared', 1e-9);
   });
 
+  // the expert statistics (the user, 2026-10-26): a level's returns' risk, pandas' definitions written out here
+  it('a level\'s returns\' risk: skew, kurtosis, Sortino, hit rate, best, worst, value at risk and expected shortfall', async () => {
+    const ts = spec({ A: 'close[AAA]' });
+    const t = await run(statsQuery(inputs, ts, ts.series[0]!, { from: DAYS[5]!, to: DAYS[34]! }));
+    const v = (st: Parameters<typeof statName>[0]): number | null => num(values(t, statName(st))[0]);
+    const shown = AAA.slice(5, 35);
+    const r = shown.slice(1).map((x, i) => x / shown[i]! - 1);
+    const n = r.length;
+    const m = avg(r);
+    const moment = (k: number): number => avg(r.map((x) => (x - m) ** k));
+    const [m2, m3, m4] = [moment(2), moment(3), moment(4)];
+    close([v('skew')], [(m3 / m2 ** 1.5) * Math.sqrt(n * (n - 1)) / (n - 2)], 'skew (pandas)', 1e-9);
+    close([v('kurtosis')], [((n + 1) * (n - 1) * m4 / (m2 * m2) - 3 * (n - 1) ** 2) / ((n - 2) * (n - 3))], 'kurtosis (pandas)', 1e-9);
+    close([v('sortino')], [(m / Math.sqrt(avg(r.map((x) => Math.min(x, 0) ** 2)))) * Math.sqrt(252)], 'sortino', 1e-9);
+    close([v('hit')], [r.filter((x) => x > 0).length / n], 'hit rate', 1e-12);
+    close([v('best'), v('worst')], [Math.max(...r), Math.min(...r)], 'best and worst', 1e-12);
+    const sorted = [...r].sort((a, b) => a - b);
+    const at = 0.05 * (n - 1);
+    const q = sorted[Math.floor(at)]! + (sorted[Math.ceil(at)]! - sorted[Math.floor(at)]!) * (at - Math.floor(at));
+    close([v('var')], [q], 'the 5% quantile (interpolated)', 1e-12);
+    close([v('es')], [avg(r.filter((x) => x <= q))], 'the average at or below it', 1e-12);
+    // under a year, no growth: no Calmar
+    assert.equal(v('calmar'), null, 'no Calmar under a year');
+  });
+
+  it('Calmar: its growth over its deepest drawdown, over a year or more', async () => {
+    const dates = ['2022-01-31', '2022-04-29', '2022-07-29', '2022-10-31', '2023-01-31', '2023-04-28'];
+    const levels = [100, 110, 88, 95, 120, 125];
+    const csv = ['symbol,day,close', ...dates.map((d, i) => `Y,${d},${levels[i]}`)].join('\n');
+    const r = await ingestFile(engine, files, new File([csv], 'calmar.csv'), writer, { table: 'calmar_q' });
+    const own = plannerFor(r.model, r.runtime);
+    const quarterly: TsInputs = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
+    const ts = spec({ A: 'close' });
+    const t = await engine.execute(await own.plan(statsQuery(quarterly, ts, ts.series[0]!).query), 0);
+    const days = (Date.parse(dates.at(-1)!) - Date.parse(dates[0]!)) / 86400000;
+    const cagr = (125 / 100) ** (365.25 / days) - 1;
+    close([num(values(t, statName('calmar'))[0])], [cagr / Math.abs(88 / 110 - 1)], 'calmar', 1e-9);
+  });
+
   it('a return\'s statistics leave out what only a level has', async () => {
     const ts = spec({ A: 'returns(close[AAA])' });
     const t = await run(statsQuery(inputs, ts, ts.series[0]!));

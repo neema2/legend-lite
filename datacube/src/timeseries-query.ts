@@ -65,7 +65,13 @@ export const rangeStartName = (w: TsRangeWord): string => `__ts_from_${w}`;
 export const TS_STATS = [
   'count', 'from', 'to', 'first', 'last', 'change', 'pct', 'low', 'lowAt', 'high', 'highAt', 'mean', 'std', 'vol', 'mdd',
   'cagr', 'sharpe',
+  // a level's figures of its returns' risk (the expert statistics, 2026-10-26)
+  'sortino', 'calmar', 'skew', 'kurtosis', 'hit', 'best', 'worst', 'var', 'es',
 ] as const;
+/** The statistics only a level has: of its returns, its drawdown and its growth. */
+const LEVEL_STATS: readonly TsStat[] = ['vol', 'mdd', 'cagr', 'sharpe', 'sortino', 'calmar', 'skew', 'kurtosis', 'hit', 'best', 'worst', 'var', 'es'];
+/** The share of returns a historical value at risk is the quantile of (95%: the worst 5%). */
+const VAR_LEVEL = 0.05;
 export type TsStat = (typeof TS_STATS)[number];
 export const statName = (s: TsStat): string => `__ts_stat_${s}`;
 /** The periods a year a level's statistics were annualized by, a tile of no frequency's: the database's, of its dates. */
@@ -1156,6 +1162,28 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
     : undefined;
   const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
   const S = statName;
+  const keys = b.split !== undefined ? [b.split] : [w.part];
+  // a level's returns' risk over what is shown: their moments about their mean (skew, kurtosis), their downside (Sortino),
+  // their share above zero, their worst 5% (a historical value at risk, the quantile the database interpolates, and the
+  // average of the returns at or below it: an expected shortfall)
+  let risk: { readonly d2: string; readonly d3: string; readonly d4: string; readonly down: string; readonly up: string; readonly tail: string; readonly q: string } | undefined;
+  if (rSimple !== undefined) {
+    const mean = w.window('stat_rm', 'average', Writer.read(rSimple), 'all');
+    const dev = w.row('stat_dev', op('minus', one(rSimple), one(mean)));
+    const d2 = w.row('stat_d2', op('times', one(dev), one(dev)));
+    const d3 = w.row('stat_d3', op('times', one(d2), one(dev)));
+    const d4 = w.row('stat_d4', op('times', one(d2), one(d2)));
+    const has = (x: ValueSpecification): ValueSpecification => when(fn('isEmpty', col(rSimple)), none(), x);
+    const down = w.row('stat_down', has(when(fn('lessThan', one(rSimple), lit.integer(0)), op('times', one(rSimple), one(rSimple)), float(0))));
+    const up = w.row('stat_up', has(when(fn('greaterThan', one(rSimple), lit.integer(0)), float(1), float(0))));
+    const q = w.fresh('stat_q');
+    const qk = w.fresh('stat_qk');
+    const quantile = w.rel.groupBy(keys, [agg(q, row(col(rSimple)),
+      lambda(['y'], fn('percentile', variable('y'), float(VAR_LEVEL), lit.boolean(true), lit.boolean(true))))]).rename(keys[0]!, qk);
+    w.rel = w.rel.join(quantile, 'LEFT', lambda(['l', 'r'], fn('equal', property(variable('l'), keys[0]!), property(variable('r'), qk))));
+    const tail = w.row('stat_tail', when(fn('lessThanEqual', one(rSimple), one(q)), col(rSimple), none()));
+    risk = { d2, d3, d4, down, up, tail, q };
+  }
   // a candle's least and most are its lows' and highs' (the review's Q9), a line's its values'
   const lows = b.low ?? v;
   const highs = b.high ?? v;
@@ -1183,8 +1211,19 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
       agg('__ts_stat_lfirst', row(fn('rowMapper', col(lv), col(b.ord))), y('minBy')),
       agg('__ts_stat_llast', row(fn('rowMapper', col(lv), col(b.ord))), y('maxBy')),
     ] : []),
+    ...(risk !== undefined && rSimple !== undefined ? [
+      agg('__ts_stat_rn', row(col(rSimple)), y('count')),
+      agg('__ts_stat_m2', row(col(risk.d2)), y('average')),
+      agg('__ts_stat_m3', row(col(risk.d3)), y('average')),
+      agg('__ts_stat_m4', row(col(risk.d4)), y('average')),
+      agg('__ts_stat_down2', row(col(risk.down)), y('average')),
+      agg('__ts_stat_hit_all', row(col(risk.up)), y('average')),
+      agg('__ts_stat_best_all', row(col(rSimple)), y('max')),
+      agg('__ts_stat_worst_all', row(col(rSimple)), y('min')),
+      agg('__ts_stat_q', row(col(risk.q)), y('max')),
+      agg('__ts_stat_es_all', row(col(risk.tail)), y('average')),
+    ] : []),
   ];
-  const keys = b.split !== undefined ? [b.split] : [w.part];
   let rel = w.rel.groupBy(keys, aggs);
   const first = one(S('first'));
   const last = one(S('last'));
@@ -1214,9 +1253,39 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
       derive(S('sharpe'), row(above(when(fn('equal', one('__ts_stat_rsd'), lit.integer(0)), none(),
         op('times', fn('divide', one('__ts_stat_rmean'), one('__ts_stat_rsd')), perYear))))),
     );
+    // its returns' risk (pandas' definitions, as gs-quant reads a series): skew, the adjusted Fisher-Pearson coefficient
+    // (pandas' skew); kurtosis, the excess one, bias-corrected (pandas' kurt); Sortino, the mean return over the root mean
+    // square of the returns below zero, annualized; the share of returns above zero; the best and the worst; the 5%
+    // quantile and the average at or below it -- none of a level at or below zero, as its other figures
+    const n = one('__ts_stat_rn');
+    const m2 = one('__ts_stat_m2');
+    const m3 = one('__ts_stat_m3');
+    const m4 = one('__ts_stat_m4');
+    const minus = (a: ValueSpecification, k: number): ValueSpecification => op('minus', a, lit.integer(k));
+    const plus = (a: ValueSpecification, k: number): ValueSpecification => op('plus', a, lit.integer(k));
+    derived.push(
+      derive(S('skew'), row(above(when(or(fn('lessThanEqual', n, lit.integer(2)), fn('equal', m2, lit.integer(0))), none(),
+        fn('divide', op('times', fn('divide', m3, fn('pow', m2, float(1.5))), fn('sqrt', op('times', n, minus(n, 1)))), minus(n, 2)))))),
+      derive(S('kurtosis'), row(above(when(or(fn('lessThanEqual', n, lit.integer(3)), fn('equal', m2, lit.integer(0))), none(),
+        fn('divide',
+          op('minus', fn('divide', op('times', op('times', plus(n, 1), minus(n, 1)), m4), op('times', m2, m2)), op('times', lit.integer(3), op('times', minus(n, 1), minus(n, 1)))),
+          op('times', minus(n, 2), minus(n, 3))))))),
+      derive(S('sortino'), row(above(when(fn('equal', one('__ts_stat_down2'), lit.integer(0)), none(),
+        op('times', fn('divide', one('__ts_stat_rmean'), fn('sqrt', one('__ts_stat_down2'))), perYear))))),
+      derive(S('hit'), row(above(one('__ts_stat_hit_all')))),
+      derive(S('best'), row(above(one('__ts_stat_best_all')))),
+      derive(S('worst'), row(above(one('__ts_stat_worst_all')))),
+      derive(S('var'), row(above(one('__ts_stat_q')))),
+      derive(S('es'), row(above(one('__ts_stat_es_all')))),
+    );
   }
   rel = rel.extend(derived);
-  const kept = [...TS_STATS.filter((st) => level || !['vol', 'mdd', 'cagr', 'sharpe'].includes(st)).map(S),
+  // Calmar: its growth over its deepest drawdown's depth -- of a growth (a year or more) and a drawdown below zero
+  if (level) {
+    rel = rel.extend([derive(S('calmar'), row(when(or(fn('isEmpty', col(S('cagr'))), fn('greaterThanEqual', one(S('mdd')), lit.integer(0))), none(),
+      fn('divide', one(S('cagr')), fn('abs', one(S('mdd')))))))]);
+  }
+  const kept = [...TS_STATS.filter((st) => level || !LEVEL_STATS.includes(st)).map(S),
     ...(yearly !== undefined ? [TS_STAT_PER_YEAR] : []), ...(level ? [TS_STAT_LEVEL_LOW] : [])];
   if (b.split !== undefined) rel = rel.extend([derive(TS_SPLIT, row(col(b.split)))]);
   rel = rel.select([...(b.split !== undefined ? [TS_SPLIT] : []), ...kept]);

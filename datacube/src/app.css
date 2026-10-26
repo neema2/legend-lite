@@ -4701,7 +4701,14 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 
 /* the statistics under the chart, a third of the tile at most: the chart keeps the room */
 .dc-ts-stats { flex: 0 1 auto; max-height: 33%; min-height: 0; overflow: auto; border-top: 1px solid var(--dc-line-faint); padding: 0 var(--dc-pad-2) var(--dc-pad-1); }
-.dc-ts-stats-head { padding: var(--dc-pad-1) 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-ts-stats-head { padding: var(--dc-pad-1) 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); display: flex; align-items: center; gap: var(--dc-pad-2); flex-wrap: wrap; }
+.dc-ts-stats-tabs { display: inline-flex; gap: 2px; }
+.dc-ts-stats-tab {
+  font: inherit; font-size: var(--dc-text-sm-size); color: var(--dc-muted-strong); background: none; border: 1px solid transparent;
+  border-radius: var(--dc-radius-sm); padding: 1px 8px; cursor: pointer;
+}
+.dc-ts-stats-tab:hover { background: var(--dc-row-hover); }
+.dc-ts-stats-tab[aria-selected="true"] { color: var(--dc-cell-fg); border-color: var(--dc-line-faint); background: var(--dc-row-hover); }
 .dc-ts-stats-blanks { padding: var(--dc-pad-1) 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
 .dc-ts-table { border-collapse: collapse; font-size: var(--dc-text-sm-size); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dc-ts-table th {

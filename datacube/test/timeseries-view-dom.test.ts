@@ -150,6 +150,27 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
     }
   });
 
+  // the expert statistics (2026-10-26): the panel's Risk tab, a level's returns' risk; a volatility (no level) none
+  it('the statistics\' Risk tab: a level\'s Sortino, Calmar, skew, kurtosis, value at risk; none of what is no level', async () => {
+    const { root, view } = viewer(SPEC);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      const tab = [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-stats-tab')].find((b) => b.textContent === 'Risk')!;
+      assert.equal(tab.getAttribute('aria-selected'), 'false');
+      tab.click();
+      const heads = [...root.querySelectorAll('.dc-ts-table th')].map((th) => th.textContent);
+      assert.deepEqual(heads, ['Line', 'Vol (ann.)', 'Sharpe', 'Sortino', 'Calmar', 'Max DD', 'Skew', 'Kurtosis', 'Up periods', 'Best', 'Worst', 'VaR 95%', 'ES 95%']);
+      const [spx, vol] = statRows(root);
+      assert.ok(spx!.slice(1, 4).every((c) => c !== '—' && c !== ''), `the S&P's vol, Sharpe and Sortino: ${spx!.join(' | ')}`);
+      assert.equal(spx![4], '—', 'no Calmar under a year');
+      assert.ok(spx!.slice(6).every((c) => c !== '—'), `its skew to its shortfall: ${spx!.join(' | ')}`);
+      assert.ok(vol!.slice(1).every((c) => c === '—'), `a volatility is no level: ${vol!.join(' | ')}`);
+      assert.equal([...root.querySelectorAll('.dc-ts-stats-tab')].find((b) => b.textContent === 'Risk')!.getAttribute('aria-selected'), 'true');
+    } finally {
+      view.dispose();
+    }
+  });
+
   it('a range told as the page\'s spec, the zoom moved to it; a line hidden is drawn again from the rows it has', async () => {
     const { root, drawn, told, zooms, view } = viewer(SPEC);
     try {
