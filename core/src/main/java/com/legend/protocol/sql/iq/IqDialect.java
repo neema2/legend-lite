@@ -4644,6 +4644,10 @@ public final class IqDialect implements InputDialect {
                         e.pos());
             }
         }
+        SqlAst.Statement apart = orderedApart(s, engine, remade);
+        if (apart != null) {
+            return apart;
+        }
         // the whole's ORDER BY, by position
         List<SqlAst.SortItem> order = new ArrayList<>();
         for (SqlAst.SortItem o : s.orderBy()) {
@@ -4691,6 +4695,75 @@ public final class IqDialect implements InputDialect {
         SqlAst.Select only = (SqlAst.Select) java.util.Objects.requireNonNull(union);
         return new SqlAst.Select(s.distinct(), only.items(), only.from(), only.where(), only.groupBy(), only.having(),
                 only.windows(), s.orderBy(), s.limit(), s.offset(), s.pos());
+    }
+
+    /**
+     * The IQ scale program, 2026-10-26 (the realistic reports' ROLLUP ORDER BY GROUPING(p.category), p.category,
+     * GROUPING(o.channel), o.channel): a ROLLUP or CUBE ordered by keys that are none of its items, each item named (an
+     * alias or a column), read as its rolled-up union with those keys as items of their own, in a derived table, its
+     * items and ORDER BY the outer query's; null where every key is an item (the union orders by position). An item
+     * not named refuses as before.
+     */
+    private static SqlAst.@com.legend.base.Nullable Statement orderedApart(SqlAst.Select s, Engine engine,
+            Map<SqlAst.SelectExpr, SqlAst.SelectExpr> remade) {
+        List<SqlAst.Ident> names = new ArrayList<>();
+        for (SqlAst.SelectItem item : s.items()) {
+            SqlAst.Ident name = item instanceof SqlAst.SelectExpr x ? (x.alias() != null ? x.alias()
+                    : x.expr() instanceof SqlAst.ColumnRef r ? r.parts().get(r.parts().size() - 1) : null) : null;
+            names.add(name);
+        }
+        List<SqlAst.SelectItem> items = new ArrayList<>(s.items());
+        List<SqlAst.SortItem> outerOrder = new ArrayList<>();
+        boolean apart = false;
+        for (SqlAst.SortItem o : s.orderBy()) {
+            if (pastAnInt(o.expr())) {
+                continue;
+            }
+            int at = itemIndex(s, o.expr());
+            SqlAst.Ident name;
+            if (at >= 0) {
+                name = names.get(at);
+            } else {
+                apart = true;
+                name = new SqlAst.Ident(ORDER_APART + (items.size() - s.items().size() + 1), false, o.pos());
+                items.add(new SqlAst.SelectExpr(o.expr(), name, o.expr().pos(), null));
+            }
+            outerOrder.add(new SqlAst.SortItem(name == null ? o.expr() : new SqlAst.ColumnRef(List.of(new SqlAst.Ident(
+                    ORDER_APART, false, o.pos()), name), o.pos()), o.descending(), o.nullsFirst(), o.pos()));
+        }
+        if (!apart) {
+            return null;
+        }
+        if (names.contains(null)) {
+            throw SqlTranslationException.unsupported("an ORDER BY key that is none of the select items is not supported"
+                    + " with ROLLUP or CUBE yet, where an item has no name", s.orderBy().get(0).pos());
+        }
+        SqlAst.Select inner = new SqlAst.Select(s.distinct(), items, s.from(), s.where(), s.groupBy(), s.having(),
+                s.windows(), List.of(), null, null, s.pos());
+        SqlAst.Statement union = rolledUp(inner, engine, remade);
+        List<SqlAst.SelectItem> shown = new ArrayList<>();
+        for (int i = 0; i < s.items().size(); i++) {
+            SqlAst.SelectExpr x = (SqlAst.SelectExpr) s.items().get(i);
+            SqlAst.Ident name = java.util.Objects.requireNonNull(names.get(i));
+            shown.add(new SqlAst.SelectExpr(new SqlAst.ColumnRef(List.of(new SqlAst.Ident(ORDER_APART, false, x.pos()),
+                    name), x.pos()), name, x.pos(), x.text()));
+        }
+        return new SqlAst.Select(false, shown, List.of(new SqlAst.SubqueryFrom(union, new SqlAst.Ident(ORDER_APART,
+                false, s.pos()), List.of(), false, s.pos())), null, List.of(), null, List.of(), outerOrder, s.limit(),
+                s.offset(), s.pos());
+    }
+
+    /** The derived table's name, and its keys' names' stem, where a ROLLUP is ordered by keys none of its items
+     *  ({@link #orderedApart}). */
+    private static final String ORDER_APART = "rolled_up_order_";
+
+    /** The index of the select item ORDER BY key {@code k} names ({@link #itemPosition}), -1 for none. */
+    private static int itemIndex(SqlAst.Select s, SqlAst.Expr k) {
+        try {
+            return itemPosition(s, k) - 1;
+        } catch (SqlTranslationException none) {
+            return -1;
+        }
     }
 
     /** Whether {@code e} holds a window function's call, outside its subqueries. */

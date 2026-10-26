@@ -481,6 +481,18 @@ class IqToPureTest {
         assertTrue(bare.length() < 40_000 && wrapped.length() < 80_000, bare.length() + " " + wrapped.length());
     }
 
+    /** The IQ scale program, 2026-10-26 (the realistic reports' totals last): a ROLLUP ordered by keys that are none
+     *  of its items -- GROUPING(k), a key not shown -- each item named; an item with no name refused as before. */
+    @Test
+    void aRollupIsOrderedByKeysThatAreNoneOfItsItems() {
+        IqSettings iq17 = IqProfile.IQ17_DEFAULT.settings();
+        String ordered = pure("SELECT CASE WHEN GROUPING(vc) = 1 THEN 'all' ELSE vc END AS v, COUNT(*) AS n FROM " + T
+                + " GROUP BY ROLLUP(vc) ORDER BY GROUPING(vc), vc", iq17);
+        assertTrue(ordered.contains("rolled_up_order_1") && ordered.contains("->sort("), ordered);
+        assertTrue(refusal("SELECT COUNT(*) FROM " + T + " GROUP BY ROLLUP(vc) ORDER BY GROUPING(vc)", iq17, COLUMNS)
+                .getMessage().contains("no name"));
+    }
+
     /** The IQ scale program, 2026-10-26 (the realistic reports' RFM codes): NTILE(n)'s value is 1 to n, so a CAST of
      *  it to text reads; its arithmetic stays refused by name (IQ's unsigned result type). */
     @Test
