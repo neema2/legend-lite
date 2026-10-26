@@ -1986,19 +1986,33 @@ public final class IqParser {
         return bitwise();
     }
 
-    /** IQ's bitwise operators ({@code & | ^}, one level, tighter than the sign; {@code ^} is XOR, not a power) and
-     *  prefix {@code ~}: refused by name. */
+    /** IQ's bitwise operators ({@code & | ^}, one level, left to right, tighter than the sign; {@code ^} is XOR, not
+     *  a power): the research's GRAMMAR E6 and E7, measured on SQL Anywhere 17 ({@code 2*3&1} is 2, {@code 1|2&0} 0,
+     *  {@code -2&3} -2, {@code 2&-3} 0, the sign after an operator its right operand's), each an {@link
+     *  SqlAst.Operator} of its spelling. The IQ scale program, 2026-10-26: read (were refused by name). */
     private SqlAst.Expr bitwise() {
-        if (peek().isOp("~")) {
-            throw SqlSyntaxException.unsupported("the bitwise operator ~ is not supported yet", peek().pos());
+        SqlAst.Expr left = bitNot();
+        while (peek().isOp("&") || peek().isOp("|") || peek().isOp("^")) {
+            IqLexer.Token t = take();
+            SqlAst.Expr right = peek().isOp("-") || peek().isOp("+") ? signed() : bitNot();
+            value(left, "a bitwise operator");
+            value(right, "a bitwise operator");
+            left = new SqlAst.Operator(t.text(), left, right, t.pos());
         }
-        SqlAst.Expr operand = primary();
+        return left;
+    }
+
+    /** A prefix {@code ~}, bitwise NOT, which binds tighter than the bitwise operators and repeats ({@code ~~5} is
+     *  5): the research's GRAMMAR E8. */
+    private SqlAst.Expr bitNot() {
         IqLexer.Token t = peek();
-        if (t.isOp("&") || t.isOp("|") || t.isOp("^")) {
-            throw SqlSyntaxException.unsupported("the bitwise operator " + t.text() + " is not supported yet",
-                    t.pos());
+        if (t.isOp("~")) {
+            take();
+            SqlAst.Expr operand = bitNot();
+            value(operand, "a bitwise operator");
+            return new SqlAst.Operator("~", null, operand, t.pos());
         }
-        return operand;
+        return primary();
     }
 
     private SqlAst.Expr primary() {
@@ -3295,6 +3309,11 @@ public final class IqParser {
 
     // ------------------------------------------------------------------ values and conditions apart
 
+    /** Whether {@code o} is a T-SQL outer join's predicate, {@code *=} or {@code =*}. */
+    static boolean tsqlOuterJoin(SqlAst.Operator o) {
+        return o.operator().equals("*=") || o.operator().equals("=*");
+    }
+
     private static boolean isCondition(SqlAst.Expr e) {
         return switch (e) {
             case SqlAst.Binary b -> switch (b.op()) {
@@ -3311,8 +3330,8 @@ public final class IqParser {
             case SqlAst.Exists n -> true;
             case SqlAst.InSubquery n -> true;
             case SqlAst.Quantified n -> true;
-            // IQ island, 2026-10-15 (checklist 0.6): a T-SQL outer join's predicate
-            case SqlAst.Operator o -> true;
+            // IQ island, 2026-10-15 (checklist 0.6): a T-SQL outer join's predicate (a bitwise operator is a value)
+            case SqlAst.Operator o -> tsqlOuterJoin(o);
             default -> false;
         };
     }

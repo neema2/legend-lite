@@ -447,9 +447,10 @@ final class IqAliases {
             // IQ island, 2026-10-15 (windows): an alias in a window's arguments, PARTITION BY and ORDER BY is read as
             // anywhere (measured on IQ 17.1: PARTITION BY an alias, SUM(alias) OVER ...)
             case SqlAst.Window w -> IqWindows.rebuilt(w, x -> expr(x, p), this::copied);
-            // IQ island, 2026-10-15 (checklist 0.6): a T-SQL outer join's predicate, *= or =*
-            case SqlAst.Operator o when o.left() != null -> {
-                SqlAst.Expr l = expr(java.util.Objects.requireNonNull(o.left()), p);
+            // IQ island, 2026-10-15 (checklist 0.6): a T-SQL outer join's predicate, *= or =*; a bitwise operator (the
+            // IQ scale program, 2026-10-26), ~ of no left operand
+            case SqlAst.Operator o -> {
+                SqlAst.Expr l = o.left() == null ? null : expr(java.util.Objects.requireNonNull(o.left()), p);
                 SqlAst.Expr r = expr(o.right(), p);
                 yield l == o.left() && r == o.right() ? o : new SqlAst.Operator(o.operator(), l, r, o.pos());
             }
@@ -702,6 +703,8 @@ final class IqAliases {
             case SqlAst.Param q -> new SqlAst.Param(q.index(), q.name(), q.pos());
             case SqlAst.Binary b -> new SqlAst.Binary(b.op(), copy(b.left()), copy(b.right()), b.pos());
             case SqlAst.Unary u -> new SqlAst.Unary(u.op(), copy(u.operand()), u.pos());
+            case SqlAst.Operator o -> new SqlAst.Operator(o.operator(), o.left() == null ? null
+                    : copy(java.util.Objects.requireNonNull(o.left())), copy(o.right()), o.pos());
             case SqlAst.IsNull n -> new SqlAst.IsNull(copy(n.operand()), n.negated(), n.pos());
             case SqlAst.IsTruth t -> new SqlAst.IsTruth(copy(t.operand()), t.truth(), t.negated(), t.pos());
             case SqlAst.IsDistinct d -> new SqlAst.IsDistinct(copy(d.left()), copy(d.right()), d.negated(), d.pos());

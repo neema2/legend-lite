@@ -5030,7 +5030,7 @@ public final class IqDialect implements InputDialect {
 
     /** The first T-SQL outer join predicate ({@code *=}, {@code =*}) in {@code e}, outside its subqueries; null for none. */
     private static SqlAst.@com.legend.base.Nullable Operator tsqlOuterJoin(SqlAst.Expr e) {
-        if (e instanceof SqlAst.Operator o) {
+        if (e instanceof SqlAst.Operator o && IqParser.tsqlOuterJoin(o)) {
             return o;
         }
         for (SqlAst.Expr child : children(e)) {
@@ -9181,6 +9181,62 @@ public final class IqDialect implements InputDialect {
         ValueSpecification vs = ifThen(equal.vs(), SqlToPure.nullOf(a.kind()).vs(), SqlToPure.valueOf(a));
         return Tx.value(vs, a.kind(), true, a.detail());
     }
+
+    /**
+     * The IQ scale program, 2026-10-26 (the syntax cases' bitwise probes; a flag column's {@code status & 4 = 4}): {@code
+     * &}, {@code |} and {@code ^} (AND, OR, XOR) and prefix {@code ~} (NOT) of SMALLINTs, INTEGERs and BIGINTs, each of
+     * its larger operand's type (the research's SEMANTICS: bitwise on unscaled integers, the larger size wins), its
+     * value the 64-bit operation's, which is a narrower type's too (two's complement); never out of its type's range.
+     * A NULL operand is NULL. Refused by name: a BIT, a COUNT's unsigned, a NUMERIC, a DOUBLE, a string or a binary
+     * operand, which IQ converts or truncates by rules not read yet. A T-SQL outer join's {@code *=} is the
+     * translator's (null here).
+     */
+    @Override
+    public @com.legend.base.Nullable Tx operator(SqlAst.Operator o, SqlToPure.At at) {
+        String fn = switch (o.operator()) {
+            case "&" -> "bitAnd";
+            case "|" -> "bitOr";
+            case "^" -> "bitXor";
+            case "~" -> "bitNot";
+            default -> null;
+        };
+        if (fn == null) {
+            return null;
+        }
+        List<SqlAst.Expr> nodes = o.left() == null ? List.of(o.right())
+                : List.of(java.util.Objects.requireNonNull(o.left()), o.right());
+        List<Tx> operands = new ArrayList<>();
+        List<IqType> types = new ArrayList<>();
+        String family = null;
+        boolean nullOperand = false;
+        for (SqlAst.Expr node : nodes) {
+            Tx t = at.tx(node);
+            operands.add(t);
+            if (t.kind() == Kind.NULL) {
+                nullOperand = true;
+                continue;
+            }
+            if (!(t.kind() == Kind.INTEGER && t.detail() instanceof IqType type && type.isInteger()
+                    && !type.family().equals("BIT"))) {
+                throw SqlTranslationException.unsupported("the bitwise operator " + o.operator() + " of "
+                        + (t.detail() instanceof IqType known ? "a " + known.spelling() : "anything but an integer")
+                        + " is not supported yet (IQ converts or truncates it by rules not read)", node.pos());
+            }
+            types.add(type);
+            family = family == null || BITWISE_SIZES.indexOf(type.family()) > BITWISE_SIZES.indexOf(family)
+                    ? type.family() : family;
+        }
+        if (nullOperand) {
+            return typedNull(family == null ? "INTEGER" : family);
+        }
+        IqType result = new IqType(java.util.Objects.requireNonNull(family));
+        return checkedInteger(o, o.operator(), result, result.min(), result.max(), operands, types,
+                constants(nodes, operands), false, v -> v.size() == 1 ? SqlToPure.call(fn, v.get(0))
+                        : SqlToPure.call(fn, v.get(0), v.get(1)));
+    }
+
+    /** The integer types a bitwise operator reads, the narrowest first. */
+    private static final List<String> BITWISE_SIZES = List.of("SMALLINT", "INTEGER", "BIGINT");
 
     /** CAST and a style-less CONVERT: IqFunctions' (M1d). */
     @Override

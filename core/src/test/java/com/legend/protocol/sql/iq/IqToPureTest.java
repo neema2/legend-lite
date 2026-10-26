@@ -470,6 +470,20 @@ class IqToPureTest {
     }
 
     @Test
+    void bitwiseOperatorsBindTighterThanArithmeticAndTypeAsTheLargerOperand() {
+        // the IQ scale program, 2026-10-26 (the research's GRAMMAR E6-E8, measured on SQL Anywhere 17): & | ^ one level,
+        // left to right, tighter than * and +; ~ tighter still; a sign looser, but an operand's own after an operator
+        String p = pure("SELECT id & 4 AS f, sm | 1 ^ 3 AS g, ~id AS n FROM " + T);
+        assertTrue(p.contains("f:r|$r.id->floor()->bitAnd(4)") && p.contains("->bitOr(1))->toOne()->bitXor(3)")
+                && p.contains("n:r|$r.id->floor()->bitNot()"), p);
+        p = pure("SELECT 2 * id & 1 AS a, -id & 3 AS b FROM " + T);
+        assertTrue(p.contains("a:r|2 * $r.id->floor()->bitAnd(1)") && p.contains("b:r|-$r.id->floor()->bitAnd(3)"), p);
+        // a condition is no operand (IQ's -131); a NUMERIC is refused by name
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE (id = 1) & (id = 2)").getMessage().contains("-131"));
+        refusal("SELECT nm & 1 AS x FROM " + T, IqProfile.IQ16_DEFAULT.settings(), NUMBERS);
+    }
+
+    @Test
     void aColumnPassedAlongUnreadIsReadNowhere() {
         // the IQ scale program, 2026-10-26 (the corpus lanes' 4 refusals; measured on IQ 17.1): a common table
         // expression's column one more passes along, by name or under a *, and no one reads after, is never computed
