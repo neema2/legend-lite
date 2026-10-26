@@ -588,17 +588,20 @@ export class DeephavenReader implements QueryEngine {
   }
 
   /**
-   * A result this reader follows changed (the engine's word, for a whole one): said at once -- the next microtask, the
-   * changes one message carried said once; waiting for an animation frame cost a tick half a frame.
+   * A result this reader follows changed (the engine's word, for a whole one): said once the messages already arrived
+   * are read -- the next task, so the changes a server's cycle sent its results (one message a result: a tree's levels,
+   * a window and its count) are said once. Said at the next microtask, each message was a tick of its own: the trading
+   * desk's market map ran each grid about four times a cycle (2026-10-26); waiting for an animation frame cost a tick
+   * half a frame.
    */
   changed(): void {
     if (this.#changedSince !== null) return;
     this.#changedSince = performance.now();
-    queueMicrotask(() => {
+    setTimeout(() => {
       const since = this.#changedSince ?? performance.now();
       this.#changedSince = null;
       for (const l of this.#listeners) l({ since, ended: null });
-    });
+    }, 0);
   }
 
   /** The live side ended (the engine's word): said to this reader's listeners. */

@@ -7,7 +7,10 @@
 // //datacube:serve serves -- with its config.json naming that server: the page opens on the trading desk, one saved
 // page of ten tabs, and Open…'s Examples list it first, above the chart pages. Every query is planned in the tab and
 // run on the Deephaven server, ticking. The world's size is the process's own environment (MARKET_NAMES, MARKET_QUOTES,
-// MARKET_TRADES, MARKET_FEED: market.groovy says each). Type `restart` and Enter to restart Deephaven; Ctrl-C stops.
+// MARKET_TRADES, MARKET_FEED: market.groovy says each). The server's update cycle is 250 ms -- four updates a second, a
+// trading screen's pace (the tests' 100 ms ran each tile ten times a second, which kept a 4-core machine's page busy:
+// 2026-10-26) -- or DESK_CYCLE_MS; DH_SERVER_FLAGS passes the server flags of its own (-DQueryCompiler.logEnabledDefault=
+// true logs each formula it compiles). Type `restart` and Enter to restart Deephaven; Ctrl-C stops.
 // Its certificate is mkcert's where mkcert is installed, so a browser on a machine that ran `mkcert -install` asks
 // nothing (../mkcert.mjs); without mkcert it is the test server's own, and the browser asks once to accept it (open the
 // Deephaven URL it prints first).
@@ -18,7 +21,9 @@ import { startDeephaven } from '../site.mjs';
 import { serveDesk } from './desk-site.mjs';
 
 const identity = mkcertIdentity();
-const deephaven = startDeephaven({ quiet: true, fixture: 'MARKET_FIXTURE', args: identity.args });
+const deephaven = startDeephaven({ quiet: true, fixture: 'MARKET_FIXTURE', args: [...identity.args,
+  `--jvm_flag=-Dembedded.deephaven.cycleMs=${process.env.DESK_CYCLE_MS ?? 250}`,
+  ...(process.env.DH_SERVER_FLAGS ? [`--jvm_flag=-Dembedded.deephaven.serverFlags=${process.env.DH_SERVER_FLAGS}`] : [])] });
 const config = await deephaven.next('on starting');
 const port = Number(process.argv.find((a) => a.startsWith('--port='))?.slice(7) ?? 0);
 const site = await serveDesk(config, port);

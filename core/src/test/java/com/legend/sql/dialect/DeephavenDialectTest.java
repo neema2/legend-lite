@@ -141,11 +141,26 @@ class DeephavenDialectTest {
         // one view a later column names an earlier one.
         String b = batch("#>{risk::Ref.trades}#->extend(~[a:x|($x.notional->toOne() * 2.0) + 1.0])"
                 + "->extend(~[b:x|($x.a * $x.a) - $x.a])->extend(~[c:x|sqrt($x.b) + $x.b])");
-        assertTrue(b.contains("\"a = ((t0__notional * 2.0) + 1.0)\""), b);
+        // 2026-10-26: a source column the view copies by its name is read by that name in its later formulas, not by
+        // its alias (t0__notional): the formula's text is the query's own
+        assertTrue(b.contains("\"a = ((notional * 2.0) + 1.0)\""), b);
         assertTrue(b.contains("\"b = ((a * a) - a)\""), b);
         // the square root's guard reads its operand by name, its error's text too
         String c = b.substring(b.indexOf("\"c = "));
         assertTrue(c.contains("sqrt(b)") && !c.contains("t0__notional"), c);
+    }
+
+    @Test
+    void aFormulaIsWrittenTheSameWhereverItsQuerySitsInTheBatch() {
+        // the trading desk's options book (2026-10-26): the chain's Black and Scholes, joined after the positions, sat
+        // under other aliases than in the chain's own plan, so its formulas' text differed and the server compiled them
+        // again (seconds a group). The same extend over the same relation is written the same, wherever its source is.
+        String alone = batch("#>{risk::Ref.trades}#->extend(~[a:x|($x.notional->toOne() * 2.0) + 1.0])");
+        String joined = batch("#>{risk::Ref.trades}#->select(~[id])->rename(~id, ~lid)->join("
+                + "#>{risk::Ref.trades}#->extend(~[a:x|($x.notional->toOne() * 2.0) + 1.0]), JoinKind.INNER,"
+                + " {l, r | $l.lid == $r.id})");
+        assertTrue(alone.contains("\"a = ((notional * 2.0) + 1.0)\""), alone);
+        assertTrue(joined.contains("\"a = ((notional * 2.0) + 1.0)\""), joined);
     }
 
     @Test

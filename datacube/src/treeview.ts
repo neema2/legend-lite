@@ -363,8 +363,24 @@ export function assemble(
     });
   }
 
-  // Where each display row's data lives.
+  // Where each display row's data lives: each level's rows indexed by their paths once, the first of a path its row --
+  // not every path of the level written out again for every row (2026-10-26: the trading desk's market map, 500 names
+  // under 11 sectors, spent more of each tick here than anywhere else).
   const source = new Map<number, { data: LevelData; index: number }>();
+  const indexes = new Map<LevelData, Map<string, number>>();
+  const indexOf = (data: LevelData): Map<string, number> => {
+    let index = indexes.get(data);
+    if (index === undefined) {
+      const made = new Map<string, number>();
+      data.paths.forEach((p, i) => {
+        const k = pathKey(p);
+        if (!made.has(k)) made.set(k, i);
+      });
+      indexes.set(data, made);
+      index = made;
+    }
+    return index;
+  };
   rows.forEach((row, i) => {
     const key = requestKey({
       level: row.level,
@@ -372,8 +388,8 @@ export function assemble(
     });
     const data = levels.get(key);
     if (!data) return;
-    const index = data.paths.findIndex((p) => pathKey(p) === pathKey(row.path));
-    if (index >= 0) source.set(i, { data, index });
+    const index = indexOf(data).get(pathKey(row.path));
+    if (index !== undefined) source.set(i, { data, index });
   });
 
   // "Show leaf count": the count each group query carried, read by

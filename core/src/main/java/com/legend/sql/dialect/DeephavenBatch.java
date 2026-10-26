@@ -114,10 +114,22 @@ final class DeephavenBatch {
         open(name);
         w.append(source(src)).append(", \"columnSpecs\": [");
         java.util.Map<SqlExpr, String> computed = dialect.computedOrNull();
+        java.util.Map<String, String> copies = dialect.copiesOrNull();
         List<SqlExpr> named = new ArrayList<>();
+        List<String> copied = new ArrayList<>();
         for (int i = 0; i < specs.size(); i++) {
             Spec s = specs.get(i);
             w.append(i > 0 ? ", \"" : "\"").append(s.text());
+            if (s.expr() == null && copies != null) {
+                // a source column copied by its name (a star's `d1 = t8__d1`): a later formula of this view reads the
+                // copy (Deephaven.Scope#copies), its text the query's own, whatever the source's alias
+                int eq = s.text().indexOf(" = ");
+                String from = eq < 0 ? null : s.text().substring(eq + 3);
+                if (from != null && DeephavenJson.holdsName(from) && !copies.containsKey(from)) {
+                    copies.put(from, s.text().substring(0, eq));
+                    copied.add(from);
+                }
+            }
             if (s.expr() != null) {
                 w.append(" = ").expr(s.expr(), 0);
                 if (computed != null && worthNaming(s.expr())) {
@@ -133,6 +145,9 @@ final class DeephavenBatch {
         }
         if (computed != null) {
             named.forEach(computed::remove);
+        }
+        if (copies != null) {
+            copied.forEach(copies::remove);
         }
         w.append("]");
         return close();

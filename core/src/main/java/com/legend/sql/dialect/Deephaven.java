@@ -71,6 +71,14 @@ public final class Deephaven extends AnsiSqlRenderer {
         final Map<SqlAgg.Reducer, String[]> aggregates = new LinkedHashMap<>();
         /** Whether the select's rows are grouped: a source column is then read only as a group key. */
         boolean grouped;
+        /**
+         * The source columns the view being written has copied already, each to its copy's name ({@code d1 = t8__d1}):
+         * a later formula of that view reads the copy, so its text names the column as the query does, not by its
+         * source's place in the batch -- the same formula in every plan that computes it, which the server compiles
+         * once (2026-10-26, the trading desk's options book: its chain's Black and Scholes, under other aliases than the
+         * chain's own plan, compiled again, seconds a formula group).
+         */
+        final Map<String, String> copies = new LinkedHashMap<>();
     }
 
     private final Deque<Scope> scopes = new ArrayDeque<>();
@@ -87,6 +95,12 @@ public final class Deephaven extends AnsiSqlRenderer {
     java.util.@com.legend.base.Nullable Map<SqlExpr, String> computedOrNull() {
         Scope s = scopes.peek();
         return s == null ? null : s.computed;
+    }
+
+    /** The current select's columns its view has copied so far ({@link Scope#copies}), or null outside a select. */
+    java.util.@com.legend.base.Nullable Map<String, String> copiesOrNull() {
+        Scope s = scopes.peek();
+        return s == null ? null : s.copies;
     }
 
     private Scope scope() {
@@ -232,7 +246,7 @@ public final class Deephaven extends AnsiSqlRenderer {
                 throw new IllegalStateException("column " + c.table() + "." + c.name() + " is not in the select's"
                         + " sources " + s.sources.keySet());
             }
-            return name;
+            return s.copies.getOrDefault(name, name);
         }
         String found = null;
         for (Map<String, String> source : s.sources.values()) {
@@ -241,7 +255,7 @@ public final class Deephaven extends AnsiSqlRenderer {
                 if (found != null) {
                     throw new IllegalStateException("column " + c.name() + " is in more than one source");
                 }
-                found = name;
+                found = s.copies.getOrDefault(name, name);
             }
         }
         if (found == null) {
