@@ -35,7 +35,24 @@ describe('rows a page makes, as Arrow', () => {
       [[-0.5, -0.25, 0, 0.25], ['0', '-1', '2147483647', '-2147483648'], ['é', 'two words', '', 'é']]);
   });
 
+  it('instants and truths: TIMESTAMP_MS and BOOLEAN in DuckDB, each instant its UTC milliseconds, either side of the epoch', async () => {
+    const at = [Date.UTC(2026, 9, 25, 14, 30, 0, 123), 0, -1, Date.UTC(1969, 6, 20, 20, 17), Date.UTC(2262, 0, 1)];
+    await engine.loadArrow({ table: 'made_times' }, once(arrowIpcStream(at.length, {
+      stamp: { instants: (i) => at[i]! },
+      ok: { truths: (i) => i % 2 === 0 },
+    })));
+    const types = await engine.run(
+      "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'made_times' ORDER BY ordinal_position", 0);
+    assert.deepEqual(types.columns.map((c) => c.values), [['stamp', 'ok'], ['TIMESTAMP_MS', 'BOOLEAN']]);
+    const rows = await engine.run("SELECT strftime(stamp, '%Y-%m-%d %H:%M:%S.%g') AS stamp, ok FROM made_times", 0);
+    assert.deepEqual(rows.columns.map((c) => c.values), [
+      ['2026-10-25 14:30:00.123', '1970-01-01 00:00:00.000', '1969-12-31 23:59:59.999', '1969-07-20 20:17:00.000', '2262-01-01 00:00:00.000'],
+      [true, false, true, false, true],
+    ]);
+  });
+
   it('a value outside its kind is refused, by its row', () => {
+    assert.throws(() => arrowIpcStream(1, { at: { instants: () => 0.5 } }), /row 0: 0.5 is not a whole number of milliseconds/);
     assert.throws(() => arrowIpcStream(1, { n: { integers: () => 2 ** 31 } }), /row 0: 2147483648 is not a 32-bit whole number/);
     assert.throws(() => arrowIpcStream(2, { n: { integers: (i) => i + 0.5 } }), /row 0: 0.5 is not a 32-bit whole number/);
     assert.throws(() => arrowIpcStream(1, { t: { text: ['a'], pick: () => 1 } }), /row 0: no value 1 of 1/);

@@ -39,6 +39,13 @@ final class HostOperationsJson {
             case "relation" -> new HostOperation.MakeRelation(kind(string(o, "kind")), name(object(o, "target")),
                     bool(o, "replace"), stringOrNull(o, "selectList"), conversions(o), source(object(o, "from")));
             case "insert" -> new HostOperation.Insert(name(object(o, "target")), columns(o), source(object(o, "from")));
+            case "upsert" -> {
+                if (!(source(object(o, "from")) instanceof HostOperation.Source.Relation from)) {
+                    throw new IllegalArgumentException("an upsert's rows come from a relation of the database");
+                }
+                yield new HostOperation.Upsert(name(object(o, "target")), columns(o), stringList(o, "key"), from);
+            }
+            case "bound" -> new HostOperation.Bound(name(object(o, "target")), string(o, "column"), keep(o));
             case "drop" -> new HostOperation.Drop(kind(string(o, "kind")), name(object(o, "target")));
             case "schema" -> new HostOperation.MakeSchema(stringOrNull(o, "database"), string(o, "name"));
             case "dropSchema" -> new HostOperation.DropSchema(stringOrNull(o, "database"), string(o, "name"));
@@ -200,5 +207,21 @@ final class HostOperationsJson {
             throw new IllegalArgumentException("an operation's " + field + " is true or false");
         }
         return b.value();
+    }
+
+    /** A stream's bound: its latest {@code rows}, or its rows within {@code millis} of its latest -- one of them. */
+    private static HostOperation.Bound.Keep keep(Json.Obj o) {
+        if (o.has("rows") == o.has("millis")) {
+            throw new IllegalArgumentException("a stream's bound is its latest rows or its latest millis, one of them");
+        }
+        return o.has("rows") ? new HostOperation.Bound.Keep.Rows(whole(o, "rows"))
+                : new HostOperation.Bound.Keep.Within(whole(o, "millis"));
+    }
+
+    private static long whole(Json.Obj o, String field) {
+        if (!(o.get(field) instanceof Json.Num n && n.isInteger())) {
+            throw new IllegalArgumentException("an operation's " + field + " is a whole number");
+        }
+        return n.longValue();
     }
 }

@@ -185,6 +185,21 @@ node_test(
     entry_point = "test/node-duckdb.test.ts",
 )
 
+# The live DuckDB (src/duckdb-live.ts, docs/DUCKDB_LIVE_2026_10_25.md L1): a streaming engine's concepts on the tab's
+# DuckDB -- streams, keyed tables, followed results run again at each emit, a reader told when they change
+node_test(
+    name = "duckdb_live_test",
+    size = "small",
+    data = [
+        ":engine_client",
+        ":node_modules/@duckdb/duckdb-wasm",
+        "test/planner.ts",
+    ],
+    entry_point = "test/duckdb-live.test.ts",
+    # the planner writes every statement it runs (D5)
+    wasm = True,
+)
+
 # Snap's engine half (plan A6, moved from DataCube): freezing rows into the tab's DuckDB, the stamp, the refusals
 node_test(
     name = "snap_test",
@@ -269,6 +284,7 @@ test_suite(
     name = "tests",
     tests = [
         ":arrow_ipc_test",
+        ":duckdb_live_test",
         ":model_data_test",
         ":node_duckdb_test",
         ":snap_test",

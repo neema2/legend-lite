@@ -61,6 +61,8 @@ final class DuckDbHostOperations implements HostOperations {
                     + String.join(", ", i.columns().stream().map(c -> DIALECT.physicalName(c.target())).toList())
                     + ") SELECT " + String.join(", ", i.columns().stream().map(c -> quoted(c.from())).toList())
                     + " FROM " + source(i.from()));
+            case HostOperation.Upsert u -> List.of(upsert(u));
+            case HostOperation.Bound b -> List.of(bound(b));
             case HostOperation.Drop d -> List.of("DROP " + kind(d.kind()) + " IF EXISTS " + name(d.target()));
             case HostOperation.MakeSchema m -> List.of("CREATE SCHEMA IF NOT EXISTS " + schema(m.database(), m.name()));
             case HostOperation.DropSchema d -> List.of("DROP SCHEMA IF EXISTS " + schema(d.database(), d.name()));
@@ -187,6 +189,31 @@ final class DuckDbHostOperations implements HostOperations {
     }
 
     /** A catalog question's database: the one named, or the current one. */
+    /** The source's last row of each key (its row order: a table's, as its rows went in), each replacing the target's
+     *  row of the key; the key's source columns those its target columns come from. */
+    private static String upsert(HostOperation.Upsert u) {
+        List<String> by = u.key().stream().map(k -> quoted(u.columns().stream().filter(c -> c.target().equals(k))
+                .findFirst().orElseThrow().from())).toList();
+        return "INSERT OR REPLACE INTO " + name(u.target()) + " ("
+                + String.join(", ", u.columns().stream().map(c -> DIALECT.physicalName(c.target())).toList())
+                + ") SELECT " + String.join(", ", u.columns().stream().map(c -> quoted(c.from())).toList())
+                + " FROM (SELECT *, row_number() OVER (PARTITION BY " + String.join(", ", by)
+                + " ORDER BY rowid DESC) AS \"__latest\" FROM " + name(u.from().name()) + ") WHERE \"__latest\" = 1";
+    }
+
+    /** Every row older than the oldest a stream keeps: its latest rows' last, or its latest value less the span. */
+    private static String bound(HostOperation.Bound b) {
+        String table = name(b.target());
+        String column = b.target().declared() ? DIALECT.physicalName(b.column()) : quoted(b.column());
+        String oldest = switch (b.keep()) {
+            case HostOperation.Bound.Keep.Rows r -> "(SELECT " + column + " FROM " + table + " ORDER BY " + column
+                    + " DESC LIMIT 1 OFFSET " + (r.rows() - 1) + ")";
+            case HostOperation.Bound.Keep.Within w -> "(SELECT max(" + column + ") - to_milliseconds(" + w.millis()
+                    + ") FROM " + table + ")";
+        };
+        return "DELETE FROM " + table + " WHERE " + column + " < " + oldest;
+    }
+
     private static String databaseIs(@com.legend.base.Nullable String database) {
         return database == null ? "database_name = current_database()" : "database_name = " + literal(database);
     }

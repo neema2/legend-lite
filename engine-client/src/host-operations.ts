@@ -32,6 +32,15 @@ export type HostOperation =
   }
   /** Rows put into a declared table, each declared column from the source's column of its name. */
   | { readonly op: 'insert'; readonly target: HostName; readonly columns: readonly { readonly target: string; readonly from: string }[]; readonly from: HostSource }
+  /** Rows put into a keyed table from a table of the database, each the latest of its key: a row of the key there
+   *  replaced, and of the source's rows of one key its last (the live DuckDB's upsert: duckdb-live.ts). */
+  | {
+    readonly op: 'upsert'; readonly target: HostName; readonly columns: readonly { readonly target: string; readonly from: string }[];
+    readonly key: readonly string[]; readonly from: { readonly relation: HostName };
+  }
+  /** A stream's rows past its bound deleted: older, by `column`, than its latest `rows`, or than its latest less `millis`. */
+  | { readonly op: 'bound'; readonly target: HostName; readonly column: string; readonly rows: number }
+  | { readonly op: 'bound'; readonly target: HostName; readonly column: string; readonly millis: number }
   | { readonly op: 'drop'; readonly kind: 'table' | 'view'; readonly target: HostName }
   | { readonly op: 'schema'; readonly database?: string; readonly name: string }
   | { readonly op: 'dropSchema'; readonly database?: string; readonly name: string }

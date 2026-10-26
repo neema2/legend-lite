@@ -222,6 +222,44 @@ class HostOperationsTest {
         }
     }
 
+    /** A live table's writes (docs/DUCKDB_LIVE_2026_10_25.md): an upsert keeps the latest row a key -- a batch's last of
+     *  a key, a later batch's over it -- and a stream's bound deletes what is past it, by rows or by a span. */
+    @Test
+    void liveTablesUpsertAndBound() throws Exception {
+        var quote = HostOperation.Name.declared(null, "QUOTE");
+        var staged = new HostOperation.Source.Relation(HostOperation.Name.of("__staged"));
+        var upsert = new HostOperation.Upsert(quote, List.of(new HostOperation.Column("SYMBOL", "SYMBOL"),
+                new HostOperation.Column("BID", "bid")), List.of("SYMBOL"), staged);
+        assertEquals("INSERT OR REPLACE INTO QUOTE (SYMBOL, BID) SELECT \"SYMBOL\", \"bid\" FROM (SELECT *, row_number() OVER "
+                + "(PARTITION BY \"SYMBOL\" ORDER BY rowid DESC) AS \"__latest\" FROM \"__staged\") WHERE \"__latest\" = 1", one(upsert));
+        var tape = HostOperation.Name.declared(null, "TAPE");
+        var byRows = new HostOperation.Bound(tape, "SEQ", new HostOperation.Bound.Keep.Rows(3));
+        var bySpan = new HostOperation.Bound(tape, "AT", new HostOperation.Bound.Keep.Within(30_000));
+        assertEquals("DELETE FROM TAPE WHERE SEQ < (SELECT SEQ FROM TAPE ORDER BY SEQ DESC LIMIT 1 OFFSET 2)", one(byRows));
+        // AT a keyword of DuckDB's: the declared column quoted, as its seed made it
+        assertEquals("DELETE FROM TAPE WHERE \"AT\" < (SELECT max(\"AT\") - to_milliseconds(30000) FROM TAPE)", one(bySpan));
+        assertThrows(IllegalArgumentException.class, () -> new HostOperation.Upsert(quote,
+                List.of(new HostOperation.Column("BID", "bid")), List.of("SYMBOL"), staged));
+        assertThrows(IllegalArgumentException.class, () -> new HostOperation.Bound.Keep.Rows(0));
+
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement st = c.createStatement()) {
+            st.execute("CREATE TABLE QUOTE (SYMBOL VARCHAR PRIMARY KEY, BID DOUBLE)");
+            st.execute("CREATE TABLE \"__staged\" AS SELECT * FROM (VALUES ('AAPL', 1.0), ('MSFT', 10.0), ('AAPL', 3.0)) t(SYMBOL, bid)");
+            st.execute(one(upsert));
+            st.execute("CREATE OR REPLACE TABLE \"__staged\" AS SELECT * FROM (VALUES ('MSFT', 12.0)) t(SYMBOL, bid)");
+            st.execute(one(upsert));
+            assertEquals(List.of("AAPL 3.0", "MSFT 12.0"), rows(st, "SELECT SYMBOL || ' ' || BID FROM QUOTE ORDER BY SYMBOL"));
+
+            st.execute("CREATE TABLE TAPE AS SELECT i AS SEQ, TIMESTAMP '2026-10-25 14:30:00' + to_seconds(i) AS AT FROM range(61) t(i)");
+            st.execute(one(bySpan));
+            assertEquals(List.of("30 31"), rows(st, "SELECT min(SEQ) || ' ' || count(*) FROM TAPE"));
+            st.execute(one(byRows));
+            assertEquals(List.of("58 3"), rows(st, "SELECT min(SEQ) || ' ' || count(*) FROM TAPE"));
+            st.execute(one(new HostOperation.Bound(tape, "SEQ", new HostOperation.Bound.Keep.Rows(10))));
+            assertEquals(List.of("3"), rows(st, "SELECT count(*) FROM TAPE"), "a stream holding fewer than its bound loses none");
+        }
+    }
+
     @Test
     void postgresCountsWithTheAliasItAsksFor() {
         HostOperations pg = HostOperations.of(new Postgres());

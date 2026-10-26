@@ -37,9 +37,18 @@ export function sampleTradesCsv(rows = SAMPLE_TRADES): string {
   const columns = Object.values(COLUMNS);
   const out = [Object.keys(COLUMNS).join(',')];
   for (let i = 0; i < rows; i++) {
-    out.push(columns.map((c) => ('text' in c ? c.text[c.pick(i)]! : String('doubles' in c ? c.doubles(i) : c.integers(i)))).join(','));
+    out.push(columns.map((c) => csvValue(c, i)).join(','));
   }
   return `${out.join('\n')}\n`;
+}
+
+/** A made column's value in row `i`, as a CSV cell. */
+function csvValue(c: MadeColumn, i: number): string {
+  if ('text' in c) return c.text[c.pick(i)]!;
+  if ('doubles' in c) return String(c.doubles(i));
+  if ('integers' in c) return String(c.integers(i));
+  if ('instants' in c) return new Date(c.instants(i)).toISOString();
+  return String(c.truths(i));
 }
 
 /** The sample these trades are as a file (samples.ts): what a page saved over the start's grid rebuilds. */

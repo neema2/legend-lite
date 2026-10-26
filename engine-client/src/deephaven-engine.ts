@@ -22,14 +22,9 @@ import type { Plan } from './relation-type.ts';
 import type { ResultTable } from './result.ts';
 import { measured } from './timeline.ts';
 
-/** What the live side says: a followed result changed (`since`: when the first change since the last word arrived,
- *  `performance.now()`), the live connection ended (`ended`: why) -- the server went away; `reconnect` -- or a result
- *  read since the view could not be followed (`failed`: why): it will not tick. */
-export interface LiveEvent {
-  readonly since: number;
-  readonly ended: string | null;
-  readonly failed?: string;
-}
+// what the live side says, the same of every live engine (live.ts): re-exported, Deephaven's readers' word
+import type { LiveEvent } from './live.ts';
+export type { LiveEvent } from './live.ts';
 
 /** The engine's measure of itself, for a page that shows it and a test that checks it. */
 export interface DeephavenCounts {

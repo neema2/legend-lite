@@ -5,7 +5,7 @@
 // for a connection's Arrow reader (DuckDbEngine.loadArrow) -- data, never SQL (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md
 // D5).
 
-import { makeData, makeVector, Table, tableFromIPC, tableToIPC, Utf8, type Vector } from 'apache-arrow';
+import { Bool, makeData, makeVector, Table, tableFromIPC, tableToIPC, TimestampMillisecond, Utf8, type Vector } from 'apache-arrow';
 
 import type { ArrowishTable } from './duckdb.ts';
 
@@ -23,19 +23,25 @@ export function arrowIpcAnswer(stream: Uint8Array): { readonly table: ArrowishTa
 
 /**
  * A column a page makes, row by row: doubles (DOUBLE); whole numbers, each in 32 bits, held as 64-bit integers
- * (BIGINT); or text, each row one of a few values (VARCHAR).
+ * (BIGINT); text, each row one of a few values (VARCHAR); instants, each its milliseconds since the epoch, UTC
+ * (TIMESTAMP_MS: what a table's TIMESTAMP takes); or truths (BOOLEAN). The last two for the live market's tables
+ * (docs/DUCKDB_LIVE_2026_10_25.md L2): a print's time, a story's flag.
  */
 export type MadeColumn =
   | { readonly doubles: (row: number) => number }
   | { readonly integers: (row: number) => number }
-  | { readonly text: readonly string[]; readonly pick: (row: number) => number };
+  | { readonly text: readonly string[]; readonly pick: (row: number) => number }
+  | { readonly instants: (row: number) => number }
+  | { readonly truths: (row: number) => boolean };
 
 /** `rows` rows of columns a page made, in order, as one Arrow IPC stream (the stream format). */
 export function arrowIpcStream(rows: number, columns: Readonly<Record<string, MadeColumn>>): Uint8Array {
   const vectors: Record<string, Vector> = {};
   for (const [name, column] of Object.entries(columns)) {
     vectors[name] = 'doubles' in column ? doubles(rows, column.doubles)
-      : 'integers' in column ? integers(rows, column.integers) : text(rows, column.text, column.pick);
+      : 'integers' in column ? integers(rows, column.integers)
+      : 'instants' in column ? instants(rows, column.instants)
+      : 'truths' in column ? truths(rows, column.truths) : text(rows, column.text, column.pick);
   }
   return tableToIPC(new Table(vectors), 'stream');
 }
@@ -57,6 +63,28 @@ function integers(rows: number, value: (row: number) => number): Vector {
     words[2 * i + 1] = v < 0 ? -1 : 0;
   }
   return makeVector(out);
+}
+
+/** Each instant's milliseconds as a 64-bit integer, written as its two 32-bit words (as `integers`'): no BigInt made per
+ *  row; a whole number of milliseconds within 2^53 of the epoch, either side. */
+function instants(rows: number, value: (row: number) => number): Vector {
+  const out = new BigInt64Array(rows);
+  const words = new Uint32Array(out.buffer);
+  for (let i = 0; i < rows; i++) {
+    const v = value(i);
+    if (!Number.isSafeInteger(v)) throw new RangeError(`row ${i}: ${v} is not a whole number of milliseconds`);
+    const high = Math.floor(v / 0x100000000);
+    words[2 * i] = v - high * 0x100000000;
+    words[2 * i + 1] = high >>> 0;
+  }
+  return makeVector(makeData({ type: new TimestampMillisecond(), length: rows, nullCount: 0, data: out }));
+}
+
+/** Truths as Arrow holds them: a bit a row, the first row the lowest bit of the first byte. */
+function truths(rows: number, value: (row: number) => boolean): Vector {
+  const data = new Uint8Array(Math.ceil(rows / 8));
+  for (let i = 0; i < rows; i++) if (value(i)) data[i >> 3]! |= 1 << (i & 7);
+  return makeVector(makeData({ type: new Bool(), length: rows, nullCount: 0, data }));
 }
 
 /** Text as Arrow holds it -- each row's UTF-8 bytes end to end, and where each ends -- made directly, each value

@@ -97,6 +97,54 @@ public sealed interface HostOperation {
         }
     }
 
+    /**
+     * Rows put into a keyed table from a table of the database (a live table's upsert, docs/DUCKDB_LIVE_2026_10_25.md):
+     * each the latest row of its {@code key} -- the target's columns, its primary key's -- so a row of the key the table
+     * holds is replaced, and of the source's rows of one key its last is put in. Each target column from the source's
+     * column {@link Column#from}, the key's columns among them.
+     */
+    record Upsert(Name target, List<Column> columns, List<String> key, Source.Relation from) implements HostOperation {
+        public Upsert {
+            columns = List.copyOf(columns);
+            key = List.copyOf(key);
+            if (key.isEmpty()) {
+                throw new IllegalArgumentException("an upsert names its table's key");
+            }
+            for (String k : key) {
+                if (columns.stream().noneMatch(c -> c.target().equals(k))) {
+                    throw new IllegalArgumentException("an upsert puts in its key's column " + k);
+                }
+            }
+        }
+    }
+
+    /**
+     * A stream's rows past its bound deleted (a live table's history, docs/DUCKDB_LIVE_2026_10_25.md): those older, by
+     * {@code column}, than its latest {@code rows}, or than its latest value less {@code millis} (a time column).
+     */
+    record Bound(Name target, String column, Keep keep) implements HostOperation {
+        /** What a stream keeps of its history. */
+        public sealed interface Keep {
+            /** Its latest rows: a whole number, at least one. */
+            record Rows(long rows) implements Keep {
+                public Rows {
+                    if (rows < 1) {
+                        throw new IllegalArgumentException("a stream keeps at least one row, not " + rows);
+                    }
+                }
+            }
+
+            /** Its rows within this many milliseconds of its latest. */
+            record Within(long millis) implements Keep {
+                public Within {
+                    if (millis < 0) {
+                        throw new IllegalArgumentException("a stream keeps a span of no less than nothing, not " + millis + " ms");
+                    }
+                }
+            }
+        }
+    }
+
     /** A relation dropped, when it is there. */
     record Drop(Kind kind, Name target) implements HostOperation {
     }
