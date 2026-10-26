@@ -1180,6 +1180,9 @@ final class IqAggregates {
                     // IQ island, 2026-10-15 (the corpus lane: SELECT CAST(ts AS DATE) ... GROUP BY CAST(ts AS DATE)): a
                     // CAST by its type and sizes
                     case SqlAst.Cast x -> b.append(IqLexer.lower(x.type().name())).append(x.type().modifiers());
+                    // the IQ scale program, 2026-10-26 (GROUP BY id & 1): a bitwise operator by its spelling
+                    case SqlAst.Operator x when !IqParser.tsqlOuterJoin(x) -> b.append(x.operator())
+                            .append(x.left() == null);
                     default -> b.append('@').append(e.pos().line()).append(':').append(e.pos().column());
                 }
                 for (SqlAst.Expr operand : IqDialect.children(e)) {

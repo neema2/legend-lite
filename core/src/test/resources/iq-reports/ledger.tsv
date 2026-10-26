@@ -319,7 +319,7 @@ lite/reports_text_building/display_names_with_titles@iq17-default	PASS	PASS
 lite/reports_tickets/resolution_by_priority@iq17-default	PASS	PASS	
 lite/reports_tickets/sla_breaches_by_month@iq17-default	PASS	PASS	
 lite/reports_tickets/backlog_at_each_month_end@iq17-default	PASS	PASS	
-lite/reports_tickets/agent_workload@iq17-default	REFUSED	REFUSED	
+lite/reports_tickets/agent_workload@iq17-default	PASS	PASS	
 lite/reports_tickets/ticket_topics@iq17-default	PASS	PASS	
 lite/reports_tickets/subjects_cleaned@iq17-default	PASS	PASS	
 lite/reports_tickets/escalations_with_order_context@iq17-default	PASS	PASS	

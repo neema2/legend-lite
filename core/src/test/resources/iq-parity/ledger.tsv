@@ -166,6 +166,21 @@ lite/basics/integer_plus_a_constant@iq16-default	PASS	PASS	PASS
 lite/basics/integer_plus_a_constant@iq17-default	PASS	PASS	PASS
 lite/basics/tsql_alias@iq16-default	PASS	PASS	PASS
 lite/basics/tsql_alias@iq17-default	PASS	PASS	PASS
+lite/bitwise/bitwise_of_integer_columns@iq16-default	PASS	PASS	
+lite/bitwise/bitwise_of_integer_columns@iq17-default	PASS	PASS	
+lite/bitwise/bitwise_precedence_over_columns@iq16-default	PASS	PASS	
+lite/bitwise/bitwise_precedence_over_columns@iq17-default	PASS	PASS	
+lite/bitwise/bitwise_of_mixed_integer_sizes@iq16-default	PASS	PASS	
+lite/bitwise/bitwise_of_mixed_integer_sizes@iq17-default	PASS	PASS	
+lite/bitwise/bitwise_flag_test_in_where@iq16-default	PASS	PASS	
+lite/bitwise/bitwise_flag_test_in_where@iq17-default	PASS	PASS	
+lite/bitwise/bitwise_of_constants@iq16-default	PASS	PASS	
+lite/bitwise/bitwise_of_constants@iq17-default	PASS	PASS	
+lite/bitwise/bitwise_beside_null@iq16-default	PASS	PASS	
+lite/bitwise/bitwise_beside_null@iq17-default	PASS	PASS	
+lite/bitwise/bitwise_grouping_key@iq16-default	PASS	PASS	
+lite/bitwise/bitwise_grouping_key@iq17-default	PASS	PASS	
+lite/bitwise/bitwise_of_a_numeric_is_refused@iq17-default	PASS	PASS	
 lite/census2_grouping_keys/key_none@iq17-default	PASS	PASS	
 lite/census2_grouping_keys/key_count@iq17-default	PASS	PASS	
 lite/census2_grouping_keys/key_sum@iq17-default	PASS	PASS	

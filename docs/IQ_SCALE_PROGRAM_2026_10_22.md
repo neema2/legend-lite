@@ -816,3 +816,17 @@ says so.
     judged, PLACES needs a cell that differs uncut, and the in-order places cut takes any row count (tpcds-5378's
     8,303). Checked with part M's answers doctored: rows reversed are PASS_UNORDERED, a mean with two places more
     PLACES.
+  - **The bitwise cases snapped** (lite/bitwise, 8 cases, 15 runs, 6b0a02d3): all 15 PASS on DuckDB and Postgres once
+    a GROUP BY key `id & 1` is read as the select list's (the shape compare named an operator by its place). IQ
+    answers `nm & 1` with the BIGINT of each NUMERIC cut toward zero (-99999999.99 & 1 is 1), which lite now reads
+    for a NUMERIC of at most 18 digits before its point (was refused by name).
+  - **A quotient read at fewer places** (the realistic reports' part N, `CAST(AVG(months) / 12.0 AS NUMERIC(5,1))`,
+    refused at run time past a 2-digit dividend; the TPC-H lane's 15 run-time refusals of the same kind): IQ cuts its
+    quotient toward zero at its scale, so one a CAST to NUMERIC(p, n) or an integer, a ROUND(q, n) or a TRUNCNUM(q, n)
+    reads -- directly or times a power of ten -- is computed at the n + 1 places read (TRUNCNUM's n), where its
+    steps hold a dividend of up to 18 digits. lite/reports_tickets/agent_workload REFUSED -> PASS.
+  - **The corpus judge, from the Mac's subset re-judge at 74962876** (the tie lottery gone: tpch_iq's 53 PLACES 37
+    FAIL, 5 PASS_UNORDERED, 5 PASS, 6 PLACES that name places): rows the judge judged FAIL and that match in order at
+    the fewer places are PLACES (21 tpcds_iq cells equal but for their places, ROUND(x, 2) at the quotient's scale,
+    FAILed); a cell's places alone count as a difference; where IQ shows the fewer places, lite's value cut half up
+    there matches too (tpcds-29313: IQ rounds its AVG).
