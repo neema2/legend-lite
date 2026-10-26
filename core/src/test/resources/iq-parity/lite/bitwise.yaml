@@ -1,0 +1,22 @@
+# IQ's bitwise operators (the IQ scale program, 2026-10-26): & | ^ (AND, OR, XOR) on one level, left to right, tighter
+# than * and +, a sign looser but an operand's own after an operator, prefix ~ (NOT) tighter still (the research's
+# GRAMMAR E6-E8, measured on SQL Anywhere 17); over integer columns of each size, in WHERE and GROUP BY, beside NULL;
+# and of a NUMERIC, which lite refuses by name. Judged by the live IQ and SQL Anywhere. Every case is deterministic.
+tests:
+  - id: bitwise_of_integer_columns
+    sql: "SELECT id, id & 4 AS a, id | 8 AS o, id ^ 1 AS x, ~id AS n FROM t ORDER BY id"
+  - id: bitwise_precedence_over_columns
+    sql: "SELECT id, 2 * id & 1 AS p, -id & 3 AS m, id & -3 AS q, id + 1 ^ 1 AS r FROM t ORDER BY id"
+  - id: bitwise_of_mixed_integer_sizes
+    sql: "SELECT id, sm & it AS si, bg | 0 AS b, sm ^ bg AS sb, ~sm AS ns FROM t ORDER BY id"
+  - id: bitwise_flag_test_in_where
+    sql: "SELECT id FROM t WHERE id & 2 = 2 ORDER BY id"
+  - id: bitwise_of_constants
+    sql: "SELECT 12 & 10 AS a, 12 | 10 AS o, 12 ^ 10 AS x, ~0 AS n, 1 | 2 & 0 AS z, 2 ^ 3 & 1 AS w, ~1 + 1 AS v, 3 | 4 * 2 AS f, ~~5 AS d"
+  - id: bitwise_beside_null
+    sql: "SELECT id, sm & NULL AS a, NULL | id AS b FROM t WHERE id < 3 ORDER BY id"
+  - id: bitwise_grouping_key
+    sql: "SELECT id & 1 AS odd, COUNT(*) AS n, SUM(id & 6) AS s FROM t GROUP BY id & 1 ORDER BY 1"
+  - id: bitwise_of_a_numeric_is_refused
+    sql: "SELECT id, nm & 1 AS x FROM t ORDER BY id"
+    profile: iq17-default
