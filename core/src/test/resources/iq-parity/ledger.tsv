@@ -8596,6 +8596,12 @@ lite/review7/minor4_owner_column_over_a_table_aliased_by_its_name_is_iq_error_84
 lite/review7/minor4_owner_column_over_a_table_aliased_by_its_name_is_iq_error_845@iq17-default	SKIP	SKIP	SKIP
 lite/review7/minor4_column_over_a_table_aliased_by_its_name@iq16-default	PASS	PASS	PASS
 lite/review7/minor4_column_over_a_table_aliased_by_its_name@iq17-default	PASS	PASS	PASS
+lite/row_generator_engine/generator_in_from_overflows_on_the_front_end@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/row_generator_engine/without_a_generator_iqs_engine_widens@iq17-default	PASS	PASS	
+lite/row_generator_engine/generator_in_an_in_subquery_overflows_on_the_front_end@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/row_generator_engine/generator_in_from_dateadd_is_a_timestamp@iq17-default	PASS	PASS	
+lite/row_generator_engine/without_a_generator_dateadd_is_a_date@iq17-default	PASS	PASS	
+lite/row_generator_engine/generator_in_an_in_subquery_dateadd_is_a_timestamp@iq17-default	PASS	PASS	
 lite/rules/c01_language-1@iq16-default	PASS	PASS	PASS
 lite/rules/c01_language-1@iq17-default	PASS	PASS	PASS
 lite/rules/c01_language-14@iq16-default	PASS	PASS	PASS
