@@ -129,13 +129,9 @@ final class UnionSynthesis {
      * synthesis exactly as an unknown pin does). */
     static List<PinTarget> pinOwners(String setId, ModelBuilder model) {
         List<PinTarget> hits = new ArrayList<>();
-        model.legacyMappings().forEach(m -> {
-            for (ClassMapping cm : m.classMappings()) {
-                if (setId.equals(ResolvedMapping.idOf(cm))) {
-                    hits.add(new PinTarget(m, cm));
-                }
-            }
-        });
+        for (ModelBuilder.LegacySet s : model.legacySetsWithId(setId)) {
+            hits.add(new PinTarget(s.defining(), s.set()));
+        }
         return hits;
     }
 

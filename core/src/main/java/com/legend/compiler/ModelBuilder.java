@@ -139,6 +139,18 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
     // be populated in one build: a model may mix legacy-DSL mappings and
     // clean-sheet (Door 1) mappings, which parse to the two record types.
     private final ArrayList<LegacyMappingDefinition> legacyMappings = new ArrayList<>();
+    /**
+     * Every legacy mapping's sets by EFFECTIVE id ({@link com.legend.model.SetId}), in ingest order and each mapping's
+     * own order -- the index behind {@link #legacySetsWithId}. A pin no include shows is resolved model-wide by its id
+     * (the normalizer's UnionSynthesis): scanned, every set of every mapping for every pin, it was 627,520 ids
+     * computed in one compile of the trading desk's model, the most of its compile (2026-10-26). Built on first use and
+     * dropped when a legacy mapping is added.
+     */
+    private @com.legend.base.Nullable Map<String, List<LegacySet>> legacySetsById;
+
+    /** A legacy mapping's set, and the mapping defining it. */
+    public record LegacySet(LegacyMappingDefinition defining, ClassMapping set) {
+    }
     private final ArrayList<MappingDefinition>     mappings      = new ArrayList<>();
     private final ArrayList<ServiceDefinition>     services      = new ArrayList<>();
     /** {@code ###Data} elements — the bodies test suites reference by name. */
@@ -515,6 +527,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
         // before 2026-10-11 it was a silent last-wins that the include ordering then misread as an empty cycle);
         // its normalized product (the MappingDefinition arm above) registers by plain intern, under the same name
         putAtId(legacyMappings, internElement(md.qualifiedName()), md);
+        legacySetsById = null;
         // R2: within one MappingDefinition a class maps EITHER once, or
         // through multiple set-ID'd ClassMappings of which exactly ONE
         // carries the root marker (* picks the .all() set). Anything else —
@@ -884,6 +897,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
         int id = intern(md.qualifiedName());
         elementOrder.add(id);
         putAtId(legacyMappings, id, md);
+        legacySetsById = null;
     }
 
     /** O(1). Returns {@link ServiceDefinition} for {@code fqn}, if any. */
@@ -1272,6 +1286,24 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
     /** All legacy {@link LegacyMappingDefinition}s in ingest order (resolution time). */
     public Stream<LegacyMappingDefinition> legacyMappings() {
         return inOrder(legacyMappings);
+    }
+
+    /** Every legacy mapping's set whose effective id is {@code setId}, with its mapping: the mappings in ingest order,
+     *  each one's sets in its own order. A lookup ({@link #legacySetsById}), not a scan. */
+    public List<LegacySet> legacySetsWithId(String setId) {
+        Map<String, List<LegacySet>> idx = legacySetsById;
+        if (idx == null) {
+            Map<String, List<LegacySet>> built = new HashMap<>();
+            legacyMappings().forEach(m -> {
+                for (ClassMapping cm : m.classMappings()) {
+                    built.computeIfAbsent(com.legend.model.SetId.of(cm), k -> new ArrayList<>())
+                            .add(new LegacySet(m, cm));
+                }
+            });
+            idx = built;
+            legacySetsById = idx;
+        }
+        return idx.getOrDefault(setId, List.of());
     }
 
     /** All {@link EnumDefinition}s in ingest order. */
