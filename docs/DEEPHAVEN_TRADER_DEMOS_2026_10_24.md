@@ -810,10 +810,12 @@ measures said:
   pin's set found by scanning every set of the model: 627,520 ids computed a compile; now `ModelBuilder`'s index,
   `legacySetsWithId`) -- held in 2.15 s; and the market opened beside the tab's DuckDB start, not after it (`boot.ts`).
   The first query leaves at 4.7 s.
+- *The server's compiler started with the world* (`market.groovy` compiles one formula as it starts): the first query on
+  a server just started took 1.67 s where the next took 0.15 -- the compiler loaded; now 0.64 s.
 
 Tried, not kept: *an extend chain as one view* (the chain's eight extends, sixteen views and eight compiles, written
 into one): on a server just started its batch took 3.70 s, 3.55 s without -- the server's per-compile overhead was not
-the cost. Measured after (the desk tool, a server just started each time): the first tab filled at 10.5 s; the options
+the cost. Measured after (the desk tool, a server just started each time): the first tab filled at 9.7 s (10.6-12.6 before); the options
 desk clicked 10 s after it, 2.6-4.8 s; `//datacube:deephaven_desk_test` (1g, 100 ms, each tab clicked as the last
 drew) the options desk 9.3 s to 6.4. Not yet: the first tab's batches come in waves (its base, then its views, then
 its charts), and the model's elements, read for its enumerations, are the whole model printed as JSON (650 ms).

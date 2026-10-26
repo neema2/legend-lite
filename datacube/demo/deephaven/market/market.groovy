@@ -2294,3 +2294,7 @@ bankDay = new Day(bank, orderBooks, pairs, clientIds, clientEdges, deskTraders['
 // every pair priced once at the start, so the screens have a rate for each before the first beat moves it
 pairs.each { p -> RateRows r = new RateRows(); r.rate(p, Instant.now()); ratePublisher.add(r.rates()) }
 marketClock.scheduleAtFixedRate({ bankDay.beat() } as Runnable, 10L, 100L, TimeUnit.MILLISECONDS)
+
+// the server's formula compiler started before a page asks: its first formula pays for loading the compiler, and on a
+// server just started the trading desk's first query paid it (1.7 s, where the next took 0.15: 2026-10-26)
+TableTools.emptyTable(1).update('WARM = ii * 2.0 + 1.0')
