@@ -1447,6 +1447,26 @@ public final class IqParity {
         if (q instanceof SqlAst.SetOperation) {
             return taggedUnionKey(q, names, tables);
         }
+        if (q instanceof SqlAst.Select s && !s.distinct() && s.groupBy().isEmpty() && s.from().size() == 1
+                && !(s.from().get(0) instanceof SqlAst.Join) && s.items().size() == names.size()) {
+            // the IQ scale program, 2026-10-26 (the realistic reports' part O: ranked AS (SELECT category, ym, ... RANK()
+            // OVER (...) FROM monthly), monthly grouped by both): a plain SELECT of one source shows its composite key
+            // where it shows each of its columns as itself
+            Set<String> inner = source(s.from().get(0), tables).composite();
+            Set<String> covered = new java.util.HashSet<>();
+            Set<String> shown = new java.util.HashSet<>();
+            for (int i = 0; i < names.size(); i++) {
+                if (s.items().get(i) instanceof SqlAst.SelectExpr x && x.expr() instanceof SqlAst.ColumnRef r) {
+                    String column = r.parts().get(r.parts().size() - 1).text().toLowerCase(Locale.ROOT);
+                    if (inner.contains(column) && covered.add(column)) {
+                        shown.add(names.get(i));
+                    }
+                }
+            }
+            if (!inner.isEmpty() && covered.size() == inner.size()) {
+                return Set.copyOf(shown);
+            }
+        }
         return groupKeyOutputs(q, outputs, names, tables);
     }
 

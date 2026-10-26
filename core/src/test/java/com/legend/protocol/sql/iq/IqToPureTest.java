@@ -499,6 +499,8 @@ class IqToPureTest {
         assertTrue(full.contains("dividend has more than 2 digits"), full);
         assertFalse(cast.contains("dividend has more than 2 digits"), cast);
         assertFalse(round.contains("dividend has more than 2 digits"), round);
+        // and its value at IQ's scale again, so that the CAST's cut reads one scale (DuckDB's 100.00 % 0.1 is a double's)
+        assertTrue(cast.contains("toDecimal(0) + 0E-19D"), cast);
     }
 
     @Test

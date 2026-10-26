@@ -171,6 +171,9 @@ public final class IqDialect implements InputDialect {
     /** The quotients a CAST, a ROUND or a TRUNCNUM reads at fewer places than IQ's scale, by the places read
      *  ({@link #quotientPlaces}). */
     private final Map<SqlAst.Binary, Integer> placesRead = new IdentityHashMap<>();
+
+    /** Of {@link #placesRead}, the quotients a CAST reads: its type the CAST's, whatever the quotient's. */
+    private final Set<SqlAst.Binary> castRead = Collections.newSetFromMap(new IdentityHashMap<>());
     /** The error held while the statement is translated ({@link #hold}), raised once it is ({@link #translated}). */
     private final SqlTranslationException[] held = {null};
     /** A subquery's placement error, named before translating and held while it is ({@link #failed}). */
@@ -323,10 +326,26 @@ public final class IqDialect implements InputDialect {
      *  is an IQ table; the research's D-E1 gives a mix to IQ). A {@code sqla17-*} profile is a SQL Anywhere database:
      *  no IQ engine there, whatever the FROM. IQ island, 2026-10-17 (the differential fuzzer's fifth round; measured
      *  on IQ 17.1): a statement over IQ tables that reads GREATER or LESSER anywhere runs in the front end too
-     *  ({@link #readsFrontEndFunction}: CEILING(nm) beside one is a DOUBLE, it + 1 past an INTEGER its -158). */
+     *  ({@link #readsFrontEndFunction}: CEILING(nm) beside one is a DOUBLE, it + 1 past an INTEGER its -158), and one
+     *  that reads sa_rowgenerator ({@link #readsRowGenerator}). */
     public static Engine engineOf(SqlAst.Statement statement, IqSettings settings) {
         Engine store = storeOf(statement, settings);
-        return store == Engine.IQ && readsFrontEndFunction(statement) ? Engine.SA : store;
+        return store == Engine.IQ && (readsFrontEndFunction(statement) || readsRowGenerator(statement)) ? Engine.SA
+                : store;
+    }
+
+    /** Whether the statement's own FROM (its SELECT's, a set operation's branches') reads sa_rowgenerator, the catalog
+     *  store's procedure. The IQ scale program, 2026-10-26 (the realistic reports' part N, measured on IQ 17.1): such a
+     *  statement beside IQ tables is computed by SQL Anywhere's front end -- DATEADD(MONTH, g.row_num - 1,
+     *  CAST('2025-01-01' AS DATE)) joined to employees is its TIMESTAMP, which IQ's engine types a DATE. One in a
+     *  subquery or a derived table only is not measured: IQ's engine, as before. */
+    private static boolean readsRowGenerator(SqlAst.Statement statement) {
+        return switch (statement) {
+            case SqlAst.Select s -> s.from().stream().flatMap(f -> leaves(f).stream()).anyMatch(leaf ->
+                    leaf instanceof SqlAst.TableFunction fn && rowGenerator(fn.name()));
+            case SqlAst.SetOperation o -> readsRowGenerator(o.left()) || readsRowGenerator(o.right());
+            case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+        };
     }
 
     /** The engine of the store {@code statement}'s tables are in ({@link #engineOf} but for its functions). */
@@ -1904,7 +1923,7 @@ public final class IqDialect implements InputDialect {
         read.innerJoins.addAll(innerHere);
         read.joinedByName.addAll(joinedByName(statement));
         read.placeheld.addAll(placeheldHere);
-        quotientPlaces(statement, read.placesRead);
+        quotientPlaces(statement, read.placesRead, read.castRead);
         read.claims(placement, recursives.get(statement));
         read.lateClaimed(lateClaim(statement, chosen));
         read.derivedRenderings.putAll(read.derivedRenderings(statement));
@@ -6023,14 +6042,20 @@ public final class IqDialect implements InputDialect {
      */
     private Tx quotient(SqlAst.Binary b, Tx l, Tx r, String operator) {
         boolean divide = b.op() == SqlAst.BinaryOp.DIVIDE;
-        if (divide && !shownValues.contains(b)) {
+        // the IQ scale program, 2026-10-26 (the realistic reports' part N over sa_rowgenerator, CAST(SUM(salary) / 12 AS
+        // NUMERIC(12,2))): one a CAST, a ROUND or a TRUNCNUM reads at n places (quotientPlaces) is SQL Anywhere's exact
+        // quotient there, cut toward zero at the places read -- rounding at n reads the next place alone
+        Integer read = divide && !shownValues.contains(b) ? placesRead.get(b) : null;
+        if (divide && !shownValues.contains(b) && read == null) {
             throw SqlTranslationException.unsupported("a NUMERIC / is supported only as a select item of a SELECT"
                     + " without DISTINCT that nothing else in the statement reads (by its alias or position, or written"
                     + " again): SQL Anywhere rounds the quotient to its scale only where it shows it, and an operand, a"
                     + " CAST, a comparison or a key reads it with more digits ((10.0/3)*3 is 10.00), which this reader"
                     + " does not compute yet", b.pos());
         }
-        if (divide && (!exactlyTyped(b.left()) || !exactlyTyped(b.right()))) {
+        // (a quotient a CAST reads is typed by the CAST, whatever SQL Anywhere types it)
+        if (divide && !(read != null && castRead.contains(b))
+                && (!exactlyTyped(b.left()) || !exactlyTyped(b.right()))) {
             throw SqlTranslationException.unsupported("this / is not supported yet: SQL Anywhere types an operand of"
                     + " it that is a constant integer expression (a derived table's column defined by a constant too),"
                     + " or a function or CASE, by rules this reader does not follow yet, and the quotient's scale"
@@ -6063,7 +6088,9 @@ public final class IqDialect implements InputDialect {
                         + " it in fewer, which is not supported", b.pos());
             }
         }
-        boolean fits = divide ? IqFunctions.quotientFits(lt[1], lt[0] - lt[1], rt[1], rt[0] - rt[1], p, s)
+        boolean fits = read != null ? read <= s && IqFunctions.truncatedDivisionFits(lt[1], lt[0] - lt[1], rt[1],
+                rt[0] - rt[1], read) && lt[0] - lt[1] + rt[1] + s <= 38
+                : divide ? IqFunctions.quotientFits(lt[1], lt[0] - lt[1], rt[1], rt[0] - rt[1], p, s)
                 : IqFunctions.remainderFits(lt[1], lt[0] - lt[1], rt[1], rt[0] - rt[1]);
         if (!fits) {
             throw SqlTranslationException.unsupported("this " + operator + " of a NUMERIC(" + lt[0] + "," + lt[1]
@@ -6087,8 +6114,9 @@ public final class IqDialect implements InputDialect {
             if (divisor != null && divisor.signum() == 0) {
                 return raiseDecimal();
             }
-            ValueSpecification value = divide
-                    ? IqFunctions.quotient(x, lt[1], lt[0] - lt[1], y, rt[1], rt[0] - rt[1], fp, fs)
+            ValueSpecification value = read != null ? IqFunctions.atScale(IqFunctions.truncatedDivision(x, lt[1],
+                    lt[0] - lt[1], y, rt[1], read), fs)
+                    : divide ? IqFunctions.quotient(x, lt[1], lt[0] - lt[1], y, rt[1], rt[0] - rt[1], fp, fs)
                     : IqFunctions.remainder(x, lt[1], lt[0] - lt[1], y, rt[1], rt[0] - rt[1]);
             ValueSpecification zero = SqlToPure.call("equal", y, new CInteger(0L));
             return divisor != null ? value : nullOnZero ? ifThen(zero, SqlToPure.nullOf(Kind.DECIMAL).vs(), value)
@@ -6138,7 +6166,10 @@ public final class IqDialect implements InputDialect {
         // the IQ scale program, 2026-10-26: computed at the places a CAST or a ROUND reads, where fewer
         // (quotientPlaces), the type IQ's
         int computed = placesRead.containsKey(b) ? Math.min(s, placesRead.get(b)) : s;
-        while (held > 0 && !IqFunctions.truncatedDivisionFits(lt[1], held, rt[1], whole2, computed)) {
+        // its value at IQ's scale again (a CAST's or a ROUND's cut reads its places by its type's: DuckDB's remainder of
+        // two decimals of two scales is a double's, 100.00 % 0.1 not 0), which a quotient below 10^(held + s2) holds
+        while (held > 0 && (!IqFunctions.truncatedDivisionFits(lt[1], held, rt[1], whole2, computed)
+                || computed < s && held + rt[1] + s > 38)) {
             held = guardable ? held - 1 : 0;
         }
         if (held == 0) {
@@ -6165,6 +6196,9 @@ public final class IqDialect implements InputDialect {
                 return raiseDecimal();
             }
             ValueSpecification value = IqFunctions.truncatedDivision(x, lt[1], dividendDigits, y, rt[1], computed);
+            if (computed < s) {
+                value = IqFunctions.atScale(value, s);
+            }
             if (past != null) {
                 value = IqFunctions.refusedPast(SqlToPure.call("greaterThanEqual", SqlToPure.call("abs", x),
                         new CDecimal(BigDecimal.TEN.pow(dividendDigits))), past, value, raiseDecimal());
@@ -6185,24 +6219,28 @@ public final class IqDialect implements InputDialect {
      * quotient toward zero at its scale, so the quotient cut there and read at those places is the quotient cut at
      * them; its steps at IQ's scale may need more than lite's 38 digits for a dividend these hold.
      */
-    private static void quotientPlaces(SqlAst.Statement statement, Map<SqlAst.Binary, Integer> out) {
+    private static void quotientPlaces(SqlAst.Statement statement, Map<SqlAst.Binary, Integer> out,
+            Set<SqlAst.Binary> cast) {
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.Select s) {
-                readExpressions(s).forEach(e -> quotientPlaces(e, out));
+                readExpressions(s).forEach(e -> quotientPlaces(e, out, cast));
             }
         }
     }
 
-    private static void quotientPlaces(SqlAst.Expr e, Map<SqlAst.Binary, Integer> out) {
+    private static void quotientPlaces(SqlAst.Expr e, Map<SqlAst.Binary, Integer> out, Set<SqlAst.Binary> cast) {
         if (e instanceof SqlAst.Cast c) {
             String target = c.type().name().startsWith(IqParser.CONVERT)
                     ? c.type().name().substring(IqParser.CONVERT.length()) : c.type().name();
             List<Integer> sizes = c.type().modifiers();
+            Map<SqlAst.Binary, Integer> here = new IdentityHashMap<>();
             if ((target.equals("NUMERIC") || target.equals("DECIMAL")) && sizes.size() == 2) {
-                placesOf(c.operand(), sizes.get(1) + 1, out);
+                placesOf(c.operand(), sizes.get(1) + 1, here);
             } else if (BITWISE_SIZES.contains(target)) {
-                placesOf(c.operand(), 1, out);
+                placesOf(c.operand(), 1, here);
             }
+            here.forEach((q, n) -> out.merge(q, n, Math::max));
+            cast.addAll(here.keySet());
         }
         if (e instanceof SqlAst.FunctionCall f && f.name().size() == 1 && f.args().size() == 2
                 && integerLiteral(f.args().get(1)) instanceof BigInteger n && n.bitLength() < 16) {
@@ -6214,7 +6252,7 @@ public final class IqDialect implements InputDialect {
             }
         }
         for (SqlAst.Expr child : children(e)) {
-            quotientPlaces(child, out);
+            quotientPlaces(child, out, cast);
         }
     }
 

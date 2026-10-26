@@ -830,3 +830,17 @@ says so.
     the fewer places are PLACES (21 tpcds_iq cells equal but for their places, ROUND(x, 2) at the quotient's scale,
     FAILed); a cell's places alone count as a difference; where IQ shows the fewer places, lite's value cut half up
     there matches too (tpcds-29313: IQ rounds its AVG).
+  - **Reports parts N and O judged** (41 cases, 51a1b4c3): 39 PASS on DuckDB and Postgres -- receivables aging, a
+    ledger's running balance, headcount over a calendar, salary bands, spans of control, commission tiers, fiscal
+    quarters, integrity checks, SKU parsing, pivots, Pareto classes, rank movement, cross-tabs, region-only products,
+    funnels, days of cover. LIST(DISTINCT x ORDER BY x) of a column no GROUP BY names is refused (IQ answers it:
+    'enterprise/retail/smb'); the 7-day moving average over sa_rowgenerator is IQ's crasher (a window over it runs
+    to a cancel), its calendar now from order_items' ids, to re-snap. What they found, fixed here:
+    - a quotient computed at the places a CAST reads carried those places where its type said IQ's scale, and the
+      CAST's cut, x - rem(x, 0.1), read two scales -- DuckDB's remainder of two scales is a double's, so 100.00 came
+      out 99.9: the value is padded to IQ's scale again (its dividend held to what that leaves);
+    - a statement whose own FROM reads sa_rowgenerator runs in SQL Anywhere's front end beside IQ tables (measured:
+      DATEADD of a DATE there is a TIMESTAMP; IQ's engine types it a DATE); and there a quotient a CAST, a ROUND or a
+      TRUNCNUM reads is its exact quotient cut at the places read (was refused but as a shown item), a CAST's
+      whatever SQL Anywhere would type its operands;
+    - the determinism lint reads a plain SELECT over a grouped CTE as keyed by that CTE's GROUP BY keys.
