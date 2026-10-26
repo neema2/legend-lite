@@ -351,6 +351,12 @@ lite/reports_sales/fiscal_year_revenue@iq17-default	PASS	PASS
 lite/reports_sales/moving_average_of_monthly_revenue@iq17-default	PASS	PASS	
 lite/reports_sales/discount_impact_by_band@iq17-default	PASS	PASS	
 lite/reports_sales/best_month_per_year@iq17-default	PASS	PASS	
+lite/reports_set_reports/customers_buying_in_both_years@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/reports_set_reports/customers_lost_after_2024@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/reports_set_reports/revenue_rollup_with_labels@iq17-default	BOTH_ERROR	BOTH_ERROR	
+lite/reports_set_reports/revenue_rollup_ordered_by_grouping@iq17-default	PASS	PASS	
+lite/reports_set_reports/management_chain_two_levels@iq17-default	PASS	PASS	
+lite/reports_set_reports/products_never_ordered_or_only_cancelled@iq17-default	PASS	PASS	
 lite/reports_sourcing/cheapest_supplier_per_product@iq17-default	PASS	PASS	
 lite/reports_sourcing/lead_times_by_country@iq17-default	PASS	PASS	
 lite/reports_sourcing/sourcing_savings@iq17-default	PASS	PASS	
@@ -419,3 +425,9 @@ lite/reports_whole_reports/customer_health_dashboard@iq17-default	PASS	PASS
 lite/reports_whole_reports/product_profitability_waterfall@iq17-default	PASS	PASS	
 lite/reports_whole_reports/sales_rep_league_table@iq17-default	PASS	PASS	
 lite/reports_whole_reports/order_fulfilment_sla@iq17-default	PASS	PASS	
+lite/reports_window_reports/order_value_moving_sum_over_id_range@iq17-default	PASS	PASS	
+lite/reports_window_reports/previous_and_next_order_with_defaults@iq17-default	FAIL	FAIL	
+lite/reports_window_reports/weekly_orders_weeks_starting_sunday@iq17-default	PASS	PASS	
+lite/reports_window_reports/first_touch_attribution@iq17-default	PASS	PASS	
+lite/reports_window_reports/active_days_running_count@iq17-default	PASS	PASS	
+lite/reports_window_reports/price_bands_against_category_average@iq17-default	REFUSED	REFUSED	

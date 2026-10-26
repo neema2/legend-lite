@@ -2582,7 +2582,7 @@ lite/iq_engine_rollup/cube_beside_a_percentile_is_iqs_error@iq17-default	BOTH_ER
 lite/iq_engine_rollup/rollup_beside_median_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
 lite/iq_engine_rollup/rollup_beside_list_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR	BOTH_ERROR
 lite/iq_engine_rollup/rollup_labelled_total@iq17-default	PASS	PASS	PASS
-lite/iq_engine_rollup/rollup_ordered_by_a_grouping_not_selected_is_refused@iq17-default	REFUSED	REFUSED	REFUSED
+lite/iq_engine_rollup/rollup_ordered_by_a_grouping_not_selected_is_refused@iq17-default	PASS	PASS	REFUSED
 lite/iq_engine_rollup/rollup_of_a_key_in_arithmetic_and_a_function@iq17-default	PASS	PASS	PASS
 lite/iq_engine_unions/union_numeric_with_integer@iq17-default	PASS	PASS	PASS
 lite/iq_engine_unions/union_integer_with_numeric@iq17-default	PASS	PASS	PASS

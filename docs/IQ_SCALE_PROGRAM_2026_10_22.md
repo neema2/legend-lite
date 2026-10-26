@@ -937,3 +937,15 @@ says so.
     column that reuses its source column's name). Reports part R (11, windows and sets) on claude/iq-reports
     17a66983 to snap; lite refuses a quotient by a window AVG (NUMERIC(30,23): a step past 38 digits) and a ROLLUP
     ordered by keys that are no select items (GROUPING(...)), and claims INTERSECT and EXCEPT as IQ's -1001030.
+  - **A ROLLUP ordered by keys that are none of its items** (part R's ORDER BY GROUPING(p.category), p.category,
+    GROUPING(o.channel), o.channel): each item named, the keys become items of the rolled-up union's branches, in a
+    derived table the outer query orders by. IQ's 13 rows exactly as lite predicted (each category's channels, its
+    total, the grand total last); a COUNT(DISTINCT) beside the ROLLUP now reaches its -1001030 claim, as IQ raises it
+    before ordering. iq_engine_rollup's rollup_ordered_by_a_grouping_not_selected_is_refused REFUSED -> PASS. Part R
+    judged: 9 PASS, 3 IQ's -1001030 as lite claims (INTERSECT; EXCEPT in an IN subquery, its own message; ROLLUP with
+    a DISTINCT aggregate), 1 refused (a quotient by a window AVG, NUMERIC(30,23); IQ answers, its CAST truncating:
+    2.6366 -> 2.63), 1 listed IQ defect (lead-default-nul: LEAD(status, 1, 'none') is 'none\0\0\0'). A missing
+    manager's TRIM(NULL) || ' ' || TRIM(NULL) is ' ' on IQ as in lite.
+  - **The full re-judge at a93a4f7e is clean** (the Mac, every suite): across TPC-H, TPC-DS and JOB lite refuses
+    nothing IQ answers; every remaining difference is a tie, a row-estimated type, IQ's own plan or data limit
+    (the BUG groups above), or tpcds-23370's string percentage.

@@ -45,3 +45,8 @@ run	lite/reports_commerce/promotion_lift_by_join@iq17-default	row-typed	duckdb,p
 run	lite/reports_calculations/weighted_and_simple_averages@iq17-default	row-typed	duckdb,postgres
 run	lite/reports_combinations/abc_classes_by_cumulative_share@iq17-default	row-typed	duckdb,postgres
 run	lite/reports_combinations/derived_chain_with_windows@iq17-default	row-typed	duckdb,postgres
+# The IQ scale program, 2026-10-26 (reports part R's previous_and_next_order_with_defaults, snapped on IQ 17.1): LEAD's
+# string default past a partition's last row comes back padded with NUL bytes -- LEAD(o.status, 1, 'none') is
+# 'none\0\0\0' in a VARCHAR(10) -- an IQ defect lite does not reproduce.
+cause	lead-default-nul	IQ's own defect: LEAD's string default past a partition's end padded with NUL bytes ('none\0\0\0'), where lite answers 'none'
+run	lite/reports_window_reports/previous_and_next_order_with_defaults@iq17-default	lead-default-nul	duckdb,postgres
