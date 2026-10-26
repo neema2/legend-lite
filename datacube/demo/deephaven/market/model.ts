@@ -19,20 +19,45 @@ export const MARKET_MODEL = (corpus: string, host: string, port: number): string
 
 /** The market's own part of the model: its status table, its connections at `host`:`port`, its options functions and
  *  its runtime -- a project's second model file after the corpus's (the trading desk's project: host.ts). */
-export const MARKET_LIVE = (host: string, port: number): string => `###Relational
-Database market::World
-(
-  Table world (item VARCHAR(16) PRIMARY KEY, state VARCHAR(16) NOT NULL, detail VARCHAR(256) NOT NULL)
-)
-###Connection
-${MARKET_CONNECTION(host, port)('store::DB')}
+export const MARKET_LIVE = (host: string, port: number): string => marketPart(`${MARKET_CONNECTION(host, port)('store::DB')}
 RelationalDatabaseConnection market::Status
 {
   store: market::World;
   type: Deephaven;
   specification: Deephaven { host: '${host}'; port: ${port}; useTls: true; };
   auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };
+}`);
+
+/**
+ * THE MARKET IN THE TAB (docs/DUCKDB_LIVE_2026_10_25.md): the same part, its connections the tab's own DuckDB -- the
+ * same connections' and runtime's names, so a saved page of the desk runs on either: what it reads is the host's to say.
+ */
+export const MARKET_TAB = (): string => marketPart(`RelationalDatabaseConnection market::Live
+{
+  store: store::DB;
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
 }
+RelationalDatabaseConnection market::Status
+{
+  store: market::World;
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
+}`);
+
+/** The model in the tab: the corpus, then the market's own part on the tab's DuckDB. */
+export const MARKET_TAB_MODEL = (corpus: string): string => `${corpus}\n${MARKET_TAB()}`;
+
+/** The market's part around its `connections`: its status table, its options functions, its runtime. */
+const marketPart = (connections: string): string => `###Relational
+Database market::World
+(
+  Table world (item VARCHAR(16) PRIMARY KEY, state VARCHAR(16) NOT NULL, detail VARCHAR(256) NOT NULL)
+)
+###Connection
+${connections}
 ###Pure
 // BLACK AND SCHOLES, as functions of the model (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K11): a European option's
 // price and greeks from its underlying's price s, its strike k, its volatility v, the rate r -- and what a query computes

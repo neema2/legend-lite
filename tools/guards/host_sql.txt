@@ -55,3 +55,4 @@ begin\s+transaction
 studio/src/ui/editor.ts | "SELECT * FROM \"PARTY\".\"PARTY\"" | the SQL editor's placeholder: an example of the person's own SQL, shown in the empty box, never run
 datacube/demo/remote-harness.ts | "SELECT region, sum(notional) AS m FROM " | a test page's query (verify-remote.mjs), standing in for the planner's over the mount it checks
 query/src/ui/results.ts | "SELECT " | the plan's SQL shown for reading (formatSql): its first keyword written upper case, never run
+datacube/demo/market-sim/measure/measure.ts | "SELECT sum(memory_usage_bytes) AS bytes FROM duckdb_memory()" | a measuring page's read of DuckDB's own memory (docs/DUCKDB_LIVE_2026_10_25.md §2, 2026-10-26): no host's statement, no model's rows

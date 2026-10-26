@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
-import type { ArrowishConnection } from '../src/duckdb.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { LiveDuckDb, type DuckDbLiveReader, type LiveRows } from '../src/duckdb-live.ts';
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import type { LiveEvent } from '../src/live.ts';
@@ -47,20 +47,23 @@ function counted(): ArrowishConnection {
   });
 }
 
-/** A live engine of its own, its tables made and declared: emitted by the test, no timer. */
-async function opened(): Promise<LiveDuckDb> {
+/** A live engine of its own, its tables made and declared: emitted by the test, no timer. `whole`: its connections read
+ *  each result in one round trip (duckdb.ts), as the tab's live market's are. */
+async function opened(whole = false): Promise<LiveDuckDb> {
   sent.length = 0;
-  const live = await LiveDuckDb.open({ connect: counted, host: planner, timer: false });
-  for (const table of ['PRINTS', 'NEWS', 'QUOTES', 'TAPE']) await live.run(`DROP TABLE IF EXISTS ${table}`);
+  const live = await LiveDuckDb.open({ connect: () => new DuckDbEngine(counted(), { whole }), host: planner, timer: false });
+  for (const table of ['PRINTS', 'NEWS', 'QUOTES', 'TAPE', 'DIRECT']) await live.run(`DROP TABLE IF EXISTS ${table}`);
   await live.run('CREATE TABLE PRINTS (SYMBOL VARCHAR, SEQ BIGINT, PRICE DOUBLE)');
   await live.run('CREATE TABLE NEWS (HEADLINE VARCHAR)');
   await live.run('CREATE TABLE QUOTES (SYMBOL VARCHAR PRIMARY KEY, BID DOUBLE, ASK DOUBLE)');
   await live.run('CREATE TABLE TAPE (SEQ BIGINT, PRINT_TIME TIMESTAMP, LIVE BOOLEAN)');
+  await live.run('CREATE TABLE DIRECT (SYMBOL VARCHAR, SEQ INTEGER, PRICE DOUBLE)');
   live.declare([
     { name: 'PRINTS', kind: 'stream', keep: { column: 'SEQ', rows: 10 } },
     { name: 'NEWS', kind: 'stream' },
     { name: 'QUOTES', kind: 'keyed', key: ['SYMBOL'] },
     { name: 'TAPE', kind: 'stream', keep: { column: 'PRINT_TIME', seconds: 30 } },
+    { name: 'DIRECT', kind: 'stream', columns: ['SYMBOL', 'SEQ', 'PRICE'] },
   ]);
   return live;
 }
@@ -232,6 +235,32 @@ describe('the live DuckDB', () => {
     assert.equal(value(await reader.execute(COUNT, 2)), 2);
     assert.equal(value(await reader.execute(again, 2)), 2, 'both read the moment before it');
     assert.equal(value(await live.run('SELECT count(*) AS n FROM PRINTS')), 3);
+    await live.close();
+  });
+
+  it('a stream\'s batch of its declared columns, in order, goes straight in; any other through staging, each value in its own column', async () => {
+    live = await opened(true);
+    const writer = sent[0]!;
+    const before = writer.length;
+    await live.append('DIRECT', ...prints(0, 3));
+    assert.equal(writer.length, before, 'straight in: no statement, the rows put in as Arrow');
+    // the same columns in another order: by name, through staging (by position it would put prices in SEQ)
+    const [n, rows] = prints(3, 2);
+    await live.append('DIRECT', n, { PRICE: rows.PRICE!, SYMBOL: rows.SYMBOL!, SEQ: rows.SEQ! });
+    assert.ok(writer.length > before, 'through staging: the planner\'s statements');
+    const table = await live.run('SELECT SYMBOL, SEQ, PRICE FROM DIRECT ORDER BY SEQ');
+    assert.deepEqual(table.columns.map((c) => c.values.map((v) => (typeof v === 'bigint' ? Number(v) : v))), [
+      ['AAPL', 'MSFT', 'NVDA', 'AAPL', 'MSFT'], [0, 1, 2, 3, 4], [100, 101, 102, 103, 104],
+    ]);
+    // a reader over whole connections: followed, told, and its tick answered from what the emit kept
+    const count = plan('SELECT count(*) AS n FROM DIRECT', ['n', 'Integer']);
+    const { reader, told } = await following(live, count);
+    await live.append('DIRECT', ...prints(5, 1));
+    await live.emit();
+    assert.equal(told.length, 1);
+    const ticked = await reader.execute(count, 2);
+    assert.equal(value(ticked), 6);
+    assert.equal(ticked.elapsedMs, 0);
     await live.close();
   });
 

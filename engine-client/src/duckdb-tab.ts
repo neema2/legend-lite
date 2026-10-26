@@ -19,8 +19,9 @@ export interface DuckDbInTab {
   /**
    * Another connection to the same database, set up as the first (its extensions from the site, its session the
    * planner's): what a project's own database is queried on (project-data.ts), its names pointed there alone.
+   * `whole`: one that reads each result in one round trip (duckdb.ts DuckDbEngine's constructor: the live engine's).
    */
-  connect(): Promise<DuckDbEngine>;
+  connect(options?: { readonly whole?: boolean }): Promise<DuckDbEngine>;
 }
 
 /** What the tab's DuckDB is set up by: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
@@ -56,8 +57,8 @@ export async function startDuckDbInTab(vendor: string, planner: TabDuckDbPlanner
   const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), new Worker(bundle.mainWorker!));
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
   // every connection set up alike: a setting of DuckDB's may be a session's, so none is left to the first's
-  const connect = async (): Promise<DuckDbEngine> => {
-    const connection = new DuckDbEngine((await db.connect()) as unknown as ArrowishConnection);
+  const connect = async (options: { readonly whole?: boolean } = {}): Promise<DuckDbEngine> => {
+    const connection = new DuckDbEngine((await db.connect()) as unknown as ArrowishConnection, options);
     await ownExtensions(connection, planner, asset('duckdb-extensions'));
     await setUpSession(connection, (databaseType) => planner.sessionSetup(databaseType));
     return connection;

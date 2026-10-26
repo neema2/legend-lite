@@ -69,6 +69,33 @@ DuckDB-WASM is single-threaded (threads need cross-origin isolation, which a sta
 shown tab's followed queries re-run each emit (the app runs no hidden tab's: lazy views, held ticks). Each landing says
 what it measured: an emit's time per tab, a tick on screen after its rows, the tape's bound, memory.
 
+### Stage A, the method (the user, 2026-10-26: "Let's measure and do it expertly")
+
+The question: can the tab's DuckDB run a desk tab's live queries again every 250 ms while the world writes into it,
+with room left for a person's click, its memory bounded? `bazel test //datacube:market_measure` (manual; settings in
+`MEASURE_*`) answers it, before any of the app is wired:
+
+- **The real stack.** The pinned headless Chromium; the site's own DuckDB build (eh, one thread, in a Web Worker: what a
+  static site gets); the planner on its worker; the live engine and the world as committed.
+- **The real workload.** The saved trading desk (`market/screens.ts` DESK) as the app opens it: each cube's saved query
+  by the app's rule (`savedQueryOpened`, `openCube`), each tile's first view's query by the app's builders
+  (`levelWithValues` for a grid, `chartQuery` for a chart), planned by the planner; the tables by the planner's own DDL
+  (the model's `MARKET_TAB`: the same runtime's name, its connections the tab's DuckDB). One reader a cube.
+- **The run.** One tab at a time; 5 s warm, 20 s measured; the world's beat every 50 ms, its writes every 250, the
+  engine's emit every 250; the tape held at 25k, 100k and 250k prints by its bound.
+- **Instruments.** Each operation's wall time; a click probe (a planned query every 100 ms, its wait the queue's);
+  every request to DuckDB's worker logged (`postTask`: its kind, posted, answered) -- the union of their intervals the
+  share of time the worker had work, their count an operation's round trips; and, the clock stopped after each tab, a
+  write alone and a refresh alone, each one's time and round trips with nothing else in flight.
+
+The budgets, fixed before any number came in: a refresh p95 ≤ 100 ms (40% of the cycle); a write p95 ≤ 30 ms; a click's
+wait p95 ≤ 150 ms; a tick (write landed to grid told) p95 ≤ 500 ms; the world's step on the page's thread p95 ≤ 4 ms;
+memory flat once the tape is at its bound; the market's own start (its tables and its world) ≤ 5 s.
+
+Not measured in stage A (stage B's, the app wired): a group expanded, a total row, a drill -- so its queries a tab are a
+floor -- and drawing (the same on any engine: the Deephaven desk measured 6-54 ms p50 a tick). The figures are this
+container's (4 cores of a 2.8 GHz Xeon, 16 GB), said with each run.
+
 ## 3. Incremental views, when measured
 
 ClickHouse's lesson (its insert-triggered materialized views, aggregate states that merge): an append-only table's

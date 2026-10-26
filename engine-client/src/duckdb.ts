@@ -291,8 +291,24 @@ export class DuckDbEngine implements QueryEngine {
   /** Remote files a mounted source reads over HTTP (`readsRemote`), for the receipt. */
   readonly #reads: string[] = [];
 
-  constructor(connection: ArrowishConnection) {
+  /** The connection reads each result whole (`query`): see the constructor. */
+  readonly #readsWhole: boolean;
+
+  /**
+   * `whole`: this connection reads every result in ONE round trip to DuckDB's worker (`query`), never streamed -- a
+   * capability chosen when the connection is made, as the streaming one is had (the branch below stays on capability).
+   * For a connection whose every result is small and never cancelled: the live engine's (duckdb-live.ts), measured
+   * (docs/DUCKDB_LIVE_2026_10_25.md §2): a streamed statement took two or three round trips, each ~1.3-4.8 ms, so its
+   * writes and refreshes spent most of their time in passage, not in DuckDB.
+   */
+  constructor(connection: ArrowishConnection, options: { readonly whole?: boolean } = {}) {
     this.#conn = connection;
+    this.#readsWhole = options.whole === true;
+  }
+
+  /** Whether results here stream (the connection can, and was not made to read them whole). */
+  #streams(): boolean {
+    return !this.#readsWhole && typeof this.#conn.send === 'function';
   }
 
   /**
@@ -359,7 +375,7 @@ export class DuckDbEngine implements QueryEngine {
       // superseded query simply never runs.
       if (signal?.aborted) throw signal.reason ?? new Error('aborted');
       const started = performance.now();
-      if (typeof this.#conn.send === 'function') {
+      if (this.#streams()) {
         const acc = new BatchAccumulator();
         await this.#batches(sql, signal, (batch) => acc.add(batch));
         return acc.build(epoch, performance.now() - started);
@@ -383,7 +399,7 @@ export class DuckDbEngine implements QueryEngine {
     return this.#serialised(async () => {
       if (signal?.aborted) throw signal.reason ?? new Error('aborted');
       const started = performance.now();
-      if (typeof this.#conn.send === 'function') {
+      if (this.#streams()) {
         await this.#batches(plan.sql, signal, (batch) =>
           onChunk(typedByPlan(toRawTable(batch, epoch, performance.now() - started), plan)));
         return;
@@ -398,7 +414,9 @@ export class DuckDbEngine implements QueryEngine {
    * On the query queue, so no query reads a half-loaded table.
    */
   async loadArrow(
-    target: { readonly schema?: string; readonly table: string },
+    /** `append`: the table is there already, and every chunk is appended to it -- by POSITION (DuckDB's insert from
+     *  Arrow): each chunk's columns are the table's, in its order, or a value lands in another's column. */
+    target: { readonly schema?: string; readonly table: string; readonly append?: boolean },
     chunks: AsyncIterable<Uint8Array>,
     /** The planner's statements run first, in the same turn (its schema made, the table there dropped: snap.ts). */
     prepare: readonly string[] = [],
@@ -415,7 +433,7 @@ export class DuckDbEngine implements QueryEngine {
         await insert.call(this.#conn, bytes, {
           name: target.table,
           ...(target.schema ? { schema: target.schema } : {}),
-          create: first,
+          create: first && target.append !== true,
         });
         first = false;
       }

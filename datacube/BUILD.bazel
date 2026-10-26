@@ -2429,6 +2429,53 @@ browser_test(
     env = _DEEPHAVEN_DESK_ENV,
 )
 
+# THE LIVE DUCKDB MEASURED (docs/DUCKDB_LIVE_2026_10_25.md §2, stage A): the measuring page -- the market world in the
+# tab's DuckDB, the live engine, the saved desk's tiles' first-view queries as the app builds them -- served beside
+# DataCube's own site and run in the pinned Chromium once for each tape size; its report judged against the budgets
+# stated before it ran, and written to the outputs (market-measure.json). Manual: a measurement, not a check (minutes).
+esbuild_bundle(
+    name = "market_measure_bundle",
+    testonly = True,
+    srcs = glob([
+        "demo/market-sim/**/*.ts",
+        "demo/deephaven/market/*.ts",
+    ]) + [
+        ":node_modules/echarts",
+        ":src",
+    ],
+    outs = ["demo/market-sim/measure/market-measure.js"],
+    args = [
+        "demo/market-sim/measure/measure.ts",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--log-level=warning",
+        "--external:./wasm-gc-module-runtime.js",
+        "--outfile=demo/market-sim/measure/market-measure.js",
+    ],
+)
+
+browser_test(
+    name = "market_measure",
+    size = "enormous",
+    tags = ["manual"],
+    data = _HARNESS_HELPERS + [
+        "demo/index.html",
+        "demo/market-sim/measure/measure.html",
+        "demo/market-sim/measure/measure.mjs",
+        ":market_measure_bundle",
+        ":node_modules/playwright",
+        ":site",
+        "//scripts/corpus:trading_model",
+    ],
+    entry_point = "demo/market-sim/measure/measure.mjs",
+    env = _SITE_ENV | {
+        "MEASURE_BUNDLE": "$(rlocationpath :market_measure_bundle)",
+        "MEASURE_PAGE": "$(rlocationpath demo/market-sim/measure/measure.html)",
+        "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
+    },
+)
+
 # THE LIVE RISK DEMO (docs/DEEPHAVEN_PLAN_2026_10_22.md D0, DH23, DH24): DataCube on Deephaven over a risk book whose
 # reference data and price simulator are Deephaven's start-up script (demo/deephaven/risk.groovy, marked temporary:
 # lite's modelled publisher replaces it, L5). The plain page that stood in for DataCube until it ticked went on

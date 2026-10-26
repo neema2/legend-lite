@@ -22,7 +22,7 @@
 // ClickHouse's lesson, only where measured: §3).
 
 import { arrowIpcStream, type MadeColumn } from './arrow-ipc.ts';
-import { DuckDbEngine, type ArrowishConnection } from './duckdb.ts';
+import type { DuckDbEngine } from './duckdb.ts';
 import type { RawTable } from './engine.ts';
 import type { HostName, HostOperation, HostOperationsSource } from './host-operations.ts';
 import type { LiveEvent, LiveReader } from './live.ts';
@@ -45,14 +45,21 @@ export interface LiveTable {
   /** A keyed table's key: its primary key's columns (`INSERT OR REPLACE` replaces by it). */
   readonly key?: readonly string[];
   readonly keep?: Keep;
+  /**
+   * A stream's columns, in the table's order: a batch of exactly these, in this order, goes straight into the table
+   * (Arrow appended by position: one round trip); any other batch through a staging table, by name. Measured
+   * (docs/DUCKDB_LIVE_2026_10_25.md §2): the staging path's four statements were most of a write's time.
+   */
+  readonly columns?: readonly string[];
 }
 
 /** Rows a page made, a column at a time (arrow-ipc.ts MadeColumn), each named as the table's column it goes in. */
 export type LiveRows = Readonly<Record<string, MadeColumn>>;
 
 export interface LiveDuckDbOptions {
-  /** A connection of the database's own: the writer's, and each reader's (each reads its own snapshot). */
-  readonly connect: () => ArrowishConnection | Promise<ArrowishConnection>;
+  /** A connection of the database's own: the writer's, and each reader's (each reads its own snapshot) -- the tab's set
+   *  up as every connection of its is (duckdb-tab.ts DuckDbInTab.connect). */
+  readonly connect: () => DuckDbEngine | Promise<DuckDbEngine>;
   /** The planner, which writes each statement the live engine runs (D5): a write's, a bound's, a transaction's. */
   readonly host: HostOperationsSource;
   /** The session every connection is set up with first (the planner's: engine.ts setUpSession). */
@@ -116,6 +123,8 @@ interface TableState {
   readonly staging: HostName;
   version: number;
   appended: number;
+  /** A staging table a failed write left: dropped before the next is loaded. */
+  stagingLeft: boolean;
 }
 
 export class LiveDuckDb {
@@ -172,6 +181,7 @@ export class LiveDuckDb {
         staging: { name: `__live_${table.schema === undefined ? '' : `${table.schema}_`}${table.name}` },
         version: 0,
         appended: 0,
+        stagingLeft: true,
       });
     }
   }
@@ -181,12 +191,24 @@ export class LiveDuckDb {
     return this.#write(() => this.#writer.run(sql, 0));
   }
 
-  /** `count` rows appended to the stream `table`, each column the table's of its name (any it lacks, null). */
+  /** `count` rows appended to the stream `table`, each column the table's of its name (any it lacks, null): straight in
+   *  when they are the table's declared columns in its order (LiveTable.columns), else through its staging table. */
   async append(table: string, count: number, rows: LiveRows): Promise<number> {
     const state = this.#state(table, 'stream');
-    const columns = Object.keys(rows).map((name) => ({ target: name, from: name }));
+    const names = Object.keys(rows);
+    const declared = state.table.columns;
+    if (declared !== undefined && declared.length === names.length && declared.every((c, i) => c === names[i])) {
+      return this.#write(async () => {
+        await this.#writer.loadArrow({ ...(state.table.schema === undefined ? {} : { schema: state.table.schema }), table: table, append: true },
+          once(arrowIpcStream(count, rows)));
+        state.appended += count;
+        this.#changed(state, count);
+        return count;
+      });
+    }
+    const columns = names.map((name) => ({ target: name, from: name }));
     return this.#write(async () => {
-      const written = await this.#staged(state, arrowIpcStream(count, rows), `append ${table} ${Object.keys(rows).join(',')}`,
+      const written = await this.#staged(state, arrowIpcStream(count, rows), `append ${table} ${names.join(',')}`,
         { op: 'insert', target: state.target, columns, from: { relation: state.staging } });
       state.appended += written;
       this.#changed(state, written);
@@ -274,16 +296,19 @@ export class LiveDuckDb {
     return asked;
   }
 
-  /** `ipc` loaded into the table's staging table, then written from it into the table by `write`: the rows written. */
+  /** `ipc` loaded into the table's staging table, then written from it into the table by `write`: the rows written. The
+   *  staging table is dropped after, and before only where a failed write left one. */
   async #staged(state: TableState, ipc: Uint8Array, shape: string, write: HostOperation): Promise<number> {
     const [drop, into] = await this.#statements(shape, [{ op: 'drop', kind: 'table', target: state.staging }, write]);
-    await this.#writer.loadArrow({ table: state.staging.name }, once(ipc), drop ?? []);
+    await this.#writer.loadArrow({ table: state.staging.name }, once(ipc), state.stagingLeft ? drop ?? [] : []);
+    state.stagingLeft = true;
     try {
       let written: RawTable | undefined;
       for (const sql of into ?? []) written = await this.#writer.run(sql, 0);
       return Number(written?.columns[0]?.values[0] ?? 0);
     } finally {
       for (const sql of drop ?? []) await this.#writer.run(sql, 0);
+      state.stagingLeft = false;
     }
   }
 
@@ -447,7 +472,7 @@ export class DuckDbLiveReader implements LiveReader {
 
 /** A connection of the database's, its session set up. */
 async function connected(options: LiveDuckDbOptions): Promise<DuckDbEngine> {
-  const engine = new DuckDbEngine(await options.connect());
+  const engine = await options.connect();
   for (const statement of options.setup ?? []) await engine.run(statement, 0);
   return engine;
 }

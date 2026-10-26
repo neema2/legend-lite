@@ -56,6 +56,9 @@ export interface MarketSettings {
   readonly clock?: () => number;
   /** false: no timers, the caller beats and flushes -- a test */
   readonly timer?: boolean;
+  /** false: the world beats on its timer, but its caller writes its rows (`flush`) -- a live engine's cycle, which
+   *  writes and then refreshes (live-market.ts) */
+  readonly flushes?: boolean;
 }
 
 /** Where the world's rows go: a table's rows (one write: a stream's appended, a keyed table's upserted, the reference
@@ -199,7 +202,7 @@ export class MarketWorld {
     await world.flush();
     if (settings.timer !== false) {
       world.#timers.push(setInterval(() => world.beat(), settings.beatMs ?? 50));
-      world.#timers.push(setInterval(() => { void world.flush(); }, settings.flushMs ?? 250));
+      if (settings.flushes !== false) world.#timers.push(setInterval(() => { void world.flush(); }, settings.flushMs ?? 250));
     }
     return world;
   }
