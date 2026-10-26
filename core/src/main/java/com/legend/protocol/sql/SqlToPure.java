@@ -1229,7 +1229,37 @@ public final class SqlToPure {
         ValueSpecification relation = source.relation();
         SqlAst.Expr where = tsql != null ? tsql.where() : s.where();
         if (where != null) {
-            relation = call("filter", relation, lambda(row, condition(where, input, "WHERE")));
+            List<SqlAst.Expr> mine = new ArrayList<>();
+            try {
+                ValueSpecification kept;
+                try {
+                    kept = condition(where, input, "WHERE");
+                } catch (SqlTranslationException tooLarge) {
+                    // (not in a subquery an enclosing query's columns may reach: its WHERE is the resolver's to
+                    // decorrelate, and is refused as before)
+                    if (!tooLarge.pastSizeBound() || env.outer() != null) {
+                        throw tooLarge;
+                    }
+                    // the IQ scale program, 2026-10-26 (TPC-DS's Q4: CASE WHEN a.t > 0 THEN b.t / a.t ELSE NULL END >
+                    // CASE WHEN c.t > 0 THEN d.t / c.t ELSE NULL END, two long divisions each read three times by the
+                    // comparison, past the size bound): each conjunct's long operands are computed once, a column
+                    // before the filter, where the conjuncts before it hold (NULL elsewhere, where the WHERE drops the
+                    // row anyway), then the condition is translated again; past the bound still, it is refused as
+                    // before
+                    List<ColSpec> pre = new ArrayList<>();
+                    hoistConjuncts(where, input, pre, mine);
+                    if (pre.isEmpty()) {
+                        throw tooLarge;
+                    }
+                    for (ColSpec c : pre) {
+                        relation = call("extend", relation, new ColSpecArray(List.of(c)));
+                    }
+                    kept = condition(where, input, "WHERE");
+                }
+                relation = call("filter", relation, lambda(row, kept));
+            } finally {
+                mine.forEach(hoisted::remove);
+            }
         }
         if (setFunction != null && !s.from().isEmpty()) {
             // a select list's set-returning function reads the rows WHERE keeps, as in Postgres; * lists FROM's
@@ -3844,6 +3874,56 @@ public final class SqlToPure {
                     null));
             hoisted.put(c, Col.of(column, ct.kind(), true, ct.detail()));
             mine.add(c);
+        }
+    }
+
+    /** {@code where}'s top-level conjuncts' long operands ({@link #eagerOperands}), each a column {@code pre} computes
+     *  over the filtered relation's row where the conjuncts before it hold, NULL elsewhere (bottom up, so each reads the
+     *  ones below it, and each later conjunct's test reads the earlier ones' columns); each noted in {@code mine}. */
+    private void hoistConjuncts(SqlAst.Expr where, Scope scope, List<ColSpec> pre, List<SqlAst.Expr> mine) {
+        List<SqlAst.Expr> conjuncts = new ArrayList<>();
+        java.util.ArrayDeque<SqlAst.Expr> todo = new java.util.ArrayDeque<>();
+        todo.push(where);
+        while (!todo.isEmpty()) {
+            SqlAst.Expr e = todo.pop();
+            if (e instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.AND) {
+                todo.push(b.right());
+                todo.push(b.left());
+            } else {
+                conjuncts.add(e);
+            }
+        }
+        Set<String> taken = taken();
+        for (int i = 0; i < conjuncts.size(); i++) {
+            ValueSpecification before = null;
+            for (SqlAst.Expr c : eagerOperands(conjuncts.get(i))) {
+                if (hoisted.containsKey(c)) {
+                    continue;
+                }
+                Tx ct;
+                try {
+                    ct = tx(c, scope, row);
+                } catch (SqlTranslationException notAlone) {
+                    continue;
+                }
+                if (ct.kind() == Kind.BOOLEAN || ct.kind() == Kind.NULL || written(ct.vs()) < BOUND_OPERAND) {
+                    continue;
+                }
+                if (before == null) {
+                    // the conjuncts before it as the WHERE reads them, nested, so that none is computed where an
+                    // earlier one stops the row
+                    before = new CBoolean(true);
+                    for (int j = i - 1; j >= 0; j--) {
+                        before = call("if", condition(conjuncts.get(j), scope, "WHERE"), thunk(before),
+                                thunk(new CBoolean(false)));
+                    }
+                }
+                String column = fresh(taken);
+                pre.add(new ColSpec(column, lambda(row, i == 0 ? valueOf(ct) : call("if", before, thunk(valueOf(ct)),
+                        thunk(empty()))), null, null));
+                hoisted.put(c, Col.of(column, ct.kind(), i > 0 || ct.nullable(), ct.detail()));
+                mine.add(c);
+            }
         }
     }
 

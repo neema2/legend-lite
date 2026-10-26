@@ -2867,10 +2867,23 @@ final class IqFunctions {
             return null;
         }
         ValueSpecification ax = SqlToPure.call("abs", x);
-        ValueSpecification q0 = whole(ax, y, pow10(whole1));
-        ValueSpecification rest = AppliedFunction.infixRun("minus", List.of(ax, times(q0, y)));
         // (y at that scale whatever its type: a count's is an integer's)
         ValueSpecification divisor = atScale(y, m);
+        ValueSpecification q0;
+        ValueSpecification rest;
+        if (38 - s <= 15 && whole1 + m <= 38) {
+            // the IQ scale program, 2026-10-26 (TPC-DS's Q4, two growth ratios compared, past the size bound): where
+            // the quotient's whole part is refused from 10^(38 - s), at most 10^15, the first rest is the remainder of
+            // |x| by y too, and the whole part that difference by y as a double finds it, rounded: exact below 10^15,
+            // and at least 10^(38 - s) wherever the true one is, so the refusal below reads it alike
+            rest = SqlToPure.call("rem", s1 < m ? atScale(ax, m) : ax, divisor);
+            q0 = SqlToPure.call("toDecimal", SqlToPure.call("floor", AppliedFunction.infixRun("plus", List.of(
+                    SqlToPure.call("divide", AppliedFunction.infixRun("minus", List.of(ax, rest)), y),
+                    new CFloat(0.5)))));
+        } else {
+            q0 = whole(ax, y, pow10(whole1));
+            rest = AppliedFunction.infixRun("minus", List.of(ax, times(q0, y)));
+        }
         ValueSpecification result = q0;
         int done = 0;
         while (done < s) {

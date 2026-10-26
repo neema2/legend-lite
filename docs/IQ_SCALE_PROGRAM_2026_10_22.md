@@ -883,3 +883,14 @@ says so.
     aggregate, IQ's -156 (lite says so). LIST(DISTINCT x ORDER BY x) of a non-key stays refused: the platform's
     group-lambda aggregate carries an ORDER BY or a DISTINCT, not both (GroupLambdaAggs), and Postgres orders a
     DISTINCT aggregate only by its argument.
+  - **A WHERE's long compared operands computed once** (the Mac's re-judge at 29eb033b: TPC-DS's Q4 PASS -> refused
+    at 62,032 nodes, tpch-6646 and tpch-671 too): under IQ's engine a comparison reads each operand three times (its
+    NULL tests and its value: every operand computed, Q30), so Q4's `CASE WHEN a.t > 0 THEN b.t / a.t ELSE NULL END >
+    CASE WHEN c.t > 0 THEN d.t / c.t ELSE NULL END`, two long divisions, passed the bound. As a select item's and a
+    JOIN ON's already are, a WHERE past the bound now has each top-level conjunct's long operands computed once, a
+    column extended before the filter, where the conjuncts before it hold (NULL elsewhere, where the WHERE drops the
+    row anyway, so nothing raises where the conjuncts would not have reached it; not in a correlated subquery, the
+    resolver's to decorrelate), then is translated again. tpch-6646's and tpch-671's shapes translate at 104534ff
+    already (the linear long division). And where a quotient's whole part is refused from 10^(38 - s) <= 10^15
+    (scales of 23 and up: TPC-H's ratios of NUMERIC(36,4) sums), the long division's first rest is the remainder of
+    |x| by y and its whole part that difference by y as a double rounds it, in place of whole()'s three estimates.
