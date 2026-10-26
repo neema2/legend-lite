@@ -141,6 +141,49 @@ What it says:
 - **Start.** The market's own start is 7-9 s at 25-100k, of which the planner's writing the tables' DDL is 6.5-7.6 s
   (the whole trading model compiled for it): over its 5 s budget, and a planner cost, not DuckDB's.
 
+### Stage A, with the round-trip fixes (2026-10-26)
+
+The fixes the baseline called for: a connection that reads each result whole (`DuckDbEngine` `whole`: one round trip a
+statement); a stream's batch of its declared columns appended straight in (Arrow, by position, its columns checked);
+the staging table dropped beforehand only after a failure; one cycle (written, then refreshed). Same matrix, 25k and
+100k (p95, ms):
+
+| tape | tab | refresh p50/p95 | write | click | tick | in use | alone: write ms/trips | alone: refresh ms/trips |
+|---|---|---|---|---|---|---|---|---|
+| 25k | Markets | 60/89 | 77 | 9 | 123 | 41% | 63/15 | 51/16 |
+| 25k | Blotter | 68/89 | 71 | 10 | 126 | 40% | 54/15 | 65/14 |
+| 25k | P&L and risk | 75/102 | 73 | 10 | 148 | 51% | 51/15 | 76/12 |
+| 25k | FX | 51/68 | 71 | 8 | 105 | 36% | 66/15 | 61/17 |
+| 25k | Crypto | 139/180 | 74 | 22 | 204 | 70% | 53/15 | 151/20 |
+| 25k | Options | 356/421 | 78 | 55 | 452 | 82% | 57/15 | 349/12 |
+| 25k | Stock | 620/731 | 83 | 297 | 772 | 85% | 65/15 | 605/16 |
+| 25k | News | 285/420 | 77 | 255 | 456 | 70% | 63/15 | 286/4 |
+| 25k | Order flow | 371/506 | 84 | 246 | 475 | 52% | 74/15 | 397/16 |
+| 25k | TCA | 568/634 | 92 | 94 | 640 | 83% | 65/15 | 555/13 |
+| 100k | Markets | 56/76 | 81 | 9 | 119 | 42% | 52/15 | 56/16 |
+| 100k | Blotter | 71/91 | 77 | 11 | 133 | 44% | 63/15 | 82/14 |
+| 100k | P&L and risk | 79/109 | 80 | 11 | 157 | 53% | 67/15 | 80/12 |
+| 100k | FX | 53/76 | 77 | 9 | 119 | 38% | 67/15 | 56/17 |
+| 100k | Crypto | 339/497 | 82 | 111 | 493 | 76% | 66/15 | 351/20 |
+| 100k | Options | 377/449 | 90 | 56 | 490 | 83% | 63/15 | 378/12 |
+| 100k | Stock | 11637 | 196 | 6365 | 11724 | 97% | 80/15 | 9064/16 |
+| 100k | News | 4331/4535 | 134 | 4169 | 4595 | 97% | 72/15 | 4708/4 |
+| 100k | Order flow | 1687/1986 | 96 | 1512 | 1926 | 87% | 64/15 | 1485/16 |
+| 100k | TCA | 1502/1620 | 101 | 249 | 1670 | 93% | 68/15 | 1368/13 |
+
+Every grid's run at its tick answered from the kept results now (none run twice). The light tabs hold at 100k: a tick
+~120-160 ms, a click ~10 ms. Writes are 15 round trips (from 49), ~50-80 ms alone -- still over their 30 ms budget.
+
+Each tab's queries alone, the slowest (100k): **Stock**'s prints grid 4.6 s (16k rows) and its price chart 4.4 s (29
+rows); **News**' prints grid 4.0 s; **Order flow**'s time and sales 1.0 s (the whole tape, 104k rows, to the grid);
+**TCA**'s every tile ~0.2 s (its markouts); Crypto's price chart 0.15 s; every other tile under 0.1 s.
+
+**The cause of Stock and News: the DuckDB dialect's EMA is quadratic.** `DuckDb.windowCall` writes lite's `ema` as
+`list_reduce(list(price) OVER (... ROWS UNBOUNDED PRECEDING ...), ...)`: each print's whole history rebuilt as a list
+and folded -- quadratic in time and in memory (Stock's chart 273 ms at 25k, 4.4 s at 100k; 250k's out-of-memory). Not
+the live layer's: a DuckDB grid of the STOCK source over a long tape pays it once, the live one every refresh.
+Deephaven computes the same `ema` incrementally (updateBy), which is why the desk on Deephaven was fine.
+
 ## 3. Incremental views, when measured
 
 ClickHouse's lesson (its insert-triggered materialized views, aggregate states that merge): an append-only table's
