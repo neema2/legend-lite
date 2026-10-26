@@ -101,14 +101,17 @@ OPERATIONS = [
            SELECT o.id, o.status, SUM(oi.quantity * oi.unit_price - COALESCE(oi.line_discount, 0)) + o.shipping_fee AS due
            FROM orders o JOIN order_items oi ON oi.order_id = o.id
            GROUP BY o.id, o.status, o.shipping_fee),
-         paid AS (SELECT order_id, SUM(amount) AS paid, COUNT(*) AS payments FROM payments GROUP BY order_id)
-         SELECT w.id, w.status, w.due, COALESCE(p.paid, 0) AS paid, COALESCE(p.payments, 0) AS payments,
-           w.due - COALESCE(p.paid, 0) AS balance,
-           CASE WHEN p.paid IS NULL THEN 'unpaid' WHEN ABS(w.due - p.paid) < 0.01 THEN 'settled'
-                WHEN p.paid > w.due THEN 'overpaid' ELSE 'partial' END AS state
-         FROM owed w LEFT JOIN paid p ON p.order_id = w.id
-         WHERE w.status <> 'cancelled' AND (p.paid IS NULL OR ABS(w.due - p.paid) >= 0.01)
-         ORDER BY w.id"""),
+         paid AS (SELECT order_id, SUM(amount) AS paid, COUNT(*) AS payments FROM payments GROUP BY order_id),
+         settled AS (
+           SELECT w.id, w.status, w.due, COALESCE(p.paid, 0) AS paid, COALESCE(p.payments, 0) AS payments,
+                  w.due - COALESCE(p.paid, 0) AS balance,
+                  CASE WHEN p.paid IS NULL THEN 'unpaid' WHEN ABS(w.due - p.paid) < 0.01 THEN 'settled'
+                       WHEN p.paid > w.due THEN 'overpaid' ELSE 'partial' END AS state
+           FROM owed w LEFT JOIN paid p ON p.order_id = w.id)
+         SELECT id, status, due, paid, payments, balance, state
+         FROM settled
+         WHERE status <> 'cancelled' AND state <> 'settled'
+         ORDER BY id"""),
     ("ticket_sla_breaches_by_agent",
      """WITH timed AS (
            SELECT t.agent_id, t.priority,
@@ -131,14 +134,14 @@ OPERATIONS = [
     ("exchange_rate_feed_gaps",
      """WITH feed AS (
            SELECT currency, rate_date, usd_rate,
-                  LAG(rate_date) OVER (PARTITION BY currency ORDER BY rate_date) AS prior_date,
-                  LAG(usd_rate) OVER (PARTITION BY currency ORDER BY rate_date) AS prior_rate
+                  LAG(rate_date) OVER (PARTITION BY currency ORDER BY rate_date, id) AS prior_date,
+                  DATEDIFF(DAY, LAG(rate_date) OVER (PARTITION BY currency ORDER BY rate_date, id), rate_date) AS days_between,
+                  CAST(100 * (usd_rate - LAG(usd_rate) OVER (PARTITION BY currency ORDER BY rate_date, id))
+                       / NULLIF(LAG(usd_rate) OVER (PARTITION BY currency ORDER BY rate_date, id), 0) AS NUMERIC(7,3)) AS change_pct
            FROM exchange_rates)
-         SELECT currency, prior_date, rate_date, DATEDIFF(DAY, prior_date, rate_date) AS days_between,
-           CAST(100 * (usd_rate - prior_rate) / prior_rate AS NUMERIC(7,3)) AS change_pct
+         SELECT currency, prior_date, rate_date, days_between, change_pct
          FROM feed
-         WHERE prior_date IS NOT NULL AND (DATEDIFF(DAY, prior_date, rate_date) > 31
-            OR ABS(usd_rate - prior_rate) / prior_rate > 0.02)
+         WHERE days_between IS NOT NULL AND (days_between > 31 OR change_pct > 2 OR change_pct < -2)
          ORDER BY currency, rate_date"""),
     ("second_highest_salary_per_region",
      """SELECT r.name AS region,
@@ -193,9 +196,9 @@ OPERATIONS = [
            FROM ltv)
          SELECT band, COUNT(*) AS customers, SUM(value) AS band_value,
            CAST(100 * SUM(value) / SUM(SUM(value)) OVER () AS NUMERIC(6,2)) AS value_share_pct,
-           CAST(100 * SUM(SUM(value)) OVER (ORDER BY MIN(value) DESC ROWS UNBOUNDED PRECEDING) / SUM(SUM(value)) OVER ()
+           CAST(100 * SUM(SUM(value)) OVER (ORDER BY MIN(value) DESC, band ROWS UNBOUNDED PRECEDING) / SUM(SUM(value)) OVER ()
                 AS NUMERIC(6,2)) AS running_share_pct
-         FROM banded GROUP BY band ORDER BY MIN(value) DESC"""),
+         FROM banded GROUP BY band ORDER BY MIN(value) DESC, band"""),
     ("product_names_normalized",
      """SELECT p.id, p.name,
            UPPER(LEFT(p.category, 1)) || LOWER(SUBSTRING(p.category, 2)) || ' / ' || p.subcategory AS path,
