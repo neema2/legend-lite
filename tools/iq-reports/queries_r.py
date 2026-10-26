@@ -82,6 +82,14 @@ SETS = [
          WHERE o.status <> 'cancelled'
          GROUP BY ROLLUP(p.category, o.channel)
          ORDER BY GROUPING(p.category), p.category, GROUPING(o.channel), o.channel"""),
+    ("revenue_rollup_ordered_by_grouping",
+     """SELECT CASE WHEN GROUPING(p.category) = 1 THEN 'All categories' ELSE p.category END AS category,
+           CASE WHEN GROUPING(o.channel) = 1 THEN 'All channels' ELSE o.channel END AS channel,
+           COUNT(*) AS lines, SUM(oi.quantity * oi.unit_price) AS revenue
+         FROM orders o JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id
+         WHERE o.status <> 'cancelled'
+         GROUP BY ROLLUP(p.category, o.channel)
+         ORDER BY GROUPING(p.category), p.category, GROUPING(o.channel), o.channel"""),
     ("management_chain_two_levels",
      """SELECT e.id, TRIM(e.first_name) || ' ' || TRIM(e.last_name) AS employee, e.title,
            COALESCE(TRIM(m.first_name) || ' ' || TRIM(m.last_name), '(none)') AS manager,
