@@ -905,3 +905,12 @@ says so.
     BIGINT, is a REPEAT's count as a BIGINT is (REPEAT('#', COUNT(c.id))). Moves: census_aggregates/list_distinct and
     m1gaps/list_distinct_of_strings_is_refused REFUSED -> PASS (iq17), reports' region_directory_formatted REFUSED ->
     PASS, on DuckDB and Postgres.
+  - **sa_rowgenerator anywhere moves the statement to the front end** (the Mac's seven probes on IQ 17.1 over
+    ll_employees: e.id + 2147483647 raises the front end's -158 with the generator in the FROM, joined, or only in a
+    WHERE's IN subquery, where IQ's engine widens; DATEADD(DAY, 1, a DATE) is a TIMESTAMP with it, a DATE without):
+    readsRowGenerator reads every query of the statement, no longer its own FROM alone; a TOP in such a statement's
+    subquery is the front end's to read. lite/row_generator_engine (6 cases) on claude/iq-snap to snap. Merged: the
+    REGEXP answers (all 12 as lite predicted on IQ 17.1; SQL Anywhere 17 matches a CHAR(5) unpadded, D-S1), part P's
+    19 (all PASS on DuckDB and Postgres) and the 7-day moving average (SKIP -> PASS). Three part P queries put a
+    raising operation beside OR in a WHERE or ordered a window by too few keys (the parity lints): rewritten on
+    claude/iq-reports 08ac905c, to re-snap.

@@ -1171,7 +1171,15 @@ class IqToPureTest {
         assertTrue(refusal("SELECT id FROM " + T + " WHERE id IN (SELECT 1, 2 FROM DUMMY)").getMessage().contains(
                 "-151"));
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE id IN (SELECT"
-                + " TOP 1 row_num FROM sa_rowgenerator(1, 2) ORDER BY 1)").kind());
+                + " TOP 1 id FROM " + T + " ORDER BY 1)").kind());
+        // the IQ scale program, 2026-10-26 (measured on IQ 17.1: e.id IN (SELECT row_num FROM sa_rowgenerator(1, 3))
+        // raises the front end's -158 for e.id + 2147483647): sa_rowgenerator anywhere, a subquery's included, makes
+        // the whole statement SQL Anywhere's front end's, whose subquery may hold a row limit
+        String generated = "SELECT id FROM " + T + " WHERE id IN (SELECT TOP 1 row_num FROM sa_rowgenerator(1, 2) ORDER"
+                + " BY 1)";
+        assertEquals(IqDialect.Engine.SA, IqDialect.engineOf(IqParser.parse(generated, IqProfile.IQ16_DEFAULT.settings()),
+                IqProfile.IQ16_DEFAULT.settings()));
+        pure(generated);
         // the engine: a subquery reading a table makes the statement the IQ engine's
         assertEquals(IqDialect.Engine.IQ, IqDialect.engineOf(IqParser.parse("SELECT (SELECT id FROM " + T + ") AS x",
                 IqProfile.IQ16_DEFAULT.settings()), IqProfile.IQ16_DEFAULT.settings()));

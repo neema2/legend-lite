@@ -334,18 +334,19 @@ public final class IqDialect implements InputDialect {
                 : store;
     }
 
-    /** Whether the statement's own FROM (its SELECT's, a set operation's branches') reads sa_rowgenerator, the catalog
-     *  store's procedure. The IQ scale program, 2026-10-26 (the realistic reports' part N, measured on IQ 17.1): such a
-     *  statement beside IQ tables is computed by SQL Anywhere's front end -- DATEADD(MONTH, g.row_num - 1,
-     *  CAST('2025-01-01' AS DATE)) joined to employees is its TIMESTAMP, which IQ's engine types a DATE. One in a
-     *  subquery or a derived table only is not measured: IQ's engine, as before. */
+    /** Whether any query of the statement -- its own, a derived table's, a subquery's -- reads sa_rowgenerator, the
+     *  catalog store's procedure. The IQ scale program, 2026-10-26 (the realistic reports' part N, measured on IQ
+     *  17.1): such a statement beside IQ tables is computed by SQL Anywhere's front end -- DATEADD(DAY, 1, a DATE) is
+     *  its TIMESTAMP, which IQ's engine types a DATE, and e.id + 2147483647 its -158, which IQ's engine widens -- the
+     *  generator in its FROM, joined, or only in a WHERE's IN subquery alike (the Mac's seven probes). */
     private static boolean readsRowGenerator(SqlAst.Statement statement) {
-        return switch (statement) {
-            case SqlAst.Select s -> s.from().stream().flatMap(f -> leaves(f).stream()).anyMatch(leaf ->
-                    leaf instanceof SqlAst.TableFunction fn && rowGenerator(fn.name()));
-            case SqlAst.SetOperation o -> readsRowGenerator(o.left()) || readsRowGenerator(o.right());
-            case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
-        };
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s && s.from().stream().flatMap(f -> leaves(f).stream()).anyMatch(leaf ->
+                    leaf instanceof SqlAst.TableFunction fn && rowGenerator(fn.name()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The engine of the store {@code statement}'s tables are in ({@link #engineOf} but for its functions). */

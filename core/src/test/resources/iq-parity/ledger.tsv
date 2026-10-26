@@ -7920,6 +7920,29 @@ lite/options/settings/r8_a_databases_quoted_whole_decimal_is_201@iq17-default	SK
 lite/options/settings/r8_a_querys_value_with_a_plus_is_read@iq16-default	PASS	PASS	PASS
 lite/options/settings/r8_a_querys_value_with_a_plus_is_read@sqla17-default	PASS	PASS	PASS
 lite/options/settings/r8_a_querys_value_with_a_plus_is_read@iq17-default	PASS	PASS	PASS
+lite/regexp/regexp_matches_the_whole_string@iq16-default	PASS	PASS	
+lite/regexp/regexp_matches_the_whole_string@iq17-default	PASS	PASS	
+lite/regexp/regexp_is_anchored_and_case_sensitive@iq16-default	PASS	PASS	
+lite/regexp/regexp_is_anchored_and_case_sensitive@iq17-default	PASS	PASS	
+lite/regexp/regexp_negated_leaves_null_out@iq16-default	PASS	PASS	
+lite/regexp/regexp_negated_leaves_null_out@iq17-default	PASS	PASS	
+lite/regexp/regexp_reads_a_char_padded@iq16-default	PASS	PASS	
+lite/regexp/regexp_reads_a_char_padded@iq17-default	PASS	PASS	
+lite/regexp/regexp_groups_and_alternation@iq16-default	PASS	PASS	
+lite/regexp/regexp_groups_and_alternation@iq17-default	PASS	PASS	
+lite/regexp/regexp_dot_and_counts_over_accents@iq16-default	PASS	PASS	
+lite/regexp/regexp_dot_and_counts_over_accents@iq17-default	PASS	PASS	
+lite/regexp/regexp_classifies_in_a_case@iq16-default	PASS	PASS	
+lite/regexp/regexp_classifies_in_a_case@iq17-default	PASS	PASS	
+lite/regexp/regexp_of_a_concatenation_and_escapes@iq16-default	PASS	PASS	
+lite/regexp/regexp_of_a_concatenation_and_escapes@iq17-default	PASS	PASS	
+lite/regexp/regexp_beside_null@iq16-default	PASS	PASS	
+lite/regexp/regexp_beside_null@iq17-default	PASS	PASS	
+lite/regexp/regexp_counts_by_shape@iq16-default	PASS	PASS	
+lite/regexp/regexp_counts_by_shape@iq17-default	PASS	PASS	
+lite/regexp/regexp_posix_class_is_refused@iq16-default	REFUSED	REFUSED	
+lite/regexp/regexp_posix_class_is_refused@iq17-default	REFUSED	REFUSED	
+lite/regexp/similar_to_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR	
 lite/repeated_names/two_columns_of_one_name@iq16-default	PASS	PASS	
 lite/repeated_names/two_columns_of_one_name@iq17-default	PASS	PASS	
 lite/repeated_names/star_over_a_join@iq17-default	PASS	PASS	
