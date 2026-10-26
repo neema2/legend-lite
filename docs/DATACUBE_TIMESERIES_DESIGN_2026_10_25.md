@@ -358,9 +358,11 @@ rendered by real ECharts (`test/timeseries-echarts.test.ts`); both example pages
   column per line (a split's per value; a band's lower and upper; candles' open, high, low and close); a window kept
   by the database after every value is computed over every date (`seriesQuery`'s clip), so its first values have their
   history.
-- **Candles** (`ohlc(open, high, low, close)`, also `candles`): a candle per period -- each argument a column taken by
-  the period as a candle's is, its first open, highest high, lowest low and last close (`candled`), so a weekly candle
-  of daily rows is right -- drawn by ECharts' candlestick (registered with the rarer kinds, `chart-render-kinds.ts`,
+- **Candles** (`ohlc(open, high, low, close)`, also `candles`): a candle per period -- its four series computed on
+  their sources' own dates (each date's rows taken as a candle's are, `candled`: its first open, highest high, lowest
+  low and last close), then each period of the tile's frequency taking its dates' first open, highest high, lowest low
+  and last close (`candle`), so a weekly candle of daily rows is right, and so is one of a computed series
+  (`ohlc(close / close[SPX], ...)`; its functions run over those dates: a 5 is five of them) -- drawn by ECharts' candlestick (registered with the rarer kinds, `chart-render-kinds.ts`,
   before the tile's chart is made: an ECharts chart takes the layouts it knows as it is made), never read, unmoved by
   compare. The series editor's Candles makes one of a close (`candleOf`: the open, high and low beside it, by name).
 - **The timeseries gallery** (`examples/timeseries-gallery.ts`; the user, 2026-10-25: "a real saved page with multiple

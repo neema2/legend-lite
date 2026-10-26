@@ -207,20 +207,25 @@ const ORD = '__ts_ord';
 const AT = '__ts_at';
 
 /**
- * What every part of one series' query shares: the tile, the source it reads first (its split's), where the window
- * shown starts, its periods' type (the first part's: another's of another type is refused), and its names -- one count,
- * so a column a part adds is named apart from every other part's it may be joined with.
+ * What every part of one series' query shares: the tile, the frequency its periods are of (the tile's; none inside a
+ * candle at a frequency, whose series are read on their sources' own dates), the source it reads first (its split's),
+ * where the window shown starts, its periods' type (the first part's: another's of another type is refused), and its
+ * names -- one count, so a column a part adds is named apart from every other part's it may be joined with.
  */
 interface Shared {
   readonly ts: TimeseriesSpec;
+  readonly grain: TimeGrain | undefined;
   readonly series: TsSeries;
   readonly inputs: TsInputs;
   readonly split: string | undefined;
   readonly first: string;
   readonly anchor: string | undefined;
   periodType: string | undefined;
-  names: number;
+  readonly names: { n: number };
 }
+
+/** A fresh name of the series' query. */
+const freshName = (sh: Shared, what: string): string => `__ts_${what}_${sh.names.n++}`;
 
 /**
  * A PART OF A SERIES' QUERY, written in steps: a relation of one row per line and period -- a column's own rows (its
@@ -263,7 +268,7 @@ class Writer {
   }
 
   fresh(what: string): string {
-    return `__ts_${what}_${this.shared.names++}`;
+    return freshName(this.shared, what);
   }
 
   /** `->extend(~[name: x|body])`. */
@@ -375,7 +380,7 @@ class Writer {
    * the review's Q3: monthly levels annualized by 252.
    */
   perYear(): ValueSpecification {
-    const grain = this.ts.grain;
+    const grain = this.shared.grain;
     if (grain !== undefined) return lit.integer(PERIODS_PER_YEAR[grain]);
     if (this.#perYear === undefined) {
       const hi = this.window('ord_hi', 'max', Writer.read(ORD), 'all');
@@ -438,8 +443,9 @@ const valueColumns = (v: Value): string[] =>
 /** How a candle's four series take each period's rows: its first open, its highest high, its lowest low, its last close. */
 const CANDLE: readonly TsAggregate[] = ['first', 'max', 'min', 'last'];
 
-/** An expression with each candle's (ohlc's) plain columns taken by the period as a candle's are (CANDLE) -- unless one
- *  says how itself (`open[AAPL].first`) -- so a weekly candle is the week's open, high, low and close. */
+/** An expression with each candle's (ohlc's) plain columns taken by their date as a candle's are (CANDLE) -- unless one
+ *  says how itself (`open[AAPL].first`) -- so a day of several rows is its first open, highest high, lowest low and
+ *  last close; a period of the tile's frequency then takes its dates' the same way (`candle`). */
 function candled(e: TsExpr): TsExpr {
   switch (e.kind) {
     case 'call': {
@@ -460,6 +466,17 @@ function matchesSplit(b: Base, src: TsSource, split: string): boolean {
   // or its instrument: `close / close[SPY]` split by sector -- SPY's one line divides every sector's (the second audit's
   // S2: split by SPY's own sector, every other sector's line went)
   return b.where.some((m) => { const c = m.column ?? src.key; return c === split || (src.key !== undefined && c === src.key); });
+}
+
+/** A part's periods' type, the series' (the first part's): another's of another type is refused -- under a frequency
+ *  the tile has, a candle's series read on their own dates (`candle`). */
+function periodTyped(sh: Shared, type: string, alias: string): void {
+  if (sh.periodType === undefined) sh.periodType = type;
+  else if (type !== sh.periodType) {
+    throw new CubeRefusal(sh.grain === undefined && sh.ts.grain !== undefined
+      ? `series ${sh.series.id}'s candle reads ${sh.first}'s dates and ${alias}'s, of another type, on their own dates: read its series from grids of one date type`
+      : `series ${sh.series.id} combines ${sh.first}'s dates with ${alias}'s, of another type: give the tile a frequency (Daily) to read both by day`);
+  }
 }
 
 /**
@@ -483,11 +500,8 @@ function columnPart(sh: Shared, n: Extract<TsExpr, { kind: 'column' }>): Node {
   const match = matched(s, src.key, b.where);
   if (match) conditions.push(match);
   let rel = sourceWithDerived(s).filter(row(and(...conditions)));
-  const { body, type, at } = periodOf(sh.ts.grain, src.date, dateType);
-  if (sh.periodType === undefined) sh.periodType = type;
-  else if (type !== sh.periodType) {
-    throw new CubeRefusal(`series ${sh.series.id} combines ${sh.first}'s dates with ${alias}'s, of another type: give the tile a frequency (Daily) to read both by day`);
-  }
+  const { body, type, at } = periodOf(sh.grain, src.date, dateType);
+  periodTyped(sh, type, alias);
   const seconds = !isDay(dateType);
   const ordRow = `__ts_or`;
   const atRow = `__ts_ar`;
@@ -498,7 +512,7 @@ function columnPart(sh: Shared, n: Extract<TsExpr, { kind: 'column' }>): Node {
   ]);
   const split = sh.split !== undefined && alias === sh.first && !matchesSplit(b, src, sh.split);
   const keys = split ? [sh.split!, PERIOD] : [PERIOD];
-  const names = { fresh: (what: string): string => `__ts_${what}_${sh.names++}` };
+  const names = { fresh: (what: string): string => freshName(sh, what) };
   const value = names.fresh('base');
   const aggs: ColSpec[] = [
     baseAggregate(value, b, ordRow),
@@ -535,7 +549,7 @@ function joined(sh: Shared, nodes: readonly { readonly w: Writer; readonly v: Va
   let left = order[0]!.w;
   for (const right of order.slice(1)) {
     const r = right.w;
-    const fresh = (what: string): string => `__ts_${what}_${sh.names++}`;
+    const fresh = (what: string): string => freshName(sh, what);
     const p = fresh('jp');
     const a = fresh('ja');
     const line = left.split && r.split ? fresh('jl') : undefined;
@@ -590,6 +604,47 @@ function seriesArg(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>, i: number):
   return n;
 }
 
+/**
+ * A CANDLE (ohlc): its four series joined on their dates. At a frequency, each is computed on its sources' own dates
+ * first -- its functions over them, its arithmetic on each one -- and each period then takes the first open, the
+ * highest high, the lowest low and the last close of them, the database's (the review's N4: each column was taken by
+ * the period first, so a candle of `close / 2` weekly was the week's last, four times over, flat).
+ */
+function candle(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
+  const own: Shared = sh.grain === undefined ? sh : { ...sh, grain: undefined, periodType: undefined };
+  const parts = [0, 1, 2, 3].map((i) => seriesArg(own, e, i));
+  const inner = joined(own, parts);
+  const [open, high, low, close] = parts.map((p) => columnOfValue(p.v)) as [string, string, string, string];
+  if (sh.grain === undefined) return { w: inner, v: { open, high, low, close } };
+  // each period of the tile's frequency, of the dates all four have
+  const fine = own.periodType!;
+  const coarse = periodOf(sh.grain, PERIOD, fine);
+  periodTyped(sh, coarse.type, sh.first);
+  const p = freshName(sh, 'cp');
+  const a = freshName(sh, 'ca');
+  const rel = inner.rel
+    .filter(row(and(...[open, high, low, close].map((c) => fn('isNotEmpty', col(c))))))
+    .extend([derive(p, row(coarse.body)), derive(a, row(periodOf(sh.grain, inner.at, fine).at))]);
+  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
+  const v = { open: freshName(sh, 'open'), high: freshName(sh, 'high'), low: freshName(sh, 'low'), close: freshName(sh, 'close') };
+  // the most rows a date's value took one of, and the periods a year a function inside annualized by, carried
+  const rows = inner.rows.map((c) => [c, freshName(sh, 'rows')] as const);
+  const years = inner.years.map((c) => [c, freshName(sh, 'py')] as const);
+  const grouped = rel.groupBy([inner.part, p], [
+    agg(v.open, row(fn('rowMapper', col(open), col(ORD))), y('minBy')),
+    agg(v.high, row(col(high)), y('max')),
+    agg(v.low, row(col(low)), y('min')),
+    agg(v.close, row(fn('rowMapper', col(close), col(ORD))), y('maxBy')),
+    agg(AT, row(col(a)), y('max')),
+    ...[...rows, ...years].map(([from, to]) => agg(to, row(col(from)), y('max'))),
+    agg(ORD, row(col(ORD)), y('max')),
+  ]).rename(p, PERIOD);
+  const w = new Writer(grouped, {
+    part: inner.part, split: inner.split, at: AT, seconds: inner.seconds, rows: rows.map(([, c]) => c), years: years.map(([, c]) => c),
+  }, sh);
+  return { w, v };
+}
+
 function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   const n = (name: string): number => paramOf(e, name) as number;
   const word = (name: string): string => paramOf(e, name) as string;
@@ -615,12 +670,7 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     }
     return { w, v: { column: w.ramped(v, ra, Math.max(size, 2), frame) } };
   }
-  if (e.fn === 'ohlc') {
-    const parts = [0, 1, 2, 3].map((i) => seriesArg(sh, e, i));
-    const w = joined(sh, parts);
-    const [open, high, low, close] = parts.map((p) => columnOfValue(p.v));
-    return { w, v: { open: open!, high: high!, low: low!, close: close! } };
-  }
+  if (e.fn === 'ohlc') return candle(sh, e);
   const x = seriesArg(sh, e, 0);
   const w = x.w;
   const a = columnOfValue(x.v);
@@ -825,7 +875,7 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
   const expr = candled(inlined(series.expr, ts.series));
   const read = sourcesOf(ts, expr);
   if (read.length === 0) throw new CubeRefusal(`series ${series.id} reads no column of a grid`);
-  const sh: Shared = { ts, series, inputs, split: series.split, first: read[0]!, anchor, periodType: undefined, names: 0 };
+  const sh: Shared = { ts, grain: ts.grain, series, inputs, split: series.split, first: read[0]!, anchor, periodType: undefined, names: { n: 0 } };
   const top = write(sh, expr);
   if ('constant' in top) throw new CubeRefusal(`series ${series.id} reads no column of a grid`);
   const w = top.w;

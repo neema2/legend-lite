@@ -233,6 +233,36 @@ describe('a column along the dates', () => {
       /candles are drawn, never read/);
   });
 
+  // the review's N4: a candle of a computed series at a frequency took each period's last of every column first, so
+  // `ohlc(close / 2, ...)` weekly drew flat candles. Its series are computed on their sources' own dates, then each
+  // period's first, highest, lowest and last taken -- a candle of the computed series, the database's
+  it('N4: weekly candles of a computed series: its daily values\' first, highest, lowest and last', async () => {
+    const r = 'close[AAA] / close[BBB]';
+    const ts = spec({ A: `ohlc(${r}, ${r}, ${r}, ${r})` }, { grain: 'week' });
+    const t = await run(seriesQuery(inputs, ts, ts.series[0]!));
+    const weekOf = (d: string): string => {
+      const at = new Date(`${d}T00:00:00Z`);
+      return new Date(at.getTime() - ((at.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
+    };
+    const weeks = [...new Set(DAYS.map(weekOf))];
+    const ratio = AAA.map((a, i) => a / BBB[i]!);
+    const of = (w: string): number[] => ratio.filter((_, i) => weekOf(DAYS[i]!) === w);
+    const got = (name: string): Line => values(t, name).map(num).reverse();
+    assert.deepEqual(values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse(), weeks.map((w) => DAYS.filter((d) => weekOf(d) === w).at(-1)!));
+    close(got(TS_OPEN), weeks.map((w) => of(w)[0]!), 'open', 1e-12);
+    close(got(TS_HIGH), weeks.map((w) => Math.max(...of(w))), 'high', 1e-12);
+    close(got(TS_LOW), weeks.map((w) => Math.min(...of(w))), 'low', 1e-12);
+    close(got(TS_VALUE), weeks.map((w) => of(w).at(-1)!), 'close', 1e-12);
+    // a function inside a candle runs over its sources' dates: a 5-day mean's candle, the week's first, most, least, last
+    const m = 'mean(close[AAA], 5)';
+    const mean5 = rolling(AAA, 5, avg);
+    const mt = await run(seriesQuery(inputs, spec({ A: `ohlc(${m}, ${m}, ${m}, ${m})` }, { grain: 'week' }), spec({ A: `ohlc(${m}, ${m}, ${m}, ${m})` }, { grain: 'week' }).series[0]!));
+    const has = (w: string): number[] => mean5.filter((v, i) => v !== null && weekOf(DAYS[i]!) === w) as number[];
+    const shown = weeks.filter((w) => has(w).length > 0);
+    close(values(mt, TS_HIGH).map(num).reverse(), shown.map((w) => Math.max(...has(w))), 'a mean\'s high', 1e-9);
+    close(values(mt, TS_OPEN).map(num).reverse(), shown.map((w) => has(w)[0]!), 'a mean\'s open', 1e-9);
+  });
+
   it('the grid\'s filter narrows every series', async () => {
     const filtered: TsInputs = new Map([['px', { ...input, filter: { kind: 'condition', column: 'day', operator: 'greaterThanEqual', value: DAYS[30]! } }]]);
     const series = spec({ A: 'close[AAA]' }).series[0]!;

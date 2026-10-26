@@ -192,8 +192,7 @@ of its grids still on the board; the editor's selects sized as the toolbar's; th
 
 ## 9. Follow-ups (not fixed here)
 
-- Q (numbers): `candled` sets a period's aggregate on bare columns
-  alone (`ohlc(close / 2, ...)` weekly draws flat candles, N4); `($A + $B) / 2` is no level (no compare, no level
+- Q (numbers): `($A + $B) / 2` is no level (no compare, no level
   statistics, N6); a month dated at its last row though that row's value is none (N7); the point limit cuts a split's
   lines unevenly (Q12).
 - P (paths): `frame()` pivots and sorts in pandas, no value computed (P6); a date-time range start cut to its day and
@@ -220,3 +219,7 @@ of its grids still on the board; the editor's selects sized as the toolbar's; th
   deciding (`adjust(from, 1, YEARS) <= to`; a leap year's 366 days a year); under a year none, its % change its growth,
   and the statistics say so. Pinned: `timeseries-queries` N3 (a day short of a year, a year to the day, over a leap
   day, two years, compared), `timeseries-view-dom` (the note).
+- N4, candles of a computed series: at a frequency, a candle's four series are computed on their sources' own dates
+  (an inner pass with no frequency: its functions, its arithmetic, its joins), and each period then takes the first
+  open, the highest high, the lowest low and the last close of those dates, the database's (`candle`). Pinned:
+  `timeseries-queries` N4 (a ratio's weekly candles, a 5-day mean's), the weekly-candles and Q9 tests unchanged.
