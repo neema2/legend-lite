@@ -225,6 +225,17 @@ const RELATIONSHIPS: GallerySheet = {
       series: [s('A', 'cov(returns(close[AAPL]), returns(close[MSFT]), 63)', { name: 'Apple, Microsoft', style: { kind: 'area' } })],
       annotations: [...MARKS],
     }),
+    tile('regression', 'A regression: Nvidia on the S&P 500 -- its alpha and R², the hedge ratio and the pair\'s spread, over 6 months', {
+      sources: ON_PRICES,
+      series: [
+        s('A', 'alpha(close[NVDA], close[SPX], 126)', { name: 'Alpha (ann.)' }),
+        s('B', 'r_squared(close[NVDA], close[SPX], 126)', { name: 'R²', pane: 1 }),
+        s('C', 'hedge_ratio(close[MSFT], close[AAPL], 126)', { name: 'Microsoft per Apple', pane: 2 }),
+        s('D', 'residual(close[MSFT], close[AAPL], 126)', { name: 'The pair\'s spread', pane: 3 }),
+      ],
+      panes: [{ height: 1 }, { height: 1 }, { height: 1 }, { height: 1 }],
+      annotations: [{ kind: 'level', value: 0 }, { kind: 'level', value: 0, pane: 3 }],
+    }),
     tile('pair', 'A pair: Apple over Microsoft, and how far it is from its 6-month mean', {
       sources: ON_PRICES,
       series: [

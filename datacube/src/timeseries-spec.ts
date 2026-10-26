@@ -236,7 +236,7 @@ export type TsFunctionName =
   | 'returns' | 'prices' | 'diff' | 'lag' | 'index' | 'rebase' | 'change' | 'percent_change' | 'annualize'
   | 'mean' | 'sum' | 'min' | 'max' | 'range' | 'std' | 'var' | 'zscores' | 'winsorize'
   | 'volatility' | 'drawdown' | 'max_drawdown' | 'sharpe_ratio'
-  | 'correlation' | 'beta' | 'cov'
+  | 'correlation' | 'beta' | 'cov' | 'alpha' | 'r_squared' | 'hedge_ratio' | 'residual'
   | 'bollinger_bands' | 'rsi' | 'ohlc'
   | 'log' | 'exp' | 'sqrt' | 'abs' | 'power' | 'floor' | 'ceil';
 
@@ -278,6 +278,8 @@ export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
   zscores: one(W(0)), winsorize: one(num('limit', 2.5, 0)),
   volatility: one(W(22), RETURN_TYPE), drawdown: one(W(0)), max_drawdown: one(W(0)), sharpe_ratio: one(W(252)),
   correlation: { series: 2, params: [W(63)] }, beta: { series: 2, params: [W(63)] }, cov: { series: 2, params: [W(63)] },
+  alpha: { series: 2, params: [W(63)] }, r_squared: { series: 2, params: [W(63)] }, hedge_ratio: { series: 2, params: [W(63)] },
+  residual: { series: 2, params: [W(63)] },
   bollinger_bands: one(W(20), num('k', 2, 0)), rsi: one(W(14)), ohlc: { series: 4, params: [] },
   log: one(), exp: one(), sqrt: one(), abs: one(), power: one(num('y', 2)), floor: one(num('value', 0)), ceil: one(num('value', 0)),
 };

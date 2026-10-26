@@ -245,6 +245,11 @@ over the series' own rows does.
   the expected shortfall, the average at or below it (the quantile per line joined back beside each return); Calmar the
   growth over the deepest drawdown's depth (a year or more, a drawdown below zero). None of a level at or below zero.
   The panel's tab (Summary, Risk) is a viewing choice, as the zoom is: not saved.
+- **A rolling regression** of the first series on the second, over the dates both have (DataCube's own; gs-quant has
+  beta alone): `alpha` (of the simple returns, the mean less beta times the benchmark's, annualized: Jensen's at a
+  risk-free rate of zero), `r_squared` (the returns' correlation squared), `hedge_ratio` (the least-squares slope of
+  the levels) and `residual` (the level less its fitted value, the spread of a pairs trade -- with `zscores`, its
+  signal). Each from the window's covariance, variance and means, as beta is.
 
 ### 5.4 Proven so far
 

@@ -404,6 +404,27 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close((await line(spec({ A: 'cov(close[AAA], close[BBB], 8)' }))).values, c, 'cov', 1e-7);
   });
 
+  // the expert functions (2026-10-26): a rolling regression of the first on the second, its every figure the database's
+  it('a regression: alpha and R² of the returns, a hedge ratio and the residual of the levels', async () => {
+    const ra = simple(AAA);
+    const rb = simple(BBB);
+    const slope = (p: number[], q: number[]): number => cov(p, q) / sd(q) ** 2;
+    close((await line(spec({ A: 'r_squared(close[AAA], close[BBB], 8)' }))).values,
+      pairs(ra, rb, 8, (p, q) => (cov(p, q) / (sd(p) * sd(q))) ** 2), 'R²', 1e-7);
+    close((await line(spec({ A: 'alpha(close[AAA], close[BBB], 8)' }))).values,
+      pairs(ra, rb, 8, (p, q) => (avg(p) - slope(p, q) * avg(q)) * 252), 'alpha, annualized', 1e-7);
+    close((await line(spec({ A: 'hedge_ratio(close[AAA], close[BBB], 8)' }))).values, pairs(AAA, BBB, 8, slope), 'hedge ratio', 1e-7);
+    close((await line(spec({ A: 'residual(close[AAA], close[BBB], 8)' }))).values,
+      pairs(AAA, BBB, 8, (p, q) => p.at(-1)! - (avg(p) - slope(p, q) * avg(q)) - slope(p, q) * q.at(-1)!), 'residual', 1e-7);
+    // over a calendar period too
+    const start = onBy(DAYS[0]!, 3, 'w');
+    close((await line(spec({ A: 'hedge_ratio(close[AAA], close[BBB], 3w)' }))).values, DAYS.map((d) => {
+      if (d < start) return null;
+      const js = DAYS.map((_, j) => j).filter((j) => DAYS[j]! > backBy(d, 3, 'w') && DAYS[j]! <= d);
+      return slope(js.map((j) => AAA[j]!), js.map((j) => BBB[j]!));
+    }), 'hedge ratio over 3w', 1e-7);
+  });
+
   it('a series read by another: $A', async () => {
     const ts = spec({ A: 'close[AAA]', B: 'returns($A)', C: 'volatility($A, 10) - volatility(close[BBB], 10)' });
     close((await line(ts, 'B')).values, simple(AAA), '$A');
@@ -1035,8 +1056,8 @@ describe('a series combining two grids, planned over one model of their tables (
 // tile -- its statistics and its sources' bounds too -- planned by legend-lite's planner and answered by the database: a
 // grid's alone by its own planner, the series across both grids over one model of their tables (openSources), as the
 // tab runs them.
-/** The gallery's series: every function at least once, and the ways to view. */
-const GALLERY_SERIES = 88;
+/** The gallery's series: every function at least once, and the ways to view (92: the regression tile's four, 2026-10-26). */
+const GALLERY_SERIES = 92;
 
 describe('the timeseries examples: every series of every tile, on its own samples', () => {
   const pages = [

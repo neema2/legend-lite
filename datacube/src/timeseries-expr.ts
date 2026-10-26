@@ -198,6 +198,30 @@ const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
     about: 'The sample covariance of the two series as they are, over the last w observations.', gsQuant: 'statistics.cov',
     differs: 'w defaults to 63 observations (gs-quant: every observation)',
   },
+  // a regression of the first on the second over a rolling window (the expert functions, 2026-10-26): DataCube's own
+  alpha: {
+    label: 'Rolling alpha', family: 'Relationships', unit: 'ratio',
+    about: 'The first\'s return above what its beta to the second explains: the mean of its simple returns less beta times '
+      + 'the second\'s, annualized (Jensen\'s, a risk-free rate of zero), over the last w observations.',
+    gsQuant: 'DataCube (econometrics.beta\'s regression)',
+  },
+  r_squared: {
+    label: 'Rolling R²', family: 'Relationships', unit: 'number', bounds: [0, 1],
+    about: 'How much of the first\'s returns the second\'s explain: their correlation squared, over the last w observations.',
+    gsQuant: 'DataCube (econometrics.correlation squared)', aliases: ['rsquared', 'r2'],
+  },
+  hedge_ratio: {
+    label: 'Hedge ratio', family: 'Relationships', unit: 'number',
+    about: 'How many of the second hedge one of the first: the slope of the first\'s levels on the second\'s (least '
+      + 'squares: their covariance over the second\'s variance), over the last w observations.',
+    gsQuant: 'DataCube (statistics.cov over statistics.var)',
+  },
+  residual: {
+    label: 'Regression residual', family: 'Relationships', unit: 'same',
+    about: 'The first less what its rolling regression on the second gives for it: the spread of a pairs trade, '
+      + 'x - (a + b·y) with a and b fitted over the last w observations of the levels.',
+    gsQuant: 'DataCube (a pairs trade\'s spread)', aliases: ['spread'],
+  },
   // technicals
   bollinger_bands: { level: 'keeps',
     label: 'Bollinger bands', family: 'Technicals', unit: 'same', params: { k: 'standard deviations either side' },

@@ -777,23 +777,41 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   const word = (name: string): string => paramOf(e, name) as string;
   const R = Writer.read;
   // the pairs and the candle: each series on its own dates, then joined
-  if (e.fn === 'correlation' || e.fn === 'beta' || e.fn === 'cov') {
+  if (e.fn === 'correlation' || e.fn === 'beta' || e.fn === 'cov' || e.fn === 'alpha' || e.fn === 'r_squared'
+    || e.fn === 'hedge_ratio' || e.fn === 'residual') {
     const a = seriesArg(sh, e, 0);
     const b = seriesArg(sh, e, 1);
-    // gs-quant's correlation and beta read each series' returns, taken on its own dates, then aligned; cov the series
-    const ra = e.fn === 'cov' ? columnOfValue(a.v) : a.w.simple(columnOfValue(a.v));
-    const rb = e.fn === 'cov' ? columnOfValue(b.v) : b.w.simple(columnOfValue(b.v));
+    // gs-quant's correlation and beta read each series' returns, taken on its own dates, then aligned (an alpha and an
+    // R² too); cov, a hedge ratio and a residual the series as they are (a regression of the levels)
+    const levels = e.fn === 'cov' || e.fn === 'hedge_ratio' || e.fn === 'residual';
+    const ra = levels ? columnOfValue(a.v) : a.w.simple(columnOfValue(a.v));
+    const rb = levels ? columnOfValue(b.v) : b.w.simple(columnOfValue(b.v));
     const w = joined(sh, [{ w: a.w, v: { column: ra } }, { w: b.w, v: { column: rb } }]);
     const size = span('w');
     const frame = Writer.frame(size);
     const pair = fn('rowMapper', R(ra), R(rb));
     let v: string;
     if (e.fn === 'correlation') v = w.window('corr', 'corr', pair, frame);
-    else if (e.fn === 'cov') v = w.window('cov', 'covarSample', pair, frame);
+    else if (e.fn === 'r_squared') {
+      const corr = w.window('corr', 'corr', pair, frame);
+      v = w.row('r2', op('times', one(corr), one(corr)));
+    } else if (e.fn === 'cov') v = w.window('cov', 'covarSample', pair, frame);
     else {
+      // the slope of the first on the second over the window (least squares): their covariance over its variance
       const cov = w.window('cov', 'covarSample', pair, frame);
       const variance = w.window('var', 'varianceSample', R(rb), frame);
-      v = w.ratio('beta', one(cov), variance);
+      const slope = w.ratio(e.fn === 'beta' ? 'beta' : 'slope', one(cov), variance);
+      if (e.fn === 'beta' || e.fn === 'hedge_ratio') v = slope;
+      else {
+        // its intercept, the first's mean less the slope times the second's, over the same window (pairs: on the dates
+        // both have, so both means are over the window's pairs)
+        const ma = w.window('mean', 'average', R(ra), frame);
+        const mb = w.window('mean', 'average', R(rb), frame);
+        const intercept = op('minus', one(ma), op('times', one(slope), one(mb)));
+        v = e.fn === 'alpha'
+          ? w.row('alpha', op('times', intercept, w.perYear()))
+          : w.row('resid', op('minus', one(ra), op('plus', intercept, op('times', one(slope), one(rb)))));
+      }
     }
     return { w, v: { column: w.ramped(v, ra, atLeast(size, 2), frame) } };
   }
