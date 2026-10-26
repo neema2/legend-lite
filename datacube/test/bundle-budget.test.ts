@@ -336,8 +336,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  a host's grids whose rows change under them (services.ts LiveGrid, the grid maker's follow and tick), a host's own
  *  example pages and an example the address names (#example=), the config's market and the boot's call into it -- the
  *  market itself (its host, its screens, Deephaven's engine) a chunk of its own, fetched only where a market is named;
- *  within the user's sign-off, D9). Measured 363,900. */
-const BUDGET = 364_500;
+ *  within the user's sign-off, D9). Measured 363,900.
+ *  364,500 -> 365,500 (2026-10-26, lazy tabs, docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md: a chart on a sheet not shown
+ *  holds its query until its sheet is shown (ChartPanel held and wake, the page's sheet changes), and a saved page's
+ *  saved query on live rows opens with its saved columns, typed before its grid's first view (sources.ts
+ *  reopenedSavedQuery, CubeAppOptions.prepares); signed off by the user 2026-10-26, D9). Measured 365,291. */
+const BUDGET = 365_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -447,8 +451,9 @@ const BUDGET = 364_500;
  *  347,000 -> 347,500 (2026-10-24, K3's candlestick -- the grid-only page's note of the same date). Measured 347,124.
  *  347,500 -> 349,500 (2026-10-25, K14's stock chart, and the trader screens' steps before it -- the grid-only page's
  *  notes of the same date). Measured 349,124.
- *  349,500 -> 351,500 (2026-10-25, K15's news feed -- the grid-only page's note of the same date). Measured 350,821. */
-const ENGINE_BUDGET = 351_500;
+ *  349,500 -> 351,500 (2026-10-25, K15's news feed -- the grid-only page's note of the same date). Measured 350,821.
+ *  351,500 -> 352,500 (2026-10-26, lazy tabs -- the grid-only page's note of the same date). Measured 351,920. */
+const ENGINE_BUDGET = 352_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -628,8 +633,9 @@ const EXAMPLE_BUDGET = 4_000;
  *  367,000 -> 369,000 (2026-10-25, K14's stock chart -- the grid-only page's note of the same date). Measured 368,547.
  *  369,000 -> 371,000 (2026-10-25, K15's news feed -- the grid-only page's note of the same date). Measured 370,719.
  *  371,000 -> 371,500 (2026-10-25, the trading desk -- the grid-only page's note of the same date: a host's live grids,
- *  a tick held while no sheet shown shows its grid, an example the address names). Measured 371,069. */
-const WIDGET_BUDGET = 371_500;
+ *  a tick held while no sheet shown shows its grid, an example the address names). Measured 371,069.
+ *  371,500 -> 372,500 (2026-10-26, lazy tabs -- the grid-only page's note of the same date). Measured 371,796. */
+const WIDGET_BUDGET = 372_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
